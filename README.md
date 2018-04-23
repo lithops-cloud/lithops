@@ -24,7 +24,7 @@ This documents describes the steps to use PyWren-IBM-Cloud over IBM Cloud Functi
 ## PyWren Setup
 ### Checkout the code 
 
-	https://github.com/pywren/pywren/pywren-ibm-cloud
+	https://github.com/pywren/pywren-ibm-cloud
 
 ### Install pywren
 Navigate into `pywren-ibm-cloud` folder and execute:
@@ -320,6 +320,6 @@ As the current **IBM Watson Studio** runtimes does not contains the **PyWren** p
 try:
     import pywren_ibm_cloud as pywren
 except:
-    !curl -fsSL "https://docs.google.com/uc?export=download&id=10PBhuaPU5YZBpZXm-6I7c12L2qpa40C4" | sh
+    !curl -fsSL "https://raw.githubusercontent.com/pywren/pywren-ibm-cloud/master/install_pywren.sh" | sh
     import pywren_ibm_cloud as pywren
 ```
