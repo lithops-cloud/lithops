@@ -1,0 +1,89 @@
+#!/usr/local/bin/python3
+import click
+import os
+import yaml
+import json
+from pywren_ibm_cloud import wrenconfig
+from pywren_ibm_cloud.storage import storage
+
+
+@click.group()
+def cli():
+    pass
+
+
+
+def create_runtime(image_name):
+    
+    runtime_meta = dict()
+    
+    cmd = "docker run {} python -c 'import pkgutil; \
+                                    mods = list(pkgutil.iter_modules()); \
+                                    print([entry for entry in sorted([[mod, is_pkg] for _,mod,is_pkg in mods])])'".format(image_name)
+ 
+    runtime_meta['preinstalls'] = eval(os.popen(cmd).read().replace('\n', ''))
+    username, appname = image_name.split('/')
+    
+    config = wrenconfig.default()
+    storage_config = wrenconfig.extract_storage_config(config)
+    storage_handler = storage.Storage(storage_config)
+    pywren_container = storage_config['storage_bucket']
+    runtime_name = appname.replace(':', '_')
+    key = os.path.join('runtimes', runtime_name+'.meta.json')
+    
+    cmd = "docker run {} python -c 'import sys; v = sys.version_info; print(str(v[0])+\".\"+str(v[1]))'".format(image_name)
+    runtime_meta['python_ver'] = os.popen(cmd).read().replace('\n', '')
+    
+    storage_handler.put_object(pywren_container, key, json.dumps(runtime_meta))
+    
+    cmd = 'cd ../pywren; cat action_files.lst | zip -@ -FSr ibmcf_pywren.zip -x "*__pycache__*"'
+    res = os.system(cmd)
+    if res != 0:
+        exit()
+    
+    runtime_name = appname.replace(':', '_')
+    cmd = 'bx wsk action update {} --docker {} -m 512 -t 300000 ../pywren/ibmcf_pywren.zip'.format(runtime_name, image_name)
+    res = os.system(cmd)
+    if res != 0:
+        exit()
+
+
+@cli.command('create')
+@click.argument('image_name')
+def create(image_name):
+    
+    print('Creating a new docker image from the Dockerfile')
+    print('Docker image name: {}'.format(image_name))
+
+    cmd = 'docker build -t {} .'.format(image_name)
+    res = os.system(cmd)
+    if res != 0:
+        exit()
+    
+    cmd = 'docker push {}'.format(image_name)
+    res = os.system(cmd)
+    if res != 0:
+        exit()
+        
+    create_runtime(image_name)
+
+    print('All done!')
+   
+ 
+@cli.command('clone')
+@click.argument('image_name')
+def clone(image_name):
+    
+    print('Cloning docker image {}'.format(image_name))
+    
+    cmd = 'docker pull {}'.format(image_name)
+    res = os.system(cmd)
+    if res != 0:
+        exit()
+    
+    create_runtime(image_name)
+
+    print('All done!')
+
+if __name__ == "__main__":
+    cli()
