@@ -22,13 +22,21 @@ This documents describes the steps to use PyWren-IBM-Cloud over IBM Cloud Functi
 * Python 3.6 (preferable) or Python 3.5
 
 ## PyWren Setup
-### Checkout the code 
 
-	https://github.com/pywren/pywren-ibm-cloud
+To install PyWren you can use the installation script or install it manually.
 
-### Install pywren
-Navigate into `pywren-ibm-cloud` folder and execute:
+### Install PyWren using the installation script
 
+Run in a terminal:
+    
+    curl -fsSL "https://raw.githubusercontent.com/pywren/pywren-ibm-cloud/master/install_pywren.sh" | sh
+
+### Install PyWren manually
+
+Clone the repository and run the setup script:
+
+    git clone https://github.com/pywren/pywren-ibm-cloud
+    cd pywren-ibm-cloud/pywren
 	python3 setup.py install 
 	
 This will install PyWren package into your local Python libraries.
