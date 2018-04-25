@@ -10,8 +10,7 @@ PyWren provides great value for the variety of uses cases, like processing data 
 This repository is based on [PyWren](https://github.com/pywren/pywren) main branch and adapted for IBM Cloud Functions and IBM Cloud Object Storage. 
 PyWren for IBM Cloud is based on the Docker images and we also extended PyWren to execute a reduce function, which now enables PyWren to run complete map reduce flows.  In extending PyWren to work with IBM Cloud Object Storage, we also added a partition discovery component that allows PyWren to process large amounts of data stored in the IBM Cloud Object Storage. See [changelog](changelog.md) for more details.
 
-
-This is still a beta version and is rapidly changed so please keep yourself updated. See [changelog](changelog.md) for more details.
+This is still a beta version and is rapidly changed so please keep yourself updated.
 
 This documents describes the steps to use PyWren-IBM-Cloud over IBM Cloud Functions and IBM Cloud Object Storage (COS)
 
@@ -22,16 +21,24 @@ This documents describes the steps to use PyWren-IBM-Cloud over IBM Cloud Functi
 * Python 3.6 (preferable) or Python 3.5
 
 ## PyWren Setup
-### Checkout the code 
 
-	https://github.com/pywren/pywren-ibm-cloud
+### Install PyWren 
 
-### Install pywren
-Navigate into `pywren-ibm-cloud` folder and execute:
+To install PyWren you can use the provided installation script or install it manually. This will install PyWren package into your local Python libraries.
 
+#### Install PyWren using the installation script
+
+Run in a terminal:
+    
+    curl -fsSL "https://raw.githubusercontent.com/pywren/pywren-ibm-cloud/master/install_pywren.sh" | sh
+
+#### Install PyWren manually
+
+Clone the repository and run the setup script:
+
+    git clone https://github.com/pywren/pywren-ibm-cloud
+    cd pywren-ibm-cloud/pywren
 	python3 setup.py install 
-	
-This will install PyWren package into your local Python libraries.
 
 ### Deploy PyWren main runtime
 
