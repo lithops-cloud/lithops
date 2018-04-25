@@ -1,9 +1,13 @@
 # Requirements.txt contains a list of dependencies for the Python Application #
 
 # Setup modules
-flask == 0.12.2
 lxml == 4.2.1
 python-dateutil == 2.7.2
 requests == 2.18.4
 tqdm == 4.23.5
+enum34 == 1.1.6
+PyYAML == 3.12
+glob2 == 0.6
+tblib == 1.3.2
+Click == 6.7
 ibm-cos-sdk == 2.1.0
