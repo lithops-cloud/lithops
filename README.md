@@ -330,3 +330,7 @@ except:
     !curl -fsSL "https://raw.githubusercontent.com/pywren/pywren-ibm-cloud/master/install_pywren.sh" | sh
     import pywren_ibm_cloud as pywren
 ```
+
+## Additional resources
+
+* [Process large data sets at massive scale with PyWren over IBM Cloud Functions](https://www.ibm.com/blogs/bluemix/2018/04/process-large-data-sets-massive-scale-pywren-ibm-cloud-functions/)
