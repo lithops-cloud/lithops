@@ -148,7 +148,10 @@ class ibm_cf_executor(object):
             pw = pywren.ibm_cf_executor()
             return pw.map(func, iterdata)
 
-        if type(iterdata) == list and len(iterdata) > 1 and remote_invocation:
+        if type(iterdata) != list:
+            iterdata = list(iterdata)
+        
+        if len(iterdata) > 1 and remote_invocation:
             map_func = remote_invoker
             map_iterdata = [[iterdata, ]]
         else:
@@ -494,3 +497,7 @@ class ibm_cf_executor(object):
             sys.stdout = sys.__stdout__
         
         self._state = ExecutorState.closed
+        msg="Executor ID {} Finished".format(self.executor_id)
+        logger.info(msg)
+        if(logger.getEffectiveLevel() == logging.WARNING):
+            print(msg)
