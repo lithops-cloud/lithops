@@ -18,6 +18,7 @@ import os
 from pywren_ibm_cloud.cf_connector import CloudFunctions
 
 SOURCE_DIR = os.path.dirname(os.path.abspath(__file__))
+MAX_INVOKE_RETRIES = 5
 
 
 class IBMCloudFunctionsInvoker(object):
@@ -25,7 +26,7 @@ class IBMCloudFunctionsInvoker(object):
     def __init__(self, config):
         self.namespace = config['namespace']
         self.endpoint = config['endpoint']
-        self.pw_action_name = config['action_name']
+        self.pw_action_name = config['action_name']  # Runtime
         self.client = CloudFunctions(config)
 
         self.TIME_LIMIT = True
@@ -34,10 +35,12 @@ class IBMCloudFunctionsInvoker(object):
         """
         Invoke -- return information about this invocation
         """
-        activation_id = self.client.invoke(action_name=self.pw_action_name,
-                                           payload=payload,
-                                           invocation_type='Event')
-        return activation_id
+        act_id = None
+        retries = 0
+        while not act_id and retries < MAX_INVOKE_RETRIES:
+            act_id = self.client.invoke(self.pw_action_name, payload)
+            retries = retries + 1
+        return act_id
 
     def config(self):
         """
