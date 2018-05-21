@@ -45,24 +45,28 @@ class CloudFunctions(object):
         
         self.session = requests.session()
         self.session.headers.update(self.headers)
-        adapter = requests.adapters.HTTPAdapter(pool_maxsize=256, max_retries=3)
+        adapter = requests.adapters.HTTPAdapter(pool_maxsize=256,
+                                                max_retries=2)
         self.session.mount('https://', adapter)
         
-        logger.info('IBM Cloud Functions init for namespace: {}'.format(self.namespace))
-        logger.info('IBM Cloud Functions init for host: {}'.format(self.endpoint))
-        logger.info('IBM Cloud Functions init for runtime: {}'.format(self.runtime))
+        msg = 'IBM Cloud Functions init for'
+        logger.info('{} namespace: {}'.format(msg, self.namespace))
+        logger.info('{} host: {}'.format(msg, self.endpoint))
+        logger.info('{} runtime: {}'.format(msg, self.runtime))
         if(logger.getEffectiveLevel() == logging.WARNING):
-            print("IBM Cloud Functions init for namespace: {} and host: {}".format(self.namespace,self.endpoint))
-            print("IBM Cloud Functions init for runtime: {}".format(self.runtime))
+            print("{} namespace: {} and host: {}".format(msg, self.namespace,
+                                                         self.endpoint))
+            print("{} runtime: {}".format(msg, self.runtime))
         
     def create_action(self, action_name,  memory=None, timeout=None,
                       code=None, is_binary=True, overwrite=True):
         """
         Create an IBM Cloud Function
         """
-
-        logger.info('I am about to create new cloud function action')
-        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'actions', action_name + "?overwrite=" + overwrite)
+        logger.info('I am about to create a new cloud function action')
+        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
+                           self.namespace, 'actions',
+                           action_name + "?overwrite=" + overwrite)
         
         data = {}
         limits = {}
@@ -85,60 +89,67 @@ class CloudFunctions(object):
         Get an IBM Cloud Function
         """
         print ("I am about to get a cloud function action")
-        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'actions', action_name)
+        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
+                           self.namespace, 'actions', action_name)
         res = self.session.get(url, headers=self.headers)
         return res.json()
     
-    def invoke(self, action_name, payload, invocation_type):
+    def invoke(self, action_name, payload):
         """
         Invoke an IBM Cloud Function
         """
-        executor_id = payload['executor_id']
+        exec_id = payload['executor_id']
         call_id = payload['call_id']
-        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'actions', action_name)
-        res = self.session.post(url, json=payload)
-        data = res.json()
+        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
+                           self.namespace, 'actions', action_name)
         
-        if 'activationId' in data:
-            log_msg='Executor ID {} Function {} - Activation ID: {}'.format(executor_id,
-                                                                            call_id,
-                                                                            data["activationId"])
-            logger.info(log_msg)
-            if(logger.getEffectiveLevel() == logging.WARNING):
-                print(log_msg)
-            return data["activationId"]
-        else:
-            print(data)
+        try:
+            res = self.session.post(url, json=payload)
+            data = res.json()
+            if 'activationId' in data:
+                log_msg=('Executor ID {} Function {} - Activation ID: '
+                         '{}'.format(exec_id, call_id, data["activationId"]))
+                logger.info(log_msg)
+                if(logger.getEffectiveLevel() == logging.WARNING):
+                    print(log_msg)
+                return data["activationId"]
+            else:
+                print(data)
+                return None
+        except:
             return None
         
-    def invoke_(self, action_name, payload, invocation_type):
+    def invoke_(self, action_name, payload):
         """
         Invoke an IBM Cloud Function (alternative)
         """
-        executor_id = payload['executor_id']
+        exec_id = payload['executor_id']
         call_id = payload['call_id']
         
-        url = urlparse(os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'actions', action_name))
-        conn = http.client.HTTPSConnection(url.netloc, context=ssl._create_unverified_context())
-        conn.request("POST", url.geturl(), body = json.dumps(payload), headers=self.headers)
-        
-        activation = {}
+        url = urlparse(os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
+                                    self.namespace, 'actions', action_name))
+        ctx = ssl._create_unverified_context()
+        conn = http.client.HTTPSConnection(url.netloc, context=ctx)
+        conn.request("POST", url.geturl(),
+                     body = json.dumps(payload),
+                     headers=self.headers)
+
         try:
             res = conn.getresponse()
             res = res.read()
             data = json.loads(res.decode("utf-8"))
+            conn.close()
+            
+            if 'activationId' in data:
+                log_msg=('Executor ID {} Function {} - Activation ID: '
+                         '{}'.format(exec_id, call_id, data["activationId"]))
+                logger.info(log_msg)
+                if(logger.getEffectiveLevel() == logging.WARNING):
+                    print(log_msg)
+                return data["activationId"]
+            else:
+                print(data)
+                return None
         except:
-            pass
-        
-        conn.close()
-        
-        if 'activationId' in data:
-            log_msg='Executor ID {} Function {} - Activation ID: {}'.format(executor_id,
-                                                                            call_id,
-                                                                            data["activationId"])
-            logger.info(log_msg)
-            if(logger.getEffectiveLevel() == logging.WARNING):
-                print(log_msg)
-            return data["activationId"]
-        else:
-            print(activation)
+            conn.close()
+            return None

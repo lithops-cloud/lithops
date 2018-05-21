@@ -144,9 +144,9 @@ class ibm_cf_executor(object):
             raise Exception('You cannot run pw.map() in the current state.'
                             ' Create a new pywren.ibm_cf_executor() instance.')
 
-        def remote_invoker(iterdata):
+        def remote_invoker(input_data):
             pw = pywren.ibm_cf_executor()
-            return pw.map(func, iterdata)
+            return pw.map(func, input_data)
 
         if type(iterdata) != list:
             iterdata = list(iterdata)
@@ -154,6 +154,7 @@ class ibm_cf_executor(object):
         if len(iterdata) > 1 and remote_invocation:
             map_func = remote_invoker
             map_iterdata = [[iterdata, ]]
+            # map_iterdata = [[iterdata[x:x+200]] for x in range(0, len(iterdata), 200)] 
         else:
             remote_invocation = False
             map_func = func
@@ -171,8 +172,19 @@ class ibm_cf_executor(object):
             msg='Executor ID {} Getting remote invocations'.format(self.executor_id)
             logger.info(msg)
             if(logger.getEffectiveLevel() == logging.WARNING):
-                print(msg)  
+                print(msg)
+                        
             self.futures = self.futures[0].result(storage_handler=self.storage_handler)
+
+            #def fetch_future_results(f):
+            #    f.result(storage_handler=self.storage_handler)
+            #    return f
+            #pool = ThreadPool(32)
+            #pool.map(fetch_future_results, self.futures)
+            #new_futures = [f.result() for f in self.futures if f.done]
+            #self.futures = []
+            #for futures_list in new_futures:
+            #    self.futures.extend(futures_list)
         
         self._state = ExecutorState.map
         
