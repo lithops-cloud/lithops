@@ -66,7 +66,11 @@ def get_server_info():
 
 
 def ibm_cloud_function_handler(event):
+    start_time = time.time()
     logger.info("Starting handler")
+    response_status = {'exception': None}
+    response_status['start_time'] = start_time  
+    storage_handler = None
     
     context_dict = {
         'ibm_cf_request_id' : os.environ.get("__OW_ACTIVATION_ID"),
@@ -83,13 +87,7 @@ def ibm_cloud_function_handler(event):
     
     #print(event)
     #print(os.environ)
-    
-    response_status = {'exception': None}
-    storage_handler = None
-
     try:
-        start_time = time.time()
-        response_status['start_time'] = start_time
         stdout = ""
         storage_backend = event['storage_config']['storage_backend']
 
@@ -118,8 +116,8 @@ def ibm_cloud_function_handler(event):
         response_status['output_key'] = output_key
         response_status['status_key'] = status_key
 
-        free_disk_bytes = free_disk_space("/tmp")
-        response_status['free_disk_bytes'] = free_disk_bytes
+        #free_disk_bytes = free_disk_space("/tmp")
+        #response_status['free_disk_bytes'] = free_disk_bytes
 
         extra_env = event.get('extra_env', {})
         extra_env['PYTHONPATH'] = "{}:{}".format(os.getcwd(), PYWREN_LIBS_PATH)
@@ -212,7 +210,7 @@ def ibm_cloud_function_handler(event):
         response_status['stdout'] = stdout
         response_status['exec_time'] = time.time() - setup_time
         response_status['host_submit_time'] = event['host_submit_time']
-        response_status['server_info'] = get_server_info()
+        #response_status['server_info'] = get_server_info()
         response_status.update(context_dict)
         response_status['end_time'] = time.time()
     except Exception as e:

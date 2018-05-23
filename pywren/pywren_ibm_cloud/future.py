@@ -154,7 +154,7 @@ class ResponseFuture(object):
         if not self.redirections:
             #First execution
             self.start_time = call_status['start_time']
-        total_time = round(call_status['end_time'] - self.start_time, 2)
+        total_time = format(round(call_status['end_time'] - self.start_time, 2), '.2f')
 
         if call_status['exception'] is not None:
             # the wrenhandler had an exception
@@ -162,10 +162,12 @@ class ResponseFuture(object):
             exception_str = call_status['exception']
             exception_args = call_status['exception_args']
 
-            log_msg = 'Executor ID {} Error in {} {} - Time: {} seconds- Result: {}'.format(self.executor_id,
-                                                                                            self.call_id,
-                                                                                            self.activation_id,
-                       str(total_time), exception_args[0]+" "+exception_args[1])
+            log_msg = ('Executor ID {} Error in {} {} - Time: {} '
+                       'seconds- Result: {}'.format(self.executor_id,
+                                                    self.call_id,
+                                                    self.activation_id,
+                                                    str(total_time), 
+                        exception_args[0]+" "+exception_args[1]))
             logger.info(log_msg)
             if verbose and logger.getEffectiveLevel() == logging.WARNING:
                 print(log_msg)
@@ -244,10 +246,11 @@ class ResponseFuture(object):
                 original_call_id = self.call_id
                 original_activation_id = self.activation_id
             
-            log_msg= "Executor ID {} Response from Function {} - Activation ID: {} - Time: {} seconds".format(self.executor_id,
-                                                                                                      original_call_id,
-                                                                                                      original_activation_id,
-                                                                                                      str(total_time))
+            log_msg= ('Executor ID {} Response from Function {} - Activation '
+                      'ID: {} - Time: {} seconds'.format(self.executor_id,
+                                                         original_call_id,
+                                                         original_activation_id,
+                                                         str(total_time)))
             logger.info(log_msg)
             if verbose and logger.getEffectiveLevel() == logging.WARNING:
                 print(log_msg)

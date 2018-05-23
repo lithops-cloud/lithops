@@ -325,8 +325,12 @@ class Executor(object):
 
             # Run reduce function
             func_sig = inspect.signature(function)
-            if 'storage_handler' in func_sig.parameters:    
+            if 'futures' in func_sig.parameters and 'storage_handler' in func_sig.parameters:
+                return function(accum_list, futures=fut_list, storage_handler=storage_handler)
+            if 'storage_handler' in func_sig.parameters:
                 return function(accum_list, storage_handler=storage_handler)
+            if 'futures' in func_sig.parameters:
+                return function(accum_list, futures=fut_list)
             
             return function(accum_list)
 
@@ -387,7 +391,7 @@ class Executor(object):
             """
             Create partitions from bucket/s      
             """
-            logger.info('Creating dataset chunks from a bucket/s ...')
+            logger.info('Creating dataset chunks from bucket/s ...')
             partitions = list()
             
             for entry in map_func_args_list:
@@ -395,8 +399,8 @@ class Executor(object):
                 bucket_name =  entry['bucket']
                 dataset_objects = get_object_list(bucket_name, storage_handler)
                 
-                logger.info('Creating dataset chunks from objects within "{}" \
-                            bucket ...'.format(bucket_name))
+                logger.info('Creating dataset chunks from objects within "{}" '
+                            'bucket ...'.format(bucket_name))
     
                 for obj in dataset_objects:
                     try:

@@ -109,9 +109,9 @@ class CloudFunctions(object):
             resp_time = format(round(resp.elapsed.total_seconds(), 3), '.3f')
             if 'activationId' in data:
                 log_msg=('Executor ID {} Function {} - Activation ID: '
-                         '{} - {} seconds'.format(exec_id, call_id,
-                                                  data["activationId"],
-                                                  resp_time))
+                         '{} - Time: {} seconds'.format(exec_id, call_id,
+                                                        data["activationId"],
+                                                        resp_time))
                 logger.info(log_msg)
                 if(logger.getEffectiveLevel() == logging.WARNING):
                     print(log_msg)
@@ -148,9 +148,9 @@ class CloudFunctions(object):
             
             if 'activationId' in data:
                 log_msg=('Executor ID {} Function {} - Activation ID: '
-                         '{} - {} seconds'.format(exec_id, call_id,
-                                                  data["activationId"],
-                                                  resp_time))
+                         '{} - Time: {} seconds'.format(exec_id, call_id,
+                                                        data["activationId"],
+                                                        resp_time))
                 logger.info(log_msg)
                 if(logger.getEffectiveLevel() == logging.WARNING):
                     print(log_msg)
