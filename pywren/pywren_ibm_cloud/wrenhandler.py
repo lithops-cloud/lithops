@@ -124,8 +124,10 @@ def ibm_cloud_function_handler(event):
         extra_env['PYTHONUNBUFFERED'] = 'True'
 
         call_id = event['call_id']
+        callgroup_id = event['callgroup_id']
         executor_id = event['executor_id']
         response_status['call_id'] = call_id
+        response_status['callgroup_id'] = callgroup_id
         response_status['executor_id'] = executor_id
         
         # pass a full json blob
@@ -207,7 +209,7 @@ def ibm_cloud_function_handler(event):
                     float_value = float(value)
                     response_status[key] = float_value
         
-        response_status['stdout'] = stdout
+        #response_status['stdout'] = stdout
         response_status['exec_time'] = time.time() - setup_time
         response_status['host_submit_time'] = event['host_submit_time']
         #response_status['server_info'] = get_server_info()
