@@ -22,6 +22,7 @@ import ssl
 from urllib.parse import urlparse
 import http.client
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +46,7 @@ class CloudFunctions(object):
         
         self.session = requests.session()
         self.session.headers.update(self.headers)
-        adapter = requests.adapters.HTTPAdapter(pool_maxsize=256,
-                                                max_retries=2)
+        adapter = requests.adapters.HTTPAdapter()
         self.session.mount('https://', adapter)
         
         msg = 'IBM Cloud Functions init for'
@@ -104,11 +104,14 @@ class CloudFunctions(object):
                            self.namespace, 'actions', action_name)
         
         try:
-            res = self.session.post(url, json=payload)
-            data = res.json()
+            resp = self.session.post(url, json=payload)
+            data = resp.json()
+            resp_time = format(round(resp.elapsed.total_seconds(), 3), '.3f')
             if 'activationId' in data:
                 log_msg=('Executor ID {} Function {} - Activation ID: '
-                         '{}'.format(exec_id, call_id, data["activationId"]))
+                         '{} - Time: {} seconds'.format(exec_id, call_id,
+                                                        data["activationId"],
+                                                        resp_time))
                 logger.info(log_msg)
                 if(logger.getEffectiveLevel() == logging.WARNING):
                     print(log_msg)
@@ -119,7 +122,7 @@ class CloudFunctions(object):
         except:
             return None
         
-    def invoke_(self, action_name, payload):
+    def internal_invoke(self, action_name, payload):
         """
         Invoke an IBM Cloud Function (alternative)
         """
@@ -130,19 +133,24 @@ class CloudFunctions(object):
                                     self.namespace, 'actions', action_name))
         ctx = ssl._create_unverified_context()
         conn = http.client.HTTPSConnection(url.netloc, context=ctx)
-        conn.request("POST", url.geturl(),
-                     body = json.dumps(payload),
-                     headers=self.headers)
 
         try:
-            res = conn.getresponse()
-            res = res.read()
-            data = json.loads(res.decode("utf-8"))
+            start = time.time()
+            conn.request("POST", url.geturl(),
+                     body = json.dumps(payload),
+                     headers=self.headers)
+            resp = conn.getresponse()
+            data = resp.read()
+            roundtrip = time.time() - start
+            resp_time = format(round(roundtrip, 3), '.3f')
+            data = json.loads(data.decode("utf-8"))
             conn.close()
             
             if 'activationId' in data:
                 log_msg=('Executor ID {} Function {} - Activation ID: '
-                         '{}'.format(exec_id, call_id, data["activationId"]))
+                         '{} - Time: {} seconds'.format(exec_id, call_id,
+                                                        data["activationId"],
+                                                        resp_time))
                 logger.info(log_msg)
                 if(logger.getEffectiveLevel() == logging.WARNING):
                     print(log_msg)

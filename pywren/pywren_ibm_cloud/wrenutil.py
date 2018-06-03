@@ -35,8 +35,6 @@ def create_callgroup_id(lenght=8):
 
 def timeout_handler(signum, frame):
     raise TimeoutError()
-        
-SOURCE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 class WrappedStreamingBody(object):
