@@ -220,3 +220,6 @@ class Storage(object):
         runtime_meta = json.loads(json_str.decode("ascii"))
         
         return runtime_meta
+
+    def get_list_paginator(self, bucket, prefix=''):
+        return self.backend_handler.list_paginator(bucket, prefix)

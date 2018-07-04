@@ -15,19 +15,20 @@
 #
 
 from pywren_ibm_cloud.storage import storage
-import json
+import logging
 import sys
 import os
 
+logger = logging.getLogger(__name__)
 
 def clean_bucket(bucket, prefix, storage_config):
-    storage_handler = storage.Storage(json.loads(storage_config))
+    storage_handler = storage.Storage(storage_config)
     sys.stdout = open(os.devnull, 'w')
     clean_os_bucket(bucket, prefix, storage_handler)
     sys.stdout = sys.__stdout__
 
 def clean_os_bucket(bucket, prefix, storage_handler):
-    print("Going to delete all objects from bucket '{}' and prefix '{}'".format(bucket, prefix))
+    logger.info("Going to delete all objects from bucket '{}' and prefix '{}'".format(bucket, prefix))
     total_objects = 0
     objects_to_delete = storage_handler.list_objects(bucket, prefix)
     
@@ -38,8 +39,8 @@ def clean_os_bucket(bucket, prefix, storage_handler):
         elif 'name' in objects_to_delete[0]:
             # Swift API
             delete_keys = [obj['name'] for obj in objects_to_delete]
-        print('{} objects found'.format(len(delete_keys)))
+        logger.debug('{} objects found'.format(len(delete_keys)))
         total_objects = total_objects + len(delete_keys)
         storage_handler.delete_objects(bucket, delete_keys)
         objects_to_delete = storage_handler.list_objects(bucket, prefix)
-    print('Finished deleting objects, total found: {}'.format(total_objects))
+    logger.info('Finished deleting objects, total found: {}'.format(total_objects))

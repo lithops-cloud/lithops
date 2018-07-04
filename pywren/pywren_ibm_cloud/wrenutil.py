@@ -166,6 +166,19 @@ def split_s3_url(s3_url):
     key = "/".join(splits[1:])
     return bucket_name, key
 
+def split_path(path):
+
+    if (path.startswith("/")):
+        path = path[1:]
+    ind = path.find("/")
+    if (ind > 0):
+        bucket_name = path[:ind]
+        key = path[ind + 1:]
+    else:
+        bucket_name = path
+        key = None
+    return bucket_name, key
+
 
 def verify_args(func, data, object_processing=False):
     # Verify parameters
@@ -178,6 +191,7 @@ def verify_args(func, data, object_processing=False):
         err_msg = 'parameter in your map_function() is mandatory for pywren.map_reduce(map_function,...)'
         if 'bucket' in func_sig.parameters:
             none_verify_parameters.append('key')
+            none_verify_parameters.append('prefix')
             if 'key' not in func_sig.parameters:
                 raise ValueError('"key" {}'.format(err_msg))
             if 'data_stream' not in func_sig.parameters:

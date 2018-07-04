@@ -184,12 +184,30 @@ class COSBackend(object):
         :return: Data of the object
         :rtype: str/bytes
         """
+        logger.info("list objects for bucket {} prefix {}".format(bucket_name, prefix))
         try:
-            metadata = self.cos_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+            if (prefix is not None):
+                metadata = self.cos_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+            else:
+                metadata = self.cos_client.list_objects_v2(Bucket=bucket_name)
             if 'Contents' in metadata: 
                 return metadata['Contents']
             else:
                 return None
+        except ibm_botocore.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == '404':
+                raise StorageNoSuchKeyError(bucket_name)
+            else:
+                raise e
+
+    def list_paginator(self, bucket_name, prefix):
+        paginator = self.cos_client.get_paginator('list_objects_v2')
+        try:
+            if (prefix is not None):
+                page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
+            else:
+                page_iterator = paginator.paginate(Bucket=bucket_name)
+            return page_iterator
         except ibm_botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == '404':
                 raise StorageNoSuchKeyError(bucket_name)

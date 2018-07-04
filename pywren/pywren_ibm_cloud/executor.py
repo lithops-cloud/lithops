@@ -96,7 +96,7 @@ class Executor(object):
 
         if extra_meta is not None:
             # sanity
-            for k, v in extra_meta.iteritems():
+            for k, v in extra_meta.items():
                 if k in arg_dict:
                     raise ValueError("Key {} already in dict".format(k))
                 arg_dict[k] = v
@@ -367,7 +367,8 @@ class Executor(object):
                 fileobj = resp.raw
             elif 'key' in map_func_args:
                 # it is a COS key
-                bucket, object_name = map_func_args['key'].split('/', 1)   
+                bucket = map_func_args['bucket']
+                object_name = map_func_args['key']
                 fileobj = storage_handler.get_object(bucket, object_name, stream=True,
                                                      extra_get_args=extra_get_args)   
                 # fileobj = wrenutil.WrappedStreamingBody(stream, obj_chunk_size, chunk_threshold)
@@ -377,15 +378,14 @@ class Executor(object):
                 return map_function(**map_func_args, data_stream=fileobj, storage_handler=storage_handler)
             return map_function(**map_func_args, data_stream=fileobj)
 
-        def get_object_list(bucket_name, storage_handler):
+        def get_object_list(bucket_name, storage_handler, prefix):
             """
             This function returns the objects inside a given bucket
             """
             if not storage_handler.bucket_exists(bucket_name):
                 raise ValueError('Bucket you provided does not exists: \
                                  {}'.format(bucket_name))
-
-            return storage_handler.list_objects(bucket_name)
+            return storage_handler.get_list_paginator(bucket_name, prefix)
         
         def split_objects_from_bucket(map_func_args_list, chunk_size, storage_handler):
             """
@@ -396,42 +396,44 @@ class Executor(object):
             
             for entry in map_func_args_list:
                 # Each entry is a bucket
-                bucket_name =  entry['bucket']
-                dataset_objects = get_object_list(bucket_name, storage_handler)
+                bucket_name, prefix =  wrenutil.split_path(entry['bucket'])
+                page_iterator = get_object_list(bucket_name, storage_handler, prefix)
                 
                 logger.info('Creating dataset chunks from objects within "{}" '
                             'bucket ...'.format(bucket_name))
-    
-                for obj in dataset_objects:
-                    try:
-                        # S3 API
-                        key = obj['Key']
-                        obj_size = obj['Size']
-                    except:
-                        # Swift API
-                        key = obj['name']
-                        obj_size = obj['bytes']
-                    
-                    full_key = '{}/{}'.format(bucket_name, key)
+                for page in page_iterator:
+                    if "Contents" in page:
+                        for obj in page["Contents"]:
+                            try:
+                                # S3 API
+                                key = obj['Key']
+                                obj_size = obj['Size']
+                                logger.info("Extracted key {} size {}".format(key, obj_size))
+                            except:
+                                # Swift API
+                                key = obj['name']
+                                obj_size = obj['bytes']
 
-                    size = 0
-                    if obj_size > chunk_size:
-                        size = 0
-                        while size < obj_size:
-                            brange = (size, size+chunk_size+chunk_threshold)
-                            size += chunk_size
-                            partition = {}
-                            partition['map_func_args'] = entry.copy()
-                            partition['map_func_args']['key'] = full_key
-                            partition['data_byte_range'] = brange
-                            partitions.append(partition)
-                    else:
-                        partition = {}
-                        partition['map_func_args'] = entry.copy()
-                        partition['map_func_args']['key'] = full_key
-                        partition['data_byte_range'] = (0, obj_size)
-                        partitions.append(partition)
-
+                            #full_key = '{}/{}'.format(bucket_name, key)
+                            size = 0
+                            if chunk_size is not None and obj_size > chunk_size:
+                                size = 0
+                                while size < obj_size:
+                                    brange = (size, size+chunk_size+chunk_threshold)
+                                    size += chunk_size
+                                    partition = {}
+                                    partition['map_func_args'] = entry.copy()
+                                    partition['map_func_args']['key'] = key
+                                    partition['map_func_args']['bucket'] = bucket_name
+                                    partition['data_byte_range'] = brange
+                                    partitions.append(partition)
+                            else:
+                                partition = {}
+                                partition['map_func_args'] = entry.copy()
+                                partition['map_func_args']['key'] = key
+                                partition['map_func_args']['bucket'] = bucket_name
+                                partition['data_byte_range'] = (0, obj_size)
+                                partitions.append(partition)
             return partitions
         
         def split_object_from_key(map_func_args_list, chunk_size, storage_handler):
@@ -517,7 +519,7 @@ class Executor(object):
 
             pw = pywren.ibm_cf_executor()
             reduce_future = pw.map_reduce(map_func, partitions, reduce_function,
-                                          reducer_wait_local=False, throw_except=throw_except)
+                                          reducer_wait_local=False, throw_except=throw_except, extra_meta = extra_meta)
                     
             return reduce_future
 
@@ -537,21 +539,26 @@ class Executor(object):
                     part_func_args = []
                     for entry in arg_data:
                         # Each entry is a bucket
-                        bucket_name =  entry['bucket']
-                        objects = get_object_list(bucket_name,
+                        bucket_name, prefix =  wrenutil.split_path(entry['bucket'])
+                        page_iterator = get_object_list(bucket_name,
                                                   self.storage_handler)
-                        for obj in objects:
-                            try: # S3 API
-                                full_key = '{}/{}'.format(bucket_name, obj['Key'])
-                            except:  # Swift API
-                                full_key = '{}/{}'.format(bucket_name, obj['name'])
-                            
-                            new_entry = entry.copy()
-                            new_entry['key'] = full_key
+                        for page in page_iterator:
+                            if "Contents" in page:
+                                for obj in page["Contents"]:
+                                    try: # S3 API
+                                        full_key = '{}/{}'.format(bucket_name, obj['Key'])
+                                    except:  # Swift API
+                                        full_key = '{}/{}'.format(bucket_name, obj['name'])
 
-                            part_args = {'map_func_args': [new_entry],
-                                         'chunk_size' : obj_chunk_size}
-                            part_func_args.append(part_args)
+                                    new_entry = entry.copy()
+                                    new_entry['key'] = full_key
+                                    logger.info("Change bucket from {} to {}".format(new_entry['bucket'],
+                                                                                     bucket_name))
+                                    new_entry['bucket'] = bucket_name
+
+                                    part_args = {'map_func_args': [new_entry],
+                                                 'chunk_size' : obj_chunk_size}
+                                    part_func_args.append(part_args)
                 else:
                     part_func_args = []
                     for entry in arg_data:
@@ -562,16 +569,21 @@ class Executor(object):
                 part_func_args = [{'map_func_args': arg_data,
                                    'chunk_size' : obj_chunk_size}]
 
+            logger.info("Calling map on partitions from COS flow")
             return self.map(partitioner, part_func_args,
                             extra_env=extra_env,
                             extra_meta=extra_meta, 
                             original_func_name=map_function.__name__)
         else:
             # map-reduce over anything else
+            logger.info("Map  on anything else")
             map_futures = self.map(map_function, iterdata,
                                    extra_env=extra_env,
                                    extra_meta=extra_meta)
-            
+            if (reduce_function is None):
+                logger.info('No reduce method provided')
+                return map_futures
+            logger.info("Calling reduce")
             return self.reduce(reduce_function, map_futures,
                                throw_except=throw_except,
                                wait_local=reducer_wait_local,
