@@ -70,20 +70,27 @@ Access details to IBM Cloud Functions can be obtained [here](https://console.blu
 There are two options to configure PyWren:
 
 #### Using configuration file
-Copy the `pywren/ibmcf/default_config.yaml.template` into `~/.pywren_config`.
+Copy the `pywren/ibmcf/default_config.yaml.template` into `~/.pywren_config.yaml`.
 
-Edit `~/.pywren_config` and configure the following entries:
+Edit `~/.pywren_config.yaml` and configure the following entries:
 
 ```yaml
 pywren: 
     storage_bucket: <BUCKET_NAME>
 
 ibm_cf:
+    # Obtain all values from https://console.bluemix.net/openwhisk/learn/api-key
+
+    # endpoint is the value of 'host'
+    # make sure to use https:// as prefix
     endpoint    : <CF_API_ENDPOINT>
+    # namespace = value of CURRENT NAMESPACE
     namespace   : <CF_NAMESPACE>
     api_key     : <CF_API_KEY>
 
 ibm_cos:
+    # make sure to use full path.
+    # for example https://s3-api.us-geo.objectstorage.softlayer.net
     endpoint   : <COS_API_ENDPOINT>
     api_key    : <COS_API_KEY>
 ```
