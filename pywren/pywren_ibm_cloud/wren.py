@@ -85,8 +85,10 @@ class ibm_cf_executor(object):
         self.runtime = self.config['ibm_cf']['action_name']
     
         ibm_cf_config = self.config['ibm_cf']
+
         invoker = invokers.IBMCloudFunctionsInvoker(ibm_cf_config)
         self.storage_config = wrenconfig.extract_storage_config(self.config)
+        self.data_cleaner = self.storage_config['data_cleaner']
         self.storage_handler = storage.Storage(self.storage_config)
         self.executor = Executor(invoker, self.config, self.storage_handler, job_max_runtime)
         self.executor_id = self.executor.executor_id
@@ -358,8 +360,9 @@ class ibm_cf_executor(object):
             signal.alarm(0)
             if not verbose:
                 if pbar:
-                    pbar.close() 
-            self._clean()
+                    pbar.close()
+            if (self.data_cleaner):
+                self.clean()
             print()
 
         return result
@@ -474,14 +477,15 @@ class ibm_cf_executor(object):
                 if pbar:
                     pbar.close()
             signal.alarm(0)
-            self._clean()
+            if (self.data_cleaner):
+                self.clean()
             print()
         
         results = [f.result(throw_except=throw_except) for f in self.futures if f.done]
         
         return results
 
-    def _clean(self, local_execution=True):
+    def clean(self, local_execution=True):
         """
         Deletes all the files from COS. These files include the function,
         the data serialization and the function invocation results.
@@ -490,21 +494,20 @@ class ibm_cf_executor(object):
         storage_prerix = self.storage_config['storage_prefix']
         storage_prerix = os.path.join(storage_prerix, self.executor_id)
         
-        msg="Executor ID {} Cleaning partial results from PyWren bucket '{}'".format(self.executor_id, storage_bucket)
+        msg="Executor ID {} Cleaning partial results from PyWren bucket '{}'.".format(self.executor_id, storage_bucket)
         logger.info(msg)
+        print(msg)
+        msg="Executor ID {} Cleaning partial results for '{}'.".format(self.executor_id, storage_prerix)
+        logger.info(msg)
+        print(msg)
+
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(msg)
 
         if local_execution:
             #storage_config = json.dumps(self.storage_handler.get_storage_config())
             #storage_config = storage_config.replace('"', '\\"')
-            '''
-            cmdstr = ("python3 -c 'from pywren_ibm_cloud.storage.cleaner import clean_bucket; \
-                                   clean_bucket(\"{}\", \"{}\", \"{}\")'".format(storage_bucket,
-                                                                                 storage_prerix, storage_config))
-            '''
             clean_bucket(storage_bucket, storage_prerix, self.storage_config)
-            #os.popen(cmdstr)
         else:
             extra_env = {'NOT_STORE_RESULTS': 'True'}
             sys.stdout = open(os.devnull, 'w')

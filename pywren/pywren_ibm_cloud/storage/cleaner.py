@@ -28,7 +28,9 @@ def clean_bucket(bucket, prefix, storage_config):
     sys.stdout = sys.__stdout__
 
 def clean_os_bucket(bucket, prefix, storage_handler):
-    logger.info("Going to delete all objects from bucket '{}' and prefix '{}'".format(bucket, prefix))
+    msg = "Going to delete all objects from bucket '{}' and prefix '{}'".format(bucket, prefix)
+    logger.info(msg)
+    print(msg)
     total_objects = 0
     objects_to_delete = storage_handler.list_objects(bucket, prefix)
     

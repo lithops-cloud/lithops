@@ -118,6 +118,8 @@ def extract_storage_config(config):
     storage_config['storage_backend'] = config['storage_backend']
     storage_config['storage_prefix'] =  config['pywren']['storage_prefix']
     storage_config['storage_bucket'] =  config['pywren']['storage_bucket']
+    storage_config['data_cleaner'] = True if config['pywren'].get('data_cleaner', False) == 'True' else False
+
     if storage_config['storage_backend'] == 'ibm_cos':
         storage_config['backend_config'] = {}
 
