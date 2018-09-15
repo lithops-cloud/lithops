@@ -77,6 +77,15 @@ Edit `~/.pywren_config.yaml` and configure the following entries:
 ```yaml
 pywren: 
     storage_bucket: <BUCKET_NAME>
+    # Storage prefix is a sub-directory in the bucket.
+    # If not set the default is `pywren.jobs`. 
+    # This identify location where PyWren writes temporary data. 
+    # The general URL that will be used by PyWren is `storage_bucket/storage_prefix`
+    storage_prefix: <pywren.jobs>
+    # Optional. If set to True, then cleaner will automatically delete temporary
+    # data that was written into `storage_bucket/storage_prefix`
+    # The default is `False`
+    data_cleaner : <True / False>
 
 ibm_cf:
     # Obtain all values from https://console.bluemix.net/openwhisk/learn/api-key
