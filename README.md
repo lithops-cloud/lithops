@@ -67,6 +67,23 @@ Configure PyWren client with access details to your Cloud Object Storage account
 
 Access details to IBM Cloud Functions can be obtained [here](https://console.bluemix.net/openwhisk/learn/api-key). Details on your COS account can be obtained from the "service credentials" page on the UI of your COS account. More details on "service credentials" can be obtained [here](docs/cos-info.md)
 
+Summary of configuration keys
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|pywren|storage_bucket||yes|Any bucket that exists in your COS account. This will be used by PyWren for intermediate data |
+|pywren|storage_prefix|pywren.jobs|no|Storage prefix is a virtual sub-directory in the bucket, to provide better control over location where PyWren writes temporary data. The COS location will be `storage_bucket/storage_prefix` |
+|pywren|data_cleaner|False|no|If set to True, then cleaner will automatically delete temporary data that was written into `storage_bucket/storage_prefix`|
+|ibm_cf| endpoint | | yes | IBM Cloud Functions hostname. Endpoint is the value of 'host' from [api-key](https://console.bluemix.net/openwhisk/learn/api-key). Make sure to use https:// prefix |
+|ibm_cf| namespace | | yes | IBM Cloud Functions namespace. Value of CURRENT NAMESPACE from [api-key](https://console.bluemix.net/openwhisk/learn/api-key) |
+|ibm_cf| api_key | | yes | IBM Cloud Functions api key. Value of api key from [api-key](https://console.bluemix.net/openwhisk/learn/api-key) |
+|ibm_cos | endpoint | | yes | Endpoint to your COS account. Make sure to use full path. for example https://s3-api.us-geo.objectstorage.softlayer.net |
+|ibm_cos | api_key | | yes | API Key to your COS account|
+
+
+
+
+
 There are two options to configure PyWren:
 
 #### Using configuration file
@@ -77,14 +94,7 @@ Edit `~/.pywren_config.yaml` and configure the following entries:
 ```yaml
 pywren: 
     storage_bucket: <BUCKET_NAME>
-    # Storage prefix is a sub-directory in the bucket.
-    # If not set the default is `pywren.jobs`. 
-    # This identify location where PyWren writes temporary data. 
-    # The general URL that will be used by PyWren is `storage_bucket/storage_prefix`
     storage_prefix: <pywren.jobs>
-    # Optional. If set to True, then cleaner will automatically delete temporary
-    # data that was written into `storage_bucket/storage_prefix`
-    # The default is `False`
     data_cleaner : <True / False>
 
 ibm_cf:
@@ -112,7 +122,7 @@ pw = pywren.ibm_cf_executor()
 ```
 
 #### Configuration in the runtime
-This option allows you pass all the configuration details as part of the PyWren invocation in runtime. All you need is to configure a Python dictionary:
+This option allows you pass all the configuration details as part of the PyWren invocation in runtime. All you need is to configure a Python dictionary with keys and values, for example:
 
 ```python
 config = {'pywren' : {'storage_bucket' : 'BUCKET_NAME'}
@@ -132,19 +142,6 @@ Having configuration allows you to provide it to the PyWren as follows:
 import pywren_ibm_cloud as pywren
 pw = pywren.ibm_cf_executor(config=config)
 ```
-
-
-#### Configuration keys
-The following summarizes the keys that need to be configured.
-
-| Group | Key | Value |
-|---|  --- | --- |	    
-| pywren | storage_bucket |  Any bucket that exists in your COS account. This will be used by PyWren for intermediate data |
-| ibm_cf | endpoint | IBM Cloud Functions hostname|
-| ibm_cf | namespace | IBM Cloud Functions namespace|
-| ibm_cf | api_key | IBM Cloud Functions api key|
-| ibm_cos | endpoint | Endpoint to your COS account |
-| ibm_cos | api_key | API Key to your COS account |
 
 
 ### Verify 
