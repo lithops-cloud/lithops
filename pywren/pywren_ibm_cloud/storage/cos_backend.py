@@ -99,7 +99,7 @@ class COSBackend(object):
                 #    print(log_msg)
             except:
                 log_msg='PUT Object {} {}'.format(key, status)
-                logger.info(log_msg)
+                logger.debug(log_msg)
                 #if(logger.getEffectiveLevel() == logging.WARNING):
                 #    print(log_msg)
         except ibm_botocore.exceptions.ClientError as e:
@@ -184,7 +184,7 @@ class COSBackend(object):
         :return: Data of the object
         :rtype: str/bytes
         """
-        logger.info("list objects for bucket {} prefix {}".format(bucket_name, prefix))
+        logger.debug("list objects for bucket {} prefix {}".format(bucket_name, prefix))
         try:
             if (prefix is not None):
                 metadata = self.cos_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
