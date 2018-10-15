@@ -8,6 +8,6 @@ wrenlogging.ow_config(logging.INFO)
 
 
 def main(args):
-    logger.info("Starting IMB Cloud Function")
+    logger.info("Starting IBM Cloud Function execution")
     ibm_cloud_function_handler(args)
     return {"greeting": "Finished"}

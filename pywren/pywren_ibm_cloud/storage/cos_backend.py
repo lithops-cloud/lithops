@@ -94,7 +94,7 @@ class COSBackend(object):
             status = 'OK' if res['ResponseMetadata']['HTTPStatusCode'] == 200 else 'Error'
             try:
                 log_msg='PUT Object {} size {} {}'.format(key, len(data), status)
-                logger.info(log_msg)
+                logger.debug(log_msg)
                 #if(logger.getEffectiveLevel() == logging.WARNING):
                 #    print(log_msg)
             except:

@@ -200,7 +200,7 @@ class Executor(object):
         host_job_meta['data_size_bytes'] = data_size_bytes
         
         log_msg='Executor ID {} Uploading function and data'.format(self.executor_id)
-        logger.info(log_msg)
+        logger.debug(log_msg)
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(log_msg)
 
@@ -269,7 +269,7 @@ class Executor(object):
         
         start_inv = time.time()
         log_msg='Executor ID {} Starting function invocation: {}()'.format(self.executor_id, func_name)
-        logger.info(log_msg)
+        logger.debug(log_msg)
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(log_msg)
 
@@ -569,21 +569,21 @@ class Executor(object):
                 part_func_args = [{'map_func_args': arg_data,
                                    'chunk_size' : obj_chunk_size}]
 
-            logger.info("Calling map on partitions from COS flow")
+            logger.debug("Calling map on partitions from COS flow")
             return self.map(partitioner, part_func_args,
                             extra_env=extra_env,
                             extra_meta=extra_meta, 
                             original_func_name=map_function.__name__)
         else:
             # map-reduce over anything else
-            logger.info("Map  on anything else")
+            logger.debug("Map  on anything else")
             map_futures = self.map(map_function, iterdata,
                                    extra_env=extra_env,
                                    extra_meta=extra_meta)
             if (reduce_function is None):
-                logger.info('No reduce method provided')
+                logger.debug('No reduce method provided')
                 return map_futures
-            logger.info("Calling reduce")
+            logger.debug("Calling reduce")
             return self.reduce(reduce_function, map_futures,
                                throw_except=throw_except,
                                wait_local=reducer_wait_local,
