@@ -23,6 +23,7 @@ import subprocess
 import time
 import traceback
 from threading import Thread
+from queue import Queue
 from pywren_ibm_cloud import version
 from pywren_ibm_cloud.storage import storage
 
@@ -168,12 +169,15 @@ def ibm_cloud_function_handler(event):
 
         logger.info("launched process")
 
-        def consume_stdout(stdout):
+        def consume_stdout(stdout, queue):
             with stdout:
                 for line in stdout:
                     print(line, end='')
+                    queue.put(line)
 
-        t = Thread(target=consume_stdout, args=(process.stdout, ))
+        q = Queue()
+
+        t = Thread(target=consume_stdout, args=(process.stdout, q))
         t.daemon = True
         t.start()
         t.join(job_max_runtime)
@@ -185,6 +189,10 @@ def ibm_cloud_function_handler(event):
             os.killpg(os.getpgid(process.pid), signal.SIGTERM)
             raise Exception("OUTATIME",  "Process executed for too long and was killed")
         
+        if not q.empty():
+            if 'Jobrunner finished' not in q.queue[q.qsize()-1].strip():
+                raise Exception("OUTOFMEMORY",  "Process exceeded maximum memory and was killed")
+
         logger.info("Command execution finished")
         #print(subprocess.check_output("find {}".format(PYTHON_MODULE_PATH), shell=True))
         #print(subprocess.check_output("find {}".format(os.getcwd()), shell=True))
@@ -204,7 +212,6 @@ def ibm_cloud_function_handler(event):
     except Exception as e:
         # internal runtime exceptions
         logger.error("There was an exception: {}".format(str(e)))
-        response_status['stdout'] = stdout
         response_status['end_time'] = time.time()
         response_status['exception'] = str(e)
         response_status['exception_args'] = e.args

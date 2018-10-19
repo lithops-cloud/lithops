@@ -196,3 +196,4 @@ finally:
         output_upload_timestamp_t2 = time.time()
         write_stat("output_upload_time",
                    output_upload_timestamp_t2 - output_upload_timestamp_t1)
+    logger.info("Jobrunner finished")
