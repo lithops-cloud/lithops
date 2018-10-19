@@ -18,11 +18,12 @@ from pywren_ibm_cloud.storage import storage
 import logging
 import sys
 import os
+import json
 
 logger = logging.getLogger(__name__)
 
 def clean_bucket(bucket, prefix, storage_config):
-    storage_handler = storage.Storage(storage_config)
+    storage_handler = storage.Storage(json.loads(storage_config))
     sys.stdout = open(os.devnull, 'w')
     clean_os_bucket(bucket, prefix, storage_handler)
     sys.stdout = sys.__stdout__
@@ -30,7 +31,8 @@ def clean_bucket(bucket, prefix, storage_config):
 def clean_os_bucket(bucket, prefix, storage_handler):
     msg = "Going to delete all objects from bucket '{}' and prefix '{}'".format(bucket, prefix)
     logger.info(msg)
-    print(msg)
+    if(logger.getEffectiveLevel() == logging.WARNING):
+        print(msg)
     total_objects = 0
     objects_to_delete = storage_handler.list_objects(bucket, prefix)
     

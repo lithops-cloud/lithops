@@ -4,7 +4,7 @@ import logging
 from pywren_ibm_cloud import wrenlogging
 
 logger = logging.getLogger('pywren')
-wrenlogging.ow_config(logging.INFO)
+wrenlogging.ow_config(logging.DEBUG)
 
 
 def main(args):

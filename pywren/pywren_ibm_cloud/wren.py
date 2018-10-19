@@ -25,7 +25,7 @@ import pywren_ibm_cloud as pywren
 import pywren_ibm_cloud.invokers as invokers
 import pywren_ibm_cloud.wrenconfig as wrenconfig
 from pywren_ibm_cloud.storage import storage
-from pywren_ibm_cloud.storage.cleaner import clean_os_bucket, clean_bucket
+from pywren_ibm_cloud.storage.cleaner import clean_os_bucket
 from pywren_ibm_cloud.executor import Executor
 from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
 from pywren_ibm_cloud.wrenutil import timeout_handler
@@ -80,7 +80,7 @@ class ibm_cf_executor(object):
         if any([k.startswith('__OW_') for k in os.environ.keys()]):
             # OpenWhisk execution
             self._openwhisk = True
-            wrenlogging.ow_config(logging.INFO)
+            wrenlogging.ow_config(logging.DEBUG)
     
         self.runtime = self.config['ibm_cf']['action_name']
     
@@ -282,6 +282,9 @@ class ibm_cf_executor(object):
           >>> pw.call_async(foo, data)
           >>> result = pw.get_result()
         """
+        if self._openwhisk:
+            verbose = True
+        
         if self._state == ExecutorState.single_call:
             return self._get_result(throw_except=throw_except, verbose=verbose, timeout=timeout)
         else:
@@ -361,9 +364,9 @@ class ibm_cf_executor(object):
             if not verbose:
                 if pbar:
                     pbar.close()
-            if (self.data_cleaner):
+            if self.data_cleaner and not self._openwhisk:
                 self.clean()
-            print()
+                print()
 
         return result
 
@@ -477,9 +480,9 @@ class ibm_cf_executor(object):
                 if pbar:
                     pbar.close()
             signal.alarm(0)
-            if (self.data_cleaner):
+            if self.data_cleaner and not self._openwhisk:
                 self.clean()
-            print()
+                print()
         
         results = [f.result(throw_except=throw_except) for f in self.futures if f.done]
         
@@ -496,18 +499,28 @@ class ibm_cf_executor(object):
         
         msg="Executor ID {} Cleaning partial results from PyWren bucket '{}'.".format(self.executor_id, storage_bucket)
         logger.info(msg)
-        print(msg)
+        if(logger.getEffectiveLevel() == logging.WARNING):
+            print(msg)
         msg="Executor ID {} Cleaning partial results for '{}'.".format(self.executor_id, storage_prerix)
         logger.info(msg)
-        print(msg)
-
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(msg)
 
         if local_execution:
-            #storage_config = json.dumps(self.storage_handler.get_storage_config())
-            #storage_config = storage_config.replace('"', '\\"')
-            clean_bucket(storage_bucket, storage_prerix, self.storage_config)
+            # Not background. The main code waits until the cleaner finishes its execution.
+            # It is not ideal for performance tests, since it can take long time to complete.
+            #clean_os_bucket(storage_bucket, storage_prerix, self.storage_config)
+            
+            # Executed in Background as a subprocess. The main program does not wait for its completion.
+            storage_config = json.dumps(self.storage_handler.get_storage_config())
+            storage_config = storage_config.replace('"', '\\"')
+            
+            cmdstr = ("python3 -c 'from pywren_ibm_cloud.storage.cleaner import clean_bucket; \
+                                   clean_bucket(\"{}\", \"{}\", \"{}\")'".format(storage_bucket,
+                                                                                 storage_prerix,
+                                                                                 storage_config))
+            os.popen(cmdstr)
+            
         else:
             extra_env = {'NOT_STORE_RESULTS': 'True'}
             sys.stdout = open(os.devnull, 'w')

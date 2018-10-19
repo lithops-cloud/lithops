@@ -34,4 +34,4 @@ from __future__ import absolute_import
 
 from pywren_ibm_cloud.serialize.cloudpickle.cloudpickle import *
 
-__version__ = '0.5.2'
+__version__ = '0.6.1'

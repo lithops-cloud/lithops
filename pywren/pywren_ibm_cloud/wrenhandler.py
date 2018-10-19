@@ -23,12 +23,10 @@ import subprocess
 import time
 import traceback
 from threading import Thread
-from queue import Queue, Empty
 from pywren_ibm_cloud import version
 from pywren_ibm_cloud.storage import storage
 
 logger = logging.getLogger(__name__)
-
 
 JOBRUNNER_PATH = "pywren_ibm_cloud/jobrunner/jobrunner.py"
 
@@ -36,7 +34,6 @@ PYTHON_MODULE_PATH = "/tmp/pymodules"
 JOBRUNNER_CONFIG_FILENAME = "/tmp/jobrunner.config.json"
 JOBRUNNER_STATS_FILENAME = "/tmp/jobrunner.stats.txt"
 PYWREN_LIBS_PATH = '/action/pywren_ibm_cloud/libs'
-PROCESS_STDOUT_SLEEP_SECS = 2
 
 
 def free_disk_space(dirname):
@@ -54,14 +51,15 @@ def b64str_to_bytes(str_data):
 
 
 def get_server_info():
-
-    server_info = {'uname' : subprocess.check_output("uname -a", shell=True).decode("ascii")}
+    server_info = {'uname' : subprocess.check_output("uname -a", shell=True).decode("ascii").strip(),
+                   'ip_adress' : subprocess.check_output("hostname -I", shell=True).decode("ascii").strip()}
+    """
     if os.path.exists("/proc"):
         server_info.update({'/proc/cpuinfo': open("/proc/cpuinfo", 'r').read(),
                             '/proc/meminfo': open("/proc/meminfo", 'r').read(),
                             '/proc/self/cgroup': open("/proc/meminfo", 'r').read(),
                             '/proc/cgroups': open("/proc/cgroups", 'r').read()})
-
+    """
     return server_info
 
 
@@ -170,34 +168,23 @@ def ibm_cloud_function_handler(event):
 
         logger.info("launched process")
 
-        def consume_stdout(stdout, queue):
+        def consume_stdout(stdout):
             with stdout:
                 for line in stdout:
                     print(line, end='')
-                    queue.put(line)
 
-        q = Queue()
-
-        t = Thread(target=consume_stdout, args=(process.stdout, q))
+        t = Thread(target=consume_stdout, args=(process.stdout, ))
         t.daemon = True
         t.start()
-
+        t.join(job_max_runtime)
         
-        while t.isAlive():
-            try:
-                line = q.get_nowait()
-                stdout += line
-            except Empty:
-                time.sleep(PROCESS_STDOUT_SLEEP_SECS)
-
-            total_runtime = time.time() - start_time
-            if total_runtime > job_max_runtime:
-                logger.warning("Process exceeded maximum runtime of {} sec".format(job_max_runtime))
+        if t.isAlive():
+            # If process is still alive after t.join(job_max_runtime), kill it
+            logger.error("Process exceeded maximum runtime of {} sec".format(job_max_runtime))
                 # Send the signal to all the process groups
-                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-                raise Exception("OUTATIME",
-                                "Process executed for too long and was killed")
-
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+            raise Exception("OUTATIME",  "Process executed for too long and was killed")
+        
         logger.info("Command execution finished")
         #print(subprocess.check_output("find {}".format(PYTHON_MODULE_PATH), shell=True))
         #print(subprocess.check_output("find {}".format(os.getcwd()), shell=True))
@@ -208,8 +195,7 @@ def ibm_cloud_function_handler(event):
                     key, value = l.strip().split(" ")
                     float_value = float(value)
                     response_status[key] = float_value
-        
-        #response_status['stdout'] = stdout
+
         response_status['exec_time'] = time.time() - setup_time
         response_status['host_submit_time'] = event['host_submit_time']
         #response_status['server_info'] = get_server_info()

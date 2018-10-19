@@ -64,8 +64,6 @@ class Executor(object):
                  executor_id, call_id):
 
         self.storage_handler.put_data(data_key, data_str)
-        logger.debug("call_async {} {} data upload complete {}".format(executor_id, call_id,
-                                                                      data_key))
 
     def invoke_with_keys(self, func_key, data_key, output_key,
                          status_key, executor_id, callgroup_id,
@@ -110,13 +108,13 @@ class Executor(object):
         if overwrite_invoke_args is not None:
             arg_dict.update(overwrite_invoke_args)
         
-        lambda_invoke_time_start = time.time()
+        cf_invoke_time_start = time.time()
         # do the invocation
         activation_id = self.invoker.invoke(arg_dict)
 
         host_job_meta['cf_activation_id'] = activation_id
-        host_job_meta['cf_invoke_timestamp'] = lambda_invoke_time_start
-        host_job_meta['cf_invoke_time'] = time.time() - lambda_invoke_time_start
+        host_job_meta['cf_invoke_timestamp'] = cf_invoke_time_start
+        host_job_meta['cf_invoke_time'] = time.time() - cf_invoke_time_start
 
 
         host_job_meta.update(self.invoker.config())
@@ -149,8 +147,8 @@ class Executor(object):
         """
         :param func: the function to map over the data
         :param iterdata: An iterable of input data
-        :param extra_env: Additional environment variables for lambda environment. Default None.
-        :param extra_meta: Additional metadata to pass to lambda. Default None.
+        :param extra_env: Additional environment variables for CF environment. Default None.
+        :param extra_meta: Additional metadata to pass to CF. Default None.
         :param remote_invocation: Enable remote invocation. Default False.
         :param invoke_pool_threads: Number of threads to use to invoke.
         :param data_all_as_one: upload the data as a single object. Default True
@@ -188,6 +186,8 @@ class Executor(object):
 
         pool = ThreadPool(invoke_pool_threads)      
 
+        log_msg='Executor ID {} Serializing function and data'.format(self.executor_id)
+        logger.debug(log_msg)
         ### pickle func and all data (to capture module dependencies)
         func_and_data_ser, mod_paths = self.serializer([func] + data)
 
@@ -213,9 +213,10 @@ class Executor(object):
             host_job_meta['data_upload_time'] = time.time() - agg_upload_time
             host_job_meta['data_upload_timestamp'] = time.time()
         else:
-            # FIXME add warning that you wanted data all as one but
-            # it exceeded max data size
-            pass
+            log_msg='Executor ID {} Total data exceeded maximum size of {} bytes'.format(self.executor_id,
+                                                                                         wrenconfig.MAX_AGG_DATA_SIZE)
+            logger.warning(log_msg)
+
 
         if exclude_modules:
             for module in exclude_modules:
@@ -285,8 +286,6 @@ class Executor(object):
                                            host_job_meta.copy(),
                                            agg_data_key,
                                            data_byte_range))
-
-            logger.debug("map {} {} apply async".format(self.executor_id, call_id))
 
             call_result_objs.append(cb)
 

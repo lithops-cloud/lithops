@@ -32,6 +32,8 @@
 #
 import sys
 import types
+import time
+import logging
 
 if sys.version < '3':
     try:
@@ -47,6 +49,8 @@ else:
 from pywren_ibm_cloud.serialize.cloudpickle import CloudPickler
 from pywren_ibm_cloud.serialize.module_dependency import ModuleDependencyAnalyzer
 
+logger = logging.getLogger(__name__)
+
 
 class SerializeIndependent(object):
 
@@ -59,7 +63,6 @@ class SerializeIndependent(object):
         """
         Serialize f, args, kwargs independently
         """
-
         self._modulemgr = ModuleDependencyAnalyzer()
         preinstalled_modules = [name for name, _ in self.preinstalled_modules]
         self._modulemgr.ignore(preinstalled_modules)
@@ -75,7 +78,9 @@ class SerializeIndependent(object):
         for obj in list_of_objs:
             s = StringIO()
             cp = CloudPickler(s, 2)
+            start = time.time()
             cp.dump(obj)
+            logger.debug('Time to pickle (CloudPickle): {} seconds'.format(round(time.time()-start, 3), '.3f'))
             cps.append(cp)
             strs.append(s)
 

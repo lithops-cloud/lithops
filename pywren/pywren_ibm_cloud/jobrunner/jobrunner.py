@@ -34,8 +34,10 @@ pickling_support.install()
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud import wrenlogging
 
+level = logging.DEBUG
 logger = logging.getLogger('pywren_ibm_cloud.jobrunner')
-wrenlogging.ow_config(logging.INFO)
+logger.setLevel(level)
+wrenlogging.ow_config(level)
 
 logger.info("Welcome to job runner")
 
@@ -138,14 +140,17 @@ try:
 
     logger.info("Function: Going to execute '{}()'".format(str(loaded_func.__name__)))
     print('------------------- FUNCTION LOG -------------------')
+    func_exec_time_t1 = time.time()
     func_sig = inspect.signature(loaded_func)
     if 'storage_handler' in func_sig.parameters:
         func_storage_handler = storage.Storage(json.loads(storage_config)) 
         y = loaded_func(**loaded_data, storage_handler=func_storage_handler)
     else:
         y = loaded_func(**loaded_data)
+    func_exec_time_t2 = time.time()
     print('----------------------------------------------------')
     logger.info("Function: Success execution")
+    write_stat('function_exec_time', func_exec_time_t2-func_exec_time_t1)
     output_dict = {'result' : y,
                    'success' : True,
                    #'sys.path' : sys.path

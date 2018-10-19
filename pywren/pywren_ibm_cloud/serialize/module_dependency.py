@@ -31,6 +31,8 @@ import imp
 import logging
 import pkgutil
 
+logging_level = logging.INFO
+
 
 class ModuleDependencyAnalyzer(object):
     _IMP_TYPE_NAMES = {
@@ -44,6 +46,7 @@ class ModuleDependencyAnalyzer(object):
     def __init__(self):
         """Creates new ModuleDependencyAnalyzer"""
         self._logger = logging.getLogger('multyvac.dependency-analyzer')
+        self._logger.setLevel(logging_level)
         # Root modules that have been or are being inspected
         self._inspected_modules = set()
         # Root modules that have yet to be inspected
