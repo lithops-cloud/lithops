@@ -102,7 +102,7 @@ class Executor(object):
         host_submit_time = time.time()
         arg_dict['host_submit_time'] = host_submit_time
 
-        logger.debug("call_async {} {} cf invoke ".format(executor_id, call_id))
+        logger.debug("Executor ID {} Activation {} invoke".format(executor_id, call_id))
 
         # overwrite explicit args, mostly used for testing via injection
         if overwrite_invoke_args is not None:
@@ -111,17 +111,20 @@ class Executor(object):
         cf_invoke_time_start = time.time()
         # do the invocation
         activation_id = self.invoker.invoke(arg_dict)
+        
+        if not activation_id:
+            # Invocation failed after invokers.MAX_INVOKE_RETRIES retries. 
+            # TODO: manage exception
+            logger.error("Executor ID {} Activation {} failed".format(executor_id, call_id))
+            return None
 
         host_job_meta['cf_activation_id'] = activation_id
         host_job_meta['cf_invoke_timestamp'] = cf_invoke_time_start
         host_job_meta['cf_invoke_time'] = time.time() - cf_invoke_time_start
-
+        
+        logger.debug("Executor ID {} Activation {} complete".format(executor_id, call_id))
 
         host_job_meta.update(self.invoker.config())
-
-        logger.debug("call_async {} {} cf invoke complete".format(executor_id, call_id))
-
-
         host_job_meta.update(arg_dict)
         fut = ResponseFuture(call_id, callgroup_id, executor_id, activation_id, host_job_meta, storage_config)
         fut._set_state(JobState.invoked)
@@ -299,6 +302,8 @@ class Executor(object):
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(log_msg)
 
+        # There may be some 'None' values in 'res' if some activations failed
+        # TODO: Handle error (see line 115)
         return res
 
     def reduce(self, function, list_of_futures, throw_except=True,
@@ -518,7 +523,8 @@ class Executor(object):
 
             pw = pywren.ibm_cf_executor()
             reduce_future = pw.map_reduce(map_func, partitions, reduce_function,
-                                          reducer_wait_local=False, throw_except=throw_except, extra_meta = extra_meta)
+                                          reducer_wait_local=False, throw_except=throw_except,
+                                          extra_meta = extra_meta)
                     
             return reduce_future
 
@@ -575,7 +581,7 @@ class Executor(object):
                             original_func_name=map_function.__name__)
         else:
             # map-reduce over anything else
-            logger.debug("Map  on anything else")
+            logger.debug("Map on anything else")
             map_futures = self.map(map_function, iterdata,
                                    extra_env=extra_env,
                                    extra_meta=extra_meta)

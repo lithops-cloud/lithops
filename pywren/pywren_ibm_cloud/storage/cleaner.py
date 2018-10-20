@@ -22,17 +22,25 @@ import json
 
 logger = logging.getLogger(__name__)
 
+
 def clean_bucket(bucket, prefix, storage_config):
+    """
+    Wrapper of clean_os_bucket(). Use this method only when storage_config is
+    in JSON format. In any other case, call directly clean_os_bucket() method.
+    """
     storage_handler = storage.Storage(json.loads(storage_config))
     sys.stdout = open(os.devnull, 'w')
     clean_os_bucket(bucket, prefix, storage_handler)
     sys.stdout = sys.__stdout__
 
+
 def clean_os_bucket(bucket, prefix, storage_handler):
+    """
+    Deletes all the files from COS. These files include the function,
+    the data serialization and the function invocation results.
+    """
     msg = "Going to delete all objects from bucket '{}' and prefix '{}'".format(bucket, prefix)
-    logger.info(msg)
-    if(logger.getEffectiveLevel() == logging.WARNING):
-        print(msg)
+    logger.debug(msg)
     total_objects = 0
     objects_to_delete = storage_handler.list_objects(bucket, prefix)
     

@@ -78,9 +78,9 @@ class SerializeIndependent(object):
         for obj in list_of_objs:
             s = StringIO()
             cp = CloudPickler(s, 2)
-            start = time.time()
+            # start = time.time()
             cp.dump(obj)
-            logger.debug('Time to pickle (CloudPickle): {} seconds'.format(round(time.time()-start, 3), '.3f'))
+            # logger.debug('Time to pickle (CloudPickle): {} seconds'.format(round(time.time()-start, 3), '.3f'))
             cps.append(cp)
             strs.append(s)
 

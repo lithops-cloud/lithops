@@ -46,7 +46,7 @@ class ResponseFuture(object):
     Object representing the result of a PyWren invocation. Returns the status of the
     execution and the result when available.
     """
-    GET_RESULT_SLEEP_SECS = 3
+    GET_RESULT_SLEEP_SECS = 4
     def __init__(self, call_id, callgroup_id, executor_id, activation_id, invoke_metadata, storage_config):
         self.call_id = call_id
         self.callgroup_id = callgroup_id
