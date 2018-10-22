@@ -265,7 +265,7 @@ class ibm_cf_executor(object):
         :return: The result of the future/s
 
         Usage
-          >>> import pywren
+          >>> import pywren_ibm_cloud as pywren
           >>> pw = pywren.ibm_cf_executor()
           >>> pw.call_async(foo, data)
           >>> result = pw.get_result()
@@ -483,7 +483,7 @@ class ibm_cf_executor(object):
 
         return [f.result(throw_except=throw_except) for f in futures if f.done]
 
-    def clean(self, local_execution=False):
+    def clean(self, local_execution=True):
         """
         Deletes all the files from COS. These files include the function,
         the data serialization and the function invocation results.
