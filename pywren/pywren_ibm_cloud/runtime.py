@@ -31,10 +31,11 @@ def get_runtime_preinstalls(storage_handler, runtime):
 
     if not runtime_valid(runtime_meta):
         raise Exception(("The indicated runtime: {} "
-                         + "is not approprite for this python version.")
+                         "is not approprite for this python version.")
                         .format(runtime))
 
     return preinstalls
+
 
 def version_str(version_info):
     return "{}.{}".format(version_info[0], version_info[1])

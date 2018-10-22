@@ -23,6 +23,7 @@ ALL_COMPLETED = 1
 ANY_COMPLETED = 2
 ALWAYS = 3
 
+
 def wait(fs, executor_id, storage_handler, throw_except=True, verbose=False,
          return_when=ALL_COMPLETED, THREADPOOL_SIZE=64, WAIT_DUR_SEC=4):
     """
@@ -97,6 +98,7 @@ def wait(fs, executor_id, storage_handler, throw_except=True, verbose=False,
     else:
         raise ValueError()
 
+
 def _wait(fs, executor_id, storage_handler, throw_except, verbose, return_early_n,
           max_direct_query_n, random_query=False, THREADPOOL_SIZE=16):
     """
@@ -114,7 +116,7 @@ def _wait(fs, executor_id, storage_handler, throw_except, verbose, return_early_
 
     random_query decides whether we get the fs in the order they are presented
     or in a random order.
-    """    
+    """
     # get all the futures that are not yet done
     not_done_futures = [f for f in fs if not f.done]
     if len(not_done_futures) == 0:
@@ -133,7 +135,7 @@ def _wait(fs, executor_id, storage_handler, throw_except, verbose, return_early_
     #def fetch_future_status(f):
     #    status_key = storage_utils.create_status_key(storage_handler.prefix, f.executor_id, f.callgroup_id, f.call_id)
     #    return storage_handler.object_exists(status_key)
-    
+
     def fetch_future_status(f):
         return storage_handler.get_call_status(f.executor_id, f.callgroup_id, f.call_id)
 
@@ -178,17 +180,17 @@ def _wait(fs, executor_id, storage_handler, throw_except, verbose, return_early_
                 fs_dones.append(f)
             else:
                 fs_notdones.append(f)
-    
+
     def get_result(f):
         f.result(throw_except=throw_except, verbose=verbose, storage_handler=storage_handler)
     pool.map(get_result, f_to_wait_on)
 
     pool.close()
     pool.join()
-    
+
     # Check for redirections
     fs_dones_redirected = [f for f in fs_dones if not f.done]
     fs_dones = [f for f in fs_dones if f.done]
     fs_notdones.extend(fs_dones_redirected)
-    
+
     return fs_dones, fs_notdones

@@ -47,6 +47,7 @@ class ResponseFuture(object):
     execution and the result when available.
     """
     GET_RESULT_SLEEP_SECS = 4
+
     def __init__(self, call_id, callgroup_id, executor_id, activation_id, invoke_metadata, storage_config):
         self.call_id = call_id
         self.callgroup_id = callgroup_id
@@ -72,7 +73,7 @@ class ResponseFuture(object):
         self.storage_path = storage_utils.get_storage_path(self.storage_config)
 
     def _set_state(self, new_state):
-        ## FIXME add state machine
+        # FIXME add state machine
         self._state = new_state
 
     def cancel(self):
@@ -84,7 +85,7 @@ class ResponseFuture(object):
     @property
     def redirected(self):
         """
-        The response of a call was a FutureResponse instance. 
+        The response of a call was a FutureResponse instance.
         It has to wait to the new invocation output.
         """
         return self._state == JobState.redirected
@@ -128,7 +129,7 @@ class ResponseFuture(object):
 
         if storage_handler is None:
             storage_handler = storage.Storage(self.storage_config)
- 
+
         storage_utils.check_storage_path(storage_handler.get_storage_config(), self.storage_path)
         call_status = storage_handler.get_call_status(self.executor_id, self.callgroup_id, self.call_id)
         self.status_query_count += 1
@@ -148,11 +149,11 @@ class ResponseFuture(object):
         self._invoke_metadata['status_done_timestamp'] = time.time()
         self._invoke_metadata['status_query_count'] = self.status_query_count
 
-        self.run_status = call_status # this is the remote status information
-        self.invoke_status = self._invoke_metadata # local status information
+        self.run_status = call_status  # this is the remote status information
+        self.invoke_status = self._invoke_metadata  # local status information
 
         if not self.redirections:
-            #First execution
+            # First execution
             self.start_time = call_status['start_time']
         total_time = format(round(call_status['end_time'] - self.start_time, 2), '.2f')
 
@@ -166,17 +167,17 @@ class ResponseFuture(object):
                        'seconds- Result: {}'.format(self.executor_id,
                                                     self.call_id,
                                                     self.activation_id,
-                                                    str(total_time), 
-                        exception_args[0]+" "+exception_args[1]))
+                                                    str(total_time),
+                                                    exception_args[0]+" "+exception_args[1]))
             logger.info(log_msg)
             if verbose and logger.getEffectiveLevel() == logging.WARNING:
                 print(log_msg)
 
             if exception_args[0] == "WRONGVERSION":
                 if throw_except:
-                    raise Exception("Pywren version mismatch: remote " + \
-                        "expected version {}, local library is version {}".format(
-                            exception_args[2], exception_args[3]))
+                    raise Exception("Pywren version mismatch: remote "
+                                    "expected version {}, local library is version {}".format(
+                                     exception_args[2], exception_args[3]))
                 return None
             elif exception_args[0] == "OUTATIME":
                 if throw_except:
@@ -198,32 +199,32 @@ class ResponseFuture(object):
             time.sleep(self.GET_RESULT_SLEEP_SECS)
             call_invoker_result = storage_handler.get_call_output(self.executor_id, self.callgroup_id, self.call_id)
             self.output_query_count += 1
-            
-        if call_invoker_result == None:
+
+        if call_invoker_result is None:
             if throw_except:
                 raise Exception('Unable to get the output of the function - Activation ID: {}'.format(self.activation_id))
             else:
                 self._set_state(JobState.error)
                 return None
-            
+
         call_invoker_result = pickle.loads(call_invoker_result)
         call_output_time_done = time.time()
-        self._call_invoker_result = call_invoker_result     
+        self._call_invoker_result = call_invoker_result
 
         self._invoke_metadata['download_output_time'] = call_output_time_done - call_output_time
         self._invoke_metadata['output_query_count'] = self.output_query_count
         self._invoke_metadata['download_output_timestamp'] = call_output_time_done
-        call_success = call_invoker_result['success'] 
-        self.invoke_status = self._invoke_metadata # local status information
+        call_success = call_invoker_result['success']
+        self.invoke_status = self._invoke_metadata  # local status information
 
         if call_success:
             function_result = call_invoker_result['result']
             if isinstance(function_result, ResponseFuture):
 
-                old_data = {'executor_id' : self.executor_id,
-                            'callgroup_id' : self.callgroup_id,
-                            'call_id' : self.call_id, 
-                            'activation_id' : self.activation_id,
+                old_data = {'executor_id': self.executor_id,
+                            'callgroup_id': self.callgroup_id,
+                            'call_id': self.call_id,
+                            'activation_id': self.activation_id,
                             'call_status': call_status,
                             'invoke_status': self.invoke_status}
 
@@ -234,23 +235,23 @@ class ResponseFuture(object):
                 self.call_id = function_result.call_id
                 self.activation_id = function_result.activation_id
                 self._invoke_metadata = function_result._invoke_metadata
-                
+
                 self._set_state(JobState.redirected)
-                
+
                 return None
-            
+
             if self.redirections:
                 original_call_id = self.redirections[0]['call_id']
                 original_activation_id = self.redirections[0]['activation_id']
             else:
                 original_call_id = self.call_id
                 original_activation_id = self.activation_id
-            
-            log_msg= ('Executor ID {} Response from Function {} - Activation '
-                      'ID: {} - Time: {} seconds'.format(self.executor_id,
-                                                         original_call_id,
-                                                         original_activation_id,
-                                                         str(total_time)))
+
+            log_msg = ('Executor ID {} Response from Function {} - Activation '
+                       'ID: {} - Time: {} seconds'.format(self.executor_id,
+                                                          original_call_id,
+                                                          original_activation_id,
+                                                          str(total_time)))
             logger.info(log_msg)
             if verbose and logger.getEffectiveLevel() == logging.WARNING:
                 print(log_msg)
@@ -269,8 +270,8 @@ class ResponseFuture(object):
             self._set_state(JobState.error)
             if call_invoker_result.get('pickle_fail', False):
                 logging.warning(
-                    "there was an error pickling. The original exception: " + \
-                        "{}\nThe pickling exception: {}".format(
+                    "there was an error pickling. The original exception: "
+                    "{}\nThe pickling exception: {}".format(
                             call_invoker_result['exc_value'],
                             str(call_invoker_result['pickle_exception'])))
 

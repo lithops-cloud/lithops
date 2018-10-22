@@ -21,13 +21,13 @@ MAX_INVOKE_RETRIES = 5
 
 
 class IBMCloudFunctionsInvoker(object):
-    
+
     def __init__(self, config):
         self.namespace = config['namespace']
         self.endpoint = config['endpoint']
         self.pw_action_name = config['action_name']  # Runtime
         self.client = CloudFunctions(config)
-        
+
         self._openwhisk = False
         if any([k.startswith('__OW_') for k in os.environ.keys()]):
             # OpenWhisk execution
@@ -52,6 +52,6 @@ class IBMCloudFunctionsInvoker(object):
         """
         Return config dict
         """
-        return {'cf_action_name' : self.pw_action_name,
-                'cf_namespace' : self.namespace,
-                'cf_endpoint' : self.endpoint}
+        return {'cf_action_name': self.pw_action_name,
+                'cf_namespace': self.namespace,
+                'cf_endpoint': self.endpoint}
