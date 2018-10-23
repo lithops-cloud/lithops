@@ -38,7 +38,7 @@ def timeout_handler(signum, frame):
     raise TimeoutError()
 
 
-def is_openwhisk():
+def is_cf_cluster():
     """
     Checks if the current execution is in an OpenWhisk function
     """

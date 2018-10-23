@@ -74,7 +74,7 @@ class ibm_cf_executor(object):
 
         ibm_cf_config = self.config['ibm_cf']
         self.runtime = ibm_cf_config['action_name']
-        self._openwhisk = ibm_cf_config['is_openwhisk']
+        self.cf_cluster = ibm_cf_config['is_cf_cluster']
         self.data_cleaner = self.config['pywren']['data_cleaner']
 
         invoker = invokers.IBMCloudFunctionsInvoker(ibm_cf_config)
@@ -264,7 +264,7 @@ class ibm_cf_executor(object):
           >>> pw.call_async(foo, data)
           >>> result = pw.get_result()
         """
-        if self._openwhisk:
+        if self.cf_cluster:
             verbose = True
 
         if not futures:
@@ -359,7 +359,7 @@ class ibm_cf_executor(object):
                 if pbar:
                     pbar.close()
 
-            if self.data_cleaner and not self._openwhisk:
+            if self.data_cleaner and not self.cf_cluster:
                 self.clean()
 
         return result
@@ -472,7 +472,7 @@ class ibm_cf_executor(object):
                 if pbar:
                     pbar.close()
             signal.alarm(0)
-            if self.data_cleaner and not self._openwhisk:
+            if self.data_cleaner and not self.cf_cluster:
                 self.clean()
 
         return [f.result(throw_except=throw_except) for f in futures if f.done]

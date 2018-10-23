@@ -16,7 +16,7 @@
 
 import os
 import json
-from pywren_ibm_cloud.wrenutil import is_openwhisk
+from pywren_ibm_cloud.wrenutil import is_cf_cluster
 
 
 DEFAULT_STORAGE_BACKEND = 'ibm_cos'
@@ -120,7 +120,8 @@ def default(config_data=None):
     if 'action_name' not in config_data['ibm_cf']:
         config_data['ibm_cf']['action_name'] = CF_ACTION_NAME_DEFAULT
 
-    config_data['ibm_cf']['is_openwhisk'] = is_openwhisk()
+    # True or False depending on whether this code is executed within CF cluster or not
+    config_data['ibm_cf']['is_cf_cluster'] = is_cf_cluster()
 
     return config_data
 

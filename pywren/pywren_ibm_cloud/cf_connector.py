@@ -37,7 +37,7 @@ class CloudFunctions(object):
         self.endpoint = config['endpoint'].replace('http:', 'https:')
         self.namespace = config['namespace']
         self.runtime = config['action_name']
-        self._openwhisk = config['is_openwhisk']
+        self.cf_cluster = config['is_cf_cluster']
 
         auth = base64.encodestring(self.api_key).replace(b'\n', b'')
         self.headers = {
@@ -102,7 +102,7 @@ class CloudFunctions(object):
         """
         Wrapper around actual invocation methods
         """
-        if self._openwhisk:
+        if self.cf_cluster:
             return self.internal_invoke(action_name, payload)
         else:
             return self.remote_invoke(action_name, payload)
