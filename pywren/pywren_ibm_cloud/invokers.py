@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 
-import os
 from pywren_ibm_cloud.cf_connector import CloudFunctions
 
 MAX_INVOKE_RETRIES = 5
@@ -28,11 +27,6 @@ class IBMCloudFunctionsInvoker(object):
         self.pw_action_name = config['action_name']  # Runtime
         self.client = CloudFunctions(config)
 
-        self._openwhisk = False
-        if any([k.startswith('__OW_') for k in os.environ.keys()]):
-            # OpenWhisk execution
-            self._openwhisk = True
-
     def invoke(self, payload):
         """
         Invoke -- return information about this invocation
@@ -40,12 +34,8 @@ class IBMCloudFunctionsInvoker(object):
         act_id = None
         retries = 0
         while not act_id and retries < MAX_INVOKE_RETRIES:
-            if self._openwhisk:
-                act_id = self.client.internal_invoke(self.pw_action_name,
-                                                     payload)
-            else:
-                act_id = self.client.invoke(self.pw_action_name, payload)
-            retries = retries + 1
+            act_id = self.client.invoke(self.pw_action_name, payload)
+            retries += 1
         return act_id
 
     def config(self):

@@ -21,18 +21,18 @@ import enum
 import json
 import signal
 import logging
-from multiprocessing.pool import ThreadPool
 import pywren_ibm_cloud as pywren
 import pywren_ibm_cloud.invokers as invokers
 import pywren_ibm_cloud.wrenconfig as wrenconfig
 from pywren_ibm_cloud import future
+from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
-from pywren_ibm_cloud.storage.cleaner import clean_os_bucket
 from pywren_ibm_cloud.executor import Executor
+from pywren_ibm_cloud.wrenutil import is_openwhisk
 from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
 from pywren_ibm_cloud.wrenutil import timeout_handler
-from pywren_ibm_cloud import wrenlogging
-
+from pywren_ibm_cloud.storage.cleaner import clean_os_bucket
+from multiprocessing.pool import ThreadPool
 
 logger = logging.getLogger(__name__)
 
@@ -73,15 +73,16 @@ class ibm_cf_executor(object):
         if log_level:
             wrenlogging.default_config(log_level)
 
-        self._openwhisk = False
-        if any([k.startswith('__OW_') for k in os.environ.keys()]):
-            # OpenWhisk execution
-            self._openwhisk = True
-            wrenlogging.ow_config(logging.DEBUG)
-
         ibm_cf_config = self.config['ibm_cf']
         self.runtime = ibm_cf_config['action_name']
         self.data_cleaner = self.config['pywren']['data_cleaner']
+
+        if is_openwhisk:
+            self._openwhisk = True
+            ibm_cf_config['openwhisk'] = True
+        else:
+            self._openwhisk = False
+            ibm_cf_config['openwhisk'] = False
 
         invoker = invokers.IBMCloudFunctionsInvoker(ibm_cf_config)
         self.storage_config = wrenconfig.extract_storage_config(self.config)

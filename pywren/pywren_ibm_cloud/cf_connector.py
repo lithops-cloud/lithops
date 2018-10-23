@@ -37,6 +37,7 @@ class CloudFunctions(object):
         self.endpoint = config['endpoint'].replace('http:', 'https:')
         self.namespace = config['namespace']
         self.runtime = config['action_name']
+        self._openwhisk = config['openwhisk']
 
         auth = base64.encodestring(self.api_key).replace(b'\n', b'')
         self.headers = {
@@ -99,7 +100,16 @@ class CloudFunctions(object):
 
     def invoke(self, action_name, payload):
         """
-        Invoke an IBM Cloud Function
+        Wrapper around actual invocation methods
+        """
+        if self._openwhisk:
+            return self.internal_invoke(action_name, payload)
+        else:
+            return self.remote_invoke(action_name, payload)
+
+    def remote_invoke(self, action_name, payload):
+        """
+        Invoke an IBM Cloud Function. Better from a remote network.
         """
         exec_id = payload['executor_id']
         call_id = payload['call_id']
@@ -127,7 +137,7 @@ class CloudFunctions(object):
 
     def internal_invoke(self, action_name, payload):
         """
-        Invoke an IBM Cloud Function (alternative)
+        Invoke an IBM Cloud Function. Better from a cloud function.
         """
         exec_id = payload['executor_id']
         call_id = payload['call_id']
