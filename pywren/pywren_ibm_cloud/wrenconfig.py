@@ -34,7 +34,7 @@ def load(config_filename):
         raise Exception(
             "{} has bucket name as {} -- make sure you change the default container".format(
                 config_filename, res['pywren']['storage_bucket']))
-    
+
     if res['ibm_cf']['endpoint'] == '<CF_API_ENDPOINT>':
         raise Exception(
             "{} has CF API endpoint as {} -- make sure you change the default CF API endpoint".format(
@@ -107,7 +107,7 @@ def default(config_data=None):
         config_data['pywren'] = dict()
         config_data['pywren']['storage_bucket'] = COS_BUCKET_DEFAULT
         config_data['pywren']['storage_prefix'] = COS_PREFIX_DEFAULT
-        config_data['pywren']['data_cleaner'] = DATA_CLEANER_DEFAULT    
+        config_data['pywren']['data_cleaner'] = DATA_CLEANER_DEFAULT
     else:
         if 'storage_bucket' not in config_data['pywren']:
             config_data['pywren']['storage_bucket'] = COS_BUCKET_DEFAULT
@@ -115,8 +115,6 @@ def default(config_data=None):
             config_data['pywren']['storage_prefix'] = COS_PREFIX_DEFAULT
         if 'data_cleaner' not in config_data['pywren']:
             config_data['pywren']['data_cleaner'] = DATA_CLEANER_DEFAULT
-        else:
-            config_data['pywren']['data_cleaner'] = eval(config_data['pywren']['data_cleaner'])
 
     if 'action_name' not in config_data['ibm_cf']:
         config_data['ibm_cf']['action_name'] = CF_ACTION_NAME_DEFAULT

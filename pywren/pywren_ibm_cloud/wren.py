@@ -507,10 +507,11 @@ class ibm_cf_executor(object):
             storage_config = json.dumps(self.storage_handler.get_storage_config())
             storage_config = storage_config.replace('"', '\\"')
 
-            cmdstr = ("python3 -c 'from pywren_ibm_cloud.storage.cleaner import clean_bucket; \
-                                   clean_bucket(\"{}\", \"{}\", \"{}\")'".format(storage_bucket,
-                                                                                 storage_prerix,
-                                                                                 storage_config))
+            cmdstr = ("{} -c 'from pywren_ibm_cloud.storage.cleaner import clean_bucket; \
+                              clean_bucket(\"{}\", \"{}\", \"{}\")'".format(sys.executable,
+                                                                            storage_bucket,
+                                                                            storage_prerix,
+                                                                            storage_config))
             os.popen(cmdstr)
 
         else:
