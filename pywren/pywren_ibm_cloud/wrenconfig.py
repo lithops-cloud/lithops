@@ -22,7 +22,7 @@ DEFAULT_STORAGE_BACKEND = 'ibm_cos'
 COS_BUCKET_DEFAULT = "pywren.data"
 COS_PREFIX_DEFAULT = "pywren.jobs"
 CF_ACTION_NAME_DEFAULT = 'pywren_3.6'
-
+DATA_CLEANER_DEFAULT = False
 MAX_AGG_DATA_SIZE = 4e6
 
 
@@ -34,7 +34,7 @@ def load(config_filename):
         raise Exception(
             "{} has bucket name as {} -- make sure you change the default container".format(
                 config_filename, res['pywren']['storage_bucket']))
-
+    
     if res['ibm_cf']['endpoint'] == '<CF_API_ENDPOINT>':
         raise Exception(
             "{} has CF API endpoint as {} -- make sure you change the default CF API endpoint".format(
@@ -46,12 +46,16 @@ def load(config_filename):
     if res['ibm_cf']['api_key'] == '<CF_API_KEY>':
         raise Exception(
             "{} has CF API key as {} -- make sure you change the default CF API key".format(
-                config_filename, res['pywren']['api_key']))
+                config_filename, res['ibm_cf']['api_key']))
 
     if res['ibm_cos']['endpoint'] == '<COS_API_ENDPOINT>':
         raise Exception(
             "{} has CF API endpoint as {} -- make sure you change the default COS API endpoint".format(
-                config_filename, res['pywren']['storage_container']))
+                config_filename, res['ibm_cos']['endpoint']))
+    if res['ibm_cos']['api_key'] == '<COS_API_KEY>':
+        raise Exception(
+            "{} has CF API key as {} -- make sure you change the default COS API key".format(
+                config_filename, res['ibm_cos']['api_key']))
 
     return res
 
@@ -96,17 +100,24 @@ def default(config_data=None):
 
             config_data = load(config_filename)
 
-    # Apply defualt values
+    # Apply default values
     if 'storage_backend' not in config_data:
         config_data['storage_backend'] = DEFAULT_STORAGE_BACKEND
     if 'pywren' not in config_data:
         config_data['pywren'] = dict()
         config_data['pywren']['storage_bucket'] = COS_BUCKET_DEFAULT
         config_data['pywren']['storage_prefix'] = COS_PREFIX_DEFAULT
-    elif 'storage_bucket' not in config_data['pywren']:
-        config_data['pywren']['storage_bucket'] = COS_BUCKET_DEFAULT
-    elif 'storage_prefix' not in config_data['pywren']:
-        config_data['pywren']['storage_prefix'] = COS_PREFIX_DEFAULT
+        config_data['pywren']['data_cleaner'] = DATA_CLEANER_DEFAULT    
+    else:
+        if 'storage_bucket' not in config_data['pywren']:
+            config_data['pywren']['storage_bucket'] = COS_BUCKET_DEFAULT
+        if 'storage_prefix' not in config_data['pywren']:
+            config_data['pywren']['storage_prefix'] = COS_PREFIX_DEFAULT
+        if 'data_cleaner' not in config_data['pywren']:
+            config_data['pywren']['data_cleaner'] = DATA_CLEANER_DEFAULT
+        else:
+            config_data['pywren']['data_cleaner'] = eval(config_data['pywren']['data_cleaner'])
+
     if 'action_name' not in config_data['ibm_cf']:
         config_data['ibm_cf']['action_name'] = CF_ACTION_NAME_DEFAULT
 
@@ -118,7 +129,6 @@ def extract_storage_config(config):
     storage_config['storage_backend'] = config['storage_backend']
     storage_config['storage_prefix'] = config['pywren']['storage_prefix']
     storage_config['storage_bucket'] = config['pywren']['storage_bucket']
-    storage_config['data_cleaner'] = True if config['pywren'].get('data_cleaner', False) == 'True' else False
 
     if storage_config['storage_backend'] == 'ibm_cos':
         storage_config['backend_config'] = {}
