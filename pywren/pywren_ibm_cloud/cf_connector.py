@@ -37,7 +37,7 @@ class CloudFunctions(object):
         self.endpoint = config['endpoint'].replace('http:', 'https:')
         self.namespace = config['namespace']
         self.runtime = config['action_name']
-        self._openwhisk = config['openwhisk']
+        self._openwhisk = config['is_openwhisk']
 
         auth = base64.encodestring(self.api_key).replace(b'\n', b'')
         self.headers = {

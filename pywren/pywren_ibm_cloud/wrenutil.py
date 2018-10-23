@@ -38,8 +38,7 @@ def timeout_handler(signum, frame):
     raise TimeoutError()
 
 
-@property
-def is_openwhisk(self):
+def is_openwhisk():
     """
     Checks if the current execution is in an OpenWhisk function
     """
