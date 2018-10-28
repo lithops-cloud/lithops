@@ -1,4 +1,4 @@
-# Credentials for IBM Cloud Object Storage
+# Credentials for the IBM Cloud Object Storage
 
  - Login to IBM Cloud and open up your dashboard.
  - Make sure you select 'All Resources' under Resource Group. and navigate to your instance of Object Storage.
