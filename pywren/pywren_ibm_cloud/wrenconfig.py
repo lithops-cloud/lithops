@@ -53,7 +53,7 @@ def load(config_filename):
         raise Exception(
             "{} has CF API endpoint as {} -- make sure you change the default COS API endpoint".format(
                 config_filename, res['ibm_cos']['endpoint']))
-    if res['ibm_cos']['api_key'] == '<COS_API_KEY>':
+    if 'api_key' in res['ibm_cos'] and res['ibm_cos']['api_key'] == '<COS_API_KEY>':
         raise Exception(
             "{} has CF API key as {} -- make sure you change the default COS API key".format(
                 config_filename, res['ibm_cos']['api_key']))
