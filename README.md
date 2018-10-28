@@ -15,7 +15,7 @@ This is still a beta version and is rapidly changed so please keep yourself upda
 This document describes the steps to use PyWren-IBM-Cloud over IBM Cloud Functions and IBM Cloud Object Storage (COS)
 
 ## Initial Requirements
-* IBM Cloud Function account, as described [here](https://console.bluemix.net/openwhisk/). Make sure you can run end-to-end example with Python. Make sure you install CLI tools `bx` and `wsk` command line tools [installed](https://console.bluemix.net/openwhisk/learn/cli)
+* IBM Cloud Function account, as described [here](https://console.bluemix.net/openwhisk/). Make sure you can run end-to-end example with Python. Make sure you install CLI tools `bx` and `wsk` command line tools as explained [here](https://console.bluemix.net/openwhisk/learn/cli)
 * IBM Cloud Object Storage [account](https://www.ibm.com/cloud/object-storage)
 * Python 3.6 (preferable) or Python 3.5
 
