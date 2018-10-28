@@ -39,7 +39,7 @@ PyWren-IBM-Cloud shipped with default runtime
 | ----| ----| ---- |
 | python-jessie:3 | 3.6 | [list of packages](https://console.bluemix.net/docs/openwhisk/openwhisk_reference.html#openwhisk_ref_python_environments_jessie) |
 
-To deploy the default runtime, navigate into `pywren-ibm-cloud` folder and execute:
+To deploy the default runtime, navigate into `pywren` folder and execute:
 
 	./deploy_pywren.sh
 
