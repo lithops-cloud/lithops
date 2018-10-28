@@ -139,7 +139,7 @@ pw = pywren.ibm_cf_executor(config=config)
 
 ### Verify 
 
-To test that all is working, run the [pywrentest](https://github.ibm.com/cloud-platforms/pywren-ibm-cloud/blob/master/examples/pywrentest.py) located in the `examples` folder.
+To test that all is working, run the [pywrentest](examples/pywrentest.py) located in the `examples` folder.
 
 	python3 pywrentest.py
 
