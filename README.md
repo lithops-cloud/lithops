@@ -15,30 +15,19 @@ This is still a beta version and is rapidly changed so please keep yourself upda
 This document describes the steps to use PyWren-IBM-Cloud over IBM Cloud Functions and IBM Cloud Object Storage (COS)
 
 ## Initial Requirements
-* An active IBM Cloud Function account, as described [here](https://console.bluemix.net/openwhisk/)
+* IBM Cloud Function account, as described [here](https://console.bluemix.net/openwhisk/). Make sure you can run end-to-end example with Python. Make sure you install CLI tools `bx` and `wsk` command line tools [installed](https://console.bluemix.net/openwhisk/learn/cli)
 * IBM Cloud Object Storage [account](https://www.ibm.com/cloud/object-storage)
-* `bx` and `wsk` command line tools [installed](https://console.bluemix.net/openwhisk/learn/cli)
 * Python 3.6 (preferable) or Python 3.5
 
 ## PyWren Setup
 
 ### Install PyWren 
 
-To install PyWren you can use the provided installation script or install it manually. It will install PyWren package into your local Python libraries.
-
-#### Install PyWren using the installation script
-
-Run in a terminal:
-    
-    curl -fsSL "https://raw.githubusercontent.com/pywren/pywren-ibm-cloud/master/install_pywren.sh" | sh
-
-#### Install PyWren manually
-
 Clone the repository and run the setup script:
 
     git clone https://github.com/pywren/pywren-ibm-cloud
     cd pywren-ibm-cloud/pywren
-    python3 setup.py install 
+    python3 setup.py install
 
 ### Deploy PyWren main runtime
 
@@ -87,9 +76,9 @@ Summary of configuration keys
 There are two options to configure PyWren:
 
 #### Using configuration file
-Copy the `pywren/ibmcf/default_config.yaml.template` into `~/.pywren_config.yaml`.
+Copy the `pywren/ibmcf/default_config.yaml.template` into `~/.pywren_config`
 
-Edit `~/.pywren_config.yaml` and configure the following entries:
+Edit `~/.pywren_config` and configure the following entries:
 
 ```yaml
 pywren: 
@@ -113,6 +102,10 @@ ibm_cos:
     endpoint   : <COS_API_ENDPOINT>
     api_key    : <COS_API_KEY>
 ```
+
+You can choose different name for the config file or keep into different folder. If this is the case make sure you configure system variable 
+	
+	PYWREN_CONFIG_FILE=<LOCATION OF THE CONFIG FILE>
 
 Using configuration file you can obtain PyWren executor with:
 
@@ -344,6 +337,18 @@ try:
     import pywren_ibm_cloud as pywren
 except:
     !curl -fsSL "https://raw.githubusercontent.com/pywren/pywren-ibm-cloud/master/install_pywren.sh" | sh
+    import pywren_ibm_cloud as pywren
+```
+
+You can also try to use
+
+```python
+try:
+    import pywren_ibm_cloud as pywren
+except:
+    !git clone https://github.com/pywren/pywren-ibm-cloud.git || rm -rf pywren-ibm-cloud/
+    !git clone https://github.com/pywren/pywren-ibm-cloud.git
+    !cd pywren-ibm-cloud/pywren && python setup.py install  --force
     import pywren_ibm_cloud as pywren
 ```
 
