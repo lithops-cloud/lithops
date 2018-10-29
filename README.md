@@ -94,7 +94,11 @@ ibm_cf:
     endpoint    : <CF_API_ENDPOINT>
     # namespace = value of CURRENT NAMESPACE
     namespace   : <CF_NAMESPACE>
+    # this is preferable authentication method for IBM COS
     api_key     : <CF_API_KEY>
+    # alternatively you may use HMAC authentication method
+    # access_key : <ACCESS_KEY>
+    # secret_key : <SECRET_KEY>
 
 ibm_cos:
     # make sure to use full path.
@@ -139,9 +143,9 @@ pw = pywren.ibm_cf_executor(config=config)
 
 ### Verify 
 
-To test that all is working, run the [pywrentest](examples/pywrentest.py) located in the `examples` folder.
+To test that all is working, run the [pywrentest](examples/pywrentest.py) located in the `examples` folder. From the project root folder, execute
 
-	python3 pywrentest.py
+	python3 examples/pywrentest.py
 
 ## How to use PyWren for IBM Cloud Functions
 
