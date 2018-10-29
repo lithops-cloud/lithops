@@ -1,0 +1,56 @@
+# Example of Docker image that is based on anaconda image
+# This image also includes PyWren requirements and needed dependencies so it can be used 
+# as a base image for IBM Cloud Functions
+
+FROM continuumio/anaconda3
+
+ENV FLASK_PROXY_PORT 8080
+
+RUN apt-get update
+RUN apt-get update && apt-get install -y \
+        gcc \
+        libc-dev \
+        libxslt-dev \
+        libxml2-dev \
+        libffi-dev \
+        libssl-dev \
+        zip \
+        unzip \
+        vim \
+        && rm -rf /var/lib/apt/lists/*
+
+RUN conda install -c conda-forge opencv
+
+RUN conda install -c anaconda scipy
+
+RUN conda install simplejson
+
+RUN conda install tqdm
+
+RUN conda install sortedcontainers
+
+RUN conda install numpy
+
+RUN pip install moviepy
+
+RUN conda install requests
+
+RUN conda install -c auto gevent-websocket
+
+RUN conda install tblib numpy pytest Click numba boto3 PyYAML six cython future gevent
+
+RUN pip install -U cloudpickle enum34 glob2  certifi ibm-cos-sdk
+
+RUN apt-cache search linux-headers-generic
+
+COPY requirements.txt requirements.txt
+
+RUN pip install --upgrade pip setuptools six && pip install --no-cache-dir -r requirements.txt
+
+RUN mkdir -p /actionProxy
+ADD https://raw.githubusercontent.com/apache/incubator-openwhisk-runtime-docker/dockerskeleton%401.0.0/core/actionProxy/actionproxy.py /actionProxy/actionproxy.py
+
+RUN mkdir -p /pythonAction
+ADD https://raw.githubusercontent.com/apache/incubator-openwhisk-runtime-python/3%401.0.0/core/pythonAction/pythonrunner.py /pythonAction/pythonrunner.py
+
+CMD ["/bin/bash", "-c", "cd /pythonAction && python -u pythonrunner.py"]
