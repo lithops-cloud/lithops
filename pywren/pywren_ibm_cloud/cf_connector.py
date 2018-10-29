@@ -37,18 +37,19 @@ class CloudFunctions(object):
         self.endpoint = config['endpoint'].replace('http:', 'https:')
         self.namespace = config['namespace']
         self.runtime = config['action_name']
+        self.cf_cluster = config['is_cf_cluster']
 
         auth = base64.encodestring(self.api_key).replace(b'\n', b'')
         self.headers = {
                 'content-type': 'application/json',
                 'Authorization': 'Basic %s' % auth.decode('UTF-8')
                 }
-        
+
         self.session = requests.session()
         self.session.headers.update(self.headers)
         adapter = requests.adapters.HTTPAdapter()
         self.session.mount('https://', adapter)
-        
+
         msg = 'IBM Cloud Functions init for'
         logger.info('{} namespace: {}'.format(msg, self.namespace))
         logger.info('{} host: {}'.format(msg, self.endpoint))
@@ -57,7 +58,7 @@ class CloudFunctions(object):
             print("{} namespace: {} and host: {}".format(msg, self.namespace,
                                                          self.endpoint))
             print("{} runtime: {}".format(msg, self.runtime))
-        
+
     def create_action(self, action_name,  memory=None, timeout=None,
                       code=None, is_binary=True, overwrite=True):
         """
@@ -67,14 +68,17 @@ class CloudFunctions(object):
         url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
                            self.namespace, 'actions',
                            action_name + "?overwrite=" + overwrite)
-        
+
         data = {}
         limits = {}
         cfexec = {}
-        
-        if timeout: limits['timeout'] = timeout
-        if memory: limits['memory'] = memory
-        if limits: data['limits'] = limits
+
+        if timeout:
+            limits['timeout'] = timeout
+        if memory:
+            limits['memory'] = memory
+        if limits:
+            data['limits'] = limits
 
         cfexec['kind'] = 'python'
         cfexec['code'] = base64.b64encode(code) if is_binary else code
@@ -83,7 +87,7 @@ class CloudFunctions(object):
         res = self.session.put(url, json=data, headers=self.headers)
         data = res.json()
         print(data)
-        
+
     def get_action(self, action_name):
         """
         Get an IBM Cloud Function
@@ -93,25 +97,34 @@ class CloudFunctions(object):
                            self.namespace, 'actions', action_name)
         res = self.session.get(url, headers=self.headers)
         return res.json()
-    
+
     def invoke(self, action_name, payload):
         """
-        Invoke an IBM Cloud Function
+        Wrapper around actual invocation methods
+        """
+        if self.cf_cluster:
+            return self.internal_invoke(action_name, payload)
+        else:
+            return self.remote_invoke(action_name, payload)
+
+    def remote_invoke(self, action_name, payload):
+        """
+        Invoke an IBM Cloud Function. Better from a remote network.
         """
         exec_id = payload['executor_id']
         call_id = payload['call_id']
         url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
                            self.namespace, 'actions', action_name)
-        
+
         try:
             resp = self.session.post(url, json=payload)
             data = resp.json()
             resp_time = format(round(resp.elapsed.total_seconds(), 3), '.3f')
             if 'activationId' in data:
-                log_msg=('Executor ID {} Function {} - Activation ID: '
-                         '{} - Time: {} seconds'.format(exec_id, call_id,
-                                                        data["activationId"],
-                                                        resp_time))
+                log_msg = ('Executor ID {} Function {} - Activation ID: '
+                           '{} - Time: {} seconds'.format(exec_id, call_id,
+                                                          data["activationId"],
+                                                          resp_time))
                 logger.info(log_msg)
                 if(logger.getEffectiveLevel() == logging.WARNING):
                     print(log_msg)
@@ -121,14 +134,14 @@ class CloudFunctions(object):
                 return None
         except:
             return None
-        
+
     def internal_invoke(self, action_name, payload):
         """
-        Invoke an IBM Cloud Function (alternative)
+        Invoke an IBM Cloud Function. Better from a cloud function.
         """
         exec_id = payload['executor_id']
         call_id = payload['call_id']
-        
+
         url = urlparse(os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
                                     self.namespace, 'actions', action_name))
         ctx = ssl._create_unverified_context()
@@ -137,20 +150,20 @@ class CloudFunctions(object):
         try:
             start = time.time()
             conn.request("POST", url.geturl(),
-                     body = json.dumps(payload),
-                     headers=self.headers)
+                         body=json.dumps(payload),
+                         headers=self.headers)
             resp = conn.getresponse()
             data = resp.read()
             roundtrip = time.time() - start
             resp_time = format(round(roundtrip, 3), '.3f')
             data = json.loads(data.decode("utf-8"))
             conn.close()
-            
+
             if 'activationId' in data:
-                log_msg=('Executor ID {} Function {} - Activation ID: '
-                         '{} - Time: {} seconds'.format(exec_id, call_id,
-                                                        data["activationId"],
-                                                        resp_time))
+                log_msg = ('Executor ID {} Function {} - Activation ID: '
+                           '{} - Time: {} seconds'.format(exec_id, call_id,
+                                                          data["activationId"],
+                                                          resp_time))
                 logger.info(log_msg)
                 if(logger.getEffectiveLevel() == logging.WARNING):
                     print(log_msg)

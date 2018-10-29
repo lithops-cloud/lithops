@@ -31,10 +31,20 @@ def create_executor_id(lenght=13):
 
 
 def create_callgroup_id(lenght=8):
-    return uuid_str().replace('-','')[0:lenght]
+    return uuid_str().replace('-', '')[0:lenght]
+
 
 def timeout_handler(signum, frame):
     raise TimeoutError()
+
+
+def is_cf_cluster():
+    """
+    Checks if the current execution is in an OpenWhisk function
+    """
+    if any([k.startswith('__OW_') for k in os.environ.keys()]):
+        return True
+    return False
 
 
 class WrappedStreamingBody(object):

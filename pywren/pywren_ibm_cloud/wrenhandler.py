@@ -23,12 +23,11 @@ import subprocess
 import time
 import traceback
 from threading import Thread
-from queue import Queue, Empty
+from queue import Queue
 from pywren_ibm_cloud import version
 from pywren_ibm_cloud.storage import storage
 
 logger = logging.getLogger(__name__)
-
 
 JOBRUNNER_PATH = "pywren_ibm_cloud/jobrunner/jobrunner.py"
 
@@ -36,7 +35,6 @@ PYTHON_MODULE_PATH = "/tmp/pymodules"
 JOBRUNNER_CONFIG_FILENAME = "/tmp/jobrunner.config.json"
 JOBRUNNER_STATS_FILENAME = "/tmp/jobrunner.stats.txt"
 PYWREN_LIBS_PATH = '/action/pywren_ibm_cloud/libs'
-PROCESS_STDOUT_SLEEP_SECS = 2
 
 
 def free_disk_space(dirname):
@@ -54,14 +52,15 @@ def b64str_to_bytes(str_data):
 
 
 def get_server_info():
-
-    server_info = {'uname' : subprocess.check_output("uname -a", shell=True).decode("ascii")}
+    server_info = {'uname': subprocess.check_output("uname -a", shell=True).decode("ascii").strip(),
+                   'ip_adress': subprocess.check_output("hostname -I", shell=True).decode("ascii").strip()}
+    """
     if os.path.exists("/proc"):
         server_info.update({'/proc/cpuinfo': open("/proc/cpuinfo", 'r').read(),
                             '/proc/meminfo': open("/proc/meminfo", 'r').read(),
                             '/proc/self/cgroup': open("/proc/meminfo", 'r').read(),
                             '/proc/cgroups': open("/proc/cgroups", 'r').read()})
-
+    """
     return server_info
 
 
@@ -69,33 +68,33 @@ def ibm_cloud_function_handler(event):
     start_time = time.time()
     logger.info("Starting handler")
     response_status = {'exception': None}
-    response_status['start_time'] = start_time  
+    response_status['start_time'] = start_time
     storage_handler = None
-    
+
     context_dict = {
-        'ibm_cf_request_id' : os.environ.get("__OW_ACTIVATION_ID"),
-        'ibm_cf_hostname' : os.environ.get("HOSTNAME"),
-        'ibm_cf_python_version' : os.environ.get("PYTHON_VERSION"),
+        'ibm_cf_request_id': os.environ.get("__OW_ACTIVATION_ID"),
+        'ibm_cf_hostname': os.environ.get("HOSTNAME"),
+        'ibm_cf_python_version': os.environ.get("PYTHON_VERSION"),
     }
-    
+
     config = event['config']
     storage_config = event['storage_config']
-    custom_handler_env = {'PYWREN_CONFIG' : json.dumps(config),
-                          'STORAGE_CONFIG' : json.dumps(storage_config),
+    custom_handler_env = {'PYWREN_CONFIG': json.dumps(config),
+                          'STORAGE_CONFIG': json.dumps(storage_config),
                           'PYWREN_EXECUTOR_ID':  event['executor_id']}
     os.environ.update(custom_handler_env)
-    
+
     #print(event)
     #print(os.environ)
     try:
-        stdout = ""
+        # stdout = ""
         storage_backend = event['storage_config']['storage_backend']
 
         if storage_backend != 'ibm_cos' and storage_backend != 'swift':
             raise NotImplementedError(("Using {} as storage backend is not supported " +
                                        "yet.").format(storage_backend))
-        
-        storage_config =  event['storage_config']
+
+        storage_config = event['storage_config']
         storage_handler = storage.Storage(storage_config)
 
         # download the input
@@ -109,7 +108,7 @@ def ibm_cloud_function_handler(event):
             raise Exception("WRONGVERSION", "Pywren version mismatch",
                             version.__version__, event['pywren_version'])
 
-        job_max_runtime = event.get("job_max_runtime", 290) # default for lambda
+        job_max_runtime = event.get("job_max_runtime", 290)  # default for CF
 
         response_status['func_key'] = func_key
         response_status['data_key'] = data_key
@@ -129,14 +128,14 @@ def ibm_cloud_function_handler(event):
         response_status['call_id'] = call_id
         response_status['callgroup_id'] = callgroup_id
         response_status['executor_id'] = executor_id
-        
+
         # pass a full json blob
-        jobrunner_config = {'func_key' : func_key,
-                            'data_key' : data_key,
-                            'data_byte_range' : data_byte_range,
-                            'python_module_path' : PYTHON_MODULE_PATH,
-                            'output_key' : output_key,
-                            'stats_filename' : JOBRUNNER_STATS_FILENAME}
+        jobrunner_config = {'func_key': func_key,
+                            'data_key': data_key,
+                            'data_byte_range': data_byte_range,
+                            'python_module_path': PYTHON_MODULE_PATH,
+                            'output_key': output_key,
+                            'stats_filename': JOBRUNNER_STATS_FILENAME}
 
         with open(JOBRUNNER_CONFIG_FILENAME, 'w') as jobrunner_fid:
             json.dump(jobrunner_config, jobrunner_fid)
@@ -145,21 +144,25 @@ def ibm_cloud_function_handler(event):
             os.remove(JOBRUNNER_STATS_FILENAME)
 
         cmdstr = "python {} {}".format(JOBRUNNER_PATH, JOBRUNNER_CONFIG_FILENAME)
-       
+
         logger.info("About to execute '{}'".format(cmdstr))
         setup_time = time.time()
         response_status['setup_time'] = setup_time - start_time
 
         local_env = os.environ.copy()
         local_env.update(extra_env)
- 
+        if 'STORE_RESULT' in local_env:
+            local_env['STORE_RESULT'] = str(local_env['STORE_RESULT'])
+        if 'STORE_STATUS' in local_env:
+            del local_env['STORE_STATUS']
+
         """
         stdout = os.popen(cmdstr).read()
         print(stdout)
         process = subprocess.run(cmdstr, shell=True, env=local_env, bufsize=1,
                                  stdout=subprocess.PIPE, preexec_fn=os.setsid,
                                  universal_newlines=True, timeout=job_max_runtime)
-        
+
         print(process.stdout)
         """
         # This is copied from http://stackoverflow.com/a/17698359/4577954
@@ -181,22 +184,18 @@ def ibm_cloud_function_handler(event):
         t = Thread(target=consume_stdout, args=(process.stdout, q))
         t.daemon = True
         t.start()
+        t.join(job_max_runtime)
 
-        
-        while t.isAlive():
-            try:
-                line = q.get_nowait()
-                stdout += line
-            except Empty:
-                time.sleep(PROCESS_STDOUT_SLEEP_SECS)
+        if t.isAlive():
+            # If process is still alive after t.join(job_max_runtime), kill it
+            logger.error("Process exceeded maximum runtime of {} sec".format(job_max_runtime))
+            # Send the signal to all the process groups
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+            raise Exception("OUTATIME",  "Process executed for too long and was killed")
 
-            total_runtime = time.time() - start_time
-            if total_runtime > job_max_runtime:
-                logger.warning("Process exceeded maximum runtime of {} sec".format(job_max_runtime))
-                # Send the signal to all the process groups
-                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-                raise Exception("OUTATIME",
-                                "Process executed for too long and was killed")
+        if not q.empty():
+            if 'Jobrunner finished' not in q.queue[q.qsize()-1].strip():
+                raise Exception("OUTOFMEMORY",  "Process exceeded maximum memory and was killed")
 
         logger.info("Command execution finished")
         #print(subprocess.check_output("find {}".format(PYTHON_MODULE_PATH), shell=True))
@@ -208,8 +207,7 @@ def ibm_cloud_function_handler(event):
                     key, value = l.strip().split(" ")
                     float_value = float(value)
                     response_status[key] = float_value
-        
-        #response_status['stdout'] = stdout
+
         response_status['exec_time'] = time.time() - setup_time
         response_status['host_submit_time'] = event['host_submit_time']
         #response_status['server_info'] = get_server_info()
@@ -218,15 +216,18 @@ def ibm_cloud_function_handler(event):
     except Exception as e:
         # internal runtime exceptions
         logger.error("There was an exception: {}".format(str(e)))
-        response_status['stdout'] = stdout
         response_status['end_time'] = time.time()
         response_status['exception'] = str(e)
         response_status['exception_args'] = e.args
         response_status['exception_traceback'] = traceback.format_exc()
     finally:
-        if not 'NOT_STORE_RESULTS' in extra_env:
+        store_status = True
+        if 'STORE_STATUS' in extra_env:
+            store_status = extra_env['STORE_STATUS']
+
+        if store_status:
             if not storage_handler:
                 # creating new client in case the client has not been created
-                storage_handler = storage.Storage(storage_config)    
-            
+                storage_handler = storage.Storage(storage_config)
+
             storage_handler.put_data(status_key, json.dumps(response_status))
