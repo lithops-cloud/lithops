@@ -267,18 +267,24 @@ class ibm_cf_executor(object):
         if self.cf_cluster:
             verbose = True
 
-        if not futures:
-            futures = self.futures
+        if futures:
+            # Ensure futures is always a list
+            if type(futures) != list:
+                ftrs = [futures]
+            else:
+                ftrs = futures
+        else:
+            ftrs = self.futures
 
         if not futures:
             raise Exception('You must run pw.call_async(), pw.map()'
                             ' or pw.map_reduce() before call pw.get_result()')
 
-        if (type(futures) == list and len(futures) == 1) or type(futures) == future:
-            result = self._get_result(futures[0], throw_except=throw_except,
+        if len(ftrs) == 1:
+            result = self._get_result(ftrs[0], throw_except=throw_except,
                                       verbose=verbose, timeout=timeout)
         else:
-            result = self._get_all_results(futures, throw_except=throw_except,
+            result = self._get_all_results(ftrs, throw_except=throw_except,
                                            verbose=verbose, timeout=timeout)
 
         msg = "Executor ID {} Finished\n".format(self.executor_id)
