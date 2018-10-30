@@ -108,10 +108,9 @@ class ibm_cf_executor(object):
             raise Exception('You cannot run pw.call_async() in the current state,'
                             ' create a new pywren.ibm_cf_executor() instance.')
 
-        future = self.executor.call_async(func, data, extra_env, extra_meta)[0]
-        self.futures.append(future)
+        self.futures = self.executor.call_async(func, data, extra_env, extra_meta)
 
-        return future
+        return self.futures[0]
 
     def map(self, func, iterdata, extra_env=None, extra_meta=None,
             remote_invocation=False, invoke_pool_threads=10, data_all_as_one=True,
@@ -179,6 +178,9 @@ class ibm_cf_executor(object):
             for futures_list in new_futures:
                 self.futures.extend(futures_list)
 
+        if len(self.futures) == 1:
+            return self.futures[0]
+
         return self.futures
 
     def map_reduce(self, map_function, map_iterdata, reduce_function,
@@ -212,7 +214,7 @@ class ibm_cf_executor(object):
                                                 reducer_wait_local,
                                                 throw_except, extra_env, extra_meta)
 
-        if type(self.futures) == list and len(self.futures) == 1:
+        if len(self.futures) == 1:
             return self.futures[0]
 
         return self.futures
@@ -267,18 +269,25 @@ class ibm_cf_executor(object):
         if self.cf_cluster:
             verbose = True
 
-        if not futures:
-            futures = self.futures
+        if futures:
+            # Ensure futures is a list
+            if type(futures) != list:
+                ftrs = [futures]
+            else:
+                ftrs = futures
+        else:
+            # In this case self.futures is always a list
+            ftrs = self.futures
 
         if not futures:
             raise Exception('You must run pw.call_async(), pw.map()'
                             ' or pw.map_reduce() before call pw.get_result()')
 
-        if (type(futures) == list and len(futures) == 1) or type(futures) == future:
-            result = self._get_result(futures[0], throw_except=throw_except,
+        if len(ftrs) == 1:
+            result = self._get_result(ftrs[0], throw_except=throw_except,
                                       verbose=verbose, timeout=timeout)
         else:
-            result = self._get_all_results(futures, throw_except=throw_except,
+            result = self._get_all_results(ftrs, throw_except=throw_except,
                                            verbose=verbose, timeout=timeout)
 
         msg = "Executor ID {} Finished\n".format(self.executor_id)

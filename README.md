@@ -37,13 +37,13 @@ PyWren-IBM-Cloud shipped with default runtime
 
 | Runtime name | Python version | Packages included |
 | ----| ----| ---- |
-| python-jessie:3 | 3.6 | [list of packages](https://console.bluemix.net/docs/openwhisk/openwhisk_reference.html#openwhisk_ref_python_environments_jessie) |
+| python:3.6 | 3.6 | [list of packages](https://console.bluemix.net/docs/openwhisk/openwhisk_reference.html#openwhisk_ref_python_environments_3.6) |
 
 To deploy the default runtime, navigate into `pywren` folder and execute:
 
 	./deploy_pywren.sh
 
-This script will automatically create a Python 3.6 action named `pywren_3.6` which is based on `python-jessie:3` IBM docker image. 
+This script will automatically create a Python 3.6 action named `pywren_3.6` which is based on `python:3.6` IBM docker image (Debian Jessie). 
 This action is the main runtime used to run functions within IBM Cloud Functions with PyWren. 
 Notice also that script make uses of `bx wsk` command line tool, so previously to run the deploy script, login to your desired region where you want to run PyWren `bx login`, and target to the Cloud Foundry org/space by running `bx target --cf`.
 
@@ -100,7 +100,7 @@ ibm_cos:
     # make sure to use full path.
     # for example https://s3-api.us-geo.objectstorage.softlayer.net
     endpoint   : <COS_API_ENDPOINT>
-	 # this is preferable authentication method for IBM COS
+    # this is preferable authentication method for IBM COS
     api_key    : <COS_API_KEY>
     # alternatively you may use HMAC authentication method
     # access_key : <ACCESS_KEY>
