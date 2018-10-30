@@ -108,10 +108,9 @@ class ibm_cf_executor(object):
             raise Exception('You cannot run pw.call_async() in the current state,'
                             ' create a new pywren.ibm_cf_executor() instance.')
 
-        future = self.executor.call_async(func, data, extra_env, extra_meta)[0]
-        self.futures.append(future)
+        self.futures = self.executor.call_async(func, data, extra_env, extra_meta)
 
-        return future
+        return self.futures[0]
 
     def map(self, func, iterdata, extra_env=None, extra_meta=None,
             remote_invocation=False, invoke_pool_threads=10, data_all_as_one=True,
@@ -179,6 +178,9 @@ class ibm_cf_executor(object):
             for futures_list in new_futures:
                 self.futures.extend(futures_list)
 
+        if len(self.futures) == 1:
+            return self.futures[0]
+
         return self.futures
 
     def map_reduce(self, map_function, map_iterdata, reduce_function,
@@ -212,7 +214,7 @@ class ibm_cf_executor(object):
                                                 reducer_wait_local,
                                                 throw_except, extra_env, extra_meta)
 
-        if type(self.futures) == list and len(self.futures) == 1:
+        if len(self.futures) == 1:
             return self.futures[0]
 
         return self.futures
@@ -268,12 +270,13 @@ class ibm_cf_executor(object):
             verbose = True
 
         if futures:
-            # Ensure futures is always a list
+            # Ensure futures is a list
             if type(futures) != list:
                 ftrs = [futures]
             else:
                 ftrs = futures
         else:
+            # In this case self.futures is always a list
             ftrs = self.futures
 
         if not futures:
