@@ -94,17 +94,18 @@ ibm_cf:
     endpoint    : <CF_API_ENDPOINT>
     # namespace = value of CURRENT NAMESPACE
     namespace   : <CF_NAMESPACE>
-    # this is preferable authentication method for IBM COS
     api_key     : <CF_API_KEY>
-    # alternatively you may use HMAC authentication method
-    # access_key : <ACCESS_KEY>
-    # secret_key : <SECRET_KEY>
-
+   
 ibm_cos:
     # make sure to use full path.
     # for example https://s3-api.us-geo.objectstorage.softlayer.net
     endpoint   : <COS_API_ENDPOINT>
+	 # this is preferable authentication method for IBM COS
     api_key    : <COS_API_KEY>
+    # alternatively you may use HMAC authentication method
+    # access_key : <ACCESS_KEY>
+    # secret_key : <SECRET_KEY>
+
 ```
 
 You can choose different name for the config file or keep into different folder. If this is the case make sure you configure system variable 
