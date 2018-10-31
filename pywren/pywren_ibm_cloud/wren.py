@@ -279,7 +279,7 @@ class ibm_cf_executor(object):
             # In this case self.futures is always a list
             ftrs = self.futures
 
-        if not futures:
+        if not ftrs:
             raise Exception('You must run pw.call_async(), pw.map()'
                             ' or pw.map_reduce() before call pw.get_result()')
 

@@ -5,13 +5,13 @@ PyWren main branch uses runtime that is based on a Conda environment.
 IBM Cloud Functions allows more freedom in this sense and it does not need the previous approach.
 As IBM Cloud Functions allows to run a function within your own (self-built) Docker image as a base runtime,
 this version of PyWren also uses Docker images as runtimes. In this sense, IBM PyWren uses by default 
-the IBM Cloud Functions native python runtime `python-jessie:3`. 
+the IBM Cloud Functions native python runtime `python:3.6`. 
 
 The main runtime is created by the following command as explained in the setup section:
     
     ./deploy_pywren.sh 
 
-This script will automatically create a Python 3.6 action named `pywren_3.6` which is based on `--kind python-jessie:3` IBM docker image.
+This script will automatically create a Python 3.6 action named `pywren_3.6` which is based on `--kind python:3.6` IBM docker image (Debian Jessie).
 Note that in this version of PyWren the name of the action will be the name of the runtime, so the name of the runtime is, also, `pywren_3.6`.
 The default runtime that PyWren uses is stated in the config file `~/.pywren_config`, so to run a function with this runtime you don't need
 to specify anything in the code.
@@ -30,7 +30,7 @@ IMPORTANT: Make sure you have the same Python version on both the client and the
 As stated before, the default runtime is based on Python 3.6, this means that you must have also Python 3.6 in you client machine.
 
 Otherwise, if you need another Python version (like Python 3.5) because is not possible to update it in the client machine, or if you need some Python modules (or other system libraries)
-which are not included in the [python-jessie:3](https://console.bluemix.net/docs/openwhisk/openwhisk_reference.html#openwhisk_ref_python_environments_jessie)
+which are not included in the [python:3.6](https://console.bluemix.net/docs/openwhisk/openwhisk_reference.html#openwhisk_ref_python_environments_3.6)
 image, it is possible to build your own PyWren runtime with all of them.
 
 1. **Build your own PyWren runtime**
@@ -38,7 +38,7 @@ image, it is possible to build your own PyWren runtime with all of them.
     This alternative usage is based on to build a local Docker image, deploy it to the docker hub (you need a [Docker Hub account](https://hub.docker.com)) and use it as a PyWren base runtime.
     Project provides the skeleton of the Docker image:
     
-    * [Dockerfile](https://github.ibm.com/cloud-platforms/pywren-ibm-cloud/blob/master/runtime/Dockerfile) - The image is based on `python:3.6-slim-jessie`. 
+    * [Dockerfile](Dockerfile) - The image is based on `python:3.6-slim-jessie`. 
     
     To create your own runtime, first install the Docker CE version in your client machine. You can find the instructions [here](https://docs.docker.com/install/). If you already have Docker installed omit this step.
     
@@ -59,7 +59,7 @@ image, it is possible to build your own PyWren runtime with all of them.
     Once you have built your runtime with all of your necessary packages, now you are able to use it with PyWren.
     To do so you have to specify the *runtimename* when you create the *ibm_cf_executor* instance, for example:
     ```python
-    import pywren
+    import pywren_ibm_cloud as pywren
     
     def my_function(x):
         return x + 7
@@ -87,7 +87,7 @@ In this case you can use that Docker image and avoid the building process.
         
     Once finished, you can use the runtime in your PyWren code:
     ```python
-    import pywren
+    import pywren_ibm_cloud as pywren
     
     def my_function(x):
         return x + 7
@@ -98,6 +98,6 @@ In this case you can use that Docker image and avoid the building process.
     ```
     
 Note that if you put a tag in the docker image name, the ':' character will be replaced with a '_' in the runtime name.
-For example, if you put `jsampe/pw-mpl-nltk:3.5` as a Docker image name in the *create* or *clone* commands, the name of the runtime will be `pw-mpl-nltk_3.5` as in the previous examples.
+For example, if you put `jsampe/pw-mpl-nltk:3.5` as a Docker image name in the *create* or *clone* commands, then the name of the runtime will be `pw-mpl-nltk_3.5` as in the previous examples.
 
 By default the images are uploaded to the Docker hub account as **private**. In order to use them from IBM Cloud functions, you have to login to your [Docker Hub account](https://hub.docker.com) and make them **public**.
