@@ -38,7 +38,7 @@ image, it is possible to build your own PyWren runtime with all of them.
     This alternative usage is based on to build a local Docker image, deploy it to the docker hub (you need a [Docker Hub account](https://hub.docker.com)) and use it as a PyWren base runtime.
     Project provides the skeleton of the Docker image:
     
-    * [Dockerfile](https://github.ibm.com/cloud-platforms/pywren-ibm-cloud/blob/master/runtime/Dockerfile) - The image is based on `python:3.6-slim-jessie`. 
+    * [Dockerfile](Dockerfile) - The image is based on `python:3.6-slim-jessie`. 
     
     To create your own runtime, first install the Docker CE version in your client machine. You can find the instructions [here](https://docs.docker.com/install/). If you already have Docker installed omit this step.
     
