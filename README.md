@@ -47,7 +47,7 @@ This script will automatically create a Python 3.6 action named `pywren_3.6` whi
 This action is the main runtime used to run functions within IBM Cloud Functions with PyWren. 
 Notice also that script make uses of `bx wsk` command line tool, so previously to run the deploy script, login to your desired region where you want to run PyWren `bx login`, and target to the Cloud Foundry org/space by running `bx target --cf`.
 
-If your client uses different Python version or there is need to add additional packages to the runtime, then it is necessary to build a custom runtime. Detail instructions can be found [here](docs/pywren-ibm-cloud-runtime.md)
+If your client uses different Python version or there is need to add additional packages to the runtime, then it is necessary to build a custom runtime. Detail instructions can be found [here](runtime/).
 
 			
 ### Configuration

@@ -59,7 +59,7 @@ image, it is possible to build your own PyWren runtime with all of them.
     Once you have built your runtime with all of your necessary packages, now you are able to use it with PyWren.
     To do so you have to specify the *runtimename* when you create the *ibm_cf_executor* instance, for example:
     ```python
-    import pywren
+    import pywren_ibm_cloud as pywren
     
     def my_function(x):
         return x + 7
@@ -87,7 +87,7 @@ In this case you can use that Docker image and avoid the building process.
         
     Once finished, you can use the runtime in your PyWren code:
     ```python
-    import pywren
+    import pywren_ibm_cloud as pywren
     
     def my_function(x):
         return x + 7
@@ -98,6 +98,6 @@ In this case you can use that Docker image and avoid the building process.
     ```
     
 Note that if you put a tag in the docker image name, the ':' character will be replaced with a '_' in the runtime name.
-For example, if you put `jsampe/pw-mpl-nltk:3.5` as a Docker image name in the *create* or *clone* commands, the name of the runtime will be `pw-mpl-nltk_3.5` as in the previous examples.
+For example, if you put `jsampe/pw-mpl-nltk:3.5` as a Docker image name in the *create* or *clone* commands, then the name of the runtime will be `pw-mpl-nltk_3.5` as in the previous examples.
 
 By default the images are uploaded to the Docker hub account as **private**. In order to use them from IBM Cloud functions, you have to login to your [Docker Hub account](https://hub.docker.com) and make them **public**.
