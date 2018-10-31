@@ -5,13 +5,13 @@ PyWren main branch uses runtime that is based on a Conda environment.
 IBM Cloud Functions allows more freedom in this sense and it does not need the previous approach.
 As IBM Cloud Functions allows to run a function within your own (self-built) Docker image as a base runtime,
 this version of PyWren also uses Docker images as runtimes. In this sense, IBM PyWren uses by default 
-the IBM Cloud Functions native python runtime `python-jessie:3`. 
+the IBM Cloud Functions native python runtime `python:3.6`. 
 
 The main runtime is created by the following command as explained in the setup section:
     
     ./deploy_pywren.sh 
 
-This script will automatically create a Python 3.6 action named `pywren_3.6` which is based on `--kind python-jessie:3` IBM docker image.
+This script will automatically create a Python 3.6 action named `pywren_3.6` which is based on `--kind python:3.6` IBM docker image (Debian Jessie).
 Note that in this version of PyWren the name of the action will be the name of the runtime, so the name of the runtime is, also, `pywren_3.6`.
 The default runtime that PyWren uses is stated in the config file `~/.pywren_config`, so to run a function with this runtime you don't need
 to specify anything in the code.
@@ -30,7 +30,7 @@ IMPORTANT: Make sure you have the same Python version on both the client and the
 As stated before, the default runtime is based on Python 3.6, this means that you must have also Python 3.6 in you client machine.
 
 Otherwise, if you need another Python version (like Python 3.5) because is not possible to update it in the client machine, or if you need some Python modules (or other system libraries)
-which are not included in the [python-jessie:3](https://console.bluemix.net/docs/openwhisk/openwhisk_reference.html#openwhisk_ref_python_environments_jessie)
+which are not included in the [python:3.6](https://console.bluemix.net/docs/openwhisk/openwhisk_reference.html#openwhisk_ref_python_environments_3.6)
 image, it is possible to build your own PyWren runtime with all of them.
 
 1. **Build your own PyWren runtime**
