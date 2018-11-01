@@ -26,7 +26,19 @@ This document describes the steps to use PyWren-IBM-Cloud over IBM Cloud Functio
 Clone the repository and run the setup script:
 
     git clone https://github.com/pywren/pywren-ibm-cloud
+    or
+    git clone git@github.com:pywren/pywren-ibm-cloud.git
+
+Navigate into `pywren-ibm-cloud` folder
+
     cd pywren-ibm-cloud/pywren
+
+If you plan to develop code, stay in the master branch. Otherwise obtain the most recent stable release version from the `release` tab. For example, if release is `v1.0.0` then execute
+
+	git checkout -b v1.0.0 v1.0.0
+
+Build and install 
+	
     python3 setup.py install
 
 ### Deploy PyWren main runtime
