@@ -59,6 +59,11 @@ class Executor(object):
         if 'scheduler' in self.config:
             if 'map_item_limit' in config['scheduler']:
                 self.map_item_limit = config['scheduler']['map_item_limit']
+                
+        log_msg = 'IBM Cloud Functions executor created with ID {}'.format(self.executor_id)
+        logger.info(log_msg)
+        if(logger.getEffectiveLevel() == logging.WARNING):
+            print(log_msg)
 
     def put_data(self, data_key, data_str,
                  executor_id, call_id):
@@ -339,7 +344,7 @@ class Executor(object):
             return function(accum_list)
 
         return self.call_async(reduce_func, [list_of_futures, ],
-                               extra_env=extra_env, extra_meta=extra_meta)[0]
+                               extra_env=extra_env, extra_meta=extra_meta)
 
     def map_reduce(self, map_function, iterdata, reduce_function, obj_chunk_size=64*1024**2,
                    reducer_one_per_object=False, reducer_wait_local=True, throw_except=True,

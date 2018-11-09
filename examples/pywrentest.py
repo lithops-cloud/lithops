@@ -3,6 +3,7 @@ Simple PyWren example using one single function invocation
 """
 import pywren_ibm_cloud as pywren
 
+
 def my_function(x):
     return x + 7
 

@@ -1,11 +1,25 @@
-#!/usr/bin/env python
-import sys
+#!/usr/bin/env python3
+#
+# Copyright 2018 PyWren Team
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
-#import pkgconfig
+import sys
 from setuptools import setup, find_packages
 
-if sys.version_info < (2, 7):
-    sys.exit('Sorry, Python < 2.7 is not supported')
+if sys.version_info < (3,):
+    sys.exit('Sorry, Python 2.x is not supported')
 
 if sys.version_info > (3,) and sys.version_info < (3, 4):
     sys.exit('Sorry, Python3 version < 3.4 is not supported')
@@ -21,7 +35,7 @@ setup(
     url='http://pywren.io',
     author='Eric Jonas',
     description='Run many jobs transparently on IBM Cloud Functions',
-    long_description="PyWren lets you transparently run your python functions"
+    long_description="PyWren lets you transparently run your Python functions"
     "on IBM Cloud Functions",
     author_email='jonas@ericjonas.com',
     packages=find_packages(),
