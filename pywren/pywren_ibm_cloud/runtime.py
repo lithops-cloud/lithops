@@ -15,7 +15,10 @@
 #
 
 import sys
+import logging
 from pywren_ibm_cloud.serialize import default_preinstalls
+
+logger = logging.getLogger(__name__)
 
 
 def get_runtime_preinstalls(storage_handler, runtime):
@@ -23,9 +26,11 @@ def get_runtime_preinstalls(storage_handler, runtime):
     Download runtime information from storage at deserialize
     """
     if runtime in default_preinstalls.modules:
+        logger.debug("Using serialize/default_preinstalls")
         runtime_meta = default_preinstalls.modules[runtime]
         preinstalls = runtime_meta['preinstalls']
     else:
+        logger.debug("Downloading runtime pre-installed modules from COS")
         runtime_meta = storage_handler.get_runtime_info(runtime)
         preinstalls = runtime_meta['preinstalls']
 
@@ -45,5 +50,6 @@ def runtime_valid(runtime_meta):
     """
     Basic checks
     """
+    logger.debug("Verifying Python versions")
     this_version_str = version_str(sys.version_info)
     return this_version_str == runtime_meta['python_ver']

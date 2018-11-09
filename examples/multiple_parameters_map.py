@@ -1,18 +1,19 @@
 """
-Simple PyWren example using the map() or the map_reduce() methods 
-with multiple parameters in the map function. 
+Simple PyWren example using the map() or the map_reduce() methods
+with multiple parameters in the map function.
 
-In this example the map() method will launch one map function 
-for each entry in 'iterdata'. Finally it will print the results 
+In this example the map() method will launch one map function
+for each entry in 'iterdata'. Finally it will print the results
 for each invocation with pw.get_result()
 
-The 'iterdata' variable must be always a list []. In this case 
+The 'iterdata' variable must be always a list []. In this case
 to send multiple parameters to the function, the parameters of
-each function must be enclosed within another list [] as in the 
+each function must be enclosed within another list [] as in the
 next example. The parameters will be mapped in the order you wrote
 them.
 """
 import pywren_ibm_cloud as pywren
+
 
 def my_map_function(x, y):
     return x + y
@@ -42,9 +43,10 @@ pw = pywren.ibm_cf_executor()
 pw.map(my_map_function, iterdata)
 print(pw.get_result())
 
+
 """
-If you want to send a list or a dict as a parameter of the 
-function, you must enclose them with [] as in the next 
+If you want to send a list or a dict as a parameter of the
+function, you must enclose them with [] as in the next
 example.
 """
 def sum_list(list_of_numbers):
@@ -62,6 +64,7 @@ iterdata = [  # Init list of parameters for PyWren
 pw = pywren.ibm_cf_executor()
 pw.map(sum_list, iterdata)
 print(pw.get_result())
+
 
 """
 You can also send multiple parameters which include a list
@@ -81,6 +84,7 @@ iterdata = [  # Init list of parameters for PyWren
 pw = pywren.ibm_cf_executor()
 pw.map(sum_list_mult, iterdata)
 print(pw.get_result())
+
 
 """
 Or alternatively

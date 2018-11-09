@@ -86,11 +86,6 @@ class ibm_cf_executor(object):
         self.futures = []
         self.reduce_future = None
 
-        log_msg = 'IBM Cloud Functions executor created with ID {}'.format(self.executor_id)
-        logger.info(log_msg)
-        if(logger.getEffectiveLevel() == logging.WARNING):
-            print(log_msg)
-
     def call_async(self, func, data, extra_env=None, extra_meta=None):
         """
         For run one function execution
