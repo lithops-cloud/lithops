@@ -27,7 +27,8 @@ setup(
     packages=find_packages(),
     install_requires=[
         'Click', 'ibm-cos-sdk', 'PyYAML',
-        'enum34', 'glob2', 'tqdm', 'tblib'
+        'enum34', 'glob2', 'tqdm', 'tblib',
+        'requests', 'python-dateutil', 'lxml'
     ],
     tests_requires=[
         'pytest', 'numpy',
