@@ -5,11 +5,11 @@ PyWren main branch uses runtime that is based on a Conda environment.
 IBM Cloud Functions allows more freedom in this sense and it does not need the previous approach.
 As IBM Cloud Functions allows to run a function within your own (self-built) Docker image as a base runtime,
 this version of PyWren also uses Docker images as runtimes. In this sense, IBM PyWren uses by default 
-the IBM Cloud Functions native python runtime `python:3.6`. 
+the IBM Cloud Functions native Python docker image `python:3.6`. 
 
-The main runtime is created by the following command as explained in the setup section:
+The main runtime is created by the following command:
     
-    ./deploy_pywren.sh 
+    ./deploy_runtime
 
 This script will automatically create a Python 3.6 action named `pywren_3.6` which is based on `--kind python:3.6` IBM docker image (Debian Jessie).
 Note that in this version of PyWren the name of the action will be the name of the runtime, so the name of the runtime is, also, `pywren_3.6`.
@@ -50,11 +50,11 @@ image, it is possible to build your own PyWren runtime with all of them.
     If you need another Python version, for example Python 3.5, you must change the first line of the Dockerfile `FROM python:3.6-slim-jessie`
     to point to a source image based on Python 3.5, for example: `FROM python:3.5-slim-jessie`. Finally run the build script:
     
-        ./build_runtime create docker_username/runtimename:tag
+        ./deploy_runtime create docker_username/runtimename:tag
     
     Note that Docker hub image names look like *"docker_username/runtimename:tag"* and must be all lower case, for example:
     
-    	./build_runtime create jsampe/pywren-custom-runtime:3.5
+    	./deploy_runtime create jsampe/pywren-custom-runtime:3.5
     
     Once you have built your runtime with all of your necessary packages, now you are able to use it with PyWren.
     To do so you have to specify the *runtimename* when you create the *ibm_cf_executor* instance, for example:
@@ -79,11 +79,11 @@ In this case you can use that Docker image and avoid the building process.
     This alternative usage is based on to clone the Docker image (runtime) from a public repository.
     To do so execute the following command which will create all the necessary information to use the runtime with your PyWren.
     
-        ./build_runtime clone docker_username/runtimename:tag
+        ./deploy_runtime clone docker_username/runtimename:tag
       
     For example, you can use an already created runtime based on Python 3.5 and with the *matplotlib* and *nltk* libraries by running:
     
-        ./build_runtime clone jsampe/pw-mpl-nltk:3.5
+        ./deploy_runtime clone jsampe/pw-mpl-nltk:3.5
         
     Once finished, you can use the runtime in your PyWren code:
     ```python

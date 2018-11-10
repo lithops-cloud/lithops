@@ -27,9 +27,9 @@ from queue import Queue
 from pywren_ibm_cloud import version
 from pywren_ibm_cloud.storage import storage
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('wrenhandler')
 
-JOBRUNNER_PATH = "pywren_ibm_cloud/jobrunner/jobrunner.py"
+JOBRUNNER_PATH = "pywren_ibm_cloud/action/jobrunner.py"
 
 PYTHON_MODULE_PATH = "/tmp/pymodules"
 JOBRUNNER_CONFIG_FILENAME = "/tmp/jobrunner.config.json"

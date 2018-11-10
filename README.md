@@ -15,7 +15,7 @@ This is still a beta version and is rapidly changed so please keep yourself upda
 This document describes the steps to use PyWren-IBM-Cloud over IBM Cloud Functions and IBM Cloud Object Storage (COS)
 
 ## Initial Requirements
-* IBM Cloud Function account, as described [here](https://console.bluemix.net/openwhisk/). Make sure you can run end-to-end example with Python. Make sure you install CLI tools `bx` and `wsk` command line tools as explained [here](https://console.bluemix.net/openwhisk/learn/cli)
+* IBM Cloud Function account, as described [here](https://console.bluemix.net/openwhisk/). Make sure you can run end-to-end example with Python.
 * IBM Cloud Object Storage [account](https://www.ibm.com/cloud/object-storage)
 * Python 3.6 (preferable) or Python 3.5
 
@@ -35,7 +35,7 @@ Navigate into `pywren-ibm-cloud` folder
 
 If you plan to develop code, stay in the master branch. Otherwise obtain the most recent stable release version from the `release` tab. For example, if release is `v1.0.0` then execute
 
-	git checkout -b v1.0.0 v1.0.0
+	git checkout v1.0.0
 
 Build and install 
 	
@@ -45,19 +45,18 @@ Build and install
 
 You need to deploy the PyWren runtime to your IBM Cloud Functions namespace and create the main PyWren action. PyWren main action is responsible to execute Python functions inside PyWren runtime within IBM Cloud Functions. The strong requirement here is to match Python versions between the client and the runtime. The runtime may also contain additional packages which your code depends on.
 
-PyWren-IBM-Cloud shipped with default runtime
+PyWren-IBM-Cloud shipped with default runtime:
 
 | Runtime name | Python version | Packages included |
 | ----| ----| ---- |
-| python:3.6 | 3.6 | [list of packages](https://console.bluemix.net/docs/openwhisk/openwhisk_reference.html#openwhisk_ref_python_environments_3.6) |
+| pywren_3.6 | 3.6 | [list of packages](https://console.bluemix.net/docs/openwhisk/openwhisk_reference.html#openwhisk_ref_python_environments_3.6) |
 
-To deploy the default runtime, navigate into `pywren` folder and execute:
+To deploy the default runtime, navigate into `runtime` folder and execute:
 
-	./deploy_pywren.sh
+	./deploy_runtime
 
 This script will automatically create a Python 3.6 action named `pywren_3.6` which is based on `python:3.6` IBM docker image (Debian Jessie). 
 This action is the main runtime used to run functions within IBM Cloud Functions with PyWren. 
-Notice also that script make uses of `bx wsk` command line tool, so previously to run the deploy script, login to your desired region where you want to run PyWren `bx login`, and target to the Cloud Foundry org/space by running `bx target --cf`.
 
 If your client uses different Python version or there is need to add additional packages to the runtime, then it is necessary to build a custom runtime. Detail instructions can be found [here](runtime/).
 
