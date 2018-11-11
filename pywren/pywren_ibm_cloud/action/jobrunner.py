@@ -26,15 +26,12 @@ import inspect
 from six.moves import cPickle as pickle
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud import wrenlogging
-try:
-    from tblib import pickling_support
-except:
-    from pywren_ibm_cloud.libs.tblib import pickling_support
+from pywren_ibm_cloud.libs.tblib import pickling_support
 
 pickling_support.install()
 
 level = logging.DEBUG
-logger = logging.getLogger('pywren_ibm_cloud.jobrunner')
+logger = logging.getLogger('jobrunner')
 logger.setLevel(level)
 wrenlogging.ow_config(level)
 

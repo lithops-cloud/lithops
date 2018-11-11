@@ -1,9 +1,8 @@
-from __future__ import print_function
-from pywren_ibm_cloud.wrenhandler import ibm_cloud_function_handler
 import logging
 from pywren_ibm_cloud import wrenlogging
+from pywren_ibm_cloud.action.wrenhandler import ibm_cloud_function_handler
 
-logger = logging.getLogger('pywren')
+logger = logging.getLogger('__main__')
 wrenlogging.ow_config(logging.DEBUG)
 
 

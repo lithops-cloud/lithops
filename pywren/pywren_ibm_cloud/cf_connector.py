@@ -53,21 +53,20 @@ class CloudFunctions(object):
         msg = 'IBM Cloud Functions init for'
         logger.info('{} namespace: {}'.format(msg, self.namespace))
         logger.info('{} host: {}'.format(msg, self.endpoint))
-        logger.info('{} runtime: {}'.format(msg, self.runtime))
         if(logger.getEffectiveLevel() == logging.WARNING):
             print("{} namespace: {} and host: {}".format(msg, self.namespace,
                                                          self.endpoint))
-            print("{} runtime: {}".format(msg, self.runtime))
 
     def create_action(self, action_name,  memory=None, timeout=None,
-                      code=None, is_binary=True, overwrite=True):
+                      code=None, kind='python:3.6', image=None,
+                      is_binary=True, overwrite=True):
         """
         Create an IBM Cloud Function
         """
         logger.info('I am about to create a new cloud function action')
         url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
                            self.namespace, 'actions',
-                           action_name + "?overwrite=" + overwrite)
+                           action_name + "?overwrite=" + str(overwrite))
 
         data = {}
         limits = {}
@@ -80,13 +79,19 @@ class CloudFunctions(object):
         if limits:
             data['limits'] = limits
 
-        cfexec['kind'] = 'python'
-        cfexec['code'] = base64.b64encode(code) if is_binary else code
+        cfexec['kind'] = kind
+        if kind == 'blackbox':
+            cfexec['image'] = image
+        cfexec['binary'] = is_binary
+        cfexec['code'] = base64.b64encode(code).decode("utf-8") if is_binary else code
         data['exec'] = cfexec
 
         res = self.session.put(url, json=data, headers=self.headers)
         data = res.json()
-        print(data)
+        if res.status_code != 200:
+            print('An error occurred updating action {}'.format(action_name))
+        else:
+            print("OK --> Updated action {}".format(action_name))
 
     def get_action(self, action_name):
         """

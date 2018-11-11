@@ -1,7 +1,7 @@
 # Requirements.txt contains a list of dependencies for the Python Application #
 
 # Setup modules
-gevent == 1.3.6
+gevent == 1.3.7
 flask == 1.0.2
 
 # default available packages for python3action
@@ -9,32 +9,35 @@ beautifulsoup4 == 4.6.3
 httplib2 == 0.11.3
 kafka_python == 1.4.3
 lxml == 4.2.5
-python-dateutil == 2.7.3
-requests >=2.20.0
+python-dateutil == 2.7.5
+requests == 2.20.0
 scrapy == 1.5.1
 simplejson == 3.16.0
 virtualenv == 16.0.0
 twisted == 18.7.0
 
 # packages for numerics
-numpy == 1.15.2
+numpy == 1.15.4
 scikit-learn == 0.20.0
 scipy == 1.1.0
 pandas == 0.23.4
 
 # packages for image processing
-Pillow == 5.2.0
+Pillow == 5.3.0
 
 # IBM specific python modules
 ibm_db == 2.0.9
+# Do not update to 2.10.0 it contains a braking change
+# See issue https://github.com/cloudant/python-cloudant/issues/409
 cloudant == 2.9.0
+# Do not update watson beyond 1.x, for 2.x see python:3.7 runtime
 watson-developer-cloud == 1.7.1
-ibm-cos-sdk == 2.3.0
-ibmcloudsql == 0.2.13
+ibm-cos-sdk == 2.3.3
+ibmcloudsql == 0.2.21
 
 # Compose Libs
 psycopg2 == 2.7.5
-pymongo == 3.7.1
+pymongo == 3.7.2
 redis == 2.10.6
 pika == 0.12.0
 elasticsearch >=5.0.0,<6.0.0
