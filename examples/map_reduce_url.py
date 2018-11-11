@@ -29,8 +29,12 @@ from where you can access to the partial results.
 
 import pywren_ibm_cloud as pywren
 
-iterdata = ['https://dataplatform.ibm.com/exchange-api/v1/entries/107ab470f90be9a4815791d8ec829133/data?accessKey=2bae90b7a0ecacef062954f94e98e0d3',
-            'https://dataplatform.ibm.com/exchange-api/v1/entries/9fc8543fabfc26f908cf0c592c89d137/data?accessKey=4b4cf6ce8ad2338fd042e30513693eb0']
+# Dataset from: https://archive.ics.uci.edu/ml/datasets/bag+of+words
+iterdata = ['https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.enron.txt',
+            'https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.kos.txt',
+            'https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.nips.txt',
+            'https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.nytimes.txt',
+            'https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.pubmed.txt']
 
 
 def my_map_function(url, data_stream):
@@ -64,4 +68,5 @@ chunk_size = 4*1024**2  # 4MB
 
 pw = pywren.ibm_cf_executor()
 pw.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_size)
-print(pw.get_result())
+result = pw.get_result()
+print("Done!")
