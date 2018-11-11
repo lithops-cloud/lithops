@@ -38,12 +38,13 @@ logger = logging.getLogger(__name__)
 
 class Executor(object):
 
-    def __init__(self, invoker, config, storage_handler, job_max_runtime):
+    def __init__(self, invoker, config, storage_handler, storage_handler_internal, job_max_runtime):
         self.invoker = invoker
         self.job_max_runtime = job_max_runtime
 
         self.config = config
         self.storage_handler = storage_handler
+        self.storage_handler_internal = storage_handler_internal
 
         if 'PYWREN_EXECUTOR_ID' in os.environ:
             self.executor_id = os.environ['PYWREN_EXECUTOR_ID']
@@ -65,11 +66,6 @@ class Executor(object):
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(log_msg)
 
-    def put_data(self, data_key, data_str,
-                 executor_id, call_id):
-
-        self.storage_handler.put_data(data_key, data_str)
-
     def invoke_with_keys(self, func_key, data_key, output_key,
                          status_key, executor_id, callgroup_id,
                          call_id, extra_env,
@@ -77,7 +73,7 @@ class Executor(object):
                          host_job_meta, job_max_runtime,
                          overwrite_invoke_args=None):
 
-        storage_config = self.storage_handler.get_storage_config()
+        storage_config = self.storage_handler_internal.get_storage_config()
 
         arg_dict = {
             'config': self.config,
@@ -213,10 +209,10 @@ class Executor(object):
             print(log_msg)
 
         if data_size_bytes < wrenconfig.MAX_AGG_DATA_SIZE and data_all_as_one:
-            agg_data_key = create_agg_data_key(self.storage_handler.prefix, self.executor_id, callgroup_id)
+            agg_data_key = create_agg_data_key(self.storage_handler_internal.prefix, self.executor_id, callgroup_id)
             agg_data_bytes, agg_data_ranges = self.agg_data(data_strs)
             agg_upload_time = time.time()
-            self.storage_handler.put_data(agg_data_key, agg_data_bytes)
+            self.storage_handler_internal.put_data(agg_data_key, agg_data_bytes)
             host_job_meta['agg_data'] = True
             host_job_meta['data_upload_time'] = time.time() - agg_upload_time
             host_job_meta['data_upload_timestamp'] = time.time()
@@ -239,8 +235,8 @@ class Executor(object):
         host_job_meta['func_module_str_len'] = len(func_module_str)
 
         func_upload_time = time.time()
-        func_key = create_func_key(self.storage_handler.prefix, self.executor_id, callgroup_id)
-        self.storage_handler.put_func(func_key, func_module_str)
+        func_key = create_func_key(self.storage_handler_internal.prefix, self.executor_id, callgroup_id)
+        self.storage_handler_internal.put_func(func_key, func_module_str)
         host_job_meta['func_upload_time'] = time.time() - func_upload_time
         host_job_meta['func_upload_timestamp'] = time.time()
 
@@ -248,14 +244,12 @@ class Executor(object):
                    host_job_meta,
                    agg_data_key=None, data_byte_range=None):
             data_key, output_key, status_key \
-                = storage_utils.create_keys(self.storage_handler.prefix, executor_id, callgroup_id, call_id)
-
+                = storage_utils.create_keys(self.storage_handler_internal.prefix, executor_id, callgroup_id, call_id)
             host_job_meta['job_invoke_timestamp'] = time.time()
 
             if agg_data_key is None:
                 data_upload_time = time.time()
-                self.put_data(data_key, data_str,
-                              executor_id, call_id)
+                self.storage_handler_internal.put_data(data_key, data_str)
                 data_upload_time = time.time() - data_upload_time
                 host_job_meta['data_upload_time'] = data_upload_time
                 host_job_meta['data_upload_timestamp'] = time.time()

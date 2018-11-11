@@ -11,9 +11,11 @@ class Storage(object):
     """
 
     def __init__(self, config):
+        config['storage_bucket'] = 'omertest'
         self.storage_config = config
         self.backend_type = config['storage_backend']
         self.storage_bucket =  config['storage_bucket']
+        self.storage_bucket = 'omertest'
         self.prefix = config['storage_prefix']
 
         if self.backend_type == 'ibm_cos':
