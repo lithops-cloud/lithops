@@ -11,8 +11,7 @@ class Storage(object):
     """
 
     def __init__(self, config):
-        self.storage_config = config.copy()
-        self.storage_config['storage_bucket'] = 'omertest'
+        self.storage_config = config
         self.backend_type = self.storage_config['storage_backend']
         self.storage_bucket =  self.storage_config['storage_bucket']
         self.prefix = self.storage_config['storage_prefix']
