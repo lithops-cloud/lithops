@@ -315,7 +315,7 @@ class Executor(object):
         executor_id = self.executor_id
 
         if wait_local:
-            wait(list_of_futures, executor_id, self.storage_handler, throw_except)
+            wait(list_of_futures, executor_id, self.storage_handler_internal, throw_except)
 
         def reduce_func(fut_list, storage_handler):
             logger.info('Starting reduce_func() function')
