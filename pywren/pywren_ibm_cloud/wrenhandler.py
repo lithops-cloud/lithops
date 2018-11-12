@@ -25,7 +25,7 @@ import traceback
 from threading import Thread
 from queue import Queue
 from pywren_ibm_cloud import version
-from pywren_ibm_cloud.storage import storage
+from pywren_ibm_cloud.storage import storage_internal
 
 logger = logging.getLogger(__name__)
 
@@ -79,8 +79,10 @@ def ibm_cloud_function_handler(event):
 
     config = event['config']
     storage_config = event['storage_config']
+    storage_internal_config = event['storage_internal_config']
     custom_handler_env = {'PYWREN_CONFIG': json.dumps(config),
                           'STORAGE_CONFIG': json.dumps(storage_config),
+                          'STORAGE_INTERNAL_CONFIG': json.dumps(storage_internal_config),
                           'PYWREN_EXECUTOR_ID':  event['executor_id']}
     os.environ.update(custom_handler_env)
 
@@ -88,14 +90,14 @@ def ibm_cloud_function_handler(event):
     #print(os.environ)
     try:
         # stdout = ""
-        storage_backend = event['storage_config']['storage_backend']
+        storage_backend = event['storage_internal_config']['storage_backend']
 
         if storage_backend != 'ibm_cos' and storage_backend != 'swift':
             raise NotImplementedError(("Using {} as storage backend is not supported " +
                                        "yet.").format(storage_backend))
 
-        storage_config = event['storage_config']
-        storage_handler = storage.Storage(storage_config)
+        storage_config = event['storage_internal_config']
+        storage_handler = storage_internal.Storage(storage_config)
 
         # download the input
         status_key = event['status_key']
@@ -228,6 +230,6 @@ def ibm_cloud_function_handler(event):
         if store_status:
             if not storage_handler:
                 # creating new client in case the client has not been created
-                storage_handler = storage.Storage(storage_config)
+                storage_handler = storage_internal.Storage(storage_config)
 
             storage_handler.put_data(status_key, json.dumps(response_status))

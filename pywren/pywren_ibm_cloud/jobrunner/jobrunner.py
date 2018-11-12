@@ -24,7 +24,7 @@ import time
 import logging
 import inspect
 from six.moves import cPickle as pickle
-from pywren_ibm_cloud.storage import storage
+from pywren_ibm_cloud.storage import storage, storage_internal
 from pywren_ibm_cloud import wrenlogging
 try:
     from tblib import pickling_support
@@ -55,8 +55,8 @@ jobrunner_config_filename = sys.argv[1]
 
 jobrunner_config = json.load(open(jobrunner_config_filename, 'r'))
 # Create Storage handler
-storage_config = os.environ.get('STORAGE_CONFIG', '')
-storage_handler = storage.Storage(json.loads(storage_config))
+storage_internal_config = os.environ.get('STORAGE_INTERNAL_CONFIG', '')
+storage_handler = storage_internal.Storage(json.loads(storage_internal_config))
 
 func_key = jobrunner_config['func_key']
 
@@ -143,6 +143,7 @@ try:
     func_exec_time_t1 = time.time()
     func_sig = inspect.signature(loaded_func)
     if 'storage_handler' in func_sig.parameters:
+        storage_config = os.environ.get('STORAGE_CONFIG', '')
         func_storage_handler = storage.Storage(json.loads(storage_config))
         y = loaded_func(**loaded_data, storage_handler=func_storage_handler)
     else:

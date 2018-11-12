@@ -11,15 +11,14 @@ class Storage(object):
     """
 
     def __init__(self, config):
-        config['storage_bucket'] = 'omertest'
-        self.storage_config = config
-        self.backend_type = config['storage_backend']
-        self.storage_bucket =  config['storage_bucket']
-        self.storage_bucket = 'omertest'
-        self.prefix = config['storage_prefix']
+        self.storage_config = config.copy()
+        self.storage_config['storage_bucket'] = 'omertest'
+        self.backend_type = self.storage_config['storage_backend']
+        self.storage_bucket =  self.storage_config['storage_bucket']
+        self.prefix = self.storage_config['storage_prefix']
 
         if self.backend_type == 'ibm_cos':
-            self.backend_handler = COSBackend(config['backend_config'])
+            self.backend_handler = COSBackend(self.storage_config['backend_config'])
         else:
             raise NotImplementedError(("Using {} as storage backend is" +
                                        "not supported yet").format(self.backend_type))
@@ -56,6 +55,22 @@ class Storage(object):
         :return: None
         """
         return self.backend_handler.put_object(self.storage_bucket, key, func)
+
+    def get_data(self, key, stream=False, extra_get_args={}):
+        """
+        Get data object from storage.
+        :param key: data key
+        :return: data content
+        """
+        return self.backend_handler.get_object(self.storage_bucket, key, stream, extra_get_args)
+
+    def get_func(self, key):
+        """
+        Get serialized function from storage.
+        :param key: function key
+        :return: serialized function
+        """
+        return self.backend_handler.get_object(self.storage_bucket, key)
 
     def get_storage_config(self):
         """
