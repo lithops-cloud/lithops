@@ -369,7 +369,7 @@ class Executor(object):
                 extra_get_args['Range'] = range_str
                 print(extra_get_args)
 
-            print('Getting dataset')
+            logger.info('Getting dataset')
             if 'url' in map_func_args:
                 # it is a public url
                 resp = requests.get(map_func_args['url'], headers=extra_get_args, stream=True)
@@ -443,7 +443,7 @@ class Executor(object):
                                 partition['map_func_args'] = entry.copy()
                                 partition['map_func_args']['key'] = key
                                 partition['map_func_args']['bucket'] = bucket_name
-                                partition['data_byte_range'] = (0, obj_size)
+                                partition['data_byte_range'] = None
                                 partitions.append(partition)
             return partitions
 
@@ -461,7 +461,7 @@ class Executor(object):
                 metadata = storage_handler.get_metadata(bucket, object_name)
                 obj_size = int(metadata['content-length'])
 
-                if obj_size > chunk_size:
+                if chunk_size is not None and obj_size > chunk_size:
                     size = 0
                     while size < obj_size:
                         brange = (size, size+chunk_size+chunk_threshold)
@@ -473,12 +473,12 @@ class Executor(object):
                 else:
                     partition = {}
                     partition['map_func_args'] = entry
-                    partition['data_byte_range'] = (0, obj_size)
+                    partition['data_byte_range'] = None
                     partitions.append(partition)
 
             return partitions
 
-        def split_object_from_url(map_func_args_list, object_url, chunk_size):
+        def split_object_from_url(map_func_args_list, chunk_size):
             """
             Create partitions from a list of objects urls
             """
@@ -486,12 +486,18 @@ class Executor(object):
             partitions = list()
 
             for entry in map_func_args_list:
-                object_key = entry['key']
-                logger.info(object_key)
+                obj_size = None
+                object_url = entry['url']
                 metadata = requests.head(object_url)
-                obj_size = int(metadata.headers['content-length'])
+                
+                logger.info(object_url)
+                #logger.debug(metadata.headers)
+                
+                if 'content-length' in metadata.headers:
+                    obj_size = int(metadata.headers['content-length'])
 
-                if 'accept-ranges' in metadata.headers and obj_size > chunk_size:
+                if 'accept-ranges' in metadata.headers and chunk_size is not None \
+                   and obj_size is not None and obj_size > chunk_size:
                     size = 0
                     while size < obj_size:
                         brange = (size, size+chunk_size+chunk_threshold)
@@ -501,9 +507,10 @@ class Executor(object):
                         partition['data_byte_range'] = brange
                         partitions.append(partition)
                 else:
+                    # Only one partition
                     partition = {}
                     partition['map_func_args'] = entry
-                    partition['data_byte_range'] = (0, obj_size)
+                    partition['data_byte_range'] = None
                     partitions.append(partition)
 
             return partitions
@@ -538,11 +545,10 @@ class Executor(object):
             return reduce_future
 
         # Check function signature to see if the user wants to process
-        # objects in Object Storage.
+        # objects in Object Storage or from a public url.
         func_sig = inspect.signature(map_function)
 
-        if 'bucket' in func_sig.parameters or 'key' in func_sig.parameters or \
-           'url' in func_sig.parameters:
+        if {'bucket', 'key', 'url'} & set(func_sig.parameters):
             # map-reduce over objects in COS or public URL
             # it will launch a partitioner
             arg_data = wrenutil.verify_args(map_function, data,
