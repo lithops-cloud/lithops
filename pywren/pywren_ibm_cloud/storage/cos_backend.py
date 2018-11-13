@@ -57,7 +57,8 @@ class COSBackend(object):
 
         if 'cos_api_key' in cos_config:
             client_config = ibm_botocore.client.Config(signature_version='oauth',
-                                                       max_pool_connections=200)
+                                                       max_pool_connections=200,
+                                                       user_agent_extra='pywren-ibm-cloud')
             api_key = cos_config.get('cos_api_key')
             token_manager = DefaultTokenManager(api_key_id=api_key)
             
@@ -68,13 +69,13 @@ class COSBackend(object):
                                                token_manager=token_manager,
                                                config=client_config,
                                                endpoint_url=service_endpoint) 
-
             cos_config['cos_token'] = token_manager.get_token()
         
         elif {'cos_secret_key', 'cos_access_key'} <= set(cos_config):
             secret_key = cos_config.get('cos_secret_key')
             access_key = cos_config.get('cos_access_key')
-            client_config = ibm_botocore.client.Config(max_pool_connections=200)
+            client_config = ibm_botocore.client.Config(max_pool_connections=200,
+                                                       user_agent_extra='pywren-ibm-cloud')
             self.cos_client = ibm_boto3.client('s3',
                                                aws_access_key_id = access_key, 
                                                aws_secret_access_key = secret_key,
