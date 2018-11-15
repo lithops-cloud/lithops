@@ -35,8 +35,6 @@ from multiprocessing.pool import ThreadPool
 
 logger = logging.getLogger(__name__)
 
-JOB_MAX_RUNTIME = 600
-
 
 class ExecutorState(enum.Enum):
     new = 1
@@ -46,17 +44,17 @@ class ExecutorState(enum.Enum):
 
 class ibm_cf_executor(object):
 
-    def __init__(self, config=None, runtime=None, log_level=None, job_max_runtime=JOB_MAX_RUNTIME):
+    def __init__(self, config=None, runtime=None, log_level=None, runtime_timeout=wrenconfig.CF_RUNTIME_TIMEOUT):
         """
         Initialize and return an executor class.
 
         :param config: Settings passed in here will override those in `pywren_config`. Default None.
         :param runtime: Runtime name to use. Default None.
-        :param job_max_runtime: Max time per lambda. Default 300
+        :param runtime_timeout: Max time per action. Default 600
         :return `executor` object.
 
         Usage
-          >>> import pywren
+          >>> import pywren_ibm_cloud as pywren
           >>> pw = pywren.ibm_cf_executor()
         """
         self._state = ExecutorState.new
@@ -80,7 +78,7 @@ class ibm_cf_executor(object):
         invoker = invokers.IBMCloudFunctionsInvoker(ibm_cf_config)
         self.storage_config = wrenconfig.extract_storage_config(self.config)
         self.storage_handler = storage.Storage(self.storage_config)
-        self.executor = Executor(invoker, self.config, self.storage_handler, job_max_runtime)
+        self.executor = Executor(invoker, self.config, self.storage_handler, runtime_timeout)
         self.executor_id = self.executor.executor_id
 
         self.futures = []
@@ -91,8 +89,8 @@ class ibm_cf_executor(object):
         For run one function execution
         :param func: the function to map over the data
         :param data: input data
-        :param extra_env: Additional environment variables for lambda environment. Default None.
-        :param extra_meta: Additional metadata to pass to lambda. Default None.
+        :param extra_env: Additional environment variables for action environment. Default None.
+        :param extra_meta: Additional metadata to pass to action. Default None.
 
         Usage
           >>> import pywren_ibm_cloud as pywren
@@ -114,8 +112,8 @@ class ibm_cf_executor(object):
         """
         :param func: the function to map over the data
         :param iterdata: An iterable of input data
-        :param extra_env: Additional environment variables for lambda environment. Default None.
-        :param extra_meta: Additional metadata to pass to lambda. Default None.
+        :param extra_env: Additional environment variables for action environment. Default None.
+        :param extra_meta: Additional metadata to pass to action. Default None.
         :param invoke_pool_threads: Number of threads to use to invoke.
         :param data_all_as_one: upload the data as a single object. Default True
         :param overwrite_invoke_args: Overwrite other args. Mainly used for testing.
@@ -190,8 +188,8 @@ class ibm_cf_executor(object):
         :param reduce_function:  the function to reduce over the futures
         :param map_iterdata:  the function to reduce over the futures
         :param chunk_size: the size of the data chunks
-        :param extra_env: Additional environment variables for lambda environment. Default None.
-        :param extra_meta: Additional metadata to pass to lambda. Default None.
+        :param extra_env: Additional environment variables for action environment. Default None.
+        :param extra_meta: Additional metadata to pass to action. Default None.
         :return: A list with size `len(map_iterdata)` of futures for each job
 
         Usage
@@ -249,7 +247,7 @@ class ibm_cf_executor(object):
         return wait(futures, self.executor_id, self.storage_handler,
                     throw_except, verbose, return_when, THREADPOOL_SIZE, WAIT_DUR_SEC)
 
-    def get_result(self, futures=None, throw_except=True, verbose=False, timeout=JOB_MAX_RUNTIME):
+    def get_result(self, futures=None, throw_except=True, verbose=False, timeout=wrenconfig.CF_RUNTIME_TIMEOUT):
         """
         For get PyWren results
         :param throw_except: Reraise exception if call raised. Default true.
@@ -293,7 +291,7 @@ class ibm_cf_executor(object):
 
         return result
 
-    def _get_result(self, future, throw_except=True, verbose=False, timeout=JOB_MAX_RUNTIME):
+    def _get_result(self, future, throw_except=True, verbose=False, timeout=wrenconfig.CF_RUNTIME_TIMEOUT):
         """
         For get one function execution (future) result
         :param throw_except: Reraise exception if call raised. Default true.
@@ -370,7 +368,7 @@ class ibm_cf_executor(object):
         return result
 
     def _get_all_results(self, futures, throw_except=True, verbose=False,
-                         timeout=JOB_MAX_RUNTIME, THREADPOOL_SIZE=64,
+                         timeout=wrenconfig.CF_RUNTIME_TIMEOUT, THREADPOOL_SIZE=64,
                          WAIT_DUR_SEC=3):
         """
         Take in a list of futures, call result on each one individually
