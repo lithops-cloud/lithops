@@ -102,10 +102,11 @@ class ibm_cf_executor(object):
         if self._state == ExecutorState.finished or self._state == ExecutorState.error:
             raise Exception('You cannot run pw.call_async() in the current state,'
                             ' create a new pywren.ibm_cf_executor() instance.')
-
-        self.futures = self.executor.call_async(func, data, extra_env, extra_meta)
-
-        return self.futures[0]
+        
+        future = self.executor.call_async(func, data, extra_env, extra_meta)[0]
+        self.futures.append(future)
+                
+        return future
 
     def map(self, func, iterdata, extra_env=None, extra_meta=None,
             remote_invocation=False, invoke_pool_threads=10, data_all_as_one=True,
@@ -432,8 +433,8 @@ class ibm_cf_executor(object):
                 if verbose and still_not_done_futures:
                     pool.map(fetch_future_results, still_not_done_futures)
                 elif still_not_done_futures:
-                    futures = pool.map(fetch_future_results, still_not_done_futures)
-                    for f in futures:
+                    ftrs = pool.map(fetch_future_results, still_not_done_futures)
+                    for f in ftrs:
                         if f.done:
                             pbar.update(1)
                     pbar.refresh()
