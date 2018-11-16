@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import time
 import logging
 from pywren_ibm_cloud.cf_connector import CloudFunctions
 
@@ -41,8 +42,10 @@ class IBMCloudFunctionsInvoker(object):
         """
         act_id = None
         retries = 0
+        # retry_sleep = [1, 30, 60, 90, 120]
         while not act_id and retries < MAX_INVOKE_RETRIES:
             act_id = self.client.invoke(self.cf_action_name, payload)
+            # time.sleep(retry_sleep[retries])
             retries += 1
         return act_id
 

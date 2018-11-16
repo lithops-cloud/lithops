@@ -38,9 +38,9 @@ logger = logging.getLogger(__name__)
 
 class Executor(object):
 
-    def __init__(self, invoker, config, storage_handler, job_max_runtime):
+    def __init__(self, invoker, config, storage_handler, timeout):
         self.invoker = invoker
-        self.job_max_runtime = job_max_runtime
+        self.job_max_runtime = timeout
 
         self.config = config
         self.storage_handler = storage_handler
