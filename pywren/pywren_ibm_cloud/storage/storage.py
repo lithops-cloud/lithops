@@ -27,7 +27,7 @@ class Storage(object):
 
     def __init__(self, config):
         self.storage_config = config
-        self.backend_type = config['storage_backend']
+        self.backend_type = config['function_storage_backend']
 
         if self.backend_type == 'ibm_cos':
             self.backend_handler = COSBackend(config['ibm_cos'])
