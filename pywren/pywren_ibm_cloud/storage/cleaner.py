@@ -42,7 +42,7 @@ def clean_os_bucket(bucket, prefix, storage_handler):
     msg = "Going to delete all objects from bucket '{}' and prefix '{}'".format(bucket, prefix)
     logger.debug(msg)
     total_objects = 0
-    objects_to_delete = storage_handler.list_objects(bucket, prefix)
+    objects_to_delete = storage_handler.list_temporal_data(prefix)
     
     while objects_to_delete:
         if 'Key' in objects_to_delete[0]:
@@ -53,6 +53,6 @@ def clean_os_bucket(bucket, prefix, storage_handler):
             delete_keys = [obj['name'] for obj in objects_to_delete]
         logger.debug('{} objects found'.format(len(delete_keys)))
         total_objects = total_objects + len(delete_keys)
-        storage_handler.delete_objects(bucket, delete_keys)
-        objects_to_delete = storage_handler.list_objects(bucket, prefix)
+        storage_handler.delete_temporal_data(delete_keys)
+        objects_to_delete = storage_handler.list_temporal_data(prefix)
     logger.info('Finished deleting objects, total found: {}'.format(total_objects))

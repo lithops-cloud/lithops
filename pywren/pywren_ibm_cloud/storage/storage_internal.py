@@ -40,7 +40,7 @@ class Storage(object):
         elif self.backend_type == 'swift':
             self.backend_handler = SwiftBackend(config['swift'])
         else:
-            raise NotImplementedError(("Using {} as storage backend is" +
+            raise NotImplementedError(("Using {} as internal storage backend is" +
                                        "not supported yet").format(self.backend_type))
 
     def get_storage_config(self):
@@ -48,87 +48,7 @@ class Storage(object):
         Retrieves the configuration of this storage handler.
         :return: storage configuration
         """
-        return self.storage_config
-    
-    def put_object(self, bucket, key, data):
-        """
-        Generic method to Put an object into storage.
-        :param bucket: bucket name
-        :param key: data key
-        :param data: data content
-        :return: None
-        """
-        return self.backend_handler.put_object(bucket, key, data)
-    
-    def get_object(self, bucket, key, stream=False, extra_get_args={}):
-        """
-        Generic method to Get an object from storage.
-        :param bucket: bucket name
-        :param key: data key
-        :return: data content
-        """
-        return self.backend_handler.get_object(bucket, key, stream, extra_get_args)
-    
-    def delete_object(self, bucket, key):
-        """
-        Generic method to delete an object from storage.
-        :param bucket: bucket name
-        :param key: data key
-        """
-        return self.backend_handler.delete_object(bucket, key)
-    
-    def delete_objects(self, bucket, key_list):
-        """
-        Generic method to delete a list of objects from storage.
-        :param bucket: bucket name
-        :param key: data key
-        """
-        return self.backend_handler.delete_objects(bucket, key_list)
-
-    def get_metadata(self, bucket, key):
-        """
-        Get object metadata.
-        :param key: function key
-        :return: metadata dictionary
-        """
-        return self.backend_handler.head_object(bucket, key)
-    
-    def bucket_exists(self, bucket):
-        """
-        Get object metadata.
-        :param key: function key
-        :return: metadata dictionary
-        """
-        try:
-            self.backend_handler.bucket_exists(bucket)
-            return True
-        except StorageNoSuchKeyError:
-            return False
-    
-    def list_objects(self, bucket, prefix=''):
-        """
-        List the objects in a bucket.
-        :param bucket: bucket key
-        :param prefix: prefix to search for
-        :return: list of objects
-        """
-        return self.backend_handler.list_objects(bucket, prefix)
-
-    def object_exists(self, bucket, key):        
-        """
-        Get the status of a callset.
-        :param key: function key
-        :param bucket: container name
-        :return: True if key exists, False if not exists
-        """
-        try:
-            self.backend_handler.head_object(bucket, key)
-            return True
-        except StorageNoSuchKeyError:
-            return False
-        except Exception as e:
-            raise e
-    
+        return self.storage_config   
 
     def put_data(self, key, data):
         """
@@ -229,6 +149,20 @@ class Storage(object):
         """
         key = os.path.join('runtimes', runtime_name+".meta.json")
         self.backend_handler.put_object(self.storage_bucket, key, json.dumps(runtime_meta))
-
-    def get_list_paginator(self, bucket, prefix=''):
-        return self.backend_handler.list_paginator(bucket, prefix)
+        
+    def list_temporal_data(self, executor_id):
+        """
+        List the temporal data used by PyWren.
+        :param bucket: bucket key
+        :param prefix: prefix to search for
+        :return: list of objects
+        """
+        return self.backend_handler.list_objects(self.storage_bucket, executor_id)
+    
+    def delete_temporal_data(self, key_list):
+        """
+        Delete temporal data from PyWren.
+        :param bucket: bucket name
+        :param key: data key
+        """
+        return self.backend_handler.delete_objects(self.storage_bucket, key_list)

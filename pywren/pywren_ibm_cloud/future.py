@@ -99,7 +99,7 @@ class ResponseFuture(object):
             return True
         return False
 
-    def result(self, check_only=False, throw_except=True, verbose=False, storage_handler=None):
+    def result(self, check_only=False, throw_except=True, verbose=False, internal_storage=None):
         """
         Return the value returned by the call.
         If the call raised an exception, this method will raise the same exception
@@ -127,11 +127,11 @@ class ResponseFuture(object):
             else:
                 return None
 
-        if storage_handler is None:
-            storage_handler = storage_internal.Storage(self.storage_config)
+        if internal_storage is None:
+            internal_storage = storage_internal.Storage(self.storage_config)
 
-        storage_utils.check_storage_path(storage_handler.get_storage_config(), self.storage_path)
-        call_status = storage_handler.get_call_status(self.executor_id, self.callgroup_id, self.call_id)
+        storage_utils.check_storage_path(internal_storage.get_storage_config(), self.storage_path)
+        call_status = internal_storage.get_call_status(self.executor_id, self.callgroup_id, self.call_id)
         self.status_query_count += 1
 
         if check_only is True:
@@ -143,7 +143,7 @@ class ResponseFuture(object):
 
         while call_status is None:
             time.sleep(self.GET_RESULT_SLEEP_SECS)
-            call_status = storage_handler.get_call_status(self.executor_id, self.callgroup_id, self.call_id)
+            call_status = internal_storage.get_call_status(self.executor_id, self.callgroup_id, self.call_id)
             self.status_query_count += 1
 
         self._invoke_metadata['status_done_timestamp'] = time.time()
@@ -192,12 +192,12 @@ class ResponseFuture(object):
                 return None
 
         call_output_time = time.time()
-        call_invoker_result = storage_handler.get_call_output(self.executor_id, self.callgroup_id, self.call_id)
+        call_invoker_result = internal_storage.get_call_output(self.executor_id, self.callgroup_id, self.call_id)
         self.output_query_count += 1
 
         while call_invoker_result is None and self.output_query_count < 5:
             time.sleep(self.GET_RESULT_SLEEP_SECS)
-            call_invoker_result = storage_handler.get_call_output(self.executor_id, self.callgroup_id, self.call_id)
+            call_invoker_result = internal_storage.get_call_output(self.executor_id, self.callgroup_id, self.call_id)
             self.output_query_count += 1
 
         if call_invoker_result is None:

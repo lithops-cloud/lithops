@@ -51,8 +51,8 @@ def create_runtime(image_name):
 
     # Create storage_handler to upload modules file
     storage_config = wrenconfig.extract_storage_config(config)
-    storage_handler = storage_internal.Storage(storage_config)
-    storage_handler.put_runtime_info(runtime_name, runtime_meta)
+    internal_storage = storage_internal.Storage(storage_config)
+    internal_storage.put_runtime_info(runtime_name, runtime_meta)
 
     # Create zipped PyWren action
     create_zip_action()
