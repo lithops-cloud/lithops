@@ -34,32 +34,13 @@ class COSBackend(object):
 
     def __init__(self, cos_config):
 
-        if 'cos_endpoint' in cos_config:
-            service_endpoint = cos_config.get('cos_endpoint').replace('http:', 'https:')
+        service_endpoint = cos_config.get('endpoint').replace('http:', 'https:')           
 
-        elif {'cos_endpoints', 'cos_region'} <= set(cos_config):
-            endpoints = requests.get(cos_config.get('cos_endpoints')).json()
-            region = cos_config.get('cos_region')
-
-            if region in endpoints['service-endpoints']['cross-region']['us']['public']:
-                cos_host = endpoints['service-endpoints']['cross-region']['us']['public'][region]
-
-            elif region in endpoints['service-endpoints']['cross-region']['eu']['public']:
-                cos_host = endpoints['service-endpoints']['cross-region']['eu']['public'][region]
-            
-            elif region in endpoints['service-endpoints']['regional']:
-                cos_host = endpoints['service-endpoints']['regional'][region]['public'][region]
-
-            elif region in endpoints['service-endpoints']['regional']:
-                cos_host = endpoints['service-endpoints']['regional'][region]['public'][region]
-
-            service_endpoint = 'https://' + cos_host
-
-        if 'cos_api_key' in cos_config:
+        if 'api_key' in cos_config:
             client_config = ibm_botocore.client.Config(signature_version='oauth',
                                                        max_pool_connections=200,
                                                        user_agent_extra='pywren-ibm-cloud')
-            api_key = cos_config.get('cos_api_key')
+            api_key = cos_config.get('api_key')
             token_manager = DefaultTokenManager(api_key_id=api_key)
             
             if 'cos_token' in cos_config:
@@ -71,9 +52,9 @@ class COSBackend(object):
                                                endpoint_url=service_endpoint) 
             cos_config['cos_token'] = token_manager.get_token()
         
-        elif {'cos_secret_key', 'cos_access_key'} <= set(cos_config):
-            secret_key = cos_config.get('cos_secret_key')
-            access_key = cos_config.get('cos_access_key')
+        elif {'secret_key', 'access_key'} <= set(cos_config):
+            secret_key = cos_config.get('secret_key')
+            access_key = cos_config.get('access_key')
             client_config = ibm_botocore.client.Config(max_pool_connections=200,
                                                        user_agent_extra='pywren-ibm-cloud')
             self.cos_client = ibm_boto3.client('s3',

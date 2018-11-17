@@ -3,7 +3,7 @@ import click
 import os
 import json
 from pywren_ibm_cloud import wrenconfig
-from pywren_ibm_cloud.storage import storage
+from pywren_ibm_cloud.storage import storage_internal
 from pywren_ibm_cloud.cf_connector import CloudFunctions
 from pywren_ibm_cloud.wrenconfig import CF_ACTION_NAME_DEFAULT
 
@@ -52,7 +52,7 @@ def create_runtime(image_name):
     # Create storage_handler to upload modules file
     storage_config = wrenconfig.extract_storage_config(config)
     pywren_container = storage_config['storage_bucket']
-    storage_handler = storage.Storage(storage_config)
+    storage_handler = storage_internal.Storage(storage_config)
     key = os.path.join('runtimes', runtime_name+'.meta.json')
     storage_handler.put_object(pywren_container, key, json.dumps(runtime_meta))
 

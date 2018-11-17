@@ -31,14 +31,14 @@ class Storage(object):
 
     def __init__(self, config):
         self.storage_config = config
-        self.backend_type = config['storage_backend']
+        self.backend_type = config['internal_storage_backend']
         self.storage_bucket =  config['storage_bucket']
         self.prefix = config['storage_prefix']
 
         if self.backend_type == 'ibm_cos':
-            self.backend_handler = COSBackend(config['backend_config'])
+            self.backend_handler = COSBackend(config['ibm_cos'])
         elif self.backend_type == 'swift':
-            self.backend_handler = SwiftBackend(config['backend_config'])
+            self.backend_handler = SwiftBackend(config['swift'])
         else:
             raise NotImplementedError(("Using {} as storage backend is" +
                                        "not supported yet").format(self.backend_type))
@@ -216,7 +216,7 @@ class Storage(object):
         try:
             json_str = self.backend_handler.get_object(self.storage_bucket, key)
         except StorageNoSuchKeyError:
-            raise Exception('The runtime {} is not installed.\nRun the command "./build_runtime create {}" to deploy it'.format(runtime_name, runtime_name))  
+            raise Exception('The runtime {} is not installed.'.format(runtime_name))  
         runtime_meta = json.loads(json_str.decode("ascii"))
         
         return runtime_meta

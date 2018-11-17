@@ -26,7 +26,7 @@ import pywren_ibm_cloud.invokers as invokers
 import pywren_ibm_cloud.wrenconfig as wrenconfig
 from pywren_ibm_cloud import future
 from pywren_ibm_cloud import wrenlogging
-from pywren_ibm_cloud.storage import storage
+from pywren_ibm_cloud.storage import storage_internal
 from pywren_ibm_cloud.executor import Executor
 from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
 from pywren_ibm_cloud.wrenutil import timeout_handler
@@ -76,8 +76,8 @@ class ibm_cf_executor(object):
         self.data_cleaner = self.config['pywren']['data_cleaner']
 
         invoker = invokers.IBMCloudFunctionsInvoker(ibm_cf_config)
-        self.storage_config = wrenconfig.extract_storage_config(self.config)
-        self.storage_handler = storage.Storage(self.storage_config)
+        self.storage_config = wrenconfig.extract_storage_config(self.config)        
+        self.storage_handler = storage_internal.Storage(self.storage_config)
         self.executor = Executor(invoker, self.config, self.storage_handler, runtime_timeout)
         self.executor_id = self.executor.executor_id
 
@@ -178,7 +178,7 @@ class ibm_cf_executor(object):
         return self.futures
 
     def map_reduce(self, map_function, map_iterdata, reduce_function,
-                   chunk_size=64*1024**2, reducer_one_per_object=False,
+                   chunk_size=None, reducer_one_per_object=False,
                    reducer_wait_local=True, throw_except=True,
                    extra_env=None, extra_meta=None):
         """
@@ -187,7 +187,7 @@ class ibm_cf_executor(object):
         :param map_function: the function to map over the data
         :param reduce_function:  the function to reduce over the futures
         :param map_iterdata:  the function to reduce over the futures
-        :param chunk_size: the size of the data chunks
+        :param chunk_size: the size of the data chunks. 'None' for processing the whole file in one map
         :param extra_env: Additional environment variables for action environment. Default None.
         :param extra_meta: Additional metadata to pass to action. Default None.
         :return: A list with size `len(map_iterdata)` of futures for each job

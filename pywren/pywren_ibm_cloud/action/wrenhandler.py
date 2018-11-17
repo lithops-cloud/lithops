@@ -25,7 +25,7 @@ import traceback
 from threading import Thread
 from queue import Queue
 from pywren_ibm_cloud import version
-from pywren_ibm_cloud.storage import storage
+from pywren_ibm_cloud.storage import storage_internal
 
 logger = logging.getLogger('wrenhandler')
 
@@ -88,14 +88,8 @@ def ibm_cloud_function_handler(event):
     #print(os.environ)
     try:
         # stdout = ""
-        storage_backend = event['storage_config']['storage_backend']
-
-        if storage_backend != 'ibm_cos' and storage_backend != 'swift':
-            raise NotImplementedError(("Using {} as storage backend is not supported " +
-                                       "yet.").format(storage_backend))
-
         storage_config = event['storage_config']
-        storage_handler = storage.Storage(storage_config)
+        storage_handler = storage_internal.Storage(storage_config)
 
         # download the input
         status_key = event['status_key']
@@ -228,6 +222,6 @@ def ibm_cloud_function_handler(event):
         if store_status:
             if not storage_handler:
                 # creating new client in case the client has not been created
-                storage_handler = storage.Storage(storage_config)
+                storage_handler = storage_internal.Storage(storage_config)
 
             storage_handler.put_data(status_key, json.dumps(response_status))

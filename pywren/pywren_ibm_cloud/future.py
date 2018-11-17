@@ -19,7 +19,7 @@ import time
 import enum
 from six import reraise
 from six.moves import cPickle as pickle
-from pywren_ibm_cloud.storage import storage, storage_utils
+from pywren_ibm_cloud.storage import storage_internal, storage_utils
 
 try:
     from tblib import pickling_support
@@ -128,7 +128,7 @@ class ResponseFuture(object):
                 return None
 
         if storage_handler is None:
-            storage_handler = storage.Storage(self.storage_config)
+            storage_handler = storage_internal.Storage(self.storage_config)
 
         storage_utils.check_storage_path(storage_handler.get_storage_config(), self.storage_path)
         call_status = storage_handler.get_call_status(self.executor_id, self.callgroup_id, self.call_id)

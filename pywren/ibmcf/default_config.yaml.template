@@ -8,18 +8,19 @@ ibm_cf:
     api_key     : <CF_API_KEY>
     action_name : pywren_3.6  # Default runtime
 
-storage_backend: ibm_cos
+#internal_storage_backend: ibm_cos
+#function_storage_backend: ibm_cos
 
 ibm_cos:
     endpoint   : <COS_API_ENDPOINT>
     api_key    : <API_KEY>
     
-    access_key : <ACCESS_KEY>  # Optional
-    secret_key : <SECRET_KEY>  # Optional
+    #access_key : <ACCESS_KEY>  # Optional
+    #secret_key : <SECRET_KEY>  # Optional
     
-swift:
-    auth_url   : <SWIFT_AUTH_URL>
-    region     : <SWIFT_REGION>
-    user_id    : <SWIFT_USER_ID>
-    project_id : <SWIFT_PROJECT_ID>
-    password   : <SWIFT_PASSWORD>
+#swift:
+#    auth_url   : <SWIFT_AUTH_URL>
+#    region     : <SWIFT_REGION>
+#    user_id    : <SWIFT_USER_ID>
+#    project_id : <SWIFT_PROJECT_ID>
+#    password   : <SWIFT_PASSWORD>
