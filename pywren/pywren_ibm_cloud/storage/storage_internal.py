@@ -208,7 +208,7 @@ class Storage(object):
     
     def get_runtime_info(self, runtime_name):
         """
-        Get the metadata given a runtime config.
+        Get the metadata given a runtime name.
         :param runtime: name of the runtime
         :return: runtime metadata
         """
@@ -220,6 +220,15 @@ class Storage(object):
         runtime_meta = json.loads(json_str.decode("ascii"))
         
         return runtime_meta
+    
+    def put_runtime_info(self, runtime_name, runtime_meta):
+        """
+        Puit the metadata given a runtime config.
+        :param runtime: name of the runtime
+        :param runtime_meta metadata
+        """
+        key = os.path.join('runtimes', runtime_name+".meta.json")
+        self.backend_handler.put_object(self.storage_bucket, key, json.dumps(runtime_meta))
 
     def get_list_paginator(self, bucket, prefix=''):
         return self.backend_handler.list_paginator(bucket, prefix)
