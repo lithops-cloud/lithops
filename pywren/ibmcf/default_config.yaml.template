@@ -1,15 +1,13 @@
 pywren: 
     storage_bucket: <BUCKET_NAME>
     storage_prefix: pywren.jobs
+    #storage_backend: ibm_cos
 
 ibm_cf:
     endpoint    : <CF_API_ENDPOINT>
     namespace   : <CF_NAMESPACE>
     api_key     : <CF_API_KEY>
     action_name : pywren_3.6  # Default runtime
-
-#internal_storage_backend: ibm_cos
-#function_storage_backend: ibm_cos
 
 ibm_cos:
     endpoint   : <COS_API_ENDPOINT>

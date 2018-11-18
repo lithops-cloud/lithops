@@ -14,12 +14,13 @@
 # limitations under the License.
 #
 
+import logging
+import requests
 import ibm_boto3
 import ibm_botocore
 from ibm_botocore.credentials import DefaultTokenManager
-import requests
-from .exceptions import StorageNoSuchKeyError
-import logging
+from pywren_ibm_cloud.storage.exceptions import StorageNoSuchKeyError
+
 
 # FIXME: there has to be a better way to disable noisy boto logs
 logging.getLogger('ibm_boto3').setLevel(logging.CRITICAL)

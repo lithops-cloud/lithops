@@ -25,12 +25,11 @@ import pywren_ibm_cloud as pywren
 import pywren_ibm_cloud.version as version
 import pywren_ibm_cloud.wrenconfig as wrenconfig
 import pywren_ibm_cloud.wrenutil as wrenutil
-from pywren_ibm_cloud.future import ResponseFuture, JobState
-from pywren_ibm_cloud.serialize import serialize, create_mod_data
-from pywren_ibm_cloud.storage import storage_utils
-from pywren_ibm_cloud.storage.storage_utils import create_func_key, create_agg_data_key
 from pywren_ibm_cloud.wait import wait
+from pywren_ibm_cloud.future import ResponseFuture, JobState
 from pywren_ibm_cloud.runtime import get_runtime_preinstalls
+from pywren_ibm_cloud.serialize import serialize, create_mod_data
+from pywren_ibm_cloud.storage.storage_utils import create_keys, create_func_key, create_agg_data_key
 
 
 logger = logging.getLogger(__name__)
@@ -241,8 +240,8 @@ class Executor(object):
 
         def invoke(data_str, executor_id, callgroup_id, call_id, func_key,
                    host_job_meta, agg_data_key=None, data_byte_range=None):
-            data_key, output_key, status_key = storage_utils.create_keys(self.internal_storage.prefix,
-                                                                         executor_id, callgroup_id, call_id)
+            data_key, output_key, status_key = create_keys(self.internal_storage.prefix,
+                                                           executor_id, callgroup_id, call_id)
             host_job_meta['job_invoke_timestamp'] = time.time()
 
             if agg_data_key is None:
@@ -387,7 +386,7 @@ class Executor(object):
             if not storage.bucket_exists(bucket_name):
                 raise ValueError('Bucket you provided does not exists: \
                                  {}'.format(bucket_name))
-            return storage.get_list_paginator(bucket_name, prefix)
+            return storage.list_paginator(bucket_name, prefix)
 
         def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
             """
@@ -449,7 +448,7 @@ class Executor(object):
                 object_key = entry['key']
                 logger.info(object_key)
                 bucket, object_name = object_key.split('/', 1)
-                metadata = storage.get_metadata(bucket, object_name)
+                metadata = storage.head_object(bucket, object_name)
                 obj_size = int(metadata['content-length'])
 
                 if chunk_size is not None and obj_size > chunk_size:

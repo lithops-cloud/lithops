@@ -25,7 +25,7 @@ import traceback
 from threading import Thread
 from queue import Queue
 from pywren_ibm_cloud import version
-from pywren_ibm_cloud.storage import storage_internal
+from pywren_ibm_cloud.storage import storage
 
 logger = logging.getLogger('wrenhandler')
 
@@ -69,7 +69,6 @@ def ibm_cloud_function_handler(event):
     logger.info("Starting handler")
     response_status = {'exception': None}
     response_status['start_time'] = start_time
-    internal_storage = None
 
     context_dict = {
         'ibm_cf_request_id': os.environ.get("__OW_ACTIVATION_ID"),
@@ -216,5 +215,5 @@ def ibm_cloud_function_handler(event):
 
         if store_status:
             storage_config = event['storage_config']
-            internal_storage = storage_internal.Storage(storage_config)
+            internal_storage = storage.InternalStorage(storage_config)
             internal_storage.put_data(status_key, json.dumps(response_status))

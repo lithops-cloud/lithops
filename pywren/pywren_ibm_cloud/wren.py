@@ -26,7 +26,7 @@ import pywren_ibm_cloud.invokers as invokers
 import pywren_ibm_cloud.wrenconfig as wrenconfig
 from pywren_ibm_cloud import future
 from pywren_ibm_cloud import wrenlogging
-from pywren_ibm_cloud.storage import storage_internal
+from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.executor import Executor
 from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
 from pywren_ibm_cloud.wrenutil import timeout_handler
@@ -77,7 +77,7 @@ class ibm_cf_executor(object):
 
         invoker = invokers.IBMCloudFunctionsInvoker(ibm_cf_config)
         self.storage_config = wrenconfig.extract_storage_config(self.config)
-        self.internal_storage = storage_internal.Storage(self.storage_config)
+        self.internal_storage = storage.InternalStorage(self.storage_config)
         self.executor = Executor(invoker, self.config, self.internal_storage, runtime_timeout)
         self.executor_id = self.executor.executor_id
 
@@ -161,7 +161,7 @@ class ibm_cf_executor(object):
                 print(msg)
 
             def fetch_future_results(f):
-                f.result(storage_handler=self.internal_storage)
+                f.result(internal_storage=self.internal_storage)
                 return f
 
             pool = ThreadPool(32)

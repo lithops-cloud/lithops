@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 
-from __future__ import print_function
 import os
 import base64
 import shutil
@@ -24,8 +23,10 @@ import time
 import logging
 import inspect
 from six.moves import cPickle as pickle
-from pywren_ibm_cloud.storage import storage, storage_internal
 from pywren_ibm_cloud import wrenlogging
+from pywren_ibm_cloud.storage import storage
+from pywren_ibm_cloud.storage.backends.cos import COSBackend
+from pywren_ibm_cloud.storage.backends.swift import SwiftBackend
 from pywren_ibm_cloud.libs.tblib import pickling_support
 
 pickling_support.install()
@@ -52,8 +53,8 @@ jobrunner_config_filename = sys.argv[1]
 
 jobrunner_config = json.load(open(jobrunner_config_filename, 'r'))
 # Create Storage handler
-storage_config = os.environ.get('STORAGE_CONFIG', '')
-internal_storage = storage_internal.Storage(json.loads(storage_config))
+storage_config = json.loads(os.environ.get('STORAGE_CONFIG', ''))
+internal_storage = storage.InternalStorage(storage_config)
 
 func_key = jobrunner_config['func_key']
 
@@ -135,11 +136,25 @@ try:
     write_stat('data_download_time',
                data_download_time_t2-data_download_time_t1)
 
-    # Verify storage parameters
+    # Verify storage parameters - Create clients
     func_sig = inspect.signature(loaded_func)
+    
     if 'storage' in func_sig.parameters:
-        func_storage_handler = storage.Storage(json.loads(storage_config))
-        loaded_data['storage'] = func_storage_handler
+        if 'ibm_cos' in storage_config:
+            func_storage = COSBackend(storage_config['ibm_cos'])
+        if 'swift' in storage_config:
+            func_storage = SwiftBackend(storage_config['swift'])
+        
+        loaded_data['storage'] = func_storage
+    
+    if 'ibm_cos' in func_sig.parameters:
+        func_storage = COSBackend(storage_config['ibm_cos'])
+        loaded_data['ibm_cos'] = func_storage
+    
+    if 'swift' in func_sig.parameters:
+        func_storage = SwiftBackend(storage_config['swift'])
+        loaded_data['swift'] = func_storage
+    
     if 'internal_storage' in func_sig.parameters:
         loaded_data['internal_storage'] = internal_storage
 

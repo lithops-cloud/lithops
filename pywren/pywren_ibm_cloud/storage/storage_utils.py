@@ -16,7 +16,7 @@
 
 import os
 
-from .exceptions import StorageConfigMismatchError
+from pywren_ibm_cloud.storage.exceptions import StorageConfigMismatchError
 
 func_key_suffix = "func.pickle"
 agg_data_key_suffix = "aggdata.pickle"
@@ -96,7 +96,7 @@ def create_keys(prefix, executor_id, callgroup_id, call_id):
 def get_storage_path(storage_config):
     storage_bucket = storage_config['storage_bucket']
     storage_prefix = storage_config['storage_prefix']
-    storage_backend = storage_config['internal_storage_backend']
+    storage_backend = storage_config['storage_backend']
     
     if storage_backend != 'ibm_cos' and storage_backend != 'swift':
         raise NotImplementedError(

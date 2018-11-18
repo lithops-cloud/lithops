@@ -104,12 +104,9 @@ def default(config_data=None):
             config_data = load(config_filename)
 
     # Apply default values
-    if 'internal_storage_backend' not in config_data:
-        config_data['internal_storage_backend'] = DEFAULT_STORAGE_BACKEND
-    if 'function_storage_backend' not in config_data:
-        config_data['function_storage_backend'] = DEFAULT_STORAGE_BACKEND
     if 'pywren' not in config_data:
         config_data['pywren'] = dict()
+        config_data['pywren']['storage_backend'] = DEFAULT_STORAGE_BACKEND
         config_data['pywren']['storage_bucket'] = COS_BUCKET_DEFAULT
         config_data['pywren']['storage_prefix'] = COS_PREFIX_DEFAULT
         config_data['pywren']['data_cleaner'] = DATA_CLEANER_DEFAULT
@@ -120,6 +117,8 @@ def default(config_data=None):
             config_data['pywren']['storage_prefix'] = COS_PREFIX_DEFAULT
         if 'data_cleaner' not in config_data['pywren']:
             config_data['pywren']['data_cleaner'] = DATA_CLEANER_DEFAULT
+        if 'storage_backend' not in config_data['pywren']:
+            config_data['pywren']['storage_backend'] = DEFAULT_STORAGE_BACKEND
 
     if 'action_name' not in config_data['ibm_cf']:
         config_data['ibm_cf']['action_name'] = CF_ACTION_NAME_DEFAULT
@@ -133,13 +132,11 @@ def default(config_data=None):
 def extract_storage_config(config):
     storage_config = dict()
 
-    storage_config['function_storage_backend'] = config['function_storage_backend']
-    storage_config['internal_storage_backend'] = config['internal_storage_backend']
+    storage_config['storage_backend'] = config['pywren']['storage_backend']
     storage_config['storage_prefix'] = config['pywren']['storage_prefix']
     storage_config['storage_bucket'] = config['pywren']['storage_bucket']
 
-    if storage_config['function_storage_backend'] == 'ibm_cos' or \
-       storage_config['internal_storage_backend'] == 'ibm_cos':
+    if storage_config['storage_backend'] == 'ibm_cos':
         
         required_parameters_1 = ('endpoint', 'api_key')
         required_parameters_2 = ('endpoint', 'secret_key', 'access_key')
@@ -151,8 +148,7 @@ def extract_storage_config(config):
             raise Exception('You must provide {} or {} to access to IBM COS'.format(required_parameters_1,
                                                                                     required_parameters_2))
 
-    if storage_config['function_storage_backend'] == 'swift' or \
-       storage_config['internal_storage_backend'] == 'swift':
+    if storage_config['storage_backend'] == 'swift':
         
         required_parameters = ('auth_url', 'user_id', 'project_id', 'password', 'region')
         
