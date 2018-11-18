@@ -64,7 +64,7 @@ class COSBackend(object):
                                                config=client_config,
                                                endpoint_url=service_endpoint)
 
-    def get_cleint(self):
+    def get_client(self):
         """
         Get ibm_boto3 client.
         :return: ibm_boto3 client
