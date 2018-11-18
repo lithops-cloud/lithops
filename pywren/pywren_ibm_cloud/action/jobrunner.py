@@ -140,20 +140,21 @@ try:
     func_sig = inspect.signature(loaded_func)
     
     if 'storage' in func_sig.parameters:
+        # 'storage' generic parameter used in map_reduce method
         if 'ibm_cos' in storage_config:
-            func_storage = COSBackend(storage_config['ibm_cos'])
-        if 'swift' in storage_config:
-            func_storage = SwiftBackend(storage_config['swift'])
+            mr_storage_client = COSBackend(storage_config['ibm_cos'])
+        elif 'swift' in storage_config:
+            mr_storage_client = SwiftBackend(storage_config['swift'])
         
-        loaded_data['storage'] = func_storage
+        loaded_data['storage'] = mr_storage_client
     
     if 'ibm_cos' in func_sig.parameters:
-        func_storage = COSBackend(storage_config['ibm_cos'])
-        loaded_data['ibm_cos'] = func_storage
+        ibm_boto3_client = COSBackend(storage_config['ibm_cos']).get_client()
+        loaded_data['ibm_cos'] = ibm_boto3_client
     
     if 'swift' in func_sig.parameters:
-        func_storage = SwiftBackend(storage_config['swift'])
-        loaded_data['swift'] = func_storage
+        swift_client = SwiftBackend(storage_config['swift'])
+        loaded_data['swift'] = swift_client
     
     if 'internal_storage' in func_sig.parameters:
         loaded_data['internal_storage'] = internal_storage
