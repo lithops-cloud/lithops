@@ -310,6 +310,7 @@ class Executor(object):
         executor_id = self.executor_id
 
         if wait_local:
+            logger.info('Waiting locally for results')
             wait(list_of_futures, executor_id, self.internal_storage, throw_except)
 
         def reduce_func(fut_list, internal_storage, storage):
@@ -353,7 +354,7 @@ class Executor(object):
 
         chunk_threshold = 4*1024  # 4KB
 
-        def map_func(map_func_args, data_byte_range, storage):
+        def map_func(map_func_args, data_byte_range, storage, ibm_cos):
             extra_get_args = {}
             if data_byte_range is not None:
                 range_str = 'bytes={}-{}'.format(*data_byte_range)
@@ -364,29 +365,28 @@ class Executor(object):
             if 'url' in map_func_args:
                 # it is a public url
                 resp = requests.get(map_func_args['url'], headers=extra_get_args, stream=True)
-                fileobj = resp.raw
+                map_func_args['data_stream'] = resp.raw
+            
             elif 'key' in map_func_args:
                 # it is a COS key
-                bucket = map_func_args['bucket']
-                object_name = map_func_args['key']
+                if 'bucket' not in map_func_args:
+                    bucket, object_name = map_func_args['key'].split('/', 1)
+                else:
+                    bucket = map_func_args['bucket']
+                    object_name = map_func_args['key']
                 fileobj = storage.get_object(bucket, object_name, stream=True,
                                              extra_get_args=extra_get_args)
+                map_func_args['data_stream'] = fileobj
                 # fileobj = wrenutil.WrappedStreamingBody(stream, obj_chunk_size, chunk_threshold)
 
             func_sig = inspect.signature(map_function)
             if 'storage' in func_sig.parameters:
-                return map_function(**map_func_args, data_stream=fileobj, storage=storage)
+                map_func_args['storage'] = storage
+                
+            if 'ibm_cos' in func_sig.parameters:
+                map_func_args['ibm_cos'] = ibm_cos
 
-            return map_function(**map_func_args, data_stream=fileobj)
-
-        def get_object_list(storage, bucket_name, prefix):
-            """
-            This function returns the objects inside a given bucket
-            """
-            if not storage.bucket_exists(bucket_name):
-                raise ValueError('Bucket you provided does not exists: \
-                                 {}'.format(bucket_name))
-            return storage.list_paginator(bucket_name, prefix)
+            return map_function(**map_func_args)
 
         def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
             """
@@ -398,7 +398,7 @@ class Executor(object):
             for entry in map_func_args_list:
                 # Each entry is a bucket
                 bucket_name, prefix = wrenutil.split_path(entry['bucket'])
-                page_iterator = get_object_list(storage, bucket_name, prefix)
+                page_iterator = storage.list_paginator(bucket_name, prefix)
 
                 logger.info('Creating dataset chunks from objects within "{}" '
                             'bucket ...'.format(bucket_name))
@@ -551,8 +551,7 @@ class Executor(object):
                         # Each entry is a bucket
                         bucket_name, prefix = wrenutil.split_path(entry['bucket'])
                         # TODO: Change internal_storage
-                        page_iterator = get_object_list(bucket_name,
-                                                        self.internal_storage)
+                        page_iterator = self.internal_storage.list_paginator(bucket_name, prefix)
                         for page in page_iterator:
                             if "Contents" in page:
                                 for obj in page["Contents"]:

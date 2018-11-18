@@ -167,7 +167,7 @@ class COSBackend(object):
             else:
                 raise e
             
-    def list_objects(self, bucket_name, prefix=''):
+    def list_objects(self, bucket_name, prefix=None):
         """
         Lists the objects in a bucket. Throws StorageNoSuchKeyError if the given bucket does not exist.
         :param key: key of the object
@@ -190,7 +190,7 @@ class COSBackend(object):
             else:
                 raise e
 
-    def list_paginator(self, bucket_name, prefix):
+    def list_paginator(self, bucket_name, prefix=None):
         paginator = self.cos_client.get_paginator('list_objects_v2')
         try:
             if (prefix is not None):
