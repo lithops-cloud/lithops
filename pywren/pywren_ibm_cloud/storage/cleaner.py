@@ -28,13 +28,13 @@ def clean_bucket(bucket, prefix, storage_config):
     Wrapper of clean_os_bucket(). Use this method only when storage_config is
     in JSON format. In any other case, call directly clean_os_bucket() method.
     """
-    storage_handler = storage.Storage(json.loads(storage_config))
+    internal_storage = storage.InternalStorage(json.loads(storage_config))
     sys.stdout = open(os.devnull, 'w')
-    clean_os_bucket(bucket, prefix, storage_handler)
+    clean_os_bucket(bucket, prefix, internal_storage)
     sys.stdout = sys.__stdout__
 
 
-def clean_os_bucket(bucket, prefix, storage_handler):
+def clean_os_bucket(bucket, prefix, internal_storage):
     """
     Deletes all the files from COS. These files include the function,
     the data serialization and the function invocation results.
@@ -42,7 +42,7 @@ def clean_os_bucket(bucket, prefix, storage_handler):
     msg = "Going to delete all objects from bucket '{}' and prefix '{}'".format(bucket, prefix)
     logger.debug(msg)
     total_objects = 0
-    objects_to_delete = storage_handler.list_objects(bucket, prefix)
+    objects_to_delete = internal_storage.list_temporal_data(prefix)
     
     while objects_to_delete:
         if 'Key' in objects_to_delete[0]:
@@ -53,6 +53,6 @@ def clean_os_bucket(bucket, prefix, storage_handler):
             delete_keys = [obj['name'] for obj in objects_to_delete]
         logger.debug('{} objects found'.format(len(delete_keys)))
         total_objects = total_objects + len(delete_keys)
-        storage_handler.delete_objects(bucket, delete_keys)
-        objects_to_delete = storage_handler.list_objects(bucket, prefix)
+        internal_storage.delete_temporal_data(delete_keys)
+        objects_to_delete = internal_storage.list_temporal_data(prefix)
     logger.info('Finished deleting objects, total found: {}'.format(total_objects))

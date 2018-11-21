@@ -69,7 +69,6 @@ def ibm_cloud_function_handler(event):
     logger.info("Starting handler")
     response_status = {'exception': None}
     response_status['start_time'] = start_time
-    storage_handler = None
 
     context_dict = {
         'ibm_cf_request_id': os.environ.get("__OW_ACTIVATION_ID"),
@@ -84,20 +83,7 @@ def ibm_cloud_function_handler(event):
                           'PYWREN_EXECUTOR_ID':  event['executor_id']}
     os.environ.update(custom_handler_env)
 
-    #print(event)
-    #print(os.environ)
     try:
-        # stdout = ""
-        storage_backend = event['storage_config']['storage_backend']
-
-        if storage_backend != 'ibm_cos' and storage_backend != 'swift':
-            raise NotImplementedError(("Using {} as storage backend is not supported " +
-                                       "yet.").format(storage_backend))
-
-        storage_config = event['storage_config']
-        storage_handler = storage.Storage(storage_config)
-
-        # download the input
         status_key = event['status_key']
         func_key = event['func_key']
         data_key = event['data_key']
@@ -213,6 +199,7 @@ def ibm_cloud_function_handler(event):
         #response_status['server_info'] = get_server_info()
         response_status.update(context_dict)
         response_status['end_time'] = time.time()
+
     except Exception as e:
         # internal runtime exceptions
         logger.error("There was an exception: {}".format(str(e)))
@@ -220,14 +207,13 @@ def ibm_cloud_function_handler(event):
         response_status['exception'] = str(e)
         response_status['exception_args'] = e.args
         response_status['exception_traceback'] = traceback.format_exc()
+
     finally:
         store_status = True
         if 'STORE_STATUS' in extra_env:
             store_status = extra_env['STORE_STATUS']
 
         if store_status:
-            if not storage_handler:
-                # creating new client in case the client has not been created
-                storage_handler = storage.Storage(storage_config)
-
-            storage_handler.put_data(status_key, json.dumps(response_status))
+            storage_config = event['storage_config']
+            internal_storage = storage.InternalStorage(storage_config)
+            internal_storage.put_data(status_key, json.dumps(response_status))

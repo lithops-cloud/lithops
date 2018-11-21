@@ -14,11 +14,11 @@
 # limitations under the License.
 #
 
-import requests
-import json
 import os
+import json
 import logging
-from .exceptions import StorageNoSuchKeyError
+import requests
+from pywren_ibm_cloud.storage.exceptions import StorageNoSuchKeyError
 
 
 logger = logging.getLogger(__name__)

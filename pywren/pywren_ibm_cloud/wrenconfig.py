@@ -50,14 +50,15 @@ def load(config_filename):
             "{} has CF API key as {} -- make sure you change the default CF API key".format(
                 config_filename, res['ibm_cf']['api_key']))
 
-    if res['ibm_cos']['endpoint'] == '<COS_API_ENDPOINT>':
-        raise Exception(
-            "{} has CF API endpoint as {} -- make sure you change the default COS API endpoint".format(
-                config_filename, res['ibm_cos']['endpoint']))
-    if 'api_key' in res['ibm_cos'] and res['ibm_cos']['api_key'] == '<COS_API_KEY>':
-        raise Exception(
-            "{} has CF API key as {} -- make sure you change the default COS API key".format(
-                config_filename, res['ibm_cos']['api_key']))
+    if 'ibm_cos' in res:
+        if 'endpoint' in res['ibm_cos'] and res['ibm_cos']['endpoint'] == '<COS_API_ENDPOINT>':
+            raise Exception(
+                "{} has CF API endpoint as {} -- make sure you change the default COS API endpoint".format(
+                    config_filename, res['ibm_cos']['endpoint']))
+        if 'api_key' in res['ibm_cos'] and res['ibm_cos']['api_key'] == '<COS_API_KEY>':
+            raise Exception(
+                "{} has CF API key as {} -- make sure you change the default COS API key".format(
+                    config_filename, res['ibm_cos']['api_key']))
 
     return res
 
@@ -103,10 +104,9 @@ def default(config_data=None):
             config_data = load(config_filename)
 
     # Apply default values
-    if 'storage_backend' not in config_data:
-        config_data['storage_backend'] = DEFAULT_STORAGE_BACKEND
     if 'pywren' not in config_data:
         config_data['pywren'] = dict()
+        config_data['pywren']['storage_backend'] = DEFAULT_STORAGE_BACKEND
         config_data['pywren']['storage_bucket'] = COS_BUCKET_DEFAULT
         config_data['pywren']['storage_prefix'] = COS_PREFIX_DEFAULT
         config_data['pywren']['data_cleaner'] = DATA_CLEANER_DEFAULT
@@ -117,6 +117,8 @@ def default(config_data=None):
             config_data['pywren']['storage_prefix'] = COS_PREFIX_DEFAULT
         if 'data_cleaner' not in config_data['pywren']:
             config_data['pywren']['data_cleaner'] = DATA_CLEANER_DEFAULT
+        if 'storage_backend' not in config_data['pywren']:
+            config_data['pywren']['storage_backend'] = DEFAULT_STORAGE_BACKEND
 
     if 'action_name' not in config_data['ibm_cf']:
         config_data['ibm_cf']['action_name'] = CF_ACTION_NAME_DEFAULT
@@ -129,32 +131,30 @@ def default(config_data=None):
 
 def extract_storage_config(config):
     storage_config = dict()
-    storage_config['storage_backend'] = config['storage_backend']
+
+    storage_config['storage_backend'] = config['pywren']['storage_backend']
     storage_config['storage_prefix'] = config['pywren']['storage_prefix']
     storage_config['storage_bucket'] = config['pywren']['storage_bucket']
 
     if storage_config['storage_backend'] == 'ibm_cos':
-        storage_config['backend_config'] = {}
-
-        if 'endpoint' in config['ibm_cos']:
-            storage_config['backend_config']['cos_endpoint'] = config['ibm_cos']['endpoint']
-        elif {'endpoints', 'region'} <= set(config['ibm_cos']):
-            storage_config['backend_config']['cos_endpoints'] = config['ibm_cos']['endpoints']
-            storage_config['backend_config']['cos_region'] = config['ibm_cos']['region']
-
-        if {'api_key'} <= set(config['ibm_cos']):
-            storage_config['backend_config']['cos_api_key'] = config['ibm_cos']['api_key']
-        elif {'access_key', 'secret_key'} <= set(config['ibm_cos']):
-            storage_config['backend_config']['cos_access_key'] = config['ibm_cos']['access_key']
-            storage_config['backend_config']['cos_secret_key'] = config['ibm_cos']['secret_key']
+        
+        required_parameters_1 = ('endpoint', 'api_key')
+        required_parameters_2 = ('endpoint', 'secret_key', 'access_key')
+        
+        if set(required_parameters_1) <= set(config['ibm_cos']) or \
+           set(required_parameters_2) <= set(config['ibm_cos']):
+            storage_config['ibm_cos'] = config['ibm_cos']
         else:
-            raise Exception('You must provide credentials to access to COS')
+            raise Exception('You must provide {} or {} to access to IBM COS'.format(required_parameters_1,
+                                                                                    required_parameters_2))
 
     if storage_config['storage_backend'] == 'swift':
-        storage_config['backend_config'] = {}
-        storage_config['backend_config']['swift_auth_url'] = config['swift']['auth_url']
-        storage_config['backend_config']['swift_user_id'] = config['swift']['user_id']
-        storage_config['backend_config']['swift_project_id'] = config['swift']['project_id']
-        storage_config['backend_config']['swift_password'] = config['swift']['password']
-        storage_config['backend_config']['swift_region'] = config['swift']['region']
+        
+        required_parameters = ('auth_url', 'user_id', 'project_id', 'password', 'region')
+        
+        if set(required_parameters) in set(config['swift']):
+            storage_config['swift'] = config['swift']
+        else:
+            raise Exception('You must provide {} to access to Swift'.format(required_parameters))
+    
     return storage_config
