@@ -41,16 +41,14 @@ class IBMCloudFunctionsInvoker(object):
     def invoke(self, payload):
         """
         Invoke -- return information about this invocation
-        """
-        act_id = None
-        retries = 0
-        if not self.invocation_retry:
-            self.retries = 1
-            
-        while not act_id and retries < self.retries:
+        """      
+        act_id = self.client.invoke(self.cf_action_name, payload)
+        attempts = 1
+        
+        while not act_id and self.invocation_retry and attempts < self.retries:
             act_id = self.client.invoke(self.cf_action_name, payload)
             time.sleep(random.choice(self.retry_sleeps))
-            retries += 1
+            attempts += 1
 
         return act_id
 
