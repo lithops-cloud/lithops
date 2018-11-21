@@ -21,7 +21,7 @@ from pywren_ibm_cloud.serialize import default_preinstalls
 logger = logging.getLogger(__name__)
 
 
-def get_runtime_preinstalls(storage_handler, runtime):
+def get_runtime_preinstalls(internal_storage, runtime):
     """
     Download runtime information from storage at deserialize
     """
@@ -31,7 +31,7 @@ def get_runtime_preinstalls(storage_handler, runtime):
         preinstalls = runtime_meta['preinstalls']
     else:
         logger.debug("Downloading runtime pre-installed modules from COS")
-        runtime_meta = storage_handler.get_runtime_info(runtime)
+        runtime_meta = internal_storage.get_runtime_info(runtime)
         preinstalls = runtime_meta['preinstalls']
 
     if not runtime_valid(runtime_meta):

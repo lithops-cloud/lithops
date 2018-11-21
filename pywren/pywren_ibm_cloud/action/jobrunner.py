@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 
-from __future__ import print_function
 import os
 import base64
 import shutil
@@ -24,8 +23,10 @@ import time
 import logging
 import inspect
 from six.moves import cPickle as pickle
-from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud import wrenlogging
+from pywren_ibm_cloud.storage import storage
+from pywren_ibm_cloud.storage.backends.cos import COSBackend
+from pywren_ibm_cloud.storage.backends.swift import SwiftBackend
 from pywren_ibm_cloud.libs.tblib import pickling_support
 
 pickling_support.install()
@@ -52,8 +53,8 @@ jobrunner_config_filename = sys.argv[1]
 
 jobrunner_config = json.load(open(jobrunner_config_filename, 'r'))
 # Create Storage handler
-storage_config = os.environ.get('STORAGE_CONFIG', '')
-storage_handler = storage.Storage(json.loads(storage_config))
+storage_config = json.loads(os.environ.get('STORAGE_CONFIG', ''))
+internal_storage = storage.InternalStorage(storage_config)
 
 func_key = jobrunner_config['func_key']
 
@@ -75,7 +76,7 @@ def write_stat(stat, val):
 try:
     logger.info("Getting function from COS")
     func_download_time_t1 = time.time()
-    func_obj = storage_handler.get_func(func_key)
+    func_obj = internal_storage.get_func(func_key)
     loaded_func_all = pickle.loads(func_obj)
     func_download_time_t2 = time.time()
     write_stat('func_download_time',
@@ -126,7 +127,7 @@ try:
     # GET function parameters
     logger.info("Getting function data")
     data_download_time_t1 = time.time()
-    data_obj = storage_handler.get_data(data_key, extra_get_args=extra_get_args)
+    data_obj = internal_storage.get_data(data_key, extra_get_args=extra_get_args)
     logger.info("Finished getting Function data")
     logger.info("Unpickle Function data")
     loaded_data = pickle.loads(data_obj)
@@ -135,17 +136,36 @@ try:
     write_stat('data_download_time',
                data_download_time_t2-data_download_time_t1)
 
+    # Verify storage parameters - Create clients
+    func_sig = inspect.signature(loaded_func)
+    
+    if 'storage' in func_sig.parameters:
+        # 'storage' generic parameter used in map_reduce method
+        if 'ibm_cos' in storage_config:
+            mr_storage_client = COSBackend(storage_config['ibm_cos'])
+        elif 'swift' in storage_config:
+            mr_storage_client = SwiftBackend(storage_config['swift'])
+        
+        loaded_data['storage'] = mr_storage_client
+    
+    if 'ibm_cos' in func_sig.parameters:
+        ibm_boto3_client = COSBackend(storage_config['ibm_cos']).get_client()
+        loaded_data['ibm_cos'] = ibm_boto3_client
+    
+    if 'swift' in func_sig.parameters:
+        swift_client = SwiftBackend(storage_config['swift'])
+        loaded_data['swift'] = swift_client
+    
+    if 'internal_storage' in func_sig.parameters:
+        loaded_data['internal_storage'] = internal_storage
+
     logger.info("Function: Going to execute '{}()'".format(str(loaded_func.__name__)))
     print('------------------- FUNCTION LOG -------------------')
     func_exec_time_t1 = time.time()
-    func_sig = inspect.signature(loaded_func)
-    if 'storage_handler' in func_sig.parameters:
-        func_storage_handler = storage.Storage(json.loads(storage_config))
-        y = loaded_func(**loaded_data, storage_handler=func_storage_handler)
-    else:
-        y = loaded_func(**loaded_data)
+    y = loaded_func(**loaded_data)
     func_exec_time_t2 = time.time()
     print('----------------------------------------------------')
+
     logger.info("Function: Success execution")
     write_stat('function_exec_time', func_exec_time_t2-func_exec_time_t1)
     output_dict = {'result': y,
@@ -193,7 +213,7 @@ finally:
 
     if store_result:
         output_upload_timestamp_t1 = time.time()
-        storage_handler.put_data(output_key, pickled_output)
+        internal_storage.put_data(output_key, pickled_output)
         output_upload_timestamp_t2 = time.time()
         write_stat("output_upload_time",
                    output_upload_timestamp_t2 - output_upload_timestamp_t1)

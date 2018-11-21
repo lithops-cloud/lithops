@@ -24,7 +24,7 @@ ANY_COMPLETED = 2
 ALWAYS = 3
 
 
-def wait(fs, executor_id, storage_handler, throw_except=True, verbose=False,
+def wait(fs, executor_id, internal_storage, throw_except=True, verbose=False,
          return_when=ALL_COMPLETED, THREADPOOL_SIZE=64, WAIT_DUR_SEC=4):
     """
     Wait for the Future instances `fs` to complete. Returns a 2-tuple of
@@ -61,7 +61,7 @@ def wait(fs, executor_id, storage_handler, throw_except=True, verbose=False,
         while result_count < N:
 
             fs_dones, fs_notdones = _wait(fs, executor_id,
-                                          storage_handler,
+                                          internal_storage,
                                           throw_except,
                                           verbose,
                                           RETURN_EARLY_N,
@@ -77,7 +77,7 @@ def wait(fs, executor_id, storage_handler, throw_except=True, verbose=False,
     elif return_when == ANY_COMPLETED:
         while True:
             fs_dones, fs_notdones = _wait(fs, executor_id,
-                                          storage_handler,
+                                          internal_storage,
                                           throw_except,
                                           verbose,
                                           RETURN_EARLY_N,
@@ -91,7 +91,7 @@ def wait(fs, executor_id, storage_handler, throw_except=True, verbose=False,
 
     elif return_when == ALWAYS:
         return _wait(fs, executor_id,
-                     storage_handler,
+                     internal_storage,
                      RETURN_EARLY_N,
                      MAX_DIRECT_QUERY_N,
                      THREADPOOL_SIZE)
@@ -99,7 +99,7 @@ def wait(fs, executor_id, storage_handler, throw_except=True, verbose=False,
         raise ValueError()
 
 
-def _wait(fs, executor_id, storage_handler, throw_except, verbose, return_early_n,
+def _wait(fs, executor_id, internal_storage, throw_except, verbose, return_early_n,
           max_direct_query_n, random_query=False, THREADPOOL_SIZE=16):
     """
     internal function that performs the majority of the WAIT task
@@ -124,7 +124,7 @@ def _wait(fs, executor_id, storage_handler, throw_except, verbose, return_early_
 
     # note this returns everything done, so we have to figure out
     # the intersection of those that are done
-    callids_done_in_callset = set(storage_handler.get_callset_status(executor_id))
+    callids_done_in_callset = set(internal_storage.get_callset_status(executor_id))
     not_done_call_ids = set([(f.callgroup_id, f.call_id) for f in not_done_futures])
     done_call_ids = not_done_call_ids.intersection(callids_done_in_callset)
 
@@ -137,7 +137,7 @@ def _wait(fs, executor_id, storage_handler, throw_except, verbose, return_early_
     #    return storage_handler.object_exists(status_key)
 
     def fetch_future_status(f):
-        return storage_handler.get_call_status(f.executor_id, f.callgroup_id, f.call_id)
+        return internal_storage.get_call_status(f.executor_id, f.callgroup_id, f.call_id)
 
     pool = ThreadPool(THREADPOOL_SIZE)
 
@@ -182,7 +182,7 @@ def _wait(fs, executor_id, storage_handler, throw_except, verbose, return_early_
                 fs_notdones.append(f)
 
     def get_result(f):
-        f.result(throw_except=throw_except, verbose=verbose, storage_handler=storage_handler)
+        f.result(throw_except=throw_except, verbose=verbose, internal_storage=internal_storage)
     pool.map(get_result, f_to_wait_on)
 
     pool.close()

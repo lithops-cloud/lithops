@@ -14,12 +14,13 @@
 # limitations under the License.
 #
 
+import logging
+import requests
 import ibm_boto3
 import ibm_botocore
 from ibm_botocore.credentials import DefaultTokenManager
-import requests
-from .exceptions import StorageNoSuchKeyError
-import logging
+from pywren_ibm_cloud.storage.exceptions import StorageNoSuchKeyError
+
 
 # FIXME: there has to be a better way to disable noisy boto logs
 logging.getLogger('ibm_boto3').setLevel(logging.CRITICAL)
@@ -34,32 +35,13 @@ class COSBackend(object):
 
     def __init__(self, cos_config):
 
-        if 'cos_endpoint' in cos_config:
-            service_endpoint = cos_config.get('cos_endpoint').replace('http:', 'https:')
+        service_endpoint = cos_config.get('endpoint').replace('http:', 'https:')           
 
-        elif {'cos_endpoints', 'cos_region'} <= set(cos_config):
-            endpoints = requests.get(cos_config.get('cos_endpoints')).json()
-            region = cos_config.get('cos_region')
-
-            if region in endpoints['service-endpoints']['cross-region']['us']['public']:
-                cos_host = endpoints['service-endpoints']['cross-region']['us']['public'][region]
-
-            elif region in endpoints['service-endpoints']['cross-region']['eu']['public']:
-                cos_host = endpoints['service-endpoints']['cross-region']['eu']['public'][region]
-            
-            elif region in endpoints['service-endpoints']['regional']:
-                cos_host = endpoints['service-endpoints']['regional'][region]['public'][region]
-
-            elif region in endpoints['service-endpoints']['regional']:
-                cos_host = endpoints['service-endpoints']['regional'][region]['public'][region]
-
-            service_endpoint = 'https://' + cos_host
-
-        if 'cos_api_key' in cos_config:
+        if 'api_key' in cos_config:
             client_config = ibm_botocore.client.Config(signature_version='oauth',
                                                        max_pool_connections=200,
                                                        user_agent_extra='pywren-ibm-cloud')
-            api_key = cos_config.get('cos_api_key')
+            api_key = cos_config.get('api_key')
             token_manager = DefaultTokenManager(api_key_id=api_key)
             
             if 'cos_token' in cos_config:
@@ -71,9 +53,9 @@ class COSBackend(object):
                                                endpoint_url=service_endpoint) 
             cos_config['cos_token'] = token_manager.get_token()
         
-        elif {'cos_secret_key', 'cos_access_key'} <= set(cos_config):
-            secret_key = cos_config.get('cos_secret_key')
-            access_key = cos_config.get('cos_access_key')
+        elif {'secret_key', 'access_key'} <= set(cos_config):
+            secret_key = cos_config.get('secret_key')
+            access_key = cos_config.get('access_key')
             client_config = ibm_botocore.client.Config(max_pool_connections=200,
                                                        user_agent_extra='pywren-ibm-cloud')
             self.cos_client = ibm_boto3.client('s3',
@@ -81,6 +63,13 @@ class COSBackend(object):
                                                aws_secret_access_key = secret_key,
                                                config=client_config,
                                                endpoint_url=service_endpoint)
+
+    def get_client(self):
+        """
+        Get ibm_boto3 client.
+        :return: ibm_boto3 client
+        """
+        return self.cos_client
 
     def put_object(self, bucket_name, key, data):
         """
@@ -178,7 +167,7 @@ class COSBackend(object):
             else:
                 raise e
             
-    def list_objects(self, bucket_name, prefix=''):
+    def list_objects(self, bucket_name, prefix=None):
         """
         Lists the objects in a bucket. Throws StorageNoSuchKeyError if the given bucket does not exist.
         :param key: key of the object
@@ -201,7 +190,7 @@ class COSBackend(object):
             else:
                 raise e
 
-    def list_paginator(self, bucket_name, prefix):
+    def list_paginator(self, bucket_name, prefix=None):
         paginator = self.cos_client.get_paginator('list_objects_v2')
         try:
             if (prefix is not None):

@@ -83,8 +83,8 @@ class ibm_cf_executor(object):
         invoker = invokers.IBMCloudFunctionsInvoker(ibm_cf_config, retry_config)
 
         self.storage_config = wrenconfig.extract_storage_config(self.config)
-        self.storage_handler = storage.Storage(self.storage_config)
-        self.executor = Executor(invoker, self.config, self.storage_handler, runtime_timeout)
+        self.internal_storage = storage.InternalStorage(self.storage_config)
+        self.executor = Executor(invoker, self.config, self.internal_storage, runtime_timeout)
         self.executor_id = self.executor.executor_id
 
         self.futures = []
@@ -167,7 +167,7 @@ class ibm_cf_executor(object):
                 print(msg)
 
             def fetch_future_results(f):
-                f.result(storage_handler=self.storage_handler)
+                f.result(internal_storage=self.internal_storage)
                 return f
 
             pool = ThreadPool(32)
@@ -184,7 +184,7 @@ class ibm_cf_executor(object):
         return self.futures
 
     def map_reduce(self, map_function, map_iterdata, reduce_function,
-                   chunk_size=64*1024**2, reducer_one_per_object=False,
+                   chunk_size=None, reducer_one_per_object=False,
                    reducer_wait_local=True, throw_except=True,
                    extra_env=None, extra_meta=None):
         """
@@ -193,7 +193,7 @@ class ibm_cf_executor(object):
         :param map_function: the function to map over the data
         :param reduce_function:  the function to reduce over the futures
         :param map_iterdata:  the function to reduce over the futures
-        :param chunk_size: the size of the data chunks
+        :param chunk_size: the size of the data chunks. 'None' for processing the whole file in one map
         :param extra_env: Additional environment variables for action environment. Default None.
         :param extra_meta: Additional metadata to pass to action. Default None.
         :return: A list with size `len(map_iterdata)` of futures for each job
@@ -250,7 +250,7 @@ class ibm_cf_executor(object):
             raise Exception('No functions executions to track. You must run pw.call_async(),'
                             ' pw.map() or pw.map_reduce() before call pw.wait()')
 
-        return wait(futures, self.executor_id, self.storage_handler,
+        return wait(futures, self.executor_id, self.internal_storage,
                     throw_except, verbose, return_when, THREADPOOL_SIZE, WAIT_DUR_SEC)
 
     def get_result(self, futures=None, throw_except=True, verbose=False, timeout=wrenconfig.CF_RUNTIME_TIMEOUT):
@@ -325,9 +325,8 @@ class ibm_cf_executor(object):
                 pbar = tqdm.tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
                                  total=1, disable=False)
             while not future.done:
-                result = future.result(storage_handler=self.storage_handler,
-                                       throw_except=throw_except,
-                                       verbose=verbose)
+                result = future.result(internal_storage=self.internal_storage,
+                                       throw_except=throw_except, verbose=verbose)
                 signal.alarm(timeout)
 
             if not verbose:
@@ -408,7 +407,7 @@ class ibm_cf_executor(object):
             pool = ThreadPool(THREADPOOL_SIZE)
 
             def fetch_future_results(f):
-                f.result(storage_handler=self.storage_handler,
+                f.result(internal_storage=self.internal_storage,
                          throw_except=throw_except, verbose=verbose)
                 return f
 
@@ -427,7 +426,7 @@ class ibm_cf_executor(object):
                 time.sleep(sleep)
 
                 current_call_ids = set([(f.callgroup_id, f.call_id) for f in futures])
-                call_ids = set(self.storage_handler.get_callset_status(self.executor_id))
+                call_ids = set(self.internal_storage.get_callset_status(self.executor_id))
                 call_ids_to_check = call_ids.intersection(current_call_ids)
 
                 not_done_call_ids = call_ids_to_check.difference(callids_done_in_callset)
@@ -507,7 +506,7 @@ class ibm_cf_executor(object):
             #clean_os_bucket(storage_bucket, storage_prerix, self.storage_config)
 
             # 2nd case: Execute in Background as a subprocess. The main program does not wait for its completion.
-            storage_config = json.dumps(self.storage_handler.get_storage_config())
+            storage_config = json.dumps(self.internal_storage.get_storage_config())
             storage_config = storage_config.replace('"', '\\"')
 
             cmdstr = ("{} -c 'from pywren_ibm_cloud.storage.cleaner import clean_bucket; \

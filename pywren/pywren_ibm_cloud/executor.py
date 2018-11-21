@@ -25,12 +25,11 @@ import pywren_ibm_cloud as pywren
 import pywren_ibm_cloud.version as version
 import pywren_ibm_cloud.wrenconfig as wrenconfig
 import pywren_ibm_cloud.wrenutil as wrenutil
-from pywren_ibm_cloud.future import ResponseFuture, JobState
-from pywren_ibm_cloud.serialize import serialize, create_mod_data
-from pywren_ibm_cloud.storage import storage_utils
-from pywren_ibm_cloud.storage.storage_utils import create_func_key, create_agg_data_key
 from pywren_ibm_cloud.wait import wait
+from pywren_ibm_cloud.future import ResponseFuture, JobState
 from pywren_ibm_cloud.runtime import get_runtime_preinstalls
+from pywren_ibm_cloud.serialize import serialize, create_mod_data
+from pywren_ibm_cloud.storage.storage_utils import create_keys, create_func_key, create_agg_data_key
 
 
 logger = logging.getLogger(__name__)
@@ -38,12 +37,12 @@ logger = logging.getLogger(__name__)
 
 class Executor(object):
 
-    def __init__(self, invoker, config, storage_handler, timeout):
+    def __init__(self, invoker, config, internal_storage, timeout):
         self.invoker = invoker
         self.job_max_runtime = timeout
 
         self.config = config
-        self.storage_handler = storage_handler
+        self.internal_storage = internal_storage
 
         if 'PYWREN_EXECUTOR_ID' in os.environ:
             self.executor_id = os.environ['PYWREN_EXECUTOR_ID']
@@ -51,7 +50,7 @@ class Executor(object):
             self.executor_id = wrenutil.create_executor_id()
 
         runtime = self.config['ibm_cf']['action_name']
-        runtime_preinstalls = get_runtime_preinstalls(self.storage_handler, runtime)
+        runtime_preinstalls = get_runtime_preinstalls(self.internal_storage, runtime)
 
         self.serializer = serialize.SerializeIndependent(runtime_preinstalls)
 
@@ -65,11 +64,6 @@ class Executor(object):
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(log_msg)
 
-    def put_data(self, data_key, data_str,
-                 executor_id, call_id):
-
-        self.storage_handler.put_data(data_key, data_str)
-
     def invoke_with_keys(self, func_key, data_key, output_key,
                          status_key, executor_id, callgroup_id,
                          call_id, extra_env,
@@ -77,7 +71,7 @@ class Executor(object):
                          host_job_meta, job_max_runtime,
                          overwrite_invoke_args=None):
 
-        storage_config = self.storage_handler.get_storage_config()
+        storage_config = self.internal_storage.get_storage_config()
 
         arg_dict = {
             'config': self.config,
@@ -213,10 +207,10 @@ class Executor(object):
             print(log_msg)
 
         if data_size_bytes < wrenconfig.MAX_AGG_DATA_SIZE and data_all_as_one:
-            agg_data_key = create_agg_data_key(self.storage_handler.prefix, self.executor_id, callgroup_id)
+            agg_data_key = create_agg_data_key(self.internal_storage.prefix, self.executor_id, callgroup_id)
             agg_data_bytes, agg_data_ranges = self.agg_data(data_strs)
             agg_upload_time = time.time()
-            self.storage_handler.put_data(agg_data_key, agg_data_bytes)
+            self.internal_storage.put_data(agg_data_key, agg_data_bytes)
             host_job_meta['agg_data'] = True
             host_job_meta['data_upload_time'] = time.time() - agg_upload_time
             host_job_meta['data_upload_timestamp'] = time.time()
@@ -239,23 +233,20 @@ class Executor(object):
         host_job_meta['func_module_str_len'] = len(func_module_str)
 
         func_upload_time = time.time()
-        func_key = create_func_key(self.storage_handler.prefix, self.executor_id, callgroup_id)
-        self.storage_handler.put_func(func_key, func_module_str)
+        func_key = create_func_key(self.internal_storage.prefix, self.executor_id, callgroup_id)
+        self.internal_storage.put_func(func_key, func_module_str)
         host_job_meta['func_upload_time'] = time.time() - func_upload_time
         host_job_meta['func_upload_timestamp'] = time.time()
 
         def invoke(data_str, executor_id, callgroup_id, call_id, func_key,
-                   host_job_meta,
-                   agg_data_key=None, data_byte_range=None):
-            data_key, output_key, status_key \
-                = storage_utils.create_keys(self.storage_handler.prefix, executor_id, callgroup_id, call_id)
-
+                   host_job_meta, agg_data_key=None, data_byte_range=None):
+            data_key, output_key, status_key = create_keys(self.internal_storage.prefix,
+                                                           executor_id, callgroup_id, call_id)
             host_job_meta['job_invoke_timestamp'] = time.time()
 
             if agg_data_key is None:
                 data_upload_time = time.time()
-                self.put_data(data_key, data_str,
-                              executor_id, call_id)
+                self.internal_storage.put_data(data_key, data_str)
                 data_upload_time = time.time() - data_upload_time
                 host_job_meta['data_upload_time'] = data_upload_time
                 host_job_meta['data_upload_timestamp'] = time.time()
@@ -319,25 +310,26 @@ class Executor(object):
         executor_id = self.executor_id
 
         if wait_local:
-            wait(list_of_futures, executor_id, self.storage_handler, throw_except)
+            logger.info('Waiting locally for results')
+            wait(list_of_futures, executor_id, self.internal_storage, throw_except)
 
-        def reduce_func(fut_list, storage_handler):
+        def reduce_func(fut_list, internal_storage, storage):
             logger.info('Starting reduce_func() function')
             logger.info('Waiting for results')
             # Wait for all results
-            wait(fut_list, executor_id, storage_handler, throw_except)
+            wait(fut_list, executor_id, internal_storage, throw_except)
             accum_list = []
 
             # Get all results
             for f in fut_list:
-                accum_list.append(f.result(throw_except=throw_except, storage_handler=storage_handler))
+                accum_list.append(f.result(throw_except=throw_except, internal_storage=internal_storage))
 
             # Run reduce function
             func_sig = inspect.signature(function)
-            if 'futures' in func_sig.parameters and 'storage_handler' in func_sig.parameters:
-                return function(accum_list, futures=fut_list, storage_handler=storage_handler)
-            if 'storage_handler' in func_sig.parameters:
-                return function(accum_list, storage_handler=storage_handler)
+            if 'futures' in func_sig.parameters and 'storage' in func_sig.parameters:
+                return function(accum_list, futures=fut_list, storage=storage)
+            if 'storage' in func_sig.parameters:
+                return function(accum_list, storage=storage)
             if 'futures' in func_sig.parameters:
                 return function(accum_list, futures=fut_list)
 
@@ -362,7 +354,7 @@ class Executor(object):
 
         chunk_threshold = 4*1024  # 4KB
 
-        def map_func(map_func_args, data_byte_range, storage_handler):
+        def map_func(map_func_args, data_byte_range, storage, ibm_cos):
             extra_get_args = {}
             if data_byte_range is not None:
                 range_str = 'bytes={}-{}'.format(*data_byte_range)
@@ -373,32 +365,30 @@ class Executor(object):
             if 'url' in map_func_args:
                 # it is a public url
                 resp = requests.get(map_func_args['url'], headers=extra_get_args, stream=True)
-                fileobj = resp.raw
+                map_func_args['data_stream'] = resp.raw
+            
             elif 'key' in map_func_args:
                 # it is a COS key
-                bucket = map_func_args['bucket']
-                object_name = map_func_args['key']
-                fileobj = storage_handler.get_object(bucket, object_name, stream=True,
-                                                     extra_get_args=extra_get_args)
+                if 'bucket' not in map_func_args:
+                    bucket, object_name = map_func_args['key'].split('/', 1)
+                else:
+                    bucket = map_func_args['bucket']
+                    object_name = map_func_args['key']
+                fileobj = storage.get_object(bucket, object_name, stream=True,
+                                             extra_get_args=extra_get_args)
+                map_func_args['data_stream'] = fileobj
                 # fileobj = wrenutil.WrappedStreamingBody(stream, obj_chunk_size, chunk_threshold)
 
             func_sig = inspect.signature(map_function)
-            if 'storage_handler' in func_sig.parameters:
-                return map_function(**map_func_args, data_stream=fileobj,
-                                    storage_handler=storage_handler)
+            if 'storage' in func_sig.parameters:
+                map_func_args['storage'] = storage
+                
+            if 'ibm_cos' in func_sig.parameters:
+                map_func_args['ibm_cos'] = ibm_cos
 
-            return map_function(**map_func_args, data_stream=fileobj)
+            return map_function(**map_func_args)
 
-        def get_object_list(bucket_name, storage_handler, prefix):
-            """
-            This function returns the objects inside a given bucket
-            """
-            if not storage_handler.bucket_exists(bucket_name):
-                raise ValueError('Bucket you provided does not exists: \
-                                 {}'.format(bucket_name))
-            return storage_handler.get_list_paginator(bucket_name, prefix)
-
-        def split_objects_from_bucket(map_func_args_list, chunk_size, storage_handler):
+        def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
             """
             Create partitions from bucket/s
             """
@@ -408,7 +398,7 @@ class Executor(object):
             for entry in map_func_args_list:
                 # Each entry is a bucket
                 bucket_name, prefix = wrenutil.split_path(entry['bucket'])
-                page_iterator = get_object_list(bucket_name, storage_handler, prefix)
+                page_iterator = storage.list_paginator(bucket_name, prefix)
 
                 logger.info('Creating dataset chunks from objects within "{}" '
                             'bucket ...'.format(bucket_name))
@@ -447,7 +437,7 @@ class Executor(object):
                                 partitions.append(partition)
             return partitions
 
-        def split_object_from_key(map_func_args_list, chunk_size, storage_handler):
+        def split_object_from_key(map_func_args_list, chunk_size, storage):
             """
             Create partitions from a list of COS objects keys
             """
@@ -458,7 +448,7 @@ class Executor(object):
                 object_key = entry['key']
                 logger.info(object_key)
                 bucket, object_name = object_key.split('/', 1)
-                metadata = storage_handler.get_metadata(bucket, object_name)
+                metadata = storage.head_object(bucket, object_name)
                 obj_size = int(metadata['content-length'])
 
                 if chunk_size is not None and obj_size > chunk_size:
@@ -515,21 +505,21 @@ class Executor(object):
 
             return partitions
 
-        def partitioner(map_func_args, chunk_size, storage_handler):
+        def partitioner(map_func_args, chunk_size, storage):
+            """
+            Partitioner is a function executed in the Cloud
+            """
             logger.info('Starting partitioner() function')
             map_func_keys = map_func_args[0].keys()
 
             if 'bucket' in map_func_keys and 'key' not in map_func_keys:
-                partitions = split_objects_from_bucket(map_func_args,
-                                                       chunk_size,
-                                                       storage_handler)
+                partitions = split_objects_from_bucket(map_func_args, chunk_size, storage)
+            
             elif 'key' in map_func_keys:
-                partitions = split_object_from_key(map_func_args,
-                                                   chunk_size,
-                                                   storage_handler)
+                partitions = split_object_from_key(map_func_args, chunk_size, storage)
+            
             elif 'url' in map_func_keys:
-                partitions = split_object_from_url(map_func_args,
-                                                   chunk_size)
+                partitions = split_object_from_url(map_func_args, chunk_size)
             else:
                 raise ValueError('You did not provide any bucket or object key/url')
 
@@ -560,8 +550,8 @@ class Executor(object):
                     for entry in arg_data:
                         # Each entry is a bucket
                         bucket_name, prefix = wrenutil.split_path(entry['bucket'])
-                        page_iterator = get_object_list(bucket_name,
-                                                        self.storage_handler)
+                        # TODO: Change internal_storage
+                        page_iterator = self.internal_storage.list_paginator(bucket_name, prefix)
                         for page in page_iterator:
                             if "Contents" in page:
                                 for obj in page["Contents"]:
