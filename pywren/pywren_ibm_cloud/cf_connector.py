@@ -135,7 +135,7 @@ class CloudFunctions(object):
                     print(log_msg)
                 return data["activationId"]
             else:
-                print(data)
+                logger.debug(data)
                 return None
         except:
             return None
@@ -174,7 +174,7 @@ class CloudFunctions(object):
                     print(log_msg)
                 return data["activationId"]
             else:
-                print(data)
+                logger.debug(data)
                 return None
         except:
             conn.close()

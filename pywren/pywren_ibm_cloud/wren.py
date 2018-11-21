@@ -266,7 +266,7 @@ class ibm_cf_executor(object):
           >>> pw.call_async(foo, data)
           >>> result = pw.get_result()
         """
-        if self.cf_cluster:
+        if self.cf_cluster or logger.getEffectiveLevel() != logging.WARNING:
             verbose = True
 
         if futures:

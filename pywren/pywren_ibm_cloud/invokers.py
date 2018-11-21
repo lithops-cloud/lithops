@@ -46,9 +46,16 @@ class IBMCloudFunctionsInvoker(object):
         attempts = 1
         
         while not act_id and self.invocation_retry and attempts < self.retries:
-            act_id = self.client.invoke(self.cf_action_name, payload)
-            time.sleep(random.choice(self.retry_sleeps))
             attempts += 1
+            selected_sleep = random.choice(self.retry_sleeps)
+            exec_id = payload['executor_id']
+            call_id = payload['call_id']
+            
+            log_msg = ('Executor ID {} Function {} - Invocation failed - retry {} in {} seconds'.format(exec_id, call_id, attempts, selected_sleep))
+            logger.debug(log_msg)
+            
+            time.sleep(selected_sleep)
+            act_id = self.client.invoke(self.cf_action_name, payload)
 
         return act_id
 

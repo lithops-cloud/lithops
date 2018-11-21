@@ -25,7 +25,9 @@ import traceback
 from threading import Thread
 from queue import Queue
 from pywren_ibm_cloud import version
+from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.storage import storage
+
 
 logger = logging.getLogger('wrenhandler')
 
@@ -77,7 +79,7 @@ def ibm_cloud_function_handler(event):
     }
 
     config = event['config']
-    storage_config = event['storage_config']
+    storage_config = wrenconfig.extract_storage_config(config)
     custom_handler_env = {'PYWREN_CONFIG': json.dumps(config),
                           'STORAGE_CONFIG': json.dumps(storage_config),
                           'PYWREN_EXECUTOR_ID':  event['executor_id']}
@@ -94,7 +96,7 @@ def ibm_cloud_function_handler(event):
             raise Exception("WRONGVERSION", "Pywren version mismatch",
                             version.__version__, event['pywren_version'])
 
-        job_max_runtime = event.get("job_max_runtime", 290)  # default for CF
+        job_max_runtime = event.get("job_max_runtime", 550)  # default for CF
 
         response_status['func_key'] = func_key
         response_status['data_key'] = data_key
@@ -214,6 +216,5 @@ def ibm_cloud_function_handler(event):
             store_status = extra_env['STORE_STATUS']
 
         if store_status:
-            storage_config = event['storage_config']
             internal_storage = storage.InternalStorage(storage_config)
             internal_storage.put_data(status_key, json.dumps(response_status))
