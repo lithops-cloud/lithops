@@ -19,13 +19,16 @@ import json
 from pywren_ibm_cloud.wrenutil import is_cf_cluster
 
 
-DEFAULT_STORAGE_BACKEND = 'ibm_cos'
+STORAGE_BACKEND_DEFAULT = 'ibm_cos'
 COS_BUCKET_DEFAULT = "pywren.data"
 COS_PREFIX_DEFAULT = "pywren.jobs"
 CF_ACTION_NAME_DEFAULT = 'pywren_3.6'
 CF_RUNTIME_TIMEOUT = 600  # Default: 10 minutes
 DATA_CLEANER_DEFAULT = False
 MAX_AGG_DATA_SIZE = 4e6
+INVOCATION_RETRY_DEFAULT = True
+RETRY_SLEEP_DEFAULT = [1, 5, 10, 20, 30]
+RETRIES_DEFAULT = 5
 
 
 def load(config_filename):
@@ -50,14 +53,15 @@ def load(config_filename):
             "{} has CF API key as {} -- make sure you change the default CF API key".format(
                 config_filename, res['ibm_cf']['api_key']))
 
-    if res['ibm_cos']['endpoint'] == '<COS_API_ENDPOINT>':
-        raise Exception(
-            "{} has CF API endpoint as {} -- make sure you change the default COS API endpoint".format(
-                config_filename, res['ibm_cos']['endpoint']))
-    if 'api_key' in res['ibm_cos'] and res['ibm_cos']['api_key'] == '<COS_API_KEY>':
-        raise Exception(
-            "{} has CF API key as {} -- make sure you change the default COS API key".format(
-                config_filename, res['ibm_cos']['api_key']))
+    if 'ibm_cos' in res:
+        if 'endpoint' in res['ibm_cos'] and res['ibm_cos']['endpoint'] == '<COS_API_ENDPOINT>':
+            raise Exception(
+                "{} has CF API endpoint as {} -- make sure you change the default COS API endpoint".format(
+                    config_filename, res['ibm_cos']['endpoint']))
+        if 'api_key' in res['ibm_cos'] and res['ibm_cos']['api_key'] == '<COS_API_KEY>':
+            raise Exception(
+                "{} has CF API key as {} -- make sure you change the default COS API key".format(
+                    config_filename, res['ibm_cos']['api_key']))
 
     return res
 
@@ -103,20 +107,31 @@ def default(config_data=None):
             config_data = load(config_filename)
 
     # Apply default values
-    if 'storage_backend' not in config_data:
-        config_data['storage_backend'] = DEFAULT_STORAGE_BACKEND
     if 'pywren' not in config_data:
         config_data['pywren'] = dict()
+        config_data['pywren']['storage_backend'] = STORAGE_BACKEND_DEFAULT
         config_data['pywren']['storage_bucket'] = COS_BUCKET_DEFAULT
         config_data['pywren']['storage_prefix'] = COS_PREFIX_DEFAULT
         config_data['pywren']['data_cleaner'] = DATA_CLEANER_DEFAULT
+        config_data['pywren']['invocation_retry'] = INVOCATION_RETRY_DEFAULT
+        config_data['pywren']['retry_sleep'] = RETRY_SLEEP_DEFAULT
+        config_data['pywren']['retries'] = RETRIES_DEFAULT
+        
     else:
+        if 'storage_backend' not in config_data['pywren']:
+            config_data['pywren']['storage_backend'] = STORAGE_BACKEND_DEFAULT
         if 'storage_bucket' not in config_data['pywren']:
             config_data['pywren']['storage_bucket'] = COS_BUCKET_DEFAULT
         if 'storage_prefix' not in config_data['pywren']:
             config_data['pywren']['storage_prefix'] = COS_PREFIX_DEFAULT
         if 'data_cleaner' not in config_data['pywren']:
             config_data['pywren']['data_cleaner'] = DATA_CLEANER_DEFAULT
+        if 'invocation_retry' not in config_data['pywren']:
+            config_data['pywren']['invocation_retry'] = INVOCATION_RETRY_DEFAULT
+        if 'retry_sleeps' not in config_data['pywren']:
+            config_data['pywren']['retry_sleeps'] = RETRY_SLEEP_DEFAULT
+        if 'retries' not in config_data['pywren']:
+            config_data['pywren']['retries'] = RETRIES_DEFAULT
 
     if 'action_name' not in config_data['ibm_cf']:
         config_data['ibm_cf']['action_name'] = CF_ACTION_NAME_DEFAULT
@@ -129,7 +144,7 @@ def default(config_data=None):
 
 def extract_storage_config(config):
     storage_config = dict()
-    storage_config['storage_backend'] = config['storage_backend']
+    storage_config['storage_backend'] = config['pywren']['storage_backend']
     storage_config['storage_prefix'] = config['pywren']['storage_prefix']
     storage_config['storage_bucket'] = config['pywren']['storage_bucket']
 

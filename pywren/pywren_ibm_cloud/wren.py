@@ -75,7 +75,13 @@ class ibm_cf_executor(object):
         self.cf_cluster = ibm_cf_config['is_cf_cluster']
         self.data_cleaner = self.config['pywren']['data_cleaner']
 
-        invoker = invokers.IBMCloudFunctionsInvoker(ibm_cf_config)
+        retry_config = {}
+        retry_config['invocation_retry'] = self.config['pywren']['invocation_retry']
+        retry_config['retry_sleeps'] = self.config['pywren']['retry_sleeps']
+        retry_config['retries'] = self.config['pywren']['retries']
+        
+        invoker = invokers.IBMCloudFunctionsInvoker(ibm_cf_config, retry_config)
+
         self.storage_config = wrenconfig.extract_storage_config(self.config)
         self.storage_handler = storage.Storage(self.storage_config)
         self.executor = Executor(invoker, self.config, self.storage_handler, runtime_timeout)

@@ -16,20 +16,22 @@
 
 import time
 import logging
+import random
 from pywren_ibm_cloud.cf_connector import CloudFunctions
 
 logger = logging.getLogger(__name__)
 
-MAX_INVOKE_RETRIES = 5
-
 
 class IBMCloudFunctionsInvoker(object):
 
-    def __init__(self, config):
-        self.namespace = config['namespace']
-        self.endpoint = config['endpoint']
-        self.cf_action_name = config['action_name']  # Runtime
-        self.client = CloudFunctions(config)
+    def __init__(self, cf_config, retry_config):
+        self.namespace = cf_config['namespace']
+        self.endpoint = cf_config['endpoint']
+        self.cf_action_name = cf_config['action_name']  # Runtime
+        self.invocation_retry = retry_config['invocation_retry']
+        self.retry_sleeps = retry_config['retry_sleeps']
+        self.retries = retry_config['retries']
+        self.client = CloudFunctions(cf_config)
 
         log_msg = 'IBM Cloud Functions init for {}'.format(self.cf_action_name)
         logger.info(log_msg)
@@ -42,11 +44,14 @@ class IBMCloudFunctionsInvoker(object):
         """
         act_id = None
         retries = 0
-        # retry_sleep = [1, 30, 60, 90, 120]
-        while not act_id and retries < MAX_INVOKE_RETRIES:
+        if not self.invocation_retry:
+            self.retries = 1
+            
+        while not act_id and retries < self.retries:
             act_id = self.client.invoke(self.cf_action_name, payload)
-            # time.sleep(retry_sleep[retries])
+            time.sleep(random.choice(self.retry_sleeps))
             retries += 1
+
         return act_id
 
     def config(self):
