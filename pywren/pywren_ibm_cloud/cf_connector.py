@@ -138,7 +138,7 @@ class CloudFunctions(object):
                 logger.debug(data)
                 return None
         except:
-            return None
+            return self.remote_invoke(action_name, payload)
 
     def internal_invoke(self, action_name, payload):
         """
@@ -178,4 +178,4 @@ class CloudFunctions(object):
                 return None
         except:
             conn.close()
-            return None
+            return self.internal_invoke(action_name, payload)
