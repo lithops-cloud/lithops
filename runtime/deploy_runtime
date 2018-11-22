@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import click
 import os
-import json
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.cf_connector import CloudFunctions
@@ -27,11 +26,11 @@ def create_zip_action():
     os.remove('../pywren/__main__.py')
 
 
-def create_runtime(image_name):
-
+def extract_modules(image_name):
+    # Extract installed Python modules from docker image
+    # And store them into storage
     runtime_meta = dict()
 
-    # Extract installed Python modules
     cmd = "docker run {} python -c 'import pkgutil; \
                                     mods = list(pkgutil.iter_modules()); \
                                     print([entry for entry in sorted([[mod, is_pkg] for _,mod,is_pkg in mods])])'".format(image_name)
@@ -54,8 +53,14 @@ def create_runtime(image_name):
     internal_storage = storage.InternalStorage(storage_config)
     internal_storage.put_runtime_info(runtime_name, runtime_meta)
 
-    # Create zipped PyWren action
-    create_zip_action()
+
+def create_blackbox_runtime(image_name):
+    # Create runtime_name from image_name
+    username, appname = image_name.split('/')
+    runtime_name = appname.replace(':', '_')
+
+    # Load PyWren config from ~/.pywren_config
+    config = wrenconfig.default()
 
     # Upload zipped PyWren action
     print('Uploading action')
@@ -83,7 +88,9 @@ def create(image_name):
     if res != 0:
         exit()
 
-    create_runtime(image_name)
+    create_zip_action()
+    extract_modules(image_name)
+    create_blackbox_runtime(image_name)
 
     print('All done!')
 
@@ -99,12 +106,23 @@ def clone(image_name):
     if res != 0:
         exit()
 
-    create_runtime(image_name)
+    create_zip_action()
+    extract_modules(image_name)
+    create_blackbox_runtime(image_name)
 
     print('All done!')
 
 
+@cli.command('update')
+@click.argument('image_name')
+def update(image_name):
+    print('Updating runtime {}'.format(image_name))
+    create_zip_action()
+    create_blackbox_runtime(image_name)
+
+
 def default():
+    print('Updating runtime {}'.format(CF_ACTION_NAME_DEFAULT))
     config = wrenconfig.default()
 
     # Create zipped PyWren action
