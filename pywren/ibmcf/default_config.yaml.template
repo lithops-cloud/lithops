@@ -1,24 +1,27 @@
 pywren: 
     storage_bucket: <BUCKET_NAME>
-    storage_prefix: pywren.jobs
+    #storage_prefix: pywren.jobs
     #storage_backend: ibm_cos
+    #data_cleaner: <True/False>
+    #invocation_retry: <True/False>
+    #retry_sleeps: [1, 5, 10, 20, 30]
+    #retries: 5
 
 ibm_cf:
     endpoint    : <CF_API_ENDPOINT>
     namespace   : <CF_NAMESPACE>
     api_key     : <CF_API_KEY>
-    action_name : pywren_3.6  # Default runtime
+    #action_name : pywren_3.6  # Default runtime
 
 ibm_cos:
     endpoint   : <COS_API_ENDPOINT>
     api_key    : <API_KEY>
-    
     #access_key : <ACCESS_KEY>  # Optional
     #secret_key : <SECRET_KEY>  # Optional
     
 #swift:
-#    auth_url   : <SWIFT_AUTH_URL>
-#    region     : <SWIFT_REGION>
-#    user_id    : <SWIFT_USER_ID>
-#    project_id : <SWIFT_PROJECT_ID>
-#    password   : <SWIFT_PASSWORD>
+    #auth_url   : <SWIFT_AUTH_URL>
+    #region     : <SWIFT_REGION>
+    #user_id    : <SWIFT_USER_ID>
+    #project_id : <SWIFT_PROJECT_ID>
+    #password   : <SWIFT_PASSWORD>

@@ -135,10 +135,10 @@ class CloudFunctions(object):
                     print(log_msg)
                 return data["activationId"]
             else:
-                print(data)
+                logger.debug(data)
                 return None
         except:
-            return None
+            return self.remote_invoke(action_name, payload)
 
     def internal_invoke(self, action_name, payload):
         """
@@ -174,8 +174,8 @@ class CloudFunctions(object):
                     print(log_msg)
                 return data["activationId"]
             else:
-                print(data)
+                logger.debug(data)
                 return None
         except:
             conn.close()
-            return None
+            return self.internal_invoke(action_name, payload)

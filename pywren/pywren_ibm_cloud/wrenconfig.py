@@ -19,13 +19,16 @@ import json
 from pywren_ibm_cloud.wrenutil import is_cf_cluster
 
 
-DEFAULT_STORAGE_BACKEND = 'ibm_cos'
+STORAGE_BACKEND_DEFAULT = 'ibm_cos'
 COS_BUCKET_DEFAULT = "pywren.data"
 COS_PREFIX_DEFAULT = "pywren.jobs"
 CF_ACTION_NAME_DEFAULT = 'pywren_3.6'
 CF_RUNTIME_TIMEOUT = 600  # Default: 10 minutes
 DATA_CLEANER_DEFAULT = False
 MAX_AGG_DATA_SIZE = 4e6
+INVOCATION_RETRY_DEFAULT = True
+RETRY_SLEEPS_DEFAULT = [1, 5, 10, 20, 30]
+RETRIES_DEFAULT = 5
 
 
 def load(config_filename):
@@ -106,19 +109,29 @@ def default(config_data=None):
     # Apply default values
     if 'pywren' not in config_data:
         config_data['pywren'] = dict()
-        config_data['pywren']['storage_backend'] = DEFAULT_STORAGE_BACKEND
+        config_data['pywren']['storage_backend'] = STORAGE_BACKEND_DEFAULT
         config_data['pywren']['storage_bucket'] = COS_BUCKET_DEFAULT
         config_data['pywren']['storage_prefix'] = COS_PREFIX_DEFAULT
         config_data['pywren']['data_cleaner'] = DATA_CLEANER_DEFAULT
+        config_data['pywren']['invocation_retry'] = INVOCATION_RETRY_DEFAULT
+        config_data['pywren']['retry_sleep'] = RETRY_SLEEPS_DEFAULT
+        config_data['pywren']['retries'] = RETRIES_DEFAULT
+        
     else:
+        if 'storage_backend' not in config_data['pywren']:
+            config_data['pywren']['storage_backend'] = STORAGE_BACKEND_DEFAULT
         if 'storage_bucket' not in config_data['pywren']:
             config_data['pywren']['storage_bucket'] = COS_BUCKET_DEFAULT
         if 'storage_prefix' not in config_data['pywren']:
             config_data['pywren']['storage_prefix'] = COS_PREFIX_DEFAULT
         if 'data_cleaner' not in config_data['pywren']:
             config_data['pywren']['data_cleaner'] = DATA_CLEANER_DEFAULT
-        if 'storage_backend' not in config_data['pywren']:
-            config_data['pywren']['storage_backend'] = DEFAULT_STORAGE_BACKEND
+        if 'invocation_retry' not in config_data['pywren']:
+            config_data['pywren']['invocation_retry'] = INVOCATION_RETRY_DEFAULT
+        if 'retry_sleeps' not in config_data['pywren']:
+            config_data['pywren']['retry_sleeps'] = RETRY_SLEEPS_DEFAULT
+        if 'retries' not in config_data['pywren']:
+            config_data['pywren']['retries'] = RETRIES_DEFAULT
 
     if 'action_name' not in config_data['ibm_cf']:
         config_data['ibm_cf']['action_name'] = CF_ACTION_NAME_DEFAULT
@@ -136,7 +149,7 @@ def extract_storage_config(config):
     storage_config['storage_prefix'] = config['pywren']['storage_prefix']
     storage_config['storage_bucket'] = config['pywren']['storage_bucket']
 
-    if storage_config['storage_backend'] == 'ibm_cos':
+    if 'ibm_cos' in config:
         
         required_parameters_1 = ('endpoint', 'api_key')
         required_parameters_2 = ('endpoint', 'secret_key', 'access_key')
@@ -148,11 +161,11 @@ def extract_storage_config(config):
             raise Exception('You must provide {} or {} to access to IBM COS'.format(required_parameters_1,
                                                                                     required_parameters_2))
 
-    if storage_config['storage_backend'] == 'swift':
+    if 'swift' in config:
         
         required_parameters = ('auth_url', 'user_id', 'project_id', 'password', 'region')
         
-        if set(required_parameters) in set(config['swift']):
+        if set(required_parameters) <= set(config['swift']):
             storage_config['swift'] = config['swift']
         else:
             raise Exception('You must provide {} to access to Swift'.format(required_parameters))

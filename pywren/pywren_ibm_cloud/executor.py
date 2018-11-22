@@ -71,11 +71,8 @@ class Executor(object):
                          host_job_meta, job_max_runtime,
                          overwrite_invoke_args=None):
 
-        storage_config = self.internal_storage.get_storage_config()
-
         arg_dict = {
             'config': self.config,
-            'storage_config': storage_config,
             'func_key': func_key,
             'data_key': data_key,
             'output_key': output_key,
@@ -125,6 +122,7 @@ class Executor(object):
 
         host_job_meta.update(self.invoker.config())
         host_job_meta.update(arg_dict)
+        storage_config = self.internal_storage.get_storage_config()
         fut = ResponseFuture(call_id, callgroup_id, executor_id, activation_id, host_job_meta, storage_config)
         fut._set_state(JobState.invoked)
 
