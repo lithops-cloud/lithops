@@ -30,7 +30,7 @@ bucketname = 'sample.data.pw'
 
 
 def my_map_function(bucket, key, data_stream):
-    print('I am processing the object {}'.format(key))
+    print('I am processing the object {}/{}'.format(bucket, key))
     counter = {}
 
     data = data_stream.read()

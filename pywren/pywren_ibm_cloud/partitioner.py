@@ -45,6 +45,7 @@ def object_partitioner(map_function_wrapper, reduce_function, extra_env, extra_m
     
     return object_partitioner_function
 
+
 def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
     """
     Create partitions from bucket/s

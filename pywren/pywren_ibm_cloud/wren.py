@@ -107,12 +107,12 @@ class ibm_cf_executor(object):
             raise Exception('You cannot run pw.call_async() in the current state,'
                             ' create a new pywren.ibm_cf_executor() instance.')
         
-        future = self.executor.single_call_wrapper(func, data, extra_env, extra_meta)[0]
+        future = self.executor.single_call(func, data, extra_env, extra_meta)[0]
         self.futures.append(future)
                 
         return future
 
-    def map(self, func, iterdata, extra_env=None, extra_meta=None,
+    def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None,
             remote_invocation=False, invoke_pool_threads=10, data_all_as_one=True,
             overwrite_invoke_args=None, exclude_modules=None):
         """
@@ -136,48 +136,15 @@ class ibm_cf_executor(object):
             raise Exception('You cannot run pw.map() in the current state.'
                             ' Create a new pywren.ibm_cf_executor() instance.')
 
-        def remote_invoker(input_data):
-            pw = pywren.ibm_cf_executor()
-            return pw.map(func, input_data)
-
-        if type(iterdata) != list:
-            iterdata = list(iterdata)
-
-        if len(iterdata) > 1 and remote_invocation:
-            map_func = remote_invoker
-            map_iterdata = [[iterdata[x:x+100]] for x in range(0, len(iterdata), 100)]
-            invoke_pool_threads = 1
-        else:
-            remote_invocation = False
-            map_func = func
-            map_iterdata = iterdata
-
-        self.futures = self.executor.map(func=map_func, iterdata=map_iterdata,
-                                         extra_env=extra_env, extra_meta=extra_meta,
-                                         invoke_pool_threads=invoke_pool_threads,
-                                         data_all_as_one=data_all_as_one,
-                                         overwrite_invoke_args=overwrite_invoke_args,
-                                         exclude_modules=exclude_modules,
-                                         original_func_name=func.__name__)
-
-        if remote_invocation:
-            msg = 'Executor ID {} Getting remote invocations'.format(self.executor_id)
-            logger.info(msg)
-            if(logger.getEffectiveLevel() == logging.WARNING):
-                print(msg)
-
-            def fetch_future_results(f):
-                f.result(internal_storage=self.internal_storage)
-                return f
-
-            pool = ThreadPool(32)
-            pool.map(fetch_future_results, self.futures)
-            new_futures = [f.result() for f in self.futures if f.done]
-
-            self.futures = []
-            for futures_list in new_futures:
-                self.futures.extend(futures_list)
-
+        self.futures = self.executor.multiple_call(map_function=map_function,
+                                                   iterdata=map_iterdata,
+                                                   extra_env=extra_env,
+                                                   extra_meta=extra_meta,
+                                                   remote_invocation=remote_invocation,
+                                                   invoke_pool_threads=invoke_pool_threads,
+                                                   data_all_as_one=data_all_as_one,
+                                                   overwrite_invoke_args=overwrite_invoke_args,
+                                                   exclude_modules=exclude_modules)
         if len(self.futures) == 1:
             return self.futures[0]
 
@@ -215,17 +182,17 @@ class ibm_cf_executor(object):
             raise Exception('You cannot run pw.map_reduce() in the current state.'
                             ' Create a new pywren.ibm_cf_executor() instance.')
 
-        self.futures = self.executor.multiple_call_wrapper(map_function, map_iterdata,
-                                                           reduce_function=reduce_function,
-                                                           obj_chunk_size=chunk_size,
-                                                           extra_env=extra_env,
-                                                           extra_meta=extra_meta,
-                                                           invoke_pool_threads=invoke_pool_threads,
-                                                           data_all_as_one=data_all_as_one,
-                                                           overwrite_invoke_args=overwrite_invoke_args,
-                                                           exclude_modules=exclude_modules,
-                                                           reducer_one_per_object=reducer_one_per_object,
-                                                           reducer_wait_local=reducer_wait_local)
+        self.futures = self.executor.multiple_call(map_function, map_iterdata,
+                                                   reduce_function=reduce_function,
+                                                   obj_chunk_size=chunk_size,
+                                                   extra_env=extra_env,
+                                                   extra_meta=extra_meta,
+                                                   invoke_pool_threads=invoke_pool_threads,
+                                                   data_all_as_one=data_all_as_one,
+                                                   overwrite_invoke_args=overwrite_invoke_args,
+                                                   exclude_modules=exclude_modules,
+                                                   reducer_one_per_object=reducer_one_per_object,
+                                                   reducer_wait_local=reducer_wait_local)
         if len(self.futures) == 1:
             return self.futures[0]
 

@@ -21,6 +21,7 @@ from six.moves import cPickle as pickle
 import os
 import inspect
 import requests
+import pywren_ibm_cloud as pywren
 import pywren_ibm_cloud.version as version
 import pywren_ibm_cloud.wrenutil as wrenutil
 from pywren_ibm_cloud.wait import wait
@@ -144,7 +145,7 @@ class Executor(object):
         Method that returns the function to process objects in the Cloud.
         It creates a ready-to-use data_stream parameter
         """
-        def map_function_wrapper(map_func_args, data_byte_range, storage, ibm_cos):
+        def object_processing_function(map_func_args, data_byte_range, storage, ibm_cos):
             extra_get_args = {}
             if data_byte_range is not None:
                 range_str = 'bytes={}-{}'.format(*data_byte_range)
@@ -178,19 +179,20 @@ class Executor(object):
 
             return map_function(**map_func_args)
         
-        return map_function_wrapper   
-    
-    def single_call_wrapper(self, func, data, extra_env=None, extra_meta=None):
+        return object_processing_function  
+
+    def single_call(self, func, data, extra_env=None, extra_meta=None):
         """
         Wrapper to launch one function invocation. 
         """
         return self.map(func, [data], extra_env, extra_meta)
     
-    def multiple_call_wrapper(self, map_function, iterdata, reduce_function=None,
-                              obj_chunk_size=None, extra_env=None, extra_meta=None, 
-                              invoke_pool_threads=128, data_all_as_one=True, 
-                              overwrite_invoke_args=None, exclude_modules=None,
-                              reducer_one_per_object=False, reducer_wait_local=True):
+    def multiple_call(self, map_function, iterdata, reduce_function=None,
+                      obj_chunk_size=None, extra_env=None, extra_meta=None, 
+                      remote_invocation=False, invoke_pool_threads=128,
+                      data_all_as_one=True, overwrite_invoke_args=None, 
+                      exclude_modules=None, reducer_one_per_object=False,
+                      reducer_wait_local=True):
         """
         Wrapper to launch both map() and map_reduce() methods. 
         It integrates COS logic to process objects.
@@ -208,7 +210,7 @@ class Executor(object):
                                                              reduce_function,
                                                              extra_env, extra_meta)
             arg_data = wrenutil.verify_args(map_function, data, object_processing=True)
-            if obj_chunk_size and reducer_one_per_object:
+            if reducer_one_per_object:
                 part_func_args = []
                 if 'bucket' in func_sig.parameters:
                     # need to discover data objects
@@ -245,11 +247,30 @@ class Executor(object):
                             exclude_modules=exclude_modules)
         else:
             logger.debug("Map on anything else")
-            map_futures = self.map(map_function, iterdata,
+            
+            def remote_invoker(input_data):
+                pw = pywren.ibm_cf_executor()
+                return pw.map(map_function, input_data)
+    
+            if len(iterdata) > 1 and remote_invocation:
+                map_func = remote_invoker
+                map_iterdata = [[iterdata[x:x+100]] for x in range(0, len(iterdata), 100)]
+                invoke_pool_threads = 1
+            else:
+                remote_invocation = False
+                map_func = map_function
+                map_iterdata = iterdata
+            
+            map_futures = self.map(map_func, map_iterdata,
                                    extra_env=extra_env,
-                                   extra_meta=extra_meta)
+                                   extra_meta=extra_meta,
+                                   invoke_pool_threads=invoke_pool_threads,
+                                   data_all_as_one=data_all_as_one,
+                                   overwrite_invoke_args=overwrite_invoke_args,
+                                   exclude_modules=exclude_modules,
+                                   original_func_name=map_function.__name__)
+
             if not reduce_function:
-                logger.debug('No reduce method provided')
                 return map_futures
             
             logger.debug("Calling reduce")
@@ -447,5 +468,5 @@ class Executor(object):
 
             return reduce_function(**reduce_func_args)
 
-        return self.single_call_wrapper(reduce_function_wrapper, [list_of_futures, ],
-                                        extra_env=extra_env, extra_meta=extra_meta)
+        return self.single_call(reduce_function_wrapper, [list_of_futures, ],
+                                extra_env=extra_env, extra_meta=extra_meta)
