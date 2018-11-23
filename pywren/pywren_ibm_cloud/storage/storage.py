@@ -156,7 +156,7 @@ class InternalStorage(object):
         :param prefix: prefix to search for
         :return: list of objects
         """
-        return self.backend_handler.list_objects(self.storage_bucket, executor_id)
+        return self.backend_handler.list_keys_with_prefix(self.storage_bucket, executor_id)
     
     def delete_temporal_data(self, key_list):
         """

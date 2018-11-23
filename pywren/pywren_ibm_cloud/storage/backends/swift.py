@@ -214,6 +214,8 @@ class SwiftBackend(object):
         try:
             res = self.session.get(url)
             objects = res.json()
+            
+            # TODO: Adapt to Key and Size
             return objects
         except Exception as e:
             raise e

@@ -45,14 +45,8 @@ def clean_os_bucket(bucket, prefix, internal_storage):
     objects_to_delete = internal_storage.list_temporal_data(prefix)
     
     while objects_to_delete:
-        if 'Key' in objects_to_delete[0]:
-            # S3 API
-            delete_keys = [obj['Key'] for obj in objects_to_delete]
-        elif 'name' in objects_to_delete[0]:
-            # Swift API
-            delete_keys = [obj['name'] for obj in objects_to_delete]
-        logger.debug('{} objects found'.format(len(delete_keys)))
-        total_objects = total_objects + len(delete_keys)
-        internal_storage.delete_temporal_data(delete_keys)
+        logger.debug('{} objects found'.format(len(objects_to_delete)))
+        total_objects = total_objects + len(objects_to_delete)
+        internal_storage.delete_temporal_data(objects_to_delete)
         objects_to_delete = internal_storage.list_temporal_data(prefix)
     logger.info('Finished deleting objects, total found: {}'.format(total_objects))

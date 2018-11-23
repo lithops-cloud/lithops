@@ -47,6 +47,13 @@ def is_cf_cluster():
     return False
 
 
+def iterdata_as_list(iterdata):
+    if type(iterdata) != list:
+        return [iterdata]
+    else:
+        return iterdata 
+
+
 class WrappedStreamingBody(object):
     """
     Wrap boto3's StreamingBody object to provide enough Python fileobj functionality
