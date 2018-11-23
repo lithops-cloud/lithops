@@ -279,7 +279,7 @@ import pywren_ibm_cloud as pywren
 
 bucket_name = 'my_data_bucket'
 
-def my_map_function(bucket, key, data_stream, storage_handler):
+def my_map_function(bucket, key, data_stream, ibm_cos):
     for line in data_stream:
         # Do some process
     return partial_intersting_data
@@ -297,11 +297,11 @@ result = pw.get_result()
 ```
 
 * If `chunk_size=None` then partitioner's granularity is a single object . 
-* `storage_handler` is optional and can be used to access COS for aditional operations. See [cos_backend](https://github.com/pywren/pywren-ibm-cloud/blob/master/pywren/pywren_ibm_cloud/storage/cos_backend.py) for allowed operations
+* `ibm_cos` is ibm_boto3 client instance. Can be used to access COS for aditional operations. See [boto3_client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#client) for allowed operations
 	
 | method | method signature |
 |---| ---| 
-| `pw.map_reduce`(`my_map_function`, `bucket_name `, `my_reduce_function`, `chunk_size`, `storage_handler`)| `bucket_name ` contains the name of the bucket |
+| `pw.map_reduce`(`my_map_function`, `bucket_name `, `my_reduce_function`, `chunk_size`, `ibm_cos`)| `bucket_name ` contains the name of the bucket |
 | `my_map_function(bucket, key, data_stream)` | `key` is a data object from bucket `bucket` that is assigned to the invocation|
 
 
