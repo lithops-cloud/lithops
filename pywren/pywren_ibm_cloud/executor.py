@@ -23,13 +23,15 @@ import inspect
 import requests
 import pywren_ibm_cloud as pywren
 import pywren_ibm_cloud.version as version
-import pywren_ibm_cloud.wrenconfig as wrenconfig
 import pywren_ibm_cloud.wrenutil as wrenutil
 from pywren_ibm_cloud.wait import wait
+from pywren_ibm_cloud.wrenconfig import MAX_AGG_DATA_SIZE
+from pywren_ibm_cloud.partitioner import object_partitioner
 from pywren_ibm_cloud.future import ResponseFuture, JobState
 from pywren_ibm_cloud.runtime import get_runtime_preinstalls
 from pywren_ibm_cloud.serialize import serialize, create_mod_data
 from pywren_ibm_cloud.storage.storage_utils import create_keys, create_func_key, create_agg_data_key
+from pywren_ibm_cloud.storage.backends.cos import COSBackend
 
 
 logger = logging.getLogger(__name__)
@@ -128,9 +130,6 @@ class Executor(object):
 
         return fut
 
-    def call_async(self, func, data, extra_env=None, extra_meta=None):
-        return self.map(func, [data], extra_env, extra_meta)
-
     @staticmethod
     def agg_data(data_strs):
         ranges = []
@@ -140,6 +139,145 @@ class Executor(object):
             ranges.append((pos, pos+l-1))
             pos += l
         return b"".join(data_strs), ranges
+    
+    def object_processing(self, map_function):
+        """
+        Method that returns the function to process objects in the Cloud.
+        It creates a ready-to-use data_stream parameter
+        """
+        def object_processing_function(map_func_args, data_byte_range, storage, ibm_cos):
+            extra_get_args = {}
+            if data_byte_range is not None:
+                range_str = 'bytes={}-{}'.format(*data_byte_range)
+                extra_get_args['Range'] = range_str
+                print(extra_get_args)
+
+            logger.info('Getting dataset')
+            if 'url' in map_func_args:
+                # it is a public url
+                resp = requests.get(map_func_args['url'], headers=extra_get_args, stream=True)
+                map_func_args['data_stream'] = resp.raw
+            
+            elif 'key' in map_func_args:
+                # it is a COS key
+                if 'bucket' not in map_func_args or ('bucket' in map_func_args and not map_func_args['bucket']):
+                    bucket, object_name = map_func_args['key'].split('/', 1)
+                else:
+                    bucket = map_func_args['bucket']
+                    object_name = map_func_args['key']
+                fileobj = storage.get_object(bucket, object_name, stream=True,
+                                             extra_get_args=extra_get_args)
+                map_func_args['data_stream'] = fileobj
+                # fileobj = wrenutil.WrappedStreamingBody(stream, obj_chunk_size, chunk_threshold)
+
+            func_sig = inspect.signature(map_function)
+            if 'storage' in func_sig.parameters:
+                map_func_args['storage'] = storage
+                
+            if 'ibm_cos' in func_sig.parameters:
+                map_func_args['ibm_cos'] = ibm_cos
+
+            return map_function(**map_func_args)
+        
+        return object_processing_function  
+
+    def single_call(self, func, data, extra_env=None, extra_meta=None):
+        """
+        Wrapper to launch one function invocation. 
+        """
+        return self.map(func, [data], extra_env, extra_meta)
+    
+    def multiple_call(self, map_function, iterdata, reduce_function=None,
+                      obj_chunk_size=None, extra_env=None, extra_meta=None, 
+                      remote_invocation=False, invoke_pool_threads=128,
+                      data_all_as_one=True, overwrite_invoke_args=None, 
+                      exclude_modules=None, reducer_one_per_object=False,
+                      reducer_wait_local=True):
+        """
+        Wrapper to launch both map() and map_reduce() methods. 
+        It integrates COS logic to process objects.
+        """
+        data = wrenutil.iterdata_as_list(iterdata)
+        # Check function signature to see if the user wants to process
+        # objects in Object Storage, from a public URL, or none.
+        func_sig = inspect.signature(map_function)
+        if {'bucket', 'key', 'url'} & set(func_sig.parameters):
+            # map-reduce over objects in COS/Swift or public URL. It will launch a partitioner
+            # Wrap original map function. This will produce the ready-to-use data_stream parameter
+            object_processing_function = self.object_processing(map_function)
+            # Get the object partitioner function
+            object_partitioner_function = object_partitioner(object_processing_function,
+                                                             reduce_function,
+                                                             extra_env, extra_meta)
+            arg_data = wrenutil.verify_args(map_function, data, object_processing=True)
+            if reducer_one_per_object:
+                part_func_args = []
+                if 'bucket' in func_sig.parameters:
+                    # need to discover data objects
+                    for entry in arg_data:
+                        # Each entry is a bucket
+                        bucket_name, prefix = wrenutil.split_path(entry['bucket'])
+                        storage = COSBackend(self.config['ibm_cos'])
+                        obj_keys = storage.list_keys_with_prefix(bucket_name, prefix)
+                        for key in obj_keys:
+                            new_entry = entry.copy()
+                            new_entry['bucket'] = None
+                            new_entry['key'] = '{}/{}'.format(bucket_name, key)
+                            part_args = {'map_func_args': [new_entry],
+                                         'chunk_size': obj_chunk_size}
+                            part_func_args.append(part_args)
+                else:
+                    # Object keys
+                    for entry in arg_data:
+                        part_args = {'map_func_args': [entry],
+                                     'chunk_size': obj_chunk_size}
+                        part_func_args.append(part_args)
+            else:
+                part_func_args = [{'map_func_args': arg_data,
+                                   'chunk_size': obj_chunk_size}]
+
+            logger.debug("Calling map on partitions from COS flow")
+            return self.map(object_partitioner_function, part_func_args,
+                            extra_env=extra_env,
+                            extra_meta=extra_meta, 
+                            original_func_name=map_function.__name__,
+                            invoke_pool_threads=invoke_pool_threads,
+                            data_all_as_one=data_all_as_one,
+                            overwrite_invoke_args=overwrite_invoke_args,
+                            exclude_modules=exclude_modules)
+        else:
+            logger.debug("Map on anything else")
+            
+            def remote_invoker(input_data):
+                pw = pywren.ibm_cf_executor()
+                return pw.map(map_function, input_data)
+    
+            if len(iterdata) > 1 and remote_invocation:
+                map_func = remote_invoker
+                map_iterdata = [[iterdata[x:x+100]] for x in range(0, len(iterdata), 100)]
+                invoke_pool_threads = 1
+            else:
+                remote_invocation = False
+                map_func = map_function
+                map_iterdata = iterdata
+            
+            map_futures = self.map(map_func, map_iterdata,
+                                   extra_env=extra_env,
+                                   extra_meta=extra_meta,
+                                   invoke_pool_threads=invoke_pool_threads,
+                                   data_all_as_one=data_all_as_one,
+                                   overwrite_invoke_args=overwrite_invoke_args,
+                                   exclude_modules=exclude_modules,
+                                   original_func_name=map_function.__name__)
+
+            if not reduce_function:
+                return map_futures
+            
+            logger.debug("Calling reduce")
+            return self.reduce(reduce_function, map_futures,
+                               wait_local=reducer_wait_local,
+                               extra_env=extra_env,
+                               extra_meta=extra_meta)    
 
     def map(self, func, iterdata, extra_env=None, extra_meta=None, invoke_pool_threads=128,
             data_all_as_one=True, overwrite_invoke_args=None, exclude_modules=None,
@@ -163,10 +301,7 @@ class Executor(object):
         else:
             func_name = func.__name__
 
-        if type(iterdata) != list:
-            data = list(iterdata)
-        else:
-            data = iterdata
+        data = wrenutil.iterdata_as_list(iterdata)
 
         if not data:
             return []
@@ -204,7 +339,7 @@ class Executor(object):
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(log_msg)
 
-        if data_size_bytes < wrenconfig.MAX_AGG_DATA_SIZE and data_all_as_one:
+        if data_size_bytes < MAX_AGG_DATA_SIZE and data_all_as_one:
             agg_data_key = create_agg_data_key(self.internal_storage.prefix, self.executor_id, callgroup_id)
             agg_data_bytes, agg_data_ranges = self.agg_data(data_strs)
             agg_upload_time = time.time()
@@ -215,7 +350,7 @@ class Executor(object):
         else:
             log_msg = ('Executor ID {} Total data exceeded '
                        'maximum size of {} bytes'.format(self.executor_id,
-                                                         wrenconfig.MAX_AGG_DATA_SIZE))
+                                                         MAX_AGG_DATA_SIZE))
             logger.warning(log_msg)
 
         if exclude_modules:
@@ -300,7 +435,7 @@ class Executor(object):
         # TODO: Handle error (see line 115)
         return res
 
-    def reduce(self, function, list_of_futures, throw_except=True,
+    def reduce(self, reduce_function, list_of_futures, throw_except=True,
                wait_local=True, extra_env=None, extra_meta=None):
         """
         Apply a function across all futures.
@@ -311,289 +446,27 @@ class Executor(object):
             logger.info('Waiting locally for results')
             wait(list_of_futures, executor_id, self.internal_storage, throw_except)
 
-        def reduce_func(fut_list, internal_storage, storage):
-            logger.info('Starting reduce_func() function')
+        def reduce_function_wrapper(fut_list, internal_storage, storage, ibm_cos):
             logger.info('Waiting for results')
             # Wait for all results
             wait(fut_list, executor_id, internal_storage, throw_except)
-            accum_list = []
-
+            results = []
             # Get all results
             for f in fut_list:
-                accum_list.append(f.result(throw_except=throw_except, internal_storage=internal_storage))
+                results.append(f.result(throw_except=throw_except, internal_storage=internal_storage))
+  
+            reduce_func_args = {'results':results}
 
             # Run reduce function
-            func_sig = inspect.signature(function)
-            if 'futures' in func_sig.parameters and 'storage' in func_sig.parameters:
-                return function(accum_list, futures=fut_list, storage=storage)
-            if 'storage' in func_sig.parameters:
-                return function(accum_list, storage=storage)
+            func_sig = inspect.signature(reduce_function)
             if 'futures' in func_sig.parameters:
-                return function(accum_list, futures=fut_list)
-
-            return function(accum_list)
-
-        return self.call_async(reduce_func, [list_of_futures, ],
-                               extra_env=extra_env, extra_meta=extra_meta)
-
-    def map_reduce(self, map_function, iterdata, reduce_function, obj_chunk_size=64*1024**2,
-                   reducer_one_per_object=False, reducer_wait_local=True, throw_except=True,
-                   extra_env=None, extra_meta=None):
-        """
-        Designed to run all-in-cloud map-reduce like functions.
-        The method includes a partitioner function which splits the dataset
-        into obj_chunk_size chunks.
-        """
-
-        if type(iterdata) != list:
-            data = [iterdata]
-        else:
-            data = iterdata
-
-        chunk_threshold = 4*1024  # 4KB
-
-        def map_func(map_func_args, data_byte_range, storage, ibm_cos):
-            extra_get_args = {}
-            if data_byte_range is not None:
-                range_str = 'bytes={}-{}'.format(*data_byte_range)
-                extra_get_args['Range'] = range_str
-                print(extra_get_args)
-
-            logger.info('Getting dataset')
-            if 'url' in map_func_args:
-                # it is a public url
-                resp = requests.get(map_func_args['url'], headers=extra_get_args, stream=True)
-                map_func_args['data_stream'] = resp.raw
-            
-            elif 'key' in map_func_args:
-                # it is a COS key
-                if 'bucket' not in map_func_args:
-                    bucket, object_name = map_func_args['key'].split('/', 1)
-                else:
-                    bucket = map_func_args['bucket']
-                    object_name = map_func_args['key']
-                fileobj = storage.get_object(bucket, object_name, stream=True,
-                                             extra_get_args=extra_get_args)
-                map_func_args['data_stream'] = fileobj
-                # fileobj = wrenutil.WrappedStreamingBody(stream, obj_chunk_size, chunk_threshold)
-
-            func_sig = inspect.signature(map_function)
+                reduce_func_args['futures'] = fut_list
             if 'storage' in func_sig.parameters:
-                map_func_args['storage'] = storage
-                
+                reduce_func_args['storage'] = storage
             if 'ibm_cos' in func_sig.parameters:
-                map_func_args['ibm_cos'] = ibm_cos
+                reduce_func_args['ibm_cos'] = ibm_cos
 
-            return map_function(**map_func_args)
+            return reduce_function(**reduce_func_args)
 
-        def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
-            """
-            Create partitions from bucket/s
-            """
-            logger.info('Creating dataset chunks from bucket/s ...')
-            partitions = list()
-
-            for entry in map_func_args_list:
-                # Each entry is a bucket
-                bucket_name, prefix = wrenutil.split_path(entry['bucket'])
-                page_iterator = storage.list_paginator(bucket_name, prefix)
-
-                logger.info('Creating dataset chunks from objects within "{}" '
-                            'bucket ...'.format(bucket_name))
-                for page in page_iterator:
-                    if "Contents" in page:
-                        for obj in page["Contents"]:
-                            try:
-                                # S3 API
-                                key = obj['Key']
-                                obj_size = obj['Size']
-                                logger.info("Extracted key {} size {}".format(key, obj_size))
-                            except:
-                                # Swift API
-                                key = obj['name']
-                                obj_size = obj['bytes']
-
-                            # full_key = '{}/{}'.format(bucket_name, key)
-                            size = 0
-                            if chunk_size is not None and obj_size > chunk_size:
-                                size = 0
-                                while size < obj_size:
-                                    brange = (size, size+chunk_size+chunk_threshold)
-                                    size += chunk_size
-                                    partition = {}
-                                    partition['map_func_args'] = entry.copy()
-                                    partition['map_func_args']['key'] = key
-                                    partition['map_func_args']['bucket'] = bucket_name
-                                    partition['data_byte_range'] = brange
-                                    partitions.append(partition)
-                            else:
-                                partition = {}
-                                partition['map_func_args'] = entry.copy()
-                                partition['map_func_args']['key'] = key
-                                partition['map_func_args']['bucket'] = bucket_name
-                                partition['data_byte_range'] = None
-                                partitions.append(partition)
-            return partitions
-
-        def split_object_from_key(map_func_args_list, chunk_size, storage):
-            """
-            Create partitions from a list of COS objects keys
-            """
-            logger.info('Creating dataset chunks from object keys ...')
-            partitions = list()
-
-            for entry in map_func_args_list:
-                object_key = entry['key']
-                logger.info(object_key)
-                bucket, object_name = object_key.split('/', 1)
-                metadata = storage.head_object(bucket, object_name)
-                obj_size = int(metadata['content-length'])
-
-                if chunk_size is not None and obj_size > chunk_size:
-                    size = 0
-                    while size < obj_size:
-                        brange = (size, size+chunk_size+chunk_threshold)
-                        size += chunk_size
-                        partition = {}
-                        partition['map_func_args'] = entry
-                        partition['data_byte_range'] = brange
-                        partitions.append(partition)
-                else:
-                    partition = {}
-                    partition['map_func_args'] = entry
-                    partition['data_byte_range'] = None
-                    partitions.append(partition)
-
-            return partitions
-
-        def split_object_from_url(map_func_args_list, chunk_size):
-            """
-            Create partitions from a list of objects urls
-            """
-            logger.info('Creating dataset chunks from urls ...')
-            partitions = list()
-
-            for entry in map_func_args_list:
-                obj_size = None
-                object_url = entry['url']
-                metadata = requests.head(object_url)
-                
-                logger.info(object_url)
-                #logger.debug(metadata.headers)
-                
-                if 'content-length' in metadata.headers:
-                    obj_size = int(metadata.headers['content-length'])
-
-                if 'accept-ranges' in metadata.headers and chunk_size is not None \
-                   and obj_size is not None and obj_size > chunk_size:
-                    size = 0
-                    while size < obj_size:
-                        brange = (size, size+chunk_size+chunk_threshold)
-                        size += chunk_size
-                        partition = {}
-                        partition['map_func_args'] = entry
-                        partition['data_byte_range'] = brange
-                        partitions.append(partition)
-                else:
-                    # Only one partition
-                    partition = {}
-                    partition['map_func_args'] = entry
-                    partition['data_byte_range'] = None
-                    partitions.append(partition)
-
-            return partitions
-
-        def partitioner(map_func_args, chunk_size, storage):
-            """
-            Partitioner is a function executed in the Cloud
-            """
-            logger.info('Starting partitioner() function')
-            map_func_keys = map_func_args[0].keys()
-
-            if 'bucket' in map_func_keys and 'key' not in map_func_keys:
-                partitions = split_objects_from_bucket(map_func_args, chunk_size, storage)
-            
-            elif 'key' in map_func_keys:
-                partitions = split_object_from_key(map_func_args, chunk_size, storage)
-            
-            elif 'url' in map_func_keys:
-                partitions = split_object_from_url(map_func_args, chunk_size)
-            else:
-                raise ValueError('You did not provide any bucket or object key/url')
-
-            # logger.info(partitions)
-
-            pw = pywren.ibm_cf_executor()
-            reduce_future = pw.map_reduce(map_func, partitions,
-                                          reduce_function,
-                                          reducer_wait_local=False,
-                                          throw_except=throw_except,
-                                          extra_meta=extra_meta)
-
-            return reduce_future
-
-        # Check function signature to see if the user wants to process
-        # objects in Object Storage or from a public url.
-        func_sig = inspect.signature(map_function)
-
-        if {'bucket', 'key', 'url'} & set(func_sig.parameters):
-            # map-reduce over objects in COS or public URL
-            # it will launch a partitioner
-            arg_data = wrenutil.verify_args(map_function, data,
-                                            object_processing=True)
-
-            if reducer_one_per_object:
-                if 'bucket' in func_sig.parameters:
-                    part_func_args = []
-                    for entry in arg_data:
-                        # Each entry is a bucket
-                        bucket_name, prefix = wrenutil.split_path(entry['bucket'])
-                        # TODO: Change internal_storage
-                        page_iterator = self.internal_storage.list_paginator(bucket_name, prefix)
-                        for page in page_iterator:
-                            if "Contents" in page:
-                                for obj in page["Contents"]:
-                                    try: # S3 API
-                                        full_key = '{}/{}'.format(bucket_name, obj['Key'])
-                                    except:  # Swift API
-                                        full_key = '{}/{}'.format(bucket_name, obj['name'])
-
-                                    new_entry = entry.copy()
-                                    new_entry['key'] = full_key
-                                    logger.info("Change bucket from {} to {}".format(new_entry['bucket'],
-                                                                                     bucket_name))
-                                    new_entry['bucket'] = bucket_name
-
-                                    part_args = {'map_func_args': [new_entry],
-                                                 'chunk_size': obj_chunk_size}
-                                    part_func_args.append(part_args)
-                else:
-                    part_func_args = []
-                    for entry in arg_data:
-                        part_args = {'map_func_args': [entry],
-                                     'chunk_size': obj_chunk_size}
-                        part_func_args.append(part_args)
-            else:
-                part_func_args = [{'map_func_args': arg_data,
-                                   'chunk_size': obj_chunk_size}]
-
-            logger.debug("Calling map on partitions from COS flow")
-            return self.map(partitioner, part_func_args,
-                            extra_env=extra_env,
-                            extra_meta=extra_meta, 
-                            original_func_name=map_function.__name__)
-        else:
-            # map-reduce over anything else
-            logger.debug("Map on anything else")
-            map_futures = self.map(map_function, iterdata,
-                                   extra_env=extra_env,
-                                   extra_meta=extra_meta)
-            if (reduce_function is None):
-                logger.debug('No reduce method provided')
-                return map_futures
-            logger.debug("Calling reduce")
-            return self.reduce(reduce_function, map_futures,
-                               throw_except=throw_except,
-                               wait_local=reducer_wait_local,
-                               extra_env=extra_env,
-                               extra_meta=extra_meta)
+        return self.single_call(reduce_function_wrapper, [list_of_futures, ],
+                                extra_env=extra_env, extra_meta=extra_meta)

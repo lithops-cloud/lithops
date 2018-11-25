@@ -107,12 +107,12 @@ class ibm_cf_executor(object):
             raise Exception('You cannot run pw.call_async() in the current state,'
                             ' create a new pywren.ibm_cf_executor() instance.')
         
-        future = self.executor.call_async(func, data, extra_env, extra_meta)[0]
+        future = self.executor.single_call(func, data, extra_env, extra_meta)[0]
         self.futures.append(future)
                 
         return future
 
-    def map(self, func, iterdata, extra_env=None, extra_meta=None,
+    def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None,
             remote_invocation=False, invoke_pool_threads=10, data_all_as_one=True,
             overwrite_invoke_args=None, exclude_modules=None):
         """
@@ -136,84 +136,63 @@ class ibm_cf_executor(object):
             raise Exception('You cannot run pw.map() in the current state.'
                             ' Create a new pywren.ibm_cf_executor() instance.')
 
-        def remote_invoker(input_data):
-            pw = pywren.ibm_cf_executor()
-            return pw.map(func, input_data)
-
-        if type(iterdata) != list:
-            iterdata = list(iterdata)
-
-        if len(iterdata) > 1 and remote_invocation:
-            map_func = remote_invoker
-            map_iterdata = [[iterdata[x:x+100]] for x in range(0, len(iterdata), 100)]
-            invoke_pool_threads = 1
-        else:
-            remote_invocation = False
-            map_func = func
-            map_iterdata = iterdata
-
-        self.futures = self.executor.map(func=map_func, iterdata=map_iterdata,
-                                         extra_env=extra_env, extra_meta=extra_meta,
-                                         invoke_pool_threads=invoke_pool_threads,
-                                         data_all_as_one=data_all_as_one,
-                                         overwrite_invoke_args=overwrite_invoke_args,
-                                         exclude_modules=exclude_modules,
-                                         original_func_name=func.__name__)
-
-        if remote_invocation:
-            msg = 'Executor ID {} Getting remote invocations'.format(self.executor_id)
-            logger.info(msg)
-            if(logger.getEffectiveLevel() == logging.WARNING):
-                print(msg)
-
-            def fetch_future_results(f):
-                f.result(internal_storage=self.internal_storage)
-                return f
-
-            pool = ThreadPool(32)
-            pool.map(fetch_future_results, self.futures)
-            new_futures = [f.result() for f in self.futures if f.done]
-
-            self.futures = []
-            for futures_list in new_futures:
-                self.futures.extend(futures_list)
-
+        self.futures = self.executor.multiple_call(map_function=map_function,
+                                                   iterdata=map_iterdata,
+                                                   extra_env=extra_env,
+                                                   extra_meta=extra_meta,
+                                                   remote_invocation=remote_invocation,
+                                                   invoke_pool_threads=invoke_pool_threads,
+                                                   data_all_as_one=data_all_as_one,
+                                                   overwrite_invoke_args=overwrite_invoke_args,
+                                                   exclude_modules=exclude_modules)
         if len(self.futures) == 1:
             return self.futures[0]
 
         return self.futures
 
-    def map_reduce(self, map_function, map_iterdata, reduce_function,
-                   chunk_size=None, reducer_one_per_object=False,
-                   reducer_wait_local=True, throw_except=True,
-                   extra_env=None, extra_meta=None):
+    def map_reduce(self, map_function, map_iterdata, reduce_function, 
+                   chunk_size=None, extra_env=None, extra_meta=None,
+                   reducer_one_per_object=False, reducer_wait_local=True,
+                   invoke_pool_threads=10, data_all_as_one=True,
+                   overwrite_invoke_args=None, exclude_modules=None):
         """
         Map the map_function over the data and apply the reduce_function across all futures.
         This method is executed all within CF.
         :param map_function: the function to map over the data
-        :param reduce_function:  the function to reduce over the futures
         :param map_iterdata:  the function to reduce over the futures
+        :param reduce_function:  the function to reduce over the futures
         :param chunk_size: the size of the data chunks. 'None' for processing the whole file in one map
         :param extra_env: Additional environment variables for action environment. Default None.
         :param extra_meta: Additional metadata to pass to action. Default None.
+        :param reducer_one_per_object: Set one reducer per object after running the partitioner
+        :param reducer_wait_local: Wait for results locally  
+        :param invoke_pool_threads: Number of threads to use to invoke.
+        :param data_all_as_one: upload the data as a single object. Default True
+        :param overwrite_invoke_args: Overwrite other args. Mainly used for testing.
+        :param exclude_modules: Explicitly keep these modules from pickled dependencies.
         :return: A list with size `len(map_iterdata)` of futures for each job
 
         Usage
           >>> import pywren_ibm_cloud as pywren
           >>> pw = pywren.ibm_cf_executor()
-          >>> pw.map_reduce(foo, bar, data_list)
+          >>> pw.map_reduce(foo, map_data_list, bar)
         """
 
         if self._state == ExecutorState.finished or self._state == ExecutorState.error:
             raise Exception('You cannot run pw.map_reduce() in the current state.'
                             ' Create a new pywren.ibm_cf_executor() instance.')
 
-        self.futures = self.executor.map_reduce(map_function, map_iterdata,
-                                                reduce_function, chunk_size,
-                                                reducer_one_per_object,
-                                                reducer_wait_local,
-                                                throw_except, extra_env, extra_meta)
-
+        self.futures = self.executor.multiple_call(map_function, map_iterdata,
+                                                   reduce_function=reduce_function,
+                                                   obj_chunk_size=chunk_size,
+                                                   extra_env=extra_env,
+                                                   extra_meta=extra_meta,
+                                                   invoke_pool_threads=invoke_pool_threads,
+                                                   data_all_as_one=data_all_as_one,
+                                                   overwrite_invoke_args=overwrite_invoke_args,
+                                                   exclude_modules=exclude_modules,
+                                                   reducer_one_per_object=reducer_one_per_object,
+                                                   reducer_wait_local=reducer_wait_local)
         if len(self.futures) == 1:
             return self.futures[0]
 
@@ -503,7 +482,7 @@ class ibm_cf_executor(object):
         if local_execution:
             # 1st case: Not background. The main code waits until the cleaner finishes its execution.
             # It is not ideal for performance tests, since it can take long time to complete.
-            #clean_os_bucket(storage_bucket, storage_prerix, self.storage_config)
+            #clean_os_bucket(storage_bucket, storage_prerix, self.internal_storage)
 
             # 2nd case: Execute in Background as a subprocess. The main program does not wait for its completion.
             storage_config = json.dumps(self.internal_storage.get_storage_config())

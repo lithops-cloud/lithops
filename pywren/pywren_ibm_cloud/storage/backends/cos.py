@@ -166,38 +166,21 @@ class COSBackend(object):
                 raise StorageNoSuchKeyError(bucket_name)
             else:
                 raise e
-            
-    def list_objects(self, bucket_name, prefix=None):
-        """
-        Lists the objects in a bucket. Throws StorageNoSuchKeyError if the given bucket does not exist.
-        :param key: key of the object
-        :return: Data of the object
-        :rtype: str/bytes
-        """
-        logger.debug("list objects for bucket {} prefix {}".format(bucket_name, prefix))
-        try:
-            if (prefix is not None):
-                metadata = self.cos_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
-            else:
-                metadata = self.cos_client.list_objects_v2(Bucket=bucket_name)
-            if 'Contents' in metadata: 
-                return metadata['Contents']
-            else:
-                return None
-        except ibm_botocore.exceptions.ClientError as e:
-            if e.response['Error']['Code'] == '404':
-                raise StorageNoSuchKeyError(bucket_name)
-            else:
-                raise e
 
-    def list_paginator(self, bucket_name, prefix=None):
+    def list_objects(self, bucket_name, prefix=None):
         paginator = self.cos_client.get_paginator('list_objects_v2')
         try:
             if (prefix is not None):
                 page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
             else:
                 page_iterator = paginator.paginate(Bucket=bucket_name)
-            return page_iterator
+                
+            object_list = []
+            for page in page_iterator:
+                if 'Contents' in page:
+                    for item in page['Contents']:
+                        object_list.append(item)    
+            return object_list
         except ibm_botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == '404':
                 raise StorageNoSuchKeyError(bucket_name)
@@ -211,6 +194,8 @@ class COSBackend(object):
         :return: List of keys in bucket that match the given prefix.
         :rtype: list of str
         """
+        if not prefix:
+            prefix = ''
         paginator = self.cos_client.get_paginator('list_objects')
         operation_parameters = {'Bucket': bucket_name,
                                 'Prefix': prefix}
