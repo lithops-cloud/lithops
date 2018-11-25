@@ -10,12 +10,12 @@ import urllib.request
 
 PREFIX = '__pywren.test'
 
-# Dataset from: https://archive.ics.uci.edu/ml/datasets/bag+of+words
-TEST_FILES_URLS = ['http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.enron.txt',
-                   'http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.kos.txt',
-                   'http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.nips.txt',
-                   'http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.nytimes.txt',
-                   'http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.pubmed.txt']
+try:
+    with open('data', 'r') as data_file:
+        TEST_FILES_URLS = [url for url in data_file.read().split()]
+except:
+    print("can't open data file")
+    sys.exit()
 
 try:
     config_path = os.path.join(os.path.expanduser("~/.pywren_config"))
