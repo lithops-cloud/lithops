@@ -39,7 +39,7 @@ class CloudFunctions(object):
         self.runtime = config['action_name']
         self.is_cf_cluster = config['is_cf_cluster']
 
-        auth = base64.encodestring(self.api_key).replace(b'\n', b'')
+        auth = base64.encodebytes(self.api_key).replace(b'\n', b'')
         self.headers = {
                 'content-type': 'application/json',
                 'Authorization': 'Basic %s' % auth.decode('UTF-8')

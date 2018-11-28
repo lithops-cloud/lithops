@@ -33,7 +33,8 @@ RETRIES_DEFAULT = 5
 
 def load(config_filename):
     import yaml
-    res = yaml.safe_load(open(config_filename, 'r'))
+    with open(config_filename, 'r') as config_file:
+        res = yaml.safe_load(config_file)
 
     if 'pywren' in res and res['pywren']['storage_bucket'] == '<BUCKET_NAME>':
         raise Exception(
