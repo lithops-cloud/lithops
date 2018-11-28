@@ -148,9 +148,13 @@ class COSBackend(object):
         :param bucket: bucket name
         :param key_list: list of keys
         """
-        delete_keys = {'Objects' : []}
-        delete_keys['Objects'] = [{'Key' : k} for k in key_list]
-        return self.cos_client.delete_objects(Bucket=bucket_name, Delete=delete_keys)
+        result = []
+        max_keys_num = 1000
+        for i in range(0, len(key_list), max_keys_num):
+            delete_keys = {'Objects' : []}
+            delete_keys['Objects'] = [{'Key' : k} for k in key_list[i:i+max_keys_num]]
+            result.append(self.cos_client.delete_objects(Bucket=bucket_name, Delete=delete_keys))
+        return result
             
     def bucket_exists(self, bucket_name):
         """
