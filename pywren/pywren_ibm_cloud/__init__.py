@@ -14,11 +14,5 @@
 # limitations under the License.
 #
 
-from __future__ import absolute_import
-
 from pywren_ibm_cloud.wren import *
 from pywren_ibm_cloud.version import __version__
-import os
-
-
-SOURCE_DIR = os.path.dirname(os.path.abspath(__file__))

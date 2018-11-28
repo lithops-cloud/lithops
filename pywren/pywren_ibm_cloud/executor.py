@@ -14,17 +14,16 @@
 # limitations under the License.
 #
 
-import logging
-import time
-from multiprocessing.pool import ThreadPool
-from six.moves import cPickle as pickle
 import os
+import time
+import logging
 import inspect
 import requests
 import pywren_ibm_cloud as pywren
 import pywren_ibm_cloud.version as version
 import pywren_ibm_cloud.wrenutil as wrenutil
 from pywren_ibm_cloud.wait import wait
+from multiprocessing.pool import ThreadPool
 from pywren_ibm_cloud.wrenconfig import MAX_AGG_DATA_SIZE
 from pywren_ibm_cloud.partitioner import object_partitioner
 from pywren_ibm_cloud.future import ResponseFuture, JobState
@@ -32,6 +31,7 @@ from pywren_ibm_cloud.runtime import get_runtime_preinstalls
 from pywren_ibm_cloud.serialize import serialize, create_mod_data
 from pywren_ibm_cloud.storage.storage_utils import create_keys, create_func_key, create_agg_data_key
 from pywren_ibm_cloud.storage.backends.cos import COSBackend
+from pywren_ibm_cloud.libs import cloudpickle as pickle
 
 
 logger = logging.getLogger(__name__)
@@ -236,7 +236,7 @@ class Executor(object):
                 part_func_args = [{'map_func_args': arg_data,
                                    'chunk_size': obj_chunk_size}]
 
-            logger.debug("Calling map on partitions from COS flow")
+            logger.debug("Calling map on partitions from object storage flow")
             return self.map(object_partitioner_function, part_func_args,
                             extra_env=extra_env,
                             extra_meta=extra_meta, 
@@ -246,7 +246,7 @@ class Executor(object):
                             overwrite_invoke_args=overwrite_invoke_args,
                             exclude_modules=exclude_modules)
         else:
-            logger.debug("Map on anything else")
+            logger.debug("No need to process objects from object store")
             
             def remote_invoker(input_data):
                 pw = pywren.ibm_cf_executor()
@@ -361,8 +361,7 @@ class Executor(object):
 
         module_data = create_mod_data(mod_paths)
         # Create func and upload
-        func_module_str = pickle.dumps({'func': func_str,
-                                        'module_data': module_data}, -1)
+        func_module_str = pickle.dumps({'func': func_str, 'module_data': module_data}, -1)
         host_job_meta['func_module_str_len'] = len(func_module_str)
 
         func_upload_time = time.time()
