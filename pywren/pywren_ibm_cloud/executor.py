@@ -454,12 +454,14 @@ class Executor(object):
             for f in fut_list:
                 results.append(f.result(throw_except=throw_except, internal_storage=internal_storage))
   
-            reduce_func_args = {'results':results}
+            reduce_func_args = {'results': results}
 
             # Run reduce function
             func_sig = inspect.signature(reduce_function)
             if 'futures' in func_sig.parameters:
                 reduce_func_args['futures'] = fut_list
+            else:
+                del fut_list
             if 'storage' in func_sig.parameters:
                 reduce_func_args['storage'] = storage
             if 'ibm_cos' in func_sig.parameters:
@@ -467,5 +469,5 @@ class Executor(object):
 
             return reduce_function(**reduce_func_args)
 
-        return self.single_call(reduce_function_wrapper, [list_of_futures, ],
-                                extra_env=extra_env, extra_meta=extra_meta)
+        return self.map(reduce_function_wrapper, [[list_of_futures, ]], extra_env=extra_env,
+                        extra_meta=extra_meta, original_func_name=reduce_function.__name__)
