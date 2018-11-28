@@ -155,9 +155,27 @@ pw = pywren.ibm_cf_executor(config=config)
 
 ### Verify 
 
-To test that all is working, run the [pywrentest](examples/pywrentest.py) located in the `examples` folder. From the project root folder, execute
+To test that all is working, run the [testpywren.py](test/testpywren.py) located in the `test` folder with the arguments listed below.
 
-	python3 examples/pywrentest.py
+For initializing test files using IBM Cloud Object Storage service, execute once from the project root folder:
+
+	python3 test/testpywren.py init
+	
+and then execute:
+
+| Command | Explanation |
+|---| ---| 
+| `python3 test/testpywren.py` | test all PyWren's functionality |
+| `python3 test/testpywren.py pywren` | test PyWren without Cloud Object Storage service |
+| `python3 test/testpywren.py pywren_cos` | test PyWren using Cloud Object Storage service only |
+
+To clean test files stored in Cloud Object Storage service, execute:
+
+    python3 test/testpywren.py clean
+
+_NOTE:_ The test script assumes that a local PyWren's config file was set correctly.
+
+To edit tests' data, open the [data](test/data) file located in the `test` folder and simply add or remove text URL files.
 
 ## How to use PyWren for IBM Cloud Functions
 
