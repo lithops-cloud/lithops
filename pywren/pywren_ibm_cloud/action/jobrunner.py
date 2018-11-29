@@ -22,7 +22,7 @@ import sys
 import time
 import logging
 import inspect
-from six.moves import cPickle as pickle
+from pywren_ibm_cloud.libs import cloudpickle as pickle
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.storage.backends.cos import COSBackend
@@ -74,7 +74,7 @@ def write_stat(stat, val):
     stats_fid.flush()
 
 try:
-    logger.info("Getting function from COS")
+    logger.info("Getting function and modules")
     func_download_time_t1 = time.time()
     func_obj = internal_storage.get_func(func_key)
     loaded_func_all = pickle.loads(func_obj)

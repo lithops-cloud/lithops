@@ -18,13 +18,9 @@ import logging
 import time
 import enum
 from six import reraise
-from six.moves import cPickle as pickle
 from pywren_ibm_cloud.storage import storage, storage_utils
-
-try:
-    from tblib import pickling_support
-except:
-    from pywren_ibm_cloud.libs.tblib import pickling_support
+from pywren_ibm_cloud.libs import cloudpickle as pickle
+from pywren_ibm_cloud.libs.tblib import pickling_support
 
 pickling_support.install()
 

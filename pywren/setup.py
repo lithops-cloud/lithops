@@ -47,7 +47,5 @@ setup(
     tests_requires=[
         'pytest', 'numpy',
     ],
-    package_data={
-        'pywren': ['jobrunner/jobrunner.py']},
     include_package_data=True
 )
