@@ -111,10 +111,7 @@ class Executor(object):
         activation_id = self.invoker.invoke(arg_dict)
 
         if not activation_id:
-            # Invocation failed after invokers.MAX_INVOKE_RETRIES retries.
-            # TODO: manage exception
-            logger.error("Executor ID {} Activation {} failed".format(executor_id, call_id))
-            return None
+            raise ValueError("Executor ID {} Activation {} failed, therefore job is failed".format(executor_id, call_id))
 
         host_job_meta['cf_activation_id'] = activation_id
         host_job_meta['cf_invoke_timestamp'] = cf_invoke_time_start
@@ -430,8 +427,6 @@ class Executor(object):
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(log_msg)
 
-        # There may be some 'None' values in 'res' if some activations failed
-        # TODO: Handle error (see line 115)
         return res
 
     def reduce(self, reduce_function, list_of_futures, throw_except=True,
