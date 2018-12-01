@@ -415,10 +415,6 @@ class ibm_cf_executor(object):
                     pbar.refresh()
 
                 callids_done_in_callset.update([(f.callgroup_id, f.call_id) for f in still_not_done_futures if f.done])
-
-            if not verbose:
-                pbar.close()
-                print()
             
             self._state = ExecutorState.finished
 
