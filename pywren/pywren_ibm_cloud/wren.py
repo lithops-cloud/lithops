@@ -318,7 +318,7 @@ class ibm_cf_executor(object):
             self._state = ExecutorState.finished
 
         except (TimeoutError, IndexError):
-            if pbar and not verbose:
+            if not verbose and pbar:
                 pbar.close()
                 print()
             msg = ('Executor ID {} Raised timeout of {} seconds getting the '
@@ -331,7 +331,7 @@ class ibm_cf_executor(object):
             result = None
 
         except KeyboardInterrupt:
-            if pbar and not verbose:
+            if not verbose and pbar:
                 pbar.close()
                 print()
             msg = 'Executor ID {} Cancelled'.format(self.executor_id)
@@ -342,7 +342,7 @@ class ibm_cf_executor(object):
 
         finally:
             signal.alarm(0)
-            if pbar and not verbose:
+            if not verbose and pbar:
                 pbar.close()
             if self.data_cleaner and not self.cf_cluster:
                 self.clean()
@@ -423,7 +423,7 @@ class ibm_cf_executor(object):
             self._state = ExecutorState.finished
 
         except (TimeoutError, IndexError):
-            if pbar and not verbose:
+            if not verbose and pbar:
                 pbar.close()
                 print()
             not_dones_activation_ids = set([f.activation_id for f in futures if not f.done])
@@ -435,7 +435,7 @@ class ibm_cf_executor(object):
             self._state = ExecutorState.error
 
         except KeyboardInterrupt:
-            if pbar and not verbose:
+            if not verbose and pbar:
                 pbar.close()
                 print()
             not_dones_activation_ids = [f.activation_id for f in futures if not f.done]
@@ -448,7 +448,7 @@ class ibm_cf_executor(object):
         finally:
             signal.alarm(0)
             pool.close()
-            if pbar and not verbose:
+            if not verbose and pbar:
                 pbar.close()
             if self.data_cleaner and not self.cf_cluster:
                 self.clean()
