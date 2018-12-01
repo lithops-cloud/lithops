@@ -461,7 +461,7 @@ class Executor(object):
             reduce_func_args = {'results': results}
             
             if show_memory:
-                logger.debug("Memory usage after get the results: {}".format(wrenutil.get_current_memory_usage()))
+                logger.debug("Memory usage after getting the results: {}".format(wrenutil.get_current_memory_usage()))
 
             # Run reduce function
             func_sig = inspect.signature(reduce_function)
