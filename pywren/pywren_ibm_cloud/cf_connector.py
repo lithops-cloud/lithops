@@ -58,7 +58,7 @@ class CloudFunctions(object):
                                                          self.endpoint))
 
     def create_action(self, action_name,  memory=None, timeout=None,
-                      code=None, kind='python:3.6', image=None,
+                      code=None, kind='blackbox', image='ibmfunctions/action-python-v3.6',
                       is_binary=True, overwrite=True):
         """
         Create an IBM Cloud Function
