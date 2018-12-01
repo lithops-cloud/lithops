@@ -15,6 +15,7 @@
 #
 
 import os
+import gc
 import base64
 import shutil
 import json
@@ -28,6 +29,7 @@ from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.storage.backends.cos import COSBackend
 from pywren_ibm_cloud.storage.backends.swift import SwiftBackend
 from pywren_ibm_cloud.libs.tblib import pickling_support
+from pywren_ibm_cloud.wrenutil import get_current_memory_usage
 
 pickling_support.install()
 
@@ -56,6 +58,11 @@ jobrunner_config = json.load(open(jobrunner_config_filename, 'r'))
 storage_config = json.loads(os.environ.get('STORAGE_CONFIG', ''))
 internal_storage = storage.InternalStorage(storage_config)
 
+if 'SHOW_MEMORY_USAGE' in os.environ:
+    show_memory = eval(os.environ['SHOW_MEMORY_USAGE'])
+else:
+    show_memory = False
+
 func_key = jobrunner_config['func_key']
 
 data_key = jobrunner_config['data_key']
@@ -78,6 +85,7 @@ try:
     func_download_time_t1 = time.time()
     func_obj = internal_storage.get_func(func_key)
     loaded_func_all = pickle.loads(func_obj)
+    del func_obj
     func_download_time_t2 = time.time()
     write_stat('func_download_time',
                func_download_time_t2-func_download_time_t1)
@@ -117,6 +125,7 @@ try:
     # now unpickle function; it will expect modules to be there
     logger.info("Unpickle Function")
     loaded_func = pickle.loads(loaded_func_all['func'])
+    del loaded_func_all
     logger.info("Finished Function unpickle")
 
     extra_get_args = {}
@@ -131,6 +140,7 @@ try:
     logger.info("Finished getting Function data")
     logger.info("Unpickle Function data")
     loaded_data = pickle.loads(data_obj)
+    del data_obj
     logger.info("Finished unpickle Function data")
     data_download_time_t2 = time.time()
     write_stat('data_download_time',
@@ -158,21 +168,34 @@ try:
     
     if 'internal_storage' in func_sig.parameters:
         loaded_data['internal_storage'] = internal_storage
-
+    
+    gc.collect()
+    
+    if show_memory:
+        logger.debug("Memory usage before call the function: {}".format(get_current_memory_usage()))
     logger.info("Function: Going to execute '{}()'".format(str(loaded_func.__name__)))
     print('------------------- FUNCTION LOG -------------------')
     func_exec_time_t1 = time.time()
     y = loaded_func(**loaded_data)
     func_exec_time_t2 = time.time()
     print('----------------------------------------------------')
-
     logger.info("Function: Success execution")
+    
+    del loaded_func
+    del loaded_data
+    gc.collect()
+    
+    if show_memory:
+        logger.debug("Memory usage after call the function: {}".format(get_current_memory_usage()))
+    
     write_stat('function_exec_time', func_exec_time_t2-func_exec_time_t1)
     output_dict = {'result': y,
                    'success': True,
                    #'sys.path' : sys.path
                    }
     pickled_output = pickle.dumps(output_dict)
+    if show_memory:
+        logger.debug("Memory usage after output serialization: {}".format(get_current_memory_usage()))
 
 except Exception as e:
     exc_type, exc_value, exc_traceback = sys.exc_info()

@@ -20,6 +20,7 @@ import uuid
 import inspect
 import struct
 import io
+import subprocess
 
 
 def uuid_str():
@@ -48,10 +49,32 @@ def is_cf_cluster():
 
 
 def iterdata_as_list(iterdata):
+    """
+    Converts iteradat to a list
+    """
     if type(iterdata) != list:
         return [iterdata]
     else:
         return iterdata 
+
+
+def convert_bools_to_string(extra_env):
+    """
+    Converts all booleans of a dictionary to a string
+    """
+    for key in extra_env:
+        if type(extra_env[key]) == bool:
+            extra_env[key] = str(extra_env[key])
+
+    return extra_env
+
+
+def sizeof_fmt(num, suffix='B'):
+    for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
+        if abs(num) < 1024.0:
+            return "%3.1f%s%s" % (num, unit, suffix)
+        num /= 1024.0
+    return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
 class WrappedStreamingBody(object):
@@ -183,6 +206,7 @@ def split_s3_url(s3_url):
     key = "/".join(splits[1:])
     return bucket_name, key
 
+
 def split_path(path):
 
     if (path.startswith("/")):
@@ -195,6 +219,21 @@ def split_path(path):
         bucket_name = path
         key = None
     return bucket_name, key
+
+
+def get_current_memory_usage():
+    """
+    Gets the current memory usage of the runtime.
+    To be used only in the action code.
+    """
+    #cmd = "ps -eo pss | tail -n +2 | awk '{ SUM += $1} END { print SUM/1024}'"
+    #memorymbytes = subprocess.check_output(cmd, shell=True).decode("ascii").strip()
+
+    cmd = "python pywren_ibm_cloud/libs/ps_mem/ps_mem.py --total"
+    process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
+    memorybytes = int(process.stdout.read())
+
+    return sizeof_fmt(memorybytes)
 
 
 def verify_args(func, data, object_processing=False):

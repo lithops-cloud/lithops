@@ -139,10 +139,6 @@ def ibm_cloud_function_handler(event):
 
         local_env = os.environ.copy()
         local_env.update(extra_env)
-        if 'STORE_RESULT' in local_env:
-            local_env['STORE_RESULT'] = str(local_env['STORE_RESULT'])
-        if 'STORE_STATUS' in local_env:
-            del local_env['STORE_STATUS']
 
         """
         stdout = os.popen(cmdstr).read()
@@ -213,7 +209,7 @@ def ibm_cloud_function_handler(event):
     finally:
         store_status = True
         if 'STORE_STATUS' in extra_env:
-            store_status = extra_env['STORE_STATUS']
+            store_status = eval(extra_env['STORE_STATUS'])
 
         if store_status:
             internal_storage = storage.InternalStorage(storage_config)

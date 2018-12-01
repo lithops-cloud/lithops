@@ -19,6 +19,7 @@ import json
 import logging
 import requests
 from pywren_ibm_cloud.storage.exceptions import StorageNoSuchKeyError
+from pywren_ibm_cloud.wrenutil import sizeof_fmt
 
 
 logger = logging.getLogger(__name__)
@@ -94,15 +95,9 @@ class SwiftBackend(object):
             res = self.session.put(url, data=data)
             status = 'OK' if res.status_code == 201 else 'Error'
             try:
-                log_msg='PUT Object {} size {} {}'.format(key, len(data), status)
-                logger.info(log_msg)
-                #if(logger.getEffectiveLevel() == logging.WARNING):
-                #    print(log_msg)
+                logger.debug('PUT Object {} - Size: {} - {}'.format(key, sizeof_fmt(len(data)), status))
             except:
-                log_msg='PUT Object {} {}'.format(key, status)
-                logger.info(log_msg)
-                #if(logger.getEffectiveLevel() == logging.WARNING):
-                #    print(log_msg)
+                logger.debug('PUT Object {} - {}'.format(key, status))
         except Exception as e:
             print(e)
             
