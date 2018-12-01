@@ -182,7 +182,8 @@ class Executor(object):
         """
         Wrapper to launch one function invocation. 
         """
-        return self.map(func, [data], extra_env, extra_meta)
+
+        return self.map(func, [data], extra_env=extra_env, extra_meta=extra_meta)
     
     def multiple_call(self, map_function, iterdata, reduce_function=None,
                       obj_chunk_size=None, extra_env=None, extra_meta=None, 
@@ -299,6 +300,9 @@ class Executor(object):
             func_name = func.__name__
 
         data = wrenutil.iterdata_as_list(iterdata)
+
+        if extra_env is not None:
+            extra_env = wrenutil.convert_bools_to_string(extra_env)
 
         if not data:
             return []
@@ -442,21 +446,27 @@ class Executor(object):
 
         def reduce_function_wrapper(fut_list, internal_storage, storage, ibm_cos):
             logger.info('Waiting for results')
+            if 'SHOW_MEMORY_USAGE' in os.environ:
+                show_memory = eval(os.environ['SHOW_MEMORY_USAGE'])
+            else:
+                show_memory = False
             # Wait for all results
             wait(fut_list, executor_id, internal_storage, throw_except)
             results = []
             # Get all results
             for f in fut_list:
-                results.append(f.result(throw_except=throw_except, internal_storage=internal_storage))
-  
+                result = f.result(throw_except=throw_except)
+                results.append(result)
+
             reduce_func_args = {'results': results}
+            
+            if show_memory:
+                logger.debug("Memory usage after getting the results: {}".format(wrenutil.get_current_memory_usage()))
 
             # Run reduce function
             func_sig = inspect.signature(reduce_function)
             if 'futures' in func_sig.parameters:
                 reduce_func_args['futures'] = fut_list
-            else:
-                del fut_list
             if 'storage' in func_sig.parameters:
                 reduce_func_args['storage'] = storage
             if 'ibm_cos' in func_sig.parameters:

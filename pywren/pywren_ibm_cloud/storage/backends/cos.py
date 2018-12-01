@@ -20,6 +20,7 @@ import ibm_boto3
 import ibm_botocore
 from ibm_botocore.credentials import DefaultTokenManager
 from pywren_ibm_cloud.storage.exceptions import StorageNoSuchKeyError
+from pywren_ibm_cloud.wrenutil import sizeof_fmt
 
 
 # FIXME: there has to be a better way to disable noisy boto logs
@@ -83,15 +84,9 @@ class COSBackend(object):
             res = self.cos_client.put_object(Bucket=bucket_name, Key=key, Body=data)
             status = 'OK' if res['ResponseMetadata']['HTTPStatusCode'] == 200 else 'Error'
             try:
-                log_msg='PUT Object {} size {} {}'.format(key, len(data), status)
-                logger.debug(log_msg)
-                #if(logger.getEffectiveLevel() == logging.WARNING):
-                #    print(log_msg)
+                logger.debug('PUT Object {} - Size: {} - {}'.format(key, sizeof_fmt(len(data)), status))
             except:
-                log_msg='PUT Object {} {}'.format(key, status)
-                logger.debug(log_msg)
-                #if(logger.getEffectiveLevel() == logging.WARNING):
-                #    print(log_msg)
+                logger.debug('PUT Object {} {}'.format(key, status))
         except ibm_botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == "NoSuchKey":
                 raise StorageNoSuchKeyError(key)

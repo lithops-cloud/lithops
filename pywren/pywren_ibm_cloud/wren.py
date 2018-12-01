@@ -261,6 +261,12 @@ class ibm_cf_executor(object):
         if not ftrs:
             raise Exception('You must run pw.call_async(), pw.map()'
                             ' or pw.map_reduce() before call pw.get_result()')
+            
+        
+        msg = 'Executor ID {} Getting results'.format(self.executor_id)
+        logger.info(msg)
+        if(logger.getEffectiveLevel() == logging.WARNING):
+            print(msg)
 
         if len(ftrs) == 1:
             result = self._get_result(ftrs[0], throw_except=throw_except,
@@ -289,10 +295,6 @@ class ibm_cf_executor(object):
           >>> pw.call_async(foo, data)
           >>> result = pw.get_result()
         """
-        msg = 'Executor ID {} Getting result'.format(self.executor_id)
-        logger.info(msg)
-        if(logger.getEffectiveLevel() == logging.WARNING):
-            print(msg)
 
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(timeout)
@@ -310,16 +312,15 @@ class ibm_cf_executor(object):
 
             if not verbose:
                 pbar.update(1)
-                pbar.close()
+                pbar.refresh()
                 print()
 
             self._state = ExecutorState.finished
 
         except (TimeoutError, IndexError):
-            if not verbose:
-                if pbar:
-                    pbar.close()
-                    print()
+            if pbar and not verbose:
+                pbar.close()
+                print()
             msg = ('Executor ID {} Raised timeout of {} seconds getting the '
                    'result from Activation ID {}'.format(self.executor_id, timeout,
                                                          self.futures.activation_id))
@@ -330,10 +331,9 @@ class ibm_cf_executor(object):
             result = None
 
         except KeyboardInterrupt:
-            if not verbose:
-                if pbar:
-                    pbar.close()
-                    print()
+            if pbar and not verbose:
+                pbar.close()
+                print()
             msg = 'Executor ID {} Cancelled'.format(self.executor_id)
             logger.info(msg)
             if(logger.getEffectiveLevel() == logging.WARNING):
@@ -342,10 +342,8 @@ class ibm_cf_executor(object):
 
         finally:
             signal.alarm(0)
-            if not verbose:
-                if pbar:
-                    pbar.close()
-
+            if pbar and not verbose:
+                pbar.close()
             if self.data_cleaner and not self.cf_cluster:
                 self.clean()
 
@@ -370,11 +368,6 @@ class ibm_cf_executor(object):
           >>> pw.map(foo, data)
           >>> results = pw.get_result()
         """
-
-        msg = 'Executor ID {} Getting results'.format(self.executor_id)
-        logger.info(msg)
-        if(logger.getEffectiveLevel() == logging.WARNING):
-            print(msg)
 
         def timeout_handler(signum, frame):
             raise TimeoutError()
@@ -426,14 +419,13 @@ class ibm_cf_executor(object):
             if not verbose:
                 pbar.close()
                 print()
-            pool.close()
+            
             self._state = ExecutorState.finished
 
         except (TimeoutError, IndexError):
-            if not verbose:
-                if pbar:
-                    pbar.close()
-                    print()
+            if pbar and not verbose:
+                pbar.close()
+                print()
             not_dones_activation_ids = set([f.activation_id for f in futures if not f.done])
             msg = ('Executor ID {} Raised timeout of {} seconds getting results '
                    '\nActivations not done: {}'.format(self.executor_id, timeout, not_dones_activation_ids))
@@ -443,10 +435,9 @@ class ibm_cf_executor(object):
             self._state = ExecutorState.error
 
         except KeyboardInterrupt:
-            if not verbose:
-                if pbar:
-                    pbar.close()
-                    print()
+            if pbar and not verbose:
+                pbar.close()
+                print()
             not_dones_activation_ids = [f.activation_id for f in futures if not f.done]
             msg = 'Executor ID {} Cancelled  \nActivations not done: {}'.format(self.executor_id, not_dones_activation_ids)
             logger.info(msg)
@@ -455,10 +446,10 @@ class ibm_cf_executor(object):
             exit()
 
         finally:
-            if not verbose:
-                if pbar:
-                    pbar.close()
             signal.alarm(0)
+            pool.close()
+            if pbar and not verbose:
+                pbar.close()
             if self.data_cleaner and not self.cf_cluster:
                 self.clean()
 
