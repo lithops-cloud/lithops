@@ -53,7 +53,7 @@ def iterdata_as_list(iterdata):
     Converts iteradat to a list
     """
     if type(iterdata) != list:
-        return [iterdata]
+        return list(iterdata)
     else:
         return iterdata 
 
