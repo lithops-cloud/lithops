@@ -446,6 +446,7 @@ class ibm_cf_executor(object):
             pool.close()
             if not verbose and pbar:
                 pbar.close()
+                print()
             if self.data_cleaner and not self.cf_cluster:
                 self.clean()
 
