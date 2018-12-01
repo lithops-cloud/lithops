@@ -15,7 +15,6 @@
 #
 
 import os
-import gc
 import time
 import logging
 import inspect
@@ -456,8 +455,9 @@ class Executor(object):
             results = []
             # Get all results
             for f in fut_list:
-                results.append(f.result(throw_except=throw_except, internal_storage=internal_storage))
-  
+                result = f.result(throw_except=throw_except)
+                results.append(result)
+
             reduce_func_args = {'results': results}
             
             if show_memory:
@@ -467,12 +467,6 @@ class Executor(object):
             func_sig = inspect.signature(reduce_function)
             if 'futures' in func_sig.parameters:
                 reduce_func_args['futures'] = fut_list
-            else:
-                del fut_list
-                gc.collect()
-                if show_memory:
-                    logger.debug("Memory usage after delete futures: {}".format(wrenutil.get_current_memory_usage()))    
-            
             if 'storage' in func_sig.parameters:
                 reduce_func_args['storage'] = storage
             if 'ibm_cos' in func_sig.parameters:
