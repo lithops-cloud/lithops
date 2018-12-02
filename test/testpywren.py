@@ -283,8 +283,24 @@ if __name__ == '__main__':
         elif task == 'full':
             suite.addTest(unittest.makeSuite(TestPywren))
             suite.addTest(unittest.makeSuite(TestPywrenCos))
+        elif task == 'test_call_async':
+            suite.addTest(TestPywren('test_call_async'))
+        elif task == 'test_map':
+            suite.addTest(TestPywren('test_map'))
+        elif task == 'test_map_reduce':
+            suite.addTest(TestPywren('test_map_reduce'))
+        elif task == 'test_map_reduce_cos_bucket':
+            suite.addTest(TestPywrenCos('test_map_reduce_cos_bucket'))
+        elif task == 'test_map_reduce_cos_bucket_one_reducer_per_object':
+            suite.addTest(TestPywrenCos('test_map_reduce_cos_bucket_one_reducer_per_object'))
+        elif task == 'test_map_reduce_cos_key':
+            suite.addTest(TestPywrenCos('test_map_reduce_cos_key'))
+        elif task == 'test_map_reduce_cos_key_one_reducer_per_object':
+            suite.addTest(TestPywrenCos('test_map_reduce_cos_key_one_reducer_per_object'))
+        elif task == 'test_map_reduce_url':
+            suite.addTest(TestPywrenCos('test_map_reduce_url'))
         else:
-            print('Unknown Command... use: "init", "pywren", "pywren_cos" or "clean".')
+            print('Unknown Command... use: "init", "pywren", "pywren_cos", "clean" or a test function name.')
             sys.exit()
 
         runner = unittest.TextTestRunner()
