@@ -79,7 +79,7 @@ class ibm_cf_executor(object):
         retry_config['invocation_retry'] = self.config['pywren']['invocation_retry']
         retry_config['retry_sleeps'] = self.config['pywren']['retry_sleeps']
         retry_config['retries'] = self.config['pywren']['retries']
-        
+
         invoker = invokers.IBMCloudFunctionsInvoker(ibm_cf_config, retry_config)
 
         self.storage_config = wrenconfig.extract_storage_config(self.config)
@@ -106,10 +106,10 @@ class ibm_cf_executor(object):
         if self._state == ExecutorState.finished or self._state == ExecutorState.error:
             raise Exception('You cannot run pw.call_async() in the current state,'
                             ' create a new pywren.ibm_cf_executor() instance.')
-        
+
         future = self.executor.single_call(func, data, extra_env, extra_meta)[0]
         self.futures.append(future)
-                
+
         return future
 
     def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None,
@@ -150,7 +150,7 @@ class ibm_cf_executor(object):
 
         return self.futures
 
-    def map_reduce(self, map_function, map_iterdata, reduce_function, 
+    def map_reduce(self, map_function, map_iterdata, reduce_function,
                    chunk_size=None, extra_env=None, extra_meta=None,
                    reducer_one_per_object=False, reducer_wait_local=True,
                    invoke_pool_threads=10, data_all_as_one=True,
@@ -165,7 +165,7 @@ class ibm_cf_executor(object):
         :param extra_env: Additional environment variables for action environment. Default None.
         :param extra_meta: Additional metadata to pass to action. Default None.
         :param reducer_one_per_object: Set one reducer per object after running the partitioner
-        :param reducer_wait_local: Wait for results locally  
+        :param reducer_wait_local: Wait for results locally
         :param invoke_pool_threads: Number of threads to use to invoke.
         :param data_all_as_one: upload the data as a single object. Default True
         :param overwrite_invoke_args: Overwrite other args. Mainly used for testing.
@@ -261,8 +261,7 @@ class ibm_cf_executor(object):
         if not ftrs:
             raise Exception('You must run pw.call_async(), pw.map()'
                             ' or pw.map_reduce() before call pw.get_result()')
-            
-        
+
         msg = 'Executor ID {} Getting results'.format(self.executor_id)
         logger.info(msg)
         if(logger.getEffectiveLevel() == logging.WARNING):
@@ -415,7 +414,7 @@ class ibm_cf_executor(object):
                     pbar.refresh()
 
                 callids_done_in_callset.update([(f.callgroup_id, f.call_id) for f in still_not_done_futures if f.done])
-            
+
             self._state = ExecutorState.finished
 
         except (TimeoutError, IndexError):
@@ -451,6 +450,27 @@ class ibm_cf_executor(object):
                 self.clean()
 
         return [f.result(throw_except=throw_except) for f in futures if f.done]
+
+    def create_timeline_plots(self, dst, name, run_statuses=None, invoke_statuses=None):
+        """
+        Creates timeline and histogram of the current execution in dst.
+
+        :param dst: destination folder to save .png plots.
+        :param name: name of the file.
+        :param run_statuses: run statuses timestamps.
+        :param invoke_statuses: invocation statuses timestamps.
+        """
+        from pywren_ibm_cloud.plots import create_timeline, create_histogram
+
+        if self.futures and not run_statuses and not invoke_statuses:
+            run_statuses = [f.run_status for f in self.futures]
+            invoke_statuses = [f.invoke_status for f in self.futures]
+
+        if not run_statuses and not invoke_statuses:
+            raise Exception('You must provide run_statuses and invoke_statuses')
+
+        create_timeline(dst, name, run_statuses, invoke_statuses)
+        create_histogram(dst, name, run_statuses, x_lim=150)
 
     def clean(self, local_execution=True):
         """

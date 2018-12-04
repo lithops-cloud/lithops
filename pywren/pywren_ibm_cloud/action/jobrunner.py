@@ -38,6 +38,19 @@ logger = logging.getLogger('jobrunner')
 logger.setLevel(level)
 wrenlogging.ow_config(level)
 
+jobrunner_config_filename = sys.argv[1]
+jobrunner_config = json.load(open(jobrunner_config_filename, 'r'))
+# Jobrunner stats are fieldname float
+jobrunner_stats_filename = jobrunner_config['stats_filename']
+# open the stats filename
+stats_fid = open(jobrunner_stats_filename, 'w')
+
+
+def write_stat(stat, val):
+    stats_fid.write("{} {:f}\n".format(stat, val))
+    stats_fid.flush()
+
+write_stat('jobrunner_start', time.time())
 logger.info("Welcome to job runner")
 
 
@@ -51,9 +64,7 @@ output_dict = {'result': None,
                'success': False}
 
 pickled_output = pickle.dumps(output_dict)
-jobrunner_config_filename = sys.argv[1]
 
-jobrunner_config = json.load(open(jobrunner_config_filename, 'r'))
 # Create Storage handler
 storage_config = json.loads(os.environ.get('STORAGE_CONFIG', ''))
 internal_storage = storage.InternalStorage(storage_config)
@@ -70,15 +81,7 @@ data_byte_range = jobrunner_config['data_byte_range']
 
 output_key = jobrunner_config['output_key']
 
-# Jobrunner stats are fieldname float
-jobrunner_stats_filename = jobrunner_config['stats_filename']
-# open the stats filename
-stats_fid = open(jobrunner_stats_filename, 'w')
 
-
-def write_stat(stat, val):
-    stats_fid.write("{} {:f}\n".format(stat, val))
-    stats_fid.flush()
 
 try:
     logger.info("Getting function and modules")
@@ -148,29 +151,29 @@ try:
 
     # Verify storage parameters - Create clients
     func_sig = inspect.signature(loaded_func)
-    
+
     if 'storage' in func_sig.parameters:
         # 'storage' generic parameter used in map_reduce method
         if 'ibm_cos' in storage_config:
             mr_storage_client = COSBackend(storage_config['ibm_cos'])
         elif 'swift' in storage_config:
             mr_storage_client = SwiftBackend(storage_config['swift'])
-        
+
         loaded_data['storage'] = mr_storage_client
-    
+
     if 'ibm_cos' in func_sig.parameters:
         ibm_boto3_client = COSBackend(storage_config['ibm_cos']).get_client()
         loaded_data['ibm_cos'] = ibm_boto3_client
-    
+
     if 'swift' in func_sig.parameters:
         swift_client = SwiftBackend(storage_config['swift'])
         loaded_data['swift'] = swift_client
-    
+
     if 'internal_storage' in func_sig.parameters:
         loaded_data['internal_storage'] = internal_storage
-    
+
     gc.collect()
-    
+
     if show_memory:
         logger.debug("Memory usage before call the function: {}".format(get_current_memory_usage()))
     logger.info("Function: Going to execute '{}()'".format(str(loaded_func.__name__)))
@@ -180,19 +183,17 @@ try:
     func_exec_time_t2 = time.time()
     print('----------------------------------------------------')
     logger.info("Function: Success execution")
-    
+
     del loaded_func
     del loaded_data
     gc.collect()
-    
+
     if show_memory:
         logger.debug("Memory usage after call the function: {}".format(get_current_memory_usage()))
-    
+
     write_stat('function_exec_time', func_exec_time_t2-func_exec_time_t1)
     output_dict = {'result': y,
-                   'success': True,
-                   #'sys.path' : sys.path
-                   }
+                   'success': True}
     pickled_output = pickle.dumps(output_dict)
     if show_memory:
         logger.debug("Memory usage after output serialization: {}".format(get_current_memory_usage()))
