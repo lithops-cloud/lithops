@@ -264,7 +264,7 @@ class ibm_cf_executor(object):
             
         
         msg = 'Executor ID {} Getting results'.format(self.executor_id)
-        logger.info(msg)
+        logger.debug(msg)
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(msg)
 
@@ -276,7 +276,7 @@ class ibm_cf_executor(object):
                                            verbose=verbose, timeout=timeout)
 
         msg = "Executor ID {} Finished\n".format(self.executor_id)
-        logger.info(msg)
+        logger.debug(msg)
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(msg)
 
@@ -324,7 +324,7 @@ class ibm_cf_executor(object):
             msg = ('Executor ID {} Raised timeout of {} seconds getting the '
                    'result from Activation ID {}'.format(self.executor_id, timeout,
                                                          self.futures.activation_id))
-            logger.info(msg)
+            logger.debug(msg)
             if(logger.getEffectiveLevel() == logging.WARNING):
                 print(msg)
             self._state = ExecutorState.error
@@ -335,7 +335,7 @@ class ibm_cf_executor(object):
                 pbar.close()
                 print()
             msg = 'Executor ID {} Cancelled'.format(self.executor_id)
-            logger.info(msg)
+            logger.debug(msg)
             if(logger.getEffectiveLevel() == logging.WARNING):
                 print(msg)
             exit()
@@ -425,7 +425,7 @@ class ibm_cf_executor(object):
             not_dones_activation_ids = set([f.activation_id for f in futures if not f.done])
             msg = ('Executor ID {} Raised timeout of {} seconds getting results '
                    '\nActivations not done: {}'.format(self.executor_id, timeout, not_dones_activation_ids))
-            logger.info(msg)
+            logger.debug(msg)
             if(logger.getEffectiveLevel() == logging.WARNING):
                 print(msg)
             self._state = ExecutorState.error
@@ -436,7 +436,7 @@ class ibm_cf_executor(object):
                 print()
             not_dones_activation_ids = [f.activation_id for f in futures if not f.done]
             msg = 'Executor ID {} Cancelled  \nActivations not done: {}'.format(self.executor_id, not_dones_activation_ids)
-            logger.info(msg)
+            logger.debug(msg)
             if(logger.getEffectiveLevel() == logging.WARNING):
                 print(msg)
             exit()
@@ -463,7 +463,7 @@ class ibm_cf_executor(object):
 
         msg = ("Executor ID {} Cleaning partial results from bucket '{}' "
                "and prefix '{}'".format(self.executor_id, storage_bucket, storage_prerix))
-        logger.info(msg)
+        logger.debug(msg)
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(msg)
 

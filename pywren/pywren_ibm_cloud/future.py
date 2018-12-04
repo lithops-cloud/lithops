@@ -165,7 +165,7 @@ class ResponseFuture(object):
                                                     self.activation_id,
                                                     str(total_time),
                                                     exception_args[0]+" "+exception_args[1]))
-            logger.info(log_msg)
+            logger.debug(log_msg)
             if verbose and logger.getEffectiveLevel() == logging.WARNING:
                 print(log_msg)
 
@@ -248,7 +248,7 @@ class ResponseFuture(object):
                                                           original_call_id,
                                                           original_activation_id,
                                                           str(total_time)))
-            logger.info(log_msg)
+            logger.debug(log_msg)
             if verbose and logger.getEffectiveLevel() == logging.WARNING:
                 print(log_msg)
 
