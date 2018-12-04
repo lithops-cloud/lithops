@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')
 import os
 import pylab
 import logging
@@ -6,7 +8,6 @@ import pandas as pd
 import seaborn as sns
 from matplotlib import patches as mpatches
 from matplotlib.collections import LineCollection
-
 sns.set_style('whitegrid')
 logger = logging.getLogger(__name__)
 
