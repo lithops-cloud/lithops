@@ -427,7 +427,7 @@ class Executor(object):
 
         log_msg = 'Executor ID {} Invocation done: {} seconds'.format(self.executor_id,
                                                                       round(time.time()-start_inv, 3))
-        logger.info(log_msg)
+        logger.debug(log_msg)
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(log_msg)
 

@@ -130,7 +130,7 @@ class CloudFunctions(object):
                            '{} - Time: {} seconds'.format(exec_id, call_id,
                                                           data["activationId"],
                                                           resp_time))
-                logger.info(log_msg)
+                logger.debug(log_msg)
                 if(logger.getEffectiveLevel() == logging.WARNING):
                     print(log_msg)
                 return data["activationId"]
@@ -169,7 +169,7 @@ class CloudFunctions(object):
                            '{} - Time: {} seconds'.format(exec_id, call_id,
                                                           data["activationId"],
                                                           resp_time))
-                logger.info(log_msg)
+                logger.debug(log_msg)
                 if(logger.getEffectiveLevel() == logging.WARNING):
                     print(log_msg)
                 return data["activationId"]
