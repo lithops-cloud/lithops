@@ -147,7 +147,7 @@ class ibm_cf_executor:
             return futures[0]
         return futures
 
-    def map_reduce(self, map_function, map_iterdata, reduce_function, chunk_size=None, 
+    def map_reduce(self, map_function, map_iterdata, reduce_function, chunk_size=None,
                    extra_env=None, extra_meta=None, remote_invocation=False,
                    reducer_one_per_object=False, reducer_wait_local=True,
                    invoke_pool_threads=10, data_all_as_one=True,
@@ -269,16 +269,16 @@ class ibm_cf_executor:
 
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(timeout)
-        
-        if not self.cf_cluster or logger.getEffectiveLevel() == logging.WARNING:
+
+        if self.cf_cluster or logger.getEffectiveLevel() != logging.WARNING:
+            pbar = None
+        else:
             import tqdm
             print()
             pbar = tqdm.tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
                              total=len(ftrs), disable=False)
-        else:
-            pbar = None
 
-        try:                
+        try:
             wait(ftrs, self.executor_id, self.internal_storage, throw_except=throw_except,
                  THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC, pbar=pbar)
             result = [f.result() for f in ftrs if f.done and not f.futures]
