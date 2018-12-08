@@ -150,8 +150,7 @@ def extract_storage_config(config):
     storage_config['storage_prefix'] = config['pywren']['storage_prefix']
     storage_config['storage_bucket'] = config['pywren']['storage_bucket']
 
-    if 'ibm_cos' in config:
-        
+    if 'ibm_cos' in config:     
         required_parameters_1 = ('endpoint', 'api_key')
         required_parameters_2 = ('endpoint', 'secret_key', 'access_key')
         
@@ -163,7 +162,6 @@ def extract_storage_config(config):
                                                                                     required_parameters_2))
 
     if 'swift' in config:
-        
         required_parameters = ('auth_url', 'user_id', 'project_id', 'password', 'region')
         
         if set(required_parameters) <= set(config['swift']):

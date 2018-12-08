@@ -22,7 +22,7 @@ from pywren_ibm_cloud.storage.exceptions import StorageNoSuchKeyError
 from pywren_ibm_cloud.storage.storage_utils import create_status_key, create_output_key, status_key_suffix
 
 
-class InternalStorage(object):
+class InternalStorage:
     """
     An InternalStorage object is used by executors and other components to access underlying storage backend
     without exposing the the implementation details.

@@ -29,7 +29,7 @@ logging.getLogger('ibm_botocore').setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
-class COSBackend(object):
+class COSBackend:
     """
     A wrap-up around COS ibm_boto3 APIs.
     """

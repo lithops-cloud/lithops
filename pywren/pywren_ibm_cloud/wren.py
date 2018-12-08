@@ -16,22 +16,18 @@
 
 import os
 import sys
-import time
 import enum
 import json
 import signal
 import logging
-import pywren_ibm_cloud as pywren
 import pywren_ibm_cloud.invokers as invokers
 import pywren_ibm_cloud.wrenconfig as wrenconfig
-from pywren_ibm_cloud import future
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.executor import Executor
 from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
 from pywren_ibm_cloud.wrenutil import timeout_handler
 from pywren_ibm_cloud.storage.cleaner import clean_os_bucket
-from multiprocessing.pool import ThreadPool
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +38,7 @@ class ExecutorState(enum.Enum):
     error = 3
 
 
-class ibm_cf_executor(object):
+class ibm_cf_executor:
 
     def __init__(self, config=None, runtime=None, log_level=None, runtime_timeout=wrenconfig.CF_RUNTIME_TIMEOUT):
         """
@@ -79,7 +75,7 @@ class ibm_cf_executor(object):
         retry_config['invocation_retry'] = self.config['pywren']['invocation_retry']
         retry_config['retry_sleeps'] = self.config['pywren']['retry_sleeps']
         retry_config['retries'] = self.config['pywren']['retries']
-        
+
         invoker = invokers.IBMCloudFunctionsInvoker(ibm_cf_config, retry_config)
 
         self.storage_config = wrenconfig.extract_storage_config(self.config)
@@ -106,10 +102,10 @@ class ibm_cf_executor(object):
         if self._state == ExecutorState.finished or self._state == ExecutorState.error:
             raise Exception('You cannot run pw.call_async() in the current state,'
                             ' create a new pywren.ibm_cf_executor() instance.')
-        
+
         future = self.executor.single_call(func, data, extra_env, extra_meta)[0]
         self.futures.append(future)
-                
+
         return future
 
     def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None,
@@ -136,22 +132,23 @@ class ibm_cf_executor(object):
             raise Exception('You cannot run pw.map() in the current state.'
                             ' Create a new pywren.ibm_cf_executor() instance.')
 
-        self.futures = self.executor.multiple_call(map_function=map_function,
-                                                   iterdata=map_iterdata,
-                                                   extra_env=extra_env,
-                                                   extra_meta=extra_meta,
-                                                   remote_invocation=remote_invocation,
-                                                   invoke_pool_threads=invoke_pool_threads,
-                                                   data_all_as_one=data_all_as_one,
-                                                   overwrite_invoke_args=overwrite_invoke_args,
-                                                   exclude_modules=exclude_modules)
-        if len(self.futures) == 1:
-            return self.futures[0]
+        futures = self.executor.multiple_call(map_function=map_function,
+                                              iterdata=map_iterdata,
+                                              extra_env=extra_env,
+                                              extra_meta=extra_meta,
+                                              remote_invocation=remote_invocation,
+                                              invoke_pool_threads=invoke_pool_threads,
+                                              data_all_as_one=data_all_as_one,
+                                              overwrite_invoke_args=overwrite_invoke_args,
+                                              exclude_modules=exclude_modules)
+        self.futures.extend(futures)
 
-        return self.futures
+        if len(futures) == 1:
+            return futures[0]
+        return futures
 
-    def map_reduce(self, map_function, map_iterdata, reduce_function, 
-                   chunk_size=None, extra_env=None, extra_meta=None,
+    def map_reduce(self, map_function, map_iterdata, reduce_function, chunk_size=None, 
+                   extra_env=None, extra_meta=None, remote_invocation=False,
                    reducer_one_per_object=False, reducer_wait_local=True,
                    invoke_pool_threads=10, data_all_as_one=True,
                    overwrite_invoke_args=None, exclude_modules=None):
@@ -165,7 +162,7 @@ class ibm_cf_executor(object):
         :param extra_env: Additional environment variables for action environment. Default None.
         :param extra_meta: Additional metadata to pass to action. Default None.
         :param reducer_one_per_object: Set one reducer per object after running the partitioner
-        :param reducer_wait_local: Wait for results locally  
+        :param reducer_wait_local: Wait for results locally
         :param invoke_pool_threads: Number of threads to use to invoke.
         :param data_all_as_one: upload the data as a single object. Default True
         :param overwrite_invoke_args: Overwrite other args. Mainly used for testing.
@@ -182,24 +179,26 @@ class ibm_cf_executor(object):
             raise Exception('You cannot run pw.map_reduce() in the current state.'
                             ' Create a new pywren.ibm_cf_executor() instance.')
 
-        self.futures = self.executor.multiple_call(map_function, map_iterdata,
-                                                   reduce_function=reduce_function,
-                                                   obj_chunk_size=chunk_size,
-                                                   extra_env=extra_env,
-                                                   extra_meta=extra_meta,
-                                                   invoke_pool_threads=invoke_pool_threads,
-                                                   data_all_as_one=data_all_as_one,
-                                                   overwrite_invoke_args=overwrite_invoke_args,
-                                                   exclude_modules=exclude_modules,
-                                                   reducer_one_per_object=reducer_one_per_object,
-                                                   reducer_wait_local=reducer_wait_local)
-        if len(self.futures) == 1:
-            return self.futures[0]
+        futures = self.executor.multiple_call(map_function, map_iterdata,
+                                              reduce_function=reduce_function,
+                                              obj_chunk_size=chunk_size,
+                                              extra_env=extra_env,
+                                              extra_meta=extra_meta,
+                                              remote_invocation=remote_invocation,
+                                              invoke_pool_threads=invoke_pool_threads,
+                                              data_all_as_one=data_all_as_one,
+                                              overwrite_invoke_args=overwrite_invoke_args,
+                                              exclude_modules=exclude_modules,
+                                              reducer_one_per_object=reducer_one_per_object,
+                                              reducer_wait_local=reducer_wait_local)
+        self.futures.extend(futures)
 
-        return self.futures
+        if len(futures) == 1:
+            return futures[0]
+        return futures
 
-    def wait(self, futures=None, throw_except=True, verbose=True, return_when=ALL_COMPLETED,
-             THREADPOOL_SIZE=64, WAIT_DUR_SEC=4):
+    def wait(self, futures=None, throw_except=True, return_when=ALL_COMPLETED,
+             THREADPOOL_SIZE=16, WAIT_DUR_SEC=2):
         """
         Wait for the Future instances `fs` to complete. Returns a 2-tuple of
         lists. The first list contains the futures that completed
@@ -226,28 +225,29 @@ class ibm_cf_executor(object):
             futures = self.futures
 
         if not futures:
-            raise Exception('No functions executions to track. You must run pw.call_async(),'
+            raise Exception('No activations to track. You must run pw.call_async(),'
                             ' pw.map() or pw.map_reduce() before call pw.wait()')
 
-        return wait(futures, self.executor_id, self.internal_storage,
-                    throw_except, verbose, return_when, THREADPOOL_SIZE, WAIT_DUR_SEC)
+        return wait(futures, self.executor_id, self.internal_storage, throw_except=throw_except,
+                    return_when=return_when, THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
 
-    def get_result(self, futures=None, throw_except=True, verbose=False, timeout=wrenconfig.CF_RUNTIME_TIMEOUT):
+    def get_result(self, futures=None, throw_except=True, timeout=wrenconfig.CF_RUNTIME_TIMEOUT,
+                   THREADPOOL_SIZE=64, WAIT_DUR_SEC=2):
         """
-        For get PyWren results
-        :param throw_except: Reraise exception if call raised. Default true.
-        :param verbose: Shows some information prints.
+        For getting PyWren results
+        :param futures: Futures list. Default None
+        :param throw_except: Reraise exception if call raised. Default True.
+        :param verbose: Shows some information prints. Default False
+        :param timeout: Timeout for waiting results.
+        :param THREADPOOL_SIZE: Number of threads to use. Default 64
         :return: The result of the future/s
 
         Usage
           >>> import pywren_ibm_cloud as pywren
           >>> pw = pywren.ibm_cf_executor()
-          >>> pw.call_async(foo, data)
+          >>> pw.map(foo, data)
           >>> result = pw.get_result()
         """
-        if self.cf_cluster or logger.getEffectiveLevel() != logging.WARNING:
-            verbose = True
-
         if futures:
             # Ensure futures is a list
             if type(futures) != list:
@@ -261,69 +261,35 @@ class ibm_cf_executor(object):
         if not ftrs:
             raise Exception('You must run pw.call_async(), pw.map()'
                             ' or pw.map_reduce() before call pw.get_result()')
-            
-        
+
         msg = 'Executor ID {} Getting results'.format(self.executor_id)
         logger.debug(msg)
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(msg)
 
-        if len(ftrs) == 1:
-            result = self._get_result(ftrs[0], throw_except=throw_except,
-                                      verbose=verbose, timeout=timeout)
-        else:
-            result = self._get_all_results(ftrs, throw_except=throw_except,
-                                           verbose=verbose, timeout=timeout)
-
-        msg = "Executor ID {} Finished\n".format(self.executor_id)
-        logger.debug(msg)
-        if(logger.getEffectiveLevel() == logging.WARNING):
-            print(msg)
-
-        return result
-
-    def _get_result(self, future, throw_except=True, verbose=False, timeout=wrenconfig.CF_RUNTIME_TIMEOUT):
-        """
-        For get one function execution (future) result
-        :param throw_except: Reraise exception if call raised. Default true.
-        :param verbose: Shows some information prints.
-        :return: The result of the call_async future
-
-        Usage
-          >>> import pywren_ibm_cloud as pywren
-          >>> pw = pywren.ibm_cf_executor()
-          >>> pw.call_async(foo, data)
-          >>> result = pw.get_result()
-        """
-
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(timeout)
+        
+        if not self.cf_cluster or logger.getEffectiveLevel() == logging.WARNING:
+            import tqdm
+            print()
+            pbar = tqdm.tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
+                             total=len(ftrs), disable=False)
+        else:
+            pbar = None
 
-        try:
-            if not verbose:
-                import tqdm
-                print()
-                pbar = tqdm.tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
-                                 total=1, disable=False)
-            while not future.done:
-                result = future.result(internal_storage=self.internal_storage,
-                                       throw_except=throw_except, verbose=verbose)
-                signal.alarm(timeout)
+        try:                
+            wait(ftrs, self.executor_id, self.internal_storage, throw_except=throw_except,
+                 THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC, pbar=pbar)
+            result = [f.result() for f in ftrs if f.done and not f.futures]
 
-            if not verbose:
-                pbar.update(1)
-                pbar.refresh()
-                print()
-
-            self._state = ExecutorState.finished
-
-        except (TimeoutError, IndexError):
-            if not verbose and pbar:
+        except TimeoutError:
+            if pbar:
                 pbar.close()
                 print()
-            msg = ('Executor ID {} Raised timeout of {} seconds getting the '
-                   'result from Activation ID {}'.format(self.executor_id, timeout,
-                                                         self.futures.activation_id))
+            not_dones_activation_ids = set([f.activation_id for f in ftrs if not f.done])
+            msg = ('Executor ID {} Raised timeout of {} seconds getting results '
+                   '\nActivations not done: {}'.format(self.executor_id, timeout, not_dones_activation_ids))
             logger.debug(msg)
             if(logger.getEffectiveLevel() == logging.WARNING):
                 print(msg)
@@ -331,126 +297,34 @@ class ibm_cf_executor(object):
             result = None
 
         except KeyboardInterrupt:
-            if not verbose and pbar:
+            if pbar:
                 pbar.close()
                 print()
-            msg = 'Executor ID {} Cancelled'.format(self.executor_id)
-            logger.debug(msg)
-            if(logger.getEffectiveLevel() == logging.WARNING):
-                print(msg)
-            exit()
-
-        finally:
-            signal.alarm(0)
-            if not verbose and pbar:
-                pbar.close()
-            if self.data_cleaner and not self.cf_cluster:
-                self.clean()
-
-        return result
-
-    def _get_all_results(self, futures, throw_except=True, verbose=False,
-                         timeout=wrenconfig.CF_RUNTIME_TIMEOUT, THREADPOOL_SIZE=64,
-                         WAIT_DUR_SEC=3):
-        """
-        Take in a list of futures, call result on each one individually
-        by using a threadpool, and return those results. Useful to fetch
-        the results as they are produced.
-
-        :param throw_except: Reraise exception if call raised. Default True.
-        :param verbose: Show results (True) or progress bar (False). Default False.
-        :return: A list of the results of each futures
-        :rtype: list
-
-        Usage
-          >>> import pywren_ibm_cloud as pywren
-          >>> pw = pywren.ibm_cf_executor()
-          >>> pw.map(foo, data)
-          >>> results = pw.get_result()
-        """
-
-        def timeout_handler(signum, frame):
-            raise TimeoutError()
-
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(timeout)
-
-        try:
-            pool = ThreadPool(THREADPOOL_SIZE)
-
-            def fetch_future_results(f):
-                f.result(internal_storage=self.internal_storage,
-                         throw_except=throw_except, verbose=verbose)
-                return f
-
-            N = len(futures)
-            if not verbose:
-                import tqdm
-                print()
-                pbar = tqdm.tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
-                                 total=N, disable=False)
-
-            callids_done_in_callset = set()
-            call_ids = set()
-
-            while len(callids_done_in_callset) < N:
-                sleep = WAIT_DUR_SEC-((len(callids_done_in_callset)/N)*WAIT_DUR_SEC)
-                time.sleep(sleep)
-
-                current_call_ids = set([(f.callgroup_id, f.call_id) for f in futures])
-                call_ids = set(self.internal_storage.get_callset_status(self.executor_id))
-                call_ids_to_check = call_ids.intersection(current_call_ids)
-
-                not_done_call_ids = call_ids_to_check.difference(callids_done_in_callset)
-
-                still_not_done_futures = [f for f in futures if ((f.callgroup_id, f.call_id) in not_done_call_ids)]
-
-                if verbose and still_not_done_futures:
-                    pool.map(fetch_future_results, still_not_done_futures)
-                elif still_not_done_futures:
-                    ftrs = pool.map(fetch_future_results, still_not_done_futures)
-                    for f in ftrs:
-                        if f.done:
-                            pbar.update(1)
-                    pbar.refresh()
-
-                callids_done_in_callset.update([(f.callgroup_id, f.call_id) for f in still_not_done_futures if f.done])
-            
-            self._state = ExecutorState.finished
-
-        except (TimeoutError, IndexError):
-            if not verbose and pbar:
-                pbar.close()
-                print()
-            not_dones_activation_ids = set([f.activation_id for f in futures if not f.done])
-            msg = ('Executor ID {} Raised timeout of {} seconds getting results '
-                   '\nActivations not done: {}'.format(self.executor_id, timeout, not_dones_activation_ids))
-            logger.debug(msg)
-            if(logger.getEffectiveLevel() == logging.WARNING):
-                print(msg)
-            self._state = ExecutorState.error
-
-        except KeyboardInterrupt:
-            if not verbose and pbar:
-                pbar.close()
-                print()
-            not_dones_activation_ids = [f.activation_id for f in futures if not f.done]
+            not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
             msg = 'Executor ID {} Cancelled  \nActivations not done: {}'.format(self.executor_id, not_dones_activation_ids)
             logger.debug(msg)
             if(logger.getEffectiveLevel() == logging.WARNING):
                 print(msg)
+            if self.data_cleaner and not self.cf_cluster:
+                self.clean()
             exit()
 
         finally:
             signal.alarm(0)
-            pool.close()
-            if not verbose and pbar:
+            if pbar:
                 pbar.close()
                 print()
             if self.data_cleaner and not self.cf_cluster:
                 self.clean()
 
-        return [f.result(throw_except=throw_except) for f in futures if f.done]
+        msg = "Executor ID {} Finished\n".format(self.executor_id)
+        logger.debug(msg)
+        if(logger.getEffectiveLevel() == logging.WARNING and self.data_cleaner):
+            print(msg)
+
+        if result and len(result) == 1:
+            return result[0]
+        return result
 
     def clean(self, local_execution=True):
         """
@@ -466,6 +340,8 @@ class ibm_cf_executor(object):
         logger.debug(msg)
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(msg)
+            if not self.data_cleaner:
+                print()
 
         if local_execution:
             # 1st case: Not background. The main code waits until the cleaner finishes its execution.

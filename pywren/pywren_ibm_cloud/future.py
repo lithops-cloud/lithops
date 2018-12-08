@@ -31,18 +31,19 @@ class JobState(enum.Enum):
     new = 1
     invoked = 2
     running = 3
-    redirected = 4
-    success = 5
+    success = 4
+    futures = 5
     error = 6
 
 
-class ResponseFuture(object):
+class ResponseFuture:
 
     """
     Object representing the result of a PyWren invocation. Returns the status of the
     execution and the result when available.
     """
-    GET_RESULT_SLEEP_SECS = 4
+    GET_RESULT_SLEEP_SECS = 3
+    GET_RESULT_MAX_RETRIES = 5
 
     def __init__(self, call_id, callgroup_id, executor_id, activation_id, invoke_metadata, storage_config):
         self.call_id = call_id
@@ -55,11 +56,11 @@ class ResponseFuture(object):
         self._state = JobState.new
         self._exception = Exception()
         self._return_val = None
+        self._new_futures = None
         self._traceback = None
         self._call_invoker_result = None
         self._invoke_metadata = invoke_metadata.copy()
 
-        self.redirections = []  # Will contain previous invocations data in case of redirection
         self.run_status = None
         self.invoke_status = None
 
@@ -78,24 +79,24 @@ class ResponseFuture(object):
     def cancelled(self):
         raise NotImplementedError("Cannot cancel dispatched jobs")
 
-    @property
-    def redirected(self):
-        """
-        The response of a call was a FutureResponse instance.
-        It has to wait to the new invocation output.
-        """
-        return self._state == JobState.redirected
-
     def running(self):
         raise NotImplementedError()
 
     @property
+    def futures(self):
+        """
+        The response of a call was a FutureResponse instance.
+        It has to wait to the new invocation output.
+        """
+        return self._state == JobState.futures
+    
+    @property
     def done(self):
-        if self._state in [JobState.success, JobState.error]:
+        if self._state in [JobState.success, JobState.futures, JobState.error]:
             return True
         return False
 
-    def result(self, check_only=False, throw_except=True, verbose=False, internal_storage=None):
+    def result(self, check_only=False, throw_except=True, internal_storage=None):
         """
         Return the value returned by the call.
         If the call raised an exception, this method will raise the same exception
@@ -116,6 +117,9 @@ class ResponseFuture(object):
 
         if self._state == JobState.success:
             return self._return_val
+        
+        if self._state == JobState.futures:
+            return self._new_futures
 
         if self._state == JobState.error:
             if throw_except:
@@ -134,9 +138,6 @@ class ResponseFuture(object):
             if call_status is None:
                 return None
 
-        if self._state == JobState.redirected and call_status is None:
-            return None
-
         while call_status is None:
             time.sleep(self.GET_RESULT_SLEEP_SECS)
             call_status = internal_storage.get_call_status(self.executor_id, self.callgroup_id, self.call_id)
@@ -148,10 +149,7 @@ class ResponseFuture(object):
         self.run_status = call_status  # this is the remote status information
         self.invoke_status = self._invoke_metadata  # local status information
 
-        if not self.redirections:
-            # First execution
-            self.start_time = call_status['start_time']
-        total_time = format(round(call_status['end_time'] - self.start_time, 2), '.2f')
+        total_time = format(round(call_status['end_time'] - call_status['start_time'], 2), '.2f')
 
         if call_status['exception'] is not None:
             # the wrenhandler had an exception
@@ -166,8 +164,6 @@ class ResponseFuture(object):
                                                     str(total_time),
                                                     exception_args[0]+" "+exception_args[1]))
             logger.debug(log_msg)
-            if verbose and logger.getEffectiveLevel() == logging.WARNING:
-                print(log_msg)
 
             if exception_args[0] == "WRONGVERSION":
                 if throw_except:
@@ -177,8 +173,13 @@ class ResponseFuture(object):
                 return None
             elif exception_args[0] == "OUTATIME":
                 if throw_except:
-                    raise Exception("process ran out of time - {} - {}".format(self.call_id,
+                    raise Exception("Process ran out of time - {} - {}".format(self.call_id,
                                                                                self.activation_id))
+                return None
+            elif exception_args[0] == "OUTOFMEMORY":
+                if throw_except:
+                    raise Exception("Process exceeded maximum memory and was "
+                                    "killed - {} - {}".format(self.call_id, self.activation_id))
                 return None
             else:
                 if 'exception_traceback' in call_status:
@@ -191,7 +192,7 @@ class ResponseFuture(object):
         call_invoker_result = internal_storage.get_call_output(self.executor_id, self.callgroup_id, self.call_id)
         self.output_query_count += 1
 
-        while call_invoker_result is None and self.output_query_count < 5:
+        while call_invoker_result is None and self.output_query_count < self.GET_RESULT_MAX_RETRIES:
             time.sleep(self.GET_RESULT_SLEEP_SECS)
             call_invoker_result = internal_storage.get_call_output(self.executor_id, self.callgroup_id, self.call_id)
             self.output_query_count += 1
@@ -213,51 +214,33 @@ class ResponseFuture(object):
         call_success = call_invoker_result['success']
         self.invoke_status = self._invoke_metadata  # local status information
 
-        if call_success:
-            function_result = call_invoker_result['result']
-            if isinstance(function_result, ResponseFuture):
-
-                old_data = {'executor_id': self.executor_id,
-                            'callgroup_id': self.callgroup_id,
-                            'call_id': self.call_id,
-                            'activation_id': self.activation_id,
-                            'call_status': call_status,
-                            'invoke_status': self.invoke_status}
-
-                self.redirections.append(old_data)
-
-                self.executor_id = function_result.executor_id
-                self.callgroup_id = function_result.callgroup_id
-                self.call_id = function_result.call_id
-                self.activation_id = function_result.activation_id
-                self._invoke_metadata = function_result._invoke_metadata
-
-                self._set_state(JobState.redirected)
-
-                return None
-
-            if self.redirections:
-                original_call_id = self.redirections[0]['call_id']
-                original_activation_id = self.redirections[0]['activation_id']
-            else:
-                original_call_id = self.call_id
-                original_activation_id = self.activation_id
-
+        if call_success:       
             log_msg = ('Executor ID {} Response from Function {} - Activation '
-                       'ID: {} - Time: {} seconds'.format(self.executor_id,
-                                                          original_call_id,
-                                                          original_activation_id,
-                                                          str(total_time)))
+           'ID: {} - Time: {} seconds'.format(self.executor_id,
+                                              self.call_id,
+                                              self.activation_id,
+                                              str(total_time)))
             logger.debug(log_msg)
-            if verbose and logger.getEffectiveLevel() == logging.WARNING:
-                print(log_msg)
+            
+            function_result = call_invoker_result['result']
 
-            self._return_val = function_result
-            self._set_state(JobState.success)
-            return self._return_val
+            if isinstance(function_result, ResponseFuture):
+                self._new_futures = [function_result]
+                self._set_state(JobState.futures)
+                return self._new_futures
+            
+            elif type(function_result) == list and len(function_result) > 0 \
+                 and isinstance(function_result[0], ResponseFuture):
+                self._new_futures = function_result                
+                self._set_state(JobState.futures)
+                return self._new_futures
+            
+            else:
+                self._return_val = function_result
+                self._set_state(JobState.success)
+                return self._return_val
 
-        elif throw_except:
-
+        elif throw_except:            
             self._exception = call_invoker_result['result']
             self._traceback = (call_invoker_result['exc_type'],
                                call_invoker_result['exc_value'],
@@ -265,16 +248,9 @@ class ResponseFuture(object):
 
             self._set_state(JobState.error)
             if call_invoker_result.get('pickle_fail', False):
-                logging.warning(
-                    "there was an error pickling. The original exception: "
-                    "{}\nThe pickling exception: {}".format(
-                            call_invoker_result['exc_value'],
-                            str(call_invoker_result['pickle_exception'])))
-
-                reraise(Exception, call_invoker_result['exc_value'],
-                        call_invoker_result['exc_traceback'])
+                fault = Exception(call_invoker_result['exc_value'])
+                reraise(Exception, fault, call_invoker_result['exc_traceback'])
             else:
-                # reraise the exception
                 reraise(*self._traceback)
         else:
             self._set_state(JobState.error)

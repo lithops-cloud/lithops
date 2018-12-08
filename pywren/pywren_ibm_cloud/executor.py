@@ -60,7 +60,7 @@ class Executor(object):
         if 'scheduler' in self.config:
             if 'map_item_limit' in config['scheduler']:
                 self.map_item_limit = config['scheduler']['map_item_limit']
-                
+
         log_msg = 'IBM Cloud Functions executor created with ID {}'.format(self.executor_id)
         logger.info(log_msg)
         if(logger.getEffectiveLevel() == logging.WARNING):
@@ -136,7 +136,7 @@ class Executor(object):
             ranges.append((pos, pos+l-1))
             pos += l
         return b"".join(data_strs), ranges
-    
+
     def object_processing(self, map_function):
         """
         Method that returns the function to process objects in the Cloud.
@@ -154,7 +154,7 @@ class Executor(object):
                 # it is a public url
                 resp = requests.get(map_func_args['url'], headers=extra_get_args, stream=True)
                 map_func_args['data_stream'] = resp.raw
-            
+
             elif 'key' in map_func_args:
                 # it is a COS key
                 if 'bucket' not in map_func_args or ('bucket' in map_func_args and not map_func_args['bucket']):
@@ -170,29 +170,29 @@ class Executor(object):
             func_sig = inspect.signature(map_function)
             if 'storage' in func_sig.parameters:
                 map_func_args['storage'] = storage
-                
+
             if 'ibm_cos' in func_sig.parameters:
                 map_func_args['ibm_cos'] = ibm_cos
 
             return map_function(**map_func_args)
-        
-        return object_processing_function  
+
+        return object_processing_function
 
     def single_call(self, func, data, extra_env=None, extra_meta=None):
         """
-        Wrapper to launch one function invocation. 
+        Wrapper to launch one function invocation.
         """
 
         return self.map(func, [data], extra_env=extra_env, extra_meta=extra_meta)
-    
+
     def multiple_call(self, map_function, iterdata, reduce_function=None,
-                      obj_chunk_size=None, extra_env=None, extra_meta=None, 
+                      obj_chunk_size=None, extra_env=None, extra_meta=None,
                       remote_invocation=False, invoke_pool_threads=128,
-                      data_all_as_one=True, overwrite_invoke_args=None, 
+                      data_all_as_one=True, overwrite_invoke_args=None,
                       exclude_modules=None, reducer_one_per_object=False,
                       reducer_wait_local=True):
         """
-        Wrapper to launch both map() and map_reduce() methods. 
+        Wrapper to launch both map() and map_reduce() methods.
         It integrates COS logic to process objects.
         """
         data = wrenutil.iterdata_as_list(iterdata)
@@ -237,19 +237,19 @@ class Executor(object):
             logger.debug("Calling map on partitions from object storage flow")
             return self.map(object_partitioner_function, part_func_args,
                             extra_env=extra_env,
-                            extra_meta=extra_meta, 
+                            extra_meta=extra_meta,
                             original_func_name=map_function.__name__,
                             invoke_pool_threads=invoke_pool_threads,
                             data_all_as_one=data_all_as_one,
                             overwrite_invoke_args=overwrite_invoke_args,
                             exclude_modules=exclude_modules)
         else:
-            logger.debug("No need to process objects from object store")
-            
             def remote_invoker(input_data):
                 pw = pywren.ibm_cf_executor()
-                return pw.map(map_function, input_data)
-    
+                return pw.map(map_function, input_data,
+                              extra_env=extra_env,
+                              extra_meta=extra_meta)
+
             if len(iterdata) > 1 and remote_invocation:
                 map_func = remote_invoker
                 map_iterdata = [[iterdata[x:x+100]] for x in range(0, len(iterdata), 100)]
@@ -258,7 +258,7 @@ class Executor(object):
                 remote_invocation = False
                 map_func = map_function
                 map_iterdata = iterdata
-            
+
             map_futures = self.map(map_func, map_iterdata,
                                    extra_env=extra_env,
                                    extra_meta=extra_meta,
@@ -270,12 +270,12 @@ class Executor(object):
 
             if not reduce_function:
                 return map_futures
-            
+
             logger.debug("Calling reduce")
             return self.reduce(reduce_function, map_futures,
                                wait_local=reducer_wait_local,
                                extra_env=extra_env,
-                               extra_meta=extra_meta)    
+                               extra_meta=extra_meta)
 
     def map(self, func, iterdata, extra_env=None, extra_meta=None, invoke_pool_threads=128,
             data_all_as_one=True, overwrite_invoke_args=None, exclude_modules=None,
@@ -442,7 +442,7 @@ class Executor(object):
 
         if wait_local:
             logger.info('Waiting locally for results')
-            wait(list_of_futures, executor_id, self.internal_storage, throw_except)
+            wait(list_of_futures, executor_id, self.internal_storage, throw_except=throw_except)
 
         def reduce_function_wrapper(fut_list, internal_storage, storage, ibm_cos):
             logger.info('Waiting for results')
@@ -451,15 +451,10 @@ class Executor(object):
             else:
                 show_memory = False
             # Wait for all results
-            wait(fut_list, executor_id, internal_storage, throw_except)
-            results = []
-            # Get all results
-            for f in fut_list:
-                result = f.result(throw_except=throw_except)
-                results.append(result)
-
+            wait(fut_list, executor_id, internal_storage, throw_except=throw_except)
+            results = [f.result() for f in fut_list if f.done and not f.futures]
             reduce_func_args = {'results': results}
-            
+
             if show_memory:
                 logger.debug("Memory usage after getting the results: {}".format(wrenutil.get_current_memory_usage()))
 

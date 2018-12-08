@@ -34,7 +34,7 @@ import pkgutil
 logging_level = logging.INFO
 
 
-class ModuleDependencyAnalyzer(object):
+class ModuleDependencyAnalyzer:
     _IMP_TYPE_NAMES = {
         imp.PY_FROZEN: 'frozen',
         imp.PY_SOURCE: 'source',

@@ -24,8 +24,8 @@ ANY_COMPLETED = 2
 ALWAYS = 3
 
 
-def wait(fs, executor_id, internal_storage, throw_except=True, verbose=False,
-         return_when=ALL_COMPLETED, THREADPOOL_SIZE=64, WAIT_DUR_SEC=4):
+def wait(fs, executor_id, internal_storage, throw_except=True, return_when=ALL_COMPLETED,
+         THREADPOOL_SIZE=64, WAIT_DUR_SEC=2, pbar=None):
     """
     Wait for the Future instances `fs` to complete. Returns a 2-tuple of
     lists. The first list contains the futures that completed
@@ -38,51 +38,55 @@ def wait(fs, executor_id, internal_storage, throw_except=True, verbose=False,
     :param return_when: One of `ALL_COMPLETED`, `ANY_COMPLETED`, `ALWAYS`
     :param THREADPOOL_SIZE: Number of threads to use. Default 64
     :param WAIT_DUR_SEC: Time interval between each check.
+    :param pbar: Progress bar.
     :return: `(fs_dones, fs_notdones)`
         where `fs_dones` is a list of futures that have completed
         and `fs_notdones` is a list of futures that have not completed.
     :rtype: 2-tuple of lists
-
-    Usage
-      >>> futures = pwex.map(foo, data)
-      >>> dones, not_dones = wait(futures, ALL_COMPLETED)
-      >>> # not_dones should be an empty list.
-      >>> results = [f.result() for f in dones]
-
     """
+    # FIXME:  this will eventually provide an optimization for checking if a large
+    # number of futures have completed without too much network traffic
+    # by exploiting the callset
+    
     N = len(fs)
     # These are performance-related settings that we may eventually
     # want to expose to end users:
     MAX_DIRECT_QUERY_N = 16
     RETURN_EARLY_N = 16
+    RANDOM_QUERY = False
 
     if return_when == ALL_COMPLETED:
-        result_count = 0
+        result_count = 0       
+        
         while result_count < N:
-
             fs_dones, fs_notdones = _wait(fs, executor_id,
                                           internal_storage,
                                           throw_except,
-                                          verbose,
                                           RETURN_EARLY_N,
                                           MAX_DIRECT_QUERY_N,
-                                          THREADPOOL_SIZE)
+                                          random_query=RANDOM_QUERY,
+                                          THREADPOOL_SIZE=THREADPOOL_SIZE,
+                                          pbar=pbar)
+            N = len(fs)
+            if pbar and pbar.total != N:
+                pbar.total = N
+                pbar.refresh()
+            
             result_count = len(fs_dones)
-
             if result_count == N:
                 return fs_dones, fs_notdones
             else:
                 time.sleep(WAIT_DUR_SEC)
 
-    elif return_when == ANY_COMPLETED:
+    elif return_when == ANY_COMPLETED: 
         while True:
             fs_dones, fs_notdones = _wait(fs, executor_id,
                                           internal_storage,
                                           throw_except,
-                                          verbose,
                                           RETURN_EARLY_N,
                                           MAX_DIRECT_QUERY_N,
-                                          THREADPOOL_SIZE)
+                                          random_query=RANDOM_QUERY,
+                                          THREADPOOL_SIZE=THREADPOOL_SIZE)
 
             if len(fs_dones) != 0:
                 return fs_dones, fs_notdones
@@ -92,15 +96,17 @@ def wait(fs, executor_id, internal_storage, throw_except=True, verbose=False,
     elif return_when == ALWAYS:
         return _wait(fs, executor_id,
                      internal_storage,
+                     throw_except,
                      RETURN_EARLY_N,
                      MAX_DIRECT_QUERY_N,
-                     THREADPOOL_SIZE)
+                     random_query=RANDOM_QUERY,
+                     THREADPOOL_SIZE=THREADPOOL_SIZE)
     else:
         raise ValueError()
 
 
-def _wait(fs, executor_id, internal_storage, throw_except, verbose, return_early_n,
-          max_direct_query_n, random_query=False, THREADPOOL_SIZE=16):
+def _wait(fs, executor_id, internal_storage, throw_except, return_early_n,
+          max_direct_query_n, random_query=False, THREADPOOL_SIZE=16, pbar=None):
     """
     internal function that performs the majority of the WAIT task
     work.
@@ -125,16 +131,14 @@ def _wait(fs, executor_id, internal_storage, throw_except, verbose, return_early
     # note this returns everything done, so we have to figure out
     # the intersection of those that are done
     callids_done_in_callset = set(internal_storage.get_callset_status(executor_id))
+    #print('CALLSET:', callids_done_in_callset, len(callids_done_in_callset))
+
     not_done_call_ids = set([(f.callgroup_id, f.call_id) for f in not_done_futures])
+    #print('NO TDONE:' ,not_done_call_ids, len(not_done_call_ids))
+      
     done_call_ids = not_done_call_ids.intersection(callids_done_in_callset)
-
     not_done_call_ids = not_done_call_ids - done_call_ids
-
     still_not_done_futures = [f for f in not_done_futures if ((f.callgroup_id, f.call_id) in not_done_call_ids)]
-
-    #def fetch_future_status(f):
-    #    status_key = storage_utils.create_status_key(storage_handler.prefix, f.executor_id, f.callgroup_id, f.call_id)
-    #    return storage_handler.object_exists(status_key)
 
     def fetch_future_status(f):
         return internal_storage.get_call_status(f.executor_id, f.callgroup_id, f.call_id)
@@ -150,19 +154,18 @@ def _wait(fs, executor_id, internal_storage, throw_except, verbose, return_early
         random.shuffle(still_not_done_futures)
 
     while query_count < max_queries:
-
         if len(done_call_ids) >= return_early_n:
             break
         num_to_query_at_once = THREADPOOL_SIZE
         fs_to_query = still_not_done_futures[query_count:query_count + num_to_query_at_once]
-
         fs_statuses = pool.map(fetch_future_status, fs_to_query)
 
         callids_found = [(fs_to_query[i].callgroup_id, fs_to_query[i].call_id) for i in range(len(fs_to_query))
                          if fs_statuses[i] is not None]
-
-        done_call_ids = done_call_ids.union(set(callids_found))
-
+        
+        #print('FOUND:',callids_found, len(callids_found))
+        
+        done_call_ids = done_call_ids.union(set(callids_found))        
         query_count += len(fs_to_query)
 
     # now we walk through all the original queries and get
@@ -182,15 +185,21 @@ def _wait(fs, executor_id, internal_storage, throw_except, verbose, return_early
                 fs_notdones.append(f)
 
     def get_result(f):
-        f.result(throw_except=throw_except, verbose=verbose, internal_storage=internal_storage)
-    pool.map(get_result, f_to_wait_on)
+        f.result(throw_except=throw_except, internal_storage=internal_storage)
 
+    pool.map(get_result, f_to_wait_on)        
     pool.close()
     pool.join()
 
-    # Check for redirections
-    fs_dones_redirected = [f for f in fs_dones if not f.done]
-    fs_dones = [f for f in fs_dones if f.done]
-    fs_notdones.extend(fs_dones_redirected)
+    for f in f_to_wait_on:
+        if pbar and f.done:
+            pbar.update(1)
+    if pbar:
+        pbar.refresh()
+
+    # Check for new futures
+    new_futures = [f.result() for f in f_to_wait_on if f.futures]
+    for futures in new_futures:
+        fs.extend(futures)    
 
     return fs_dones, fs_notdones

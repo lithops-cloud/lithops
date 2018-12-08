@@ -25,7 +25,7 @@ from pywren_ibm_cloud.wrenutil import sizeof_fmt
 logger = logging.getLogger(__name__)
 
 
-class SwiftBackend(object):
+class SwiftBackend:
     """
     A wrap-up around OpenStack Swift APIs.
     """
