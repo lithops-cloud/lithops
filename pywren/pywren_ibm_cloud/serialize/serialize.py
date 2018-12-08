@@ -39,7 +39,7 @@ from pywren_ibm_cloud.serialize.module_dependency import ModuleDependencyAnalyze
 logger = logging.getLogger(__name__)
 
 
-class SerializeIndependent(object):
+class SerializeIndependent:
 
     def __init__(self, preinstalls):
         self.preinstalled_modules = preinstalls

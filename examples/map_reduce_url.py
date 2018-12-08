@@ -58,9 +58,9 @@ def my_reduce_function(results):
     for count in results:
         for word in count:
             if word not in final_result:
-                final_result[word] = 1
+                final_result[word] = count[word]
             else:
-                final_result[word] += 1
+                final_result[word] += count[word]
 
     return final_result
 

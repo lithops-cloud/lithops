@@ -29,15 +29,14 @@ from where you can access to the partial results.
 
 import pywren_ibm_cloud as pywren
 
-iterdata = ['sample.data.pw/obj1.txt',
-            'sample.data.pw/obj2.txt',
-            'sample.data.pw/obj3.txt']
+iterdata = ['pw-sample-data/obj1.txt',
+            'pw-sample-data/obj2.txt',
+            'pw-sample-data/obj3.txt']
 
 
 def my_map_function(key, data_stream):
     print('I am processing the object {}'.format(key))
     counter = {}
-
     data = data_stream.read()
 
     for line in data.splitlines():
@@ -55,9 +54,9 @@ def my_reduce_function(results):
     for count in results:
         for word in count:
             if word not in final_result:
-                final_result[word] = 1
+                final_result[word] = count[word]
             else:
-                final_result[word] += 1
+                final_result[word] += count[word]
 
     return final_result
 

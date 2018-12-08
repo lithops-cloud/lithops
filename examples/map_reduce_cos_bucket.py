@@ -26,7 +26,7 @@ from where you can access to the partial results.
 
 import pywren_ibm_cloud as pywren
 
-bucketname = 'sample.data.pw'
+bucketname = 'pw-sample-data'
 
 
 def my_map_function(bucket, key, data_stream):
@@ -50,9 +50,9 @@ def my_reduce_function(results):
     for count in results:
         for word in count:
             if word not in final_result:
-                final_result[word] = 1
+                final_result[word] = count[word]
             else:
-                final_result[word] += 1
+                final_result[word] += count[word]
 
     return final_result
 

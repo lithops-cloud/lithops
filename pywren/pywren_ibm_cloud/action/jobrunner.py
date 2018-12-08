@@ -15,43 +15,28 @@
 #
 
 import os
-import gc
+import sys
+import json
+import time
 import base64
 import shutil
-import json
-import sys
-import time
 import logging
 import inspect
-from pywren_ibm_cloud.libs import cloudpickle as pickle
+import numpy as np
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
-from pywren_ibm_cloud.storage.backends.cos import COSBackend
-from pywren_ibm_cloud.storage.backends.swift import SwiftBackend
+from pywren_ibm_cloud.libs import cloudpickle as pickle
 from pywren_ibm_cloud.libs.tblib import pickling_support
 from pywren_ibm_cloud.wrenutil import get_current_memory_usage
+from pywren_ibm_cloud.storage.backends.cos import COSBackend
+from pywren_ibm_cloud.storage.backends.swift import SwiftBackend
+
 
 pickling_support.install()
-
 level = logging.DEBUG
 logger = logging.getLogger('jobrunner')
 logger.setLevel(level)
 wrenlogging.ow_config(level)
-
-jobrunner_config_filename = sys.argv[1]
-jobrunner_config = json.load(open(jobrunner_config_filename, 'r'))
-# Jobrunner stats are fieldname float
-jobrunner_stats_filename = jobrunner_config['stats_filename']
-# open the stats filename
-stats_fid = open(jobrunner_stats_filename, 'w')
-
-
-def write_stat(stat, val):
-    stats_fid.write("{} {:f}\n".format(stat, val))
-    stats_fid.flush()
-
-write_stat('jobrunner_start', time.time())
-logger.info("Welcome to job runner")
 
 
 def b64str_to_bytes(str_data):
@@ -59,186 +44,234 @@ def b64str_to_bytes(str_data):
     byte_data = base64.b64decode(str_ascii)
     return byte_data
 
-# initial output file in case job fails
-output_dict = {'result': None,
-               'success': False}
 
-pickled_output = pickle.dumps(output_dict)
-
-# Create Storage handler
-storage_config = json.loads(os.environ.get('STORAGE_CONFIG', ''))
-internal_storage = storage.InternalStorage(storage_config)
-
-if 'SHOW_MEMORY_USAGE' in os.environ:
-    show_memory = eval(os.environ['SHOW_MEMORY_USAGE'])
-else:
-    show_memory = False
-
-func_key = jobrunner_config['func_key']
-
-data_key = jobrunner_config['data_key']
-data_byte_range = jobrunner_config['data_byte_range']
-
-output_key = jobrunner_config['output_key']
+def load_config(config_location):
+    with open(config_location, 'r') as configf:
+        jobrunner_config = json.load(configf)
+    return jobrunner_config
+    
+    
+class stats:
+    
+    def __init__(self, stats_filename):
+        self.stats_filename = stats_filename
+        self.stats_fid = open(stats_filename, 'w')
+        
+    def write(self, key, value):
+        self.stats_fid.write("{} {:f}\n".format(key, value))
+        self.stats_fid.flush()
+    
+    def __del__(self):
+        self.stats_fid.close()
 
 
+class jobrunner:
 
-try:
-    logger.info("Getting function and modules")
-    func_download_time_t1 = time.time()
-    func_obj = internal_storage.get_func(func_key)
-    loaded_func_all = pickle.loads(func_obj)
-    del func_obj
-    func_download_time_t2 = time.time()
-    write_stat('func_download_time',
-               func_download_time_t2-func_download_time_t1)
-    logger.info("Finished getting Function")
+    def __init__(self):
+        start_time =  time.time()
+        self.config = load_config(sys.argv[1])
+        self.stats = stats(self.config['stats_filename'])
+        self.stats.write('jobrunner_start', start_time)
+        
+        self.storage_config = json.loads(os.environ.get('STORAGE_CONFIG', ''))
+        self.internal_storage = storage.InternalStorage(self.storage_config)
+        
+        if 'SHOW_MEMORY_USAGE' in os.environ:
+            self.show_memory = eval(os.environ['SHOW_MEMORY_USAGE'])
+        else:
+            self.show_memory = False
+            
+        self.func_key = self.config['func_key']
+        self.data_key = self.config['data_key']
+        self.data_byte_range = self.config['data_byte_range']
+        self.output_key = self.config['output_key']
 
-    # save modules, before we unpickle actual function
-    PYTHON_MODULE_PATH = jobrunner_config['python_module_path']
+    def _get_function_and_modules(self):
+        """
+        Gets and unpickles function and modules from storage
+        """
+        logger.info("Getting function and modules")
+        func_download_time_t1 = time.time()
+        func_obj = self.internal_storage.get_func(self.func_key)
+        loaded_func_all = pickle.loads(func_obj)
+        func_download_time_t2 = time.time()
+        self.stats.write('func_download_time', func_download_time_t2-func_download_time_t1)
+        logger.info("Finished getting Function and modules")
+        
+        return loaded_func_all
+    
+    def _save_modules(self, module_data):
+        """
+        Save modules, before we unpickle actual function
+        """    
+        logger.info("Writing Function dependencies to local disk")
+        PYTHON_MODULE_PATH = self.config['python_module_path']
+        shutil.rmtree(PYTHON_MODULE_PATH, True)  # delete old modules
+        os.mkdir(PYTHON_MODULE_PATH)
+        sys.path.append(PYTHON_MODULE_PATH)
+    
+        for m_filename, m_data in module_data.items():
+            m_path = os.path.dirname(m_filename)
+    
+            if len(m_path) > 0 and m_path[0] == "/":
+                m_path = m_path[1:]
+            to_make = os.path.join(PYTHON_MODULE_PATH, m_path)
+            try:
+                os.makedirs(to_make)
+            except OSError as e:
+                if e.errno == 17:
+                    pass
+                else:
+                    raise e
+            full_filename = os.path.join(to_make, os.path.basename(m_filename))
 
-    logger.info("Writing Function dependencies to local disk")
-    shutil.rmtree(PYTHON_MODULE_PATH, True)  # delete old modules
-    os.mkdir(PYTHON_MODULE_PATH)
-    sys.path.append(PYTHON_MODULE_PATH)
+            with open(full_filename, 'wb') as fid:
+                fid.write(b64str_to_bytes(m_data))
 
-    for m_filename, m_data in loaded_func_all['module_data'].items():
-        m_path = os.path.dirname(m_filename)
+        #logger.info("Finished writing {} module files".format(len(loaded_func_all['module_data'])))
+        #logger.debug(subprocess.check_output("find {}".format(PYTHON_MODULE_PATH), shell=True))
+        #logger.debug(subprocess.check_output("find {}".format(os.getcwd()), shell=True))
+        logger.info("Finished writing Function dependencies")
+        
+    def _unpickle_function(self, pickled_func):
+        """
+        Unpickle function; it will expect modules to be there
+        """
+        logger.info("Unpickle Function")
+        loaded_func = pickle.loads(pickled_func)
+        logger.info("Finished Function unpickle")
+        
+        return loaded_func
+    
+    def _load_data(self):
+        extra_get_args = {}
+        if self.data_byte_range is not None:
+            range_str = 'bytes={}-{}'.format(*self.data_byte_range)
+            extra_get_args['Range'] = range_str
 
-        if len(m_path) > 0 and m_path[0] == "/":
-            m_path = m_path[1:]
-        to_make = os.path.join(PYTHON_MODULE_PATH, m_path)
+        logger.info("Getting function data")
+        data_download_time_t1 = time.time()
+        data_obj = self.internal_storage.get_data(self.data_key, extra_get_args=extra_get_args)
+        logger.info("Finished getting Function data")
+        logger.info("Unpickle Function data")
+        loaded_data = pickle.loads(data_obj)
+        logger.info("Finished unpickle Function data")
+        data_download_time_t2 = time.time()
+        self.stats.write('data_download_time',
+                   data_download_time_t2-data_download_time_t1)
+        
+        return loaded_data
+    
+    def _create_storage_clients(self, function, data):
+        # Verify storage parameters - Create clients
+        func_sig = inspect.signature(function)
+    
+        if 'storage' in func_sig.parameters:
+            # 'storage' generic parameter used in map_reduce method
+            if 'ibm_cos' in self.storage_config:
+                mr_storage_client = COSBackend(self.storage_config['ibm_cos'])
+            elif 'swift' in self.storage_config:
+                mr_storage_client = SwiftBackend(self.storage_config['swift'])
+    
+            data['storage'] = mr_storage_client
+    
+        if 'ibm_cos' in func_sig.parameters:
+            ibm_boto3_client = COSBackend(self.storage_config['ibm_cos']).get_client()
+            data['ibm_cos'] = ibm_boto3_client
+    
+        if 'swift' in func_sig.parameters:
+            swift_client = SwiftBackend(self.storage_config['swift'])
+            data['swift'] = swift_client
+    
+        if 'internal_storage' in func_sig.parameters:
+            data['internal_storage'] = self.internal_storage
+        
+        return data
+
+    def run_function(self):
+        """
+        Runs the function
+        """
+        # initial output file in case job fails
+        output_dict = {'result': None,
+                       'success': False}
+        pickled_output = pickle.dumps(output_dict)
+
         try:
-            os.makedirs(to_make)
-        except OSError as e:
-            if e.errno == 17:
-                pass
-            else:
-                raise e
-        full_filename = os.path.join(to_make, os.path.basename(m_filename))
-        #print "creating", full_filename
-        with open(full_filename, 'wb') as fid:
-            fid.write(b64str_to_bytes(m_data))
-    logger.info("Finished writing Function dependencies")
+            loaded_func_all = self._get_function_and_modules()
+            self._save_modules(loaded_func_all['module_data'])
+            function = self._unpickle_function(loaded_func_all['func'])
+            data = self._load_data()
+            data = self._create_storage_clients(function, data)
 
-    #logger.info("Finished writing {} module files".format(len(loaded_func_all['module_data'])))
-    #logger.debug(subprocess.check_output("find {}".format(PYTHON_MODULE_PATH), shell=True))
-    #logger.debug(subprocess.check_output("find {}".format(os.getcwd()), shell=True))
+            if self.show_memory:
+                logger.debug("Memory usage before call the function: {}".format(get_current_memory_usage()))
 
-    # now unpickle function; it will expect modules to be there
-    logger.info("Unpickle Function")
-    loaded_func = pickle.loads(loaded_func_all['func'])
-    del loaded_func_all
-    logger.info("Finished Function unpickle")
+            logger.info("Function: Going to execute '{}()'".format(str(function.__name__)))
+            print('------------------- FUNCTION LOG -------------------')
+            func_exec_time_t1 = time.time()
+            result = function(**data)
+            func_exec_time_t2 = time.time()
+            print('----------------------------------------------------')
+            logger.info("Function: Success execution")
 
-    extra_get_args = {}
-    if data_byte_range is not None:
-        range_str = 'bytes={}-{}'.format(*data_byte_range)
-        extra_get_args['Range'] = range_str
+            if self.show_memory:
+                logger.debug("Memory usage after call the function: {}".format(get_current_memory_usage()))
 
-    # GET function parameters
-    logger.info("Getting function data")
-    data_download_time_t1 = time.time()
-    data_obj = internal_storage.get_data(data_key, extra_get_args=extra_get_args)
-    logger.info("Finished getting Function data")
-    logger.info("Unpickle Function data")
-    loaded_data = pickle.loads(data_obj)
-    del data_obj
-    logger.info("Finished unpickle Function data")
-    data_download_time_t2 = time.time()
-    write_stat('data_download_time',
-               data_download_time_t2-data_download_time_t1)
+            self.stats.write('function_exec_time', func_exec_time_t2-func_exec_time_t1)
+            output_dict = {'result': result,
+                           'success': True}
+            pickled_output = pickle.dumps(output_dict)
 
-    # Verify storage parameters - Create clients
-    func_sig = inspect.signature(loaded_func)
+            if self.show_memory:
+                logger.debug("Memory usage after output serialization: {}".format(get_current_memory_usage()))
+        
+        except Exception as e:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            #traceback.print_tb(exc_traceback)
+        
+            # Shockingly often, modules like subprocess don't properly
+            # call the base Exception.__init__, which results in them
+            # being unpickleable. As a result, we actually wrap this in a try/catch block
+            # and more-carefully handle the exceptions if any part of this save / test-reload
+            # fails
+            logger.error("There was an exception: {}".format(str(e)))
+            print('----------------------------------------------------')
+            try:
+                pickled_output = pickle.dumps({'result': e,
+                                               'exc_type': exc_type,
+                                               'exc_value': exc_value,
+                                               'exc_traceback': exc_traceback,
+                                               'sys.path': sys.path,
+                                               'success': False})
+        
+                # this is just to make sure they can be unpickled
+                pickle.loads(pickled_output)
+        
+            except Exception as pickle_exception:
+                pickled_output = pickle.dumps({'result': str(e),
+                                               'exc_type': str(exc_type),
+                                               'exc_value': str(exc_value),
+                                               'exc_traceback': exc_traceback,
+                                               'exc_traceback_str': str(exc_traceback),
+                                               'sys.path': sys.path,
+                                               'pickle_fail': True,
+                                               'pickle_exception': pickle_exception,
+                                               'success': False})
+        finally:
+            store_result = True
+            if 'STORE_RESULT' in os.environ:
+                store_result = eval(os.environ['STORE_RESULT'])
+        
+            if store_result:
+                output_upload_timestamp_t1 = time.time()
+                self.internal_storage.put_data(self.output_key, pickled_output)
+                output_upload_timestamp_t2 = time.time()
+                self.stats.write("output_upload_time",
+                           output_upload_timestamp_t2 - output_upload_timestamp_t1)
 
-    if 'storage' in func_sig.parameters:
-        # 'storage' generic parameter used in map_reduce method
-        if 'ibm_cos' in storage_config:
-            mr_storage_client = COSBackend(storage_config['ibm_cos'])
-        elif 'swift' in storage_config:
-            mr_storage_client = SwiftBackend(storage_config['swift'])
-
-        loaded_data['storage'] = mr_storage_client
-
-    if 'ibm_cos' in func_sig.parameters:
-        ibm_boto3_client = COSBackend(storage_config['ibm_cos']).get_client()
-        loaded_data['ibm_cos'] = ibm_boto3_client
-
-    if 'swift' in func_sig.parameters:
-        swift_client = SwiftBackend(storage_config['swift'])
-        loaded_data['swift'] = swift_client
-
-    if 'internal_storage' in func_sig.parameters:
-        loaded_data['internal_storage'] = internal_storage
-
-    gc.collect()
-
-    if show_memory:
-        logger.debug("Memory usage before call the function: {}".format(get_current_memory_usage()))
-    logger.info("Function: Going to execute '{}()'".format(str(loaded_func.__name__)))
-    print('------------------- FUNCTION LOG -------------------')
-    func_exec_time_t1 = time.time()
-    y = loaded_func(**loaded_data)
-    func_exec_time_t2 = time.time()
-    print('----------------------------------------------------')
-    logger.info("Function: Success execution")
-
-    del loaded_func
-    del loaded_data
-    gc.collect()
-
-    if show_memory:
-        logger.debug("Memory usage after call the function: {}".format(get_current_memory_usage()))
-
-    write_stat('function_exec_time', func_exec_time_t2-func_exec_time_t1)
-    output_dict = {'result': y,
-                   'success': True}
-    pickled_output = pickle.dumps(output_dict)
-    if show_memory:
-        logger.debug("Memory usage after output serialization: {}".format(get_current_memory_usage()))
-
-except Exception as e:
-    exc_type, exc_value, exc_traceback = sys.exc_info()
-    #traceback.print_tb(exc_traceback)
-
-    # Shockingly often, modules like subprocess don't properly
-    # call the base Exception.__init__, which results in them
-    # being unpickleable. As a result, we actually wrap this in a try/catch block
-    # and more-carefully handle the exceptions if any part of this save / test-reload
-    # fails
-    logger.error("There was an exception: {}".format(str(e)))
-    print('----------------------------------------------------')
-    try:
-        pickled_output = pickle.dumps({'result': e,
-                                       'exc_type': exc_type,
-                                       'exc_value': exc_value,
-                                       'exc_traceback': exc_traceback,
-                                       'sys.path': sys.path,
-                                       'success': False})
-
-        # this is just to make sure they can be unpickled
-        pickle.loads(pickled_output)
-
-    except Exception as pickle_exception:
-        pickled_output = pickle.dumps({'result': str(e),
-                                       'exc_type': str(exc_type),
-                                       'exc_value': str(exc_value),
-                                       'exc_traceback': exc_traceback,
-                                       'exc_traceback_str': str(exc_traceback),
-                                       'sys.path': sys.path,
-                                       'pickle_fail': True,
-                                       'pickle_exception': pickle_exception,
-                                       'success': False})
-finally:
-    store_result = True
-    if 'STORE_RESULT' in os.environ:
-        store_result = eval(os.environ['STORE_RESULT'])
-
-    if store_result:
-        output_upload_timestamp_t1 = time.time()
-        internal_storage.put_data(output_key, pickled_output)
-        output_upload_timestamp_t2 = time.time()
-        write_stat("output_upload_time",
-                   output_upload_timestamp_t2 - output_upload_timestamp_t1)
+if __name__ == '__main__':
+    logger.info("Jobrunner started")
+    jr = jobrunner()
+    jr.run_function()
     logger.info("Jobrunner finished")

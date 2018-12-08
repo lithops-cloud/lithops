@@ -244,11 +244,11 @@ class Executor(object):
                             overwrite_invoke_args=overwrite_invoke_args,
                             exclude_modules=exclude_modules)
         else:
-            logger.debug("No need to process objects from object store")
-
             def remote_invoker(input_data):
                 pw = pywren.ibm_cf_executor()
-                return pw.map(map_function, input_data)
+                return pw.map(map_function, input_data,
+                              extra_env=extra_env,
+                              extra_meta=extra_meta)
 
             if len(iterdata) > 1 and remote_invocation:
                 map_func = remote_invoker
@@ -442,7 +442,7 @@ class Executor(object):
 
         if wait_local:
             logger.info('Waiting locally for results')
-            wait(list_of_futures, executor_id, self.internal_storage, throw_except)
+            wait(list_of_futures, executor_id, self.internal_storage, throw_except=throw_except)
 
         def reduce_function_wrapper(fut_list, internal_storage, storage, ibm_cos):
             logger.info('Waiting for results')
@@ -451,13 +451,8 @@ class Executor(object):
             else:
                 show_memory = False
             # Wait for all results
-            wait(fut_list, executor_id, internal_storage, throw_except)
-            results = []
-            # Get all results
-            for f in fut_list:
-                result = f.result(throw_except=throw_except)
-                results.append(result)
-
+            wait(fut_list, executor_id, internal_storage, throw_except=throw_except)
+            results = [f.result() for f in fut_list if f.done and not f.futures]
             reduce_func_args = {'results': results}
 
             if show_memory:

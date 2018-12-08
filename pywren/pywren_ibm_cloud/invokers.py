@@ -22,7 +22,7 @@ from pywren_ibm_cloud.cf_connector import CloudFunctions
 logger = logging.getLogger(__name__)
 
 
-class IBMCloudFunctionsInvoker(object):
+class IBMCloudFunctionsInvoker:
 
     def __init__(self, cf_config, retry_config):
         self.namespace = cf_config['namespace']

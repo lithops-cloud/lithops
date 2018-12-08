@@ -27,7 +27,7 @@ import time
 logger = logging.getLogger(__name__)
 
 
-class CloudFunctions(object):
+class CloudFunctions:
 
     def __init__(self, config):
         '''

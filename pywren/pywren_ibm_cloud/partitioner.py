@@ -21,28 +21,27 @@ def object_partitioner(map_function_wrapper, reduce_function, extra_env, extra_m
     
         if 'bucket' in map_func_keys and 'key' not in map_func_keys:
             partitions = split_objects_from_bucket(map_func_args, chunk_size, storage)
-        
+            if not partitions:
+                raise Exception('No objects available within bucket: {}'.format(map_func_args[0]['bucket']))
+
         elif 'key' in map_func_keys:
             partitions = split_object_from_key(map_func_args, chunk_size, storage)
         
         elif 'url' in map_func_keys:
             partitions = split_object_from_url(map_func_args, chunk_size)
-        
+
         else:
             raise ValueError('You did not provide any bucket or object key/url')
-    
-        # logger.info(partitions)
-    
+
+        #logger.info(partitions)
         pw = pywren.ibm_cf_executor()
         futures = pw.map_reduce(map_function_wrapper, partitions,
                                 reduce_function,
                                 reducer_wait_local=False,
                                 extra_env=extra_env,
                                 extra_meta=extra_meta)
-    
         return futures
-        
-    
+
     return object_partitioner_function
 
 
@@ -55,11 +54,12 @@ def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
 
     for entry in map_func_args_list:
         # Each entry is a bucket
+        if chunk_size:
+            logger.info('Creating chunks from objects within: {}'.format(entry['bucket']))
+        else:
+            logger.info('Discovering objects within: {}'.format(entry['bucket']))
         bucket_name, prefix = wrenutil.split_path(entry['bucket'])
         objects = storage.list_objects(bucket_name, prefix)
-
-        logger.info('Creating dataset chunks from objects within "{}" '
-                    'bucket ...'.format(bucket_name))
 
         for obj in objects:
             key = obj['Key']
@@ -132,10 +132,10 @@ def split_object_from_url(map_func_args_list, chunk_size):
         obj_size = None
         object_url = entry['url']
         metadata = requests.head(object_url)
-        
+
         logger.info(object_url)
         #logger.debug(metadata.headers)
-        
+
         if 'content-length' in metadata.headers:
             obj_size = int(metadata.headers['content-length'])
 
