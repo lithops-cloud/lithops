@@ -326,6 +326,27 @@ class ibm_cf_executor:
             return result[0]
         return result
 
+    def create_timeline_plots(self, dst, name, run_statuses=None, invoke_statuses=None):
+        """
+        Creates timeline and histogram of the current execution in dst.
+
+        :param dst: destination folder to save .png plots.
+        :param name: name of the file.
+        :param run_statuses: run statuses timestamps.
+        :param invoke_statuses: invocation statuses timestamps.
+        """
+        from pywren_ibm_cloud.plots import create_timeline, create_histogram
+
+        if self.futures and not run_statuses and not invoke_statuses:
+            run_statuses = [f.run_status for f in self.futures]
+            invoke_statuses = [f.invoke_status for f in self.futures]
+
+        if not run_statuses and not invoke_statuses:
+            raise Exception('You must provide run_statuses and invoke_statuses')
+
+        create_timeline(dst, name, run_statuses, invoke_statuses)
+        create_histogram(dst, name, run_statuses, x_lim=150)
+
     def clean(self, local_execution=True):
         """
         Deletes all the files from COS. These files include the function,
