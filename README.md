@@ -168,6 +168,7 @@ and then execute:
 | `python3 test/testpywren.py` | test all PyWren's functionality |
 | `python3 test/testpywren.py pywren` | test PyWren without Cloud Object Storage service |
 | `python3 test/testpywren.py pywren_cos` | test PyWren using Cloud Object Storage service only |
+| `python3 test/testpywren.py <FUNC_NAME>` | run a specific test function by its name as implemented in the test file |
 
 To clean test files stored in Cloud Object Storage service, execute:
 
