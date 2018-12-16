@@ -52,7 +52,9 @@ def iterdata_as_list(iterdata):
     """
     Converts iteradat to a list
     """
-    if type(iterdata) != list:
+    if type(iterdata) == str:
+        return [iterdata]
+    elif type(iterdata) != list:
         return list(iterdata)
     else:
         return iterdata 
