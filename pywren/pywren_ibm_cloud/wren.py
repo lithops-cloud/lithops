@@ -147,7 +147,7 @@ class ibm_cf_executor:
             return futures[0]
         return futures
 
-    def map_reduce(self, map_function, map_iterdata, reduce_function, chunk_size=None, 
+    def map_reduce(self, map_function, map_iterdata, reduce_function, chunk_size=None,
                    extra_env=None, extra_meta=None, remote_invocation=False,
                    reducer_one_per_object=False, reducer_wait_local=True,
                    invoke_pool_threads=10, data_all_as_one=True,
@@ -269,16 +269,16 @@ class ibm_cf_executor:
 
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(timeout)
-        
-        if not self.cf_cluster or logger.getEffectiveLevel() == logging.WARNING:
+
+        if self.cf_cluster or logger.getEffectiveLevel() != logging.WARNING:
+            pbar = None
+        else:
             import tqdm
             print()
             pbar = tqdm.tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
                              total=len(ftrs), disable=False)
-        else:
-            pbar = None
 
-        try:                
+        try:
             wait(ftrs, self.executor_id, self.internal_storage, throw_except=throw_except,
                  THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC, pbar=pbar)
             result = [f.result() for f in ftrs if f.done and not f.futures]
@@ -325,6 +325,27 @@ class ibm_cf_executor:
         if result and len(result) == 1:
             return result[0]
         return result
+
+    def create_timeline_plots(self, dst, name, run_statuses=None, invoke_statuses=None):
+        """
+        Creates timeline and histogram of the current execution in dst.
+
+        :param dst: destination folder to save .png plots.
+        :param name: name of the file.
+        :param run_statuses: run statuses timestamps.
+        :param invoke_statuses: invocation statuses timestamps.
+        """
+        from pywren_ibm_cloud.plots import create_timeline, create_histogram
+
+        if self.futures and not run_statuses and not invoke_statuses:
+            run_statuses = [f.run_status for f in self.futures]
+            invoke_statuses = [f.invoke_status for f in self.futures]
+
+        if not run_statuses and not invoke_statuses:
+            raise Exception('You must provide run_statuses and invoke_statuses')
+
+        create_timeline(dst, name, run_statuses, invoke_statuses)
+        create_histogram(dst, name, run_statuses, x_lim=150)
 
     def clean(self, local_execution=True):
         """

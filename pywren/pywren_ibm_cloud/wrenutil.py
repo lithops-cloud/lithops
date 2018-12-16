@@ -79,7 +79,7 @@ def sizeof_fmt(num, suffix='B'):
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
-class WrappedStreamingBody(object):
+class WrappedStreamingBody:
     """
     Wrap boto3's StreamingBody object to provide enough Python fileobj functionality
     so that tar/gz can happen in memory
