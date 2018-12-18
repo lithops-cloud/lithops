@@ -324,50 +324,37 @@ class Executor(object):
 
         log_msg = 'Executor ID {} Serializing function and data'.format(self.executor_id)
         logger.debug(log_msg)
-        # pickle func and all data (to capture module dependencies)
-        func_and_data_ser, mod_paths = self.serializer([func] + data)
+        # pickle func, modules and all data (to capture module dependencies)
+        dumped_func_modules, dumped_data = self.serializer([func] + data, data_all_as_one=data_all_as_one,
+                                                   exclude_modules=exclude_modules)
 
-        func_str = func_and_data_ser[0]
-        data_strs = func_and_data_ser[1:]
-        data_size_bytes = sum(len(x) for x in data_strs)
-
-        agg_data_key = None
-        host_job_meta['agg_data'] = False
-        host_job_meta['data_size_bytes'] = data_size_bytes
+        host_job_meta['data_size_bytes'] = self.serializer.data_size_bytes
+        host_job_meta['func_module_str_len'] = self.serializer.func_modules_size_bytes
 
         log_msg = 'Executor ID {} Uploading function and data'.format(self.executor_id)
         logger.debug(log_msg)
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(log_msg)
 
-        if data_size_bytes < MAX_AGG_DATA_SIZE and data_all_as_one:
+        agg_data_key = None
+        if self.serializer.data_size_bytes < MAX_AGG_DATA_SIZE and data_all_as_one:
             agg_data_key = create_agg_data_key(self.internal_storage.prefix, self.executor_id, callgroup_id)
-            agg_data_bytes, agg_data_ranges = self.agg_data(data_strs)
             agg_upload_time = time.time()
-            self.internal_storage.put_data(agg_data_key, agg_data_bytes)
+            self.internal_storage.put_data(agg_data_key, dumped_data)
             host_job_meta['agg_data'] = True
             host_job_meta['data_upload_time'] = time.time() - agg_upload_time
             host_job_meta['data_upload_timestamp'] = time.time()
         else:
+            host_job_meta['agg_data'] = False
             log_msg = ('Executor ID {} Total data exceeded '
                        'maximum size of {} bytes'.format(self.executor_id,
                                                          MAX_AGG_DATA_SIZE))
             logger.warning(log_msg)
 
-        if exclude_modules:
-            for module in exclude_modules:
-                for mod_path in list(mod_paths):
-                    if module in mod_path and mod_path in mod_paths:
-                        mod_paths.remove(mod_path)
-
-        module_data = create_mod_data(mod_paths)
         # Create func and upload
-        func_module_str = pickle.dumps({'func': func_str, 'module_data': module_data}, -1)
-        host_job_meta['func_module_str_len'] = len(func_module_str)
-
         func_upload_time = time.time()
         func_key = create_func_key(self.internal_storage.prefix, self.executor_id, callgroup_id)
-        self.internal_storage.put_func(func_key, func_module_str)
+        self.internal_storage.put_func(func_key, dumped_func_modules)
         host_job_meta['func_upload_time'] = time.time() - func_upload_time
         host_job_meta['func_upload_timestamp'] = time.time()
 
@@ -411,7 +398,7 @@ class Executor(object):
 
             data_byte_range = None
             if agg_data_key is not None:
-                data_byte_range = agg_data_ranges[i]
+                data_byte_range = self.serializer.args_ranges[i]
 
             cb = pool.apply_async(invoke, (data_strs[i], self.executor_id,
                                            callgroup_id, call_id, func_key,
