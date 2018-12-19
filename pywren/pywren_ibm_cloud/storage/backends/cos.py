@@ -52,7 +52,7 @@ class COSBackend:
                                                token_manager=token_manager,
                                                config=client_config,
                                                endpoint_url=service_endpoint)
-            if not 'token' in cos_config:
+            if 'token' not in cos_config:
                 cos_config['token'] = token_manager.get_token()
         
         elif {'secret_key', 'access_key'} <= set(cos_config):
