@@ -71,11 +71,9 @@ class jobrunner:
         start_time =  time.time()
         self.config = load_config(sys.argv[1])
         self.stats = stats(self.config['stats_filename'])
-        self.stats.write('jobrunner_start', start_time)
-        
+        self.stats.write('jobrunner_start', start_time) 
         self.storage_config = json.loads(os.environ.get('STORAGE_CONFIG', ''))
-        self.internal_storage = storage.InternalStorage(self.storage_config)
-        
+
         if 'SHOW_MEMORY_USAGE' in os.environ:
             self.show_memory = eval(os.environ['SHOW_MEMORY_USAGE'])
         else:
@@ -198,6 +196,8 @@ class jobrunner:
         pickled_output = pickle.dumps(output_dict)
 
         try:
+            self.internal_storage = storage.InternalStorage(self.storage_config)
+
             loaded_func_all = self._get_function_and_modules()
             self._save_modules(loaded_func_all['module_data'])
             function = self._unpickle_function(loaded_func_all['func'])
