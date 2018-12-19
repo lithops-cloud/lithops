@@ -14,12 +14,12 @@
 # limitations under the License.
 #
 
-import logging
 import time
 import enum
+import pickle
+import logging
 from six import reraise
 from pywren_ibm_cloud.storage import storage, storage_utils
-from pywren_ibm_cloud.libs import cloudpickle as pickle
 from pywren_ibm_cloud.libs.tblib import pickling_support
 
 pickling_support.install()

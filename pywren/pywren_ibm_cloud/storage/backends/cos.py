@@ -45,14 +45,15 @@ class COSBackend:
             api_key = cos_config.get('api_key')
             token_manager = DefaultTokenManager(api_key_id=api_key)
             
-            if 'cos_token' in cos_config:
-                token_manager._token = cos_config.get('cos_token')
+            if 'token' in cos_config:
+                token_manager._token = cos_config.get('token')
 
             self.cos_client = ibm_boto3.client('s3',
                                                token_manager=token_manager,
                                                config=client_config,
-                                               endpoint_url=service_endpoint) 
-            cos_config['cos_token'] = token_manager.get_token()
+                                               endpoint_url=service_endpoint)
+            if not 'token' in cos_config:
+                cos_config['token'] = token_manager.get_token()
         
         elif {'secret_key', 'access_key'} <= set(cos_config):
             secret_key = cos_config.get('secret_key')
