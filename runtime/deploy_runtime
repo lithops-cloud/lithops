@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-import click
 import os
+import sys
+import click
+import pkgutil
+import pywren_ibm_cloud as pywren
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.cf_connector import CloudFunctions
 from pywren_ibm_cloud.wrenconfig import CF_ACTION_NAME_DEFAULT
+from pywren_ibm_cloud.serialize import default_preinstalls
 
 
 @click.group(invoke_without_command=True)
@@ -15,7 +19,7 @@ def cli(ctx):
 
 
 def create_zip_action():
-    print('Creating action zip')
+    print('Creating action zip...')
 
     if not os.path.isfile('../pywren/__main__.py'):
         os.symlink('../pywren/pywren_ibm_cloud/action/__main__.py', '../pywren/__main__.py')
@@ -29,28 +33,37 @@ def create_zip_action():
 def extract_modules(image_name):
     # Extract installed Python modules from docker image
     # And store them into storage
-    runtime_meta = dict()
-
-    cmd = "docker run {} python -c 'import pkgutil; \
-                                    mods = list(pkgutil.iter_modules()); \
-                                    print([entry for entry in sorted([[mod, is_pkg] for _,mod,is_pkg in mods])])'".format(image_name)
-
-    runtime_meta['preinstalls'] = eval(os.popen(cmd).read().strip())
-
-    # Determin Python version of the new runtime
-    cmd = "docker run {} python -c 'import sys; v = sys.version_info; print(str(v[0])+\".\"+str(v[1]))'".format(image_name)
-    runtime_meta['python_ver'] = os.popen(cmd).read().strip()
-
+    
     # Create runtime_name from image_name
     username, appname = image_name.split('/')
     runtime_name = appname.replace(':', '_')
-
+    
     # Load PyWren config from ~/.pywren_config
     config = wrenconfig.default()
 
     # Create storage_handler to upload modules file
     storage_config = wrenconfig.extract_storage_config(config)
     internal_storage = storage.InternalStorage(storage_config)
+    
+    print('Creating and uploading modules file...')
+    
+    runtime_meta = default_preinstalls.modules['pywren_3.6']
+    internal_storage.put_runtime_info(runtime_name, runtime_meta)
+    
+    def extract_python_modules(input=None):
+        runtime_meta = dict()
+        mods = list(pkgutil.iter_modules())
+        runtime_meta['preinstalls'] = [entry for entry in sorted([[mod, is_pkg] for _,mod,is_pkg in mods])]
+        python_version = sys.version_info
+        runtime_meta['python_ver'] = str(python_version[0])+"."+str(python_version[1])
+        
+        return runtime_meta
+
+    pw = pywren.ibm_cf_executor(runtime=runtime_name, log_level='ERROR')
+    pw.call_async(extract_python_modules, [])
+    runtime_meta = pw.get_result()
+    pw.clean()
+
     internal_storage.put_runtime_info(runtime_name, runtime_meta)
 
 
@@ -63,7 +76,7 @@ def create_blackbox_runtime(image_name):
     config = wrenconfig.default()
 
     # Upload zipped PyWren action
-    print('Uploading action')
+    print('Uploading action...')
     with open("ibmcf_pywren.zip", "rb") as action_zip:
         action_bin = action_zip.read()
         cf_client = CloudFunctions(config['ibm_cf'])
@@ -89,8 +102,8 @@ def create(image_name):
         exit()
 
     create_zip_action()
-    extract_modules(image_name)
     create_blackbox_runtime(image_name)
+    extract_modules(image_name)
 
     print('All done!')
 
@@ -100,15 +113,9 @@ def create(image_name):
 def clone(image_name):
 
     print('Cloning docker image {}'.format(image_name))
-
-    cmd = 'docker pull {}'.format(image_name)
-    res = os.system(cmd)
-    if res != 0:
-        exit()
-
     create_zip_action()
-    extract_modules(image_name)
     create_blackbox_runtime(image_name)
+    extract_modules(image_name)
 
     print('All done!')
 
