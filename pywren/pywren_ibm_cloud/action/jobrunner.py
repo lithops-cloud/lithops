@@ -22,10 +22,10 @@ import base64
 import shutil
 import logging
 import inspect
+import pickle
 import numpy as np
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
-from pywren_ibm_cloud.libs import cloudpickle as pickle
 from pywren_ibm_cloud.libs.tblib import pickling_support
 from pywren_ibm_cloud.wrenutil import get_current_memory_usage
 from pywren_ibm_cloud.storage.backends.cos import COSBackend
