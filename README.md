@@ -371,7 +371,7 @@ As the current **IBM Watson Studio** runtimes does not contains the **PyWren** p
 try:
     import pywren_ibm_cloud as pywren
 except:
-    !curl -fsSL "https://raw.githubusercontent.com/pywren/pywren-ibm-cloud/master/install_pywren.sh" | sh
+    !curl -fsSL "https://git.io/fhe9X" | sh
     import pywren_ibm_cloud as pywren
 ```
 
