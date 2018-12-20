@@ -24,9 +24,8 @@ from pywren_ibm_cloud.wrenutil import sizeof_fmt
 
 
 # FIXME: there has to be a better way to disable noisy boto logs
-logging.getLogger('ibm_boto3').setLevel(logging.CRITICAL)
-logging.getLogger('ibm_botocore').setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
+
 
 
 class COSBackend:
@@ -35,6 +34,8 @@ class COSBackend:
     """
 
     def __init__(self, cos_config):
+        logging.getLogger('ibm_boto3').setLevel(logger.getEffectiveLevel())
+        logging.getLogger('ibm_botocore').setLevel(logger.getEffectiveLevel())
         logger.debug("COSBacked init method")
         service_endpoint = cos_config.get('endpoint').replace('http:', 'https:')           
 
