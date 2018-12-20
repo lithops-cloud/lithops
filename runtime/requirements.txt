@@ -1,24 +1,24 @@
 # Requirements.txt contains a list of dependencies for the Python Application #
 
 # Setup modules
-gevent == 1.2.2
+gevent == 1.3.7
 flask == 1.0.2
 
 # default available packages for python3action
 beautifulsoup4 == 4.6.3
 httplib2 == 0.11.3
-kafka_python == 1.4.3
+kafka_python == 1.4.4
 lxml == 4.2.5
 python-dateutil == 2.7.5
-requests == 2.20.0
+requests == 2.21.0
 scrapy == 1.5.1
 simplejson == 3.16.0
-virtualenv == 16.0.0
-twisted == 18.7.0
+virtualenv == 16.1.0
+twisted == 18.9.0
 
 # packages for numerics
 numpy == 1.15.4
-scikit-learn == 0.20.0
+scikit-learn == 0.20.1
 scipy == 1.1.0
 pandas == 0.23.4
 
@@ -27,21 +27,18 @@ Pillow == 5.3.0
 
 # IBM specific python modules
 ibm_db == 2.0.9
-# Do not update to 2.10.0 it contains a braking change
-# See issue https://github.com/cloudant/python-cloudant/issues/409
-cloudant == 2.9.0
-# Do not update watson beyond 1.x, for 2.x see python:3.7 runtime
+cloudant == 2.10.1
+# pin watson at 1.x, for 2.x use python:3.7 runtime
 watson-developer-cloud == 1.7.1
-ibm-cos-sdk == 2.3.3
-ibmcloudsql == 0.2.21
+ibm-cos-sdk == 2.4.0
+ibmcloudsql == 0.2.23
 
 # Compose Libs
-psycopg2 == 2.7.5
+psycopg2 == 2.7.6.1
 pymongo == 3.7.2
+# pin redis at 2.x, for 3.x use python:3.7 runtime
 redis == 2.10.6
 pika == 0.12.0
+# pin elasticsearch at 5.x, for 6.x use python:3.7 runtime
 elasticsearch >=5.0.0,<6.0.0
-cassandra-driver == 3.15.1
-
-# Specific python modules
-## Write here your required python packages
+cassandra-driver == 3.16.0

@@ -15,13 +15,16 @@
 #
 
 import logging
+import requests
 import ibm_boto3
 import ibm_botocore
+from datetime import datetime
+from pywren_ibm_cloud.wrenutil import sizeof_fmt
 from ibm_botocore.credentials import DefaultTokenManager
 from pywren_ibm_cloud.storage.exceptions import StorageNoSuchKeyError
-from pywren_ibm_cloud.wrenutil import sizeof_fmt
 
 logger = logging.getLogger(__name__)
+
 
 class COSBackend:
     """
@@ -43,8 +46,9 @@ class COSBackend:
             token_manager = DefaultTokenManager(api_key_id=api_key)
             
             if 'token' in cos_config:
-                logger.debug('token found in the configuration. Setting token manager {}'.format(cos_config.get('token')))
-                token_manager._token = cos_config.get('token')
+                token_manager._token = cos_config['token']
+                expiry_time = cos_config['token_expiry_time']
+                token_manager._expiry_time = datetime.strptime(expiry_time, '%Y-%m-%d %H:%M:%S.%f%z')
 
             self.cos_client = ibm_boto3.client('s3',
                                                token_manager=token_manager,
@@ -52,9 +56,11 @@ class COSBackend:
                                                endpoint_url=service_endpoint)
             if 'token' not in cos_config:
                 cos_config['token'] = token_manager.get_token()
-                logger.debug('token NOT found in the configuration. Update token with {}'.format(cos_config['token']))
+                cos_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
         
         elif {'secret_key', 'access_key'} <= set(cos_config):
+            logger.debug("secret_key and access_key found in configuration")
+            
             secret_key = cos_config.get('secret_key')
             access_key = cos_config.get('access_key')
             client_config = ibm_botocore.client.Config(max_pool_connections=200,
