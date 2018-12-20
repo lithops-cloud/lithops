@@ -35,10 +35,11 @@ class COSBackend:
     """
 
     def __init__(self, cos_config):
-
+        logger.debug("COSBacked init method")
         service_endpoint = cos_config.get('endpoint').replace('http:', 'https:')           
 
         if 'api_key' in cos_config:
+            logger.debug("api key found in configuration")
             client_config = ibm_botocore.client.Config(signature_version='oauth',
                                                        max_pool_connections=200,
                                                        user_agent_extra='pywren-ibm-cloud')
@@ -46,6 +47,7 @@ class COSBackend:
             token_manager = DefaultTokenManager(api_key_id=api_key)
             
             if 'token' in cos_config:
+                logger.debug('token found in the configuration. Setting token manager {}'.format(cos_config.get('token')))
                 token_manager._token = cos_config.get('token')
 
             self.cos_client = ibm_boto3.client('s3',
@@ -54,6 +56,7 @@ class COSBackend:
                                                endpoint_url=service_endpoint)
             if 'token' not in cos_config:
                 cos_config['token'] = token_manager.get_token()
+                logger.debug('token NOT found in the configuration. Update token with {}'.format(cos_config['token']))
         
         elif {'secret_key', 'access_key'} <= set(cos_config):
             secret_key = cos_config.get('secret_key')
