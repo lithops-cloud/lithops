@@ -2,7 +2,6 @@
 import os
 import sys
 import click
-import pkgutil
 import pywren_ibm_cloud as pywren
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.storage import storage
@@ -33,38 +32,33 @@ def create_zip_action():
 def extract_modules(image_name):
     # Extract installed Python modules from docker image
     # And store them into storage
-    
+
     # Create runtime_name from image_name
     username, appname = image_name.split('/')
     runtime_name = appname.replace(':', '_')
-    
+
     # Load PyWren config from ~/.pywren_config
     config = wrenconfig.default()
 
     # Create storage_handler to upload modules file
     storage_config = wrenconfig.extract_storage_config(config)
     internal_storage = storage.InternalStorage(storage_config)
-    
+
     print('Creating and uploading modules file...')
-    
-    runtime_meta = default_preinstalls.modules['pywren_3.6']
-    internal_storage.put_runtime_info(runtime_name, runtime_meta)
-    
-    def extract_python_modules(input=None):
-        runtime_meta = dict()
-        mods = list(pkgutil.iter_modules())
-        runtime_meta['preinstalls'] = [entry for entry in sorted([[mod, is_pkg] for _,mod,is_pkg in mods])]
-        python_version = sys.version_info
-        runtime_meta['python_ver'] = str(python_version[0])+"."+str(python_version[1])
-        
-        return runtime_meta
 
-    pw = pywren.ibm_cf_executor(runtime=runtime_name, log_level='ERROR')
-    pw.call_async(extract_python_modules, [])
-    runtime_meta = pw.get_result()
-    pw.clean()
+    sys.stdout = open(os.devnull, 'w')
+    with open("extract_modules.py", "r") as action_py:
+        action_code = action_py.read()
+    cf_client = CloudFunctions(config['ibm_cf'])
+    action_name = runtime_name+'_modules'
+    cf_client.create_action(action_name, memory=512, timeout=300000,
+                            code=action_code, kind='blackbox',
+                            image=image_name, is_binary=False)
 
+    runtime_meta = cf_client.invoke_with_result(action_name)
     internal_storage.put_runtime_info(runtime_name, runtime_meta)
+    cf_client.delete_action(action_name)
+    sys.stdout = sys.__stdout__
 
 
 def create_blackbox_runtime(image_name):
