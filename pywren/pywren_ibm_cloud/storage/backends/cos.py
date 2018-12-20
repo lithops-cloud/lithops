@@ -15,18 +15,13 @@
 #
 
 import logging
-import requests
 import ibm_boto3
 import ibm_botocore
 from ibm_botocore.credentials import DefaultTokenManager
 from pywren_ibm_cloud.storage.exceptions import StorageNoSuchKeyError
 from pywren_ibm_cloud.wrenutil import sizeof_fmt
 
-
-# FIXME: there has to be a better way to disable noisy boto logs
 logger = logging.getLogger(__name__)
-
-
 
 class COSBackend:
     """
