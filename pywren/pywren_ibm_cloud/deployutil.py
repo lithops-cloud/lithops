@@ -21,19 +21,25 @@ from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.cf_connector import CloudFunctions
 from pywren_ibm_cloud.wrenconfig import CF_ACTION_NAME_DEFAULT
 
-def create_zip_action():
+def create_zip_action(pywren_location = None):
     print('Creating action zip...')
+    # starts from pywren-ibm-cloud-master/runtime
+    # we can start from pywren-ibm-cloud-master
+    if pywren_location is None:
+        prefix = ".."
+    else:
+        prefix = os.path.join(pywren_location, "runtime", "..")
 
-    if not os.path.isfile('../pywren/__main__.py'):
-        os.symlink('../pywren/pywren_ibm_cloud/action/__main__.py', '../pywren/__main__.py')
-    cmd = 'cd ../pywren; zip -FSr ../runtime/ibmcf_pywren.zip __main__.py pywren_ibm_cloud/ -x "*__pycache__*"'
+    if not os.path.isfile(prefix + '/pywren/__main__.py'):
+        os.symlink(prefix + '/pywren/pywren_ibm_cloud/action/__main__.py', prefix + '/pywren/__main__.py')
+    cmd = 'cd ' + prefix + '/pywren; zip -FSr ' + prefix + '/runtime/ibmcf_pywren.zip __main__.py pywren_ibm_cloud/ -x "*__pycache__*"'
     res = os.system(cmd)
     if res != 0:
         exit()
-    os.remove('../pywren/__main__.py')
+    os.remove(prefix + '/pywren/__main__.py')
 
 
-def extract_modules(image_name, config = None):
+def extract_modules(image_name, config = None, pywren_location = None):
     # Extract installed Python modules from docker image
     # And store them into storage
 
@@ -54,7 +60,12 @@ def extract_modules(image_name, config = None):
     print('Creating and uploading modules file...')
 
     sys.stdout = open(os.devnull, 'w')
-    with open("extract_modules.py", "r") as action_py:
+    if (pywren_location is None):
+        action_location = "extract_modules.py"
+    else:
+        action_location = os.path.join(pywren_location, "runtime", "extract_modules.py")
+
+    with open(action_location, "r") as action_py:
         action_code = action_py.read()
     cf_client = CloudFunctions(config['ibm_cf'])
     action_name = runtime_name+'_modules'
@@ -68,7 +79,7 @@ def extract_modules(image_name, config = None):
     sys.stdout = sys.__stdout__
 
 
-def create_blackbox_runtime(image_name, config = None):
+def create_blackbox_runtime(image_name, config = None, pywren_location = None):
     # Create runtime_name from image_name
     username, appname = image_name.split('/')
     runtime_name = appname.replace(':', '_')
@@ -81,31 +92,44 @@ def create_blackbox_runtime(image_name, config = None):
 
     # Upload zipped PyWren action
     print('Uploading action...')
-    with open("ibmcf_pywren.zip", "rb") as action_zip:
+    if (pywren_location is None):
+        zip_location = "ibmcf_pywren.zip"
+    else:
+        zip_location = os.path.join(pywren_location, "runtime", "ibmcf_pywren.zip")
+
+    with open(zip_location, "rb") as action_zip:
         action_bin = action_zip.read()
         cf_client = CloudFunctions(config['ibm_cf'])
         cf_client.create_action(runtime_name, memory=2048, timeout=600000,
                                 code=action_bin, kind='blackbox', image=image_name)
 
-def clone_runtime(image_name, config = None):
+def clone_runtime(image_name, config = None, pywren_location = None):
 
     print('Cloning docker image {}'.format(image_name))
-    create_zip_action()
-    create_blackbox_runtime(image_name, config)
-    extract_modules(image_name, config)
+    create_zip_action(pywren_location)
+    create_blackbox_runtime(image_name, config, pywren_location)
+    extract_modules(image_name, config, pywren_location)
 
     print('All done!')
 
-def default():
+def default(config = None, pywren_location = None):
     print('Updating runtime {}'.format(CF_ACTION_NAME_DEFAULT))
-    config = wrenconfig.default()
+    if config is None:
+        config = wrenconfig.default()
+    else:
+        config = wrenconfig.default(config)
 
     # Create zipped PyWren action
-    create_zip_action()
+    create_zip_action(pywren_location)
 
     # Upload zipped PyWren action
     print('Uploading action')
-    with open("ibmcf_pywren.zip", "rb") as action_zip:
+    if (pywren_location is None):
+        zip_location = "ibmcf_pywren.zip"
+    else:
+        zip_location = os.path.join(pywren_location, "runtime", "ibmcf_pywren.zip")
+
+    with open(zip_location, "rb") as action_zip:
         action_bin = action_zip.read()
         cf_client = CloudFunctions(config['ibm_cf'])
         runtime_name = CF_ACTION_NAME_DEFAULT
