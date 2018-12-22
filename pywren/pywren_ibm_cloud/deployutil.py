@@ -61,26 +61,22 @@ def extract_modules(image_name, config = None, pywren_location = None):
     storage_config = wrenconfig.extract_storage_config(config)
     internal_storage = storage.InternalStorage(storage_config)
 
-    print('Creating and uploading modules file...1')
+    print('Creating and uploading modules file..')
 
     #sys.stdout = open(os.devnull, 'w')
-    print ("open devnull")
     if (pywren_location is None):
         action_location = "extract_modules.py"
     else:
         action_location = os.path.join(pywren_location, "runtime", "extract_modules.py")
-    print(action_location)
+
     with open(action_location, "r") as action_py:
         action_code = action_py.read()
     cf_client = CloudFunctions(config['ibm_cf'])
     action_name = runtime_name+'_modules'
-    print("about to create action")
     cf_client.create_action(action_name, memory=512, timeout=300000,
                             code=action_code, kind='blackbox',
                             image=image_name, is_binary=False)
-    print("action created")
     runtime_meta = cf_client.invoke_with_result(action_name)
-    print(runtime_meta)
     internal_storage.put_runtime_info(runtime_name, runtime_meta)
     cf_client.delete_action(action_name)
     #sys.stdout = sys.__stdout__
