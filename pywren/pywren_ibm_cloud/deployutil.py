@@ -63,7 +63,7 @@ def extract_modules(image_name, config = None, pywren_location = None):
 
     print('Creating and uploading modules file...1')
 
-    sys.stdout = open(os.devnull, 'w')
+    #sys.stdout = open(os.devnull, 'w')
     print ("open devnull")
     if (pywren_location is None):
         action_location = "extract_modules.py"
@@ -83,7 +83,7 @@ def extract_modules(image_name, config = None, pywren_location = None):
     print(runtime_meta)
     internal_storage.put_runtime_info(runtime_name, runtime_meta)
     cf_client.delete_action(action_name)
-    sys.stdout = sys.__stdout__
+    #sys.stdout = sys.__stdout__
 
 
 def create_blackbox_runtime(image_name, config = None, pywren_location = None):
