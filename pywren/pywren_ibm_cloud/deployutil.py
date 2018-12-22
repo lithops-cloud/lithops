@@ -61,9 +61,10 @@ def extract_modules(image_name, config = None, pywren_location = None):
     storage_config = wrenconfig.extract_storage_config(config)
     internal_storage = storage.InternalStorage(storage_config)
 
-    print('Creating and uploading modules file...')
+    print('Creating and uploading modules file...1')
 
     sys.stdout = open(os.devnull, 'w')
+    print ("open devnull")
     if (pywren_location is None):
         action_location = "extract_modules.py"
     else:
