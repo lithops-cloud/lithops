@@ -32,8 +32,7 @@ def create_zip_action(pywren_location = None):
 
     if not os.path.isfile(prefix + '/pywren/__main__.py'):
         os.symlink(prefix + '/pywren/pywren_ibm_cloud/action/__main__.py', prefix + '/pywren/__main__.py')
-    cmd = 'cd ' + prefix + '/pywren; zip -FSr ' + prefix + '/runtime/ibmcf_pywren.zip __main__.py pywren_ibm_cloud/ -x "*__pycache__*"'
-    print (cmd)
+    cmd = 'cd ' + prefix + '/pywren; zip -FSr ../runtime/ibmcf_pywren.zip __main__.py pywren_ibm_cloud/ -x "*__pycache__*"'
     try:
         res = os.system(cmd)
     except Exception as e:
