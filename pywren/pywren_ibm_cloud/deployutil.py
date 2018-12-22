@@ -28,7 +28,10 @@ def create_zip_action(pywren_location = None):
     if pywren_location is None:
         prefix = ".."
     else:
-        prefix = os.path.join(pywren_location, "runtime", "..")
+        prefix = pywren_location
+
+    cwd = os.getcwd()
+    print(cwd)
 
     if not os.path.isfile(prefix + '/pywren/__main__.py'):
         os.symlink(prefix + '/pywren/pywren_ibm_cloud/action/__main__.py', prefix + '/pywren/__main__.py')
