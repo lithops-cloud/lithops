@@ -16,6 +16,7 @@
 
 import os
 import sys
+from shutil import copyfile
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.cf_connector import CloudFunctions
@@ -31,7 +32,7 @@ def create_zip_action(pywren_location = None):
         prefix = os.path.join(pywren_location, "runtime", "..")
 
     if not os.path.isfile(prefix + '/pywren/__main__.py'):
-        os.symlink(prefix + '/pywren/pywren_ibm_cloud/action/__main__.py', prefix + '/pywren/__main__.py')
+        copyfile(prefix + '/pywren/pywren_ibm_cloud/action/__main__.py', prefix + '/pywren/__main__.py')
     cmd = 'cd ' + prefix + '/pywren; zip -FSr ../runtime/ibmcf_pywren.zip __main__.py pywren_ibm_cloud/ -x "*__pycache__*"'
     try:
         res = os.system(cmd)
