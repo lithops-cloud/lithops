@@ -91,8 +91,10 @@ def make_cloudpickles_list(list_of_objs):
 
 def init_module_manager(list_of_cloudpickles, preinstalled_modules, ignore_module_manager=False):
     modulemgr = ModuleDependencyAnalyzer()
-    preinstalled_modules = [name for name, _ in preinstalled_modules]
-    modulemgr.ignore(preinstalled_modules)
+
+    if preinstalled_modules is not None:
+        preinstalled_modules = [name for name, _ in preinstalled_modules]
+        modulemgr.ignore(preinstalled_modules)
 
     if not ignore_module_manager:
         # Add modules

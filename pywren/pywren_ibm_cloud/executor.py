@@ -52,6 +52,7 @@ class Executor(object):
 
         runtime = self.config['ibm_cf']['action_name']
         runtime_preinstalls = get_runtime_preinstalls(self.internal_storage, runtime)
+        runtime_preinstalls.append(['pywren_ibm_cloud', True])
 
         self.serializer = serialize.PywrenSerializer(runtime_preinstalls)
 

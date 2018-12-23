@@ -41,9 +41,7 @@ logger = logging.getLogger(__name__)
 class PywrenSerializer:
 
     def __init__(self, preinstalls=None):
-        if preinstalls is not None:
-            self.preinstalled_modules = preinstalls
-            self.preinstalled_modules.append(['pywren_ibm_cloud', True])
+        self.preinstalled_modules = preinstalls
 
     def _get_mod_paths(self, module_manager, exclude_modules=None):
         mod_paths = module_manager.get_and_clear_paths()
