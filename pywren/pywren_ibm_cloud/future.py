@@ -245,7 +245,7 @@ class ResponseFuture:
                                call_invoker_info['exc_traceback'])
 
             self._set_state(JobState.error)
-            if call_invoker_info.get('pickle_fail', False):
+            if call_invoker_info.get('serialization_fail', False):
                 fault = Exception(call_invoker_info['exc_value'])
                 reraise(Exception, fault, call_invoker_info['exc_traceback'])
             else:

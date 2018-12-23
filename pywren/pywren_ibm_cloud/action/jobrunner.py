@@ -232,15 +232,15 @@ class jobrunner:
                 # this is just to make sure they can be unserialized
                 self.unserializer.load_output(dumped_output)
         
-            except Exception as pickle_exception:
+            except Exception as serialization_exception:
                 dumped_output = self.serializer.dump_output(str(e),
                                                             exc_type=str(exc_type),
                                                             exc_value=str(exc_value),
                                                             exc_traceback=exc_traceback,
                                                             exc_traceback_str=str(exc_traceback),
                                                             sys_path=sys.path,
-                                                            pickle_fail=True,
-                                                            pickle_exception=pickle_exception,
+                                                            serialization_fail=True,
+                                                            serialization_exception=serialization_exception,
                                                             success=False)
         finally:
             store_result = True
