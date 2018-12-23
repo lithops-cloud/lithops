@@ -316,7 +316,8 @@ class Executor(object):
         logger.debug(log_msg)
 
         # pickle func, modules and all data (to capture module dependencies)
-        dumped_func_modules, dumped_args_list, args_ranges = self.serializer.dump([func] + data,
+        dumped_func_modules, dumped_args_list, args_ranges = self.serializer.dump(func,
+                                                                                  data,
                                                                                   ignore_module_dependencies=False,
                                                                                   exclude_modules=exclude_modules,
                                                                                   data_all_as_one=data_all_as_one)

@@ -57,14 +57,16 @@ class PywrenSerializer:
 
         return mod_paths
 
-    def dump(self, list_of_objs, ignore_module_dependencies=False, exclude_modules=None, data_all_as_one=True):
+    def dump(self, func, data, ignore_module_dependencies=False, exclude_modules=None, data_all_as_one=True):
         """
-        :param list_of_objs: a list contains a function object at index 0 and dicts of args at the others
+        :param func: a function object
+        :param data: a list contains dicts of args
         :param ignore_module_dependencies: True for serialization without any dependent modules or False otherwise
         :param exclude_modules: Explicitly keep these modules from pickled dependencies.
         :param data_all_as_one: upload the data as a single object. Default True
         :return: serialized function, args, and dependent modules if need and can to.
         """
+        list_of_objs = [func] + data
         strs, cps = util.make_cloudpickles_list(list_of_objs)
 
         modulemgr = util.init_module_manager(cps, self.preinstalled_modules, ignore_module_dependencies)
