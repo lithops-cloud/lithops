@@ -30,5 +30,5 @@
 # WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 #
-from pywren_ibm_cloud.serialize.serialize import SerializeIndependent
-from pywren_ibm_cloud.serialize.util import create_mod_data
+from pywren_ibm_cloud.serialize.serialize import PywrenSerializer
+from pywren_ibm_cloud.serialize.serialize import PywrenUnserializer

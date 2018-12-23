@@ -16,7 +16,6 @@
 
 import os
 import time
-import pickle
 import logging
 import inspect
 import requests
@@ -29,7 +28,7 @@ from pywren_ibm_cloud.wrenconfig import MAX_AGG_DATA_SIZE
 from pywren_ibm_cloud.partitioner import object_partitioner
 from pywren_ibm_cloud.future import ResponseFuture, JobState
 from pywren_ibm_cloud.runtime import get_runtime_preinstalls
-from pywren_ibm_cloud.serialize import serialize, create_mod_data
+from pywren_ibm_cloud.serialize import serialize
 from pywren_ibm_cloud.storage.storage_utils import create_keys, create_func_key, create_agg_data_key
 from pywren_ibm_cloud.storage.backends.cos import COSBackend
 
@@ -54,7 +53,7 @@ class Executor(object):
         runtime = self.config['ibm_cf']['action_name']
         runtime_preinstalls = get_runtime_preinstalls(self.internal_storage, runtime)
 
-        self.serializer = serialize.SerializeIndependent(runtime_preinstalls)
+        self.serializer = serialize.PywrenSerializer(runtime_preinstalls)
 
         self.map_item_limit = None
         if 'scheduler' in self.config:
@@ -126,16 +125,6 @@ class Executor(object):
         fut._set_state(JobState.invoked)
 
         return fut
-
-    @staticmethod
-    def agg_data(data_strs):
-        ranges = []
-        pos = 0
-        for datum in data_strs:
-            l = len(datum)
-            ranges.append((pos, pos+l-1))
-            pos += l
-        return b"".join(data_strs), ranges
 
     def object_processing(self, map_function):
         """
@@ -324,12 +313,16 @@ class Executor(object):
 
         log_msg = 'Executor ID {} Serializing function and data'.format(self.executor_id)
         logger.debug(log_msg)
-        # pickle func, modules and all data (to capture module dependencies)
-        dumped_func_modules, dumped_data = self.serializer([func] + data, data_all_as_one=data_all_as_one,
-                                                   exclude_modules=exclude_modules)
 
-        host_job_meta['data_size_bytes'] = self.serializer.data_size_bytes
-        host_job_meta['func_module_str_len'] = self.serializer.func_modules_size_bytes
+        # pickle func, modules and all data (to capture module dependencies)
+        dumped_func_modules, dumped_args_list, args_ranges = self.serializer.dump([func] + data,
+                                                                                  ignore_module_dependencies=False,
+                                                                                  exclude_modules=exclude_modules,
+                                                                                  data_all_as_one=data_all_as_one)
+
+        data_size_bytes = sum(len(x) for x in dumped_args_list)
+        host_job_meta['data_size_bytes'] = data_size_bytes
+        host_job_meta['func_module_str_len'] = len(dumped_func_modules)
 
         log_msg = 'Executor ID {} Uploading function and data'.format(self.executor_id)
         logger.debug(log_msg)
@@ -337,10 +330,11 @@ class Executor(object):
             print(log_msg)
 
         agg_data_key = None
-        if self.serializer.data_size_bytes < MAX_AGG_DATA_SIZE and data_all_as_one:
+        if data_size_bytes < MAX_AGG_DATA_SIZE and data_all_as_one:
             agg_data_key = create_agg_data_key(self.internal_storage.prefix, self.executor_id, callgroup_id)
+            agg_data = serialize.util.format_args_list_for_storage(dumped_args_list)
             agg_upload_time = time.time()
-            self.internal_storage.put_data(agg_data_key, dumped_data)
+            self.internal_storage.put_data(agg_data_key, agg_data)
             host_job_meta['agg_data'] = True
             host_job_meta['data_upload_time'] = time.time() - agg_upload_time
             host_job_meta['data_upload_timestamp'] = time.time()
@@ -398,9 +392,9 @@ class Executor(object):
 
             data_byte_range = None
             if agg_data_key is not None:
-                data_byte_range = self.serializer.args_ranges[i]
+                data_byte_range = args_ranges[i]
 
-            cb = pool.apply_async(invoke, (data_strs[i], self.executor_id,
+            cb = pool.apply_async(invoke, (dumped_args_list[i], self.executor_id,
                                            callgroup_id, call_id, func_key,
                                            host_job_meta.copy(),
                                            agg_data_key,

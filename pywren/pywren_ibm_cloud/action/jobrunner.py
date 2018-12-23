@@ -22,10 +22,9 @@ import base64
 import shutil
 import logging
 import inspect
-import pickle
-import numpy as np
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
+from pywren_ibm_cloud.serialize import serialize
 from pywren_ibm_cloud.libs.tblib import pickling_support
 from pywren_ibm_cloud.wrenutil import get_current_memory_usage
 from pywren_ibm_cloud.storage.backends.cos import COSBackend
@@ -84,19 +83,21 @@ class jobrunner:
         self.data_byte_range = self.config['data_byte_range']
         self.output_key = self.config['output_key']
 
+        self.unserializer = serialize.PywrenUnserializer()
+        self.serializer = serialize.PywrenSerializer()
+
     def _get_function_and_modules(self):
         """
         Gets and unpickles function and modules from storage
         """
-        logger.info("Getting function and modules")
+        logger.info("Getting function and modules from storage")
         func_download_time_t1 = time.time()
-        func_obj = self.internal_storage.get_func(self.func_key)
-        loaded_func_all = pickle.loads(func_obj)
+        func_all_obj = self.internal_storage.get_func(self.func_key)
         func_download_time_t2 = time.time()
         self.stats.write('func_download_time', func_download_time_t2-func_download_time_t1)
-        logger.info("Finished getting Function and modules")
+        logger.info("Finished getting Function and modules from storage")
         
-        return loaded_func_all
+        return func_all_obj
     
     def _save_modules(self, module_data):
         """
@@ -130,35 +131,22 @@ class jobrunner:
         #logger.debug(subprocess.check_output("find {}".format(PYTHON_MODULE_PATH), shell=True))
         #logger.debug(subprocess.check_output("find {}".format(os.getcwd()), shell=True))
         logger.info("Finished writing Function dependencies")
-        
-    def _unpickle_function(self, pickled_func):
-        """
-        Unpickle function; it will expect modules to be there
-        """
-        logger.info("Unpickle Function")
-        loaded_func = pickle.loads(pickled_func)
-        logger.info("Finished Function unpickle")
-        
-        return loaded_func
     
-    def _load_data(self):
+    def _get_data(self):
         extra_get_args = {}
         if self.data_byte_range is not None:
             range_str = 'bytes={}-{}'.format(*self.data_byte_range)
             extra_get_args['Range'] = range_str
 
-        logger.info("Getting function data")
+        logger.info("Getting function data from storage")
         data_download_time_t1 = time.time()
         data_obj = self.internal_storage.get_data(self.data_key, extra_get_args=extra_get_args)
-        logger.info("Finished getting Function data")
-        logger.info("Unpickle Function data")
-        loaded_data = pickle.loads(data_obj)
-        logger.info("Finished unpickle Function data")
+        logger.info("Finished getting Function data from storage")
         data_download_time_t2 = time.time()
         self.stats.write('data_download_time',
                    data_download_time_t2-data_download_time_t1)
         
-        return loaded_data
+        return data_obj
     
     def _create_storage_clients(self, function, data):
         # Verify storage parameters - Create clients
@@ -191,17 +179,15 @@ class jobrunner:
         Runs the function
         """
         # initial output file in case job fails
-        output_dict = {'result': None,
-                       'success': False}
-        pickled_output = pickle.dumps(output_dict)
+        dumped_output = self.serializer.dump_output(None, success=False)
 
         try:
             self.internal_storage = storage.InternalStorage(self.storage_config)
 
-            loaded_func_all = self._get_function_and_modules()
-            self._save_modules(loaded_func_all['module_data'])
-            function = self._unpickle_function(loaded_func_all['func'])
-            data = self._load_data()
+            dumped_func_modules = self._get_function_and_modules()
+            dumped_args = self._get_data()
+            function, modules, data = self.unserializer.load(dumped_func_modules, dumped_args)
+            self._save_modules(modules)
             data = self._create_storage_clients(function, data)
 
             if self.show_memory:
@@ -219,9 +205,7 @@ class jobrunner:
                 logger.debug("Memory usage after call the function: {}".format(get_current_memory_usage()))
 
             self.stats.write('function_exec_time', func_exec_time_t2-func_exec_time_t1)
-            output_dict = {'result': result,
-                           'success': True}
-            pickled_output = pickle.dumps(output_dict)
+            dumped_output = self.serializer.dump_output(result, success=True)
 
             if self.show_memory:
                 logger.debug("Memory usage after output serialization: {}".format(get_current_memory_usage()))
@@ -238,26 +222,26 @@ class jobrunner:
             logger.error("There was an exception: {}".format(str(e)))
             print('----------------------------------------------------')
             try:
-                pickled_output = pickle.dumps({'result': e,
-                                               'exc_type': exc_type,
-                                               'exc_value': exc_value,
-                                               'exc_traceback': exc_traceback,
-                                               'sys.path': sys.path,
-                                               'success': False})
+                dumped_output = self.serializer.dump_output(e,
+                                                            exc_type=exc_type,
+                                                            exc_value=exc_value,
+                                                            exc_traceback=exc_traceback,
+                                                            sys_path=sys.path,
+                                                            success=False)
         
                 # this is just to make sure they can be unpickled
-                pickle.loads(pickled_output)
+                self.unserializer.load_output(dumped_output)
         
             except Exception as pickle_exception:
-                pickled_output = pickle.dumps({'result': str(e),
-                                               'exc_type': str(exc_type),
-                                               'exc_value': str(exc_value),
-                                               'exc_traceback': exc_traceback,
-                                               'exc_traceback_str': str(exc_traceback),
-                                               'sys.path': sys.path,
-                                               'pickle_fail': True,
-                                               'pickle_exception': pickle_exception,
-                                               'success': False})
+                dumped_output = self.serializer.dump_output(str(e),
+                                                            exc_type=str(exc_type),
+                                                            exc_value=str(exc_value),
+                                                            exc_traceback=exc_traceback,
+                                                            exc_traceback_str=str(exc_traceback),
+                                                            sys_path=sys.path,
+                                                            pickle_fail=True,
+                                                            pickle_exception=pickle_exception,
+                                                            success=False)
         finally:
             store_result = True
             if 'STORE_RESULT' in os.environ:
@@ -265,7 +249,7 @@ class jobrunner:
         
             if store_result:
                 output_upload_timestamp_t1 = time.time()
-                self.internal_storage.put_data(self.output_key, pickled_output)
+                self.internal_storage.put_data(self.output_key, dumped_output)
                 output_upload_timestamp_t2 = time.time()
                 self.stats.write("output_upload_time",
                            output_upload_timestamp_t2 - output_upload_timestamp_t1)

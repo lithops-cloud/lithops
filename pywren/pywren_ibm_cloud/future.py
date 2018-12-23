@@ -16,9 +16,9 @@
 
 import time
 import enum
-import pickle
 import logging
 from six import reraise
+from pywren_ibm_cloud.serialize import serialize
 from pywren_ibm_cloud.storage import storage, storage_utils
 from pywren_ibm_cloud.libs.tblib import pickling_support
 
@@ -58,7 +58,6 @@ class ResponseFuture:
         self._return_val = None
         self._new_futures = None
         self._traceback = None
-        self._call_invoker_result = None
         self._invoke_metadata = invoke_metadata.copy()
 
         self.run_status = None
@@ -68,6 +67,8 @@ class ResponseFuture:
         self.output_query_count = 0
 
         self.storage_path = storage_utils.get_storage_path(self.storage_config)
+
+        self.unserializer = serialize.PywrenUnserializer()
 
     def _set_state(self, new_state):
         # FIXME add state machine
@@ -204,14 +205,13 @@ class ResponseFuture:
                 self._set_state(JobState.error)
                 return None
 
-        call_invoker_result = pickle.loads(call_invoker_result)
+        function_result, call_invoker_info = self.unserializer.load_output(call_invoker_result)
         call_output_time_done = time.time()
-        self._call_invoker_result = call_invoker_result
 
         self._invoke_metadata['download_output_time'] = call_output_time_done - call_output_time
         self._invoke_metadata['output_query_count'] = self.output_query_count
         self._invoke_metadata['download_output_timestamp'] = call_output_time_done
-        call_success = call_invoker_result['success']
+        call_success = call_invoker_info['success']
         self.invoke_status = self._invoke_metadata  # local status information
 
         if call_success:       
@@ -221,8 +221,6 @@ class ResponseFuture:
                                               self.activation_id,
                                               str(total_time)))
             logger.debug(log_msg)
-            
-            function_result = call_invoker_result['result']
 
             if isinstance(function_result, ResponseFuture):
                 self._new_futures = [function_result]
@@ -241,15 +239,15 @@ class ResponseFuture:
                 return self._return_val
 
         elif throw_except:            
-            self._exception = call_invoker_result['result']
-            self._traceback = (call_invoker_result['exc_type'],
-                               call_invoker_result['exc_value'],
-                               call_invoker_result['exc_traceback'])
+            self._exception = function_result
+            self._traceback = (call_invoker_info['exc_type'],
+                               call_invoker_info['exc_value'],
+                               call_invoker_info['exc_traceback'])
 
             self._set_state(JobState.error)
-            if call_invoker_result.get('pickle_fail', False):
-                fault = Exception(call_invoker_result['exc_value'])
-                reraise(Exception, fault, call_invoker_result['exc_traceback'])
+            if call_invoker_info.get('pickle_fail', False):
+                fault = Exception(call_invoker_info['exc_value'])
+                reraise(Exception, fault, call_invoker_info['exc_traceback'])
             else:
                 reraise(*self._traceback)
         else:

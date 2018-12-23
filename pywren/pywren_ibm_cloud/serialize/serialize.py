@@ -33,55 +33,19 @@
 
 import logging
 import pickle
-from io import BytesIO as StringIO
-from pywren_ibm_cloud.libs.cloudpickle import CloudPickler
-from pywren_ibm_cloud.serialize.module_dependency import ModuleDependencyAnalyzer
-from pywren_ibm_cloud.serialize.util import create_mod_data
+from pywren_ibm_cloud.serialize import util
 
 logger = logging.getLogger(__name__)
 
 
-class SerializeIndependent:
+class PywrenSerializer:
 
-    def __init__(self, preinstalls):
-        self.preinstalled_modules = preinstalls
-        self.preinstalled_modules.append(['pywren_ibm_cloud', True])
+    def __init__(self, preinstalls=None):
+        if preinstalls is not None:
+            self.preinstalled_modules = preinstalls
+            self.preinstalled_modules.append(['pywren_ibm_cloud', True])
 
-        self.dumped_func_modules = None
-        self.func_modules_size_bytes = 0
-
-        self.dumped_args = None
-        self.data_size_bytes = 0
-
-    def create_module_manager(self, list_of_cloudpickles, ignore_module_manager=False, ):
-        modulemgr = ModuleDependencyAnalyzer()
-        preinstalled_modules = [name for name, _ in self.preinstalled_modules]
-        modulemgr.ignore(preinstalled_modules)
-
-        if not ignore_module_manager:
-            # Add modules
-            for cp in list_of_cloudpickles:
-                for module in cp.modules:
-                    modulemgr.add(module.__name__)
-
-        return modulemgr
-
-    def make_cloudpickles_list(self, list_of_objs):
-        cps = []
-        strs = []
-        for obj in list_of_objs:
-            file = StringIO()
-            try:
-                cp = CloudPickler(file)
-                cp.dump(obj)
-                cps.append(cp)
-                strs.append(file.getvalue())
-            finally:
-                file.close()
-
-        return strs, cps
-
-    def make_mod_data(self, module_manager, exclude_modules=None):
+    def _get_mod_paths(self, module_manager, exclude_modules=None):
         mod_paths = module_manager.get_and_clear_paths()
         logger.debug("Modules to transmit: {}".format(None if not mod_paths else mod_paths))
 
@@ -92,46 +56,68 @@ class SerializeIndependent:
                         mod_paths.remove(mod_path)
 
         logger.debug("Modules to transmit: {}".format(None if not mod_paths else mod_paths))
-        return create_mod_data(mod_paths)
 
+        return mod_paths
 
-    def __call__(self, list_of_objs, **kwargs):
+    def dump(self, list_of_objs, ignore_module_dependencies=False, exclude_modules=None, data_all_as_one=True):
         """
-        Serialize f, args, kwargs independently
+        :param list_of_objs: a list contains a function object at index 0 and dicts of args at the others
+        :param ignore_module_dependencies: True for serialization without any dependent modules or False otherwise
+        :param exclude_modules: Explicitly keep these modules from pickled dependencies.
+        :param data_all_as_one: upload the data as a single object. Default True
+        :return: serialized function, args, and dependent modules if need and can to.
         """
+        strs, cps = util.make_cloudpickles_list(list_of_objs)
 
-        strs, cps = self.make_cloudpickles_list(list_of_objs)
-
-        if '_ignore_module_dependencies' in kwargs:
-            ignore_modulemgr = kwargs['_ignore_module_dependencies']
-            del kwargs['_ignore_module_dependencies']
-        else:
-            ignore_modulemgr = False
-        modulemgr = self.create_module_manager(cps, ignore_modulemgr)
-
-        if 'exclude_modules' in kwargs:
-            exclude_modules = kwargs['exclude_modules']
-            del kwargs['exclude_modules']
-        else:
-            exclude_modules = None
-        module_data = self.make_mod_data(modulemgr, exclude_modules)
+        modulemgr = util.init_module_manager(cps, self.preinstalled_modules, ignore_module_dependencies)
+        mod_paths = self._get_mod_paths(modulemgr, exclude_modules)
+        module_data = util.create_mod_data(mod_paths)
 
         dumped_func = strs[0]
-        self.dumped_func_modules = pickle.dumps({'func': dumped_func, 'module_data': module_data}, -1)
-        self.func_modules_size_bytes = len(self.dumped_func_modules)
+        dumped_func_modules = pickle.dumps({'func': dumped_func, 'module_data': module_data}, -1)
+        dumped_args_list = strs[1:]
 
-        dumped_data_list = strs[1:]
-        self.dumped_args = dumped_data_list
-        self.data_size_bytes = sum(len(x) for x in dumped_data_list)
+        args_ranges = None
+        if data_all_as_one:
+            args_ranges = list()
+            pos = 0
+            for datum in dumped_args_list:
+                l = len(datum)
+                args_ranges.append((pos, pos + l - 1))
+                pos += l
 
-        if 'data_all_as_one' in kwargs:
-            if kwargs['data_all_as_one']:
-                self.args_ranges = list()
-                pos = 0
-                for datum in dumped_data_list:
-                    l = len(datum)
-                    self.args_ranges.append((pos, pos+l-1))
-                    pos += l
-                self.dumped_args = b"".join(dumped_data_list)
+        return dumped_func_modules, dumped_args_list, args_ranges
 
-        return self.dumped_func_modules, self.dumped_args
+    def dump_output(self, output, **kwargs):
+        output_dict = kwargs
+        output_dict['result'] = output
+
+        return pickle.dumps(output_dict)
+
+
+class PywrenUnserializer:
+
+    def load(self, dumped_func_modules, dumped_args):
+        """
+        :param dumped_func_modules: serialized function object
+        :param dumped_args: ranged serialized args dict
+        :return: unserialized function, args and dependent modules which serialized before
+        """
+        func_modules = pickle.loads(dumped_func_modules)
+        modules = func_modules['module_data']
+        dumped_func = func_modules['func']
+
+        logger.info("Unpickle Function")
+        func = pickle.loads(dumped_func)
+        logger.info("Finished Function unpickle")
+
+        logger.info("Unpickle Function data")
+        data = pickle.loads(dumped_args)
+        logger.info("Finished unpickle Function data")
+
+        return func, modules, data
+
+    def load_output(self, dumped_output):
+        info = pickle.loads(dumped_output)
+        result = info.pop('result')
+        return result, info

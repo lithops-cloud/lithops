@@ -36,6 +36,9 @@ Generic utility functions for serialization
 
 import base64
 import os
+from io import BytesIO as StringIO
+from pywren_ibm_cloud.libs.cloudpickle import CloudPickler
+from pywren_ibm_cloud.serialize.module_dependency import ModuleDependencyAnalyzer
 
 try:
     import glob2
@@ -48,8 +51,8 @@ def bytes_to_b64str(byte_data):
     byte_data_64_ascii = byte_data_64.decode('ascii')
     return byte_data_64_ascii
 
-def create_mod_data(mod_paths):
 
+def create_mod_data(mod_paths):
     module_data = {}
     # load mod paths
     for m in mod_paths:
@@ -68,3 +71,37 @@ def create_mod_data(mod_paths):
             module_data[dest_filename] = bytes_to_b64str(mod_str)
 
     return module_data
+
+
+def make_cloudpickles_list(list_of_objs):
+    cps = []
+    strs = []
+    for obj in list_of_objs:
+        file = StringIO()
+        try:
+            cp = CloudPickler(file)
+            cp.dump(obj)
+            cps.append(cp)
+            strs.append(file.getvalue())
+        finally:
+            file.close()
+
+    return strs, cps
+
+
+def init_module_manager(list_of_cloudpickles, preinstalled_modules, ignore_module_manager=False):
+    modulemgr = ModuleDependencyAnalyzer()
+    preinstalled_modules = [name for name, _ in preinstalled_modules]
+    modulemgr.ignore(preinstalled_modules)
+
+    if not ignore_module_manager:
+        # Add modules
+        for cp in list_of_cloudpickles:
+            for module in cp.modules:
+                modulemgr.add(module.__name__)
+
+    return modulemgr
+
+
+def format_args_list_for_storage(dumped_args_list):
+    return b"".join(dumped_args_list)
