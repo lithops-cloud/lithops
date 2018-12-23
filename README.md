@@ -134,7 +134,7 @@ pw = pywren.ibm_cf_executor()
 This option allows you pass all the configuration details as part of the PyWren invocation in runtime. All you need is to configure a Python dictionary with keys and values, for example:
 
 ```python
-config = {'pywren' : {'storage_bucket' : 'BUCKET_NAME'}
+config = {'pywren' : {'storage_bucket' : 'BUCKET_NAME'},
 
           'ibm_cf':  {'endpoint': 'CF_API_ENDPOINT', 
                       'namespace': 'CF_NAMESPACE', 

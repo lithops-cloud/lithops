@@ -42,10 +42,8 @@ setup(
     install_requires=[
         'Click', 'ibm-cos-sdk', 'PyYAML',
         'enum34', 'glob2', 'tqdm', 'tblib',
-        'requests', 'python-dateutil', 'lxml'
-    ],
-    tests_requires=[
-        'pytest', 'numpy',
+        'requests', 'python-dateutil', 'lxml',
+        'pandas', 'seaborn', 'matplotlib'
     ],
     include_package_data=True
 )
