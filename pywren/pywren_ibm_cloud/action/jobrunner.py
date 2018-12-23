@@ -88,7 +88,7 @@ class jobrunner:
 
     def _get_function_and_modules(self):
         """
-        Gets and unpickles function and modules from storage
+        Gets function and modules from storage
         """
         logger.info("Getting function and modules from storage")
         func_download_time_t1 = time.time()
@@ -101,7 +101,7 @@ class jobrunner:
     
     def _save_modules(self, module_data):
         """
-        Save modules, before we unpickle actual function
+        Save modules, before we unserialize actual function
         """    
         logger.info("Writing Function dependencies to local disk")
         PYTHON_MODULE_PATH = self.config['python_module_path']
@@ -216,7 +216,7 @@ class jobrunner:
         
             # Shockingly often, modules like subprocess don't properly
             # call the base Exception.__init__, which results in them
-            # being unpickleable. As a result, we actually wrap this in a try/catch block
+            # being unserializable. As a result, we actually wrap this in a try/catch block
             # and more-carefully handle the exceptions if any part of this save / test-reload
             # fails
             logger.error("There was an exception: {}".format(str(e)))
@@ -229,7 +229,7 @@ class jobrunner:
                                                             sys_path=sys.path,
                                                             success=False)
         
-                # this is just to make sure they can be unpickled
+                # this is just to make sure they can be unserialized
                 self.unserializer.load_output(dumped_output)
         
             except Exception as pickle_exception:

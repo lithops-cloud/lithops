@@ -279,7 +279,7 @@ class Executor(object):
         :param invoke_pool_threads: Number of threads to use to invoke.
         :param data_all_as_one: upload the data as a single object. Default True
         :param overwrite_invoke_args: Overwrite other args. Mainly used for testing.
-        :param exclude_modules: Explicitly keep these modules from pickled dependencies.
+        :param exclude_modules: Explicitly keep these modules from serialized dependencies.
         :param original_func_name: Name of the function to invoke.
         :return: A list with size `len(iterdata)` of futures for each job
         :rtype:  list of futures.
@@ -315,7 +315,7 @@ class Executor(object):
         log_msg = 'Executor ID {} Serializing function and data'.format(self.executor_id)
         logger.debug(log_msg)
 
-        # pickle func, modules and all data (to capture module dependencies)
+        # serialize func, modules and all data (to capture module dependencies)
         dumped_func_modules, dumped_args_list, args_ranges = self.serializer.dump(func,
                                                                                   data,
                                                                                   ignore_module_dependencies=False,
