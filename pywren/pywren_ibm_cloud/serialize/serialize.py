@@ -32,9 +32,11 @@
 #
 
 import logging
+import pickle
 from io import BytesIO as StringIO
 from pywren_ibm_cloud.libs.cloudpickle import CloudPickler
 from pywren_ibm_cloud.serialize.module_dependency import ModuleDependencyAnalyzer
+from pywren_ibm_cloud.serialize.util import create_mod_data
 
 logger = logging.getLogger(__name__)
 
@@ -44,16 +46,27 @@ class SerializeIndependent:
     def __init__(self, preinstalls):
         self.preinstalled_modules = preinstalls
         self.preinstalled_modules.append(['pywren_ibm_cloud', True])
-        self._modulemgr = None
 
-    def __call__(self, list_of_objs, **kwargs):
-        """
-        Serialize f, args, kwargs independently
-        """
-        self._modulemgr = ModuleDependencyAnalyzer()
+        self.dumped_func_modules = None
+        self.func_modules_size_bytes = 0
+
+        self.dumped_args = None
+        self.data_size_bytes = 0
+
+    def create_module_manager(self, list_of_cloudpickles, ignore_module_manager=False, ):
+        modulemgr = ModuleDependencyAnalyzer()
         preinstalled_modules = [name for name, _ in self.preinstalled_modules]
-        self._modulemgr.ignore(preinstalled_modules)
+        modulemgr.ignore(preinstalled_modules)
 
+        if not ignore_module_manager:
+            # Add modules
+            for cp in list_of_cloudpickles:
+                for module in cp.modules:
+                    modulemgr.add(module.__name__)
+
+        return modulemgr
+
+    def make_cloudpickles_list(self, list_of_objs):
         cps = []
         strs = []
         for obj in list_of_objs:
@@ -66,19 +79,59 @@ class SerializeIndependent:
             finally:
                 file.close()
 
+        return strs, cps
+
+    def make_mod_data(self, module_manager, exclude_modules=None):
+        mod_paths = module_manager.get_and_clear_paths()
+        logger.debug("Modules to transmit: {}".format(None if not mod_paths else mod_paths))
+
+        if exclude_modules:
+            for module in exclude_modules:
+                for mod_path in list(mod_paths):
+                    if module in mod_path and mod_path in mod_paths:
+                        mod_paths.remove(mod_path)
+
+        logger.debug("Modules to transmit: {}".format(None if not mod_paths else mod_paths))
+        return create_mod_data(mod_paths)
+
+
+    def __call__(self, list_of_objs, **kwargs):
+        """
+        Serialize f, args, kwargs independently
+        """
+
+        strs, cps = self.make_cloudpickles_list(list_of_objs)
+
         if '_ignore_module_dependencies' in kwargs:
             ignore_modulemgr = kwargs['_ignore_module_dependencies']
             del kwargs['_ignore_module_dependencies']
         else:
             ignore_modulemgr = False
+        modulemgr = self.create_module_manager(cps, ignore_modulemgr)
 
-        if not ignore_modulemgr:
-            # Add modules
-            for cp in cps:
-                for module in cp.modules:
-                    self._modulemgr.add(module.__name__)
+        if 'exclude_modules' in kwargs:
+            exclude_modules = kwargs['exclude_modules']
+            del kwargs['exclude_modules']
+        else:
+            exclude_modules = None
+        module_data = self.make_mod_data(modulemgr, exclude_modules)
 
-        mod_paths = self._modulemgr.get_and_clear_paths()
-        logger.debug("Modules to transmit: {}".format(None if not mod_paths else mod_paths))
+        dumped_func = strs[0]
+        self.dumped_func_modules = pickle.dumps({'func': dumped_func, 'module_data': module_data}, -1)
+        self.func_modules_size_bytes = len(self.dumped_func_modules)
 
-        return (strs, mod_paths)
+        dumped_data_list = strs[1:]
+        self.dumped_args = dumped_data_list
+        self.data_size_bytes = sum(len(x) for x in dumped_data_list)
+
+        if 'data_all_as_one' in kwargs:
+            if kwargs['data_all_as_one']:
+                self.args_ranges = list()
+                pos = 0
+                for datum in dumped_data_list:
+                    l = len(datum)
+                    self.args_ranges.append((pos, pos+l-1))
+                    pos += l
+                self.dumped_args = b"".join(dumped_data_list)
+
+        return self.dumped_func_modules, self.dumped_args
