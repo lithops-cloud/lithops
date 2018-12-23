@@ -16,6 +16,7 @@
 
 import os
 import time
+import pickle
 import logging
 import inspect
 import requests
@@ -31,7 +32,6 @@ from pywren_ibm_cloud.runtime import get_runtime_preinstalls
 from pywren_ibm_cloud.serialize import serialize, create_mod_data
 from pywren_ibm_cloud.storage.storage_utils import create_keys, create_func_key, create_agg_data_key
 from pywren_ibm_cloud.storage.backends.cos import COSBackend
-from pywren_ibm_cloud.libs import cloudpickle as pickle
 
 
 logger = logging.getLogger(__name__)

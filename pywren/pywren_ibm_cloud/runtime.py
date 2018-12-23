@@ -36,7 +36,7 @@ def get_runtime_preinstalls(internal_storage, runtime):
 
     if not runtime_valid(runtime_meta):
         raise Exception(("The indicated runtime: {} "
-                         "is not approprite for this python version.")
+                         "is not appropriate for this Python version.")
                         .format(runtime))
 
     return preinstalls
