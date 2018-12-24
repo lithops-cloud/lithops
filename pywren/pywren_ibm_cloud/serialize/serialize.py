@@ -66,12 +66,16 @@ class PywrenSerializer:
         :param data_all_as_one: upload the data as a single object. Default True
         :return: serialized function, args, and dependent modules if need and can to.
         """
+        assert isinstance(data, list)
+        assert callable(func)
+
         list_of_objs = [func] + data
         strs, cps = util.make_cloudpickles_list(list_of_objs)
 
         modulemgr = util.init_module_manager(cps, self.preinstalled_modules, ignore_module_dependencies)
         mod_paths = self._get_mod_paths(modulemgr, exclude_modules)
         module_data = util.create_mod_data(mod_paths)
+        assert isinstance(module_data, dict)
 
         dumped_func = strs[0]
         dumped_func_modules = pickle.dumps({'func': dumped_func, 'module_data': module_data}, -1)
@@ -104,6 +108,7 @@ class PywrenUnserializer:
         :return: unserialized function, args and dependent modules which serialized before
         """
         func_modules = pickle.loads(dumped_func_modules)
+        assert isinstance(func_modules, dict)
         modules = func_modules['module_data']
         dumped_func = func_modules['func']
 
@@ -114,10 +119,12 @@ class PywrenUnserializer:
         logger.info("Unpickle Function data")
         data = pickle.loads(dumped_args)
         logger.info("Finished unpickle Function data")
+        assert isinstance(data, dict)
 
         return func, modules, data
 
     def load_output(self, dumped_output):
         info = pickle.loads(dumped_output)
+        assert isinstance(info, dict)
         result = info.pop('result')
         return result, info
