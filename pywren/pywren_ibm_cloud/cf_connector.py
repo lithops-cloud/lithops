@@ -53,7 +53,7 @@ class CloudFunctions:
         msg = 'IBM Cloud Functions init for'
         logger.info('{} namespace: {}'.format(msg, self.namespace))
         logger.info('{} host: {}'.format(msg, self.endpoint))
-        if(logger.getEffectiveLevel() == logging.WARNING):
+        if(logger.getEffectiveLevel() == logging.DEBUG):
             print("{} namespace: {} and host: {}".format(msg, self.namespace,
                                                          self.endpoint))
 
@@ -97,7 +97,7 @@ class CloudFunctions:
         """
         Get an IBM Cloud Function
         """
-        print ("I am about to get a cloud function action: {}".format(action_name))
+        logger.debug ("I am about to get a cloud function action: {}".format(action_name))
         url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
                            self.namespace, 'actions', action_name)
         res = self.session.get(url)
@@ -107,15 +107,15 @@ class CloudFunctions:
         """
         Delete an IBM Cloud Function
         """
-        print ("I am about to delete a cloud function action: {}".format(action_name))
+        if(logger.getEffectiveLevel() == logging.DEBUG):
+            print ("Delete cloud function action: {}".format(action_name))
+
         url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
                            self.namespace, 'actions', action_name)
         res = self.session.delete(url)
 
         if res.status_code != 200:
             print('An error occurred deleting action {}'.format(action_name))
-        else:
-            print("OK --> Deleted action {}".format(action_name))
 
     def invoke(self, action_name, payload):
         """

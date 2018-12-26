@@ -23,7 +23,6 @@ from pywren_ibm_cloud.cf_connector import CloudFunctions
 from pywren_ibm_cloud.wrenconfig import CF_ACTION_NAME_DEFAULT
 
 def create_zip_action(pywren_location = None):
-    print('Creating action zip...')
     # starts from pywren-ibm-cloud-master/runtime
     # we can start from pywren-ibm-cloud-master
     if pywren_location is None:
@@ -60,8 +59,6 @@ def extract_modules(image_name, config = None, pywren_location = None):
     # Create storage_handler to upload modules file
     storage_config = wrenconfig.extract_storage_config(config)
     internal_storage = storage.InternalStorage(storage_config)
-
-    print('Creating and uploading modules file..')
 
     #sys.stdout = open(os.devnull, 'w')
     if (pywren_location is None):
