@@ -91,7 +91,6 @@ def create_blackbox_runtime(image_name, config = None, pywren_location = None):
         config = wrenconfig.default(config)
 
     # Upload zipped PyWren action
-    print('Uploading action...')
     if (pywren_location is None):
         zip_location = "ibmcf_pywren.zip"
     else:
