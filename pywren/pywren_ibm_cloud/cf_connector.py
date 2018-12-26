@@ -51,8 +51,7 @@ class CloudFunctions:
         self.session.mount('https://', adapter)
 
         msg = 'IBM Cloud Functions init for'
-        logger.info('{} namespace: {}'.format(msg, self.namespace))
-        logger.info('{} host: {}'.format(msg, self.endpoint))
+        logger.info('{} namespace: {} host {}'.format(msg, self.namespace, self.endpoint))
         if(logger.getEffectiveLevel() == logging.DEBUG):
             print("{} namespace: {} and host: {}".format(msg, self.namespace,
                                                          self.endpoint))
@@ -63,7 +62,7 @@ class CloudFunctions:
         """
         Create an IBM Cloud Function
         """
-        logger.info('I am about to create a new cloud function action')
+        logger.debug('I am about to create a new cloud function action')
         url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
                            self.namespace, 'actions',
                            action_name + "?overwrite=" + str(overwrite))
