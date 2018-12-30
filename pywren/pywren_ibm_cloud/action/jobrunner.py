@@ -18,8 +18,6 @@ import os
 import sys
 import json
 import time
-import base64
-import shutil
 import logging
 import inspect
 from pywren_ibm_cloud import wrenlogging
@@ -36,12 +34,6 @@ level = logging.DEBUG
 logger = logging.getLogger('jobrunner')
 logger.setLevel(level)
 wrenlogging.ow_config(level)
-
-
-def b64str_to_bytes(str_data):
-    str_ascii = str_data.encode('ascii')
-    byte_data = base64.b64decode(str_ascii)
-    return byte_data
 
 
 def load_config(config_location):
@@ -99,39 +91,6 @@ class jobrunner:
         
         return func_all_obj
     
-    def _save_modules(self, module_data):
-        """
-        Save modules, before we unserialize actual function
-        """    
-        logger.info("Writing Function dependencies to local disk")
-        PYTHON_MODULE_PATH = self.config['python_module_path']
-        shutil.rmtree(PYTHON_MODULE_PATH, True)  # delete old modules
-        os.mkdir(PYTHON_MODULE_PATH)
-        sys.path.append(PYTHON_MODULE_PATH)
-    
-        for m_filename, m_data in module_data.items():
-            m_path = os.path.dirname(m_filename)
-    
-            if len(m_path) > 0 and m_path[0] == "/":
-                m_path = m_path[1:]
-            to_make = os.path.join(PYTHON_MODULE_PATH, m_path)
-            try:
-                os.makedirs(to_make)
-            except OSError as e:
-                if e.errno == 17:
-                    pass
-                else:
-                    raise e
-            full_filename = os.path.join(to_make, os.path.basename(m_filename))
-
-            with open(full_filename, 'wb') as fid:
-                fid.write(b64str_to_bytes(m_data))
-
-        #logger.info("Finished writing {} module files".format(len(loaded_func_all['module_data'])))
-        #logger.debug(subprocess.check_output("find {}".format(PYTHON_MODULE_PATH), shell=True))
-        #logger.debug(subprocess.check_output("find {}".format(os.getcwd()), shell=True))
-        logger.info("Finished writing Function dependencies")
-    
     def _get_data(self):
         extra_get_args = {}
         if self.data_byte_range is not None:
@@ -186,8 +145,7 @@ class jobrunner:
 
             dumped_func_modules = self._get_function_and_modules()
             dumped_args = self._get_data()
-            function, modules, data = self.unserializer.load(dumped_func_modules, dumped_args)
-            self._save_modules(modules)
+            function, data = self.unserializer.load(dumped_func_modules, dumped_args, self.config['python_module_path'])
             data = self._create_storage_clients(function, data)
 
             if self.show_memory:

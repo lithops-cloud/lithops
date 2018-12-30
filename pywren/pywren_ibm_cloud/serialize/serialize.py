@@ -33,6 +33,9 @@
 
 import logging
 import pickle
+import shutil
+import os
+import sys
 from pywren_ibm_cloud.serialize import util
 
 logger = logging.getLogger(__name__)
@@ -101,7 +104,39 @@ class PywrenSerializer:
 
 class PywrenUnserializer:
 
-    def load(self, dumped_func_modules, dumped_args):
+    def _save_modules(self, module_data, python_module_path):
+        """
+        Save modules, before we unserialize actual function
+        """
+        logger.info("Writing Function dependencies to local disk")
+        shutil.rmtree(python_module_path, True)  # delete old modules
+        os.mkdir(python_module_path)
+        sys.path.append(python_module_path)
+
+        for m_filename, m_data in module_data.items():
+            m_path = os.path.dirname(m_filename)
+
+            if len(m_path) > 0 and m_path[0] == "/":
+                m_path = m_path[1:]
+            to_make = os.path.join(python_module_path, m_path)
+            try:
+                os.makedirs(to_make)
+            except OSError as e:
+                if e.errno == 17:
+                    pass
+                else:
+                    raise e
+            full_filename = os.path.join(to_make, os.path.basename(m_filename))
+
+            with open(full_filename, 'wb') as fid:
+                fid.write(util.b64str_to_bytes(m_data))
+
+        # logger.info("Finished writing {} module files".format(len(module_data)))
+        # logger.debug(subprocess.check_output("find {}".format(python_module_path), shell=True))
+        # logger.debug(subprocess.check_output("find {}".format(os.getcwd()), shell=True))
+        logger.info("Finished writing Function dependencies")
+
+    def load(self, dumped_func_modules, dumped_args, python_module_path):
         """
         :param dumped_func_modules: serialized function object
         :param dumped_args: ranged serialized args dict
@@ -112,6 +147,8 @@ class PywrenUnserializer:
         modules = func_modules['module_data']
         dumped_func = func_modules['func']
 
+        self._save_modules(modules, python_module_path)
+
         logger.info("Unpickle Function")
         func = pickle.loads(dumped_func)
         logger.info("Finished Function unpickle")
@@ -121,7 +158,7 @@ class PywrenUnserializer:
         logger.info("Finished unpickle Function data")
         assert isinstance(data, dict)
 
-        return func, modules, data
+        return func, data
 
     def load_output(self, dumped_output):
         info = pickle.loads(dumped_output)

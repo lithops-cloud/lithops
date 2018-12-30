@@ -107,3 +107,9 @@ def init_module_manager(list_of_cloudpickles, preinstalled_modules, ignore_modul
 
 def format_args_list_for_storage(dumped_args_list):
     return b"".join(dumped_args_list)
+
+
+def b64str_to_bytes(str_data):
+    str_ascii = str_data.encode('ascii')
+    byte_data = base64.b64decode(str_ascii)
+    return byte_data
