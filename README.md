@@ -363,7 +363,31 @@ pw.map_reduce(my_map_function, bucket_name, my_reduce_function,
               chunk_size, reducer_one_per_object=True)
 ```
 
-## How to install PyWren within IBM Watson Studio
+### Geting boto3 client from any map function
+Any map function can get `ibm_cos` which is [boto3_client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#client). This allows you to access your IBM COS account from any map function
+
+For example
+
+	import pywren_ibm_cloud as pywren
+	import os
+
+	iterdata = [1, 2, 3, 4]
+
+	def my_map_function(x, ibm_cos):
+	    res = ibm_cos.get_object(Bucket = ‘mybucket’, Key = ‘mydata.data’)
+	    return x + 7
+
+	if __name__ == '__main__':
+	    pw = pywren.ibm_cf_executor()
+	    futures = pw.map(my_map_function, iterdata)
+	    results = pw.get_result()
+	    print (results)
+
+
+## PyWren and IBM Watson Studio
+You can use PyWren inside an **IBM Watson Studio** notebook in order to execute parallel data analytics by using **IBM Cloud functions**.
+
+### How to install PyWren within IBM Watson Studio
 It is possible to use PyWren inside an **IBM Watson Studio** notebook in order to execute parallel data analytics by using **IBM Cloud functions**.
 As the current **IBM Watson Studio** runtimes does not contains the **PyWren** package, it is needed to install it. Add these lines at the beginning of the notebook:
 
@@ -375,17 +399,12 @@ except:
     import pywren_ibm_cloud as pywren
 ```
 
-You can also try to use
+### Deploy PyWren runtime to your IBM Cloud Functions
+You can create PyWren runtime from the notebook itself
 
-```python
-try:
-    import pywren_ibm_cloud as pywren
-except:
-    !git clone https://github.com/pywren/pywren-ibm-cloud.git || rm -rf pywren-ibm-cloud/
-    !git clone https://github.com/pywren/pywren-ibm-cloud.git
-    !cd pywren-ibm-cloud/pywren && python setup.py install  --force
-    import pywren_ibm_cloud as pywren
-```
+	from pywren_ibm_cloud.deployutil import clone_runtime
+	clone_runtime('<dockerhub_space>/<name>:<version>', config, 'pywren-ibm-cloud-master')
+
 
 ## Additional resources
 
