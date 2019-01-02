@@ -68,6 +68,19 @@ def create_output_key(prefix, executor_id, callgroup_id, call_id):
     return os.path.join(prefix, executor_id, callgroup_id, call_id, output_key_suffix)
 
 
+def get_group_calls_ids(backend_handler, storage_bucket, prefix, executor_id, callgroup_id):
+    prefix = os.path.join(prefix, executor_id, callgroup_id)
+    group_keys = backend_handler.list_keys_with_prefix(storage_bucket, prefix)
+
+    calls_ids = []
+    for key in group_keys:
+        if os.path.split(key)[1] == output_key_suffix:
+            key_without_suffix = os.path.split(key)[0]
+            calls_ids.append(os.path.split(key_without_suffix)[1])
+
+    return calls_ids
+
+
 def create_status_key(prefix, executor_id, callgroup_id, call_id):
     """
     Create status key

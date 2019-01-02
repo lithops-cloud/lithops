@@ -431,6 +431,13 @@ class Executor(object):
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(log_msg)
 
+        log_msg = 'Executor ID {} PyWren ID: {}B{}'.format(self.executor_id,
+                                                           self.executor_id.split('-')[0] + 'A' +
+                                                           self.executor_id.split('-')[1], callgroup_id)
+        logger.debug(log_msg)
+        if(logger.getEffectiveLevel() == logging.WARNING):
+            print(log_msg)
+
         return res
 
     def reduce(self, reduce_function, list_of_futures, throw_except=True,

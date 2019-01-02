@@ -248,9 +248,23 @@ class ibm_cf_executor:
           >>> pw.map(foo, data)
           >>> result = pw.get_result()
         """
+        get_result_from_id = False
         if futures:
+            if type(futures) == str:
+                get_result_from_id = True
+                pywren_id = futures
+                splitted_id = pywren_id.split('B')
+                executor_id = splitted_id[0].split('A')[0] + '-' + splitted_id[0].split('A')[1]
+                callgroup_id = splitted_id[1]
+                calls_ids = self.internal_storage.get_calls_ids(executor_id, callgroup_id)
+                from pywren_ibm_cloud.future import ResponseFuture, JobState
+                ftrs = []
+                for call_id in calls_ids:
+                    f = ResponseFuture(call_id, callgroup_id, executor_id, '', {}, self.storage_config)
+                    f._state = JobState.invoked
+                    ftrs.append(f)
             # Ensure futures is a list
-            if type(futures) != list:
+            elif type(futures) != list:
                 ftrs = [futures]
             else:
                 ftrs = futures
@@ -258,11 +272,15 @@ class ibm_cf_executor:
             # In this case self.futures is always a list
             ftrs = self.futures
 
-        if not ftrs:
+        if not ftrs and not get_result_from_id:
             raise Exception('You must run pw.call_async(), pw.map()'
                             ' or pw.map_reduce() before call pw.get_result()')
 
-        msg = 'Executor ID {} Getting results'.format(self.executor_id)
+        if get_result_from_id:
+            msg = 'Executor ID {} Getting results from ID: {}'.format(self.executor_id, pywren_id)
+
+        else:
+            msg = 'Executor ID {} Getting results'.format(self.executor_id)
         logger.debug(msg)
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(msg)
