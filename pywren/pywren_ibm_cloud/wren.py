@@ -231,11 +231,12 @@ class ibm_cf_executor:
         return wait(futures, self.executor_id, self.internal_storage, throw_except=throw_except,
                     return_when=return_when, THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
 
-    def get_result(self, futures=None, throw_except=True, timeout=wrenconfig.CF_RUNTIME_TIMEOUT,
+    def get_result(self, futures=None, invoke_id=None, throw_except=True, timeout=wrenconfig.CF_RUNTIME_TIMEOUT,
                    THREADPOOL_SIZE=64, WAIT_DUR_SEC=2):
         """
         For getting PyWren results
         :param futures: Futures list. Default None
+        :param invoke_id: an Invocation ID from PyWren for getting result from remote. Default None
         :param throw_except: Reraise exception if call raised. Default True.
         :param verbose: Shows some information prints. Default False
         :param timeout: Timeout for waiting results.
@@ -250,24 +251,23 @@ class ibm_cf_executor:
         """
         get_result_from_id = False
         if futures:
-            if type(futures) == str:
-                get_result_from_id = True
-                pywren_id = futures
-                splitted_id = pywren_id.split('B')
-                executor_id = splitted_id[0].split('A')[0] + '-' + splitted_id[0].split('A')[1]
-                callgroup_id = splitted_id[1]
-                calls_ids = self.internal_storage.get_calls_ids(executor_id, callgroup_id)
-                from pywren_ibm_cloud.future import ResponseFuture, JobState
-                ftrs = []
-                for call_id in calls_ids:
-                    f = ResponseFuture(call_id, callgroup_id, executor_id, '', {}, self.storage_config)
-                    f._state = JobState.invoked
-                    ftrs.append(f)
             # Ensure futures is a list
-            elif type(futures) != list:
+            if type(futures) != list:
                 ftrs = [futures]
             else:
                 ftrs = futures
+        elif invoke_id:
+            get_result_from_id = True
+            splitted_id = invoke_id.split('B')
+            executor_id = splitted_id[0].split('A')[0] + '-' + splitted_id[0].split('A')[1]
+            callgroup_id = splitted_id[1]
+            calls_ids = self.internal_storage.get_calls_ids(executor_id, callgroup_id)
+            from pywren_ibm_cloud.future import ResponseFuture, JobState
+            ftrs = []
+            for call_id in calls_ids:
+                f = ResponseFuture(call_id, callgroup_id, executor_id, '', {}, self.storage_config)
+                f._state = JobState.invoked
+                ftrs.append(f)
         else:
             # In this case self.futures is always a list
             ftrs = self.futures
@@ -277,25 +277,27 @@ class ibm_cf_executor:
                             ' or pw.map_reduce() before call pw.get_result()')
 
         if get_result_from_id:
-            msg = 'Executor ID {} Getting results from ID: {}'.format(self.executor_id, pywren_id)
-
+            msg = 'Executor ID {} Getting results from Invoke ID: {}'.format(self.executor_id, invoke_id)
         else:
             msg = 'Executor ID {} Getting results'.format(self.executor_id)
+
         logger.debug(msg)
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(msg)
 
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(timeout)
+        pbar = None
+        if not get_result_from_id:
 
-        if self.cf_cluster or logger.getEffectiveLevel() != logging.WARNING:
-            pbar = None
-        else:
-            import tqdm
-            print()
-            pbar = tqdm.tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
-                             total=len(ftrs), disable=False)
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(timeout)
 
+            if not self.cf_cluster and logger.getEffectiveLevel() == logging.WARNING:
+                import tqdm
+                print()
+                pbar = tqdm.tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
+                                 total=len(ftrs), disable=False)
+
+        result = None
         try:
             wait(ftrs, self.executor_id, self.internal_storage, throw_except=throw_except,
                  THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC, pbar=pbar)
@@ -340,8 +342,14 @@ class ibm_cf_executor:
         if(logger.getEffectiveLevel() == logging.WARNING and self.data_cleaner):
             print(msg)
 
-        if result and len(result) == 1:
-            return result[0]
+        if result is not None:
+            if len(result) == 0:
+                log_msg = 'Executor ID {} Invocations with ID: {} havn\'t done yet'.format(self.executor_id, invoke_id)
+                logger.warning(log_msg)
+                return
+            elif len(result) == 1:
+                return result[0]
+
         return result
 
     def create_timeline_plots(self, dst, name, run_statuses=None, invoke_statuses=None):
