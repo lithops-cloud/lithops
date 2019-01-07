@@ -99,7 +99,7 @@ def create_blackbox_runtime(image_name, config = None, pywren_location = None):
     with open(zip_location, "rb") as action_zip:
         action_bin = action_zip.read()
         cf_client = CloudFunctions(config['ibm_cf'])
-        cf_client.create_action(runtime_name, memory=2048, timeout=600000,
+        cf_client.create_action(runtime_name, memory=512, timeout=600000,
                                 code=action_bin, kind='blackbox', image=image_name)
 
 def clone_runtime(image_name, config = None, pywren_location = None):
@@ -132,5 +132,5 @@ def default(config = None, pywren_location = None):
         action_bin = action_zip.read()
         cf_client = CloudFunctions(config['ibm_cf'])
         runtime_name = CF_ACTION_NAME_DEFAULT
-        cf_client.create_action(runtime_name, memory=2048, timeout=600000, code=action_bin)
+        cf_client.create_action(runtime_name, memory=512, timeout=600000, code=action_bin)
 
