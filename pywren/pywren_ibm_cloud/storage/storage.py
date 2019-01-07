@@ -19,7 +19,8 @@ import json
 from pywren_ibm_cloud.storage.backends.cos import COSBackend
 from pywren_ibm_cloud.storage.backends.swift import SwiftBackend
 from pywren_ibm_cloud.storage.exceptions import StorageNoSuchKeyError
-from pywren_ibm_cloud.storage.storage_utils import create_status_key, create_output_key, status_key_suffix, get_group_calls_ids
+from pywren_ibm_cloud.storage.storage_utils import create_status_key, create_output_key, status_key_suffix,\
+    get_group_calls_ids, create_group_prefix
 
 
 class InternalStorage:
@@ -126,8 +127,14 @@ class InternalStorage:
             return None
 
     def get_calls_ids(self, executor_id, callgroup_id):
-        return get_group_calls_ids(self.backend_handler, self.storage_bucket, self.prefix,
-                                   executor_id, callgroup_id)
+        """
+        Get list of all calls ids of a callgroup
+        :param executor_id: executor ID of the call
+        :return: list of all calls ids of a callgroup
+        """
+        prefix = create_group_prefix(self.prefix, executor_id, callgroup_id)
+        group_keys = self.backend_handler.list_keys_with_prefix(self.storage_bucket, prefix)
+        return get_group_calls_ids(group_keys)
 
     def get_runtime_info(self, runtime_name):
         """

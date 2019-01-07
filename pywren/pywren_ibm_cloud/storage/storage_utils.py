@@ -68,10 +68,23 @@ def create_output_key(prefix, executor_id, callgroup_id, call_id):
     return os.path.join(prefix, executor_id, callgroup_id, call_id, output_key_suffix)
 
 
-def get_group_calls_ids(backend_handler, storage_bucket, prefix, executor_id, callgroup_id):
-    prefix = os.path.join(prefix, executor_id, callgroup_id)
-    group_keys = backend_handler.list_keys_with_prefix(storage_bucket, prefix)
+def create_group_prefix(prefix, executor_id, callgroup_id):
+    """
+    Create callgroup prefix key
+    :param prefix: prefix
+    :param executor_id: callset's ID
+    :param callgroup_id: call's ID
+    :return: callgroup prefix key
+    """
+    return os.path.join(prefix, executor_id, callgroup_id)
 
+
+def get_group_calls_ids(group_keys):
+    """
+    Get list of all calls ids of a callgroup
+    :param group_keys: list of all keys of a callgroup
+    :return: calls ids of a callgroup
+    """
     calls_ids = []
     for key in group_keys:
         if os.path.split(key)[1] == output_key_suffix:

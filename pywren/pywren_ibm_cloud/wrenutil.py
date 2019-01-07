@@ -284,3 +284,24 @@ def verify_args(func, data, object_processing=False):
             new_data.append(new_elem)
 
     return new_data
+
+
+def generate_pywren_id_msg(executor_id, callgroup_id):
+
+    msg = '************************************************************\n' \
+          '#                                                          #\n' \
+          '# Use this ID to monitor output results and statuses:      #\n' \
+          '# PyWren ID: {}B{}                        #\n' \
+          '#                                                          #\n' \
+          '************************************************************' \
+        .format(executor_id.split('-')[0] + 'A' +
+                executor_id.split('-')[1], callgroup_id)
+    return msg
+
+
+def split_pywren_id(pywren_id):
+    temp = pywren_id.split('B')
+    executor_id = temp[0].split('A')[0] + '-' + temp[0].split('A')[1]
+    callgroup_id = temp[1]
+
+    return executor_id, callgroup_id

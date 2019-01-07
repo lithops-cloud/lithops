@@ -22,6 +22,7 @@ import signal
 import logging
 import pywren_ibm_cloud.invokers as invokers
 import pywren_ibm_cloud.wrenconfig as wrenconfig
+from pywren_ibm_cloud.wrenutil import generate_pywren_id_msg, split_pywren_id
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.executor import Executor
@@ -107,6 +108,12 @@ class ibm_cf_executor:
         future = self.executor.single_call(func, data, extra_env, extra_meta)[0]
         self.futures.append(future)
 
+        callgroup_id = future.callgroup_id
+        msg = generate_pywren_id_msg(self.executor_id, callgroup_id)
+        logger.debug(msg)
+        if(logger.getEffectiveLevel() == logging.WARNING):
+            print(msg)
+
         return future
 
     def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None,
@@ -143,6 +150,12 @@ class ibm_cf_executor:
                                               overwrite_invoke_args=overwrite_invoke_args,
                                               exclude_modules=exclude_modules)
         self.futures.extend(futures)
+
+        callgroup_id = futures[0].callgroup_id
+        msg = generate_pywren_id_msg(self.executor_id, callgroup_id)
+        logger.debug(msg)
+        if(logger.getEffectiveLevel() == logging.WARNING):
+            print(msg)
 
         if len(futures) == 1:
             return futures[0]
@@ -194,6 +207,12 @@ class ibm_cf_executor:
                                               reducer_wait_local=reducer_wait_local)
         self.futures.extend(futures)
 
+        callgroup_id = futures[0].callgroup_id
+        msg = generate_pywren_id_msg(self.executor_id, callgroup_id)
+        logger.debug(msg)
+        if(logger.getEffectiveLevel() == logging.WARNING):
+            print(msg)
+
         if len(futures) == 1:
             return futures[0]
         return futures
@@ -232,7 +251,7 @@ class ibm_cf_executor:
         return wait(futures, self.executor_id, self.internal_storage, throw_except=throw_except,
                     return_when=return_when, THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
 
-    def get_result(self, futures=None, invoke_id=None, throw_except=True, timeout=wrenconfig.CF_RUNTIME_TIMEOUT,
+    def get_result(self, futures=None, pywren_id=None, throw_except=True, timeout=wrenconfig.CF_RUNTIME_TIMEOUT,
                    THREADPOOL_SIZE=64, WAIT_DUR_SEC=2, get_status=False):
         """
         For getting PyWren results
@@ -242,7 +261,7 @@ class ibm_cf_executor:
         :param verbose: Shows some information prints. Default False
         :param timeout: Timeout for waiting results.
         :param THREADPOOL_SIZE: Number of threads to use. Default 64
-        :param get_status:
+        :param get_status: define True to get a tuple of results and statuses. Default False
         :return: The result of the future/s
 
         Usage
@@ -258,11 +277,9 @@ class ibm_cf_executor:
                 ftrs = [futures]
             else:
                 ftrs = futures
-        elif invoke_id:
+        elif pywren_id:
             get_result_from_id = True
-            splitted_id = invoke_id.split('B')
-            executor_id = splitted_id[0].split('A')[0] + '-' + splitted_id[0].split('A')[1]
-            callgroup_id = splitted_id[1]
+            executor_id, callgroup_id = split_pywren_id(pywren_id)
             calls_ids = self.internal_storage.get_calls_ids(executor_id, callgroup_id)
             ftrs = []
             for call_id in calls_ids:
@@ -278,7 +295,7 @@ class ibm_cf_executor:
                             ' or pw.map_reduce() before call pw.get_result()')
 
         if get_result_from_id:
-            msg = 'Executor ID {} Getting results from Invoke ID: {}'.format(self.executor_id, invoke_id)
+            msg = 'Executor ID {} Getting results from PyWren ID: {}'.format(self.executor_id, pywren_id)
         else:
             msg = 'Executor ID {} Getting results'.format(self.executor_id)
 
@@ -347,7 +364,7 @@ class ibm_cf_executor:
 
         if result is not None:
             if len(result) == 0:
-                log_msg = 'Executor ID {} Invocations with ID: {} havn\'t done yet'.format(self.executor_id, invoke_id)
+                log_msg = 'Executor ID {} Invocations with PyWren ID: {} havn\'t done yet'.format(self.executor_id, pywren_id)
                 logger.warning(log_msg)
                 if get_status:
                     return None, None
