@@ -28,6 +28,7 @@ from pywren_ibm_cloud.executor import Executor
 from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
 from pywren_ibm_cloud.wrenutil import timeout_handler
 from pywren_ibm_cloud.storage.cleaner import clean_os_bucket
+from pywren_ibm_cloud.future import ResponseFuture, JobState
 
 logger = logging.getLogger(__name__)
 
@@ -232,7 +233,7 @@ class ibm_cf_executor:
                     return_when=return_when, THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
 
     def get_result(self, futures=None, invoke_id=None, throw_except=True, timeout=wrenconfig.CF_RUNTIME_TIMEOUT,
-                   THREADPOOL_SIZE=64, WAIT_DUR_SEC=2):
+                   THREADPOOL_SIZE=64, WAIT_DUR_SEC=2, get_status=False):
         """
         For getting PyWren results
         :param futures: Futures list. Default None
@@ -241,6 +242,7 @@ class ibm_cf_executor:
         :param verbose: Shows some information prints. Default False
         :param timeout: Timeout for waiting results.
         :param THREADPOOL_SIZE: Number of threads to use. Default 64
+        :param get_status:
         :return: The result of the future/s
 
         Usage
@@ -262,7 +264,6 @@ class ibm_cf_executor:
             executor_id = splitted_id[0].split('A')[0] + '-' + splitted_id[0].split('A')[1]
             callgroup_id = splitted_id[1]
             calls_ids = self.internal_storage.get_calls_ids(executor_id, callgroup_id)
-            from pywren_ibm_cloud.future import ResponseFuture, JobState
             ftrs = []
             for call_id in calls_ids:
                 f = ResponseFuture(call_id, callgroup_id, executor_id, '', {}, self.storage_config)
@@ -301,7 +302,7 @@ class ibm_cf_executor:
         try:
             wait(ftrs, self.executor_id, self.internal_storage, throw_except=throw_except,
                  THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC, pbar=pbar)
-            result = [f.result() for f in ftrs if f.done and not f.futures]
+            result = [f.result(throw_except=throw_except) for f in ftrs if f.done and not f.futures]
 
         except TimeoutError:
             if pbar:
@@ -342,14 +343,22 @@ class ibm_cf_executor:
         if(logger.getEffectiveLevel() == logging.WARNING and self.data_cleaner):
             print(msg)
 
+        statuses = [f.run_status for f in ftrs]
+
         if result is not None:
             if len(result) == 0:
                 log_msg = 'Executor ID {} Invocations with ID: {} havn\'t done yet'.format(self.executor_id, invoke_id)
                 logger.warning(log_msg)
+                if get_status:
+                    return None, None
                 return
             elif len(result) == 1:
+                if get_status:
+                    return result[0], statuses[0]
                 return result[0]
 
+        if get_status:
+            return result, statuses
         return result
 
     def create_timeline_plots(self, dst, name, run_statuses=None, invoke_statuses=None):
