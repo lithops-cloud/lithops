@@ -241,12 +241,37 @@ To edit tests' data, open the [data](test/data) file located in the `test` folde
     ```
 	In this example the `result` will be `38`
 	
-	By default the reducer waits locally for the results, and then launches the **reduce()** function in the cloud.
+	By default, PyWren invokes actions locally, the reducer waits locally for the results, and then launches the **reduce()** function in the cloud.
 	You can change this behaviour and make the reducer waits remotely for the results by setting the 
-	`reducer_wait_local` parameter of the **map_reduce()** method to `False`.
+	`reducer_wait_local` parameter of the **map_reduce()** method to `False` and the `remote_invocation` parameter to `True`.
 	
 	```python
-    pw.map_reduce(my_map_function, iterdata, my_reduce_function, reducer_wait_local=False)
+    pw.map_reduce(my_map_function, iterdata, my_reduce_function, reducer_wait_local=False, remote_invocation=True)
+    ```
+    
+4. **Getting results and statuses of function executions (get-result).**
+
+    To get results and statuses of a single run or multiple executions, the executor contains a method called
+    **get_result()** which returns (by default) the last result of an executor operation.
+    Additionally, you can also get statuses of executions in the cloud by setting the `get_status` parameter to `True`,
+    so now **get_result()** will return a tuple of the results and the relevant statuses.
+    If you want to get executions' results or statuses of a different executor,
+    you need to provide a special PyWren ID for the `pywren_id` parameter which given after each executor operation.
+    
+    ```python
+    pw = pywren.ibm_cf_executor()
+    pw.map_reduce(my_map_function, iterdata, my_reduce_function)
+ 
+    pw = pywren.ibm_cf_executor()
+    result, status = pw.get_result(pywren_id='<ID>', get_status=True)
+    ```
+    
+    By default, **get_result()** method throws executions' exceptions,
+    you can change its behaviour by setting the `throw_except` parameter to `False`.
+    Notice that if an execution throws an exception, the result will be `None`.
+    
+    ```python
+    result, status = pw.get_result(pywren_id='<ID>', get_status=True, throw_except=False)
     ```
 	
 ## Using PyWren to process data from IBM Cloud Object Storage
