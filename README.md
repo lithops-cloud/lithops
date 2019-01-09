@@ -364,25 +364,22 @@ pw.map_reduce(my_map_function, bucket_name, my_reduce_function,
 ```
 
 ### Geting boto3 client from any map function
-Any map function can get `ibm_cos` which is [boto3_client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#client). This allows you to access your IBM COS account from any map function
+Any map function can get `ibm_cos` which is [boto3_client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#client). This allows you to access your IBM COS account from any map function, for example:
+    
+    ```python
+    import pywren_ibm_cloud as pywren
 
-For example
+    iterdata = [1, 2, 3, 4]
 
-	import pywren_ibm_cloud as pywren
-	import os
+    def my_map_function(x, ibm_cos):
+        data_object = ibm_cos.get_object(Bucket='mybucket', Key='mydata.data')
+        # Do some process over the object
+        return x + 7
 
-	iterdata = [1, 2, 3, 4]
-
-	def my_map_function(x, ibm_cos):
-	    res = ibm_cos.get_object(Bucket = ‘mybucket’, Key = ‘mydata.data’)
-	    return x + 7
-
-	if __name__ == '__main__':
-	    pw = pywren.ibm_cf_executor()
-	    futures = pw.map(my_map_function, iterdata)
-	    results = pw.get_result()
-	    print (results)
-
+    pw = pywren.ibm_cf_executor()
+    pw.map(my_map_function, iterdata)
+    result = pw.get_result()
+    ```
 
 ## PyWren and IBM Watson Studio
 You can use PyWren inside an **IBM Watson Studio** notebook in order to execute parallel data analytics by using **IBM Cloud functions**.
