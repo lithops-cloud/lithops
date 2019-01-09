@@ -15,16 +15,16 @@
 #
 
 import os
-import sys
 from shutil import copyfile
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.cf_connector import CloudFunctions
 from pywren_ibm_cloud.wrenconfig import CF_ACTION_NAME_DEFAULT
 
-def create_zip_action(pywren_location = None):
-    # starts from pywren-ibm-cloud-master/runtime
-    # we can start from pywren-ibm-cloud-master
+
+def create_zip_action(pywren_location=None):
+    # starts from pywren-ibm-cloud/runtime
+    # we can start from pywren-ibm-cloud
     if pywren_location is None:
         prefix = ".."
     else:
@@ -42,7 +42,7 @@ def create_zip_action(pywren_location = None):
     os.remove(prefix + '/pywren/__main__.py')
 
 
-def extract_modules(image_name, config = None, pywren_location = None):
+def extract_modules(image_name, config=None, pywren_location=None):
     # Extract installed Python modules from docker image
     # And store them into storage
 
@@ -79,7 +79,7 @@ def extract_modules(image_name, config = None, pywren_location = None):
     #sys.stdout = sys.__stdout__
 
 
-def create_blackbox_runtime(image_name, config = None, pywren_location = None):
+def create_blackbox_runtime(image_name, config=None, pywren_location=None):
     # Create runtime_name from image_name
     username, appname = image_name.split('/')
     runtime_name = appname.replace(':', '_')
@@ -102,7 +102,8 @@ def create_blackbox_runtime(image_name, config = None, pywren_location = None):
         cf_client.create_action(runtime_name, memory=512, timeout=600000,
                                 code=action_bin, kind='blackbox', image=image_name)
 
-def clone_runtime(image_name, config = None, pywren_location = None):
+
+def clone_runtime(image_name, config=None, pywren_location=None):
 
     print('Cloning docker image {}'.format(image_name))
     create_zip_action(pywren_location)
@@ -111,7 +112,8 @@ def clone_runtime(image_name, config = None, pywren_location = None):
 
     print('All done!')
 
-def default(config = None, pywren_location = None):
+
+def default(config=None, pywren_location=None):
     print('Updating runtime {}'.format(CF_ACTION_NAME_DEFAULT))
     if config is None:
         config = wrenconfig.default()
@@ -133,4 +135,3 @@ def default(config = None, pywren_location = None):
         cf_client = CloudFunctions(config['ibm_cf'])
         runtime_name = CF_ACTION_NAME_DEFAULT
         cf_client.create_action(runtime_name, memory=512, timeout=600000, code=action_bin)
-
