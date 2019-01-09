@@ -298,7 +298,7 @@ import pywren_ibm_cloud as pywren
 
 bucket_name = 'my_data_bucket'
 
-def my_map_function(bucket, key, data_stream):
+def my_map_function(bucket, key, data_stream, ibm_cos):
     for line in data_stream:
         # Do some process
     return partial_intersting_data
@@ -320,7 +320,7 @@ result = pw.get_result()
 | method | method signature |
 |---| ---| 
 | `pw.map_reduce`(`my_map_function`, `bucket_name`, `my_reduce_function`, `chunk_size`)| `bucket_name` contains the name of the bucket |
-| `my_map_function`(`bucket`, `key`, `data_stream`) | `key` is a data object from bucket `bucket` that is assigned to the invocation|
+| `my_map_function`(`bucket`, `key`, `data_stream`, `ibm_cos`) | `key` is a data object from `bucket` that is assigned to the invocation. `ibm_cos` is an optional parameter which provides a `boto3_client` (see [here](#geting-boto3-client-from-any-map-function))|
 
 
 
@@ -363,7 +363,7 @@ pw.map_reduce(my_map_function, bucket_name, my_reduce_function,
 ```
 
 ### Geting boto3 client from any map function
-Any map function can get `ibm_cos` which is [boto3_client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#client). This allows you to access your IBM COS account from any map function, for example:
+Any map function can get `ibm_cos` parameter which is [boto3_client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#client). This allows you to access your IBM COS account from any map function, for example:
     
 ```python
 import pywren_ibm_cloud as pywren
