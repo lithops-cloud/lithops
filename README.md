@@ -134,7 +134,7 @@ pw = pywren.ibm_cf_executor()
 This option allows you pass all the configuration details as part of the PyWren invocation in runtime. All you need is to configure a Python dictionary with keys and values, for example:
 
 ```python
-config = {'pywren' : {'storage_bucket' : 'BUCKET_NAME'}
+config = {'pywren' : {'storage_bucket' : 'BUCKET_NAME'},
 
           'ibm_cf':  {'endpoint': 'CF_API_ENDPOINT', 
                       'namespace': 'CF_NAMESPACE', 
@@ -168,6 +168,7 @@ and then execute:
 | `python3 test/testpywren.py` | test all PyWren's functionality |
 | `python3 test/testpywren.py pywren` | test PyWren without Cloud Object Storage service |
 | `python3 test/testpywren.py pywren_cos` | test PyWren using Cloud Object Storage service only |
+| `python3 test/testpywren.py <FUNC_NAME>` | run a specific test function by its name as implemented in the test file |
 
 To clean test files stored in Cloud Object Storage service, execute:
 
@@ -286,7 +287,7 @@ result = pw.get_result()
 | method | method signature |
 |---| ---| 
 | `pw.map_reduce`(`my_map_function`, `iterdata`, `my_reduce_function`, `chunk_size`)| `iterdata` contains list of objects in the format of `bucket_name/object_name` |
-| `my_map_function(key, data_stream)` | `key` is an entry from `iterdata` that is assigned to the invocation|
+| `my_map_function`(`key`, `data_stream`) | `key` is an entry from `iterdata` that is assigned to the invocation|
 
 #### `map_reduce` where partitioner gets entire bucket
 
@@ -314,13 +315,12 @@ pw.map_reduce(my_map_function, bucket_name, my_reduce_function, chunk_size)
 result = pw.get_result()
 ```
 
-* If `chunk_size=None` then partitioner's granularity is a single object . 
-* `ibm_cos` is ibm_boto3 client instance. Can be used to access COS for aditional operations. See [boto3_client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#client) for allowed operations
+* If `chunk_size=None` then partitioner's granularity is a single object. 
 	
 | method | method signature |
 |---| ---| 
-| `pw.map_reduce`(`my_map_function`, `bucket_name `, `my_reduce_function`, `chunk_size`, `ibm_cos`)| `bucket_name ` contains the name of the bucket |
-| `my_map_function(bucket, key, data_stream)` | `key` is a data object from bucket `bucket` that is assigned to the invocation|
+| `pw.map_reduce`(`my_map_function`, `bucket_name`, `my_reduce_function`, `chunk_size`)| `bucket_name` contains the name of the bucket |
+| `my_map_function`(`bucket`, `key`, `data_stream`, `ibm_cos`) | `key` is a data object from `bucket` that is assigned to the invocation. `ibm_cos` is an optional parameter which provides a `boto3_client` (see [here](#geting-boto3-client-from-any-map-function))|
 
 
 
@@ -351,7 +351,7 @@ result = pw.get_result()
 | method | method signature |
 |---| ---| 
 | `pw.map_reduce`(`my_map_function`, `iterdata`, `my_reduce_function`, `chunk_size`)| `iterdata` contains list of objects in the format of `http://myurl/myobject.data` |
-| `my_map_function(url, data_stream)` | `url` is an entry from `iterdata` that is assigned to the invocation|
+| `my_map_function`(`url`, `data_stream`) | `url` is an entry from `iterdata` that is assigned to the invocation|
 
 ### Reducer granularity			
 By default there will be one reducer for all the objects. If you need one reducer for each object, you must set the parameter
@@ -362,7 +362,28 @@ pw.map_reduce(my_map_function, bucket_name, my_reduce_function,
               chunk_size, reducer_one_per_object=True)
 ```
 
-## How to install PyWren within IBM Watson Studio
+### Geting boto3 client from any map function
+Any map function can get `ibm_cos` parameter which is [boto3_client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#client). This allows you to access your IBM COS account from any map function, for example:
+    
+```python
+import pywren_ibm_cloud as pywren
+
+iterdata = [1, 2, 3, 4]
+
+def my_map_function(x, ibm_cos):
+    data_object = ibm_cos.get_object(Bucket='mybucket', Key='mydata.data')
+    # Do some process over the object
+    return x + 7
+
+pw = pywren.ibm_cf_executor()
+pw.map(my_map_function, iterdata)
+result = pw.get_result()
+```
+
+## PyWren and IBM Watson Studio
+You can use PyWren inside an **IBM Watson Studio** notebook in order to execute parallel data analytics by using **IBM Cloud functions**.
+
+### How to install PyWren within IBM Watson Studio
 It is possible to use PyWren inside an **IBM Watson Studio** notebook in order to execute parallel data analytics by using **IBM Cloud functions**.
 As the current **IBM Watson Studio** runtimes does not contains the **PyWren** package, it is needed to install it. Add these lines at the beginning of the notebook:
 
@@ -370,23 +391,20 @@ As the current **IBM Watson Studio** runtimes does not contains the **PyWren** p
 try:
     import pywren_ibm_cloud as pywren
 except:
-    !curl -fsSL "https://raw.githubusercontent.com/pywren/pywren-ibm-cloud/master/install_pywren.sh" | sh
+    !curl -fsSL "https://git.io/fhe9X" | sh
     import pywren_ibm_cloud as pywren
 ```
 
-You can also try to use
+### Deploy PyWren runtime to your IBM Cloud Functions
+You can create PyWren runtime from the notebook itself:
 
 ```python
-try:
-    import pywren_ibm_cloud as pywren
-except:
-    !git clone https://github.com/pywren/pywren-ibm-cloud.git || rm -rf pywren-ibm-cloud/
-    !git clone https://github.com/pywren/pywren-ibm-cloud.git
-    !cd pywren-ibm-cloud/pywren && python setup.py install  --force
-    import pywren_ibm_cloud as pywren
+from pywren_ibm_cloud.deployutil import clone_runtime
+clone_runtime('<dockerhub_space>/<name>:<version>', config, 'pywren-ibm-cloud')
 ```
 
 ## Additional resources
 
 * [Process large data sets at massive scale with PyWren over IBM Cloud Functions](https://www.ibm.com/blogs/bluemix/2018/04/process-large-data-sets-massive-scale-pywren-ibm-cloud-functions/)
 * [PyWren for IBM Cloud on CODAIT](https://developer.ibm.com/code/open/centers/codait/projects/pywren/)
+* [Serverless data analytics in the IBM Cloud](https://dl.acm.org/citation.cfm?id=3284029) - Proceedings of the 19th International Middleware Conference (Industry)

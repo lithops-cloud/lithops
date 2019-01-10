@@ -51,9 +51,8 @@ class CloudFunctions:
         self.session.mount('https://', adapter)
 
         msg = 'IBM Cloud Functions init for'
-        logger.info('{} namespace: {}'.format(msg, self.namespace))
-        logger.info('{} host: {}'.format(msg, self.endpoint))
-        if(logger.getEffectiveLevel() == logging.WARNING):
+        logger.info('{} namespace: {} host {}'.format(msg, self.namespace, self.endpoint))
+        if(logger.getEffectiveLevel() == logging.DEBUG):
             print("{} namespace: {} and host: {}".format(msg, self.namespace,
                                                          self.endpoint))
 
@@ -63,7 +62,7 @@ class CloudFunctions:
         """
         Create an IBM Cloud Function
         """
-        logger.info('I am about to create a new cloud function action')
+        logger.debug('I am about to create a new cloud function action')
         url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
                            self.namespace, 'actions',
                            action_name + "?overwrite=" + str(overwrite))
@@ -86,8 +85,8 @@ class CloudFunctions:
         cfexec['code'] = base64.b64encode(code).decode("utf-8") if is_binary else code
         data['exec'] = cfexec
 
-        res = self.session.put(url, json=data, headers=self.headers)
-        data = res.json()
+        res = self.session.put(url, json=data)
+
         if res.status_code != 200:
             print('An error occurred updating action {}'.format(action_name))
         else:
@@ -97,11 +96,25 @@ class CloudFunctions:
         """
         Get an IBM Cloud Function
         """
-        print ("I am about to get a cloud function action")
+        logger.debug ("I am about to get a cloud function action: {}".format(action_name))
         url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
                            self.namespace, 'actions', action_name)
-        res = self.session.get(url, headers=self.headers)
+        res = self.session.get(url)
         return res.json()
+
+    def delete_action(self, action_name):
+        """
+        Delete an IBM Cloud Function
+        """
+        if(logger.getEffectiveLevel() == logging.DEBUG):
+            print ("Delete cloud function action: {}".format(action_name))
+
+        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
+                           self.namespace, 'actions', action_name)
+        res = self.session.delete(url)
+
+        if res.status_code != 200:
+            print('An error occurred deleting action {}'.format(action_name))
 
     def invoke(self, action_name, payload):
         """
@@ -179,3 +192,15 @@ class CloudFunctions:
         except:
             conn.close()
             return self.internal_invoke(action_name, payload)
+
+    def invoke_with_result(self, action_name, payload={}):
+        """
+        Invoke an IBM Cloud Function waiting for the result.
+        """
+        url = os.path.join(self.endpoint, 'api', 'v1',
+                           'namespaces', self.namespace, 'actions',
+                           action_name+"?blocking=true&result=true")
+        resp = self.session.post(url, json=payload)
+        result = resp.json()
+
+        return result

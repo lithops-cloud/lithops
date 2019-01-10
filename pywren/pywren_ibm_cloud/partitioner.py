@@ -93,7 +93,8 @@ def split_object_from_key(map_func_args_list, chunk_size, storage):
     """
     Create partitions from a list of COS objects keys
     """
-    logger.info('Creating dataset chunks from object keys ...')
+    if chunk_size:
+        logger.info('Creating chunks from object keys...')
     partitions = list()
 
     for entry in map_func_args_list:
@@ -125,7 +126,8 @@ def split_object_from_url(map_func_args_list, chunk_size):
     """
     Create partitions from a list of objects urls
     """
-    logger.info('Creating dataset chunks from urls ...')
+    if chunk_size:
+        logger.info('Creating chunks from urls...')
     partitions = list()
 
     for entry in map_func_args_list:
