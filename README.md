@@ -287,7 +287,7 @@ result = pw.get_result()
 | method | method signature |
 |---| ---| 
 | `pw.map_reduce`(`my_map_function`, `iterdata`, `my_reduce_function`, `chunk_size`)| `iterdata` contains list of objects in the format of `bucket_name/object_name` |
-| `my_map_function(key, data_stream)` | `key` is an entry from `iterdata` that is assigned to the invocation|
+| `my_map_function`(`key`, `data_stream`) | `key` is an entry from `iterdata` that is assigned to the invocation|
 
 #### `map_reduce` where partitioner gets entire bucket
 
@@ -315,13 +315,12 @@ pw.map_reduce(my_map_function, bucket_name, my_reduce_function, chunk_size)
 result = pw.get_result()
 ```
 
-* If `chunk_size=None` then partitioner's granularity is a single object . 
-* `ibm_cos` is ibm_boto3 client instance. Can be used to access COS for aditional operations. See [boto3_client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#client) for allowed operations
+* If `chunk_size=None` then partitioner's granularity is a single object. 
 	
 | method | method signature |
 |---| ---| 
-| `pw.map_reduce`(`my_map_function`, `bucket_name `, `my_reduce_function`, `chunk_size`, `ibm_cos`)| `bucket_name ` contains the name of the bucket |
-| `my_map_function(bucket, key, data_stream)` | `key` is a data object from bucket `bucket` that is assigned to the invocation|
+| `pw.map_reduce`(`my_map_function`, `bucket_name`, `my_reduce_function`, `chunk_size`)| `bucket_name` contains the name of the bucket |
+| `my_map_function`(`bucket`, `key`, `data_stream`, `ibm_cos`) | `key` is a data object from `bucket` that is assigned to the invocation. `ibm_cos` is an optional parameter which provides a `boto3_client` (see [here](#geting-boto3-client-from-any-map-function))|
 
 
 
@@ -352,7 +351,7 @@ result = pw.get_result()
 | method | method signature |
 |---| ---| 
 | `pw.map_reduce`(`my_map_function`, `iterdata`, `my_reduce_function`, `chunk_size`)| `iterdata` contains list of objects in the format of `http://myurl/myobject.data` |
-| `my_map_function(url, data_stream)` | `url` is an entry from `iterdata` that is assigned to the invocation|
+| `my_map_function`(`url`, `data_stream`) | `url` is an entry from `iterdata` that is assigned to the invocation|
 
 ### Reducer granularity			
 By default there will be one reducer for all the objects. If you need one reducer for each object, you must set the parameter
@@ -364,25 +363,22 @@ pw.map_reduce(my_map_function, bucket_name, my_reduce_function,
 ```
 
 ### Geting boto3 client from any map function
-Any map function can get `ibm_cos` which is [boto3_client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#client). This allows you to access your IBM COS account from any map function
+Any map function can get `ibm_cos` parameter which is [boto3_client](https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#client). This allows you to access your IBM COS account from any map function, for example:
+    
+```python
+import pywren_ibm_cloud as pywren
 
-For example
+iterdata = [1, 2, 3, 4]
 
-	import pywren_ibm_cloud as pywren
-	import os
+def my_map_function(x, ibm_cos):
+    data_object = ibm_cos.get_object(Bucket='mybucket', Key='mydata.data')
+    # Do some process over the object
+    return x + 7
 
-	iterdata = [1, 2, 3, 4]
-
-	def my_map_function(x, ibm_cos):
-	    res = ibm_cos.get_object(Bucket = ‘mybucket’, Key = ‘mydata.data’)
-	    return x + 7
-
-	if __name__ == '__main__':
-	    pw = pywren.ibm_cf_executor()
-	    futures = pw.map(my_map_function, iterdata)
-	    results = pw.get_result()
-	    print (results)
-
+pw = pywren.ibm_cf_executor()
+pw.map(my_map_function, iterdata)
+result = pw.get_result()
+```
 
 ## PyWren and IBM Watson Studio
 You can use PyWren inside an **IBM Watson Studio** notebook in order to execute parallel data analytics by using **IBM Cloud functions**.
@@ -400,11 +396,12 @@ except:
 ```
 
 ### Deploy PyWren runtime to your IBM Cloud Functions
-You can create PyWren runtime from the notebook itself
+You can create PyWren runtime from the notebook itself:
 
-	from pywren_ibm_cloud.deployutil import clone_runtime
-	clone_runtime('<dockerhub_space>/<name>:<version>', config, 'pywren-ibm-cloud-master')
-
+```python
+from pywren_ibm_cloud.deployutil import clone_runtime
+clone_runtime('<dockerhub_space>/<name>:<version>', config, 'pywren-ibm-cloud')
+```
 
 ## Additional resources
 
