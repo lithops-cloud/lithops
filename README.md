@@ -257,6 +257,8 @@ To edit tests' data, open the [data](test/data) file located in the `test` folde
     so now **get_result()** will return a tuple of the results and the relevant statuses.
     If you want to get executions' results or statuses of a different executor,
     you need to provide a special PyWren ID for the `pywren_id` parameter which given after each executor operation.
+    Notice that if you set `data_cleaner` parameter in the config file to `True` or execute **clean()** method,
+    PyWren won't be able to import results or statuses by PyWren ID.
     
     ```python
     pw = pywren.ibm_cf_executor()
@@ -268,7 +270,7 @@ To edit tests' data, open the [data](test/data) file located in the `test` folde
     
     By default, **get_result()** method throws executions' exceptions,
     you can change its behaviour by setting the `throw_except` parameter to `False`.
-    Notice that if an execution throws an exception, the result will be `None`.
+    If an execution throws an exception, the result will be `None`.
     
     ```python
     result, status = pw.get_result(pywren_id='<ID>', get_status=True, throw_except=False)
