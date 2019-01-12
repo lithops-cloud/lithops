@@ -30,20 +30,22 @@ logger = logging.getLogger(__name__)
 class CloudFunctions:
 
     def __init__(self, config):
-        '''
+        """
         Constructor
-        '''
+        """
         self.api_key = str.encode(config['api_key'])
         self.endpoint = config['endpoint'].replace('http:', 'https:')
         self.namespace = config['namespace']
         self.runtime = config['action_name']
+        self.memory = int(config['action_memory'])
+        self.timeout = int(config['action_timeout'])
         self.is_cf_cluster = config['is_cf_cluster']
 
         auth = base64.encodebytes(self.api_key).replace(b'\n', b'')
         self.headers = {
-                'content-type': 'application/json',
-                'Authorization': 'Basic %s' % auth.decode('UTF-8')
-                }
+            'content-type': 'application/json',
+            'Authorization': 'Basic %s' % auth.decode('UTF-8')
+        }
 
         self.session = requests.session()
         self.session.headers.update(self.headers)
@@ -52,13 +54,12 @@ class CloudFunctions:
 
         msg = 'IBM Cloud Functions init for'
         logger.info('{} namespace: {} host {}'.format(msg, self.namespace, self.endpoint))
-        if(logger.getEffectiveLevel() == logging.DEBUG):
+        if logger.getEffectiveLevel() == logging.DEBUG:
             print("{} namespace: {} and host: {}".format(msg, self.namespace,
                                                          self.endpoint))
 
-    def create_action(self, action_name,  memory=None, timeout=None,
-                      code=None, kind='blackbox', image='ibmfunctions/action-python-v3.6',
-                      is_binary=True, overwrite=True):
+    def create_action(self, action_name, code=None, kind='blackbox',
+                      image='ibmfunctions/action-python-v3.6', is_binary=True, overwrite=True):
         """
         Create an IBM Cloud Function
         """
@@ -71,11 +72,10 @@ class CloudFunctions:
         limits = {}
         cfexec = {}
 
-        if timeout:
-            limits['timeout'] = timeout
-        if memory:
-            limits['memory'] = memory
-        if limits:
+        limits['timeout'] = self.timeout
+        limits['memory'] = self.memory
+            
+        if limits['timeout'] and limits['memory']:
             data['limits'] = limits
 
         cfexec['kind'] = kind
@@ -96,7 +96,7 @@ class CloudFunctions:
         """
         Get an IBM Cloud Function
         """
-        logger.debug ("I am about to get a cloud function action: {}".format(action_name))
+        logger.debug("I am about to get a cloud function action: {}".format(action_name))
         url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
                            self.namespace, 'actions', action_name)
         res = self.session.get(url)
@@ -106,8 +106,8 @@ class CloudFunctions:
         """
         Delete an IBM Cloud Function
         """
-        if(logger.getEffectiveLevel() == logging.DEBUG):
-            print ("Delete cloud function action: {}".format(action_name))
+        if logger.getEffectiveLevel() == logging.DEBUG:
+            print("Delete cloud function action: {}".format(action_name))
 
         url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
                            self.namespace, 'actions', action_name)
@@ -144,7 +144,7 @@ class CloudFunctions:
                                                           data["activationId"],
                                                           resp_time))
                 logger.debug(log_msg)
-                if(logger.getEffectiveLevel() == logging.WARNING):
+                if logger.getEffectiveLevel() == logging.WARNING:
                     print(log_msg)
                 return data["activationId"]
             else:
@@ -183,7 +183,7 @@ class CloudFunctions:
                                                           data["activationId"],
                                                           resp_time))
                 logger.debug(log_msg)
-                if(logger.getEffectiveLevel() == logging.WARNING):
+                if logger.getEffectiveLevel() == logging.WARNING:
                     print(log_msg)
                 return data["activationId"]
             else:
@@ -199,7 +199,7 @@ class CloudFunctions:
         """
         url = os.path.join(self.endpoint, 'api', 'v1',
                            'namespaces', self.namespace, 'actions',
-                           action_name+"?blocking=true&result=true")
+                           action_name + "?blocking=true&result=true")
         resp = self.session.post(url, json=payload)
         result = resp.json()
 
