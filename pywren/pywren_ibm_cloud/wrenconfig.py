@@ -18,12 +18,13 @@ import os
 import json
 from pywren_ibm_cloud.wrenutil import is_cf_cluster
 
-
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
 COS_BUCKET_DEFAULT = "pywren.data"
 COS_PREFIX_DEFAULT = "pywren.jobs"
 CF_ACTION_NAME_DEFAULT = 'pywren_3.6'
-CF_RUNTIME_TIMEOUT = 600  # Default: 10 minutes
+CF_ACTION_TIMEOUT_DEFAULT = 600000  # Default: 600 seconds => 10 minutes
+CF_ACTION_MEMORY_DEFAULT = 512  # Default: 512 MB
+CF_RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
 DATA_CLEANER_DEFAULT = False
 MAX_AGG_DATA_SIZE = 4e6
 INVOCATION_RETRY_DEFAULT = True
@@ -117,7 +118,7 @@ def default(config_data=None):
         config_data['pywren']['invocation_retry'] = INVOCATION_RETRY_DEFAULT
         config_data['pywren']['retry_sleep'] = RETRY_SLEEPS_DEFAULT
         config_data['pywren']['retries'] = RETRIES_DEFAULT
-        
+
     else:
         if 'storage_backend' not in config_data['pywren']:
             config_data['pywren']['storage_backend'] = STORAGE_BACKEND_DEFAULT
@@ -137,6 +138,12 @@ def default(config_data=None):
     if 'action_name' not in config_data['ibm_cf']:
         config_data['ibm_cf']['action_name'] = CF_ACTION_NAME_DEFAULT
 
+    if 'action_memory' not in config_data['ibm_cf']:
+        config_data['ibm_cf']['action_memory'] = CF_ACTION_MEMORY_DEFAULT
+
+    if 'action_timeout' not in config_data['ibm_cf']:
+        config_data['ibm_cf']['action_timeout'] = CF_ACTION_TIMEOUT_DEFAULT
+
     # True or False depending on whether this code is executed within CF cluster or not
     config_data['ibm_cf']['is_cf_cluster'] = is_cf_cluster()
 
@@ -150,12 +157,12 @@ def extract_storage_config(config):
     storage_config['storage_prefix'] = config['pywren']['storage_prefix']
     storage_config['storage_bucket'] = config['pywren']['storage_bucket']
 
-    if 'ibm_cos' in config:     
+    if 'ibm_cos' in config:
         required_parameters_1 = ('endpoint', 'api_key')
         required_parameters_2 = ('endpoint', 'secret_key', 'access_key')
-        
+
         if set(required_parameters_1) <= set(config['ibm_cos']) or \
-           set(required_parameters_2) <= set(config['ibm_cos']):
+                set(required_parameters_2) <= set(config['ibm_cos']):
             storage_config['ibm_cos'] = config['ibm_cos']
         else:
             raise Exception('You must provide {} or {} to access to IBM COS'.format(required_parameters_1,
@@ -163,10 +170,10 @@ def extract_storage_config(config):
 
     if 'swift' in config:
         required_parameters = ('auth_url', 'user_id', 'project_id', 'password', 'region')
-        
+
         if set(required_parameters) <= set(config['swift']):
             storage_config['swift'] = config['swift']
         else:
             raise Exception('You must provide {} to access to Swift'.format(required_parameters))
-    
+
     return storage_config

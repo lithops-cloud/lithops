@@ -11,19 +11,25 @@ import urllib.request
 PREFIX = '__pywren.test'
 
 try:
-    with open('data', 'r') as data_file:
+    dir_path = os.path.dirname(__file__)
+    path = os.path.join(dir_path, 'data')
+    with open(path, 'r') as data_file:
         TEST_FILES_URLS = [url for url in data_file.read().split()]
 except:
     print("can't open data file")
     sys.exit()
 
 try:
-    config_path = os.path.join(os.path.expanduser("~/.pywren_config"))
+    if 'PYWREN_CONFIG_FILE' in os.environ:
+        config_path = os.environ['PYWREN_CONFIG_FILE']
+    else:
+        config_path = os.path.join(os.path.expanduser("~/.pywren_config"))
     with open(config_path, 'r') as config_file:
         CONFIG = yaml.safe_load(config_file)
 except:
     print("can't open config file")
     sys.exit()
+
 
 def initCos():
     return ibm_boto3.resource("s3",
