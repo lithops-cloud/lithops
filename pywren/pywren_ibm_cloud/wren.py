@@ -280,12 +280,18 @@ class ibm_cf_executor:
         elif pywren_id:
             get_result_from_id = True
             executor_id, callgroup_id = split_pywren_id(pywren_id)
-            calls_ids = self.internal_storage.get_calls_ids(executor_id, callgroup_id)
+            calls_ids = self.internal_storage.get_callgroup_calls_ids(executor_id, callgroup_id)
             ftrs = []
             for call_id in calls_ids:
                 f = ResponseFuture(call_id, callgroup_id, executor_id, '', {}, self.storage_config)
                 f._state = JobState.invoked
                 ftrs.append(f)
+            if len(ftrs) == 0:
+                log_msg = 'Executor ID {} Invocations with PyWren ID: {} havn\'t done yet'.format(self.executor_id, pywren_id)
+                logger.warning(log_msg)
+                if get_status:
+                    return None, None
+                return
         else:
             # In this case self.futures is always a list
             ftrs = self.futures
@@ -303,17 +309,15 @@ class ibm_cf_executor:
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(msg)
 
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(timeout)
+
         pbar = None
-        if not get_result_from_id:
-
-            signal.signal(signal.SIGALRM, timeout_handler)
-            signal.alarm(timeout)
-
-            if not self.cf_cluster and logger.getEffectiveLevel() == logging.WARNING:
-                import tqdm
-                print()
-                pbar = tqdm.tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
-                                 total=len(ftrs), disable=False)
+        if not self.cf_cluster and logger.getEffectiveLevel() == logging.WARNING:
+            import tqdm
+            print()
+            pbar = tqdm.tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
+                             total=len(ftrs), disable=False)
 
         result = None
         try:
@@ -362,14 +366,7 @@ class ibm_cf_executor:
 
         statuses = [f.run_status for f in ftrs]
 
-        if result is not None:
-            if len(result) == 0:
-                log_msg = 'Executor ID {} Invocations with PyWren ID: {} havn\'t done yet'.format(self.executor_id, pywren_id)
-                logger.warning(log_msg)
-                if get_status:
-                    return None, None
-                return
-            elif len(result) == 1:
+        if result and len(result) == 1:
                 if get_status:
                     return result[0], statuses[0]
                 return result[0]
