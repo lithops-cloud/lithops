@@ -39,7 +39,11 @@ If you plan to develop code, stay in the master branch. Otherwise obtain the mos
 
 Build and install 
 	
-    python3 setup.py install
+    python3 setup.py install --force
+
+or
+
+    pip install -U .
 
 ### Deploy PyWren main runtime
 
