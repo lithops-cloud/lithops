@@ -64,7 +64,7 @@ def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
         for obj in objects:
             key = obj['Key']
             obj_size = obj['Size']
-            logger.info("Extracted key {} size {}".format(key, obj_size))
+            #logger.info("Extracted key {} size {}".format(key, obj_size))
 
             # full_key = '{}/{}'.format(bucket_name, key)
             size = 0
