@@ -204,9 +204,15 @@ class Executor(object):
             # Wrap original map function. This will produce the ready-to-use data_stream parameter
             object_processing_function = self.object_processing(map_function)
             # Get the object partitioner function
-            object_partitioner_function = object_partitioner(object_processing_function,
-                                                             reduce_function,
-                                                             extra_env, extra_meta)
+            object_partitioner_function = object_partitioner(map_function_wrapper=object_processing_function,
+                                                             reduce_function=reduce_function,
+                                                             extra_env=extra_env,
+                                                             extra_meta=extra_meta,
+                                                             remote_invocation=remote_invocation,
+                                                             invoke_pool_threads=invoke_pool_threads,
+                                                             data_all_as_one=data_all_as_one,
+                                                             overwrite_invoke_args=overwrite_invoke_args,
+                                                             reducer_one_per_object=reducer_one_per_object)
             arg_data = wrenutil.verify_args(map_function, data, object_processing=True)
             if reducer_one_per_object:
                 part_func_args = []
