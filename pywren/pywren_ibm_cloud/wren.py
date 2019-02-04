@@ -264,7 +264,7 @@ class ibm_cf_executor:
 
         msg = 'Executor ID {} Getting results'.format(self.executor_id)
         logger.debug(msg)
-        if(logger.getEffectiveLevel() == logging.WARNING):
+        if logger.getEffectiveLevel() == logging.WARNING:
             print(msg)
 
         signal.signal(signal.SIGALRM, timeout_handler)
@@ -291,7 +291,7 @@ class ibm_cf_executor:
             msg = ('Executor ID {} Raised timeout of {} seconds getting results '
                    '\nActivations not done: {}'.format(self.executor_id, timeout, not_dones_activation_ids))
             logger.debug(msg)
-            if(logger.getEffectiveLevel() == logging.WARNING):
+            if logger.getEffectiveLevel() == logging.WARNING:
                 print(msg)
             self._state = ExecutorState.error
             result = None
@@ -303,7 +303,7 @@ class ibm_cf_executor:
             not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
             msg = 'Executor ID {} Cancelled  \nActivations not done: {}'.format(self.executor_id, not_dones_activation_ids)
             logger.debug(msg)
-            if(logger.getEffectiveLevel() == logging.WARNING):
+            if logger.getEffectiveLevel() == logging.WARNING:
                 print(msg)
             if self.data_cleaner and not self.cf_cluster:
                 self.clean()
@@ -319,7 +319,7 @@ class ibm_cf_executor:
 
         msg = "Executor ID {} Finished\n".format(self.executor_id)
         logger.debug(msg)
-        if(logger.getEffectiveLevel() == logging.WARNING and self.data_cleaner):
+        if logger.getEffectiveLevel() == logging.WARNING and self.data_cleaner:
             print(msg)
 
         if result and len(result) == 1:
@@ -359,7 +359,7 @@ class ibm_cf_executor:
         msg = ("Executor ID {} Cleaning partial results from bucket '{}' "
                "and prefix '{}'".format(self.executor_id, storage_bucket, storage_prerix))
         logger.debug(msg)
-        if(logger.getEffectiveLevel() == logging.WARNING):
+        if logger.getEffectiveLevel() == logging.WARNING:
             print(msg)
             if not self.data_cleaner:
                 print()

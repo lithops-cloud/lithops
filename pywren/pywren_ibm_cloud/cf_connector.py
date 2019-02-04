@@ -54,7 +54,7 @@ class CloudFunctions:
 
         msg = 'IBM Cloud Functions init for'
         logger.info('{} namespace: {} host {}'.format(msg, self.namespace, self.endpoint))
-        if logger.getEffectiveLevel() == logging.DEBUG:
+        if logger.getEffectiveLevel() == logging.WARNING:
             print("{} namespace: {} and host: {}".format(msg, self.namespace,
                                                          self.endpoint))
 
