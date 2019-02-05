@@ -411,6 +411,8 @@ clone_runtime('<dockerhub_space>/<name>:<version>', config, 'pywren-ibm-cloud')
 
 ## Additional resources
 
+* [Ants, serverless computing, and simplified data processing](https://developer.ibm.com/blogs/2019/01/31/ants-serverless-computing-and-simplified-data-processing/)
+* [Speed up data pre-processing with PyWren in deep learning](https://developer.ibm.com/patterns/speed-up-data-pre-processing-with-pywren-in-deep-learning/)
 * [Predicting the future with Monte Carlo simulations over IBM Cloud Functions](https://www.ibm.com/blogs/bluemix/2019/01/monte-carlo-simulations-with-ibm-cloud-functions/)
 * [Process large data sets at massive scale with PyWren over IBM Cloud Functions](https://www.ibm.com/blogs/bluemix/2018/04/process-large-data-sets-massive-scale-pywren-ibm-cloud-functions/)
 * [PyWren for IBM Cloud on CODAIT](https://developer.ibm.com/code/open/centers/codait/projects/pywren/)
