@@ -8,7 +8,9 @@ logger = logging.getLogger(__name__)
 CHUNK_THRESHOLD = 4*1024  # 4KB
 
 
-def object_partitioner(map_function_wrapper, reduce_function, extra_env, extra_meta):
+def object_partitioner(map_function_wrapper, reduce_function, extra_env, extra_meta,
+                       remote_invocation, invoke_pool_threads, data_all_as_one,
+                       overwrite_invoke_args, reducer_one_per_object):
     """
     Method that returns the function that will create the partitions of the objects in the Cloud
     """
@@ -18,7 +20,7 @@ def object_partitioner(map_function_wrapper, reduce_function, extra_env, extra_m
         """
         logger.info('Starting partitioner() function')
         map_func_keys = map_func_args[0].keys()
-    
+
         if 'bucket' in map_func_keys and 'key' not in map_func_keys:
             partitions = split_objects_from_bucket(map_func_args, chunk_size, storage)
             if not partitions:
@@ -26,7 +28,7 @@ def object_partitioner(map_function_wrapper, reduce_function, extra_env, extra_m
 
         elif 'key' in map_func_keys:
             partitions = split_object_from_key(map_func_args, chunk_size, storage)
-        
+
         elif 'url' in map_func_keys:
             partitions = split_object_from_url(map_func_args, chunk_size)
 
@@ -35,11 +37,17 @@ def object_partitioner(map_function_wrapper, reduce_function, extra_env, extra_m
 
         #logger.info(partitions)
         pw = pywren.ibm_cf_executor()
-        futures = pw.map_reduce(map_function_wrapper, partitions,
-                                reduce_function,
-                                reducer_wait_local=False,
+        futures = pw.map_reduce(map_function=map_function_wrapper, 
+                                map_iterdata=partitions,
+                                reduce_function=reduce_function,
                                 extra_env=extra_env,
-                                extra_meta=extra_meta)
+                                extra_meta=extra_meta,
+                                remote_invocation=remote_invocation,
+                                invoke_pool_threads=invoke_pool_threads,
+                                data_all_as_one=data_all_as_one,
+                                overwrite_invoke_args=overwrite_invoke_args,
+                                reducer_one_per_object=reducer_one_per_object,
+                                reducer_wait_local=False)
         return futures
 
     return object_partitioner_function

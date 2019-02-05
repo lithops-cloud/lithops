@@ -85,6 +85,8 @@ def ibm_cloud_function_handler(event):
                           'PYWREN_EXECUTOR_ID':  event['executor_id']}
     os.environ.update(custom_handler_env)
 
+    extra_env = event.get('extra_env', {})
+
     try:
         status_key = event['status_key']
         func_key = event['func_key']
@@ -103,10 +105,9 @@ def ibm_cloud_function_handler(event):
         response_status['output_key'] = output_key
         response_status['status_key'] = status_key
 
-        #free_disk_bytes = free_disk_space("/tmp")
-        #response_status['free_disk_bytes'] = free_disk_bytes
+        # free_disk_bytes = free_disk_space("/tmp")
+        # response_status['free_disk_bytes'] = free_disk_bytes
 
-        extra_env = event.get('extra_env', {})
         extra_env['PYTHONPATH'] = "{}:{}".format(os.getcwd(), PYWREN_LIBS_PATH)
         extra_env['PYTHONUNBUFFERED'] = 'True'
 
@@ -182,8 +183,8 @@ def ibm_cloud_function_handler(event):
                 raise Exception("OUTOFMEMORY",  "Process exceeded maximum memory and was killed")
 
         logger.info("Command execution finished")
-        #print(subprocess.check_output("find {}".format(PYTHON_MODULE_PATH), shell=True))
-        #print(subprocess.check_output("find {}".format(os.getcwd()), shell=True))
+        # print(subprocess.check_output("find {}".format(PYTHON_MODULE_PATH), shell=True))
+        # print(subprocess.check_output("find {}".format(os.getcwd()), shell=True))
 
         if os.path.exists(JOBRUNNER_STATS_FILENAME):
             with open(JOBRUNNER_STATS_FILENAME, 'r') as fid:
@@ -194,7 +195,7 @@ def ibm_cloud_function_handler(event):
 
         response_status['exec_time'] = time.time() - setup_time
         response_status['host_submit_time'] = event['host_submit_time']
-        #response_status['server_info'] = get_server_info()
+        # response_status['server_info'] = get_server_info()
         response_status.update(context_dict)
         response_status['end_time'] = time.time()
 
