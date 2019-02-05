@@ -337,12 +337,12 @@ class ibm_cf_executor:
         """
         from pywren_ibm_cloud.plots import create_timeline, create_histogram
 
-        if self.futures and not run_statuses and not invoke_statuses:
+        if self.futures and not run_statuses:
             run_statuses = [f.run_status for f in self.futures]
             invoke_statuses = [f.invoke_status for f in self.futures]
 
-        if not run_statuses and not invoke_statuses:
-            raise Exception('You must provide run_statuses and invoke_statuses')
+        if not run_statuses:
+            raise Exception('You must provide run_statuses')
 
         create_timeline(dst, name, run_statuses, invoke_statuses)
         create_histogram(dst, name, run_statuses, x_lim=150)
