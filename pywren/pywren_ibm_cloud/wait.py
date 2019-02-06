@@ -14,10 +14,15 @@
 # limitations under the License.
 #
 
-import random
 import time
+import pika
+import queue
+import random
+import logging
+import threading
 from multiprocessing.pool import ThreadPool
 
+logger = logging.getLogger(__name__)
 
 ALL_COMPLETED = 1
 ANY_COMPLETED = 2
@@ -63,6 +68,7 @@ def wait(fs, executor_id, internal_storage, throw_except=True,
             fs_dones, fs_notdones = _wait(fs, executor_id,
                                           internal_storage,
                                           throw_except,
+                                          rabbit_amqp_url,
                                           RETURN_EARLY_N,
                                           MAX_DIRECT_QUERY_N,
                                           random_query=RANDOM_QUERY,
@@ -84,6 +90,7 @@ def wait(fs, executor_id, internal_storage, throw_except=True,
             fs_dones, fs_notdones = _wait(fs, executor_id,
                                           internal_storage,
                                           throw_except,
+                                          rabbit_amqp_url,
                                           RETURN_EARLY_N,
                                           MAX_DIRECT_QUERY_N,
                                           random_query=RANDOM_QUERY,
@@ -106,8 +113,31 @@ def wait(fs, executor_id, internal_storage, throw_except=True,
         raise ValueError()
 
 
-def _wait(fs, executor_id, internal_storage, throw_except, return_early_n,
-          max_direct_query_n, random_query=False, THREADPOOL_SIZE=16, pbar=None):
+class rabbitmq_checker_worker(threading.Thread):
+
+    def callback(self, ch, method, properties, body):
+        #print(" [x] %r" % body)
+        self.q.put(body)
+
+    def __init__(self, executor_id, rabbit_amqp_url, q):
+        threading.Thread.__init__(self)
+        self.executor_id = executor_id
+        self.q = q
+        params = pika.URLParameters(rabbit_amqp_url)
+        connection = pika.BlockingConnection(params)
+        self.channel = connection.channel()  # start a channel
+        self.channel.queue_declare(queue=self.executor_id, auto_delete=True)
+        self.channel.basic_consume(self.callback, queue=self.executor_id, no_ack=True)
+
+    def run(self):
+        msg = 'Executor ID {} Start consuming'.format(self.executor_id)
+        logger.debug(msg)
+        self.channel.start_consuming()
+
+
+def _wait(fs, executor_id, internal_storage, throw_except,
+          rabbit_amqp_url, return_early_n, max_direct_query_n,
+          random_query=False, THREADPOOL_SIZE=16, pbar=None):
     """
     internal function that performs the majority of the WAIT task
     work.
@@ -124,83 +154,100 @@ def _wait(fs, executor_id, internal_storage, throw_except, return_early_n,
     random_query decides whether we get the fs in the order they are presented
     or in a random order.
     """
-    # get all the futures that are not yet done
-    not_done_futures = [f for f in fs if not f.done]
-    if len(not_done_futures) == 0:
-        return fs, []
-
-    # note this returns everything done, so we have to figure out
-    # the intersection of those that are done
-    callids_done_in_callset = set(internal_storage.get_callset_status(executor_id))
-    #print('CALLSET:', callids_done_in_callset, len(callids_done_in_callset))
-
-    not_done_call_ids = set([(f.callgroup_id, f.call_id) for f in not_done_futures])
-    #print('NO TDONE:' ,not_done_call_ids, len(not_done_call_ids))
-
-    done_call_ids = not_done_call_ids.intersection(callids_done_in_callset)
-    not_done_call_ids = not_done_call_ids - done_call_ids
-    still_not_done_futures = [f for f in not_done_futures if ((f.callgroup_id, f.call_id) in not_done_call_ids)]
-
-    def fetch_future_status(f):
-        return internal_storage.get_call_status(f.executor_id, f.callgroup_id, f.call_id)
-
-    pool = ThreadPool(THREADPOOL_SIZE)
-
-    # now try up to max_direct_query_n direct status queries, quitting once
-    # we have return_n done.
-    query_count = 0
-    max_queries = min(max_direct_query_n, len(still_not_done_futures))
-
-    if random_query:
-        random.shuffle(still_not_done_futures)
-
-    while query_count < max_queries:
-        if len(done_call_ids) >= return_early_n:
-            break
-        num_to_query_at_once = THREADPOOL_SIZE
-        fs_to_query = still_not_done_futures[query_count:query_count + num_to_query_at_once]
-        fs_statuses = pool.map(fetch_future_status, fs_to_query)
-
-        callids_found = [(fs_to_query[i].callgroup_id, fs_to_query[i].call_id) for i in range(len(fs_to_query))
-                         if fs_statuses[i] is not None]
-
-        #print('FOUND:',callids_found, len(callids_found))
-
-        done_call_ids = done_call_ids.union(set(callids_found))
-        query_count += len(fs_to_query)
-
-    # now we walk through all the original queries and get
-    # the ones that are actually done.
-    fs_dones = []
-    fs_notdones = []
-    f_to_wait_on = []
-    for f in fs:
-        if f.done:
-            # done, don't need to do anything
-            fs_dones.append(f)
-        else:
-            if (f.callgroup_id, f.call_id) in done_call_ids:
-                f_to_wait_on.append(f)
+    if rabbit_amqp_url:
+        q = queue.Queue()
+        td = rabbitmq_checker_worker(executor_id, rabbit_amqp_url, q)
+        td.setDaemon(True)
+        td.start()
+        
+        done_call_ids = []
+        while len(done_call_ids) < len(fs):
+            data = q.get()
+            done_call_ids.append(data)
+            if pbar:
+                pbar.update(1)
+                pbar.refresh()
+        
+        return done_call_ids, None
+        
+    else:
+        # get all the futures that are not yet done
+        not_done_futures = [f for f in fs if not f.done]
+        if len(not_done_futures) == 0:
+            return fs, []
+    
+        # note this returns everything done, so we have to figure out
+        # the intersection of those that are done
+        callids_done_in_callset = set(internal_storage.get_callset_status(executor_id))
+        #print('CALLSET:', callids_done_in_callset, len(callids_done_in_callset))
+    
+        not_done_call_ids = set([(f.callgroup_id, f.call_id) for f in not_done_futures])
+        #print('NO TDONE:' ,not_done_call_ids, len(not_done_call_ids))
+    
+        done_call_ids = not_done_call_ids.intersection(callids_done_in_callset)
+        not_done_call_ids = not_done_call_ids - done_call_ids
+        still_not_done_futures = [f for f in not_done_futures if ((f.callgroup_id, f.call_id) in not_done_call_ids)]
+    
+        def fetch_future_status(f):
+            return internal_storage.get_call_status(f.executor_id, f.callgroup_id, f.call_id)
+    
+        pool = ThreadPool(THREADPOOL_SIZE)
+    
+        # now try up to max_direct_query_n direct status queries, quitting once
+        # we have return_n done.
+        query_count = 0
+        max_queries = min(max_direct_query_n, len(still_not_done_futures))
+    
+        if random_query:
+            random.shuffle(still_not_done_futures)
+    
+        while query_count < max_queries:
+            if len(done_call_ids) >= return_early_n:
+                break
+            num_to_query_at_once = THREADPOOL_SIZE
+            fs_to_query = still_not_done_futures[query_count:query_count + num_to_query_at_once]
+            fs_statuses = pool.map(fetch_future_status, fs_to_query)
+    
+            callids_found = [(fs_to_query[i].callgroup_id, fs_to_query[i].call_id) for i in range(len(fs_to_query))
+                             if fs_statuses[i] is not None]
+    
+            #print('FOUND:',callids_found, len(callids_found))
+    
+            done_call_ids = done_call_ids.union(set(callids_found))
+            query_count += len(fs_to_query)
+    
+        # now we walk through all the original queries and get
+        # the ones that are actually done.
+        fs_dones = []
+        fs_notdones = []
+        f_to_wait_on = []
+        for f in fs:
+            if f.done:
+                # done, don't need to do anything
                 fs_dones.append(f)
             else:
-                fs_notdones.append(f)
-
-    def get_result(f):
-        f.result(throw_except=throw_except, internal_storage=internal_storage)
-
-    pool.map(get_result, f_to_wait_on)
-    pool.close()
-    pool.join()
-
-    for f in f_to_wait_on:
-        if pbar and f.done:
-            pbar.update(1)
-    if pbar:
-        pbar.refresh()
-
-    # Check for new futures
-    new_futures = [f.result() for f in f_to_wait_on if f.futures]
-    for futures in new_futures:
-        fs.extend(futures)
-
-    return fs_dones, fs_notdones
+                if (f.callgroup_id, f.call_id) in done_call_ids:
+                    f_to_wait_on.append(f)
+                    fs_dones.append(f)
+                else:
+                    fs_notdones.append(f)
+    
+        def get_result(f):
+            f.result(throw_except=throw_except, internal_storage=internal_storage)
+    
+        pool.map(get_result, f_to_wait_on)
+        pool.close()
+        pool.join()
+    
+        for f in f_to_wait_on:
+            if pbar and f.done:
+                pbar.update(1)
+        if pbar:
+            pbar.refresh()
+    
+        # Check for new futures
+        new_futures = [f.result() for f in f_to_wait_on if f.futures]
+        for futures in new_futures:
+            fs.extend(futures)
+    
+        return fs_dones, fs_notdones

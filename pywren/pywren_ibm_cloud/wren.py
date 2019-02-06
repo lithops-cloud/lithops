@@ -16,6 +16,7 @@
 
 import os
 import sys
+import time
 import enum
 import json
 import signal
@@ -54,6 +55,7 @@ class ibm_cf_executor:
           >>> import pywren_ibm_cloud as pywren
           >>> pw = pywren.ibm_cf_executor()
         """
+        self.start_time = time.time()
         self._state = ExecutorState.new
 
         if config is None:
@@ -228,6 +230,11 @@ class ibm_cf_executor:
         if not futures:
             raise Exception('No activations to track. You must run pw.call_async(),'
                             ' pw.map() or pw.map_reduce() before call pw.wait()')
+        
+        msg = 'Executor ID {} Waiting for functions to complete'.format(self.executor_id)
+        logger.debug(msg)
+        if logger.getEffectiveLevel() == logging.WARNING:
+            print(msg)
 
         rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url', None)
 
@@ -365,8 +372,8 @@ class ibm_cf_executor:
         if not run_statuses:
             raise Exception('You must provide run_statuses')
 
-        create_timeline(dst, name, run_statuses, invoke_statuses)
-        create_histogram(dst, name, run_statuses, x_lim=150)
+        create_timeline(dst, name, self.start_time, run_statuses, invoke_statuses)
+        create_histogram(dst, name, self.start_time, run_statuses)
 
     def clean(self, local_execution=True):
         """
