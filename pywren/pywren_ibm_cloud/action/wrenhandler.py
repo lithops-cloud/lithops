@@ -22,13 +22,14 @@ import signal
 import subprocess
 import time
 import traceback
+import pika
 from threading import Thread
 from queue import Queue
 from pywren_ibm_cloud import version
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.storage import storage
 
-
+logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('wrenhandler')
 
 JOBRUNNER_PATH = "pywren_ibm_cloud/action/jobrunner.py"
@@ -80,43 +81,40 @@ def ibm_cloud_function_handler(event):
 
     config = event['config']
     storage_config = wrenconfig.extract_storage_config(config)
-    custom_handler_env = {'PYWREN_CONFIG': json.dumps(config),
-                          'STORAGE_CONFIG': json.dumps(storage_config),
-                          'PYWREN_EXECUTOR_ID':  event['executor_id']}
-    os.environ.update(custom_handler_env)
 
+    call_id = event['call_id']
+    callgroup_id = event['callgroup_id']
+    executor_id = event['executor_id']
+    job_max_runtime = event.get("job_max_runtime", 590)  # default for CF
+    status_key = event['status_key']
+    func_key = event['func_key']
+    data_key = event['data_key']
+    data_byte_range = event['data_byte_range']
+    output_key = event['output_key']
     extra_env = event.get('extra_env', {})
 
-    try:
-        status_key = event['status_key']
-        func_key = event['func_key']
-        data_key = event['data_key']
-        data_byte_range = event['data_byte_range']
-        output_key = event['output_key']
+    response_status['call_id'] = call_id
+    response_status['callgroup_id'] = callgroup_id
+    response_status['executor_id'] = executor_id
+    response_status['func_key'] = func_key
+    response_status['data_key'] = data_key
+    response_status['output_key'] = output_key
+    response_status['status_key'] = status_key
 
+    try:
         if version.__version__ != event['pywren_version']:
-            raise Exception("WRONGVERSION", "Pywren version mismatch",
+            raise Exception("WRONGVERSION", "PyWren version mismatch",
                             version.__version__, event['pywren_version'])
 
-        job_max_runtime = event.get("job_max_runtime", 550)  # default for CF
+        # response_status['free_disk_bytes'] = free_disk_space("/tmp")
 
-        response_status['func_key'] = func_key
-        response_status['data_key'] = data_key
-        response_status['output_key'] = output_key
-        response_status['status_key'] = status_key
+        custom_env = {'PYWREN_CONFIG': json.dumps(config),
+                      'STORAGE_CONFIG': json.dumps(storage_config),
+                      'PYWREN_EXECUTOR_ID':  executor_id,
+                      'PYTHONPATH': "{}:{}".format(os.getcwd(), PYWREN_LIBS_PATH),
+                      'PYTHONUNBUFFERED': 'True'}
 
-        # free_disk_bytes = free_disk_space("/tmp")
-        # response_status['free_disk_bytes'] = free_disk_bytes
-
-        extra_env['PYTHONPATH'] = "{}:{}".format(os.getcwd(), PYWREN_LIBS_PATH)
-        extra_env['PYTHONUNBUFFERED'] = 'True'
-
-        call_id = event['call_id']
-        callgroup_id = event['callgroup_id']
-        executor_id = event['executor_id']
-        response_status['call_id'] = call_id
-        response_status['callgroup_id'] = callgroup_id
-        response_status['executor_id'] = executor_id
+        os.environ.update(custom_env)
 
         # pass a full json blob
         jobrunner_config = {'func_key': func_key,
@@ -138,9 +136,6 @@ def ibm_cloud_function_handler(event):
         setup_time = time.time()
         response_status['setup_time'] = setup_time - start_time
 
-        local_env = os.environ.copy()
-        local_env.update(extra_env)
-
         """
         stdout = os.popen(cmdstr).read()
         print(stdout)
@@ -152,11 +147,12 @@ def ibm_cloud_function_handler(event):
         """
         # This is copied from http://stackoverflow.com/a/17698359/4577954
         # reasons for setting process group: http://stackoverflow.com/a/4791612
+        local_env = os.environ.copy()
         process = subprocess.Popen(cmdstr, shell=True, env=local_env, bufsize=1,
                                    stdout=subprocess.PIPE, preexec_fn=os.setsid,
                                    universal_newlines=True)
 
-        logger.info("launched process")
+        logger.info("Launched jobrunner process")
 
         def consume_stdout(stdout, queue):
             with stdout:
@@ -208,6 +204,19 @@ def ibm_cloud_function_handler(event):
         response_status['exception_traceback'] = traceback.format_exc()
 
     finally:
+        rabbit_amqp_url = config['rabbitmq'].get('amqp_url', None)
+        if rabbit_amqp_url:
+            params = pika.URLParameters(rabbit_amqp_url)
+            connection = pika.BlockingConnection(params)
+            channel = connection.channel()
+            status = 'ok'
+            if response_status['exception']:
+                status = 'error'
+            channel.basic_publish(exchange='', routing_key=executor_id,
+                                  body='{}/{}:{}'.format(callgroup_id, call_id, status))
+            logger.info("Sent response status to queue")
+            connection.close()
+
         store_status = True
         if 'STORE_STATUS' in extra_env:
             store_status = eval(extra_env['STORE_STATUS'])

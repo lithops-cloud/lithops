@@ -34,8 +34,9 @@ logger = logging.getLogger(__name__)
 
 class ExecutorState(enum.Enum):
     new = 1
-    finished = 2
-    error = 3
+    wait = 2
+    finished = 3
+    error = 4
 
 
 class ibm_cf_executor:
@@ -228,10 +229,29 @@ class ibm_cf_executor:
             raise Exception('No activations to track. You must run pw.call_async(),'
                             ' pw.map() or pw.map_reduce() before call pw.wait()')
 
-        return wait(futures, self.executor_id, self.internal_storage, throw_except=throw_except,
-                    return_when=return_when, THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
+        rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url', None)
 
-    def get_result(self, futures=None, throw_except=True, timeout=wrenconfig.CF_RUNTIME_TIMEOUT,
+        pbar = None
+        if not self.cf_cluster and logger.getEffectiveLevel() == logging.WARNING:
+            import tqdm
+            print()
+            pbar = tqdm.tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
+                             total=len(futures), disable=False)
+        
+        fs_dones, fs_notdones = wait(futures, self.executor_id, self.internal_storage,
+                                     throw_except=throw_except, return_when=return_when,
+                                     rabbit_amqp_url=rabbit_amqp_url, pbar=pbar,
+                                     THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
+        if pbar:
+            pbar.close()
+            print()
+
+        self._state = ExecutorState.wait
+
+        return fs_dones, fs_notdones
+
+    def get_result(self, futures=None, throw_except=True,
+                   timeout=wrenconfig.CF_RUNTIME_TIMEOUT,
                    THREADPOOL_SIZE=64, WAIT_DUR_SEC=2):
         """
         For getting PyWren results
@@ -270,9 +290,9 @@ class ibm_cf_executor:
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(timeout)
 
-        if self.cf_cluster or logger.getEffectiveLevel() != logging.WARNING:
-            pbar = None
-        else:
+        pbar = None
+        if not self.cf_cluster and self._state != ExecutorState.wait \
+           and logger.getEffectiveLevel() == logging.WARNING:
             import tqdm
             print()
             pbar = tqdm.tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
@@ -280,7 +300,7 @@ class ibm_cf_executor:
 
         try:
             wait(ftrs, self.executor_id, self.internal_storage, throw_except=throw_except,
-                 THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC, pbar=pbar)
+                 pbar=pbar, THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
             result = [f.result() for f in ftrs if f.done and not f.futures]
 
         except TimeoutError:
@@ -316,6 +336,7 @@ class ibm_cf_executor:
                 print()
             if self.data_cleaner and not self.cf_cluster:
                 self.clean()
+            self._state == ExecutorState.finished
 
         msg = "Executor ID {} Finished\n".format(self.executor_id)
         logger.debug(msg)
