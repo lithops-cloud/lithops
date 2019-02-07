@@ -206,22 +206,21 @@ def ibm_cloud_function_handler(event):
         response_status['exception_traceback'] = traceback.format_exc()
 
     finally:
-        if 'rabbitmq' in config:
-            rabbit_amqp_url = config['rabbitmq'].get('amqp_url', None)
-            if rabbit_amqp_url:
-                params = pika.URLParameters(rabbit_amqp_url)
-                connection = pika.BlockingConnection(params)
-                channel = connection.channel()
-                channel.queue_declare(queue=executor_id, auto_delete=True)
-                status = 'ok'
-                if response_status['exception']:
-                    status = 'error'
-                new_futures = response_status['new_futures']
-                channel.basic_publish(exchange='', routing_key=executor_id,
-                                      body='{}/{}:{}:{}'.format(callgroup_id, call_id,
-                                                                status,  new_futures))
-                logger.info("Status sent to rabbitmq")
-                connection.close()
+        rabbit_amqp_url = config['rabbitmq'].get('amqp_url')
+        if rabbit_amqp_url:
+            params = pika.URLParameters(rabbit_amqp_url)
+            connection = pika.BlockingConnection(params)
+            channel = connection.channel()
+            channel.queue_declare(queue=executor_id, auto_delete=True)
+            status = 'ok'
+            if response_status['exception']:
+                status = 'error'
+            new_futures = response_status['new_futures']
+            channel.basic_publish(exchange='', routing_key=executor_id,
+                                  body='{}/{}:{}:{}'.format(callgroup_id, call_id,
+                                                            status,  new_futures))
+            logger.info("Status sent to rabbitmq")
+            connection.close()
 
         store_status = True
         if 'STORE_STATUS' in extra_env:

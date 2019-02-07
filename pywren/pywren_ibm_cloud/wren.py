@@ -236,7 +236,7 @@ class ibm_cf_executor:
         if logger.getEffectiveLevel() == logging.WARNING:
             print(msg)
 
-        rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url', None)
+        rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
 
         pbar = None
         if not self.cf_cluster and logger.getEffectiveLevel() == logging.WARNING and return_when == ALL_COMPLETED:

@@ -20,7 +20,6 @@ import queue
 import random
 import logging
 import threading
-import functools
 from multiprocessing.pool import ThreadPool
 
 logger = logging.getLogger(__name__)
@@ -42,7 +41,7 @@ def wait(fs, executor_id, internal_storage, download_results=False,
     :param fs: A list of futures.
     :param executor_id: executor's ID.
     :param internal_storage: Storage handler to poll cloud storage.
-    :param download_results: Download the results.
+    :param download_results: Download the results: Ture, False.
     :param rabbit_amqp_url: amqp url for accessing rabbitmq.
     :param pbar: Progress bar.
     :param return_when: One of `ALL_COMPLETED`, `ANY_COMPLETED`, `ALWAYS`
