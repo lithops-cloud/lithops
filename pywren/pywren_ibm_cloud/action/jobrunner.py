@@ -58,7 +58,7 @@ class stats:
         self.stats_fid = open(stats_filename, 'w')
 
     def write(self, key, value):
-        self.stats_fid.write("{} {:f}\n".format(key, value))
+        self.stats_fid.write("{} {}\n".format(key, value))
         self.stats_fid.flush()
 
     def __del__(self):
@@ -225,11 +225,13 @@ class jobrunner:
 
             # Check for new futures
             if isinstance(result, ResponseFuture):
-                self.stats.write('new_futures', 1)
+                callgroup_id = result.callgroup_id
+                self.stats.write('new_futures', '{}/{}'.format(callgroup_id, 1))
             elif type(result) == list and len(result) > 0 and isinstance(result[0], ResponseFuture):
-                self.stats.write('new_futures', len(result))
+                callgroup_id = result[0].callgroup_id
+                self.stats.write('new_futures', '{}/{}'.format(callgroup_id, len(result)))
             else:
-                self.stats.write('new_futures', 0)
+                self.stats.write('new_futures', '{}/{}'.format(None, 0))
 
             if self.show_memory:
                 logger.debug("Memory usage after output serialization: {}".format(get_current_memory_usage()))

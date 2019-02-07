@@ -186,8 +186,10 @@ def ibm_cloud_function_handler(event):
             with open(JOBRUNNER_STATS_FILENAME, 'r') as fid:
                 for l in fid.readlines():
                     key, value = l.strip().split(" ")
-                    float_value = float(value)
-                    response_status[key] = float_value
+                    try:
+                        response_status[key] = float(value)
+                    except:
+                        response_status[key] = value
 
         response_status['exec_time'] = time.time() - setup_time
         response_status['host_submit_time'] = event['host_submit_time']
@@ -214,7 +216,7 @@ def ibm_cloud_function_handler(event):
                 status = 'ok'
                 if response_status['exception']:
                     status = 'error'
-                new_futures = int(response_status['new_futures'])
+                new_futures = response_status['new_futures']
                 channel.basic_publish(exchange='', routing_key=executor_id,
                                       body='{}/{}:{}:{}'.format(callgroup_id, call_id,
                                                                 status,  new_futures))

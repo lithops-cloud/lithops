@@ -20,6 +20,7 @@ import queue
 import random
 import logging
 import threading
+import functools
 from multiprocessing.pool import ThreadPool
 
 logger = logging.getLogger(__name__)
@@ -29,9 +30,9 @@ ANY_COMPLETED = 2
 ALWAYS = 3
 
 
-def wait(fs, executor_id, internal_storage, throw_except=True,
-         rabbit_amqp_url=None, pbar=None, return_when=ALL_COMPLETED,
-         THREADPOOL_SIZE=64, WAIT_DUR_SEC=2):
+def wait(fs, executor_id, internal_storage, download_results=False,
+         throw_except=True, rabbit_amqp_url=None, pbar=None,
+         return_when=ALL_COMPLETED, THREADPOOL_SIZE=64, WAIT_DUR_SEC=2):
     """
     Wait for the Future instances `fs` to complete. Returns a 2-tuple of
     lists. The first list contains the futures that completed
@@ -40,11 +41,13 @@ def wait(fs, executor_id, internal_storage, throw_except=True,
 
     :param fs: A list of futures.
     :param executor_id: executor's ID.
-    :param storage_handler: Storage handler to poll cloud storage.
+    :param internal_storage: Storage handler to poll cloud storage.
+    :param download_results: Download the results.
+    :param rabbit_amqp_url: amqp url for accessing rabbitmq.
+    :param pbar: Progress bar.
     :param return_when: One of `ALL_COMPLETED`, `ANY_COMPLETED`, `ALWAYS`
     :param THREADPOOL_SIZE: Number of threads to use. Default 64
     :param WAIT_DUR_SEC: Time interval between each check.
-    :param pbar: Progress bar.
     :return: `(fs_dones, fs_notdones)`
         where `fs_dones` is a list of futures that have completed
         and `fs_notdones` is a list of futures that have not completed.
@@ -64,13 +67,15 @@ def wait(fs, executor_id, internal_storage, throw_except=True,
     if return_when == ALL_COMPLETED:
 
         if rabbit_amqp_url:
-            return _wait_rabbitmq__queue(executor_id, rabbit_amqp_url, pbar, N)
+            callgroup_id = fs[0].callgroup_id
+            return _wait_rabbitmq(executor_id, callgroup_id, rabbit_amqp_url, pbar, N)
 
         result_count = 0
 
         while result_count < N:
             fs_dones, fs_notdones = _wait_storage(fs, executor_id,
                                                   internal_storage,
+                                                  download_results,
                                                   throw_except,
                                                   RETURN_EARLY_N,
                                                   MAX_DIRECT_QUERY_N,
@@ -92,6 +97,7 @@ def wait(fs, executor_id, internal_storage, throw_except=True,
         while True:
             fs_dones, fs_notdones = _wait_storage(fs, executor_id,
                                                   internal_storage,
+                                                  download_results,
                                                   throw_except,
                                                   RETURN_EARLY_N,
                                                   MAX_DIRECT_QUERY_N,
@@ -106,6 +112,7 @@ def wait(fs, executor_id, internal_storage, throw_except=True,
     elif return_when == ALWAYS:
         return _wait_storage(fs, executor_id,
                              internal_storage,
+                             download_results,
                              throw_except,
                              RETURN_EARLY_N,
                              MAX_DIRECT_QUERY_N,
@@ -136,24 +143,52 @@ class rabbitmq_checker_worker(threading.Thread):
         self.channel.start_consuming()
 
 
-def _wait_rabbitmq__queue(executor_id, rabbit_amqp_url, pbar, total):
+def _wait_rabbitmq(executor_id, callgroup_id, rabbit_amqp_url, pbar, total):
     q = queue.Queue()
     td = rabbitmq_checker_worker(executor_id, rabbit_amqp_url, q)
     td.setDaemon(True)
     td.start()
 
-    done_call_ids = []
-    while len(done_call_ids) < total:
+    done_call_ids = {}
+    done_call_ids[callgroup_id] = {'total': total, 'call_ids': []}
+
+    def reception_finished():
+        for cg_id in done_call_ids:
+            total = done_call_ids[cg_id]['total']
+            recived_call_ids = len(done_call_ids[cg_id]['call_ids'])
+
+            if total is None or total > recived_call_ids:
+                return False
+
+        return True
+
+    while not reception_finished():
         data = q.get().split(':')
-        done_call_ids.append(data[0])
+        #print(data)
+        rcv_callgroup_id, rcv_call_id = data[0].split('/')
+        if rcv_callgroup_id not in done_call_ids:
+            done_call_ids[rcv_callgroup_id] = {'total': None, 'call_ids': []}
+        done_call_ids[rcv_callgroup_id]['call_ids'].append(rcv_call_id)
+
         if pbar:
             pbar.update(1)
             pbar.refresh()
-        new_futures = int(data[-1])
-        total = total + new_futures
-        if pbar and pbar.total != total:
-            pbar.total = total
-            pbar.refresh()
+
+        new_futures = data[-1].split('/')
+        if int(new_futures[1]) != 0:
+            # We received new futures to track
+            callgroup_id_new_futures = new_futures[0]
+            total_new_futures = int(new_futures[1])
+            if callgroup_id_new_futures not in done_call_ids:
+                done_call_ids[callgroup_id_new_futures] = {'total': total_new_futures, 'call_ids': []}
+            else:
+                done_call_ids[callgroup_id_new_futures]['total'] = total_new_futures
+
+            if pbar:
+                pbar.total = pbar.total + total_new_futures
+                pbar.refresh()
+
+        #print(done_call_ids)
 
     if pbar:
         pbar.close()
@@ -161,8 +196,9 @@ def _wait_rabbitmq__queue(executor_id, rabbit_amqp_url, pbar, total):
     return done_call_ids, None
 
 
-def _wait_storage(fs, executor_id, internal_storage, throw_except, return_early_n,
-                  max_direct_query_n, random_query=False, THREADPOOL_SIZE=16, pbar=None):
+def _wait_storage(fs, executor_id, internal_storage, download_results,
+                  throw_except, return_early_n, max_direct_query_n,
+                  random_query=False, THREADPOOL_SIZE=16, pbar=None):
     """
     internal function that performs the majority of the WAIT task
     work.

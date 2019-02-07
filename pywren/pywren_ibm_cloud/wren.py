@@ -230,7 +230,7 @@ class ibm_cf_executor:
         if not futures:
             raise Exception('No activations to track. You must run pw.call_async(),'
                             ' pw.map() or pw.map_reduce() before call pw.wait()')
-        
+
         msg = 'Executor ID {} Waiting for functions to complete'.format(self.executor_id)
         logger.debug(msg)
         if logger.getEffectiveLevel() == logging.WARNING:
@@ -239,12 +239,12 @@ class ibm_cf_executor:
         rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url', None)
 
         pbar = None
-        if not self.cf_cluster and logger.getEffectiveLevel() == logging.WARNING:
+        if not self.cf_cluster and logger.getEffectiveLevel() == logging.WARNING and return_when == ALL_COMPLETED:
             import tqdm
             print()
             pbar = tqdm.tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
                              total=len(futures), disable=False)
-        
+
         fs_dones, fs_notdones = wait(futures, self.executor_id, self.internal_storage,
                                      throw_except=throw_except, return_when=return_when,
                                      rabbit_amqp_url=rabbit_amqp_url, pbar=pbar,
@@ -343,7 +343,7 @@ class ibm_cf_executor:
                 print()
             if self.data_cleaner and not self.cf_cluster:
                 self.clean()
-            self._state == ExecutorState.finished
+            self._state = ExecutorState.finished
 
         msg = "Executor ID {} Finished\n".format(self.executor_id)
         logger.debug(msg)
