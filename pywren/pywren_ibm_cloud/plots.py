@@ -57,18 +57,22 @@ def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses):
     plot_step = int(np.max([1, total_jobs/32]))
 
     y_ticks = np.arange(total_jobs//plot_step + 2) * plot_step
-
     ax.set_yticks(y_ticks)
     ax.set_ylim(-0.02*total_jobs, total_jobs*1.05)
-
-    if invoke_statuses:
-        ax.set_xlim(0, np.max(results_df.download_output_timestamp - pw_start_time)*1.35)
-    else:
-        ax.set_xlim(0, np.max(results_df.end_time - pw_start_time)*1.35)
-    #ax.set_xlim(-0.02, np.max(8))
-
     for y in y_ticks:
         ax.axhline(y, c='k', alpha=0.1, linewidth=1)
+
+    if invoke_statuses:
+        max_seconds = np.max(results_df.download_output_timestamp - pw_start_time)*1.25
+        xplot_step = int(max_seconds/8)
+        x_ticks = np.arange(max_seconds//xplot_step + 2) * xplot_step
+        ax.set_xlim(0, max_seconds)
+    else:
+        x_ticks = np.arange(np.max(results_df.end_time - pw_start_time)*1.35)
+        ax.set_xlim(0, np.max(results_df.end_time - pw_start_time)*1.35)
+    ax.set_xticks(x_ticks)
+    for x in x_ticks:
+        ax.axvline(x, c='k', alpha=0.2, linewidth=0.8)
 
     ax.grid(False)
     fig.tight_layout()

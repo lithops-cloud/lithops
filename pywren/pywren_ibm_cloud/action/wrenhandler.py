@@ -214,8 +214,10 @@ def ibm_cloud_function_handler(event):
                 status = 'ok'
                 if response_status['exception']:
                     status = 'error'
+                new_futures = int(response_status['new_futures'])
                 channel.basic_publish(exchange='', routing_key=executor_id,
-                                      body='{}/{}:{}'.format(callgroup_id, call_id, status))
+                                      body='{}/{}:{}:{}'.format(callgroup_id, call_id,
+                                                                status,  new_futures))
                 logger.info("Status sent to rabbitmq")
                 connection.close()
 
