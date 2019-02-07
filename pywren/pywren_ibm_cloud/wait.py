@@ -215,7 +215,11 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
     or in a random order.
     """
     # get all the futures that are not yet done
-    not_done_futures = [f for f in fs if not f.done]
+    if download_results:
+        not_done_futures = [f for f in fs if not f.done]
+    else:
+        not_done_futures = [f for f in fs if not f.ready]
+    
     if len(not_done_futures) == 0:
         return fs, []
 
@@ -265,8 +269,10 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
     fs_notdones = []
     f_to_wait_on = []
     for f in fs:
-        if f.done:
+        if download_results and f.done:
             # done, don't need to do anything
+            fs_dones.append(f)    
+        elif not download_results and f.ready:
             fs_dones.append(f)
         else:
             if (f.callgroup_id, f.call_id) in done_call_ids:
@@ -277,13 +283,19 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
 
     def get_result(f):
         f.result(throw_except=throw_except, internal_storage=internal_storage)
+    def get_status(f):
+        f.status(throw_except=throw_except, internal_storage=internal_storage)
 
-    pool.map(get_result, f_to_wait_on)
+    if download_results:
+        pool.map(get_result, f_to_wait_on)
+    else:
+        pool.map(get_status, f_to_wait_on)
+        
     pool.close()
     pool.join()
 
     for f in f_to_wait_on:
-        if pbar and f.done:
+        if pbar and (f.done or f.ready):
             pbar.update(1)
     if pbar:
         pbar.refresh()

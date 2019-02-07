@@ -28,5 +28,5 @@ ibm_cos:
     #project_id : <SWIFT_PROJECT_ID>
     #password   : <SWIFT_PASSWORD>
 
-rabbitmq:
-	amqp_url 	: <RABBIT_AMQP_URL>  # amqp://
+#rabbitmq:
+	#amqp_url 	: <RABBIT_AMQP_URL>  # amqp://

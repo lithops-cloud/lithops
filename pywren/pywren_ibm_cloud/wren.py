@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 class ExecutorState(enum.Enum):
     new = 1
-    wait = 2
+    ready = 2
     finished = 3
     error = 4
 
@@ -201,7 +201,7 @@ class ibm_cf_executor:
         return futures
 
     def wait(self, futures=None, throw_except=True, return_when=ALL_COMPLETED,
-             THREADPOOL_SIZE=16, WAIT_DUR_SEC=2):
+             download_results=False, THREADPOOL_SIZE=16, WAIT_DUR_SEC=2):
         """
         Wait for the Future instances `fs` to complete. Returns a 2-tuple of
         lists. The first list contains the futures that completed
@@ -246,6 +246,7 @@ class ibm_cf_executor:
                              total=len(futures), disable=False)
 
         fs_dones, fs_notdones = wait(futures, self.executor_id, self.internal_storage,
+                                     download_results=download_results,
                                      throw_except=throw_except, return_when=return_when,
                                      rabbit_amqp_url=rabbit_amqp_url, pbar=pbar,
                                      THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
@@ -253,7 +254,7 @@ class ibm_cf_executor:
             pbar.close()
             print()
 
-        self._state = ExecutorState.wait
+        self._state = ExecutorState.ready
 
         return fs_dones, fs_notdones
 
@@ -298,7 +299,7 @@ class ibm_cf_executor:
         signal.alarm(timeout)
 
         pbar = None
-        if not self.cf_cluster and self._state != ExecutorState.wait \
+        if not self.cf_cluster and self._state != ExecutorState.ready \
            and logger.getEffectiveLevel() == logging.WARNING:
             import tqdm
             print()
@@ -306,8 +307,9 @@ class ibm_cf_executor:
                              total=len(ftrs), disable=False)
 
         try:
-            wait(ftrs, self.executor_id, self.internal_storage, throw_except=throw_except,
-                 pbar=pbar, THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
+            wait(ftrs, self.executor_id, self.internal_storage, download_results=True,
+                 throw_except=throw_except, pbar=pbar, THREADPOOL_SIZE=THREADPOOL_SIZE,
+                 WAIT_DUR_SEC=WAIT_DUR_SEC)
             result = [f.result() for f in ftrs if f.done and not f.futures]
 
         except TimeoutError:
