@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses):
     results_df = pd.DataFrame(run_statuses)
-    
+
     if invoke_statuses:
         invoke_df = pd.DataFrame(invoke_statuses)
         results_df = pd.concat([results_df, invoke_df], axis=1)
@@ -72,11 +72,11 @@ def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses):
         max_seconds = np.max(results_df.status_done_timestamp - pw_start_time)*1.25
     else:
         max_seconds = np.max(results_df.end_time - pw_start_time)*1.25
-    
+
     xplot_step = int(max_seconds/8)
     x_ticks = np.arange(max_seconds//xplot_step + 2) * xplot_step
     ax.set_xlim(0, max_seconds)
-    
+
     ax.set_xticks(x_ticks)
     for x in x_ticks:
         ax.axvline(x, c='k', alpha=0.2, linewidth=0.8)
@@ -131,7 +131,6 @@ def create_histogram(dst, name, pw_start_time, run_statuses):
 
     #ax.set_xlim(0, x_lim)
     ax.set_xlim(0, np.max(time_hist['end_time'])*3)
-    
     ax.set_ylim(0, len(time_hist['start_time'])*1.05)
     ax.set_xlabel("time (sec)")
 

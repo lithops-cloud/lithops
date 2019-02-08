@@ -380,6 +380,8 @@ class ibm_cf_executor:
         if logger.getEffectiveLevel() == logging.WARNING:
             print(msg)
 
+        rabbitmq_used = self.use_rabbitmq
+
         if not run_statuses:
             if self._state == ExecutorState.new or self._state == ExecutorState.error:
                 raise Exception('You must run pw.call_async(), pw.map() or pw.map_reduce()'
@@ -399,7 +401,7 @@ class ibm_cf_executor:
                 logger.debug('No futures available to print the plots')
                 return
 
-            if self.use_rabbitmq and self.config['rabbitmq']['amqp_url'] and invoke_statuses:
+            if rabbitmq_used and self.config['rabbitmq']['amqp_url'] and invoke_statuses:
                 # delete download ststus timestamp
                 for in_stat in invoke_statuses:
                     del in_stat['status_done_timestamp']
