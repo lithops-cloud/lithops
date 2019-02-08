@@ -260,14 +260,18 @@ class ResponseFuture:
             if isinstance(function_result, ResponseFuture):
                 self._new_futures = [function_result]
                 self._set_state(JobState.futures)
+                self.invoke_status['status_done_timestamp'] = self.invoke_status['download_output_timestamp']
+                del self.invoke_status['download_output_timestamp']
                 return self._new_futures
-            
+
             elif type(function_result) == list and len(function_result) > 0 \
                  and isinstance(function_result[0], ResponseFuture):
                 self._new_futures = function_result                
                 self._set_state(JobState.futures)
+                self.invoke_status['status_done_timestamp'] = self.invoke_status['download_output_timestamp']
+                del self.invoke_status['download_output_timestamp']
                 return self._new_futures
-            
+
             else:
                 self._return_val = function_result
                 self._set_state(JobState.success)

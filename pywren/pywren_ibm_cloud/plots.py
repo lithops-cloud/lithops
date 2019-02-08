@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses):
     results_df = pd.DataFrame(run_statuses)
+    
     if invoke_statuses:
         invoke_df = pd.DataFrame(invoke_statuses)
         results_df = pd.concat([results_df, invoke_df], axis=1)
@@ -38,8 +39,11 @@ def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses):
               ('jobrunner start', results_df.jobrunner_start - pw_start_time),
               ('action done', results_df.end_time - pw_start_time)]
 
-    if invoke_statuses:
+    if 'download_output_timestamp' in results_df:
+        print(results_df.download_output_timestamp)
         fields.append(('results fetched', results_df.download_output_timestamp - pw_start_time))
+    elif 'status_done_timestamp' in results_df:
+        fields.append(('status fetched', results_df.status_done_timestamp - pw_start_time))
 
     patches = []
     for f_i, (field_name, val) in enumerate(fields):
@@ -62,14 +66,17 @@ def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses):
     for y in y_ticks:
         ax.axhline(y, c='k', alpha=0.1, linewidth=1)
 
-    if invoke_statuses:
+    if 'download_output_timestamp' in results_df:
         max_seconds = np.max(results_df.download_output_timestamp - pw_start_time)*1.25
-        xplot_step = int(max_seconds/8)
-        x_ticks = np.arange(max_seconds//xplot_step + 2) * xplot_step
-        ax.set_xlim(0, max_seconds)
+    elif 'status_done_timestamp' in results_df:
+        max_seconds = np.max(results_df.status_done_timestamp - pw_start_time)*1.25
     else:
-        x_ticks = np.arange(np.max(results_df.end_time - pw_start_time)*1.35)
-        ax.set_xlim(0, np.max(results_df.end_time - pw_start_time)*1.35)
+        max_seconds = np.max(results_df.end_time - pw_start_time)*1.25
+    
+    xplot_step = int(max_seconds/8)
+    x_ticks = np.arange(max_seconds//xplot_step + 2) * xplot_step
+    ax.set_xlim(0, max_seconds)
+    
     ax.set_xticks(x_ticks)
     for x in x_ticks:
         ax.axvline(x, c='k', alpha=0.2, linewidth=0.8)

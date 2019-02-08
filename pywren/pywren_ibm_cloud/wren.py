@@ -35,9 +35,10 @@ logger = logging.getLogger(__name__)
 
 class ExecutorState(enum.Enum):
     new = 1
-    ready = 2
-    finished = 3
-    error = 4
+    running = 2
+    ready = 3
+    finished = 4
+    error = 5
 
 
 class ibm_cf_executor:
@@ -73,6 +74,7 @@ class ibm_cf_executor:
         self.runtime = ibm_cf_config['action_name']
         self.cf_cluster = ibm_cf_config['is_cf_cluster']
         self.data_cleaner = self.config['pywren']['data_cleaner']
+        self.use_rabbitmq = False
 
         retry_config = {}
         retry_config['invocation_retry'] = self.config['pywren']['invocation_retry']
@@ -108,6 +110,7 @@ class ibm_cf_executor:
 
         future = self.executor.single_call(func, data, extra_env, extra_meta)[0]
         self.futures.append(future)
+        self._state = ExecutorState.running
 
         return future
 
@@ -145,6 +148,7 @@ class ibm_cf_executor:
                                               overwrite_invoke_args=overwrite_invoke_args,
                                               exclude_modules=exclude_modules)
         self.futures.extend(futures)
+        self._state = ExecutorState.running
 
         if len(futures) == 1:
             return futures[0]
@@ -195,13 +199,14 @@ class ibm_cf_executor:
                                               reducer_one_per_object=reducer_one_per_object,
                                               reducer_wait_local=reducer_wait_local)
         self.futures.extend(futures)
+        self._state = ExecutorState.running
 
         if len(futures) == 1:
             return futures[0]
         return futures
 
     def wait(self, futures=None, throw_except=True, return_when=ALL_COMPLETED,
-             download_results=False, THREADPOOL_SIZE=16, WAIT_DUR_SEC=2):
+             download_results=False, THREADPOOL_SIZE=16, WAIT_DUR_SEC=2, use_rabbitmq=True):
         """
         Wait for the Future instances `fs` to complete. Returns a 2-tuple of
         lists. The first list contains the futures that completed
@@ -233,13 +238,17 @@ class ibm_cf_executor:
 
         msg = 'Executor ID {} Waiting for functions to complete'.format(self.executor_id)
         logger.debug(msg)
-        if logger.getEffectiveLevel() == logging.WARNING:
+        if logger.getEffectiveLevel() == logging.WARNING and self._state == ExecutorState.running:
             print(msg)
 
-        rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
+        self.use_rabbitmq = use_rabbitmq
+        rabbit_amqp_url = None
+        if self.use_rabbitmq:
+            rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
 
         pbar = None
-        if not self.cf_cluster and logger.getEffectiveLevel() == logging.WARNING and return_when == ALL_COMPLETED:
+        if not self.cf_cluster and logger.getEffectiveLevel() == logging.WARNING \
+           and return_when == ALL_COMPLETED and self._state == ExecutorState.running:
             import tqdm
             print()
             pbar = tqdm.tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
@@ -258,8 +267,7 @@ class ibm_cf_executor:
 
         return fs_dones, fs_notdones
 
-    def get_result(self, futures=None, throw_except=True,
-                   timeout=wrenconfig.CF_RUNTIME_TIMEOUT,
+    def get_result(self, futures=None, throw_except=True, timeout=wrenconfig.CF_RUNTIME_TIMEOUT,
                    THREADPOOL_SIZE=64, WAIT_DUR_SEC=2):
         """
         For getting PyWren results
@@ -367,12 +375,34 @@ class ibm_cf_executor:
         """
         from pywren_ibm_cloud.plots import create_timeline, create_histogram
 
-        if self.futures and not run_statuses:
-            run_statuses = [f.run_status for f in self.futures]
-            invoke_statuses = [f.invoke_status for f in self.futures]
+        msg = 'Executor ID {} Creating timeline plots'.format(self.executor_id)
+        logger.debug(msg)
+        if logger.getEffectiveLevel() == logging.WARNING:
+            print(msg)
 
         if not run_statuses:
-            raise Exception('You must provide run_statuses')
+            if self._state == ExecutorState.new or self._state == ExecutorState.error:
+                raise Exception('You must run pw.call_async(), pw.map() or pw.map_reduce()'
+                                ' before call pw.create_timeline_plots()')
+
+            if self._state == ExecutorState.running:
+                # wait() method not executed at any time
+                self.wait()
+            if self._state == ExecutorState.ready:
+                # wait() method already executed. Download statuses from storage
+                self.wait(use_rabbitmq=False)
+
+            if self.futures:
+                run_statuses = [f.run_status for f in self.futures]
+                invoke_statuses = [f.invoke_status for f in self.futures]
+            else:
+                logger.debug('No futures available to print the plots')
+                return
+
+            if self.use_rabbitmq and self.config['rabbitmq']['amqp_url'] and invoke_statuses:
+                # delete download ststus timestamp
+                for in_stat in invoke_statuses:
+                    del in_stat['status_done_timestamp']
 
         create_timeline(dst, name, self.start_time, run_statuses, invoke_statuses)
         create_histogram(dst, name, self.start_time, run_statuses)
