@@ -65,7 +65,7 @@ def wait(fs, executor_id, internal_storage, download_results=False,
 
     if return_when == ALL_COMPLETED:
 
-        if rabbit_amqp_url:
+        if rabbit_amqp_url and not download_results:
             callgroup_id = fs[0].callgroup_id
             return _wait_rabbitmq(executor_id, callgroup_id, rabbit_amqp_url, pbar, N)
 

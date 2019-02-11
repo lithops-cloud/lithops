@@ -457,7 +457,7 @@ class Executor(object):
             else:
                 show_memory = False
             # Wait for all results
-            wait(fut_list, executor_id, internal_storage, throw_except=throw_except)
+            wait(fut_list, executor_id, internal_storage, download_results=True, throw_except=throw_except)
             results = [f.result() for f in fut_list if f.done and not f.futures]
             reduce_func_args = {'results': results}
 
