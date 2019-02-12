@@ -141,6 +141,9 @@ class rabbitmq_checker_worker(threading.Thread):
         logger.debug(msg)
         self.channel.start_consuming()
 
+    def stop(self):
+        self.channel.close()
+
 
 def _wait_rabbitmq(executor_id, callgroup_id, rabbit_amqp_url, pbar, total):
     q = queue.Queue()
@@ -187,6 +190,7 @@ def _wait_rabbitmq(executor_id, callgroup_id, rabbit_amqp_url, pbar, total):
                 pbar.total = pbar.total + total_new_futures
                 pbar.refresh()
 
+    td.stop()
         #print(done_call_ids)
 
     if pbar:

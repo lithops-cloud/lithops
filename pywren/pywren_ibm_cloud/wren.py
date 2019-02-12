@@ -115,8 +115,8 @@ class ibm_cf_executor:
         return future
 
     def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None,
-            remote_invocation=False, invoke_pool_threads=10, data_all_as_one=True,
-            overwrite_invoke_args=None, exclude_modules=None):
+            remote_invocation=False, remote_invocation_groups=100, invoke_pool_threads=128,
+            data_all_as_one=True, overwrite_invoke_args=None, exclude_modules=None):
         """
         :param func: the function to map over the data
         :param iterdata: An iterable of input data
@@ -143,6 +143,7 @@ class ibm_cf_executor:
                                               extra_env=extra_env,
                                               extra_meta=extra_meta,
                                               remote_invocation=remote_invocation,
+                                              remote_invocation_groups=remote_invocation_groups,
                                               invoke_pool_threads=invoke_pool_threads,
                                               data_all_as_one=data_all_as_one,
                                               overwrite_invoke_args=overwrite_invoke_args,

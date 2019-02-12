@@ -187,10 +187,10 @@ class Executor(object):
 
     def multiple_call(self, map_function, iterdata, reduce_function=None,
                       obj_chunk_size=None, extra_env=None, extra_meta=None,
-                      remote_invocation=False, invoke_pool_threads=128,
-                      data_all_as_one=True, overwrite_invoke_args=None,
-                      exclude_modules=None, reducer_one_per_object=False,
-                      reducer_wait_local=True):
+                      remote_invocation=False, remote_invocation_groups=100,
+                      invoke_pool_threads=128, data_all_as_one=True,
+                      overwrite_invoke_args=None, exclude_modules=None,
+                      reducer_one_per_object=False, reducer_wait_local=True):
         """
         Wrapper to launch both map() and map_reduce() methods.
         It integrates COS logic to process objects.
@@ -253,22 +253,24 @@ class Executor(object):
             def remote_invoker(input_data):
                 pw = pywren.ibm_cf_executor()
                 return pw.map(map_function, input_data,
+                              invoke_pool_threads=invoke_pool_threads,
                               extra_env=extra_env,
                               extra_meta=extra_meta)
 
             if len(iterdata) > 1 and remote_invocation:
                 map_func = remote_invoker
-                map_iterdata = [[iterdata[x:x+100]] for x in range(0, len(iterdata), 100)]
-                invoke_pool_threads = 1
+                map_iterdata = [[iterdata[x:x+remote_invocation_groups]] for x in range(0, len(iterdata), remote_invocation_groups)]
+                new_invoke_pool_threads = 1
             else:
                 remote_invocation = False
                 map_func = map_function
                 map_iterdata = iterdata
+                new_invoke_pool_threads = invoke_pool_threads
 
             map_futures = self.map(map_func, map_iterdata,
                                    extra_env=extra_env,
                                    extra_meta=extra_meta,
-                                   invoke_pool_threads=invoke_pool_threads,
+                                   invoke_pool_threads=new_invoke_pool_threads,
                                    data_all_as_one=data_all_as_one,
                                    overwrite_invoke_args=overwrite_invoke_args,
                                    exclude_modules=exclude_modules,
