@@ -409,7 +409,7 @@ class Executor(object):
         call_result_objs = []
 
         start_inv = time.time()
-        log_msg = 'Executor ID {} Starting function invocation: {}()'.format(self.executor_id, func_name)
+        log_msg = 'Executor ID {} Starting function invocation: {}() - Total: {} activations'.format(self.executor_id, func_name, N)
         logger.debug(log_msg)
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(log_msg)

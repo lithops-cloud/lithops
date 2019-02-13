@@ -74,7 +74,7 @@ class CloudFunctions:
 
         limits['timeout'] = self.timeout
         limits['memory'] = self.memory
-            
+
         if limits['timeout'] and limits['memory']:
             data['limits'] = limits
 
@@ -140,15 +140,13 @@ class CloudFunctions:
             resp_time = format(round(resp.elapsed.total_seconds(), 3), '.3f')
         except:
             return self.remote_invoke(action_name, payload)
-        
+
         if 'activationId' in data:
             log_msg = ('Executor ID {} Function {} - Activation ID: '
                        '{} - Time: {} seconds'.format(exec_id, call_id,
                                                       data["activationId"],
                                                       resp_time))
             logger.debug(log_msg)
-            if logger.getEffectiveLevel() == logging.WARNING:
-                print(log_msg)
             return data["activationId"]
         else:
             logger.debug(data)
@@ -180,20 +178,17 @@ class CloudFunctions:
         except:
             conn.close()
             return self.internal_invoke(action_name, payload)
-            
+
         if 'activationId' in data:
             log_msg = ('Executor ID {} Function {} - Activation ID: '
                        '{} - Time: {} seconds'.format(exec_id, call_id,
                                                       data["activationId"],
                                                       resp_time))
             logger.debug(log_msg)
-            if logger.getEffectiveLevel() == logging.WARNING:
-                print(log_msg)
             return data["activationId"]
         else:
             logger.debug(data)
             return None
-
 
     def invoke_with_result(self, action_name, payload={}):
         """

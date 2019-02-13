@@ -131,18 +131,15 @@ class rabbitmq_checker_worker(threading.Thread):
         self.executor_id = executor_id
         self.q = q
         params = pika.URLParameters(rabbit_amqp_url)
-        connection = pika.BlockingConnection(params)
-        self.channel = connection.channel()  # start a channel
+        self.connection = pika.BlockingConnection(params)
+        self.channel = self.connection.channel()  # start a channel
         self.channel.queue_declare(queue=self.executor_id, auto_delete=True)
         self.channel.basic_consume(self.callback, queue=self.executor_id, no_ack=True)
 
     def run(self):
-        msg = 'Executor ID {} Start consuming from rabbitmq queue'.format(self.executor_id)
+        msg = 'Executor ID {} Starting consumer from rabbitmq queue'.format(self.executor_id)
         logger.debug(msg)
         self.channel.start_consuming()
-
-    def stop(self):
-        self.channel.close()
 
 
 def _wait_rabbitmq(executor_id, callgroup_id, rabbit_amqp_url, pbar, total):
@@ -166,7 +163,6 @@ def _wait_rabbitmq(executor_id, callgroup_id, rabbit_amqp_url, pbar, total):
 
     while not reception_finished():
         data = q.get().split(':')
-        #print(data)
         rcv_callgroup_id, rcv_call_id = data[0].split('/')
         if rcv_callgroup_id not in done_call_ids:
             done_call_ids[rcv_callgroup_id] = {'total': None, 'call_ids': []}
@@ -190,13 +186,10 @@ def _wait_rabbitmq(executor_id, callgroup_id, rabbit_amqp_url, pbar, total):
                 pbar.total = pbar.total + total_new_futures
                 pbar.refresh()
 
-    td.stop()
-        #print(done_call_ids)
-
     if pbar:
         pbar.close()
 
-    return done_call_ids, None
+    return None, None
 
 
 def _wait_storage(fs, executor_id, internal_storage, download_results,
@@ -223,7 +216,7 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
         not_done_futures = [f for f in fs if not f.done]
     else:
         not_done_futures = [f for f in fs if not f.ready]
-    
+
     if len(not_done_futures) == 0:
         return fs, []
 

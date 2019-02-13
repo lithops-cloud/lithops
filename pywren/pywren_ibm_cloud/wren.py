@@ -43,7 +43,8 @@ class ExecutorState(enum.Enum):
 
 class ibm_cf_executor:
 
-    def __init__(self, config=None, runtime=None, log_level=None, runtime_timeout=wrenconfig.CF_RUNTIME_TIMEOUT):
+    def __init__(self, config=None, runtime=None, log_level=None, use_rabbitmq=True,
+                 runtime_timeout=wrenconfig.CF_RUNTIME_TIMEOUT):
         """
         Initialize and return an executor class.
 
@@ -74,7 +75,10 @@ class ibm_cf_executor:
         self.runtime = ibm_cf_config['action_name']
         self.cf_cluster = ibm_cf_config['is_cf_cluster']
         self.data_cleaner = self.config['pywren']['data_cleaner']
-        self.use_rabbitmq = False
+        self.use_rabbitmq = use_rabbitmq
+
+        if not use_rabbitmq:
+            self.config['rabbitmq']['amqp_url'] = None
 
         retry_config = {}
         retry_config['invocation_retry'] = self.config['pywren']['invocation_retry']
@@ -207,7 +211,7 @@ class ibm_cf_executor:
         return futures
 
     def wait(self, futures=None, throw_except=True, return_when=ALL_COMPLETED,
-             download_results=False, THREADPOOL_SIZE=16, WAIT_DUR_SEC=2, use_rabbitmq=True):
+             download_results=False, THREADPOOL_SIZE=16, WAIT_DUR_SEC=2):
         """
         Wait for the Future instances `fs` to complete. Returns a 2-tuple of
         lists. The first list contains the futures that completed
@@ -242,7 +246,6 @@ class ibm_cf_executor:
         if logger.getEffectiveLevel() == logging.WARNING and self._state == ExecutorState.running:
             print(msg)
 
-        self.use_rabbitmq = use_rabbitmq
         rabbit_amqp_url = None
         if self.use_rabbitmq:
             rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
@@ -393,7 +396,8 @@ class ibm_cf_executor:
                 self.wait()
             if self._state == ExecutorState.ready:
                 # wait() method already executed. Download statuses from storage
-                self.wait(use_rabbitmq=False)
+                self.use_rabbitmq = False
+                self.wait()
 
             if self.futures:
                 run_statuses = [f.run_status for f in self.futures]
