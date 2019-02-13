@@ -1,6 +1,5 @@
 import logging
 import requests
-import pywren_ibm_cloud as pywren
 from pywren_ibm_cloud import wrenutil
 
 logger = logging.getLogger(__name__)
@@ -8,49 +7,29 @@ logger = logging.getLogger(__name__)
 CHUNK_THRESHOLD = 4*1024  # 4KB
 
 
-def object_partitioner(map_function_wrapper, reduce_function, extra_env, extra_meta,
-                       remote_invocation, invoke_pool_threads, data_all_as_one,
-                       overwrite_invoke_args, reducer_one_per_object):
+def create_partitions(arg_data, chunk_size, storage):
     """
     Method that returns the function that will create the partitions of the objects in the Cloud
     """
-    def object_partitioner_function(map_func_args, chunk_size, storage):
-        """
-        Partitioner is a function executed in the Cloud to create partitions from objects
-        """
-        logger.info('Starting partitioner() function')
-        map_func_keys = map_func_args[0].keys()
+    logger.debug('Starting partitioner')
+    map_func_keys = arg_data[0].keys()
+    parts_per_object = None
 
-        if 'bucket' in map_func_keys and 'key' not in map_func_keys:
-            partitions = split_objects_from_bucket(map_func_args, chunk_size, storage)
-            if not partitions:
-                raise Exception('No objects available within bucket: {}'.format(map_func_args[0]['bucket']))
+    if 'bucket' in map_func_keys and 'key' not in map_func_keys:
+        partitions, parts_per_object = split_objects_from_bucket(arg_data, chunk_size, storage)
+        if not partitions:
+            raise Exception('No objects available within bucket: {}'.format(arg_data[0]['bucket']))
 
-        elif 'key' in map_func_keys:
-            partitions = split_object_from_key(map_func_args, chunk_size, storage)
+    elif 'key' in map_func_keys:
+        partitions, parts_per_object = split_object_from_key(arg_data, chunk_size, storage)
 
-        elif 'url' in map_func_keys:
-            partitions = split_object_from_url(map_func_args, chunk_size)
+    elif 'url' in map_func_keys:
+        partitions, parts_per_object = split_object_from_url(arg_data, chunk_size)
 
-        else:
-            raise ValueError('You did not provide any bucket or object key/url')
+    else:
+        raise ValueError('You did not provide any bucket or object key/url')
 
-        #logger.info(partitions)
-        pw = pywren.ibm_cf_executor()
-        futures = pw.map_reduce(map_function=map_function_wrapper, 
-                                map_iterdata=partitions,
-                                reduce_function=reduce_function,
-                                extra_env=extra_env,
-                                extra_meta=extra_meta,
-                                remote_invocation=remote_invocation,
-                                invoke_pool_threads=invoke_pool_threads,
-                                data_all_as_one=data_all_as_one,
-                                overwrite_invoke_args=overwrite_invoke_args,
-                                reducer_one_per_object=reducer_one_per_object,
-                                reducer_wait_local=False)
-        return futures
-
-    return object_partitioner_function
+    return partitions, parts_per_object
 
 
 def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
@@ -58,7 +37,8 @@ def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
     Create partitions from bucket/s
     """
     logger.info('Creating dataset chunks from bucket/s ...')
-    partitions = list()
+    partitions = []
+    parts_per_object = []
 
     for entry in map_func_args_list:
         # Each entry is a bucket
@@ -72,6 +52,7 @@ def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
         for obj in objects:
             key = obj['Key']
             obj_size = obj['Size']
+            total_partitions = 0
             #logger.info("Extracted key {} size {}".format(key, obj_size))
 
             # full_key = '{}/{}'.format(bucket_name, key)
@@ -87,6 +68,7 @@ def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
                     partition['map_func_args']['bucket'] = bucket_name
                     partition['data_byte_range'] = brange
                     partitions.append(partition)
+                    total_partitions = total_partitions + 1
             else:
                 partition = {}
                 partition['map_func_args'] = entry.copy()
@@ -94,7 +76,11 @@ def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
                 partition['map_func_args']['bucket'] = bucket_name
                 partition['data_byte_range'] = None
                 partitions.append(partition)
-    return partitions
+                total_partitions = total_partitions + 1
+
+            parts_per_object.append(total_partitions)
+
+    return partitions, parts_per_object
 
 
 def split_object_from_key(map_func_args_list, chunk_size, storage):
@@ -103,9 +89,11 @@ def split_object_from_key(map_func_args_list, chunk_size, storage):
     """
     if chunk_size:
         logger.info('Creating chunks from object keys...')
-    partitions = list()
+    partitions = []
+    parts_per_object = []
 
     for entry in map_func_args_list:
+        total_partitions = 0
         object_key = entry['key']
         logger.info(object_key)
         bucket, object_name = object_key.split('/', 1)
@@ -121,13 +109,17 @@ def split_object_from_key(map_func_args_list, chunk_size, storage):
                 partition['map_func_args'] = entry
                 partition['data_byte_range'] = brange
                 partitions.append(partition)
+                total_partitions = total_partitions + 1
         else:
             partition = {}
             partition['map_func_args'] = entry
             partition['data_byte_range'] = None
             partitions.append(partition)
+            total_partitions = total_partitions + 1
 
-    return partitions
+        parts_per_object.append(total_partitions)
+
+    return partitions, parts_per_object
 
 
 def split_object_from_url(map_func_args_list, chunk_size):
@@ -136,10 +128,12 @@ def split_object_from_url(map_func_args_list, chunk_size):
     """
     if chunk_size:
         logger.info('Creating chunks from urls...')
-    partitions = list()
+    partitions = []
+    parts_per_object = []
 
     for entry in map_func_args_list:
         obj_size = None
+        total_partitions = 0
         object_url = entry['url']
         metadata = requests.head(object_url)
 
@@ -159,11 +153,15 @@ def split_object_from_url(map_func_args_list, chunk_size):
                 partition['map_func_args'] = entry
                 partition['data_byte_range'] = brange
                 partitions.append(partition)
+                total_partitions = total_partitions + 1
         else:
             # Only one partition
             partition = {}
             partition['map_func_args'] = entry
             partition['data_byte_range'] = None
             partitions.append(partition)
+            total_partitions = total_partitions + 1
 
-    return partitions
+        parts_per_object.append(total_partitions)
+
+    return partitions, parts_per_object

@@ -59,8 +59,8 @@ def wait(fs, executor_id, internal_storage, download_results=False,
     N = len(fs)
     # These are performance-related settings that we may eventually
     # want to expose to end users:
-    MAX_DIRECT_QUERY_N = 16
-    RETURN_EARLY_N = 16
+    MAX_DIRECT_QUERY_N = 64
+    RETURN_EARLY_N = 64
     RANDOM_QUERY = False
 
     if return_when == ALL_COMPLETED:
@@ -90,6 +90,8 @@ def wait(fs, executor_id, internal_storage, download_results=False,
             if result_count == N:
                 return fs_dones, fs_notdones
             else:
+                if fs_dones:
+                    WAIT_DUR_SEC = WAIT_DUR_SEC
                 time.sleep(WAIT_DUR_SEC)
 
     elif return_when == ANY_COMPLETED:
@@ -255,7 +257,7 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
         callids_found = [(fs_to_query[i].callgroup_id, fs_to_query[i].call_id) for i in range(len(fs_to_query))
                          if fs_statuses[i] is not None]
 
-        #print('FOUND:',callids_found, len(callids_found))
+        #print('FOUND:', callids_found, len(callids_found))
 
         done_call_ids = done_call_ids.union(set(callids_found))
         query_count += len(fs_to_query)
@@ -268,7 +270,7 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
     for f in fs:
         if download_results and f.done:
             # done, don't need to do anything
-            fs_dones.append(f)    
+            fs_dones.append(f)
         elif not download_results and f.ready:
             fs_dones.append(f)
         else:
@@ -278,8 +280,12 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
             else:
                 fs_notdones.append(f)
 
+    if still_not_done_futures and len(still_not_done_futures) < max(1, int(len(fs)*0.015)):
+        f_to_wait_on.extend(still_not_done_futures)
+
     def get_result(f):
         f.result(throw_except=throw_except, internal_storage=internal_storage)
+
     def get_status(f):
         f.status(throw_except=throw_except, internal_storage=internal_storage)
 
@@ -287,7 +293,7 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
         pool.map(get_result, f_to_wait_on)
     else:
         pool.map(get_status, f_to_wait_on)
-        
+
     pool.close()
     pool.join()
 

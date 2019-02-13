@@ -26,7 +26,7 @@ import pywren_ibm_cloud.wrenutil as wrenutil
 from pywren_ibm_cloud.wait import wait
 from multiprocessing.pool import ThreadPool
 from pywren_ibm_cloud.wrenconfig import MAX_AGG_DATA_SIZE
-from pywren_ibm_cloud.partitioner import object_partitioner
+from pywren_ibm_cloud.partitioner import create_partitions
 from pywren_ibm_cloud.future import ResponseFuture, JobState
 from pywren_ibm_cloud.runtime import get_runtime_preinstalls
 from pywren_ibm_cloud.serialize import serialize, create_mod_data
@@ -121,6 +121,7 @@ class Executor(object):
 
         host_job_meta.update(self.invoker.config())
         host_job_meta.update(arg_dict)
+        del host_job_meta['config']
         storage_config = self.internal_storage.get_storage_config()
         fut = ResponseFuture(call_id, callgroup_id, executor_id, activation_id, host_job_meta, storage_config)
         fut._set_state(JobState.invoked)
@@ -178,116 +179,64 @@ class Executor(object):
 
         return object_processing_function
 
-    def single_call(self, func, data, extra_env=None, extra_meta=None):
+    def call_async(self, func, data, extra_env=None, extra_meta=None):
         """
         Wrapper to launch one function invocation.
         """
 
-        return self.map(func, [data], extra_env=extra_env, extra_meta=extra_meta)
+        return self._map(func, [data], extra_env=extra_env, extra_meta=extra_meta)
 
-    def multiple_call(self, map_function, iterdata, reduce_function=None,
-                      obj_chunk_size=None, extra_env=None, extra_meta=None,
-                      remote_invocation=False, remote_invocation_groups=100,
-                      invoke_pool_threads=128, data_all_as_one=True,
-                      overwrite_invoke_args=None, exclude_modules=None,
-                      reducer_one_per_object=False, reducer_wait_local=True):
+    def map(self, map_function, iterdata, reduce_function=None,
+            obj_chunk_size=None, extra_env=None, extra_meta=None,
+            remote_invocation=False, remote_invocation_groups=100,
+            invoke_pool_threads=128, data_all_as_one=True,
+            overwrite_invoke_args=None, exclude_modules=None):
         """
-        Wrapper to launch both map() and map_reduce() methods.
-        It integrates COS logic to process objects.
+        Wrapper to launch map() method.  It integrates COS logic to process objects.
         """
         data = wrenutil.iterdata_as_list(iterdata)
-        # Check function signature to see if the user wants to process
-        # objects in Object Storage, from a public URL, or none.
-        func_sig = inspect.signature(map_function)
-        if {'bucket', 'key', 'url'} & set(func_sig.parameters):
-            # map-reduce over objects in COS/Swift or public URL. It will launch a partitioner
-            # Wrap original map function. This will produce the ready-to-use data_stream parameter
-            object_processing_function = self.object_processing(map_function)
-            # Get the object partitioner function
-            object_partitioner_function = object_partitioner(map_function_wrapper=object_processing_function,
-                                                             reduce_function=reduce_function,
-                                                             extra_env=extra_env,
-                                                             extra_meta=extra_meta,
-                                                             remote_invocation=remote_invocation,
-                                                             invoke_pool_threads=invoke_pool_threads,
-                                                             data_all_as_one=data_all_as_one,
-                                                             overwrite_invoke_args=overwrite_invoke_args,
-                                                             reducer_one_per_object=reducer_one_per_object)
-            arg_data = wrenutil.verify_args(map_function, data, object_processing=True)
-            if reducer_one_per_object:
-                part_func_args = []
-                if 'bucket' in func_sig.parameters:
-                    # need to discover data objects
-                    for entry in arg_data:
-                        # Each entry is a bucket
-                        bucket_name, prefix = wrenutil.split_path(entry['bucket'])
-                        storage = COSBackend(self.config['ibm_cos'])
-                        obj_keys = storage.list_keys_with_prefix(bucket_name, prefix)
-                        for key in obj_keys:
-                            new_entry = entry.copy()
-                            new_entry['bucket'] = None
-                            new_entry['key'] = '{}/{}'.format(bucket_name, key)
-                            part_args = {'map_func_args': [new_entry],
-                                         'chunk_size': obj_chunk_size}
-                            part_func_args.append(part_args)
-                else:
-                    # Object keys
-                    for entry in arg_data:
-                        part_args = {'map_func_args': [entry],
-                                     'chunk_size': obj_chunk_size}
-                        part_func_args.append(part_args)
-            else:
-                part_func_args = [{'map_func_args': arg_data,
-                                   'chunk_size': obj_chunk_size}]
+        map_func = map_function
+        map_iterdata = data
+        new_invoke_pool_threads = invoke_pool_threads
+        parts_per_object = None
 
+        if wrenutil.is_object_processing(map_function):
+            '''
+            If it is object processing function, create partitions according chunk_size
+            '''
             logger.debug("Calling map on partitions from object storage flow")
-            return self.map(object_partitioner_function, part_func_args,
-                            extra_env=extra_env,
-                            extra_meta=extra_meta,
-                            original_func_name=map_function.__name__,
-                            invoke_pool_threads=invoke_pool_threads,
-                            data_all_as_one=data_all_as_one,
-                            overwrite_invoke_args=overwrite_invoke_args,
-                            exclude_modules=exclude_modules)
-        else:
-            def remote_invoker(input_data):
-                pw = pywren.ibm_cf_executor()
-                return pw.map(map_function, input_data,
-                              invoke_pool_threads=invoke_pool_threads,
-                              extra_env=extra_env,
-                              extra_meta=extra_meta)
+            arg_data = wrenutil.verify_args(map_function, data, object_processing=True)
+            storage = COSBackend(self.config['ibm_cos'])
+            map_iterdata, parts_per_object = create_partitions(arg_data, obj_chunk_size, storage)
+            map_func = self.object_processing(map_function)
 
-            if len(iterdata) > 1 and remote_invocation:
-                map_func = remote_invoker
-                map_iterdata = [[iterdata[x:x+remote_invocation_groups]] for x in range(0, len(iterdata), remote_invocation_groups)]
-                new_invoke_pool_threads = 1
-            else:
-                remote_invocation = False
-                map_func = map_function
-                map_iterdata = iterdata
-                new_invoke_pool_threads = invoke_pool_threads
+        def remote_invoker(input_data):
+            pw = pywren.ibm_cf_executor()
+            return pw.map(map_function, input_data,
+                          invoke_pool_threads=invoke_pool_threads,
+                          extra_env=extra_env,
+                          extra_meta=extra_meta)
 
-            map_futures = self.map(map_func, map_iterdata,
-                                   extra_env=extra_env,
-                                   extra_meta=extra_meta,
-                                   invoke_pool_threads=new_invoke_pool_threads,
-                                   data_all_as_one=data_all_as_one,
-                                   overwrite_invoke_args=overwrite_invoke_args,
-                                   exclude_modules=exclude_modules,
-                                   original_func_name=map_function.__name__)
+        if len(iterdata) > 1 and remote_invocation:
+            map_func = remote_invoker
+            map_iterdata = [[iterdata[x:x+remote_invocation_groups]]
+                            for x in range(0, len(iterdata), remote_invocation_groups)]
+            new_invoke_pool_threads = 1
 
-            if not reduce_function:
-                return map_futures
+        map_futures = self._map(map_func, map_iterdata,
+                                extra_env=extra_env,
+                                extra_meta=extra_meta,
+                                invoke_pool_threads=new_invoke_pool_threads,
+                                data_all_as_one=data_all_as_one,
+                                overwrite_invoke_args=overwrite_invoke_args,
+                                exclude_modules=exclude_modules,
+                                original_func_name=map_function.__name__)
 
-            logger.debug("Calling reduce")
-            return self.reduce(reduce_function, map_futures,
-                               wait_local=reducer_wait_local,
-                               extra_env=extra_env,
-                               extra_meta=extra_meta)
+        return map_futures, parts_per_object
 
-    def map(self, func, iterdata, extra_env=None, extra_meta=None, invoke_pool_threads=128,
-            data_all_as_one=True, overwrite_invoke_args=None, exclude_modules=None,
-            original_func_name=None):
+    def _map(self, func, iterdata, extra_env=None, extra_meta=None, invoke_pool_threads=128,
+             data_all_as_one=True, overwrite_invoke_args=None, exclude_modules=None,
+             original_func_name=None):
         """
         :param func: the function to map over the data
         :param iterdata: An iterable of input data
@@ -441,16 +390,20 @@ class Executor(object):
 
         return res
 
-    def reduce(self, reduce_function, list_of_futures, throw_except=True,
-               wait_local=True, extra_env=None, extra_meta=None):
+    def reduce(self, reduce_function, list_of_futures, parts_per_object,
+               reducer_one_per_object, extra_env, extra_meta):
         """
         Apply a function across all futures.
         """
         executor_id = self.executor_id
+        map_iterdata = [[list_of_futures, ]]
 
-        if wait_local:
-            logger.info('Waiting locally for results')
-            wait(list_of_futures, executor_id, self.internal_storage, throw_except=throw_except)
+        if parts_per_object and reducer_one_per_object:
+            prev_total_partitons = 0
+            map_iterdata = []
+            for total_partitions in parts_per_object:
+                map_iterdata.append([list_of_futures[prev_total_partitons:prev_total_partitons+total_partitions]])
+                prev_total_partitons = prev_total_partitons + total_partitions
 
         def reduce_function_wrapper(fut_list, internal_storage, storage, ibm_cos):
             logger.info('Waiting for results')
@@ -459,7 +412,7 @@ class Executor(object):
             else:
                 show_memory = False
             # Wait for all results
-            wait(fut_list, executor_id, internal_storage, download_results=True, throw_except=throw_except)
+            wait(fut_list, executor_id, internal_storage, download_results=True)
             results = [f.result() for f in fut_list if f.done and not f.futures]
             reduce_func_args = {'results': results}
 
@@ -468,14 +421,17 @@ class Executor(object):
 
             # Run reduce function
             func_sig = inspect.signature(reduce_function)
-            if 'futures' in func_sig.parameters:
-                reduce_func_args['futures'] = fut_list
             if 'storage' in func_sig.parameters:
                 reduce_func_args['storage'] = storage
             if 'ibm_cos' in func_sig.parameters:
                 reduce_func_args['ibm_cos'] = ibm_cos
 
             return reduce_function(**reduce_func_args)
+            #result = reduce_function(**reduce_func_args)
+            #run_statuses = [f.run_status for f in fut_list]
+            #invoke_statuses = [f.invoke_status for f in fut_list]
 
-        return self.map(reduce_function_wrapper, [[list_of_futures, ]], extra_env=extra_env,
-                        extra_meta=extra_meta, original_func_name=reduce_function.__name__)
+            #return {'fn_result': result, 'run_statuses': run_statuses, 'invoke_statuses': invoke_statuses}
+
+        return self._map(reduce_function_wrapper, map_iterdata, extra_env=extra_env,
+                         extra_meta=extra_meta, original_func_name=reduce_function.__name__)

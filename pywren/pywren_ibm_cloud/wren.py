@@ -43,7 +43,7 @@ class ExecutorState(enum.Enum):
 
 class ibm_cf_executor:
 
-    def __init__(self, config=None, runtime=None, log_level=None, use_rabbitmq=True,
+    def __init__(self, config=None, runtime=None, log_level=None, use_rabbitmq=False,
                  runtime_timeout=wrenconfig.CF_RUNTIME_TIMEOUT):
         """
         Initialize and return an executor class.
@@ -112,7 +112,7 @@ class ibm_cf_executor:
             raise Exception('You cannot run pw.call_async() in the current state,'
                             ' create a new pywren.ibm_cf_executor() instance.')
 
-        future = self.executor.single_call(func, data, extra_env, extra_meta)[0]
+        future = self.executor.call_async(func, data, extra_env, extra_meta)[0]
         self.futures.append(future)
         self._state = ExecutorState.running
 
@@ -142,27 +142,27 @@ class ibm_cf_executor:
             raise Exception('You cannot run pw.map() in the current state.'
                             ' Create a new pywren.ibm_cf_executor() instance.')
 
-        futures = self.executor.multiple_call(map_function=map_function,
-                                              iterdata=map_iterdata,
-                                              extra_env=extra_env,
-                                              extra_meta=extra_meta,
-                                              remote_invocation=remote_invocation,
-                                              remote_invocation_groups=remote_invocation_groups,
-                                              invoke_pool_threads=invoke_pool_threads,
-                                              data_all_as_one=data_all_as_one,
-                                              overwrite_invoke_args=overwrite_invoke_args,
-                                              exclude_modules=exclude_modules)
-        self.futures.extend(futures)
+        map_futures, _ = self.executor.map(map_function=map_function,
+                                           iterdata=map_iterdata,
+                                           extra_env=extra_env,
+                                           extra_meta=extra_meta,
+                                           remote_invocation=remote_invocation,
+                                           remote_invocation_groups=remote_invocation_groups,
+                                           invoke_pool_threads=invoke_pool_threads,
+                                           data_all_as_one=data_all_as_one,
+                                           overwrite_invoke_args=overwrite_invoke_args,
+                                           exclude_modules=exclude_modules)
+        self.futures.extend(map_futures)
         self._state = ExecutorState.running
 
-        if len(futures) == 1:
-            return futures[0]
-        return futures
+        if len(map_futures) == 1:
+            return map_futures[0]
+        return map_futures
 
     def map_reduce(self, map_function, map_iterdata, reduce_function, chunk_size=None,
                    extra_env=None, extra_meta=None, remote_invocation=False,
-                   reducer_one_per_object=False, reducer_wait_local=True,
-                   invoke_pool_threads=10, data_all_as_one=True,
+                   reducer_one_per_object=False, reducer_wait_local=False,
+                   invoke_pool_threads=128, data_all_as_one=True,
                    overwrite_invoke_args=None, exclude_modules=None):
         """
         Map the map_function over the data and apply the reduce_function across all futures.
@@ -191,27 +191,31 @@ class ibm_cf_executor:
             raise Exception('You cannot run pw.map_reduce() in the current state.'
                             ' Create a new pywren.ibm_cf_executor() instance.')
 
-        futures = self.executor.multiple_call(map_function, map_iterdata,
-                                              reduce_function=reduce_function,
-                                              obj_chunk_size=chunk_size,
-                                              extra_env=extra_env,
-                                              extra_meta=extra_meta,
-                                              remote_invocation=remote_invocation,
-                                              invoke_pool_threads=invoke_pool_threads,
-                                              data_all_as_one=data_all_as_one,
-                                              overwrite_invoke_args=overwrite_invoke_args,
-                                              exclude_modules=exclude_modules,
-                                              reducer_one_per_object=reducer_one_per_object,
-                                              reducer_wait_local=reducer_wait_local)
-        self.futures.extend(futures)
+        map_futures, parts_per_object = self.executor.map(map_function, map_iterdata,
+                                                          reduce_function=reduce_function,
+                                                          obj_chunk_size=chunk_size,
+                                                          extra_env=extra_env,
+                                                          extra_meta=extra_meta,
+                                                          remote_invocation=remote_invocation,
+                                                          invoke_pool_threads=invoke_pool_threads,
+                                                          data_all_as_one=data_all_as_one,
+                                                          overwrite_invoke_args=overwrite_invoke_args,
+                                                          exclude_modules=exclude_modules)
+
         self._state = ExecutorState.running
+        if reducer_wait_local:
+            self.wait(futures=map_futures)
+
+        futures = self.executor.reduce(reduce_function, map_futures, parts_per_object,
+                                       reducer_one_per_object, extra_env, extra_meta)
+        self.futures.extend(futures)
 
         if len(futures) == 1:
             return futures[0]
         return futures
 
     def wait(self, futures=None, throw_except=True, return_when=ALL_COMPLETED,
-             download_results=False, THREADPOOL_SIZE=16, WAIT_DUR_SEC=2):
+             download_results=False, THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
         """
         Wait for the Future instances `fs` to complete. Returns a 2-tuple of
         lists. The first list contains the futures that completed

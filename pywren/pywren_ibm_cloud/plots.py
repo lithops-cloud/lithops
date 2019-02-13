@@ -40,7 +40,6 @@ def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses):
               ('action done', results_df.end_time - pw_start_time)]
 
     if 'download_output_timestamp' in results_df:
-        print(results_df.download_output_timestamp)
         fields.append(('results fetched', results_df.download_output_timestamp - pw_start_time))
     elif 'status_done_timestamp' in results_df:
         fields.append(('status fetched', results_df.status_done_timestamp - pw_start_time))

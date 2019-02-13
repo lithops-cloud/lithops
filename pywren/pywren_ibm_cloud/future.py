@@ -43,7 +43,7 @@ class ResponseFuture:
     Object representing the result of a PyWren invocation. Returns the status of the
     execution and the result when available.
     """
-    GET_RESULT_SLEEP_SECS = 3
+    GET_RESULT_SLEEP_SECS = 2
     GET_RESULT_MAX_RETRIES = 5
 
     def __init__(self, call_id, callgroup_id, executor_id, activation_id, invoke_metadata, storage_config):
@@ -90,19 +90,19 @@ class ResponseFuture:
         It has to wait to the new invocation output.
         """
         return self._state == JobState.futures
-    
+
     @property
     def done(self):
         if self._state in [JobState.success, JobState.futures, JobState.error]:
             return True
         return False
-    
+
     @property
     def ready(self):
         if self._state in [JobState.ready, JobState.futures, JobState.error]:
             return True
         return False
-    
+
     def status(self, check_only=False, throw_except=True, internal_storage=None):
         """
         Return the status returned by the call.
@@ -118,7 +118,7 @@ class ResponseFuture:
         """
         if self._state == JobState.ready:
             return self.run_status
-            
+
         if internal_storage is None:
             internal_storage = storage.InternalStorage(self.storage_config)
 
@@ -129,7 +129,7 @@ class ResponseFuture:
         if check_only is True:
             if call_status is None:
                 return None
-        
+
         while call_status is None:
             time.sleep(self.GET_RESULT_SLEEP_SECS)
             call_status = internal_storage.get_call_status(self.executor_id, self.callgroup_id, self.call_id)
@@ -140,7 +140,7 @@ class ResponseFuture:
 
         self.run_status = call_status  # this is the remote status information
         self.invoke_status = self._invoke_metadata  # local status information
-        
+
         total_time = format(round(call_status['end_time'] - call_status['start_time'], 2), '.2f')
 
         if call_status['exception'] is not None:
@@ -179,19 +179,19 @@ class ResponseFuture:
                 if throw_except:
                     raise self._exception
                 return None
-            
-    
+
         log_msg = ('Executor ID {} Response from Function {} - Activation '
                    'ID: {} - Time: {} seconds'.format(self.executor_id,
-                                              self.call_id,
-                                              self.activation_id,
-                                              str(total_time)))
+                                                      self.call_id,
+                                                      self.activation_id,
+                                                      str(total_time)))
         logger.debug(log_msg)
         self._set_state(JobState.ready)
-        
-        _, total_new_futures = call_status['new_futures'].split('/')
-        if int(total_new_futures) > 0:
-            self.result(check_only, throw_except, internal_storage)
+
+        if 'new_futures' in call_status:
+            _, total_new_futures = call_status['new_futures'].split('/')
+            if int(total_new_futures) > 0:
+                self.result(check_only, throw_except, internal_storage)
 
     def result(self, check_only=False, throw_except=True, internal_storage=None):
         """
@@ -210,7 +210,7 @@ class ResponseFuture:
 
         if self._state == JobState.success:
             return self._return_val
-        
+
         if self._state == JobState.futures:
             return self._new_futures
 
@@ -248,13 +248,11 @@ class ResponseFuture:
         call_success = call_invoker_result['success']
         self.invoke_status = self._invoke_metadata  # local status information
 
-        if call_success:       
+        if call_success:
             log_msg = ('Executor ID {} Got output from Function {} - Activation '
-                       'ID: {}'.format(self.executor_id,
-                                              self.call_id,
-                                              self.activation_id))
+                       'ID: {}'.format(self.executor_id, self.call_id, self.activation_id))
             logger.debug(log_msg)
-            
+
             function_result = call_invoker_result['result']
 
             if isinstance(function_result, ResponseFuture):
@@ -265,8 +263,8 @@ class ResponseFuture:
                 return self._new_futures
 
             elif type(function_result) == list and len(function_result) > 0 \
-                 and isinstance(function_result[0], ResponseFuture):
-                self._new_futures = function_result                
+               and isinstance(function_result[0], ResponseFuture):
+                self._new_futures = function_result
                 self._set_state(JobState.futures)
                 self.invoke_status['status_done_timestamp'] = self.invoke_status['download_output_timestamp']
                 del self.invoke_status['download_output_timestamp']
@@ -277,7 +275,7 @@ class ResponseFuture:
                 self._set_state(JobState.success)
                 return self._return_val
 
-        elif throw_except:            
+        elif throw_except:
             self._exception = call_invoker_result['result']
             self._traceback = (call_invoker_result['exc_type'],
                                call_invoker_result['exc_value'],
