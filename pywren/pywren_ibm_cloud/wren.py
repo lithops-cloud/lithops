@@ -79,8 +79,8 @@ class ibm_cf_executor:
 
         if not use_rabbitmq:
             self.config['rabbitmq']['amqp_url'] = None
-        else:
-            logger.debug('Going to use RabbitMQ to track function activations')
+        elif self.config['rabbitmq']['amqp_url']:
+            logger.info('Going to use RabbitMQ to track function activations')
 
         retry_config = {}
         retry_config['invocation_retry'] = self.config['pywren']['invocation_retry']
