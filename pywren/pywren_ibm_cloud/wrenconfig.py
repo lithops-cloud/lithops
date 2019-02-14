@@ -30,6 +30,7 @@ MAX_AGG_DATA_SIZE = 4e6
 INVOCATION_RETRY_DEFAULT = True
 RETRY_SLEEPS_DEFAULT = [1, 5, 10, 20, 30]
 RETRIES_DEFAULT = 5
+AMQP_URL_DEFAULT = None
 
 
 def load(config_filename):
@@ -143,6 +144,11 @@ def default(config_data=None):
 
     if 'action_timeout' not in config_data['ibm_cf']:
         config_data['ibm_cf']['action_timeout'] = CF_ACTION_TIMEOUT_DEFAULT
+
+    if 'rabbitmq' not in config_data or not config_data['rabbitmq'] \
+       or 'amqp_url' not in config_data['rabbitmq']:
+        config_data['rabbitmq'] = {}
+        config_data['rabbitmq']['amqp_url'] = None
 
     # True or False depending on whether this code is executed within CF cluster or not
     config_data['ibm_cf']['is_cf_cluster'] = is_cf_cluster()

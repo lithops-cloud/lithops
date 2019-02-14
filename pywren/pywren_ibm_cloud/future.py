@@ -31,9 +31,10 @@ class JobState(enum.Enum):
     new = 1
     invoked = 2
     running = 3
-    success = 4
-    futures = 5
-    error = 6
+    ready = 4
+    success = 5
+    futures = 6
+    error = 7
 
 
 class ResponseFuture:
@@ -42,7 +43,7 @@ class ResponseFuture:
     Object representing the result of a PyWren invocation. Returns the status of the
     execution and the result when available.
     """
-    GET_RESULT_SLEEP_SECS = 3
+    GET_RESULT_SLEEP_SECS = 2
     GET_RESULT_MAX_RETRIES = 5
 
     def __init__(self, call_id, callgroup_id, executor_id, activation_id, invoke_metadata, storage_config):
@@ -89,43 +90,34 @@ class ResponseFuture:
         It has to wait to the new invocation output.
         """
         return self._state == JobState.futures
-    
+
     @property
     def done(self):
         if self._state in [JobState.success, JobState.futures, JobState.error]:
             return True
         return False
 
-    def result(self, check_only=False, throw_except=True, internal_storage=None):
+    @property
+    def ready(self):
+        if self._state in [JobState.ready, JobState.futures, JobState.error]:
+            return True
+        return False
+
+    def status(self, check_only=False, throw_except=True, internal_storage=None):
         """
-        Return the value returned by the call.
+        Return the status returned by the call.
         If the call raised an exception, this method will raise the same exception
         If the future is cancelled before completing then CancelledError will be raised.
 
-        :param timeout: This method will wait up to timeout seconds before raising
-            a TimeoutError if function hasn't completed. If None, wait indefinitely. Default None.
         :param check_only: Return None immediately if job is not complete. Default False.
         :param throw_except: Reraise exception if call raised. Default true.
-        :param verbose: Shows some information prints.
         :param storage_handler: Storage handler to poll cloud storage. Default None.
         :return: Result of the call.
         :raises CancelledError: If the job is cancelled before completed.
         :raises TimeoutError: If job is not complete after `timeout` seconds.
         """
-        if self._state == JobState.new:
-            raise ValueError("job not yet invoked")
-
-        if self._state == JobState.success:
-            return self._return_val
-        
-        if self._state == JobState.futures:
-            return self._new_futures
-
-        if self._state == JobState.error:
-            if throw_except:
-                raise self._exception
-            else:
-                return None
+        if self._state == JobState.ready:
+            return self.run_status
 
         if internal_storage is None:
             internal_storage = storage.InternalStorage(self.storage_config)
@@ -188,6 +180,48 @@ class ResponseFuture:
                     raise self._exception
                 return None
 
+        log_msg = ('Executor ID {} Response from Function {} - Activation '
+                   'ID: {} - Time: {} seconds'.format(self.executor_id,
+                                                      self.call_id,
+                                                      self.activation_id,
+                                                      str(total_time)))
+        logger.debug(log_msg)
+        self._set_state(JobState.ready)
+
+        if 'new_futures' in call_status:
+            _, total_new_futures = call_status['new_futures'].split('/')
+            if int(total_new_futures) > 0:
+                self.result(check_only, throw_except, internal_storage)
+
+    def result(self, check_only=False, throw_except=True, internal_storage=None):
+        """
+        Return the value returned by the call.
+        If the call raised an exception, this method will raise the same exception
+        If the future is cancelled before completing then CancelledError will be raised.
+
+        :param throw_except: Reraise exception if call raised. Default true.
+        :param storage_handler: Storage handler to poll cloud storage. Default None.
+        :return: Result of the call.
+        :raises CancelledError: If the job is cancelled before completed.
+        :raises TimeoutError: If job is not complete after `timeout` seconds.
+        """
+        if self._state == JobState.new:
+            raise ValueError("job not yet invoked")
+
+        if self._state == JobState.success:
+            return self._return_val
+
+        if self._state == JobState.futures:
+            return self._new_futures
+
+        if self._state == JobState.error:
+            if throw_except:
+                raise self._exception
+            else:
+                return None
+
+        self.status(check_only, throw_except, internal_storage)
+
         call_output_time = time.time()
         call_invoker_result = internal_storage.get_call_output(self.executor_id, self.callgroup_id, self.call_id)
         self.output_query_count += 1
@@ -214,33 +248,34 @@ class ResponseFuture:
         call_success = call_invoker_result['success']
         self.invoke_status = self._invoke_metadata  # local status information
 
-        if call_success:       
-            log_msg = ('Executor ID {} Response from Function {} - Activation '
-           'ID: {} - Time: {} seconds'.format(self.executor_id,
-                                              self.call_id,
-                                              self.activation_id,
-                                              str(total_time)))
+        if call_success:
+            log_msg = ('Executor ID {} Got output from Function {} - Activation '
+                       'ID: {}'.format(self.executor_id, self.call_id, self.activation_id))
             logger.debug(log_msg)
-            
+
             function_result = call_invoker_result['result']
 
             if isinstance(function_result, ResponseFuture):
                 self._new_futures = [function_result]
                 self._set_state(JobState.futures)
+                self.invoke_status['status_done_timestamp'] = self.invoke_status['download_output_timestamp']
+                del self.invoke_status['download_output_timestamp']
                 return self._new_futures
-            
+
             elif type(function_result) == list and len(function_result) > 0 \
-                 and isinstance(function_result[0], ResponseFuture):
-                self._new_futures = function_result                
+               and isinstance(function_result[0], ResponseFuture):
+                self._new_futures = function_result
                 self._set_state(JobState.futures)
+                self.invoke_status['status_done_timestamp'] = self.invoke_status['download_output_timestamp']
+                del self.invoke_status['download_output_timestamp']
                 return self._new_futures
-            
+
             else:
                 self._return_val = function_result
                 self._set_state(JobState.success)
                 return self._return_val
 
-        elif throw_except:            
+        elif throw_except:
             self._exception = call_invoker_result['result']
             self._traceback = (call_invoker_result['exc_type'],
                                call_invoker_result['exc_value'],

@@ -74,7 +74,7 @@ class CloudFunctions:
 
         limits['timeout'] = self.timeout
         limits['memory'] = self.memory
-            
+
         if limits['timeout'] and limits['memory']:
             data['limits'] = limits
 
@@ -138,20 +138,19 @@ class CloudFunctions:
             resp = self.session.post(url, json=payload)
             data = resp.json()
             resp_time = format(round(resp.elapsed.total_seconds(), 3), '.3f')
-            if 'activationId' in data:
-                log_msg = ('Executor ID {} Function {} - Activation ID: '
-                           '{} - Time: {} seconds'.format(exec_id, call_id,
-                                                          data["activationId"],
-                                                          resp_time))
-                logger.debug(log_msg)
-                if logger.getEffectiveLevel() == logging.WARNING:
-                    print(log_msg)
-                return data["activationId"]
-            else:
-                logger.debug(data)
-                return None
         except:
             return self.remote_invoke(action_name, payload)
+
+        if 'activationId' in data:
+            log_msg = ('Executor ID {} Function {} - Activation ID: '
+                       '{} - Time: {} seconds'.format(exec_id, call_id,
+                                                      data["activationId"],
+                                                      resp_time))
+            logger.debug(log_msg)
+            return data["activationId"]
+        else:
+            logger.debug(data)
+            return None
 
     def internal_invoke(self, action_name, payload):
         """
@@ -163,10 +162,10 @@ class CloudFunctions:
         url = urlparse(os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
                                     self.namespace, 'actions', action_name))
         ctx = ssl._create_unverified_context()
-        conn = http.client.HTTPSConnection(url.netloc, context=ctx)
 
         try:
             start = time.time()
+            conn = http.client.HTTPSConnection(url.netloc, context=ctx)
             conn.request("POST", url.geturl(),
                          body=json.dumps(payload),
                          headers=self.headers)
@@ -176,22 +175,20 @@ class CloudFunctions:
             resp_time = format(round(roundtrip, 3), '.3f')
             data = json.loads(data.decode("utf-8"))
             conn.close()
-
-            if 'activationId' in data:
-                log_msg = ('Executor ID {} Function {} - Activation ID: '
-                           '{} - Time: {} seconds'.format(exec_id, call_id,
-                                                          data["activationId"],
-                                                          resp_time))
-                logger.debug(log_msg)
-                if logger.getEffectiveLevel() == logging.WARNING:
-                    print(log_msg)
-                return data["activationId"]
-            else:
-                logger.debug(data)
-                return None
         except:
             conn.close()
             return self.internal_invoke(action_name, payload)
+
+        if 'activationId' in data:
+            log_msg = ('Executor ID {} Function {} - Activation ID: '
+                       '{} - Time: {} seconds'.format(exec_id, call_id,
+                                                      data["activationId"],
+                                                      resp_time))
+            logger.debug(log_msg)
+            return data["activationId"]
+        else:
+            logger.debug(data)
+            return None
 
     def invoke_with_result(self, action_name, payload={}):
         """

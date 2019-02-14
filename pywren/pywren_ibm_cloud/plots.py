@@ -12,20 +12,21 @@ sns.set_style('whitegrid')
 logger = logging.getLogger(__name__)
 
 
-def create_timeline(dst, name, run_statuses, invoke_statuses):
+def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses):
     results_df = pd.DataFrame(run_statuses)
-    invoke_df = pd.DataFrame(invoke_statuses)
 
-    results_df = pd.concat([results_df, invoke_df], axis=1)
-    Cols = list(results_df.columns)
-    for i, item in enumerate(results_df.columns):
-        if item in results_df.columns[:i]:
-            Cols[i] = "toDROP"
-    results_df.columns = Cols
-    results_df = results_df.drop("toDROP", 1)
+    if invoke_statuses:
+        invoke_df = pd.DataFrame(invoke_statuses)
+        results_df = pd.concat([results_df, invoke_df], axis=1)
+        Cols = list(results_df.columns)
+        for i, item in enumerate(results_df.columns):
+            if item in results_df.columns[:i]:
+                Cols[i] = "toDROP"
+        results_df.columns = Cols
+        results_df = results_df.drop("toDROP", 1)
 
     palette = sns.color_palette("deep", 6)
-    time_offset = np.min(results_df.host_submit_time)
+    #time_offset = np.min(results_df.host_submit_time)
     fig = pylab.figure(figsize=(10, 6))
     ax = fig.add_subplot(1, 1, 1)
     total_jobs = len(results_df)
@@ -33,13 +34,15 @@ def create_timeline(dst, name, run_statuses, invoke_statuses):
     y = np.arange(total_jobs)
     point_size = 10
 
-    fields = [
-              ('host submit', results_df.host_submit_time - time_offset),
-              ('action start', results_df.start_time - time_offset),
-              ('jobrunner start', results_df.jobrunner_start - time_offset),
-              ('action done', results_df.end_time - time_offset),
-              ('results fetched', results_df.download_output_timestamp - time_offset)
-             ]
+    fields = [('host submit', results_df.host_submit_time - pw_start_time),
+              ('action start', results_df.start_time - pw_start_time),
+              ('jobrunner start', results_df.jobrunner_start - pw_start_time),
+              ('action done', results_df.end_time - pw_start_time)]
+
+    if 'download_output_timestamp' in results_df:
+        fields.append(('results fetched', results_df.download_output_timestamp - pw_start_time))
+    elif 'status_done_timestamp' in results_df:
+        fields.append(('status fetched', results_df.status_done_timestamp - pw_start_time))
 
     patches = []
     for f_i, (field_name, val) in enumerate(fields):
@@ -57,28 +60,39 @@ def create_timeline(dst, name, run_statuses, invoke_statuses):
     plot_step = int(np.max([1, total_jobs/32]))
 
     y_ticks = np.arange(total_jobs//plot_step + 2) * plot_step
-
     ax.set_yticks(y_ticks)
     ax.set_ylim(-0.02*total_jobs, total_jobs*1.05)
-
-    ax.set_xlim(-1, np.max(results_df.download_output_timestamp - time_offset)*1.35)
-    #ax.set_xlim(-0.02, np.max(8))
-
     for y in y_ticks:
         ax.axhline(y, c='k', alpha=0.1, linewidth=1)
+
+    if 'download_output_timestamp' in results_df:
+        max_seconds = np.max(results_df.download_output_timestamp - pw_start_time)*1.25
+    elif 'status_done_timestamp' in results_df:
+        max_seconds = np.max(results_df.status_done_timestamp - pw_start_time)*1.25
+    else:
+        max_seconds = np.max(results_df.end_time - pw_start_time)*1.25
+
+    xplot_step = int(max_seconds/8)
+    x_ticks = np.arange(max_seconds//xplot_step + 2) * xplot_step
+    ax.set_xlim(0, max_seconds)
+
+    ax.set_xticks(x_ticks)
+    for x in x_ticks:
+        ax.axvline(x, c='k', alpha=0.2, linewidth=0.8)
 
     ax.grid(False)
     fig.tight_layout()
     fig.savefig(os.path.join(dst, name+"_timeline.png"))
 
 
-def create_histogram(dst, name, run_statuses, x_lim=300):
-    runtime_bins = np.linspace(0, x_lim, x_lim)
+def create_histogram(dst, name, pw_start_time, run_statuses):
+    runtime_bins = np.linspace(0, 600, 600)
 
-    def compute_times_rates(d):
-        x = np.array(d)
+    def compute_times_rates(time_rates):
+        x = np.array(time_rates)
 
-        tzero = np.min(x[:, 0])
+        #tzero = np.min(x[:, 0])
+        tzero = pw_start_time
         start_time = x[:, 0] - tzero
         end_time = x[:, 1] - tzero
 
@@ -107,14 +121,15 @@ def create_histogram(dst, name, run_statuses, x_lim=300):
     N = len(time_hist['start_time'])
     line_segments = LineCollection([[[time_hist['start_time'][i], i],
                                      [time_hist['end_time'][i], i]] for i in range(N)],
-                                   linestyles='solid', color='k', alpha=0.4, linewidth=0.2)
+                                   linestyles='solid', color='k', alpha=0.6, linewidth=0.4)
 
     ax.add_collection(line_segments)
 
     ax.plot(runtime_bins, time_hist['runtime_jobs_hist'].sum(axis=0),
             label='active jobs total', zorder=-1)
 
-    ax.set_xlim(0, x_lim)
+    #ax.set_xlim(0, x_lim)
+    ax.set_xlim(0, np.max(time_hist['end_time'])*3)
     ax.set_ylim(0, len(time_hist['start_time'])*1.05)
     ax.set_xlabel("time (sec)")
 

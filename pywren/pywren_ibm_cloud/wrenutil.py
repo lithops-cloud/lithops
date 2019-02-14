@@ -48,6 +48,11 @@ def is_cf_cluster():
     return False
 
 
+def is_object_processing(map_function):
+    func_sig = inspect.signature(map_function)
+    return {'bucket', 'key', 'url'} & set(func_sig.parameters)
+
+
 def iterdata_as_list(iterdata):
     """
     Converts iteradat to a list
@@ -57,7 +62,7 @@ def iterdata_as_list(iterdata):
     elif type(iterdata) != list:
         return list(iterdata)
     else:
-        return iterdata 
+        return iterdata
 
 
 def convert_bools_to_string(extra_env):
@@ -72,7 +77,7 @@ def convert_bools_to_string(extra_env):
 
 
 def sizeof_fmt(num, suffix='B'):
-    for unit in ['','Ki','Mi','Gi','Ti','Pi','Ei','Zi']:
+    for unit in ['', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi']:
         if abs(num) < 1024.0:
             return "%3.1f%s%s" % (num, unit, suffix)
         num /= 1024.0
@@ -157,7 +162,7 @@ class WrappedStreamingBody:
 
 
 class WrappedStreamingBodyThreshold(WrappedStreamingBody):
-    
+
     def __init__(self, sb, size, threshold):
         # The StreamingBody we're wrapping
         self.sb = sb
@@ -183,7 +188,7 @@ class WrappedStreamingBodyThreshold(WrappedStreamingBody):
 
 def sdb_to_dict(item):
     attr = item['Attributes']
-    return {c['Name'] : c['Value'] for c in attr}
+    return {c['Name']: c['Value'] for c in attr}
 
 
 def bytes_to_b64str(byte_data):
@@ -201,7 +206,6 @@ def b64str_to_bytes(str_data):
 def split_s3_url(s3_url):
     if s3_url[:5] != "s3://":
         raise ValueError("URL {} is not valid".format(s3_url))
-
 
     splits = s3_url[5:].split("/")
     bucket_name = splits[0]
@@ -242,7 +246,7 @@ def verify_args(func, data, object_processing=False):
     # Verify parameters
     none_verify_parameters = ['storage', 'ibm_cos', 'swift', 'internal_storage']
     func_sig = inspect.signature(func)
-    
+
     # Check mandatory parameters in function
     if object_processing:
         none_verify_parameters.append('data_stream')
@@ -257,7 +261,7 @@ def verify_args(func, data, object_processing=False):
         if 'key' in func_sig.parameters or 'url' in func_sig.parameters:
             if 'data_stream' not in func_sig.parameters:
                 raise ValueError('"data_stream" {}'.format(err_msg))
-        
+
     new_parameters = list()
     for param in func_sig.parameters:
         if func_sig.parameters[param].default != None and param not in none_verify_parameters:
@@ -271,8 +275,8 @@ def verify_args(func, data, object_processing=False):
             if set(list(new_func_sig.parameters.keys())) <= set(elem):
                 new_data.append(elem)
             else:
-                raise ValueError("Check the args names in the data. " \
-                                 "You provided these args: {}, and " \
+                raise ValueError("Check the args names in the data. "
+                                 "You provided these args: {}, and "
                                  "the args must be: {}".format(list(elem.keys()),
                                                                list(new_func_sig.parameters.keys())))
         elif type(elem) in (list, tuple):
