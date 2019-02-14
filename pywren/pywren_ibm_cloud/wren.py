@@ -206,7 +206,7 @@ class ibm_cf_executor:
 
         self._state = ExecutorState.running
         if reducer_wait_local:
-            self.wait(futures=map_futures)
+            self.monitor(futures=map_futures)
 
         futures = self.executor.reduce(reduce_function, map_futures, parts_per_object,
                                        reducer_one_per_object, extra_env, extra_meta)
@@ -216,8 +216,8 @@ class ibm_cf_executor:
             return futures[0]
         return futures
 
-    def wait(self, futures=None, throw_except=True, return_when=ALL_COMPLETED,
-             download_results=False, THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
+    def monitor(self, futures=None, throw_except=True, return_when=ALL_COMPLETED,
+                download_results=False, THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
         """
         Wait for the Future instances `fs` to complete. Returns a 2-tuple of
         lists. The first list contains the futures that completed
@@ -398,12 +398,12 @@ class ibm_cf_executor:
                                 ' before call pw.create_timeline_plots()')
 
             if self._state == ExecutorState.running:
-                # wait() method not executed at any time
-                self.wait()
+                # monitor() method not executed at any time
+                self.monitor()
             if self._state == ExecutorState.ready:
                 # wait() method already executed. Download statuses from storage
                 self.use_rabbitmq = False
-                self.wait()
+                self.monitor()
 
             if self.futures:
                 run_statuses = [f.run_status for f in self.futures]
