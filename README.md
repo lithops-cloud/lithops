@@ -15,7 +15,7 @@ This is still a beta version and is rapidly changed so please keep yourself upda
 This document describes the steps to use PyWren-IBM-Cloud over IBM Cloud Functions and IBM Cloud Object Storage (COS)
 
 ### IBM Cloud for Academic institutions
-[IBM Academic Initiative](https://developer.ibm.com/academic/) is a special program that allows free trial of IBM Cloud. This program provided for students and faculty staff members and allow up to 12 month of free usage. Please follow [here] (https://onthehub.com/ibm/) and setup your account free of charge.
+[IBM Academic Initiative](https://developer.ibm.com/academic/) is a special program that allows free trial of IBM Cloud for Academic institutions. This program provided for students and faculty staff members and allow up to 12 month of free usage. Please follow [here](https://onthehub.com/ibm/), check if you eligible for this program and setup your account free of charge.
 
 ## Initial Requirements
 * IBM Cloud Function account, as described [here](https://console.bluemix.net/openwhisk/). Make sure you can run end-to-end example with Python.
