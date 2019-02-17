@@ -65,7 +65,7 @@ This action is the main runtime used to run functions within IBM Cloud Functions
 If your client uses different Python version or there is need to add additional packages to the runtime, then it is necessary to build a custom runtime. Detail instructions can be found [here](runtime/).
 
 			
-### Configuration
+### Configuration keys
 
 Configure PyWren client with access details to your Cloud Object Storage account and with your IBM Cloud Functions account.
 
@@ -86,9 +86,20 @@ Summary of configuration keys
 |ibm_cos | endpoint | | yes | Endpoint to your COS account. Make sure to use full path. for example https://s3-api.us-geo.objectstorage.softlayer.net |
 |ibm_cos | api_key | | yes | API Key to your COS account|
 
+#####  Using in-memory storage for temporary data
+
+You can configure PyWren to use in-memory storage to keep the temporary data. We support currently [CloudAMQP](https://console.bluemix.net/catalog/services/cloudamqp) and more other services will be supported at later stage. To enable PyWren to use this service please setup additional key
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+| rabbitmq |amqp_url | |no | Value of AMQP URL from the Management dashboard of CloudAMQP service |
+
+In addition, activate service by
+
+	pw = pywren.ibm_cf_executor(use_rabbitmq=True)
 
 
-
+### Configuration
 
 There are two options to configure PyWren:
 
