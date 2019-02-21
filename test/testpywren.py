@@ -158,11 +158,12 @@ def cleanTests():
 
 class TestPywrenCos(unittest.TestCase):
 
-    def my_map_function_bucket(self, bucket, key, data_stream):
+    def my_map_function_bucket(self, bucket, key, data_stream, ibm_cos):
         print('I am processing the object {}'.format(key))
         counter = {}
 
         data = data_stream.read()
+        temp = ibm_cos.get_object(Bucket=bucket, Key=key)['Body'].read()
 
         for line in data.splitlines():
             for word in line.decode('utf-8').split():
@@ -173,11 +174,12 @@ class TestPywrenCos(unittest.TestCase):
 
         return counter
 
-    def my_map_function_key(self, key, data_stream):
+    def my_map_function_key(self, key, data_stream, ibm_cos):
         print('I am processing the object {}'.format(key))
         counter = {}
 
         data = data_stream.read()
+        temp = ibm_cos.get_object(Bucket=key.split('/')[0], Key='/'.join(key.split('/')[1:]))['Body'].read()
 
         for line in data.splitlines():
             for word in line.decode('utf-8').split():
@@ -193,6 +195,21 @@ class TestPywrenCos(unittest.TestCase):
         counter = {}
 
         data = data_stream.read()
+
+        for line in data.splitlines():
+            for word in line.decode('utf-8').split():
+                if word not in counter:
+                    counter[word] = 1
+                else:
+                    counter[word] += 1
+
+        return counter
+
+    def my_map_function_storage_handler(self, key_i, ibm_cos):
+        print('I am processing the object {}'.format(key_i))
+        counter = {}
+
+        data = ibm_cos.get_object(Bucket=CONFIG['pywren']['storage_bucket'], Key=key_i)['Body'].read()
 
         for line in data.splitlines():
             for word in line.decode('utf-8').split():
@@ -269,6 +286,16 @@ class TestPywrenCos(unittest.TestCase):
         result = pw.get_result()
         self.checkResult(initCos(), result + 1)
 
+    def test_storage_handler(self):
+        cos = initCos()
+        bucket_name = CONFIG['pywren']['storage_bucket']
+        iterdata = [key for key in getFilenamesFromCOS(cos, bucket_name, PREFIX)]
+        chunk_size = 4 * 1024 ** 2  # 4MB
+        pw = pywren.ibm_cf_executor()
+        pw.map_reduce(self.my_map_function_storage_handler, iterdata, self.my_reduce_function, chunk_size)
+        result = pw.get_result()
+        self.checkResult(cos, result)
+
 
 if __name__ == '__main__':
     if len(sys.argv) <= 1:
@@ -305,6 +332,8 @@ if __name__ == '__main__':
             suite.addTest(TestPywrenCos('test_map_reduce_cos_key_one_reducer_per_object'))
         elif task == 'test_map_reduce_url':
             suite.addTest(TestPywrenCos('test_map_reduce_url'))
+        elif task == 'test_storage_handler':
+            suite.addTest(TestPywrenCos('test_storage_handler'))
         else:
             print('Unknown Command... use: "init", "pywren", "pywren_cos", "clean" or a test function name.')
             sys.exit()
