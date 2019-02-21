@@ -42,18 +42,22 @@ class CloudFunctions:
         self.is_cf_cluster = config['is_cf_cluster']
 
         auth = base64.encodebytes(self.api_key).replace(b'\n', b'')
+        self.session = requests.session()
+        default_user_agent = self.session.headers['User-Agent']
         self.headers = {
             'content-type': 'application/json',
-            'Authorization': 'Basic %s' % auth.decode('UTF-8')
+            'Authorization': 'Basic %s' % auth.decode('UTF-8'),
+            'User-Agent': default_user_agent + ' pywren-ibm-cloud'
         }
 
-        self.session = requests.session()
         self.session.headers.update(self.headers)
         adapter = requests.adapters.HTTPAdapter()
         self.session.mount('https://', adapter)
 
         msg = 'IBM Cloud Functions init for'
         logger.info('{} namespace: {} host {}'.format(msg, self.namespace, self.endpoint))
+        logger.debug("CF user agent set to: {}".format(self.session.headers['User-Agent']))
+
         if logger.getEffectiveLevel() == logging.WARNING:
             print("{} namespace: {} and host: {}".format(msg, self.namespace,
                                                          self.endpoint))
