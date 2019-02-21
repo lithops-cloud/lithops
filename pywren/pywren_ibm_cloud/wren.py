@@ -363,7 +363,6 @@ class ibm_cf_executor:
                 print()
             if self.data_cleaner and not self.cf_cluster:
                 self.clean()
-            self._state = ExecutorState.finished
 
         msg = "Executor ID {} Finished\n".format(self.executor_id)
         logger.debug(msg)
@@ -459,3 +458,5 @@ class ibm_cf_executor:
             sys.stdout = open(os.devnull, 'w')
             self.executor.call_async(clean_os_bucket, [storage_bucket, storage_prerix], extra_env=extra_env)
             sys.stdout = sys.__stdout__
+            
+        self._state = ExecutorState.finished
