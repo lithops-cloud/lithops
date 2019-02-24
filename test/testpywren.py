@@ -128,6 +128,24 @@ class TestPywren(unittest.TestCase):
         result = pw.get_result()
         self.assertEqual(result, 20)
 
+    def test_multiple_executions(self):
+        pw = pywren.ibm_cf_executor()
+        iterdata = [[1, 1], [2, 2]]
+        pw.map(self.simple_map_function, iterdata)
+        iterdata = [[3, 3], [4, 4]]
+        pw.map(self.simple_map_function, iterdata)
+        result = pw.get_result()
+        self.assertEqual(result, [2, 4, 6, 8])
+
+        iterdata = [[1, 1], [2, 2]]
+        futures1 = pw.map(self.simple_map_function, iterdata)
+        result1 = pw.get_result(futures=futures1)
+        iterdata = [[3, 3], [4, 4]]
+        futures2 = pw.map(self.simple_map_function, iterdata)
+        result2 = pw.get_result(futures=futures2)
+        self.assertEqual(result1, [2, 4])
+        self.assertEqual(result2, [6, 8])
+
 
 def initTests():
     print('Uploading test files...')
@@ -322,6 +340,8 @@ if __name__ == '__main__':
             suite.addTest(TestPywren('test_map'))
         elif task == 'test_map_reduce':
             suite.addTest(TestPywren('test_map_reduce'))
+        elif task == 'test_multiple_executions':
+            suite.addTest(TestPywren('test_multiple_executions'))
         elif task == 'test_map_reduce_cos_bucket':
             suite.addTest(TestPywrenCos('test_map_reduce_cos_bucket'))
         elif task == 'test_map_reduce_cos_bucket_one_reducer_per_object':
