@@ -143,7 +143,7 @@ class Executor(object):
         Method that returns the function to process objects in the Cloud.
         It creates a ready-to-use data_stream parameter
         """
-        def object_processing_function_wrapper(map_func_args, data_byte_range, chunk_size, chunk_threshold, storage, ibm_cos):
+        def object_processing_function_wrapper(map_func_args, data_byte_range, chunk_size, storage, ibm_cos):
             extra_get_args = {}
             if data_byte_range is not None:
                 range_str = 'bytes={}-{}'.format(*data_byte_range)
@@ -164,9 +164,8 @@ class Executor(object):
                     bucket = map_func_args['bucket']
                     key = map_func_args['key']
 
-                fileobj = ibm_cos.get_object(Bucket=bucket, Key=key, **extra_get_args)
-                sb = fileobj['Body']
-                wsb = wrenutil.WrappedStreamingBodyThreshold(sb, chunk_size, chunk_threshold)
+                sb = storage.get_object(bucket, key, stream=True, extra_get_args=extra_get_args)
+                wsb = wrenutil.WrappedStreamingBody(sb, chunk_size)
                 map_func_args['data_stream'] = wsb
 
             func_sig = inspect.signature(map_function)

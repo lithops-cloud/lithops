@@ -21,7 +21,6 @@ import inspect
 import struct
 import io
 import subprocess
-import time
 
 
 def uuid_str():
@@ -100,25 +99,43 @@ class WrappedStreamingBody:
         self.pos = 0
         # Size of the object
         self.size = size
+        # Mark for the end of the file
+        self.eof = False
 
     def tell(self):
         # print("In tell()")
         return self.pos
 
+    def read(self, n=None):
+        retval = self.sb.read()
+
+        if retval == "":
+            raise EOFError()
+
+        self.pos += len(retval)
+
+        # Find end of the line in threshold
+        if self.pos > self.size:
+            buf = io.BytesIO(retval)
+            while not self.eof:
+                buf.readline()
+                if buf.tell() > self.size:
+                    retval = retval[:buf.tell()]
+                    self.eof = True
+
+        return retval
+
     def readline(self):
-        # print("Calling readline()")
+        if self.eof:
+            raise EOFError()
         try:
             retval = self.sb._raw_stream.readline()
         except struct.error:
             raise EOFError()
         self.pos += len(retval)
-        return retval
 
-    def read(self, n=None):
-        retval = self.sb.read()
-        if retval == "":
-            raise EOFError()
-        self.pos += len(retval)
+        if self.pos >= self.size:
+            self.eof = True
 
         return retval
 
@@ -160,54 +177,6 @@ class WrappedStreamingBody:
             return self.__str__
         else:
             return getattr(self.sb, attr)
-
-
-class WrappedStreamingBodyThreshold(WrappedStreamingBody):
-
-    def __init__(self, sb, size, threshold):
-        # The StreamingBody we're wrapping
-        self.sb = sb
-        # Initial position
-        self.pos = 0
-        # Size of the object
-        self.size = size
-        # Added data in addition
-        self.threshold = threshold
-        #  Mark for the end of the file
-        self.eof = False
-
-    def read(self, n=None):
-        retval = self.sb.read()
-
-        if retval == "":
-            raise EOFError()
-
-        self.pos += len(retval)
-
-        # Find end of the line in threshold
-        if self.pos > self.size:
-            buf = io.BytesIO(retval)
-            while not self.eof:
-                buf.readline()
-                if buf.tell() > self.size:
-                    retval = retval[:buf.tell()]
-                    self.eof = True
-
-        return retval
-
-    def readline(self):
-        if self.eof:
-            raise EOFError()
-        try:
-            retval = self.sb._raw_stream.readline()
-        except struct.error:
-            raise EOFError()
-        self.pos += len(retval)
-
-        if self.pos >= self.size:
-            self.eof = True
-
-        return retval
 
 
 def sdb_to_dict(item):

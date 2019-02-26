@@ -4,7 +4,7 @@ from pywren_ibm_cloud import wrenutil
 
 logger = logging.getLogger(__name__)
 
-CHUNK_THRESHOLD = 4*1024  # 4KB
+CHUNK_THRESHOLD = 64*1024  # 64KB
 
 
 def create_partitions(arg_data, chunk_size, storage):
@@ -68,7 +68,6 @@ def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
                     partition['map_func_args']['bucket'] = bucket_name
                     partition['data_byte_range'] = brange
                     partition['chunk_size'] = chunk_size
-                    partition['chunk_threshold'] = CHUNK_THRESHOLD
                     partitions.append(partition)
                     total_partitions = total_partitions + 1
             else:
@@ -78,7 +77,6 @@ def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
                 partition['map_func_args']['bucket'] = bucket_name
                 partition['data_byte_range'] = None
                 partition['chunk_size'] = obj_size
-                partition['chunk_threshold'] = 0
                 partitions.append(partition)
                 total_partitions = total_partitions + 1
 
@@ -113,7 +111,6 @@ def split_object_from_key(map_func_args_list, chunk_size, storage):
                 partition['map_func_args'] = entry
                 partition['data_byte_range'] = brange
                 partition['chunk_size'] = chunk_size
-                partition['chunk_threshold'] = CHUNK_THRESHOLD
                 partitions.append(partition)
                 total_partitions = total_partitions + 1
         else:
@@ -121,7 +118,6 @@ def split_object_from_key(map_func_args_list, chunk_size, storage):
             partition['map_func_args'] = entry
             partition['data_byte_range'] = None
             partition['chunk_size'] = obj_size
-            partition['chunk_threshold'] = 0
             partitions.append(partition)
             total_partitions = total_partitions + 1
 
@@ -161,7 +157,6 @@ def split_object_from_url(map_func_args_list, chunk_size):
                 partition['map_func_args'] = entry
                 partition['data_byte_range'] = brange
                 partition['chunk_size'] = chunk_size
-                partition['chunk_threshold'] = CHUNK_THRESHOLD
                 partitions.append(partition)
                 total_partitions = total_partitions + 1
         else:
@@ -170,7 +165,6 @@ def split_object_from_url(map_func_args_list, chunk_size):
             partition['map_func_args'] = entry
             partition['data_byte_range'] = None
             partition['chunk_size'] = obj_size
-            partition['chunk_threshold'] = 0
             partitions.append(partition)
             total_partitions = total_partitions + 1
 
