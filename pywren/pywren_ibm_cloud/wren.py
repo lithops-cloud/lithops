@@ -27,7 +27,7 @@ from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.executor import Executor
 from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
-from pywren_ibm_cloud.wrenutil import timeout_handler
+from pywren_ibm_cloud.wrenutil import timeout_handler, is_notebook
 from pywren_ibm_cloud.storage.cleaner import clean_os_bucket
 
 logger = logging.getLogger(__name__)
@@ -260,7 +260,8 @@ class ibm_cf_executor:
 
         pbar = None
         if not self.cf_cluster and logger.getEffectiveLevel() == logging.WARNING \
-           and return_when == ALL_COMPLETED and self._state == ExecutorState.running:
+           and return_when == ALL_COMPLETED and self._state == ExecutorState.running \
+           and not is_notebook():
             import tqdm
             print()
             pbar = tqdm.tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
@@ -310,7 +311,7 @@ class ibm_cf_executor:
             raise Exception('You must run pw.call_async(), pw.map()'
                             ' or pw.map_reduce() before call pw.get_result()')
 
-        msg = 'Executor ID {} Getting results'.format(self.executor_id)
+        msg = 'Executor ID {} Getting results ...'.format(self.executor_id)
         logger.debug(msg)
         if logger.getEffectiveLevel() == logging.WARNING:
             print(msg)
@@ -320,7 +321,7 @@ class ibm_cf_executor:
 
         pbar = None
         if not self.cf_cluster and self._state != ExecutorState.ready \
-           and logger.getEffectiveLevel() == logging.WARNING:
+           and logger.getEffectiveLevel() == logging.WARNING and not is_notebook():
             import tqdm
             print()
             pbar = tqdm.tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
@@ -367,9 +368,9 @@ class ibm_cf_executor:
                 self.clean()
             self._state = ExecutorState.result
 
-        msg = "Executor ID {} Finished\n".format(self.executor_id)
-        logger.debug(msg)
-        if logger.getEffectiveLevel() == logging.WARNING and self.data_cleaner:
+        msg = "Executor ID {} Finished getting results".format(self.executor_id)
+        logger.info(msg)
+        if logger.getEffectiveLevel() == logging.WARNING:
             print(msg)
 
         if result and len(result) == 1:

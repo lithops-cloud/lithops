@@ -55,12 +55,13 @@ class CloudFunctions:
         self.session.mount('https://', adapter)
 
         msg = 'IBM Cloud Functions init for'
-        logger.info('{} namespace: {} host {}'.format(msg, self.namespace, self.endpoint))
+        logger.info('{} namespace: {}'.format(msg, self.namespace))
+        logger.info('{} host: {}'.format(msg, self.endpoint))
         logger.debug("CF user agent set to: {}".format(self.session.headers['User-Agent']))
 
         if logger.getEffectiveLevel() == logging.WARNING:
-            print("{} namespace: {} and host: {}".format(msg, self.namespace,
-                                                         self.endpoint))
+            print("{} Namespace: {}".format(msg, self.namespace))
+            print("{} Host: {}".format(msg, self.endpoint))
 
     def create_action(self, action_name, code=None, kind='blackbox',
                       image='ibmfunctions/action-python-v3.6', is_binary=True, overwrite=True):
