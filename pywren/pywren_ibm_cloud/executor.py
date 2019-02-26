@@ -143,7 +143,7 @@ class Executor(object):
         Method that returns the function to process objects in the Cloud.
         It creates a ready-to-use data_stream parameter
         """
-        def object_processing_function(map_func_args, data_byte_range, storage, ibm_cos):
+        def object_processing_function_wrapper(map_func_args, data_byte_range, chunk_size, chunk_threshold, storage, ibm_cos):
             extra_get_args = {}
             if data_byte_range is not None:
                 range_str = 'bytes={}-{}'.format(*data_byte_range)
@@ -159,14 +159,15 @@ class Executor(object):
             elif 'key' in map_func_args:
                 # it is a COS key
                 if 'bucket' not in map_func_args or ('bucket' in map_func_args and not map_func_args['bucket']):
-                    bucket, object_name = map_func_args['key'].split('/', 1)
+                    bucket, key = map_func_args['key'].split('/', 1)
                 else:
                     bucket = map_func_args['bucket']
-                    object_name = map_func_args['key']
-                fileobj = storage.get_object(bucket, object_name, stream=True,
-                                             extra_get_args=extra_get_args)
-                map_func_args['data_stream'] = fileobj
-                # fileobj = wrenutil.WrappedStreamingBody(stream, obj_chunk_size, chunk_threshold)
+                    key = map_func_args['key']
+
+                fileobj = ibm_cos.get_object(Bucket=bucket, Key=key, **extra_get_args)
+                sb = fileobj['Body']
+                wsb = wrenutil.WrappedStreamingBodyThreshold(sb, chunk_size, chunk_threshold)
+                map_func_args['data_stream'] = wsb
 
             func_sig = inspect.signature(map_function)
             if 'storage' in func_sig.parameters:
@@ -177,7 +178,7 @@ class Executor(object):
 
             return map_function(**map_func_args)
 
-        return object_processing_function
+        return object_processing_function_wrapper
 
     def call_async(self, func, data, extra_env=None, extra_meta=None):
         """

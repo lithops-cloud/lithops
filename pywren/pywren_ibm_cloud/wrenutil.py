@@ -21,6 +21,7 @@ import inspect
 import struct
 import io
 import subprocess
+import time
 
 
 def uuid_str():
@@ -172,16 +173,39 @@ class WrappedStreamingBodyThreshold(WrappedStreamingBody):
         self.size = size
         # Added data in addition
         self.threshold = threshold
+        #  Mark for the end of the file
+        self.eof = False
 
     def read(self, n=None):
         retval = self.sb.read()
+
+        if retval == "":
+            raise EOFError()
+
         self.pos += len(retval)
 
+        # Find end of the line in threshold
         if self.pos > self.size:
             buf = io.BytesIO(retval)
-            for line in buf.readlines():
-                print(line)
-            retval = b''
+            while not self.eof:
+                buf.readline()
+                if buf.tell() > self.size:
+                    retval = retval[:buf.tell()]
+                    self.eof = True
+
+        return retval
+
+    def readline(self):
+        if self.eof:
+            raise EOFError()
+        try:
+            retval = self.sb._raw_stream.readline()
+        except struct.error:
+            raise EOFError()
+        self.pos += len(retval)
+
+        if self.pos >= self.size:
+            self.eof = True
 
         return retval
 

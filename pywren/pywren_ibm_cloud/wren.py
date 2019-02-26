@@ -37,8 +37,9 @@ class ExecutorState(enum.Enum):
     new = 1
     running = 2
     ready = 3
-    finished = 4
-    error = 5
+    result = 4
+    finished = 5
+    error = 6
 
 
 class ibm_cf_executor:
@@ -80,7 +81,7 @@ class ibm_cf_executor:
         if not use_rabbitmq:
             self.config['rabbitmq']['amqp_url'] = None
         elif self.config['rabbitmq']['amqp_url']:
-            logger.info('Going to use RabbitMQ to track function activations')
+            logger.info('Going to use RabbitMQ to monitor function activations')
 
         retry_config = {}
         retry_config['invocation_retry'] = self.config['pywren']['invocation_retry']
@@ -120,7 +121,7 @@ class ibm_cf_executor:
 
         return future
 
-    def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None,
+    def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None, chunk_size=None,
             remote_invocation=False, remote_invocation_groups=100, invoke_pool_threads=128,
             data_all_as_one=True, overwrite_invoke_args=None, exclude_modules=None):
         """
@@ -146,6 +147,7 @@ class ibm_cf_executor:
 
         map_futures, _ = self.executor.map(map_function=map_function,
                                            iterdata=map_iterdata,
+                                           obj_chunk_size=chunk_size,
                                            extra_env=extra_env,
                                            extra_meta=extra_meta,
                                            remote_invocation=remote_invocation,
@@ -363,6 +365,7 @@ class ibm_cf_executor:
                 print()
             if self.data_cleaner and not self.cf_cluster:
                 self.clean()
+            self._state = ExecutorState.result
 
         msg = "Executor ID {} Finished\n".format(self.executor_id)
         logger.debug(msg)
