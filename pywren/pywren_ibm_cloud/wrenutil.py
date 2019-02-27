@@ -18,8 +18,6 @@ import base64
 import os
 import uuid
 import inspect
-import struct
-import io
 import subprocess
 
 
@@ -95,101 +93,6 @@ def sizeof_fmt(num, suffix='B'):
             return "%3.1f%s%s" % (num, unit, suffix)
         num /= 1024.0
     return "%.1f%s%s" % (num, 'Yi', suffix)
-
-
-class WrappedStreamingBody:
-    """
-    Wrap boto3's StreamingBody object to provide enough Python fileobj functionality
-    so that tar/gz can happen in memory
-
-    from https://gist.github.com/debedb/2e5cbeb54e43f031eaf0
-
-    """
-    def __init__(self, sb, size):
-        # The StreamingBody we're wrapping
-        self.sb = sb
-        # Initial position
-        self.pos = 0
-        # Size of the object
-        self.size = size
-        # Mark for the end of the file
-        self.eof = False
-
-    def tell(self):
-        # print("In tell()")
-        return self.pos
-
-    def read(self, n=None):
-        retval = self.sb.read()
-
-        if retval == "":
-            raise EOFError()
-
-        self.pos += len(retval)
-
-        # Find end of the line in threshold
-        if self.pos > self.size:
-            buf = io.BytesIO(retval)
-            while not self.eof:
-                buf.readline()
-                if buf.tell() > self.size:
-                    retval = retval[:buf.tell()]
-                    self.eof = True
-
-        return retval
-
-    def readline(self):
-        if self.eof:
-            raise EOFError()
-        try:
-            retval = self.sb._raw_stream.readline()
-        except struct.error:
-            raise EOFError()
-        self.pos += len(retval)
-
-        if self.pos >= self.size:
-            self.eof = True
-
-        return retval
-
-    def seek(self, offset, whence=0):
-        # print("Calling seek()")
-        retval = self.pos
-        if whence == 2:
-            if offset == 0:
-                retval = self.size
-            else:
-                raise Exception("Unsupported")
-        else:
-            if whence == 1:
-                offset = self.pos + offset
-                if offset > self.size:
-                    retval = self.size
-                else:
-                    retval = offset
-        # print("In seek(%s, %s): %s, size is %s" % (offset, whence, retval, self.size))
-
-        self.pos = retval
-        return retval
-
-    def __str__(self):
-        return "WrappedBody"
-
-    def __getattr__(self, attr):
-        # print("Calling %s"  % attr)
-
-        if attr == 'tell':
-            return self.tell
-        elif attr == 'seek':
-            return self.seek
-        elif attr == 'read':
-            return self.read
-        elif attr == 'readline':
-            return self.readline
-        elif attr == '__str__':
-            return self.__str__
-        else:
-            return getattr(self.sb, attr)
 
 
 def sdb_to_dict(item):

@@ -121,14 +121,17 @@ class ibm_cf_executor:
 
         return future
 
-    def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None, chunk_size=None,
-            remote_invocation=False, remote_invocation_groups=100, invoke_pool_threads=128,
+    def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None,
+            chunk_size=None, data_type='none', remote_invocation=False,
+            remote_invocation_groups=100, invoke_pool_threads=128,
             data_all_as_one=True, overwrite_invoke_args=None, exclude_modules=None):
         """
         :param func: the function to map over the data
         :param iterdata: An iterable of input data
         :param extra_env: Additional environment variables for action environment. Default None.
         :param extra_meta: Additional metadata to pass to action. Default None.
+        :param chunk_size: the size of the data chunks. 'None' for processing the whole file in one map
+        :param data_type: the type of the data. Now allowed: None (files with newline) and csv.
         :param invoke_pool_threads: Number of threads to use to invoke.
         :param data_all_as_one: upload the data as a single object. Default True
         :param overwrite_invoke_args: Overwrite other args. Mainly used for testing.
@@ -147,9 +150,10 @@ class ibm_cf_executor:
 
         map_futures, _ = self.executor.map(map_function=map_function,
                                            iterdata=map_iterdata,
-                                           obj_chunk_size=chunk_size,
                                            extra_env=extra_env,
                                            extra_meta=extra_meta,
+                                           obj_chunk_size=chunk_size,
+                                           data_type=data_type,
                                            remote_invocation=remote_invocation,
                                            remote_invocation_groups=remote_invocation_groups,
                                            invoke_pool_threads=invoke_pool_threads,
@@ -163,8 +167,9 @@ class ibm_cf_executor:
             return map_futures[0]
         return map_futures
 
-    def map_reduce(self, map_function, map_iterdata, reduce_function, chunk_size=None,
-                   extra_env=None, extra_meta=None, remote_invocation=False,
+    def map_reduce(self, map_function, map_iterdata, reduce_function,
+                   extra_env=None, extra_meta=None, chunk_size=None,
+                   data_type='none', remote_invocation=False,
                    reducer_one_per_object=False, reducer_wait_local=False,
                    invoke_pool_threads=128, data_all_as_one=True,
                    overwrite_invoke_args=None, exclude_modules=None):
@@ -174,9 +179,10 @@ class ibm_cf_executor:
         :param map_function: the function to map over the data
         :param map_iterdata:  the function to reduce over the futures
         :param reduce_function:  the function to reduce over the futures
-        :param chunk_size: the size of the data chunks. 'None' for processing the whole file in one map
         :param extra_env: Additional environment variables for action environment. Default None.
         :param extra_meta: Additional metadata to pass to action. Default None.
+        :param chunk_size: the size of the data chunks. 'None' for processing the whole file in one map
+        :param data_type: the type of the data. Now allowed: None (files with newline) and csv.
         :param reducer_one_per_object: Set one reducer per object after running the partitioner
         :param reducer_wait_local: Wait for results locally
         :param invoke_pool_threads: Number of threads to use to invoke.
@@ -197,9 +203,10 @@ class ibm_cf_executor:
 
         map_futures, parts_per_object = self.executor.map(map_function, map_iterdata,
                                                           reduce_function=reduce_function,
-                                                          obj_chunk_size=chunk_size,
                                                           extra_env=extra_env,
                                                           extra_meta=extra_meta,
+                                                          obj_chunk_size=chunk_size,
+                                                          data_type=data_type,
                                                           remote_invocation=remote_invocation,
                                                           invoke_pool_threads=invoke_pool_threads,
                                                           data_all_as_one=data_all_as_one,

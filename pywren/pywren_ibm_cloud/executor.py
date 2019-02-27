@@ -19,19 +19,18 @@ import time
 import pickle
 import logging
 import inspect
-import requests
 import pywren_ibm_cloud as pywren
 import pywren_ibm_cloud.version as version
 import pywren_ibm_cloud.wrenutil as wrenutil
 from pywren_ibm_cloud.wait import wait
 from multiprocessing.pool import ThreadPool
 from pywren_ibm_cloud.wrenconfig import MAX_AGG_DATA_SIZE
-from pywren_ibm_cloud.partitioner import create_partitions
 from pywren_ibm_cloud.future import ResponseFuture, JobState
 from pywren_ibm_cloud.runtime import get_runtime_preinstalls
+from pywren_ibm_cloud.storage.backends.cos import COSBackend
 from pywren_ibm_cloud.serialize import serialize, create_mod_data
 from pywren_ibm_cloud.storage.storage_utils import create_keys, create_func_key, create_agg_data_key
-from pywren_ibm_cloud.storage.backends.cos import COSBackend
+from pywren_ibm_cloud.partitioner import create_partitions, partition_processor
 
 
 logger = logging.getLogger(__name__)
@@ -138,47 +137,6 @@ class Executor(object):
             pos += l
         return b"".join(data_strs), ranges
 
-    def object_processing(self, map_function):
-        """
-        Method that returns the function to process objects in the Cloud.
-        It creates a ready-to-use data_stream parameter
-        """
-        def object_processing_function_wrapper(map_func_args, data_byte_range, chunk_size, storage, ibm_cos):
-            extra_get_args = {}
-            if data_byte_range is not None:
-                range_str = 'bytes={}-{}'.format(*data_byte_range)
-                extra_get_args['Range'] = range_str
-                print(extra_get_args)
-
-            logger.info('Getting dataset')
-            if 'url' in map_func_args:
-                # it is a public url
-                resp = requests.get(map_func_args['url'], headers=extra_get_args, stream=True)
-                map_func_args['data_stream'] = resp.raw
-
-            elif 'key' in map_func_args:
-                # it is a COS key
-                if 'bucket' not in map_func_args or ('bucket' in map_func_args and not map_func_args['bucket']):
-                    bucket, key = map_func_args['key'].split('/', 1)
-                else:
-                    bucket = map_func_args['bucket']
-                    key = map_func_args['key']
-
-                sb = storage.get_object(bucket, key, stream=True, extra_get_args=extra_get_args)
-                wsb = wrenutil.WrappedStreamingBody(sb, chunk_size)
-                map_func_args['data_stream'] = wsb
-
-            func_sig = inspect.signature(map_function)
-            if 'storage' in func_sig.parameters:
-                map_func_args['storage'] = storage
-
-            if 'ibm_cos' in func_sig.parameters:
-                map_func_args['ibm_cos'] = ibm_cos
-
-            return map_function(**map_func_args)
-
-        return object_processing_function_wrapper
-
     def call_async(self, func, data, extra_env=None, extra_meta=None):
         """
         Wrapper to launch one function invocation.
@@ -187,7 +145,7 @@ class Executor(object):
         return self._map(func, [data], extra_env=extra_env, extra_meta=extra_meta)
 
     def map(self, map_function, iterdata, reduce_function=None,
-            obj_chunk_size=None, extra_env=None, extra_meta=None,
+            obj_chunk_size=None, data_type='none', extra_env=None, extra_meta=None,
             remote_invocation=False, remote_invocation_groups=100,
             invoke_pool_threads=128, data_all_as_one=True,
             overwrite_invoke_args=None, exclude_modules=None):
@@ -208,7 +166,7 @@ class Executor(object):
             arg_data = wrenutil.verify_args(map_function, data, object_processing=True)
             storage = COSBackend(self.config['ibm_cos'])
             map_iterdata, parts_per_object = create_partitions(arg_data, obj_chunk_size, storage)
-            map_func = self.object_processing(map_function)
+            map_func = partition_processor(map_function, data_type)
 
         def remote_invoker(input_data):
             pw = pywren.ibm_cf_executor()

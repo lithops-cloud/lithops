@@ -1,10 +1,55 @@
 import logging
 import requests
+import inspect
+import struct
+import io
 from pywren_ibm_cloud import wrenutil
 
 logger = logging.getLogger(__name__)
 
-CHUNK_THRESHOLD = 64*1024  # 64KB
+CHUNK_THRESHOLD = 128*1024  # 128KB
+
+
+def partition_processor(map_function, data_type):
+    """
+    Method that returns the function to process objects in the Cloud.
+    It creates a ready-to-use data_stream parameter
+    """
+    def object_processing_wrapper(map_func_args, data_byte_range, chunk_size, storage, ibm_cos):
+        extra_get_args = {}
+        if data_byte_range is not None:
+            range_str = 'bytes={}-{}'.format(*data_byte_range)
+            extra_get_args['Range'] = range_str
+            print(extra_get_args)
+
+        logger.info('Getting dataset')
+        if 'url' in map_func_args:
+            # it is a public url
+            resp = requests.get(map_func_args['url'], headers=extra_get_args, stream=True)
+            map_func_args['data_stream'] = resp.raw
+
+        elif 'key' in map_func_args:
+            # it is a COS key
+            if 'bucket' not in map_func_args or ('bucket' in map_func_args and not map_func_args['bucket']):
+                bucket, key = map_func_args['key'].split('/', 1)
+            else:
+                bucket = map_func_args['bucket']
+                key = map_func_args['key']
+
+            sb = storage.get_object(bucket, key, stream=True, extra_get_args=extra_get_args)
+            wsb = WrappedStreamingBody(sb, chunk_size)
+            map_func_args['data_stream'] = wsb
+
+        func_sig = inspect.signature(map_function)
+        if 'storage' in func_sig.parameters:
+            map_func_args['storage'] = storage
+
+        if 'ibm_cos' in func_sig.parameters:
+            map_func_args['ibm_cos'] = ibm_cos
+
+        return map_function(**map_func_args)
+
+    return object_processing_wrapper
 
 
 def create_partitions(arg_data, chunk_size, storage):
@@ -171,3 +216,140 @@ def split_object_from_url(map_func_args_list, chunk_size):
         parts_per_object.append(total_partitions)
 
     return partitions, parts_per_object
+
+
+def object_processing(map_function):
+    """
+    Method that returns the function to process objects in the Cloud.
+    It creates a ready-to-use data_stream parameter
+    """
+    def object_processing_function_wrapper(map_func_args, data_byte_range, chunk_size, storage, ibm_cos):
+        extra_get_args = {}
+        if data_byte_range is not None:
+            range_str = 'bytes={}-{}'.format(*data_byte_range)
+            extra_get_args['Range'] = range_str
+            print(extra_get_args)
+
+        logger.info('Getting dataset')
+        if 'url' in map_func_args:
+            # it is a public url
+            resp = requests.get(map_func_args['url'], headers=extra_get_args, stream=True)
+            map_func_args['data_stream'] = resp.raw
+
+        elif 'key' in map_func_args:
+            # it is a COS key
+            if 'bucket' not in map_func_args or ('bucket' in map_func_args and not map_func_args['bucket']):
+                bucket, key = map_func_args['key'].split('/', 1)
+            else:
+                bucket = map_func_args['bucket']
+                key = map_func_args['key']
+
+            sb = storage.get_object(bucket, key, stream=True, extra_get_args=extra_get_args)
+            wsb = wrenutil.WrappedStreamingBody(sb, chunk_size)
+            map_func_args['data_stream'] = wsb
+
+        func_sig = inspect.signature(map_function)
+        if 'storage' in func_sig.parameters:
+            map_func_args['storage'] = storage
+
+        if 'ibm_cos' in func_sig.parameters:
+            map_func_args['ibm_cos'] = ibm_cos
+
+        return map_function(**map_func_args)
+
+    return object_processing_function_wrapper
+
+
+class WrappedStreamingBody:
+    """
+    Wrap boto3's StreamingBody object to provide enough Python fileobj functionality,
+    and to discard data added by partitioner and cut lines.
+
+    from https://gist.github.com/debedb/2e5cbeb54e43f031eaf0
+
+    """
+    def __init__(self, sb, size):
+        # The StreamingBody we're wrapping
+        self.sb = sb
+        # Initial position
+        self.pos = 0
+        # Size of the object
+        self.size = size
+        # Mark for the end of the file
+        self.eof = False
+
+    def tell(self):
+        # print("In tell()")
+        return self.pos
+
+    def read(self, n=None):
+        retval = self.sb.read()
+
+        if retval == "":
+            raise EOFError()
+
+        self.pos += len(retval)
+
+        # Find end of the line in threshold
+        if self.pos > self.size:
+            buf = io.BytesIO(retval)
+            while not self.eof:
+                buf.readline()
+                if buf.tell() > self.size:
+                    retval = retval[:buf.tell()]
+                    self.eof = True
+
+        return retval
+
+    def readline(self):
+        if self.eof:
+            raise EOFError()
+        try:
+            retval = self.sb._raw_stream.readline()
+        except struct.error:
+            raise EOFError()
+        self.pos += len(retval)
+
+        if self.pos >= self.size:
+            self.eof = True
+
+        return retval
+
+    def seek(self, offset, whence=0):
+        # print("Calling seek()")
+        retval = self.pos
+        if whence == 2:
+            if offset == 0:
+                retval = self.size
+            else:
+                raise Exception("Unsupported")
+        else:
+            if whence == 1:
+                offset = self.pos + offset
+                if offset > self.size:
+                    retval = self.size
+                else:
+                    retval = offset
+        # print("In seek(%s, %s): %s, size is %s" % (offset, whence, retval, self.size))
+
+        self.pos = retval
+        return retval
+
+    def __str__(self):
+        return "WrappedBody"
+
+    def __getattr__(self, attr):
+        # print("Calling %s"  % attr)
+
+        if attr == 'tell':
+            return self.tell
+        elif attr == 'seek':
+            return self.seek
+        elif attr == 'read':
+            return self.read
+        elif attr == 'readline':
+            return self.readline
+        elif attr == '__str__':
+            return self.__str__
+        else:
+            return getattr(self.sb, attr)
