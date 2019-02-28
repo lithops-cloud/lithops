@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 CHUNK_THRESHOLD = 128*1024  # 128KB
 
 
-def partition_processor(map_function, data_type):
+def partition_processor(map_function):
     """
     Method that returns the function to process objects in the Cloud.
     It creates a ready-to-use data_stream parameter
@@ -20,7 +20,7 @@ def partition_processor(map_function, data_type):
         if data_byte_range is not None:
             range_str = 'bytes={}-{}'.format(*data_byte_range)
             extra_get_args['Range'] = range_str
-            print(extra_get_args)
+            logger.info('Chunk range: {}'.format(extra_get_args['Range']))
 
         logger.info('Getting dataset')
         if 'url' in map_func_args:
@@ -37,13 +37,10 @@ def partition_processor(map_function, data_type):
                 key = map_func_args['key']
 
             sb = storage.get_object(bucket, key, stream=True, extra_get_args=extra_get_args)
-            wsb = WrappedStreamingBody(sb, chunk_size)
+            wsb = WrappedStreamingBodyPartition(sb, chunk_size, data_byte_range)
             map_func_args['data_stream'] = wsb
 
         func_sig = inspect.signature(map_function)
-        if 'storage' in func_sig.parameters:
-            map_func_args['storage'] = storage
-
         if 'ibm_cos' in func_sig.parameters:
             map_func_args['ibm_cos'] = ibm_cos
 
@@ -103,7 +100,6 @@ def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
             # full_key = '{}/{}'.format(bucket_name, key)
             size = 0
             if chunk_size is not None and obj_size > chunk_size:
-                size = 0
                 while size < obj_size:
                     brange = (size, size+chunk_size+CHUNK_THRESHOLD)
                     size += chunk_size
@@ -260,50 +256,58 @@ def object_processing(map_function):
     return object_processing_function_wrapper
 
 
-class WrappedStreamingBody:
-    """
-    Wrap boto3's StreamingBody object to provide enough Python fileobj functionality,
-    and to discard data added by partitioner and cut lines.
+class WrappedStreamingBodyPartition(wrenutil.WrappedStreamingBody):
 
-    from https://gist.github.com/debedb/2e5cbeb54e43f031eaf0
-
-    """
-    def __init__(self, sb, size):
-        # The StreamingBody we're wrapping
-        self.sb = sb
-        # Initial position
-        self.pos = 0
-        # Size of the object
-        self.size = size
-        # Mark for the end of the file
+    def __init__(self, sb, size, byterange):
+        super().__init__(sb, size)
+        # Range of the chunk
+        self.range = byterange
+        # The first chunk does not contain plusbyte
+        self.plusbytes = 0 if self.range[0] == 0 else 1
+        # To store the first byte of this chunk, which actually is the last byte of previous chunk
+        self.first_byte = None
+        # Flag that indicates the end of the file
         self.eof = False
 
-    def tell(self):
-        # print("In tell()")
-        return self.pos
-
     def read(self, n=None):
-        retval = self.sb.read()
+        # Data always contain one byte from the previous chunk,
+        # so l'ets check if it is a \n or not
+        self.first_byte = self.sb.read(self.plusbytes)
+        retval = self.sb.read(n)
 
         if retval == "":
             raise EOFError()
 
         self.pos += len(retval)
 
+        first_row_end_pos = 0
+        if self.first_byte != b'\n' and self.plusbytes != 0:
+            logger.debug('Discarding first partial row')
+            # Previous byte is not \n
+            # This means that we have to discard first row because it is cut
+            first_row_end_pos = retval.find(b'\n')
+
+        last_row_end_pos = self.pos
         # Find end of the line in threshold
         if self.pos > self.size:
             buf = io.BytesIO(retval)
             while not self.eof:
                 buf.readline()
                 if buf.tell() > self.size:
-                    retval = retval[:buf.tell()]
+                    last_row_end_pos = buf.tell()
                     self.eof = True
 
-        return retval
+        return retval[first_row_end_pos+self.plusbytes:last_row_end_pos]
 
     def readline(self):
         if self.eof:
             raise EOFError()
+
+        if not self.first_byte and self.plusbytes != 0:
+            self.first_byte = self.sb.read(self.plusbytes)
+            if self.first_byte != b'\n':
+                logger.debug('Discarding first partial row')
+                self.sb._raw_stream.readline()
         try:
             retval = self.sb._raw_stream.readline()
         except struct.error:
@@ -314,42 +318,3 @@ class WrappedStreamingBody:
             self.eof = True
 
         return retval
-
-    def seek(self, offset, whence=0):
-        # print("Calling seek()")
-        retval = self.pos
-        if whence == 2:
-            if offset == 0:
-                retval = self.size
-            else:
-                raise Exception("Unsupported")
-        else:
-            if whence == 1:
-                offset = self.pos + offset
-                if offset > self.size:
-                    retval = self.size
-                else:
-                    retval = offset
-        # print("In seek(%s, %s): %s, size is %s" % (offset, whence, retval, self.size))
-
-        self.pos = retval
-        return retval
-
-    def __str__(self):
-        return "WrappedBody"
-
-    def __getattr__(self, attr):
-        # print("Calling %s"  % attr)
-
-        if attr == 'tell':
-            return self.tell
-        elif attr == 'seek':
-            return self.seek
-        elif attr == 'read':
-            return self.read
-        elif attr == 'readline':
-            return self.readline
-        elif attr == '__str__':
-            return self.__str__
-        else:
-            return getattr(self.sb, attr)

@@ -122,7 +122,7 @@ class ibm_cf_executor:
         return future
 
     def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None,
-            chunk_size=None, data_type='none', remote_invocation=False,
+            chunk_size=None, remote_invocation=False,
             remote_invocation_groups=100, invoke_pool_threads=128,
             data_all_as_one=True, overwrite_invoke_args=None, exclude_modules=None):
         """
@@ -153,7 +153,6 @@ class ibm_cf_executor:
                                            extra_env=extra_env,
                                            extra_meta=extra_meta,
                                            obj_chunk_size=chunk_size,
-                                           data_type=data_type,
                                            remote_invocation=remote_invocation,
                                            remote_invocation_groups=remote_invocation_groups,
                                            invoke_pool_threads=invoke_pool_threads,
@@ -169,7 +168,7 @@ class ibm_cf_executor:
 
     def map_reduce(self, map_function, map_iterdata, reduce_function,
                    extra_env=None, extra_meta=None, chunk_size=None,
-                   data_type='none', remote_invocation=False,
+                   remote_invocation=False,
                    reducer_one_per_object=False, reducer_wait_local=False,
                    invoke_pool_threads=128, data_all_as_one=True,
                    overwrite_invoke_args=None, exclude_modules=None):
@@ -206,7 +205,6 @@ class ibm_cf_executor:
                                                           extra_env=extra_env,
                                                           extra_meta=extra_meta,
                                                           obj_chunk_size=chunk_size,
-                                                          data_type=data_type,
                                                           remote_invocation=remote_invocation,
                                                           invoke_pool_threads=invoke_pool_threads,
                                                           data_all_as_one=data_all_as_one,

@@ -145,7 +145,7 @@ class Executor(object):
         return self._map(func, [data], extra_env=extra_env, extra_meta=extra_meta)
 
     def map(self, map_function, iterdata, reduce_function=None,
-            obj_chunk_size=None, data_type='none', extra_env=None, extra_meta=None,
+            obj_chunk_size=None, extra_env=None, extra_meta=None,
             remote_invocation=False, remote_invocation_groups=100,
             invoke_pool_threads=128, data_all_as_one=True,
             overwrite_invoke_args=None, exclude_modules=None):
@@ -166,7 +166,7 @@ class Executor(object):
             arg_data = wrenutil.verify_args(map_function, data, object_processing=True)
             storage = COSBackend(self.config['ibm_cos'])
             map_iterdata, parts_per_object = create_partitions(arg_data, obj_chunk_size, storage)
-            map_func = partition_processor(map_function, data_type)
+            map_func = partition_processor(map_function)
 
         def remote_invoker(input_data):
             pw = pywren.ibm_cf_executor()
