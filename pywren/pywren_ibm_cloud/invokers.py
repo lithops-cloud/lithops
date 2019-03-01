@@ -33,7 +33,7 @@ class IBMCloudFunctionsInvoker:
         self.retries = retry_config['retries']
         self.client = CloudFunctions(cf_config)
 
-        log_msg = 'IBM Cloud Functions init for {}'.format(self.cf_action_name)
+        log_msg = 'IBM Cloud Functions init for Runtime: {}'.format(self.cf_action_name)
         logger.info(log_msg)
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(log_msg)

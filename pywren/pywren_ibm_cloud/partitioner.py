@@ -1,10 +1,52 @@
 import logging
 import requests
+import inspect
+import struct
+import io
 from pywren_ibm_cloud import wrenutil
 
 logger = logging.getLogger(__name__)
 
-CHUNK_THRESHOLD = 4*1024  # 4KB
+CHUNK_THRESHOLD = 128*1024  # 128KB
+
+
+def partition_processor(map_function):
+    """
+    Method that returns the function to process objects in the Cloud.
+    It creates a ready-to-use data_stream parameter
+    """
+    def object_processing_wrapper(map_func_args, data_byte_range, chunk_size, storage, ibm_cos):
+        extra_get_args = {}
+        if data_byte_range is not None:
+            range_str = 'bytes={}-{}'.format(*data_byte_range)
+            extra_get_args['Range'] = range_str
+            logger.info('Chunk range: {}'.format(extra_get_args['Range']))
+
+        logger.info('Getting dataset')
+        if 'url' in map_func_args:
+            # it is a public url
+            resp = requests.get(map_func_args['url'], headers=extra_get_args, stream=True)
+            map_func_args['data_stream'] = resp.raw
+
+        elif 'key' in map_func_args:
+            # it is a COS key
+            if 'bucket' not in map_func_args or ('bucket' in map_func_args and not map_func_args['bucket']):
+                bucket, key = map_func_args['key'].split('/', 1)
+            else:
+                bucket = map_func_args['bucket']
+                key = map_func_args['key']
+
+            sb = storage.get_object(bucket, key, stream=True, extra_get_args=extra_get_args)
+            wsb = WrappedStreamingBodyPartition(sb, chunk_size, data_byte_range)
+            map_func_args['data_stream'] = wsb
+
+        func_sig = inspect.signature(map_function)
+        if 'ibm_cos' in func_sig.parameters:
+            map_func_args['ibm_cos'] = ibm_cos
+
+        return map_function(**map_func_args)
+
+    return object_processing_wrapper
 
 
 def create_partitions(arg_data, chunk_size, storage):
@@ -58,7 +100,6 @@ def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
             # full_key = '{}/{}'.format(bucket_name, key)
             size = 0
             if chunk_size is not None and obj_size > chunk_size:
-                size = 0
                 while size < obj_size:
                     brange = (size, size+chunk_size+CHUNK_THRESHOLD)
                     size += chunk_size
@@ -67,6 +108,7 @@ def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
                     partition['map_func_args']['key'] = key
                     partition['map_func_args']['bucket'] = bucket_name
                     partition['data_byte_range'] = brange
+                    partition['chunk_size'] = chunk_size
                     partitions.append(partition)
                     total_partitions = total_partitions + 1
             else:
@@ -75,6 +117,7 @@ def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
                 partition['map_func_args']['key'] = key
                 partition['map_func_args']['bucket'] = bucket_name
                 partition['data_byte_range'] = None
+                partition['chunk_size'] = obj_size
                 partitions.append(partition)
                 total_partitions = total_partitions + 1
 
@@ -108,12 +151,14 @@ def split_object_from_key(map_func_args_list, chunk_size, storage):
                 partition = {}
                 partition['map_func_args'] = entry
                 partition['data_byte_range'] = brange
+                partition['chunk_size'] = chunk_size
                 partitions.append(partition)
                 total_partitions = total_partitions + 1
         else:
             partition = {}
             partition['map_func_args'] = entry
             partition['data_byte_range'] = None
+            partition['chunk_size'] = obj_size
             partitions.append(partition)
             total_partitions = total_partitions + 1
 
@@ -152,6 +197,7 @@ def split_object_from_url(map_func_args_list, chunk_size):
                 partition = {}
                 partition['map_func_args'] = entry
                 partition['data_byte_range'] = brange
+                partition['chunk_size'] = chunk_size
                 partitions.append(partition)
                 total_partitions = total_partitions + 1
         else:
@@ -159,9 +205,116 @@ def split_object_from_url(map_func_args_list, chunk_size):
             partition = {}
             partition['map_func_args'] = entry
             partition['data_byte_range'] = None
+            partition['chunk_size'] = obj_size
             partitions.append(partition)
             total_partitions = total_partitions + 1
 
         parts_per_object.append(total_partitions)
 
     return partitions, parts_per_object
+
+
+def object_processing(map_function):
+    """
+    Method that returns the function to process objects in the Cloud.
+    It creates a ready-to-use data_stream parameter
+    """
+    def object_processing_function_wrapper(map_func_args, data_byte_range, chunk_size, storage, ibm_cos):
+        extra_get_args = {}
+        if data_byte_range is not None:
+            range_str = 'bytes={}-{}'.format(*data_byte_range)
+            extra_get_args['Range'] = range_str
+            print(extra_get_args)
+
+        logger.info('Getting dataset')
+        if 'url' in map_func_args:
+            # it is a public url
+            resp = requests.get(map_func_args['url'], headers=extra_get_args, stream=True)
+            map_func_args['data_stream'] = resp.raw
+
+        elif 'key' in map_func_args:
+            # it is a COS key
+            if 'bucket' not in map_func_args or ('bucket' in map_func_args and not map_func_args['bucket']):
+                bucket, key = map_func_args['key'].split('/', 1)
+            else:
+                bucket = map_func_args['bucket']
+                key = map_func_args['key']
+
+            sb = storage.get_object(bucket, key, stream=True, extra_get_args=extra_get_args)
+            wsb = wrenutil.WrappedStreamingBody(sb, chunk_size)
+            map_func_args['data_stream'] = wsb
+
+        func_sig = inspect.signature(map_function)
+        if 'storage' in func_sig.parameters:
+            map_func_args['storage'] = storage
+
+        if 'ibm_cos' in func_sig.parameters:
+            map_func_args['ibm_cos'] = ibm_cos
+
+        return map_function(**map_func_args)
+
+    return object_processing_function_wrapper
+
+
+class WrappedStreamingBodyPartition(wrenutil.WrappedStreamingBody):
+
+    def __init__(self, sb, size, byterange):
+        super().__init__(sb, size)
+        # Range of the chunk
+        self.range = byterange
+        # The first chunk does not contain plusbyte
+        self.plusbytes = 0 if self.range[0] == 0 else 1
+        # To store the first byte of this chunk, which actually is the last byte of previous chunk
+        self.first_byte = None
+        # Flag that indicates the end of the file
+        self.eof = False
+
+    def read(self, n=None):
+        # Data always contain one byte from the previous chunk,
+        # so l'ets check if it is a \n or not
+        self.first_byte = self.sb.read(self.plusbytes)
+        retval = self.sb.read(n)
+
+        if retval == "":
+            raise EOFError()
+
+        self.pos += len(retval)
+
+        first_row_end_pos = 0
+        if self.first_byte != b'\n' and self.plusbytes != 0:
+            logger.debug('Discarding first partial row')
+            # Previous byte is not \n
+            # This means that we have to discard first row because it is cut
+            first_row_end_pos = retval.find(b'\n')
+
+        last_row_end_pos = self.pos
+        # Find end of the line in threshold
+        if self.pos > self.size:
+            buf = io.BytesIO(retval)
+            while not self.eof:
+                buf.readline()
+                if buf.tell() > self.size:
+                    last_row_end_pos = buf.tell()
+                    self.eof = True
+
+        return retval[first_row_end_pos+self.plusbytes:last_row_end_pos]
+
+    def readline(self):
+        if self.eof:
+            raise EOFError()
+
+        if not self.first_byte and self.plusbytes != 0:
+            self.first_byte = self.sb.read(self.plusbytes)
+            if self.first_byte != b'\n':
+                logger.debug('Discarding first partial row')
+                self.sb._raw_stream.readline()
+        try:
+            retval = self.sb._raw_stream.readline()
+        except struct.error:
+            raise EOFError()
+        self.pos += len(retval)
+
+        if self.pos >= self.size:
+            self.eof = True
+
+        return retval
