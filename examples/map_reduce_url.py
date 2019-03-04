@@ -67,6 +67,6 @@ def my_reduce_function(results):
 chunk_size = 4*1024**2  # 4MB
 
 pw = pywren.ibm_cf_executor()
-pw.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_size)
+pw.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_size=chunk_size)
 result = pw.get_result()
 print("Done!")

@@ -221,7 +221,7 @@ class WrappedStreamingBodyPartition(wrenutil.WrappedStreamingBody):
         # Range of the chunk
         self.range = byterange
         # The first chunk does not contain plusbyte
-        self.plusbytes = 0 if self.range[0] == 0 else 1
+        self.plusbytes = 0 if not self.range or self.range[0] == 0 else 1
         # To store the first byte of this chunk, which actually is the last byte of previous chunk
         self.first_byte = None
         # Flag that indicates the end of the file
