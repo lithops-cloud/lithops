@@ -214,48 +214,6 @@ def split_object_from_url(map_func_args_list, chunk_size):
     return partitions, parts_per_object
 
 
-def object_processing(map_function):
-    """
-    Method that returns the function to process objects in the Cloud.
-    It creates a ready-to-use data_stream parameter
-    """
-    def object_processing_function_wrapper(map_func_args, data_byte_range, chunk_size, storage, ibm_cos):
-        extra_get_args = {}
-        if data_byte_range is not None:
-            range_str = 'bytes={}-{}'.format(*data_byte_range)
-            extra_get_args['Range'] = range_str
-            print(extra_get_args)
-
-        logger.info('Getting dataset')
-        if 'url' in map_func_args:
-            # it is a public url
-            resp = requests.get(map_func_args['url'], headers=extra_get_args, stream=True)
-            map_func_args['data_stream'] = resp.raw
-
-        elif 'key' in map_func_args:
-            # it is a COS key
-            if 'bucket' not in map_func_args or ('bucket' in map_func_args and not map_func_args['bucket']):
-                bucket, key = map_func_args['key'].split('/', 1)
-            else:
-                bucket = map_func_args['bucket']
-                key = map_func_args['key']
-
-            sb = storage.get_object(bucket, key, stream=True, extra_get_args=extra_get_args)
-            wsb = wrenutil.WrappedStreamingBody(sb, chunk_size)
-            map_func_args['data_stream'] = wsb
-
-        func_sig = inspect.signature(map_function)
-        if 'storage' in func_sig.parameters:
-            map_func_args['storage'] = storage
-
-        if 'ibm_cos' in func_sig.parameters:
-            map_func_args['ibm_cos'] = ibm_cos
-
-        return map_function(**map_func_args)
-
-    return object_processing_function_wrapper
-
-
 class WrappedStreamingBodyPartition(wrenutil.WrappedStreamingBody):
 
     def __init__(self, sb, size, byterange):
@@ -263,7 +221,7 @@ class WrappedStreamingBodyPartition(wrenutil.WrappedStreamingBody):
         # Range of the chunk
         self.range = byterange
         # The first chunk does not contain plusbyte
-        self.plusbytes = 0 if self.range[0] == 0 else 1
+        self.plusbytes = 0 if not self.range or self.range[0] == 0 else 1
         # To store the first byte of this chunk, which actually is the last byte of previous chunk
         self.first_byte = None
         # Flag that indicates the end of the file

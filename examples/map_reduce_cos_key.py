@@ -63,7 +63,7 @@ def my_reduce_function(results):
 chunk_size = 4*1024**2  # 4MB
 
 pw = pywren.ibm_cf_executor()
-pw.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_size)
+pw.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_size=chunk_size)
 print(pw.get_result())
 
 """
@@ -72,6 +72,6 @@ With one reducer for each object
 print()
 print('Testing one reducer per object:')
 pw = pywren.ibm_cf_executor()
-pw.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_size,
+pw.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_size=chunk_size,
               reducer_one_per_object=True)
 print(pw.get_result())
