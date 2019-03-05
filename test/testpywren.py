@@ -128,6 +128,24 @@ class TestPywren(unittest.TestCase):
         result = pw.get_result()
         self.assertEqual(result, 20)
 
+    def test_multiple_executions(self):
+        pw = pywren.ibm_cf_executor()
+        iterdata = [[1, 1], [2, 2]]
+        pw.map(self.simple_map_function, iterdata)
+        iterdata = [[3, 3], [4, 4]]
+        pw.map(self.simple_map_function, iterdata)
+        result = pw.get_result()
+        self.assertEqual(result, [2, 4, 6, 8])
+
+        iterdata = [[1, 1], [2, 2]]
+        futures1 = pw.map(self.simple_map_function, iterdata)
+        result1 = pw.get_result(futures=futures1)
+        iterdata = [[3, 3], [4, 4]]
+        futures2 = pw.map(self.simple_map_function, iterdata)
+        result2 = pw.get_result(futures=futures2)
+        self.assertEqual(result1, [2, 4])
+        self.assertEqual(result2, [6, 8])
+
 
 def initTests():
     print('Uploading test files...')
@@ -245,7 +263,7 @@ class TestPywrenCos(unittest.TestCase):
         data_prefix = CONFIG['pywren']['storage_bucket'] + '/' + PREFIX
         chunk_size = 4 * 1024 ** 2  # 4MB
         pw = pywren.ibm_cf_executor()
-        pw.map_reduce(self.my_map_function_bucket, data_prefix, self.my_reduce_function, chunk_size)
+        pw.map_reduce(self.my_map_function_bucket, data_prefix, self.my_reduce_function, chunk_size=chunk_size)
         result = pw.get_result()
         self.checkResult(initCos(), result)
 
@@ -253,7 +271,7 @@ class TestPywrenCos(unittest.TestCase):
         data_prefix = CONFIG['pywren']['storage_bucket'] + '/' + PREFIX
         chunk_size = 4 * 1024 ** 2  # 4MB
         pw = pywren.ibm_cf_executor()
-        pw.map_reduce(self.my_map_function_bucket, data_prefix, self.my_reduce_function, chunk_size,
+        pw.map_reduce(self.my_map_function_bucket, data_prefix, self.my_reduce_function, chunk_size=chunk_size,
                       reducer_one_per_object=True)
         result = pw.get_result()
         self.checkResult(initCos(), result)
@@ -264,7 +282,7 @@ class TestPywrenCos(unittest.TestCase):
         iterdata = [bucket_name + '/' + key for key in getFilenamesFromCOS(cos, bucket_name, PREFIX)]
         chunk_size = 4 * 1024 ** 2  # 4MB
         pw = pywren.ibm_cf_executor()
-        pw.map_reduce(self.my_map_function_key, iterdata, self.my_reduce_function, chunk_size)
+        pw.map_reduce(self.my_map_function_key, iterdata, self.my_reduce_function, chunk_size=chunk_size)
         result = pw.get_result()
         self.checkResult(cos, result)
 
@@ -274,7 +292,7 @@ class TestPywrenCos(unittest.TestCase):
         iterdata = [bucket_name + '/' + key for key in getFilenamesFromCOS(cos, bucket_name, PREFIX)]
         chunk_size = 4 * 1024 ** 2  # 4MB
         pw = pywren.ibm_cf_executor()
-        pw.map_reduce(self.my_map_function_key, iterdata, self.my_reduce_function, chunk_size,
+        pw.map_reduce(self.my_map_function_key, iterdata, self.my_reduce_function, chunk_size=chunk_size,
                       reducer_one_per_object=True)
         result = pw.get_result()
         self.checkResult(cos, result)
@@ -282,7 +300,7 @@ class TestPywrenCos(unittest.TestCase):
     def test_map_reduce_url(self):
         chunk_size = 4 * 1024 ** 2  # 4MB
         pw = pywren.ibm_cf_executor()
-        pw.map_reduce(self.my_map_function_url, TEST_FILES_URLS, self.my_reduce_function, chunk_size)
+        pw.map_reduce(self.my_map_function_url, TEST_FILES_URLS, self.my_reduce_function, chunk_size=chunk_size)
         result = pw.get_result()
         self.checkResult(initCos(), result + 1)
 
@@ -292,7 +310,7 @@ class TestPywrenCos(unittest.TestCase):
         iterdata = [key for key in getFilenamesFromCOS(cos, bucket_name, PREFIX)]
         chunk_size = 4 * 1024 ** 2  # 4MB
         pw = pywren.ibm_cf_executor()
-        pw.map_reduce(self.my_map_function_storage_handler, iterdata, self.my_reduce_function, chunk_size)
+        pw.map_reduce(self.my_map_function_storage_handler, iterdata, self.my_reduce_function, chunk_size=chunk_size)
         result = pw.get_result()
         self.checkResult(cos, result)
 
@@ -322,6 +340,8 @@ if __name__ == '__main__':
             suite.addTest(TestPywren('test_map'))
         elif task == 'test_map_reduce':
             suite.addTest(TestPywren('test_map_reduce'))
+        elif task == 'test_multiple_executions':
+            suite.addTest(TestPywren('test_multiple_executions'))
         elif task == 'test_map_reduce_cos_bucket':
             suite.addTest(TestPywrenCos('test_map_reduce_cos_bucket'))
         elif task == 'test_map_reduce_cos_bucket_one_reducer_per_object':
