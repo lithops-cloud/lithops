@@ -228,6 +228,8 @@ class WrappedStreamingBodyPartition(wrenutil.WrappedStreamingBody):
         self.eof = False
 
     def read(self, n=None):
+        if self.eof:
+            raise EOFError()
         # Data always contain one byte from the previous chunk,
         # so l'ets check if it is a \n or not
         self.first_byte = self.sb.read(self.plusbytes)
@@ -238,24 +240,22 @@ class WrappedStreamingBodyPartition(wrenutil.WrappedStreamingBody):
 
         self.pos += len(retval)
 
-        first_row_end_pos = 0
+        first_row_start_pos = 0
         if self.first_byte != b'\n' and self.plusbytes != 0:
             logger.debug('Discarding first partial row')
             # Previous byte is not \n
             # This means that we have to discard first row because it is cut
-            first_row_end_pos = retval.find(b'\n')
+            first_row_start_pos = retval.find(b'\n')+1
 
         last_row_end_pos = self.pos
         # Find end of the line in threshold
         if self.pos > self.size:
-            buf = io.BytesIO(retval)
-            while not self.eof:
-                buf.readline()
-                if buf.tell() > self.size:
-                    last_row_end_pos = buf.tell()
-                    self.eof = True
+            buf = io.BytesIO(retval[self.size:])
+            buf.readline()
+            last_row_end_pos = self.size+buf.tell()
+            self.eof = True
 
-        return retval[first_row_end_pos+self.plusbytes:last_row_end_pos]
+        return retval[first_row_start_pos:last_row_end_pos]
 
     def readline(self):
         if self.eof:
