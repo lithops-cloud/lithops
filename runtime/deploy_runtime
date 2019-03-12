@@ -1,14 +1,7 @@
 #!/usr/bin/env python3
 import os
-import sys
 import click
-import pywren_ibm_cloud as pywren
-from pywren_ibm_cloud import wrenconfig
-from pywren_ibm_cloud.storage import storage
-from pywren_ibm_cloud.cf_connector import CloudFunctions
-from pywren_ibm_cloud.wrenconfig import CF_ACTION_NAME_DEFAULT
-from pywren_ibm_cloud.serialize import default_preinstalls
-from pywren_ibm_cloud.deployutil import create_zip_action, create_blackbox_runtime, extract_modules, clone_runtime, default
+from pywren_ibm_cloud.runtime.deployutil import create_zip_action, create_blackbox_runtime, extract_modules, clone_runtime, default
 
 
 @click.group(invoke_without_command=True)

@@ -116,7 +116,7 @@ class ibm_cf_executor:
                             ' create a new pywren.ibm_cf_executor() instance.')
 
         future = self.executor.call_async(func, data, extra_env, extra_meta)[0]
-        self.futures.append(future)
+        self.futures = [future]
         self._state = ExecutorState.running
 
         return future
@@ -159,7 +159,7 @@ class ibm_cf_executor:
                                            data_all_as_one=data_all_as_one,
                                            overwrite_invoke_args=overwrite_invoke_args,
                                            exclude_modules=exclude_modules)
-        self.futures.extend(map_futures)
+        self.futures = map_futures
         self._state = ExecutorState.running
 
         if len(map_futures) == 1:
@@ -217,7 +217,7 @@ class ibm_cf_executor:
 
         futures = self.executor.reduce(reduce_function, map_futures, parts_per_object,
                                        reducer_one_per_object, extra_env, extra_meta)
-        self.futures.extend(futures)
+        self.futures = list(futures)
 
         if len(futures) == 1:
             return futures[0]
