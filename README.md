@@ -418,6 +418,15 @@ except:
     !curl -fsSL "https://git.io/fhe9X" | sh
     import pywren_ibm_cloud as pywren
 ```
+Installation script supports PyWren version as an input parameter, for example:
+
+	curl -fsSL "https://git.io/fhe9X" | sh /dev/stdin 1.0.3
+
+or
+
+	curl -fsSL "https://git.io/fhe9X" | sh /dev/stdin master
+	
+If version is not provided then scipt uses latest release
 
 ### Deploy PyWren runtime to your IBM Cloud Functions
 You can create PyWren runtime from the notebook itself:
