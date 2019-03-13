@@ -1,38 +1,19 @@
 #!/usr/bin/env python3
-import os
 import click
-from pywren_ibm_cloud.runtime.deployutil import create_zip_action, create_blackbox_runtime, extract_modules, clone_runtime, default
+from pywren_ibm_cloud.runtime.deployutil import create_runtime, clone_runtime, update_runtime, deploy_default_rutime
 
 
 @click.group(invoke_without_command=True)
 @click.pass_context
 def cli(ctx):
     if ctx.invoked_subcommand is None:
-        default()
+        deploy_default_rutime()
 
 
 @cli.command('create')
 @click.argument('image_name')
 def create(image_name):
-
-    print('Creating a new docker image from the Dockerfile')
-    print('Docker image name: {}'.format(image_name))
-
-    cmd = 'docker build -t {} .'.format(image_name)
-    res = os.system(cmd)
-    if res != 0:
-        exit()
-
-    cmd = 'docker push {}'.format(image_name)
-    res = os.system(cmd)
-    if res != 0:
-        exit()
-
-    create_zip_action()
-    create_blackbox_runtime(image_name)
-    extract_modules(image_name)
-
-    print('All done!')
+    create_runtime(image_name)
 
 
 @cli.command('clone')
@@ -44,9 +25,8 @@ def clone(image_name):
 @cli.command('update')
 @click.argument('image_name')
 def update(image_name):
-    print('Updating runtime {}'.format(image_name))
-    create_zip_action()
-    create_blackbox_runtime(image_name)
+    update_runtime(image_name)
+
 
 if __name__ == "__main__":
     cli()

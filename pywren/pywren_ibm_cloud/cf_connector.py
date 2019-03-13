@@ -95,7 +95,7 @@ class CloudFunctions:
         if res.status_code != 200:
             print('An error occurred updating action {}'.format(action_name))
         else:
-            print("OK --> Updated action {}".format(action_name))
+            print("OK --> Created action {}".format(action_name))
 
     def get_action(self, action_name):
         """
