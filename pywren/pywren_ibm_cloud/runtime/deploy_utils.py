@@ -28,25 +28,24 @@ ZIP_LOCATION = '/tmp/ibmcf_pywren.zip'
 
 def _get_pywren_location():
     my_location = os.path.dirname(os.path.abspath(__file__))
-    pw_location = os.path.join(my_location, '..', '..')
+    pw_location = os.path.join(my_location, '..')
     return pw_location
 
 
 def _create_zip_action():
-    # starts from pywren-ibm-cloud/runtime
-    # we can start from pywren-ibm-cloud
-
     pywren_location = _get_pywren_location()
 
-    if not os.path.isfile(pywren_location + '/__main__.py'):
-        copyfile(pywren_location + '/pywren_ibm_cloud/action/__main__.py', pywren_location + '/pywren/__main__.py')
-    cmd = 'cd ' + pywren_location + '; zip -FSr ' + ZIP_LOCATION + ' __main__.py pywren_ibm_cloud/ -x "*__pycache__*"'
+    print(pywren_location)
+
+    if not os.path.isfile(pywren_location + '/../__main__.py'):
+        copyfile(pywren_location + '/action/__main__.py', pywren_location + '/../__main__.py')
+    cmd = 'cd ' + pywren_location + '/..; zip -FSr ' + ZIP_LOCATION + ' __main__.py pywren_ibm_cloud/ -x "*__pycache__*"'
     try:
         res = os.system(cmd)
+        if res != 0:
+            exit()
     except Exception as e:
         print(e)
-    if res != 0:
-        exit()
 
 
 def _extract_modules(image_name, cf_client, config):
