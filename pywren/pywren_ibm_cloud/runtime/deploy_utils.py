@@ -23,7 +23,7 @@ from pywren_ibm_cloud.cf_connector import CloudFunctions
 from pywren_ibm_cloud.wrenconfig import CF_ACTION_NAME_DEFAULT
 
 
-ZIP_LOCATION = '/tmp/ibmcf_pywren.zip'
+ZIP_LOCATION = os.getcwd()+'/ibmcf_pywren.zip'
 
 
 def _get_pywren_location():
