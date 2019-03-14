@@ -35,8 +35,6 @@ def _get_pywren_location():
 def _create_zip_action():
     pywren_location = _get_pywren_location()
 
-    print(pywren_location)
-
     if not os.path.isfile(pywren_location + '/../__main__.py'):
         copyfile(pywren_location + '/action/__main__.py', pywren_location + '/../__main__.py')
     cmd = 'cd ' + pywren_location + '/..; zip -FSr ' + ZIP_LOCATION + ' __main__.py pywren_ibm_cloud/ -x "*__pycache__*"'
@@ -61,7 +59,7 @@ def _extract_modules(image_name, cf_client, config):
     internal_storage = storage.InternalStorage(storage_config)
 
     pywren_location = _get_pywren_location()
-    action_location = os.path.join(pywren_location, "pywren_ibm_cloud", "runtime", "extract_modules.py")
+    action_location = os.path.join(pywren_location, "runtime", "extract_modules.py")
 
     with open(action_location, "r") as action_py:
         action_code = action_py.read()
