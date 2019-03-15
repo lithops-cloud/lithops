@@ -138,7 +138,6 @@ def split_object_from_key(map_func_args_list, chunk_size, storage):
     for entry in map_func_args_list:
         total_partitions = 0
         object_key = entry['key']
-        logger.info(object_key)
         bucket, object_name = object_key.split('/', 1)
         metadata = storage.head_object(bucket, object_name)
         obj_size = int(metadata['content-length'])
