@@ -4,6 +4,7 @@ import inspect
 import struct
 import io
 from pywren_ibm_cloud import wrenutil
+from multiprocessing.pool import ThreadPool
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +83,7 @@ def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
     partitions = []
     parts_per_object = []
 
-    for entry in map_func_args_list:
+    def _split(entry):
         # Each entry is a bucket
         if chunk_size:
             logger.info('Creating chunks from objects within: {}'.format(entry['bucket']))
@@ -123,6 +124,11 @@ def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
 
             parts_per_object.append(total_partitions)
 
+    pool = ThreadPool(128)
+    pool.map(_split, map_func_args_list)
+    pool.close()
+    pool.join()
+
     return partitions, parts_per_object
 
 
@@ -135,7 +141,7 @@ def split_object_from_key(map_func_args_list, chunk_size, storage):
     partitions = []
     parts_per_object = []
 
-    for entry in map_func_args_list:
+    def _split(entry):
         total_partitions = 0
         object_key = entry['key']
         bucket, object_name = object_key.split('/', 1)
@@ -163,6 +169,11 @@ def split_object_from_key(map_func_args_list, chunk_size, storage):
 
         parts_per_object.append(total_partitions)
 
+    pool = ThreadPool(128)
+    pool.map(_split, map_func_args_list)
+    pool.close()
+    pool.join()
+
     return partitions, parts_per_object
 
 
@@ -175,7 +186,7 @@ def split_object_from_url(map_func_args_list, chunk_size):
     partitions = []
     parts_per_object = []
 
-    for entry in map_func_args_list:
+    def _split(entry):
         obj_size = None
         total_partitions = 0
         object_url = entry['url']
@@ -209,6 +220,11 @@ def split_object_from_url(map_func_args_list, chunk_size):
             total_partitions = total_partitions + 1
 
         parts_per_object.append(total_partitions)
+
+    pool = ThreadPool(128)
+    pool.map(_split, map_func_args_list)
+    pool.close()
+    pool.join()
 
     return partitions, parts_per_object
 
