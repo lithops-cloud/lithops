@@ -7,8 +7,11 @@ from ibm_botocore.client import Config
 from ibm_botocore.client import ClientError
 import pywren_ibm_cloud as pywren
 import urllib.request
+import logging
 
 PREFIX = '__pywren.test'
+
+logging.basicConfig(level=logging.DEBUG)
 
 try:
     dir_path = os.path.dirname(__file__)
