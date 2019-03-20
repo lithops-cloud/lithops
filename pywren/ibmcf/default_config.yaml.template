@@ -18,6 +18,7 @@ ibm_cf:
 ibm_cos:
     endpoint   : <COS_API_ENDPOINT>
     api_key    : <API_KEY>
+    #ibm_auth_endpoint: <COS AUTH ENDPOINT> # Optional
     #access_key : <ACCESS_KEY>  # Optional
     #secret_key : <SECRET_KEY>  # Optional
     
