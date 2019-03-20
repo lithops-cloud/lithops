@@ -83,7 +83,7 @@ def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
     partitions = []
     parts_per_object = []
 
-    def _split(entry):
+    for entry in map_func_args_list:
         # Each entry is a bucket
         if chunk_size:
             logger.info('Creating chunks from objects within: {}'.format(entry['bucket']))
@@ -92,7 +92,7 @@ def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
         bucket_name, prefix = wrenutil.split_path(entry['bucket'])
         objects = storage.list_objects(bucket_name, prefix)
 
-        for obj in objects:
+        def _split(obj):
             key = obj['Key']
             obj_size = obj['Size']
             total_partitions = 0
@@ -124,10 +124,10 @@ def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
 
             parts_per_object.append(total_partitions)
 
-    pool = ThreadPool(128)
-    pool.map(_split, map_func_args_list)
-    pool.close()
-    pool.join()
+        pool = ThreadPool(128)
+        pool.map(_split, objects)
+        pool.close()
+        pool.join()
 
     return partitions, parts_per_object
 
