@@ -19,6 +19,7 @@ import ibm_boto3
 import ibm_botocore
 from datetime import datetime
 from pywren_ibm_cloud.wrenutil import sizeof_fmt
+import pywren_ibm_cloud.wrenconfig as wrenconfig
 from ibm_botocore.credentials import DefaultTokenManager
 from pywren_ibm_cloud.storage.exceptions import StorageNoSuchKeyError
 
@@ -35,6 +36,10 @@ class COSBackend:
 
     def __init__(self, cos_config):
         service_endpoint = cos_config.get('endpoint').replace('http:', 'https:')
+        cos_auth_endpoint = wrenconfig.COS_AUTH_ENDPOINT_DEFAULT
+        if 'ibm_auth_endpoint' in cos_config:
+            cos_auth_endpoint = cos_config['ibm_auth_endpoint']
+        logger.debug("Set IBM COS Auth Endpoint to {}".format(cos_auth_endpoint))
 
         if 'api_key' in cos_config:
             client_config = ibm_botocore.client.Config(signature_version='oauth',
@@ -51,6 +56,7 @@ class COSBackend:
             self.cos_client = ibm_boto3.client('s3',
                                                token_manager=token_manager,
                                                config=client_config,
+                                               ibm_auth_endpoint = cos_auth_endpoint,
                                                endpoint_url=service_endpoint)
             if 'token' not in cos_config:
                 cos_config['token'] = token_manager.get_token()
@@ -65,6 +71,7 @@ class COSBackend:
                                                aws_access_key_id=access_key,
                                                aws_secret_access_key=secret_key,
                                                config=client_config,
+                                               ibm_auth_endpoint = cos_auth_endpoint,
                                                endpoint_url=service_endpoint)
 
     def get_client(self):
