@@ -124,6 +124,7 @@ def ibm_cloud_function_handler(event):
         # pass a full json blob
         jobrunner_config = {'func_key': func_key,
                             'data_key': data_key,
+                            'log_level': log_level,
                             'data_byte_range': data_byte_range,
                             'python_module_path': PYTHON_MODULE_PATH,
                             'output_key': output_key,

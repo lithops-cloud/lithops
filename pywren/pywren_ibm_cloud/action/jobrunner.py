@@ -79,6 +79,8 @@ class jobrunner:
         else:
             self.show_memory = False
 
+        log_level = self.config['log_level']
+        wrenlogging.ow_config(log_level)
         self.func_key = self.config['func_key']
         self.data_key = self.config['data_key']
         self.data_byte_range = self.config['data_byte_range']

@@ -33,9 +33,9 @@ def default_config(log_level='INFO'):
         },
         'handlers': {
             'default': {
-                'level':log_level, # 'INFO',
-                'class':'logging.StreamHandler',
-                'formatter' : 'standard'
+                'level': log_level,
+                'class': 'logging.StreamHandler',
+                'formatter': 'standard'
             },
         },
         'loggers': {
@@ -49,27 +49,32 @@ def default_config(log_level='INFO'):
 
 
 def ow_config(log_level='INFO'):
-        logging.config.dictConfig({
-            'version': 1,
-            'disable_existing_loggers': False,
-            'formatters': {
-                'standard': {
-                    'format': '[%(levelname)s] %(name)s: %(message)s'
-                },
+    if log_level == 'DEBUG_BOTO3':
+        log_level = 'DEBUG'
+        logging.getLogger('ibm_boto3').setLevel(logging.DEBUG)
+        logging.getLogger('ibm_botocore').setLevel(logging.DEBUG)
+
+    logging.config.dictConfig({
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'standard': {
+                'format': '[%(levelname)s] %(name)s: %(message)s'
             },
-            'handlers': {
-                'default': {
-                    'level':log_level, # 'INFO',
-                    'class':'logging.StreamHandler',
-                    'formatter' : 'standard',
-                    'stream': 'ext://sys.stdout'
-                },
+        },
+        'handlers': {
+            'default': {
+                'level': log_level,
+                'class': 'logging.StreamHandler',
+                'formatter': 'standard',
+                'stream': 'ext://sys.stdout'
             },
-            'loggers': {
-                '': {
-                    'handlers': ['default'],
-                    'level': log_level,
-                    'propagate': True
-                }
+        },
+        'loggers': {
+            '': {
+                'handlers': ['default'],
+                'level': log_level,
+                'propagate': True
             }
-        })
+        }
+    })
