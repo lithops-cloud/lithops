@@ -89,7 +89,7 @@ def ibm_cloud_function_handler(event):
     call_id = event['call_id']
     callgroup_id = event['callgroup_id']
     executor_id = event['executor_id']
-    job_max_runtime = event.get("job_max_runtime", 5)  # default for CF
+    job_max_runtime = event.get("job_max_runtime", 590)  # default for CF
     status_key = event['status_key']
     func_key = event['func_key']
     data_key = event['data_key']
