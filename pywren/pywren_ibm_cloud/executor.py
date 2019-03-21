@@ -22,6 +22,7 @@ import inspect
 import pywren_ibm_cloud as pywren
 import pywren_ibm_cloud.version as version
 import pywren_ibm_cloud.wrenutil as wrenutil
+import pywren_ibm_cloud.wrenconfig as wrenconfig
 from pywren_ibm_cloud.wait import wait
 from multiprocessing.pool import ThreadPool
 from pywren_ibm_cloud.wrenconfig import MAX_AGG_DATA_SIZE
@@ -38,10 +39,8 @@ logger = logging.getLogger(__name__)
 
 class Executor(object):
 
-    def __init__(self, invoker, config, internal_storage, timeout):
+    def __init__(self, invoker, config, internal_storage, log_level):
         self.invoker = invoker
-        self.job_max_runtime = timeout
-
         self.config = config
         self.internal_storage = internal_storage
 
@@ -49,6 +48,10 @@ class Executor(object):
             self.executor_id = os.environ['PYWREN_EXECUTOR_ID']
         else:
             self.executor_id = wrenutil.create_executor_id()
+
+        self.log_level = log_level
+        if not self.log_level:
+            self.log_level = 'INFO'
 
         runtime = self.config['ibm_cf']['action_name']
         runtime_preinstalls = get_runtime_preinstalls(self.internal_storage, runtime)
@@ -62,7 +65,7 @@ class Executor(object):
 
         log_msg = 'IBM Cloud Functions executor created with ID {}'.format(self.executor_id)
         logger.info(log_msg)
-        if(logger.getEffectiveLevel() == logging.WARNING):
+        if not log_level:
             print(log_msg)
 
     def invoke_with_keys(self, func_key, data_key, output_key,
@@ -74,6 +77,7 @@ class Executor(object):
 
         arg_dict = {
             'config': self.config,
+            'log_level': self.log_level,
             'func_key': func_key,
             'data_key': data_key,
             'output_key': output_key,
@@ -137,17 +141,16 @@ class Executor(object):
             pos += l
         return b"".join(data_strs), ranges
 
-    def call_async(self, func, data, extra_env=None, extra_meta=None):
+    def call_async(self, func, data, extra_env=None, extra_meta=None, runtime_timeout=wrenconfig.CF_RUNTIME_TIMEOUT,):
         """
         Wrapper to launch one function invocation.
         """
 
-        return self._map(func, [data], extra_env=extra_env, extra_meta=extra_meta)
+        return self._map(func, [data], extra_env=extra_env, extra_meta=extra_meta, job_max_runtime=runtime_timeout)
 
-    def map(self, map_function, iterdata, reduce_function=None,
-            obj_chunk_size=None, extra_env=None, extra_meta=None,
-            remote_invocation=False, remote_invocation_groups=100,
-            invoke_pool_threads=128, data_all_as_one=True,
+    def map(self, map_function, iterdata, obj_chunk_size=None, extra_env=None, extra_meta=None,
+            remote_invocation=False, remote_invocation_groups=100, invoke_pool_threads=128,
+            data_all_as_one=True, job_max_runtime=wrenconfig.CF_RUNTIME_TIMEOUT,
             overwrite_invoke_args=None, exclude_modules=None):
         """
         Wrapper to launch map() method.  It integrates COS logic to process objects.
@@ -188,13 +191,14 @@ class Executor(object):
                                 data_all_as_one=data_all_as_one,
                                 overwrite_invoke_args=overwrite_invoke_args,
                                 exclude_modules=exclude_modules,
-                                original_func_name=map_function.__name__)
+                                original_func_name=map_function.__name__,
+                                job_max_runtime=job_max_runtime)
 
         return map_futures, parts_per_object
 
     def _map(self, func, iterdata, extra_env=None, extra_meta=None, invoke_pool_threads=128,
              data_all_as_one=True, overwrite_invoke_args=None, exclude_modules=None,
-             original_func_name=None):
+             original_func_name=None, job_max_runtime=wrenconfig.CF_RUNTIME_TIMEOUT):
         """
         :param func: the function to map over the data
         :param iterdata: An iterable of input data
@@ -309,7 +313,7 @@ class Executor(object):
                                          call_id, extra_env,
                                          extra_meta, data_byte_range,
                                          host_job_meta.copy(),
-                                         self.job_max_runtime,
+                                         job_max_runtime,
                                          overwrite_invoke_args=overwrite_invoke_args)
 
         N = len(data)

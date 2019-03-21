@@ -36,10 +36,9 @@ class COSBackend:
 
     def __init__(self, cos_config):
         service_endpoint = cos_config.get('endpoint').replace('http:', 'https:')
-        cos_auth_endpoint = wrenconfig.COS_AUTH_ENDPOINT_DEFAULT
-        if 'ibm_auth_endpoint' in cos_config:
-            cos_auth_endpoint = cos_config['ibm_auth_endpoint']
-        logger.debug("Set IBM COS Auth Endpoint to {}".format(cos_auth_endpoint))
+        ibm_auth_endpoint = cos_config['ibm_auth_endpoint']
+        logger.debug("Set IBM COS Endpoint to {}".format(service_endpoint))
+        logger.debug("Set IBM COS Auth Endpoint to {}".format(ibm_auth_endpoint))
 
         if 'api_key' in cos_config:
             client_config = ibm_botocore.client.Config(signature_version='oauth',
@@ -56,7 +55,7 @@ class COSBackend:
             self.cos_client = ibm_boto3.client('s3',
                                                token_manager=token_manager,
                                                config=client_config,
-                                               ibm_auth_endpoint = cos_auth_endpoint,
+                                               ibm_auth_endpoint=ibm_auth_endpoint,
                                                endpoint_url=service_endpoint)
             if 'token' not in cos_config:
                 cos_config['token'] = token_manager.get_token()
@@ -71,7 +70,7 @@ class COSBackend:
                                                aws_access_key_id=access_key,
                                                aws_secret_access_key=secret_key,
                                                config=client_config,
-                                               ibm_auth_endpoint = cos_auth_endpoint,
+                                               ibm_auth_endpoint=ibm_auth_endpoint,
                                                endpoint_url=service_endpoint)
 
     def get_client(self):
@@ -93,9 +92,9 @@ class COSBackend:
             res = self.cos_client.put_object(Bucket=bucket_name, Key=key, Body=data)
             status = 'OK' if res['ResponseMetadata']['HTTPStatusCode'] == 200 else 'Error'
             try:
-                logger.debug('PUT Object {} - Size: {} - {}'.format(key, sizeof_fmt(len(data)), status))
+                logger.info('PUT Object {} - Size: {} - {}'.format(key, sizeof_fmt(len(data)), status))
             except:
-                logger.debug('PUT Object {} {}'.format(key, status))
+                logger.info('PUT Object {} {}'.format(key, status))
         except ibm_botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == "NoSuchKey":
                 raise StorageNoSuchKeyError(key)

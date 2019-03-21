@@ -137,6 +137,9 @@ def default(config_data=None):
         if 'retries' not in config_data['pywren']:
             config_data['pywren']['retries'] = RETRIES_DEFAULT
 
+    if 'ibm_cos' in config_data and 'ibm_auth_endpoint' not in config_data['ibm_cos']:
+        config_data['ibm_cos']['ibm_auth_endpoint'] = COS_AUTH_ENDPOINT_DEFAULT
+
     if 'action_name' not in config_data['ibm_cf']:
         config_data['ibm_cf']['action_name'] = CF_ACTION_NAME_DEFAULT
 

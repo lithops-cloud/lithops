@@ -44,8 +44,7 @@ class ExecutorState(enum.Enum):
 
 class ibm_cf_executor:
 
-    def __init__(self, config=None, runtime=None, log_level=None, use_rabbitmq=False,
-                 runtime_timeout=wrenconfig.CF_RUNTIME_TIMEOUT):
+    def __init__(self, config=None, runtime=None, log_level=None, rabbitmq_monitor=False):
         """
         Initialize and return an executor class.
 
@@ -69,16 +68,17 @@ class ibm_cf_executor:
         if runtime:
             self.config['ibm_cf']['action_name'] = runtime
 
-        if log_level:
-            wrenlogging.default_config(log_level)
+        self.log_level = log_level
+        if self.log_level:
+            wrenlogging.default_config(self.log_level)
 
         ibm_cf_config = self.config['ibm_cf']
         self.runtime = ibm_cf_config['action_name']
         self.cf_cluster = ibm_cf_config['is_cf_cluster']
         self.data_cleaner = self.config['pywren']['data_cleaner']
-        self.use_rabbitmq = use_rabbitmq
+        self.rabbitmq_monitor = rabbitmq_monitor
 
-        if not use_rabbitmq:
+        if not rabbitmq_monitor:
             self.config['rabbitmq']['amqp_url'] = None
         elif self.config['rabbitmq']['amqp_url']:
             logger.info('Going to use RabbitMQ to monitor function activations')
@@ -92,13 +92,13 @@ class ibm_cf_executor:
 
         self.storage_config = wrenconfig.extract_storage_config(self.config)
         self.internal_storage = storage.InternalStorage(self.storage_config)
-        self.executor = Executor(invoker, self.config, self.internal_storage, runtime_timeout)
+        self.executor = Executor(invoker, self.config, self.internal_storage, self.log_level)
         self.executor_id = self.executor.executor_id
 
         self.futures = []
         self.reduce_future = None
 
-    def call_async(self, func, data, extra_env=None, extra_meta=None):
+    def call_async(self, func, data, extra_env=None, extra_meta=None, timeout=wrenconfig.CF_RUNTIME_TIMEOUT):
         """
         For run one function execution
         :param func: the function to map over the data
@@ -115,14 +115,14 @@ class ibm_cf_executor:
             raise Exception('You cannot run pw.call_async() in the current state,'
                             ' create a new pywren.ibm_cf_executor() instance.')
 
-        future = self.executor.call_async(func, data, extra_env, extra_meta)[0]
+        future = self.executor.call_async(func, data, extra_env, extra_meta, timeout)[0]
         self.futures = [future]
         self._state = ExecutorState.running
 
         return future
 
     def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None,
-            chunk_size=None, remote_invocation=False,
+            chunk_size=None, remote_invocation=False, timeout=wrenconfig.CF_RUNTIME_TIMEOUT,
             remote_invocation_groups=100, invoke_pool_threads=128,
             data_all_as_one=True, overwrite_invoke_args=None, exclude_modules=None):
         """
@@ -150,15 +150,16 @@ class ibm_cf_executor:
 
         map_futures, _ = self.executor.map(map_function=map_function,
                                            iterdata=map_iterdata,
+                                           obj_chunk_size=chunk_size,
                                            extra_env=extra_env,
                                            extra_meta=extra_meta,
-                                           obj_chunk_size=chunk_size,
                                            remote_invocation=remote_invocation,
                                            remote_invocation_groups=remote_invocation_groups,
                                            invoke_pool_threads=invoke_pool_threads,
                                            data_all_as_one=data_all_as_one,
                                            overwrite_invoke_args=overwrite_invoke_args,
-                                           exclude_modules=exclude_modules)
+                                           exclude_modules=exclude_modules,
+                                           job_max_runtime=timeout)
         self.futures = map_futures
         self._state = ExecutorState.running
 
@@ -168,7 +169,7 @@ class ibm_cf_executor:
 
     def map_reduce(self, map_function, map_iterdata, reduce_function,
                    extra_env=None, extra_meta=None, chunk_size=None,
-                   remote_invocation=False,
+                   remote_invocation=False, timeout=wrenconfig.CF_RUNTIME_TIMEOUT,
                    reducer_one_per_object=False, reducer_wait_local=False,
                    invoke_pool_threads=128, data_all_as_one=True,
                    overwrite_invoke_args=None, exclude_modules=None):
@@ -209,7 +210,8 @@ class ibm_cf_executor:
                                                           invoke_pool_threads=invoke_pool_threads,
                                                           data_all_as_one=data_all_as_one,
                                                           overwrite_invoke_args=overwrite_invoke_args,
-                                                          exclude_modules=exclude_modules)
+                                                          exclude_modules=exclude_modules,
+                                                          job_max_runtime=timeout)
 
         self._state = ExecutorState.running
         if reducer_wait_local:
@@ -256,15 +258,15 @@ class ibm_cf_executor:
 
         msg = 'Executor ID {} Waiting for functions to complete'.format(self.executor_id)
         logger.debug(msg)
-        if logger.getEffectiveLevel() == logging.WARNING and self._state == ExecutorState.running:
+        if not self.log_level and self._state == ExecutorState.running:
             print(msg)
 
         rabbit_amqp_url = None
-        if self.use_rabbitmq:
+        if self.rabbitmq_monitor:
             rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
 
         pbar = None
-        if not self.cf_cluster and logger.getEffectiveLevel() == logging.WARNING \
+        if not self.cf_cluster and not self.log_level \
            and return_when == ALL_COMPLETED and self._state == ExecutorState.running \
            and not is_notebook():
             import tqdm
@@ -318,7 +320,7 @@ class ibm_cf_executor:
 
         msg = 'Executor ID {} Getting results ...'.format(self.executor_id)
         logger.debug(msg)
-        if logger.getEffectiveLevel() == logging.WARNING:
+        if not self.log_level:
             print(msg)
 
         signal.signal(signal.SIGALRM, timeout_handler)
@@ -326,7 +328,7 @@ class ibm_cf_executor:
 
         pbar = None
         if not self.cf_cluster and self._state != ExecutorState.ready \
-           and logger.getEffectiveLevel() == logging.WARNING and not is_notebook():
+           and not self.log_level and not is_notebook():
             import tqdm
             print()
             pbar = tqdm.tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
@@ -346,7 +348,7 @@ class ibm_cf_executor:
             msg = ('Executor ID {} Raised timeout of {} seconds getting results '
                    '\nActivations not done: {}'.format(self.executor_id, timeout, not_dones_activation_ids))
             logger.debug(msg)
-            if logger.getEffectiveLevel() == logging.WARNING:
+            if not self.log_level:
                 print(msg)
             self._state = ExecutorState.error
             result = None
@@ -358,7 +360,7 @@ class ibm_cf_executor:
             not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
             msg = 'Executor ID {} Cancelled  \nActivations not done: {}'.format(self.executor_id, not_dones_activation_ids)
             logger.debug(msg)
-            if logger.getEffectiveLevel() == logging.WARNING:
+            if not self.log_level:
                 print(msg)
             if self.data_cleaner and not self.cf_cluster:
                 self.clean()
@@ -375,7 +377,7 @@ class ibm_cf_executor:
 
         msg = "Executor ID {} Finished getting results".format(self.executor_id)
         logger.info(msg)
-        if logger.getEffectiveLevel() == logging.WARNING:
+        if not self.log_level:
             print(msg)
 
         if result and len(result) == 1:
@@ -395,10 +397,10 @@ class ibm_cf_executor:
 
         msg = 'Executor ID {} Creating timeline plots'.format(self.executor_id)
         logger.debug(msg)
-        if logger.getEffectiveLevel() == logging.WARNING:
+        if not self.log_level:
             print(msg)
 
-        rabbitmq_used = self.use_rabbitmq
+        rabbitmq_used = self.rabbitmq_monitor
 
         if not run_statuses:
             if self._state == ExecutorState.new or self._state == ExecutorState.error:
@@ -410,7 +412,7 @@ class ibm_cf_executor:
                 self.monitor()
             if self._state == ExecutorState.ready:
                 # wait() method already executed. Download statuses from storage
-                self.use_rabbitmq = False
+                self.rabbitmq_monitor = False
                 self.monitor()
 
             if self.futures:
@@ -440,7 +442,7 @@ class ibm_cf_executor:
         msg = ("Executor ID {} Cleaning partial results from bucket '{}' "
                "and prefix '{}'".format(self.executor_id, storage_bucket, storage_prerix))
         logger.debug(msg)
-        if logger.getEffectiveLevel() == logging.WARNING:
+        if not self.log_level:
             print(msg)
             if not self.data_cleaner:
                 print()
