@@ -27,6 +27,7 @@ from threading import Thread
 from queue import Queue
 from pywren_ibm_cloud import version
 from pywren_ibm_cloud import wrenconfig
+from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
@@ -82,6 +83,9 @@ def ibm_cloud_function_handler(event):
     config = event['config']
     storage_config = wrenconfig.extract_storage_config(config)
 
+    log_level = event['log_level']
+    wrenlogging.ow_config(log_level)
+
     call_id = event['call_id']
     callgroup_id = event['callgroup_id']
     executor_id = event['executor_id']
@@ -115,10 +119,12 @@ def ibm_cloud_function_handler(event):
                       'PYTHONUNBUFFERED': 'True'}
 
         os.environ.update(custom_env)
+        os.environ.update(extra_env)
 
         # pass a full json blob
         jobrunner_config = {'func_key': func_key,
                             'data_key': data_key,
+                            'log_level': log_level,
                             'data_byte_range': data_byte_range,
                             'python_module_path': PYTHON_MODULE_PATH,
                             'output_key': output_key,
@@ -167,6 +173,8 @@ def ibm_cloud_function_handler(event):
         t.start()
         t.join(job_max_runtime)
 
+        response_status['exec_time'] = time.time() - setup_time
+
         if t.isAlive():
             # If process is still alive after t.join(job_max_runtime), kill it
             logger.error("Process exceeded maximum runtime of {} sec".format(job_max_runtime))
@@ -191,7 +199,6 @@ def ibm_cloud_function_handler(event):
                     except:
                         response_status[key] = value
 
-        response_status['exec_time'] = time.time() - setup_time
         response_status['host_submit_time'] = event['host_submit_time']
         # response_status['server_info'] = get_server_info()
         response_status.update(context_dict)

@@ -18,8 +18,8 @@ import logging
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.action.wrenhandler import ibm_cloud_function_handler
 
+wrenlogging.ow_config(logging.INFO)
 logger = logging.getLogger('__main__')
-wrenlogging.ow_config(logging.DEBUG)
 
 
 def main(args):

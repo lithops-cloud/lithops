@@ -33,7 +33,7 @@ from pywren_ibm_cloud.storage.backends.swift import SwiftBackend
 from pywren_ibm_cloud.future import ResponseFuture
 
 pickling_support.install()
-level = logging.DEBUG
+level = logging.INFO
 logger = logging.getLogger('jobrunner')
 logger.setLevel(level)
 wrenlogging.ow_config(level)
@@ -79,6 +79,8 @@ class jobrunner:
         else:
             self.show_memory = False
 
+        log_level = self.config['log_level']
+        wrenlogging.ow_config(log_level)
         self.func_key = self.config['func_key']
         self.data_key = self.config['data_key']
         self.data_byte_range = self.config['data_byte_range']
@@ -279,6 +281,7 @@ class jobrunner:
                 output_upload_timestamp_t2 = time.time()
                 self.stats.write("output_upload_time",
                                  output_upload_timestamp_t2 - output_upload_timestamp_t1)
+
 
 if __name__ == '__main__':
     logger.info("Jobrunner started")
