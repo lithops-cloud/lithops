@@ -202,7 +202,6 @@ class ibm_cf_executor:
                             ' Create a new pywren.ibm_cf_executor() instance.')
 
         map_futures, parts_per_object = self.executor.map(map_function, map_iterdata,
-                                                          reduce_function=reduce_function,
                                                           extra_env=extra_env,
                                                           extra_meta=extra_meta,
                                                           obj_chunk_size=chunk_size,
