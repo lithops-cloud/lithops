@@ -426,7 +426,7 @@ or
 
 	curl -fsSL "https://git.io/fhe9X" | sh /dev/stdin master
 	
-If version is not provided then scipt uses latest release
+If version is not provided then scipt fetch the latest release
 
 ### Deploy PyWren runtime to your IBM Cloud Functions
 You can create PyWren runtime from the notebook itself:
