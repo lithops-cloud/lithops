@@ -38,12 +38,10 @@ def _create_zip_action():
     if not os.path.isfile(pywren_location + '/../__main__.py'):
         copyfile(pywren_location + '/action/__main__.py', pywren_location + '/../__main__.py')
     cmd = 'cd ' + pywren_location + '/..; zip -FSr ' + ZIP_LOCATION + ' __main__.py pywren_ibm_cloud/ -x "*__pycache__*"'
-    try:
-        res = os.system(cmd)
-        if res != 0:
-            exit()
-    except Exception as e:
-        print(e)
+
+    res = os.system(cmd)
+    if res != 0:
+        raise Exception('Unable to create the {} action package'.format(ZIP_LOCATION))
 
 
 def _extract_modules(image_name, cf_client, config):
