@@ -43,15 +43,12 @@ class Executor(object):
         self.invoker = invoker
         self.config = config
         self.internal_storage = internal_storage
+        self.log_level = log_level
 
         if 'PYWREN_EXECUTOR_ID' in os.environ:
             self.executor_id = os.environ['PYWREN_EXECUTOR_ID']
         else:
             self.executor_id = wrenutil.create_executor_id()
-
-        self.log_level = log_level
-        if not self.log_level:
-            self.log_level = 'INFO'
 
         runtime = self.config['ibm_cf']['action_name']
         runtime_preinstalls = get_runtime_preinstalls(self.internal_storage, runtime)
@@ -65,7 +62,7 @@ class Executor(object):
 
         log_msg = 'IBM Cloud Functions executor created with ID {}'.format(self.executor_id)
         logger.info(log_msg)
-        if not log_level:
+        if not self.log_level:
             print(log_msg)
 
     def invoke_with_keys(self, func_key, data_key, output_key,
@@ -75,9 +72,12 @@ class Executor(object):
                          host_job_meta, job_max_runtime,
                          overwrite_invoke_args=None):
 
+        if not self.log_level:
+            log_level = 'INFO'
+
         arg_dict = {
             'config': self.config,
-            'log_level': self.log_level,
+            'log_level': log_level,
             'func_key': func_key,
             'data_key': data_key,
             'output_key': output_key,
@@ -256,7 +256,7 @@ class Executor(object):
 
         log_msg = 'Executor ID {} Uploading function and data'.format(self.executor_id)
         logger.debug(log_msg)
-        if(logger.getEffectiveLevel() == logging.WARNING):
+        if not self.log_level:
             print(log_msg)
 
         if data_size_bytes < MAX_AGG_DATA_SIZE and data_all_as_one:
@@ -322,7 +322,7 @@ class Executor(object):
         start_inv = time.time()
         log_msg = 'Executor ID {} Starting function invocation: {}() - Total: {} activations'.format(self.executor_id, func_name, N)
         logger.debug(log_msg)
-        if(logger.getEffectiveLevel() == logging.WARNING):
+        if not self.log_level:
             print(log_msg)
 
         for i in range(N):
@@ -347,7 +347,7 @@ class Executor(object):
         log_msg = 'Executor ID {} Invocation done: {} seconds'.format(self.executor_id,
                                                                       round(time.time()-start_inv, 3))
         logger.debug(log_msg)
-        if(logger.getEffectiveLevel() == logging.WARNING):
+        if not self.log_level:
             print(log_msg)
 
         return res

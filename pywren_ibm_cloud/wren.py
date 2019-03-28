@@ -96,7 +96,6 @@ class ibm_cf_executor:
         self.executor_id = self.executor.executor_id
 
         self.futures = []
-        self.reduce_future = None
 
     def call_async(self, func, data, extra_env=None, extra_meta=None, timeout=wrenconfig.CF_RUNTIME_TIMEOUT):
         """
@@ -116,7 +115,7 @@ class ibm_cf_executor:
                             ' create a new pywren.ibm_cf_executor() instance.')
 
         future = self.executor.call_async(func, data, extra_env, extra_meta, timeout)[0]
-        self.futures = [future]
+        self.futures.append(future)
         self._state = ExecutorState.running
 
         return future
@@ -160,7 +159,7 @@ class ibm_cf_executor:
                                            overwrite_invoke_args=overwrite_invoke_args,
                                            exclude_modules=exclude_modules,
                                            job_max_runtime=timeout)
-        self.futures = map_futures
+        self.futures.extend(map_futures)
         self._state = ExecutorState.running
 
         if len(map_futures) == 1:
@@ -218,7 +217,7 @@ class ibm_cf_executor:
 
         futures = self.executor.reduce(reduce_function, map_futures, parts_per_object,
                                        reducer_one_per_object, extra_env, extra_meta)
-        self.futures = list(futures)
+        self.futures.extend(futures)
 
         if len(futures) == 1:
             return futures[0]
@@ -312,6 +311,7 @@ class ibm_cf_executor:
         else:
             # In this case self.futures is always a list
             ftrs = self.futures
+            self.futures = []
 
         if not ftrs:
             raise Exception('You must run pw.call_async(), pw.map()'
@@ -468,5 +468,5 @@ class ibm_cf_executor:
             sys.stdout = open(os.devnull, 'w')
             self.executor.call_async(clean_os_bucket, [storage_bucket, storage_prerix], extra_env=extra_env)
             sys.stdout = sys.__stdout__
-            
+
         self._state = ExecutorState.finished

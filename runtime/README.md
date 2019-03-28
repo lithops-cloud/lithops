@@ -100,4 +100,4 @@ In this case you can use that Docker image and avoid the building process.
 Note that if you put a tag in the docker image name, the ':' character will be replaced with a '_' in the runtime name.
 For example, if you put `jsampe/pw-mpl-nltk:3.5` as a Docker image name in the *create* or *clone* commands, then the name of the runtime will be `pw-mpl-nltk_3.5` as in the previous examples.
 
-By default the images are uploaded to the Docker hub account as **private**. In order to use them from IBM Cloud functions, you have to login to your [Docker Hub account](https://hub.docker.com) and make them **public**.
+In order to use them from IBM Cloud functions, you have to login to your [Docker Hub account](https://hub.docker.com) and ensure that the image is **public**.
