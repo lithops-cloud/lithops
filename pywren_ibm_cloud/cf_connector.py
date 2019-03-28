@@ -64,14 +64,15 @@ class CloudFunctions:
             print("{} Host: {}".format(msg, self.endpoint))
 
     def create_action(self, action_name, code=None, kind='blackbox',
-                      image='ibmfunctions/action-python-v3.6', is_binary=True, overwrite=True):
+                      image='ibmfunctions/action-python-v3.6',
+                      is_binary=True, overwrite=True):
         """
         Create an IBM Cloud Function
         """
         logger.debug('I am about to create a new cloud function action')
         url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
                            self.namespace, 'actions',
-                           action_name + "?overwrite=" + str(overwrite))
+                           action_name + "?overwrite=" + str(overwrite)).replace("\\", "/")
 
         data = {}
         limits = {}
@@ -103,7 +104,7 @@ class CloudFunctions:
         """
         logger.debug("I am about to get a cloud function action: {}".format(action_name))
         url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
-                           self.namespace, 'actions', action_name)
+                           self.namespace, 'actions', action_name).replace("\\", "/")
         res = self.session.get(url)
         return res.json()
 
@@ -115,7 +116,7 @@ class CloudFunctions:
             print("Delete cloud function action: {}".format(action_name))
 
         url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
-                           self.namespace, 'actions', action_name)
+                           self.namespace, 'actions', action_name).replace("\\", "/")
         res = self.session.delete(url)
 
         if res.status_code != 200:
@@ -137,13 +138,13 @@ class CloudFunctions:
         exec_id = payload['executor_id']
         call_id = payload['call_id']
         url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
-                           self.namespace, 'actions', action_name)
+                           self.namespace, 'actions', action_name).replace("\\", "/")
 
         try:
             resp = self.session.post(url, json=payload)
             data = resp.json()
             resp_time = format(round(resp.elapsed.total_seconds(), 3), '.3f')
-        except:
+        except Exception:
             return self.remote_invoke(action_name, payload)
 
         if 'activationId' in data:
@@ -165,7 +166,7 @@ class CloudFunctions:
         call_id = payload['call_id']
 
         url = urlparse(os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
-                                    self.namespace, 'actions', action_name))
+                                    self.namespace, 'actions', action_name)).replace("\\", "/")
         ctx = ssl._create_unverified_context()
 
         try:
@@ -180,7 +181,7 @@ class CloudFunctions:
             resp_time = format(round(roundtrip, 3), '.3f')
             data = json.loads(data.decode("utf-8"))
             conn.close()
-        except:
+        except Exception:
             conn.close()
             return self.internal_invoke(action_name, payload)
 
@@ -201,7 +202,7 @@ class CloudFunctions:
         """
         url = os.path.join(self.endpoint, 'api', 'v1',
                            'namespaces', self.namespace, 'actions',
-                           action_name + "?blocking=true&result=true")
+                           action_name + "?blocking=true&result=true").replace("\\", "/")
         resp = self.session.post(url, json=payload)
         result = resp.json()
 
