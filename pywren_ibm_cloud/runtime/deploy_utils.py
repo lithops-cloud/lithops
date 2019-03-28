@@ -16,7 +16,6 @@
 
 import os
 import sys
-from shutil import copyfile
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.cf_connector import CloudFunctions
@@ -28,7 +27,6 @@ ZIP_LOCATION = os.getcwd()+'/ibmcf_pywren.zip'
 
 def _get_pywren_location():
     my_location = os.path.dirname(os.path.abspath(__file__))
-    print(my_location)
     pw_location = os.path.join(my_location, '..')
     return pw_location
 
@@ -36,13 +34,15 @@ def _get_pywren_location():
 def _create_zip_action():
     pywren_location = _get_pywren_location()
 
-    if not os.path.isfile(pywren_location + '/../__main__.py'):
-        copyfile(pywren_location + '/action/__main__.py', pywren_location + '/../__main__.py')
-    cmd = 'cd ' + pywren_location + '/..; zip -FSr ' + ZIP_LOCATION + ' __main__.py pywren_ibm_cloud/ -x "*__pycache__*"'
-
+    cmd = 'cd ' + pywren_location + '/..; zip -FSr ' + ZIP_LOCATION + ' pywren_ibm_cloud/ -x "*__pycache__*"'
     res = os.system(cmd)
     if res != 0:
         raise Exception('Unable to create the {} action package'.format(ZIP_LOCATION))
+
+    cmd = 'cd ' + pywren_location + '/action; zip -r ' + ZIP_LOCATION + ' __main__.py'
+    res = os.system(cmd)
+    if res != 0:
+        raise Exception('Unable to add __main__.py into the {} action package'.format(ZIP_LOCATION))
 
 
 def _extract_modules(image_name, cf_client, config):
