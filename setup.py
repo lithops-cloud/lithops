@@ -30,14 +30,14 @@ if sys.version_info > (3,) and sys.version_info < (3, 4):
 exec(open('pywren_ibm_cloud/version.py').read())
 
 setup(
-    name='pywren-ibm-cloud',
+    name='pywren_ibm_cloud',
     version=__version__,
-    url='http://pywren.io',
-    author='Eric Jonas',
-    description='Run many jobs transparently on IBM Cloud Functions',
+    url='https://github.com/pywren/pywren-ibm-cloud',
+    author='Gil Vernik',
+    description='Run many jobs over IBM Cloud Functions',
     long_description="PyWren lets you transparently run your Python functions"
     "on IBM Cloud Functions",
-    author_email='jonas@ericjonas.com',
+    author_email='gilv@il.ibm.com',
     packages=find_packages(),
     install_requires=[
         'Click', 'ibm-cos-sdk', 'PyYAML', 'pika',

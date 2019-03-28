@@ -14,5 +14,7 @@
 # limitations under the License.
 #
 
+name = "pywren_ibm_cloud"
+
 from pywren_ibm_cloud.wren import *
 from pywren_ibm_cloud.version import __version__
