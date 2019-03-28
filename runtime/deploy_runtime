@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-import click
 from pywren_ibm_cloud.runtime import create_runtime, clone_runtime, update_runtime, deploy_default_rutime
+import click
 
 
 @click.group(invoke_without_command=True)
