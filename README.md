@@ -415,25 +415,31 @@ As the current **IBM Watson Studio** runtimes does not contains the **PyWren** p
 try:
     import pywren_ibm_cloud as pywren
 except:
-    !curl -fsSL "https://git.io/fhe9X" | sh
+    !{sys.executable} -m pip install pywren-ibm-cloud
     import pywren_ibm_cloud as pywren
 ```
-Installation script supports PyWren version as an input parameter, for example:
+Installation supports PyWren version as an input parameter, for example:
 
-	curl -fsSL "https://git.io/fhe9X" | sh /dev/stdin 1.0.3
+	!{sys.executable} -m pip install -U pywren-ibm-cloud==1.0.4
 
-or
-
-	curl -fsSL "https://git.io/fhe9X" | sh /dev/stdin master
-	
-If version is not provided then scipt fetch the latest release
 
 ### Deploy PyWren runtime to your IBM Cloud Functions
-You can create PyWren runtime from the notebook itself:
+After importing `pywren` library, you can create PyWren runtime from the notebook itself:
 
 ```python
-from pywren_ibm_cloud.deployutil import clone_runtime
-clone_runtime('<dockerhub_space>/<name>:<version>', config, 'pywren-ibm-cloud')
+pywren.runtime.clone_runtime('<dockerhub_space>/<name>:<version>', config)
+```
+
+For example:
+
+```python
+pywren.runtime.clone_runtime('ibmcloudfunctions/pywren:3.5', config)
+```
+
+And then, you can create an executor with this runtime:
+
+```python
+pw = pywren.ibm_cf_executor(runtime='pywren_3.5')
 ```
 
 ## Additional resources
