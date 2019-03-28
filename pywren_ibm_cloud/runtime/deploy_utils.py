@@ -28,6 +28,7 @@ ZIP_LOCATION = os.getcwd()+'/ibmcf_pywren.zip'
 
 def _get_pywren_location():
     my_location = os.path.dirname(os.path.abspath(__file__))
+    print(my_location)
     pw_location = os.path.join(my_location, '..')
     return pw_location
 
@@ -141,7 +142,7 @@ def update_runtime(image_name, config=None):
     print('All done!')
 
 
-def deploy_default_rutime(config=None):
+def deploy_default_runtime(config=None):
     print('Updating runtime {}'.format(CF_ACTION_NAME_DEFAULT))
     if config is None:
         config = wrenconfig.default()
