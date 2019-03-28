@@ -34,12 +34,12 @@ def _get_pywren_location():
 def _create_zip_action():
     pywren_location = _get_pywren_location()
 
-    cmd = 'cd ' + pywren_location + '/..; zip -FSr ' + ZIP_LOCATION + ' pywren_ibm_cloud/ -x "*__pycache__*"'
+    cmd = 'cd ' + pywren_location + '/..; zip -FSr "' + ZIP_LOCATION + '" pywren_ibm_cloud/ -x "*__pycache__*"'
     res = os.system(cmd)
     if res != 0:
         raise Exception('Unable to create the {} action package'.format(ZIP_LOCATION))
 
-    cmd = 'cd ' + pywren_location + '/action; zip -r ' + ZIP_LOCATION + ' __main__.py'
+    cmd = 'cd ' + pywren_location + '/action; zip -r "' + ZIP_LOCATION + '" __main__.py'
     res = os.system(cmd)
     if res != 0:
         raise Exception('Unable to add __main__.py into the {} action package'.format(ZIP_LOCATION))
