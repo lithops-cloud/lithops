@@ -15,128 +15,63 @@ This is still a beta version and is rapidly changed so please keep yourself upda
 This document describes the steps to use PyWren-IBM-Cloud over IBM Cloud Functions and IBM Cloud Object Storage (COS)
 
 ### IBM Cloud for Academic institutions
-[IBM Academic Initiative](https://developer.ibm.com/academic/) is a special program that allows free trial of IBM Cloud for Academic institutions. This program provided for students and faculty staff members and allow up to 12 month of free usage. Please follow [here](https://onthehub.com/ibm/), check if you eligible for this program and setup your account free of charge.
+[IBM Academic Initiative](https://developer.ibm.com/academic/) is a special program that allows free trial of IBM Cloud for Academic institutions. This program provided for students and faculty staff members and allow up to 12 month of free usage. Please follow [here](https://ibm.onthehub.com/), check if you eligible for this program and setup your account free of charge.
+
+
+# Getting Started
+1. [Initial requirements](#initial-requirements)
+2. [PyWren setup](#pywren-setup)
+3. [Configuration](#configuration)
+4. [Deploy main runtime](#deploy-pywren-main-runtime)
+5. [Verify installation](#verify)
+6. [How to use PyWren for IBM Cloud](#how-to-use-pywren-for-ibm-cloud-functions)
+7. [PyWren on IBM Watson Studio](#pywren-on-ibm-watson-studio)
+8. [Additional resources](#additional-resources)
+
 
 ## Initial Requirements
-* IBM Cloud Function account, as described [here](https://console.bluemix.net/openwhisk/). Make sure you can run end-to-end example with Python.
+* IBM Cloud Function account, as described [here](https://cloud.ibm.com/openwhisk/). Make sure you can run end-to-end example with Python.
 * IBM Cloud Object Storage [account](https://www.ibm.com/cloud/object-storage)
 * Python 3.6 (preferable) or Python 3.5
 
+
 ## PyWren Setup
 
-### Install PyWren 
+Install PyWren from the PyPi repository:
 
-Clone the repository and run the setup script:
+	pip3 install pywren-ibm-cloud
 
-    git clone https://github.com/pywren/pywren-ibm-cloud
-    or
-    git clone git@github.com:pywren/pywren-ibm-cloud.git
-
-Navigate into `pywren-ibm-cloud` folder
-
-    cd pywren-ibm-cloud/pywren
-
-If you plan to develop code, stay in the master branch. Otherwise obtain the most recent stable release version from the `release` tab. For example, if release is `v1.0.0` then execute
-
-	git checkout v1.0.0
-
-Build and install 
-	
-    python3 setup.py install --force
-
-or
-
-    pip install -U .
-
-### Deploy PyWren main runtime
-
-You need to deploy the PyWren runtime to your IBM Cloud Functions namespace and create the main PyWren action. PyWren main action is responsible to execute Python functions inside PyWren runtime within IBM Cloud Functions. The strong requirement here is to match Python versions between the client and the runtime. The runtime may also contain additional packages which your code depends on.
-
-PyWren-IBM-Cloud shipped with default runtime:
-
-| Runtime name | Python version | Packages included |
-| ----| ----| ---- |
-| pywren_3.6 | 3.6 | [list of packages](https://console.bluemix.net/docs/openwhisk/openwhisk_reference.html#openwhisk_ref_python_environments_3.6) |
-
-To deploy the default runtime, navigate into `runtime` folder and execute:
-
-	./deploy_runtime
-
-This script will automatically create a Python 3.6 action named `pywren_3.6` which is based on `python:3.6` IBM docker image (Debian Jessie). 
-This action is the main runtime used to run functions within IBM Cloud Functions with PyWren. 
-
-If your client uses different Python version or there is need to add additional packages to the runtime, then it is necessary to build a custom runtime. Detail instructions can be found [here](runtime/).
-
-			
-### Configuration keys
-
-Configure PyWren client with access details to your Cloud Object Storage account and with your IBM Cloud Functions account.
-
-Access details to IBM Cloud Functions can be obtained [here](https://console.bluemix.net/openwhisk/learn/api-key). Details on your COS account can be obtained from the "service credentials" page on the UI of your COS account. More details on "service credentials" can be obtained [here](docs/cos-info.md)
-
-Summary of configuration keys
-
-|Group|Key|Default|Mandatory|Additional info|
-|---|---|---|---|---|
-|pywren|storage_bucket||yes|Any bucket that exists in your COS account. This will be used by PyWren for intermediate data |
-|pywren|storage_prefix|pywren.jobs|no|Storage prefix is a virtual sub-directory in the bucket, to provide better control over location where PyWren writes temporary data. The COS location will be `storage_bucket/storage_prefix` |
-|pywren|data_cleaner|False|no|If set to True, then cleaner will automatically delete temporary data that was written into `storage_bucket/storage_prefix`|
-|pywren | storage_backend| ibm_cos | no | backend storage implementation. IBM COS is the default |
-|pywren | invocation_retry| True | no | Retry invocation in case of failure |
-|pywren | retry_sleeps | [1, 5, 10, 20, 30] | no | Number of seconds to wait before retry |
-|pywren| retries | 5 | no | number of retries |
-|ibm_cf| endpoint | | yes | IBM Cloud Functions hostname. Endpoint is the value of 'host' from [api-key](https://console.bluemix.net/openwhisk/learn/api-key). Make sure to use https:// prefix |
-|ibm_cf| namespace | | yes | IBM Cloud Functions namespace. Value of CURRENT NAMESPACE from [api-key](https://console.bluemix.net/openwhisk/learn/api-key) |
-|ibm_cf| api_key | | yes | IBM Cloud Functions api key. Value of api key from [api-key](https://console.bluemix.net/openwhisk/learn/api-key) |
-|ibm_cf| action_timeout | 600000 |no |  Default timeout |
-|ibm_cf| action_memory | 512 | no | Default memory |
-|ibm_cos | endpoint | | yes | Endpoint to your COS account. Make sure to use full path. for example https://s3-api.us-geo.objectstorage.softlayer.net |
-|ibm_cos | api_key | | yes | API Key to your COS account|
-
-#####  Using in-memory storage for temporary data
-
-You can configure PyWren to use in-memory storage to keep the temporary data. We support currently [CloudAMQP](https://console.bluemix.net/catalog/services/cloudamqp) and more other services will be supported at later stage. To enable PyWren to use this service please setup additional key
-
-|Group|Key|Default|Mandatory|Additional info|
-|---|---|---|---|---|
-| rabbitmq |amqp_url | |no | Value of AMQP URL from the Management dashboard of CloudAMQP service |
-
-In addition, activate service by
-
-	pw = pywren.ibm_cf_executor(use_rabbitmq=True)
+Installation for developers can be found [here](docs/dev-installation).
 
 
 ### Configuration
 
+Configure PyWren client with access details to your Cloud Object Storage (COS) account, and with your IBM Cloud Functions account.
+
+Access details to IBM Cloud Functions can be obtained [here](https://cloud.ibm.com/openwhisk/learn/api-key). Details on your IBM Cloud Object Storage account can be obtained from the "service credentials" page on the UI of your COS account. More details on "service credentials" can be obtained [here](docs/cos-info.md).
+
 There are two options to configure PyWren:
 
 #### Using configuration file
-Copy the `pywren/ibmcf/default_config.yaml.template` into `~/.pywren_config`
+Copy the `ibmcf/default_config.yaml.template` into `~/.pywren_config`
 
 Edit `~/.pywren_config` and configure the following entries:
 
 ```yaml
 pywren: 
     storage_bucket: <BUCKET_NAME>
-    storage_prefix: <pywren.jobs>
-    data_cleaner : <True / False>
 
 ibm_cf:
-    # Obtain all values from https://console.bluemix.net/openwhisk/learn/api-key
-
-    # endpoint is the value of 'host'
-    # make sure to use https:// as prefix
-    endpoint    : <CF_API_ENDPOINT>
-    # namespace = value of CURRENT NAMESPACE
-    namespace   : <CF_NAMESPACE>
-    api_key     : <CF_API_KEY>
+    # Obtain all values from https://cloud.ibm.com/openwhisk/learn/api-key
+    endpoint    : <HOST>  # make sure to use https:// as prefix
+    namespace   : <NAMESPACE>
+    api_key     : <API_KEY>
    
 ibm_cos:
-    # make sure to use full path.
-    # for example https://s3-api.us-geo.objectstorage.softlayer.net
-    endpoint   : <COS_API_ENDPOINT>
+    # Region endpoint example: https://s3.us-east.cloud-object-storage.appdomain.cloud
+    endpoint   : <REGION_ENDPOINT>  # make sure to use https:// as prefix
     # this is preferable authentication method for IBM COS
-    api_key    : <COS_API_KEY>
+    api_key    : <API_KEY>
     # alternatively you may use HMAC authentication method
     # access_key : <ACCESS_KEY>
     # secret_key : <SECRET_KEY>
@@ -160,21 +95,45 @@ This option allows you pass all the configuration details as part of the PyWren 
 ```python
 config = {'pywren' : {'storage_bucket' : 'BUCKET_NAME'},
 
-          'ibm_cf':  {'endpoint': 'CF_API_ENDPOINT', 
-                      'namespace': 'CF_NAMESPACE', 
-                      'api_key': 'CF_API_KEY'}, 
+          'ibm_cf':  {'endpoint': 'HOST', 
+                      'namespace': 'NAMESPACE', 
+                      'api_key': 'API_KEY'}, 
 
-          'ibm_cos': {'endpoint': 'COS_API_ENDPOINT', 
-                      'api_key': 'COS_API_KEY'}
-         }
+          'ibm_cos': {'endpoint': 'REGION_ENDPOINT', 
+                      'api_key': 'API_KEY'}}
 ```
 
-Having configuration allows you to provide it to the PyWren as follows:
+Having a Python dictionary configuration allows you to provide it to the PyWren as follows:
 
 ```python
 import pywren_ibm_cloud as pywren
 pw = pywren.ibm_cf_executor(config=config)
 ```
+
+You can find more configuration keys [here](docs/configuration.md).
+
+
+### Deploy PyWren main runtime
+
+Once PyWren is configured, you need to deploy the main PyWren runtime to your IBM Cloud Functions namespace. The PyWren runtime is an action in the IBM Cloud Functions account, responsible to execute the Python functions. The strong requirement here is to match Python versions between the client and the runtime.
+
+PyWren-IBM-Cloud shipped with default runtime:
+
+| Runtime name | Python version | Packages included |
+| ----| ----| ---- |
+| pywren_3.6 | 3.6 | [list of packages](https://github.com/ibm-functions/runtime-python/blob/master/python3.6/CHANGELOG.md) |
+
+To deploy the default runtime, call the `deploy_default_runtime()` method (only once) in any of your Python scripts:
+
+```python
+import pywren_ibm_cloud as pywren
+pywren.runtime.deploy_default_runtime()
+```
+
+This script will automatically create a Python 3.6 action named `pywren_3.6` which is based on `python:3.6` IBM docker image (Debian Jessie). 
+This action is the main runtime used to run functions within IBM Cloud Functions with PyWren. 
+
+The runtime may also contain additional packages which your code depends on: If your client uses different Python version, or there is need to use additional packages or libraries, then it is necessary to build a custom runtime. Detail instructions can be found [here](runtime/).
 
 
 ### Verify 
@@ -404,7 +363,7 @@ pw.map(my_map_function, iterdata)
 result = pw.get_result()
 ```
 
-## PyWren and IBM Watson Studio
+## PyWren on IBM Watson Studio
 You can use PyWren inside an **IBM Watson Studio** notebook in order to execute parallel data analytics by using **IBM Cloud functions**.
 
 ### How to install PyWren within IBM Watson Studio
