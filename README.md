@@ -25,8 +25,9 @@ This document describes the steps to use PyWren-IBM-Cloud over IBM Cloud Functio
 4. [Deploy main runtime](#deploy-pywren-main-runtime)
 5. [Verify installation](#verify)
 6. [How to use PyWren for IBM Cloud](#how-to-use-pywren-for-ibm-cloud-functions)
-7. [PyWren on IBM Watson Studio](#pywren-on-ibm-watson-studio)
-8. [Additional resources](#additional-resources)
+7. [Using PyWren to process data from IBM Cloud Object Storage](#using-pywren-to-process-data-from-ibm-cloud-object-storage)
+8. [PyWren on IBM Watson Studio](#pywren-on-ibm-watson-studio)
+9. [Additional resources](#additional-resources)
 
 
 ## Initial Requirements
@@ -41,7 +42,7 @@ Install PyWren from the PyPi repository:
 
 	pip3 install pywren-ibm-cloud
 
-Installation for developers can be found [here](docs/dev-installation).
+Installation for developers can be found [here](docs/dev-installation.md).
 
 
 ### Configuration
