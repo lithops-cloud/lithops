@@ -72,8 +72,7 @@ class Executor(object):
                          host_job_meta, job_max_runtime,
                          overwrite_invoke_args=None):
 
-        if not self.log_level:
-            log_level = 'INFO'
+        log_level = 'INFO' if not self.log_level else self.log_level
 
         arg_dict = {
             'config': self.config,
