@@ -84,7 +84,7 @@ pw.call_async(sum_list_mult, params)
 print (pw.get_result())
 ```
 
-To test all of the previous examples run the [multiple_parameters_call_async](https://github.ibm.com/cloud-platforms/pywren-ibm-cloud/blob/master/examples/multiple_parameters_call_async.py) located in the `examples` folder.
+To test all of the previous examples run the [multiple_parameters_call_async](../examples/multiple_parameters_call_async.py) located in the `examples` folder.
 
 ## Multiple function invocation using the map() method.
 The 'iterdata' variable must be always a list []. In this case to send multiple parameters to the function, the parameters of
@@ -189,7 +189,7 @@ pw.call_async(sum_list_mult, params)
 print (pw.get_result())
 ```
 
-To test all of the previous examples run the [multiple_parameters_map](https://github.ibm.com/cloud-platforms/pywren-ibm-cloud/blob/master/examples/multiple_parameters_map.py) located in the `examples` folder.
+To test all of the previous examples run the [multiple_parameters_map](../examples/multiple_parameters_map.py) located in the `examples` folder.
 
 ## Multiple function invocation using the map_reduce() method.
 
@@ -223,7 +223,7 @@ These parameters should be used when you want to process objcts from COS or a pu
     
     More parameters are allowed in the map function. However, if you want to process a bucket/s, you must also put: **bucket**, **key** and **data_stream** as parameters of the map function.
     
-    The full example is in [map_reduce_cos_bucket](https://github.ibm.com/cloud-platforms/pywren-ibm-cloud/blob/master/examples/map_reduce_cos_bucket.py) located in the `examples` folder
+    The full example is in [map_reduce_cos_bucket](../examples/map_reduce_cos_bucket.py) located in the `examples` folder
 
 * **key** : If you put only the parameter **key** in the map function parameters, you are telling to PyWren that you want to process the objects listed in the `iterdata` variable and
   located in your COS account. In this case you must write also the parameter **data_stream** to the map function parameters. The data_stream
@@ -250,7 +250,7 @@ These parameters should be used when you want to process objcts from COS or a pu
 	    return counter
 	```
 	
-	The full example is in [map_reduce_cos_key](https://github.ibm.com/cloud-platforms/pywren-ibm-cloud/blob/master/examples/map_reduce_cos_key.py) located in the `examples` folder
+	The full example is in [map_reduce_cos_key](../examples/map_reduce_cos_key.py) located in the `examples` folder
 	
 	In this case more parameters are allowed. They must be put enclosed with [] as in the map() method example explained above.
 	The parameters will be mapped in the order you wrote them. Just make sure you always put the **data_stream** parameter at the end, and the
@@ -304,6 +304,6 @@ These parameters should be used when you want to process objcts from COS or a pu
        return counter
 	```
 	
-	The full example is in [map_reduce_url](https://github.ibm.com/cloud-platforms/pywren-ibm-cloud/blob/master/examples/map_reduce_url.py) located in the `examples` folder
+	The full example is in [map_reduce_url](../examples/map_reduce_url.py) located in the `examples` folder.
 
 	In this case more parameters are also allowed, just like if you use the **key** parameter explained above.
