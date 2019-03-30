@@ -1,0 +1,4 @@
+*.pyc
+build/
+dist/
+pywren_ibm_cloud.egg-info
