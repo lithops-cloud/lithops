@@ -10,9 +10,7 @@ PyWren provides great value for the variety of uses cases, like processing data 
 This repository is based on [PyWren](https://github.com/pywren/pywren) main branch and adapted for IBM Cloud Functions and IBM Cloud Object Storage. 
 PyWren for IBM Cloud is based on Docker images and we also extended PyWren to execute a reduce function, which now enables PyWren to run complete map reduce flows.  In extending PyWren to work with IBM Cloud Object Storage, we also added a partition discovery component that allows PyWren to process large amounts of data stored in the IBM Cloud Object Storage. See [changelog](changelog.md) for more details.
 
-This is still a beta version and is rapidly changed so please keep yourself updated.
-
-This document describes the steps to use PyWren-IBM-Cloud over IBM Cloud Functions and IBM Cloud Object Storage (COS)
+This document describes the steps to use PyWren-IBM-Cloud over IBM Cloud Functions and IBM Cloud Object Storage (IBM COS)
 
 ### IBM Cloud for Academic institutions
 [IBM Academic Initiative](https://developer.ibm.com/academic/) is a special program that allows free trial of IBM Cloud for Academic institutions. This program provided for students and faculty staff members and allow up to 12 month of free usage. Please follow [here](https://ibm.onthehub.com/), check if you eligible for this program and setup your account free of charge.
@@ -31,7 +29,7 @@ This document describes the steps to use PyWren-IBM-Cloud over IBM Cloud Functio
 
 
 ## Initial Requirements
-* IBM Cloud Function account, as described [here](https://cloud.ibm.com/openwhisk/). Make sure you can run end-to-end example with Python.
+* IBM Cloud Functions account, as described [here](https://cloud.ibm.com/openwhisk/). Make sure you can run end-to-end example with Python.
 * IBM Cloud Object Storage [account](https://www.ibm.com/cloud/object-storage)
 * Python 3.6 (preferable) or Python 3.5
 
@@ -47,7 +45,7 @@ Installation for developers can be found [here](docs/dev-installation.md).
 
 ### Configuration
 
-Configure PyWren client with access details to your Cloud Object Storage (COS) account, and with your IBM Cloud Functions account.
+Configure PyWren client with access details to your IBM Cloud Object Storage (COS) account, and with your IBM Cloud Functions account.
 
 Access details to IBM Cloud Functions can be obtained [here](https://cloud.ibm.com/openwhisk/learn/api-key). Details on your IBM Cloud Object Storage account can be obtained from the "service credentials" page on the UI of your COS account. More details on "service credentials" can be obtained [here](docs/cos-info.md).
 
@@ -79,16 +77,10 @@ ibm_cos:
 
 ```
 
-You can choose different name for the config file or keep into different folder. If this is the case make sure you configure system variable 
+You can choose different name for the config file or keep it into different folder. If this is the case make sure you configure system variable 
 	
 	PYWREN_CONFIG_FILE=<LOCATION OF THE CONFIG FILE>
 
-Using configuration file you can obtain PyWren executor with:
-
-```python
-import pywren_ibm_cloud as pywren
-pw = pywren.ibm_cf_executor()
-```
 
 #### Configuration in the runtime
 This option allows you pass all the configuration details as part of the PyWren invocation in runtime. All you need is to configure a Python dictionary with keys and values, for example:
@@ -104,12 +96,6 @@ config = {'pywren' : {'storage_bucket' : 'BUCKET_NAME'},
                       'api_key': 'API_KEY'}}
 ```
 
-Having a Python dictionary configuration allows you to provide it to the PyWren as follows:
-
-```python
-import pywren_ibm_cloud as pywren
-pw = pywren.ibm_cf_executor(config=config)
-```
 
 You can find more configuration keys [here](docs/configuration.md).
 
@@ -136,6 +122,20 @@ This action is the main runtime used to run functions within IBM Cloud Functions
 
 The runtime may also contain additional packages which your code depends on: If your client uses different Python version, or there is need to use additional packages or libraries, then it is necessary to build a custom runtime. Detail instructions can be found [here](runtime/).
 
+###  Obtain PyWren executor
+
+Using configuration file you can obtain PyWren executor with:
+
+```python
+import pywren_ibm_cloud as pywren
+pw = pywren.ibm_cf_executor()
+```
+Having a Python dictionary configuration allows you to provide it to the PyWren as follows:
+
+```python
+import pywren_ibm_cloud as pywren
+pw = pywren.ibm_cf_executor(config=config)
+```
 
 ### Verify 
 
@@ -364,10 +364,10 @@ pw.map(my_map_function, iterdata)
 result = pw.get_result()
 ```
 
-## PyWren on IBM Watson Studio
+## PyWren on IBM Watson Studio or Jupyter notebooks
 You can use PyWren inside an **IBM Watson Studio** notebook in order to execute parallel data analytics by using **IBM Cloud functions**.
 
-### How to install PyWren within IBM Watson Studio
+### How to install PyWren within IBM Watson Studio or from Jupyter 
 It is possible to use PyWren inside an **IBM Watson Studio** notebook in order to execute parallel data analytics by using **IBM Cloud functions**.
 As the current **IBM Watson Studio** runtimes does not contains the **PyWren** package, it is needed to install it. Add these lines at the beginning of the notebook:
 
