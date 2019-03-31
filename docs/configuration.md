@@ -18,6 +18,7 @@ Summary of configuration keys:
 |ibm_cf| action_memory | 512 | no | Default memory |
 |ibm_cos | endpoint | | yes | Endpoint to your COS account. Make sure to use full path. for example https://s3-api.us-geo.objectstorage.softlayer.net |
 |ibm_cos | api_key | | yes | API Key to your COS account|
+|ibm_cos | `ibm_auth_endpoint` | https://iam.cloud.ibm.com | no | Optional URL for IBM Authentication IAM |
 
 #####  Using in-memory storage for temporary data
 
