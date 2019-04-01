@@ -44,7 +44,7 @@ class ExecutorState(enum.Enum):
 
 class ibm_cf_executor:
 
-    def __init__(self, config=None, runtime=None, log_level=None, rabbitmq_monitor=False):
+    def __init__(self, config=None, runtime=None, runtime_memory=None, log_level=None, rabbitmq_monitor=False):
         """
         Initialize and return an executor class.
 
@@ -88,7 +88,7 @@ class ibm_cf_executor:
         retry_config['retry_sleeps'] = self.config['pywren']['retry_sleeps']
         retry_config['retries'] = self.config['pywren']['retries']
 
-        invoker = invokers.IBMCloudFunctionsInvoker(ibm_cf_config, retry_config)
+        invoker = invokers.IBMCloudFunctionsInvoker(ibm_cf_config, runtime_memory, retry_config)
 
         self.storage_config = wrenconfig.extract_storage_config(self.config)
         self.internal_storage = storage.InternalStorage(self.storage_config)

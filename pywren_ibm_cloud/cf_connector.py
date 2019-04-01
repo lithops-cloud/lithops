@@ -63,7 +63,7 @@ class CloudFunctions:
             print("{} Namespace: {}".format(msg, self.namespace))
             print("{} Host: {}".format(msg, self.endpoint))
 
-    def create_action(self, action_name, code=None, kind='blackbox',
+    def create_action(self, action_name, code=None, memory=None, kind='blackbox',
                       image='ibmfunctions/action-python-v3.6',
                       is_binary=True, overwrite=True):
         """
@@ -77,12 +77,13 @@ class CloudFunctions:
         data = {}
         limits = {}
         cfexec = {}
-
+        if memory:
+            limits['memory'] = memory
+        else:
+            limits['memory'] = self.memory
         limits['timeout'] = self.timeout
-        limits['memory'] = self.memory
 
-        if limits['timeout'] and limits['memory']:
-            data['limits'] = limits
+        data['limits'] = limits
 
         cfexec['kind'] = kind
         if kind == 'blackbox':
@@ -94,9 +95,9 @@ class CloudFunctions:
         res = self.session.put(url, json=data)
 
         if res.status_code != 200:
-            print('An error occurred updating action {}'.format(action_name))
+            print('An error occurred updating action {}: {}'.format(action_name, res.text))
         else:
-            print("OK --> Updated action {}".format(action_name))
+            print("OK --> Created action {}".format(action_name))
 
     def get_action(self, action_name):
         """
@@ -120,7 +121,21 @@ class CloudFunctions:
         res = self.session.delete(url)
 
         if res.status_code != 200:
-            print('An error occurred deleting action {}'.format(action_name))
+            print('An error occurred deleting action {}: {}'.format(action_name, res.text))
+
+    def update_memory(self, action_name, memory):
+        logger.debug('I am about to update the memory of the {} action to {}'.format(action_name, memory))
+        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
+                           self.namespace, 'actions',
+                           action_name + "?overwrite=True").replace("\\", "/")
+
+        data = {"limits": {"memory": memory}}
+        res = self.session.put(url, json=data)
+
+        if res.status_code != 200:
+            logger.debug('An error occurred updating action {}: {}'.format(action_name, res.text))
+        else:
+            logger.debug("OK --> Updated action memory {}".format(action_name))
 
     def invoke(self, action_name, payload):
         """

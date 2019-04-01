@@ -75,7 +75,7 @@ def _extract_modules(image_name, cf_client, config):
     cf_client.delete_action(action_name)
 
 
-def _create_blackbox_runtime(image_name, cf_client):
+def _create_blackbox_runtime(image_name, memory, cf_client):
     # Create runtime_name from image_name
     username, appname = image_name.split('/')
     runtime_name = appname.replace(':', '_')
@@ -83,10 +83,10 @@ def _create_blackbox_runtime(image_name, cf_client):
     # Upload zipped PyWren action
     with open(ZIP_LOCATION, "rb") as action_zip:
         action_bin = action_zip.read()
-    cf_client.create_action(runtime_name, code=action_bin, kind='blackbox', image=image_name)
+    cf_client.create_action(runtime_name, code=action_bin, memory=memory, kind='blackbox', image=image_name)
 
 
-def create_runtime(image_name, config=None):
+def create_runtime(image_name, memory=None, config=None):
     print('Creating a new docker image from the Dockerfile')
     print('Docker image name: {}'.format(image_name))
 
@@ -108,12 +108,12 @@ def create_runtime(image_name, config=None):
     cf_client = CloudFunctions(config['ibm_cf'])
     _create_zip_action()
     _extract_modules(image_name, cf_client, config)
-    _create_blackbox_runtime(image_name, cf_client)
+    _create_blackbox_runtime(image_name, memory, cf_client)
 
     print('All done!')
 
 
-def clone_runtime(image_name, config=None):
+def clone_runtime(image_name, memory=None, config=None):
     print('Cloning docker image {}'.format(image_name))
 
     if config is None:
@@ -124,12 +124,12 @@ def clone_runtime(image_name, config=None):
     cf_client = CloudFunctions(config['ibm_cf'])
     _create_zip_action()
     _extract_modules(image_name, cf_client, config)
-    _create_blackbox_runtime(image_name, cf_client)
+    _create_blackbox_runtime(image_name, memory, cf_client)
 
     print('All done!')
 
 
-def update_runtime(image_name, config=None):
+def update_runtime(image_name, memory=None, config=None):
     print('Updating runtime {}'.format(image_name))
     if config is None:
         config = wrenconfig.default()
@@ -137,12 +137,12 @@ def update_runtime(image_name, config=None):
         config = wrenconfig.default(config)
     cf_client = CloudFunctions(config['ibm_cf'])
     _create_zip_action()
-    _create_blackbox_runtime(image_name, cf_client)
+    _create_blackbox_runtime(image_name, memory, cf_client)
 
     print('All done!')
 
 
-def deploy_default_runtime(config=None):
+def deploy_default_runtime(memory=None, config=None):
     print('Updating runtime {}'.format(CF_ACTION_NAME_DEFAULT))
     if config is None:
         config = wrenconfig.default()
@@ -156,4 +156,4 @@ def deploy_default_runtime(config=None):
         action_bin = action_zip.read()
         cf_client = CloudFunctions(config['ibm_cf'])
         runtime_name = CF_ACTION_NAME_DEFAULT
-        cf_client.create_action(runtime_name, code=action_bin)
+        cf_client.create_action(runtime_name, code=action_bin, memory=memory)

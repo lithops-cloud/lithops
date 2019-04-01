@@ -5,27 +5,31 @@ import click
 
 @click.group(invoke_without_command=True)
 @click.pass_context
-def cli(ctx):
+@click.option('--memory', default=None, help='memory used by the runtime', type=int)
+def cli(ctx, memory):
     if ctx.invoked_subcommand is None:
-        deploy_default_runtime()
+        deploy_default_runtime(memory=memory)
 
 
 @cli.command('create')
 @click.argument('image_name')
-def create(image_name):
-    create_runtime(image_name)
+@click.option('--memory', default=None, help='memory used by the runtime', type=int)
+def create(image_name, memory):
+    create_runtime(image_name, memory=memory)
 
 
 @cli.command('clone')
 @click.argument('image_name')
-def clone(image_name):
-    clone_runtime(image_name)
+@click.option('--memory', default=None, help='memory used by the runtime', type=int)
+def clone(image_name, memory):
+    clone_runtime(image_name, memory=memory)
 
 
 @cli.command('update')
 @click.argument('image_name')
-def update(image_name):
-    update_runtime(image_name)
+@click.option('--memory', default=None, help='memory used by the runtime', type=int)
+def update(image_name, memory):
+    update_runtime(image_name, memory=memory)
 
 
 if __name__ == "__main__":

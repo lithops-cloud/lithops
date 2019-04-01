@@ -24,16 +24,21 @@ logger = logging.getLogger(__name__)
 
 class IBMCloudFunctionsInvoker:
 
-    def __init__(self, cf_config, retry_config):
+    def __init__(self, cf_config, action_memory, retry_config):
         self.namespace = cf_config['namespace']
         self.endpoint = cf_config['endpoint']
-        self.cf_action_name = cf_config['action_name']  # Runtime
+        self.action_name = cf_config['action_name']  # Runtime
+        if action_memory:
+            self.action_memory = action_memory
+        else:
+            self.action_memory = int(cf_config['action_memory'])
         self.invocation_retry = retry_config['invocation_retry']
         self.retry_sleeps = retry_config['retry_sleeps']
         self.retries = retry_config['retries']
         self.client = CloudFunctions(cf_config)
+        self.client.update_memory(self.action_name, self.action_memory)
 
-        log_msg = 'IBM Cloud Functions init for Runtime: {}'.format(self.cf_action_name)
+        log_msg = 'IBM Cloud Functions init for Runtime: {} - {}MB'.format(self.action_name, self.action_memory)
         logger.info(log_msg)
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(log_msg)
@@ -42,7 +47,7 @@ class IBMCloudFunctionsInvoker:
         """
         Invoke -- return information about this invocation
         """
-        act_id = self.client.invoke(self.cf_action_name, payload)
+        act_id = self.client.invoke(self.action_name, payload)
         attempts = 1
 
         while not act_id and self.invocation_retry and attempts < self.retries:
@@ -55,7 +60,7 @@ class IBMCloudFunctionsInvoker:
             logger.debug(log_msg)
 
             time.sleep(selected_sleep)
-            act_id = self.client.invoke(self.cf_action_name, payload)
+            act_id = self.client.invoke(self.action_name, payload)
 
         return act_id
 
@@ -63,6 +68,7 @@ class IBMCloudFunctionsInvoker:
         """
         Return config dict
         """
-        return {'cf_action_name': self.cf_action_name,
+        return {'cf_action_name': self.action_name,
+                'cf_action_memory': self.action_memory,
                 'cf_namespace': self.namespace,
                 'cf_endpoint': self.endpoint}
