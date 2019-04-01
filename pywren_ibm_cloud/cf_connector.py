@@ -166,7 +166,7 @@ class CloudFunctions:
         call_id = payload['call_id']
 
         url = urlparse(os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
-                                    self.namespace, 'actions', action_name)).replace("\\", "/")
+                                    self.namespace, 'actions', action_name).replace("\\", "/"))
         ctx = ssl._create_unverified_context()
 
         try:
