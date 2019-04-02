@@ -27,7 +27,8 @@ class IBMCloudFunctionsInvoker:
     def __init__(self, cf_config, action_memory, retry_config):
         self.namespace = cf_config['namespace']
         self.endpoint = cf_config['endpoint']
-        self.action_name = cf_config['action_name']  # Runtime
+        self.runtime = cf_config['runtime']
+        self.action_name = self.runtime.replace('/', '@').replace(':', '_')
         if action_memory:
             self.action_memory = action_memory
         else:
@@ -36,9 +37,9 @@ class IBMCloudFunctionsInvoker:
         self.retry_sleeps = retry_config['retry_sleeps']
         self.retries = retry_config['retries']
         self.client = CloudFunctions(cf_config)
-        self.client.update_memory(self.action_name, self.action_memory)
+        #self.client.update_memory(self.action_name, self.action_memory)
 
-        log_msg = 'IBM Cloud Functions init for Runtime: {} - {}MB'.format(self.action_name, self.action_memory)
+        log_msg = 'IBM Cloud Functions init for Runtime: {} - {}MB'.format(self.runtime, self.action_memory)
         logger.info(log_msg)
         if(logger.getEffectiveLevel() == logging.WARNING):
             print(log_msg)
@@ -68,7 +69,7 @@ class IBMCloudFunctionsInvoker:
         """
         Return config dict
         """
-        return {'cf_action_name': self.action_name,
+        return {'cf_runtime': self.runtime,
                 'cf_action_memory': self.action_memory,
                 'cf_namespace': self.namespace,
                 'cf_endpoint': self.endpoint}

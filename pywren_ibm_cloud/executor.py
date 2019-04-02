@@ -21,11 +21,10 @@ import logging
 import inspect
 import pywren_ibm_cloud as pywren
 import pywren_ibm_cloud.version as version
-import pywren_ibm_cloud.wrenutil as wrenutil
-import pywren_ibm_cloud.wrenconfig as wrenconfig
+import pywren_ibm_cloud.utils as wrenutil
+import pywren_ibm_cloud.config as wrenconfig
 from pywren_ibm_cloud.wait import wait
 from multiprocessing.pool import ThreadPool
-from pywren_ibm_cloud.wrenconfig import MAX_AGG_DATA_SIZE
 from pywren_ibm_cloud.future import ResponseFuture, JobState
 from pywren_ibm_cloud.runtime import get_runtime_preinstalls
 from pywren_ibm_cloud.storage.backends.cos import COSBackend
@@ -50,7 +49,7 @@ class Executor(object):
         else:
             self.executor_id = wrenutil.create_executor_id()
 
-        runtime = self.config['ibm_cf']['action_name']
+        runtime = self.config['ibm_cf']['runtime']
         runtime_preinstalls = get_runtime_preinstalls(self.internal_storage, runtime)
 
         self.serializer = serialize.SerializeIndependent(runtime_preinstalls)
@@ -140,7 +139,7 @@ class Executor(object):
             pos += l
         return b"".join(data_strs), ranges
 
-    def call_async(self, func, data, extra_env=None, extra_meta=None, runtime_timeout=wrenconfig.CF_RUNTIME_TIMEOUT,):
+    def call_async(self, func, data, extra_env=None, extra_meta=None, runtime_timeout=wrenconfig.CF_RUNTIME_TIMEOUT):
         """
         Wrapper to launch one function invocation.
         """
@@ -258,7 +257,7 @@ class Executor(object):
         if not self.log_level:
             print(log_msg)
 
-        if data_size_bytes < MAX_AGG_DATA_SIZE and data_all_as_one:
+        if data_size_bytes < wrenconfig.MAX_AGG_DATA_SIZE and data_all_as_one:
             agg_data_key = create_agg_data_key(self.internal_storage.prefix, self.executor_id, callgroup_id)
             agg_data_bytes, agg_data_ranges = self.agg_data(data_strs)
             agg_upload_time = time.time()
@@ -269,7 +268,7 @@ class Executor(object):
         else:
             log_msg = ('Executor ID {} Total data exceeded '
                        'maximum size of {} bytes'.format(self.executor_id,
-                                                         MAX_AGG_DATA_SIZE))
+                                                         wrenconfig.MAX_AGG_DATA_SIZE))
             logger.warning(log_msg)
 
         if exclude_modules:

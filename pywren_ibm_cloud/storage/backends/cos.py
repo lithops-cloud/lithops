@@ -18,8 +18,7 @@ import logging
 import ibm_boto3
 import ibm_botocore
 from datetime import datetime
-from pywren_ibm_cloud.wrenutil import sizeof_fmt
-import pywren_ibm_cloud.wrenconfig as wrenconfig
+from pywren_ibm_cloud.utils import sizeof_fmt
 from ibm_botocore.credentials import DefaultTokenManager
 from pywren_ibm_cloud.storage.exceptions import StorageNoSuchKeyError
 
@@ -93,7 +92,7 @@ class COSBackend:
             status = 'OK' if res['ResponseMetadata']['HTTPStatusCode'] == 200 else 'Error'
             try:
                 logger.info('PUT Object {} - Size: {} - {}'.format(key, sizeof_fmt(len(data)), status))
-            except:
+            except Exception:
                 logger.info('PUT Object {} {}'.format(key, status))
         except ibm_botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == "NoSuchKey":

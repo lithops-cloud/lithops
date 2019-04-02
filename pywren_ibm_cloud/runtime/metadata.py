@@ -16,7 +16,8 @@
 
 import sys
 import logging
-from pywren_ibm_cloud.serialize import default_preinstalls
+from pywren_ibm_cloud.runtime import default_preinstalls
+from pywren_ibm_cloud.utils import version_str
 
 logger = logging.getLogger(__name__)
 
@@ -40,10 +41,6 @@ def get_runtime_preinstalls(internal_storage, runtime):
                         .format(runtime))
 
     return preinstalls
-
-
-def version_str(version_info):
-    return "{}.{}".format(version_info[0], version_info[1])
 
 
 def runtime_valid(runtime_meta):

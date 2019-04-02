@@ -38,6 +38,10 @@ def timeout_handler(signum, frame):
     raise TimeoutError()
 
 
+def version_str(version_info):
+    return "{}.{}".format(version_info[0], version_info[1])
+
+
 def is_cf_cluster():
     """
     Checks if the current execution is in an OpenWhisk function

@@ -26,7 +26,7 @@ import pika
 from threading import Thread
 from queue import Queue
 from pywren_ibm_cloud import version
-from pywren_ibm_cloud import wrenconfig
+from pywren_ibm_cloud import config as wrenconfig
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
 

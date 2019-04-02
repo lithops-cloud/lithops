@@ -16,10 +16,9 @@
 
 import os
 import sys
-from pywren_ibm_cloud import wrenconfig
+from pywren_ibm_cloud import config as wrenconfig
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.cf_connector import CloudFunctions
-from pywren_ibm_cloud.wrenconfig import CF_ACTION_NAME_DEFAULT
 
 
 ZIP_LOCATION = os.getcwd()+'/ibmcf_pywren.zip'
@@ -50,8 +49,7 @@ def _extract_modules(image_name, cf_client, config):
     # And store them into storage
 
     # Create runtime_name from image_name
-    username, appname = image_name.split('/')
-    runtime_name = appname.replace(':', '_')
+    runtime_name = image_name.replace('/', '@').replace(':', '_')
 
     # Create storage_handler to upload modules file
     storage_config = wrenconfig.extract_storage_config(config)
@@ -77,13 +75,12 @@ def _extract_modules(image_name, cf_client, config):
 
 def _create_blackbox_runtime(image_name, memory, cf_client):
     # Create runtime_name from image_name
-    username, appname = image_name.split('/')
-    runtime_name = appname.replace(':', '_')
+    action_name = image_name.replace('/', '@').replace(':', '_')
 
     # Upload zipped PyWren action
     with open(ZIP_LOCATION, "rb") as action_zip:
         action_bin = action_zip.read()
-    cf_client.create_action(runtime_name, code=action_bin, memory=memory, kind='blackbox', image=image_name)
+    cf_client.create_action(action_name, image_name, code=action_bin, memory=memory, kind='blackbox')
 
 
 def create_runtime(image_name, memory=None, config=None):
@@ -106,6 +103,7 @@ def create_runtime(image_name, memory=None, config=None):
         config = wrenconfig.default(config)
 
     cf_client = CloudFunctions(config['ibm_cf'])
+    cf_client.create_package()
     _create_zip_action()
     _extract_modules(image_name, cf_client, config)
     _create_blackbox_runtime(image_name, memory, cf_client)
@@ -122,6 +120,7 @@ def clone_runtime(image_name, memory=None, config=None):
         config = wrenconfig.default(config)
 
     cf_client = CloudFunctions(config['ibm_cf'])
+    cf_client.create_package()
     _create_zip_action()
     _extract_modules(image_name, cf_client, config)
     _create_blackbox_runtime(image_name, memory, cf_client)
@@ -136,6 +135,7 @@ def update_runtime(image_name, memory=None, config=None):
     else:
         config = wrenconfig.default(config)
     cf_client = CloudFunctions(config['ibm_cf'])
+    cf_client.create_package()
     _create_zip_action()
     _create_blackbox_runtime(image_name, memory, cf_client)
 
@@ -143,7 +143,7 @@ def update_runtime(image_name, memory=None, config=None):
 
 
 def deploy_default_runtime(memory=None, config=None):
-    print('Updating runtime {}'.format(CF_ACTION_NAME_DEFAULT))
+    print('Updating default Python runtimes')
     if config is None:
         config = wrenconfig.default()
     else:
@@ -152,8 +152,16 @@ def deploy_default_runtime(memory=None, config=None):
     # Create zipped PyWren action
     _create_zip_action()
 
+    image_name35 = wrenconfig.CF_RUNTIME_DEFAULT_35
+    action_name35 = image_name35.replace('/', '@').replace(':', '_')
+
+    image_name36 = wrenconfig.CF_RUNTIME_DEFAULT_36
+    action_name36 = image_name36.replace('/', '@').replace(':', '_')
+
+    cf_client = CloudFunctions(config['ibm_cf'])
+    cf_client.create_package()
+
     with open(ZIP_LOCATION, "rb") as action_zip:
         action_bin = action_zip.read()
-        cf_client = CloudFunctions(config['ibm_cf'])
-        runtime_name = CF_ACTION_NAME_DEFAULT
-        cf_client.create_action(runtime_name, code=action_bin, memory=memory)
+        cf_client.create_action(action_name35, image_name35, code=action_bin, memory=memory)
+        cf_client.create_action(action_name36, image_name36, code=action_bin, memory=memory)

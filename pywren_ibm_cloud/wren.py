@@ -22,12 +22,12 @@ import json
 import signal
 import logging
 import pywren_ibm_cloud.invokers as invokers
-import pywren_ibm_cloud.wrenconfig as wrenconfig
+import pywren_ibm_cloud.config as wrenconfig
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.executor import Executor
 from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
-from pywren_ibm_cloud.wrenutil import timeout_handler, is_notebook
+from pywren_ibm_cloud.utils import timeout_handler, is_notebook
 from pywren_ibm_cloud.storage.cleaner import clean_os_bucket
 
 logger = logging.getLogger(__name__)
@@ -66,15 +66,14 @@ class ibm_cf_executor:
             self.config = wrenconfig.default(config)
 
         if runtime:
-            self.config['ibm_cf']['action_name'] = runtime
+            self.config['ibm_cf']['runtime'] = runtime
 
         self.log_level = log_level
         if self.log_level:
             wrenlogging.default_config(self.log_level)
 
         ibm_cf_config = self.config['ibm_cf']
-        self.runtime = ibm_cf_config['action_name']
-        self.cf_cluster = ibm_cf_config['is_cf_cluster']
+        self.is_cf_cluster = ibm_cf_config['is_cf_cluster']
         self.data_cleaner = self.config['pywren']['data_cleaner']
         self.rabbitmq_monitor = rabbitmq_monitor
 
@@ -264,7 +263,7 @@ class ibm_cf_executor:
             rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
 
         pbar = None
-        if not self.cf_cluster and not self.log_level \
+        if not self.is_cf_cluster and not self.log_level \
            and return_when == ALL_COMPLETED and self._state == ExecutorState.running \
            and not is_notebook():
             import tqdm
@@ -311,7 +310,7 @@ class ibm_cf_executor:
         else:
             # In this case self.futures is always a list
             ftrs = self.futures
-            self.futures = []
+            # self.futures = []
 
         if not ftrs:
             raise Exception('You must run pw.call_async(), pw.map()'
@@ -326,7 +325,7 @@ class ibm_cf_executor:
         signal.alarm(timeout)
 
         pbar = None
-        if not self.cf_cluster and self._state != ExecutorState.ready \
+        if not self.is_cf_cluster and self._state != ExecutorState.ready \
            and not self.log_level and not is_notebook():
             import tqdm
             print()
@@ -361,7 +360,7 @@ class ibm_cf_executor:
             logger.debug(msg)
             if not self.log_level:
                 print(msg)
-            if self.data_cleaner and not self.cf_cluster:
+            if self.data_cleaner and not self.is_cf_cluster:
                 self.clean()
             exit()
 
@@ -370,7 +369,7 @@ class ibm_cf_executor:
             if pbar:
                 pbar.close()
                 print()
-            if self.data_cleaner and not self.cf_cluster:
+            if self.data_cleaner and not self.is_cf_cluster:
                 self.clean()
             self._state = ExecutorState.result
 

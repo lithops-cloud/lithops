@@ -31,7 +31,7 @@ class InternalStorage:
     def __init__(self, config):
         self.storage_config = config
         self.backend_type = config['storage_backend']
-        self.storage_bucket =  config['storage_bucket']
+        self.storage_bucket = config['storage_bucket']
         self.prefix = config['storage_prefix']
 
         if self.backend_type == 'ibm_cos':
@@ -47,7 +47,7 @@ class InternalStorage:
         Retrieves the configuration of this storage handler.
         :return: storage configuration
         """
-        return self.storage_config   
+        return self.storage_config
 
     def put_data(self, key, data):
         """
@@ -66,7 +66,7 @@ class InternalStorage:
         :return: None
         """
         return self.backend_handler.put_object(self.storage_bucket, key, func)
-    
+
     def get_data(self, key, stream=False, extra_get_args={}):
         """
         Get data object from storage.
@@ -74,7 +74,7 @@ class InternalStorage:
         :return: data content
         """
         return self.backend_handler.get_object(self.storage_bucket, key, stream, extra_get_args)
-        
+
     def get_func(self, key):
         """
         Get serialized function from storage.
@@ -124,7 +124,7 @@ class InternalStorage:
             return self.backend_handler.get_object(self.storage_bucket, output_key)
         except StorageNoSuchKeyError:
             return None
-    
+
     def get_runtime_info(self, runtime_name):
         """
         Get the metadata given a runtime name.
@@ -135,11 +135,11 @@ class InternalStorage:
         try:
             json_str = self.backend_handler.get_object(self.storage_bucket, key)
         except StorageNoSuchKeyError:
-            raise Exception('The runtime {} is not installed.'.format(runtime_name))  
+            raise Exception('The runtime {} is not installed.'.format(runtime_name))
         runtime_meta = json.loads(json_str.decode("ascii"))
-        
+
         return runtime_meta
-    
+
     def put_runtime_info(self, runtime_name, runtime_meta):
         """
         Puit the metadata given a runtime config.
@@ -148,7 +148,7 @@ class InternalStorage:
         """
         key = os.path.join('runtimes', runtime_name+".meta.json")
         self.backend_handler.put_object(self.storage_bucket, key, json.dumps(runtime_meta))
-        
+
     def list_temporal_data(self, executor_id):
         """
         List the temporal data used by PyWren.
@@ -157,7 +157,7 @@ class InternalStorage:
         :return: list of objects
         """
         return self.backend_handler.list_keys_with_prefix(self.storage_bucket, executor_id)
-    
+
     def delete_temporal_data(self, key_list):
         """
         Delete temporal data from PyWren.
