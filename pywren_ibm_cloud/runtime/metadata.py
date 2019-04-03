@@ -16,29 +16,37 @@
 
 import sys
 import logging
-from pywren_ibm_cloud.runtime import default_preinstalls
+#from pywren_ibm_cloud.runtime import default_preinstalls
 from pywren_ibm_cloud.utils import version_str
+from pywren_ibm_cloud.runtime import clone_runtime
 
 logger = logging.getLogger(__name__)
 
 
-def get_runtime_preinstalls(internal_storage, runtime):
+def get_runtime_preinstalls(internal_storage, runtime, memory):
     """
     Download runtime information from storage at deserialize
     """
-    if runtime in default_preinstalls.modules:
-        logger.debug("Using serialize/default_preinstalls")
-        runtime_meta = default_preinstalls.modules[runtime]
+#     if runtime in default_preinstalls.modules:
+#         logger.debug("Using serialize/default_preinstalls")
+#         runtime_meta = default_preinstalls.modules[runtime]
+#         preinstalls = runtime_meta['preinstalls']
+#     else:
+    logger.debug("Downloading runtime pre-installed modules from COS")
+    try:
+        runtime_meta = internal_storage.get_runtime_info('{}_{}'.format(runtime, memory))
         preinstalls = runtime_meta['preinstalls']
-    else:
-        logger.debug("Downloading runtime pre-installed modules from COS")
-        runtime_meta = internal_storage.get_runtime_info(runtime)
-        preinstalls = runtime_meta['preinstalls']
-
-    if not runtime_valid(runtime_meta):
-        raise Exception(("The indicated runtime: {} "
-                         "is not appropriate for this Python version.")
-                        .format(runtime))
+        if not runtime_valid(runtime_meta):
+            raise Exception(("The indicated runtime: {} "
+                             "is not appropriate for this Python version.")
+                            .format(runtime))
+    except Exception:
+        logger.debug('Runtime {}_{} is not installed'.format(runtime, memory))
+        logger.debug('Creating {}_{} runtime'.format(runtime, memory))
+        if logger.getEffectiveLevel() == logging.WARNING:
+            print('Runtime {}_{} is not installed'.format(runtime, memory))
+        clone_runtime(runtime, memory=memory)
+        return get_runtime_preinstalls(internal_storage, runtime, memory)
 
     return preinstalls
 

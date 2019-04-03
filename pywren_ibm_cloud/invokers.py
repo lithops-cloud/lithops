@@ -24,24 +24,23 @@ logger = logging.getLogger(__name__)
 
 class IBMCloudFunctionsInvoker:
 
-    def __init__(self, cf_config, action_memory, retry_config):
+    def __init__(self, cf_config, retry_config):
         self.namespace = cf_config['namespace']
         self.endpoint = cf_config['endpoint']
-        self.runtime = cf_config['runtime']
-        self.action_name = self.runtime.replace('/', '@').replace(':', '_')
-        if action_memory:
-            self.action_memory = action_memory
-        else:
-            self.action_memory = int(cf_config['action_memory'])
+        self.runtime_name = cf_config['runtime']
+        self.runtime_memory = int(cf_config['runtime_memory'])
+
+        self.action_name = self.runtime_name.replace('/', '@').replace(':', '_')
+        self.action_name = '{}_{}'.format(self.action_name, self.runtime_memory)
+
         self.invocation_retry = retry_config['invocation_retry']
         self.retry_sleeps = retry_config['retry_sleeps']
         self.retries = retry_config['retries']
         self.client = CloudFunctions(cf_config)
-        #self.client.update_memory(self.action_name, self.action_memory)
 
-        log_msg = 'IBM Cloud Functions init for Runtime: {} - {}MB'.format(self.runtime, self.action_memory)
+        log_msg = 'IBM Cloud Functions init for Runtime: {} - {}MB'.format(self.runtime_name, self.runtime_memory)
         logger.info(log_msg)
-        if(logger.getEffectiveLevel() == logging.WARNING):
+        if logger.getEffectiveLevel() == logging.WARNING :
             print(log_msg)
 
     def invoke(self, payload):
@@ -69,7 +68,7 @@ class IBMCloudFunctionsInvoker:
         """
         Return config dict
         """
-        return {'cf_runtime': self.runtime,
-                'cf_action_memory': self.action_memory,
+        return {'cf_runtime_name': self.runtime_name,
+                'cf_runtime_memory': self.runtime_memory,
                 'cf_namespace': self.namespace,
                 'cf_endpoint': self.endpoint}

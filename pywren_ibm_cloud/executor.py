@@ -22,7 +22,7 @@ import inspect
 import pywren_ibm_cloud as pywren
 import pywren_ibm_cloud.version as version
 import pywren_ibm_cloud.utils as wrenutil
-import pywren_ibm_cloud.config as wrenconfig
+import pywren_ibm_cloud.wrenconfig as wrenconfig
 from pywren_ibm_cloud.wait import wait
 from multiprocessing.pool import ThreadPool
 from pywren_ibm_cloud.future import ResponseFuture, JobState
@@ -50,7 +50,8 @@ class Executor(object):
             self.executor_id = wrenutil.create_executor_id()
 
         runtime = self.config['ibm_cf']['runtime']
-        runtime_preinstalls = get_runtime_preinstalls(self.internal_storage, runtime)
+        runtime_preinstalls = get_runtime_preinstalls(self.internal_storage, runtime,
+                                                      self.config['ibm_cf']['runtime_memory'])
 
         self.serializer = serialize.SerializeIndependent(runtime_preinstalls)
 

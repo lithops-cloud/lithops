@@ -22,7 +22,7 @@ import json
 import signal
 import logging
 import pywren_ibm_cloud.invokers as invokers
-import pywren_ibm_cloud.config as wrenconfig
+import pywren_ibm_cloud.wrenconfig as wrenconfig
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.executor import Executor
@@ -50,7 +50,7 @@ class ibm_cf_executor:
 
         :param config: Settings passed in here will override those in `pywren_config`. Default None.
         :param runtime: Runtime name to use. Default None.
-        :param runtime_timeout: Max time per action. Default 600
+        :param runtime_memory: memory to use in the runtime
         :return `executor` object.
 
         Usage
@@ -65,8 +65,11 @@ class ibm_cf_executor:
         else:
             self.config = wrenconfig.default(config)
 
+        # Overwrite runtime variables
         if runtime:
             self.config['ibm_cf']['runtime'] = runtime
+        if runtime_memory:
+            self.config['ibm_cf']['runtime_memory'] = runtime_memory
 
         self.log_level = log_level
         if self.log_level:
@@ -87,7 +90,7 @@ class ibm_cf_executor:
         retry_config['retry_sleeps'] = self.config['pywren']['retry_sleeps']
         retry_config['retries'] = self.config['pywren']['retries']
 
-        invoker = invokers.IBMCloudFunctionsInvoker(ibm_cf_config, runtime_memory, retry_config)
+        invoker = invokers.IBMCloudFunctionsInvoker(ibm_cf_config, retry_config)
 
         self.storage_config = wrenconfig.extract_storage_config(self.config)
         self.internal_storage = storage.InternalStorage(self.storage_config)

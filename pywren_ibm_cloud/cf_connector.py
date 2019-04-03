@@ -37,8 +37,8 @@ class CloudFunctions:
         self.api_key = str.encode(config['api_key'])
         self.endpoint = config['endpoint'].replace('http:', 'https:')
         self.namespace = config['namespace']
-        self.memory = int(config['action_memory'])
-        self.timeout = int(config['action_timeout'])
+        self.default_runtime_memory = int(config['runtime_memory'])
+        self.default_runtime_timeout = int(config['runtime_timeout'])
         self.is_cf_cluster = config['is_cf_cluster']
         self.package = 'pywren_v'+__version__
 
@@ -64,34 +64,29 @@ class CloudFunctions:
             print("{} Namespace: {}".format(msg, self.namespace))
             print("{} Host: {}".format(msg, self.endpoint))
 
-    def create_action(self, action_name, image, code=None, memory=None, kind='blackbox',
+    def create_action(self, action_name, image_name, code=None, memory=None, kind='blackbox',
                       is_binary=True, overwrite=True):
         """
         Create an IBM Cloud Function
         """
-        logger.debug('I am about to create a new cloud function action')
-        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
-                           self.namespace, 'actions', self.package,
-                           action_name + "?overwrite=" + str(overwrite)).replace("\\", "/")
-
         data = {}
         limits = {}
         cfexec = {}
-        if memory:
-            limits['memory'] = memory
-        else:
-            limits['memory'] = self.memory
-        limits['timeout'] = self.timeout
-
+        limits['memory'] = self.default_runtime_memory if not memory else memory
+        limits['timeout'] = self.default_runtime_timeout
         data['limits'] = limits
 
         cfexec['kind'] = kind
         if kind == 'blackbox':
-            cfexec['image'] = image
+            cfexec['image'] = image_name
         cfexec['binary'] = is_binary
         cfexec['code'] = base64.b64encode(code).decode("utf-8") if is_binary else code
         data['exec'] = cfexec
 
+        logger.debug('I am about to create a new cloud function action')
+        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
+                           self.namespace, 'actions', self.package,
+                           action_name + "?overwrite=" + str(overwrite)).replace("\\", "/")
         res = self.session.put(url, json=data)
 
         if res.status_code != 200:
@@ -113,15 +108,14 @@ class CloudFunctions:
         """
         Delete an IBM Cloud Function
         """
-        if logger.getEffectiveLevel() == logging.DEBUG:
-            print("Delete cloud function action: {}".format(action_name))
+        logger.debug("Delete cloud function action: {}".format(action_name))
 
         url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
                            self.namespace, 'actions', self.package, action_name).replace("\\", "/")
         res = self.session.delete(url)
 
         if res.status_code != 200:
-            print('An error occurred deleting action {}: {}'.format(action_name, res.text))
+            logger.debug('An error occurred deleting action {}: {}'.format(action_name, res.text))
 
     def update_memory(self, action_name, memory):
         logger.debug('I am about to update the memory of the {} action to {}'.format(action_name, memory))
@@ -147,7 +141,7 @@ class CloudFunctions:
         res = self.session.put(url, json=data)
 
         if res.status_code != 200:
-            logger.debug('An error occurred creating the package {}'.format(self.package, res.text))
+            logger.debug('An error occurred creating the package {}: Already exists'.format(self.package, res.text))
         else:
             logger.debug("OK --> Created package {}".format(self.package))
 

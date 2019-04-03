@@ -16,6 +16,7 @@
 
 import os
 import json
+from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.storage.backends.cos import COSBackend
 from pywren_ibm_cloud.storage.backends.swift import SwiftBackend
 from pywren_ibm_cloud.storage.exceptions import StorageNoSuchKeyError
@@ -131,14 +132,13 @@ class InternalStorage:
         :param runtime: name of the runtime
         :return: runtime metadata
         """
-        key = os.path.join('runtimes', runtime_name+".meta.json")
+        key = os.path.join('runtimes', __version__,  runtime_name+".meta.json")
         try:
             json_str = self.backend_handler.get_object(self.storage_bucket, key)
+            runtime_meta = json.loads(json_str.decode("ascii"))
+            return runtime_meta
         except StorageNoSuchKeyError:
             raise Exception('The runtime {} is not installed.'.format(runtime_name))
-        runtime_meta = json.loads(json_str.decode("ascii"))
-
-        return runtime_meta
 
     def put_runtime_info(self, runtime_name, runtime_meta):
         """
@@ -146,7 +146,7 @@ class InternalStorage:
         :param runtime: name of the runtime
         :param runtime_meta metadata
         """
-        key = os.path.join('runtimes', runtime_name+".meta.json")
+        key = os.path.join('runtimes', __version__, runtime_name+".meta.json")
         self.backend_handler.put_object(self.storage_bucket, key, json.dumps(runtime_meta))
 
     def list_temporal_data(self, executor_id):

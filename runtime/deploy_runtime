@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from pywren_ibm_cloud.runtime import create_runtime, clone_runtime, update_runtime, deploy_default_runtime
+from pywren_ibm_cloud.runtime import create_runtime, clone_runtime, update_all_runtimes, deploy_default_runtime
 import click
 
 
@@ -26,10 +26,8 @@ def clone(image_name, memory):
 
 
 @cli.command('update')
-@click.argument('image_name')
-@click.option('--memory', default=None, help='memory used by the runtime', type=int)
-def update(image_name, memory):
-    update_runtime(image_name, memory=memory)
+def update():
+    update_all_runtimes()
 
 
 if __name__ == "__main__":
