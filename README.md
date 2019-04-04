@@ -114,15 +114,23 @@ pw = pywren.ibm_cf_executor(config=config)
 ```
 
 ###  Runtime
-If it does not already exist, IBM-PyWren automatically deploys the default runtime, based on the client Python version, in the first execution.
-By default, IBM-PyWren uses 256MB as default memory size. However, you can change it in the `config` or when you obtain the executor, for example:
+The runtime is the place where your functions will be executed. In IBM-PyWren, runtimes are based on docker images. It includes by default three different runtimes that allow to run the functions in Python 3.5, Python 3.6 and Python 3.7 environments.
+
+| Runtime name | Python version | Packages included |
+| ----| ----| ---- |
+| ibmfunctions/pywren:3.5 | 3.5 |  |
+| ibmfunctions/action-python-v3.6 | 3.6 | [list of packages](https://github.com/ibm-functions/runtime-python/blob/master/python3.6/CHANGELOG.md) |
+| ibmfunctions/action-python-v3.7 | 3.7 | [list of packages](https://github.com/ibm-functions/runtime-python/blob/master/python3.7/CHANGELOG.md) |
+
+IBM-PyWren automatically deploys the default runtime in the first execution, based on the Python version that you are using.
+By default, it uses 256MB as runtime memory size. However, you can change it in the `config` or when you obtain the executor, for example:
 
 ```python
 import pywren_ibm_cloud as pywren
 pw = pywren.ibm_cf_executor(runtime_memory=128)
 ```
 
-Check more information about runtimes [here](runtime/).
+You can also build custom runtimes with libraries that your functions depends on. Check more information about runtimes [here](runtime/).
 
 ## Verify 
 
@@ -353,10 +361,9 @@ result = pw.get_result()
 ```
 
 ## PyWren on IBM Watson Studio and Jupyter notebooks
-You can use PyWren inside an **IBM Watson Studio** notebook in order to execute parallel data analytics by using **IBM Cloud functions**.
+You can use IBM-PyWren inside an **IBM Watson Studio** or Jupyter notebooks in order to execute parallel data analytics by using **IBM Cloud functions**.
 
-### How to install PyWren within IBM Watson Studio or from Jupyter 
-It is possible to use PyWren inside an **IBM Watson Studio** notebook in order to execute parallel data analytics by using **IBM Cloud functions**.
+### How to install PyWren within IBM Watson Studio
 As the current **IBM Watson Studio** runtimes does not contains the **PyWren** package, it is needed to install it. Add these lines at the beginning of the notebook:
 
 ```python
@@ -370,7 +377,21 @@ Installation supports PyWren version as an input parameter, for example:
 
 	!{sys.executable} -m pip install -U pywren-ibm-cloud==1.0.7
 
+### Usage in notebooks
+When installed, you can use IBM-PyWren as usual inside a notebook:
 
+```python
+import pywren_ibm_cloud as pywren
+
+iterdata = [1, 2, 3, 4]
+
+def my_map_function(x):
+    return x + 7
+
+pw = pywren.ibm_cf_executor()
+pw.map(my_map_function, iterdata)
+result = pw.get_result()
+```
 
 ## Additional resources
 
