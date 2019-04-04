@@ -11,7 +11,7 @@ import logging
 
 PREFIX = '__pywren.test'
 
-logging.basicConfig(level=logging.DEBUG)
+#logging.basicConfig(level=logging.DEBUG)
 
 try:
     dir_path = os.path.dirname(__file__)

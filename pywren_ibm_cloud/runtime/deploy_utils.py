@@ -16,11 +16,13 @@
 
 import os
 import sys
+import logging
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.cf_connector import CloudFunctions
 
+logger = logging.getLogger(__name__)
 
 ZIP_LOCATION = os.getcwd()+'/ibmcf_pywren.zip'
 
@@ -35,13 +37,19 @@ def _create_zip_action():
     pywren_location = _get_pywren_location()
 
     cmd = 'cd ' + pywren_location + '/..; zip -FSr "' + ZIP_LOCATION + '" pywren_ibm_cloud/ -x "*__pycache__*"'
-    res = os.system(cmd)
-    if res != 0:
+    res = os.popen(cmd)
+    result = res.read()
+    logger.debug(result)
+    code = res.close()
+    if code:
         raise Exception('Unable to create the {} action package'.format(ZIP_LOCATION))
 
     cmd = 'cd ' + pywren_location + '/action; zip -r "' + ZIP_LOCATION + '" __main__.py'
-    res = os.system(cmd)
-    if res != 0:
+    res = os.popen(cmd)
+    result = res.read()
+    logger.debug(result)
+    code = res.close()
+    if code:
         raise Exception('Unable to add __main__.py into the {} action package'.format(ZIP_LOCATION))
 
 
@@ -160,5 +168,5 @@ def deploy_default_runtime(memory=None, config=None):
     cf_client.create_package()
 
     _create_zip_action()
-    _extract_modules(image_name, cf_client, config)
+    _extract_modules(image_name, memory, cf_client, config)
     _create_blackbox_runtime(image_name, memory, cf_client)

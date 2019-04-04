@@ -15,8 +15,8 @@
 #
 
 import sys
+import os
 import logging
-#from pywren_ibm_cloud.runtime import default_preinstalls
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.runtime import clone_runtime
 
@@ -27,26 +27,30 @@ def get_runtime_preinstalls(internal_storage, runtime, memory):
     """
     Download runtime information from storage at deserialize
     """
-#     if runtime in default_preinstalls.modules:
-#         logger.debug("Using serialize/default_preinstalls")
-#         runtime_meta = default_preinstalls.modules[runtime]
-#         preinstalls = runtime_meta['preinstalls']
-#     else:
+    log_level = os.getenv('PYWREN_LOG_LEVEL')
     logger.debug("Downloading runtime pre-installed modules from COS")
     try:
         runtime_meta = internal_storage.get_runtime_info('{}_{}'.format(runtime, memory))
         preinstalls = runtime_meta['preinstalls']
-        if not runtime_valid(runtime_meta):
-            raise Exception(("The indicated runtime: {} "
-                             "is not appropriate for this Python version.")
-                            .format(runtime))
+        if not log_level:
+            print()
     except Exception:
-        logger.debug('Runtime {}_{} is not installed'.format(runtime, memory))
-        logger.debug('Creating {}_{} runtime'.format(runtime, memory))
-        if logger.getEffectiveLevel() == logging.WARNING:
-            print('Runtime {}_{} is not installed'.format(runtime, memory))
+        log_msg = 'Runtime {}_{} is not yet installed'.format(runtime, memory)
+        logger.debug(log_msg)
+        if not log_level:
+            print('(Installing...)')
+            old_stdout = sys.stdout
+            sys.stdout = open(os.devnull, 'w')
         clone_runtime(runtime, memory=memory)
-        return get_runtime_preinstalls(internal_storage, runtime, memory)
+        if not log_level:
+            sys.stdout = old_stdout
+        runtime_meta = internal_storage.get_runtime_info('{}_{}'.format(runtime, memory))
+        preinstalls = runtime_meta['preinstalls']
+
+    if not runtime_valid(runtime_meta):
+        raise Exception(("The indicated runtime: {} "
+                         "is not appropriate for this Python version.")
+                        .format(runtime))
 
     return preinstalls
 

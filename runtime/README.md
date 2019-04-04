@@ -29,9 +29,9 @@ result = pw.get_result()
 IMPORTANT: Make sure you have the same Python version on both the client and the server.
 As stated before, the default runtime is based on Python 3.6, this means that you must have also Python 3.6 in you client machine.
 
-Otherwise, if you need another Python version (like Python 3.5) because is not possible to update it in the client machine, or if you need some Python modules (or other system libraries)
-which are not included in the [python:3.6](https://console.bluemix.net/docs/openwhisk/openwhisk_reference.html#openwhisk_ref_python_environments_3.6)
-image, it is possible to build your own PyWren runtime with all of them.
+If you need some Python modules (or other system libraries)
+which are not included in the [python:3.6](https://console.bluemix.net/docs/openwhisk/openwhisk_reference.html#openwhisk_ref_python_environments_3.6) or [python:3.7](https://console.bluemix.net/docs/openwhisk/openwhisk_reference.html#openwhisk_ref_python_environments_3.7) 
+docker images (runtimes), it is possible to build your own PyWren runtime with all of them.
 
 1. **Build your own PyWren runtime**
 
@@ -64,13 +64,16 @@ image, it is possible to build your own PyWren runtime with all of them.
     def my_function(x):
         return x + 7
     
-    pw = pywren.ibm_cf_executor(runtime='pywren-custom-runtime_3.5')
+    pw = pywren.ibm_cf_executor(runtime='jsampe/pywren-custom-runtime:3.5')
     pw.call_async(my_function, 3)
     result = pw.get_result()
     ```
     
     *NOTE: In this previous example we built a docker image based on Python 3.5, this means that now we also need Python 3.5 in the client machine.*
-  
+    
+    In order to use a self-built docker image as a runtime for PyWren, you have to login to your [Docker Hub account](https://hub.docker.com) and ensure that the image is **public**.
+
+
 Maybe someone already built a PyWren runtime with all the packages you need, and put it in a public repository.
 In this case you can use that Docker image and avoid the building process.
 
@@ -92,12 +95,7 @@ In this case you can use that Docker image and avoid the building process.
     def my_function(x):
         return x + 7
     
-    pw = pywren.ibm_cf_executor(runtime='pw-mpl-nltk_3.5')
+    pw = pywren.ibm_cf_executor(runtime='jsampe/pw-mpl-nltk:3.5')
     pw.call_async(my_function, 3)
     result = pw.get_result()
     ```
-    
-Note that if you put a tag in the docker image name, the ':' character will be replaced with a '_' in the runtime name.
-For example, if you put `jsampe/pw-mpl-nltk:3.5` as a Docker image name in the *create* or *clone* commands, then the name of the runtime will be `pw-mpl-nltk_3.5` as in the previous examples.
-
-In order to use them from IBM Cloud functions, you have to login to your [Docker Hub account](https://hub.docker.com) and ensure that the image is **public**.

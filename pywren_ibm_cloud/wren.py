@@ -51,6 +51,8 @@ class ibm_cf_executor:
         :param config: Settings passed in here will override those in `pywren_config`. Default None.
         :param runtime: Runtime name to use. Default None.
         :param runtime_memory: memory to use in the runtime
+        :param log_level: log level to use during the execution
+        :param rabbitmq_monitor: use rabbitmq as monitoring system
         :return `executor` object.
 
         Usage
@@ -73,6 +75,7 @@ class ibm_cf_executor:
 
         self.log_level = log_level
         if self.log_level:
+            os.environ["PYWREN_LOG_LEVEL"] = self.log_level
             wrenlogging.default_config(self.log_level)
 
         ibm_cf_config = self.config['ibm_cf']
@@ -82,8 +85,6 @@ class ibm_cf_executor:
 
         if not rabbitmq_monitor:
             self.config['rabbitmq']['amqp_url'] = None
-        elif self.config['rabbitmq']['amqp_url']:
-            logger.info('Going to use RabbitMQ to monitor function activations')
 
         retry_config = {}
         retry_config['invocation_retry'] = self.config['pywren']['invocation_retry']
@@ -94,7 +95,7 @@ class ibm_cf_executor:
 
         self.storage_config = wrenconfig.extract_storage_config(self.config)
         self.internal_storage = storage.InternalStorage(self.storage_config)
-        self.executor = Executor(invoker, self.config, self.internal_storage, self.log_level)
+        self.executor = Executor(invoker, self.config, self.internal_storage)
         self.executor_id = self.executor.executor_id
 
         self.futures = []
@@ -257,13 +258,16 @@ class ibm_cf_executor:
                             ' pw.map() or pw.map_reduce() before call pw.wait()')
 
         msg = 'Executor ID {} Waiting for functions to complete'.format(self.executor_id)
-        logger.debug(msg)
+        logger.info(msg)
         if not self.log_level and self._state == ExecutorState.running:
             print(msg)
 
         rabbit_amqp_url = None
         if self.rabbitmq_monitor:
             rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
+
+        if rabbit_amqp_url:
+            logger.info('Going to use RabbitMQ to monitor function activations')
 
         pbar = None
         if not self.is_cf_cluster and not self.log_level \
@@ -320,7 +324,7 @@ class ibm_cf_executor:
                             ' or pw.map_reduce() before call pw.get_result()')
 
         msg = 'Executor ID {} Getting results ...'.format(self.executor_id)
-        logger.debug(msg)
+        logger.info(msg)
         if not self.log_level:
             print(msg)
 
@@ -348,7 +352,7 @@ class ibm_cf_executor:
             not_dones_activation_ids = set([f.activation_id for f in ftrs if not f.done])
             msg = ('Executor ID {} Raised timeout of {} seconds getting results '
                    '\nActivations not done: {}'.format(self.executor_id, timeout, not_dones_activation_ids))
-            logger.debug(msg)
+            logger.info(msg)
             if not self.log_level:
                 print(msg)
             self._state = ExecutorState.error
@@ -360,7 +364,7 @@ class ibm_cf_executor:
                 print()
             not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
             msg = 'Executor ID {} Cancelled  \nActivations not done: {}'.format(self.executor_id, not_dones_activation_ids)
-            logger.debug(msg)
+            logger.info(msg)
             if not self.log_level:
                 print(msg)
             if self.data_cleaner and not self.is_cf_cluster:
@@ -397,7 +401,7 @@ class ibm_cf_executor:
         from pywren_ibm_cloud.plots import create_timeline, create_histogram
 
         msg = 'Executor ID {} Creating timeline plots'.format(self.executor_id)
-        logger.debug(msg)
+        logger.info(msg)
         if not self.log_level:
             print(msg)
 
@@ -440,9 +444,10 @@ class ibm_cf_executor:
         storage_prerix = self.storage_config['storage_prefix']
         storage_prerix = os.path.join(storage_prerix, self.executor_id)
 
-        msg = ("Executor ID {} Cleaning partial results from bucket '{}' "
-               "and prefix '{}'".format(self.executor_id, storage_bucket, storage_prerix))
-        logger.debug(msg)
+        msg = ("Executor ID {} Cleaning partial results from 'cos://{}/{}'".format(self.executor_id,
+                                                                                   storage_bucket,
+                                                                                   storage_prerix))
+        logger.info(msg)
         if not self.log_level:
             print(msg)
             if not self.data_cleaner:

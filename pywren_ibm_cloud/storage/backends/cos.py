@@ -40,6 +40,7 @@ class COSBackend:
         logger.debug("Set IBM COS Auth Endpoint to {}".format(ibm_auth_endpoint))
 
         if 'api_key' in cos_config:
+            logger.debug("IBM COS using api_key")
             client_config = ibm_botocore.client.Config(signature_version='oauth',
                                                        max_pool_connections=200,
                                                        user_agent_extra='pywren-ibm-cloud')
@@ -50,19 +51,19 @@ class COSBackend:
                 token_manager._token = cos_config['token']
                 expiry_time = cos_config['token_expiry_time']
                 token_manager._expiry_time = datetime.strptime(expiry_time, '%Y-%m-%d %H:%M:%S.%f%z')
-
-            self.cos_client = ibm_boto3.client('s3',
-                                               token_manager=token_manager,
-                                               config=client_config,
-                                               ibm_auth_endpoint=ibm_auth_endpoint,
-                                               endpoint_url=service_endpoint)
-            if 'token' not in cos_config:
+            else:
                 cos_config['token'] = token_manager.get_token()
                 cos_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
 
+            self.cos_client = ibm_boto3.client('s3', token_manager=token_manager,
+                                               config=client_config,
+                                               ibm_auth_endpoint=ibm_auth_endpoint,
+                                               endpoint_url=service_endpoint)
+
         elif {'secret_key', 'access_key'} <= set(cos_config):
-            secret_key = cos_config.get('secret_key')
+            logger.debug("IBM COS using access_key and secret_key")
             access_key = cos_config.get('access_key')
+            secret_key = cos_config.get('secret_key')
             client_config = ibm_botocore.client.Config(max_pool_connections=200,
                                                        user_agent_extra='pywren-ibm-cloud')
             self.cos_client = ibm_boto3.client('s3',

@@ -40,7 +40,7 @@ setup(
     author_email='gilv@il.ibm.com',
     packages=find_packages(),
     install_requires=[
-        'Click', 'ibm-cos-sdk', 'PyYAML', 'pika',
+        'Click', 'ibm-cos-sdk', 'PyYAML', 'pika==0.13.1',
         'enum34', 'glob2', 'tqdm', 'tblib',
         'requests', 'python-dateutil', 'lxml',
         'pandas', 'seaborn', 'matplotlib'

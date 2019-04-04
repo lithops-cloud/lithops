@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import os
 import time
 import logging
 import random
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 class IBMCloudFunctionsInvoker:
 
     def __init__(self, cf_config, retry_config):
+        self.log_level = os.getenv('PYWREN_LOG_LEVEL')
         self.namespace = cf_config['namespace']
         self.endpoint = cf_config['endpoint']
         self.runtime_name = cf_config['runtime']
@@ -40,8 +42,8 @@ class IBMCloudFunctionsInvoker:
 
         log_msg = 'IBM Cloud Functions init for Runtime: {} - {}MB'.format(self.runtime_name, self.runtime_memory)
         logger.info(log_msg)
-        if logger.getEffectiveLevel() == logging.WARNING :
-            print(log_msg)
+        if not self.log_level:
+            print(log_msg, end=' ')
 
     def invoke(self, payload):
         """
