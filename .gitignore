@@ -1,0 +1,20 @@
+# Byte-compiled / optimized / DLL files
+*.pyc
+__pycache__/
+build/
+dist/
+pywren_ibm_cloud.egg-info
+ibmcf_pywren.zip
+
+# Linux
+*~
+
+# Mac
+.DS_Store
+
+# IDE - Eclipse PyDev 
+.project
+.pydevproject
+
+# Jupyter Notebook
+.ipynb_checkpoints
