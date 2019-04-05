@@ -3,7 +3,7 @@ import requests
 import inspect
 import struct
 import io
-from pywren_ibm_cloud import wrenutil
+from pywren_ibm_cloud import utils
 from multiprocessing.pool import ThreadPool
 
 logger = logging.getLogger(__name__)
@@ -89,7 +89,7 @@ def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
             logger.info('Creating chunks from objects within: {}'.format(entry['bucket']))
         else:
             logger.info('Discovering objects within: {}'.format(entry['bucket']))
-        bucket_name, prefix = wrenutil.split_path(entry['bucket'])
+        bucket_name, prefix = utils.split_path(entry['bucket'])
         objects = storage.list_objects(bucket_name, prefix)
 
         def _split(obj):
@@ -229,7 +229,7 @@ def split_object_from_url(map_func_args_list, chunk_size):
     return partitions, parts_per_object
 
 
-class WrappedStreamingBodyPartition(wrenutil.WrappedStreamingBody):
+class WrappedStreamingBodyPartition(utils.WrappedStreamingBody):
 
     def __init__(self, sb, size, byterange):
         super().__init__(sb, size)

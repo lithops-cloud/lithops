@@ -15,17 +15,23 @@
 #
 
 import os
+import sys
 import json
-from pywren_ibm_cloud.wrenutil import is_cf_cluster
+from pywren_ibm_cloud.utils import version_str, is_cf_cluster
 
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
 COS_BUCKET_DEFAULT = "pywren.data"
 COS_PREFIX_DEFAULT = "pywren.jobs"
-CF_ACTION_NAME_DEFAULT = 'pywren_3.6'
-CF_ACTION_TIMEOUT_DEFAULT = 600000  # Default: 600 seconds => 10 minutes
-CF_ACTION_MEMORY_DEFAULT = 512  # Default: 512 MB
-CF_RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
 COS_AUTH_ENDPOINT_DEFAULT = 'https://iam.cloud.ibm.com'
+
+CF_RUNTIME_DEFAULT_35 = 'ibmfunctions/pywren:3.5'
+CF_RUNTIME_DEFAULT_36 = 'ibmfunctions/action-python-v3.6'
+CF_RUNTIME_DEFAULT_37 = 'ibmfunctions/action-python-v3.7'
+
+CF_RUNTIME_TIMEOUT_DEFAULT = 600000  # Default: 600000 milliseconds => 10 minutes
+CF_RUNTIME_MEMORY_DEFAULT = 256  # Default: 256 MB
+CF_RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
+
 DATA_CLEANER_DEFAULT = False
 MAX_AGG_DATA_SIZE = 4e6
 INVOCATION_RETRY_DEFAULT = True
@@ -140,22 +146,28 @@ def default(config_data=None):
     if 'ibm_cos' in config_data and 'ibm_auth_endpoint' not in config_data['ibm_cos']:
         config_data['ibm_cos']['ibm_auth_endpoint'] = COS_AUTH_ENDPOINT_DEFAULT
 
-    if 'action_name' not in config_data['ibm_cf']:
-        config_data['ibm_cf']['action_name'] = CF_ACTION_NAME_DEFAULT
+    if 'runtime_memory' not in config_data['ibm_cf']:
+        config_data['ibm_cf']['runtime_memory'] = CF_RUNTIME_MEMORY_DEFAULT
 
-    if 'action_memory' not in config_data['ibm_cf']:
-        config_data['ibm_cf']['action_memory'] = CF_ACTION_MEMORY_DEFAULT
+    if 'runtime_timeout' not in config_data['ibm_cf']:
+        config_data['ibm_cf']['runtime_timeout'] = CF_RUNTIME_TIMEOUT_DEFAULT
 
-    if 'action_timeout' not in config_data['ibm_cf']:
-        config_data['ibm_cf']['action_timeout'] = CF_ACTION_TIMEOUT_DEFAULT
+    if 'runtime' not in config_data['ibm_cf']:
+        this_version_str = version_str(sys.version_info)
+        if this_version_str == '3.5':
+            config_data['ibm_cf']['runtime'] = CF_RUNTIME_DEFAULT_35
+        elif this_version_str == '3.6':
+            config_data['ibm_cf']['runtime'] = CF_RUNTIME_DEFAULT_36
+        elif this_version_str == '3.7':
+            config_data['ibm_cf']['runtime'] = CF_RUNTIME_DEFAULT_37
+
+    # True or False depending on whether this code is executed within CF cluster or not
+    config_data['ibm_cf']['is_cf_cluster'] = is_cf_cluster()
 
     if 'rabbitmq' not in config_data or not config_data['rabbitmq'] \
        or 'amqp_url' not in config_data['rabbitmq']:
         config_data['rabbitmq'] = {}
         config_data['rabbitmq']['amqp_url'] = None
-
-    # True or False depending on whether this code is executed within CF cluster or not
-    config_data['ibm_cf']['is_cf_cluster'] = is_cf_cluster()
 
     return config_data
 

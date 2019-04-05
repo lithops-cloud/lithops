@@ -20,18 +20,17 @@ This document describes the steps to use PyWren-IBM-Cloud over IBM Cloud Functio
 1. [Initial requirements](#initial-requirements)
 2. [PyWren setup](#pywren-setup)
 3. [Configuration](#configuration)
-4. [Deploy main runtime](#deploy-pywren-main-runtime)
-5. [Verify installation](#verify)
-6. [How to use PyWren for IBM Cloud](#how-to-use-pywren-for-ibm-cloud-functions)
-7. [Using PyWren to process data from IBM Cloud Object Storage](#using-pywren-to-process-data-from-ibm-cloud-object-storage)
-8. [PyWren on IBM Watson Studio](#pywren-on-ibm-watson-studio)
-9. [Additional resources](#additional-resources)
+4. [Verify installation](#verify)
+5. [How to use PyWren for IBM Cloud](#how-to-use-pywren-for-ibm-cloud-functions)
+6. [Using PyWren to process data from IBM Cloud Object Storage](#using-pywren-to-process-data-from-ibm-cloud-object-storage)
+7. [PyWren on IBM Watson Studio and Jupyter notebooks](#pywren-on-ibm-watson-studio-and-jupyter-notebooks)
+8. [Additional resources](#additional-resources)
 
 
 ## Initial Requirements
 * IBM Cloud Functions account, as described [here](https://cloud.ibm.com/openwhisk/). Make sure you can run end-to-end example with Python.
 * IBM Cloud Object Storage [account](https://www.ibm.com/cloud/object-storage)
-* Python 3.6 (preferable) or Python 3.5
+* Python 3.5, Python 3.6 or Python 3.7
 
 
 ## PyWren Setup
@@ -43,7 +42,7 @@ Install PyWren from the PyPi repository:
 Installation for developers can be found [here](docs/dev-installation.md).
 
 
-### Configuration
+## Configuration
 
 Configure PyWren client with access details to your IBM Cloud Object Storage (COS) account, and with your IBM Cloud Functions account.
 
@@ -51,8 +50,8 @@ Access details to IBM Cloud Functions can be obtained [here](https://cloud.ibm.c
 
 There are two options to configure PyWren:
 
-#### Using configuration file
-Copy the `ibmcf/default_config.yaml.template` into `~/.pywren_config`
+### Using configuration file
+Copy the `config/default_config.yaml.template` into `~/.pywren_config`
 
 Edit `~/.pywren_config` and configure the following entries:
 
@@ -82,7 +81,7 @@ You can choose different name for the config file or keep it into different fold
 	PYWREN_CONFIG_FILE=<LOCATION OF THE CONFIG FILE>
 
 
-#### Configuration in the runtime
+### Configuration in the runtime
 This option allows you pass all the configuration details as part of the PyWren invocation in runtime. All you need is to configure a Python dictionary with keys and values, for example:
 
 ```python
@@ -96,31 +95,8 @@ config = {'pywren' : {'storage_bucket' : 'BUCKET_NAME'},
                       'api_key': 'API_KEY'}}
 ```
 
-
 You can find more configuration keys [here](docs/configuration.md).
 
-
-### Deploy PyWren main runtime
-
-Once PyWren is configured, you need to deploy the main PyWren runtime to your IBM Cloud Functions namespace. The PyWren runtime is an action in the IBM Cloud Functions account, responsible to execute the Python functions. The strong requirement here is to match Python versions between the client and the runtime.
-
-PyWren-IBM-Cloud shipped with default runtime:
-
-| Runtime name | Python version | Packages included |
-| ----| ----| ---- |
-| pywren_3.6 | 3.6 | [list of packages](https://github.com/ibm-functions/runtime-python/blob/master/python3.6/CHANGELOG.md) |
-
-To deploy the default runtime, call the `deploy_default_runtime()` method (only once) in any of your Python scripts:
-
-```python
-import pywren_ibm_cloud as pywren
-pywren.runtime.deploy_default_runtime()
-```
-
-This script will automatically create a Python 3.6 action named `pywren_3.6` which is based on `python:3.6` IBM docker image (Debian Jessie). 
-This action is the main runtime used to run functions within IBM Cloud Functions with PyWren. 
-
-The runtime may also contain additional packages which your code depends on: If your client uses different Python version, or there is need to use additional packages or libraries, then it is necessary to build a custom runtime. Detail instructions can be found [here](runtime/).
 
 ###  Obtain PyWren executor
 
@@ -137,7 +113,26 @@ import pywren_ibm_cloud as pywren
 pw = pywren.ibm_cf_executor(config=config)
 ```
 
-### Verify 
+###  Runtime
+The runtime is the place where your functions will be executed. In IBM-PyWren, runtimes are based on docker images. It includes by default three different runtimes that allow to run the functions in Python 3.5, Python 3.6 and Python 3.7 environments.
+
+| Runtime name | Python version | Packages included |
+| ----| ----| ---- |
+| ibmfunctions/pywren:3.5 | 3.5 |  |
+| ibmfunctions/action-python-v3.6 | 3.6 | [list of packages](https://github.com/ibm-functions/runtime-python/blob/master/python3.6/CHANGELOG.md) |
+| ibmfunctions/action-python-v3.7 | 3.7 | [list of packages](https://github.com/ibm-functions/runtime-python/blob/master/python3.7/CHANGELOG.md) |
+
+IBM-PyWren automatically deploys the default runtime in the first execution, based on the Python version that you are using.
+By default, it uses 256MB as runtime memory size. However, you can change it in the `config` or when you obtain the executor, for example:
+
+```python
+import pywren_ibm_cloud as pywren
+pw = pywren.ibm_cf_executor(runtime_memory=128)
+```
+
+You can also build custom runtimes with libraries that your functions depends on. Check more information about runtimes [here](runtime/).
+
+## Verify 
 
 To test that all is working, run the [testpywren.py](test/testpywren.py) located in the `test` folder with the arguments listed below.
 
@@ -161,6 +156,7 @@ To clean test files stored in Cloud Object Storage service, execute:
 _NOTE:_ The test script assumes that a local PyWren's config file was set correctly.
 
 To edit tests' data, open the [data](test/data) file located in the `test` folder and simply add or remove text URL files.
+
 
 ## How to use PyWren for IBM Cloud Functions
 
@@ -364,11 +360,10 @@ pw.map(my_map_function, iterdata)
 result = pw.get_result()
 ```
 
-## PyWren on IBM Watson Studio or Jupyter notebooks
-You can use PyWren inside an **IBM Watson Studio** notebook in order to execute parallel data analytics by using **IBM Cloud functions**.
+## PyWren on IBM Watson Studio and Jupyter notebooks
+You can use IBM-PyWren inside an **IBM Watson Studio** or Jupyter notebooks in order to execute parallel data analytics by using **IBM Cloud functions**.
 
-### How to install PyWren within IBM Watson Studio or from Jupyter 
-It is possible to use PyWren inside an **IBM Watson Studio** notebook in order to execute parallel data analytics by using **IBM Cloud functions**.
+### How to install PyWren within IBM Watson Studio
 As the current **IBM Watson Studio** runtimes does not contains the **PyWren** package, it is needed to install it. Add these lines at the beginning of the notebook:
 
 ```python
@@ -380,26 +375,22 @@ except:
 ```
 Installation supports PyWren version as an input parameter, for example:
 
-	!{sys.executable} -m pip install -U pywren-ibm-cloud==1.0.4
+	!{sys.executable} -m pip install -U pywren-ibm-cloud==1.0.7
 
-
-### Deploy PyWren runtime to your IBM Cloud Functions
-After importing `pywren` library, you can create PyWren runtime from the notebook itself:
-
-```python
-pywren.runtime.clone_runtime('<dockerhub_space>/<name>:<version>', config)
-```
-
-For example:
+### Usage in notebooks
+When installed, you can use IBM-PyWren as usual inside a notebook:
 
 ```python
-pywren.runtime.clone_runtime('ibmcloudfunctions/pywren:3.5', config)
-```
+import pywren_ibm_cloud as pywren
 
-And then, you can create an executor with this runtime:
+iterdata = [1, 2, 3, 4]
 
-```python
-pw = pywren.ibm_cf_executor(runtime='pywren_3.5')
+def my_map_function(x):
+    return x + 7
+
+pw = pywren.ibm_cf_executor()
+pw.map(my_map_function, iterdata)
+result = pw.get_result()
 ```
 
 ## Additional resources

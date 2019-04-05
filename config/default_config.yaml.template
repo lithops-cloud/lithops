@@ -12,8 +12,7 @@ ibm_cf:
     namespace   : <CF_NAMESPACE>
     api_key     : <CF_API_KEY>
     #action_timeout: 600000     # Default timeout
-    #action_memory: 512         # Default memory
-    #action_name : pywren_3.6   # Default runtime
+    #action_memory: 256         # Default memory
 
 ibm_cos:
     endpoint   : <COS_API_ENDPOINT>

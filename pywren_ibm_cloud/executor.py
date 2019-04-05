@@ -21,11 +21,10 @@ import logging
 import inspect
 import pywren_ibm_cloud as pywren
 import pywren_ibm_cloud.version as version
-import pywren_ibm_cloud.wrenutil as wrenutil
+import pywren_ibm_cloud.utils as wrenutil
 import pywren_ibm_cloud.wrenconfig as wrenconfig
 from pywren_ibm_cloud.wait import wait
 from multiprocessing.pool import ThreadPool
-from pywren_ibm_cloud.wrenconfig import MAX_AGG_DATA_SIZE
 from pywren_ibm_cloud.future import ResponseFuture, JobState
 from pywren_ibm_cloud.runtime import get_runtime_preinstalls
 from pywren_ibm_cloud.storage.backends.cos import COSBackend
@@ -39,26 +38,26 @@ logger = logging.getLogger(__name__)
 
 class Executor(object):
 
-    def __init__(self, invoker, config, internal_storage, log_level):
+    def __init__(self, invoker, config, internal_storage):
+        self.log_level = os.getenv('PYWREN_LOG_LEVEL')
         self.invoker = invoker
         self.config = config
         self.internal_storage = internal_storage
-        self.log_level = log_level
 
-        if 'PYWREN_EXECUTOR_ID' in os.environ:
-            self.executor_id = os.environ['PYWREN_EXECUTOR_ID']
-        else:
-            self.executor_id = wrenutil.create_executor_id()
-
-        runtime = self.config['ibm_cf']['action_name']
-        runtime_preinstalls = get_runtime_preinstalls(self.internal_storage, runtime)
-
+        runtime_name = self.config['ibm_cf']['runtime']
+        runtime_memory = self.config['ibm_cf']['runtime_memory']
+        runtime_preinstalls = get_runtime_preinstalls(self.internal_storage, runtime_name, runtime_memory)
         self.serializer = serialize.SerializeIndependent(runtime_preinstalls)
 
         self.map_item_limit = None
         if 'scheduler' in self.config:
             if 'map_item_limit' in config['scheduler']:
                 self.map_item_limit = config['scheduler']['map_item_limit']
+
+        if 'PYWREN_EXECUTOR_ID' in os.environ:
+            self.executor_id = os.environ['PYWREN_EXECUTOR_ID']
+        else:
+            self.executor_id = wrenutil.create_executor_id()
 
         log_msg = 'IBM Cloud Functions executor created with ID {}'.format(self.executor_id)
         logger.info(log_msg)
@@ -140,7 +139,7 @@ class Executor(object):
             pos += l
         return b"".join(data_strs), ranges
 
-    def call_async(self, func, data, extra_env=None, extra_meta=None, runtime_timeout=wrenconfig.CF_RUNTIME_TIMEOUT,):
+    def call_async(self, func, data, extra_env=None, extra_meta=None, runtime_timeout=wrenconfig.CF_RUNTIME_TIMEOUT):
         """
         Wrapper to launch one function invocation.
         """
@@ -254,11 +253,11 @@ class Executor(object):
         host_job_meta['data_size_bytes'] = data_size_bytes
 
         log_msg = 'Executor ID {} Uploading function and data'.format(self.executor_id)
-        logger.debug(log_msg)
+        logger.info(log_msg)
         if not self.log_level:
             print(log_msg)
 
-        if data_size_bytes < MAX_AGG_DATA_SIZE and data_all_as_one:
+        if data_size_bytes < wrenconfig.MAX_AGG_DATA_SIZE and data_all_as_one:
             agg_data_key = create_agg_data_key(self.internal_storage.prefix, self.executor_id, callgroup_id)
             agg_data_bytes, agg_data_ranges = self.agg_data(data_strs)
             agg_upload_time = time.time()
@@ -269,7 +268,7 @@ class Executor(object):
         else:
             log_msg = ('Executor ID {} Total data exceeded '
                        'maximum size of {} bytes'.format(self.executor_id,
-                                                         MAX_AGG_DATA_SIZE))
+                                                         wrenconfig.MAX_AGG_DATA_SIZE))
             logger.warning(log_msg)
 
         if exclude_modules:
@@ -320,7 +319,7 @@ class Executor(object):
 
         start_inv = time.time()
         log_msg = 'Executor ID {} Starting function invocation: {}() - Total: {} activations'.format(self.executor_id, func_name, N)
-        logger.debug(log_msg)
+        logger.info(log_msg)
         if not self.log_level:
             print(log_msg)
 
@@ -345,7 +344,7 @@ class Executor(object):
 
         log_msg = 'Executor ID {} Invocation done: {} seconds'.format(self.executor_id,
                                                                       round(time.time()-start_inv, 3))
-        logger.debug(log_msg)
+        logger.info(log_msg)
         if not self.log_level:
             print(log_msg)
 

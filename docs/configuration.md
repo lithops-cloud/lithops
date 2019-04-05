@@ -20,7 +20,7 @@ Summary of configuration keys:
 |ibm_cos | api_key | | yes | API Key to your COS account|
 |ibm_cos | `ibm_auth_endpoint` | https://iam.cloud.ibm.com | no | Optional URL for IBM Authentication IAM |
 
-#####  Using in-memory storage for temporary data
+### Using in-memory storage for temporary data
 
 You can configure PyWren to use in-memory storage to keep the temporary data. We support currently [CloudAMQP](https://console.bluemix.net/catalog/services/cloudamqp) and more other services will be supported at later stage. To enable PyWren to use this service please setup additional key
 
@@ -30,5 +30,5 @@ You can configure PyWren to use in-memory storage to keep the temporary data. We
 
 In addition, activate service by
 
-	pw = pywren.ibm_cf_executor(use_rabbitmq=True)
+	pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
 

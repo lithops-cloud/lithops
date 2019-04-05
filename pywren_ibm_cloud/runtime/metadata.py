@@ -15,23 +15,36 @@
 #
 
 import sys
+import os
 import logging
-from pywren_ibm_cloud.serialize import default_preinstalls
+from pywren_ibm_cloud.utils import version_str
+from pywren_ibm_cloud.runtime import clone_runtime
 
 logger = logging.getLogger(__name__)
 
 
-def get_runtime_preinstalls(internal_storage, runtime):
+def get_runtime_preinstalls(internal_storage, runtime, memory):
     """
     Download runtime information from storage at deserialize
     """
-    if runtime in default_preinstalls.modules:
-        logger.debug("Using serialize/default_preinstalls")
-        runtime_meta = default_preinstalls.modules[runtime]
+    log_level = os.getenv('PYWREN_LOG_LEVEL')
+    logger.debug("Downloading runtime pre-installed modules from COS")
+    try:
+        runtime_meta = internal_storage.get_runtime_info('{}_{}'.format(runtime, memory))
         preinstalls = runtime_meta['preinstalls']
-    else:
-        logger.debug("Downloading runtime pre-installed modules from COS")
-        runtime_meta = internal_storage.get_runtime_info(runtime)
+        if not log_level:
+            print()
+    except Exception:
+        log_msg = 'Runtime {}_{} is not yet installed'.format(runtime, memory)
+        logger.debug(log_msg)
+        if not log_level:
+            print('(Installing...)')
+            old_stdout = sys.stdout
+            sys.stdout = open(os.devnull, 'w')
+        clone_runtime(runtime, memory=memory)
+        if not log_level:
+            sys.stdout = old_stdout
+        runtime_meta = internal_storage.get_runtime_info('{}_{}'.format(runtime, memory))
         preinstalls = runtime_meta['preinstalls']
 
     if not runtime_valid(runtime_meta):
@@ -40,10 +53,6 @@ def get_runtime_preinstalls(internal_storage, runtime):
                         .format(runtime))
 
     return preinstalls
-
-
-def version_str(version_info):
-    return "{}.{}".format(version_info[0], version_info[1])
 
 
 def runtime_valid(runtime_meta):

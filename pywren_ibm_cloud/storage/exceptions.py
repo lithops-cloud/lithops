@@ -14,15 +14,18 @@
 # limitations under the License.
 #
 
+
 class StorageNoSuchKeyError(Exception):
     def __init__(self, key):
         msg = "No such key {} found in storage.".format(key)
         super(StorageNoSuchKeyError, self).__init__(msg)
 
+
 class StorageOutputNotFoundError(Exception):
     def __init__(self, executor_id, call_id):
         msg = "Output for {} {} not found in storage.".format(executor_id, call_id)
         super(StorageOutputNotFoundError, self).__init__(msg)
+
 
 class StorageConfigMismatchError(Exception):
     def __init__(self, current_path, prev_path):

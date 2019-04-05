@@ -27,7 +27,7 @@ from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.executor import Executor
 from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
-from pywren_ibm_cloud.wrenutil import timeout_handler, is_notebook
+from pywren_ibm_cloud.utils import timeout_handler, is_notebook
 from pywren_ibm_cloud.storage.cleaner import clean_os_bucket
 
 logger = logging.getLogger(__name__)
@@ -44,13 +44,15 @@ class ExecutorState(enum.Enum):
 
 class ibm_cf_executor:
 
-    def __init__(self, config=None, runtime=None, log_level=None, rabbitmq_monitor=False):
+    def __init__(self, config=None, runtime=None, runtime_memory=None, log_level=None, rabbitmq_monitor=False):
         """
         Initialize and return an executor class.
 
         :param config: Settings passed in here will override those in `pywren_config`. Default None.
         :param runtime: Runtime name to use. Default None.
-        :param runtime_timeout: Max time per action. Default 600
+        :param runtime_memory: memory to use in the runtime
+        :param log_level: log level to use during the execution
+        :param rabbitmq_monitor: use rabbitmq as monitoring system
         :return `executor` object.
 
         Usage
@@ -65,23 +67,24 @@ class ibm_cf_executor:
         else:
             self.config = wrenconfig.default(config)
 
+        # Overwrite runtime variables
         if runtime:
-            self.config['ibm_cf']['action_name'] = runtime
+            self.config['ibm_cf']['runtime'] = runtime
+        if runtime_memory:
+            self.config['ibm_cf']['runtime_memory'] = runtime_memory
 
         self.log_level = log_level
         if self.log_level:
+            os.environ["PYWREN_LOG_LEVEL"] = self.log_level
             wrenlogging.default_config(self.log_level)
 
         ibm_cf_config = self.config['ibm_cf']
-        self.runtime = ibm_cf_config['action_name']
-        self.cf_cluster = ibm_cf_config['is_cf_cluster']
+        self.is_cf_cluster = ibm_cf_config['is_cf_cluster']
         self.data_cleaner = self.config['pywren']['data_cleaner']
         self.rabbitmq_monitor = rabbitmq_monitor
 
         if not rabbitmq_monitor:
             self.config['rabbitmq']['amqp_url'] = None
-        elif self.config['rabbitmq']['amqp_url']:
-            logger.info('Going to use RabbitMQ to monitor function activations')
 
         retry_config = {}
         retry_config['invocation_retry'] = self.config['pywren']['invocation_retry']
@@ -92,7 +95,7 @@ class ibm_cf_executor:
 
         self.storage_config = wrenconfig.extract_storage_config(self.config)
         self.internal_storage = storage.InternalStorage(self.storage_config)
-        self.executor = Executor(invoker, self.config, self.internal_storage, self.log_level)
+        self.executor = Executor(invoker, self.config, self.internal_storage)
         self.executor_id = self.executor.executor_id
 
         self.futures = []
@@ -255,7 +258,7 @@ class ibm_cf_executor:
                             ' pw.map() or pw.map_reduce() before call pw.wait()')
 
         msg = 'Executor ID {} Waiting for functions to complete'.format(self.executor_id)
-        logger.debug(msg)
+        logger.info(msg)
         if not self.log_level and self._state == ExecutorState.running:
             print(msg)
 
@@ -263,8 +266,11 @@ class ibm_cf_executor:
         if self.rabbitmq_monitor:
             rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
 
+        if rabbit_amqp_url:
+            logger.info('Going to use RabbitMQ to monitor function activations')
+
         pbar = None
-        if not self.cf_cluster and not self.log_level \
+        if not self.is_cf_cluster and not self.log_level \
            and return_when == ALL_COMPLETED and self._state == ExecutorState.running \
            and not is_notebook():
             import tqdm
@@ -311,14 +317,14 @@ class ibm_cf_executor:
         else:
             # In this case self.futures is always a list
             ftrs = self.futures
-            self.futures = []
+            # self.futures = []
 
         if not ftrs:
             raise Exception('You must run pw.call_async(), pw.map()'
                             ' or pw.map_reduce() before call pw.get_result()')
 
         msg = 'Executor ID {} Getting results ...'.format(self.executor_id)
-        logger.debug(msg)
+        logger.info(msg)
         if not self.log_level:
             print(msg)
 
@@ -326,7 +332,7 @@ class ibm_cf_executor:
         signal.alarm(timeout)
 
         pbar = None
-        if not self.cf_cluster and self._state != ExecutorState.ready \
+        if not self.is_cf_cluster and self._state != ExecutorState.ready \
            and not self.log_level and not is_notebook():
             import tqdm
             print()
@@ -346,7 +352,7 @@ class ibm_cf_executor:
             not_dones_activation_ids = set([f.activation_id for f in ftrs if not f.done])
             msg = ('Executor ID {} Raised timeout of {} seconds getting results '
                    '\nActivations not done: {}'.format(self.executor_id, timeout, not_dones_activation_ids))
-            logger.debug(msg)
+            logger.info(msg)
             if not self.log_level:
                 print(msg)
             self._state = ExecutorState.error
@@ -358,10 +364,10 @@ class ibm_cf_executor:
                 print()
             not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
             msg = 'Executor ID {} Cancelled  \nActivations not done: {}'.format(self.executor_id, not_dones_activation_ids)
-            logger.debug(msg)
+            logger.info(msg)
             if not self.log_level:
                 print(msg)
-            if self.data_cleaner and not self.cf_cluster:
+            if self.data_cleaner and not self.is_cf_cluster:
                 self.clean()
             exit()
 
@@ -370,7 +376,7 @@ class ibm_cf_executor:
             if pbar:
                 pbar.close()
                 print()
-            if self.data_cleaner and not self.cf_cluster:
+            if self.data_cleaner and not self.is_cf_cluster:
                 self.clean()
             self._state = ExecutorState.result
 
@@ -395,7 +401,7 @@ class ibm_cf_executor:
         from pywren_ibm_cloud.plots import create_timeline, create_histogram
 
         msg = 'Executor ID {} Creating timeline plots'.format(self.executor_id)
-        logger.debug(msg)
+        logger.info(msg)
         if not self.log_level:
             print(msg)
 
@@ -438,9 +444,10 @@ class ibm_cf_executor:
         storage_prerix = self.storage_config['storage_prefix']
         storage_prerix = os.path.join(storage_prerix, self.executor_id)
 
-        msg = ("Executor ID {} Cleaning partial results from bucket '{}' "
-               "and prefix '{}'".format(self.executor_id, storage_bucket, storage_prerix))
-        logger.debug(msg)
+        msg = ("Executor ID {} Cleaning partial results from 'cos://{}/{}'".format(self.executor_id,
+                                                                                   storage_bucket,
+                                                                                   storage_prerix))
+        logger.info(msg)
         if not self.log_level:
             print(msg)
             if not self.data_cleaner:
