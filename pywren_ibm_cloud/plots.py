@@ -36,7 +36,7 @@ def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses):
 
     fields = [('host submit', results_df.host_submit_time - pw_start_time),
               ('action start', results_df.start_time - pw_start_time),
-              ('jobrunner start', results_df.jobrunner_start - pw_start_time),
+              #('jobrunner start', results_df.jobrunner_start - pw_start_time),
               ('action done', results_df.end_time - pw_start_time)]
 
     if 'download_output_timestamp' in results_df:
