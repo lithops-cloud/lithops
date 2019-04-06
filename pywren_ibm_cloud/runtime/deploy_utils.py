@@ -57,9 +57,6 @@ def _extract_modules(image_name, memory, cf_client, config):
     # Extract installed Python modules from docker image
     # And store them into storage
 
-    # Create runtime_name from image_name
-    runtime_name = image_name.replace('/', '@').replace(':', '_')
-
     # Create storage_handler to upload modules file
     storage_config = wrenconfig.extract_storage_config(config)
     internal_storage = storage.InternalStorage(storage_config)
@@ -70,18 +67,18 @@ def _extract_modules(image_name, memory, cf_client, config):
     with open(action_location, "r") as action_py:
         action_code = action_py.read()
 
-    memory = cf_client.default_runtime_memory if not memory else memory
-    action_name = '{}_{}'.format(image_name, memory)
-    mod_action_name = '{}_modules_{}'.format(runtime_name, cf_client.default_runtime_memory)
+    modules_action_name = '{}_modules'.format(image_name.replace('/', '@').replace(':', '_'))
 
     old_stdout = sys.stdout
     sys.stdout = open(os.devnull, 'w')
-    cf_client.create_action(mod_action_name, image_name, code=action_code, is_binary=False)
+    cf_client.create_action(modules_action_name, image_name, code=action_code, is_binary=False)
     sys.stdout = old_stdout
 
-    runtime_meta = cf_client.invoke_with_result(mod_action_name)
-    internal_storage.put_runtime_info(action_name, runtime_meta)
-    cf_client.delete_action(mod_action_name)
+    memory = cf_client.default_runtime_memory if not memory else memory
+    runtime_name = '{}_{}'.format(image_name, memory)
+    runtime_meta = cf_client.invoke_with_result(modules_action_name)
+    internal_storage.put_runtime_info(runtime_name, runtime_meta)
+    cf_client.delete_action(modules_action_name)
 
 
 def _create_blackbox_runtime(image_name, memory, cf_client):
@@ -115,7 +112,8 @@ def create_runtime(image_name, memory=None, config=None):
     else:
         config = wrenconfig.default(config)
 
-    cf_client = CloudFunctions(config['ibm_cf'])
+    cf_config = wrenconfig.extract_cf_config(config)
+    cf_client = CloudFunctions(cf_config)
     cf_client.create_package()
     _create_zip_action()
     _extract_modules(image_name, memory, cf_client, config)
@@ -130,23 +128,48 @@ def clone_runtime(image_name, memory=None, config=None):
     else:
         config = wrenconfig.default(config)
 
-    cf_client = CloudFunctions(config['ibm_cf'])
+    cf_config = wrenconfig.extract_cf_config(config)
+    cf_client = CloudFunctions(cf_config)
     cf_client.create_package()
     _create_zip_action()
     _extract_modules(image_name,  memory, cf_client, config)
     _create_blackbox_runtime(image_name, memory, cf_client)
 
 
-def update_all_runtimes(config=None):
-    print('Updating all runtimes')
+def update_runtime(image_name, memory=None, config=None):
+    print('Updating runtime: {}'.format(image_name))
     if config is None:
         config = wrenconfig.default()
     else:
         config = wrenconfig.default(config)
-    cf_client = CloudFunctions(config['ibm_cf'])
+
+    cf_config = wrenconfig.extract_cf_config(config)
+    cf_client = CloudFunctions(cf_config)
 
     _create_zip_action()
-    #_create_blackbox_runtime(image_name, memory, cf_client)
+    _create_blackbox_runtime(image_name, memory, cf_client)
+
+
+def delete_runtime(image_name, memory=None, config=None):
+    print('Deleting runtime: {}'.format(image_name))
+
+    if config is None:
+        config = wrenconfig.default()
+    else:
+        config = wrenconfig.default(config)
+
+    storage_config = wrenconfig.extract_storage_config(config)
+    storage_client = storage.InternalStorage(storage_config)
+    cf_config = wrenconfig.extract_cf_config(config)
+    cf_client = CloudFunctions(cf_config)
+
+    memory = cf_client.default_runtime_memory if not memory else memory
+
+    runtime_name = '{}_{}'.format(image_name, memory)
+    storage_client.delete_runtime_info(runtime_name)
+
+    action_name = runtime_name.replace('/', '@').replace(':', '_')
+    cf_client.delete_action(action_name)
 
 
 def deploy_default_runtime(memory=None, config=None):
@@ -158,13 +181,14 @@ def deploy_default_runtime(memory=None, config=None):
         config = wrenconfig.default(config)
 
     if this_version_str == '3.5':
-        image_name = wrenconfig.CF_RUNTIME_DEFAULT_35
+        image_name = wrenconfig.RUNTIME_DEFAULT_35
     elif this_version_str == '3.6':
-        image_name = wrenconfig.CF_RUNTIME_DEFAULT_36
+        image_name = wrenconfig.RUNTIME_DEFAULT_36
     elif this_version_str == '3.7':
-        image_name = wrenconfig.CF_RUNTIME_DEFAULT_37
+        image_name = wrenconfig.RUNTIME_DEFAULT_37
 
-    cf_client = CloudFunctions(config['ibm_cf'])
+    cf_config = wrenconfig.extract_cf_config(config)
+    cf_client = CloudFunctions(cf_config)
     cf_client.create_package()
 
     _create_zip_action()

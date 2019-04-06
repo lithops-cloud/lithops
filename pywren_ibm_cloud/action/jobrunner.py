@@ -220,7 +220,7 @@ class jobrunner(Process):
             result = function(**data)
             func_exec_time_t2 = time.time()
             print('----------------------------------------------------')
-            logger.info("Function - Success execution")
+            logger.info("Function: Success execution")
 
             if self.show_memory:
                 logger.debug("Memory usage after call the function: {}".format(get_current_memory_usage()))

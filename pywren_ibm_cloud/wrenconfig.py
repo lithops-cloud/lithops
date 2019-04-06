@@ -24,18 +24,18 @@ COS_BUCKET_DEFAULT = "pywren.data"
 COS_PREFIX_DEFAULT = "pywren.jobs"
 COS_AUTH_ENDPOINT_DEFAULT = 'https://iam.cloud.ibm.com'
 
-CF_RUNTIME_DEFAULT_35 = 'ibmfunctions/pywren:3.5'
-CF_RUNTIME_DEFAULT_36 = 'ibmfunctions/action-python-v3.6'
-CF_RUNTIME_DEFAULT_37 = 'ibmfunctions/action-python-v3.7'
+RUNTIME_DEFAULT_35 = 'ibmfunctions/pywren:3.5'
+RUNTIME_DEFAULT_36 = 'ibmfunctions/action-python-v3.6'
+RUNTIME_DEFAULT_37 = 'ibmfunctions/action-python-v3.7'
 
-CF_RUNTIME_TIMEOUT_DEFAULT = 600000  # Default: 600000 milliseconds => 10 minutes
-CF_RUNTIME_MEMORY_DEFAULT = 256  # Default: 256 MB
-CF_RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
+RUNTIME_TIMEOUT_DEFAULT = 600000  # Default: 600000 milliseconds => 10 minutes
+RUNTIME_MEMORY_DEFAULT = 256  # Default: 256 MB
+RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
 
 DATA_CLEANER_DEFAULT = False
 MAX_AGG_DATA_SIZE = 4e6
 INVOCATION_RETRY_DEFAULT = True
-RETRY_SLEEPS_DEFAULT = [1, 5, 10, 20, 30]
+RETRY_SLEEPS_DEFAULT = [1, 5, 10, 15, 20]
 RETRIES_DEFAULT = 5
 AMQP_URL_DEFAULT = None
 
@@ -146,20 +146,20 @@ def default(config_data=None):
     if 'ibm_cos' in config_data and 'ibm_auth_endpoint' not in config_data['ibm_cos']:
         config_data['ibm_cos']['ibm_auth_endpoint'] = COS_AUTH_ENDPOINT_DEFAULT
 
-    if 'runtime_memory' not in config_data['ibm_cf']:
-        config_data['ibm_cf']['runtime_memory'] = CF_RUNTIME_MEMORY_DEFAULT
+    if 'runtime_memory' not in config_data['pywren']:
+        config_data['pywren']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
 
-    if 'runtime_timeout' not in config_data['ibm_cf']:
-        config_data['ibm_cf']['runtime_timeout'] = CF_RUNTIME_TIMEOUT_DEFAULT
+    if 'runtime_timeout' not in config_data['pywren']:
+        config_data['pywren']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
 
-    if 'runtime' not in config_data['ibm_cf']:
+    if 'runtime' not in config_data['pywren']:
         this_version_str = version_str(sys.version_info)
         if this_version_str == '3.5':
-            config_data['ibm_cf']['runtime'] = CF_RUNTIME_DEFAULT_35
+            config_data['pywren']['runtime'] = RUNTIME_DEFAULT_35
         elif this_version_str == '3.6':
-            config_data['ibm_cf']['runtime'] = CF_RUNTIME_DEFAULT_36
+            config_data['pywren']['runtime'] = RUNTIME_DEFAULT_36
         elif this_version_str == '3.7':
-            config_data['ibm_cf']['runtime'] = CF_RUNTIME_DEFAULT_37
+            config_data['pywren']['runtime'] = RUNTIME_DEFAULT_37
 
     # True or False depending on whether this code is executed within CF cluster or not
     config_data['ibm_cf']['is_cf_cluster'] = is_cf_cluster()
@@ -199,3 +199,12 @@ def extract_storage_config(config):
             raise Exception('You must provide {} to access to Swift'.format(required_parameters))
 
     return storage_config
+
+
+def extract_cf_config(config):
+    cf_config = config['ibm_cf']
+    cf_config['runtime'] = config['pywren']['runtime']
+    cf_config['runtime_timeout'] = int(config['pywren']['runtime_timeout'])
+    cf_config['runtime_memory'] = int(config['pywren']['runtime_memory'])
+
+    return cf_config

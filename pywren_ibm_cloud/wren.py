@@ -67,40 +67,42 @@ class ibm_cf_executor:
         else:
             self.config = wrenconfig.default(config)
 
+        self.is_cf_cluster = self.config['ibm_cf']['is_cf_cluster']
+        self.data_cleaner = self.config['pywren']['data_cleaner']
+
         # Overwrite runtime variables
         if runtime:
-            self.config['ibm_cf']['runtime'] = runtime
+            self.config['pywren']['runtime'] = runtime
         if runtime_memory:
-            self.config['ibm_cf']['runtime_memory'] = runtime_memory
+            self.config['pywren']['runtime_memory'] = runtime_memory
 
+        # Log level Configuration
         self.log_level = log_level
+        if not self.log_level:
+            if(logger.getEffectiveLevel() != logging.WARNING):
+                self.log_level = logging.getLevelName(logger.getEffectiveLevel())
         if self.log_level:
             os.environ["PYWREN_LOG_LEVEL"] = self.log_level
-            wrenlogging.default_config(self.log_level)
+            if not self.is_cf_cluster:
+                wrenlogging.default_config(self.log_level)
 
-        ibm_cf_config = self.config['ibm_cf']
-        self.is_cf_cluster = ibm_cf_config['is_cf_cluster']
-        self.data_cleaner = self.config['pywren']['data_cleaner']
+        # RabbitMQ monitor configuration
         self.rabbitmq_monitor = rabbitmq_monitor
-
-        if not rabbitmq_monitor:
+        if self.rabbitmq_monitor:
+            os.environ["PYWREN_RABBITMQ_MONITOR"] = 'True'
+        if not self.rabbitmq_monitor:
             self.config['rabbitmq']['amqp_url'] = None
 
-        retry_config = {}
-        retry_config['invocation_retry'] = self.config['pywren']['invocation_retry']
-        retry_config['retry_sleeps'] = self.config['pywren']['retry_sleeps']
-        retry_config['retries'] = self.config['pywren']['retries']
+        storage_config = wrenconfig.extract_storage_config(self.config)
+        self.internal_storage = storage.InternalStorage(storage_config)
 
-        invoker = invokers.IBMCloudFunctionsInvoker(ibm_cf_config, retry_config)
-
-        self.storage_config = wrenconfig.extract_storage_config(self.config)
-        self.internal_storage = storage.InternalStorage(self.storage_config)
+        invoker = invokers.IBMCloudFunctionsInvoker(self.config)
         self.executor = Executor(invoker, self.config, self.internal_storage)
         self.executor_id = self.executor.executor_id
 
         self.futures = []
 
-    def call_async(self, func, data, extra_env=None, extra_meta=None, timeout=wrenconfig.CF_RUNTIME_TIMEOUT):
+    def call_async(self, func, data, extra_env=None, extra_meta=None, timeout=wrenconfig.RUNTIME_TIMEOUT):
         """
         For run one function execution
         :param func: the function to map over the data
@@ -124,7 +126,7 @@ class ibm_cf_executor:
         return future
 
     def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None,
-            chunk_size=None, remote_invocation=False, timeout=wrenconfig.CF_RUNTIME_TIMEOUT,
+            chunk_size=None, remote_invocation=False, timeout=wrenconfig.RUNTIME_TIMEOUT,
             remote_invocation_groups=100, invoke_pool_threads=128,
             data_all_as_one=True, overwrite_invoke_args=None, exclude_modules=None):
         """
@@ -171,7 +173,7 @@ class ibm_cf_executor:
 
     def map_reduce(self, map_function, map_iterdata, reduce_function,
                    extra_env=None, extra_meta=None, chunk_size=None,
-                   remote_invocation=False, timeout=wrenconfig.CF_RUNTIME_TIMEOUT,
+                   remote_invocation=False, timeout=wrenconfig.RUNTIME_TIMEOUT,
                    reducer_one_per_object=False, reducer_wait_local=False,
                    invoke_pool_threads=128, data_all_as_one=True,
                    overwrite_invoke_args=None, exclude_modules=None):
@@ -291,14 +293,14 @@ class ibm_cf_executor:
 
         return fs_dones, fs_notdones
 
-    def get_result(self, futures=None, throw_except=True, timeout=wrenconfig.CF_RUNTIME_TIMEOUT,
+    def get_result(self, futures=None, throw_except=True, timeout=wrenconfig.RUNTIME_TIMEOUT,
                    THREADPOOL_SIZE=64, WAIT_DUR_SEC=2):
         """
         For getting PyWren results
         :param futures: Futures list. Default None
         :param throw_except: Reraise exception if call raised. Default True.
         :param verbose: Shows some information prints. Default False
-        :param timeout: Timeout for waiting results.
+        :param timeout: Timeout for waiting for results.
         :param THREADPOOL_SIZE: Number of threads to use. Default 64
         :return: The result of the future/s
 
@@ -440,8 +442,8 @@ class ibm_cf_executor:
         Deletes all the files from COS. These files include the function,
         the data serialization and the function invocation results.
         """
-        storage_bucket = self.storage_config['storage_bucket']
-        storage_prerix = self.storage_config['storage_prefix']
+        storage_bucket = self.config['pywren']['storage_bucket']
+        storage_prerix = self.config['pywren']['storage_prefix']
         storage_prerix = os.path.join(storage_prerix, self.executor_id)
 
         msg = ("Executor ID {} Cleaning partial results from 'cos://{}/{}'".format(self.executor_id,

@@ -44,9 +44,11 @@ class Executor(object):
         self.config = config
         self.internal_storage = internal_storage
 
-        runtime_name = self.config['ibm_cf']['runtime']
-        runtime_memory = self.config['ibm_cf']['runtime_memory']
-        runtime_preinstalls = get_runtime_preinstalls(self.internal_storage, runtime_name, runtime_memory)
+        self.runtime_name = self.config['pywren']['runtime']
+        self.runtime_memory = self.config['pywren']['runtime_memory']
+        runtime_preinstalls = get_runtime_preinstalls(self.internal_storage,
+                                                      self.runtime_name,
+                                                      self.runtime_memory)
         self.serializer = serialize.SerializeIndependent(runtime_preinstalls)
 
         self.map_item_limit = None
@@ -101,7 +103,7 @@ class Executor(object):
         host_submit_time = time.time()
         arg_dict['host_submit_time'] = host_submit_time
 
-        logger.debug("Executor ID {} Activation {} invoke".format(executor_id, call_id))
+        # logger.debug("Executor ID {} Activation {} invoke".format(executor_id, call_id))
 
         # overwrite explicit args, mostly used for testing via injection
         if overwrite_invoke_args is not None:
@@ -118,7 +120,7 @@ class Executor(object):
         host_job_meta['cf_invoke_timestamp'] = cf_invoke_time_start
         host_job_meta['cf_invoke_time'] = time.time() - cf_invoke_time_start
 
-        logger.debug("Executor ID {} Activation {} complete".format(executor_id, call_id))
+        # logger.debug("Executor ID {} Activation {} complete".format(executor_id, call_id))
 
         host_job_meta.update(self.invoker.config())
         host_job_meta.update(arg_dict)
@@ -139,7 +141,7 @@ class Executor(object):
             pos += l
         return b"".join(data_strs), ranges
 
-    def call_async(self, func, data, extra_env=None, extra_meta=None, runtime_timeout=wrenconfig.CF_RUNTIME_TIMEOUT):
+    def call_async(self, func, data, extra_env=None, extra_meta=None, runtime_timeout=wrenconfig.RUNTIME_TIMEOUT):
         """
         Wrapper to launch one function invocation.
         """
@@ -148,7 +150,7 @@ class Executor(object):
 
     def map(self, map_function, iterdata, obj_chunk_size=None, extra_env=None, extra_meta=None,
             remote_invocation=False, remote_invocation_groups=100, invoke_pool_threads=128,
-            data_all_as_one=True, job_max_runtime=wrenconfig.CF_RUNTIME_TIMEOUT,
+            data_all_as_one=True, job_max_runtime=wrenconfig.RUNTIME_TIMEOUT,
             overwrite_invoke_args=None, exclude_modules=None):
         """
         Wrapper to launch map() method.  It integrates COS logic to process objects.
@@ -169,14 +171,21 @@ class Executor(object):
             map_iterdata, parts_per_object = create_partitions(arg_data, obj_chunk_size, storage)
             map_func = partition_processor(map_function)
 
-        def remote_invoker(input_data):
-            pw = pywren.ibm_cf_executor()
-            return pw.map(map_function, input_data,
-                          invoke_pool_threads=invoke_pool_threads,
-                          extra_env=extra_env,
-                          extra_meta=extra_meta)
-
+        # Remote invocation functionality
         if len(iterdata) > 1 and remote_invocation:
+            runtime_name = self.runtime_name
+            runtime_memory = self.runtime_memory
+            rabbitmq_monitor = "PYWREN_RABBITMQ_MONITOR" in os.environ
+
+            def remote_invoker(input_data):
+                pw = pywren.ibm_cf_executor(runtime=runtime_name,
+                                            runtime_memory=runtime_memory,
+                                            rabbitmq_monitor=rabbitmq_monitor)
+                return pw.map(map_function, input_data,
+                              invoke_pool_threads=invoke_pool_threads,
+                              extra_env=extra_env,
+                              extra_meta=extra_meta)
+
             map_func = remote_invoker
             map_iterdata = [[iterdata[x:x+remote_invocation_groups]]
                             for x in range(0, len(iterdata), remote_invocation_groups)]
@@ -196,7 +205,7 @@ class Executor(object):
 
     def _map(self, func, iterdata, extra_env=None, extra_meta=None, invoke_pool_threads=128,
              data_all_as_one=True, overwrite_invoke_args=None, exclude_modules=None,
-             original_func_name=None, job_max_runtime=wrenconfig.CF_RUNTIME_TIMEOUT):
+             original_func_name=None, job_max_runtime=wrenconfig.RUNTIME_TIMEOUT):
         """
         :param func: the function to map over the data
         :param iterdata: An iterable of input data
@@ -255,7 +264,7 @@ class Executor(object):
         log_msg = 'Executor ID {} Uploading function and data'.format(self.executor_id)
         logger.info(log_msg)
         if not self.log_level:
-            print(log_msg)
+            print(log_msg, end=' ')
 
         if data_size_bytes < wrenconfig.MAX_AGG_DATA_SIZE and data_all_as_one:
             agg_data_key = create_agg_data_key(self.internal_storage.prefix, self.executor_id, callgroup_id)
@@ -280,13 +289,18 @@ class Executor(object):
         module_data = create_mod_data(mod_paths)
         # Create func and upload
         func_module_str = pickle.dumps({'func': func_str, 'module_data': module_data}, -1)
-        host_job_meta['func_module_str_len'] = len(func_module_str)
+        host_job_meta['func_module_bytes'] = len(func_module_str)
 
         func_upload_time = time.time()
         func_key = create_func_key(self.internal_storage.prefix, self.executor_id, callgroup_id)
         self.internal_storage.put_func(func_key, func_module_str)
         host_job_meta['func_upload_time'] = time.time() - func_upload_time
         host_job_meta['func_upload_timestamp'] = time.time()
+
+        if not self.log_level:
+            func_and_data_size = wrenutil.sizeof_fmt(host_job_meta['func_module_bytes']+host_job_meta['data_size_bytes'])
+            log_msg = '- Total: {}'.format(func_and_data_size)
+            print(log_msg)
 
         def invoke(data_str, executor_id, callgroup_id, call_id, func_key,
                    host_job_meta, agg_data_key=None, data_byte_range=None):
@@ -317,7 +331,6 @@ class Executor(object):
         N = len(data)
         call_result_objs = []
 
-        start_inv = time.time()
         log_msg = 'Executor ID {} Starting function invocation: {}() - Total: {} activations'.format(self.executor_id, func_name, N)
         logger.info(log_msg)
         if not self.log_level:
@@ -341,12 +354,6 @@ class Executor(object):
         res = [c.get() for c in call_result_objs]
         pool.close()
         pool.join()
-
-        log_msg = 'Executor ID {} Invocation done: {} seconds'.format(self.executor_id,
-                                                                      round(time.time()-start_inv, 3))
-        logger.info(log_msg)
-        if not self.log_level:
-            print(log_msg)
 
         return res
 

@@ -143,8 +143,8 @@ def ibm_cloud_function_handler(event):
         result_queue = multiprocessing.Queue()
         jr = jobrunner(JOBRUNNER_CONFIG_FILENAME, result_queue)
         jr.daemon = True
-        jr.start()
         logger.info("Launched jobrunner process")
+        jr.start()
         jr.join(job_max_runtime)
         response_status['exec_time'] = time.time() - setup_time
 
@@ -197,12 +197,15 @@ def ibm_cloud_function_handler(event):
             status = 'ok'
             if response_status['exception']:
                 status = 'error'
-            if 'new_futures' in response_status:
+            try:
                 new_futures = response_status['new_futures']
                 channel.basic_publish(exchange='', routing_key=executor_id,
                                       body='{}/{}:{}:{}'.format(callgroup_id, call_id,
                                                                 status,  new_futures))
-            logger.info("Status sent to rabbitmq")
+                logger.info("Status sent to rabbitmq")
+            except Exception:
+                logger.error("Unable to send status to rabbitmq")
+
             connection.close()
 
         store_status = True

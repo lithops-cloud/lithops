@@ -7,9 +7,9 @@ As IBM Cloud Functions allows to run a function within your own (self-built) Doc
 this version of PyWren also uses Docker images as runtimes. In this sense, IBM PyWren uses by default 
 the IBM Cloud Functions native Python docker image `python:3.6`. 
 
-The main runtime is created by the following command:
+The default runtime is created by the following command:
     
-    ./deploy_runtime
+    ./deploy_runtime default
 
 This script will automatically create a Python 3.6 action named `pywren_3.6` which is based on `--kind python:3.6` IBM docker image (Debian Jessie).
 Note that in this version of PyWren the name of the action will be the name of the runtime, so the name of the runtime is, also, `pywren_3.6`.
