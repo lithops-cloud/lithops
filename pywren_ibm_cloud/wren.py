@@ -74,7 +74,7 @@ class ibm_cf_executor:
         if runtime:
             self.config['pywren']['runtime'] = runtime
         if runtime_memory:
-            self.config['pywren']['runtime_memory'] = runtime_memory
+            self.config['pywren']['runtime_memory'] = int(runtime_memory)
 
         # Log level Configuration
         self.log_level = log_level

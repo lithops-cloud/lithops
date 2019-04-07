@@ -48,10 +48,12 @@ class COSBackend:
             token_manager = DefaultTokenManager(api_key_id=api_key)
 
             if 'token' in cos_config:
+                logger.debug("IBM COS using api_key - using token")
                 token_manager._token = cos_config['token']
                 expiry_time = cos_config['token_expiry_time']
                 token_manager._expiry_time = datetime.strptime(expiry_time, '%Y-%m-%d %H:%M:%S.%f%z')
             else:
+                logger.debug("IBM COS using api_key - requesting new token")
                 cos_config['token'] = token_manager.get_token()
                 cos_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
 

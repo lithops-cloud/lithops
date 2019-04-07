@@ -45,20 +45,26 @@ def load(config_filename):
     with open(config_filename, 'r') as config_file:
         res = yaml.safe_load(config_file)
 
+    if 'pywren' not in res:
+        raise Exception("pywren section mandatory in {}".format(config_filename))
+
     if 'pywren' in res and res['pywren']['storage_bucket'] == '<BUCKET_NAME>':
         raise Exception(
             "{} has bucket name as {} -- make sure you change the default container".format(
                 config_filename, res['pywren']['storage_bucket']))
 
-    if res['ibm_cf']['endpoint'] == '<CF_API_ENDPOINT>':
+    if 'ibm_cf' not in res:
+        raise Exception("ibm_cf section mandatory in {}".format(config_filename))
+
+    if 'endpoint' in res['ibm_cf'] and res['ibm_cf']['endpoint'] == '<CF_API_ENDPOINT>':
         raise Exception(
             "{} has CF API endpoint as {} -- make sure you change the default CF API endpoint".format(
                 config_filename, res['ibm_cf']['endpoint']))
-    if res['ibm_cf']['namespace'] == '<CF_NAMESPACE>':
+    if 'namespace' in res['ibm_cf'] and res['ibm_cf']['namespace'] == '<CF_NAMESPACE>':
         raise Exception(
             "{} has namespace as {} -- make sure you change the default namespace".format(
                 config_filename, res['ibm_cf']['namespace']))
-    if res['ibm_cf']['api_key'] == '<CF_API_KEY>':
+    if 'api_key' in res['ibm_cf'] and res['ibm_cf']['api_key'] == '<CF_API_KEY>':
         raise Exception(
             "{} has CF API key as {} -- make sure you change the default CF API key".format(
                 config_filename, res['ibm_cf']['api_key']))
@@ -116,42 +122,27 @@ def default(config_data=None):
 
             config_data = load(config_filename)
 
-    # Apply default values
-    if 'pywren' not in config_data:
-        config_data['pywren'] = dict()
+    if not set(('pywren', 'ibm_cf', 'ibm_cos')).issubset(set(config_data)):
+        raise Exception("pywren, ibm_cf and ibm_cos sections are mandatory in config")
+
+    if 'storage_backend' not in config_data['pywren']:
         config_data['pywren']['storage_backend'] = STORAGE_BACKEND_DEFAULT
+    if 'storage_bucket' not in config_data['pywren']:
         config_data['pywren']['storage_bucket'] = COS_BUCKET_DEFAULT
+    if 'storage_prefix' not in config_data['pywren']:
         config_data['pywren']['storage_prefix'] = COS_PREFIX_DEFAULT
+    if 'data_cleaner' not in config_data['pywren']:
         config_data['pywren']['data_cleaner'] = DATA_CLEANER_DEFAULT
+    if 'invocation_retry' not in config_data['pywren']:
         config_data['pywren']['invocation_retry'] = INVOCATION_RETRY_DEFAULT
-        config_data['pywren']['retry_sleep'] = RETRY_SLEEPS_DEFAULT
+    if 'retry_sleeps' not in config_data['pywren']:
+        config_data['pywren']['retry_sleeps'] = RETRY_SLEEPS_DEFAULT
+    if 'retries' not in config_data['pywren']:
         config_data['pywren']['retries'] = RETRIES_DEFAULT
-
-    else:
-        if 'storage_backend' not in config_data['pywren']:
-            config_data['pywren']['storage_backend'] = STORAGE_BACKEND_DEFAULT
-        if 'storage_bucket' not in config_data['pywren']:
-            config_data['pywren']['storage_bucket'] = COS_BUCKET_DEFAULT
-        if 'storage_prefix' not in config_data['pywren']:
-            config_data['pywren']['storage_prefix'] = COS_PREFIX_DEFAULT
-        if 'data_cleaner' not in config_data['pywren']:
-            config_data['pywren']['data_cleaner'] = DATA_CLEANER_DEFAULT
-        if 'invocation_retry' not in config_data['pywren']:
-            config_data['pywren']['invocation_retry'] = INVOCATION_RETRY_DEFAULT
-        if 'retry_sleeps' not in config_data['pywren']:
-            config_data['pywren']['retry_sleeps'] = RETRY_SLEEPS_DEFAULT
-        if 'retries' not in config_data['pywren']:
-            config_data['pywren']['retries'] = RETRIES_DEFAULT
-
-    if 'ibm_cos' in config_data and 'ibm_auth_endpoint' not in config_data['ibm_cos']:
-        config_data['ibm_cos']['ibm_auth_endpoint'] = COS_AUTH_ENDPOINT_DEFAULT
-
     if 'runtime_memory' not in config_data['pywren']:
         config_data['pywren']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
-
     if 'runtime_timeout' not in config_data['pywren']:
         config_data['pywren']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
-
     if 'runtime' not in config_data['pywren']:
         this_version_str = version_str(sys.version_info)
         if this_version_str == '3.5':
@@ -160,6 +151,9 @@ def default(config_data=None):
             config_data['pywren']['runtime'] = RUNTIME_DEFAULT_36
         elif this_version_str == '3.7':
             config_data['pywren']['runtime'] = RUNTIME_DEFAULT_37
+
+    if 'ibm_cos' in config_data and 'ibm_auth_endpoint' not in config_data['ibm_cos']:
+        config_data['ibm_cos']['ibm_auth_endpoint'] = COS_AUTH_ENDPOINT_DEFAULT
 
     # True or False depending on whether this code is executed within CF cluster or not
     config_data['ibm_cf']['is_cf_cluster'] = is_cf_cluster()

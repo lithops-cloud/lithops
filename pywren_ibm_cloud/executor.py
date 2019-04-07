@@ -48,7 +48,8 @@ class Executor(object):
         self.runtime_memory = self.config['pywren']['runtime_memory']
         runtime_preinstalls = get_runtime_preinstalls(self.internal_storage,
                                                       self.runtime_name,
-                                                      self.runtime_memory)
+                                                      self.runtime_memory,
+                                                      self.config)
         self.serializer = serialize.SerializeIndependent(runtime_preinstalls)
 
         self.map_item_limit = None

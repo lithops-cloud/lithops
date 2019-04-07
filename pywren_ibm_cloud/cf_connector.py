@@ -83,16 +83,17 @@ class CloudFunctions:
         cfexec['code'] = base64.b64encode(code).decode("utf-8") if is_binary else code
         data['exec'] = cfexec
 
-        logger.debug('I am about to create a new cloud function action')
+        logger.debug('I am about to create a new cloud function action: {}'.format(action_name))
         url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
                            self.namespace, 'actions', self.package,
                            action_name + "?overwrite=" + str(overwrite)).replace("\\", "/")
         res = self.session.put(url, json=data)
 
-        if res.status_code != 200:
-            print('An error occurred updating action {}: {}'.format(action_name, res.text))
-        else:
+        if res.status_code == 200:
             print("OK --> Created action {}".format(action_name))
+        else:
+            msg = 'An error occurred creating/updating action {}: {}'.format(action_name, res.text)
+            raise Exception(msg)
 
     def get_action(self, action_name):
         """
