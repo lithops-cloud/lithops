@@ -88,11 +88,12 @@ class CloudFunctions:
                            self.namespace, 'actions', self.package,
                            action_name + "?overwrite=" + str(overwrite)).replace("\\", "/")
         res = self.session.put(url, json=data)
+        resp_text = res.json()
 
         if res.status_code == 200:
             print("OK --> Created action {}".format(action_name))
         else:
-            msg = 'An error occurred creating/updating action {}: {}'.format(action_name, res.text)
+            msg = 'An error occurred creating/updating action {}: {}'.format(action_name, resp_text['error'])
             raise Exception(msg)
 
     def get_action(self, action_name):
@@ -114,9 +115,10 @@ class CloudFunctions:
         url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
                            self.namespace, 'actions', self.package, action_name).replace("\\", "/")
         res = self.session.delete(url)
+        resp_text = res.json()
 
         if res.status_code != 200:
-            logger.debug('An error occurred deleting action {}: {}'.format(action_name, res.text))
+            logger.debug('An error occurred deleting action {}: {}'.format(action_name, resp_text['error']))
 
     def update_memory(self, action_name, memory):
         logger.debug('I am about to update the memory of the {} action to {}'.format(action_name, memory))
@@ -126,9 +128,10 @@ class CloudFunctions:
 
         data = {"limits": {"memory": memory}}
         res = self.session.put(url, json=data)
+        resp_text = res.json()
 
         if res.status_code != 200:
-            logger.debug('An error occurred updating action {}: {}'.format(action_name, res.text))
+            logger.debug('An error occurred updating action {}: {}'.format(action_name, resp_text['error']))
         else:
             logger.debug("OK --> Updated action memory {}".format(action_name))
 
@@ -140,9 +143,10 @@ class CloudFunctions:
 
         data = {"name": self.package}
         res = self.session.put(url, json=data)
+        resp_text = res.json()
 
         if res.status_code != 200:
-            logger.debug('An error occurred creating the package {}: Already exists'.format(self.package, res.text))
+            logger.debug('Package {}: {}'.format(self.package, resp_text['error']))
         else:
             logger.debug("OK --> Created package {}".format(self.package))
 
