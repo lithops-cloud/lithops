@@ -220,6 +220,9 @@ class ResponseFuture:
             else:
                 return None
 
+        if internal_storage is None:
+            internal_storage = storage.InternalStorage(self.storage_config)
+
         self.status(check_only, throw_except, internal_storage)
 
         call_output_time = time.time()

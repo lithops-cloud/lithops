@@ -23,7 +23,7 @@ from pywren_ibm_cloud.runtime import clone_runtime
 logger = logging.getLogger(__name__)
 
 
-def get_runtime_preinstalls(internal_storage, runtime, memory):
+def get_runtime_preinstalls(internal_storage, runtime, memory, config):
     """
     Download runtime information from storage at deserialize
     """
@@ -41,7 +41,7 @@ def get_runtime_preinstalls(internal_storage, runtime, memory):
             print('(Installing...)')
             old_stdout = sys.stdout
             sys.stdout = open(os.devnull, 'w')
-        clone_runtime(runtime, memory=memory)
+        clone_runtime(runtime, memory=memory, config=config)
         if not log_level:
             sys.stdout = old_stdout
         runtime_meta = internal_storage.get_runtime_info('{}_{}'.format(runtime, memory))

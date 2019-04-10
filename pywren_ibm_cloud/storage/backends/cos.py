@@ -42,16 +42,19 @@ class COSBackend:
         if 'api_key' in cos_config:
             logger.debug("IBM COS using api_key")
             client_config = ibm_botocore.client.Config(signature_version='oauth',
-                                                       max_pool_connections=200,
-                                                       user_agent_extra='pywren-ibm-cloud')
+                                                       max_pool_connections=128,
+                                                       user_agent_extra='pywren-ibm-cloud',
+                                                       connect_timeout=1)
             api_key = cos_config.get('api_key')
             token_manager = DefaultTokenManager(api_key_id=api_key)
 
             if 'token' in cos_config:
+                logger.debug("IBM COS using api_key - using token")
                 token_manager._token = cos_config['token']
                 expiry_time = cos_config['token_expiry_time']
                 token_manager._expiry_time = datetime.strptime(expiry_time, '%Y-%m-%d %H:%M:%S.%f%z')
             else:
+                logger.debug("IBM COS using api_key - requesting new token")
                 cos_config['token'] = token_manager.get_token()
                 cos_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
 
@@ -64,7 +67,7 @@ class COSBackend:
             logger.debug("IBM COS using access_key and secret_key")
             access_key = cos_config.get('access_key')
             secret_key = cos_config.get('secret_key')
-            client_config = ibm_botocore.client.Config(max_pool_connections=200,
+            client_config = ibm_botocore.client.Config(max_pool_connections=128,
                                                        user_agent_extra='pywren-ibm-cloud')
             self.cos_client = ibm_boto3.client('s3',
                                                aws_access_key_id=access_key,
@@ -92,9 +95,9 @@ class COSBackend:
             res = self.cos_client.put_object(Bucket=bucket_name, Key=key, Body=data)
             status = 'OK' if res['ResponseMetadata']['HTTPStatusCode'] == 200 else 'Error'
             try:
-                logger.info('PUT Object {} - Size: {} - {}'.format(key, sizeof_fmt(len(data)), status))
+                logger.debug('PUT Object {} - Size: {} - {}'.format(key, sizeof_fmt(len(data)), status))
             except Exception:
-                logger.info('PUT Object {} {}'.format(key, status))
+                logger.debug('PUT Object {} {}'.format(key, status))
         except ibm_botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == "NoSuchKey":
                 raise StorageNoSuchKeyError(key)

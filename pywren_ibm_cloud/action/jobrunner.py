@@ -24,13 +24,15 @@ import logging
 import inspect
 import pickle
 import numpy as np
+from multiprocessing import Process
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
+from pywren_ibm_cloud.utils import sizeof_fmt
+from pywren_ibm_cloud.future import ResponseFuture
 from pywren_ibm_cloud.libs.tblib import pickling_support
 from pywren_ibm_cloud.utils import get_current_memory_usage
 from pywren_ibm_cloud.storage.backends.cos import COSBackend
 from pywren_ibm_cloud.storage.backends.swift import SwiftBackend
-from pywren_ibm_cloud.future import ResponseFuture
 
 pickling_support.install()
 level = logging.INFO
@@ -65,11 +67,13 @@ class stats:
         self.stats_fid.close()
 
 
-class jobrunner:
+class jobrunner(Process):
 
-    def __init__(self):
+    def __init__(self, config_location, result_queue):
+        super(jobrunner, self).__init__()
         start_time = time.time()
-        self.config = load_config(sys.argv[1])
+        self.result_queue = result_queue
+        self.config = load_config(config_location)
         self.stats = stats(self.config['stats_filename'])
         self.stats.write('jobrunner_start', start_time)
         self.storage_config = json.loads(os.environ.get('STORAGE_CONFIG', ''))
@@ -188,10 +192,11 @@ class jobrunner:
 
         return data
 
-    def run_function(self):
+    def run(self):
         """
         Runs the function
         """
+        logger.info("Started")
         # initial output file in case job fails
         output_dict = {'result': None,
                        'success': False}
@@ -277,14 +282,10 @@ class jobrunner:
 
             if store_result:
                 output_upload_timestamp_t1 = time.time()
+                logger.info("Storing {} - Size: {}".format(self.output_key, sizeof_fmt(len(pickled_output))))
                 self.internal_storage.put_data(self.output_key, pickled_output)
                 output_upload_timestamp_t2 = time.time()
                 self.stats.write("output_upload_time",
                                  output_upload_timestamp_t2 - output_upload_timestamp_t1)
-
-
-if __name__ == '__main__':
-    logger.info("Jobrunner started")
-    jr = jobrunner()
-    jr.run_function()
-    logger.info("Jobrunner finished")
+            self.result_queue.put("Finished")
+            logger.info("Finished")

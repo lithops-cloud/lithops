@@ -19,28 +19,32 @@ import time
 import logging
 import random
 from pywren_ibm_cloud.cf_connector import CloudFunctions
+from pywren_ibm_cloud.wrenconfig import extract_cf_config
 
 logger = logging.getLogger(__name__)
 
 
 class IBMCloudFunctionsInvoker:
 
-    def __init__(self, cf_config, retry_config):
+    def __init__(self, config):
         self.log_level = os.getenv('PYWREN_LOG_LEVEL')
+        cf_config = extract_cf_config(config)
         self.namespace = cf_config['namespace']
         self.endpoint = cf_config['endpoint']
-        self.runtime_name = cf_config['runtime']
+        self.runtime = cf_config['runtime']
         self.runtime_memory = int(cf_config['runtime_memory'])
+        self.runtime_timeout = int(cf_config['runtime_timeout'])
 
-        self.action_name = self.runtime_name.replace('/', '@').replace(':', '_')
+        self.action_name = self.runtime.replace('/', '@').replace(':', '_')
         self.action_name = '{}_{}'.format(self.action_name, self.runtime_memory)
 
-        self.invocation_retry = retry_config['invocation_retry']
-        self.retry_sleeps = retry_config['retry_sleeps']
-        self.retries = retry_config['retries']
+        self.invocation_retry = config['pywren']['invocation_retry']
+        self.retry_sleeps = config['pywren']['retry_sleeps']
+        self.retries = config['pywren']['retries']
+
         self.client = CloudFunctions(cf_config)
 
-        log_msg = 'IBM Cloud Functions init for Runtime: {} - {}MB'.format(self.runtime_name, self.runtime_memory)
+        log_msg = 'IBM Cloud Functions init for Runtime: {} - {}MB'.format(self.runtime, self.runtime_memory)
         logger.info(log_msg)
         if not self.log_level:
             print(log_msg, end=' ')
@@ -70,7 +74,8 @@ class IBMCloudFunctionsInvoker:
         """
         Return config dict
         """
-        return {'cf_runtime_name': self.runtime_name,
+        return {'cf_runtime': self.runtime,
                 'cf_runtime_memory': self.runtime_memory,
+                'cf_runtime_timeout': self.runtime_timeout,
                 'cf_namespace': self.namespace,
                 'cf_endpoint': self.endpoint}

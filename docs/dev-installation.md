@@ -83,18 +83,17 @@ PyWren-IBM-Cloud shipped with default runtimes:
 
 | Runtime name | Python version | Packages included |
 | ----| ----| ---- |
-| ibmfunctions/pywren:3.5 | 3.5 |  |
+| ibmfunctions/pywren:3.5 | 3.5 | [list of packages](https://github.com/ibm-functions/runtime-python/blob/master/python3.6/CHANGELOG.md) |
 | ibmfunctions/action-python-v3.6 | 3.6 | [list of packages](https://github.com/ibm-functions/runtime-python/blob/master/python3.6/CHANGELOG.md) |
 | ibmfunctions/action-python-v3.7 | 3.7 | [list of packages](https://github.com/ibm-functions/runtime-python/blob/master/python3.7/CHANGELOG.md) |
 
 To update the default runtime, navigate into `runtime` folder and execute:
 
-	./deploy_runtime
+	./deploy_runtime default
 
-To update all the already deployed runtimes, navigate into `runtime` folder and execute:
+To update any other runtime, navigate into `runtime` folder and execute:
 
-	./deploy_runtime update
+	./deploy_runtime update <docker_username/runtimename:tag>
 
-This script will automatically create the corresponding runtime based on IBM docker image (Debian Jessie). 
 
 If your client uses different Python version or there is need to add additional packages to the runtime, then it is necessary to build a custom runtime. Detail instructions can be found [here](../runtime/).

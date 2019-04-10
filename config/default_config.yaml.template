@@ -3,21 +3,21 @@ pywren:
     #storage_prefix: pywren.jobs
     #storage_backend: ibm_cos
     #data_cleaner: <True/False>
+    #runtime :
+    #runtime_timeout: 600000     # Default timeout
+    #runtime_memory: 256         # Default memory
     #invocation_retry: <True/False>
     #retry_sleeps: [1, 5, 10, 20, 30]
     #retries: 5
 
 ibm_cf:
-    endpoint    : <CF_API_ENDPOINT>
-    namespace   : <CF_NAMESPACE>
-    api_key     : <CF_API_KEY>
-    #action_timeout: 600000     # Default timeout
-    #action_memory: 256         # Default memory
+    endpoint    : <HOST>
+    namespace   : <NAMESPACE>
+    api_key     : <API_KEY>
 
 ibm_cos:
-    endpoint   : <COS_API_ENDPOINT>
+    endpoint   : <REGION_ENDPOINT>
     api_key    : <API_KEY>
-    #ibm_auth_endpoint: <COS AUTH ENDPOINT> # Optional
     #access_key : <ACCESS_KEY>  # Optional
     #secret_key : <SECRET_KEY>  # Optional
     

@@ -18,17 +18,18 @@ import base64
 import json
 import logging
 import os
-import signal
 import subprocess
 import time
 import traceback
 import pika
-from threading import Thread
-from queue import Queue
+import multiprocessing
 from pywren_ibm_cloud import version
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
+from pywren_ibm_cloud.utils import sizeof_fmt
+from pywren_ibm_cloud.action.jobrunner import jobrunner
+
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('wrenhandler')
@@ -136,57 +137,31 @@ def ibm_cloud_function_handler(event):
         if os.path.exists(JOBRUNNER_STATS_FILENAME):
             os.remove(JOBRUNNER_STATS_FILENAME)
 
-        cmdstr = "python {} {}".format(JOBRUNNER_PATH, JOBRUNNER_CONFIG_FILENAME)
-
-        logger.info("About to execute '{}'".format(cmdstr))
         setup_time = time.time()
         response_status['setup_time'] = setup_time - start_time
 
-        """
-        stdout = os.popen(cmdstr).read()
-        print(stdout)
-        process = subprocess.run(cmdstr, shell=True, env=local_env, bufsize=1,
-                                 stdout=subprocess.PIPE, preexec_fn=os.setsid,
-                                 universal_newlines=True, timeout=job_max_runtime)
-
-        print(process.stdout)
-        """
-        # This is copied from http://stackoverflow.com/a/17698359/4577954
-        # reasons for setting process group: http://stackoverflow.com/a/4791612
-        local_env = os.environ.copy()
-        process = subprocess.Popen(cmdstr, shell=True, env=local_env, bufsize=1,
-                                   stdout=subprocess.PIPE, preexec_fn=os.setsid,
-                                   universal_newlines=True)
-
+        result_queue = multiprocessing.Queue()
+        jr = jobrunner(JOBRUNNER_CONFIG_FILENAME, result_queue)
+        jr.daemon = True
         logger.info("Launched jobrunner process")
-
-        def consume_stdout(stdout, queue):
-            with stdout:
-                for line in stdout:
-                    print(line, end='')
-                    queue.put(line)
-
-        q = Queue()
-
-        t = Thread(target=consume_stdout, args=(process.stdout, q))
-        t.daemon = True
-        t.start()
-        t.join(job_max_runtime)
-
+        jr.start()
+        jr.join(job_max_runtime)
         response_status['exec_time'] = time.time() - setup_time
 
-        if t.isAlive():
-            # If process is still alive after t.join(job_max_runtime), kill it
+        if jr.is_alive():
+            # If process is still alive after jr.join(job_max_runtime), kill it
             logger.error("Process exceeded maximum runtime of {} sec".format(job_max_runtime))
             # Send the signal to all the process groups
-            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+            jr.terminate()
             raise Exception("OUTATIME",  "Process executed for too long and was killed")
 
-        if not q.empty():
-            if 'Jobrunner finished' not in q.queue[q.qsize()-1].strip():
-                raise Exception("OUTOFMEMORY",  "Process exceeded maximum memory and was killed")
+        try:
+            # Only 1 message is returned by jobrunner
+            result_queue.get(block=False)
+        except Exception:
+            # If no mesage, this means that the process was killed due memory usage
+            raise Exception("OUTOFMEMORY",  "Process exceeded maximum memory and was killed")
 
-        logger.info("Command execution finished")
         # print(subprocess.check_output("find {}".format(PYTHON_MODULE_PATH), shell=True))
         # print(subprocess.check_output("find {}".format(os.getcwd()), shell=True))
 
@@ -196,7 +171,7 @@ def ibm_cloud_function_handler(event):
                     key, value = l.strip().split(" ")
                     try:
                         response_status[key] = float(value)
-                    except:
+                    except Exception:
                         response_status[key] = value
 
         response_status['host_submit_time'] = event['host_submit_time']
@@ -222,11 +197,15 @@ def ibm_cloud_function_handler(event):
             status = 'ok'
             if response_status['exception']:
                 status = 'error'
-            new_futures = response_status['new_futures']
-            channel.basic_publish(exchange='', routing_key=executor_id,
-                                  body='{}/{}:{}:{}'.format(callgroup_id, call_id,
-                                                            status,  new_futures))
-            logger.info("Status sent to rabbitmq")
+            try:
+                new_futures = response_status['new_futures']
+                channel.basic_publish(exchange='', routing_key=executor_id,
+                                      body='{}/{}:{}:{}'.format(callgroup_id, call_id,
+                                                                status,  new_futures))
+                logger.info("Status sent to rabbitmq")
+            except Exception:
+                logger.error("Unable to send status to rabbitmq")
+
             connection.close()
 
         store_status = True
@@ -235,4 +214,5 @@ def ibm_cloud_function_handler(event):
 
         if store_status:
             internal_storage = storage.InternalStorage(storage_config)
+            logger.info("Storing {} - Size: {}".format(status_key, sizeof_fmt(len(response_status))))
             internal_storage.put_data(status_key, json.dumps(response_status))
