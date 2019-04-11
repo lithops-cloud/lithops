@@ -21,9 +21,7 @@ def partition_processor(map_function):
         if data_byte_range is not None:
             range_str = 'bytes={}-{}'.format(*data_byte_range)
             extra_get_args['Range'] = range_str
-            logger.info('Chunk range: {}'.format(extra_get_args['Range']))
 
-        logger.info('Getting dataset')
         if 'url' in map_func_args:
             # it is a public url
             resp = requests.get(map_func_args['url'], headers=extra_get_args, stream=True)
@@ -37,9 +35,13 @@ def partition_processor(map_function):
                 bucket = map_func_args['bucket']
                 key = map_func_args['key']
 
+            logger.info('Getting dataset from cos://{}/{}'.format(bucket, key))
             sb = storage.get_object(bucket, key, stream=True, extra_get_args=extra_get_args)
-            wsb = WrappedStreamingBodyPartition(sb, chunk_size, data_byte_range)
-            map_func_args['data_stream'] = wsb
+            if data_byte_range is not None:
+                logger.info('Chunk range: {}'.format(extra_get_args['Range']))
+                map_func_args['data_stream'] = WrappedStreamingBodyPartition(sb, chunk_size, data_byte_range)
+            else:
+                map_func_args['data_stream'] = sb
 
         func_sig = inspect.signature(map_function)
         if 'ibm_cos' in func_sig.parameters:

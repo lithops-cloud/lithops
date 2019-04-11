@@ -40,27 +40,31 @@ class COSBackend:
         logger.debug("Set IBM COS Auth Endpoint to {}".format(ibm_auth_endpoint))
 
         if 'api_key' in cos_config:
-            logger.debug("IBM COS using api_key")
             client_config = ibm_botocore.client.Config(signature_version='oauth',
                                                        max_pool_connections=128,
                                                        user_agent_extra='pywren-ibm-cloud',
                                                        connect_timeout=1)
             api_key = cos_config.get('api_key')
-            token_manager = DefaultTokenManager(api_key_id=api_key)
+            token_manager = DefaultTokenManager(api_key_id=api_key, auth_endpoint=ibm_auth_endpoint)
 
-            if 'token' in cos_config:
-                logger.debug("IBM COS using api_key - using token")
-                token_manager._token = cos_config['token']
-                expiry_time = cos_config['token_expiry_time']
-                token_manager._expiry_time = datetime.strptime(expiry_time, '%Y-%m-%d %H:%M:%S.%f%z')
-            else:
-                logger.debug("IBM COS using api_key - requesting new token")
+            if 'token' not in cos_config:
+                logger.debug("IBM COS: Using api_key - Requesting new token")
                 cos_config['token'] = token_manager.get_token()
                 cos_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
 
+            else:
+                logger.debug("IBM COS: Using api_key - Using token")
+                token_manager._token = cos_config['token']
+                expiry_time = cos_config['token_expiry_time']
+                token_manager._expiry_time = datetime.strptime(expiry_time, '%Y-%m-%d %H:%M:%S.%f%z')
+
+                if token_manager._is_expired():
+                    logger.debug("IBM COS: Using api_key - Token expired, requesting new token")
+                    cos_config['token'] = token_manager.get_token()
+                    cos_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
+
             self.cos_client = ibm_boto3.client('s3', token_manager=token_manager,
                                                config=client_config,
-                                               ibm_auth_endpoint=ibm_auth_endpoint,
                                                endpoint_url=service_endpoint)
 
         elif {'secret_key', 'access_key'} <= set(cos_config):
@@ -68,12 +72,12 @@ class COSBackend:
             access_key = cos_config.get('access_key')
             secret_key = cos_config.get('secret_key')
             client_config = ibm_botocore.client.Config(max_pool_connections=128,
-                                                       user_agent_extra='pywren-ibm-cloud')
+                                                       user_agent_extra='pywren-ibm-cloud',
+                                                       connect_timeout=1)
             self.cos_client = ibm_boto3.client('s3',
                                                aws_access_key_id=access_key,
                                                aws_secret_access_key=secret_key,
                                                config=client_config,
-                                               ibm_auth_endpoint=ibm_auth_endpoint,
                                                endpoint_url=service_endpoint)
 
     def get_client(self):

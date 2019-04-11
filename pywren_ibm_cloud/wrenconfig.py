@@ -22,7 +22,7 @@ from pywren_ibm_cloud.utils import version_str, is_cf_cluster
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
 COS_BUCKET_DEFAULT = "pywren.data"
 COS_PREFIX_DEFAULT = "pywren.jobs"
-COS_AUTH_ENDPOINT_DEFAULT = 'https://iam.cloud.ibm.com'
+COS_AUTH_ENDPOINT_DEFAULT = 'https://iam.cloud.ibm.com/oidc/token'
 
 RUNTIME_DEFAULT_35 = 'ibmfunctions/pywren:3.5'
 RUNTIME_DEFAULT_36 = 'ibmfunctions/action-python-v3.6'

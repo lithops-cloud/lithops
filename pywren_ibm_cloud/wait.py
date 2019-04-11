@@ -285,9 +285,15 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
 
     def get_result(f):
         f.result(throw_except=throw_except, internal_storage=internal_storage)
+        if pbar and f.done:
+            pbar.update(1)
+            pbar.refresh()
 
     def get_status(f):
         f.status(throw_except=throw_except, internal_storage=internal_storage)
+        if pbar and f.ready:
+            pbar.update(1)
+            pbar.refresh()
 
     if download_results:
         pool.map(get_result, f_to_wait_on)
@@ -296,12 +302,6 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
 
     pool.close()
     pool.join()
-
-    for f in f_to_wait_on:
-        if pbar and (f.done or f.ready):
-            pbar.update(1)
-    if pbar:
-        pbar.refresh()
 
     # Check for new futures
     new_futures = [f.result() for f in f_to_wait_on if f.futures]
