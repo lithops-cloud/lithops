@@ -92,7 +92,7 @@ class InternalStorage:
         """
         # TODO: a better API for this is to return status for all calls in the callset. We'll fix
         #  this in scheduler refactoring.
-        callset_prefix = os.path.join(self.prefix, executor_id)
+        callset_prefix = os.path.join(self.prefix, executor_id).replace("\\", "/")
         keys = self.backend_handler.list_keys_with_prefix(self.storage_bucket, callset_prefix)
         suffix = status_key_suffix
         status_keys = [k for k in keys if suffix in k]
@@ -132,7 +132,7 @@ class InternalStorage:
         :param runtime: name of the runtime
         :return: runtime metadata
         """
-        key = os.path.join('runtimes', __version__,  runtime_name+".meta.json")
+        key = os.path.join('runtimes', __version__,  runtime_name+".meta.json").replace("\\", "/")
         try:
             json_str = self.backend_handler.get_object(self.storage_bucket, key)
             runtime_meta = json.loads(json_str.decode("ascii"))
@@ -146,7 +146,7 @@ class InternalStorage:
         :param runtime: name of the runtime
         :param runtime_meta metadata
         """
-        key = os.path.join('runtimes', __version__, runtime_name+".meta.json")
+        key = os.path.join('runtimes', __version__, runtime_name+".meta.json").replace("\\", "/")
         self.backend_handler.put_object(self.storage_bucket, key, json.dumps(runtime_meta))
 
     def list_temporal_data(self, executor_id):

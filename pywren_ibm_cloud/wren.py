@@ -445,7 +445,7 @@ class ibm_cf_executor:
         """
         storage_bucket = self.config['pywren']['storage_bucket']
         storage_prerix = self.config['pywren']['storage_prefix']
-        storage_prerix = os.path.join(storage_prerix, self.executor_id)
+        storage_prerix = os.path.join(storage_prerix, self.executor_id).replace("\\", "/")
 
         msg = "Executor ID {} Cleaning partial results from cos://{}/{}".format(self.executor_id,
                                                                                 storage_bucket,

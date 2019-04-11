@@ -37,7 +37,7 @@ class SwiftBackend:
         self.password = swift_config['swift_password']
         self.region = swift_config['swift_region']
         self.endpoint = None
-        
+
         if 'token' in swift_config:
             self.token = swift_config['token']
             self.endpoint = swift_config['endpoint']
@@ -45,7 +45,7 @@ class SwiftBackend:
             self.token = self.generate_swift_token()
             swift_config['token'] = self.token
             swift_config['endpoint'] = self.endpoint
-            
+
         self.session = requests.session()
         self.session.headers.update({'X-Auth-Token': self.token})
         adapter = requests.adapters.HTTPAdapter(pool_maxsize=64, max_retries=3)
@@ -63,8 +63,8 @@ class SwiftBackend:
         json_data = json.dumps(data)
 
         r = requests.post(url, data=json_data, headers=headers)
-        
-        if r.status_code == 201: 
+
+        if r.status_code == 201:
             backend_info = json.loads(r.text)
 
             for service in backend_info['token']['catalog']:
@@ -72,7 +72,7 @@ class SwiftBackend:
                     for endpoint in service['endpoints']:
                         if endpoint['region'] == self.region:
                             if endpoint['interface'] == 'public':
-                                self.endpoint = endpoint['url'].replace('https:','http:')
+                                self.endpoint = endpoint['url'].replace('https:', 'http:')
 
             if not self.endpoint:
                 raise Exception('Invalid region name')
@@ -90,17 +90,17 @@ class SwiftBackend:
         :type data: str/bytes
         :return: None
         """
-        url = os.path.join(self.endpoint, container_name, key)
+        url = os.path.join(self.endpoint, container_name, key).replace("\\", "/")
         try:
             res = self.session.put(url, data=data)
             status = 'OK' if res.status_code == 201 else 'Error'
             try:
                 logger.debug('PUT Object {} - Size: {} - {}'.format(key, sizeof_fmt(len(data)), status))
-            except:
+            except Exception:
                 logger.debug('PUT Object {} - {}'.format(key, status))
         except Exception as e:
             print(e)
-            
+
     def get_object(self, container_name, key, stream=False, extra_get_args={}):
         """
         Get object from Swift with a key. Throws StorageNoSuchKeyError if the given key does not exist.
@@ -110,8 +110,8 @@ class SwiftBackend:
         """
         if not container_name:
             container_name = self.storage_container
-        url = os.path.join(self.endpoint, container_name, key)
-        headers={'X-Auth-Token': self.token}
+        url = os.path.join(self.endpoint, container_name, key).replace("\\", "/")
+        headers = {'X-Auth-Token': self.token}
         headers.update(extra_get_args)
         try:
             res = self.session.get(url, headers=headers, stream=stream)
@@ -130,7 +130,7 @@ class SwiftBackend:
         except Exception as e:
             print(e)
             raise StorageNoSuchKeyError(key)
-    
+
     def head_object(self, container_name, key):
         """
         Head object from Swift with a key. Throws StorageNoSuchKeyError if the given key does not exist.
@@ -138,25 +138,25 @@ class SwiftBackend:
         :return: Data of the object
         :rtype: str/bytes
         """
-        url = os.path.join(self.endpoint, container_name, key)
+        url = os.path.join(self.endpoint, container_name, key).replace("\\", "/")
         try:
             res = self.session.head(url)
             if res.status_code == 200:
-                return res.headers        
+                return res.headers
             elif res.status_code == 404:
                 raise StorageNoSuchKeyError(key)
             else:
                 raise Exception('{} - {}'.format(res.status_code, key))
-        except:
+        except Exception as e:
             raise StorageNoSuchKeyError(key)
-    
+
     def delete_object(self, container_name, key):
         """
         Delete an object from Swift.
         :param bucket: bucket name
         :param key: data key
         """
-        url = os.path.join(self.endpoint, container_name, key)
+        url = os.path.join(self.endpoint, container_name, key).replace("\\", "/")
         return self.session.delete(url)
 
     def delete_objects(self, container_name, key_list):
@@ -171,11 +171,11 @@ class SwiftBackend:
         keys_to_delete = []
         for key in key_list:
             keys_to_delete.append('/{}/{}'.format(container_name, key))
-        
+
         keys_to_delete = '\n'.join(keys_to_delete)
-        url = os.path.join(self.endpoint, '?bulk-delete')
+        url = os.path.join(self.endpoint, '?bulk-delete').replace("\\", "/")
         return self.session.delete(url, data=keys_to_delete, headers=headers)
-   
+
     def bucket_exists(self, container_name):
         """
         Head container from Swift with a name. Throws StorageNoSuchKeyError if the given container does not exist.
@@ -183,18 +183,18 @@ class SwiftBackend:
         :return: Data of the bucket
         :rtype: str/bytes
         """
-        url = os.path.join(self.endpoint, container_name)
+        url = os.path.join(self.endpoint, container_name).replace("\\", "/")
         try:
             res = self.session.head(url)
             if res.status_code == 204:
-                return res.headers        
+                return res.headers
             elif res.status_code == 404:
                 raise StorageNoSuchKeyError(container_name)
             else:
                 raise Exception('{} - {}'.format(res.status_code))
-        except:
+        except Exception as e:
             raise StorageNoSuchKeyError(container_name)
-    
+
     def list_objects(self, container_name, prefix=''):
         """
         Lists the objects in a bucket. Throws StorageNoSuchKeyError if the given bucket does not exist.
@@ -203,13 +203,13 @@ class SwiftBackend:
         :rtype: str/bytes
         """
         if prefix: 
-            url = os.path.join(self.endpoint, container_name,'?format=json&prefix='+prefix)
+            url = os.path.join(self.endpoint, container_name, '?format=json&prefix='+prefix).replace("\\", "/")
         else:
-            url = os.path.join(self.endpoint, container_name,'?format=json')
+            url = os.path.join(self.endpoint, container_name, '?format=json').replace("\\", "/")
         try:
             res = self.session.get(url)
             objects = res.json()
-            
+
             # TODO: Adapt to Key and Size
             return objects
         except Exception as e:

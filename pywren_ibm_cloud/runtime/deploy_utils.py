@@ -17,6 +17,7 @@
 import os
 import sys
 import logging
+import zipfile
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.storage import storage
@@ -24,7 +25,7 @@ from pywren_ibm_cloud.cf_connector import CloudFunctions
 
 logger = logging.getLogger(__name__)
 
-ZIP_LOCATION = os.getcwd()+'/ibmcf_pywren.zip'
+ZIP_LOCATION = os.path.join(os.getcwd(), 'ibmcf_pywren.zip')
 
 
 def _get_pywren_location():
@@ -34,23 +35,24 @@ def _get_pywren_location():
 
 
 def _create_zip_action():
-    pywren_location = _get_pywren_location()
 
-    cmd = 'cd ' + pywren_location + '/..; zip -FSr "' + ZIP_LOCATION + '" pywren_ibm_cloud/ -x "*__pycache__*"'
-    res = os.popen(cmd)
-    result = res.read()
-    logger.debug(result)
-    code = res.close()
-    if code:
+    def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
+        for file in os.listdir(full_dir_path):
+            full_path = os.path.join(full_dir_path, file)
+            if os.path.isfile(full_path):
+                zip_file.write(full_path, os.path.join('pywren_ibm_cloud', sub_dir, file), zipfile.ZIP_DEFLATED)
+            elif os.path.isdir(full_path) and '__pycache__' not in full_path:
+                add_folder_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
+
+    try:
+        pywren_location = _get_pywren_location()
+
+        with zipfile.ZipFile(ZIP_LOCATION, 'w') as ibmcf_pywren_zip:
+            main_file = os.path.join(pywren_location, 'action', '__main__.py')
+            ibmcf_pywren_zip.write(main_file, '__main__.py', zipfile.ZIP_DEFLATED)
+            add_folder_to_zip(ibmcf_pywren_zip, pywren_location)
+    except Exception:
         raise Exception('Unable to create the {} action package'.format(ZIP_LOCATION))
-
-    cmd = 'cd ' + pywren_location + '/action; zip -r "' + ZIP_LOCATION + '" __main__.py'
-    res = os.popen(cmd)
-    result = res.read()
-    logger.debug(result)
-    code = res.close()
-    if code:
-        raise Exception('Unable to add __main__.py into the {} action package'.format(ZIP_LOCATION))
 
 
 def _extract_modules(image_name, memory, cf_client, config):
