@@ -214,5 +214,6 @@ def ibm_cloud_function_handler(event):
 
         if store_status:
             internal_storage = storage.InternalStorage(storage_config)
+            response_status = json.dumps(response_status)
             logger.info("Storing {} - Size: {}".format(status_key, sizeof_fmt(len(response_status))))
-            internal_storage.put_data(status_key, json.dumps(response_status))
+            internal_storage.put_data(status_key, response_status)

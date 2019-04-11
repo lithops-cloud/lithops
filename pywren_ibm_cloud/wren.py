@@ -346,6 +346,7 @@ class ibm_cf_executor:
                  throw_except=throw_except, pbar=pbar, THREADPOOL_SIZE=THREADPOOL_SIZE,
                  WAIT_DUR_SEC=WAIT_DUR_SEC)
             result = [f.result() for f in ftrs if f.done and not f.futures]
+            self._state = ExecutorState.result
 
         except TimeoutError:
             if pbar:
@@ -369,9 +370,10 @@ class ibm_cf_executor:
             logger.info(msg)
             if not self.log_level:
                 print(msg)
-            if self.data_cleaner and not self.is_cf_cluster:
-                self.clean()
-            exit()
+            self._state = ExecutorState.error
+            result = None
+            if not is_notebook():
+                exit()
 
         finally:
             signal.alarm(0)
@@ -380,7 +382,6 @@ class ibm_cf_executor:
                 print()
             if self.data_cleaner and not self.is_cf_cluster:
                 self.clean()
-            self._state = ExecutorState.result
 
         msg = "Executor ID {} Finished getting results".format(self.executor_id)
         logger.info(msg)
@@ -446,9 +447,9 @@ class ibm_cf_executor:
         storage_prerix = self.config['pywren']['storage_prefix']
         storage_prerix = os.path.join(storage_prerix, self.executor_id)
 
-        msg = ("Executor ID {} Cleaning partial results from 'cos://{}/{}'".format(self.executor_id,
-                                                                                   storage_bucket,
-                                                                                   storage_prerix))
+        msg = "Executor ID {} Cleaning partial results from cos://{}/{}".format(self.executor_id,
+                                                                                storage_bucket,
+                                                                                storage_prerix)
         logger.info(msg)
         if not self.log_level:
             print(msg)

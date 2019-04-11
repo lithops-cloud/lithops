@@ -215,11 +215,11 @@ class jobrunner(Process):
                 logger.debug("Memory usage before call the function: {}".format(get_current_memory_usage()))
 
             logger.info("Function: Going to execute '{}()'".format(str(function.__name__)))
-            print('------------------- FUNCTION LOG -------------------')
+            print('------------------- FUNCTION LOG -------------------', flush=True)
             func_exec_time_t1 = time.time()
             result = function(**data)
             func_exec_time_t2 = time.time()
-            print('----------------------------------------------------')
+            print('----------------------------------------------------', flush=True)
             logger.info("Function: Success execution")
 
             if self.show_memory:
