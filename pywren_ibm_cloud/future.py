@@ -99,7 +99,7 @@ class ResponseFuture:
 
     @property
     def ready(self):
-        if self._state in [JobState.ready, JobState.futures, JobState.error]:
+        if self._state in [JobState.ready, JobState.success, JobState.futures, JobState.error]:
             return True
         return False
 
