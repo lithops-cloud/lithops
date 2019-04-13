@@ -20,6 +20,7 @@ import uuid
 import inspect
 import subprocess
 import struct
+import platform
 
 
 def uuid_str():
@@ -40,6 +41,11 @@ def timeout_handler(signum, frame):
 
 def version_str(version_info):
     return "{}.{}".format(version_info[0], version_info[1])
+
+
+def is_unix_system():
+    curret_system = platform.system()
+    return curret_system != 'Windows'
 
 
 def is_cf_cluster():

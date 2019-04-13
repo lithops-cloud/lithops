@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 
-import base64
 import json
 import logging
 import os
@@ -32,9 +31,7 @@ from pywren_ibm_cloud.action.jobrunner import jobrunner
 
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
-logger = logging.getLogger('wrenhandler')
-
-JOBRUNNER_PATH = "pywren_ibm_cloud/action/jobrunner.py"
+logger = logging.getLogger('handler')
 
 PYTHON_MODULE_PATH = "/tmp/pymodules"
 JOBRUNNER_CONFIG_FILENAME = "/tmp/jobrunner.config.json"
@@ -50,15 +47,12 @@ def free_disk_space(dirname):
     return s.f_bsize * s.f_bavail
 
 
-def b64str_to_bytes(str_data):
-    str_ascii = str_data.encode('ascii')
-    byte_data = base64.b64decode(str_ascii)
-    return byte_data
-
-
 def get_server_info():
-    server_info = {'uname': subprocess.check_output("uname -a", shell=True).decode("ascii").strip(),
-                   'ip_adress': subprocess.check_output("hostname -I", shell=True).decode("ascii").strip()}
+    server_info = {'hostname': subprocess.check_output("uname -n", shell=True).decode("ascii").strip(),
+                   'ip_address': subprocess.check_output("hostname -I", shell=True).decode("ascii").strip(),
+                   'net_speed': subprocess.check_output("cat /sys/class/net/eth0/speed | awk '{print $0 / 1000\"GbE\"}'", shell=True).decode("ascii").strip(),
+                   'cores': subprocess.check_output("nproc", shell=True).decode("ascii").strip(),
+                   'memory': subprocess.check_output("grep MemTotal /proc/meminfo | awk '{print $2 / 1024 / 1024\"GB\"}'", shell=True).decode("ascii").strip()}
     """
     if os.path.exists("/proc"):
         server_info.update({'/proc/cpuinfo': open("/proc/cpuinfo", 'r').read(),
