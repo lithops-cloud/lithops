@@ -134,29 +134,23 @@ You can also build custom runtimes with libraries that your functions depends on
 
 ## Verify 
 
-To test that all is working, run the [testpywren.py](test/testpywren.py) located in the `test` folder with the arguments listed below.
+To test that all is working, execute:
+```python
+import pywren_ibm_cloud as pywren
+pywren.test()
+```
+Notice that if you didn't set a local PyWren's config file, you need to provide it as a dictionary by the `config` parameter of `test()` method which uses the default local config file if this parameter is `None`. 
 
-For initializing test files using IBM Cloud Object Storage service, execute once from the project root folder:
-
-	python3 test/testpywren.py init
-	
-and then execute:
+Alternatively, for debugging purposes, you can also run [testpywren.py](pywren_ibm_cloud/testpywren.py) directly which located in the `pywren_ibm_cloud` folder with the arguments listed below.
 
 | Command | Explanation |
 |---| ---| 
-| `python3 test/testpywren.py` | test all PyWren's functionality |
-| `python3 test/testpywren.py pywren` | test PyWren without Cloud Object Storage service |
-| `python3 test/testpywren.py pywren_cos` | test PyWren using Cloud Object Storage service only |
-| `python3 test/testpywren.py <FUNC_NAME>` | run a specific test function by its name as implemented in the test file |
+| `python3 pywren_ibm_cloud/testpywren.py` | test all PyWren's functionality |
+| `python3 pywren_ibm_cloud/testpywren.py pywren` | test PyWren without Cloud Object Storage service |
+| `python3 pywren_ibm_cloud/testpywren.py pywren_cos` | test PyWren using Cloud Object Storage service only |
+| `python3 pywren_ibm_cloud/testpywren.py <FUNC_NAME>` | run a specific test function by its name as implemented in the test file |
 
-To clean test files stored in Cloud Object Storage service, execute:
-
-    python3 test/testpywren.py clean
-
-_NOTE:_ The test script assumes that a local PyWren's config file was set correctly.
-
-To edit tests' data, open the [data](test/data) file located in the `test` folder and simply add or remove text URL files.
-
+The test script assumes that a local PyWren's config file was set correctly.
 
 ## How to use PyWren for IBM Cloud Functions
 
