@@ -48,8 +48,9 @@ def free_disk_space(dirname):
 
 
 def get_server_info():
-    server_info = {'hostname': subprocess.check_output("uname -n", shell=True).decode("ascii").strip(),
+    server_info = {'container_name': subprocess.check_output("uname -n", shell=True).decode("ascii").strip(),
                    'ip_address': subprocess.check_output("hostname -I", shell=True).decode("ascii").strip(),
+                   # 'mac_address': subprocess.check_output("cat /sys/class/net/eth0/address", shell=True).decode("ascii").strip(),
                    'net_speed': subprocess.check_output("cat /sys/class/net/eth0/speed | awk '{print $0 / 1000\"GbE\"}'", shell=True).decode("ascii").strip(),
                    'cores': subprocess.check_output("nproc", shell=True).decode("ascii").strip(),
                    'memory': subprocess.check_output("grep MemTotal /proc/meminfo | awk '{print $2 / 1024 / 1024\"GB\"}'", shell=True).decode("ascii").strip()}

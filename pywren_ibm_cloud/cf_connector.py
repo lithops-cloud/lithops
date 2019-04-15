@@ -14,16 +14,18 @@
 # limitations under the License.
 #
 
-import requests
-import base64
 import os
-import json
 import ssl
-from urllib.parse import urlparse
-import http.client
-import logging
+import json
 import time
+import base64
+import logging
+import requests
+import http.client
+from urllib.parse import urlparse
 from pywren_ibm_cloud.version import __version__
+from pywren_ibm_cloud.utils import is_cf_cluster
+
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +41,7 @@ class CloudFunctions:
         self.namespace = config['namespace']
         self.default_runtime_memory = int(config['runtime_memory'])
         self.default_runtime_timeout = int(config['runtime_timeout'])
-        self.is_cf_cluster = config['is_cf_cluster']
+        self.is_cf_cluster = is_cf_cluster()
         self.package = 'pywren_v'+__version__
 
         auth = base64.encodebytes(self.api_key).replace(b'\n', b'')

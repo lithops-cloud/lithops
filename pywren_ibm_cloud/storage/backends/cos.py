@@ -18,8 +18,8 @@ import logging
 import ibm_boto3
 import ibm_botocore
 from datetime import datetime
-from pywren_ibm_cloud.utils import sizeof_fmt
 from ibm_botocore.credentials import DefaultTokenManager
+from pywren_ibm_cloud.utils import sizeof_fmt, is_cf_cluster
 from pywren_ibm_cloud.storage.exceptions import StorageNoSuchKeyError
 
 logging.getLogger('ibm_boto3').setLevel(logging.CRITICAL)
@@ -34,7 +34,12 @@ class COSBackend:
     """
 
     def __init__(self, cos_config):
+        self.is_cf_cluster = is_cf_cluster()
+
         service_endpoint = cos_config.get('endpoint').replace('http:', 'https:')
+        if self.is_cf_cluster and 'private_endpoint' in cos_config:
+            service_endpoint = cos_config.get('private_endpoint').replace('http:', 'https:')
+
         ibm_auth_endpoint = cos_config['ibm_auth_endpoint']
         logger.debug("Set IBM COS Endpoint to {}".format(service_endpoint))
         logger.debug("Set IBM COS Auth Endpoint to {}".format(ibm_auth_endpoint))
@@ -58,7 +63,8 @@ class COSBackend:
                 expiry_time = cos_config['token_expiry_time']
                 token_manager._expiry_time = datetime.strptime(expiry_time, '%Y-%m-%d %H:%M:%S.%f%z')
 
-                if token_manager._is_expired():
+                if token_manager._is_expired() and not self.is_cf_cluster:
+                    # Only request new token on client machine
                     logger.debug("IBM COS: Using api_key - Token expired, requesting new token")
                     cos_config['token'] = token_manager.get_token()
                     cos_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
