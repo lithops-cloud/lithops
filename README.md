@@ -136,8 +136,8 @@ You can also build custom runtimes with libraries that your functions depends on
 
 To test that all is working, execute:
 ```python
-import pywren_ibm_cloud as pywren
-pywren.test()
+from pywren_ibm_cloud import testpywren
+testpywren.run()
 ```
 Notice that if you didn't set a local PyWren's config file, you need to provide it as a dictionary by the `config` parameter of `test()` method which uses the default local config file if this parameter is `None`. 
 

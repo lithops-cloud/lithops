@@ -29,7 +29,6 @@ from pywren_ibm_cloud.executor import Executor
 from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
 from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_cf_cluster
 from pywren_ibm_cloud.storage.cleaner import clean_os_bucket
-from pywren_ibm_cloud import testpywren
 
 logger = logging.getLogger(__name__)
 
@@ -457,7 +456,3 @@ class ibm_cf_executor:
             sys.stdout = sys.__stdout__
 
         self._state = ExecutorState.finished
-
-
-def test(config=None):
-    testpywren.run(config)
