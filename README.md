@@ -139,7 +139,7 @@ To test that all is working, execute:
 from pywren_ibm_cloud import testpywren
 testpywren.run()
 ```
-Notice that if you didn't set a local PyWren's config file, you need to provide it as a dictionary by the `config` parameter of `test()` method which uses the default local config file if this parameter is `None`. 
+Notice that if you didn't set a local PyWren's config file, you need to provide it as a dictionary by the `config` parameter of `run()` method which uses the default local config file if this parameter is `None`. 
 
 Alternatively, for debugging purposes, you can also run [testpywren.py](pywren_ibm_cloud/testpywren.py) directly which located in the `pywren_ibm_cloud` folder with the arguments listed below.
 
