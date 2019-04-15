@@ -17,7 +17,7 @@
 import os
 import sys
 import json
-from pywren_ibm_cloud.utils import version_str, is_cf_cluster
+from pywren_ibm_cloud.utils import version_str
 
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
 COS_BUCKET_DEFAULT = "pywren.data"
@@ -154,9 +154,6 @@ def default(config_data=None):
 
     if 'ibm_cos' in config_data and 'ibm_auth_endpoint' not in config_data['ibm_cos']:
         config_data['ibm_cos']['ibm_auth_endpoint'] = COS_AUTH_ENDPOINT_DEFAULT
-
-    # True or False depending on whether this code is executed within CF cluster or not
-    config_data['ibm_cf']['is_cf_cluster'] = is_cf_cluster()
 
     if 'rabbitmq' not in config_data or not config_data['rabbitmq'] \
        or 'amqp_url' not in config_data['rabbitmq']:
