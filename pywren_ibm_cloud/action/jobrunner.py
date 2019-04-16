@@ -18,7 +18,6 @@ import os
 import sys
 import json
 import time
-import base64
 import shutil
 import logging
 import inspect
@@ -27,7 +26,8 @@ import numpy as np
 from multiprocessing import Process
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
-from pywren_ibm_cloud.utils import sizeof_fmt
+from pywren_ibm_cloud.utils import sizeof_fmt, b64str_to_bytes
+from pywren_ibm_cloud.wrenconfig import extract_storage_config
 from pywren_ibm_cloud.future import ResponseFuture
 from pywren_ibm_cloud.libs.tblib import pickling_support
 from pywren_ibm_cloud.utils import get_current_memory_usage
@@ -39,18 +39,6 @@ level = logging.INFO
 logger = logging.getLogger('jobrunner')
 logger.setLevel(level)
 wrenlogging.ow_config(level)
-
-
-def b64str_to_bytes(str_data):
-    str_ascii = str_data.encode('ascii')
-    byte_data = base64.b64decode(str_ascii)
-    return byte_data
-
-
-def load_config(config_location):
-    with open(config_location, 'r') as configf:
-        jobrunner_config = json.load(configf)
-    return jobrunner_config
 
 
 class stats:
@@ -69,14 +57,15 @@ class stats:
 
 class jobrunner(Process):
 
-    def __init__(self, config_location, result_queue):
-        super(jobrunner, self).__init__()
+    def __init__(self, jr_config, result_queue):
+        super().__init__()
         start_time = time.time()
         self.result_queue = result_queue
-        self.config = load_config(config_location)
+        self.config = jr_config
         self.stats = stats(self.config['stats_filename'])
         self.stats.write('jobrunner_start', start_time)
-        self.storage_config = json.loads(os.environ.get('STORAGE_CONFIG', ''))
+        pw_config = json.loads(os.environ.get('PYWREN_CONFIG', ''))
+        self.storage_config = extract_storage_config(pw_config)
 
         if 'SHOW_MEMORY_USAGE' in os.environ:
             self.show_memory = eval(os.environ['SHOW_MEMORY_USAGE'])

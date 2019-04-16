@@ -336,7 +336,7 @@ class ibm_cf_executor:
         return fs_ready, fs_notready
 
     def get_result(self, futures=None, throw_except=True, timeout=wrenconfig.RUNTIME_TIMEOUT,
-                   THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
+                   THREADPOOL_SIZE=64, WAIT_DUR_SEC=1):
         """
         For getting PyWren results
         :param futures: Futures list. Default None
