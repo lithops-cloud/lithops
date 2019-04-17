@@ -305,13 +305,19 @@ class ibm_cf_executor:
                  pbar=pbar, THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
 
         except TimeoutError:
-            not_dones_activation_ids = set([f.activation_id for f in ftrs if not f.done])
+            if download_results:
+                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
+            else:
+                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.ready]
             msg = ('Executor ID {} Raised timeout of {} seconds waiting for results '
                    '\nActivations not done: {}'.format(self.executor_id, timeout, not_dones_activation_ids))
             self._state = ExecutorState.error
 
         except KeyboardInterrupt:
-            not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
+            if download_results:
+                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
+            else:
+                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.ready]
             msg = 'Executor ID {} Cancelled  \nActivations not done: {}'.format(self.executor_id, not_dones_activation_ids)
             self._state = ExecutorState.error
 
@@ -328,12 +334,16 @@ class ibm_cf_executor:
             if self.data_cleaner and not self.is_cf_cluster and self._state != ExecutorState.ready:
                 self.clean()
 
-        fs_done = [f for f in ftrs if f.ready or f.done]
-        fs_notdone = [f for f in ftrs if not f.ready and not f.done]
+        if download_results:
+            fs_dones = [f for f in ftrs if f.done]
+            fs_notdones = [f for f in ftrs if not f.done]
+        else:
+            fs_dones = [f for f in ftrs if f.ready]
+            fs_notdones = [f for f in ftrs if not f.ready]
 
         self._state = ExecutorState.ready
 
-        return fs_done, fs_notdone
+        return fs_dones, fs_notdones
 
     def get_result(self, futures=None, throw_except=True, timeout=wrenconfig.RUNTIME_TIMEOUT,
                    THREADPOOL_SIZE=64, WAIT_DUR_SEC=1):
@@ -353,11 +363,11 @@ class ibm_cf_executor:
           >>> pw.map(foo, data)
           >>> results = pw.get_result()
         """
-        fs_done, unused_fs_notdone = self.monitor(futures=futures, throw_except=throw_except,
-                                                  timeout=timeout, download_results=True,
-                                                  THREADPOOL_SIZE=THREADPOOL_SIZE,
-                                                  WAIT_DUR_SEC=WAIT_DUR_SEC)
-        result = [f.result() for f in fs_done if f.done and not f.futures]
+        fs_dones, unused_fs_notdones = self.monitor(futures=futures, throw_except=throw_except,
+                                                    timeout=timeout, download_results=True,
+                                                    THREADPOOL_SIZE=THREADPOOL_SIZE,
+                                                    WAIT_DUR_SEC=WAIT_DUR_SEC)
+        result = [f.result() for f in fs_dones if f.done and not f.futures]
         msg = "Executor ID {} Finished getting results".format(self.executor_id)
         logger.info(msg)
         if not self.log_level:
