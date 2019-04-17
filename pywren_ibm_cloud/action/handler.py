@@ -95,10 +95,10 @@ def ibm_cloud_function_handler(event):
     response_status['call_id'] = call_id
     response_status['callgroup_id'] = callgroup_id
     response_status['executor_id'] = executor_id
-    response_status['func_key'] = func_key
-    response_status['data_key'] = data_key
-    response_status['output_key'] = output_key
-    response_status['status_key'] = status_key
+    # response_status['func_key'] = func_key
+    # response_status['data_key'] = data_key
+    # response_status['output_key'] = output_key
+    # response_status['status_key'] = status_key
 
     try:
         if version.__version__ != event['pywren_version']:
@@ -188,7 +188,7 @@ def ibm_cloud_function_handler(event):
             if response_status['exception']:
                 status = 'error'
             try:
-                new_futures = response_status['new_futures']
+                new_futures = response_status.get('new_futures', 'None/0')
                 channel.basic_publish(exchange='', routing_key=executor_id,
                                       body='{}/{}:{}:{}'.format(callgroup_id, call_id,
                                                                 status,  new_futures))

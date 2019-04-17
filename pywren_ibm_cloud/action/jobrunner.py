@@ -233,6 +233,7 @@ class jobrunner(Process):
                 logger.debug("Memory usage after output serialization: {}".format(get_current_memory_usage()))
 
         except Exception as e:
+            print('------------------ EXCEPTION -------------------------')
             exc_type, exc_value, exc_traceback = sys.exc_info()
             #traceback.print_tb(exc_traceback)
 
@@ -242,7 +243,7 @@ class jobrunner(Process):
             # and more-carefully handle the exceptions if any part of this save / test-reload
             # fails
             logger.error("There was an exception: {}".format(str(e)))
-            print('----------------------------------------------------')
+
             try:
                 pickled_output = pickle.dumps({'result': e,
                                                'exc_type': exc_type,
