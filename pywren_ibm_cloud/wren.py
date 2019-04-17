@@ -325,7 +325,7 @@ class ibm_cf_executor:
                 logger.info(msg)
                 if not self.log_level:
                     print(msg)
-            if self.data_cleaner and not self.is_cf_cluster:
+            if self.data_cleaner and not self.is_cf_cluster and self._state != ExecutorState.ready:
                 self.clean()
 
         fs_done = [f for f in ftrs if f.done]
@@ -358,7 +358,6 @@ class ibm_cf_executor:
                                                   THREADPOOL_SIZE=THREADPOOL_SIZE,
                                                   WAIT_DUR_SEC=WAIT_DUR_SEC)
         result = [f.result() for f in fs_done if f.done and not f.futures]
-        self._state = ExecutorState.success
         msg = "Executor ID {} Finished getting results".format(self.executor_id)
         logger.info(msg)
         if not self.log_level:
@@ -392,6 +391,8 @@ class ibm_cf_executor:
         logger.info(msg)
         if not self.log_level:
             print(msg)
+            if self.data_cleaner:
+                print()
 
         if self.rabbitmq_monitor and not futures:
             ftrs_to_plot = [f for f in ftrs]
