@@ -218,7 +218,7 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
     """
     # get all the futures that are not yet done
     if download_results:
-        not_done_futures = [f for f in fs if not f._return_val]
+        not_done_futures = [f for f in fs if f._return_val is None]
     else:
         not_done_futures = [f for f in fs if not f.done]
 
@@ -274,7 +274,7 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
     fs_notdones = []
     f_to_wait_on = []
     for f in fs:
-        if download_results and f._return_val:
+        if download_results and f._return_val is not None:
             # done, don't need to do anything
             fs_dones.append(f)
         elif not download_results and f.done:
@@ -313,7 +313,9 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
 
     if pbar:
         for f in f_to_wait_on:
-            if f.done:
+            if download_results and f._return_val is not None:
+                pbar.update(1)
+            elif not download_results and f.done:
                 pbar.update(1)
         pbar.refresh()
     pool.close()
