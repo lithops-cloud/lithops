@@ -328,8 +328,8 @@ class ibm_cf_executor:
             if self.data_cleaner and not self.is_cf_cluster and self._state != ExecutorState.ready:
                 self.clean()
 
-        fs_done = [f for f in ftrs if f.done]
-        fs_notdone = [f for f in ftrs if not f.done]
+        fs_done = [f for f in ftrs if f.ready or f.done]
+        fs_notdone = [f for f in ftrs if not f.ready and not f.done]
 
         self._state = ExecutorState.ready
 
@@ -397,7 +397,7 @@ class ibm_cf_executor:
         if self.rabbitmq_monitor and not futures:
             ftrs_to_plot = [f for f in ftrs]
         else:
-            ftrs_to_plot = [f for f in ftrs if f.done]
+            ftrs_to_plot = [f for f in ftrs if f.ready or f.done]
 
         if ftrs_to_plot:
             self.monitor(futures=ftrs_to_plot)
