@@ -72,7 +72,7 @@ def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses):
     else:
         max_seconds = np.max(results_df.end_time - pw_start_time)*1.25
 
-    xplot_step = int(max_seconds/8)
+    xplot_step = max(int(max_seconds/8), 1)
     x_ticks = np.arange(max_seconds//xplot_step + 2) * xplot_step
     ax.set_xlim(0, max_seconds)
 

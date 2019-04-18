@@ -216,7 +216,7 @@ class COSBackend:
         """
         if not prefix:
             prefix = ''
-        paginator = self.cos_client.get_paginator('list_objects')
+        paginator = self.cos_client.get_paginator('list_objects_v2')
         operation_parameters = {'Bucket': bucket_name,
                                 'Prefix': prefix}
         page_iterator = paginator.paginate(**operation_parameters)

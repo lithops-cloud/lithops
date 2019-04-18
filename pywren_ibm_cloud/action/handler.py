@@ -34,7 +34,6 @@ logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('handler')
 
 PYTHON_MODULE_PATH = "/tmp/pymodules"
-JOBRUNNER_CONFIG_FILENAME = "/tmp/jobrunner.config.json"
 JOBRUNNER_STATS_FILENAME = "/tmp/jobrunner.stats.txt"
 PYWREN_LIBS_PATH = '/action/pywren_ibm_cloud/libs'
 
@@ -66,7 +65,7 @@ def get_server_info():
 
 def ibm_cloud_function_handler(event):
     start_time = time.time()
-    logger.info("Starting handler")
+    logger.info("Action handler started")
     response_status = {'exception': None}
     response_status['start_time'] = start_time
 
@@ -96,10 +95,10 @@ def ibm_cloud_function_handler(event):
     response_status['call_id'] = call_id
     response_status['callgroup_id'] = callgroup_id
     response_status['executor_id'] = executor_id
-    response_status['func_key'] = func_key
-    response_status['data_key'] = data_key
-    response_status['output_key'] = output_key
-    response_status['status_key'] = status_key
+    # response_status['func_key'] = func_key
+    # response_status['data_key'] = data_key
+    # response_status['output_key'] = output_key
+    # response_status['status_key'] = status_key
 
     try:
         if version.__version__ != event['pywren_version']:
@@ -109,7 +108,6 @@ def ibm_cloud_function_handler(event):
         # response_status['free_disk_bytes'] = free_disk_space("/tmp")
 
         custom_env = {'PYWREN_CONFIG': json.dumps(config),
-                      'STORAGE_CONFIG': json.dumps(storage_config),
                       'PYWREN_EXECUTOR_ID':  executor_id,
                       'PYTHONPATH': "{}:{}".format(os.getcwd(), PYWREN_LIBS_PATH),
                       'PYTHONUNBUFFERED': 'True'}
@@ -126,9 +124,6 @@ def ibm_cloud_function_handler(event):
                             'output_key': output_key,
                             'stats_filename': JOBRUNNER_STATS_FILENAME}
 
-        with open(JOBRUNNER_CONFIG_FILENAME, 'w') as jobrunner_fid:
-            json.dump(jobrunner_config, jobrunner_fid)
-
         if os.path.exists(JOBRUNNER_STATS_FILENAME):
             os.remove(JOBRUNNER_STATS_FILENAME)
 
@@ -136,9 +131,9 @@ def ibm_cloud_function_handler(event):
         response_status['setup_time'] = setup_time - start_time
 
         result_queue = multiprocessing.Queue()
-        jr = jobrunner(JOBRUNNER_CONFIG_FILENAME, result_queue)
+        jr = jobrunner(jobrunner_config, result_queue)
         jr.daemon = True
-        logger.info("Launched jobrunner process")
+        logger.info("Starting jobrunner process")
         jr.start()
         jr.join(job_max_runtime)
         response_status['exec_time'] = time.time() - setup_time
@@ -154,7 +149,7 @@ def ibm_cloud_function_handler(event):
             # Only 1 message is returned by jobrunner
             result_queue.get(block=False)
         except Exception:
-            # If no mesage, this means that the process was killed due memory usage
+            # If no message, this means that the process was killed due memory usage
             raise Exception("OUTOFMEMORY",  "Process exceeded maximum memory and was killed")
 
         # print(subprocess.check_output("find {}".format(PYTHON_MODULE_PATH), shell=True))
@@ -193,7 +188,7 @@ def ibm_cloud_function_handler(event):
             if response_status['exception']:
                 status = 'error'
             try:
-                new_futures = response_status['new_futures']
+                new_futures = response_status.get('new_futures', 'None/0')
                 channel.basic_publish(exchange='', routing_key=executor_id,
                                       body='{}/{}:{}:{}'.format(callgroup_id, call_id,
                                                                 status,  new_futures))

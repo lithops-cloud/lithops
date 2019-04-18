@@ -246,9 +246,9 @@ class ibm_cf_executor:
         :param timeout: Timeout of waiting for results.
         :param THREADPOOL_SIZE: Number of threads to use. Default 64
         :param WAIT_DUR_SEC: Time interval between each check.
-        :return: `(fs_ready, fs_notready)`
-            where `fs_ready` is a list of futures that have completed
-            and `fs_notready` is a list of futures that have not completed.
+        :return: `(fs_done, fs_notdone)`
+            where `fs_done` is a list of futures that have completed
+            and `fs_notdone` is a list of futures that have not completed.
         :rtype: 2-tuple of lists
 
         Usage
@@ -305,13 +305,19 @@ class ibm_cf_executor:
                  pbar=pbar, THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
 
         except TimeoutError:
-            not_dones_activation_ids = set([f.activation_id for f in ftrs if not f.ready])
+            if download_results:
+                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
+            else:
+                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.ready]
             msg = ('Executor ID {} Raised timeout of {} seconds waiting for results '
                    '\nActivations not done: {}'.format(self.executor_id, timeout, not_dones_activation_ids))
             self._state = ExecutorState.error
 
         except KeyboardInterrupt:
-            not_dones_activation_ids = [f.activation_id for f in ftrs if not f.ready]
+            if download_results:
+                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
+            else:
+                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.ready]
             msg = 'Executor ID {} Cancelled  \nActivations not done: {}'.format(self.executor_id, not_dones_activation_ids)
             self._state = ExecutorState.error
 
@@ -325,18 +331,22 @@ class ibm_cf_executor:
                 logger.info(msg)
                 if not self.log_level:
                     print(msg)
-            if self.data_cleaner and not self.is_cf_cluster:
+            if self.data_cleaner and not self.is_cf_cluster and self._state != ExecutorState.ready:
                 self.clean()
 
-        fs_ready = [f for f in ftrs if f.ready]
-        fs_notready = [f for f in ftrs if not f.ready]
+        if download_results:
+            fs_dones = [f for f in ftrs if f.done]
+            fs_notdones = [f for f in ftrs if not f.done]
+        else:
+            fs_dones = [f for f in ftrs if f.ready]
+            fs_notdones = [f for f in ftrs if not f.ready]
 
         self._state = ExecutorState.ready
 
-        return fs_ready, fs_notready
+        return fs_dones, fs_notdones
 
     def get_result(self, futures=None, throw_except=True, timeout=wrenconfig.RUNTIME_TIMEOUT,
-                   THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
+                   THREADPOOL_SIZE=64, WAIT_DUR_SEC=1):
         """
         For getting PyWren results
         :param futures: Futures list. Default None
@@ -353,12 +363,11 @@ class ibm_cf_executor:
           >>> pw.map(foo, data)
           >>> results = pw.get_result()
         """
-        fs_ready, unused_fs_notready = self.monitor(futures=futures, throw_except=throw_except,
+        fs_dones, unused_fs_notdones = self.monitor(futures=futures, throw_except=throw_except,
                                                     timeout=timeout, download_results=True,
                                                     THREADPOOL_SIZE=THREADPOOL_SIZE,
                                                     WAIT_DUR_SEC=WAIT_DUR_SEC)
-        result = [f.result() for f in fs_ready if f.done and not f.futures]
-        self._state = ExecutorState.success
+        result = [f.result() for f in fs_dones if f.done and not f.futures]
         msg = "Executor ID {} Finished getting results".format(self.executor_id)
         logger.info(msg)
         if not self.log_level:
@@ -392,11 +401,13 @@ class ibm_cf_executor:
         logger.info(msg)
         if not self.log_level:
             print(msg)
+            if self.data_cleaner:
+                print()
 
         if self.rabbitmq_monitor and not futures:
             ftrs_to_plot = [f for f in ftrs]
         else:
-            ftrs_to_plot = [f for f in ftrs if f.ready]
+            ftrs_to_plot = [f for f in ftrs if f.ready or f.done]
 
         if ftrs_to_plot:
             self.monitor(futures=ftrs_to_plot)
@@ -407,7 +418,6 @@ class ibm_cf_executor:
         invoke_statuses = [f.invoke_status for f in ftrs_to_plot]
 
         if self.rabbitmq_monitor and invoke_statuses:
-            # delete download ststus timestamp
             for in_stat in invoke_statuses:
                 del in_stat['status_done_timestamp']
 

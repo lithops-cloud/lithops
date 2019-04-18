@@ -24,7 +24,7 @@ import pywren_ibm_cloud.version as version
 import pywren_ibm_cloud.utils as wrenutil
 import pywren_ibm_cloud.wrenconfig as wrenconfig
 from pywren_ibm_cloud.wait import wait
-from multiprocessing.pool import ThreadPool
+from concurrent.futures import ThreadPoolExecutor
 from pywren_ibm_cloud.future import ResponseFuture, JobState
 from pywren_ibm_cloud.runtime import get_runtime_preinstalls
 from pywren_ibm_cloud.storage.backends.cos import COSBackend
@@ -137,9 +137,9 @@ class Executor(object):
         ranges = []
         pos = 0
         for datum in data_strs:
-            l = len(datum)
-            ranges.append((pos, pos+l-1))
-            pos += l
+            datum_len = len(datum)
+            ranges.append((pos, pos+datum_len-1))
+            pos += datum_len
         return b"".join(data_strs), ranges
 
     def call_async(self, func, data, extra_env=None, extra_meta=None, runtime_timeout=wrenconfig.RUNTIME_TIMEOUT):
@@ -247,8 +247,6 @@ class Executor(object):
 
         host_job_meta = {}
 
-        pool = ThreadPool(invoke_pool_threads)
-
         log_msg = 'Executor ID {} Serializing function and data'.format(self.executor_id)
         logger.debug(log_msg)
         # pickle func and all data (to capture module dependencies)
@@ -330,31 +328,30 @@ class Executor(object):
                                          overwrite_invoke_args=overwrite_invoke_args)
 
         N = len(data)
-        call_result_objs = []
+        call_futures = []
 
         log_msg = 'Executor ID {} Starting function invocation: {}() - Total: {} activations'.format(self.executor_id, func_name, N)
         logger.info(log_msg)
         if not self.log_level:
             print(log_msg)
 
-        for i in range(N):
-            call_id = "{:05d}".format(i)
+        with ThreadPoolExecutor(max_workers=invoke_pool_threads) as executor:
+            for i in range(N):
+                call_id = "{:05d}".format(i)
 
-            data_byte_range = None
-            if agg_data_key is not None:
-                data_byte_range = agg_data_ranges[i]
+                data_byte_range = None
+                if agg_data_key is not None:
+                    data_byte_range = agg_data_ranges[i]
 
-            cb = pool.apply_async(invoke, (data_strs[i], self.executor_id,
-                                           callgroup_id, call_id, func_key,
-                                           host_job_meta.copy(),
-                                           agg_data_key,
-                                           data_byte_range))
+                future = executor.submit(invoke, data_strs[i], self.executor_id,
+                                         callgroup_id, call_id, func_key,
+                                         host_job_meta.copy(),
+                                         agg_data_key,
+                                         data_byte_range)
 
-            call_result_objs.append(cb)
+                call_futures.append(future)
 
-        res = [c.get() for c in call_result_objs]
-        pool.close()
-        pool.join()
+        res = [ft.result() for ft in call_futures]
 
         return res
 

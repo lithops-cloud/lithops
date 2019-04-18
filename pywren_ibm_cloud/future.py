@@ -43,8 +43,8 @@ class ResponseFuture:
     Object representing the result of a PyWren invocation. Returns the status of the
     execution and the result when available.
     """
-    GET_RESULT_SLEEP_SECS = 2
-    GET_RESULT_MAX_RETRIES = 5
+    GET_RESULT_SLEEP_SECS = 1
+    GET_RESULT_MAX_RETRIES = 10
 
     def __init__(self, call_id, callgroup_id, executor_id, activation_id, invoke_metadata, storage_config):
         self.call_id = call_id
@@ -99,7 +99,7 @@ class ResponseFuture:
 
     @property
     def ready(self):
-        if self._state in [JobState.ready, JobState.success, JobState.futures, JobState.error]:
+        if self._state in [JobState.ready, JobState.futures, JobState.error]:
             return True
         return False
 
@@ -189,9 +189,9 @@ class ResponseFuture:
         self._set_state(JobState.ready)
 
         if 'new_futures' in call_status:
-            _, total_new_futures = call_status['new_futures'].split('/')
+            unused_callgroup_id, total_new_futures = call_status['new_futures'].split('/')
             if int(total_new_futures) > 0:
-                self.result(check_only, throw_except, internal_storage)
+                self.result(throw_except=throw_except, internal_storage=internal_storage)
 
     def result(self, check_only=False, throw_except=True, internal_storage=None):
         """
@@ -265,8 +265,7 @@ class ResponseFuture:
                 del self.invoke_status['download_output_timestamp']
                 return self._new_futures
 
-            elif type(function_result) == list and len(function_result) > 0 \
-               and isinstance(function_result[0], ResponseFuture):
+            elif type(function_result) == list and len(function_result) > 0 and isinstance(function_result[0], ResponseFuture):
                 self._new_futures = function_result
                 self._set_state(JobState.futures)
                 self.invoke_status['status_done_timestamp'] = self.invoke_status['download_output_timestamp']
