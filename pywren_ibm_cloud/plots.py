@@ -1,5 +1,6 @@
 import matplotlib
 matplotlib.use('Agg')
+import io
 import os
 import pylab
 import logging
@@ -8,11 +9,12 @@ import pandas as pd
 import seaborn as sns
 from matplotlib import patches as mpatches
 from matplotlib.collections import LineCollection
+from pywren_ibm_cloud.storage.backends import cos
 sns.set_style('whitegrid')
 logger = logging.getLogger(__name__)
 
 
-def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses):
+def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses, cos_config):
     results_df = pd.DataFrame(run_statuses)
 
     if invoke_statuses:
@@ -82,10 +84,14 @@ def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses):
 
     ax.grid(False)
     fig.tight_layout()
-    fig.savefig(os.path.join(dst, name+"_timeline.png"))
+
+    if dst.split('://')[0] == 'cos':
+        save_plot_in_cos(cos_config, fig, dst, name+"_timeline.png")
+    else:
+        fig.savefig(os.path.join(dst, name+"_timeline.png"))
 
 
-def create_histogram(dst, name, pw_start_time, run_statuses):
+def create_histogram(dst, name, pw_start_time, run_statuses, cos_config):
     runtime_bins = np.linspace(0, 600, 600)
 
     def compute_times_rates(time_rates):
@@ -138,4 +144,19 @@ def create_histogram(dst, name, pw_start_time, run_statuses):
     ax.legend(loc='upper right')
 
     fig.tight_layout()
-    fig.savefig(os.path.join(dst, name+"_histogram.png"))
+    if dst.split('://')[0] == 'cos':
+        save_plot_in_cos(cos_config, fig, dst, name+"_histogram.png")
+    else:
+        fig.savefig(os.path.join(dst, name+"_histogram.png"))
+
+
+def save_plot_in_cos(cos_config, fig, dst, filename):
+    bucketname = dst.split('cos://')[1].split('/')[0]
+    key = os.path.join(*dst.split('cos://')[1].split('/')[1:], filename)
+
+    buff = io.BytesIO()
+    fig.savefig(buff)
+    buff.seek(0)
+
+    cos_handler = cos.COSBackend(cos_config)
+    cos_handler.put_object(bucketname, key, buff.read())
