@@ -88,7 +88,7 @@ class jobrunner(Process):
         func_obj = self.internal_storage.get_func(self.func_key)
         loaded_func_all = pickle.loads(func_obj)
         func_download_time_t2 = time.time()
-        self.stats.write('func_download_time', func_download_time_t2-func_download_time_t1)
+        self.stats.write('func_download_time', round(func_download_time_t2-func_download_time_t1, 8))
         logger.info("Finished getting Function and modules")
 
         return loaded_func_all
@@ -150,8 +150,7 @@ class jobrunner(Process):
         loaded_data = pickle.loads(data_obj)
         logger.info("Finished unpickle Function data")
         data_download_time_t2 = time.time()
-        self.stats.write('data_download_time',
-                         data_download_time_t2-data_download_time_t1)
+        self.stats.write('data_download_time', round(data_download_time_t2-data_download_time_t1, 8))
 
         return loaded_data
 
@@ -214,7 +213,7 @@ class jobrunner(Process):
             if self.show_memory:
                 logger.debug("Memory usage after call the function: {}".format(get_current_memory_usage()))
 
-            self.stats.write('function_exec_time', func_exec_time_t2-func_exec_time_t1)
+            self.stats.write('function_exec_time', round(func_exec_time_t2-func_exec_time_t1, 8))
             output_dict = {'result': result,
                            'success': True}
             pickled_output = pickle.dumps(output_dict)
@@ -275,7 +274,6 @@ class jobrunner(Process):
                 logger.info("Storing {} - Size: {}".format(self.output_key, sizeof_fmt(len(pickled_output))))
                 self.internal_storage.put_data(self.output_key, pickled_output)
                 output_upload_timestamp_t2 = time.time()
-                self.stats.write("output_upload_time",
-                                 output_upload_timestamp_t2 - output_upload_timestamp_t1)
+                self.stats.write("output_upload_time", round(output_upload_timestamp_t2 - output_upload_timestamp_t1, 8))
             self.result_queue.put("Finished")
             logger.info("Finished")

@@ -71,7 +71,6 @@ def ibm_cloud_function_handler(event):
 
     context_dict = {
         'ibm_cf_request_id': os.environ.get("__OW_ACTIVATION_ID"),
-        'ibm_cf_hostname': os.environ.get("HOSTNAME"),
         'ibm_cf_python_version': os.environ.get("PYTHON_VERSION"),
     }
 
@@ -128,7 +127,7 @@ def ibm_cloud_function_handler(event):
             os.remove(JOBRUNNER_STATS_FILENAME)
 
         setup_time = time.time()
-        response_status['setup_time'] = setup_time - start_time
+        response_status['setup_time'] = round(setup_time - start_time, 8)
 
         result_queue = multiprocessing.Queue()
         jr = jobrunner(jobrunner_config, result_queue)
@@ -136,7 +135,7 @@ def ibm_cloud_function_handler(event):
         logger.info("Starting jobrunner process")
         jr.start()
         jr.join(job_max_runtime)
-        response_status['exec_time'] = time.time() - setup_time
+        response_status['exec_time'] = round(time.time() - setup_time, 8)
 
         if jr.is_alive():
             # If process is still alive after jr.join(job_max_runtime), kill it
