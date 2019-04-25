@@ -157,25 +157,25 @@ class CloudFunctions:
         Wrapper around actual invocation methods
         """
         if self.is_cf_cluster:
-            return self.internal_invoke(action_name, payload)
+            return self.request_invoke(action_name, payload)
         else:
-            return self.remote_invoke(action_name, payload)
+            return self.request_invoke(action_name, payload)
 
-    def remote_invoke(self, action_name, payload):
+    def session_invoke(self, action_name, payload):
         """
-        Invoke an IBM Cloud Function. Better from a remote network.
+        Invoke an IBM Cloud Function by using session.
         """
         exec_id = payload['executor_id']
         call_id = payload['call_id']
-        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
-                           self.namespace, 'actions', self.package, action_name).replace("\\", "/")
-
+        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.namespace,
+                           'actions', self.package, action_name).replace("\\", "/")
         try:
             resp = self.session.post(url, json=payload)
             data = resp.json()
             resp_time = format(round(resp.elapsed.total_seconds(), 3), '.3f')
-        except Exception:
-            return self.remote_invoke(action_name, payload)
+        except Exception as e:
+            logger.debug(str(e))
+            return self.session_invoke(action_name, payload)
 
         if 'activationId' in data:
             log_msg = ('Executor ID {} Function {} - Activation ID: '
@@ -186,17 +186,25 @@ class CloudFunctions:
             return data["activationId"]
         else:
             logger.debug(data)
-            return None
+            if resp.status_code == 401:
+                raise Exception('Unauthorized - Invalid API Key')
+            elif resp.status_code == 404:
+                raise Exception('PyWren Runtime not deployed')
+            elif resp.status_code == 429:
+                # Too many concurrent requests in flight
+                return None
+            else:
+                raise Exception(data['error'])
 
-    def internal_invoke(self, action_name, payload):
+    def request_invoke(self, action_name, payload):
         """
-        Invoke an IBM Cloud Function. Better from a cloud function.
+        Invoke an IBM Cloud Function by using new request.
         """
         exec_id = payload['executor_id']
         call_id = payload['call_id']
 
-        url = urlparse(os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
-                                    self.namespace, 'actions', self.package, action_name))
+        url = urlparse(os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.namespace,
+                                    'actions', self.package, action_name).replace("\\", "/"))
         ctx = ssl._create_unverified_context()
 
         try:
@@ -211,9 +219,10 @@ class CloudFunctions:
             resp_time = format(round(roundtrip, 3), '.3f')
             data = json.loads(data.decode("utf-8"))
             conn.close()
-        except Exception:
+        except Exception as e:
             conn.close()
-            return self.internal_invoke(action_name, payload)
+            logger.debug(str(e))
+            return self.request_invoke(action_name, payload)
 
         if 'activationId' in data:
             log_msg = ('Executor ID {} Function {} - Activation ID: '
@@ -224,15 +233,23 @@ class CloudFunctions:
             return data["activationId"]
         else:
             logger.debug(data)
-            return None
+            print(data)
+            if resp.status == 401:
+                raise Exception('Unauthorized - Invalid API Key')
+            elif resp.status == 404:
+                raise Exception('PyWren Runtime not deployed')
+            elif resp.status == 429:
+                # Too many concurrent requests in flight
+                return None
+            else:
+                raise Exception(data['error'])
 
     def invoke_with_result(self, action_name, payload={}):
         """
         Invoke an IBM Cloud Function waiting for the result.
         """
-        url = os.path.join(self.endpoint, 'api', 'v1',
-                           'namespaces', self.namespace, 'actions', self.package,
-                           action_name + "?blocking=true&result=true").replace("\\", "/")
+        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'actions',
+                           self.package, action_name + "?blocking=true&result=true").replace("\\", "/")
         resp = self.session.post(url, json=payload)
         result = resp.json()
 
