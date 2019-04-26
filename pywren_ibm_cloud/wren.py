@@ -409,7 +409,7 @@ class ibm_cf_executor:
             ftrs_to_plot = self.futures
             self.monitor(futures=ftrs_to_plot)
         else:
-            ftrs_to_plot = [f for f in ftrs if f.ready or f.done or f.futures]
+            ftrs_to_plot = [f for f in ftrs if f.ready or f.done]
 
         if not ftrs_to_plot:
             return
