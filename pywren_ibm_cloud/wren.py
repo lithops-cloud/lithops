@@ -130,7 +130,7 @@ class ibm_cf_executor:
 
     def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None,
             chunk_size=None, remote_invocation=False, timeout=wrenconfig.RUNTIME_TIMEOUT,
-            remote_invocation_groups=100, invoke_pool_threads=128,
+            remote_invocation_groups=100, invoke_pool_threads=500,
             data_all_as_one=True, overwrite_invoke_args=None, exclude_modules=None):
         """
         :param func: the function to map over the data
@@ -174,12 +174,12 @@ class ibm_cf_executor:
             return map_futures[0]
         return map_futures
 
-    def map_reduce(self, map_function, map_iterdata, reduce_function,
-                   extra_env=None, extra_meta=None, chunk_size=None,
-                   remote_invocation=False, timeout=wrenconfig.RUNTIME_TIMEOUT,
+    def map_reduce(self, map_function, map_iterdata, reduce_function, extra_env=None,
+                   extra_meta=None, chunk_size=None, remote_invocation=False,
+                   remote_invocation_groups=100, timeout=wrenconfig.RUNTIME_TIMEOUT,
                    reducer_one_per_object=False, reducer_wait_local=False,
-                   invoke_pool_threads=128, data_all_as_one=True,
-                   overwrite_invoke_args=None, exclude_modules=None):
+                   invoke_pool_threads=500, data_all_as_one=True, overwrite_invoke_args=None,
+                   exclude_modules=None):
         """
         Map the map_function over the data and apply the reduce_function across all futures.
         This method is executed all within CF.
@@ -213,6 +213,7 @@ class ibm_cf_executor:
                                                           extra_meta=extra_meta,
                                                           obj_chunk_size=chunk_size,
                                                           remote_invocation=remote_invocation,
+                                                          remote_invocation_groups=remote_invocation_groups,
                                                           invoke_pool_threads=invoke_pool_threads,
                                                           data_all_as_one=data_all_as_one,
                                                           overwrite_invoke_args=overwrite_invoke_args,
@@ -405,13 +406,12 @@ class ibm_cf_executor:
                 print()
 
         if self.rabbitmq_monitor and not futures:
-            ftrs_to_plot = [f for f in ftrs]
+            ftrs_to_plot = self.futures
+            self.monitor(futures=ftrs_to_plot)
         else:
             ftrs_to_plot = [f for f in ftrs if f.ready or f.done]
 
-        if ftrs_to_plot:
-            self.monitor(futures=ftrs_to_plot)
-        else:
+        if not ftrs_to_plot:
             return
 
         run_statuses = [f.run_status for f in ftrs_to_plot]

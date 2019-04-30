@@ -18,7 +18,7 @@ import os
 import time
 import logging
 import random
-from pywren_ibm_cloud.cf_connector import CloudFunctions
+from pywren_ibm_cloud.libs.ibm_cf.connector import CloudFunctions
 from pywren_ibm_cloud.wrenconfig import extract_cf_config
 
 logger = logging.getLogger(__name__)

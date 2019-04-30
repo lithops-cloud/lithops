@@ -21,7 +21,7 @@ import zipfile
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.storage import storage
-from pywren_ibm_cloud.cf_connector import CloudFunctions
+from pywren_ibm_cloud.libs.ibm_cf.connector import CloudFunctions
 
 logger = logging.getLogger(__name__)
 
