@@ -150,7 +150,7 @@ class Executor(object):
         return self._map(func, [data], extra_env=extra_env, extra_meta=extra_meta, job_max_runtime=runtime_timeout)
 
     def map(self, map_function, iterdata, obj_chunk_size=None, extra_env=None, extra_meta=None,
-            remote_invocation=False, remote_invocation_groups=100, invoke_pool_threads=128,
+            remote_invocation=False, remote_invocation_groups=1200, invoke_pool_threads=128,
             data_all_as_one=True, job_max_runtime=wrenconfig.RUNTIME_TIMEOUT,
             overwrite_invoke_args=None, exclude_modules=None):
         """
@@ -173,7 +173,8 @@ class Executor(object):
             map_func = partition_processor(map_function)
 
         # Remote invocation functionality
-        if len(iterdata) > 1 and remote_invocation:
+        original_iterdata_len = len(iterdata)
+        if original_iterdata_len > 1 and remote_invocation:
             runtime_name = self.runtime_name
             runtime_memory = self.runtime_memory
             rabbitmq_monitor = "PYWREN_RABBITMQ_MONITOR" in os.environ
@@ -189,7 +190,7 @@ class Executor(object):
 
             map_func = remote_invoker
             map_iterdata = [[iterdata[x:x+remote_invocation_groups]]
-                            for x in range(0, len(iterdata), remote_invocation_groups)]
+                            for x in range(0, original_iterdata_len, remote_invocation_groups)]
             new_invoke_pool_threads = 1
 
         map_futures = self._map(map_func, map_iterdata,
@@ -200,13 +201,16 @@ class Executor(object):
                                 overwrite_invoke_args=overwrite_invoke_args,
                                 exclude_modules=exclude_modules,
                                 original_func_name=map_function.__name__,
+                                remote_invocation=remote_invocation,
+                                original_iterdata_len=original_iterdata_len,
                                 job_max_runtime=job_max_runtime)
 
         return map_futures, parts_per_object
 
     def _map(self, func, iterdata, extra_env=None, extra_meta=None, invoke_pool_threads=128,
              data_all_as_one=True, overwrite_invoke_args=None, exclude_modules=None,
-             original_func_name=None, job_max_runtime=wrenconfig.RUNTIME_TIMEOUT):
+             original_func_name=None, remote_invocation=False, original_iterdata_len=None,
+             job_max_runtime=wrenconfig.RUNTIME_TIMEOUT):
         """
         :param func: the function to map over the data
         :param iterdata: An iterable of input data
@@ -329,8 +333,11 @@ class Executor(object):
 
         N = len(data)
         call_futures = []
-
-        log_msg = 'Executor ID {} Starting function invocation: {}() - Total: {} activations'.format(self.executor_id, func_name, N)
+        if remote_invocation and original_iterdata_len > 1:
+            log_msg = 'Executor ID {} Starting {} remote invocation: Spawning {}() - Total: {} activations'.format(self.executor_id, N, func_name,
+                                                                                                                   original_iterdata_len)
+        else:
+            log_msg = 'Executor ID {} Starting function invocation: {}() - Total: {} activations'.format(self.executor_id, func_name, N)
         logger.info(log_msg)
         if not self.log_level:
             print(log_msg)
