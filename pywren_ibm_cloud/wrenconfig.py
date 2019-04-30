@@ -22,7 +22,7 @@ from pywren_ibm_cloud.utils import version_str
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
 COS_BUCKET_DEFAULT = "pywren.data"
 COS_PREFIX_DEFAULT = "pywren.jobs"
-COS_AUTH_ENDPOINT_DEFAULT = 'https://iam.cloud.ibm.com/oidc/token'
+IBM_AUTH_ENDPOINT_DEFAULT = 'https://iam.cloud.ibm.com/oidc/token'
 
 RUNTIME_DEFAULT_35 = 'ibmfunctions/pywren:3.5'
 RUNTIME_DEFAULT_36 = 'ibmfunctions/action-python-v3.6'
@@ -153,7 +153,7 @@ def default(config_data=None):
             config_data['pywren']['runtime'] = RUNTIME_DEFAULT_37
 
     if 'ibm_cos' in config_data and 'ibm_auth_endpoint' not in config_data['ibm_cos']:
-        config_data['ibm_cos']['ibm_auth_endpoint'] = COS_AUTH_ENDPOINT_DEFAULT
+        config_data['ibm_cos']['ibm_auth_endpoint'] = IBM_AUTH_ENDPOINT_DEFAULT
 
     if 'rabbitmq' not in config_data or not config_data['rabbitmq'] \
        or 'amqp_url' not in config_data['rabbitmq']:
