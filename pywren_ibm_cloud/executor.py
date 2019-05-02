@@ -150,7 +150,7 @@ class Executor(object):
         return self._map(func, [data], extra_env=extra_env, extra_meta=extra_meta, job_max_runtime=runtime_timeout)
 
     def map(self, map_function, iterdata, obj_chunk_size=None, extra_env=None, extra_meta=None,
-            remote_invocation=False, remote_invocation_groups=1200, invoke_pool_threads=128,
+            remote_invocation=False, remote_invocation_groups=None, invoke_pool_threads=128,
             data_all_as_one=True, job_max_runtime=wrenconfig.RUNTIME_TIMEOUT,
             overwrite_invoke_args=None, exclude_modules=None):
         """

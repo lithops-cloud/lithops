@@ -233,7 +233,6 @@ class CloudFunctions:
             return data["activationId"]
         else:
             logger.debug(data)
-            print(data)
             if resp.status == 401:
                 raise Exception('Unauthorized - Invalid API Key')
             elif resp.status == 404:
