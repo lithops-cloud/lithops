@@ -30,7 +30,10 @@ def get_runtime_preinstalls(internal_storage, runtime, memory, config):
     log_level = os.getenv('PYWREN_LOG_LEVEL')
     logger.debug("Downloading runtime pre-installed modules from COS")
     try:
-        runtime_meta = internal_storage.get_runtime_info('{}_{}'.format(runtime, memory))
+        ibm_cf_region = config['ibm_cf']['endpoint'].split('//')[1].split('.')[0]
+        ibm_cf_namespace = config['ibm_cf']['namespace']
+        runtime_name = '{}_{}'.format(runtime, memory)
+        runtime_meta = internal_storage.get_runtime_info(ibm_cf_region, ibm_cf_namespace, runtime_name)
         preinstalls = runtime_meta['preinstalls']
         if not log_level:
             print()
@@ -44,7 +47,7 @@ def get_runtime_preinstalls(internal_storage, runtime, memory, config):
         clone_runtime(runtime, memory=memory, config=config)
         if not log_level:
             sys.stdout = old_stdout
-        runtime_meta = internal_storage.get_runtime_info('{}_{}'.format(runtime, memory))
+        runtime_meta = internal_storage.get_runtime_info(ibm_cf_region, ibm_cf_namespace, runtime_name)
         preinstalls = runtime_meta['preinstalls']
 
     if not runtime_valid(runtime_meta):

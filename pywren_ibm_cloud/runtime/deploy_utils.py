@@ -79,7 +79,11 @@ def _extract_modules(image_name, memory, cf_client, config):
     memory = cf_client.default_runtime_memory if not memory else memory
     runtime_name = '{}_{}'.format(image_name, memory)
     runtime_meta = cf_client.invoke_with_result(modules_action_name)
-    internal_storage.put_runtime_info(runtime_name, runtime_meta)
+
+    ibm_cf_region = cf_client.endpoint.split('//')[1].split('.')[0]
+    ibm_cf_namespace = cf_client.namespace
+
+    internal_storage.put_runtime_info(ibm_cf_region, ibm_cf_namespace, runtime_name, runtime_meta)
     cf_client.delete_action(modules_action_name)
 
 

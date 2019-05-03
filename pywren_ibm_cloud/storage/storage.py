@@ -126,27 +126,27 @@ class InternalStorage:
         except StorageNoSuchKeyError:
             return None
 
-    def get_runtime_info(self, runtime_name):
+    def get_runtime_info(self, ibm_cf_region, ibm_cf_namespace, runtime_name):
         """
         Get the metadata given a runtime name.
         :param runtime: name of the runtime
         :return: runtime metadata
         """
-        key = os.path.join('runtimes', __version__,  runtime_name+".meta.json").replace("\\", "/")
+        key = os.path.join('runtimes', __version__,  ibm_cf_region, ibm_cf_namespace, runtime_name+".meta.json").replace("\\", "/")
         try:
             json_str = self.backend_handler.get_object(self.storage_bucket, key)
             runtime_meta = json.loads(json_str.decode("ascii"))
             return runtime_meta
         except StorageNoSuchKeyError:
-            raise Exception('The runtime {} is not installed.'.format(runtime_name))
+            raise Exception('The runtime {} is not installed.'.format(key))
 
-    def put_runtime_info(self, runtime_name, runtime_meta):
+    def put_runtime_info(self, ibm_cf_region, ibm_cf_namespace, runtime_name, runtime_meta):
         """
         Puit the metadata given a runtime config.
         :param runtime: name of the runtime
         :param runtime_meta metadata
         """
-        key = os.path.join('runtimes', __version__, runtime_name+".meta.json").replace("\\", "/")
+        key = os.path.join('runtimes', __version__,  ibm_cf_region, ibm_cf_namespace, runtime_name+".meta.json").replace("\\", "/")
         self.backend_handler.put_object(self.storage_bucket, key, json.dumps(runtime_meta))
 
     def list_temporal_data(self, executor_id):

@@ -372,7 +372,7 @@ Installation supports PyWren version as an input parameter, for example:
 	!{sys.executable} -m pip install -U pywren-ibm-cloud==1.0.7
 
 ### Usage in notebooks
-When installed, you can use IBM-PyWren as usual inside a notebook:
+Once installed, you can use IBM-PyWren as usual inside a notebook:
 
 ```python
 import pywren_ibm_cloud as pywren
