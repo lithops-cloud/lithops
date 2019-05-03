@@ -17,10 +17,10 @@
 import os
 import json
 from pywren_ibm_cloud.version import __version__
-from pywren_ibm_cloud.storage.backends.cos import COSBackend
-from pywren_ibm_cloud.storage.backends.swift import SwiftBackend
-from pywren_ibm_cloud.storage.exceptions import StorageNoSuchKeyError
-from pywren_ibm_cloud.storage.storage_utils import create_status_key, create_output_key, status_key_suffix
+from .backends.cos import COSBackend
+from .backends.swift import SwiftBackend
+from .exceptions import StorageNoSuchKeyError
+from .storage_utils import create_status_key, create_output_key, status_key_suffix
 
 
 class InternalStorage:
@@ -148,6 +148,15 @@ class InternalStorage:
         """
         key = os.path.join('runtimes', __version__,  ibm_cf_region, ibm_cf_namespace, runtime_name+".meta.json").replace("\\", "/")
         self.backend_handler.put_object(self.storage_bucket, key, json.dumps(runtime_meta))
+
+    def delete_runtime_info(self, ibm_cf_region, ibm_cf_namespace, runtime_name):
+        """
+        Puit the metadata given a runtime config.
+        :param runtime: name of the runtime
+        :param runtime_meta metadata
+        """
+        key = os.path.join('runtimes', __version__,  ibm_cf_region, ibm_cf_namespace, runtime_name+".meta.json").replace("\\", "/")
+        self.backend_handler.delete_object(self.storage_bucket, key)
 
     def list_temporal_data(self, executor_id):
         """

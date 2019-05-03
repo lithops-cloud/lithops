@@ -337,8 +337,8 @@ class Executor(object):
         N = len(data)
         call_futures = []
         if remote_invocation and original_iterdata_len > 1:
-            log_msg = 'Executor ID {} Starting {} remote invocation: Spawning {}() - Total: {} activations'.format(self.executor_id, N, func_name,
-                                                                                                                   original_iterdata_len)
+            log_msg = 'Executor ID {} Starting {} remote invocation function: Spawning {}() - Total: {} activations'.format(self.executor_id, N, func_name,
+                                                                                                                            original_iterdata_len)
         else:
             log_msg = 'Executor ID {} Starting function invocation: {}() - Total: {} activations'.format(self.executor_id, func_name, N)
         logger.info(log_msg)

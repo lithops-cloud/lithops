@@ -19,7 +19,7 @@ import sys
 import logging
 import zipfile
 from pywren_ibm_cloud import wrenconfig
-from pywren_ibm_cloud.utils import version_str
+from pywren_ibm_cloud.utils import version_str, create_action_name, create_runtime_name
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.libs.ibm_cf.connector import CloudFunctions
 
@@ -69,7 +69,7 @@ def _extract_modules(image_name, memory, cf_client, config):
     with open(action_location, "r") as action_py:
         action_code = action_py.read()
 
-    modules_action_name = '{}_modules'.format(image_name.replace('/', '@').replace(':', '_'))
+    modules_action_name = '{}-modules'.format(create_action_name(image_name))
 
     old_stdout = sys.stdout
     sys.stdout = open(os.devnull, 'w')
@@ -77,7 +77,7 @@ def _extract_modules(image_name, memory, cf_client, config):
     sys.stdout = old_stdout
 
     memory = cf_client.default_runtime_memory if not memory else memory
-    runtime_name = '{}_{}'.format(image_name, memory)
+    runtime_name = create_runtime_name(image_name, memory)
     runtime_meta = cf_client.invoke_with_result(modules_action_name)
 
     ibm_cf_region = cf_client.endpoint.split('//')[1].split('.')[0]
@@ -90,8 +90,8 @@ def _extract_modules(image_name, memory, cf_client, config):
 def _create_blackbox_runtime(image_name, memory, cf_client):
     # Create runtime_name from image_name
     memory = cf_client.default_runtime_memory if not memory else memory
-    action_name = image_name.replace('/', '@').replace(':', '_')
-    action_name = '{}_{}'.format(action_name, memory)
+    runtime_name = create_runtime_name(image_name, memory)
+    action_name = create_action_name(runtime_name)
 
     # Upload zipped PyWren action
     with open(ZIP_LOCATION, "rb") as action_zip:
@@ -171,10 +171,10 @@ def delete_runtime(image_name, memory=None, config=None):
 
     memory = cf_client.default_runtime_memory if not memory else memory
 
-    runtime_name = '{}_{}'.format(image_name, memory)
+    runtime_name = create_runtime_name(image_name, memory)
     storage_client.delete_runtime_info(runtime_name)
 
-    action_name = runtime_name.replace('/', '@').replace(':', '_')
+    action_name = create_action_name(runtime_name)
     cf_client.delete_action(action_name)
 
 

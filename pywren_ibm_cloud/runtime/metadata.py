@@ -17,7 +17,7 @@
 import sys
 import os
 import logging
-from pywren_ibm_cloud.utils import version_str
+from pywren_ibm_cloud.utils import version_str, create_runtime_name
 from pywren_ibm_cloud.runtime import clone_runtime
 
 logger = logging.getLogger(__name__)
@@ -32,13 +32,13 @@ def get_runtime_preinstalls(internal_storage, runtime, memory, config):
     try:
         ibm_cf_region = config['ibm_cf']['endpoint'].split('//')[1].split('.')[0]
         ibm_cf_namespace = config['ibm_cf']['namespace']
-        runtime_name = '{}_{}'.format(runtime, memory)
+        runtime_name = create_runtime_name(runtime, memory)
         runtime_meta = internal_storage.get_runtime_info(ibm_cf_region, ibm_cf_namespace, runtime_name)
         preinstalls = runtime_meta['preinstalls']
         if not log_level:
             print()
     except Exception:
-        log_msg = 'Runtime {}_{} is not yet installed'.format(runtime, memory)
+        log_msg = 'Runtime {} is not yet installed'.format(runtime_name)
         logger.debug(log_msg)
         if not log_level:
             print('(Installing...)')

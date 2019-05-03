@@ -36,6 +36,7 @@ class CloudFunctions:
         """
         Constructor
         """
+        self.log_level = os.getenv('PYWREN_LOG_LEVEL')
         self.api_key = str.encode(config['api_key'])
         self.endpoint = config['endpoint'].replace('http:', 'https:')
         self.namespace = config['namespace']
@@ -50,7 +51,7 @@ class CloudFunctions:
         self.headers = {
             'content-type': 'application/json',
             'Authorization': 'Basic %s' % auth.decode('UTF-8'),
-            'User-Agent': default_user_agent + ' pywren-ibm-cloud'
+            'User-Agent': default_user_agent + ' pywren-ibm-cloud/{}'.format(__version__)
         }
 
         self.session.headers.update(self.headers)
@@ -62,7 +63,7 @@ class CloudFunctions:
         logger.info('{} host: {}'.format(msg, self.endpoint))
         logger.debug("CF user agent set to: {}".format(self.session.headers['User-Agent']))
 
-        if logger.getEffectiveLevel() == logging.WARNING:
+        if not self.log_level:
             print("{} Namespace: {}".format(msg, self.namespace))
             print("{} Host: {}".format(msg, self.endpoint))
 
@@ -189,7 +190,7 @@ class CloudFunctions:
             if resp.status_code == 401:
                 raise Exception('Unauthorized - Invalid API Key')
             elif resp.status_code == 404:
-                raise Exception('PyWren Runtime not deployed')
+                raise Exception('PyWren Runtime: {} not deployed'.format(action_name))
             elif resp.status_code == 429:
                 # Too many concurrent requests in flight
                 return None
@@ -205,26 +206,26 @@ class CloudFunctions:
 
         url = urlparse(os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.namespace,
                                     'actions', self.package, action_name).replace("\\", "/"))
-        ctx = ssl._create_unverified_context()
-
+        start = time.time()
         try:
-            start = time.time()
+            ctx = ssl._create_unverified_context()
             conn = http.client.HTTPSConnection(url.netloc, context=ctx)
             conn.request("POST", url.geturl(),
                          body=json.dumps(payload),
                          headers=self.headers)
             resp = conn.getresponse()
             data = resp.read()
-            roundtrip = time.time() - start
-            resp_time = format(round(roundtrip, 3), '.3f')
-            data = json.loads(data.decode("utf-8"))
-            conn.close()
         except Exception as e:
             conn.close()
             logger.debug(str(e))
             return self.request_invoke(action_name, payload)
 
-        if 'activationId' in data:
+        roundtrip = time.time() - start
+        resp_time = format(round(roundtrip, 3), '.3f')
+        data = json.loads(data.decode("utf-8"))
+        conn.close()
+
+        if resp.status == 202 and 'activationId' in data:
             log_msg = ('Executor ID {} Function {} - Activation ID: '
                        '{} - Time: {} seconds'.format(exec_id, call_id,
                                                       data["activationId"],
@@ -236,7 +237,7 @@ class CloudFunctions:
             if resp.status == 401:
                 raise Exception('Unauthorized - Invalid API Key')
             elif resp.status == 404:
-                raise Exception('PyWren Runtime not deployed')
+                raise Exception('PyWren Runtime: {} not deployed'.format(action_name))
             elif resp.status == 429:
                 # Too many concurrent requests in flight
                 return None

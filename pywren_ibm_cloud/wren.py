@@ -21,13 +21,13 @@ import enum
 import json
 import signal
 import logging
-import pywren_ibm_cloud.invokers as invokers
-import pywren_ibm_cloud.wrenconfig as wrenconfig
+from pywren_ibm_cloud import invokers
+from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.executor import Executor
 from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
-from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_cf_cluster
+from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_cf_cluster, create_ri_action_name
 from pywren_ibm_cloud.storage.cleaner import clean_os_bucket
 
 logger = logging.getLogger(__name__)
@@ -161,9 +161,7 @@ class ibm_cf_executor:
             remote_invocation = False
 
         if remote_invocation:
-            ian = invocation_action_name.split('_')
-            ian[-1] = '2048'
-            self.executor.invoker.action_name = "_".join(ian)
+            self.executor.invoker.action_name = create_ri_action_name(invocation_action_name)
 
         map_futures, unused_ppo = self.executor.map(map_function=map_function,
                                                     iterdata=map_iterdata,
@@ -226,9 +224,7 @@ class ibm_cf_executor:
             remote_invocation = False
 
         if remote_invocation:
-            ian = invocation_action_name.split('_')
-            ian[-1] = '2048'
-            self.executor.invoker.action_name = "_".join(ian)
+            self.executor.invoker.action_name = create_ri_action_name(invocation_action_name)
 
         map_futures, parts_per_object = self.executor.map(map_function, map_iterdata,
                                                           extra_env=extra_env,
