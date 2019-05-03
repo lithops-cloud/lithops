@@ -189,8 +189,11 @@ class Executor(object):
                               extra_meta=extra_meta)
 
             map_func = remote_invoker
-            map_iterdata = [[iterdata[x:x+remote_invocation_groups]]
-                            for x in range(0, original_iterdata_len, remote_invocation_groups)]
+            if remote_invocation_groups:
+                map_iterdata = [[iterdata[x:x+remote_invocation_groups]]
+                                for x in range(0, original_iterdata_len, remote_invocation_groups)]
+            else:
+                map_iterdata = [iterdata]
             new_invoke_pool_threads = 1
 
         map_futures = self._map(map_func, map_iterdata,
