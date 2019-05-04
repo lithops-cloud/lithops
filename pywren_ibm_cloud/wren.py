@@ -415,6 +415,7 @@ class ibm_cf_executor:
             raise Exception('You must run pw.call_async(), pw.map() or pw.map_reduce()'
                             ' before call pw.create_timeline_plots()')
 
+        logging.getLogger('matplotlib').setLevel(logging.WARNING)
         from pywren_ibm_cloud.plots import create_timeline, create_histogram
 
         msg = 'Executor ID {} Creating timeline plots'.format(self.executor_id)

@@ -35,6 +35,7 @@ def _get_pywren_location():
 
 
 def _create_zip_action():
+    logger.debug("Creating zip action in {}".format(ZIP_LOCATION))
 
     def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
         for file in os.listdir(full_dir_path):
@@ -58,7 +59,6 @@ def _create_zip_action():
 def _extract_modules(image_name, memory, cf_client, config):
     # Extract installed Python modules from docker image
     # And store them into storage
-
     # Create storage_handler to upload modules file
     storage_config = wrenconfig.extract_storage_config(config)
     internal_storage = storage.InternalStorage(storage_config)
@@ -71,10 +71,11 @@ def _extract_modules(image_name, memory, cf_client, config):
 
     modules_action_name = '{}-modules'.format(create_action_name(image_name))
 
-    old_stdout = sys.stdout
-    sys.stdout = open(os.devnull, 'w')
+    # old_stdout = sys.stdout
+    # sys.stdout = open(os.devnull, 'w')
+    logger.debug("Creating action for extracting Python modules list: {}".format(modules_action_name))
     cf_client.create_action(modules_action_name, image_name, code=action_code, is_binary=False)
-    sys.stdout = old_stdout
+    # sys.stdout = old_stdout
 
     memory = cf_client.default_runtime_memory if not memory else memory
     runtime_name = create_runtime_name(image_name, memory)
@@ -96,12 +97,13 @@ def _create_blackbox_runtime(image_name, memory, cf_client):
     # Upload zipped PyWren action
     with open(ZIP_LOCATION, "rb") as action_zip:
         action_bin = action_zip.read()
+    logger.debug("Creating blackbox action: {}".format(action_name))
     cf_client.create_action(action_name, image_name, code=action_bin, memory=memory)
 
 
 def create_runtime(image_name, memory=None, config=None):
-    print('Creating a new docker image from the Dockerfile')
-    print('Docker image name: {}'.format(image_name))
+    logger.info('Creating a new docker image from the Dockerfile')
+    logger.info('Docker image name: {}'.format(image_name))
 
     cmd = 'docker build -t {} .'.format(image_name)
     res = os.system(cmd)
@@ -127,7 +129,7 @@ def create_runtime(image_name, memory=None, config=None):
 
 
 def clone_runtime(image_name, memory=None, config=None):
-    print('Cloning docker image {}'.format(image_name))
+    logger.info('Cloning docker image {}'.format(image_name))
 
     if config is None:
         config = wrenconfig.default()
@@ -143,7 +145,7 @@ def clone_runtime(image_name, memory=None, config=None):
 
 
 def update_runtime(image_name, memory=None, config=None):
-    print('Updating runtime: {}'.format(image_name))
+    logger.info('Updating runtime: {}'.format(image_name))
     if config is None:
         config = wrenconfig.default()
     else:
@@ -157,7 +159,7 @@ def update_runtime(image_name, memory=None, config=None):
 
 
 def delete_runtime(image_name, memory=None, config=None):
-    print('Deleting runtime: {}'.format(image_name))
+    logger.info('Deleting runtime: {}'.format(image_name))
 
     if config is None:
         config = wrenconfig.default()
@@ -180,7 +182,7 @@ def delete_runtime(image_name, memory=None, config=None):
 
 def deploy_default_runtime(memory=None, config=None):
     this_version_str = version_str(sys.version_info)
-    print('Updating default Python {} runtime'.format(this_version_str))
+    logger.info('Updating default Python {} runtime'.format(this_version_str))
     if config is None:
         config = wrenconfig.default()
     else:

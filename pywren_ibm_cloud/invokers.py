@@ -45,10 +45,15 @@ class IBMCloudFunctionsInvoker:
 
         self.client = CloudFunctions(cf_config)
 
-        log_msg = 'IBM Cloud Functions init for Runtime: {} - {}MB'.format(self.runtime, self.runtime_memory)
-        logger.info(log_msg)
+        msg = 'IBM Cloud Functions init for'
+        logger.info('{} namespace: {}'.format(msg, self.namespace))
+        logger.info('{} host: {}'.format(msg, self.endpoint))
+        logger.info('{} Runtime: {} - {}MB'.format(msg, self.runtime, self.runtime_memory))
+
         if not self.log_level:
-            print(log_msg, end=' ')
+            print("{} Namespace: {}".format(msg, self.namespace))
+            print("{} Host: {}".format(msg, self.endpoint))
+            print('{} Runtime: {} - {}MB'.format(msg, self.runtime, self.runtime_memory), end=' ')
 
     def invoke(self, payload):
         """

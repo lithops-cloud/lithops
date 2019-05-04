@@ -16,7 +16,7 @@
 
 import os
 import json
-from pywren_ibm_cloud.version import __version__
+from ..version import __version__
 from .backends.cos import COSBackend
 from .backends.swift import SwiftBackend
 from .exceptions import StorageNoSuchKeyError

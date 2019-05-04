@@ -19,8 +19,8 @@ import ibm_boto3
 import ibm_botocore
 from datetime import datetime
 from ibm_botocore.credentials import DefaultTokenManager
-from pywren_ibm_cloud.utils import sizeof_fmt, is_cf_cluster
-from pywren_ibm_cloud.storage.exceptions import StorageNoSuchKeyError
+from ...utils import sizeof_fmt, is_cf_cluster
+from ..exceptions import StorageNoSuchKeyError
 
 logging.getLogger('ibm_boto3').setLevel(logging.CRITICAL)
 logging.getLogger('ibm_botocore').setLevel(logging.CRITICAL)
@@ -36,7 +36,7 @@ class COSBackend:
     def __init__(self, cos_config):
         self.is_cf_cluster = is_cf_cluster()
 
-        service_endpoint = cos_config.get('endpoint').replace('http:', 'https:')
+        service_endpoint = cos_config.get('endpoint')
         if self.is_cf_cluster and 'private_endpoint' in cos_config:
             service_endpoint = cos_config.get('private_endpoint')
 

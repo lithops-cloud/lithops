@@ -18,8 +18,8 @@ import os
 import json
 import logging
 import requests
-from pywren_ibm_cloud.storage.exceptions import StorageNoSuchKeyError
-from pywren_ibm_cloud.utils import sizeof_fmt
+from ..exceptions import StorageNoSuchKeyError
+from ...utils import sizeof_fmt
 
 
 logger = logging.getLogger(__name__)

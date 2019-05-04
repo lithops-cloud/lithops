@@ -28,8 +28,8 @@ def get_runtime_preinstalls(internal_storage, runtime, memory, config):
     Download runtime information from storage at deserialize
     """
     log_level = os.getenv('PYWREN_LOG_LEVEL')
-    logger.debug("Downloading runtime pre-installed modules from COS")
     try:
+        logger.debug("Downloading runtime pre-installed modules from COS")
         ibm_cf_region = config['ibm_cf']['endpoint'].split('//')[1].split('.')[0]
         ibm_cf_namespace = config['ibm_cf']['namespace']
         runtime_name = create_runtime_name(runtime, memory)
@@ -38,15 +38,10 @@ def get_runtime_preinstalls(internal_storage, runtime, memory, config):
         if not log_level:
             print()
     except Exception:
-        log_msg = 'Runtime {} is not yet installed'.format(runtime_name)
-        logger.debug(log_msg)
+        logger.debug('Runtime {} is not yet installed'.format(runtime_name))
         if not log_level:
             print('(Installing...)')
-            old_stdout = sys.stdout
-            sys.stdout = open(os.devnull, 'w')
         clone_runtime(runtime, memory=memory, config=config)
-        if not log_level:
-            sys.stdout = old_stdout
         runtime_meta = internal_storage.get_runtime_info(ibm_cf_region, ibm_cf_namespace, runtime_name)
         preinstalls = runtime_meta['preinstalls']
 

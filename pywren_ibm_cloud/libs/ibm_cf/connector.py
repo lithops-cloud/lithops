@@ -36,7 +36,6 @@ class CloudFunctions:
         """
         Constructor
         """
-        self.log_level = os.getenv('PYWREN_LOG_LEVEL')
         self.api_key = str.encode(config['api_key'])
         self.endpoint = config['endpoint'].replace('http:', 'https:')
         self.namespace = config['namespace']
@@ -59,18 +58,14 @@ class CloudFunctions:
         self.session.mount('https://', adapter)
 
         msg = 'IBM Cloud Functions init for'
-        logger.info('{} namespace: {}'.format(msg, self.namespace))
-        logger.info('{} host: {}'.format(msg, self.endpoint))
+        logger.debug('{} namespace: {}'.format(msg, self.namespace))
+        logger.debug('{} host: {}'.format(msg, self.endpoint))
         logger.debug("CF user agent set to: {}".format(self.session.headers['User-Agent']))
-
-        if not self.log_level:
-            print("{} Namespace: {}".format(msg, self.namespace))
-            print("{} Host: {}".format(msg, self.endpoint))
 
     def create_action(self, action_name, image_name, code=None, memory=None, kind='blackbox',
                       is_binary=True, overwrite=True):
         """
-        Create an IBM Cloud Function
+        Create an IBM Cloud Functions action
         """
         data = {}
         limits = {}
@@ -94,7 +89,7 @@ class CloudFunctions:
         resp_text = res.json()
 
         if res.status_code == 200:
-            print("OK --> Created action {}".format(action_name))
+            logger.debug("OK --> Created action {}".format(action_name))
         else:
             msg = 'An error occurred creating/updating action {}: {}'.format(action_name, resp_text['error'])
             raise Exception(msg)
@@ -179,10 +174,8 @@ class CloudFunctions:
             return self.session_invoke(action_name, payload)
 
         if 'activationId' in data:
-            log_msg = ('Executor ID {} Function {} - Activation ID: '
-                       '{} - Time: {} seconds'.format(exec_id, call_id,
-                                                      data["activationId"],
-                                                      resp_time))
+            log_msg = ('Executor ID {} Function {} invocation done! ({}s) - Activation ID: '
+                       '{}'.format(exec_id, call_id, resp_time, data["activationId"]))
             logger.debug(log_msg)
             return data["activationId"]
         else:
@@ -226,10 +219,8 @@ class CloudFunctions:
         conn.close()
 
         if resp.status == 202 and 'activationId' in data:
-            log_msg = ('Executor ID {} Function {} - Activation ID: '
-                       '{} - Time: {} seconds'.format(exec_id, call_id,
-                                                      data["activationId"],
-                                                      resp_time))
+            log_msg = ('Executor ID {} Function {} invocation done! ({}s) - Activation ID: '
+                       '{}'.format(exec_id, call_id, resp_time, data["activationId"]))
             logger.debug(log_msg)
             return data["activationId"]
         else:
