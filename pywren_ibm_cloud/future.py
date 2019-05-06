@@ -60,6 +60,7 @@ class ResponseFuture:
         self._new_futures = None
         self._traceback = None
         self._call_invoker_result = None
+        self._is_map_before_reduce = False
 
         self.run_status = None
         self.invoke_status = invoke_metadata.copy()
