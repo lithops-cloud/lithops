@@ -155,13 +155,14 @@ class ibm_cf_executor:
             raise Exception('You cannot run pw.map() in the current state.'
                             ' Create a new pywren.ibm_cf_executor() instance.')
 
-        invocation_action_name = self.executor.invoker.action_name
+        inv_action_name = self.executor.invoker.action_name
         if len(map_iterdata) == 1 or self.is_cf_cluster:
             # Ensure no remote invocation in these particular cases
             remote_invocation = False
 
         if remote_invocation:
-            self.executor.invoker.action_name = create_ri_action_name(invocation_action_name)
+            ria_memory = wrenconfig.RUNTIME_RI_MEMORY_DEFAULT
+            self.executor.invoker.action_name = create_ri_action_name(inv_action_name, ria_memory)
 
         map_futures, unused_ppo = self.executor.map(map_function=map_function,
                                                     iterdata=map_iterdata,
@@ -176,7 +177,7 @@ class ibm_cf_executor:
                                                     exclude_modules=exclude_modules,
                                                     job_max_runtime=timeout)
         self.futures.extend(map_futures)
-        self.executor.invoker.action_name = invocation_action_name
+        self.executor.invoker.action_name = inv_action_name
         self._state = ExecutorState.running
 
         if len(map_futures) == 1:
@@ -217,14 +218,15 @@ class ibm_cf_executor:
             raise Exception('You cannot run pw.map_reduce() in the current state.'
                             ' Create a new pywren.ibm_cf_executor() instance.')
 
-        invocation_action_name = self.executor.invoker.action_name
+        inv_action_name = self.executor.invoker.action_name
 
         if len(map_iterdata) == 1 or self.is_cf_cluster:
             # Ensure no remote invocation in these particular cases
             remote_invocation = False
 
         if remote_invocation:
-            self.executor.invoker.action_name = create_ri_action_name(invocation_action_name)
+            ria_memory = wrenconfig.RUNTIME_RI_MEMORY_DEFAULT
+            self.executor.invoker.action_name = create_ri_action_name(inv_action_name, ria_memory)
 
         map_futures, parts_per_object = self.executor.map(map_function, map_iterdata,
                                                           extra_env=extra_env,
@@ -242,7 +244,7 @@ class ibm_cf_executor:
         if reducer_wait_local:
             self.monitor(futures=map_futures)
 
-        self.executor.invoker.action_name = invocation_action_name
+        self.executor.invoker.action_name = inv_action_name
         futures = self.executor.reduce(reduce_function, map_futures, parts_per_object,
                                        reducer_one_per_object, extra_env, extra_meta)
         self.futures.extend(futures)

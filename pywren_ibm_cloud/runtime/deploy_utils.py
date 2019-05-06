@@ -19,13 +19,27 @@ import sys
 import logging
 import zipfile
 from pywren_ibm_cloud import wrenconfig
+from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import version_str, create_action_name, create_runtime_name
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.libs.ibm_cf.connector import CloudFunctions
+from docutils.nodes import image
 
 logger = logging.getLogger(__name__)
 
 ZIP_LOCATION = os.path.join(os.getcwd(), 'ibmcf_pywren.zip')
+PACKAGE = 'pywren_v'+__version__
+
+
+def _get_default_image_name():
+    this_version_str = version_str(sys.version_info)
+    if this_version_str == '3.5':
+        image_name = wrenconfig.RUNTIME_DEFAULT_35
+    elif this_version_str == '3.6':
+        image_name = wrenconfig.RUNTIME_DEFAULT_36
+    elif this_version_str == '3.7':
+        image_name = wrenconfig.RUNTIME_DEFAULT_37
+    return image_name
 
 
 def _get_pywren_location():
@@ -77,14 +91,13 @@ def _extract_modules(image_name, memory, cf_client, config):
     cf_client.create_action(modules_action_name, image_name, code=action_code, is_binary=False)
     # sys.stdout = old_stdout
 
+    region = cf_client.endpoint.split('//')[1].split('.')[0]
+    namespace = cf_client.namespace
     memory = cf_client.default_runtime_memory if not memory else memory
     runtime_name = create_runtime_name(image_name, memory)
+    logger.debug("Going to extract Python modules list from: {}".format(image_name))
     runtime_meta = cf_client.invoke_with_result(modules_action_name)
-
-    ibm_cf_region = cf_client.endpoint.split('//')[1].split('.')[0]
-    ibm_cf_namespace = cf_client.namespace
-
-    internal_storage.put_runtime_info(ibm_cf_region, ibm_cf_namespace, runtime_name, runtime_meta)
+    internal_storage.put_runtime_info(region, namespace, runtime_name, runtime_meta)
     cf_client.delete_action(modules_action_name)
 
 
@@ -102,6 +115,31 @@ def _create_blackbox_runtime(image_name, memory, cf_client):
 
 
 def create_runtime(image_name, memory=None, config=None):
+    logger.info('Creating new PyWren runtime based on image {}'.format(image_name))
+
+    if config is None:
+        config = wrenconfig.default()
+    else:
+        config = wrenconfig.default(config)
+
+    cf_config = wrenconfig.extract_cf_config(config)
+    cf_client = CloudFunctions(cf_config)
+    cf_client.create_package(PACKAGE)
+    _create_zip_action()
+
+    if image_name == 'default':
+        image_name = _get_default_image_name()
+
+    if not memory:
+        for memory in [wrenconfig.RUNTIME_MEMORY_DEFAULT, wrenconfig.RUNTIME_RI_MEMORY_DEFAULT]:
+            _extract_modules(image_name,  memory, cf_client, config)
+            _create_blackbox_runtime(image_name, memory, cf_client)
+    else:
+        _extract_modules(image_name,  memory, cf_client, config)
+        _create_blackbox_runtime(image_name, memory, cf_client)
+
+
+def build_runtime(image_name, config=None):
     logger.info('Creating a new docker image from the Dockerfile')
     logger.info('Docker image name: {}'.format(image_name))
 
@@ -115,36 +153,11 @@ def create_runtime(image_name, memory=None, config=None):
     if res != 0:
         exit()
 
-    if config is None:
-        config = wrenconfig.default()
-    else:
-        config = wrenconfig.default(config)
-
-    cf_config = wrenconfig.extract_cf_config(config)
-    cf_client = CloudFunctions(cf_config)
-    cf_client.create_package()
-    _create_zip_action()
-    _extract_modules(image_name, memory, cf_client, config)
-    _create_blackbox_runtime(image_name, memory, cf_client)
+    create_runtime(image_name, config=config)
+    update_runtime(image_name, config=config)
 
 
-def clone_runtime(image_name, memory=None, config=None):
-    logger.info('Cloning docker image {}'.format(image_name))
-
-    if config is None:
-        config = wrenconfig.default()
-    else:
-        config = wrenconfig.default(config)
-
-    cf_config = wrenconfig.extract_cf_config(config)
-    cf_client = CloudFunctions(cf_config)
-    cf_client.create_package()
-    _create_zip_action()
-    _extract_modules(image_name,  memory, cf_client, config)
-    _create_blackbox_runtime(image_name, memory, cf_client)
-
-
-def update_runtime(image_name, memory=None, config=None):
+def update_runtime(image_name, config=None):
     logger.info('Updating runtime: {}'.format(image_name))
     if config is None:
         config = wrenconfig.default()
@@ -153,12 +166,24 @@ def update_runtime(image_name, memory=None, config=None):
 
     cf_config = wrenconfig.extract_cf_config(config)
     cf_client = CloudFunctions(cf_config)
-
+    cf_client.create_package(PACKAGE)
     _create_zip_action()
-    _create_blackbox_runtime(image_name, memory, cf_client)
+
+    if image_name == 'default':
+        image_name = _get_default_image_name()
+
+    image_name_formated = create_action_name(image_name)
+    actions = cf_client.list_actions(PACKAGE)
+
+    for action in actions:
+        action_name, memory = action['name'].rsplit('-', 1)
+        if image_name_formated == action_name:
+            memory = int(memory.replace('MB', ''))
+            _extract_modules(image_name, memory, cf_client, config)
+            _create_blackbox_runtime(image_name, memory, cf_client)
 
 
-def delete_runtime(image_name, memory=None, config=None):
+def delete_runtime(image_name, config=None):
     logger.info('Deleting runtime: {}'.format(image_name))
 
     if config is None:
@@ -171,34 +196,19 @@ def delete_runtime(image_name, memory=None, config=None):
     cf_config = wrenconfig.extract_cf_config(config)
     cf_client = CloudFunctions(cf_config)
 
-    memory = cf_client.default_runtime_memory if not memory else memory
+    if image_name == 'default':
+        image_name = _get_default_image_name()
 
-    runtime_name = create_runtime_name(image_name, memory)
-    storage_client.delete_runtime_info(runtime_name)
+    image_name_formated = create_action_name(image_name)
+    actions = cf_client.list_actions(PACKAGE)
+    region = cf_client.endpoint.split('//')[1].split('.')[0]
+    namespace = cf_client.namespace
 
-    action_name = create_action_name(runtime_name)
-    cf_client.delete_action(action_name)
-
-
-def deploy_default_runtime(memory=None, config=None):
-    this_version_str = version_str(sys.version_info)
-    logger.info('Updating default Python {} runtime'.format(this_version_str))
-    if config is None:
-        config = wrenconfig.default()
-    else:
-        config = wrenconfig.default(config)
-
-    if this_version_str == '3.5':
-        image_name = wrenconfig.RUNTIME_DEFAULT_35
-    elif this_version_str == '3.6':
-        image_name = wrenconfig.RUNTIME_DEFAULT_36
-    elif this_version_str == '3.7':
-        image_name = wrenconfig.RUNTIME_DEFAULT_37
-
-    cf_config = wrenconfig.extract_cf_config(config)
-    cf_client = CloudFunctions(cf_config)
-    cf_client.create_package()
-
-    _create_zip_action()
-    _extract_modules(image_name, memory, cf_client, config)
-    _create_blackbox_runtime(image_name, memory, cf_client)
+    for action in actions:
+        action_name, memory = action['name'].rsplit('-', 1)
+        if image_name_formated == action_name:
+            memory = int(memory.replace('MB', ''))
+            runtime_name = create_runtime_name(image_name, memory)
+            storage_client.delete_runtime_info(region, namespace, runtime_name)
+            action_name = create_action_name(runtime_name)
+            cf_client.delete_action(action_name)

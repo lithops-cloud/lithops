@@ -96,11 +96,21 @@ class CloudFunctions:
 
     def get_action(self, action_name):
         """
-        Get an IBM Cloud Function
+        Get an IBM Cloud Functions action
         """
         logger.debug("I am about to get a cloud function action: {}".format(action_name))
         url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
                            self.namespace, 'actions', self.package, action_name).replace("\\", "/")
+        res = self.session.get(url)
+        return res.json()
+
+    def list_actions(self, package):
+        """
+        List all IBM Cloud Functions actions in a package
+        """
+        logger.debug("I am about to list all actions from: {}".format(package))
+        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.namespace,
+                           'actions', self.package, '').replace("\\", "/")
         res = self.session.get(url)
         return res.json()
 
@@ -133,20 +143,19 @@ class CloudFunctions:
         else:
             logger.debug("OK --> Updated action memory {}".format(action_name))
 
-    def create_package(self):
-        logger.debug('I am about to crate the package {}'.format(self.package))
-        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
-                           self.namespace, 'packages',
-                           self.package + "?overwrite=False").replace("\\", "/")
+    def create_package(self, package):
+        logger.debug('I am about to crate the package {}'.format(package))
+        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.namespace,
+                           'packages', package + "?overwrite=False").replace("\\", "/")
 
-        data = {"name": self.package}
+        data = {"name": package}
         res = self.session.put(url, json=data)
         resp_text = res.json()
 
         if res.status_code != 200:
-            logger.debug('Package {}: {}'.format(self.package, resp_text['error']))
+            logger.debug('Package {}: {}'.format(package, resp_text['error']))
         else:
-            logger.debug("OK --> Created package {}".format(self.package))
+            logger.debug("OK --> Created package {}".format(package))
 
     def invoke(self, action_name, payload):
         """

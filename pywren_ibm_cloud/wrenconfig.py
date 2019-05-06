@@ -29,7 +29,8 @@ RUNTIME_DEFAULT_36 = 'ibmfunctions/action-python-v3.6'
 RUNTIME_DEFAULT_37 = 'ibmfunctions/action-python-v3.7'
 
 RUNTIME_TIMEOUT_DEFAULT = 600000  # Default: 600000 milliseconds => 10 minutes
-RUNTIME_MEMORY_DEFAULT = 256  # Default: 256 MB
+RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
+RUNTIME_RI_MEMORY_DEFAULT = 2048  # DEfault memory for remote invocation function
 RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
 
 DATA_CLEANER_DEFAULT = False
