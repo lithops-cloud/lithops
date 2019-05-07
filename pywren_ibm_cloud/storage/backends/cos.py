@@ -33,11 +33,12 @@ class COSBackend:
     A wrap-up around COS ibm_boto3 APIs.
     """
 
-    def __init__(self, cos_config, iam_config):
+    def __init__(self, cos_config):
         self.is_cf_cluster = is_cf_cluster()
+        iam_config = cos_config['ibm_iam']
 
-        service_endpoint = cos_config.get('endpoint')
-        if self.is_cf_cluster and 'private_endpoint' in cos_config:
+        service_endpoint = cos_config.get('endpoint').replace('http:', 'https:')
+        if self.is_cf_cluster and 'api_key' not in cos_config and 'private_endpoint' in cos_config:
             service_endpoint = cos_config.get('private_endpoint')
 
         ibm_auth_endpoint = iam_config['ibm_auth_endpoint']

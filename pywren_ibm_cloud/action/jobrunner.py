@@ -161,14 +161,14 @@ class jobrunner(Process):
         if 'storage' in func_sig.parameters:
             # 'storage' generic parameter used in map_reduce method
             if 'ibm_cos' in self.storage_config:
-                mr_storage_client = COSBackend(self.storage_config['ibm_cos'], self.storage_config['ibm_iam'])
+                mr_storage_client = COSBackend(self.storage_config['ibm_cos'])
             elif 'swift' in self.storage_config:
                 mr_storage_client = SwiftBackend(self.storage_config['swift'])
 
             data['storage'] = mr_storage_client
 
         if 'ibm_cos' in func_sig.parameters:
-            ibm_boto3_client = COSBackend(self.storage_config['ibm_cos'], self.storage_config['ibm_iam']).get_client()
+            ibm_boto3_client = COSBackend(self.storage_config['ibm_cos']).get_client()
             data['ibm_cos'] = ibm_boto3_client
 
         if 'swift' in func_sig.parameters:

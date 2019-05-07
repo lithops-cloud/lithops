@@ -126,9 +126,6 @@ def default(config_data=None):
     if not set(('pywren', 'ibm_cf', 'ibm_cos')).issubset(set(config_data)):
         raise Exception("pywren, ibm_cf and ibm_cos sections are mandatory in the configuration")
 
-    if not 'ibm_cos' in config_data and not 'ibm_iam' in config_data:
-        raise Exception("ibm_cos or ibm_iam should be provided in the configuration")
-
     if 'storage_backend' not in config_data['pywren']:
         config_data['pywren']['storage_backend'] = STORAGE_BACKEND_DEFAULT
     if 'storage_bucket' not in config_data['pywren']:
@@ -156,7 +153,7 @@ def default(config_data=None):
         elif this_version_str == '3.7':
             config_data['pywren']['runtime'] = RUNTIME_DEFAULT_37
 
-    if 'ibm_iam' not in config_data:
+    if 'ibm_iam' not in config_data or config_data['ibm_iam'] is None:
         config_data['ibm_iam'] = {}
     if 'ibm_auth_endpoint' not in config_data['ibm_iam']:
         config_data['ibm_iam']['ibm_auth_endpoint'] = IBM_AUTH_ENDPOINT_DEFAULT
@@ -182,9 +179,9 @@ def extract_storage_config(config):
 
         if set(required_parameters_1) <= set(config['ibm_cos']) or \
                 set(required_parameters_2) <= set(config['ibm_cos']) or \
-                'api_key' in config['ibm_iam']:
+                ('endpoint' in config['ibm_cos'] and 'api_key' in config['ibm_iam']):
             storage_config['ibm_cos'] = config['ibm_cos']
-            storage_config['ibm_iam'] = config['ibm_iam']
+            storage_config['ibm_cos']['ibm_iam'] = config['ibm_iam']
         else:
             raise Exception('You must provide {} or {} to access to IBM COS'.format(required_parameters_1,
                                                                                     required_parameters_2))
@@ -205,9 +202,6 @@ def extract_cf_config(config):
     cf_config['runtime'] = config['pywren']['runtime']
     cf_config['runtime_timeout'] = int(config['pywren']['runtime_timeout'])
     cf_config['runtime_memory'] = int(config['pywren']['runtime_memory'])
-    cf_config['ibm_iam'] = {}
-    if 'api_key' in config['ibm_iam']:
-        cf_config['ibm_iam']['api_key'] = config['ibm_iam']['api_key']
-    cf_config['ibm_iam']['ibm_auth_endpoint'] = config['ibm_iam']['ibm_auth_endpoint']
+    cf_config['ibm_iam'] = config['ibm_iam']
 
     return cf_config
