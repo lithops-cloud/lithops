@@ -25,7 +25,7 @@ import http.client
 from urllib.parse import urlparse
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import is_cf_cluster
-
+from pywren_ibm_cloud.libs.ibm_iam.iam_connector import IAM
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,6 @@ class CloudFunctions:
         """
         Constructor
         """
-        self.api_key = str.encode(config['api_key'])
         self.endpoint = config['endpoint'].replace('http:', 'https:')
         self.namespace = config['namespace']
         self.default_runtime_memory = int(config['runtime_memory'])
@@ -44,12 +43,21 @@ class CloudFunctions:
         self.is_cf_cluster = is_cf_cluster()
         self.package = 'pywren_v'+__version__
 
-        auth = base64.encodebytes(self.api_key).replace(b'\n', b'')
+        self.iam_connector = IAM(config['ibm_iam'], self.endpoint, self.namespace)
+        if not self.iam_connector.is_IAM_access():
+            self.api_key = str.encode(config['api_key'])
+
+        if not self.iam_connector.is_IAM_access():
+            auth_token = base64.encodebytes(self.api_key).replace(b'\n', b'')
+            auth = 'Basic %s' % auth_token.decode('UTF-8')
+        else:
+            auth = self.iam_connector.get_iam_token()
+            self.namespace = self.iam_connector.get_function_namespace_id(auth)
         self.session = requests.session()
         default_user_agent = self.session.headers['User-Agent']
         self.headers = {
             'content-type': 'application/json',
-            'Authorization': 'Basic %s' % auth.decode('UTF-8'),
+            'Authorization': auth,
             'User-Agent': default_user_agent + ' pywren-ibm-cloud'
         }
 

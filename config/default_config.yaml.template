@@ -1,3 +1,6 @@
+ibm_iam:
+	api_key: <IAM KEY>
+	ibm_auth_endpoint: <IAM ENDPOINT>
 pywren: 
     storage_bucket: <BUCKET_NAME>
     #storage_prefix: pywren.jobs

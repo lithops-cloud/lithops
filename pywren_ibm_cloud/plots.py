@@ -14,7 +14,7 @@ sns.set_style('whitegrid')
 logger = logging.getLogger(__name__)
 
 
-def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses, cos_config):
+def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses, cos_config, iam_config):
     results_df = pd.DataFrame(run_statuses)
 
     if invoke_statuses:
@@ -86,12 +86,12 @@ def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses, cos
     fig.tight_layout()
 
     if dst.split('://')[0] == 'cos':
-        save_plot_in_cos(cos_config, fig, dst, name+"_timeline.png")
+        save_plot_in_cos(cos_config, iam_config, fig, dst, name+"_timeline.png")
     else:
         fig.savefig(os.path.join(dst, name+"_timeline.png"))
 
 
-def create_histogram(dst, name, pw_start_time, run_statuses, cos_config):
+def create_histogram(dst, name, pw_start_time, run_statuses, cos_config, iam_config):
     runtime_bins = np.linspace(0, 600, 600)
 
     def compute_times_rates(time_rates):
@@ -145,12 +145,12 @@ def create_histogram(dst, name, pw_start_time, run_statuses, cos_config):
 
     fig.tight_layout()
     if dst.split('://')[0] == 'cos':
-        save_plot_in_cos(cos_config, fig, dst, name+"_histogram.png")
+        save_plot_in_cos(cos_config, iam_config, fig, dst, name+"_histogram.png")
     else:
         fig.savefig(os.path.join(dst, name+"_histogram.png"))
 
 
-def save_plot_in_cos(cos_config, fig, dst, filename):
+def save_plot_in_cos(cos_config, iam_config, fig, dst, filename):
     bucketname = dst.split('cos://')[1].split('/')[0]
     key = os.path.join(*dst.split('cos://')[1].split('/')[1:], filename)
 
@@ -158,5 +158,5 @@ def save_plot_in_cos(cos_config, fig, dst, filename):
     fig.savefig(buff)
     buff.seek(0)
 
-    cos_handler = cos.COSBackend(cos_config)
+    cos_handler = cos.COSBackend(cos_config, iam_config)
     cos_handler.put_object(bucketname, key, buff.read())

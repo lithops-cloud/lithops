@@ -33,23 +33,28 @@ class COSBackend:
     A wrap-up around COS ibm_boto3 APIs.
     """
 
-    def __init__(self, cos_config):
+    def __init__(self, cos_config, iam_config):
         self.is_cf_cluster = is_cf_cluster()
 
         service_endpoint = cos_config.get('endpoint').replace('http:', 'https:')
         if self.is_cf_cluster and 'private_endpoint' in cos_config:
             service_endpoint = cos_config.get('private_endpoint')
 
-        ibm_auth_endpoint = cos_config['ibm_auth_endpoint']
+        ibm_auth_endpoint = iam_config['ibm_auth_endpoint']
         logger.debug("Set IBM COS Endpoint to {}".format(service_endpoint))
-        logger.debug("Set IBM COS Auth Endpoint to {}".format(ibm_auth_endpoint))
+        logger.debug("Set IBM IAM Auth Endpoint to {}".format(ibm_auth_endpoint))
 
-        if 'api_key' in cos_config:
+        api_key = None
+        if 'api_key' in iam_config:
+            api_key = iam_config.get('api_key')
+        elif 'api_key' in cos_config:
+            api_key = cos_config.get('api_key')
+
+        if api_key is not None:
             client_config = ibm_botocore.client.Config(signature_version='oauth',
                                                        max_pool_connections=128,
                                                        user_agent_extra='pywren-ibm-cloud',
                                                        connect_timeout=1)
-            api_key = cos_config.get('api_key')
             token_manager = DefaultTokenManager(api_key_id=api_key, auth_endpoint=ibm_auth_endpoint)
 
             if 'token' not in cos_config:

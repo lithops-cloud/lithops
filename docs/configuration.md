@@ -31,7 +31,15 @@ Summary of configuration keys for IBM Cloud Object Storage:
 |ibm_cos | endpoint | | yes | Regional endpoint to your COS account. Make sure to use full path. For example https://s3.us-east.cloud-object-storage.appdomain.cloud |
 |ibm_cos | private_endpoint | | no | Private regional endpoint to your COS account. Make sure to use full path. For example: https://s3.private.us-east.cloud-object-storage.appdomain.cloud |
 |ibm_cos | api_key | | yes | API Key to your COS account|
-|ibm_cos | ibm_auth_endpoint | https://iam.cloud.ibm.com/oidc/token | no | Optional URL for IBM Authentication IAM |
+
+Summary of configuration keys for IBM IAM authentication
+
+When using IAM authentication one IAM key can be used to authenticate against IBM COS and IBM Cloud Functions. In this case, setup IAM key in the 
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|ibm_iam | iam_key | | no | IBM key to authenticate against IBM COS and IBM Cloud Functions
+|ibm_iam |`ibm_auth_endpoint`| https://iam.cloud.ibm.com/oidc/token | no | Optional URL for IBM Authentication IAM |
 
 
 ### Using in-memory storage for monitoring function executions

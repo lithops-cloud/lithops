@@ -168,7 +168,7 @@ class Executor(object):
             '''
             logger.debug("Calling map on partitions from object storage flow")
             arg_data = wrenutil.verify_args(map_function, data, object_processing=True)
-            storage = COSBackend(self.config['ibm_cos'])
+            storage = COSBackend(self.config['ibm_cos'], self.config['ibm_iam'])
             map_iterdata, parts_per_object = create_partitions(arg_data, obj_chunk_size, storage)
             map_func = partition_processor(map_function)
 

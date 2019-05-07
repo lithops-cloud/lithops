@@ -275,11 +275,11 @@ def run(config=None):
 
     if config is None:
         CONFIG = wrenconfig.default()
-        STORAGE = cos.COSBackend(CONFIG['ibm_cos'])
+        STORAGE = cos.COSBackend(CONFIG['ibm_cos'], CONFIG['ibm_iam'])
     else:
         CONFIG = wrenconfig.default(config)
 
-    STORAGE = cos.COSBackend(CONFIG['ibm_cos'])
+    STORAGE = cos.COSBackend(CONFIG['ibm_cos'], CONFIG['ibm_iam'])
 
     if len(sys.argv) <= 1:
         task = 'full'
