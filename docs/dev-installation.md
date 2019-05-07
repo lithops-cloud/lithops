@@ -75,7 +75,7 @@ config = {'pywren' : {'storage_bucket' : 'BUCKET_NAME'},
 You can find more configuration keys [here](configuration.md).
 
 
-## Update PyWren main runtime
+## Runtime
 
 Every time you want to test the changed code, you need to update the default PyWren runtime to your IBM Cloud Functions namespace. PyWren main runtime is responsible to execute Python functions within IBM Cloud Functions cluster. The strong requirement here is to match Python versions between the client and the runtime. The runtime may also contain additional packages which your code depends on.
 
@@ -89,7 +89,7 @@ PyWren-IBM-Cloud shipped with default runtimes:
 
 To update the default runtime, navigate into `runtime` folder and execute:
 
-	./deploy_runtime default
+	./deploy_runtime update default
 
 To update any other runtime, navigate into `runtime` folder and execute:
 

@@ -1,20 +1,16 @@
 #!/usr/bin/env python3
-from pywren_ibm_cloud.runtime import create_runtime, clone_runtime, update_runtime, deploy_default_runtime
+from pywren_ibm_cloud.runtime import create_runtime, update_runtime, build_runtime, delete_runtime
+import logging
 import click
+
+logging.basicConfig(level=logging.DEBUG)
 
 
 @click.group(invoke_without_command=True)
 @click.pass_context
-@click.option('--memory', default=None, help='memory used by the runtime', type=int)
-def cli(ctx, memory):
+def cli(ctx):
     if ctx.invoked_subcommand is None:
-        deploy_default_runtime(memory=memory)
-
-
-@cli.command('default')
-@click.option('--memory', default=None, help='memory used by the runtime', type=int)
-def default(memory):
-    deploy_default_runtime(memory=memory)
+        create_runtime('default')
 
 
 @cli.command('create')
@@ -24,18 +20,22 @@ def create(image_name, memory):
     create_runtime(image_name, memory=memory)
 
 
-@cli.command('clone')
+@cli.command('build')
 @click.argument('image_name')
-@click.option('--memory', default=None, help='memory used by the runtime', type=int)
-def clone(image_name, memory):
-    clone_runtime(image_name, memory=memory)
+def build(image_name):
+    build_runtime(image_name)
 
 
 @cli.command('update')
 @click.argument('image_name')
-@click.option('--memory', default=None, help='memory used by the runtime', type=int)
-def update(image_name, memory):
-    update_runtime(image_name, memory=memory)
+def update(image_name):
+    update_runtime(image_name)
+
+
+@cli.command('delete')
+@click.argument('image_name')
+def delete(image_name):
+    delete_runtime(image_name)
 
 
 if __name__ == "__main__":

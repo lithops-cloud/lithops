@@ -15,7 +15,6 @@
 #
 
 from pywren_ibm_cloud.wren import ibm_cf_executor
-from pywren_ibm_cloud import runtime
 from pywren_ibm_cloud.version import __version__
 
 name = "pywren_ibm_cloud"

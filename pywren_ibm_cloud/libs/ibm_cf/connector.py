@@ -58,7 +58,7 @@ class CloudFunctions:
         self.headers = {
             'content-type': 'application/json',
             'Authorization': auth,
-            'User-Agent': default_user_agent + ' pywren-ibm-cloud'
+            'User-Agent': default_user_agent + ' pywren-ibm-cloud/{}'.format(__version__)
         }
 
         self.session.headers.update(self.headers)
@@ -66,18 +66,14 @@ class CloudFunctions:
         self.session.mount('https://', adapter)
 
         msg = 'IBM Cloud Functions init for'
-        logger.info('{} namespace: {}'.format(msg, self.namespace))
-        logger.info('{} host: {}'.format(msg, self.endpoint))
+        logger.debug('{} namespace: {}'.format(msg, self.namespace))
+        logger.debug('{} host: {}'.format(msg, self.endpoint))
         logger.debug("CF user agent set to: {}".format(self.session.headers['User-Agent']))
-
-        if logger.getEffectiveLevel() == logging.WARNING:
-            print("{} Namespace: {}".format(msg, self.namespace))
-            print("{} Host: {}".format(msg, self.endpoint))
 
     def create_action(self, action_name, image_name, code=None, memory=None, kind='blackbox',
                       is_binary=True, overwrite=True):
         """
-        Create an IBM Cloud Function
+        Create an IBM Cloud Functions action
         """
         data = {}
         limits = {}
@@ -101,18 +97,28 @@ class CloudFunctions:
         resp_text = res.json()
 
         if res.status_code == 200:
-            print("OK --> Created action {}".format(action_name))
+            logger.debug("OK --> Created action {}".format(action_name))
         else:
             msg = 'An error occurred creating/updating action {}: {}'.format(action_name, resp_text['error'])
             raise Exception(msg)
 
     def get_action(self, action_name):
         """
-        Get an IBM Cloud Function
+        Get an IBM Cloud Functions action
         """
         logger.debug("I am about to get a cloud function action: {}".format(action_name))
         url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
                            self.namespace, 'actions', self.package, action_name).replace("\\", "/")
+        res = self.session.get(url)
+        return res.json()
+
+    def list_actions(self, package):
+        """
+        List all IBM Cloud Functions actions in a package
+        """
+        logger.debug("I am about to list all actions from: {}".format(package))
+        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.namespace,
+                           'actions', self.package, '').replace("\\", "/")
         res = self.session.get(url)
         return res.json()
 
@@ -145,20 +151,19 @@ class CloudFunctions:
         else:
             logger.debug("OK --> Updated action memory {}".format(action_name))
 
-    def create_package(self):
-        logger.debug('I am about to crate the package {}'.format(self.package))
-        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
-                           self.namespace, 'packages',
-                           self.package + "?overwrite=False").replace("\\", "/")
+    def create_package(self, package):
+        logger.debug('I am about to crate the package {}'.format(package))
+        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.namespace,
+                           'packages', package + "?overwrite=False").replace("\\", "/")
 
-        data = {"name": self.package}
+        data = {"name": package}
         res = self.session.put(url, json=data)
         resp_text = res.json()
 
         if res.status_code != 200:
-            logger.debug('Package {}: {}'.format(self.package, resp_text['error']))
+            logger.debug('Package {}: {}'.format(package, resp_text['error']))
         else:
-            logger.debug("OK --> Created package {}".format(self.package))
+            logger.debug("OK --> Created package {}".format(package))
 
     def invoke(self, action_name, payload):
         """
@@ -186,10 +191,8 @@ class CloudFunctions:
             return self.session_invoke(action_name, payload)
 
         if 'activationId' in data:
-            log_msg = ('Executor ID {} Function {} - Activation ID: '
-                       '{} - Time: {} seconds'.format(exec_id, call_id,
-                                                      data["activationId"],
-                                                      resp_time))
+            log_msg = ('Executor ID {} Function {} invocation done! ({}s) - Activation ID: '
+                       '{}'.format(exec_id, call_id, resp_time, data["activationId"]))
             logger.debug(log_msg)
             return data["activationId"]
         else:
@@ -197,7 +200,7 @@ class CloudFunctions:
             if resp.status_code == 401:
                 raise Exception('Unauthorized - Invalid API Key')
             elif resp.status_code == 404:
-                raise Exception('PyWren Runtime not deployed')
+                raise Exception('PyWren Runtime: {} not deployed'.format(action_name))
             elif resp.status_code == 429:
                 # Too many concurrent requests in flight
                 return None
@@ -213,39 +216,36 @@ class CloudFunctions:
 
         url = urlparse(os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.namespace,
                                     'actions', self.package, action_name).replace("\\", "/"))
-        ctx = ssl._create_unverified_context()
-
+        start = time.time()
         try:
-            start = time.time()
+            ctx = ssl._create_unverified_context()
             conn = http.client.HTTPSConnection(url.netloc, context=ctx)
             conn.request("POST", url.geturl(),
                          body=json.dumps(payload),
                          headers=self.headers)
             resp = conn.getresponse()
             data = resp.read()
-            roundtrip = time.time() - start
-            resp_time = format(round(roundtrip, 3), '.3f')
-            data = json.loads(data.decode("utf-8"))
-            conn.close()
         except Exception as e:
             conn.close()
             logger.debug(str(e))
             return self.request_invoke(action_name, payload)
 
-        if 'activationId' in data:
-            log_msg = ('Executor ID {} Function {} - Activation ID: '
-                       '{} - Time: {} seconds'.format(exec_id, call_id,
-                                                      data["activationId"],
-                                                      resp_time))
+        roundtrip = time.time() - start
+        resp_time = format(round(roundtrip, 3), '.3f')
+        data = json.loads(data.decode("utf-8"))
+        conn.close()
+
+        if resp.status == 202 and 'activationId' in data:
+            log_msg = ('Executor ID {} Function {} invocation done! ({}s) - Activation ID: '
+                       '{}'.format(exec_id, call_id, resp_time, data["activationId"]))
             logger.debug(log_msg)
             return data["activationId"]
         else:
             logger.debug(data)
-            print(data)
             if resp.status == 401:
                 raise Exception('Unauthorized - Invalid API Key')
             elif resp.status == 404:
-                raise Exception('PyWren Runtime not deployed')
+                raise Exception('PyWren Runtime: {} not deployed'.format(action_name))
             elif resp.status == 429:
                 # Too many concurrent requests in flight
                 return None

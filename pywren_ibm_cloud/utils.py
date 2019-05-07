@@ -43,6 +43,20 @@ def version_str(version_info):
     return "{}.{}".format(version_info[0], version_info[1])
 
 
+def create_runtime_name(runtime, memory):
+    return '{}-{}MB'.format(runtime, memory)
+
+
+def create_ri_action_name(action_name, ria_memory):
+    ian = action_name.split('-')
+    ian[-1] = '{}MB'.format(ria_memory)
+    return "-".join(ian)
+
+
+def create_action_name(image_name):
+    return image_name.replace('/', '-').replace(':', '-').replace('_', '-')
+
+
 def is_unix_system():
     curret_system = platform.system()
     return curret_system != 'Windows'
