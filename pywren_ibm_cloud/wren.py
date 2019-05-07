@@ -225,13 +225,11 @@ class ibm_cf_executor:
         if reducer_wait_local:
             self.monitor(futures=map_futures)
 
-        futures = self.executor.reduce(reduce_function, map_futures, parts_per_object,
+        reduce_future = self.executor.reduce(reduce_function, map_futures, parts_per_object,
                                        reducer_one_per_object, extra_env, extra_meta)
-        self.futures.extend(map_futures)
-        self.futures.extend(futures)
 
-        if len(futures) == 1:
-            return futures[0]
+        futures = map_futures + reduce_future
+        self.futures.extend(futures)
         return futures
 
     def monitor(self, futures=None, throw_except=True, return_when=ALL_COMPLETED,
