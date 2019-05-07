@@ -23,7 +23,6 @@ from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import version_str, create_action_name, create_runtime_name
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.libs.ibm_cf.connector import CloudFunctions
-from docutils.nodes import image
 
 logger = logging.getLogger(__name__)
 
@@ -131,10 +130,24 @@ def create_runtime(image_name, memory=None, config=None):
         image_name = _get_default_image_name()
 
     if not memory:
+        # if not memory, this means that the method was called from deploy_runtime script
         for memory in [wrenconfig.RUNTIME_MEMORY_DEFAULT, wrenconfig.RUNTIME_RI_MEMORY_DEFAULT]:
             _extract_modules(image_name,  memory, cf_client, config)
             _create_blackbox_runtime(image_name, memory, cf_client)
     else:
+        ri_runtime_deployed = False
+        image_name_formated = create_action_name(image_name)
+        actions = cf_client.list_actions(PACKAGE)
+        for action in actions:
+            action_name, r_memory = action['name'].rsplit('-', 1)
+            if image_name_formated == action_name:
+                r_memory = int(r_memory.replace('MB', ''))
+                if r_memory == wrenconfig.RUNTIME_RI_MEMORY_DEFAULT:
+                    ri_runtime_deployed = True
+                    break
+        if not ri_runtime_deployed:
+            _extract_modules(image_name,  wrenconfig.RUNTIME_RI_MEMORY_DEFAULT, cf_client, config)
+            _create_blackbox_runtime(image_name, wrenconfig.RUNTIME_RI_MEMORY_DEFAULT, cf_client)
         _extract_modules(image_name,  memory, cf_client, config)
         _create_blackbox_runtime(image_name, memory, cf_client)
 

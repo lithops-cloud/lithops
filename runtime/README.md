@@ -16,7 +16,7 @@ Alternatively, you can create the default runtime by running the following comma
     
     ./deploy_runtime create default
 
-To run a function with the default runtime you don't need to specify anything in the code, as all is internally managed by PyWren:
+To run a function with the default runtime you don't need to specify anything in the code since all is internally managed by PyWren:
 ```python
 import pywren_ibm_cloud as pywren
 
@@ -54,7 +54,7 @@ If you need some Python modules (or other system libraries) which are not includ
     	./deploy_runtime build jsampe/pywren-custom-runtime:3.5
     
     Once you have built your runtime with all of your necessary packages, now you are able to use it with PyWren.
-    To do so you have to specify the *runtimename* when you create the *ibm_cf_executor* instance, for example:
+    To do so you have to specify the full docker image name when you create the *ibm_cf_executor* instance, for example:
     ```python
     import pywren_ibm_cloud as pywren
     
@@ -76,8 +76,7 @@ In this case you can use that Docker image and avoid the building process.
 
 2. **Use an already built runtime from a public repository**
 
-    To create a PyWren runtime based on already built Docker image,  
-    execute the following command which will create all the necessary information to use the runtime with your PyWren.
+    To create a PyWren runtime based on already built Docker image, execute the following command which will create all the necessary information to use the runtime with your PyWren.
     
         ./deploy_runtime create docker_username/runtimename:tag
       
