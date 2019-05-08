@@ -38,8 +38,10 @@ class COSBackend:
         iam_config = cos_config['ibm_iam']
 
         service_endpoint = cos_config.get('endpoint').replace('http:', 'https:')
-        if self.is_cf_cluster and 'api_key' not in cos_config and 'private_endpoint' in cos_config:
+        if self.is_cf_cluster and 'private_endpoint' in cos_config:
             service_endpoint = cos_config.get('private_endpoint')
+            if 'api_key' in cos_config:
+                service_endpoint = service_endpoint.replace('http:', 'https:')
 
         ibm_auth_endpoint = iam_config['ibm_auth_endpoint']
         logger.debug("Set IBM COS Endpoint to {}".format(service_endpoint))
