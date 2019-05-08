@@ -15,7 +15,7 @@
 #
 
 import os
-from pywren_ibm_cloud.storage.exceptions import StorageConfigMismatchError
+from .exceptions import StorageConfigMismatchError
 
 func_key_suffix = "func.pickle"
 agg_data_key_suffix = "aggdata.pickle"

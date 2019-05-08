@@ -14,11 +14,11 @@
 # limitations under the License.
 #
 
-from pywren_ibm_cloud.storage import storage
 import logging
 import sys
 import os
 import json
+from . import storage
 
 logger = logging.getLogger(__name__)
 

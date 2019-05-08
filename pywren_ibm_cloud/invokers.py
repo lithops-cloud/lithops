@@ -19,6 +19,7 @@ import time
 import logging
 import random
 from pywren_ibm_cloud.libs.ibm_cf.connector import CloudFunctions
+from pywren_ibm_cloud.utils import create_action_name, create_runtime_name
 from pywren_ibm_cloud.wrenconfig import extract_cf_config
 
 logger = logging.getLogger(__name__)
@@ -35,8 +36,8 @@ class IBMCloudFunctionsInvoker:
         self.runtime_memory = int(cf_config['runtime_memory'])
         self.runtime_timeout = int(cf_config['runtime_timeout'])
 
-        self.action_name = self.runtime.replace('/', '@').replace(':', '_')
-        self.action_name = '{}_{}'.format(self.action_name, self.runtime_memory)
+        runtime_name = create_runtime_name(self.runtime, self.runtime_memory)
+        self.action_name = create_action_name(runtime_name)
 
         self.invocation_retry = config['pywren']['invocation_retry']
         self.retry_sleeps = config['pywren']['retry_sleeps']
@@ -44,10 +45,15 @@ class IBMCloudFunctionsInvoker:
 
         self.client = CloudFunctions(cf_config)
 
-        log_msg = 'IBM Cloud Functions init for Runtime: {} - {}MB'.format(self.runtime, self.runtime_memory)
-        logger.info(log_msg)
+        msg = 'IBM Cloud Functions init for'
+        logger.info('{} namespace: {}'.format(msg, self.namespace))
+        logger.info('{} host: {}'.format(msg, self.endpoint))
+        logger.info('{} Runtime: {} - {}MB'.format(msg, self.runtime, self.runtime_memory))
+
         if not self.log_level:
-            print(log_msg, end=' ')
+            print("{} Namespace: {}".format(msg, self.namespace))
+            print("{} Host: {}".format(msg, self.endpoint))
+            print('{} Runtime: {} - {}MB'.format(msg, self.runtime, self.runtime_memory), end=' ')
 
     def invoke(self, payload):
         """

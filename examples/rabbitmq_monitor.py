@@ -1,4 +1,3 @@
-
 """
 Simple PyWren example using rabbitmq to monitor map function invocations
 """

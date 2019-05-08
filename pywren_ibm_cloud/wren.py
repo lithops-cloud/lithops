@@ -21,13 +21,13 @@ import enum
 import json
 import signal
 import logging
-import pywren_ibm_cloud.invokers as invokers
-import pywren_ibm_cloud.wrenconfig as wrenconfig
+from pywren_ibm_cloud import invokers
+from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.executor import Executor
 from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
-from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_cf_cluster
+from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_cf_cluster, create_ri_action_name
 from pywren_ibm_cloud.storage.cleaner import clean_os_bucket
 
 logger = logging.getLogger(__name__)
@@ -130,7 +130,7 @@ class ibm_cf_executor:
 
     def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None,
             chunk_size=None, remote_invocation=False, timeout=wrenconfig.RUNTIME_TIMEOUT,
-            remote_invocation_groups=100, invoke_pool_threads=500,
+            remote_invocation_groups=None, invoke_pool_threads=500,
             data_all_as_one=True, overwrite_invoke_args=None, exclude_modules=None):
         """
         :param func: the function to map over the data
@@ -155,6 +155,15 @@ class ibm_cf_executor:
             raise Exception('You cannot run pw.map() in the current state.'
                             ' Create a new pywren.ibm_cf_executor() instance.')
 
+        inv_action_name = self.executor.invoker.action_name
+        if len(map_iterdata) == 1 or self.is_cf_cluster:
+            # Ensure no remote invocation in these particular cases
+            remote_invocation = False
+
+        if remote_invocation:
+            ria_memory = wrenconfig.RUNTIME_RI_MEMORY_DEFAULT
+            self.executor.invoker.action_name = create_ri_action_name(inv_action_name, ria_memory)
+
         map_futures, unused_ppo = self.executor.map(map_function=map_function,
                                                     iterdata=map_iterdata,
                                                     obj_chunk_size=chunk_size,
@@ -168,6 +177,7 @@ class ibm_cf_executor:
                                                     exclude_modules=exclude_modules,
                                                     job_max_runtime=timeout)
         self.futures.extend(map_futures)
+        self.executor.invoker.action_name = inv_action_name
         self._state = ExecutorState.running
 
         if len(map_futures) == 1:
@@ -176,7 +186,7 @@ class ibm_cf_executor:
 
     def map_reduce(self, map_function, map_iterdata, reduce_function, extra_env=None,
                    extra_meta=None, chunk_size=None, remote_invocation=False,
-                   remote_invocation_groups=100, timeout=wrenconfig.RUNTIME_TIMEOUT,
+                   remote_invocation_groups=None, timeout=wrenconfig.RUNTIME_TIMEOUT,
                    reducer_one_per_object=False, reducer_wait_local=False,
                    invoke_pool_threads=500, data_all_as_one=True, overwrite_invoke_args=None,
                    exclude_modules=None):
@@ -208,6 +218,16 @@ class ibm_cf_executor:
             raise Exception('You cannot run pw.map_reduce() in the current state.'
                             ' Create a new pywren.ibm_cf_executor() instance.')
 
+        inv_action_name = self.executor.invoker.action_name
+
+        if len(map_iterdata) == 1 or self.is_cf_cluster:
+            # Ensure no remote invocation in these particular cases
+            remote_invocation = False
+
+        if remote_invocation:
+            ria_memory = wrenconfig.RUNTIME_RI_MEMORY_DEFAULT
+            self.executor.invoker.action_name = create_ri_action_name(inv_action_name, ria_memory)
+
         map_futures, parts_per_object = self.executor.map(map_function, map_iterdata,
                                                           extra_env=extra_env,
                                                           extra_meta=extra_meta,
@@ -225,6 +245,7 @@ class ibm_cf_executor:
         if reducer_wait_local:
             self.monitor(futures=map_futures)
 
+        self.executor.invoker.action_name = inv_action_name
         reduce_future = self.executor.reduce(reduce_function, map_futures, parts_per_object,
                                        reducer_one_per_object, extra_env, extra_meta)
 
@@ -393,6 +414,7 @@ class ibm_cf_executor:
             raise Exception('You must run pw.call_async(), pw.map() or pw.map_reduce()'
                             ' before call pw.create_timeline_plots()')
 
+        logging.getLogger('matplotlib').setLevel(logging.WARNING)
         from pywren_ibm_cloud.plots import create_timeline, create_histogram
 
         msg = 'Executor ID {} Creating timeline plots'.format(self.executor_id)
@@ -418,8 +440,8 @@ class ibm_cf_executor:
             for in_stat in invoke_statuses:
                 del in_stat['status_done_timestamp']
 
-        create_timeline(dst_dir, dst_file_name, self.start_time, run_statuses, invoke_statuses, self.config['ibm_cos'])
-        create_histogram(dst_dir, dst_file_name, self.start_time, run_statuses, self.config['ibm_cos'])
+        create_timeline(dst_dir, dst_file_name, self.start_time, run_statuses, invoke_statuses, self.config['ibm_cos'], self.config['ibm_iam'])
+        create_histogram(dst_dir, dst_file_name, self.start_time, run_statuses, self.config['ibm_cos'], self.config['ibm_iam'])
 
     def clean(self, local_execution=True):
         """

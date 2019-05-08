@@ -29,7 +29,8 @@ RUNTIME_DEFAULT_36 = 'ibmfunctions/action-python-v3.6'
 RUNTIME_DEFAULT_37 = 'ibmfunctions/action-python-v3.7'
 
 RUNTIME_TIMEOUT_DEFAULT = 600000  # Default: 600000 milliseconds => 10 minutes
-RUNTIME_MEMORY_DEFAULT = 256  # Default: 256 MB
+RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
+RUNTIME_RI_MEMORY_DEFAULT = 2048  # Default memory for remote invocation function
 RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
 
 DATA_CLEANER_DEFAULT = False
@@ -123,7 +124,10 @@ def default(config_data=None):
             config_data = load(config_filename)
 
     if not set(('pywren', 'ibm_cf', 'ibm_cos')).issubset(set(config_data)):
-        raise Exception("pywren, ibm_cf and ibm_cos sections are mandatory in config")
+        raise Exception("pywren, ibm_cf and ibm_cos sections are mandatory in the configuration")
+
+    if not 'ibm_cos' in config_data and not 'ibm_iam' in config_data:
+        raise Exception("ibm_cos or ibm_iam should be provided in the configuration")
 
     if 'storage_backend' not in config_data['pywren']:
         config_data['pywren']['storage_backend'] = STORAGE_BACKEND_DEFAULT
@@ -152,8 +156,10 @@ def default(config_data=None):
         elif this_version_str == '3.7':
             config_data['pywren']['runtime'] = RUNTIME_DEFAULT_37
 
-    if 'ibm_cos' in config_data and 'ibm_auth_endpoint' not in config_data['ibm_cos']:
-        config_data['ibm_cos']['ibm_auth_endpoint'] = IBM_AUTH_ENDPOINT_DEFAULT
+    if 'ibm_iam' not in config_data:
+        config_data['ibm_iam'] = {}
+    if 'ibm_auth_endpoint' not in config_data['ibm_iam']:
+        config_data['ibm_iam']['ibm_auth_endpoint'] = IBM_AUTH_ENDPOINT_DEFAULT
 
     if 'rabbitmq' not in config_data or not config_data['rabbitmq'] \
        or 'amqp_url' not in config_data['rabbitmq']:
@@ -175,8 +181,10 @@ def extract_storage_config(config):
         required_parameters_2 = ('endpoint', 'secret_key', 'access_key')
 
         if set(required_parameters_1) <= set(config['ibm_cos']) or \
-                set(required_parameters_2) <= set(config['ibm_cos']):
+                set(required_parameters_2) <= set(config['ibm_cos']) or \
+                'api_key' in config['ibm_iam']:
             storage_config['ibm_cos'] = config['ibm_cos']
+            storage_config['ibm_iam'] = config['ibm_iam']
         else:
             raise Exception('You must provide {} or {} to access to IBM COS'.format(required_parameters_1,
                                                                                     required_parameters_2))
@@ -197,5 +205,9 @@ def extract_cf_config(config):
     cf_config['runtime'] = config['pywren']['runtime']
     cf_config['runtime_timeout'] = int(config['pywren']['runtime_timeout'])
     cf_config['runtime_memory'] = int(config['pywren']['runtime_memory'])
+    cf_config['ibm_iam'] = {}
+    if 'api_key' in config['ibm_iam']:
+        cf_config['ibm_iam']['api_key'] = config['ibm_iam']['api_key']
+    cf_config['ibm_iam']['ibm_auth_endpoint'] = config['ibm_iam']['ibm_auth_endpoint']
 
     return cf_config
