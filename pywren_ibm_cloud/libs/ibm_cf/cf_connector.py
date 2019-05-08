@@ -52,7 +52,7 @@ class CloudFunctions:
             auth = 'Basic %s' % auth_token.decode('UTF-8')
         else:
             auth = self.iam_connector.get_iam_token()
-            #self.namespace = self.iam_connector.get_function_namespace_id(auth)
+            self.namespace = self.iam_connector.get_function_namespace_id(auth)
         self.session = requests.session()
         default_user_agent = self.session.headers['User-Agent']
 

@@ -15,11 +15,9 @@
 #
 
 import os
-import urllib
 import logging
-from tornado.escape import json_decode
-from tornado.httpclient import HTTPClient
-from tornado.httputil import HTTPHeaders
+import requests
+from urllib.parse import urlencode
 
 
 logger = logging.getLogger(__name__)
@@ -38,41 +36,34 @@ class IAM:
         return self.iam_api_key is not None
 
     def get_iam_token(self):
-        data = urllib.parse.urlencode({'grant_type': 'urn:ibm:params:oauth:grant-type:apikey', 'apikey': self.iam_api_key})
-        request_headers_xml_content = HTTPHeaders({'Content-Type': 'application/x-www-form-urlencoded'})
-        request_headers_xml_content.add('Accept', 'application/json')
+        data = urlencode({'grant_type': 'urn:ibm:params:oauth:grant-type:apikey', 'apikey': self.iam_api_key})
+        headers = {
+            'content-type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json'
+        }
+        res = requests.post(self.iam_auth_endpoint, data=data, headers=headers)
 
-        client = HTTPClient()
-        response = client.fetch(
-            self.iam_auth_endpoint,
-            method='POST',
-            headers=request_headers_xml_content,
-            validate_cert=False,
-            body=data)
+        if res.status_code != 200:
+            raise RuntimeError("Error: http code {} while retrieving IAM token for API key.".format(res.status_code))
 
-        if response.code != 200:
-            raise RuntimeError("Error: http code {} while retrieving IAM token for API key.".format(response.code))
-
-        bearer_response = json_decode(response.body)
+        bearer_response = res.json()
         bearer_token = 'Bearer ' + bearer_response['access_token']
+        logger.debug(bearer_token)
+
         return bearer_token
 
     def get_function_namespace_id(self, iam_token):
         logger.debug("Getting name space id for {}".format(self.cf_namespace))
-        request_headers = HTTPHeaders({'Content-Type': 'application/json'})
-        request_headers.add('accept', 'application/json')
-        request_headers.add('authorization', iam_token)
-
-        client = HTTPClient()
-        url = os.path.join(self.cf_endpoint, 'api', 'v1', 'namespaces?limit=0&offset=0').replace("\\", "/")
-        response = client.fetch(
-            url,
-            method='GET',
-            headers=request_headers,
-            validate_cert=False)
-        if response.code != 200:
-            raise RuntimeError("Error: http code {} while listing namespaces.".format(response.code))
-        namespaces = json_decode(response.body)
+        headers = {
+            'content-type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': iam_token
+        }
+        url = os.path.join(self.cf_endpoint, 'api', 'v1', 'namespaces').replace("\\", "/")
+        res = requests.get(url, headers=headers)
+        if res.status_code != 200:
+            raise RuntimeError("Error: http code {} while listing namespaces.".format(res.status_code))
+        namespaces = res.json()
 
         for current_namespace in namespaces['namespaces']:
             if 'name' in current_namespace and current_namespace['name'] == self.cf_namespace:

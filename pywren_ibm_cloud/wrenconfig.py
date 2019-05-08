@@ -158,6 +158,9 @@ def default(config_data=None):
     if 'ibm_auth_endpoint' not in config_data['ibm_iam']:
         config_data['ibm_iam']['ibm_auth_endpoint'] = IBM_AUTH_ENDPOINT_DEFAULT
 
+    if 'api_key' not in config_data['ibm_iam'] and 'api_key' not in config_data['ibm_cf']:
+        raise Exception("You must provide an IAM api_key, or CF api_key in the configuration")
+
     if 'rabbitmq' not in config_data or not config_data['rabbitmq'] \
        or 'amqp_url' not in config_data['rabbitmq']:
         config_data['rabbitmq'] = {}
@@ -176,6 +179,7 @@ def extract_storage_config(config):
     if 'ibm_cos' in config:
         required_parameters_1 = ('endpoint', 'api_key')
         required_parameters_2 = ('endpoint', 'secret_key', 'access_key')
+        required_parameters_3 = ('endpoint', 'ibm_iam:api_key')
 
         if set(required_parameters_1) <= set(config['ibm_cos']) or \
                 set(required_parameters_2) <= set(config['ibm_cos']) or \
@@ -183,8 +187,9 @@ def extract_storage_config(config):
             storage_config['ibm_cos'] = config['ibm_cos']
             storage_config['ibm_cos']['ibm_iam'] = config['ibm_iam']
         else:
-            raise Exception('You must provide {} or {} to access to IBM COS'.format(required_parameters_1,
-                                                                                    required_parameters_2))
+            raise Exception('You must provide {}, {} or {} to access to IBM COS'.format(required_parameters_1,
+                                                                                        required_parameters_2,
+                                                                                        required_parameters_3))
 
     if 'swift' in config:
         required_parameters = ('auth_url', 'user_id', 'project_id', 'password', 'region')
