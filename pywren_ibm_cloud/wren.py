@@ -410,11 +410,12 @@ class ibm_cf_executor:
         :param run_statuses: run statuses timestamps.
         :param invoke_statuses: invocation statuses timestamps.
         """
-
-        if type(futures) != list:
-            ftrs = [futures]
-        else:
-            ftrs = futures
+        ftrs = None
+        if futures:
+            if type(futures) != list:
+                ftrs = [futures]
+            else:
+                ftrs = futures
 
         if self._state == ExecutorState.new:
             raise Exception('You must run pw.call_async(), pw.map() or pw.map_reduce()'
