@@ -239,7 +239,6 @@ class ibm_cf_executor:
                                                           overwrite_invoke_args=overwrite_invoke_args,
                                                           exclude_modules=exclude_modules,
                                                           job_max_runtime=timeout)
-        for f in map_futures: f._is_map_before_reduce = True
 
         self._state = ExecutorState.running
         if reducer_wait_local:
@@ -249,6 +248,8 @@ class ibm_cf_executor:
         reduce_future = self.executor.reduce(reduce_function, map_futures, parts_per_object,
                                        reducer_one_per_object, extra_env, extra_meta)
 
+        for f in map_futures:
+            f._produce_output = False
         futures = map_futures + reduce_future
         self.futures.extend(futures)
         return futures
@@ -357,10 +358,10 @@ class ibm_cf_executor:
                 self.clean()
 
         if download_results:
-            fs_dones = [f for f in ftrs if f.done and not f._is_map_before_reduce]
+            fs_dones = [f for f in ftrs if f.done]
             fs_notdones = [f for f in ftrs if not f.done]
         else:
-            fs_dones = [f for f in ftrs if f.ready and not f._is_map_before_reduce]
+            fs_dones = [f for f in ftrs if f.ready]
             fs_notdones = [f for f in ftrs if not f.ready]
 
         self._state = ExecutorState.ready
@@ -389,7 +390,7 @@ class ibm_cf_executor:
                                                     timeout=timeout, download_results=True,
                                                     THREADPOOL_SIZE=THREADPOOL_SIZE,
                                                     WAIT_DUR_SEC=WAIT_DUR_SEC)
-        result = [f.result() for f in fs_dones if f.done and not f.futures]
+        result = [f.result() for f in fs_dones if f.done and f._produce_output and not f.futures]
         self.futures = []
         msg = "Executor ID {} Finished getting results".format(self.executor_id)
         logger.info(msg)
