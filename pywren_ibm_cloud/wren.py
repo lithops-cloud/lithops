@@ -411,6 +411,11 @@ class ibm_cf_executor:
         :param invoke_statuses: invocation statuses timestamps.
         """
 
+        if type(futures) != list:
+            ftrs = [futures]
+        else:
+            ftrs = futures
+
         if self._state == ExecutorState.new:
             raise Exception('You must run pw.call_async(), pw.map() or pw.map_reduce()'
                             ' before call pw.create_timeline_plots()')
@@ -425,11 +430,11 @@ class ibm_cf_executor:
             if self.data_cleaner:
                 print()
 
-        if self.rabbitmq_monitor and not futures:
+        if self.rabbitmq_monitor and not ftrs:
             ftrs_to_plot = self.futures
             self.monitor(futures=ftrs_to_plot)
         else:
-            ftrs_to_plot = [f for f in futures if f.ready or f.done]
+            ftrs_to_plot = [f for f in ftrs if f.ready or f.done]
 
         if not ftrs_to_plot:
             return
