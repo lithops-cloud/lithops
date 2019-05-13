@@ -31,7 +31,7 @@ class IBMCloudFunctionsInvoker:
         self.log_level = os.getenv('PYWREN_LOG_LEVEL')
         cf_config = extract_cf_config(config)
         self.namespace = cf_config['namespace']
-        self.endpoint = cf_config['endpoint']
+        self.endpoint = cf_config['endpoint'].replace('http:', 'https:')
         self.runtime = cf_config['runtime']
         self.runtime_memory = int(cf_config['runtime_memory'])
         self.runtime_timeout = int(cf_config['runtime_timeout'])
@@ -80,8 +80,8 @@ class IBMCloudFunctionsInvoker:
         """
         Return config dict
         """
-        return {'cf_runtime': self.runtime,
-                'cf_runtime_memory': self.runtime_memory,
-                'cf_runtime_timeout': self.runtime_timeout,
-                'cf_namespace': self.namespace,
-                'cf_endpoint': self.endpoint}
+        return {'runtime': self.runtime,
+                'runtime_memory': self.runtime_memory,
+                'runtime_timeout': self.runtime_timeout,
+                'namespace': self.namespace,
+                'endpoint': self.endpoint}
