@@ -18,7 +18,7 @@ import os
 import time
 import logging
 import random
-from pywren_ibm_cloud.libs.ibm_cf.connector import CloudFunctions
+from pywren_ibm_cloud.libs.ibm_cf.cf_connector import CloudFunctions
 from pywren_ibm_cloud.utils import create_action_name, create_runtime_name
 from pywren_ibm_cloud.wrenconfig import extract_cf_config
 

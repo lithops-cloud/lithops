@@ -55,6 +55,7 @@ class CloudFunctions:
             self.namespace = self.iam_connector.get_function_namespace_id(auth)
         self.session = requests.session()
         default_user_agent = self.session.headers['User-Agent']
+
         self.headers = {
             'content-type': 'application/json',
             'Authorization': auth,
@@ -214,8 +215,9 @@ class CloudFunctions:
         exec_id = payload['executor_id']
         call_id = payload['call_id']
 
-        url = urlparse(os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.namespace,
-                                    'actions', self.package, action_name).replace("\\", "/"))
+        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.namespace,
+                           'actions', self.package, action_name).replace("\\", "/")
+        url = urlparse(url)
         start = time.time()
         try:
             ctx = ssl._create_unverified_context()
