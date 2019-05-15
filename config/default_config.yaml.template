@@ -1,6 +1,3 @@
-ibm_iam:
-	api_key: <IAM KEY>
-	ibm_auth_endpoint: <IAM ENDPOINT>
 pywren: 
     storage_bucket: <BUCKET_NAME>
     #storage_prefix: pywren.jobs
@@ -12,6 +9,10 @@ pywren:
     #invocation_retry: <True/False>
     #retry_sleeps: [1, 5, 10, 20, 30]
     #retries: 5
+
+ibm_iam:
+    api_key: <IAM KEY>
+    #ibm_auth_endpoint: <IAM ENDPOINT>
 
 ibm_cf:
     endpoint    : <HOST>
@@ -32,4 +33,4 @@ ibm_cos:
     #password   : <SWIFT_PASSWORD>
 
 #rabbitmq:
-	#amqp_url 	: <RABBIT_AMQP_URL>  # amqp://
+    #amqp_url 	: <RABBIT_AMQP_URL>  # amqp://

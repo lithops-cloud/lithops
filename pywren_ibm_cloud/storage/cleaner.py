@@ -29,9 +29,9 @@ def clean_bucket(bucket, prefix, storage_config):
     in JSON format. In any other case, call directly clean_os_bucket() method.
     """
     internal_storage = storage.InternalStorage(json.loads(storage_config))
-    sys.stdout = open(os.devnull, 'w')
+    # sys.stdout = open(os.devnull, 'w')
     clean_os_bucket(bucket, prefix, internal_storage)
-    sys.stdout = sys.__stdout__
+    # sys.stdout = sys.__stdout__
 
 
 def clean_os_bucket(bucket, prefix, internal_storage):
@@ -43,7 +43,7 @@ def clean_os_bucket(bucket, prefix, internal_storage):
     logger.debug(msg)
     total_objects = 0
     objects_to_delete = internal_storage.list_temporal_data(prefix)
-    
+
     while objects_to_delete:
         logger.debug('{} objects found'.format(len(objects_to_delete)))
         total_objects = total_objects + len(objects_to_delete)

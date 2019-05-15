@@ -447,8 +447,8 @@ class ibm_cf_executor:
             for in_stat in invoke_statuses:
                 del in_stat['status_done_timestamp']
 
-        create_timeline(dst_dir, dst_file_name, self.start_time, run_statuses, invoke_statuses, self.config['ibm_cos'], self.config['ibm_iam'])
-        create_histogram(dst_dir, dst_file_name, self.start_time, run_statuses, self.config['ibm_cos'], self.config['ibm_iam'])
+        create_timeline(dst_dir, dst_file_name, self.start_time, run_statuses, invoke_statuses, self.config['ibm_cos'])
+        create_histogram(dst_dir, dst_file_name, self.start_time, run_statuses, self.config['ibm_cos'])
 
     def clean(self, local_execution=True):
         """

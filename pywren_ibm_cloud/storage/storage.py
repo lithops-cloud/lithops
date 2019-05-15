@@ -36,7 +36,7 @@ class InternalStorage:
         self.prefix = config['storage_prefix']
 
         if self.backend_type == 'ibm_cos':
-            self.backend_handler = COSBackend(config['ibm_cos'], config['ibm_iam'])
+            self.backend_handler = COSBackend(config['ibm_cos'])
         elif self.backend_type == 'swift':
             self.backend_handler = SwiftBackend(config['swift'])
         else:
