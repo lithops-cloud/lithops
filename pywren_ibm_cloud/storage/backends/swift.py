@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 
-import os
 import json
 import logging
 import requests
@@ -90,7 +89,7 @@ class SwiftBackend:
         :type data: str/bytes
         :return: None
         """
-        url = os.path.join(self.endpoint, container_name, key).replace("\\", "/")
+        url = '/'.join([self.endpoint, container_name, key])
         try:
             res = self.session.put(url, data=data)
             status = 'OK' if res.status_code == 201 else 'Error'
@@ -110,7 +109,7 @@ class SwiftBackend:
         """
         if not container_name:
             container_name = self.storage_container
-        url = os.path.join(self.endpoint, container_name, key).replace("\\", "/")
+        url = '/'.join([self.endpoint, container_name, key])
         headers = {'X-Auth-Token': self.token}
         headers.update(extra_get_args)
         try:
@@ -138,7 +137,7 @@ class SwiftBackend:
         :return: Data of the object
         :rtype: str/bytes
         """
-        url = os.path.join(self.endpoint, container_name, key).replace("\\", "/")
+        url = '/'.join([self.endpoint, container_name, key])
         try:
             res = self.session.head(url)
             if res.status_code == 200:
@@ -156,7 +155,7 @@ class SwiftBackend:
         :param bucket: bucket name
         :param key: data key
         """
-        url = os.path.join(self.endpoint, container_name, key).replace("\\", "/")
+        url = '/'.join([self.endpoint, container_name, key])
         return self.session.delete(url)
 
     def delete_objects(self, container_name, key_list):
@@ -173,7 +172,7 @@ class SwiftBackend:
             keys_to_delete.append('/{}/{}'.format(container_name, key))
 
         keys_to_delete = '\n'.join(keys_to_delete)
-        url = os.path.join(self.endpoint, '?bulk-delete').replace("\\", "/")
+        url = '/'.join([self.endpoint, '?bulk-delete'])
         return self.session.delete(url, data=keys_to_delete, headers=headers)
 
     def bucket_exists(self, container_name):
@@ -183,7 +182,7 @@ class SwiftBackend:
         :return: Data of the bucket
         :rtype: str/bytes
         """
-        url = os.path.join(self.endpoint, container_name).replace("\\", "/")
+        url = '/'.join([self.endpoint, container_name])
         try:
             res = self.session.head(url)
             if res.status_code == 204:
@@ -202,10 +201,10 @@ class SwiftBackend:
         :return: Data of the object
         :rtype: str/bytes
         """
-        if prefix: 
-            url = os.path.join(self.endpoint, container_name, '?format=json&prefix='+prefix).replace("\\", "/")
+        if prefix:
+            url = '/'.join([self.endpoint, container_name, '?format=json&prefix='+prefix])
         else:
-            url = os.path.join(self.endpoint, container_name, '?format=json').replace("\\", "/")
+            url = '/'.join([self.endpoint, container_name, '?format=json'])
         try:
             res = self.session.get(url)
             objects = res.json()

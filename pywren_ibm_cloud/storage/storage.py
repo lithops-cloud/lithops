@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 
-import os
 import json
 from ..version import __version__
 from .backends.cos import COSBackend
@@ -92,7 +91,7 @@ class InternalStorage:
         """
         # TODO: a better API for this is to return status for all calls in the callset. We'll fix
         #  this in scheduler refactoring.
-        callset_prefix = os.path.join(self.prefix, executor_id).replace("\\", "/")
+        callset_prefix = '/'.join([self.prefix, executor_id])
         keys = self.backend_handler.list_keys_with_prefix(self.storage_bucket, callset_prefix)
         suffix = status_key_suffix
         status_keys = [k for k in keys if suffix in k]
@@ -132,7 +131,7 @@ class InternalStorage:
         :param runtime: name of the runtime
         :return: runtime metadata
         """
-        key = os.path.join('runtimes', __version__,  ibm_cf_region, ibm_cf_namespace, runtime_name+".meta.json").replace("\\", "/")
+        key = '/'.join(['runtimes', __version__,  ibm_cf_region, ibm_cf_namespace, runtime_name+".meta.json"])
         try:
             json_str = self.backend_handler.get_object(self.storage_bucket, key)
             runtime_meta = json.loads(json_str.decode("ascii"))
@@ -146,7 +145,7 @@ class InternalStorage:
         :param runtime: name of the runtime
         :param runtime_meta metadata
         """
-        key = os.path.join('runtimes', __version__,  ibm_cf_region, ibm_cf_namespace, runtime_name+".meta.json").replace("\\", "/")
+        key = '/'.join(['runtimes', __version__,  ibm_cf_region, ibm_cf_namespace, runtime_name+".meta.json"])
         self.backend_handler.put_object(self.storage_bucket, key, json.dumps(runtime_meta))
 
     def delete_runtime_info(self, ibm_cf_region, ibm_cf_namespace, runtime_name):
@@ -155,7 +154,7 @@ class InternalStorage:
         :param runtime: name of the runtime
         :param runtime_meta metadata
         """
-        key = os.path.join('runtimes', __version__,  ibm_cf_region, ibm_cf_namespace, runtime_name+".meta.json").replace("\\", "/")
+        key = '/'.join(['runtimes', __version__,  ibm_cf_region, ibm_cf_namespace, runtime_name+".meta.json"])
         self.backend_handler.delete_object(self.storage_bucket, key)
 
     def list_temporal_data(self, executor_id):
