@@ -34,8 +34,9 @@
 Generic utility functions for serialization
 """
 
-import base64
 import os
+import base64
+from pathlib import Path
 
 try:
     import glob2
@@ -64,8 +65,7 @@ def create_mod_data(mod_paths):
             f = os.path.abspath(f)
             with open(f, 'rb') as file:
                 mod_str = file.read()
-
-            dest_filename = f[len(pkg_root)+1:]
+            dest_filename = Path(f[len(pkg_root)+1:]).as_posix()
             module_data[dest_filename] = bytes_to_b64str(mod_str)
 
     return module_data

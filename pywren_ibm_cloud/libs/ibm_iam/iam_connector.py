@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 
-import os
 import logging
 import requests
 from urllib.parse import urlencode
@@ -59,7 +58,7 @@ class IAM:
             'Accept': 'application/json',
             'Authorization': iam_token
         }
-        url = os.path.join(self.cf_endpoint, 'api', 'v1', 'namespaces').replace("\\", "/")
+        url = '/'.join([self.cf_endpoint, 'api', 'v1', 'namespaces'])
         res = requests.get(url, headers=headers)
         if res.status_code != 200:
             raise RuntimeError("Error: http code {} while listing namespaces.".format(res.status_code))
