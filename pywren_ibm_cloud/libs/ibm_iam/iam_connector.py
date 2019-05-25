@@ -29,7 +29,7 @@ class IAM:
         self.iam_auth_endpoint = iam_config['ibm_auth_endpoint']
         self.cf_endpoint = cf_endpoint
         self.cf_namespace = cf_namespace
-        logger.debug("init method for {} namespace {}".format(*self.cf_endpoint, self.cf_namespace))
+        logger.debug("init method for {} namespace {}".format(self.cf_endpoint, self.cf_namespace))
 
     def is_IAM_access(self):
         return self.iam_api_key is not None
