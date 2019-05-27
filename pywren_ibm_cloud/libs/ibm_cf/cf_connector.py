@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 
-import os
 import ssl
 import json
 import time
@@ -93,9 +92,9 @@ class CloudFunctions:
         data['exec'] = cfexec
 
         logger.debug('I am about to create a new cloud function action: {}'.format(action_name))
-        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces',
-                           self.effective_namespace, 'actions', self.package,
-                           action_name + "?overwrite=" + str(overwrite)).replace("\\", "/")
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', self.package,
+                        action_name + "?overwrite=" + str(overwrite)])
+
         res = self.session.put(url, json=data)
         resp_text = res.json()
 
@@ -110,8 +109,7 @@ class CloudFunctions:
         Get an IBM Cloud Functions action
         """
         logger.debug("I am about to get a cloud function action: {}".format(action_name))
-        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace,
-                           'actions', self.package, action_name).replace("\\", "/")
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', self.package, action_name])
         res = self.session.get(url)
         return res.json()
 
@@ -120,8 +118,7 @@ class CloudFunctions:
         List all IBM Cloud Functions actions in a package
         """
         logger.debug("I am about to list all actions from: {}".format(package))
-        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace,
-                           'actions', self.package, '').replace("\\", "/")
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', self.package, ''])
         res = self.session.get(url)
         return res.json()
 
@@ -130,8 +127,7 @@ class CloudFunctions:
         Delete an IBM Cloud Function
         """
         logger.debug("Delete cloud function action: {}".format(action_name))
-        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace,
-                           'actions', self.package, action_name).replace("\\", "/")
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', self.package, action_name])
         res = self.session.delete(url)
         resp_text = res.json()
 
@@ -140,8 +136,8 @@ class CloudFunctions:
 
     def update_memory(self, action_name, memory):
         logger.debug('I am about to update the memory of the {} action to {}'.format(action_name, memory))
-        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace,
-                           'actions', self.package, action_name + "?overwrite=True").replace("\\", "/")
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace,
+                        'actions', self.package, action_name + "?overwrite=True"])
 
         data = {"limits": {"memory": memory}}
         res = self.session.put(url, json=data)
@@ -154,8 +150,7 @@ class CloudFunctions:
 
     def create_package(self, package):
         logger.debug('I am about to crate the package {}'.format(package))
-        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace,
-                           'packages', package + "?overwrite=False").replace("\\", "/")
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'packages', package + "?overwrite=False"])
 
         data = {"name": package}
         res = self.session.put(url, json=data)
@@ -181,8 +176,7 @@ class CloudFunctions:
         """
         exec_id = payload['executor_id']
         call_id = payload['call_id']
-        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace,
-                           'actions', self.package, action_name).replace("\\", "/")
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', self.package, action_name])
         try:
             resp = self.session.post(url, json=payload)
             data = resp.json()
@@ -214,8 +208,7 @@ class CloudFunctions:
         """
         exec_id = payload['executor_id']
         call_id = payload['call_id']
-        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace,
-                           'actions', self.package, action_name).replace("\\", "/")
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', self.package, action_name])
         url = urlparse(url)
         start = time.time()
         try:
@@ -257,8 +250,8 @@ class CloudFunctions:
         """
         Invoke an IBM Cloud Function waiting for the result.
         """
-        url = os.path.join(self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions',
-                           self.package, action_name + "?blocking=true&result=true").replace("\\", "/")
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions',
+                        self.package, action_name + "?blocking=true&result=true"])
         resp = self.session.post(url, json=payload)
         result = resp.json()
 

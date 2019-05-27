@@ -273,7 +273,7 @@ def verify_args(func, data, object_processing=False):
 
     new_parameters = list()
     for param in func_sig.parameters:
-        if func_sig.parameters[param].default != None and param not in none_verify_parameters:
+        if func_sig.parameters[param].default is not None and param not in none_verify_parameters:
             new_parameters.append(func_sig.parameters[param])
 
     new_func_sig = func_sig.replace(parameters=new_parameters)

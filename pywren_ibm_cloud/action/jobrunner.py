@@ -19,9 +19,9 @@ import sys
 import json
 import time
 import shutil
+import pickle
 import logging
 import inspect
-import pickle
 import numpy as np
 from multiprocessing import Process
 from pywren_ibm_cloud import wrenlogging
@@ -35,10 +35,8 @@ from pywren_ibm_cloud.storage.backends.cos import COSBackend
 from pywren_ibm_cloud.storage.backends.swift import SwiftBackend
 
 pickling_support.install()
-level = logging.INFO
+
 logger = logging.getLogger('jobrunner')
-logger.setLevel(level)
-wrenlogging.ow_config(level)
 
 
 class stats:
@@ -60,8 +58,10 @@ class jobrunner(Process):
     def __init__(self, jr_config, result_queue):
         super().__init__()
         start_time = time.time()
-        self.result_queue = result_queue
         self.config = jr_config
+        log_level = self.config['log_level']
+        self.result_queue = result_queue
+        wrenlogging.ow_config(log_level)
         self.stats = stats(self.config['stats_filename'])
         self.stats.write('jobrunner_start', start_time)
         pw_config = json.loads(os.environ.get('PYWREN_CONFIG', ''))
@@ -72,8 +72,6 @@ class jobrunner(Process):
         else:
             self.show_memory = False
 
-        log_level = self.config['log_level']
-        wrenlogging.ow_config(log_level)
         self.func_key = self.config['func_key']
         self.data_key = self.config['data_key']
         self.data_byte_range = self.config['data_byte_range']
@@ -232,9 +230,9 @@ class jobrunner(Process):
                 logger.debug("Memory usage after output serialization: {}".format(get_current_memory_usage()))
 
         except Exception as e:
-            print('------------------ EXCEPTION -------------------------')
+            print('-------------------- EXCEPTION ---------------------')
             exc_type, exc_value, exc_traceback = sys.exc_info()
-            #traceback.print_tb(exc_traceback)
+            # traceback.print_tb(exc_traceback)
 
             # Shockingly often, modules like subprocess don't properly
             # call the base Exception.__init__, which results in them
@@ -242,6 +240,9 @@ class jobrunner(Process):
             # and more-carefully handle the exceptions if any part of this save / test-reload
             # fails
             logger.error("There was an exception: {}".format(str(e)))
+
+            if self.show_memory:
+                logger.debug("Memory usage after call the function: {}".format(get_current_memory_usage()))
 
             try:
                 pickled_output = pickle.dumps({'result': e,

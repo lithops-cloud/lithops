@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 
-import os
 from .exceptions import StorageConfigMismatchError
 
 func_key_suffix = "func.pickle"
@@ -31,7 +30,7 @@ def create_func_key(prefix, executor_id, callgroup_id):
     :param executor_id: callset's ID
     :return: function key
     """
-    func_key = os.path.join(prefix, executor_id, callgroup_id, func_key_suffix).replace("\\", "/")
+    func_key = '/'.join([prefix, executor_id, callgroup_id, func_key_suffix])
     return func_key
 
 
@@ -42,8 +41,7 @@ def create_agg_data_key(prefix, executor_id, callgroup_id):
     :param executor_id: callset's ID
     :return: a key for aggregate data
     """
-    agg_data_key = os.path.join(prefix, executor_id, callgroup_id, agg_data_key_suffix).replace("\\", "/")
-    return agg_data_key
+    return '/'.join([prefix, executor_id, callgroup_id, agg_data_key_suffix])
 
 
 def create_data_key(prefix, executor_id, callgroup_id, call_id):
@@ -54,7 +52,7 @@ def create_data_key(prefix, executor_id, callgroup_id, call_id):
     :param call_id: call's ID
     :return: data key
     """
-    return os.path.join(prefix, executor_id, callgroup_id, call_id, data_key_suffix).replace("\\", "/")
+    return '/'.join([prefix, executor_id, callgroup_id, call_id, data_key_suffix])
 
 
 def create_output_key(prefix, executor_id, callgroup_id, call_id):
@@ -65,7 +63,7 @@ def create_output_key(prefix, executor_id, callgroup_id, call_id):
     :param call_id: call's ID
     :return: output key
     """
-    return os.path.join(prefix, executor_id, callgroup_id, call_id, output_key_suffix).replace("\\", "/")
+    return '/'.join([prefix, executor_id, callgroup_id, call_id, output_key_suffix])
 
 
 def create_status_key(prefix, executor_id, callgroup_id, call_id):
@@ -76,7 +74,7 @@ def create_status_key(prefix, executor_id, callgroup_id, call_id):
     :param call_id: call's ID
     :return: status key
     """
-    return os.path.join(prefix, executor_id, callgroup_id, call_id, status_key_suffix).replace("\\", "/")
+    return '/'.join([prefix, executor_id, callgroup_id, call_id, status_key_suffix])
 
 
 def create_keys(prefix, executor_id, callgroup_id, call_id):

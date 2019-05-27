@@ -87,7 +87,10 @@ def _extract_modules(image_name, memory, cf_client, config):
     # old_stdout = sys.stdout
     # sys.stdout = open(os.devnull, 'w')
     logger.debug("Creating action for extracting Python modules list: {}".format(modules_action_name))
-    cf_client.create_action(modules_action_name, image_name, code=action_code, is_binary=False)
+    try:
+        cf_client.create_action(modules_action_name, image_name, code=action_code, is_binary=False)
+    except Exception:
+        raise("Unable to create 'modules' action")
     # sys.stdout = old_stdout
 
     region = cf_client.endpoint.split('//')[1].split('.')[0]
@@ -95,9 +98,19 @@ def _extract_modules(image_name, memory, cf_client, config):
     memory = cf_client.default_runtime_memory if not memory else memory
     runtime_name = create_runtime_name(image_name, memory)
     logger.debug("Going to extract Python modules list from: {}".format(image_name))
-    runtime_meta = cf_client.invoke_with_result(modules_action_name)
-    internal_storage.put_runtime_info(region, namespace, runtime_name, runtime_meta)
-    cf_client.delete_action(modules_action_name)
+
+    try:
+        runtime_meta = cf_client.invoke_with_result(modules_action_name)
+    except Exception:
+        raise("Unable to invoke 'modules' action")
+    try:
+        internal_storage.put_runtime_info(region, namespace, runtime_name, runtime_meta)
+    except Exception:
+        raise("Unable to upload 'pre-installed modules' file to COS")
+    try:
+        cf_client.delete_action(modules_action_name)
+    except Exception:
+        raise("Unable to delete 'modules' action")
 
 
 def _create_blackbox_runtime(image_name, memory, cf_client):
@@ -139,6 +152,9 @@ def create_runtime(image_name, memory=None, config=None):
         image_name_formated = create_action_name(image_name)
         actions = cf_client.list_actions(PACKAGE)
         for action in actions:
+            if 'modules' in action['name']:
+                cf_client.delete_action(action['name'])
+                continue
             action_name, r_memory = action['name'].rsplit('-', 1)
             if image_name_formated == action_name:
                 r_memory = int(r_memory.replace('MB', ''))
@@ -189,6 +205,9 @@ def update_runtime(image_name, config=None):
     actions = cf_client.list_actions(PACKAGE)
 
     for action in actions:
+        if 'modules' in action['name']:
+            cf_client.delete_action(action['name'])
+            continue
         action_name, memory = action['name'].rsplit('-', 1)
         if image_name_formated == action_name:
             memory = int(memory.replace('MB', ''))

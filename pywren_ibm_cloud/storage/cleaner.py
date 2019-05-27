@@ -15,8 +15,6 @@
 #
 
 import logging
-import sys
-import os
 import json
 from . import storage
 
