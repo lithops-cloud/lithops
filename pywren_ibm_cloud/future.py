@@ -60,6 +60,7 @@ class ResponseFuture:
         self._new_futures = None
         self._traceback = None
         self._call_invoker_result = None
+        self._produce_output = True
 
         self.run_status = None
         self.invoke_status = invoke_metadata.copy()
@@ -224,6 +225,10 @@ class ResponseFuture:
             internal_storage = storage.InternalStorage(self.storage_config)
 
         self.status(check_only, throw_except, internal_storage)
+
+        if not self._produce_output:
+            self._set_state(JobState.success)
+            return
 
         call_output_time = time.time()
         call_invoker_result = internal_storage.get_call_output(self.executor_id, self.callgroup_id, self.call_id)

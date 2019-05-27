@@ -245,12 +245,13 @@ class ibm_cf_executor:
             self.monitor(futures=map_futures)
 
         self.executor.invoker.action_name = inv_action_name
-        futures = self.executor.reduce(reduce_function, map_futures, parts_per_object,
+        reduce_future = self.executor.reduce(reduce_function, map_futures, parts_per_object,
                                        reducer_one_per_object, extra_env, extra_meta)
-        self.futures.extend(futures)
 
-        if len(futures) == 1:
-            return futures[0]
+        for f in map_futures:
+            f._produce_output = False
+        futures = map_futures + reduce_future
+        self.futures.extend(futures)
         return futures
 
     def monitor(self, futures=None, throw_except=True, return_when=ALL_COMPLETED,
@@ -389,7 +390,8 @@ class ibm_cf_executor:
                                                     timeout=timeout, download_results=True,
                                                     THREADPOOL_SIZE=THREADPOOL_SIZE,
                                                     WAIT_DUR_SEC=WAIT_DUR_SEC)
-        result = [f.result() for f in fs_dones if f.done and not f.futures]
+        result = [f.result() for f in fs_dones if f.done and f._produce_output and not f.futures]
+        self.futures = []
         msg = "Executor ID {} Finished getting results".format(self.executor_id)
         logger.info(msg)
         if not self.log_level:
@@ -399,7 +401,7 @@ class ibm_cf_executor:
             return result[0]
         return result
 
-    def create_timeline_plots(self, dst_dir, dst_file_name, futures=None):
+    def create_timeline_plots(self, dst_dir, dst_file_name, futures):
         """
         Creates timeline and histogram of the current execution in dst.
 
@@ -408,12 +410,12 @@ class ibm_cf_executor:
         :param run_statuses: run statuses timestamps.
         :param invoke_statuses: invocation statuses timestamps.
         """
-        if futures:
-            ftrs = futures
+        if type(futures) != list:
+            ftrs = [futures]
         else:
-            ftrs = self.futures
+            ftrs = futures
 
-        if not ftrs or self._state == ExecutorState.new:
+        if self._state == ExecutorState.new:
             raise Exception('You must run pw.call_async(), pw.map() or pw.map_reduce()'
                             ' before call pw.create_timeline_plots()')
 
@@ -427,8 +429,8 @@ class ibm_cf_executor:
             if self.data_cleaner:
                 print()
 
-        if self.rabbitmq_monitor and not futures:
-            ftrs_to_plot = self.futures
+        if self.rabbitmq_monitor:
+            ftrs_to_plot = ftrs
             self.monitor(futures=ftrs_to_plot)
         else:
             ftrs_to_plot = [f for f in ftrs if f.ready or f.done]
