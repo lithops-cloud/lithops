@@ -179,23 +179,27 @@ def ibm_cloud_function_handler(event):
     finally:
         rabbit_amqp_url = config['rabbitmq'].get('amqp_url')
         if rabbit_amqp_url:
-            params = pika.URLParameters(rabbit_amqp_url)
-            connection = pika.BlockingConnection(params)
-            channel = connection.channel()
-            channel.queue_declare(queue=executor_id, auto_delete=True)
             status = 'ok'
             if response_status['exception']:
                 status = 'error'
-            try:
-                new_futures = response_status.get('new_futures', 'None/0')
-                channel.basic_publish(exchange='', routing_key=executor_id,
-                                      body='{}/{}:{}:{}'.format(callgroup_id, call_id,
-                                                                status,  new_futures))
-                logger.info("Status sent to rabbitmq")
-            except Exception:
-                logger.error("Unable to send status to rabbitmq")
-
-            connection.close()
+            status_sent = False
+            output_query_count = 0
+            while not status_sent and output_query_count < 5:
+                output_query_count = output_query_count + 1
+                try:
+                    params = pika.URLParameters(rabbit_amqp_url)
+                    connection = pika.BlockingConnection(params)
+                    channel = connection.channel()
+                    channel.queue_declare(queue=executor_id, auto_delete=True)
+                    new_futures = response_status.get('new_futures', 'None/0')
+                    channel.basic_publish(exchange='', routing_key=executor_id,
+                                          body='{}/{}:{}:{}'.format(callgroup_id, call_id,
+                                                                    status,  new_futures))
+                    connection.close()
+                    logger.info("Status sent to rabbitmq")
+                    status_sent = True
+                except Exception:
+                    logger.error("Unable to send status to rabbitmq")
 
         store_status = True
         if 'STORE_STATUS' in extra_env:
