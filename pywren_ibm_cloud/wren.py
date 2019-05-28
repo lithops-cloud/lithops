@@ -246,7 +246,7 @@ class ibm_cf_executor:
 
         self.executor.invoker.action_name = inv_action_name
         reduce_future = self.executor.reduce(reduce_function, map_futures, parts_per_object,
-                                       reducer_one_per_object, extra_env, extra_meta)
+                                             reducer_one_per_object, extra_env, extra_meta)
 
         for f in map_futures:
             f._produce_output = False
@@ -390,7 +390,7 @@ class ibm_cf_executor:
                                                     timeout=timeout, download_results=True,
                                                     THREADPOOL_SIZE=THREADPOOL_SIZE,
                                                     WAIT_DUR_SEC=WAIT_DUR_SEC)
-        result = [f.result() for f in fs_dones if f.done and f._produce_output and not f.futures]
+        result = [f.result() for f in fs_dones if f.done and not f.futures]
         self.futures = []
         msg = "Executor ID {} Finished getting results".format(self.executor_id)
         logger.info(msg)
