@@ -401,23 +401,31 @@ class ibm_cf_executor:
             return result[0]
         return result
 
-    def create_timeline_plots(self, dst_dir, dst_file_name, futures):
+    def create_timeline_plots(self, futures, dst_dir, dst_file_name):
         """
-        Creates timeline and histogram of the current execution in dst.
+        Creates timeline and histogram of the current execution in dst_dir.
 
-        :param dst: destination folder to save .png plots.
-        :param name: name of the file.
-        :param run_statuses: run statuses timestamps.
-        :param invoke_statuses: invocation statuses timestamps.
+        :param futures: list of futures.
+        :param dst_dir: destination folder to save .png plots.
+        :param dst_file_name: name of the file.
         """
+        if self._state == ExecutorState.new:
+            raise Exception('You must run pw.call_async(), pw.map() or pw.map_reduce()'
+                            ' before call pw.create_timeline_plots()')
+
         if type(futures) != list:
             ftrs = [futures]
         else:
             ftrs = futures
 
-        if self._state == ExecutorState.new:
-            raise Exception('You must run pw.call_async(), pw.map() or pw.map_reduce()'
-                            ' before call pw.create_timeline_plots()')
+        if self.rabbitmq_monitor:
+            ftrs_to_plot = ftrs
+            self.monitor(futures=ftrs_to_plot)
+        else:
+            ftrs_to_plot = [f for f in ftrs if f.ready or f.done]
+
+        if not ftrs_to_plot:
+            return
 
         logging.getLogger('matplotlib').setLevel(logging.WARNING)
         from pywren_ibm_cloud.plots import create_timeline, create_histogram
@@ -428,15 +436,6 @@ class ibm_cf_executor:
             print(msg)
             if self.data_cleaner:
                 print()
-
-        if self.rabbitmq_monitor:
-            ftrs_to_plot = ftrs
-            self.monitor(futures=ftrs_to_plot)
-        else:
-            ftrs_to_plot = [f for f in ftrs if f.ready or f.done]
-
-        if not ftrs_to_plot:
-            return
 
         run_statuses = [f.run_status for f in ftrs_to_plot]
         invoke_statuses = [f.invoke_status for f in ftrs_to_plot]
