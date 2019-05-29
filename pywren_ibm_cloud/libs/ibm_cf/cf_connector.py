@@ -118,7 +118,7 @@ class CloudFunctions:
         List all IBM Cloud Functions actions in a package
         """
         logger.debug("I am about to list all actions from: {}".format(package))
-        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', self.package, ''])
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', package, ''])
         res = self.session.get(url)
         return res.json()
 
@@ -148,7 +148,39 @@ class CloudFunctions:
         else:
             logger.debug("OK --> Updated action memory {}".format(action_name))
 
+    def list_packages(self):
+        """
+        List all IBM Cloud Functions packages
+        """
+        logger.debug('I am about to list all the IBM CF packages')
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'packages'])
+
+        res = self.session.get(url)
+
+        if res.status_code == 200:
+            return res.json()
+        else:
+            logger.debug("Unable to list packages")
+            raise Exception("Unable to list packages")
+
+    def delete_package(self, package):
+        """
+        Delete an IBM Cloud Functions package
+        """
+        logger.debug("I am about to delete a cloud function package: {}".format(package))
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'packages', package])
+        res = self.session.delete(url)
+        resp_text = res.json()
+
+        if res.status_code == 200:
+            return resp_text
+        else:
+            logger.debug('An error occurred deleting the package {}: {}'.format(package, resp_text['error']))
+
     def create_package(self, package):
+        """
+        Create an IBM Cloud Functions package
+        """
         logger.debug('I am about to crate the package {}'.format(package))
         url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'packages', package + "?overwrite=False"])
 

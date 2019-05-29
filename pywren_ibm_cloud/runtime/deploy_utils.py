@@ -244,3 +244,29 @@ def delete_runtime(image_name, config=None):
             storage_client.delete_runtime_info(region, namespace, runtime_name)
             action_name = create_action_name(runtime_name)
             cf_client.delete_action(action_name)
+
+
+def clean_runtimes(config=None):
+    logger.info('Cleaning runtimes')
+    if config is None:
+        config = wrenconfig.default()
+    else:
+        config = wrenconfig.default(config)
+
+    storage_config = wrenconfig.extract_storage_config(config)
+    storage_client = storage.InternalStorage(storage_config)
+    cf_config = wrenconfig.extract_cf_config(config)
+    cf_client = CloudFunctions(cf_config)
+
+    bh = storage_client.backend_handler
+    runtimes = bh.list_keys_with_prefix(storage_config['storage_bucket'], 'runtime')
+    if runtimes:
+        bh.delete_objects(storage_config['storage_bucket'], runtimes)
+
+    packages = cf_client.list_packages()
+    for pkg in packages:
+        if 'pywren_v' in pkg['name']:
+            actions = cf_client.list_actions(pkg['name'])
+            for action in actions:
+                cf_client.delete_action(action['name'])
+            cf_client.delete_package(pkg['name'])
