@@ -42,18 +42,18 @@ class CloudFunctions:
         self.is_cf_cluster = is_cf_cluster()
         self.package = 'pywren_v'+__version__
 
-        self.iam_connector = IAM(config['ibm_iam'], self.endpoint, self.namespace)
-        if not self.iam_connector.is_IAM_access():
-            self.api_key = str.encode(config['api_key'])
-
-        if not self.iam_connector.is_IAM_access():
-            auth_token = base64.encodebytes(self.api_key).replace(b'\n', b'')
+        if 'api_key' in config:
+            api_key = str.encode(config['api_key'])
+            auth_token = base64.encodebytes(api_key).replace(b'\n', b'')
             auth = 'Basic %s' % auth_token.decode('UTF-8')
             self.effective_namespace = self.namespace
-        else:
+
+        elif 'api_key' in config['ibm_iam']:
+            self.iam_connector = IAM(config['ibm_iam'], self.endpoint, self.namespace)
             auth = self.iam_connector.get_iam_token()
             self.namespace_id = self.iam_connector.get_function_namespace_id(auth)
             self.effective_namespace = self.namespace_id
+
         self.session = requests.session()
         default_user_agent = self.session.headers['User-Agent']
 

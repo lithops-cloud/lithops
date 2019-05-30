@@ -61,12 +61,7 @@ class ibm_cf_executor:
         """
         self.start_time = time.time()
         self._state = ExecutorState.new
-
-        if config is None:
-            self.config = wrenconfig.default()
-        else:
-            self.config = wrenconfig.default(config)
-
+        self.config = wrenconfig.default(config)
         self.is_cf_cluster = is_cf_cluster()
         self.data_cleaner = self.config['pywren']['data_cleaner']
 

@@ -122,12 +122,7 @@ def _create_blackbox_runtime(image_name, memory, runtime_meta, cf_client, intern
 
 def create_runtime(image_name, memory=None, config=None):
     logger.info('Creating new PyWren runtime based on image {}'.format(image_name))
-
-    if config is None:
-        config = wrenconfig.default()
-    else:
-        config = wrenconfig.default(config)
-
+    config = wrenconfig.default(config)
     storage_config = wrenconfig.extract_storage_config(config)
     internal_storage = storage.InternalStorage(storage_config)
 
@@ -184,14 +179,9 @@ def build_runtime(image_name, config=None):
 
 def update_runtime(image_name, config=None):
     logger.info('Updating runtime: {}'.format(image_name))
-    if config is None:
-        config = wrenconfig.default()
-    else:
-        config = wrenconfig.default(config)
-
+    config = wrenconfig.default(config)
     storage_config = wrenconfig.extract_storage_config(config)
     internal_storage = storage.InternalStorage(storage_config)
-
     cf_config = wrenconfig.extract_cf_config(config)
     cf_client = CloudFunctions(cf_config)
     cf_client.create_package(PACKAGE)
@@ -217,12 +207,7 @@ def update_runtime(image_name, config=None):
 
 def delete_runtime(image_name, config=None):
     logger.info('Deleting runtime: {}'.format(image_name))
-
-    if config is None:
-        config = wrenconfig.default()
-    else:
-        config = wrenconfig.default(config)
-
+    config = wrenconfig.default(config)
     storage_config = wrenconfig.extract_storage_config(config)
     storage_client = storage.InternalStorage(storage_config)
     cf_config = wrenconfig.extract_cf_config(config)
@@ -248,11 +233,7 @@ def delete_runtime(image_name, config=None):
 
 def clean_runtimes(config=None):
     logger.info('Cleaning runtimes')
-    if config is None:
-        config = wrenconfig.default()
-    else:
-        config = wrenconfig.default(config)
-
+    config = wrenconfig.default(config)
     storage_config = wrenconfig.extract_storage_config(config)
     storage_client = storage.InternalStorage(storage_config)
     cf_config = wrenconfig.extract_cf_config(config)

@@ -30,9 +30,6 @@ class IAM:
         self.cf_endpoint = cf_endpoint
         self.cf_namespace = cf_namespace
 
-    def is_IAM_access(self):
-        return self.iam_api_key is not None
-
     def get_iam_token(self):
         data = urlencode({'grant_type': 'urn:ibm:params:oauth:grant-type:apikey', 'apikey': self.iam_api_key})
         headers = {
