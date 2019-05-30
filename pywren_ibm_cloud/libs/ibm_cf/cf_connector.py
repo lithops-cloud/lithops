@@ -122,12 +122,12 @@ class CloudFunctions:
         res = self.session.get(url)
         return res.json()
 
-    def delete_action(self, action_name):
+    def delete_action(self, package, action_name):
         """
         Delete an IBM Cloud Function
         """
         logger.debug("Delete cloud function action: {}".format(action_name))
-        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', self.package, action_name])
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', package, action_name])
         res = self.session.delete(url)
         resp_text = res.json()
 

@@ -146,7 +146,7 @@ def create_runtime(image_name, memory=None, config=None):
         actions = cf_client.list_actions(PACKAGE)
         for action in actions:
             if 'modules' in action['name']:
-                cf_client.delete_action(action['name'])
+                cf_client.delete_action(PACKAGE, action['name'])
                 continue
             action_name, r_memory = action['name'].rsplit('-', 1)
             if image_name_formated == action_name:
@@ -197,7 +197,7 @@ def update_runtime(image_name, config=None):
 
     for action in actions:
         if 'modules' in action['name']:
-            cf_client.delete_action(action['name'])
+            cf_client.delete_action(PACKAGE, action['name'])
             continue
         action_name, memory = action['name'].rsplit('-', 1)
         if image_name_formated == action_name:
@@ -228,7 +228,7 @@ def delete_runtime(image_name, config=None):
             runtime_name = create_runtime_name(image_name, memory)
             storage_client.delete_runtime_info(region, namespace, runtime_name)
             action_name = create_action_name(runtime_name)
-            cf_client.delete_action(action_name)
+            cf_client.delete_action(PACKAGE, action_name)
 
 
 def clean_runtimes(config=None):
@@ -250,6 +250,6 @@ def clean_runtimes(config=None):
             actions = cf_client.list_actions(pkg['name'])
             while actions:
                 for action in actions:
-                    cf_client.delete_action(action['name'])
+                    cf_client.delete_action(pkg['name'], action['name'])
                 actions = cf_client.list_actions(pkg['name'])
             cf_client.delete_package(pkg['name'])
