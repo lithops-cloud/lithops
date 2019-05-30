@@ -90,7 +90,7 @@ def _extract_modules(image_name, cf_client):
     except Exception:
         raise("Unable to invoke 'modules' action")
     try:
-        cf_client.delete_action(modules_action_name)
+        cf_client.delete_action(PACKAGE, modules_action_name)
     except Exception:
         raise("Unable to delete 'modules' action")
 
