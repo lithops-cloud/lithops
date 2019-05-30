@@ -45,5 +45,9 @@ setup(
         'requests', 'python-dateutil', 'lxml',
         'pandas', 'seaborn', 'matplotlib'
     ],
-    include_package_data=True
+    include_package_data=True,
+    entry_points='''
+        [console_scripts]
+        pywren-runtime=pywren_ibm_cloud.runtime.pywren_runtime_cli:cli
+    ''',
 )
