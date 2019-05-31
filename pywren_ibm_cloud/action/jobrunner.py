@@ -81,13 +81,13 @@ class jobrunner(Process):
         """
         Gets and unpickles function and modules from storage
         """
-        logger.info("Getting function and modules")
+        logger.debug("Getting function and modules")
         func_download_time_t1 = time.time()
         func_obj = self.internal_storage.get_func(self.func_key)
         loaded_func_all = pickle.loads(func_obj)
         func_download_time_t2 = time.time()
         self.stats.write('func_download_time', round(func_download_time_t2-func_download_time_t1, 8))
-        logger.info("Finished getting Function and modules")
+        logger.debug("Finished getting Function and modules")
 
         return loaded_func_all
 
@@ -95,7 +95,7 @@ class jobrunner(Process):
         """
         Save modules, before we unpickle actual function
         """
-        logger.info("Writing Function dependencies to local disk")
+        logger.debug("Writing Function dependencies to local disk")
         PYTHON_MODULE_PATH = self.config['python_module_path']
         shutil.rmtree(PYTHON_MODULE_PATH, True)  # delete old modules
         os.mkdir(PYTHON_MODULE_PATH)
@@ -122,15 +122,15 @@ class jobrunner(Process):
         #logger.info("Finished writing {} module files".format(len(loaded_func_all['module_data'])))
         #logger.debug(subprocess.check_output("find {}".format(PYTHON_MODULE_PATH), shell=True))
         #logger.debug(subprocess.check_output("find {}".format(os.getcwd()), shell=True))
-        logger.info("Finished writing Function dependencies")
+        logger.debug("Finished writing Function dependencies")
 
     def _unpickle_function(self, pickled_func):
         """
         Unpickle function; it will expect modules to be there
         """
-        logger.info("Unpickle Function")
+        logger.debug("Unpickle Function")
         loaded_func = pickle.loads(pickled_func)
-        logger.info("Finished Function unpickle")
+        logger.debug("Finished Function unpickle")
 
         return loaded_func
 
@@ -140,13 +140,13 @@ class jobrunner(Process):
             range_str = 'bytes={}-{}'.format(*self.data_byte_range)
             extra_get_args['Range'] = range_str
 
-        logger.info("Getting function data")
+        logger.debug("Getting function data")
         data_download_time_t1 = time.time()
         data_obj = self.internal_storage.get_data(self.data_key, extra_get_args=extra_get_args)
-        logger.info("Finished getting Function data")
-        logger.info("Unpickle Function data")
+        logger.debug("Finished getting Function data")
+        logger.debug("Unpickle Function data")
         loaded_data = pickle.loads(data_obj)
-        logger.info("Finished unpickle Function data")
+        logger.debug("Finished unpickle Function data")
         data_download_time_t2 = time.time()
         self.stats.write('data_download_time', round(data_download_time_t2-data_download_time_t1, 8))
 
@@ -272,7 +272,7 @@ class jobrunner(Process):
 
             if store_result:
                 output_upload_timestamp_t1 = time.time()
-                logger.info("Storing {} - Size: {}".format(self.output_key, sizeof_fmt(len(pickled_output))))
+                logger.info("Storing function result in: output.pickle - Size: {}".format(sizeof_fmt(len(pickled_output))))
                 self.internal_storage.put_data(self.output_key, pickled_output)
                 output_upload_timestamp_t2 = time.time()
                 self.stats.write("output_upload_time", round(output_upload_timestamp_t2 - output_upload_timestamp_t1, 8))

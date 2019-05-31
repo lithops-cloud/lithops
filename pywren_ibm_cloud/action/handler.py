@@ -83,6 +83,7 @@ def ibm_cloud_function_handler(event):
     call_id = event['call_id']
     callgroup_id = event['callgroup_id']
     executor_id = event['executor_id']
+    logger.info("Execution ID: {}/{}/{}".format(executor_id, callgroup_id, call_id))
     job_max_runtime = event.get("job_max_runtime", 590)  # default for CF
     status_key = event['status_key']
     func_key = event['func_key']
@@ -139,7 +140,7 @@ def ibm_cloud_function_handler(event):
 
         if jr.is_alive():
             # If process is still alive after jr.join(job_max_runtime), kill it
-            logger.error("Process exceeded maximum runtime of {} sec".format(job_max_runtime))
+            logger.error("Process exceeded maximum runtime of {} seconds".format(job_max_runtime))
             # Send the signal to all the process groups
             jr.terminate()
             raise Exception("OUTATIME",  "Process executed for too long and was killed")
@@ -206,7 +207,8 @@ def ibm_cloud_function_handler(event):
             store_status = eval(extra_env['STORE_STATUS'])
 
         if store_status:
+            print(response_status)
             internal_storage = storage.InternalStorage(storage_config)
             response_status = json.dumps(response_status)
-            logger.info("Storing {} - Size: {}".format(status_key, sizeof_fmt(len(response_status))))
+            logger.info("Storing function execution stats in: status.json - Size: {}".format(sizeof_fmt(len(response_status))))
             internal_storage.put_data(status_key, response_status)
