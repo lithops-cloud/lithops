@@ -81,10 +81,10 @@ def _extract_modules(image_name, cf_client):
 
     # old_stdout = sys.stdout
     # sys.stdout = open(os.devnull, 'w')
-    logger.debug("Creating action for extracting Python modules list: {}".format(modules_action_name))
-    cf_client.create_action(modules_action_name, image_name, code=action_code, is_binary=False)
+    cf_client.create_action(PACKAGE, modules_action_name, image_name,
+                            code=action_code, is_binary=False)
     # sys.stdout = old_stdout
-    logger.debug("Going to extract Python modules list from: {}".format(image_name))
+    logger.debug("Extracting Python modules list from: {}".format(image_name))
     try:
         runtime_meta = cf_client.invoke_with_result(modules_action_name)
     except Exception:
@@ -93,6 +93,9 @@ def _extract_modules(image_name, cf_client):
         cf_client.delete_action(PACKAGE, modules_action_name)
     except Exception:
         raise("Unable to delete 'modules' action")
+
+    if 'preinstalls' not in runtime_meta:
+        raise Exception(runtime_meta)
 
     return runtime_meta
 
@@ -106,8 +109,8 @@ def _create_blackbox_runtime(image_name, memory, runtime_meta, cf_client, intern
     # Upload zipped PyWren action
     with open(ZIP_LOCATION, "rb") as action_zip:
         action_bin = action_zip.read()
-    logger.debug("Creating blackbox action: {}".format(action_name))
-    cf_client.create_action(action_name, image_name, code=action_bin, memory=memory)
+
+    cf_client.create_action(PACKAGE, action_name, image_name, code=action_bin, memory=memory)
 
     region = cf_client.endpoint.split('//')[1].split('.')[0]
     namespace = cf_client.namespace
@@ -178,7 +181,11 @@ def build_runtime(image_name, config=None):
 
 
 def update_runtime(image_name, config=None):
+    if image_name == 'default':
+        image_name = _get_default_image_name()
+
     logger.info('Updating runtime: {}'.format(image_name))
+
     config = wrenconfig.default(config)
     storage_config = wrenconfig.extract_storage_config(config)
     internal_storage = storage.InternalStorage(storage_config)
@@ -186,9 +193,6 @@ def update_runtime(image_name, config=None):
     cf_client = CloudFunctions(cf_config)
     cf_client.create_package(PACKAGE)
     _create_zip_action()
-
-    if image_name == 'default':
-        image_name = _get_default_image_name()
 
     image_name_formated = create_action_name(image_name)
     actions = cf_client.list_actions(PACKAGE)
@@ -206,15 +210,15 @@ def update_runtime(image_name, config=None):
 
 
 def delete_runtime(image_name, config=None):
+    if image_name == 'default':
+        image_name = _get_default_image_name()
     logger.info('Deleting runtime: {}'.format(image_name))
+
     config = wrenconfig.default(config)
     storage_config = wrenconfig.extract_storage_config(config)
     storage_client = storage.InternalStorage(storage_config)
     cf_config = wrenconfig.extract_cf_config(config)
     cf_client = CloudFunctions(cf_config)
-
-    if image_name == 'default':
-        image_name = _get_default_image_name()
 
     image_name_formated = create_action_name(image_name)
     actions = cf_client.list_actions(PACKAGE)

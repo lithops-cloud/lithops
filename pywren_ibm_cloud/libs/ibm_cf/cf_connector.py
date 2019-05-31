@@ -23,7 +23,6 @@ import requests
 import http.client
 from urllib.parse import urlparse
 from pywren_ibm_cloud.version import __version__
-from pywren_ibm_cloud.utils import is_cf_cluster
 from pywren_ibm_cloud.libs.ibm_iam.iam_connector import IAM
 
 logger = logging.getLogger(__name__)
@@ -39,7 +38,6 @@ class CloudFunctions:
         self.namespace = config['namespace']
         self.default_runtime_memory = int(config['runtime_memory'])
         self.default_runtime_timeout = int(config['runtime_timeout'])
-        self.is_cf_cluster = is_cf_cluster()
         self.package = 'pywren_v'+__version__
 
         if 'api_key' in config:
@@ -72,8 +70,8 @@ class CloudFunctions:
         logger.debug('{} host: {}'.format(msg, self.endpoint))
         logger.debug("CF user agent set to: {}".format(self.session.headers['User-Agent']))
 
-    def create_action(self, action_name, image_name, code=None, memory=None, kind='blackbox',
-                      is_binary=True, overwrite=True):
+    def create_action(self, package, action_name, image_name, code=None, memory=None,
+                      kind='blackbox', is_binary=True, overwrite=True):
         """
         Create an IBM Cloud Functions action
         """
@@ -92,7 +90,7 @@ class CloudFunctions:
         data['exec'] = cfexec
 
         logger.debug('I am about to create a new cloud function action: {}'.format(action_name))
-        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', self.package,
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', package,
                         action_name + "?overwrite=" + str(overwrite)])
 
         res = self.session.put(url, json=data)
@@ -104,12 +102,12 @@ class CloudFunctions:
             msg = 'An error occurred creating/updating action {}: {}'.format(action_name, resp_text['error'])
             raise Exception(msg)
 
-    def get_action(self, action_name):
+    def get_action(self, package, action_name):
         """
         Get an IBM Cloud Functions action
         """
         logger.debug("I am about to get a cloud function action: {}".format(action_name))
-        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', self.package, action_name])
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', package, action_name])
         res = self.session.get(url)
         return res.json()
 
@@ -134,10 +132,10 @@ class CloudFunctions:
         if res.status_code != 200:
             logger.debug('An error occurred deleting action {}: {}'.format(action_name, resp_text['error']))
 
-    def update_memory(self, action_name, memory):
+    def update_memory(self, package, action_name, memory):
         logger.debug('I am about to update the memory of the {} action to {}'.format(action_name, memory))
         url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace,
-                        'actions', self.package, action_name + "?overwrite=True"])
+                        'actions', package, action_name + "?overwrite=True"])
 
         data = {"limits": {"memory": memory}}
         res = self.session.put(url, json=data)
@@ -194,47 +192,6 @@ class CloudFunctions:
             logger.debug("OK --> Created package {}".format(package))
 
     def invoke(self, action_name, payload):
-        """
-        Wrapper around actual invocation methods
-        """
-        if self.is_cf_cluster:
-            return self.request_invoke(action_name, payload)
-        else:
-            return self.request_invoke(action_name, payload)
-
-    def session_invoke(self, action_name, payload):
-        """
-        Invoke an IBM Cloud Function by using session.
-        """
-        exec_id = payload['executor_id']
-        call_id = payload['call_id']
-        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', self.package, action_name])
-        try:
-            resp = self.session.post(url, json=payload)
-            data = resp.json()
-            resp_time = format(round(resp.elapsed.total_seconds(), 3), '.3f')
-        except Exception as e:
-            logger.debug(str(e))
-            return self.session_invoke(action_name, payload)
-
-        if 'activationId' in data:
-            log_msg = ('Executor ID {} Function {} invocation done! ({}s) - Activation ID: '
-                       '{}'.format(exec_id, call_id, resp_time, data["activationId"]))
-            logger.debug(log_msg)
-            return data["activationId"]
-        else:
-            logger.debug(data)
-            if resp.status_code == 401:
-                raise Exception('Unauthorized - Invalid API Key')
-            elif resp.status_code == 404:
-                raise Exception('PyWren Runtime: {} not deployed'.format(action_name))
-            elif resp.status_code == 429:
-                # Too many concurrent requests in flight
-                return None
-            else:
-                raise Exception(data['error'])
-
-    def request_invoke(self, action_name, payload):
         """
         Invoke an IBM Cloud Function by using new request.
         """
