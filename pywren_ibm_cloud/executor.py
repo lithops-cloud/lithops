@@ -115,7 +115,7 @@ class Executor(object):
         activation_id = self.invoker.invoke(arg_dict)
 
         if not activation_id:
-            raise ValueError("Executor ID {} Activation {} failed, therefore job is failed".format(executor_id, call_id))
+            raise Exception("Executor ID {} Activation {} failed, therefore job is failed".format(executor_id, call_id))
 
         host_job_meta['cf_activation_id'] = activation_id
         host_job_meta['cf_invoke_timestamp'] = cf_invoke_time_start

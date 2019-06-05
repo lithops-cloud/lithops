@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-from pywren_ibm_cloud.runtime import create_runtime, update_runtime, build_runtime, delete_runtime
+from pywren_ibm_cloud.runtime import create_runtime, update_runtime, build_runtime, delete_runtime, clean_runtimes
 import logging
 import click
 
 logging.basicConfig(level=logging.DEBUG)
 
 
-@click.group(invoke_without_command=True)
+@click.group()
 @click.pass_context
 def cli(ctx):
-    if ctx.invoked_subcommand is None:
-        create_runtime('default')
+    pass
 
 
 @cli.command('create')
@@ -36,6 +35,11 @@ def update(image_name):
 @click.argument('image_name')
 def delete(image_name):
     delete_runtime(image_name)
+
+
+@cli.command('clean')
+def clean():
+    clean_runtimes()
 
 
 if __name__ == "__main__":

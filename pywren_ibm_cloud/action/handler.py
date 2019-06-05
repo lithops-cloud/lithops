@@ -83,6 +83,7 @@ def ibm_cloud_function_handler(event):
     call_id = event['call_id']
     callgroup_id = event['callgroup_id']
     executor_id = event['executor_id']
+    logger.info("Execution ID: {}/{}/{}".format(executor_id, callgroup_id, call_id))
     job_max_runtime = event.get("job_max_runtime", 590)  # default for CF
     status_key = event['status_key']
     func_key = event['func_key']
@@ -139,7 +140,7 @@ def ibm_cloud_function_handler(event):
 
         if jr.is_alive():
             # If process is still alive after jr.join(job_max_runtime), kill it
-            logger.error("Process exceeded maximum runtime of {} sec".format(job_max_runtime))
+            logger.error("Process exceeded maximum runtime of {} seconds".format(job_max_runtime))
             # Send the signal to all the process groups
             jr.terminate()
             raise Exception("OUTATIME",  "Process executed for too long and was killed")
@@ -179,30 +180,35 @@ def ibm_cloud_function_handler(event):
     finally:
         rabbit_amqp_url = config['rabbitmq'].get('amqp_url')
         if rabbit_amqp_url:
-            params = pika.URLParameters(rabbit_amqp_url)
-            connection = pika.BlockingConnection(params)
-            channel = connection.channel()
-            channel.queue_declare(queue=executor_id, auto_delete=True)
             status = 'ok'
             if response_status['exception']:
                 status = 'error'
-            try:
-                new_futures = response_status.get('new_futures', 'None/0')
-                channel.basic_publish(exchange='', routing_key=executor_id,
-                                      body='{}/{}:{}:{}'.format(callgroup_id, call_id,
-                                                                status,  new_futures))
-                logger.info("Status sent to rabbitmq")
-            except Exception:
-                logger.error("Unable to send status to rabbitmq")
-
-            connection.close()
+            status_sent = False
+            output_query_count = 0
+            while not status_sent and output_query_count < 5:
+                output_query_count = output_query_count + 1
+                try:
+                    params = pika.URLParameters(rabbit_amqp_url)
+                    connection = pika.BlockingConnection(params)
+                    channel = connection.channel()
+                    channel.queue_declare(queue=executor_id, auto_delete=True)
+                    new_futures = response_status.get('new_futures', 'None/0')
+                    channel.basic_publish(exchange='', routing_key=executor_id,
+                                          body='{}/{}:{}:{}'.format(callgroup_id, call_id,
+                                                                    status,  new_futures))
+                    connection.close()
+                    logger.info("Status sent to rabbitmq")
+                    status_sent = True
+                except Exception:
+                    logger.error("Unable to send status to rabbitmq")
 
         store_status = True
         if 'STORE_STATUS' in extra_env:
             store_status = eval(extra_env['STORE_STATUS'])
 
         if store_status:
+            print(response_status)
             internal_storage = storage.InternalStorage(storage_config)
             response_status = json.dumps(response_status)
-            logger.info("Storing {} - Size: {}".format(status_key, sizeof_fmt(len(response_status))))
+            logger.info("Storing function execution stats in: status.json - Size: {}".format(sizeof_fmt(len(response_status))))
             internal_storage.put_data(status_key, response_status)

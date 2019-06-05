@@ -14,7 +14,7 @@ The default runtime is created the first time you execute a function. PyWren aut
 
 Alternatively, you can create the default runtime by running the following command:
     
-    ./deploy_runtime create default
+    ./pywren_runtime create default
 
 To run a function with the default runtime you don't need to specify anything in the code since all is internally managed by PyWren:
 ```python
@@ -47,11 +47,11 @@ If you need some Python modules (or other system libraries) which are not includ
     If you need another Python version, for example Python 3.5, you must use the [Dockerfile.python35](Dockerfile.python35) that
     points to a source image based on Python 3.5. Finally run the build script:
     
-        ./deploy_runtime build docker_username/runtimename:tag
+        ./pywren_runtime build docker_username/runtimename:tag
     
     Note that Docker hub image names look like *"docker_username/runtimename:tag"* and must be all lower case, for example:
     
-    	./deploy_runtime build jsampe/pywren-custom-runtime:3.5
+    	./pywren_runtime build jsampe/pywren-custom-runtime:3.5
     
     Once you have built your runtime with all of your necessary packages, now you are able to use it with PyWren.
     To do so you have to specify the full docker image name when you create the *ibm_cf_executor* instance, for example:
@@ -66,7 +66,7 @@ If you need some Python modules (or other system libraries) which are not includ
     result = pw.get_result()
     ```
     
-    *NOTE: In this previous example we built a docker image based on Python 3.5, this means that now we also need Python 3.5 in the client machine.*
+    *NOTE: In this previous example we built a Docker image based on Python 3.5, this means that now we also need Python 3.5 in the client machine.*
     
     In order to use a self-built docker image as a runtime for PyWren, you have to login to your [Docker Hub account](https://hub.docker.com) and ensure that the image is **public**.
 
@@ -78,11 +78,11 @@ In this case you can use that Docker image and avoid the building process.
 
     To create a PyWren runtime based on already built Docker image, execute the following command which will create all the necessary information to use the runtime with your PyWren.
     
-        ./deploy_runtime create docker_username/runtimename:tag
+        ./pywren_runtime create docker_username/runtimename:tag
       
     For example, you can use an already created runtime based on Python 3.5 and with the *matplotlib* and *nltk* libraries by running:
     
-        ./deploy_runtime create jsampe/pw-mpl-nltk:3.5
+        ./pywren_runtime create jsampe/pw-mpl-nltk:3.5
         
     Once finished, you can use the runtime in your PyWren code:
     ```python
@@ -102,31 +102,31 @@ If you are a developer, and you modified the PyWeen source code, you need to dep
 
     You can update default runtime by:
     	
-    	./deploy_runtime update default
+    	./pywren_runtime update default
     
     You can update any other runtime deployed in your namespace by specifying the docker image that the runtime depends on:
     
-        ./deploy_runtime update docker_username/runtimename:tag
+        ./pywren_runtime update docker_username/runtimename:tag
       
-    For example, you can update an already created runtime based on the Dokcer image `jsampe/pw-mpl-nltk:3.5` by:
+    For example, you can update an already created runtime based on the Docker image `jsampe/pw-mpl-nltk:3.5` by:
     
-        ./deploy_runtime update jsampe/pw-mpl-nltk:3.5
+        ./pywren_runtime update jsampe/pw-mpl-nltk:3.5
 
 
 
-You can also delete existing runtimes in your namepace.
+You can also delete existing runtimes in your namespace.
 
 4. **Delete an existing runtime**
 
     You can delete default runtime by:
     	
-    	./deploy_runtime delete default
+    	./pywren_runtime delete default
     
     You can delete any other runtime deployed in your namespace by specifying the docker image that the runtime depends on:
     
-        ./deploy_runtime delete docker_username/runtimename:tag
+        ./pywren_runtime delete docker_username/runtimename:tag
       
-    For example, you can delete runtime based on the Dokcer image `jsampe/pw-mpl-nltk:3.5` by:
+    For example, you can delete runtime based on the Docker image `jsampe/pw-mpl-nltk:3.5` by:
     
-        ./deploy_runtime delete jsampe/pw-mpl-nltk:3.5
+        ./pywren_runtime delete jsampe/pw-mpl-nltk:3.5
         

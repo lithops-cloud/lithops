@@ -227,7 +227,6 @@ class ResponseFuture:
         self.status(check_only, throw_except, internal_storage)
 
         if not self._produce_output:
-            self._set_state(JobState.success)
             return
 
         call_output_time = time.time()

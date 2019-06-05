@@ -274,10 +274,10 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
     fs_notdones = []
     f_to_wait_on = []
     for f in fs:
-        if download_results and f.done:
+        if (download_results and f.done) or \
+           (not download_results and f.ready) or \
+           (download_results and f.ready and not f._produce_output):
             # done, don't need to do anything
-            fs_dones.append(f)
-        elif not download_results and f.ready:
             fs_dones.append(f)
         else:
             if (f.callgroup_id, f.call_id) in done_call_ids:
@@ -313,9 +313,9 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
 
     if pbar:
         for f in f_to_wait_on:
-            if download_results and f.done:
-                pbar.update(1)
-            elif not download_results and f.ready:
+            if (download_results and f.done) or \
+               (not download_results and f.ready) or \
+               (download_results and f.ready and not f._produce_output):
                 pbar.update(1)
         pbar.refresh()
     pool.close()

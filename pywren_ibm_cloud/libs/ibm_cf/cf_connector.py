@@ -23,7 +23,6 @@ import requests
 import http.client
 from urllib.parse import urlparse
 from pywren_ibm_cloud.version import __version__
-from pywren_ibm_cloud.utils import is_cf_cluster
 from pywren_ibm_cloud.libs.ibm_iam.iam_connector import IAM
 
 logger = logging.getLogger(__name__)
@@ -39,21 +38,20 @@ class CloudFunctions:
         self.namespace = config['namespace']
         self.default_runtime_memory = int(config['runtime_memory'])
         self.default_runtime_timeout = int(config['runtime_timeout'])
-        self.is_cf_cluster = is_cf_cluster()
         self.package = 'pywren_v'+__version__
 
-        self.iam_connector = IAM(config['ibm_iam'], self.endpoint, self.namespace)
-        if not self.iam_connector.is_IAM_access():
-            self.api_key = str.encode(config['api_key'])
-
-        if not self.iam_connector.is_IAM_access():
-            auth_token = base64.encodebytes(self.api_key).replace(b'\n', b'')
+        if 'api_key' in config:
+            api_key = str.encode(config['api_key'])
+            auth_token = base64.encodebytes(api_key).replace(b'\n', b'')
             auth = 'Basic %s' % auth_token.decode('UTF-8')
             self.effective_namespace = self.namespace
-        else:
+
+        elif 'api_key' in config['ibm_iam']:
+            self.iam_connector = IAM(config['ibm_iam'], self.endpoint, self.namespace)
             auth = self.iam_connector.get_iam_token()
             self.namespace_id = self.iam_connector.get_function_namespace_id(auth)
             self.effective_namespace = self.namespace_id
+
         self.session = requests.session()
         default_user_agent = self.session.headers['User-Agent']
 
@@ -72,8 +70,8 @@ class CloudFunctions:
         logger.debug('{} host: {}'.format(msg, self.endpoint))
         logger.debug("CF user agent set to: {}".format(self.session.headers['User-Agent']))
 
-    def create_action(self, action_name, image_name, code=None, memory=None, kind='blackbox',
-                      is_binary=True, overwrite=True):
+    def create_action(self, package, action_name, image_name, code=None, memory=None,
+                      kind='blackbox', is_binary=True, overwrite=True):
         """
         Create an IBM Cloud Functions action
         """
@@ -92,7 +90,7 @@ class CloudFunctions:
         data['exec'] = cfexec
 
         logger.debug('I am about to create a new cloud function action: {}'.format(action_name))
-        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', self.package,
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', package,
                         action_name + "?overwrite=" + str(overwrite)])
 
         res = self.session.put(url, json=data)
@@ -104,12 +102,12 @@ class CloudFunctions:
             msg = 'An error occurred creating/updating action {}: {}'.format(action_name, resp_text['error'])
             raise Exception(msg)
 
-    def get_action(self, action_name):
+    def get_action(self, package, action_name):
         """
         Get an IBM Cloud Functions action
         """
         logger.debug("I am about to get a cloud function action: {}".format(action_name))
-        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', self.package, action_name])
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', package, action_name])
         res = self.session.get(url)
         return res.json()
 
@@ -118,26 +116,26 @@ class CloudFunctions:
         List all IBM Cloud Functions actions in a package
         """
         logger.debug("I am about to list all actions from: {}".format(package))
-        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', self.package, ''])
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', package, ''])
         res = self.session.get(url)
         return res.json()
 
-    def delete_action(self, action_name):
+    def delete_action(self, package, action_name):
         """
         Delete an IBM Cloud Function
         """
         logger.debug("Delete cloud function action: {}".format(action_name))
-        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', self.package, action_name])
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', package, action_name])
         res = self.session.delete(url)
         resp_text = res.json()
 
         if res.status_code != 200:
             logger.debug('An error occurred deleting action {}: {}'.format(action_name, resp_text['error']))
 
-    def update_memory(self, action_name, memory):
+    def update_memory(self, package, action_name, memory):
         logger.debug('I am about to update the memory of the {} action to {}'.format(action_name, memory))
         url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace,
-                        'actions', self.package, action_name + "?overwrite=True"])
+                        'actions', package, action_name + "?overwrite=True"])
 
         data = {"limits": {"memory": memory}}
         res = self.session.put(url, json=data)
@@ -148,7 +146,39 @@ class CloudFunctions:
         else:
             logger.debug("OK --> Updated action memory {}".format(action_name))
 
+    def list_packages(self):
+        """
+        List all IBM Cloud Functions packages
+        """
+        logger.debug('I am about to list all the IBM CF packages')
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'packages'])
+
+        res = self.session.get(url)
+
+        if res.status_code == 200:
+            return res.json()
+        else:
+            logger.debug("Unable to list packages")
+            raise Exception("Unable to list packages")
+
+    def delete_package(self, package):
+        """
+        Delete an IBM Cloud Functions package
+        """
+        logger.debug("I am about to delete a cloud function package: {}".format(package))
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'packages', package])
+        res = self.session.delete(url)
+        resp_text = res.json()
+
+        if res.status_code == 200:
+            return resp_text
+        else:
+            logger.debug('An error occurred deleting the package {}: {}'.format(package, resp_text['error']))
+
     def create_package(self, package):
+        """
+        Create an IBM Cloud Functions package
+        """
         logger.debug('I am about to crate the package {}'.format(package))
         url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'packages', package + "?overwrite=False"])
 
@@ -162,47 +192,6 @@ class CloudFunctions:
             logger.debug("OK --> Created package {}".format(package))
 
     def invoke(self, action_name, payload):
-        """
-        Wrapper around actual invocation methods
-        """
-        if self.is_cf_cluster:
-            return self.request_invoke(action_name, payload)
-        else:
-            return self.request_invoke(action_name, payload)
-
-    def session_invoke(self, action_name, payload):
-        """
-        Invoke an IBM Cloud Function by using session.
-        """
-        exec_id = payload['executor_id']
-        call_id = payload['call_id']
-        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', self.package, action_name])
-        try:
-            resp = self.session.post(url, json=payload)
-            data = resp.json()
-            resp_time = format(round(resp.elapsed.total_seconds(), 3), '.3f')
-        except Exception as e:
-            logger.debug(str(e))
-            return self.session_invoke(action_name, payload)
-
-        if 'activationId' in data:
-            log_msg = ('Executor ID {} Function {} invocation done! ({}s) - Activation ID: '
-                       '{}'.format(exec_id, call_id, resp_time, data["activationId"]))
-            logger.debug(log_msg)
-            return data["activationId"]
-        else:
-            logger.debug(data)
-            if resp.status_code == 401:
-                raise Exception('Unauthorized - Invalid API Key')
-            elif resp.status_code == 404:
-                raise Exception('PyWren Runtime: {} not deployed'.format(action_name))
-            elif resp.status_code == 429:
-                # Too many concurrent requests in flight
-                return None
-            else:
-                raise Exception(data['error'])
-
-    def request_invoke(self, action_name, payload):
         """
         Invoke an IBM Cloud Function by using new request.
         """
