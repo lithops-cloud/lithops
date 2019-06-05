@@ -21,11 +21,14 @@ import enum
 import json
 import signal
 import logging
+import traceback
+from six import reraise
 from pywren_ibm_cloud import invokers
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.executor import Executor
+from pywren_ibm_cloud.future import FunctionException
 from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
 from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_cf_cluster, create_ri_action_name
 from pywren_ibm_cloud.storage.cleaner import clean_os_bucket
@@ -311,16 +314,35 @@ class ibm_cf_executor:
 
         pbar = None
         if not self.is_cf_cluster and self._state == ExecutorState.running \
-           and not self.log_level and not is_notebook():
-            import tqdm
-            print()
-            pbar = tqdm.tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
-                             total=len(ftrs), disable=False)
+           and not self.log_level:
+            from tqdm.auto import tqdm
+            if is_notebook():
+                pbar = tqdm(bar_format='{n}/|/ {n_fmt}/{total_fmt}', total=len(ftrs))  # ncols=800
+            else:
+                print()
+                pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(ftrs), disable=False)
 
         try:
             wait(ftrs, self.executor_id, self.internal_storage, download_results=download_results,
                  throw_except=throw_except, return_when=return_when, rabbit_amqp_url=rabbit_amqp_url,
                  pbar=pbar, THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
+
+        except FunctionException as e:
+            if is_unix_system():
+                signal.alarm(0)
+            if pbar:
+                pbar.close()
+            logger.info(e.msg)
+            if not is_notebook():
+                print()
+            if not self.log_level:
+                print(e.msg)
+            if e.exc_msg:
+                print('--> Exception: ' + e.exc_msg)
+            else:
+                print()
+                traceback.print_exception(*e.exception)
+            sys.exit()
 
         except TimeoutError:
             if download_results:
@@ -344,7 +366,8 @@ class ibm_cf_executor:
                 signal.alarm(0)
             if pbar:
                 pbar.close()
-                print()
+                if not is_notebook():
+                    print()
             if self._state == ExecutorState.error:
                 logger.info(msg)
                 if not self.log_level:
@@ -451,9 +474,9 @@ class ibm_cf_executor:
         storage_prerix = self.config['pywren']['storage_prefix']
         storage_prerix = '/'.join([storage_prerix, self.executor_id])
 
-        msg = "Executor ID {} Cleaning partial results from cos://{}/{}".format(self.executor_id,
-                                                                                storage_bucket,
-                                                                                storage_prerix)
+        msg = "Executor ID {} Cleaning temporary data from cos://{}/{}".format(self.executor_id,
+                                                                               storage_bucket,
+                                                                               storage_prerix)
         logger.info(msg)
         if not self.log_level:
             print(msg)

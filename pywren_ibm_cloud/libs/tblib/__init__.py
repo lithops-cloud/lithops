@@ -15,7 +15,7 @@ except ImportError:
 if not tb_set_next and not tproxy:
     raise ImportError("Cannot use tblib. Runtime not supported.")
 
-__version__ = '1.3.2'
+__version__ = '1.4.0'
 __all__ = 'Traceback',
 
 PY3 = sys.version_info[0] == 3
@@ -37,6 +37,9 @@ class TracebackParseError(Exception):
 
 
 class Code(object):
+
+    co_code = None
+
     def __init__(self, code):
         self.co_filename = code.co_filename
         self.co_name = code.co_name
@@ -44,11 +47,11 @@ class Code(object):
 
 class Frame(object):
     def __init__(self, frame):
-        self.f_globals = dict([
-            (k, v)
+        self.f_globals = {
+            k: v
             for k, v in frame.f_globals.items()
             if k in ("__file__", "__name__")
-        ])
+        }
         self.f_code = Code(frame.f_code)
 
     def clear(self):
@@ -112,7 +115,7 @@ class Traceback(object):
             # noinspection PyBroadException
             try:
                 exec(code, current.tb_frame.f_globals, {})
-            except:
+            except Exception:
                 next_tb = sys.exc_info()[2].tb_next
                 if top_tb is None:
                     top_tb = next_tb

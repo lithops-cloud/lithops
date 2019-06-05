@@ -14,22 +14,25 @@
 # limitations under the License.
 #
 
-import json
-import logging
 import os
-import subprocess
+import sys
 import time
-import traceback
 import pika
+import json
+import pickle
+import logging
+import subprocess
 import multiprocessing
+from distutils.util import strtobool
 from pywren_ibm_cloud import version
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.utils import sizeof_fmt
 from pywren_ibm_cloud.action.jobrunner import jobrunner
+from pywren_ibm_cloud.libs.tblib import pickling_support
 
-
+pickling_support.install()
 logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('handler')
 
@@ -63,10 +66,11 @@ def get_server_info():
     return server_info
 
 
-def ibm_cloud_function_handler(event):
+def function_handler(event):
     start_time = time.time()
-    logger.info("Action handler started")
-    response_status = {'exception': None}
+    logger.debug("Action handler started")
+    response_status = {'exception': False}
+    response_status['host_submit_time'] = event['host_submit_time']
     response_status['start_time'] = start_time
 
     context_dict = {
@@ -158,13 +162,15 @@ def ibm_cloud_function_handler(event):
         if os.path.exists(JOBRUNNER_STATS_FILENAME):
             with open(JOBRUNNER_STATS_FILENAME, 'r') as fid:
                 for l in fid.readlines():
-                    key, value = l.strip().split(" ")
+                    key, value = l.strip().split(" ", 1)
                     try:
                         response_status[key] = float(value)
                     except Exception:
                         response_status[key] = value
+                    if key == 'exception' or key == 'exc_pickle_fail' \
+                       or key == 'result':
+                        response_status[key] = eval(value)
 
-        response_status['host_submit_time'] = event['host_submit_time']
         # response_status['server_info'] = get_server_info()
         response_status.update(context_dict)
         response_status['end_time'] = time.time()
@@ -173,13 +179,16 @@ def ibm_cloud_function_handler(event):
         # internal runtime exceptions
         logger.error("There was an exception: {}".format(str(e)))
         response_status['end_time'] = time.time()
-        response_status['exception'] = str(e)
-        response_status['exception_args'] = e.args
-        response_status['exception_traceback'] = traceback.format_exc()
+        response_status['exception'] = True
+
+        pickled_exc = pickle.dumps(sys.exc_info())
+        pickle.loads(pickled_exc)  # this is just to make sure they can be unpickled
+        response_status['exc_info'] = str(pickled_exc)
 
     finally:
+        store_status = strtobool(os.environ.get('STORE_STATUS', 'True'))
         rabbit_amqp_url = config['rabbitmq'].get('amqp_url')
-        if rabbit_amqp_url:
+        if rabbit_amqp_url and store_status:
             status = 'ok'
             if response_status['exception']:
                 status = 'error'
@@ -202,13 +211,8 @@ def ibm_cloud_function_handler(event):
                 except Exception:
                     logger.error("Unable to send status to rabbitmq")
 
-        store_status = True
-        if 'STORE_STATUS' in extra_env:
-            store_status = eval(extra_env['STORE_STATUS'])
-
         if store_status:
-            print(response_status)
             internal_storage = storage.InternalStorage(storage_config)
             response_status = json.dumps(response_status)
-            logger.info("Storing function execution stats in: status.json - Size: {}".format(sizeof_fmt(len(response_status))))
+            logger.info("Storing execution stats - status.json - Size: {}".format(sizeof_fmt(len(response_status))))
             internal_storage.put_data(status_key, response_status)
