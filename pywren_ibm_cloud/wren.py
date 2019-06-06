@@ -22,7 +22,6 @@ import json
 import signal
 import logging
 import traceback
-from six import reraise
 from pywren_ibm_cloud import invokers
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud import wrenlogging
@@ -436,11 +435,7 @@ class ibm_cf_executor:
         else:
             ftrs = futures
 
-        if self.rabbitmq_monitor:
-            ftrs_to_plot = ftrs
-            self.monitor(futures=ftrs_to_plot)
-        else:
-            ftrs_to_plot = [f for f in ftrs if f.ready or f.done]
+        ftrs_to_plot = [f for f in ftrs if f.ready or f.done]
 
         if not ftrs_to_plot:
             return
@@ -457,10 +452,6 @@ class ibm_cf_executor:
 
         run_statuses = [f.run_status for f in ftrs_to_plot]
         invoke_statuses = [f.invoke_status for f in ftrs_to_plot]
-
-        if self.rabbitmq_monitor and invoke_statuses:
-            for in_stat in invoke_statuses:
-                del in_stat['status_done_timestamp']
 
         create_timeline(dst_dir, dst_file_name, self.start_time, run_statuses, invoke_statuses, self.config['ibm_cos'])
         create_histogram(dst_dir, dst_file_name, self.start_time, run_statuses, self.config['ibm_cos'])

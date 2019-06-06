@@ -75,7 +75,6 @@ class ResponseFuture:
         self.storage_path = storage_utils.get_storage_path(self.storage_config)
 
     def _set_state(self, new_state):
-        # FIXME add state machine
         self._state = new_state
 
     def cancel(self):

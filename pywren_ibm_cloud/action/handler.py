@@ -188,10 +188,10 @@ def function_handler(event):
     finally:
         store_status = strtobool(os.environ.get('STORE_STATUS', 'True'))
         rabbit_amqp_url = config['rabbitmq'].get('amqp_url')
+        dmpd_response_status = json.dumps(response_status)
+        drs = sizeof_fmt(len(dmpd_response_status))
+
         if rabbit_amqp_url and store_status:
-            status = 'ok'
-            if response_status['exception']:
-                status = 'error'
             status_sent = False
             output_query_count = 0
             while not status_sent and output_query_count < 5:
@@ -201,18 +201,17 @@ def function_handler(event):
                     connection = pika.BlockingConnection(params)
                     channel = connection.channel()
                     channel.queue_declare(queue=executor_id, auto_delete=True)
-                    new_futures = response_status.get('new_futures', 'None/0')
                     channel.basic_publish(exchange='', routing_key=executor_id,
-                                          body='{}/{}:{}:{}'.format(callgroup_id, call_id,
-                                                                    status,  new_futures))
+                                          body=dmpd_response_status)
                     connection.close()
-                    logger.info("Status sent to rabbitmq")
+                    logger.info("Execution stats sent to rabbitmq - Size: {}".format(drs))
                     status_sent = True
-                except Exception:
+                except Exception as e:
                     logger.error("Unable to send status to rabbitmq")
-
-        if store_status:
+                    logger.error(str(e))
+                    logger.info('Retrying to send stats to rabbitmq...')
+                    time.sleep(0.2)
+        elif store_status:
             internal_storage = storage.InternalStorage(storage_config)
-            response_status = json.dumps(response_status)
-            logger.info("Storing execution stats - status.json - Size: {}".format(sizeof_fmt(len(response_status))))
-            internal_storage.put_data(status_key, response_status)
+            logger.info("Storing execution stats - status.json - Size: {}".format(drs))
+            internal_storage.put_data(status_key, dmpd_response_status)
