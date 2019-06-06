@@ -211,7 +211,7 @@ def function_handler(event):
                     logger.error(str(e))
                     logger.info('Retrying to send stats to rabbitmq...')
                     time.sleep(0.2)
-        elif store_status:
+        if store_status:
             internal_storage = storage.InternalStorage(storage_config)
             logger.info("Storing execution stats - status.json - Size: {}".format(drs))
             internal_storage.put_data(status_key, dmpd_response_status)

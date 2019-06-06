@@ -410,10 +410,7 @@ class ibm_cf_executor:
         result = [f.result() for f in fs_dones if f.done and not f.futures]
         self.futures = []
         msg = "Executor ID {} Finished getting results".format(self.executor_id)
-        logger.info(msg)
-        if not self.log_level:
-            print(msg)
-
+        logger.debug(msg)
         if result and len(result) == 1:
             return result[0]
         return result
