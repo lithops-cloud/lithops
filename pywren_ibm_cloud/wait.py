@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import json
 import time
 import pika
 import queue
@@ -21,6 +22,7 @@ import random
 import logging
 import threading
 from multiprocessing.pool import ThreadPool
+from .future import JobState
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +69,7 @@ def wait(fs, executor_id, internal_storage, download_results=False,
 
         if rabbit_amqp_url and not download_results:
             callgroup_id = fs[0].callgroup_id
-            return _wait_rabbitmq(executor_id, callgroup_id, rabbit_amqp_url, pbar, N)
+            return _wait_rabbitmq(fs, executor_id, callgroup_id, rabbit_amqp_url, pbar, N)
 
         result_count = 0
 
@@ -146,15 +148,35 @@ class rabbitmq_checker_worker(threading.Thread):
         logger.debug(msg)
         self.channel.start_consuming()
 
+    def __del__(self):
+        self.channel.queue_delete(queue=self.executor_id)
+        self.channel.stop_consuming()
 
-def _wait_rabbitmq(executor_id, callgroup_id, rabbit_amqp_url, pbar, total):
+
+def _wait_rabbitmq(fs, executor_id, callgroup_id, rabbit_amqp_url, pbar, total):
     q = queue.Queue()
     td = rabbitmq_checker_worker(executor_id, rabbit_amqp_url, q)
     td.setDaemon(True)
     td.start()
 
+    done_call_status = {}
+    done_call_status[callgroup_id] = {}
     done_call_ids = {}
     done_call_ids[callgroup_id] = {'total': total, 'call_ids': []}
+
+    def call_ids_to_futures():
+        fs_dones = []
+        fs_notdones = []
+        for f in fs:
+            if f.callgroup_id in done_call_status and f.call_id in done_call_status[f.callgroup_id]:
+                f.run_status = done_call_status[f.callgroup_id][f.call_id]
+                f.invoke_status['status_done_timestamp'] = f.run_status['status_done_timestamp']
+                del f.run_status['status_done_timestamp']
+                f._set_state(JobState.ready)
+                fs_dones.append(f)
+            else:
+                fs_notdones.append(f)
+        return fs_dones, fs_notdones
 
     def reception_finished():
         for cg_id in done_call_ids:
@@ -167,34 +189,46 @@ def _wait_rabbitmq(executor_id, callgroup_id, rabbit_amqp_url, pbar, total):
         return True
 
     while not reception_finished():
-        data = q.get().split(':')
-        rcv_callgroup_id, rcv_call_id = data[0].split('/')
+        try:
+            call_status = json.loads(q.get())
+            call_status['status_done_timestamp'] = time.time()
+        except KeyboardInterrupt:
+            call_ids_to_futures()
+            raise KeyboardInterrupt
+
+        rcv_callgroup_id = call_status['callgroup_id']
+        rcv_call_id = call_status['call_id']
+
         if rcv_callgroup_id not in done_call_ids:
             done_call_ids[rcv_callgroup_id] = {'total': None, 'call_ids': []}
+        if rcv_callgroup_id not in done_call_status:
+            done_call_status[callgroup_id] = {}
+
         done_call_ids[rcv_callgroup_id]['call_ids'].append(rcv_call_id)
+        done_call_status[rcv_callgroup_id][rcv_call_id] = call_status
 
         if pbar:
             pbar.update(1)
             pbar.refresh()
 
-        new_futures = data[-1].split('/')
-        if int(new_futures[1]) != 0:
-            # We received new futures to track
-            callgroup_id_new_futures = new_futures[0]
-            total_new_futures = int(new_futures[1])
-            if callgroup_id_new_futures not in done_call_ids:
-                done_call_ids[callgroup_id_new_futures] = {'total': total_new_futures, 'call_ids': []}
-            else:
-                done_call_ids[callgroup_id_new_futures]['total'] = total_new_futures
+        if 'new_futures' in call_status:
+            new_futures = call_status['new_futures'].split('/')
+            if int(new_futures[1]) != 0:
+                # We received new futures to track
+                callgroup_id_new_futures = new_futures[0]
+                total_new_futures = int(new_futures[1])
+                if callgroup_id_new_futures not in done_call_ids:
+                    done_call_ids[callgroup_id_new_futures] = {'total': total_new_futures, 'call_ids': []}
+                else:
+                    done_call_ids[callgroup_id_new_futures]['total'] = total_new_futures
 
-            if pbar:
-                pbar.total = pbar.total + total_new_futures
-                pbar.refresh()
-
+                if pbar:
+                    pbar.total = pbar.total + total_new_futures
+                    pbar.refresh()
     if pbar:
         pbar.close()
 
-    return None, None
+    return call_ids_to_futures()
 
 
 def _wait_storage(fs, executor_id, internal_storage, download_results,
@@ -275,7 +309,7 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
     f_to_wait_on = []
     for f in fs:
         if (download_results and f.done) or \
-           (not download_results and f.ready) or \
+           (not download_results and (f.ready or f.done)) or \
            (download_results and f.ready and not f._produce_output):
             # done, don't need to do anything
             fs_dones.append(f)
@@ -314,7 +348,7 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
     if pbar:
         for f in f_to_wait_on:
             if (download_results and f.done) or \
-               (not download_results and f.ready) or \
+               (not download_results and (f.ready or f.done)) or \
                (download_results and f.ready and not f._produce_output):
                 pbar.update(1)
         pbar.refresh()

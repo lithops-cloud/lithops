@@ -48,7 +48,8 @@ class CloudFunctions:
 
         elif 'api_key' in config['ibm_iam']:
             self.iam_connector = IAM(config['ibm_iam'], self.endpoint, self.namespace)
-            auth = self.iam_connector.get_iam_token()
+            auth_token = self.iam_connector.get_iam_token()
+            auth = 'Bearer ' + auth_token
             self.namespace_id = self.iam_connector.get_function_namespace_id(auth)
             self.effective_namespace = self.namespace_id
 
@@ -165,7 +166,7 @@ class CloudFunctions:
         """
         Delete an IBM Cloud Functions package
         """
-        logger.debug("I am about to delete a cloud function package: {}".format(package))
+        logger.debug("I am about to delete the package: {}".format(package))
         url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'packages', package])
         res = self.session.delete(url)
         resp_text = res.json()
@@ -179,7 +180,7 @@ class CloudFunctions:
         """
         Create an IBM Cloud Functions package
         """
-        logger.debug('I am about to crate the package {}'.format(package))
+        logger.debug('I am about to create the package {}'.format(package))
         url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'packages', package + "?overwrite=False"])
 
         data = {"name": package}

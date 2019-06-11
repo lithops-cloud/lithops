@@ -21,11 +21,13 @@ import enum
 import json
 import signal
 import logging
+import traceback
 from pywren_ibm_cloud import invokers
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.executor import Executor
+from pywren_ibm_cloud.future import FunctionException
 from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
 from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_cf_cluster, create_ri_action_name
 from pywren_ibm_cloud.storage.cleaner import clean_os_bucket
@@ -311,16 +313,35 @@ class ibm_cf_executor:
 
         pbar = None
         if not self.is_cf_cluster and self._state == ExecutorState.running \
-           and not self.log_level and not is_notebook():
-            import tqdm
-            print()
-            pbar = tqdm.tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
-                             total=len(ftrs), disable=False)
+           and not self.log_level:
+            from tqdm.auto import tqdm
+            if is_notebook():
+                pbar = tqdm(bar_format='{n}/|/ {n_fmt}/{total_fmt}', total=len(ftrs))  # ncols=800
+            else:
+                print()
+                pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(ftrs), disable=False)
 
         try:
             wait(ftrs, self.executor_id, self.internal_storage, download_results=download_results,
                  throw_except=throw_except, return_when=return_when, rabbit_amqp_url=rabbit_amqp_url,
                  pbar=pbar, THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
+
+        except FunctionException as e:
+            if is_unix_system():
+                signal.alarm(0)
+            if pbar:
+                pbar.close()
+            logger.info(e.msg)
+            if not is_notebook():
+                print()
+            if not self.log_level:
+                print(e.msg)
+            if e.exc_msg:
+                print('--> Exception: ' + e.exc_msg)
+            else:
+                print()
+                traceback.print_exception(*e.exception)
+            sys.exit()
 
         except TimeoutError:
             if download_results:
@@ -344,7 +365,8 @@ class ibm_cf_executor:
                 signal.alarm(0)
             if pbar:
                 pbar.close()
-                print()
+                if not is_notebook():
+                    print()
             if self._state == ExecutorState.error:
                 logger.info(msg)
                 if not self.log_level:
@@ -388,10 +410,7 @@ class ibm_cf_executor:
         result = [f.result() for f in fs_dones if f.done and not f.futures]
         self.futures = []
         msg = "Executor ID {} Finished getting results".format(self.executor_id)
-        logger.info(msg)
-        if not self.log_level:
-            print(msg)
-
+        logger.debug(msg)
         if result and len(result) == 1:
             return result[0]
         return result
@@ -413,11 +432,7 @@ class ibm_cf_executor:
         else:
             ftrs = futures
 
-        if self.rabbitmq_monitor:
-            ftrs_to_plot = ftrs
-            self.monitor(futures=ftrs_to_plot)
-        else:
-            ftrs_to_plot = [f for f in ftrs if f.ready or f.done]
+        ftrs_to_plot = [f for f in ftrs if f.ready or f.done]
 
         if not ftrs_to_plot:
             return
@@ -435,10 +450,6 @@ class ibm_cf_executor:
         run_statuses = [f.run_status for f in ftrs_to_plot]
         invoke_statuses = [f.invoke_status for f in ftrs_to_plot]
 
-        if self.rabbitmq_monitor and invoke_statuses:
-            for in_stat in invoke_statuses:
-                del in_stat['status_done_timestamp']
-
         create_timeline(dst_dir, dst_file_name, self.start_time, run_statuses, invoke_statuses, self.config['ibm_cos'])
         create_histogram(dst_dir, dst_file_name, self.start_time, run_statuses, self.config['ibm_cos'])
 
@@ -451,9 +462,9 @@ class ibm_cf_executor:
         storage_prerix = self.config['pywren']['storage_prefix']
         storage_prerix = '/'.join([storage_prerix, self.executor_id])
 
-        msg = "Executor ID {} Cleaning partial results from cos://{}/{}".format(self.executor_id,
-                                                                                storage_bucket,
-                                                                                storage_prerix)
+        msg = "Executor ID {} Cleaning temporary data from cos://{}/{}".format(self.executor_id,
+                                                                               storage_bucket,
+                                                                               storage_prerix)
         logger.info(msg)
         if not self.log_level:
             print(msg)

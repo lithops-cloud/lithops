@@ -16,7 +16,7 @@
 
 import logging
 from pywren_ibm_cloud import wrenlogging
-from pywren_ibm_cloud.action.handler import ibm_cloud_function_handler
+from pywren_ibm_cloud.action.handler import function_handler
 
 wrenlogging.ow_config(logging.INFO)
 logger = logging.getLogger('__main__')
@@ -24,5 +24,5 @@ logger = logging.getLogger('__main__')
 
 def main(args):
     logger.info("Starting IBM Cloud Function execution")
-    ibm_cloud_function_handler(args)
-    return {"greeting": "Finished"}
+    function_handler(args)
+    return {"Execution": "Finished"}

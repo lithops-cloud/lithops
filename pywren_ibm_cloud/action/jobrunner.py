@@ -24,17 +24,16 @@ import logging
 import inspect
 import numpy as np
 from multiprocessing import Process
+from distutils.util import strtobool
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
+from pywren_ibm_cloud.future import ResponseFuture
 from pywren_ibm_cloud.utils import sizeof_fmt, b64str_to_bytes
 from pywren_ibm_cloud.wrenconfig import extract_storage_config
-from pywren_ibm_cloud.future import ResponseFuture
-from pywren_ibm_cloud.libs.tblib import pickling_support
 from pywren_ibm_cloud.utils import get_current_memory_usage
 from pywren_ibm_cloud.storage.backends.cos import COSBackend
 from pywren_ibm_cloud.storage.backends.swift import SwiftBackend
 
-pickling_support.install()
 
 logger = logging.getLogger('jobrunner')
 
@@ -184,10 +183,8 @@ class jobrunner(Process):
         """
         logger.info("Started")
         # initial output file in case job fails
-        output_dict = {'result': None,
-                       'success': False}
-        pickled_output = pickle.dumps(output_dict)
-
+        result = None
+        exception = False
         try:
             self.internal_storage = storage.InternalStorage(self.storage_config)
 
@@ -201,78 +198,73 @@ class jobrunner(Process):
                 logger.debug("Memory usage before call the function: {}".format(get_current_memory_usage()))
 
             logger.info("Function: Going to execute '{}()'".format(str(function.__name__)))
-            print('------------------- FUNCTION LOG -------------------', flush=True)
+            print('---------------------- FUNCTION LOG ----------------------', flush=True)
             func_exec_time_t1 = time.time()
             result = function(**data)
             func_exec_time_t2 = time.time()
-            print('----------------------------------------------------', flush=True)
+            print('----------------------------------------------------------', flush=True)
             logger.info("Function: Success execution")
 
             if self.show_memory:
                 logger.debug("Memory usage after call the function: {}".format(get_current_memory_usage()))
 
             self.stats.write('function_exec_time', round(func_exec_time_t2-func_exec_time_t1, 8))
-            output_dict = {'result': result,
-                           'success': True}
-            pickled_output = pickle.dumps(output_dict)
 
             # Check for new futures
-            if isinstance(result, ResponseFuture):
-                callgroup_id = result.callgroup_id
-                self.stats.write('new_futures', '{}/{}'.format(callgroup_id, 1))
-            elif type(result) == list and len(result) > 0 and isinstance(result[0], ResponseFuture):
-                callgroup_id = result[0].callgroup_id
-                self.stats.write('new_futures', '{}/{}'.format(callgroup_id, len(result)))
-            else:
-                self.stats.write('new_futures', '{}/{}'.format(None, 0))
+            if result:
+                self.stats.write("result", True)
+                if isinstance(result, ResponseFuture):
+                    callgroup_id = result.callgroup_id
+                    self.stats.write('new_futures', '{}/{}'.format(callgroup_id, 1))
+                elif type(result) == list and len(result) > 0 and isinstance(result[0], ResponseFuture):
+                    callgroup_id = result[0].callgroup_id
+                    self.stats.write('new_futures', '{}/{}'.format(callgroup_id, len(result)))
+                else:
+                    self.stats.write('new_futures', '{}/{}'.format(None, 0))
 
-            if self.show_memory:
-                logger.debug("Memory usage after output serialization: {}".format(get_current_memory_usage()))
+                output_dict = {'result': result}
+                pickled_output = pickle.dumps(output_dict)
+
+                if self.show_memory:
+                    logger.debug("Memory usage after output serialization: {}".format(get_current_memory_usage()))
+            else:
+                logger.debug("No result to store")
+                self.stats.write("result", False)
 
         except Exception as e:
-            print('-------------------- EXCEPTION ---------------------')
-            exc_type, exc_value, exc_traceback = sys.exc_info()
-            # traceback.print_tb(exc_traceback)
-
-            # Shockingly often, modules like subprocess don't properly
-            # call the base Exception.__init__, which results in them
-            # being unpickleable. As a result, we actually wrap this in a try/catch block
-            # and more-carefully handle the exceptions if any part of this save / test-reload
-            # fails
+            exception = True
+            self.stats.write("exception", True)
             logger.error("There was an exception: {}".format(str(e)))
 
             if self.show_memory:
                 logger.debug("Memory usage after call the function: {}".format(get_current_memory_usage()))
 
             try:
-                pickled_output = pickle.dumps({'result': e,
-                                               'exc_type': exc_type,
-                                               'exc_value': exc_value,
-                                               'exc_traceback': exc_traceback,
-                                               'sys.path': sys.path,
-                                               'success': False})
-
-                # this is just to make sure they can be unpickled
-                pickle.loads(pickled_output)
+                logger.debug("Pickling exception")
+                pickled_exc = pickle.dumps(sys.exc_info())
+                pickle.loads(pickled_exc)  # this is just to make sure they can be unpickled
+                self.stats.write("exc_info", str(pickled_exc))
 
             except Exception as pickle_exception:
-                pickled_output = pickle.dumps({'result': str(e),
-                                               'exc_type': str(exc_type),
-                                               'exc_value': str(exc_value),
-                                               'exc_traceback': exc_traceback,
-                                               'exc_traceback_str': str(exc_traceback),
-                                               'sys.path': sys.path,
-                                               'pickle_fail': True,
-                                               'pickle_exception': pickle_exception,
-                                               'success': False})
+                # Shockingly often, modules like subprocess don't properly
+                # call the base Exception.__init__, which results in them
+                # being unpickleable. As a result, we actually wrap this in a try/catch block
+                # and more-carefully handle the exceptions if any part of this save / test-reload
+                # fails
+                logger.debug("Failed pickling exception")
+                self.stats.write("exc_pickle_fail", True)
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                pickled_exc = pickle.dumps({'exc_type': str(exc_type),
+                                            'exc_value': str(exc_value),
+                                            'exc_traceback': exc_traceback,
+                                            'pickle_exception': pickle_exception})
+                pickle.loads(pickled_exc)  # this is just to make sure they can be unpickled
+                self.stats.write("exc_info", str(pickled_exc))
         finally:
-            store_result = True
-            if 'STORE_RESULT' in os.environ:
-                store_result = eval(os.environ['STORE_RESULT'])
-
-            if store_result:
+            store_result = strtobool(os.environ.get('STORE_RESULT', 'True'))
+            if result and store_result and not exception:
                 output_upload_timestamp_t1 = time.time()
-                logger.info("Storing function result in: output.pickle - Size: {}".format(sizeof_fmt(len(pickled_output))))
+                logger.info("Storing function result - output.pickle - Size: {}".format(sizeof_fmt(len(pickled_output))))
                 self.internal_storage.put_data(self.output_key, pickled_output)
                 output_upload_timestamp_t2 = time.time()
                 self.stats.write("output_upload_time", round(output_upload_timestamp_t2 - output_upload_timestamp_t1, 8))

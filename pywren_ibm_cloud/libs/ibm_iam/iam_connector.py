@@ -42,7 +42,7 @@ class IAM:
             raise RuntimeError("Error: http code {} while retrieving IAM token for API key.".format(res.status_code))
 
         bearer_response = res.json()
-        bearer_token = 'Bearer ' + bearer_response['access_token']
+        bearer_token = bearer_response['access_token']
         logger.debug(bearer_token)
 
         return bearer_token
