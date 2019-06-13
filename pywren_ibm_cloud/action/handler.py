@@ -149,12 +149,12 @@ def function_handler(event):
             jr.terminate()
             raise Exception("OUTATIME",  "Process executed for too long and was killed")
 
-        try:
+        # try:
             # Only 1 message is returned by jobrunner
-            result_queue.get(block=False)
-        except Exception:
+        #    result_queue.get(block=False)
+        # except Exception:
             # If no message, this means that the process was killed due memory usage
-            raise Exception("OUTOFMEMORY",  "Process exceeded maximum memory and was killed")
+        #    raise Exception("OUTOFMEMORY",  "Process exceeded maximum memory and was killed")
 
         # print(subprocess.check_output("find {}".format(PYTHON_MODULE_PATH), shell=True))
         # print(subprocess.check_output("find {}".format(os.getcwd()), shell=True))
