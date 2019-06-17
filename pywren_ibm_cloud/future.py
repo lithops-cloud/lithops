@@ -19,7 +19,9 @@ import enum
 import pickle
 import logging
 from pywren_ibm_cloud.storage import storage, storage_utils
+from pywren_ibm_cloud.libs.tblib import pickling_support
 
+pickling_support.install()
 logger = logging.getLogger(__name__)
 
 
@@ -166,6 +168,9 @@ class ResponseFuture:
 
                 if exception_args[0] == "OUTOFMEMORY":
                     msg = "Process exceeded maximum memory and was killed"
+
+                if exception_args[0] == "EXCPICKLEERROR":
+                    msg = "PyWren was unable to pickle the exception, check function logs"
             else:
                 fault = Exception(self._exception['exc_value'])
                 self._exception = (Exception, fault, self._exception['exc_traceback'])
