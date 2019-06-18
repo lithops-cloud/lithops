@@ -14,7 +14,7 @@ requests == 2.21.0
 scrapy == 1.6.0
 simplejson == 3.16.0
 virtualenv == 16.3.0
-twisted == 18.9.0
+twisted == 19.2.1
 
 # packages for numerics
 numpy == 1.16.1

@@ -89,11 +89,11 @@ PyWren-IBM-Cloud shipped with default runtimes:
 
 To update the default runtime, navigate into `runtime` folder and execute:
 
-	./deploy_runtime update default
+	./pywren_runtime update default
 
 To update any other runtime, navigate into `runtime` folder and execute:
 
-	./deploy_runtime update <docker_username/runtimename:tag>
+	./pywren_runtime update <docker_username/runtimename:tag>
 
 
 If your client uses different Python version or there is need to add additional packages to the runtime, then it is necessary to build a custom runtime. Detail instructions can be found [here](../runtime/).
