@@ -19,9 +19,9 @@ Summary of configuration keys for IBM Cloud Functions:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ibm_cf| endpoint | | yes | IBM Cloud Functions hostname. Endpoint is the value of 'HOST' from [api-key](https://cloud.ibm.com/openwhisk/learn/api-key). Make sure to use https:// prefix |
-|ibm_cf| namespace | | yes | IBM Cloud Functions namespace. Value of CURRENT NAMESPACE from [api-key](https://cloud.ibm.com/openwhisk/learn/api-key) |
-|ibm_cf| api_key | | yes | IBM Cloud Functions api key. Value of 'KEY' from [api-key](https://console.bluemix.net/openwhisk/learn/api-key) |
+|ibm_cf| endpoint | | yes | IBM Cloud Functions endpoint from [here](https://cloud.ibm.com/docs/openwhisk?topic=cloud-functions-cloudfunctions_regions#cloud-functions-endpoints). Make sure to use https:// prefix |
+|ibm_cf| namespace | | yes | IBM Cloud Functions namespace. Value of CURRENT NAMESPACE from [api-key](https://cloud.ibm.com/openwhisk/namespace-settings) |
+|ibm_cf| api_key | | yes | IBM Cloud Functions API key. Value of 'KEY' from [api-key](https://cloud.ibm.com/openwhisk/namespace-settings) |
 
 
 Summary of configuration keys for IBM Cloud Object Storage:
@@ -44,13 +44,15 @@ When using IAM authentication one IAM key can be used to authenticate against IB
 
 ### Using in-memory storage for monitoring function executions
 
-You can configure PyWren to use in-memory storage to monitor function executions in real time. We support currently [CloudAMQP](https://cloud.ibm.com/catalog/services/cloudamqp) and more other services will be supported at later stage. To enable PyWren to use this service please setup additional key.
+You can configure PyWren to use in-memory storage to monitor function executions in real-time. We currently support the AMQP protocol, for example, rabbitmq, and more other services will be supported at later stage. To enable PyWren to use this service please setup additional key.
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-| rabbitmq |amqp_url | |no | Value of AMQP URL from the Management dashboard of CloudAMQP service |
+| rabbitmq |amqp_url | |no | AMQP URL |
 
 In addition, activate service by
 
 	pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
+
+As a rabbitmq service you can use a free tier of [CloudAMQP](https://cloud.ibm.com/catalog/services/cloudamqp), or use/install your own rabbitmq server/cluster (must be publicly accessible).
 

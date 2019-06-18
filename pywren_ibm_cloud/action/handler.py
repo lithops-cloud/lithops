@@ -30,9 +30,7 @@ from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.utils import sizeof_fmt
 from pywren_ibm_cloud.action.jobrunner import jobrunner
-from pywren_ibm_cloud.libs.tblib import pickling_support
 
-pickling_support.install()
 logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('handler')
 
@@ -153,8 +151,8 @@ def function_handler(event):
             # Only 1 message is returned by jobrunner
             result_queue.get(block=False)
         except Exception:
-            # If no message, this means that the process was killed due memory usage
-            raise Exception("OUTOFMEMORY",  "Process exceeded maximum memory and was killed")
+            # If no message, this means that the process was killed due an exception pickling an exception
+            raise Exception("EXCPICKLEERROR",  "PyWren was unable to pickle the exception, check function logs")
 
         # print(subprocess.check_output("find {}".format(PYTHON_MODULE_PATH), shell=True))
         # print(subprocess.check_output("find {}".format(os.getcwd()), shell=True))

@@ -46,7 +46,7 @@ Installation for developers can be found [here](docs/dev-installation.md).
 
 Configure PyWren client with access details to your IBM Cloud Object Storage (COS) account, and with your IBM Cloud Functions account.
 
-Access details to IBM Cloud Functions can be obtained [here](https://cloud.ibm.com/openwhisk/learn/api-key). Details on your IBM Cloud Object Storage account can be obtained from the "service credentials" page on the UI of your COS account. More details on "service credentials" can be obtained [here](docs/cos-info.md).
+Access details to IBM Cloud Functions can be obtained [here](https://cloud.ibm.com/openwhisk/namespace-settings). Details on your IBM Cloud Object Storage account can be obtained from the "service credentials" page on the UI of your COS account. More details on "service credentials" can be obtained [here](docs/cos-info.md).
 
 There are two options to configure PyWren:
 

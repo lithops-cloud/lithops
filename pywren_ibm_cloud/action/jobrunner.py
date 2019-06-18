@@ -33,8 +33,9 @@ from pywren_ibm_cloud.wrenconfig import extract_storage_config
 from pywren_ibm_cloud.utils import get_current_memory_usage
 from pywren_ibm_cloud.storage.backends.cos import COSBackend
 from pywren_ibm_cloud.storage.backends.swift import SwiftBackend
+from pywren_ibm_cloud.libs.tblib import pickling_support
 
-
+pickling_support.install()
 logger = logging.getLogger('jobrunner')
 
 
@@ -211,7 +212,7 @@ class jobrunner(Process):
             self.stats.write('function_exec_time', round(func_exec_time_t2-func_exec_time_t1, 8))
 
             # Check for new futures
-            if result:
+            if result is not None:
                 self.stats.write("result", True)
                 if isinstance(result, ResponseFuture):
                     callgroup_id = result.callgroup_id
@@ -222,6 +223,7 @@ class jobrunner(Process):
                 else:
                     self.stats.write('new_futures', '{}/{}'.format(None, 0))
 
+                logger.debug("Pickling result")
                 output_dict = {'result': result}
                 pickled_output = pickle.dumps(output_dict)
 
@@ -234,7 +236,9 @@ class jobrunner(Process):
         except Exception as e:
             exception = True
             self.stats.write("exception", True)
+            print('----------------------- EXCEPTION !-----------------------')
             logger.error("There was an exception: {}".format(str(e)))
+            print('----------------------------------------------------------', flush=True)
 
             if self.show_memory:
                 logger.debug("Memory usage after call the function: {}".format(get_current_memory_usage()))
@@ -251,7 +255,7 @@ class jobrunner(Process):
                 # being unpickleable. As a result, we actually wrap this in a try/catch block
                 # and more-carefully handle the exceptions if any part of this save / test-reload
                 # fails
-                logger.debug("Failed pickling exception")
+                logger.debug("Failed pickling exception: {}".format(str(pickle_exception)))
                 self.stats.write("exc_pickle_fail", True)
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 pickled_exc = pickle.dumps({'exc_type': str(exc_type),
@@ -262,7 +266,7 @@ class jobrunner(Process):
                 self.stats.write("exc_info", str(pickled_exc))
         finally:
             store_result = strtobool(os.environ.get('STORE_RESULT', 'True'))
-            if result and store_result and not exception:
+            if result is not None and store_result and not exception:
                 output_upload_timestamp_t1 = time.time()
                 logger.info("Storing function result - output.pickle - Size: {}".format(sizeof_fmt(len(pickled_output))))
                 self.internal_storage.put_data(self.output_key, pickled_output)
