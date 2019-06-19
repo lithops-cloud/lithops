@@ -43,18 +43,22 @@ def version_str(version_info):
     return "{}.{}".format(version_info[0], version_info[1])
 
 
-def create_runtime_name(runtime, memory):
-    return '{}-{}MB'.format(runtime, memory)
-
-
 def create_ri_action_name(action_name, ria_memory):
     ian = action_name.split('-')
     ian[-1] = '{}MB'.format(ria_memory)
     return "-".join(ian)
 
 
-def create_action_name(image_name):
-    return image_name.replace('/', '-').replace(':', '-').replace('_', '-')
+def format_action_name(image_name, memory):
+    runtime = image_name.replace('/', '_').replace(':', '_')
+    return '{}_{}MB'.format(runtime, memory)
+
+
+def unformat_action_name(action_name):
+    runtime_name, memory = action_name.rsplit('_', 1)
+    image_name = runtime_name.replace('_', '/', 1)
+    image_name = image_name.replace('_', ':', -1)
+    return image_name, int(memory.replace('MB', ''))
 
 
 def is_unix_system():

@@ -20,7 +20,7 @@ import logging
 import zipfile
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.version import __version__
-from pywren_ibm_cloud.utils import version_str, create_action_name, create_runtime_name
+from pywren_ibm_cloud.utils import version_str, format_action_name, unformat_action_name
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.libs.ibm_cf.cf_connector import CloudFunctions
 
@@ -77,7 +77,7 @@ def _extract_modules(image_name, cf_client):
     with open(action_location, "r") as action_py:
         action_code = action_py.read()
 
-    modules_action_name = '{}-modules'.format(create_action_name(image_name))
+    modules_action_name = format_action_name(image_name, 'modules').replace('MB', '')
 
     # old_stdout = sys.stdout
     # sys.stdout = open(os.devnull, 'w')
@@ -102,9 +102,7 @@ def _extract_modules(image_name, cf_client):
 
 def _create_blackbox_runtime(image_name, memory, runtime_meta, cf_client, internal_storage):
     # Create runtime_name from image_name
-    memory = cf_client.default_runtime_memory if not memory else memory
-    runtime_name = create_runtime_name(image_name, memory)
-    action_name = create_action_name(runtime_name)
+    action_name = format_action_name(image_name, memory)
 
     # Upload zipped PyWren action
     with open(ZIP_LOCATION, "rb") as action_zip:
@@ -112,18 +110,18 @@ def _create_blackbox_runtime(image_name, memory, runtime_meta, cf_client, intern
 
     cf_client.create_action(PACKAGE, action_name, image_name, code=action_bin, memory=memory)
 
-    region = cf_client.endpoint.split('//')[1].split('.')[0]
-    namespace = cf_client.namespace
-    memory = cf_client.default_runtime_memory if not memory else memory
-    runtime_name = create_runtime_name(image_name, memory)
-
-    try:
-        internal_storage.put_runtime_info(region, namespace, runtime_name, runtime_meta)
-    except Exception:
-        raise("Unable to upload 'pre-installed modules' file to COS")
+    if runtime_meta:
+        region = cf_client.endpoint.split('//')[1].split('.')[0]
+        namespace = cf_client.namespace
+        try:
+            internal_storage.put_runtime_info(region, namespace, action_name, runtime_meta)
+        except Exception:
+            raise("Unable to upload 'pre-installed modules' file to COS")
 
 
 def create_runtime(image_name, memory=None, config=None):
+    if image_name == 'default':
+        image_name = _get_default_image_name()
     logger.info('Creating new PyWren runtime based on image {}'.format(image_name))
     config = wrenconfig.default(config)
     storage_config = wrenconfig.extract_storage_config(config)
@@ -134,32 +132,10 @@ def create_runtime(image_name, memory=None, config=None):
     cf_client.create_package(PACKAGE)
     _create_zip_action()
 
-    if image_name == 'default':
-        image_name = _get_default_image_name()
-
     runtime_meta = _extract_modules(image_name, cf_client)
-
-    if not memory:
-        # if not memory, this means that the method was called from deploy_runtime script
-        for memory in [wrenconfig.RUNTIME_MEMORY_DEFAULT, wrenconfig.RUNTIME_RI_MEMORY_DEFAULT]:
-            _create_blackbox_runtime(image_name, memory, runtime_meta, cf_client, internal_storage)
-    else:
-        ri_runtime_deployed = False
-        image_name_formated = create_action_name(image_name)
-        actions = cf_client.list_actions(PACKAGE)
-        for action in actions:
-            if 'modules' in action['name']:
-                cf_client.delete_action(PACKAGE, action['name'])
-                continue
-            action_name, r_memory = action['name'].rsplit('-', 1)
-            if image_name_formated == action_name:
-                r_memory = int(r_memory.replace('MB', ''))
-                if r_memory == wrenconfig.RUNTIME_RI_MEMORY_DEFAULT:
-                    ri_runtime_deployed = True
-                    break
-        if not ri_runtime_deployed:
-            _create_blackbox_runtime(image_name, wrenconfig.RUNTIME_RI_MEMORY_DEFAULT, runtime_meta, cf_client, internal_storage)
-        _create_blackbox_runtime(image_name, memory, runtime_meta, cf_client, internal_storage)
+    memory = wrenconfig.RUNTIME_MEMORY_DEFAULT if not memory else memory
+    _create_blackbox_runtime(image_name, memory, runtime_meta,
+                             cf_client, internal_storage)
 
 
 def build_runtime(image_name, config=None):
@@ -194,19 +170,21 @@ def update_runtime(image_name, config=None):
     cf_client.create_package(PACKAGE)
     _create_zip_action()
 
-    image_name_formated = create_action_name(image_name)
-    actions = cf_client.list_actions(PACKAGE)
+    if image_name != 'all':
+        runtime_meta = _extract_modules(image_name, cf_client)
+    else:
+        runtime_meta = None
 
-    runtime_meta = _extract_modules(image_name, cf_client)
+    actions = cf_client.list_actions(PACKAGE)
 
     for action in actions:
         if 'modules' in action['name']:
             cf_client.delete_action(PACKAGE, action['name'])
             continue
-        action_name, memory = action['name'].rsplit('-', 1)
-        if image_name_formated == action_name:
-            memory = int(memory.replace('MB', ''))
-            _create_blackbox_runtime(image_name, memory, runtime_meta, cf_client, internal_storage)
+        action_image_name, memory = unformat_action_name(action['name'])
+        if image_name == action_image_name or image_name == 'all':
+            _create_blackbox_runtime(action_image_name, memory, runtime_meta,
+                                     cf_client, internal_storage)
 
 
 def delete_runtime(image_name, config=None):
@@ -220,19 +198,15 @@ def delete_runtime(image_name, config=None):
     cf_config = wrenconfig.extract_cf_config(config)
     cf_client = CloudFunctions(cf_config)
 
-    image_name_formated = create_action_name(image_name)
     actions = cf_client.list_actions(PACKAGE)
     region = cf_client.endpoint.split('//')[1].split('.')[0]
     namespace = cf_client.namespace
 
     for action in actions:
-        action_name, memory = action['name'].rsplit('-', 1)
-        if image_name_formated == action_name:
-            memory = int(memory.replace('MB', ''))
-            runtime_name = create_runtime_name(image_name, memory)
-            storage_client.delete_runtime_info(region, namespace, runtime_name)
-            action_name = create_action_name(runtime_name)
-            cf_client.delete_action(PACKAGE, action_name)
+        action_image_name, memory = unformat_action_name(action['name'])
+        if image_name == action_image_name or image_name == 'all':
+            storage_client.delete_runtime_info(region, namespace, action['name'])
+            cf_client.delete_action(PACKAGE, action['name'])
 
 
 def clean_runtimes(config=None):
