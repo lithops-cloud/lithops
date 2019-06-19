@@ -57,6 +57,7 @@ class ResponseFuture:
         self.callgroup_id = callgroup_id
         self.executor_id = executor_id
         self.activation_id = activation_id
+        self.produce_output = True
 
         self.storage_config = storage_config
 
@@ -66,7 +67,6 @@ class ResponseFuture:
         self._new_futures = None
         self._traceback = None
         self._call_invoker_result = None
-        self._produce_output = True
 
         self.run_status = None
         self.invoke_status = invoke_metadata.copy()
@@ -186,7 +186,7 @@ class ResponseFuture:
                                                       str(total_time)))
         logger.debug(log_msg)
         self._set_state(JobState.ready)
-        if not call_status['result']:
+        if not call_status['result'] and self.produce_output:
             # Function does not produced output
             self._set_state(JobState.success)
 
@@ -217,6 +217,9 @@ class ResponseFuture:
 
         self.status(check_only, throw_except, internal_storage)
 
+        if not self.produce_output:
+            return
+
         if self._state == JobState.success:
             return self._return_val
 
@@ -228,9 +231,6 @@ class ResponseFuture:
                 raise FunctionException(self.executor_id, self.activation_id, self._exception)
             else:
                 return None
-
-        if not self._produce_output:
-            return
 
         call_output_time = time.time()
         call_invoker_result = internal_storage.get_call_output(self.executor_id, self.callgroup_id, self.call_id)

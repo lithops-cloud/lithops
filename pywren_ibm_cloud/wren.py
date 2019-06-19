@@ -246,7 +246,7 @@ class ibm_cf_executor:
                                              reducer_one_per_object, extra_env, extra_meta)
 
         for f in map_futures:
-            f._produce_output = False
+            f.produce_output = False
         futures = map_futures + reduce_future
         self.futures.extend(futures)
         return futures
