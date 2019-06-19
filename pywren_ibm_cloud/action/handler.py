@@ -82,10 +82,12 @@ def function_handler(event):
     log_level = event['log_level']
     wrenlogging.ow_config(log_level)
 
+    func_name = event['function_name']
     call_id = event['call_id']
     callgroup_id = event['callgroup_id']
     executor_id = event['executor_id']
     logger.info("Execution ID: {}/{}/{}".format(executor_id, callgroup_id, call_id))
+    runtime_memory = config['pywren']['runtime_memory']
     job_max_runtime = event.get("job_max_runtime", 590)  # default for CF
     status_key = event['status_key']
     func_key = event['func_key']
@@ -94,9 +96,11 @@ def function_handler(event):
     output_key = event['output_key']
     extra_env = event.get('extra_env', {})
 
+    response_status['function_name'] = func_name
     response_status['call_id'] = call_id
     response_status['callgroup_id'] = callgroup_id
     response_status['executor_id'] = executor_id
+    response_status['runtime_memory'] = runtime_memory
     # response_status['func_key'] = func_key
     # response_status['data_key'] = data_key
     # response_status['output_key'] = output_key

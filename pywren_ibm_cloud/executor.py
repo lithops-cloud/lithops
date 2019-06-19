@@ -69,7 +69,7 @@ class Executor(object):
 
     def invoke_with_keys(self, func_key, data_key, output_key,
                          status_key, executor_id, callgroup_id,
-                         call_id, extra_env,
+                         call_id, func_name, extra_env,
                          extra_meta, data_byte_range,
                          host_job_meta, job_max_runtime,
                          overwrite_invoke_args=None):
@@ -88,6 +88,7 @@ class Executor(object):
             'executor_id': executor_id,
             'callgroup_id': callgroup_id,
             'call_id': call_id,
+            'function_name': func_name,
             'pywren_version': version.__version__}
 
         if extra_env is not None:
@@ -328,7 +329,7 @@ class Executor(object):
             return self.invoke_with_keys(func_key, data_key,
                                          output_key, status_key,
                                          executor_id, callgroup_id,
-                                         call_id, extra_env,
+                                         call_id, func_name, extra_env,
                                          extra_meta, data_byte_range,
                                          host_job_meta.copy(),
                                          job_max_runtime,
