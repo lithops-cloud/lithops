@@ -310,7 +310,7 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
     for f in fs:
         if (download_results and f.done) or \
            (not download_results and (f.ready or f.done)) or \
-           (download_results and f.ready and not f._produce_output):
+           (download_results and f.ready and not f.produce_output):
             # done, don't need to do anything
             fs_dones.append(f)
         else:
@@ -349,7 +349,7 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
         for f in f_to_wait_on:
             if (download_results and f.done) or \
                (not download_results and (f.ready or f.done)) or \
-               (download_results and f.ready and not f._produce_output):
+               (download_results and f.ready and not f.produce_output):
                 pbar.update(1)
         pbar.refresh()
     pool.close()
