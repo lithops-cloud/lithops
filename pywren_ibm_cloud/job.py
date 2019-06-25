@@ -26,7 +26,6 @@ import pywren_ibm_cloud.wrenconfig as wrenconfig
 from pywren_ibm_cloud.wait import wait
 from concurrent.futures import ThreadPoolExecutor
 from pywren_ibm_cloud.future import ResponseFuture, JobState
-from pywren_ibm_cloud.runtime import get_runtime_preinstalls
 from pywren_ibm_cloud.storage.backends.cos import COSBackend
 from pywren_ibm_cloud.serialize import serialize, create_mod_data
 from pywren_ibm_cloud.storage.storage_utils import create_keys, create_func_key, create_agg_data_key
@@ -36,36 +35,21 @@ from pywren_ibm_cloud.partitioner import create_partitions, partition_processor
 logger = logging.getLogger(__name__)
 
 
-class Executor(object):
+class Job(object):
 
-    def __init__(self, invoker, config, internal_storage):
+    def __init__(self, config, internal_storage, invoker, executor_id):
         self.log_level = os.getenv('PYWREN_LOG_LEVEL')
-        self.invoker = invoker
         self.config = config
         self.internal_storage = internal_storage
-
-        self.runtime_name = self.config['pywren']['runtime']
-        self.runtime_memory = self.config['pywren']['runtime_memory']
-        runtime_preinstalls = get_runtime_preinstalls(self.internal_storage,
-                                                      self.runtime_name,
-                                                      self.runtime_memory,
-                                                      self.config)
+        self.invoker = invoker
+        self.executor_id = executor_id
+        runtime_preinstalls = self.invoker.get_runtime_preinstalls()
         self.serializer = serialize.SerializeIndependent(runtime_preinstalls)
 
         self.map_item_limit = None
         if 'scheduler' in self.config:
             if 'map_item_limit' in config['scheduler']:
                 self.map_item_limit = config['scheduler']['map_item_limit']
-
-        if 'PYWREN_EXECUTOR_ID' in os.environ:
-            self.executor_id = os.environ['PYWREN_EXECUTOR_ID']
-        else:
-            self.executor_id = wrenutil.create_executor_id()
-
-        log_msg = 'IBM Cloud Functions executor created with ID {}'.format(self.executor_id)
-        logger.info(log_msg)
-        if not self.log_level:
-            print(log_msg)
 
     def invoke_with_keys(self, func_key, data_key, output_key,
                          status_key, executor_id, callgroup_id,
@@ -122,8 +106,7 @@ class Executor(object):
         host_job_meta['cf_invoke_time'] = time.time() - cf_invoke_time_start
 
         # logger.debug("Executor ID {} Activation {} complete".format(executor_id, call_id))
-
-        host_job_meta.update(self.invoker.config())
+        host_job_meta.update(self.invoker.get_config())
         host_job_meta.update(arg_dict)
         del host_job_meta['config']
         storage_config = self.internal_storage.get_storage_config()

@@ -213,7 +213,7 @@ class ResponseFuture:
             raise ValueError("job not yet invoked")
 
         if internal_storage is None:
-            internal_storage = storage.InternalStorage(self.storage_config)
+            internal_storage = storage.InternalStorage(storage_config=self.storage_config)
 
         self.status(check_only, throw_except, internal_storage)
 

@@ -22,8 +22,9 @@ import logging
 import requests
 import http.client
 from urllib.parse import urlparse
+from .iam_connector import IAM
 from pywren_ibm_cloud.version import __version__
-from pywren_ibm_cloud.libs.ibm_iam.iam_connector import IAM
+
 
 logger = logging.getLogger(__name__)
 

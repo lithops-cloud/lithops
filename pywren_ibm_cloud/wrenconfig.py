@@ -33,6 +33,8 @@ RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
 RUNTIME_RI_MEMORY_DEFAULT = 2048  # Default memory for remote invocation function
 RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
 
+INVOKER_BACKEND_DEFAULT = 'ibm_cf'
+
 DATA_CLEANER_DEFAULT = False
 MAX_AGG_DATA_SIZE = 4e6
 INVOCATION_RETRY_DEFAULT = True
@@ -144,6 +146,8 @@ def default(config_data=None):
         config_data['pywren']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
     if 'runtime_timeout' not in config_data['pywren']:
         config_data['pywren']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+    if 'invoker' not in config_data['pywren']:
+        config_data['pywren']['invoker_backend'] = INVOKER_BACKEND_DEFAULT
     if 'runtime' not in config_data['pywren']:
         this_version_str = version_str(sys.version_info)
         if this_version_str == '3.5':

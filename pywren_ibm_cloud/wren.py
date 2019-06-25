@@ -22,15 +22,15 @@ import json
 import signal
 import logging
 import traceback
-from pywren_ibm_cloud import invokers
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.storage import storage
-from pywren_ibm_cloud.executor import Executor
+from pywren_ibm_cloud.job import Job
 from pywren_ibm_cloud.future import FunctionException
 from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
-from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_cf_cluster, create_ri_action_name
 from pywren_ibm_cloud.storage.cleaner import clean_os_bucket
+from pywren_ibm_cloud.invoker import invoker
+from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_cf_cluster, create_ri_action_name, create_executor_id
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +83,11 @@ class ibm_cf_executor:
             if not self.is_cf_cluster:
                 wrenlogging.default_config(self.log_level)
 
+        if 'PYWREN_EXECUTOR_ID' in os.environ:
+            self.executor_id = os.environ['PYWREN_EXECUTOR_ID']
+        else:
+            self.executor_id = create_executor_id()
+
         # RabbitMQ monitor configuration
         self.rabbitmq_monitor = rabbitmq_monitor
         if self.rabbitmq_monitor:
@@ -93,18 +98,14 @@ class ibm_cf_executor:
         else:
             self.config['rabbitmq']['amqp_url'] = None
 
-        storage_config = wrenconfig.extract_storage_config(self.config)
-        self.internal_storage = storage.InternalStorage(storage_config)
-
-        invoker = invokers.IBMCloudFunctionsInvoker(self.config)
-        self.executor = Executor(invoker, self.config, self.internal_storage)
-        self.executor_id = self.executor.executor_id
+        self.internal_storage = storage.InternalStorage(config=self.config)
+        self.invoker = invoker.Invoker(self.config, self.internal_storage)
 
         self.futures = []
 
-    def call_async(self, func, data, extra_env=None, extra_meta=None, timeout=wrenconfig.RUNTIME_TIMEOUT):
+    def call_async(self, func, data, extra_env=None, extra_meta=None, function_memory=None, timeout=wrenconfig.RUNTIME_TIMEOUT):
         """
-        For run one function execution
+        For running one function execution asynchronously
         :param func: the function to map over the data
         :param data: input data
         :param extra_env: Additional environment variables for action environment. Default None.
@@ -115,17 +116,21 @@ class ibm_cf_executor:
           >>> pw = pywren.ibm_cf_executor()
           >>> future = pw.call_async(foo, data)
         """
+
         if self._state == ExecutorState.finished:
             raise Exception('You cannot run pw.call_async() in the current state,'
                             ' create a new pywren.ibm_cf_executor() instance.')
 
-        future = self.executor.call_async(func, data, extra_env, extra_meta, timeout)[0]
-        self.futures.append(future)
+        self.invoker.set_memory(function_memory)
+        job = Job(self.config, self.internal_storage, self.invoker, self.executor_id)
+        future = job.call_async(func, data, extra_env, extra_meta, timeout)
+
+        self.futures.extend(future)
         self._state = ExecutorState.running
 
         return future
 
-    def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None,
+    def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None, map_function_memory=None,
             chunk_size=None, remote_invocation=False, timeout=wrenconfig.RUNTIME_TIMEOUT,
             remote_invocation_groups=None, invoke_pool_threads=500,
             data_all_as_one=True, overwrite_invoke_args=None, exclude_modules=None):
@@ -135,6 +140,8 @@ class ibm_cf_executor:
         :param extra_env: Additional environment variables for action environment. Default None.
         :param extra_meta: Additional metadata to pass to action. Default None.
         :param chunk_size: the size of the data chunks. 'None' for processing the whole file in one map
+        :param remote_invocation: Enable or disable remote_invocayion mechanism. Default 'False'
+        :param timeout: Time that the functions have to complete their execution before raising a timeout.
         :param data_type: the type of the data. Now allowed: None (files with newline) and csv.
         :param invoke_pool_threads: Number of threads to use to invoke.
         :param data_all_as_one: upload the data as a single object. Default True
@@ -161,18 +168,19 @@ class ibm_cf_executor:
             ria_memory = wrenconfig.RUNTIME_RI_MEMORY_DEFAULT
             self.executor.invoker.action_name = create_ri_action_name(inv_action_name, ria_memory)
 
-        map_futures, unused_ppo = self.executor.map(map_function=map_function,
-                                                    iterdata=map_iterdata,
-                                                    obj_chunk_size=chunk_size,
-                                                    extra_env=extra_env,
-                                                    extra_meta=extra_meta,
-                                                    remote_invocation=remote_invocation,
-                                                    remote_invocation_groups=remote_invocation_groups,
-                                                    invoke_pool_threads=invoke_pool_threads,
-                                                    data_all_as_one=data_all_as_one,
-                                                    overwrite_invoke_args=overwrite_invoke_args,
-                                                    exclude_modules=exclude_modules,
-                                                    job_max_runtime=timeout)
+        executor = Executor(self.config, self.internal_storage, self.invoker, self.executor_id)
+        map_futures, unused_ppo = executor.map(map_function=map_function,
+                                               iterdata=map_iterdata,
+                                               obj_chunk_size=chunk_size,
+                                               extra_env=extra_env,
+                                               extra_meta=extra_meta,
+                                               remote_invocation=remote_invocation,
+                                               remote_invocation_groups=remote_invocation_groups,
+                                               invoke_pool_threads=invoke_pool_threads,
+                                               data_all_as_one=data_all_as_one,
+                                               overwrite_invoke_args=overwrite_invoke_args,
+                                               exclude_modules=exclude_modules,
+                                               job_max_runtime=timeout)
         self.futures.extend(map_futures)
         self.executor.invoker.action_name = inv_action_name
         self._state = ExecutorState.running
@@ -182,6 +190,7 @@ class ibm_cf_executor:
         return map_futures
 
     def map_reduce(self, map_function, map_iterdata, reduce_function, extra_env=None,
+                   map_function_memory=None, reduce_function_memory=None,
                    extra_meta=None, chunk_size=None, remote_invocation=False,
                    remote_invocation_groups=None, timeout=wrenconfig.RUNTIME_TIMEOUT,
                    reducer_one_per_object=False, reducer_wait_local=False,
@@ -196,6 +205,8 @@ class ibm_cf_executor:
         :param extra_env: Additional environment variables for action environment. Default None.
         :param extra_meta: Additional metadata to pass to action. Default None.
         :param chunk_size: the size of the data chunks. 'None' for processing the whole file in one map
+        :param remote_invocation: Enable or disable remote_invocayion mechanism. Default 'False'
+        :param timeout: Time that the functions have to complete their execution before raising a timeout.
         :param data_type: the type of the data. Now allowed: None (files with newline) and csv.
         :param reducer_one_per_object: Set one reducer per object after running the partitioner
         :param reducer_wait_local: Wait for results locally
@@ -225,17 +236,18 @@ class ibm_cf_executor:
             ria_memory = wrenconfig.RUNTIME_RI_MEMORY_DEFAULT
             self.executor.invoker.action_name = create_ri_action_name(inv_action_name, ria_memory)
 
-        map_futures, parts_per_object = self.executor.map(map_function, map_iterdata,
-                                                          extra_env=extra_env,
-                                                          extra_meta=extra_meta,
-                                                          obj_chunk_size=chunk_size,
-                                                          remote_invocation=remote_invocation,
-                                                          remote_invocation_groups=remote_invocation_groups,
-                                                          invoke_pool_threads=invoke_pool_threads,
-                                                          data_all_as_one=data_all_as_one,
-                                                          overwrite_invoke_args=overwrite_invoke_args,
-                                                          exclude_modules=exclude_modules,
-                                                          job_max_runtime=timeout)
+        executor = Executor(self.config, self.internal_storage, self.invoker, self.executor_id)
+        map_futures, parts_per_object = executor.map(map_function, map_iterdata,
+                                                     extra_env=extra_env,
+                                                     extra_meta=extra_meta,
+                                                     obj_chunk_size=chunk_size,
+                                                     remote_invocation=remote_invocation,
+                                                     remote_invocation_groups=remote_invocation_groups,
+                                                     invoke_pool_threads=invoke_pool_threads,
+                                                     data_all_as_one=data_all_as_one,
+                                                     overwrite_invoke_args=overwrite_invoke_args,
+                                                     exclude_modules=exclude_modules,
+                                                     job_max_runtime=timeout)
 
         self._state = ExecutorState.running
         if reducer_wait_local:
@@ -407,7 +419,7 @@ class ibm_cf_executor:
                                                     timeout=timeout, download_results=True,
                                                     THREADPOOL_SIZE=THREADPOOL_SIZE,
                                                     WAIT_DUR_SEC=WAIT_DUR_SEC)
-        result = [f.result() for f in fs_dones if f.done and not f.futures]
+        result = [f.result(internal_storage=self.internal_storage) for f in fs_dones if f.done and not f.futures]
         self.futures = []
         msg = "Executor ID {} Finished getting results".format(self.executor_id)
         logger.debug(msg)
