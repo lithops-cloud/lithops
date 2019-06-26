@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 
-import gc
 import os
 import time
 import pickle

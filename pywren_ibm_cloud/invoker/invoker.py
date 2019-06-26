@@ -1,6 +1,6 @@
 import os
 import logging
-from pywren_ibm_cloud.invoker.ibm_cf.invoker import IBMCloudFunctionsInvoker
+from pywren_ibm_cloud.invoker.backends.ibm_cf import IBMCloudFunctionsInvoker
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.runtime import create_runtime
 from pywren_ibm_cloud.utils import runtime_valid, format_action_name

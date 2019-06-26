@@ -202,7 +202,7 @@ def _wait_rabbitmq(fs, executor_id, callgroup_id, rabbit_amqp_url, pbar, total):
         if rcv_callgroup_id not in done_call_ids:
             done_call_ids[rcv_callgroup_id] = {'total': None, 'call_ids': []}
         if rcv_callgroup_id not in done_call_status:
-            done_call_status[callgroup_id] = {}
+            done_call_status[rcv_callgroup_id] = {}
 
         done_call_ids[rcv_callgroup_id]['call_ids'].append(rcv_call_id)
         done_call_status[rcv_callgroup_id][rcv_call_id] = call_status

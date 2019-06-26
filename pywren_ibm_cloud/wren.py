@@ -445,7 +445,10 @@ class ibm_cf_executor:
                             ' before call pw.create_timeline_plots()')
 
         if not futures:
-            futures = self.executor_futures[-1]
+            if self.futures:
+                futures = self.futures
+            elif self.executor_futures:
+                futures = self.executor_futures[-1]
 
         if type(futures) != list:
             ftrs = [futures]
