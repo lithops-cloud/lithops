@@ -360,7 +360,7 @@ class ibm_cf_executor:
 
         except TimeoutError:
             if download_results:
-                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
+                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done and not (f.ready and not f.produce_output)]
             else:
                 not_dones_activation_ids = [f.activation_id for f in ftrs if not f.ready]
             msg = ('Executor ID {} Raised timeout of {} seconds waiting for results '
@@ -369,7 +369,7 @@ class ibm_cf_executor:
 
         except KeyboardInterrupt:
             if download_results:
-                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
+                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done and not (f.ready and not f.produce_output)]
             else:
                 not_dones_activation_ids = [f.activation_id for f in ftrs if not f.ready]
             msg = 'Executor ID {} Cancelled  \nActivations not done: {}'.format(self.executor_id, not_dones_activation_ids)
@@ -423,8 +423,9 @@ class ibm_cf_executor:
                                                     THREADPOOL_SIZE=THREADPOOL_SIZE,
                                                     WAIT_DUR_SEC=WAIT_DUR_SEC)
         result = [f.result(internal_storage=self.internal_storage) for f in fs_dones if f.done and not f.futures]
-        self.executor_futures.append(self.futures)
-        self.futures = []
+        if self.futures:
+            self.executor_futures.append(self.futures)
+            self.futures = []
         msg = "Executor ID {} Finished getting results".format(self.executor_id)
         logger.debug(msg)
         if result and len(result) == 1:
