@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import gc
 import os
 import time
 import pickle
@@ -371,6 +372,7 @@ class Executor(object):
             # Wait for all results
             wait(fut_list, executor_id, internal_storage, download_results=True)
             results = [f.result() for f in fut_list if f.done and not f.futures]
+            fut_list.clear()
             reduce_func_args = {'results': results}
 
             if show_memory:
