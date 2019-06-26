@@ -294,6 +294,7 @@ class Executor(object):
 
         module_data = create_mod_data(mod_paths)
         # Create func and upload
+        host_job_meta['func_name'] = func_name
         func_module_str = pickle.dumps({'func': func_str, 'module_data': module_data}, -1)
         host_job_meta['func_module_bytes'] = len(func_module_str)
 
