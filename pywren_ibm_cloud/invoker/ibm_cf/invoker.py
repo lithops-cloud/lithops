@@ -40,15 +40,7 @@ class IBMCloudFunctionsInvoker:
         self.retry_sleeps = config['pywren']['retry_sleeps']
         self.retries = config['pywren']['retries']
 
-        self.client = CloudFunctions(cf_config)
-
-        msg = 'IBM Cloud Functions init for'
-        logger.info('{} namespace: {}'.format(msg, self.namespace))
-        logger.info('{} host: {}'.format(msg, self.endpoint))
-
-        if not self.log_level:
-            print("{} Namespace: {}".format(msg, self.namespace))
-            print("{} Host: {}".format(msg, self.endpoint))
+        self.cf_client = CloudFunctions(cf_config)
 
     def invoke(self, payload, runtime_memory):
         """
@@ -56,7 +48,7 @@ class IBMCloudFunctionsInvoker:
         """
         self.runtime_memory = runtime_memory
         action_name = format_action_name(self.runtime_name, self.runtime_memory)
-        act_id = self.client.invoke(action_name, payload)
+        act_id = self.cf_client.invoke(action_name, payload)
         attempts = 1
 
         while not act_id and self.invocation_retry and attempts < self.retries:
@@ -69,7 +61,7 @@ class IBMCloudFunctionsInvoker:
             logger.debug(log_msg)
 
             time.sleep(selected_sleep)
-            act_id = self.client.invoke(self.action_name, payload)
+            act_id = self.cf_client.invoke(self.action_name, payload)
 
         return act_id
 

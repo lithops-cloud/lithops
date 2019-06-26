@@ -16,6 +16,7 @@
 
 import base64
 import os
+import sys
 import uuid
 import inspect
 import subprocess
@@ -43,12 +44,6 @@ def version_str(version_info):
     return "{}.{}".format(version_info[0], version_info[1])
 
 
-def create_ri_action_name(action_name, ria_memory):
-    ian = action_name.split('-')
-    ian[-1] = '{}MB'.format(ria_memory)
-    return "-".join(ian)
-
-
 def format_action_name(image_name, memory):
     runtime = image_name.replace('/', '_').replace(':', '_')
     return '{}_{}MB'.format(runtime, memory)
@@ -59,6 +54,14 @@ def unformat_action_name(action_name):
     image_name = runtime_name.replace('_', '/', 1)
     image_name = image_name.replace('_', ':', -1)
     return image_name, int(memory.replace('MB', ''))
+
+
+def runtime_valid(runtime_meta):
+    """
+    Basic checks
+    """
+    this_version_str = version_str(sys.version_info)
+    return this_version_str == runtime_meta['python_ver']
 
 
 def is_unix_system():

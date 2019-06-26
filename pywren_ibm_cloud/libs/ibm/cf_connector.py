@@ -213,7 +213,7 @@ class CloudFunctions:
         except Exception as e:
             conn.close()
             logger.debug(str(e))
-            return self.request_invoke(action_name, payload)
+            return self.invoke(action_name, payload)
 
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')

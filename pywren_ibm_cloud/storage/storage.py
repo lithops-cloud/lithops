@@ -16,7 +16,6 @@
 
 import json
 from ..version import __version__
-from ..wrenconfig import extract_storage_config
 from .backends.cos import COSBackend
 from .backends.swift import SwiftBackend
 from .exceptions import StorageNoSuchKeyError
@@ -29,12 +28,9 @@ class InternalStorage:
     without exposing the the implementation details.
     """
 
-    def __init__(self, config=None, storage_config=None):
+    def __init__(self, storage_config=None):
 
-        if storage_config:
-            self.storage_config = storage_config
-        else:
-            self.storage_config = extract_storage_config(config)
+        self.storage_config = storage_config
         self.backend_type = self.storage_config['storage_backend']
         self.storage_bucket = self.storage_config['storage_bucket']
         self.prefix = self.storage_config['storage_prefix']

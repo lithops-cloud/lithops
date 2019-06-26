@@ -21,7 +21,7 @@ import zipfile
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import version_str, format_action_name, unformat_action_name
-from pywren_ibm_cloud import storage
+from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.libs.ibm.cf_connector import CloudFunctions
 
 logger = logging.getLogger(__name__)
@@ -123,6 +123,7 @@ def create_runtime(image_name, memory=None, config=None):
     if image_name == 'default':
         image_name = _get_default_image_name()
     logger.info('Creating new PyWren runtime based on image {}'.format(image_name))
+
     config = wrenconfig.default(config)
     storage_config = wrenconfig.extract_storage_config(config)
     internal_storage = storage.InternalStorage(storage_config)

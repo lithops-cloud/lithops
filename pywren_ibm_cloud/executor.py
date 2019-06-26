@@ -35,7 +35,7 @@ from pywren_ibm_cloud.partitioner import create_partitions, partition_processor
 logger = logging.getLogger(__name__)
 
 
-class Job(object):
+class Executor(object):
 
     def __init__(self, config, internal_storage, invoker, executor_id):
         self.log_level = os.getenv('PYWREN_LOG_LEVEL')
@@ -133,8 +133,8 @@ class Job(object):
         return self._map(func, [data], extra_env=extra_env, extra_meta=extra_meta, job_max_runtime=runtime_timeout)
 
     def map(self, map_function, iterdata, obj_chunk_size=None, extra_env=None, extra_meta=None,
-            remote_invocation=False, remote_invocation_groups=None, invoke_pool_threads=128,
-            data_all_as_one=True, job_max_runtime=wrenconfig.RUNTIME_TIMEOUT,
+            runtime_name=None, runtime_memory=None, remote_invocation=False, remote_invocation_groups=None,
+            invoke_pool_threads=128, data_all_as_one=True, job_max_runtime=wrenconfig.RUNTIME_TIMEOUT,
             overwrite_invoke_args=None, exclude_modules=None):
         """
         Wrapper to launch map() method.  It integrates COS logic to process objects.
@@ -158,15 +158,13 @@ class Job(object):
         # Remote invocation functionality
         original_iterdata_len = len(iterdata)
         if original_iterdata_len > 1 and remote_invocation:
-            runtime_name = self.runtime_name
-            runtime_memory = self.runtime_memory
             rabbitmq_monitor = "PYWREN_RABBITMQ_MONITOR" in os.environ
 
             def remote_invoker(input_data):
                 pw = pywren.ibm_cf_executor(runtime=runtime_name,
-                                            runtime_memory=runtime_memory,
                                             rabbitmq_monitor=rabbitmq_monitor)
                 return pw.map(map_function, input_data,
+                              runtime_memory=runtime_memory,
                               invoke_pool_threads=invoke_pool_threads,
                               extra_env=extra_env,
                               extra_meta=extra_meta)
@@ -385,11 +383,6 @@ class Job(object):
                 reduce_func_args['ibm_cos'] = ibm_cos
 
             return reduce_function(**reduce_func_args)
-            #result = reduce_function(**reduce_func_args)
-            #run_statuses = [f.run_status for f in fut_list]
-            #invoke_statuses = [f.invoke_status for f in fut_list]
-
-            #return {'fn_result': result, 'run_statuses': run_statuses, 'invoke_statuses': invoke_statuses}
 
         return self._map(reduce_function_wrapper, map_iterdata, extra_env=extra_env,
                          extra_meta=extra_meta, original_func_name=reduce_function.__name__)
