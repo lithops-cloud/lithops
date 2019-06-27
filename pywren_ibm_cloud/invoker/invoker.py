@@ -39,16 +39,18 @@ class Invoker:
         return self.invoker_handler.invoke(payload, self.runtime_memory)
 
     def set_memory(self, memory):
-        if memory is not None:
+        if memory is None:
+            memory = self.runtime_memory
+        else:
             self.runtime_memory = int(memory)
 
-        log_msg = '{} - Selected Runtime: {} - {}MB'.format(self.invoker_handler_name, self.runtime_name, self.runtime_memory)
+        log_msg = '{} - Selected Runtime: {} - {}MB'.format(self.invoker_handler_name, self.runtime_name, memory)
         logger.info(log_msg)
         if not self.log_level:
             print(log_msg, end=' ')
 
         try:
-            action_name = format_action_name(self.runtime_name, self.runtime_memory)
+            action_name = format_action_name(self.runtime_name, memory)
             self.runtime_meta = self.internal_storage.get_runtime_info(self.region, self.namespace, action_name)
             if not self.log_level:
                 print()
