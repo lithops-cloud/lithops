@@ -87,6 +87,7 @@ class ibm_cf_executor:
             self.executor_id = os.environ['PYWREN_EXECUTOR_ID']
         else:
             self.executor_id = create_executor_id()
+        logger.debug('ServerlessExecutor created with ID: {}'.format(self.executor_id))
 
         # RabbitMQ monitor configuration
         self.rabbitmq_monitor = rabbitmq_monitor
@@ -100,7 +101,7 @@ class ibm_cf_executor:
 
         storage_config = wrenconfig.extract_storage_config(self.config)
         self.internal_storage = storage.InternalStorage(storage_config)
-        self.invoker = invoker.Invoker(self.config, self.internal_storage)
+        self.invoker = invoker.Invoker(self.config, self.internal_storage, self.executor_id)
 
         self.executor_futures = []
         self.futures = []
@@ -306,21 +307,21 @@ class ibm_cf_executor:
 
         if not ftrs:
             raise Exception('You must run pw.call_async(), pw.map()'
-                            ' or pw.map_reduce() before call pw.get_result()')
+                            ' or pw.map_reduce() before calling pw.get_result()')
 
         rabbit_amqp_url = None
-        if self._state == ExecutorState.running:
-            if self.rabbitmq_monitor:
-                rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
-            if rabbit_amqp_url and not download_results:
-                logger.info('Going to use RabbitMQ to monitor function activations')
-            if download_results:
-                msg = 'Executor ID {} Getting results...'.format(self.executor_id)
-            else:
-                msg = 'Executor ID {} Waiting for functions to complete...'.format(self.executor_id)
-            logger.info(msg)
-            if not self.log_level and self._state == ExecutorState.running:
-                print(msg)
+        if self.rabbitmq_monitor:
+            rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
+        if rabbit_amqp_url and not download_results:
+            logger.info('Going to use RabbitMQ to monitor function activations')
+            logging.getLogger('pika').setLevel(logging.WARNING)
+        if download_results:
+            msg = 'ExecutorID {} - Getting results...'.format(self.executor_id)
+        else:
+            msg = 'ExecutorID {} - Waiting for functions to complete...'.format(self.executor_id)
+        logger.info(msg)
+        if not self.log_level and self._state == ExecutorState.running:
+            print(msg)
 
         if is_unix_system():
             signal.signal(signal.SIGALRM, timeout_handler)
@@ -363,7 +364,7 @@ class ibm_cf_executor:
                 not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done and not (f.ready and not f.produce_output)]
             else:
                 not_dones_activation_ids = [f.activation_id for f in ftrs if not f.ready]
-            msg = ('Executor ID {} Raised timeout of {} seconds waiting for results '
+            msg = ('ExecutorID {} - Raised timeout of {} seconds waiting for results '
                    '\nActivations not done: {}'.format(self.executor_id, timeout, not_dones_activation_ids))
             self._state = ExecutorState.error
 
@@ -372,7 +373,7 @@ class ibm_cf_executor:
                 not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done and not (f.ready and not f.produce_output)]
             else:
                 not_dones_activation_ids = [f.activation_id for f in ftrs if not f.ready]
-            msg = 'Executor ID {} Cancelled  \nActivations not done: {}'.format(self.executor_id, not_dones_activation_ids)
+            msg = 'ExecutorID {} - Cancelled  \nActivations not done: {}'.format(self.executor_id, not_dones_activation_ids)
             self._state = ExecutorState.error
 
         finally:
@@ -386,7 +387,7 @@ class ibm_cf_executor:
                 logger.info(msg)
                 if not self.log_level:
                     print(msg)
-            if self.data_cleaner and not self.is_cf_cluster and self._state != ExecutorState.ready:
+            if download_results and self.data_cleaner and not self.is_cf_cluster:
                 self.clean()
 
         if download_results:
@@ -422,10 +423,11 @@ class ibm_cf_executor:
                                                     timeout=timeout, download_results=True,
                                                     THREADPOOL_SIZE=THREADPOOL_SIZE,
                                                     WAIT_DUR_SEC=WAIT_DUR_SEC)
-        result = [f.result(internal_storage=self.internal_storage) for f in fs_dones if f.done and not f.futures]
+        result = [f.result(internal_storage=self.internal_storage) for f in fs_dones if not f.futures]
         if self.futures:
             self.executor_futures.append(self.futures)
             self.futures = []
+        self._state = ExecutorState.success
         msg = "Executor ID {} Finished getting results".format(self.executor_id)
         logger.debug(msg)
         if result and len(result) == 1:
@@ -440,9 +442,10 @@ class ibm_cf_executor:
         :param dst_dir: destination folder to save .png plots.
         :param dst_file_name: name of the file.
         """
-        if self._state == ExecutorState.new:
+        if futures is None and self._state == ExecutorState.new or self._state == ExecutorState.running:
             raise Exception('You must run pw.call_async(), pw.map() or pw.map_reduce()'
-                            ' before call pw.create_timeline_plots()')
+                            ' followed by pw.monitor() or pw.get_results()'
+                            ' before calling pw.create_timeline_plots()')
 
         if not futures:
             if self.futures:
@@ -463,12 +466,10 @@ class ibm_cf_executor:
         logging.getLogger('matplotlib').setLevel(logging.WARNING)
         from pywren_ibm_cloud.plots import create_timeline, create_histogram
 
-        msg = 'Executor ID {} Creating timeline plots'.format(self.executor_id)
+        msg = 'ExecutorID {} - Creating timeline plots'.format(self.executor_id)
         logger.info(msg)
         if not self.log_level:
             print(msg)
-            if self.data_cleaner:
-                print()
 
         run_statuses = [f.run_status for f in ftrs_to_plot]
         invoke_statuses = [f.invoke_status for f in ftrs_to_plot]
@@ -485,14 +486,12 @@ class ibm_cf_executor:
         storage_prerix = self.config['pywren']['storage_prefix']
         storage_prerix = '/'.join([storage_prerix, self.executor_id])
 
-        msg = "Executor ID {} Cleaning temporary data from cos://{}/{}".format(self.executor_id,
-                                                                               storage_bucket,
-                                                                               storage_prerix)
+        msg = "ExecutorID {} - Cleaning temporary data from cos://{}/{}".format(self.executor_id,
+                                                                                storage_bucket,
+                                                                                storage_prerix)
         logger.info(msg)
         if not self.log_level:
             print(msg)
-            if not self.data_cleaner:
-                print()
 
         if local_execution:
             # 1st case: Not background. The main code waits until the cleaner finishes its execution.
@@ -513,8 +512,9 @@ class ibm_cf_executor:
         else:
             extra_env = {'STORE_STATUS': False,
                          'STORE_RESULT': False}
+            old_stdout = sys.stdout
             sys.stdout = open(os.devnull, 'w')
             self.executor.call_async(clean_os_bucket, [storage_bucket, storage_prerix], extra_env=extra_env)
-            sys.stdout = sys.__stdout__
+            sys.stdout = old_stdout
 
         self._state = ExecutorState.finished

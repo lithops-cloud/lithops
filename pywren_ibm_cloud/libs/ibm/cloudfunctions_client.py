@@ -22,14 +22,15 @@ import logging
 import requests
 import http.client
 from urllib.parse import urlparse
-from .iam_connector import IAM
+from .iam_client import IBMIAMClient
 from pywren_ibm_cloud.version import __version__
+from pywren_ibm_cloud.utils import is_cf_cluster
 
 
 logger = logging.getLogger(__name__)
 
 
-class CloudFunctions:
+class CloudFunctionsClient:
 
     def __init__(self, config):
         """
@@ -37,9 +38,8 @@ class CloudFunctions:
         """
         self.endpoint = config['endpoint'].replace('http:', 'https:')
         self.namespace = config['namespace']
-        self.default_runtime_memory = int(config['runtime_memory'])
-        self.default_runtime_timeout = int(config['runtime_timeout'])
         self.package = 'pywren_v'+__version__
+        self.is_cf_cluster = is_cf_cluster()
 
         if 'api_key' in config:
             api_key = str.encode(config['api_key'])
@@ -48,10 +48,10 @@ class CloudFunctions:
             self.effective_namespace = self.namespace
 
         elif 'api_key' in config['ibm_iam']:
-            self.iam_connector = IAM(config['ibm_iam'], self.endpoint, self.namespace)
-            auth_token = self.iam_connector.get_iam_token()
+            iam_client = IBMIAMClient(config['ibm_iam'], self.endpoint, self.namespace)
+            auth_token = iam_client.get_iam_token()
             auth = 'Bearer ' + auth_token
-            self.namespace_id = self.iam_connector.get_function_namespace_id(auth)
+            self.namespace_id = iam_client.get_function_namespace_id(auth)
             self.effective_namespace = self.namespace_id
 
         self.session = requests.session()
@@ -60,28 +60,27 @@ class CloudFunctions:
         self.headers = {
             'content-type': 'application/json',
             'Authorization': auth,
-            'User-Agent': default_user_agent + ' pywren-ibm-cloud/{}'.format(__version__)
+            'User-Agent': default_user_agent + ' {}'.format(config['user_agent'])
         }
 
         self.session.headers.update(self.headers)
         adapter = requests.adapters.HTTPAdapter()
         self.session.mount('https://', adapter)
 
-        msg = 'IBM Cloud Functions init for'
-        logger.debug('{} namespace: {}'.format(msg, self.namespace))
-        logger.debug('{} host: {}'.format(msg, self.endpoint))
-        logger.debug("CF user agent set to: {}".format(self.session.headers['User-Agent']))
+        logger.debug('IBM CF init for namespace: {}'.format(self.namespace))
+        logger.debug('IBM CF init for host: {}'.format(self.endpoint))
+        logger.debug("IBM CF user agent set to: {}".format(self.session.headers['User-Agent']))
 
     def create_action(self, package, action_name, image_name, code=None, memory=None,
-                      kind='blackbox', is_binary=True, overwrite=True):
+                      timeout=30000, kind='blackbox', is_binary=True, overwrite=True):
         """
         Create an IBM Cloud Functions action
         """
         data = {}
         limits = {}
         cfexec = {}
-        limits['memory'] = self.default_runtime_memory if not memory else memory
-        limits['timeout'] = self.default_runtime_timeout
+        limits['memory'] = memory
+        limits['timeout'] = timeout
         data['limits'] = limits
 
         cfexec['kind'] = kind
@@ -193,45 +192,54 @@ class CloudFunctions:
         else:
             logger.debug("OK --> Created package {}".format(package))
 
-    def invoke(self, action_name, payload):
+    def invoke(self, action_name, payload, self_invoked=False):
         """
         Invoke an IBM Cloud Function by using new request.
         """
         exec_id = payload['executor_id']
         call_id = payload['call_id']
         url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', self.package, action_name])
-        url = urlparse(url)
+        parsed_url = urlparse(url)
         start = time.time()
         try:
-            ctx = ssl._create_unverified_context()
-            conn = http.client.HTTPSConnection(url.netloc, context=ctx)
-            conn.request("POST", url.geturl(),
-                         body=json.dumps(payload),
-                         headers=self.headers)
-            resp = conn.getresponse()
-            data = resp.read()
+            if self.is_cf_cluster:
+                resp = self.session.post(url, json=payload)
+                resp_status = resp.status_code
+                data = resp.json()
+            else:
+                ctx = ssl._create_unverified_context()
+                conn = http.client.HTTPSConnection(parsed_url.netloc, context=ctx)
+                conn.request("POST", parsed_url.geturl(),
+                             body=json.dumps(payload),
+                             headers=self.headers)
+                resp = conn.getresponse()
+                resp_status = resp.status
+                data = json.loads(resp.read().decode("utf-8"))
+                conn.close()
         except Exception as e:
-            conn.close()
-            logger.debug(str(e))
-            return self.invoke(action_name, payload)
+            if not self.is_cf_cluster:
+                conn.close()
+            log_msg = ('ExecutorID {} - Function {} invocation failed: {}'.format(exec_id, call_id, str(e)))
+            logger.debug(log_msg)
+            if self_invoked:
+                return None
+            return self.invoke(action_name, payload, self_invoked=True)
 
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
-        data = json.loads(data.decode("utf-8"))
-        conn.close()
 
-        if resp.status == 202 and 'activationId' in data:
-            log_msg = ('Executor ID {} Function {} invocation done! ({}s) - Activation ID: '
+        if resp_status == 202 and 'activationId' in data:
+            log_msg = ('ExecutorID {} - Function {} invocation done! ({}s) - Activation ID: '
                        '{}'.format(exec_id, call_id, resp_time, data["activationId"]))
             logger.debug(log_msg)
             return data["activationId"]
         else:
             logger.debug(data)
-            if resp.status == 401:
+            if resp_status == 401:
                 raise Exception('Unauthorized - Invalid API Key')
-            elif resp.status == 404:
+            elif resp_status == 404:
                 raise Exception('PyWren Runtime: {} not deployed'.format(action_name))
-            elif resp.status == 429:
+            elif resp_status == 429:
                 # Too many concurrent requests in flight
                 return None
             else:

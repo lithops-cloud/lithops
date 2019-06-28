@@ -144,7 +144,7 @@ class rabbitmq_checker_worker(threading.Thread):
         self.channel.basic_consume(self.callback, queue=self.executor_id, no_ack=True)
 
     def run(self):
-        msg = 'Executor ID {} Starting consumer from rabbitmq queue'.format(self.executor_id)
+        msg = 'ExecutorID {} - Starting consumer from rabbitmq queue'.format(self.executor_id)
         logger.debug(msg)
         self.channel.start_consuming()
 

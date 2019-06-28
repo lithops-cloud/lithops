@@ -10,10 +10,11 @@ logger = logging.getLogger(__name__)
 
 class Invoker:
 
-    def __init__(self, config, internal_storage):
+    def __init__(self, config, internal_storage, executor_id):
         self.log_level = os.getenv('PYWREN_LOG_LEVEL')
         self.config = config
         self.internal_storage = internal_storage
+        self.executor_id = executor_id
 
         self.invoker_type = config['pywren']['invoker_backend']
 
@@ -21,13 +22,10 @@ class Invoker:
             self.invoker_handler = IBMCloudFunctionsInvoker(config)
             self.region = config['ibm_cf']['endpoint'].split('//')[1].split('.')[0]
             self.namespace = config['ibm_cf']['namespace']
-            self.invoker_handler_name = 'IBM Cloud Functions'
-
             log_msg = 'PyWren v{} init for IBM Cloud Functions - Namespace: {} - Region: {}'.format(__version__, self.namespace, self.region)
             logger.info(log_msg)
             if not self.log_level:
                 print(log_msg)
-
         else:
             raise NotImplementedError(("Using {} as internal functions backend is" +
                                        "not supported yet").format(self.backend_type))
@@ -44,7 +42,7 @@ class Invoker:
         else:
             self.runtime_memory = int(memory)
 
-        log_msg = '{} - Selected Runtime: {} - {}MB'.format(self.invoker_handler_name, self.runtime_name, memory)
+        log_msg = 'ExecutorID {} - Selected Runtime: {} - {}MB'.format(self.executor_id, self.runtime_name, memory)
         logger.info(log_msg)
         if not self.log_level:
             print(log_msg, end=' ')
@@ -56,7 +54,7 @@ class Invoker:
                 print()
 
         except Exception:
-            logger.debug('{} - Runtime {} with {}MB is not yet installed'.format(self.invoker_handler_name, self.runtime_name, memory))
+            logger.debug('ExecutorID {} - Runtime {} with {}MB is not yet installed'.format(self.executor_id, self.runtime_name, memory))
             if not self.log_level:
                 print('(Installing...)')
             create_runtime(self.runtime_name, memory=memory, config=self.config)

@@ -235,7 +235,7 @@ class Executor(object):
 
         host_job_meta = {}
 
-        log_msg = 'Executor ID {} Serializing function and data'.format(self.executor_id)
+        log_msg = 'ExecutorID {} Serializing function and data'.format(self.executor_id)
         logger.debug(log_msg)
         # pickle func and all data (to capture module dependencies)
         func_and_data_ser, mod_paths = self.serializer([func] + data)
@@ -248,7 +248,7 @@ class Executor(object):
         host_job_meta['agg_data'] = False
         host_job_meta['data_size_bytes'] = data_size_bytes
 
-        log_msg = 'Executor ID {} Uploading function and data'.format(self.executor_id)
+        log_msg = 'ExecutorID {} - Uploading function and data'.format(self.executor_id)
         logger.info(log_msg)
         if not self.log_level:
             print(log_msg, end=' ')
@@ -262,7 +262,7 @@ class Executor(object):
             host_job_meta['data_upload_time'] = time.time() - agg_upload_time
             host_job_meta['data_upload_timestamp'] = time.time()
         else:
-            log_msg = ('Executor ID {} Total data exceeded '
+            log_msg = ('ExecutorID {} - Total data exceeded '
                        'maximum size of {} bytes'.format(self.executor_id,
                                                          wrenconfig.MAX_AGG_DATA_SIZE))
             logger.warning(log_msg)
@@ -319,10 +319,10 @@ class Executor(object):
         N = len(data)
         call_futures = []
         if remote_invocation and original_iterdata_len > 1:
-            log_msg = 'Executor ID {} Starting {} remote invocation function: Spawning {}() - Total: {} activations'.format(self.executor_id, N, func_name,
+            log_msg = 'ExecutorID {} - Starting {} remote invocation function: Spawning {}() - Total: {} activations'.format(self.executor_id, N, func_name,
                                                                                                                             original_iterdata_len)
         else:
-            log_msg = 'Executor ID {} Starting function invocation: {}() - Total: {} activations'.format(self.executor_id, func_name, N)
+            log_msg = 'ExecutorID {} - Starting function invocation: {}() - Total: {} activations'.format(self.executor_id, func_name, N)
         logger.info(log_msg)
         if not self.log_level:
             print(log_msg)

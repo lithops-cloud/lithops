@@ -22,7 +22,7 @@ from urllib.parse import urlencode
 logger = logging.getLogger(__name__)
 
 
-class IAM:
+class IBMIAMClient:
 
     def __init__(self, iam_config, cf_endpoint, cf_namespace):
         self.iam_api_key = iam_config.get('api_key', None)

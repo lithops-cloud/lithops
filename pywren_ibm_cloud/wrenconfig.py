@@ -18,6 +18,7 @@ import os
 import sys
 import json
 from pywren_ibm_cloud.utils import version_str
+from pywren_ibm_cloud.version import __version__
 
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
 COS_BUCKET_DEFAULT = "pywren.data"
@@ -38,7 +39,7 @@ INVOKER_BACKEND_DEFAULT = 'ibm_cf'
 DATA_CLEANER_DEFAULT = False
 MAX_AGG_DATA_SIZE = 4e6
 INVOCATION_RETRY_DEFAULT = True
-RETRY_SLEEPS_DEFAULT = [1, 5, 10, 15, 20]
+RETRY_SLEEPS_DEFAULT = [1, 2, 4, 8]
 RETRIES_DEFAULT = 5
 AMQP_URL_DEFAULT = None
 
@@ -208,9 +209,7 @@ def extract_storage_config(config):
 
 def extract_cf_config(config):
     cf_config = config['ibm_cf']
-    cf_config['runtime'] = config['pywren']['runtime']
-    cf_config['runtime_timeout'] = int(config['pywren']['runtime_timeout'])
-    cf_config['runtime_memory'] = int(config['pywren']['runtime_memory'])
     cf_config['ibm_iam'] = config['ibm_iam']
+    cf_config['user_agent'] = 'pywren-ibm-cloud/{}'.format(__version__)
 
     return cf_config

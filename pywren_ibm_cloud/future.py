@@ -39,7 +39,7 @@ class FunctionException(Exception):
     def __init__(self, executor_id, activation_id, exc, exc_msg):
         self.exception = exc
         self.exc_msg = exc_msg
-        self.msg = 'Executor ID {} There was an exception - Activation ID: {}'.format(executor_id, activation_id)
+        self.msg = 'ExecutorID {} - There was an exception - Activation ID: {}'.format(executor_id, activation_id)
         super().__init__(self.msg)
 
 
@@ -179,7 +179,7 @@ class ResponseFuture:
                 raise FunctionException(self.executor_id, self.activation_id, self._exception, msg)
             return None
 
-        log_msg = ('Executor ID {} Response from Function {} - Activation '
+        log_msg = ('ExecutorID {} - Got status from Function {} - Activation '
                    'ID: {} - Time: {} seconds'.format(self.executor_id,
                                                       self.call_id,
                                                       self.activation_id,
@@ -187,7 +187,7 @@ class ResponseFuture:
         logger.debug(log_msg)
         self._set_state(JobState.ready)
         if not call_status['result'] and self.produce_output:
-            # Function does not produced output
+            # Function did not produce output
             self._set_state(JobState.success)
 
         if 'new_futures' in call_status:
@@ -211,6 +211,12 @@ class ResponseFuture:
         """
         if self._state == JobState.new:
             raise ValueError("job not yet invoked")
+
+        if self._state == JobState.success:
+            return self._return_val
+
+        if self._state == JobState.futures:
+            return self._new_futures
 
         if internal_storage is None:
             internal_storage = storage.InternalStorage(storage_config=self.storage_config)
@@ -256,7 +262,7 @@ class ResponseFuture:
         self.invoke_status['output_query_count'] = self.output_query_count
         self.invoke_status['download_output_timestamp'] = call_output_time_done
 
-        log_msg = ('Executor ID {} Got output from Function {} - Activation '
+        log_msg = ('ExecutorID {} - Got output from Function {} - Activation '
                    'ID: {}'.format(self.executor_id, self.call_id, self.activation_id))
         logger.debug(log_msg)
 
