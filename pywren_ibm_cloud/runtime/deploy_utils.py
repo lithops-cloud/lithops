@@ -16,6 +16,7 @@
 
 import os
 import sys
+import shutil
 import logging
 import zipfile
 from pywren_ibm_cloud import wrenconfig
@@ -86,7 +87,7 @@ def _extract_modules(image_name, cf_client):
     # sys.stdout = old_stdout
     logger.debug("Extracting Python modules list from: {}".format(image_name))
     try:
-        runtime_meta = cf_client.invoke_with_result(modules_action_name)
+        runtime_meta = cf_client.invoke_with_result(PACKAGE, modules_action_name)
     except Exception:
         raise("Unable to invoke 'modules' action")
     try:
@@ -220,6 +221,12 @@ def clean_runtimes(config=None):
     storage_client = storage.InternalStorage(storage_config)
     cf_config = wrenconfig.extract_cf_config(config)
     cf_client = CloudFunctionsClient(cf_config)
+
+    # Clean local runtime_meta cache
+    LOCAL_HOME_DIR = os.path.expanduser('~')
+    cache_dir = os.path.join(LOCAL_HOME_DIR, '.pywren')
+    if os.path.exists(cache_dir):
+        shutil.rmtree(cache_dir)
 
     bh = storage_client.backend_handler
     runtimes = bh.list_keys_with_prefix(storage_config['storage_bucket'], 'runtime')

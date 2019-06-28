@@ -21,6 +21,7 @@ import random
 from pywren_ibm_cloud.utils import format_action_name
 from pywren_ibm_cloud.wrenconfig import extract_cf_config
 from pywren_ibm_cloud.libs.ibm.cloudfunctions_client import CloudFunctionsClient
+from pywren_ibm_cloud.version import __version__
 
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ class IBMCloudFunctionsInvoker:
         self.runtime_name = config['pywren']['runtime']
         self.runtime_memory = int(config['pywren']['runtime_memory'])
         self.runtime_timeout = int(config['pywren']['runtime_timeout'])
+        self.package = 'pywren_v'+__version__
 
         self.invocation_retry = config['pywren']['invocation_retry']
         self.retry_sleeps = config['pywren']['retry_sleeps']
@@ -48,7 +50,7 @@ class IBMCloudFunctionsInvoker:
         """
         self.runtime_memory = runtime_memory
         action_name = format_action_name(self.runtime_name, self.runtime_memory)
-        act_id = self.cf_client.invoke(action_name, payload)
+        act_id = self.cf_client.invoke(self.package, action_name, payload)
         attempts = 1
 
         while not act_id and self.invocation_retry and attempts < self.retries:
@@ -59,7 +61,7 @@ class IBMCloudFunctionsInvoker:
             log_msg = ('ExecutorID {} - Function {} - Retry {} in {} seconds'.format(exec_id, call_id, attempts, selected_sleep))
             logger.debug(log_msg)
             time.sleep(selected_sleep)
-            act_id = self.cf_client.invoke(action_name, payload)
+            act_id = self.cf_client.invoke(self.package, action_name, payload)
 
         return act_id
 

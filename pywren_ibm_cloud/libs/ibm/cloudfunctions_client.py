@@ -23,7 +23,6 @@ import requests
 import http.client
 from urllib.parse import urlparse
 from .iam_client import IBMIAMClient
-from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import is_cf_cluster
 
 
@@ -38,7 +37,6 @@ class CloudFunctionsClient:
         """
         self.endpoint = config['endpoint'].replace('http:', 'https:')
         self.namespace = config['namespace']
-        self.package = 'pywren_v'+__version__
         self.is_cf_cluster = is_cf_cluster()
 
         if 'api_key' in config:
@@ -192,13 +190,13 @@ class CloudFunctionsClient:
         else:
             logger.debug("OK --> Created package {}".format(package))
 
-    def invoke(self, action_name, payload, self_invoked=False):
+    def invoke(self, package, action_name, payload={}, self_invoked=False):
         """
         Invoke an IBM Cloud Function by using new request.
         """
         exec_id = payload['executor_id']
         call_id = payload['call_id']
-        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', self.package, action_name])
+        url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', package, action_name])
         parsed_url = urlparse(url)
         start = time.time()
         try:
@@ -245,12 +243,12 @@ class CloudFunctionsClient:
             else:
                 raise Exception(data['error'])
 
-    def invoke_with_result(self, action_name, payload={}):
+    def invoke_with_result(self, package, action_name, payload={}):
         """
         Invoke an IBM Cloud Function waiting for the result.
         """
         url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions',
-                        self.package, action_name + "?blocking=true&result=true"])
+                        package, action_name + "?blocking=true&result=true"])
         resp = self.session.post(url, json=payload)
         result = resp.json()
 

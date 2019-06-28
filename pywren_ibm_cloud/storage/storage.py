@@ -14,12 +14,16 @@
 # limitations under the License.
 #
 
+import os
 import json
 from ..version import __version__
 from .backends.cos import COSBackend
 from .backends.swift import SwiftBackend
 from .exceptions import StorageNoSuchKeyError
 from .storage_utils import create_status_key, create_output_key, status_key_suffix
+
+
+LOCAL_HOME_DIR = os.path.expanduser('~')
 
 
 class InternalStorage:
@@ -132,13 +136,22 @@ class InternalStorage:
         :param runtime: name of the runtime
         :return: runtime metadata
         """
-        key = '/'.join(['runtimes', __version__,  ibm_cf_region, ibm_cf_namespace, runtime_name+".meta.json"])
-        try:
-            json_str = self.backend_handler.get_object(self.storage_bucket, key)
-            runtime_meta = json.loads(json_str.decode("ascii"))
+        path = ['runtimes', __version__,  ibm_cf_region, ibm_cf_namespace, runtime_name+".meta.json"]
+        key = '/'.join(path)
+
+        filename_local_path = os.path.join(LOCAL_HOME_DIR, '.pywren', *path)
+
+        if os.path.exists(filename_local_path):
+            with open(filename_local_path, "r") as f:
+                runtime_meta = json.loads(f.read())
             return runtime_meta
-        except StorageNoSuchKeyError:
-            raise Exception('The runtime {} is not installed.'.format(key))
+        else:
+            try:
+                json_str = self.backend_handler.get_object(self.storage_bucket, key)
+                runtime_meta = json.loads(json_str.decode("ascii"))
+                return runtime_meta
+            except StorageNoSuchKeyError:
+                raise Exception('The runtime {} is not installed.'.format(key))
 
     def put_runtime_info(self, ibm_cf_region, ibm_cf_namespace, runtime_name, runtime_meta):
         """
@@ -146,8 +159,17 @@ class InternalStorage:
         :param runtime: name of the runtime
         :param runtime_meta metadata
         """
-        key = '/'.join(['runtimes', __version__,  ibm_cf_region, ibm_cf_namespace, runtime_name+".meta.json"])
+        path = ['runtimes', __version__,  ibm_cf_region, ibm_cf_namespace, runtime_name+".meta.json"]
+        key = '/'.join(path)
         self.backend_handler.put_object(self.storage_bucket, key, json.dumps(runtime_meta))
+
+        filename_local_path = os.path.join(LOCAL_HOME_DIR, '.pywren', *path)
+
+        if not os.path.exists(os.path.dirname(filename_local_path)):
+            os.makedirs(os.path.dirname(filename_local_path))
+
+        with open(filename_local_path, "w") as f:
+            f.write(json.dumps(runtime_meta))
 
     def delete_runtime_info(self, ibm_cf_region, ibm_cf_namespace, runtime_name):
         """
@@ -155,7 +177,11 @@ class InternalStorage:
         :param runtime: name of the runtime
         :param runtime_meta metadata
         """
-        key = '/'.join(['runtimes', __version__,  ibm_cf_region, ibm_cf_namespace, runtime_name+".meta.json"])
+        path = ['runtimes', __version__,  ibm_cf_region, ibm_cf_namespace, runtime_name+".meta.json"]
+        key = '/'.join(path)
+        filename_local_path = os.path.join(LOCAL_HOME_DIR, '.pywren', *path)
+        if os.path.exists(filename_local_path):
+            os.remove(filename_local_path)
         self.backend_handler.delete_object(self.storage_bucket, key)
 
     def list_temporal_data(self, executor_id):

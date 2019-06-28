@@ -16,7 +16,7 @@ class Invoker:
         self.internal_storage = internal_storage
         self.executor_id = executor_id
 
-        self.invoker_type = config['pywren']['invoker_backend']
+        self.invoker_type = config['pywren']['faas_backend']
 
         if self.invoker_type == 'ibm_cf':
             self.invoker_handler = IBMCloudFunctionsInvoker(config)
