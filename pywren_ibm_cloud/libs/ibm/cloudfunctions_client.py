@@ -221,7 +221,7 @@ class CloudFunctionsClient:
             logger.debug(log_msg)
             if self_invoked:
                 return None
-            return self.invoke(action_name, payload, self_invoked=True)
+            return self.invoke(package, action_name, payload, self_invoked=True)
 
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
