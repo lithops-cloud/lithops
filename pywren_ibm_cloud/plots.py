@@ -105,6 +105,7 @@ def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses, cos
         save_plot_in_cos(cos_config, fig, dst, name+"_timeline.png")
     else:
         fig.savefig(os.path.join(dst, name+"_timeline.png"))
+    pylab.close(fig)
 
 
 def create_histogram(dst, name, pw_start_time, run_statuses, cos_config):
@@ -164,6 +165,8 @@ def create_histogram(dst, name, pw_start_time, run_statuses, cos_config):
         save_plot_in_cos(cos_config, fig, dst, name+"_histogram.png")
     else:
         fig.savefig(os.path.join(dst, name+"_histogram.png"))
+
+    pylab.close(fig)
 
 
 def save_plot_in_cos(cos_config, fig, dst, filename):
