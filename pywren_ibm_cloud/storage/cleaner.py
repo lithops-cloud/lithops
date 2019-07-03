@@ -40,11 +40,11 @@ def clean_os_bucket(bucket, prefix, internal_storage):
     msg = "Going to delete all objects from bucket '{}' and prefix '{}'".format(bucket, prefix)
     logger.debug(msg)
     total_objects = 0
-    objects_to_delete = internal_storage.list_temporal_data(prefix)
+    objects_to_delete = internal_storage.list_tmp_data(prefix)
 
     while objects_to_delete:
         logger.debug('{} objects found'.format(len(objects_to_delete)))
         total_objects = total_objects + len(objects_to_delete)
         internal_storage.delete_temporal_data(objects_to_delete)
-        objects_to_delete = internal_storage.list_temporal_data(prefix)
+        objects_to_delete = internal_storage.list_tmp_data(prefix)
     logger.info('Finished deleting objects, total found: {}'.format(total_objects))

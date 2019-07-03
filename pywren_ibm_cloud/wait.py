@@ -144,7 +144,7 @@ class rabbitmq_checker_worker(threading.Thread):
         self.channel.basic_consume(self.callback, queue=self.executor_id, no_ack=True)
 
     def run(self):
-        msg = 'Executor ID {} Starting consumer from rabbitmq queue'.format(self.executor_id)
+        msg = 'ExecutorID {} - Starting consumer from rabbitmq queue'.format(self.executor_id)
         logger.debug(msg)
         self.channel.start_consuming()
 
@@ -202,7 +202,7 @@ def _wait_rabbitmq(fs, executor_id, callgroup_id, rabbit_amqp_url, pbar, total):
         if rcv_callgroup_id not in done_call_ids:
             done_call_ids[rcv_callgroup_id] = {'total': None, 'call_ids': []}
         if rcv_callgroup_id not in done_call_status:
-            done_call_status[callgroup_id] = {}
+            done_call_status[rcv_callgroup_id] = {}
 
         done_call_ids[rcv_callgroup_id]['call_ids'].append(rcv_call_id)
         done_call_status[rcv_callgroup_id][rcv_call_id] = call_status
@@ -308,9 +308,7 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
     fs_notdones = []
     f_to_wait_on = []
     for f in fs:
-        if (download_results and f.done) or \
-           (not download_results and (f.ready or f.done)) or \
-           (download_results and f.ready and not f.produce_output):
+        if f.ready or f.done:
             # done, don't need to do anything
             fs_dones.append(f)
         else:
@@ -347,9 +345,7 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
 
     if pbar:
         for f in f_to_wait_on:
-            if (download_results and f.done) or \
-               (not download_results and (f.ready or f.done)) or \
-               (download_results and f.ready and not f.produce_output):
+            if f.ready or f.done:
                 pbar.update(1)
         pbar.refresh()
     pool.close()

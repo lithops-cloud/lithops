@@ -16,13 +16,14 @@
 
 import os
 import sys
+import shutil
 import logging
 import zipfile
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import version_str, format_action_name, unformat_action_name
 from pywren_ibm_cloud.storage import storage
-from pywren_ibm_cloud.libs.ibm_cf.cf_connector import CloudFunctions
+from pywren_ibm_cloud.libs.ibm.cloudfunctions_client import CloudFunctionsClient
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +87,7 @@ def _extract_modules(image_name, cf_client):
     # sys.stdout = old_stdout
     logger.debug("Extracting Python modules list from: {}".format(image_name))
     try:
-        runtime_meta = cf_client.invoke_with_result(modules_action_name)
+        runtime_meta = cf_client.invoke_with_result(PACKAGE, modules_action_name)
     except Exception:
         raise("Unable to invoke 'modules' action")
     try:
@@ -100,7 +101,7 @@ def _extract_modules(image_name, cf_client):
     return runtime_meta
 
 
-def _create_blackbox_runtime(image_name, memory, runtime_meta, cf_client, internal_storage):
+def _create_blackbox_runtime(image_name, memory, timeout, runtime_meta, cf_client, internal_storage):
     # Create runtime_name from image_name
     action_name = format_action_name(image_name, memory)
 
@@ -108,7 +109,7 @@ def _create_blackbox_runtime(image_name, memory, runtime_meta, cf_client, intern
     with open(ZIP_LOCATION, "rb") as action_zip:
         action_bin = action_zip.read()
 
-    cf_client.create_action(PACKAGE, action_name, image_name, code=action_bin, memory=memory)
+    cf_client.create_action(PACKAGE, action_name, image_name, code=action_bin, memory=memory, timeout=timeout)
 
     if runtime_meta:
         region = cf_client.endpoint.split('//')[1].split('.')[0]
@@ -123,18 +124,20 @@ def create_runtime(image_name, memory=None, config=None):
     if image_name == 'default':
         image_name = _get_default_image_name()
     logger.info('Creating new PyWren runtime based on image {}'.format(image_name))
+
     config = wrenconfig.default(config)
     storage_config = wrenconfig.extract_storage_config(config)
     internal_storage = storage.InternalStorage(storage_config)
 
     cf_config = wrenconfig.extract_cf_config(config)
-    cf_client = CloudFunctions(cf_config)
+    cf_client = CloudFunctionsClient(cf_config)
     cf_client.create_package(PACKAGE)
     _create_zip_action()
 
     runtime_meta = _extract_modules(image_name, cf_client)
-    memory = wrenconfig.RUNTIME_MEMORY_DEFAULT if not memory else memory
-    _create_blackbox_runtime(image_name, memory, runtime_meta,
+    memory = config['pywren']['runtime_memory'] if not memory else memory
+    timeout = config['pywren']['runtime_timeout']
+    _create_blackbox_runtime(image_name, memory, timeout, runtime_meta,
                              cf_client, internal_storage)
 
 
@@ -166,9 +169,11 @@ def update_runtime(image_name, config=None):
     storage_config = wrenconfig.extract_storage_config(config)
     internal_storage = storage.InternalStorage(storage_config)
     cf_config = wrenconfig.extract_cf_config(config)
-    cf_client = CloudFunctions(cf_config)
+    cf_client = CloudFunctionsClient(cf_config)
     cf_client.create_package(PACKAGE)
     _create_zip_action()
+
+    timeout = config['pywren']['runtime_timeout']
 
     if image_name != 'all':
         runtime_meta = _extract_modules(image_name, cf_client)
@@ -183,7 +188,7 @@ def update_runtime(image_name, config=None):
             continue
         action_image_name, memory = unformat_action_name(action['name'])
         if image_name == action_image_name or image_name == 'all':
-            _create_blackbox_runtime(action_image_name, memory, runtime_meta,
+            _create_blackbox_runtime(action_image_name, memory, timeout, runtime_meta,
                                      cf_client, internal_storage)
 
 
@@ -196,7 +201,7 @@ def delete_runtime(image_name, config=None):
     storage_config = wrenconfig.extract_storage_config(config)
     storage_client = storage.InternalStorage(storage_config)
     cf_config = wrenconfig.extract_cf_config(config)
-    cf_client = CloudFunctions(cf_config)
+    cf_client = CloudFunctionsClient(cf_config)
 
     actions = cf_client.list_actions(PACKAGE)
     region = cf_client.endpoint.split('//')[1].split('.')[0]
@@ -215,7 +220,13 @@ def clean_runtimes(config=None):
     storage_config = wrenconfig.extract_storage_config(config)
     storage_client = storage.InternalStorage(storage_config)
     cf_config = wrenconfig.extract_cf_config(config)
-    cf_client = CloudFunctions(cf_config)
+    cf_client = CloudFunctionsClient(cf_config)
+
+    # Clean local runtime_meta cache
+    LOCAL_HOME_DIR = os.path.expanduser('~')
+    cache_dir = os.path.join(LOCAL_HOME_DIR, '.pywren')
+    if os.path.exists(cache_dir):
+        shutil.rmtree(cache_dir)
 
     bh = storage_client.backend_handler
     runtimes = bh.list_keys_with_prefix(storage_config['storage_bucket'], 'runtime')

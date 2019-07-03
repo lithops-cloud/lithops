@@ -26,7 +26,6 @@ import pywren_ibm_cloud.wrenconfig as wrenconfig
 from pywren_ibm_cloud.wait import wait
 from concurrent.futures import ThreadPoolExecutor
 from pywren_ibm_cloud.future import ResponseFuture, JobState
-from pywren_ibm_cloud.runtime import get_runtime_preinstalls
 from pywren_ibm_cloud.storage.backends.cos import COSBackend
 from pywren_ibm_cloud.serialize import serialize, create_mod_data
 from pywren_ibm_cloud.storage.storage_utils import create_keys, create_func_key, create_agg_data_key
@@ -38,34 +37,19 @@ logger = logging.getLogger(__name__)
 
 class Executor(object):
 
-    def __init__(self, invoker, config, internal_storage):
+    def __init__(self, config, internal_storage, invoker, executor_id):
         self.log_level = os.getenv('PYWREN_LOG_LEVEL')
-        self.invoker = invoker
         self.config = config
         self.internal_storage = internal_storage
-
-        self.runtime_name = self.config['pywren']['runtime']
-        self.runtime_memory = self.config['pywren']['runtime_memory']
-        runtime_preinstalls = get_runtime_preinstalls(self.internal_storage,
-                                                      self.runtime_name,
-                                                      self.runtime_memory,
-                                                      self.config)
+        self.invoker = invoker
+        self.executor_id = executor_id
+        runtime_preinstalls = self.invoker.get_runtime_preinstalls()
         self.serializer = serialize.SerializeIndependent(runtime_preinstalls)
 
         self.map_item_limit = None
         if 'scheduler' in self.config:
             if 'map_item_limit' in config['scheduler']:
                 self.map_item_limit = config['scheduler']['map_item_limit']
-
-        if 'PYWREN_EXECUTOR_ID' in os.environ:
-            self.executor_id = os.environ['PYWREN_EXECUTOR_ID']
-        else:
-            self.executor_id = wrenutil.create_executor_id()
-
-        log_msg = 'IBM Cloud Functions executor created with ID {}'.format(self.executor_id)
-        logger.info(log_msg)
-        if not self.log_level:
-            print(log_msg)
 
     def invoke_with_keys(self, func_key, data_key, output_key,
                          status_key, executor_id, callgroup_id,
@@ -122,8 +106,7 @@ class Executor(object):
         host_job_meta['cf_invoke_time'] = time.time() - cf_invoke_time_start
 
         # logger.debug("Executor ID {} Activation {} complete".format(executor_id, call_id))
-
-        host_job_meta.update(self.invoker.config())
+        host_job_meta.update(self.invoker.get_config())
         host_job_meta.update(arg_dict)
         del host_job_meta['config']
         storage_config = self.internal_storage.get_storage_config()
@@ -150,8 +133,8 @@ class Executor(object):
         return self._map(func, [data], extra_env=extra_env, extra_meta=extra_meta, job_max_runtime=runtime_timeout)
 
     def map(self, map_function, iterdata, obj_chunk_size=None, extra_env=None, extra_meta=None,
-            remote_invocation=False, remote_invocation_groups=None, invoke_pool_threads=128,
-            data_all_as_one=True, job_max_runtime=wrenconfig.RUNTIME_TIMEOUT,
+            runtime_name=None, runtime_memory=None, remote_invocation=False, remote_invocation_groups=None,
+            invoke_pool_threads=128, data_all_as_one=True, job_max_runtime=wrenconfig.RUNTIME_TIMEOUT,
             overwrite_invoke_args=None, exclude_modules=None):
         """
         Wrapper to launch map() method.  It integrates COS logic to process objects.
@@ -175,15 +158,13 @@ class Executor(object):
         # Remote invocation functionality
         original_iterdata_len = len(iterdata)
         if original_iterdata_len > 1 and remote_invocation:
-            runtime_name = self.runtime_name
-            runtime_memory = self.runtime_memory
             rabbitmq_monitor = "PYWREN_RABBITMQ_MONITOR" in os.environ
 
             def remote_invoker(input_data):
                 pw = pywren.ibm_cf_executor(runtime=runtime_name,
-                                            runtime_memory=runtime_memory,
                                             rabbitmq_monitor=rabbitmq_monitor)
                 return pw.map(map_function, input_data,
+                              runtime_memory=runtime_memory,
                               invoke_pool_threads=invoke_pool_threads,
                               extra_env=extra_env,
                               extra_meta=extra_meta)
@@ -254,7 +235,7 @@ class Executor(object):
 
         host_job_meta = {}
 
-        log_msg = 'Executor ID {} Serializing function and data'.format(self.executor_id)
+        log_msg = 'ExecutorID {} Serializing function and data'.format(self.executor_id)
         logger.debug(log_msg)
         # pickle func and all data (to capture module dependencies)
         func_and_data_ser, mod_paths = self.serializer([func] + data)
@@ -267,7 +248,7 @@ class Executor(object):
         host_job_meta['agg_data'] = False
         host_job_meta['data_size_bytes'] = data_size_bytes
 
-        log_msg = 'Executor ID {} Uploading function and data'.format(self.executor_id)
+        log_msg = 'ExecutorID {} - Uploading function and data'.format(self.executor_id)
         logger.info(log_msg)
         if not self.log_level:
             print(log_msg, end=' ')
@@ -281,7 +262,7 @@ class Executor(object):
             host_job_meta['data_upload_time'] = time.time() - agg_upload_time
             host_job_meta['data_upload_timestamp'] = time.time()
         else:
-            log_msg = ('Executor ID {} Total data exceeded '
+            log_msg = ('ExecutorID {} - Total data exceeded '
                        'maximum size of {} bytes'.format(self.executor_id,
                                                          wrenconfig.MAX_AGG_DATA_SIZE))
             logger.warning(log_msg)
@@ -338,10 +319,10 @@ class Executor(object):
         N = len(data)
         call_futures = []
         if remote_invocation and original_iterdata_len > 1:
-            log_msg = 'Executor ID {} Starting {} remote invocation function: Spawning {}() - Total: {} activations'.format(self.executor_id, N, func_name,
+            log_msg = 'ExecutorID {} - Starting {} remote invocation function: Spawning {}() - Total: {} activations'.format(self.executor_id, N, func_name,
                                                                                                                             original_iterdata_len)
         else:
-            log_msg = 'Executor ID {} Starting function invocation: {}() - Total: {} activations'.format(self.executor_id, func_name, N)
+            log_msg = 'ExecutorID {} - Starting function invocation: {}() - Total: {} activations'.format(self.executor_id, func_name, N)
         logger.info(log_msg)
         if not self.log_level:
             print(log_msg)
@@ -390,6 +371,7 @@ class Executor(object):
             # Wait for all results
             wait(fut_list, executor_id, internal_storage, download_results=True)
             results = [f.result() for f in fut_list if f.done and not f.futures]
+            fut_list.clear()
             reduce_func_args = {'results': results}
 
             if show_memory:
@@ -403,11 +385,6 @@ class Executor(object):
                 reduce_func_args['ibm_cos'] = ibm_cos
 
             return reduce_function(**reduce_func_args)
-            #result = reduce_function(**reduce_func_args)
-            #run_statuses = [f.run_status for f in fut_list]
-            #invoke_statuses = [f.invoke_status for f in fut_list]
-
-            #return {'fn_result': result, 'run_statuses': run_statuses, 'invoke_statuses': invoke_statuses}
 
         return self._map(reduce_function_wrapper, map_iterdata, extra_env=extra_env,
                          extra_meta=extra_meta, original_func_name=reduce_function.__name__)

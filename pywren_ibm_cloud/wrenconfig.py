@@ -18,6 +18,7 @@ import os
 import sys
 import json
 from pywren_ibm_cloud.utils import version_str
+from pywren_ibm_cloud.version import __version__
 
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
 COS_BUCKET_DEFAULT = "pywren.data"
@@ -33,10 +34,12 @@ RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
 RUNTIME_RI_MEMORY_DEFAULT = 2048  # Default memory for remote invocation function
 RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
 
+FAAS_BACKEND_DEFAULT = 'ibm_cf'
+
 DATA_CLEANER_DEFAULT = False
 MAX_AGG_DATA_SIZE = 4e6
 INVOCATION_RETRY_DEFAULT = True
-RETRY_SLEEPS_DEFAULT = [1, 5, 10, 15, 20]
+RETRY_SLEEPS_DEFAULT = [1, 2, 4, 8]
 RETRIES_DEFAULT = 5
 AMQP_URL_DEFAULT = None
 
@@ -144,6 +147,8 @@ def default(config_data=None):
         config_data['pywren']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
     if 'runtime_timeout' not in config_data['pywren']:
         config_data['pywren']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+    if 'invoker' not in config_data['pywren']:
+        config_data['pywren']['faas_backend'] = FAAS_BACKEND_DEFAULT
     if 'runtime' not in config_data['pywren']:
         this_version_str = version_str(sys.version_info)
         if this_version_str == '3.5':
@@ -204,9 +209,7 @@ def extract_storage_config(config):
 
 def extract_cf_config(config):
     cf_config = config['ibm_cf']
-    cf_config['runtime'] = config['pywren']['runtime']
-    cf_config['runtime_timeout'] = int(config['pywren']['runtime_timeout'])
-    cf_config['runtime_memory'] = int(config['pywren']['runtime_memory'])
     cf_config['ibm_iam'] = config['ibm_iam']
+    cf_config['user_agent'] = 'pywren-ibm-cloud/{}'.format(__version__)
 
     return cf_config

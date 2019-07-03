@@ -13,7 +13,7 @@ PyWren for IBM Cloud is based on Docker images and we also extended PyWren to ex
 This document describes the steps to use PyWren-IBM-Cloud over IBM Cloud Functions and IBM Cloud Object Storage (IBM COS)
 
 ### IBM Cloud for Academic institutions
-[IBM Academic Initiative](https://developer.ibm.com/academic/) is a special program that allows free trial of IBM Cloud for Academic institutions. This program provided for students and faculty staff members and allow up to 12 month of free usage. Please follow [here](https://ibm.onthehub.com/), check if you eligible for this program and setup your account free of charge.
+[IBM Academic Initiative](https://ibm.biz/academic) is a special program that allows free trial of IBM Cloud for Academic institutions. This program is provided for students and faculty staff members, and allow up to 12 month of free usage. You can register your university email and get a free of charge account.
 
 
 # Getting Started

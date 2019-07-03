@@ -18,9 +18,11 @@ import os
 import time
 import logging
 import random
-from pywren_ibm_cloud.libs.ibm_cf.cf_connector import CloudFunctions
 from pywren_ibm_cloud.utils import format_action_name
 from pywren_ibm_cloud.wrenconfig import extract_cf_config
+from pywren_ibm_cloud.libs.ibm.cloudfunctions_client import CloudFunctionsClient
+from pywren_ibm_cloud.version import __version__
+
 
 logger = logging.getLogger(__name__)
 
@@ -29,36 +31,26 @@ class IBMCloudFunctionsInvoker:
 
     def __init__(self, config):
         self.log_level = os.getenv('PYWREN_LOG_LEVEL')
-        cf_config = extract_cf_config(config)
-        self.namespace = cf_config['namespace']
-        self.endpoint = cf_config['endpoint'].replace('http:', 'https:')
-        self.runtime = cf_config['runtime']
-        self.runtime_memory = int(cf_config['runtime_memory'])
-        self.runtime_timeout = int(cf_config['runtime_timeout'])
-
-        self.action_name = format_action_name(self.runtime, self.runtime_memory)
+        self.namespace = config['ibm_cf']['namespace']
+        self.endpoint = config['ibm_cf']['endpoint'].replace('http:', 'https:')
+        self.runtime_name = config['pywren']['runtime']
+        self.runtime_memory = int(config['pywren']['runtime_memory'])
+        self.runtime_timeout = int(config['pywren']['runtime_timeout'])
+        self.package = 'pywren_v'+__version__
 
         self.invocation_retry = config['pywren']['invocation_retry']
         self.retry_sleeps = config['pywren']['retry_sleeps']
         self.retries = config['pywren']['retries']
 
-        self.client = CloudFunctions(cf_config)
+        self.cf_client = CloudFunctionsClient(extract_cf_config(config))
 
-        msg = 'IBM Cloud Functions init for'
-        logger.info('{} namespace: {}'.format(msg, self.namespace))
-        logger.info('{} host: {}'.format(msg, self.endpoint))
-        logger.info('{} Runtime: {} - {}MB'.format(msg, self.runtime, self.runtime_memory))
-
-        if not self.log_level:
-            print("{} Namespace: {}".format(msg, self.namespace))
-            print("{} Host: {}".format(msg, self.endpoint))
-            print('{} Runtime: {} - {}MB'.format(msg, self.runtime, self.runtime_memory), end=' ')
-
-    def invoke(self, payload):
+    def invoke(self, payload, runtime_memory):
         """
         Invoke -- return information about this invocation
         """
-        act_id = self.client.invoke(self.action_name, payload)
+        self.runtime_memory = runtime_memory
+        action_name = format_action_name(self.runtime_name, self.runtime_memory)
+        act_id = self.cf_client.invoke(self.package, action_name, payload)
         attempts = 1
 
         while not act_id and self.invocation_retry and attempts < self.retries:
@@ -66,12 +58,10 @@ class IBMCloudFunctionsInvoker:
             selected_sleep = random.choice(self.retry_sleeps)
             exec_id = payload['executor_id']
             call_id = payload['call_id']
-
-            log_msg = ('Executor ID {} Function {} - Invocation failed - retry {} in {} seconds'.format(exec_id, call_id, attempts, selected_sleep))
+            log_msg = ('ExecutorID {} - Function {} - Retry {} in {} seconds'.format(exec_id, call_id, attempts, selected_sleep))
             logger.debug(log_msg)
-
             time.sleep(selected_sleep)
-            act_id = self.client.invoke(self.action_name, payload)
+            act_id = self.cf_client.invoke(self.package, action_name, payload)
 
         return act_id
 
@@ -79,7 +69,7 @@ class IBMCloudFunctionsInvoker:
         """
         Return config dict
         """
-        return {'runtime': self.runtime,
+        return {'runtime': self.runtime_name,
                 'runtime_memory': self.runtime_memory,
                 'runtime_timeout': self.runtime_timeout,
                 'namespace': self.namespace,
