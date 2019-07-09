@@ -24,12 +24,12 @@ import logging
 import traceback
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud import wrenlogging
+from pywren_ibm_cloud.invoker import Invoker
 from pywren_ibm_cloud.storage import storage
 from pywren_ibm_cloud.executor import Executor
 from pywren_ibm_cloud.future import FunctionException
 from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
 from pywren_ibm_cloud.storage.cleaner import clean_os_bucket
-from pywren_ibm_cloud.invoker import invoker
 from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_cf_cluster, create_executor_id
 
 logger = logging.getLogger(__name__)
@@ -101,7 +101,7 @@ class ibm_cf_executor:
 
         storage_config = wrenconfig.extract_storage_config(self.config)
         self.internal_storage = storage.InternalStorage(storage_config)
-        self.invoker = invoker.Invoker(self.config, self.internal_storage, self.executor_id)
+        self.invoker = Invoker(self.config, self.internal_storage, self.executor_id)
 
         self.executor_futures = []
         self.futures = []

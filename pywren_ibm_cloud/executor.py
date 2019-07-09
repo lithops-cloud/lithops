@@ -26,7 +26,7 @@ import pywren_ibm_cloud.wrenconfig as wrenconfig
 from pywren_ibm_cloud.wait import wait
 from concurrent.futures import ThreadPoolExecutor
 from pywren_ibm_cloud.future import ResponseFuture, JobState
-from pywren_ibm_cloud.storage.backends.cos import COSBackend
+from pywren_ibm_cloud.storage.backends.ibm_cos import IbmCosStorageBackend
 from pywren_ibm_cloud.serialize import serialize, create_mod_data
 from pywren_ibm_cloud.storage.storage_utils import create_keys, create_func_key, create_agg_data_key
 from pywren_ibm_cloud.partitioner import create_partitions, partition_processor
@@ -151,7 +151,7 @@ class Executor(object):
             '''
             logger.debug("Calling map on partitions from object storage flow")
             arg_data = wrenutil.verify_args(map_function, data, object_processing=True)
-            storage = COSBackend(self.config['ibm_cos'])
+            storage = IbmCosStorageBackend(self.config['ibm_cos'])
             map_iterdata, parts_per_object = create_partitions(arg_data, obj_chunk_size, storage)
             map_func = partition_processor(map_function)
 

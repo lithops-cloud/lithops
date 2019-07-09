@@ -1,9 +1,9 @@
 import os
 import logging
-from pywren_ibm_cloud.invoker.backends.ibm_cf import IBMCloudFunctionsInvoker
-from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.runtime import create_runtime
 from pywren_ibm_cloud.utils import runtime_valid, format_action_name
+from pywren_ibm_cloud.compute import InternalCompute
+from pywren_ibm_cloud import wrenconfig
 
 logger = logging.getLogger(__name__)
 
@@ -16,27 +16,19 @@ class Invoker:
         self.internal_storage = internal_storage
         self.executor_id = executor_id
 
-        self.invoker_type = config['pywren']['faas_backend']
-
-        if self.invoker_type == 'ibm_cf':
-            self.invoker_handler = IBMCloudFunctionsInvoker(config)
-            self.region = config['ibm_cf']['endpoint'].split('//')[1].split('.')[0]
-            self.namespace = config['ibm_cf']['namespace']
-            log_msg = 'PyWren v{} init for IBM Cloud Functions - Namespace: {} - Region: {}'.format(__version__, self.namespace, self.region)
-            logger.info(log_msg)
-            if not self.log_level:
-                print(log_msg)
-        else:
-            raise NotImplementedError(("Using {} as internal functions backend is" +
-                                       "not supported yet").format(self.backend_type))
+        compute_config = wrenconfig.extract_compute_config(self.config)
+        self.internal_compute = InternalCompute(compute_config, internal_storage)
 
         self.runtime_name = self.config['pywren']['runtime']
         self.runtime_memory = self.config['pywren']['runtime_memory']
 
     def invoke(self, payload):
-        return self.invoker_handler.invoke(payload, self.runtime_memory)
+        return self.internal_compute.invoke(self.runtime_name, self.runtime_memory, payload)
 
     def set_memory(self, memory):
+        
+        self.internal_compute.set_memory()
+        
         if memory is None:
             memory = self.runtime_memory
         else:
