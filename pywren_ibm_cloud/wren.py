@@ -135,8 +135,7 @@ class ibm_cf_executor:
 
     def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None, runtime_memory=None,
             chunk_size=None, remote_invocation=False, timeout=wrenconfig.RUNTIME_TIMEOUT,
-            remote_invocation_groups=None, invoke_pool_threads=500,
-            data_all_as_one=True, overwrite_invoke_args=None, exclude_modules=None):
+            remote_invocation_groups=None, invoke_pool_threads=500, overwrite_invoke_args=None, exclude_modules=None):
         """
         :param func: the function to map over the data
         :param iterdata: An iterable of input data
@@ -475,9 +474,10 @@ class ibm_cf_executor:
             storage_prerix = '/'.join([storage_prerix])
         else:
             storage_prerix = '/'.join([storage_prerix, self.executor_id])
-        msg = "ExecutorID {} - Cleaning temporary data from cos://{}/{}".format(self.executor_id,
-                                                                                storage_bucket,
-                                                                                storage_prerix)
+        msg = "ExecutorID {} - Cleaning temporary data from {}://{}/{}".format(self.executor_id,
+                                                                               self.internal_storage.storage_backend,
+                                                                               storage_bucket,
+                                                                               storage_prerix)
         logger.info(msg)
         if not self.log_level:
             print(msg)

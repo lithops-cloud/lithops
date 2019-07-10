@@ -4,16 +4,16 @@ import pickle
 import logging
 import inspect
 import pywren_ibm_cloud as pywren
-import pywren_ibm_cloud.version as version
 import pywren_ibm_cloud.utils as wrenutil
 import pywren_ibm_cloud.wrenconfig as wrenconfig
 from pywren_ibm_cloud.wait import wait
+from pywren_ibm_cloud.utils import runtime_valid
+from pywren_ibm_cloud.runtime import create_runtime
 from pywren_ibm_cloud.compute import InternalCompute
-
-from pywren_ibm_cloud.storage.backends.ibm_cos import IbmCosStorageBackend
 from pywren_ibm_cloud.serialize import serialize, create_mod_data
-from pywren_ibm_cloud.storage.storage_utils import create_keys, create_func_key, create_agg_data_key
+from pywren_ibm_cloud.storage.backends.ibm_cos import IbmCosStorageBackend
 from pywren_ibm_cloud.partitioner import create_partitions, partition_processor
+from pywren_ibm_cloud.storage.storage_utils import create_func_key, create_agg_data_key
 
 
 logger = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 def create_call_async_job(config, internal_storage, executor_id, func, data, extra_env=None,
                           extra_meta=None, runtime_memory=None, runtime_timeout=wrenconfig.RUNTIME_TIMEOUT):
     """
-    Wrapper to launch one function invocation.
+    Wrapper to create call_async job that contains only one function invocation.
     """
     return _create_job(config, internal_storage, executor_id, func, [data], extra_env=extra_env,
                        extra_meta=extra_meta, runtime_memory=runtime_memory, runtime_timeout=runtime_timeout)
@@ -33,7 +33,7 @@ def create_map_job(config, internal_storage, executor_id, map_function, iterdata
                    remote_invocation_groups=None, invoke_pool_threads=128,
                    runtime_timeout=wrenconfig.RUNTIME_TIMEOUT, overwrite_invoke_args=None, exclude_modules=None):
     """
-    Wrapper to launch map() method.  It integrates COS logic to process objects.
+    Wrapper to create a map job.  It integrates COS logic to process objects.
     """
     data = wrenutil.iterdata_as_list(iterdata)
     map_func = map_function
@@ -148,6 +148,41 @@ def _agg_data(data_strs):
     return b"".join(data_strs), ranges
 
 
+def _get_runtime_preinstalls(config, internal_storage, executor_id, runtime_name, runtime_memory):
+    """
+    Auxiliary method that gets the runtime metadata from the storage. This metadata contains the preinstalled
+    python modules needed to serialize the local function.  If the .metadata file does not exists in the storage,
+    this means that the runtime is not installed, so this method will proceed to install it.
+    """
+    log_level = os.getenv('PYWREN_LOG_LEVEL')
+    compute_config = wrenconfig.extract_compute_config(config)
+    internal_compute = InternalCompute(compute_config)
+
+    log_msg = 'ExecutorID {} - Selected Runtime: {} - {}MB'.format(executor_id, runtime_name, runtime_memory)
+    logger.info(log_msg)
+    if not log_level:
+        print(log_msg, end=' ')
+
+    runtime_key = internal_compute.get_runtime_key(runtime_name, runtime_memory)
+    try:
+        runtime_meta = internal_storage.get_runtime_info(runtime_key)
+        if not log_level:
+            print()
+    except Exception:
+        logger.debug('ExecutorID {} - Runtime {} with {}MB is not yet installed'.format(executor_id, runtime_name, runtime_memory))
+        if not log_level:
+            print('(Installing...)')
+        create_runtime(runtime_name, memory=runtime_memory, config=config)
+        runtime_meta = internal_storage.get_runtime_info(runtime_key)
+
+    if not runtime_valid(runtime_meta):
+        raise Exception(("The indicated runtime: {} "
+                         "is not appropriate for this Python version.")
+                        .format(runtime_name))
+
+    return runtime_meta['preinstalls']
+
+
 def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env=None, extra_meta=None,
                 runtime_name=None, runtime_memory=None, invoke_pool_threads=128, overwrite_invoke_args=None,
                 exclude_modules=None, original_func_name=None, remote_invocation=False, original_iterdata_len=None,
@@ -172,9 +207,9 @@ def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env
         runtime_memory = config['pywren']['runtime_memory']
 
     log_level = os.getenv('PYWREN_LOG_LEVEL')
-    compute_backend = wrenconfig.extract_compute_config(config)
-    internal_compute = InternalCompute(compute_backend, internal_storage)
-    runtime_preinstalls = internal_compute.get_runtime_preinstalls(executor_id, runtime_name, runtime_memory)
+
+    runtime_memory = int(runtime_memory)
+    runtime_preinstalls = _get_runtime_preinstalls(config, internal_storage, executor_id, runtime_name, runtime_memory)
     serializer = serialize.SerializeIndependent(runtime_preinstalls)
 
     if original_func_name:
@@ -241,7 +276,6 @@ def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env
     else:
         log_msg = ('ExecutorID {} - Total data exceeded '
                    'maximum size of {} bytes'.format(executor_id, wrenconfig.MAX_AGG_DATA_SIZE))
-        logger.error(log_msg)
         raise Exception(log_msg)
 
     if exclude_modules:

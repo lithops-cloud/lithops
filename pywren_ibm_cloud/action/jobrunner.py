@@ -26,13 +26,13 @@ import numpy as np
 from multiprocessing import Process
 from distutils.util import strtobool
 from pywren_ibm_cloud import wrenlogging
-from pywren_ibm_cloud.storage import storage
+from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.future import ResponseFuture
 from pywren_ibm_cloud.utils import sizeof_fmt, b64str_to_bytes
 from pywren_ibm_cloud.wrenconfig import extract_storage_config
 from pywren_ibm_cloud.utils import get_current_memory_usage
-from pywren_ibm_cloud.storage.backends.cos import COSBackend
-from pywren_ibm_cloud.storage.backends.swift import SwiftBackend
+from pywren_ibm_cloud.storage.backends.ibm_cos import IbmCosStorageBackend
+from pywren_ibm_cloud.storage.backends.swift import SwiftStorageBackend
 from pywren_ibm_cloud.libs.tblib import pickling_support
 
 pickling_support.install()
@@ -159,18 +159,18 @@ class jobrunner(Process):
         if 'storage' in func_sig.parameters:
             # 'storage' generic parameter used in map_reduce method
             if 'ibm_cos' in self.storage_config:
-                mr_storage_client = COSBackend(self.storage_config['ibm_cos'])
+                mr_storage_client = IbmCosStorageBackend(self.storage_config['ibm_cos'])
             elif 'swift' in self.storage_config:
-                mr_storage_client = SwiftBackend(self.storage_config['swift'])
+                mr_storage_client = SwiftStorageBackend(self.storage_config['swift'])
 
             data['storage'] = mr_storage_client
 
         if 'ibm_cos' in func_sig.parameters:
-            ibm_boto3_client = COSBackend(self.storage_config['ibm_cos']).get_client()
+            ibm_boto3_client = IbmCosStorageBackend(self.storage_config['ibm_cos']).get_client()
             data['ibm_cos'] = ibm_boto3_client
 
         if 'swift' in func_sig.parameters:
-            swift_client = SwiftBackend(self.storage_config['swift'])
+            swift_client = SwiftStorageBackend(self.storage_config['swift'])
             data['swift'] = swift_client
 
         if 'internal_storage' in func_sig.parameters:
@@ -187,7 +187,7 @@ class jobrunner(Process):
         result = None
         exception = False
         try:
-            self.internal_storage = storage.InternalStorage(self.storage_config)
+            self.internal_storage = InternalStorage(self.storage_config)
 
             loaded_func_all = self._get_function_and_modules()
             self._save_modules(loaded_func_all['module_data'])

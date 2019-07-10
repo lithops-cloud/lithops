@@ -19,6 +19,7 @@ import pkgutil
 
 
 def main(args):
+    print("Extracting preinstalled Python modules...")
     runtime_meta = dict()
     mods = list(pkgutil.iter_modules())
     runtime_meta['preinstalls'] = [entry for entry in sorted([[mod, is_pkg] for _, mod, is_pkg in mods])]

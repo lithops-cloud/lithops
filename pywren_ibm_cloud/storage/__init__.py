@@ -1,5 +1,6 @@
 import os
 import json
+import logging
 from ..version import __version__
 from .backends.ibm_cos import IbmCosStorageBackend
 from .backends.swift import SwiftStorageBackend
@@ -8,6 +9,7 @@ from .storage_utils import create_status_key, create_output_key, status_key_suff
 
 
 LOCAL_HOME_DIR = os.path.expanduser('~')
+logger = logging.getLogger(__name__)
 
 
 class InternalStorage:
@@ -124,14 +126,23 @@ class InternalStorage:
         filename_local_path = os.path.join(LOCAL_HOME_DIR, '.pywren', *path)
 
         if os.path.exists(filename_local_path):
+            logger.debug("Runtime metadata found in local cache")
             with open(filename_local_path, "r") as f:
                 runtime_meta = json.loads(f.read())
             return runtime_meta
         else:
+            logger.debug("Runtime metadata not found in local cache. Retrieving it from storage")
             try:
                 obj_key = '/'.join(path).replace('\\', '/')
                 json_str = self.storage_handler.get_object(self.storage_bucket, obj_key)
                 runtime_meta = json.loads(json_str.decode("ascii"))
+                # Save runtime meta to cache
+                if not os.path.exists(os.path.dirname(filename_local_path)):
+                    os.makedirs(os.path.dirname(filename_local_path))
+
+                with open(filename_local_path, "w") as f:
+                    f.write(json.dumps(runtime_meta))
+
                 return runtime_meta
             except StorageNoSuchKeyError:
                 raise Exception('The runtime {} is not installed.'.format(obj_key))
@@ -144,9 +155,11 @@ class InternalStorage:
         """
         path = ['runtimes', __version__,  key+".meta.json"]
         obj_key = '/'.join(path).replace('\\', '/')
+        # logger.debug("Uploading Runtime metadata to: {}/{}".format(self.storage_bucket, obj_key))
         self.storage_handler.put_object(self.storage_bucket, obj_key, json.dumps(runtime_meta))
 
         filename_local_path = os.path.join(LOCAL_HOME_DIR, '.pywren', *path)
+        # logger.debug("Saving runtime metadata in local cache: {}".format(filename_local_path))
 
         if not os.path.exists(os.path.dirname(filename_local_path)):
             os.makedirs(os.path.dirname(filename_local_path))

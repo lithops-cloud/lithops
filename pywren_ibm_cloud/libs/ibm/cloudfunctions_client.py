@@ -23,7 +23,6 @@ import requests
 import http.client
 from urllib.parse import urlparse
 from .iam_client import IBMIAMClient
-from pywren_ibm_cloud.utils import is_cf_cluster
 
 
 logger = logging.getLogger(__name__)
@@ -37,7 +36,6 @@ class CloudFunctionsClient:
         """
         self.endpoint = config['endpoint'].replace('http:', 'https:')
         self.namespace = config['namespace']
-        self.is_cf_cluster = is_cf_cluster()
 
         if 'api_key' in config:
             api_key = str.encode(config['api_key'])
@@ -190,7 +188,7 @@ class CloudFunctionsClient:
         else:
             logger.debug("OK --> Created package {}".format(package))
 
-    def invoke(self, package, action_name, payload={}, self_invoked=False):
+    def invoke(self, package, action_name, payload={}, is_cf_cluster=False, self_invoked=False):
         """
         Invoke an IBM Cloud Function by using new request.
         """
@@ -200,7 +198,7 @@ class CloudFunctionsClient:
         parsed_url = urlparse(url)
         start = time.time()
         try:
-            if self.is_cf_cluster:
+            if is_cf_cluster:
                 resp = self.session.post(url, json=payload)
                 resp_status = resp.status_code
                 data = resp.json()
@@ -215,13 +213,13 @@ class CloudFunctionsClient:
                 data = json.loads(resp.read().decode("utf-8"))
                 conn.close()
         except Exception as e:
-            if not self.is_cf_cluster:
+            if not is_cf_cluster:
                 conn.close()
             log_msg = ('ExecutorID {} - Function {} invocation failed: {}'.format(exec_id, call_id, str(e)))
             logger.debug(log_msg)
             if self_invoked:
                 return None
-            return self.invoke(package, action_name, payload, self_invoked=True)
+            return self.invoke(package, action_name, payload, is_cf_cluster, self_invoked=True)
 
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')

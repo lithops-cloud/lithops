@@ -2,23 +2,33 @@ import os
 import time
 import random
 import logging
-from pywren_ibm_cloud.utils import runtime_valid
-from pywren_ibm_cloud.utils import format_action_name
+import threading
 from .backends.ibm_cf import IbmCfComputeBackend
 
 logger = logging.getLogger(__name__)
 
 
-class InternalCompute:
+class ThreadSafeSingleton(type):
+    _instances = {}
+    _singleton_lock = threading.Lock()
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            with cls._singleton_lock:
+                if cls not in cls._instances:
+                    cls._instances[cls] = super(ThreadSafeSingleton, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+
+class InternalCompute(metaclass=ThreadSafeSingleton):
     """
     An InternalCompute object is used by invokers and other components to access underlying compute backend
     without exposing the the implementation details.
     """
 
-    def __init__(self, compute_config, internal_storage):
+    def __init__(self, compute_config):
         self.log_level = os.getenv('PYWREN_LOG_LEVEL')
         self.compute_config = compute_config
-        self.internal_storage = internal_storage
 
         self.compute_backend = compute_config['compute_backend']
 
@@ -48,29 +58,41 @@ class InternalCompute:
 
         return act_id
 
-    def get_runtime_preinstalls(self, executor_id, runtime_name, runtime_memory):
-        runtime_memory = int(runtime_memory)
-        log_msg = 'ExecutorID {} - Selected Runtime: {} - {}MB'.format(executor_id, runtime_name, runtime_memory)
-        logger.info(log_msg)
-        if not self.log_level:
-            print(log_msg, end=' ')
+    def invoke_with_result(self, runtime_name, runtime_memory, payload={}):
+        """
+        Invoke waiting for a result -- return information about this invocation
+        """
+        return self.compute_handler.invoke_with_result(runtime_name, runtime_memory, payload)
 
-        try:
-            runtime_meta = self.compute_handler.get_runtime_info(runtime_name, runtime_memory, self.internal_storage)
-            if not self.log_level:
-                print()
+    def create_runtime(self, docker_image_name, memory, code=None, is_binary=True, timeout=300000):
+        """
+        Wrapper method to create a runtime in the compute backend.
+        return: the name of the runtime
+        """
+        return self.compute_handler.create_runtime(docker_image_name, memory, code=code,
+                                                   is_binary=is_binary, timeout=timeout)
 
-        except Exception as e:
-            print(e)
-            logger.debug('ExecutorID {} - Runtime {} with {}MB is not yet installed'.format(executor_id, runtime_name, runtime_memory))
-            if not self.log_level:
-                print('(Installing...)')
-            self.compute_handler.create_runtime(runtime_name, runtime_memory, self.internal_storage)
-            runtime_meta = self.compute_handler.get_runtime_info(runtime_name, runtime_memory, self.internal_storage)
+    def delete_runtime(self, docker_image_name, memory):
+        """
+        Wrapper method to create a runtime in the compute backend
+        """
+        self.compute_handler.delete_runtime(docker_image_name, memory)
 
-        if not runtime_valid(runtime_meta):
-            raise Exception(("The indicated runtime: {} "
-                             "is not appropriate for this Python version.")
-                            .format(self.runtime_name))
+    def delete_all_runtimes(self):
+        """
+        Wrapper method to create a runtime in the compute backend
+        """
+        self.compute_handler.delete_all_runtimes()
 
-        return runtime_meta['preinstalls']
+    def list_runtimes(self, docker_image_name='all'):
+        """
+        Wrapper method to list deployed runtime in the compute backend
+        """
+        return self.compute_handler.list_runtimes(docker_image_name=docker_image_name)
+
+    def get_runtime_key(self, docker_image_name, memory):
+        """
+        Wrapper method that returns a formated string that represents the runtime key.
+        Each backend has its own runtime key format. Used to store modules preinstalls into storage
+        """
+        return self.compute_handler.get_runtime_key(docker_image_name, memory)

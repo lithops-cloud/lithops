@@ -20,7 +20,7 @@ class Invoker:
         self.executor_id = executor_id
 
         compute_config = wrenconfig.extract_compute_config(self.config)
-        self.internal_compute = InternalCompute(compute_config, internal_storage)
+        self.internal_compute = InternalCompute(compute_config)
 
     def run(self, job_description):
 
