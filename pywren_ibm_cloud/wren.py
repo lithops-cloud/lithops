@@ -25,8 +25,8 @@ import traceback
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.invoker import Invoker
-from pywren_ibm_cloud.storage import storage
-from pywren_ibm_cloud.executor import Executor
+from pywren_ibm_cloud.storage import InternalStorage
+from pywren_ibm_cloud.job import create_call_async_job, create_map_job, create_reduce_job
 from pywren_ibm_cloud.future import FunctionException
 from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
 from pywren_ibm_cloud.storage.cleaner import clean_os_bucket
@@ -100,7 +100,7 @@ class ibm_cf_executor:
             self.config['rabbitmq']['amqp_url'] = None
 
         storage_config = wrenconfig.extract_storage_config(self.config)
-        self.internal_storage = storage.InternalStorage(storage_config)
+        self.internal_storage = InternalStorage(storage_config)
         self.invoker = Invoker(self.config, self.internal_storage, self.executor_id)
 
         self.executor_futures = []
@@ -124,9 +124,9 @@ class ibm_cf_executor:
             raise Exception('You cannot run pw.call_async() in the current state,'
                             ' create a new pywren.ibm_cf_executor() instance.')
 
-        self.invoker.set_memory(runtime_memory)
-        executor = Executor(self.config, self.internal_storage, self.invoker, self.executor_id)
-        future = executor.call_async(func, data, extra_env, extra_meta, timeout)
+        job = create_call_async_job(self.config, self.internal_storage, self.executor_id,
+                                    func, data, extra_env, extra_meta, runtime_memory, timeout)
+        future = self.invoker.run(job)
 
         self.futures.extend(future)
         self._state = ExecutorState.running
@@ -166,26 +166,18 @@ class ibm_cf_executor:
             # Ensure no remote invocation in these particular cases
             remote_invocation = False
 
-        if remote_invocation:
-            self.invoker.set_memory(wrenconfig.RUNTIME_RI_MEMORY_DEFAULT)
-        else:
-            self.invoker.set_memory(runtime_memory)
+        job, unused_ppo = create_map_job(self.config, self.internal_storage, self.executor_id,
+                                         map_function=map_function, iterdata=map_iterdata,
+                                         extra_env=extra_env, extra_meta=extra_meta,
+                                         obj_chunk_size=chunk_size, runtime_memory=runtime_memory,
+                                         remote_invocation=remote_invocation,
+                                         remote_invocation_groups=remote_invocation_groups,
+                                         invoke_pool_threads=invoke_pool_threads,
+                                         overwrite_invoke_args=overwrite_invoke_args,
+                                         exclude_modules=exclude_modules,
+                                         runtime_timeout=timeout)
+        map_futures = self.invoker.run(job)
 
-        executor = Executor(self.config, self.internal_storage, self.invoker, self.executor_id)
-        map_futures, unused_ppo = executor.map(map_function=map_function,
-                                               iterdata=map_iterdata,
-                                               obj_chunk_size=chunk_size,
-                                               extra_env=extra_env,
-                                               extra_meta=extra_meta,
-                                               runtime_name=self.invoker.runtime_name,
-                                               runtime_memory=runtime_memory,
-                                               remote_invocation=remote_invocation,
-                                               remote_invocation_groups=remote_invocation_groups,
-                                               invoke_pool_threads=invoke_pool_threads,
-                                               data_all_as_one=data_all_as_one,
-                                               overwrite_invoke_args=overwrite_invoke_args,
-                                               exclude_modules=exclude_modules,
-                                               job_max_runtime=timeout)
         self.futures.extend(map_futures)
         self._state = ExecutorState.running
 
@@ -198,7 +190,7 @@ class ibm_cf_executor:
                    extra_meta=None, chunk_size=None, remote_invocation=False,
                    remote_invocation_groups=None, timeout=wrenconfig.RUNTIME_TIMEOUT,
                    reducer_one_per_object=False, reducer_wait_local=False,
-                   invoke_pool_threads=500, data_all_as_one=True, overwrite_invoke_args=None,
+                   invoke_pool_threads=500, overwrite_invoke_args=None,
                    exclude_modules=None):
         """
         Map the map_function over the data and apply the reduce_function across all futures.
@@ -234,37 +226,32 @@ class ibm_cf_executor:
             # Ensure no remote invocation in these particular cases
             remote_invocation = False
 
-        if remote_invocation:
-            self.invoker.set_memory(wrenconfig.RUNTIME_RI_MEMORY_DEFAULT)
-        else:
-            self.invoker.set_memory(map_runtime_memory)
-
-        executor = Executor(self.config, self.internal_storage, self.invoker, self.executor_id)
-        map_futures, parts_per_object = executor.map(map_function, map_iterdata,
-                                                     extra_env=extra_env,
-                                                     extra_meta=extra_meta,
-                                                     obj_chunk_size=chunk_size,
-                                                     runtime_name=self.invoker.runtime_name,
-                                                     runtime_memory=map_runtime_memory,
-                                                     remote_invocation=remote_invocation,
-                                                     remote_invocation_groups=remote_invocation_groups,
-                                                     invoke_pool_threads=invoke_pool_threads,
-                                                     data_all_as_one=data_all_as_one,
-                                                     overwrite_invoke_args=overwrite_invoke_args,
-                                                     exclude_modules=exclude_modules,
-                                                     job_max_runtime=timeout)
+        job, parts_per_object = create_map_job(self.config, self.internal_storage, self.executor_id,
+                                               map_function=map_function, iterdata=map_iterdata,
+                                               extra_env=extra_env, extra_meta=extra_meta,
+                                               obj_chunk_size=chunk_size, runtime_memory=map_runtime_memory,
+                                               remote_invocation=remote_invocation,
+                                               remote_invocation_groups=remote_invocation_groups,
+                                               invoke_pool_threads=invoke_pool_threads,
+                                               overwrite_invoke_args=overwrite_invoke_args,
+                                               exclude_modules=exclude_modules,
+                                               runtime_timeout=timeout)
+        map_futures = self.invoker.run(job)
 
         self._state = ExecutorState.running
         if reducer_wait_local:
             self.monitor(futures=map_futures)
 
-        self.invoker.set_memory(reduce_runtime_memory)
-        reduce_future = executor.reduce(reduce_function, map_futures, parts_per_object,
-                                        reducer_one_per_object, extra_env, extra_meta)
+        job = create_reduce_job(self.config, self.internal_storage, self.executor_id, reduce_function,
+                                reduce_runtime_memory, map_futures, parts_per_object, reducer_one_per_object,
+                                extra_env, extra_meta)
+        reduce_future = self.invoker.run(job)
+
         for f in map_futures:
             f.produce_output = False
         futures = map_futures + reduce_future
         self.futures.extend(futures)
+
         return futures
 
     def monitor(self, futures=None, throw_except=True, return_when=ALL_COMPLETED,

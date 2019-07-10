@@ -2,6 +2,7 @@ import os
 import time
 import random
 import logging
+from pywren_ibm_cloud.utils import runtime_valid
 from pywren_ibm_cloud.utils import format_action_name
 from .backends.ibm_cf import IbmCfComputeBackend
 
@@ -28,13 +29,11 @@ class InternalCompute:
             raise NotImplementedError(("Using {} as compute backend is" +
                                        "not supported yet").format(self.compute_backend))
 
-    def invoke(self, payload, runtime_memory):
+    def invoke(self, runtime_name, runtime_memory, payload):
         """
         Invoke -- return information about this invocation
         """
-        self.runtime_memory = runtime_memory
-        action_name = format_action_name(self.runtime_name, self.runtime_memory)
-        act_id = self.compute_handler.invoke(action_name, payload)
+        act_id = self.compute_handler.invoke(runtime_name, runtime_memory, payload)
         attempts = 1
 
         while not act_id and self.invocation_retry and attempts < self.retries:
@@ -45,16 +44,33 @@ class InternalCompute:
             log_msg = ('ExecutorID {} - Function {} - Retry {} in {} seconds'.format(exec_id, call_id, attempts, selected_sleep))
             logger.debug(log_msg)
             time.sleep(selected_sleep)
-            act_id = self.compute_handler.invoke(action_name, payload)
+            act_id = self.compute_handler.invoke(runtime_name, runtime_memory, payload)
 
         return act_id
 
-    def config(self):
-        """
-        Return config dict
-        """
-        return {'runtime': self.runtime_name,
-                'runtime_memory': self.runtime_memory,
-                'runtime_timeout': self.runtime_timeout,
-                'namespace': self.namespace,
-                'endpoint': self.endpoint}
+    def get_runtime_preinstalls(self, executor_id, runtime_name, runtime_memory):
+        runtime_memory = int(runtime_memory)
+        log_msg = 'ExecutorID {} - Selected Runtime: {} - {}MB'.format(executor_id, runtime_name, runtime_memory)
+        logger.info(log_msg)
+        if not self.log_level:
+            print(log_msg, end=' ')
+
+        try:
+            runtime_meta = self.compute_handler.get_runtime_info(runtime_name, runtime_memory, self.internal_storage)
+            if not self.log_level:
+                print()
+
+        except Exception as e:
+            print(e)
+            logger.debug('ExecutorID {} - Runtime {} with {}MB is not yet installed'.format(executor_id, runtime_name, runtime_memory))
+            if not self.log_level:
+                print('(Installing...)')
+            self.compute_handler.create_runtime(runtime_name, runtime_memory, self.internal_storage)
+            runtime_meta = self.compute_handler.get_runtime_info(runtime_name, runtime_memory, self.internal_storage)
+
+        if not runtime_valid(runtime_meta):
+            raise Exception(("The indicated runtime: {} "
+                             "is not appropriate for this Python version.")
+                            .format(self.runtime_name))
+
+        return runtime_meta['preinstalls']

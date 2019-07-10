@@ -136,19 +136,19 @@ You can also build custom runtimes with libraries that your functions depends on
 
 To test that all is working, execute:
 ```python
-from pywren_ibm_cloud import testpywren
-testpywren.run()
+from pywren_ibm_cloud import tests
+tests.run()
 ```
 Notice that if you didn't set a local PyWren's config file, you need to provide it as a dictionary by the `config` parameter of `run()` method which uses the default local config file if this parameter is `None`. 
 
-Alternatively, for debugging purposes, you can also run [testpywren.py](pywren_ibm_cloud/testpywren.py) directly which located in the `pywren_ibm_cloud` folder with the arguments listed below.
+Alternatively, for debugging purposes, you can also run [tests.py](pywren_ibm_cloud/tests.py) directly which is located in the `pywren_ibm_cloud` folder with the arguments listed below.
 
 | Command | Explanation |
 |---| ---| 
-| `python3 pywren_ibm_cloud/testpywren.py` | test all PyWren's functionality |
-| `python3 pywren_ibm_cloud/testpywren.py pywren` | test PyWren without Cloud Object Storage service |
-| `python3 pywren_ibm_cloud/testpywren.py pywren_cos` | test PyWren using Cloud Object Storage service only |
-| `python3 pywren_ibm_cloud/testpywren.py <FUNC_NAME>` | run a specific test function by its name as implemented in the test file |
+| `python3 pywren_ibm_cloud/tests.py` | test all PyWren's functionality |
+| `python3 pywren_ibm_cloud/tests.py pywren` | test PyWren without Cloud Object Storage service |
+| `python3 pywren_ibm_cloud/tests.py pywren_cos` | test PyWren using Cloud Object Storage service only |
+| `python3 pywren_ibm_cloud/tests.py <FUNC_NAME>` | run a specific test function by its name as implemented in the test file |
 
 The test script assumes that a local PyWren's config file was set correctly.
 

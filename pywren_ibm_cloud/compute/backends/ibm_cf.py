@@ -1,6 +1,5 @@
 import os
 import logging
-from pywren_ibm_cloud.utils import format_action_name
 from pywren_ibm_cloud.libs.ibm.cloudfunctions_client import CloudFunctionsClient
 from pywren_ibm_cloud.version import __version__
 
@@ -25,12 +24,23 @@ class IbmCfComputeBackend:
         if not self.log_level:
             print(log_msg)
 
-    def create_runtime(self, runtime_name, runtime_memory):
-        pass
+    def _format_action_name(self, runtime_name, runtime_memory):
+        runtime_name = runtime_name.replace('/', '_').replace(':', '_')
+        return '{}_{}MB'.format(runtime_name, runtime_memory)
+
+    def create_runtime(self, runtime_name, runtime_memory, internal_storage):
+        print('----------------')
 
     def invoke(self, runtime_name, runtime_memory, payload):
         """
         Invoke -- return information about this invocation
         """
-        action_name = format_action_name(runtime_name, runtime_memory)
+        action_name = self._format_action_name(runtime_name, runtime_memory)
         return self.cf_client.invoke(self.package, action_name, payload)
+
+    def get_runtime_info(self, runtime_name, runtime_memory, internal_storage):
+        action_name = self._format_action_name(runtime_name, runtime_memory)
+        runtime_key = os.path.join(self.region, self.namespace, action_name)
+        runtime_meta = internal_storage.get_runtime_info(runtime_key)
+
+        return runtime_meta
