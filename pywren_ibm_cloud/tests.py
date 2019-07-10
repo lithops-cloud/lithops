@@ -2,7 +2,7 @@ import sys
 import unittest
 import pywren_ibm_cloud as pywren
 import urllib.request
-from pywren_ibm_cloud.storage.backends import cos
+from pywren_ibm_cloud.storage.backends import ibm_cos
 from pywren_ibm_cloud import wrenconfig
 from multiprocessing.pool import ThreadPool
 import logging
@@ -281,7 +281,7 @@ def run(config=None):
 
     CONFIG = wrenconfig.default(config)
     STORAGE_CONFIG = wrenconfig.extract_storage_config(CONFIG)
-    STORAGE = cos.COSBackend(STORAGE_CONFIG['ibm_cos'])
+    STORAGE = ibm_cos.IbmCosStorageBackend(STORAGE_CONFIG['ibm_cos'])
 
     if len(sys.argv) <= 1:
         task = 'full'
