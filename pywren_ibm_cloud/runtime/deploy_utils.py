@@ -73,7 +73,7 @@ def _create_zip_action():
 def _extract_modules(docker_image_name, internal_compute):
     # Extract installed Python modules from docker image
     pywren_location = _get_pywren_location()
-    action_location = os.path.join(pywren_location, "runtime", "extract_modules.py")
+    action_location = os.path.join(pywren_location, "runtime", "extract_preinstalls_fn.py")
 
     with open(action_location, "r") as action_py:
         action_code = action_py.read()

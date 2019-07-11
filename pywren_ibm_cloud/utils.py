@@ -44,14 +44,6 @@ def version_str(version_info):
     return "{}.{}".format(version_info[0], version_info[1])
 
 
-def runtime_valid(runtime_meta):
-    """
-    Basic checks
-    """
-    this_version_str = version_str(sys.version_info)
-    return this_version_str == runtime_meta['python_ver']
-
-
 def is_unix_system():
     curret_system = platform.system()
     return curret_system != 'Windows'

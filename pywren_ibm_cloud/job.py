@@ -7,9 +7,7 @@ import pywren_ibm_cloud as pywren
 import pywren_ibm_cloud.utils as wrenutil
 import pywren_ibm_cloud.wrenconfig as wrenconfig
 from pywren_ibm_cloud.wait import wait
-from pywren_ibm_cloud.utils import runtime_valid
-from pywren_ibm_cloud.runtime import create_runtime
-from pywren_ibm_cloud.compute import InternalCompute
+from pywren_ibm_cloud.runtime.preinstalls import get_runtime_preinstalls
 from pywren_ibm_cloud.serialize import serialize, create_mod_data
 from pywren_ibm_cloud.storage.backends.ibm_cos import IbmCosStorageBackend
 from pywren_ibm_cloud.partitioner import create_partitions, partition_processor
@@ -148,41 +146,6 @@ def _agg_data(data_strs):
     return b"".join(data_strs), ranges
 
 
-def _get_runtime_preinstalls(config, internal_storage, executor_id, runtime_name, runtime_memory):
-    """
-    Auxiliary method that gets the runtime metadata from the storage. This metadata contains the preinstalled
-    python modules needed to serialize the local function.  If the .metadata file does not exists in the storage,
-    this means that the runtime is not installed, so this method will proceed to install it.
-    """
-    log_level = os.getenv('PYWREN_LOG_LEVEL')
-    compute_config = wrenconfig.extract_compute_config(config)
-    internal_compute = InternalCompute(compute_config)
-
-    log_msg = 'ExecutorID {} - Selected Runtime: {} - {}MB'.format(executor_id, runtime_name, runtime_memory)
-    logger.info(log_msg)
-    if not log_level:
-        print(log_msg, end=' ')
-
-    runtime_key = internal_compute.get_runtime_key(runtime_name, runtime_memory)
-    try:
-        runtime_meta = internal_storage.get_runtime_info(runtime_key)
-        if not log_level:
-            print()
-    except Exception:
-        logger.debug('ExecutorID {} - Runtime {} with {}MB is not yet installed'.format(executor_id, runtime_name, runtime_memory))
-        if not log_level:
-            print('(Installing...)')
-        create_runtime(runtime_name, memory=runtime_memory, config=config)
-        runtime_meta = internal_storage.get_runtime_info(runtime_key)
-
-    if not runtime_valid(runtime_meta):
-        raise Exception(("The indicated runtime: {} "
-                         "is not appropriate for this Python version.")
-                        .format(runtime_name))
-
-    return runtime_meta['preinstalls']
-
-
 def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env=None, extra_meta=None,
                 runtime_name=None, runtime_memory=None, invoke_pool_threads=128, overwrite_invoke_args=None,
                 exclude_modules=None, original_func_name=None, remote_invocation=False, original_iterdata_len=None,
@@ -201,15 +164,16 @@ def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env
     :return: A list with size `len(iterdata)` of futures for each job
     :rtype:  list of futures.
     """
+    log_level = os.getenv('PYWREN_LOG_LEVEL')
+
     if runtime_name is None:
         runtime_name = config['pywren']['runtime']
     if runtime_memory is None:
         runtime_memory = config['pywren']['runtime_memory']
-
-    log_level = os.getenv('PYWREN_LOG_LEVEL')
-
     runtime_memory = int(runtime_memory)
-    runtime_preinstalls = _get_runtime_preinstalls(config, internal_storage, executor_id, runtime_name, runtime_memory)
+
+    runtime_preinstalls = get_runtime_preinstalls(config, internal_storage, executor_id,
+                                                  runtime_name, runtime_memory)
     serializer = serialize.SerializeIndependent(runtime_preinstalls)
 
     if original_func_name:
