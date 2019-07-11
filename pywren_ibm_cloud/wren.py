@@ -101,7 +101,7 @@ class ibm_cf_executor:
 
         storage_config = wrenconfig.extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
-        self.invoker = Invoker(self.config, self.internal_storage, self.executor_id)
+        self.invoker = Invoker(self.config, self.executor_id)
 
         self.executor_futures = []
         self.futures = []

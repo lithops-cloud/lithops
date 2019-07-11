@@ -52,14 +52,13 @@ class ResponseFuture:
     GET_RESULT_SLEEP_SECS = 1
     GET_RESULT_MAX_RETRIES = 10
 
-    def __init__(self, call_id, callgroup_id, executor_id, activation_id, invoke_metadata, storage_config):
+    def __init__(self, call_id, callgroup_id, executor_id, activation_id, storage_config, invoke_metadata):
         self.call_id = call_id
         self.callgroup_id = callgroup_id
         self.executor_id = executor_id
         self.activation_id = activation_id
-        self.produce_output = True
-
         self.storage_config = storage_config
+        self.produce_output = True
 
         self._state = JobState.new
         self._exception = Exception()
