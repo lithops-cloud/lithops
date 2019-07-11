@@ -2,8 +2,10 @@
 from pywren_ibm_cloud.runtime import create_runtime, update_runtime, build_runtime, delete_runtime, clean_runtimes
 import logging
 import click
+import os
 
 logging.basicConfig(level=logging.DEBUG)
+os.environ["PYWREN_LOG_LEVEL"] = 'DEBUG'
 
 
 @click.group()

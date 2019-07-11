@@ -21,9 +21,9 @@ import logging
 import zipfile
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.version import __version__
-from pywren_ibm_cloud.utils import version_str, format_action_name, unformat_action_name
-from pywren_ibm_cloud.storage import storage
-from pywren_ibm_cloud.libs.ibm.cloudfunctions_client import CloudFunctionsClient
+from pywren_ibm_cloud.utils import version_str
+from pywren_ibm_cloud.storage import InternalStorage
+from pywren_ibm_cloud.compute import InternalCompute
 
 logger = logging.getLogger(__name__)
 
@@ -70,28 +70,27 @@ def _create_zip_action():
         raise Exception('Unable to create the {} action package'.format(ZIP_LOCATION))
 
 
-def _extract_modules(image_name, cf_client):
+def _extract_modules(docker_image_name, internal_compute):
     # Extract installed Python modules from docker image
     pywren_location = _get_pywren_location()
-    action_location = os.path.join(pywren_location, "runtime", "extract_modules.py")
+    action_location = os.path.join(pywren_location, "runtime", "extract_preinstalls_fn.py")
 
     with open(action_location, "r") as action_py:
         action_code = action_py.read()
 
-    modules_action_name = format_action_name(image_name, 'modules').replace('MB', '')
+    memory = 192
 
     # old_stdout = sys.stdout
     # sys.stdout = open(os.devnull, 'w')
-    cf_client.create_action(PACKAGE, modules_action_name, image_name,
-                            code=action_code, is_binary=False)
+    internal_compute.create_runtime(docker_image_name, memory, code=action_code, is_binary=False)
     # sys.stdout = old_stdout
-    logger.debug("Extracting Python modules list from: {}".format(image_name))
+    logger.debug("Extracting Python modules list from: {}".format(docker_image_name))
     try:
-        runtime_meta = cf_client.invoke_with_result(PACKAGE, modules_action_name)
+        runtime_meta = internal_compute.invoke_with_result(docker_image_name, memory)
     except Exception:
         raise("Unable to invoke 'modules' action")
     try:
-        cf_client.delete_action(PACKAGE, modules_action_name)
+        internal_compute.delete_runtime(docker_image_name, memory)
     except Exception:
         raise("Unable to delete 'modules' action")
 
@@ -101,126 +100,112 @@ def _extract_modules(image_name, cf_client):
     return runtime_meta
 
 
-def _create_blackbox_runtime(image_name, memory, timeout, runtime_meta, cf_client, internal_storage):
-    # Create runtime_name from image_name
-    action_name = format_action_name(image_name, memory)
-
+def _create_blackbox_runtime(docker_image_name, memory, timeout, runtime_meta, internal_compute, internal_storage):
+    # Create runtime_name from runtime_name docker image
     # Upload zipped PyWren action
     with open(ZIP_LOCATION, "rb") as action_zip:
         action_bin = action_zip.read()
 
-    cf_client.create_action(PACKAGE, action_name, image_name, code=action_bin, memory=memory, timeout=timeout)
+    internal_compute.create_runtime(docker_image_name, memory, code=action_bin, timeout=timeout)
 
-    if runtime_meta:
-        region = cf_client.endpoint.split('//')[1].split('.')[0]
-        namespace = cf_client.namespace
+    if runtime_meta is not None:
         try:
-            internal_storage.put_runtime_info(region, namespace, action_name, runtime_meta)
+            runtime_key = internal_compute.get_runtime_key(docker_image_name, memory)
+            internal_storage.put_runtime_info(runtime_key, runtime_meta)
         except Exception:
-            raise("Unable to upload 'pre-installed modules' file to COS")
+            raise("Unable to upload 'preinstalled modules' file into {}".format(internal_storage.storage_backend))
 
 
-def create_runtime(image_name, memory=None, config=None):
-    if image_name == 'default':
-        image_name = _get_default_image_name()
-    logger.info('Creating new PyWren runtime based on image {}'.format(image_name))
+def create_runtime(docker_image_name, memory=None, config=None):
+    if docker_image_name == 'default':
+        docker_image_name = _get_default_image_name()
+    logger.info('Creating new PyWren runtime based on Docker image {}'.format(docker_image_name))
 
     config = wrenconfig.default(config)
     storage_config = wrenconfig.extract_storage_config(config)
-    internal_storage = storage.InternalStorage(storage_config)
+    internal_storage = InternalStorage(storage_config)
+    compute_config = wrenconfig.extract_compute_config(config)
+    internal_compute = InternalCompute(compute_config)
 
-    cf_config = wrenconfig.extract_cf_config(config)
-    cf_client = CloudFunctionsClient(cf_config)
-    cf_client.create_package(PACKAGE)
     _create_zip_action()
 
-    runtime_meta = _extract_modules(image_name, cf_client)
+    runtime_meta = _extract_modules(docker_image_name, internal_compute)
     memory = config['pywren']['runtime_memory'] if not memory else memory
     timeout = config['pywren']['runtime_timeout']
-    _create_blackbox_runtime(image_name, memory, timeout, runtime_meta,
-                             cf_client, internal_storage)
+    _create_blackbox_runtime(docker_image_name, memory, timeout, runtime_meta,
+                             internal_compute, internal_storage)
 
 
-def build_runtime(image_name, config=None):
-    logger.info('Creating a new docker image from the Dockerfile')
-    logger.info('Docker image name: {}'.format(image_name))
+def update_runtime(docker_image_name, config=None):
+    if docker_image_name == 'default':
+        docker_image_name = _get_default_image_name()
 
-    cmd = 'docker build -t {} .'.format(image_name)
-    res = os.system(cmd)
-    if res != 0:
-        exit()
-
-    cmd = 'docker push {}'.format(image_name)
-    res = os.system(cmd)
-    if res != 0:
-        exit()
-
-    create_runtime(image_name, config=config)
-    update_runtime(image_name, config=config)
-
-
-def update_runtime(image_name, config=None):
-    if image_name == 'default':
-        image_name = _get_default_image_name()
-
-    logger.info('Updating runtime: {}'.format(image_name))
+    logger.info('Updating runtime: {}'.format(docker_image_name))
 
     config = wrenconfig.default(config)
     storage_config = wrenconfig.extract_storage_config(config)
-    internal_storage = storage.InternalStorage(storage_config)
-    cf_config = wrenconfig.extract_cf_config(config)
-    cf_client = CloudFunctionsClient(cf_config)
-    cf_client.create_package(PACKAGE)
+    internal_storage = InternalStorage(storage_config)
+    compute_config = wrenconfig.extract_compute_config(config)
+    internal_compute = InternalCompute(compute_config)
     _create_zip_action()
 
     timeout = config['pywren']['runtime_timeout']
 
-    if image_name != 'all':
-        runtime_meta = _extract_modules(image_name, cf_client)
+    if docker_image_name != 'all':
+        runtime_meta = _extract_modules(docker_image_name, internal_compute)
     else:
         runtime_meta = None
 
-    actions = cf_client.list_actions(PACKAGE)
+    runtimes = internal_compute.list_runtimes(docker_image_name)
 
-    for action in actions:
-        if 'modules' in action['name']:
-            cf_client.delete_action(PACKAGE, action['name'])
-            continue
-        action_image_name, memory = unformat_action_name(action['name'])
-        if image_name == action_image_name or image_name == 'all':
-            _create_blackbox_runtime(action_image_name, memory, timeout, runtime_meta,
-                                     cf_client, internal_storage)
+    for runtime in runtimes:
+        _create_blackbox_runtime(runtime[0], runtime[1], timeout, runtime_meta,
+                                 internal_compute, internal_storage)
 
 
-def delete_runtime(image_name, config=None):
-    if image_name == 'default':
-        image_name = _get_default_image_name()
-    logger.info('Deleting runtime: {}'.format(image_name))
+def build_runtime(docker_image_name, config=None):
+    logger.info('Creating a new docker image from Dockerfile')
+    logger.info('Docker image name: {}'.format(docker_image_name))
+
+    cmd = 'docker build -t {} .'.format(docker_image_name)
+    res = os.system(cmd)
+    if res != 0:
+        exit()
+
+    cmd = 'docker push {}'.format(docker_image_name)
+    res = os.system(cmd)
+    if res != 0:
+        exit()
+
+    create_runtime(docker_image_name, config=config)
+    update_runtime(docker_image_name, config=config)
+
+
+def delete_runtime(docker_image_name, config=None):
+    if docker_image_name == 'default':
+        docker_image_name = _get_default_image_name()
+    logger.info('Deleting runtimes based on Docker image: {}'.format(docker_image_name))
 
     config = wrenconfig.default(config)
     storage_config = wrenconfig.extract_storage_config(config)
-    storage_client = storage.InternalStorage(storage_config)
-    cf_config = wrenconfig.extract_cf_config(config)
-    cf_client = CloudFunctionsClient(cf_config)
+    internal_storage = InternalStorage(storage_config)
+    compute_config = wrenconfig.extract_compute_config(config)
+    internal_compute = InternalCompute(compute_config)
 
-    actions = cf_client.list_actions(PACKAGE)
-    region = cf_client.endpoint.split('//')[1].split('.')[0]
-    namespace = cf_client.namespace
-
-    for action in actions:
-        action_image_name, memory = unformat_action_name(action['name'])
-        if image_name == action_image_name or image_name == 'all':
-            storage_client.delete_runtime_info(region, namespace, action['name'])
-            cf_client.delete_action(PACKAGE, action['name'])
+    runtimes = internal_compute.list_runtimes(docker_image_name)
+    for runtime in runtimes:
+        internal_compute.delete_runtime(runtime[0], runtime[1])
+        runtime_key = internal_compute.get_runtime_key(runtime[0], runtime[1])
+        internal_storage.delete_runtime_info(runtime_key)
 
 
 def clean_runtimes(config=None):
-    logger.info('Cleaning runtimes')
+    logger.info('Cleaning all runtimes')
     config = wrenconfig.default(config)
     storage_config = wrenconfig.extract_storage_config(config)
-    storage_client = storage.InternalStorage(storage_config)
-    cf_config = wrenconfig.extract_cf_config(config)
-    cf_client = CloudFunctionsClient(cf_config)
+    internal_storage = InternalStorage(storage_config)
+    compute_config = wrenconfig.extract_compute_config(config)
+    internal_compute = InternalCompute(compute_config)
 
     # Clean local runtime_meta cache
     LOCAL_HOME_DIR = os.path.expanduser('~')
@@ -228,17 +213,9 @@ def clean_runtimes(config=None):
     if os.path.exists(cache_dir):
         shutil.rmtree(cache_dir)
 
-    bh = storage_client.backend_handler
-    runtimes = bh.list_keys_with_prefix(storage_config['storage_bucket'], 'runtime')
+    sh = internal_storage.storage_handler
+    runtimes = sh.list_keys_with_prefix(storage_config['storage_bucket'], 'runtime')
     if runtimes:
-        bh.delete_objects(storage_config['storage_bucket'], runtimes)
+        sh.delete_objects(storage_config['storage_bucket'], runtimes)
 
-    packages = cf_client.list_packages()
-    for pkg in packages:
-        if 'pywren_v' in pkg['name']:
-            actions = cf_client.list_actions(pkg['name'])
-            while actions:
-                for action in actions:
-                    cf_client.delete_action(pkg['name'], action['name'])
-                actions = cf_client.list_actions(pkg['name'])
-            cf_client.delete_package(pkg['name'])
+    internal_compute.delete_all_runtimes()

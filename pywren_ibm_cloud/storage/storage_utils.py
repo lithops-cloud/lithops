@@ -88,7 +88,7 @@ def create_keys(prefix, executor_id, callgroup_id, call_id):
     data_key = create_data_key(prefix, executor_id, callgroup_id, call_id)
     output_key = create_output_key(prefix, executor_id, callgroup_id, call_id)
     status_key = create_status_key(prefix, executor_id, callgroup_id, call_id)
-    return data_key, output_key, status_key
+    return output_key, status_key
 
 
 def get_storage_path(storage_config):

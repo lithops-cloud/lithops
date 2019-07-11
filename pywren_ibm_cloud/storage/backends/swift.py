@@ -24,7 +24,7 @@ from ...utils import sizeof_fmt
 logger = logging.getLogger(__name__)
 
 
-class SwiftBackend:
+class SwiftStorageBackend:
     """
     A wrap-up around OpenStack Swift APIs.
     """
