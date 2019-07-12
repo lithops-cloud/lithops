@@ -4,21 +4,19 @@ import pickle
 import logging
 import inspect
 import pywren_ibm_cloud as pywren
-import pywren_ibm_cloud.utils as wrenutil
-import pywren_ibm_cloud.wrenconfig as wrenconfig
+from pywren_ibm_cloud import utils
 from pywren_ibm_cloud.wait import wait
 from pywren_ibm_cloud.runtime.preinstalls import get_runtime_preinstalls
 from pywren_ibm_cloud.serialize import serialize, create_mod_data
-from pywren_ibm_cloud.storage.backends.ibm_cos import IbmCosStorageBackend
 from pywren_ibm_cloud.partitioner import create_partitions, partition_processor
 from pywren_ibm_cloud.storage.storage_utils import create_func_key, create_agg_data_key
-
+from pywren_ibm_cloud.wrenconfig import RUNTIME_TIMEOUT, RUNTIME_RI_MEMORY_DEFAULT, MAX_AGG_DATA_SIZE
 
 logger = logging.getLogger(__name__)
 
 
 def create_call_async_job(config, internal_storage, executor_id, func, data, extra_env=None,
-                          extra_meta=None, runtime_memory=None, runtime_timeout=wrenconfig.RUNTIME_TIMEOUT):
+                          extra_meta=None, runtime_memory=None, runtime_timeout=RUNTIME_TIMEOUT):
     """
     Wrapper to create call_async job that contains only one function invocation.
     """
@@ -28,31 +26,33 @@ def create_call_async_job(config, internal_storage, executor_id, func, data, ext
 
 def create_map_job(config, internal_storage, executor_id, map_function, iterdata, obj_chunk_size=None,
                    extra_env=None, extra_meta=None, runtime_name=None, runtime_memory=None, remote_invocation=False,
-                   remote_invocation_groups=None, invoke_pool_threads=128,
-                   runtime_timeout=wrenconfig.RUNTIME_TIMEOUT, overwrite_invoke_args=None, exclude_modules=None):
+                   remote_invocation_groups=None, invoke_pool_threads=128, exclude_modules=None, is_cf_cluster=False,
+                   runtime_timeout=RUNTIME_TIMEOUT, overwrite_invoke_args=None):
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
     """
-    data = wrenutil.iterdata_as_list(iterdata)
+    data = utils.iterdata_as_list(iterdata)
     map_func = map_function
     map_iterdata = data
     new_invoke_pool_threads = invoke_pool_threads
     new_runtime_memory = runtime_memory
-    parts_per_object = None
 
-    if wrenutil.is_object_processing(map_function):
+    # Object processing functionality
+    parts_per_object = None
+    if utils.is_object_processing_function(map_function):
         '''
         If it is object processing function, create partitions according chunk_size
         '''
         logger.debug("Calling map on partitions from object storage flow")
-        arg_data = wrenutil.verify_args(map_function, data, object_processing=True)
-        # TODO: We suppose here that the data is always in IBM COS. Make it Generic.
-        storage = IbmCosStorageBackend(config['ibm_cos'])
-        map_iterdata, parts_per_object = create_partitions(arg_data, obj_chunk_size, storage)
+        arg_data = utils.verify_args(map_function, data, object_processing=True)
+        map_iterdata, parts_per_object = create_partitions(config, arg_data, obj_chunk_size)
         map_func = partition_processor(map_function)
+    # ########
 
     # Remote invocation functionality
-    original_iterdata_len = len(iterdata)
+    original_iterdata_len = len(map_iterdata)
+    if original_iterdata_len == 1 or is_cf_cluster:
+        remote_invocation = False
     if remote_invocation:
         rabbitmq_monitor = "PYWREN_RABBITMQ_MONITOR" in os.environ
 
@@ -72,7 +72,8 @@ def create_map_job(config, internal_storage, executor_id, map_function, iterdata
         else:
             map_iterdata = [iterdata]
         new_invoke_pool_threads = 1
-        new_runtime_memory = wrenconfig.RUNTIME_RI_MEMORY_DEFAULT
+        new_runtime_memory = RUNTIME_RI_MEMORY_DEFAULT
+    # ########
 
     job_description = _create_job(config, internal_storage, executor_id,
                                   map_func, map_iterdata,
@@ -93,7 +94,7 @@ def create_map_job(config, internal_storage, executor_id, map_function, iterdata
 def create_reduce_job(config, internal_storage, executor_id, reduce_function, reduce_runtime_memory,
                       map_futures, parts_per_object, reducer_one_per_object, extra_env, extra_meta):
     """
-    Apply a function across all futures.
+    Wrapper to create a reduce job. Apply a function across all map futures.
     """
     map_iterdata = [[map_futures, ]]
 
@@ -104,7 +105,7 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_function, re
             map_iterdata.append([map_futures[prev_total_partitons:prev_total_partitons+total_partitions]])
             prev_total_partitons = prev_total_partitons + total_partitions
 
-    def reduce_function_wrapper(fut_list, internal_storage, storage, ibm_cos):
+    def reduce_function_wrapper(fut_list, internal_storage, ibm_cos):
         logger.info('Waiting for results')
         if 'SHOW_MEMORY_USAGE' in os.environ:
             show_memory = eval(os.environ['SHOW_MEMORY_USAGE'])
@@ -117,12 +118,10 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_function, re
         reduce_func_args = {'results': results}
 
         if show_memory:
-            logger.debug("Memory usage after getting the results: {}".format(wrenutil.get_current_memory_usage()))
+            logger.debug("Memory usage after getting the results: {}".format(utils.get_current_memory_usage()))
 
         # Run reduce function
         func_sig = inspect.signature(reduce_function)
-        if 'storage' in func_sig.parameters:
-            reduce_func_args['storage'] = storage
         if 'ibm_cos' in func_sig.parameters:
             reduce_func_args['ibm_cos'] = ibm_cos
 
@@ -149,7 +148,7 @@ def _agg_data(data_strs):
 def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env=None, extra_meta=None,
                 runtime_name=None, runtime_memory=None, invoke_pool_threads=128, overwrite_invoke_args=None,
                 exclude_modules=None, original_func_name=None, remote_invocation=False, original_iterdata_len=None,
-                runtime_timeout=wrenconfig.RUNTIME_TIMEOUT):
+                runtime_timeout=RUNTIME_TIMEOUT):
     """
     :param func: the function to map over the data
     :param iterdata: An iterable of input data
@@ -181,18 +180,18 @@ def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env
     else:
         func_name = func.__name__
 
-    data = wrenutil.iterdata_as_list(iterdata)
+    data = utils.iterdata_as_list(iterdata)
 
     if extra_env is not None:
-        extra_env = wrenutil.convert_bools_to_string(extra_env)
+        extra_env = utils.convert_bools_to_string(extra_env)
 
     if not data:
         return []
 
     # This allows multiple parameters in functions
-    data = wrenutil.verify_args(func, data)
+    data = utils.verify_args(func, data)
 
-    callgroup_id = wrenutil.create_callgroup_id()
+    callgroup_id = utils.create_callgroup_id()
 
     host_job_meta = {}
     job_description = {}
@@ -227,7 +226,7 @@ def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env
     if not log_level:
         print(log_msg, end=' ')
 
-    if data_size_bytes < wrenconfig.MAX_AGG_DATA_SIZE:
+    if data_size_bytes < MAX_AGG_DATA_SIZE:
         agg_data_key = create_agg_data_key(internal_storage.prefix, executor_id, callgroup_id)
         job_description['data_key'] = agg_data_key
         agg_data_bytes, agg_data_ranges = _agg_data(data_strs)
@@ -239,7 +238,7 @@ def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env
         host_job_meta['data_upload_timestamp'] = time.time()
     else:
         log_msg = ('ExecutorID {} - Total data exceeded '
-                   'maximum size of {} bytes'.format(executor_id, wrenconfig.MAX_AGG_DATA_SIZE))
+                   'maximum size of {} bytes'.format(executor_id, MAX_AGG_DATA_SIZE))
         raise Exception(log_msg)
 
     if exclude_modules:
@@ -262,7 +261,7 @@ def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env
     host_job_meta['func_upload_timestamp'] = time.time()
 
     if not log_level:
-        func_and_data_size = wrenutil.sizeof_fmt(host_job_meta['func_module_bytes']+host_job_meta['data_size_bytes'])
+        func_and_data_size = utils.sizeof_fmt(host_job_meta['func_module_bytes']+host_job_meta['data_size_bytes'])
         log_msg = '- Total: {}'.format(func_and_data_size)
         print(log_msg)
 

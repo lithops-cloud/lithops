@@ -1,9 +1,9 @@
 import os
 import sys
 import logging
+from pywren_ibm_cloud.compute import Compute
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.runtime import create_runtime
-from pywren_ibm_cloud.compute import InternalCompute
 from pywren_ibm_cloud.wrenconfig import extract_compute_config
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ def get_runtime_preinstalls(config, internal_storage, executor_id, runtime_name,
     """
     log_level = os.getenv('PYWREN_LOG_LEVEL')
     compute_config = extract_compute_config(config)
-    internal_compute = InternalCompute(compute_config)
+    internal_compute = Compute(compute_config)
 
     log_msg = 'ExecutorID {} - Selected Runtime: {} - {}MB'.format(executor_id, runtime_name, runtime_memory)
     logger.info(log_msg)

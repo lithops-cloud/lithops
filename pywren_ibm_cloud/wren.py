@@ -25,7 +25,7 @@ import traceback
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.invoker import Invoker
-from pywren_ibm_cloud.storage import InternalStorage
+from pywren_ibm_cloud.storage import Storage
 from pywren_ibm_cloud.job import create_call_async_job, create_map_job, create_reduce_job
 from pywren_ibm_cloud.future import FunctionException
 from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
@@ -100,7 +100,7 @@ class ibm_cf_executor:
             self.config['rabbitmq']['amqp_url'] = None
 
         storage_config = wrenconfig.extract_storage_config(self.config)
-        self.internal_storage = InternalStorage(storage_config)
+        self.internal_storage = Storage(storage_config)
         self.invoker = Invoker(self.config, self.executor_id)
 
         self.executor_futures = []
@@ -161,10 +161,6 @@ class ibm_cf_executor:
             raise Exception('You cannot run pw.map() in the current state.'
                             ' Create a new pywren.ibm_cf_executor() instance.')
 
-        if len(map_iterdata) == 1 or self.is_cf_cluster:
-            # Ensure no remote invocation in these particular cases
-            remote_invocation = False
-
         job, unused_ppo = create_map_job(self.config, self.internal_storage, self.executor_id,
                                          map_function=map_function, iterdata=map_iterdata,
                                          extra_env=extra_env, extra_meta=extra_meta,
@@ -172,8 +168,9 @@ class ibm_cf_executor:
                                          remote_invocation=remote_invocation,
                                          remote_invocation_groups=remote_invocation_groups,
                                          invoke_pool_threads=invoke_pool_threads,
-                                         overwrite_invoke_args=overwrite_invoke_args,
                                          exclude_modules=exclude_modules,
+                                         is_cf_cluster=self.is_cf_cluster,
+                                         overwrite_invoke_args=overwrite_invoke_args,
                                          runtime_timeout=timeout)
         map_futures = self.invoker.run(job)
 
@@ -221,10 +218,6 @@ class ibm_cf_executor:
             raise Exception('You cannot run pw.map_reduce() in the current state.'
                             ' Create a new pywren.ibm_cf_executor() instance.')
 
-        if len(map_iterdata) == 1 or self.is_cf_cluster:
-            # Ensure no remote invocation in these particular cases
-            remote_invocation = False
-
         job, parts_per_object = create_map_job(self.config, self.internal_storage, self.executor_id,
                                                map_function=map_function, iterdata=map_iterdata,
                                                extra_env=extra_env, extra_meta=extra_meta,
@@ -232,8 +225,9 @@ class ibm_cf_executor:
                                                remote_invocation=remote_invocation,
                                                remote_invocation_groups=remote_invocation_groups,
                                                invoke_pool_threads=invoke_pool_threads,
-                                               overwrite_invoke_args=overwrite_invoke_args,
                                                exclude_modules=exclude_modules,
+                                               is_cf_cluster=self.is_cf_cluster,
+                                               overwrite_invoke_args=overwrite_invoke_args,
                                                runtime_timeout=timeout)
         map_futures = self.invoker.run(job)
 

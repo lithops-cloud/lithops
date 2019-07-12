@@ -26,7 +26,7 @@ import numpy as np
 from multiprocessing import Process
 from distutils.util import strtobool
 from pywren_ibm_cloud import wrenlogging
-from pywren_ibm_cloud.storage import InternalStorage
+from pywren_ibm_cloud.storage import Storage
 from pywren_ibm_cloud.future import ResponseFuture
 from pywren_ibm_cloud.utils import sizeof_fmt, b64str_to_bytes
 from pywren_ibm_cloud.wrenconfig import extract_storage_config
@@ -64,7 +64,7 @@ class jobrunner(Process):
         wrenlogging.ow_config(log_level)
         self.stats = stats(self.config['stats_filename'])
         self.stats.write('jobrunner_start', start_time)
-        pw_config = json.loads(os.environ.get('PYWREN_CONFIG', ''))
+        pw_config = json.loads(os.environ.get('PYWREN_CONFIG'))
         self.storage_config = extract_storage_config(pw_config)
 
         if 'SHOW_MEMORY_USAGE' in os.environ:
@@ -156,15 +156,6 @@ class jobrunner(Process):
         # Verify storage parameters - Create clients
         func_sig = inspect.signature(function)
 
-        if 'storage' in func_sig.parameters:
-            # 'storage' generic parameter used in map_reduce method
-            if 'ibm_cos' in self.storage_config:
-                mr_storage_client = IbmCosStorageBackend(self.storage_config['ibm_cos'])
-            elif 'swift' in self.storage_config:
-                mr_storage_client = SwiftStorageBackend(self.storage_config['swift'])
-
-            data['storage'] = mr_storage_client
-
         if 'ibm_cos' in func_sig.parameters:
             ibm_boto3_client = IbmCosStorageBackend(self.storage_config['ibm_cos']).get_client()
             data['ibm_cos'] = ibm_boto3_client
@@ -187,7 +178,7 @@ class jobrunner(Process):
         result = None
         exception = False
         try:
-            self.internal_storage = InternalStorage(self.storage_config)
+            self.internal_storage = Storage(self.storage_config)
 
             loaded_func_all = self._get_function_and_modules()
             self._save_modules(loaded_func_all['module_data'])

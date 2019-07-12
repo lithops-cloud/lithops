@@ -14,13 +14,16 @@
 # limitations under the License.
 #
 
+import io
+import os
+import json
+import struct
 import logging
 import requests
 import inspect
-import struct
-import io
 from pywren_ibm_cloud import utils
 from multiprocessing.pool import ThreadPool
+from pywren_ibm_cloud.storage.backends.ibm_cos import IbmCosStorageBackend
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +35,7 @@ def partition_processor(map_function):
     Method that returns the function to process objects in the Cloud.
     It creates a ready-to-use data_stream parameter
     """
-    def object_processing_wrapper(map_func_args, data_byte_range, chunk_size, storage, ibm_cos):
+    def object_processing_wrapper(map_func_args, data_byte_range, chunk_size, ibm_cos):
         extra_get_args = {}
         if data_byte_range is not None:
             range_str = 'bytes={}-{}'.format(*data_byte_range)
@@ -51,6 +54,8 @@ def partition_processor(map_function):
                 bucket = map_func_args['bucket']
                 key = map_func_args['key']
 
+            config = json.loads(os.environ.get('PYWREN_CONFIG'))
+            storage = IbmCosStorageBackend(config['ibm_cos'])
             logger.info('Getting dataset from cos://{}/{}'.format(bucket, key))
             sb = storage.get_object(bucket, key, stream=True, extra_get_args=extra_get_args)
             if data_byte_range is not None:
@@ -68,11 +73,15 @@ def partition_processor(map_function):
     return object_processing_wrapper
 
 
-def create_partitions(arg_data, chunk_size, storage):
+def create_partitions(config, arg_data, chunk_size):
     """
     Method that returns the function that will create the partitions of the objects in the Cloud
     """
     logger.debug('Starting partitioner')
+
+    # We suppose here that the data is always in IBM COS.  TODO: Make it Generic.
+    storage = IbmCosStorageBackend(config['ibm_cos'])
+
     map_func_keys = arg_data[0].keys()
     parts_per_object = None
 

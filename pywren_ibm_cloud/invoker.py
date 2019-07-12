@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.version import __version__
 from concurrent.futures import ThreadPoolExecutor
-from pywren_ibm_cloud.compute import InternalCompute
+from pywren_ibm_cloud.compute import Compute
 from pywren_ibm_cloud.future import ResponseFuture, JobState
 from pywren_ibm_cloud.wrenconfig import extract_storage_config
 from pywren_ibm_cloud.storage.storage_utils import create_output_key, create_status_key
@@ -21,13 +21,13 @@ class Invoker:
         self.executor_id = executor_id
 
         compute_config = wrenconfig.extract_compute_config(self.config)
-        self.internal_compute = InternalCompute(compute_config)
+        self.internal_compute = Compute(compute_config)
 
     def run(self, job_description):
         job = SimpleNamespace(**job_description)
         storage_config = extract_storage_config(self.config)
 
-        if job.remote_invocation and job.original_iterdata_len > 1:
+        if job.remote_invocation:
             log_msg = ('ExecutorID {} - Starting {} remote invocation function: Spawning {}() '
                        '- Total: {} activations'.format(self.executor_id, job.total_data_items,
                                                         job.func_name, job.original_iterdata_len))

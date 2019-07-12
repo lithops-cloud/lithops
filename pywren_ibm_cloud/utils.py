@@ -71,7 +71,7 @@ def is_notebook():
         return False      # Probably standard Python interpreter
 
 
-def is_object_processing(map_function):
+def is_object_processing_function(map_function):
     func_sig = inspect.signature(map_function)
     return {'bucket', 'key', 'url'} & set(func_sig.parameters)
 
@@ -240,16 +240,15 @@ class WrappedStreamingBody:
 
 def verify_args(func, data, object_processing=False):
     # Verify parameters
-    none_verify_parameters = ['storage', 'ibm_cos', 'swift', 'internal_storage']
+    non_verify_args = ['ibm_cos', 'swift', 'internal_storage']
     func_sig = inspect.signature(func)
 
     # Check mandatory parameters in function
     if object_processing:
-        none_verify_parameters.append('data_stream')
+        non_verify_args.append('data_stream')
         err_msg = 'parameter in your map_function() is mandatory for pywren.map_reduce(map_function,...)'
         if 'bucket' in func_sig.parameters:
-            none_verify_parameters.append('key')
-            none_verify_parameters.append('prefix')
+            non_verify_args.append('key')
             if 'key' not in func_sig.parameters:
                 raise ValueError('"key" {}'.format(err_msg))
             if 'data_stream' not in func_sig.parameters:
@@ -260,7 +259,7 @@ def verify_args(func, data, object_processing=False):
 
     new_parameters = list()
     for param in func_sig.parameters:
-        if func_sig.parameters[param].default is not None and param not in none_verify_parameters:
+        if func_sig.parameters[param].default is not None and param not in non_verify_args:
             new_parameters.append(func_sig.parameters[param])
 
     new_func_sig = func_sig.replace(parameters=new_parameters)
@@ -279,7 +278,7 @@ def verify_args(func, data, object_processing=False):
             new_elem = dict(new_func_sig.bind(*list(elem)).arguments)
             new_data.append(new_elem)
         else:
-            # single value (string, integer, list, etc)
+            # single value (string, integer, etc)
             new_elem = dict(new_func_sig.bind(elem).arguments)
             new_data.append(new_elem)
 
