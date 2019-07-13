@@ -18,7 +18,7 @@ import time
 import enum
 import pickle
 import logging
-from pywren_ibm_cloud.storage import Storage
+from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.storage.storage_utils import check_storage_path, get_storage_path
 from pywren_ibm_cloud.libs.tblib import pickling_support
 
@@ -128,7 +128,7 @@ class ResponseFuture:
             return self.run_status
 
         if internal_storage is None:
-            internal_storage = Storage(self.storage_config)
+            internal_storage = InternalStorage(self.storage_config)
 
         check_storage_path(internal_storage.get_storage_config(), self.storage_path)
         call_status = internal_storage.get_call_status(self.executor_id, self.callgroup_id, self.call_id)
@@ -219,7 +219,7 @@ class ResponseFuture:
             return self._new_futures
 
         if internal_storage is None:
-            internal_storage = Storage(storage_config=self.storage_config)
+            internal_storage = InternalStorage(storage_config=self.storage_config)
 
         self.status(check_only, throw_except, internal_storage)
 

@@ -1,19 +1,3 @@
-#
-# Copyright 2018 PyWren Team
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-
 import os
 import sys
 import time
@@ -23,13 +7,13 @@ import signal
 import logging
 import traceback
 from pywren_ibm_cloud import wrenconfig
-from pywren_ibm_cloud import wrenlogging
 from pywren_ibm_cloud.invoker import Invoker
-from pywren_ibm_cloud.storage import Storage
-from pywren_ibm_cloud.job import create_call_async_job, create_map_job, create_reduce_job
+from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.future import FunctionException
 from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
 from pywren_ibm_cloud.storage.cleaner import clean_os_bucket
+from pywren_ibm_cloud.logging_config import default_logging_config
+from pywren_ibm_cloud.job import create_call_async_job, create_map_job, create_reduce_job
 from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_cf_cluster, create_executor_id
 
 logger = logging.getLogger(__name__)
@@ -48,14 +32,14 @@ class ibm_cf_executor:
 
     def __init__(self, config=None, runtime=None, runtime_memory=None, log_level=None, rabbitmq_monitor=False):
         """
-        Initialize and return an executor class.
+        Initialize and return a ServerlessExecutor class.
 
-        :param config: Settings passed in here will override those in `pywren_config`. Default None.
+        :param config: Settings passed in here will override those in config file. Default None.
         :param runtime: Runtime name to use. Default None.
         :param runtime_memory: memory to use in the runtime
         :param log_level: log level to use during the execution
         :param rabbitmq_monitor: use rabbitmq as monitoring system
-        :return `executor` object.
+        :return `ServerlessExecutor` object.
 
         Usage
           >>> import pywren_ibm_cloud as pywren
@@ -81,7 +65,7 @@ class ibm_cf_executor:
         if self.log_level:
             os.environ["PYWREN_LOG_LEVEL"] = self.log_level
             if not self.is_cf_cluster:
-                wrenlogging.default_config(self.log_level)
+                default_logging_config(self.log_level)
 
         if 'PYWREN_EXECUTOR_ID' in os.environ:
             self.executor_id = os.environ['PYWREN_EXECUTOR_ID']
@@ -100,7 +84,7 @@ class ibm_cf_executor:
             self.config['rabbitmq']['amqp_url'] = None
 
         storage_config = wrenconfig.extract_storage_config(self.config)
-        self.internal_storage = Storage(storage_config)
+        self.internal_storage = InternalStorage(storage_config)
         self.invoker = Invoker(self.config, self.executor_id)
 
         self.executor_futures = []
@@ -158,9 +142,8 @@ class ibm_cf_executor:
           >>> futures = pw.map(foo, data_list)
         """
         if self._state == ExecutorState.finished:
-            raise Exception('You cannot run pw.map() in the current state.'
-                            ' Create a new pywren.ibm_cf_executor() instance.')
-
+            raise Exception('You cannot run map() in the current state.'
+                            ' Create a new ibm_cf_executor() instance.')
         job, unused_ppo = create_map_job(self.config, self.internal_storage, self.executor_id,
                                          map_function=map_function, iterdata=map_iterdata,
                                          extra_env=extra_env, extra_meta=extra_meta,
@@ -215,8 +198,8 @@ class ibm_cf_executor:
         """
 
         if self._state == ExecutorState.finished:
-            raise Exception('You cannot run pw.map_reduce() in the current state.'
-                            ' Create a new pywren.ibm_cf_executor() instance.')
+            raise Exception('You cannot run map_reduce() in the current state.'
+                            ' Create a new ibm_cf_executor() instance.')
 
         job, parts_per_object = create_map_job(self.config, self.internal_storage, self.executor_id,
                                                map_function=map_function, iterdata=map_iterdata,
@@ -286,8 +269,8 @@ class ibm_cf_executor:
             ftrs = self.futures
 
         if not ftrs:
-            raise Exception('You must run pw.call_async(), pw.map()'
-                            ' or pw.map_reduce() before calling pw.get_result()')
+            raise Exception('You must run call_async(), map() or map_reduce()'
+                            ' before calling get_result() method')
 
         rabbit_amqp_url = None
         if self.rabbitmq_monitor:
@@ -384,7 +367,7 @@ class ibm_cf_executor:
     def get_result(self, futures=None, throw_except=True, timeout=wrenconfig.RUNTIME_TIMEOUT,
                    THREADPOOL_SIZE=64, WAIT_DUR_SEC=1):
         """
-        For getting PyWren results
+        For getting results
         :param futures: Futures list. Default None
         :param throw_except: Reraise exception if call raised. Default True.
         :param verbose: Shows some information prints. Default False
@@ -408,7 +391,7 @@ class ibm_cf_executor:
             self.executor_futures.append(self.futures)
             self.futures = []
         self._state = ExecutorState.success
-        msg = "Executor ID {} Finished getting results".format(self.executor_id)
+        msg = "ExecutorID {} Finished getting results".format(self.executor_id)
         logger.debug(msg)
         if result and len(result) == 1:
             return result[0]
@@ -422,10 +405,10 @@ class ibm_cf_executor:
         :param dst_dir: destination folder to save .png plots.
         :param dst_file_name: name of the file.
         """
-        if futures is None and self._state == ExecutorState.new or self._state == ExecutorState.running:
-            raise Exception('You must run pw.call_async(), pw.map() or pw.map_reduce()'
-                            ' followed by pw.monitor() or pw.get_results()'
-                            ' before calling pw.create_timeline_plots()')
+        if futures is None and (self._state == ExecutorState.new or self._state == ExecutorState.running):
+            raise Exception('You must run call_async(), map() or map_reduce()'
+                            ' followed by monitor() or get_results()'
+                            ' before calling create_timeline_plots() method')
 
         if not futures:
             if self.futures:

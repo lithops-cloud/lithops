@@ -2,7 +2,7 @@ import sys
 import unittest
 import pywren_ibm_cloud as pywren
 import urllib.request
-from pywren_ibm_cloud.storage import Storage
+from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud import wrenconfig
 from multiprocessing.pool import ThreadPool
 import logging
@@ -281,7 +281,7 @@ def run(config=None):
 
     CONFIG = wrenconfig.default(config)
     STORAGE_CONFIG = wrenconfig.extract_storage_config(CONFIG)
-    internal_storage = Storage(STORAGE_CONFIG)
+    internal_storage = InternalStorage(STORAGE_CONFIG)
     STORAGE = internal_storage.storage_handler
 
     if len(sys.argv) <= 1:

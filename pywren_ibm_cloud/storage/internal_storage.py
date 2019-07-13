@@ -12,13 +12,13 @@ LOCAL_HOME_DIR = os.path.expanduser('~')
 logger = logging.getLogger(__name__)
 
 
-class Storage:
+class InternalStorage:
     """
     An InternalStorage object is used by executors and other components to access underlying storage backend
     without exposing the the implementation details.
     """
 
-    def __init__(self, storage_config=None):
+    def __init__(self, storage_config):
 
         self.storage_config = storage_config
         self.storage_backend = self.storage_config['storage_backend']

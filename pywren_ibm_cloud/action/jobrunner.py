@@ -25,15 +25,15 @@ import inspect
 import numpy as np
 from multiprocessing import Process
 from distutils.util import strtobool
-from pywren_ibm_cloud import wrenlogging
-from pywren_ibm_cloud.storage import Storage
+from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.future import ResponseFuture
+from pywren_ibm_cloud.libs.tblib import pickling_support
 from pywren_ibm_cloud.utils import sizeof_fmt, b64str_to_bytes
 from pywren_ibm_cloud.wrenconfig import extract_storage_config
 from pywren_ibm_cloud.utils import get_current_memory_usage
 from pywren_ibm_cloud.storage.backends.ibm_cos import IbmCosStorageBackend
 from pywren_ibm_cloud.storage.backends.swift import SwiftStorageBackend
-from pywren_ibm_cloud.libs.tblib import pickling_support
+from pywren_ibm_cloud.logging_config import ibm_cf_logging_config
 
 pickling_support.install()
 logger = logging.getLogger('jobrunner')
@@ -61,7 +61,7 @@ class jobrunner(Process):
         self.config = jr_config
         log_level = self.config['log_level']
         self.result_queue = result_queue
-        wrenlogging.ow_config(log_level)
+        ibm_cf_logging_config(log_level)
         self.stats = stats(self.config['stats_filename'])
         self.stats.write('jobrunner_start', start_time)
         pw_config = json.loads(os.environ.get('PYWREN_CONFIG'))
@@ -178,7 +178,7 @@ class jobrunner(Process):
         result = None
         exception = False
         try:
-            self.internal_storage = Storage(self.storage_config)
+            self.internal_storage = InternalStorage(self.storage_config)
 
             loaded_func_all = self._get_function_and_modules()
             self._save_modules(loaded_func_all['module_data'])

@@ -1,1 +1,1 @@
-from .storage import Storage
+from .internal_storage import InternalStorage

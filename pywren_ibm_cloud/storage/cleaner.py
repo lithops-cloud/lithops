@@ -16,7 +16,7 @@
 
 import logging
 import json
-from . import Storage
+from . import InternalStorage
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ def clean_bucket(bucket, prefix, storage_config):
     Wrapper of clean_os_bucket(). Use this method only when storage_config is
     in JSON format. In any other case, call directly clean_os_bucket() method.
     """
-    internal_storage = Storage(json.loads(storage_config))
+    internal_storage = InternalStorage(json.loads(storage_config))
     # sys.stdout = open(os.devnull, 'w')
     clean_os_bucket(bucket, prefix, internal_storage)
     # sys.stdout = sys.__stdout__

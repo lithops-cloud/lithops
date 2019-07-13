@@ -20,7 +20,7 @@ import shutil
 import logging
 import zipfile
 from pywren_ibm_cloud import wrenconfig
-from pywren_ibm_cloud.storage import Storage
+from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.compute import Compute
 from pywren_ibm_cloud.utils import version_str
 
@@ -121,7 +121,7 @@ def create_runtime(docker_image_name, memory=None, config=None):
 
     config = wrenconfig.default(config)
     storage_config = wrenconfig.extract_storage_config(config)
-    internal_storage = Storage(storage_config)
+    internal_storage = InternalStorage(storage_config)
     compute_config = wrenconfig.extract_compute_config(config)
     internal_compute = Compute(compute_config)
 
@@ -142,7 +142,7 @@ def update_runtime(docker_image_name, config=None):
 
     config = wrenconfig.default(config)
     storage_config = wrenconfig.extract_storage_config(config)
-    internal_storage = Storage(storage_config)
+    internal_storage = InternalStorage(storage_config)
     compute_config = wrenconfig.extract_compute_config(config)
     internal_compute = Compute(compute_config)
     _create_zip_action()
@@ -186,7 +186,7 @@ def delete_runtime(docker_image_name, config=None):
 
     config = wrenconfig.default(config)
     storage_config = wrenconfig.extract_storage_config(config)
-    internal_storage = Storage(storage_config)
+    internal_storage = InternalStorage(storage_config)
     compute_config = wrenconfig.extract_compute_config(config)
     internal_compute = Compute(compute_config)
 
@@ -201,7 +201,7 @@ def clean_runtimes(config=None):
     logger.info('Cleaning all runtimes')
     config = wrenconfig.default(config)
     storage_config = wrenconfig.extract_storage_config(config)
-    internal_storage = Storage(storage_config)
+    internal_storage = InternalStorage(storage_config)
     compute_config = wrenconfig.extract_compute_config(config)
     internal_compute = Compute(compute_config)
 
