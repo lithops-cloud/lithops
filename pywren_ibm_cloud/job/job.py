@@ -6,8 +6,8 @@ import inspect
 import pywren_ibm_cloud as pywren
 from pywren_ibm_cloud import utils
 from pywren_ibm_cloud.wait import wait
-from pywren_ibm_cloud.runtime.preinstalls import get_runtime_preinstalls
-from pywren_ibm_cloud.serialize import serialize, create_mod_data
+from pywren_ibm_cloud.runtime import select_runtime
+from pywren_ibm_cloud.job.serialize import SerializeIndependent, create_module_data
 from pywren_ibm_cloud.partitioner import create_partitions, partition_processor
 from pywren_ibm_cloud.storage.storage_utils import create_func_key, create_agg_data_key
 from pywren_ibm_cloud.wrenconfig import RUNTIME_TIMEOUT, RUNTIME_RI_MEMORY_DEFAULT, MAX_AGG_DATA_SIZE
@@ -171,9 +171,9 @@ def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env
         runtime_memory = config['pywren']['runtime_memory']
     runtime_memory = int(runtime_memory)
 
-    runtime_preinstalls = get_runtime_preinstalls(config, internal_storage, executor_id,
-                                                  runtime_name, runtime_memory)
-    serializer = serialize.SerializeIndependent(runtime_preinstalls)
+    runtime_preinstalls = select_runtime(config, internal_storage, executor_id,
+                                         runtime_name, runtime_memory)
+    serializer = SerializeIndependent(runtime_preinstalls)
 
     if original_func_name:
         func_name = original_func_name
@@ -247,7 +247,7 @@ def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env
                 if module in mod_path and mod_path in mod_paths:
                     mod_paths.remove(mod_path)
 
-    module_data = create_mod_data(mod_paths)
+    module_data = create_module_data(mod_paths)
     # Create func and upload
     host_job_meta['func_name'] = func_name
     func_module_str = pickle.dumps({'func': func_str, 'module_data': module_data}, -1)

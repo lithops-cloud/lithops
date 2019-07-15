@@ -9,15 +9,7 @@ from pywren_ibm_cloud.wrenconfig import extract_compute_config
 logger = logging.getLogger(__name__)
 
 
-def runtime_valid(runtime_meta):
-    """
-    Basic checks
-    """
-    this_version_str = version_str(sys.version_info)
-    return this_version_str == runtime_meta['python_ver']
-
-
-def get_runtime_preinstalls(config, internal_storage, executor_id, runtime_name, runtime_memory):
+def select_runtime(config, internal_storage, executor_id, runtime_name, runtime_memory):
     """
     Auxiliary method that gets the runtime metadata from the storage. This metadata contains the preinstalled
     python modules needed to serialize the local function.  If the .metadata file does not exists in the storage,
@@ -44,9 +36,17 @@ def get_runtime_preinstalls(config, internal_storage, executor_id, runtime_name,
         create_runtime(runtime_name, memory=runtime_memory, config=config)
         runtime_meta = internal_storage.get_runtime_info(runtime_key)
 
-    if not runtime_valid(runtime_meta):
+    if not _runtime_valid(runtime_meta):
         raise Exception(("The indicated runtime: {} "
                          "is not appropriate for this Python version.")
                         .format(runtime_name))
 
     return runtime_meta['preinstalls']
+
+
+def _runtime_valid(runtime_meta):
+    """
+    Basic checks
+    """
+    this_version_str = version_str(sys.version_info)
+    return this_version_str == runtime_meta['python_ver']
