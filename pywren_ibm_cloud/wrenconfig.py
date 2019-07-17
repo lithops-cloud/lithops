@@ -126,8 +126,8 @@ def default(config_data=None):
 
             config_data = load(config_filename)
 
-    if not set(('pywren', 'ibm_cf', 'ibm_cos')).issubset(set(config_data)):
-        raise Exception("pywren, ibm_cf and ibm_cos sections are mandatory in the configuration")
+    if not set(('pywren', 'ibm_cos')).issubset(set(config_data)):
+        raise Exception("pywren and ibm_cos sections are mandatory in the configuration")
 
     if 'storage_backend' not in config_data['pywren']:
         config_data['pywren']['storage_backend'] = STORAGE_BACKEND_DEFAULT
@@ -163,7 +163,7 @@ def default(config_data=None):
     if 'ibm_auth_endpoint' not in config_data['ibm_iam']:
         config_data['ibm_iam']['ibm_auth_endpoint'] = IBM_AUTH_ENDPOINT_DEFAULT
 
-    if 'api_key' not in config_data['ibm_iam'] and 'api_key' not in config_data['ibm_cf']:
+    if 'ibm_cf' in config_data and 'api_key' not in config_data['ibm_iam'] and 'api_key' not in config_data['ibm_cf']:
         raise Exception("You must provide an IAM api_key, or CF api_key in the configuration")
 
     if 'rabbitmq' not in config_data or not config_data['rabbitmq'] \
@@ -210,6 +210,9 @@ def extract_storage_config(config):
 def extract_compute_config(config):
     compute_config = dict()
     compute_config['compute_backend'] = config['pywren']['compute_backend']
+    
+    if 'knative' in config:
+       compute_config['knative'] = config['knative']
 
     if 'ibm_cf' in config:
         compute_config['ibm_cf'] = config['ibm_cf']

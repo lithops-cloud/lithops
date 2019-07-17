@@ -3,7 +3,8 @@ import time
 import random
 import logging
 import threading
-from .backends.ibm_cf import IbmCfComputeBackend
+from .backends.ibm_cf import IbmCfComputeBackend 
+from .backends.knative import KnativeComputeBackend
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +30,12 @@ class Compute(metaclass=ThreadSafeSingleton):
     def __init__(self, compute_config):
         self.log_level = os.getenv('PYWREN_LOG_LEVEL')
         self.compute_config = compute_config
-
         self.compute_backend = compute_config['compute_backend']
 
         if self.compute_backend == 'ibm_cf':
             self.compute_handler = IbmCfComputeBackend(compute_config['ibm_cf'])
+        elif self.compute_backend == 'knative':
+            self.compute_handler = KnativeComputeBackend(compute_config['knative'])
 
         else:
             raise NotImplementedError(("Using {} as compute backend is" +
