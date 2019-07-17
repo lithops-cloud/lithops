@@ -36,8 +36,8 @@ pywren:
     storage_bucket: <BUCKET_NAME>
 
 ibm_cf:
-    # Obtain all values from https://cloud.ibm.com/openwhisk/learn/api-key
-    endpoint    : <HOST>  # make sure to use https:// as prefix
+    # Region endpoint example: https://us-east.functions.cloud.ibm.com
+    endpoint    : <REGION_ENDPOINTT>  # make sure to use https:// as prefix
     namespace   : <NAMESPACE>
     api_key     : <API_KEY>
    
