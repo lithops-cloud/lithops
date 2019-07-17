@@ -12,11 +12,7 @@ Create knative runtime:
 add the image to service.yaml file
 pre-built image: **sadek/kpywren**
 
-Add the runtime meatadata to the storage by manually creating an empty default runtime_meta such:
-
-	runtime_meta = {'python_ver': python_version_str, 'preinstalls': []}
-
-Create the Knative serving service:
+Create the Knative service:
 
 	kubectl apply --filename service.yaml
 
