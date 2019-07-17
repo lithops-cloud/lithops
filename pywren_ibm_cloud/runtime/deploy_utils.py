@@ -20,15 +20,13 @@ import shutil
 import logging
 import zipfile
 from pywren_ibm_cloud import wrenconfig
-from pywren_ibm_cloud.version import __version__
-from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.storage import InternalStorage
-from pywren_ibm_cloud.compute import InternalCompute
+from pywren_ibm_cloud.compute import Compute
+from pywren_ibm_cloud.utils import version_str
 
 logger = logging.getLogger(__name__)
 
 ZIP_LOCATION = os.path.join(os.getcwd(), 'ibmcf_pywren.zip')
-PACKAGE = 'pywren_v'+__version__
 
 
 def _get_default_image_name():
@@ -125,7 +123,7 @@ def create_runtime(docker_image_name, memory=None, config=None):
     storage_config = wrenconfig.extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
     compute_config = wrenconfig.extract_compute_config(config)
-    internal_compute = InternalCompute(compute_config)
+    internal_compute = Compute(compute_config)
 
     _create_zip_action()
 
@@ -146,7 +144,7 @@ def update_runtime(docker_image_name, config=None):
     storage_config = wrenconfig.extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
     compute_config = wrenconfig.extract_compute_config(config)
-    internal_compute = InternalCompute(compute_config)
+    internal_compute = Compute(compute_config)
     _create_zip_action()
 
     timeout = config['pywren']['runtime_timeout']
@@ -190,7 +188,7 @@ def delete_runtime(docker_image_name, config=None):
     storage_config = wrenconfig.extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
     compute_config = wrenconfig.extract_compute_config(config)
-    internal_compute = InternalCompute(compute_config)
+    internal_compute = Compute(compute_config)
 
     runtimes = internal_compute.list_runtimes(docker_image_name)
     for runtime in runtimes:
@@ -205,7 +203,7 @@ def clean_runtimes(config=None):
     storage_config = wrenconfig.extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
     compute_config = wrenconfig.extract_compute_config(config)
-    internal_compute = InternalCompute(compute_config)
+    internal_compute = Compute(compute_config)
 
     # Clean local runtime_meta cache
     LOCAL_HOME_DIR = os.path.expanduser('~')

@@ -20,7 +20,7 @@ class ThreadSafeSingleton(type):
         return cls._instances[cls]
 
 
-class InternalCompute(metaclass=ThreadSafeSingleton):
+class Compute(metaclass=ThreadSafeSingleton):
     """
     An InternalCompute object is used by invokers and other components to access underlying compute backend
     without exposing the the implementation details.

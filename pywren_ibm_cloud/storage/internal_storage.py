@@ -18,7 +18,7 @@ class InternalStorage:
     without exposing the the implementation details.
     """
 
-    def __init__(self, storage_config=None):
+    def __init__(self, storage_config):
 
         self.storage_config = storage_config
         self.storage_backend = self.storage_config['storage_backend']

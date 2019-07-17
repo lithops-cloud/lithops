@@ -1,1 +1,1 @@
-from .compute import InternalCompute
+from .compute import Compute
