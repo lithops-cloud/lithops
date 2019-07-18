@@ -61,7 +61,7 @@ pywren:
 
 ibm_cf:
     # Region endpoint example: https://us-east.functions.cloud.ibm.com
-    endpoint    : <REGION_ENDPOINTT>  # make sure to use https:// as prefix
+    endpoint    : <REGION_ENDPOINT>  # make sure to use https:// as prefix
     namespace   : <NAMESPACE>
     api_key     : <API_KEY>
    
