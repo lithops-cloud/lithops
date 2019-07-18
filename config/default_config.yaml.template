@@ -10,12 +10,12 @@ pywren:
     #retry_sleeps: [1, 5, 10, 20, 30]
     #retries: 5
 
-ibm_iam:
-    api_key: <IAM KEY>
-    #ibm_auth_endpoint: <IAM ENDPOINT>
+#ibm_iam:
+#    api_key: <IAM KEY>
+#    ibm_auth_endpoint: <IAM ENDPOINT>
 
 ibm_cf:
-    endpoint    : <HOST>
+    endpoint    : <REGION_ENDPOINT>
     namespace   : <NAMESPACE>
     api_key     : <API_KEY>
 

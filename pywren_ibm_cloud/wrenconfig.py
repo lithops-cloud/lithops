@@ -210,6 +210,9 @@ def extract_storage_config(config):
 def extract_compute_config(config):
     compute_config = dict()
     compute_config['compute_backend'] = config['pywren']['compute_backend']
+    compute_config['invocation_retry'] = config['pywren']['invocation_retry']
+    compute_config['retry_sleeps'] = config['pywren']['retry_sleeps']
+    compute_config['retries'] = config['pywren']['retries']
 
     if 'ibm_cf' in config:
         compute_config['ibm_cf'] = config['ibm_cf']
