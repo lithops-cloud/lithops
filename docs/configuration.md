@@ -16,12 +16,12 @@ Summary of configuration keys for IBM-PyWren:
 
 
 Summary of configuration keys for IBM Cloud Functions:
-
+e
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |ibm_cf| endpoint | | yes | IBM Cloud Functions endpoint from [here](https://cloud.ibm.com/docs/openwhisk?topic=cloud-functions-cloudfunctions_regions#cloud-functions-endpoints). Make sure to use https:// prefix |
-|ibm_cf| namespace | | yes | IBM Cloud Functions namespace. Value of CURRENT NAMESPACE from [api-key](https://cloud.ibm.com/openwhisk/namespace-settings) |
-|ibm_cf| api_key | | yes | IBM Cloud Functions API key. Value of 'KEY' from [api-key](https://cloud.ibm.com/openwhisk/namespace-settings) |
+|ibm_cf| namespace | | yes | IBM Cloud Functions namespace. Value of CURRENT NAMESPACE from [here](https://cloud.ibm.com/openwhisk/namespace-settings) |
+|ibm_cf| api_key | | yes | IBM Cloud Functions API key. Value of 'KEY' from [here](https://cloud.ibm.com/openwhisk/namespace-settings) |
 
 
 Summary of configuration keys for IBM Cloud Object Storage:
