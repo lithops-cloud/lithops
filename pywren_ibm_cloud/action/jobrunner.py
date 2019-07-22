@@ -33,7 +33,7 @@ from pywren_ibm_cloud.wrenconfig import extract_storage_config
 from pywren_ibm_cloud.utils import get_current_memory_usage
 from pywren_ibm_cloud.storage.backends.ibm_cos import IbmCosStorageBackend
 from pywren_ibm_cloud.storage.backends.swift import SwiftStorageBackend
-from pywren_ibm_cloud.logging_config import ibm_cf_logging_config
+from pywren_ibm_cloud.logging_config import cloud_logging_config
 
 pickling_support.install()
 logger = logging.getLogger('jobrunner')
@@ -61,7 +61,7 @@ class jobrunner(Process):
         self.config = jr_config
         log_level = self.config['log_level']
         self.result_queue = result_queue
-        ibm_cf_logging_config(log_level)
+        cloud_logging_config(log_level)
         self.stats = stats(self.config['stats_filename'])
         self.stats.write('jobrunner_start', start_time)
         pw_config = json.loads(os.environ.get('PYWREN_CONFIG'))

@@ -16,7 +16,6 @@
 
 import base64
 import os
-import sys
 import uuid
 import inspect
 import subprocess

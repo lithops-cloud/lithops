@@ -29,7 +29,7 @@ from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.utils import sizeof_fmt
 from pywren_ibm_cloud.action.jobrunner import jobrunner
-from pywren_ibm_cloud.logging_config import ibm_cf_logging_config
+from pywren_ibm_cloud.logging_config import cloud_logging_config
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('handler')
@@ -80,7 +80,7 @@ def function_handler(event):
     storage_config = wrenconfig.extract_storage_config(config)
 
     log_level = event['log_level']
-    ibm_cf_logging_config(log_level)
+    cloud_logging_config(log_level)
 
     call_id = event['call_id']
     callgroup_id = event['callgroup_id']
