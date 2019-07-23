@@ -1,5 +1,6 @@
 import os
 import logging
+import zipfile
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import is_cf_cluster
 from pywren_ibm_cloud.libs.ibm.cloudfunctions_client import CloudFunctionsClient
@@ -9,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 class IbmCfComputeBackend:
     """
-    A wrap-up around IBM Cloud Functions APIs.
+    A wrap-up around IBM Cloud Functions backend.
     """
 
     def __init__(self, ibm_cf_config):
@@ -97,3 +98,23 @@ class IbmCfComputeBackend:
         runtime_key = os.path.join(self.name, self.region, self.namespace, action_name)
 
         return runtime_key
+
+    def create_function_handler(self, module_location, zip_location):
+        logger.debug("Creating function handler in {}".format(zip_location))
+
+        def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
+            for file in os.listdir(full_dir_path):
+                full_path = os.path.join(full_dir_path, file)
+                if os.path.isfile(full_path):
+                    zip_file.write(full_path, os.path.join('pywren_ibm_cloud', sub_dir, file), zipfile.ZIP_DEFLATED)
+                elif os.path.isdir(full_path) and '__pycache__' not in full_path:
+                    add_folder_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
+
+        try:
+            with zipfile.ZipFile(zip_location, 'w') as ibmcf_pywren_zip:
+                my_location = os.path.dirname(os.path.abspath(__file__))
+                main_file = os.path.join(my_location, '__main__.py')
+                ibmcf_pywren_zip.write(main_file, '__main__.py', zipfile.ZIP_DEFLATED)
+                add_folder_to_zip(ibmcf_pywren_zip, module_location)
+        except Exception:
+            raise Exception('Unable to create the {} action package'.format(zip_location))

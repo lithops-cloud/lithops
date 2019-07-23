@@ -6,7 +6,7 @@ import inspect
 import pywren_ibm_cloud as pywren
 from pywren_ibm_cloud import utils
 from pywren_ibm_cloud.wait import wait
-from pywren_ibm_cloud.runtime import select_runtime
+from pywren_ibm_cloud.compute.runtime import select_runtime
 from pywren_ibm_cloud.job.serialize import SerializeIndependent, create_module_data
 from pywren_ibm_cloud.partitioner import create_partitions, partition_processor
 from pywren_ibm_cloud.storage.storage_utils import create_func_key, create_agg_data_key

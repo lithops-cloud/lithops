@@ -18,7 +18,6 @@ import os
 import sys
 import shutil
 import logging
-import zipfile
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.compute import Compute
@@ -26,7 +25,7 @@ from pywren_ibm_cloud.utils import version_str
 
 logger = logging.getLogger(__name__)
 
-ZIP_LOCATION = os.path.join(os.getcwd(), 'ibmcf_pywren.zip')
+ZIP_LOCATION = os.path.join(os.getcwd(), 'cloudbutton.zip')
 
 
 def _get_default_image_name():
@@ -40,37 +39,15 @@ def _get_default_image_name():
     return image_name
 
 
-def _get_pywren_location():
+def _get_module_location():
     my_location = os.path.dirname(os.path.abspath(__file__))
-    pw_location = os.path.join(my_location, '..')
-    return pw_location
-
-
-def _create_zip_action():
-    logger.debug("Creating zip action in {}".format(ZIP_LOCATION))
-
-    def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
-        for file in os.listdir(full_dir_path):
-            full_path = os.path.join(full_dir_path, file)
-            if os.path.isfile(full_path):
-                zip_file.write(full_path, os.path.join('pywren_ibm_cloud', sub_dir, file), zipfile.ZIP_DEFLATED)
-            elif os.path.isdir(full_path) and '__pycache__' not in full_path:
-                add_folder_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
-
-    try:
-        pywren_location = _get_pywren_location()
-
-        with zipfile.ZipFile(ZIP_LOCATION, 'w') as ibmcf_pywren_zip:
-            main_file = os.path.join(pywren_location, 'action', '__main__.py')
-            ibmcf_pywren_zip.write(main_file, '__main__.py', zipfile.ZIP_DEFLATED)
-            add_folder_to_zip(ibmcf_pywren_zip, pywren_location)
-    except Exception:
-        raise Exception('Unable to create the {} action package'.format(ZIP_LOCATION))
+    module_location = os.path.join(my_location, '..', '..')
+    return module_location
 
 
 def _extract_modules(docker_image_name, internal_compute):
     # Extract installed Python modules from docker image
-    pywren_location = _get_pywren_location()
+    pywren_location = _get_module_location()
     action_location = os.path.join(pywren_location, "runtime", "extract_preinstalls_fn.py")
 
     with open(action_location, "r") as action_py:
@@ -125,7 +102,8 @@ def create_runtime(docker_image_name, memory=None, config=None):
     compute_config = wrenconfig.extract_compute_config(config)
     internal_compute = Compute(compute_config)
 
-    _create_zip_action()
+    module_location = _get_module_location()
+    internal_compute.create_function_handler(module_location, ZIP_LOCATION)
 
     runtime_meta = _extract_modules(docker_image_name, internal_compute)
     memory = config['pywren']['runtime_memory'] if not memory else memory
@@ -145,7 +123,9 @@ def update_runtime(docker_image_name, config=None):
     internal_storage = InternalStorage(storage_config)
     compute_config = wrenconfig.extract_compute_config(config)
     internal_compute = Compute(compute_config)
-    _create_zip_action()
+
+    module_location = _get_module_location()
+    internal_compute.create_function_handler(module_location, ZIP_LOCATION)
 
     timeout = config['pywren']['runtime_timeout']
 
@@ -206,8 +186,7 @@ def clean_runtimes(config=None):
     internal_compute = Compute(compute_config)
 
     # Clean local runtime_meta cache
-    LOCAL_HOME_DIR = os.path.expanduser('~')
-    cache_dir = os.path.join(LOCAL_HOME_DIR, '.pywren')
+    cache_dir = os.path.join(os.path.expanduser('~'), '.cloudbutton')
     if os.path.exists(cache_dir):
         shutil.rmtree(cache_dir)
 

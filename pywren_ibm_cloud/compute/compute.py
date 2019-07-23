@@ -3,7 +3,7 @@ import time
 import random
 import logging
 import threading
-from .backends.ibm_cf import IbmCfComputeBackend
+from .backends.ibm_cf.ibm_cf import IbmCfComputeBackend
 
 logger = logging.getLogger(__name__)
 
@@ -67,13 +67,13 @@ class Compute(metaclass=ThreadSafeSingleton):
         """
         return self.compute_handler.invoke_with_result(runtime_name, runtime_memory, payload)
 
-    def create_runtime(self, docker_image_name, memory, code=None, is_binary=True, timeout=300000):
+    def create_runtime(self, docker_image_name, memory, code=None, timeout=300000, **kwargs):
         """
         Wrapper method to create a runtime in the compute backend.
         return: the name of the runtime
         """
         return self.compute_handler.create_runtime(docker_image_name, memory, code=code,
-                                                   is_binary=is_binary, timeout=timeout)
+                                                   timeout=timeout, **kwargs)
 
     def delete_runtime(self, docker_image_name, memory):
         """
@@ -96,6 +96,14 @@ class Compute(metaclass=ThreadSafeSingleton):
     def get_runtime_key(self, docker_image_name, memory):
         """
         Wrapper method that returns a formated string that represents the runtime key.
-        Each backend has its own runtime key format. Used to store modules preinstalls into storage
+        Each backend has its own runtime key format. Used to store modules preinstalls
+        into the storage
         """
         return self.compute_handler.get_runtime_key(docker_image_name, memory)
+
+    def create_function_handler(self, module_location, zip_location):
+        """
+        Wrapper method that creates the .zip that contains all the necessary files
+        to run the function handler into the compute backend
+        """
+        return self.compute_handler.create_function_handler(module_location, zip_location)

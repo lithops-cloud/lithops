@@ -3,7 +3,7 @@ import sys
 import logging
 from pywren_ibm_cloud.compute import Compute
 from pywren_ibm_cloud.utils import version_str
-from pywren_ibm_cloud.runtime import create_runtime
+from pywren_ibm_cloud.compute.runtime import create_runtime
 from pywren_ibm_cloud.wrenconfig import extract_compute_config
 
 logger = logging.getLogger(__name__)
