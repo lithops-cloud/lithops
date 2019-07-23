@@ -101,9 +101,12 @@ class Compute(metaclass=ThreadSafeSingleton):
         """
         return self.compute_handler.get_runtime_key(docker_image_name, memory)
 
-    def create_function_handler(self, module_location, zip_location):
+    def create_handler_zip(self, zip_location):
         """
         Wrapper method that creates the .zip that contains all the necessary files
         to run the function handler into the compute backend
         """
-        return self.compute_handler.create_function_handler(module_location, zip_location)
+        my_location = os.path.dirname(os.path.abspath(__file__))
+        module_location = os.path.join(my_location, '..')
+
+        return self.compute_handler.create_handler_zip(module_location, zip_location)

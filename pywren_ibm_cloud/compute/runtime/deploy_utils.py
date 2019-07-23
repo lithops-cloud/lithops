@@ -39,16 +39,10 @@ def _get_default_image_name():
     return image_name
 
 
-def _get_module_location():
-    my_location = os.path.dirname(os.path.abspath(__file__))
-    module_location = os.path.join(my_location, '..', '..')
-    return module_location
-
-
 def _extract_modules(docker_image_name, internal_compute):
     # Extract installed Python modules from docker image
-    pywren_location = _get_module_location()
-    action_location = os.path.join(pywren_location, "runtime", "extract_preinstalls_fn.py")
+    my_location = os.path.dirname(os.path.abspath(__file__))
+    action_location = os.path.join(my_location, 'extract_preinstalls_fn.py')
 
     with open(action_location, "r") as action_py:
         action_code = action_py.read()
@@ -101,9 +95,7 @@ def create_runtime(docker_image_name, memory=None, config=None):
     internal_storage = InternalStorage(storage_config)
     compute_config = wrenconfig.extract_compute_config(config)
     internal_compute = Compute(compute_config)
-
-    module_location = _get_module_location()
-    internal_compute.create_function_handler(module_location, ZIP_LOCATION)
+    internal_compute.create_handler_zip(ZIP_LOCATION)
 
     runtime_meta = _extract_modules(docker_image_name, internal_compute)
     memory = config['pywren']['runtime_memory'] if not memory else memory
@@ -123,9 +115,7 @@ def update_runtime(docker_image_name, config=None):
     internal_storage = InternalStorage(storage_config)
     compute_config = wrenconfig.extract_compute_config(config)
     internal_compute = Compute(compute_config)
-
-    module_location = _get_module_location()
-    internal_compute.create_function_handler(module_location, ZIP_LOCATION)
+    internal_compute.create_handler_zip(ZIP_LOCATION)
 
     timeout = config['pywren']['runtime_timeout']
 

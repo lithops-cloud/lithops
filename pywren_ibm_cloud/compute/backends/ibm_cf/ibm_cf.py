@@ -99,8 +99,8 @@ class IbmCfComputeBackend:
 
         return runtime_key
 
-    def create_function_handler(self, module_location, zip_location):
-        logger.debug("Creating function handler in {}".format(zip_location))
+    def create_handler_zip(self, module_location, zip_location):
+        logger.debug("Creating function handler zip in {}".format(zip_location))
 
         def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
             for file in os.listdir(full_dir_path):
@@ -113,7 +113,7 @@ class IbmCfComputeBackend:
         try:
             with zipfile.ZipFile(zip_location, 'w') as ibmcf_pywren_zip:
                 my_location = os.path.dirname(os.path.abspath(__file__))
-                main_file = os.path.join(my_location, '__main__.py')
+                main_file = os.path.join(my_location, 'entry_point.py')
                 ibmcf_pywren_zip.write(main_file, '__main__.py', zipfile.ZIP_DEFLATED)
                 add_folder_to_zip(ibmcf_pywren_zip, module_location)
         except Exception:
