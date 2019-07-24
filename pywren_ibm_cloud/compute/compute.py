@@ -3,7 +3,7 @@ import time
 import random
 import logging
 import threading
-from .backends.ibm_cf import IbmCfComputeBackend
+from .backends.ibm_cf.ibm_cf import IbmCfComputeBackend
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ class Compute(metaclass=ThreadSafeSingleton):
     """
 
     def __init__(self, compute_config):
-        self.log_level = os.getenv('PYWREN_LOG_LEVEL')
+        self.log_level = os.getenv('CB_LOG_LEVEL')
         self.compute_config = compute_config
         self.compute_backend = compute_config['compute_backend']
 
@@ -42,11 +42,11 @@ class Compute(metaclass=ThreadSafeSingleton):
             raise NotImplementedError(("Using {} as compute backend is" +
                                        "not supported yet").format(self.compute_backend))
 
-    def invoke(self, runtime_name, runtime_memory, payload):
+    def invoke(self, runtime_name, memory, payload):
         """
         Invoke -- return information about this invocation
         """
-        act_id = self.compute_handler.invoke(runtime_name, runtime_memory, payload)
+        act_id = self.compute_handler.invoke(runtime_name, memory, payload)
         attempts = 1
 
         while not act_id and self.invocation_retry and attempts < self.retries:
@@ -57,29 +57,35 @@ class Compute(metaclass=ThreadSafeSingleton):
             log_msg = ('ExecutorID {} - Function {} - Retry {} in {} seconds'.format(exec_id, call_id, attempts, selected_sleep))
             logger.debug(log_msg)
             time.sleep(selected_sleep)
-            act_id = self.compute_handler.invoke(runtime_name, runtime_memory, payload)
+            act_id = self.compute_handler.invoke(runtime_name, memory, payload)
 
         return act_id
 
-    def invoke_with_result(self, runtime_name, runtime_memory, payload={}):
+    def invoke_with_result(self, runtime_name, memory, payload={}):
         """
         Invoke waiting for a result -- return information about this invocation
         """
-        return self.compute_handler.invoke_with_result(runtime_name, runtime_memory, payload)
+        return self.compute_handler.invoke_with_result(runtime_name, memory, payload)
 
-    def create_runtime(self, docker_image_name, memory, code=None, is_binary=True, timeout=300000):
+    def bild_runtime(self, runtime_name):
+        """
+        Wrapper method to byuild a new runtime for the compute backend.
+        return: the name of the runtime
+        """
+        self.compute_handler.bild_runtime(runtime_name)
+
+    def create_runtime(self, runtime_name, memory, timeout=300000):
         """
         Wrapper method to create a runtime in the compute backend.
         return: the name of the runtime
         """
-        return self.compute_handler.create_runtime(docker_image_name, memory, code=code,
-                                                   is_binary=is_binary, timeout=timeout)
+        return self.compute_handler.create_runtime(runtime_name, memory, timeout=timeout)
 
-    def delete_runtime(self, docker_image_name, memory):
+    def delete_runtime(self, runtime_name, memory):
         """
         Wrapper method to create a runtime in the compute backend
         """
-        self.compute_handler.delete_runtime(docker_image_name, memory)
+        self.compute_handler.delete_runtime(runtime_name, memory)
 
     def delete_all_runtimes(self):
         """
@@ -87,15 +93,24 @@ class Compute(metaclass=ThreadSafeSingleton):
         """
         self.compute_handler.delete_all_runtimes()
 
-    def list_runtimes(self, docker_image_name='all'):
+    def list_runtimes(self, runtime_name='all'):
         """
         Wrapper method to list deployed runtime in the compute backend
         """
-        return self.compute_handler.list_runtimes(docker_image_name=docker_image_name)
+        return self.compute_handler.list_runtimes(runtime_name)
 
-    def get_runtime_key(self, docker_image_name, memory):
+    def get_runtime_key(self, runtime_name, memory):
         """
         Wrapper method that returns a formated string that represents the runtime key.
-        Each backend has its own runtime key format. Used to store modules preinstalls into storage
+        Each backend has its own runtime key format. Used to store modules preinstalls
+        into the storage
         """
-        return self.compute_handler.get_runtime_key(docker_image_name, memory)
+        return self.compute_handler.get_runtime_key(runtime_name, memory)
+
+    def get_runtime_meta(self, runtime_name):
+        """
+        Wrapper method that returns a dictionary that contains the preinstalled
+        python modules in the runtime
+        into the storage
+        """
+        return self.compute_handler.get_runtime_meta(runtime_name)

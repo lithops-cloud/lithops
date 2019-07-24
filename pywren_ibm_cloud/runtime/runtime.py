@@ -15,7 +15,7 @@ def select_runtime(config, internal_storage, executor_id, runtime_name, runtime_
     python modules needed to serialize the local function.  If the .metadata file does not exists in the storage,
     this means that the runtime is not installed, so this method will proceed to install it.
     """
-    log_level = os.getenv('PYWREN_LOG_LEVEL')
+    log_level = os.getenv('CB_LOG_LEVEL')
     compute_config = extract_compute_config(config)
     internal_compute = Compute(compute_config)
 

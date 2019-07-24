@@ -21,19 +21,21 @@ def my_reduce_function(results):
         total = total + map_result
     return total
 
-"""
-By default the reducer will be launched within a Cloud Function
-when the local PyWren have all the results from the mappers.
-"""
-pw = pywren.ibm_cf_executor()
-pw.map_reduce(my_map_function, iterdata, my_reduce_function)
-print(pw.get_result())
 
-"""
-Set 'reducer_wait_local=False' to launch the reducer and wait for
-the results remotely.
-"""
-pw = pywren.ibm_cf_executor()
-pw.map_reduce(my_map_function, iterdata, my_reduce_function,
-              reducer_wait_local=False)
-print(pw.get_result())
+if __name__ == "__main__":
+    """
+    By default the reducer will be launched within a Cloud Function
+    when the local PyWren have all the results from the mappers.
+    """
+    pw = pywren.ibm_cf_executor()
+    pw.map_reduce(my_map_function, iterdata, my_reduce_function)
+    print(pw.get_result())
+
+    """
+    Set 'reducer_wait_local=False' to launch the reducer and wait for
+    the results remotely.
+    """
+    pw = pywren.ibm_cf_executor()
+    pw.map_reduce(my_map_function, iterdata, my_reduce_function,
+                  reducer_wait_local=False)
+    print(pw.get_result())

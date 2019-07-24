@@ -7,7 +7,7 @@ a bucket with some data objects in your COS account. Then change
 the value of the 'bucketname' variable to point to your bucket.
 
 As in this case you are processing objects from COS, the map() method
-will first discover objects inside the buckets. Then, it will launch 
+will first discover objects inside the buckets. Then, it will launch
 one map function for each object. So In this case you will get one
 result from the each object in the bucket.
 
@@ -21,7 +21,7 @@ from where you can access to the partial results.
 
 import pywren_ibm_cloud as pywren
 
-bucketname = 'pw-sample-data'
+bucketname = 'pw-sample-data'  # Change-me
 
 
 def my_map_function(bucket, key, data_stream):
@@ -40,6 +40,7 @@ def my_map_function(bucket, key, data_stream):
     return counter
 
 
-pw = pywren.ibm_cf_executor()
-pw.map(my_map_function, bucketname)
-print(pw.get_result())
+if __name__ == "__main__":
+    pw = pywren.ibm_cf_executor()
+    pw.map(my_map_function, bucketname)
+    print(pw.get_result())

@@ -63,7 +63,7 @@ class ibm_cf_executor:
             if(logger.getEffectiveLevel() != logging.WARNING):
                 self.log_level = logging.getLevelName(logger.getEffectiveLevel())
         if self.log_level:
-            os.environ["PYWREN_LOG_LEVEL"] = self.log_level
+            os.environ["CB_LOG_LEVEL"] = self.log_level
             if not self.is_cf_cluster:
                 default_logging_config(self.log_level)
 

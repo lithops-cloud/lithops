@@ -14,7 +14,7 @@ The default runtime is created the first time you execute a function. PyWren aut
 
 Alternatively, you can create the default runtime by running the following command:
     
-    ./pywren_runtime create default
+    $ pywren-runtime create default
 
 To run a function with the default runtime you don't need to specify anything in the code since all is internally managed by PyWren:
 ```python
@@ -47,11 +47,11 @@ If you need some Python modules (or other system libraries) which are not includ
     If you need another Python version, for example Python 3.5, you must use the [Dockerfile.python35](Dockerfile.python35) that
     points to a source image based on Python 3.5. Finally run the build script:
     
-        ./pywren_runtime build docker_username/runtimename:tag
+        $ pywren-runtime build docker_username/runtimename:tag
     
     Note that Docker hub image names look like *"docker_username/runtimename:tag"* and must be all lower case, for example:
     
-    	./pywren_runtime build jsampe/pywren-custom-runtime:3.5
+       $ pywren-runtime build jsampe/pywren-custom-runtime:3.5
     
     Once you have built your runtime with all of your necessary packages, now you are able to use it with PyWren.
     To do so you have to specify the full docker image name when you create the *ibm_cf_executor* instance, for example:
@@ -78,11 +78,11 @@ In this case you can use that Docker image and avoid the building process.
 
     To create a PyWren runtime based on already built Docker image, execute the following command which will create all the necessary information to use the runtime with your PyWren.
     
-        ./pywren_runtime create docker_username/runtimename:tag
+        $ pywren-runtime create docker_username/runtimename:tag
       
     For example, you can use an already created runtime based on Python 3.5 and with the *matplotlib* and *nltk* libraries by running:
     
-        ./pywren_runtime create jsampe/pw-mpl-nltk:3.5
+        $ pywren-runtime create jsampe/pw-mpl-nltk:3.5
         
     Once finished, you can use the runtime in your PyWren code:
     ```python
@@ -102,15 +102,15 @@ If you are a developer, and you modified the PyWeen source code, you need to dep
 
     You can update default runtime by:
     	
-    	./pywren_runtime update default
+    	$ pywren-runtime update default
     
     You can update any other runtime deployed in your namespace by specifying the docker image that the runtime depends on:
     
-        ./pywren_runtime update docker_username/runtimename:tag
+       $ pywren-runtime update docker_username/runtimename:tag
       
     For example, you can update an already created runtime based on the Docker image `jsampe/pw-mpl-nltk:3.5` by:
     
-        ./pywren_runtime update jsampe/pw-mpl-nltk:3.5
+       $ pywren-runtime update jsampe/pw-mpl-nltk:3.5
 
 
 
@@ -120,13 +120,13 @@ You can also delete existing runtimes in your namespace.
 
     You can delete default runtime by:
     	
-    	./pywren_runtime delete default
+    	$ pywren-runtime delete default
     
     You can delete any other runtime deployed in your namespace by specifying the docker image that the runtime depends on:
     
-        ./pywren_runtime delete docker_username/runtimename:tag
+       $ pywren-runtime delete docker_username/runtimename:tag
       
     For example, you can delete runtime based on the Docker image `jsampe/pw-mpl-nltk:3.5` by:
     
-        ./pywren_runtime delete jsampe/pw-mpl-nltk:3.5
+       $ pywren-runtime delete jsampe/pw-mpl-nltk:3.5
         

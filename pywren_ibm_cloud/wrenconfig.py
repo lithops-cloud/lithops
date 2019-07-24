@@ -20,8 +20,8 @@ import json
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
 
+COMPUTE_BACKEND_DEFAULT = 'ibm_cf'
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
-COS_BUCKET_DEFAULT = "pywren.data"
 COS_PREFIX_DEFAULT = "pywren.jobs"
 IBM_AUTH_ENDPOINT_DEFAULT = 'https://iam.cloud.ibm.com/oidc/token'
 
@@ -33,8 +33,6 @@ RUNTIME_TIMEOUT_DEFAULT = 600000  # Default: 600000 milliseconds => 10 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
 RUNTIME_RI_MEMORY_DEFAULT = 2048  # Default memory for remote invocation function
 RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
-
-COMPUTE_BACKEND_DEFAULT = 'ibm_cf'
 
 DATA_CLEANER_DEFAULT = False
 MAX_AGG_DATA_SIZE = 4e6
@@ -131,8 +129,6 @@ def default(config_data=None):
 
     if 'storage_backend' not in config_data['pywren']:
         config_data['pywren']['storage_backend'] = STORAGE_BACKEND_DEFAULT
-    if 'storage_bucket' not in config_data['pywren']:
-        config_data['pywren']['storage_bucket'] = COS_BUCKET_DEFAULT
     if 'storage_prefix' not in config_data['pywren']:
         config_data['pywren']['storage_prefix'] = COS_PREFIX_DEFAULT
     if 'data_cleaner' not in config_data['pywren']:

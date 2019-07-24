@@ -8,7 +8,7 @@ from .exceptions import StorageNoSuchKeyError
 from .storage_utils import create_status_key, create_output_key, status_key_suffix
 
 
-LOCAL_HOME_DIR = os.path.expanduser('~')
+LOCAL_HOME_DIR = os.path.join(os.path.expanduser('~'), '.cloudbutton')
 logger = logging.getLogger(__name__)
 
 
@@ -123,7 +123,7 @@ class InternalStorage:
         :return: runtime metadata
         """
         path = ['runtimes', __version__,  key+".meta.json"]
-        filename_local_path = os.path.join(LOCAL_HOME_DIR, '.pywren', *path)
+        filename_local_path = os.path.join(LOCAL_HOME_DIR, *path)
 
         if os.path.exists(filename_local_path):
             logger.debug("Runtime metadata found in local cache")
@@ -158,7 +158,7 @@ class InternalStorage:
         # logger.debug("Uploading Runtime metadata to: {}/{}".format(self.storage_bucket, obj_key))
         self.storage_handler.put_object(self.storage_bucket, obj_key, json.dumps(runtime_meta))
 
-        filename_local_path = os.path.join(LOCAL_HOME_DIR, '.pywren', *path)
+        filename_local_path = os.path.join(LOCAL_HOME_DIR, *path)
         # logger.debug("Saving runtime metadata in local cache: {}".format(filename_local_path))
 
         if not os.path.exists(os.path.dirname(filename_local_path)):
@@ -175,7 +175,7 @@ class InternalStorage:
         """
         path = ['runtimes', __version__,  key+".meta.json"]
         obj_key = '/'.join(path).replace('\\', '/')
-        filename_local_path = os.path.join(LOCAL_HOME_DIR, '.pywren', *path)
+        filename_local_path = os.path.join(LOCAL_HOME_DIR, *path)
         if os.path.exists(filename_local_path):
             os.remove(filename_local_path)
         self.storage_handler.delete_object(self.storage_bucket, obj_key)

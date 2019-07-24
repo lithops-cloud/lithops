@@ -4,7 +4,7 @@ __pycache__/
 build/
 dist/
 pywren_ibm_cloud.egg-info
-ibmcf_pywren.zip
+cloudbutton*.zip
 
 # Linux
 *~

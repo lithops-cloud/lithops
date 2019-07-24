@@ -15,10 +15,10 @@
 #
 
 import logging
-from pywren_ibm_cloud.action.handler import function_handler
-from pywren_ibm_cloud.logging_config import ibm_cf_logging_config
+from pywren_ibm_cloud.runtime.function_handler.handler import function_handler
+from pywren_ibm_cloud.logging_config import cloud_logging_config
 
-ibm_cf_logging_config(logging.INFO)
+cloud_logging_config(logging.INFO)
 logger = logging.getLogger('__main__')
 
 
