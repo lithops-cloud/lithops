@@ -1,4 +1,3 @@
-
 """
 Simple PyWren example using one single function invocation
 """

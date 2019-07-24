@@ -7,13 +7,13 @@ pw.get_all_result()
 """
 import pywren_ibm_cloud as pywren
 
-iterdata = [1, 2, 3, 4]
-
 
 def my_map_function(x):
     return x + 7
 
 
-pw = pywren.ibm_cf_executor()
-pw.map(my_map_function, iterdata)
-print(pw.get_result())
+if __name__ == "__main__":
+    iterdata = [1, 2, 3, 4]
+    pw = pywren.ibm_cf_executor()
+    pw.map(my_map_function, iterdata)
+    print(pw.get_result())

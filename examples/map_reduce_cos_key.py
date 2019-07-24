@@ -31,7 +31,7 @@ import pywren_ibm_cloud as pywren
 
 iterdata = ['pw-sample-data/obj1.txt',
             'pw-sample-data/obj2.txt',
-            'pw-sample-data/obj3.txt']
+            'pw-sample-data/obj3.txt']   # Change-me
 
 
 def my_map_function(key, data_stream):
@@ -60,18 +60,20 @@ def my_reduce_function(results):
 
     return final_result
 
-chunk_size = 4*1024**2  # 4MB
 
-pw = pywren.ibm_cf_executor()
-pw.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_size=chunk_size)
-print(pw.get_result())
+if __name__ == "__main__":
+    chunk_size = 4*1024**2  # 4MB
 
-"""
-With one reducer for each object
-"""
-print()
-print('Testing one reducer per object:')
-pw = pywren.ibm_cf_executor()
-pw.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_size=chunk_size,
-              reducer_one_per_object=True)
-print(pw.get_result())
+    pw = pywren.ibm_cf_executor()
+    pw.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_size=chunk_size)
+    print(pw.get_result())
+
+    """
+    With one reducer for each object
+    """
+    print()
+    print('Testing one reducer per object:')
+    pw = pywren.ibm_cf_executor()
+    pw.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_size=chunk_size,
+                  reducer_one_per_object=True)
+    print(pw.get_result())
