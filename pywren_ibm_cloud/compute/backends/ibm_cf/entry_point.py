@@ -15,7 +15,7 @@
 #
 
 import logging
-from pywren_ibm_cloud.compute.runtime.function_handler.handler import function_handler
+from pywren_ibm_cloud.runtime.function_handler.handler import function_handler
 from pywren_ibm_cloud.logging_config import cloud_logging_config
 
 cloud_logging_config(logging.INFO)

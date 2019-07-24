@@ -1,11 +1,16 @@
 import os
+import sys
 import logging
 import zipfile
+from pywren_ibm_cloud import wrenconfig
+from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import is_cf_cluster
 from pywren_ibm_cloud.libs.ibm.cloudfunctions_client import CloudFunctionsClient
+import pywren_ibm_cloud
 
 logger = logging.getLogger(__name__)
+ZIP_LOCATION = os.path.join(os.getcwd(), 'cloudbutton_ibm_cf.zip')
 
 
 class IbmCfComputeBackend:
@@ -14,7 +19,7 @@ class IbmCfComputeBackend:
     """
 
     def __init__(self, ibm_cf_config):
-        self.log_level = os.getenv('PYWREN_LOG_LEVEL')
+        self.log_level = os.getenv('CB_LOG_LEVEL')
         self.name = 'ibm_cf'
         self.ibm_cf_config = ibm_cf_config
         self.package = 'pywren_v'+__version__
@@ -38,18 +43,86 @@ class IbmCfComputeBackend:
         image_name = image_name.replace('_', ':', -1)
         return image_name, int(memory.replace('MB', ''))
 
-    def create_runtime(self, docker_image_name, memory, code=None, is_binary=True, timeout=300000):
+    def _get_default_runtime_image_name(self):
+        this_version_str = version_str(sys.version_info)
+        if this_version_str == '3.5':
+            image_name = wrenconfig.RUNTIME_DEFAULT_35
+        elif this_version_str == '3.6':
+            image_name = wrenconfig.RUNTIME_DEFAULT_36
+        elif this_version_str == '3.7':
+            image_name = wrenconfig.RUNTIME_DEFAULT_37
+        return image_name
+
+    def _create_handler_zip(self):
+        logger.debug("Creating function handler zip in {}".format(ZIP_LOCATION))
+
+        def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
+            for file in os.listdir(full_dir_path):
+                full_path = os.path.join(full_dir_path, file)
+                if os.path.isfile(full_path):
+                    zip_file.write(full_path, os.path.join('pywren_ibm_cloud', sub_dir, file), zipfile.ZIP_DEFLATED)
+                elif os.path.isdir(full_path) and '__pycache__' not in full_path:
+                    add_folder_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
+
+        try:
+            with zipfile.ZipFile(ZIP_LOCATION, 'w') as ibmcf_pywren_zip:
+                current_location = os.path.dirname(os.path.abspath(__file__))
+                module_location = os.path.dirname(os.path.abspath(pywren_ibm_cloud.__file__))
+                main_file = os.path.join(current_location, 'entry_point.py')
+                ibmcf_pywren_zip.write(main_file, '__main__.py', zipfile.ZIP_DEFLATED)
+                add_folder_to_zip(ibmcf_pywren_zip, module_location)
+        except Exception as e:
+            raise Exception('Unable to create the {} package: {}'.format(ZIP_LOCATION, e))
+
+    def build_runtime(self, docker_image_name):
+        """
+        Builds a new runtime from a Docker file and pushes it to the Docker hub
+        """
+        logger.info('Creating a new docker image from Dockerfile')
+        logger.info('Docker image name: {}'.format(docker_image_name))
+
+        cmd = 'docker build -t {} .'.format(docker_image_name)
+        res = os.system(cmd)
+        if res != 0:
+            exit()
+
+        cmd = 'docker push {}'.format(docker_image_name)
+        res = os.system(cmd)
+        if res != 0:
+            exit()
+
+    def create_runtime(self, docker_image_name, memory, timeout=300000):
+        """
+        Creates a new runtime into IBM CF namespace from an already built Docker image
+        """
+        if docker_image_name == 'default':
+            docker_image_name = self._get_default_runtime_image_name()
+        logger.info('Creating new PyWren runtime based on Docker image {}'.format(docker_image_name))
+
         self.cf_client.create_package(self.package)
         action_name = self._format_action_name(docker_image_name, memory)
-        self.cf_client.create_action(self.package, action_name, docker_image_name, code=code,
-                                     memory=memory, is_binary=is_binary, timeout=timeout)
+
+        self._create_handler_zip()
+
+        with open(ZIP_LOCATION, "rb") as action_zip:
+            action_bin = action_zip.read()
+        self.cf_client.create_action(self.package, action_name, docker_image_name, code=action_bin,
+                                     memory=memory, is_binary=True, timeout=timeout)
         return action_name
 
     def delete_runtime(self, docker_image_name, memory):
+        """
+        Deletes a runtime
+        """
+        if docker_image_name == 'default':
+            docker_image_name = self._get_default_runtime_image_name()
         action_name = self._format_action_name(docker_image_name, memory)
         self.cf_client.delete_action(self.package, action_name)
 
     def delete_all_runtimes(self):
+        """
+        Deletes all runtimes from all packages
+        """
         packages = self.cf_client.list_packages()
         for pkg in packages:
             if 'pywren_v' in pkg['name']:
@@ -65,6 +138,8 @@ class IbmCfComputeBackend:
         List all the runtimes deployed in the IBM CF service
         return: list of tuples [docker_image_name, memory]
         """
+        if docker_image_name == 'default':
+            docker_image_name = self._get_default_runtime_image_name()
         runtimes = []
         actions = self.cf_client.list_actions(self.package)
 
@@ -74,47 +149,63 @@ class IbmCfComputeBackend:
                 runtimes.append([action_image_name, memory])
         return runtimes
 
-    def invoke(self, runtime_name, runtime_memory, payload):
+    def invoke(self, docker_image_name, runtime_memory, payload):
         """
         Invoke -- return information about this invocation
         """
-        action_name = self._format_action_name(runtime_name, runtime_memory)
+        action_name = self._format_action_name(docker_image_name, runtime_memory)
         return self.cf_client.invoke(self.package, action_name, payload, self.is_cf_cluster)
 
-    def invoke_with_result(self, runtime_name, runtime_memory, payload={}):
+    def invoke_with_result(self, docker_image_name, runtime_memory, payload={}):
         """
         Invoke waiting for a result -- return information about this invocation
         """
-        action_name = self._format_action_name(runtime_name, runtime_memory)
+        action_name = self._format_action_name(docker_image_name, runtime_memory)
         return self.cf_client.invoke_with_result(self.package, action_name, payload)
 
-    def get_runtime_key(self, runtime_name, runtime_memory):
+    def get_runtime_key(self, docker_image_name, runtime_memory):
         """
         Method that creates and returns the runtime key.
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        action_name = self._format_action_name(runtime_name, runtime_memory)
+        action_name = self._format_action_name(docker_image_name, runtime_memory)
         runtime_key = os.path.join(self.name, self.region, self.namespace, action_name)
 
         return runtime_key
 
-    def create_handler_zip(self, module_location, zip_location):
-        logger.debug("Creating function handler zip in {}".format(zip_location))
+    def get_runtime_meta(self, docker_image_name):
+        """
+        Extract installed Python modules from docker image
+        """
+        if docker_image_name == 'default':
+            docker_image_name = self._get_default_runtime_image_name()
 
-        def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
-            for file in os.listdir(full_dir_path):
-                full_path = os.path.join(full_dir_path, file)
-                if os.path.isfile(full_path):
-                    zip_file.write(full_path, os.path.join('pywren_ibm_cloud', sub_dir, file), zipfile.ZIP_DEFLATED)
-                elif os.path.isdir(full_path) and '__pycache__' not in full_path:
-                    add_folder_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
+        module_location = os.path.dirname(os.path.abspath(pywren_ibm_cloud.__file__))
+        action_location = os.path.join(module_location, 'runtime', 'extract_preinstalls_fn.py')
 
+        with open(action_location, "r") as action_py:
+            action_code = action_py.read()
+
+        runtime_memory = 130
+        # old_stdout = sys.stdout
+        # sys.stdout = open(os.devnull, 'w')
+        action_name = self._format_action_name(docker_image_name, runtime_memory)
+        self.cf_client.create_package(self.package)
+        self.cf_client.create_action(self.package, action_name, docker_image_name, code=action_code,
+                                     memory=runtime_memory, is_binary=False, timeout=30000)
+        # sys.stdout = old_stdout
+        logger.debug("Extracting Python modules list from: {}".format(docker_image_name))
         try:
-            with zipfile.ZipFile(zip_location, 'w') as ibmcf_pywren_zip:
-                my_location = os.path.dirname(os.path.abspath(__file__))
-                main_file = os.path.join(my_location, 'entry_point.py')
-                ibmcf_pywren_zip.write(main_file, '__main__.py', zipfile.ZIP_DEFLATED)
-                add_folder_to_zip(ibmcf_pywren_zip, module_location)
+            runtime_meta = self.invoke_with_result(docker_image_name, runtime_memory)
         except Exception:
-            raise Exception('Unable to create the {} action package'.format(zip_location))
+            raise("Unable to invoke 'modules' action")
+        try:
+            self.delete_runtime(docker_image_name, runtime_memory)
+        except Exception:
+            raise("Unable to delete 'modules' action")
+
+        if not runtime_meta or 'preinstalls' not in runtime_meta:
+            raise Exception(runtime_meta)
+
+        return runtime_meta

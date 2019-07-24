@@ -28,7 +28,7 @@ from pywren_ibm_cloud import version
 from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.utils import sizeof_fmt
-from pywren_ibm_cloud.compute.runtime.function_handler.jobrunner import jobrunner
+from pywren_ibm_cloud.runtime.function_handler.jobrunner import jobrunner
 from pywren_ibm_cloud.logging_config import cloud_logging_config
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)

@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 class Invoker:
 
     def __init__(self, config, executor_id):
-        self.log_level = os.getenv('PYWREN_LOG_LEVEL')
+        self.log_level = os.getenv('CB_LOG_LEVEL')
         self.config = config
         self.executor_id = executor_id
 
