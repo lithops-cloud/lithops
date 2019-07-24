@@ -29,8 +29,11 @@ class Compute(metaclass=ThreadSafeSingleton):
     def __init__(self, compute_config):
         self.log_level = os.getenv('PYWREN_LOG_LEVEL')
         self.compute_config = compute_config
-
         self.compute_backend = compute_config['compute_backend']
+
+        self.invocation_retry = compute_config['invocation_retry']
+        self.retry_sleeps = compute_config['retry_sleeps']
+        self.retries = compute_config['retries']
 
         if self.compute_backend == 'ibm_cf':
             self.compute_handler = IbmCfComputeBackend(compute_config['ibm_cf'])
