@@ -361,6 +361,7 @@ You can use IBM-PyWren inside an **IBM Watson Studio** or Jupyter notebooks in o
 As the current **IBM Watson Studio** runtimes does not contains the **PyWren** package, it is needed to install it. Add these lines at the beginning of the notebook:
 
 ```python
+import sys
 try:
     import pywren_ibm_cloud as pywren
 except:
@@ -369,10 +370,10 @@ except:
 ```
 Installation supports PyWren version as an input parameter, for example:
 
-	!{sys.executable} -m pip install -U pywren-ibm-cloud==1.0.7
+	!{sys.executable} -m pip install -U pywren-ibm-cloud==1.0.15
 
 ### Usage in notebooks
-Once installed, you can use IBM-PyWren as usual inside a notebook:
+Once installed, you can use IBM-PyWren as usual inside a notebook. Don't forget of the [configuration](#configuration):
 
 ```python
 import pywren_ibm_cloud as pywren

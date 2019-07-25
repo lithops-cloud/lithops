@@ -105,8 +105,7 @@ class InternalStorage:
             body = self.storage_handler.get_object(bucket, key)
             return pickle.loads(body)
         else:
-            logger.debug("Invalid Compute backend")
-            return None
+            raise Exception("CloudObject: Invalid Storage backend for retrieving the object")
 
     def get_callset_status(self, executor_id):
         """
