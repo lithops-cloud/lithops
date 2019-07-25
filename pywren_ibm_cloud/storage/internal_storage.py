@@ -26,6 +26,7 @@ class InternalStorage:
         self.storage_backend = self.storage_config['storage_backend']
         self.storage_bucket = self.storage_config['storage_bucket']
         self.prefix = self.storage_config['storage_prefix']
+        self.tmp_obj_count = 0
 
         if self.storage_backend == 'ibm_cos':
             self.storage_handler = IbmCosStorageBackend(self.storage_config['ibm_cos'])
@@ -76,24 +77,27 @@ class InternalStorage:
         """
         return self.storage_handler.get_object(self.storage_bucket, key)
 
-    def put_temp_obj(self, content, bucket=None, key=None):
+    def put_object(self, content, bucket=None, key=None):
         """
         Put temporal data object into storage.
         :param key: data key
         :param data: data content
         :return: CloudObject instance
         """
-        key = key or str(uuid.uuid4())[24:]
+        prefix = self.tmp_obj_prefix or 'tmp'
+        key = '{}.pickle'.format(key or 'data_{}'.format(self.tmp_obj_count))
+        key = '/'.join([prefix, key])
         bucket = bucket or self.storage_bucket
         body = pickle.dumps(content)
         self.storage_handler.put_object(bucket, key, body)
+        self.tmp_obj_count += 1
         return CloudObject(self.storage_backend, bucket, key)
 
-    def get_temp_obj(self, cloudobject):
+    def get_object(self, cloudobject):
         """
         get temporal data object from storage.
         :param cloudobject:
-        :return: None
+        :return: body text
         """
         if self.storage_backend == cloudobject.storage_backend:
             bucket = cloudobject.bucket
