@@ -112,6 +112,6 @@ def check_storage_path(config, prev_path):
 
 class CloudObject:
     def __init__(self, storage_backend, bucket, key):
-        self.storage_type = storage_backend
+        self.storage_backend = storage_backend
         self.key = key
         self.bucket = bucket
