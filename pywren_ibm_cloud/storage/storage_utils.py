@@ -108,3 +108,10 @@ def check_storage_path(config, prev_path):
     current_path = get_storage_path(config)
     if current_path != prev_path:
         raise StorageConfigMismatchError(current_path, prev_path)
+
+
+class CloudObject:
+    def __init__(self, storage_backend, bucket, key):
+        self.storage_type = storage_backend
+        self.key = key
+        self.bucket = bucket

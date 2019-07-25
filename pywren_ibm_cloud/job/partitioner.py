@@ -54,7 +54,7 @@ def partition_processor(map_function):
                 bucket = map_func_args['bucket']
                 key = map_func_args['key']
 
-            config = json.loads(os.environ.get('PYWREN_CONFIG'))
+            config = json.loads(os.environ.get('CB_CONFIG'))
             storage = IbmCosStorageBackend(config['ibm_cos'])
             logger.info('Getting dataset from cos://{}/{}'.format(bucket, key))
             sb = storage.get_object(bucket, key, stream=True, extra_get_args=extra_get_args)

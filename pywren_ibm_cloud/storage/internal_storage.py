@@ -1,11 +1,13 @@
 import os
+import uuid
 import json
+import pickle
 import logging
 from ..version import __version__
 from .backends.ibm_cos import IbmCosStorageBackend
 from .backends.swift import SwiftStorageBackend
 from .exceptions import StorageNoSuchKeyError
-from .storage_utils import create_status_key, create_output_key, status_key_suffix
+from .storage_utils import create_status_key, create_output_key, status_key_suffix, CloudObject
 
 
 LOCAL_HOME_DIR = os.path.join(os.path.expanduser('~'), '.cloudbutton')
@@ -73,6 +75,33 @@ class InternalStorage:
         :return: serialized function
         """
         return self.storage_handler.get_object(self.storage_bucket, key)
+
+    def put_temp_obj(self, content, bucket=None, key=None):
+        """
+        Put temporal data object into storage.
+        :param key: data key
+        :param data: data content
+        :return: CloudObject instance
+        """
+        key = key or str(uuid.uuid4())[24:]
+        bucket = bucket or self.storage_bucket
+        body = pickle.dumps(content)
+        self.storage_handler.put_object(bucket, key, body)
+        return CloudObject(self.storage_backend, bucket, key)
+
+    def get_temp_obj(self, cloudobject):
+        """
+        get temporal data object from storage.
+        :param cloudobject:
+        :return: None
+        """
+        if self.storage_backend == cloudobject.storage_backend:
+            bucket = cloudobject.bucket
+            key = cloudobject.key
+            body = self.storage_handler.get_object(bucket, key)
+            return pickle.loads(body)
+        else:
+            return None
 
     def get_callset_status(self, executor_id):
         """
