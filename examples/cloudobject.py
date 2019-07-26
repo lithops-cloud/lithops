@@ -1,7 +1,7 @@
 """
 Simple PyWren example using cloudobjects to transparently pass
 objects stored in the storage backend between functions without
-knowing they reference
+knowing they exact location (bucket, key)
 """
 import pywren_ibm_cloud as pywren
 
@@ -23,4 +23,5 @@ if __name__ == "__main__":
     cloudobjects = pw.get_result()
     pw.map(my_function_get, cloudobjects)
     print(pw.get_result())
+    pw.create_timeline_plots('/home/josep/pywren_plots', 'no_rabbitmq')
     pw.clean()
