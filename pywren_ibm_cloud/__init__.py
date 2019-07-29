@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-from pywren_ibm_cloud.executor import ibm_cf_executor
+from pywren_ibm_cloud.executor import FunctionExecutor as ibm_cf_executor
 from pywren_ibm_cloud.version import __version__
 
 name = "pywren_ibm_cloud"

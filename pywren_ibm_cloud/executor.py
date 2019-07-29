@@ -28,7 +28,7 @@ class ExecutorState(enum.Enum):
     finished = 6
 
 
-class ibm_cf_executor:
+class FunctionExecutor:
 
     def __init__(self, config=None, runtime=None, runtime_memory=None, log_level=None, rabbitmq_monitor=False):
         """
@@ -40,10 +40,6 @@ class ibm_cf_executor:
         :param log_level: log level to use during the execution
         :param rabbitmq_monitor: use rabbitmq as monitoring system
         :return `ServerlessExecutor` object.
-
-        Usage
-          >>> import pywren_ibm_cloud as pywren
-          >>> pw = pywren.ibm_cf_executor()
         """
         self.start_time = time.time()
         self._state = ExecutorState.new
@@ -67,8 +63,8 @@ class ibm_cf_executor:
             if not self.is_cf_cluster:
                 default_logging_config(self.log_level)
 
-        if 'PYWREN_EXECUTOR_ID' in os.environ:
-            self.executor_id = os.environ['PYWREN_EXECUTOR_ID']
+        if 'CB_EXECUTOR_ID' in os.environ:
+            self.executor_id = os.environ['CB_EXECUTOR_ID']
         else:
             self.executor_id = create_executor_id()
         logger.debug('ServerlessExecutor created with ID: {}'.format(self.executor_id))
@@ -97,11 +93,6 @@ class ibm_cf_executor:
         :param data: input data
         :param extra_env: Additional environment variables for action environment. Default None.
         :param extra_meta: Additional metadata to pass to action. Default None.
-
-        Usage
-          >>> import pywren_ibm_cloud as pywren
-          >>> pw = pywren.ibm_cf_executor()
-          >>> future = pw.call_async(foo, data)
         """
 
         if self._state == ExecutorState.finished:
@@ -135,11 +126,6 @@ class ibm_cf_executor:
         :param exclude_modules: Explicitly keep these modules from pickled dependencies.
         :return: A list with size `len(iterdata)` of futures for each job
         :rtype: list of futures.
-
-        Usage
-          >>> import pywren_ibm_cloud as pywren
-          >>> pw = pywren.ibm_cf_executor()
-          >>> futures = pw.map(foo, data_list)
         """
         if self._state == ExecutorState.finished:
             raise Exception('You cannot run map() in the current state.'
@@ -190,11 +176,6 @@ class ibm_cf_executor:
         :param overwrite_invoke_args: Overwrite other args. Mainly used for testing.
         :param exclude_modules: Explicitly keep these modules from pickled dependencies.
         :return: A list with size `len(map_iterdata)` of futures for each job
-
-        Usage
-          >>> import pywren_ibm_cloud as pywren
-          >>> pw = pywren.ibm_cf_executor()
-          >>> pw.map_reduce(foo, map_data_list, bar)
         """
 
         if self._state == ExecutorState.finished:
@@ -248,15 +229,7 @@ class ibm_cf_executor:
         :return: `(fs_done, fs_notdone)`
             where `fs_done` is a list of futures that have completed
             and `fs_notdone` is a list of futures that have not completed.
-        :rtype: 2-tuple of lists
-
-        Usage
-          >>> import pywren_ibm_cloud as pywren
-          >>> pw = pywren.ibm_cf_executor()
-          >>> pw.map(foo, data_list)
-          >>> dones, not_dones = pw.monitor()
-          >>> # not_dones should be an empty list.
-          >>> results = [f.result() for f in dones]
+        :rtype: 2-tuple of list
         """
         if futures:
             # Ensure futures is a list
@@ -375,12 +348,6 @@ class ibm_cf_executor:
         :param THREADPOOL_SIZE: Number of threads to use. Default 64
         :param WAIT_DUR_SEC: Time interval between each check.
         :return: The result of the future/s
-
-        Usage
-          >>> import pywren_ibm_cloud as pywren
-          >>> pw = pywren.ibm_cf_executor()
-          >>> pw.map(foo, data)
-          >>> results = pw.get_result()
         """
         fs_dones, unused_fs_notdones = self.monitor(futures=futures, throw_except=throw_except,
                                                     timeout=timeout, download_results=True,
@@ -411,10 +378,12 @@ class ibm_cf_executor:
                             ' before calling create_timeline_plots() method')
 
         if not futures:
+            futures = []
             if self.futures:
-                futures = self.futures
-            elif self.executor_futures:
-                futures = self.executor_futures[-1]
+                futures.extend(self.futures)
+            if self.executor_futures:
+                for pre_fut in self.executor_futures:
+                    futures.extend(pre_fut)
 
         if type(futures) != list:
             ftrs = [futures]

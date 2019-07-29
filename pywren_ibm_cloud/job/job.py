@@ -124,6 +124,8 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_function, re
         func_sig = inspect.signature(reduce_function)
         if 'ibm_cos' in func_sig.parameters:
             reduce_func_args['ibm_cos'] = ibm_cos
+        if 'internal_storage' in func_sig.parameters:
+            reduce_func_args['internal_storage'] = internal_storage
 
         return reduce_function(**reduce_func_args)
 

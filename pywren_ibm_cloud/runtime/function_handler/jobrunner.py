@@ -64,8 +64,8 @@ class jobrunner(Process):
         cloud_logging_config(log_level)
         self.stats = stats(self.config['stats_filename'])
         self.stats.write('jobrunner_start', start_time)
-        pw_config = json.loads(os.environ.get('PYWREN_CONFIG'))
-        self.storage_config = extract_storage_config(pw_config)
+        cb_config = json.loads(os.environ.get('CB_CONFIG'))
+        self.storage_config = extract_storage_config(cb_config)
 
         if 'SHOW_MEMORY_USAGE' in os.environ:
             self.show_memory = eval(os.environ['SHOW_MEMORY_USAGE'])
@@ -179,7 +179,7 @@ class jobrunner(Process):
         exception = False
         try:
             self.internal_storage = InternalStorage(self.storage_config)
-
+            self.internal_storage.tmp_obj_prefix = self.output_key.rsplit('/', 1)[0]
             loaded_func_all = self._get_function_and_modules()
             self._save_modules(loaded_func_all['module_data'])
             function = self._unpickle_function(loaded_func_all['func'])
