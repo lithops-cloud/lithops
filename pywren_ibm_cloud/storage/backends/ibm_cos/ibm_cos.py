@@ -19,7 +19,7 @@ import ibm_boto3
 import ibm_botocore
 from datetime import datetime
 from ibm_botocore.credentials import DefaultTokenManager
-from ...exceptions import StorageNoSuchKeyError
+from ...utils import StorageNoSuchKeyError
 from ....utils import sizeof_fmt, is_cf_cluster
 
 logging.getLogger('ibm_boto3').setLevel(logging.CRITICAL)

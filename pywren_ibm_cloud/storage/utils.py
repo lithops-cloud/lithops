@@ -13,14 +13,73 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import logging
+import json
 
-from .exceptions import StorageConfigMismatchError
+logger = logging.getLogger(__name__)
+
 
 func_key_suffix = "func.pickle"
 agg_data_key_suffix = "aggdata.pickle"
 data_key_suffix = "data.pickle"
 output_key_suffix = "output.pickle"
 status_key_suffix = "status.json"
+
+
+class StorageNoSuchKeyError(Exception):
+    def __init__(self, key):
+        msg = "No such key {} found in storage.".format(key)
+        super(StorageNoSuchKeyError, self).__init__(msg)
+
+
+class StorageOutputNotFoundError(Exception):
+    def __init__(self, executor_id, call_id):
+        msg = "Output for {} {} not found in storage.".format(executor_id, call_id)
+        super(StorageOutputNotFoundError, self).__init__(msg)
+
+
+class StorageConfigMismatchError(Exception):
+    def __init__(self, current_path, prev_path):
+        msg = "The data is stored at {}, but current storage is configured at {}.".format(
+            prev_path, current_path)
+        super(StorageConfigMismatchError, self).__init__(msg)
+
+
+class CloudObject:
+    def __init__(self, storage_backend, bucket, key):
+        self.storage_backend = storage_backend
+        self.key = key
+        self.bucket = bucket
+
+
+def clean_bucket(bucket, prefix, storage_config):
+    """
+    Wrapper of clean_os_bucket(). Use this method only when storage_config is
+    in JSON format. In any other case, call directly clean_os_bucket() method.
+    """
+    from pywren_ibm_cloud.storage import InternalStorage
+    internal_storage = InternalStorage(json.loads(storage_config))
+    # sys.stdout = open(os.devnull, 'w')
+    clean_os_bucket(bucket, prefix, internal_storage)
+    # sys.stdout = sys.__stdout__
+
+
+def clean_os_bucket(bucket, prefix, internal_storage):
+    """
+    Deletes all the files from COS. These files include the function,
+    the data serialization and the function invocation results.
+    """
+    msg = "Going to delete all objects from bucket '{}' and prefix '{}'".format(bucket, prefix)
+    logger.debug(msg)
+    total_objects = 0
+    objects_to_delete = internal_storage.list_tmp_data(prefix)
+
+    while objects_to_delete:
+        logger.debug('{} objects found'.format(len(objects_to_delete)))
+        total_objects = total_objects + len(objects_to_delete)
+        internal_storage.delete_temporal_data(objects_to_delete)
+        objects_to_delete = internal_storage.list_tmp_data(prefix)
+    logger.info('Finished deleting objects, total found: {}'.format(total_objects))
 
 
 def create_func_key(prefix, executor_id, callgroup_id):
@@ -108,10 +167,3 @@ def check_storage_path(config, prev_path):
     current_path = get_storage_path(config)
     if current_path != prev_path:
         raise StorageConfigMismatchError(current_path, prev_path)
-
-
-class CloudObject:
-    def __init__(self, storage_backend, bucket, key):
-        self.storage_backend = storage_backend
-        self.key = key
-        self.bucket = bucket

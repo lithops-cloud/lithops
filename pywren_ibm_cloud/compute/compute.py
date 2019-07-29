@@ -36,8 +36,7 @@ class Compute(metaclass=ThreadSafeSingleton):
         self.retries = self.config['retries']
 
         try:
-            cb = self.backend
-            module_location = 'pywren_ibm_cloud.compute.backends.{}.{}'.format(cb, cb)
+            module_location = 'pywren_ibm_cloud.compute.backends.{}'.format(self.backend)
             cb_module = importlib.import_module(module_location)
             ComputeBackend = getattr(cb_module, 'ComputeBackend')
             self.compute_handler = ComputeBackend(self.config[self.backend])

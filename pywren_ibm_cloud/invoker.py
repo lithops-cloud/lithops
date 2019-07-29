@@ -23,7 +23,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pywren_ibm_cloud.compute import Compute
 from pywren_ibm_cloud.future import ResponseFuture, JobState
 from pywren_ibm_cloud.config import extract_storage_config, extract_compute_config
-from pywren_ibm_cloud.storage.storage_utils import create_output_key, create_status_key
+from pywren_ibm_cloud.storage.utils import create_output_key, create_status_key
 
 logger = logging.getLogger(__name__)
 

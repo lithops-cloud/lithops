@@ -4,8 +4,7 @@ import pickle
 import logging
 import importlib
 from ..version import __version__
-from .exceptions import StorageNoSuchKeyError
-from .storage_utils import create_status_key, create_output_key, status_key_suffix, CloudObject
+from .utils import create_status_key, create_output_key, status_key_suffix, CloudObject, StorageNoSuchKeyError
 
 
 LOCAL_HOME_DIR = os.path.join(os.path.expanduser('~'), '.cloudbutton')
@@ -27,8 +26,7 @@ class InternalStorage:
         self.tmp_obj_count = 0
 
         try:
-            sb = self.backend
-            module_location = 'pywren_ibm_cloud.storage.backends.{}.{}'.format(sb, sb)
+            module_location = 'pywren_ibm_cloud.storage.backends.{}'.format(self.backend)
             sb_module = importlib.import_module(module_location)
             ComputeBackend = getattr(sb_module, 'StorageBackend')
             self.storage_handler = ComputeBackend(self.config[self.backend])

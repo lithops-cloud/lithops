@@ -9,7 +9,7 @@ from .partitioner import create_partitions, partition_processor
 from pywren_ibm_cloud import utils
 from pywren_ibm_cloud.wait import wait
 from pywren_ibm_cloud.runtime import select_runtime
-from pywren_ibm_cloud.storage.storage_utils import create_func_key, create_agg_data_key
+from pywren_ibm_cloud.storage.utils import create_func_key, create_agg_data_key
 from pywren_ibm_cloud.config import EXECUTION_TIMEOUT, MAX_AGG_DATA_SIZE
 
 logger = logging.getLogger(__name__)

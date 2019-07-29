@@ -10,7 +10,7 @@ from pywren_ibm_cloud.invoker import Invoker
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.future import FunctionException
 from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
-from pywren_ibm_cloud.storage.cleaner import clean_os_bucket
+from pywren_ibm_cloud.storage.utils import clean_os_bucket
 from pywren_ibm_cloud.logging_config import default_logging_config
 from pywren_ibm_cloud.job import create_call_async_job, create_map_job, create_reduce_job
 from pywren_ibm_cloud.config import default_config, extract_storage_config, EXECUTION_TIMEOUT
@@ -444,7 +444,7 @@ class FunctionExecutor:
             storage_config = json.dumps(self.internal_storage.get_storage_config())
             storage_config = storage_config.replace('"', '\\"')
 
-            cmdstr = ("{} -c 'from pywren_ibm_cloud.storage.cleaner import clean_bucket; \
+            cmdstr = ("{} -c 'from pywren_ibm_cloud.storage.utils import clean_bucket; \
                               clean_bucket(\"{}\", \"{}\", \"{}\")'".format(sys.executable,
                                                                             storage_bucket,
                                                                             storage_prerix,

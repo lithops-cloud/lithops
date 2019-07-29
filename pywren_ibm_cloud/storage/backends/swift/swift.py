@@ -17,7 +17,7 @@
 import json
 import logging
 import requests
-from ...exceptions import StorageNoSuchKeyError
+from ...utils import StorageNoSuchKeyError
 from ....utils import sizeof_fmt
 
 
