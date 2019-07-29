@@ -3,7 +3,7 @@ import time
 import random
 import logging
 import threading
-from .backends.ibm_cf.ibm_cf import IbmCfComputeBackend
+import importlib
 
 logger = logging.getLogger(__name__)
 
@@ -28,19 +28,21 @@ class Compute(metaclass=ThreadSafeSingleton):
 
     def __init__(self, compute_config):
         self.log_level = os.getenv('CB_LOG_LEVEL')
-        self.compute_config = compute_config
-        self.compute_backend = compute_config['compute_backend']
+        self.config = compute_config
+        self.backend = self.config['backend']
 
-        self.invocation_retry = compute_config['invocation_retry']
-        self.retry_sleeps = compute_config['retry_sleeps']
-        self.retries = compute_config['retries']
+        self.invocation_retry = self.config['invocation_retry']
+        self.retry_sleeps = self.config['retry_sleeps']
+        self.retries = self.config['retries']
 
-        if self.compute_backend == 'ibm_cf':
-            self.compute_handler = IbmCfComputeBackend(compute_config['ibm_cf'])
-
-        else:
-            raise NotImplementedError(("Using {} as compute backend is" +
-                                       "not supported yet").format(self.compute_backend))
+        try:
+            cb = self.backend
+            module_location = 'pywren_ibm_cloud.compute.backends.{}.{}'.format(cb, cb)
+            cb_module = importlib.import_module(module_location)
+            ComputeBackend = getattr(cb_module, 'ComputeBackend')
+            self.compute_handler = ComputeBackend(self.config[self.backend])
+        except Exception as e:
+            raise Exception("An exception was produced trying to create the '{}' compute backend: {}".format(self.backend, e))
 
     def invoke(self, runtime_name, memory, payload):
         """
@@ -107,10 +109,10 @@ class Compute(metaclass=ThreadSafeSingleton):
         """
         return self.compute_handler.get_runtime_key(runtime_name, memory)
 
-    def get_runtime_meta(self, runtime_name):
+    def generate_runtime_meta(self, runtime_name):
         """
         Wrapper method that returns a dictionary that contains the preinstalled
         python modules in the runtime
         into the storage
         """
-        return self.compute_handler.get_runtime_meta(runtime_name)
+        return self.compute_handler.generate_runtime_meta(runtime_name)

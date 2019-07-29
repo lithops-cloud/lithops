@@ -2,18 +2,18 @@ import os
 import sys
 import logging
 import zipfile
-from pywren_ibm_cloud import wrenconfig
+import pywren_ibm_cloud
+from . import config as ibm_cf_config
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import is_cf_cluster
-from pywren_ibm_cloud.libs.ibm.cloudfunctions_client import CloudFunctionsClient
-import pywren_ibm_cloud
+from pywren_ibm_cloud.libs.ibm_cloudfunctions.client import CloudFunctionsClient
 
 logger = logging.getLogger(__name__)
 ZIP_LOCATION = os.path.join(os.getcwd(), 'cloudbutton_ibm_cf.zip')
 
 
-class IbmCfComputeBackend:
+class ComputeBackend:
     """
     A wrap-up around IBM Cloud Functions backend.
     """
@@ -23,12 +23,13 @@ class IbmCfComputeBackend:
         self.name = 'ibm_cf'
         self.ibm_cf_config = ibm_cf_config
         self.package = 'pywren_v'+__version__
+        self.region = ibm_cf_config['region']
         self.cf_client = CloudFunctionsClient(self.ibm_cf_config)
         self.is_cf_cluster = is_cf_cluster()
+        self.namespace = ibm_cf_config[self.region]['namespace']
 
-        self.region = ibm_cf_config['endpoint'].split('//')[1].split('.')[0]
-        self.namespace = ibm_cf_config['namespace']
-        log_msg = 'PyWren v{} init for IBM Cloud Functions - Namespace: {} - Region: {}'.format(__version__, self.namespace, self.region)
+        log_msg = ('PyWren v{} init for IBM Cloud Functions - Namespace: {} '
+                   '- Region: {}'.format(__version__, self.namespace, self.region))
         logger.info(log_msg)
         if not self.log_level:
             print(log_msg)
@@ -46,11 +47,11 @@ class IbmCfComputeBackend:
     def _get_default_runtime_image_name(self):
         this_version_str = version_str(sys.version_info)
         if this_version_str == '3.5':
-            image_name = wrenconfig.RUNTIME_DEFAULT_35
+            image_name = ibm_cf_config.RUNTIME_DEFAULT_35
         elif this_version_str == '3.6':
-            image_name = wrenconfig.RUNTIME_DEFAULT_36
+            image_name = ibm_cf_config.RUNTIME_DEFAULT_36
         elif this_version_str == '3.7':
-            image_name = wrenconfig.RUNTIME_DEFAULT_37
+            image_name = ibm_cf_config.RUNTIME_DEFAULT_37
         return image_name
 
     def _create_handler_zip(self):
@@ -174,7 +175,7 @@ class IbmCfComputeBackend:
 
         return runtime_key
 
-    def get_runtime_meta(self, docker_image_name):
+    def generate_runtime_meta(self, docker_image_name):
         """
         Extract installed Python modules from docker image
         """

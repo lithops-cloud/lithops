@@ -17,14 +17,14 @@
 import json
 import logging
 import requests
-from ..exceptions import StorageNoSuchKeyError
-from ...utils import sizeof_fmt
+from ...exceptions import StorageNoSuchKeyError
+from ....utils import sizeof_fmt
 
 
 logger = logging.getLogger(__name__)
 
 
-class SwiftStorageBackend:
+class StorageBackend:
     """
     A wrap-up around OpenStack Swift APIs.
     """

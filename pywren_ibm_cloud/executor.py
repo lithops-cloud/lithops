@@ -6,7 +6,6 @@ import json
 import signal
 import logging
 import traceback
-from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.invoker import Invoker
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.future import FunctionException
@@ -14,6 +13,7 @@ from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
 from pywren_ibm_cloud.storage.cleaner import clean_os_bucket
 from pywren_ibm_cloud.logging_config import default_logging_config
 from pywren_ibm_cloud.job import create_call_async_job, create_map_job, create_reduce_job
+from pywren_ibm_cloud.config import default_config, extract_storage_config, EXECUTION_TIMEOUT
 from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_cf_cluster, create_executor_id
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,8 @@ class ExecutorState(enum.Enum):
 
 class FunctionExecutor:
 
-    def __init__(self, config=None, runtime=None, runtime_memory=None, log_level=None, rabbitmq_monitor=False):
+    def __init__(self, config=None, runtime=None, runtime_memory=None, compute_backend=None,
+                 compute_backend_region=None, log_level=None, rabbitmq_monitor=False):
         """
         Initialize and return a ServerlessExecutor class.
 
@@ -43,7 +44,7 @@ class FunctionExecutor:
         """
         self.start_time = time.time()
         self._state = ExecutorState.new
-        self.config = wrenconfig.default(config)
+        self.config = default_config(config)
         self.is_cf_cluster = is_cf_cluster()
         self.data_cleaner = self.config['pywren']['data_cleaner']
 
@@ -52,6 +53,10 @@ class FunctionExecutor:
             self.config['pywren']['runtime'] = runtime
         if runtime_memory:
             self.config['pywren']['runtime_memory'] = int(runtime_memory)
+        if compute_backend:
+            self.config['pywren']['compute_backend'] = compute_backend
+        if compute_backend_region:
+            self.config['pywren']['compute_backend_region'] = compute_backend_region
 
         # Log level Configuration
         self.log_level = log_level
@@ -79,14 +84,14 @@ class FunctionExecutor:
         else:
             self.config['rabbitmq']['amqp_url'] = None
 
-        storage_config = wrenconfig.extract_storage_config(self.config)
+        storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
         self.invoker = Invoker(self.config, self.executor_id)
 
         self.executor_futures = []
         self.futures = []
 
-    def call_async(self, func, data, extra_env=None, extra_meta=None, runtime_memory=None, timeout=wrenconfig.RUNTIME_TIMEOUT):
+    def call_async(self, func, data, extra_env=None, extra_meta=None, runtime_memory=None, timeout=EXECUTION_TIMEOUT):
         """
         For running one function execution asynchronously
         :param func: the function to map over the data
@@ -109,7 +114,7 @@ class FunctionExecutor:
         return future
 
     def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None, runtime_memory=None,
-            chunk_size=None, remote_invocation=False, timeout=wrenconfig.RUNTIME_TIMEOUT,
+            chunk_size=None, remote_invocation=False, timeout=EXECUTION_TIMEOUT,
             remote_invocation_groups=None, invoke_pool_threads=500, overwrite_invoke_args=None, exclude_modules=None):
         """
         :param func: the function to map over the data
@@ -130,6 +135,7 @@ class FunctionExecutor:
         if self._state == ExecutorState.finished:
             raise Exception('You cannot run map() in the current state.'
                             ' Create a new ibm_cf_executor() instance.')
+
         job, unused_ppo = create_map_job(self.config, self.internal_storage, self.executor_id,
                                          map_function=map_function, iterdata=map_iterdata,
                                          extra_env=extra_env, extra_meta=extra_meta,
@@ -140,7 +146,7 @@ class FunctionExecutor:
                                          exclude_modules=exclude_modules,
                                          is_cf_cluster=self.is_cf_cluster,
                                          overwrite_invoke_args=overwrite_invoke_args,
-                                         runtime_timeout=timeout)
+                                         execution_timeout=timeout)
         map_futures = self.invoker.run(job)
 
         self.futures.extend(map_futures)
@@ -153,7 +159,7 @@ class FunctionExecutor:
     def map_reduce(self, map_function, map_iterdata, reduce_function, extra_env=None,
                    map_runtime_memory=None, reduce_runtime_memory=None,
                    extra_meta=None, chunk_size=None, remote_invocation=False,
-                   remote_invocation_groups=None, timeout=wrenconfig.RUNTIME_TIMEOUT,
+                   remote_invocation_groups=None, timeout=EXECUTION_TIMEOUT,
                    reducer_one_per_object=False, reducer_wait_local=False,
                    invoke_pool_threads=500, overwrite_invoke_args=None,
                    exclude_modules=None):
@@ -192,7 +198,7 @@ class FunctionExecutor:
                                                exclude_modules=exclude_modules,
                                                is_cf_cluster=self.is_cf_cluster,
                                                overwrite_invoke_args=overwrite_invoke_args,
-                                               runtime_timeout=timeout)
+                                               execution_timeout=timeout)
         map_futures = self.invoker.run(job)
 
         self._state = ExecutorState.running
@@ -212,7 +218,7 @@ class FunctionExecutor:
         return futures
 
     def monitor(self, futures=None, throw_except=True, return_when=ALL_COMPLETED,
-                download_results=False, timeout=wrenconfig.RUNTIME_TIMEOUT,
+                download_results=False, timeout=EXECUTION_TIMEOUT,
                 THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
         """
         Wait for the Future instances `fs` to complete. Returns a 2-tuple of
@@ -337,7 +343,7 @@ class FunctionExecutor:
 
         return fs_dones, fs_notdones
 
-    def get_result(self, futures=None, throw_except=True, timeout=wrenconfig.RUNTIME_TIMEOUT,
+    def get_result(self, futures=None, throw_except=True, timeout=EXECUTION_TIMEOUT,
                    THREADPOOL_SIZE=64, WAIT_DUR_SEC=1):
         """
         For getting results
@@ -414,6 +420,7 @@ class FunctionExecutor:
         Deletes all the files from COS. These files include the function,
         the data serialization and the function invocation results.
         """
+        storage_backend = self.config['pywren']['storage_backend']
         storage_bucket = self.config['pywren']['storage_bucket']
         storage_prerix = self.config['pywren']['storage_prefix']
         if delete_all:
@@ -421,7 +428,7 @@ class FunctionExecutor:
         else:
             storage_prerix = '/'.join([storage_prerix, self.executor_id])
         msg = "ExecutorID {} - Cleaning temporary data from {}://{}/{}".format(self.executor_id,
-                                                                               self.internal_storage.storage_backend,
+                                                                               storage_backend,
                                                                                storage_bucket,
                                                                                storage_prerix)
         logger.info(msg)

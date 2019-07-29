@@ -29,14 +29,13 @@ from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.future import ResponseFuture
 from pywren_ibm_cloud.libs.tblib import pickling_support
 from pywren_ibm_cloud.utils import sizeof_fmt, b64str_to_bytes
-from pywren_ibm_cloud.wrenconfig import extract_storage_config
+from pywren_ibm_cloud.config import extract_storage_config
 from pywren_ibm_cloud.utils import get_current_memory_usage
-from pywren_ibm_cloud.storage.backends.ibm_cos import IbmCosStorageBackend
-from pywren_ibm_cloud.storage.backends.swift import SwiftStorageBackend
 from pywren_ibm_cloud.logging_config import cloud_logging_config
+from pywren_ibm_cloud.storage.backends.ibm_cos.ibm_cos import StorageBackend as ibm_cos_backend
 
 pickling_support.install()
-logger = logging.getLogger('jobrunner')
+logger = logging.getLogger('TaskRunner')
 
 
 class stats:
@@ -53,12 +52,12 @@ class stats:
         self.stats_fid.close()
 
 
-class jobrunner(Process):
+class TaskRunner(Process):
 
-    def __init__(self, jr_config, result_queue):
+    def __init__(self, tr_config, result_queue):
         super().__init__()
         start_time = time.time()
-        self.config = jr_config
+        self.config = tr_config
         log_level = self.config['log_level']
         self.result_queue = result_queue
         cloud_logging_config(log_level)
@@ -157,12 +156,8 @@ class jobrunner(Process):
         func_sig = inspect.signature(function)
 
         if 'ibm_cos' in func_sig.parameters:
-            ibm_boto3_client = IbmCosStorageBackend(self.storage_config['ibm_cos']).get_client()
+            ibm_boto3_client = ibm_cos_backend(self.storage_config['ibm_cos']).get_client()
             data['ibm_cos'] = ibm_boto3_client
-
-        if 'swift' in func_sig.parameters:
-            swift_client = SwiftStorageBackend(self.storage_config['swift'])
-            data['swift'] = swift_client
 
         if 'internal_storage' in func_sig.parameters:
             data['internal_storage'] = self.internal_storage

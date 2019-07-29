@@ -23,7 +23,7 @@ import requests
 import inspect
 from pywren_ibm_cloud import utils
 from multiprocessing.pool import ThreadPool
-from pywren_ibm_cloud.storage.backends.ibm_cos import IbmCosStorageBackend
+from pywren_ibm_cloud.storage.backends.ibm_cos.ibm_cos import StorageBackend as ibm_cos_backend
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ def partition_processor(map_function):
                 key = map_func_args['key']
 
             config = json.loads(os.environ.get('CB_CONFIG'))
-            storage = IbmCosStorageBackend(config['ibm_cos'])
+            storage = ibm_cos_backend(config['ibm_cos'])
             logger.info('Getting dataset from cos://{}/{}'.format(bucket, key))
             sb = storage.get_object(bucket, key, stream=True, extra_get_args=extra_get_args)
             if data_byte_range is not None:
@@ -80,7 +80,7 @@ def create_partitions(config, arg_data, chunk_size):
     logger.debug('Starting partitioner')
 
     # We suppose here that the data is always in IBM COS.  TODO: Make it Generic.
-    storage = IbmCosStorageBackend(config['ibm_cos'])
+    storage = ibm_cos_backend(config['ibm_cos'])
 
     map_func_keys = arg_data[0].keys()
     parts_per_object = None

@@ -22,7 +22,7 @@ import logging
 import requests
 import http.client
 from urllib.parse import urlparse
-from .iam_client import IBMIAMClient
+from .iam import IBMIAMClient
 
 
 logger = logging.getLogger(__name__)
@@ -34,11 +34,12 @@ class CloudFunctionsClient:
         """
         Constructor
         """
-        self.endpoint = config['endpoint'].replace('http:', 'https:')
-        self.namespace = config['namespace']
+        region = config['region']
+        self.endpoint = config[region]['endpoint'].replace('http:', 'https:')
+        self.namespace = config[region]['namespace']
 
-        if 'api_key' in config:
-            api_key = str.encode(config['api_key'])
+        if 'api_key' in config[region]:
+            api_key = str.encode(config[region]['api_key'])
             auth_token = base64.encodebytes(api_key).replace(b'\n', b'')
             auth = 'Basic %s' % auth_token.decode('UTF-8')
             self.effective_namespace = self.namespace

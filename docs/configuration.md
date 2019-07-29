@@ -16,7 +16,7 @@ Summary of configuration keys for IBM-PyWren:
 
 
 Summary of configuration keys for IBM Cloud Functions:
-e
+
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |ibm_cf| endpoint | | yes | IBM Cloud Functions endpoint from [here](https://cloud.ibm.com/docs/openwhisk?topic=cloud-functions-cloudfunctions_regions#cloud-functions-endpoints). Make sure to use https:// prefix |

@@ -18,12 +18,11 @@ import os
 import logging
 import time
 from types import SimpleNamespace
-from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.version import __version__
 from concurrent.futures import ThreadPoolExecutor
 from pywren_ibm_cloud.compute import Compute
 from pywren_ibm_cloud.future import ResponseFuture, JobState
-from pywren_ibm_cloud.wrenconfig import extract_storage_config
+from pywren_ibm_cloud.config import extract_storage_config, extract_compute_config
 from pywren_ibm_cloud.storage.storage_utils import create_output_key, create_status_key
 
 logger = logging.getLogger(__name__)
@@ -35,13 +34,12 @@ class Invoker:
         self.log_level = os.getenv('CB_LOG_LEVEL')
         self.config = config
         self.executor_id = executor_id
-
-        compute_config = wrenconfig.extract_compute_config(self.config)
+        self.storage_config = extract_storage_config(self.config)
+        compute_config = extract_compute_config(config)
         self.internal_compute = Compute(compute_config)
 
     def run(self, job_description):
         job = SimpleNamespace(**job_description)
-        storage_config = extract_storage_config(self.config)
 
         if job.remote_invocation:
             log_msg = ('ExecutorID {} - Starting {} remote invocation function: Spawning {}() '
@@ -58,8 +56,8 @@ class Invoker:
 
         def invoke(executor_id, callgroup_id, call_id, func_key, invoke_metadata, data_key, data_byte_range):
 
-            output_key = create_output_key(storage_config['storage_prefix'], executor_id, callgroup_id, call_id)
-            status_key = create_status_key(storage_config['storage_prefix'], executor_id, callgroup_id, call_id)
+            output_key = create_output_key(self.storage_config['prefix'], executor_id, callgroup_id, call_id)
+            status_key = create_status_key(self.storage_config['prefix'], executor_id, callgroup_id, call_id)
 
             payload = {
                 'config': self.config,
@@ -68,7 +66,7 @@ class Invoker:
                 'data_key': data_key,
                 'output_key': output_key,
                 'status_key': status_key,
-                'job_max_runtime': job.runtime_timeout,
+                'task_execution_timeout': job.task_execution_timeout,
                 'data_byte_range': data_byte_range,
                 'executor_id': executor_id,
                 'callgroup_id': callgroup_id,
@@ -104,7 +102,7 @@ class Invoker:
             invoke_metadata.update(payload)
             del invoke_metadata['config']
 
-            fut = ResponseFuture(call_id, callgroup_id, executor_id, activation_id, storage_config, invoke_metadata)
+            fut = ResponseFuture(call_id, callgroup_id, executor_id, activation_id, self.storage_config, invoke_metadata)
             fut._set_state(JobState.invoked)
 
             return fut

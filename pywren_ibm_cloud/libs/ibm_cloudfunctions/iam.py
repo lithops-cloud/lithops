@@ -65,4 +65,4 @@ class IBMIAMClient:
                 logger.debug("Found name space id {} for {}".format(current_namespace['id'], self.cf_namespace))
                 return current_namespace['id']
 
-        raise RuntimeError("Error: No CF namespace \"{}\" found.".format(self.cf_namespace))
+        raise Exception("No IBM Cloud Functions namespace \"{}\" found.".format(self.cf_namespace))
