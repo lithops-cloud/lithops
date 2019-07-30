@@ -35,7 +35,7 @@ def partition_processor(map_function):
     Method that returns the function to process objects in the Cloud.
     It creates a ready-to-use data_stream parameter
     """
-    def object_processing_wrapper(map_func_args, data_byte_range, chunk_size, ibm_cos):
+    def object_processing_wrapper(map_func_args, data_byte_range, chunk_size, internal_storage, ibm_cos):
         extra_get_args = {}
         if data_byte_range is not None:
             range_str = 'bytes={}-{}'.format(*data_byte_range)
@@ -67,6 +67,8 @@ def partition_processor(map_function):
         func_sig = inspect.signature(map_function)
         if 'ibm_cos' in func_sig.parameters:
             map_func_args['ibm_cos'] = ibm_cos
+        if 'internal_storage' in func_sig.parameters:
+            map_func_args['internal_storage'] = internal_storage
 
         return map_function(**map_func_args)
 
