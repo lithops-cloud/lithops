@@ -25,10 +25,10 @@ import subprocess
 import multiprocessing
 from distutils.util import strtobool
 from pywren_ibm_cloud import version
-from pywren_ibm_cloud import wrenconfig
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.utils import sizeof_fmt
-from pywren_ibm_cloud.runtime.function_handler.jobrunner import jobrunner
+from pywren_ibm_cloud.config import extract_storage_config
+from pywren_ibm_cloud.runtime.function_handler.taskrunner import TaskRunner
 from pywren_ibm_cloud.logging_config import cloud_logging_config
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
@@ -77,7 +77,7 @@ def function_handler(event):
     }
 
     config = event['config']
-    storage_config = wrenconfig.extract_storage_config(config)
+    storage_config = extract_storage_config(config)
 
     log_level = event['log_level']
     cloud_logging_config(log_level)
@@ -86,7 +86,7 @@ def function_handler(event):
     callgroup_id = event['callgroup_id']
     executor_id = event['executor_id']
     logger.info("Execution ID: {}/{}/{}".format(executor_id, callgroup_id, call_id))
-    job_max_runtime = event.get("job_max_runtime", 590)  # default for CF
+    task_execution_timeout = event.get("task_execution_timeout", 590)  # default for CF
     status_key = event['status_key']
     func_key = event['func_key']
     data_key = event['data_key']
@@ -133,18 +133,18 @@ def function_handler(event):
         response_status['setup_time'] = round(setup_time - start_time, 8)
 
         result_queue = multiprocessing.Queue()
-        jr = jobrunner(jobrunner_config, result_queue)
-        jr.daemon = True
-        logger.info("Starting jobrunner process")
-        jr.start()
-        jr.join(job_max_runtime)
+        tr = TaskRunner(jobrunner_config, result_queue)
+        tr.daemon = True
+        logger.info("Starting TaskRunner process")
+        tr.start()
+        tr.join(task_execution_timeout)
         response_status['exec_time'] = round(time.time() - setup_time, 8)
 
-        if jr.is_alive():
+        if tr.is_alive():
             # If process is still alive after jr.join(job_max_runtime), kill it
-            logger.error("Process exceeded maximum runtime of {} seconds".format(job_max_runtime))
+            logger.error("Process exceeded maximum runtime of {} seconds".format(task_execution_timeout))
             # Send the signal to all the process groups
-            jr.terminate()
+            tr.terminate()
             raise Exception("OUTATIME",  "Process executed for too long and was killed")
 
         try:

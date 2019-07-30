@@ -19,8 +19,8 @@ import ibm_boto3
 import ibm_botocore
 from datetime import datetime
 from ibm_botocore.credentials import DefaultTokenManager
-from ...utils import sizeof_fmt, is_cf_cluster
-from ..exceptions import StorageNoSuchKeyError
+from ...utils import StorageNoSuchKeyError
+from ....utils import sizeof_fmt, is_cf_cluster
 
 logging.getLogger('ibm_boto3').setLevel(logging.CRITICAL)
 logging.getLogger('ibm_botocore').setLevel(logging.CRITICAL)
@@ -28,7 +28,7 @@ logging.getLogger('urllib3').setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
-class IbmCosStorageBackend:
+class StorageBackend:
     """
     A wrap-up around IBM COS ibm_boto3 APIs.
     """

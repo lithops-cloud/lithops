@@ -9,25 +9,25 @@ from .partitioner import create_partitions, partition_processor
 from pywren_ibm_cloud import utils
 from pywren_ibm_cloud.wait import wait
 from pywren_ibm_cloud.runtime import select_runtime
-from pywren_ibm_cloud.storage.storage_utils import create_func_key, create_agg_data_key
-from pywren_ibm_cloud.wrenconfig import RUNTIME_TIMEOUT, RUNTIME_RI_MEMORY_DEFAULT, MAX_AGG_DATA_SIZE
+from pywren_ibm_cloud.storage.utils import create_func_key, create_agg_data_key
+from pywren_ibm_cloud.config import EXECUTION_TIMEOUT, MAX_AGG_DATA_SIZE
 
 logger = logging.getLogger(__name__)
 
 
 def create_call_async_job(config, internal_storage, executor_id, func, data, extra_env=None,
-                          extra_meta=None, runtime_memory=None, runtime_timeout=RUNTIME_TIMEOUT):
+                          extra_meta=None, runtime_memory=None, execution_timeout=EXECUTION_TIMEOUT):
     """
     Wrapper to create call_async job that contains only one function invocation.
     """
     return _create_job(config, internal_storage, executor_id, func, [data], extra_env=extra_env,
-                       extra_meta=extra_meta, runtime_memory=runtime_memory, runtime_timeout=runtime_timeout)
+                       extra_meta=extra_meta, runtime_memory=runtime_memory, execution_timeout=execution_timeout)
 
 
 def create_map_job(config, internal_storage, executor_id, map_function, iterdata, obj_chunk_size=None,
-                   extra_env=None, extra_meta=None, runtime_name=None, runtime_memory=None, remote_invocation=False,
+                   extra_env=None, extra_meta=None, runtime_memory=None, remote_invocation=False,
                    remote_invocation_groups=None, invoke_pool_threads=128, exclude_modules=None, is_cf_cluster=False,
-                   runtime_timeout=RUNTIME_TIMEOUT, overwrite_invoke_args=None):
+                   execution_timeout=EXECUTION_TIMEOUT, overwrite_invoke_args=None):
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
     """
@@ -57,8 +57,7 @@ def create_map_job(config, internal_storage, executor_id, map_function, iterdata
         rabbitmq_monitor = "PYWREN_RABBITMQ_MONITOR" in os.environ
 
         def remote_invoker(input_data):
-            pw = pywren.ibm_cf_executor(runtime=runtime_name,
-                                        rabbitmq_monitor=rabbitmq_monitor)
+            pw = pywren.ibm_cf_executor(rabbitmq_monitor=rabbitmq_monitor)
             return pw.map(map_function, input_data,
                           runtime_memory=runtime_memory,
                           invoke_pool_threads=invoke_pool_threads,
@@ -72,7 +71,7 @@ def create_map_job(config, internal_storage, executor_id, map_function, iterdata
         else:
             map_iterdata = [iterdata]
         new_invoke_pool_threads = 1
-        new_runtime_memory = RUNTIME_RI_MEMORY_DEFAULT
+        new_runtime_memory = runtime_memory
     # ########
 
     job_description = _create_job(config, internal_storage, executor_id,
@@ -86,7 +85,7 @@ def create_map_job(config, internal_storage, executor_id, map_function, iterdata
                                   original_func_name=map_function.__name__,
                                   remote_invocation=remote_invocation,
                                   original_iterdata_len=original_iterdata_len,
-                                  runtime_timeout=runtime_timeout)
+                                  execution_timeout=execution_timeout)
 
     return job_description, parts_per_object
 
@@ -148,9 +147,9 @@ def _agg_data(data_strs):
 
 
 def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env=None, extra_meta=None,
-                runtime_name=None, runtime_memory=None, invoke_pool_threads=128, overwrite_invoke_args=None,
+                runtime_memory=None, invoke_pool_threads=128, overwrite_invoke_args=None,
                 exclude_modules=None, original_func_name=None, remote_invocation=False, original_iterdata_len=None,
-                runtime_timeout=RUNTIME_TIMEOUT):
+                execution_timeout=EXECUTION_TIMEOUT):
     """
     :param func: the function to map over the data
     :param iterdata: An iterable of input data
@@ -167,12 +166,10 @@ def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env
     """
     log_level = os.getenv('CB_LOG_LEVEL')
 
-    if runtime_name is None:
-        runtime_name = config['pywren']['runtime']
+    runtime_name = config['pywren']['runtime']
     if runtime_memory is None:
         runtime_memory = config['pywren']['runtime_memory']
     runtime_memory = int(runtime_memory)
-
     runtime_preinstalls = select_runtime(config, internal_storage, executor_id,
                                          runtime_name, runtime_memory)
     serializer = SerializeIndependent(runtime_preinstalls)
@@ -200,7 +197,7 @@ def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env
 
     job_description['runtime_name'] = runtime_name
     job_description['runtime_memory'] = runtime_memory
-    job_description['runtime_timeout'] = runtime_timeout
+    job_description['task_execution_timeout'] = execution_timeout
     job_description['func_name'] = func_name
     job_description['extra_env'] = extra_env
     job_description['extra_meta'] = extra_meta

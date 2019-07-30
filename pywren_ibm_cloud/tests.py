@@ -3,7 +3,7 @@ import unittest
 import pywren_ibm_cloud as pywren
 import urllib.request
 from pywren_ibm_cloud.storage import InternalStorage
-from pywren_ibm_cloud import wrenconfig
+from pywren_ibm_cloud.config import default_config, extract_storage_config
 from multiprocessing.pool import ThreadPool
 import logging
 
@@ -17,7 +17,7 @@ def initTests():
     def up(param):
         i, url = param
         content = urllib.request.urlopen(url).read()
-        STORAGE.put_object(bucket_name=STORAGE_CONFIG['storage_bucket'],
+        STORAGE.put_object(bucket_name=STORAGE_CONFIG['bucket'],
                            key=f'{PREFIX}/test{str(i)}',
                            data=content)
         return len(content.split())
@@ -28,20 +28,20 @@ def initTests():
     pool.join()
     result_to_compare = 1 + sum(results)  # including result's word
 
-    STORAGE.put_object(bucket_name=STORAGE_CONFIG['storage_bucket'],
+    STORAGE.put_object(bucket_name=STORAGE_CONFIG['bucket'],
                        key=f'{PREFIX}/result',
                        data=str(result_to_compare).encode())
 
 
 def list_test_keys():
-    return STORAGE.list_keys_with_prefix(bucket_name=STORAGE_CONFIG['storage_bucket'],
+    return STORAGE.list_keys_with_prefix(bucket_name=STORAGE_CONFIG['bucket'],
                                          prefix=PREFIX)
 
 
 def cleanTests():
     print('Deleting test files...')
     for key in list_test_keys():
-        STORAGE.delete_object(bucket_name=STORAGE_CONFIG['storage_bucket'],
+        STORAGE.delete_object(bucket_name=STORAGE_CONFIG['bucket'],
                               key=key)
 
 
@@ -203,7 +203,7 @@ def my_reduce_function(results):
 class TestPywrenCos(unittest.TestCase):
 
     def checkResult(self, result):
-        result_to_compare = STORAGE.get_object(bucket_name=STORAGE_CONFIG['storage_bucket'],
+        result_to_compare = STORAGE.get_object(bucket_name=STORAGE_CONFIG['bucket'],
                                                key=f'{PREFIX}/result')
 
         if isinstance(result, list):
@@ -216,21 +216,21 @@ class TestPywrenCos(unittest.TestCase):
         self.assertEqual(total, int(result_to_compare))
 
     def test_map_reduce_cos_bucket(self):
-        data_prefix = STORAGE_CONFIG['storage_bucket'] + '/' + PREFIX
+        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX
         pw = pywren.ibm_cf_executor(config=CONFIG)
         pw.map_reduce(my_map_function_bucket, data_prefix, my_reduce_function)
         result = pw.get_result()
         self.checkResult(result)
 
     def test_map_reduce_cos_bucket_one_reducer_per_object(self):
-        data_prefix = STORAGE_CONFIG['storage_bucket'] + '/' + PREFIX
+        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX
         pw = pywren.ibm_cf_executor(config=CONFIG)
         pw.map_reduce(my_map_function_bucket, data_prefix, my_reduce_function, reducer_one_per_object=True)
         result = pw.get_result()
         self.checkResult(result)
 
     def test_map_reduce_cos_key(self):
-        bucket_name = STORAGE_CONFIG['storage_bucket']
+        bucket_name = STORAGE_CONFIG['bucket']
         iterdata = [bucket_name + '/' + key for key in list_test_keys()]
         pw = pywren.ibm_cf_executor(config=CONFIG)
         pw.map_reduce(my_map_function_key, iterdata, my_reduce_function)
@@ -238,7 +238,7 @@ class TestPywrenCos(unittest.TestCase):
         self.checkResult(result)
 
     def test_map_reduce_cos_key_one_reducer_per_object(self):
-        bucket_name = STORAGE_CONFIG['storage_bucket']
+        bucket_name = STORAGE_CONFIG['bucket']
         iterdata = [bucket_name + '/' + key for key in list_test_keys()]
         pw = pywren.ibm_cf_executor(config=CONFIG)
         pw.map_reduce(my_map_function_key, iterdata, my_reduce_function, reducer_one_per_object=True)
@@ -252,21 +252,21 @@ class TestPywrenCos(unittest.TestCase):
         self.checkResult(result + 1)
 
     def test_storage_handler(self):
-        iterdata = [[key, STORAGE_CONFIG['storage_bucket']] for key in list_test_keys()]
+        iterdata = [[key, STORAGE_CONFIG['bucket']] for key in list_test_keys()]
         pw = pywren.ibm_cf_executor(config=CONFIG)
         pw.map_reduce(my_map_function_storage_handler, iterdata, my_reduce_function)
         result = pw.get_result()
         self.checkResult(result)
 
     def test_chunks_bucket(self):
-        data_prefix = STORAGE_CONFIG['storage_bucket'] + '/' + PREFIX
+        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX
         pw = pywren.ibm_cf_executor(config=CONFIG)
         pw.map_reduce(my_map_function_bucket, data_prefix, my_reduce_function, chunk_size=1 * 1024 ** 2)
         result = pw.get_result()
         self.checkResult(result)
 
     def test_chunks_bucket_one_reducer_per_object(self):
-        data_prefix = STORAGE_CONFIG['storage_bucket'] + '/' + PREFIX
+        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX
         pw = pywren.ibm_cf_executor(config=CONFIG)
         pw.map_reduce(my_map_function_bucket, data_prefix, my_reduce_function, chunk_size=1 * 1024 ** 2,
                       reducer_one_per_object=True)
@@ -279,8 +279,8 @@ def run(config=None):
     global STORAGE_CONFIG
     global STORAGE
 
-    CONFIG = wrenconfig.default(config)
-    STORAGE_CONFIG = wrenconfig.extract_storage_config(CONFIG)
+    CONFIG = default_config(config)
+    STORAGE_CONFIG = extract_storage_config(CONFIG)
     internal_storage = InternalStorage(STORAGE_CONFIG)
     STORAGE = internal_storage.storage_handler
 

@@ -3,8 +3,7 @@ import sys
 import logging
 from pywren_ibm_cloud.compute import Compute
 from pywren_ibm_cloud.utils import version_str
-from pywren_ibm_cloud.runtime import create_runtime
-from pywren_ibm_cloud.wrenconfig import extract_compute_config
+from pywren_ibm_cloud.config import extract_compute_config
 
 logger = logging.getLogger(__name__)
 
@@ -26,15 +25,19 @@ def select_runtime(config, internal_storage, executor_id, runtime_name, runtime_
 
     runtime_key = internal_compute.get_runtime_key(runtime_name, runtime_memory)
     try:
-        runtime_meta = internal_storage.get_runtime_info(runtime_key)
+        runtime_meta = internal_storage.get_runtime_meta(runtime_key)
         if not log_level:
             print()
     except Exception:
         logger.debug('ExecutorID {} - Runtime {} with {}MB is not yet installed'.format(executor_id, runtime_name, runtime_memory))
         if not log_level:
             print('(Installing...)')
-        create_runtime(runtime_name, memory=runtime_memory, config=config)
-        runtime_meta = internal_storage.get_runtime_info(runtime_key)
+
+        timeout = config['pywren']['runtime_timeout']
+        logger.debug('Creating runtime: {}, memory: {}'.format(runtime_name, runtime_memory))
+        runtime_meta = internal_compute.generate_runtime_meta(runtime_name)
+        internal_compute.create_runtime(runtime_name, runtime_memory, timeout=timeout)
+        internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
     if not _runtime_valid(runtime_meta):
         raise Exception(("The indicated runtime: {} "

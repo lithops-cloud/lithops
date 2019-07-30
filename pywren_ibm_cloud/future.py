@@ -19,7 +19,7 @@ import enum
 import pickle
 import logging
 from pywren_ibm_cloud.storage import InternalStorage
-from pywren_ibm_cloud.storage.storage_utils import check_storage_path, get_storage_path
+from pywren_ibm_cloud.storage.utils import check_storage_path, get_storage_path
 from pywren_ibm_cloud.libs.tblib import pickling_support
 
 pickling_support.install()
