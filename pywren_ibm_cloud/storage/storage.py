@@ -88,7 +88,7 @@ class InternalStorage:
         body = pickle.dumps(content)
         self.storage_handler.put_object(bucket, key, body)
         self.tmp_obj_count += 1
-        return CloudObject(self.storage_backend, bucket, key)
+        return CloudObject(self.backend, bucket, key)
 
     def get_object(self, cloudobject):
         """
@@ -96,7 +96,7 @@ class InternalStorage:
         :param cloudobject:
         :return: body text
         """
-        if self.storage_backend == cloudobject.storage_backend:
+        if self.backend == cloudobject.storage_backend:
             bucket = cloudobject.bucket
             key = cloudobject.key
             body = self.storage_handler.get_object(bucket, key)
