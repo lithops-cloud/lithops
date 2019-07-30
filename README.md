@@ -134,23 +134,13 @@ You can also build custom runtimes with libraries that your functions depends on
 
 ## Verify 
 
-To test that all is working, execute:
-```python
-from pywren_ibm_cloud import tests
-tests.run()
-```
-Notice that if you didn't set a local PyWren's config file, you need to provide it as a dictionary by the `config` parameter of `run()` method which uses the default local config file if this parameter is `None`. 
+To test that all is working, use the command:
 
-Alternatively, for debugging purposes, you can also run [tests.py](pywren_ibm_cloud/tests.py) directly which is located in the `pywren_ibm_cloud` folder with the arguments listed below.
+    python -m pywren_ibm_cloud.tests
 
-| Command | Explanation |
-|---| ---| 
-| `python3 pywren_ibm_cloud/tests.py` | test all PyWren's functionality |
-| `python3 pywren_ibm_cloud/tests.py pywren` | test PyWren without Cloud Object Storage service |
-| `python3 pywren_ibm_cloud/tests.py pywren_cos` | test PyWren using Cloud Object Storage service only |
-| `python3 pywren_ibm_cloud/tests.py <FUNC_NAME>` | run a specific test function by its name as implemented in the test file |
+Notice that if you didn't set a local PyWren's config file, you need to provide it as a json file path by `-c <CONFIG>` flag. 
 
-The test script assumes that a local PyWren's config file was set correctly.
+Alternatively, for debugging purposes, you can run specific tests by `-f <TESTNAME>`. use `--help` flag to get more information about the test script.
 
 ## How to use PyWren for IBM Cloud Functions
 

@@ -1,14 +1,30 @@
 import sys
+import json
+import argparse
 import unittest
 import pywren_ibm_cloud as pywren
 import urllib.request
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.config import default_config, extract_storage_config
 from multiprocessing.pool import ThreadPool
+
 import logging
-
-
 # logging.basicConfig(level=logging.DEBUG)
+
+parser = argparse.ArgumentParser(description="test all PyWren's functionality", usage='python -m pywren_ibm_cloud.tests [-c CONFIG] [-f TESTNAME]')
+parser.add_argument('-c', '--config', type=argparse.FileType('r'), metavar='', default=None, help="use json config file")
+parser.add_argument('-f', '--function', metavar='', default='all', help='run a specific test, type "-f help" for tests list')
+args = parser.parse_args()
+
+CONFIG = default_config()
+STORAGE_CONFIG = extract_storage_config(CONFIG)
+STORAGE = InternalStorage(STORAGE_CONFIG).storage_handler
+PREFIX = '__pywren.test'
+TEST_FILES_URLS = ["http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.enron.txt",
+                   "http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.kos.txt",
+                   "http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.nips.txt",
+                   "http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.nytimes.txt",
+                   "http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.pubmed.txt"]
 
 
 def initTests():
@@ -45,14 +61,6 @@ def cleanTests():
                               key=key)
 
 
-PREFIX = '__pywren.test'
-TEST_FILES_URLS = ["http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.enron.txt",
-                   "http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.kos.txt",
-                   "http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.nips.txt",
-                   "http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.nytimes.txt",
-                   "http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.pubmed.txt"]
-
-
 def hello_world(param):
     return "Hello World!"
 
@@ -66,62 +74,6 @@ def simple_reduce_function(results):
     for map_result in results:
         total = total + map_result
     return total
-
-
-class TestPywren(unittest.TestCase):
-
-    def test_call_async(self):
-        pw = pywren.ibm_cf_executor(config=CONFIG)
-        pw.call_async(hello_world, "")
-        result = pw.get_result()
-        self.assertEqual(result, "Hello World!")
-
-        pw = pywren.ibm_cf_executor(config=CONFIG)
-        pw.call_async(simple_map_function, [4, 6])
-        result = pw.get_result()
-        self.assertEqual(result, 10)
-
-        pw = pywren.ibm_cf_executor(config=CONFIG)
-        pw.call_async(simple_map_function, {'x': 2, 'y': 8})
-        result = pw.get_result()
-        self.assertEqual(result, 10)
-
-    def test_map(self):
-        iterdata = [[1, 1], [2, 2], [3, 3], [4, 4]]
-        pw = pywren.ibm_cf_executor(config=CONFIG)
-        pw.map(simple_map_function, iterdata)
-        result = pw.get_result()
-        self.assertEqual(result, [2, 4, 6, 8])
-
-    def test_map_reduce(self):
-        iterdata = [[1, 1], [2, 2], [3, 3], [4, 4]]
-        pw = pywren.ibm_cf_executor(config=CONFIG)
-        pw.map_reduce(simple_map_function, iterdata, simple_reduce_function)
-        result = pw.get_result()
-        self.assertEqual(result, 20)
-
-    def test_multiple_executions(self):
-        pw = pywren.ibm_cf_executor(config=CONFIG)
-        iterdata = [[1, 1], [2, 2]]
-        pw.map(simple_map_function, iterdata)
-        iterdata = [[3, 3], [4, 4]]
-        pw.map(simple_map_function, iterdata)
-        result = pw.get_result()
-        self.assertEqual(result, [2, 4, 6, 8])
-
-        iterdata = [[1, 1], [2, 2]]
-        pw.map(simple_map_function, iterdata)
-        result = pw.get_result()
-        self.assertEqual(result, [2, 4])
-
-        iterdata = [[1, 1], [2, 2]]
-        futures1 = pw.map(simple_map_function, iterdata)
-        result1 = pw.get_result(futures=futures1)
-        iterdata = [[3, 3], [4, 4]]
-        futures2 = pw.map(simple_map_function, iterdata)
-        result2 = pw.get_result(futures=futures2)
-        self.assertEqual(result1, [2, 4])
-        self.assertEqual(result2, [6, 8])
 
 
 def my_map_function_bucket(bucket, key, data_stream, ibm_cos):
@@ -200,7 +152,18 @@ def my_reduce_function(results):
     return final_result
 
 
-class TestPywrenCos(unittest.TestCase):
+def my_cloudobject_put(bucket, key, data_stream, ibm_cos, internal_storage):
+    counter = my_map_function_bucket(bucket, key, data_stream, ibm_cos)
+    cloudobject = internal_storage.put_object(counter)
+    return cloudobject
+
+
+def my_cloudobject_get(results, internal_storage):
+    data = [internal_storage.get_object(cloudobject) for cloudobject in results]
+    return my_reduce_function(data)
+
+
+class TestPywren(unittest.TestCase):
 
     def checkResult(self, result):
         result_to_compare = STORAGE.get_object(bucket_name=STORAGE_CONFIG['bucket'],
@@ -214,6 +177,59 @@ class TestPywrenCos(unittest.TestCase):
             total = result
 
         self.assertEqual(total, int(result_to_compare))
+
+    def test_call_async(self):
+        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw.call_async(hello_world, "")
+        result = pw.get_result()
+        self.assertEqual(result, "Hello World!")
+
+        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw.call_async(simple_map_function, [4, 6])
+        result = pw.get_result()
+        self.assertEqual(result, 10)
+
+        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw.call_async(simple_map_function, {'x': 2, 'y': 8})
+        result = pw.get_result()
+        self.assertEqual(result, 10)
+
+    def test_map(self):
+        iterdata = [[1, 1], [2, 2], [3, 3], [4, 4]]
+        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw.map(simple_map_function, iterdata)
+        result = pw.get_result()
+        self.assertEqual(result, [2, 4, 6, 8])
+
+    def test_map_reduce(self):
+        iterdata = [[1, 1], [2, 2], [3, 3], [4, 4]]
+        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw.map_reduce(simple_map_function, iterdata, simple_reduce_function)
+        result = pw.get_result()
+        self.assertEqual(result, 20)
+
+    def test_multiple_executions(self):
+        pw = pywren.ibm_cf_executor(config=CONFIG)
+        iterdata = [[1, 1], [2, 2]]
+        pw.map(simple_map_function, iterdata)
+        iterdata = [[3, 3], [4, 4]]
+        pw.map(simple_map_function, iterdata)
+        result = pw.get_result()
+        self.assertEqual(result, [2, 4, 6, 8])
+
+        iterdata = [[1, 1], [2, 2]]
+        pw.map(simple_map_function, iterdata)
+        result = pw.get_result()
+        self.assertEqual(result, [2, 4])
+
+        iterdata = [[1, 1], [2, 2]]
+        futures1 = pw.map(simple_map_function, iterdata)
+        result1 = pw.get_result(futures=futures1)
+        iterdata = [[3, 3], [4, 4]]
+        futures2 = pw.map(simple_map_function, iterdata)
+        result2 = pw.get_result(futures=futures2)
+        self.assertEqual(result1, [2, 4])
+        self.assertEqual(result2, [6, 8])
 
     def test_map_reduce_cos_bucket(self):
         data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX
@@ -273,63 +289,47 @@ class TestPywrenCos(unittest.TestCase):
         result = pw.get_result()
         self.checkResult(result)
 
-
-def run(config=None):
-    global CONFIG
-    global STORAGE_CONFIG
-    global STORAGE
-
-    CONFIG = default_config(config)
-    STORAGE_CONFIG = extract_storage_config(CONFIG)
-    internal_storage = InternalStorage(STORAGE_CONFIG)
-    STORAGE = internal_storage.storage_handler
-
-    if len(sys.argv) <= 1:
-        task = 'full'
-    else:
-        task = sys.argv[1]
-
-    suite = unittest.TestSuite()
-    if task == 'pywren':
-        suite.addTest(unittest.makeSuite(TestPywren))
-    elif task == 'pywren_cos':
-        suite.addTest(unittest.makeSuite(TestPywrenCos))
-    elif task == 'full':
-        suite.addTest(unittest.makeSuite(TestPywren))
-        suite.addTest(unittest.makeSuite(TestPywrenCos))
-    elif task == 'test_call_async':
-        suite.addTest(TestPywren('test_call_async'))
-    elif task == 'test_map':
-        suite.addTest(TestPywren('test_map'))
-    elif task == 'test_map_reduce':
-        suite.addTest(TestPywren('test_map_reduce'))
-    elif task == 'test_multiple_executions':
-        suite.addTest(TestPywren('test_multiple_executions'))
-    elif task == 'test_map_reduce_cos_bucket':
-        suite.addTest(TestPywrenCos('test_map_reduce_cos_bucket'))
-    elif task == 'test_map_reduce_cos_bucket_one_reducer_per_object':
-        suite.addTest(TestPywrenCos('test_map_reduce_cos_bucket_one_reducer_per_object'))
-    elif task == 'test_map_reduce_cos_key':
-        suite.addTest(TestPywrenCos('test_map_reduce_cos_key'))
-    elif task == 'test_map_reduce_cos_key_one_reducer_per_object':
-        suite.addTest(TestPywrenCos('test_map_reduce_cos_key_one_reducer_per_object'))
-    elif task == 'test_map_reduce_url':
-        suite.addTest(TestPywrenCos('test_map_reduce_url'))
-    elif task == 'test_storage_handler':
-        suite.addTest(TestPywrenCos('test_storage_handler'))
-    elif task == 'test_chunks_bucket':
-        suite.addTest(TestPywrenCos('test_chunks_bucket'))
-    elif task == 'test_chunks_bucket_one_reducer_per_object':
-        suite.addTest(TestPywrenCos('test_chunks_bucket_one_reducer_per_object'))
-    else:
-        print('Unknown Command... use: "init", "pywren", "pywren_cos", "clean" or a test function name.')
-        sys.exit()
-
-    initTests()
-    runner = unittest.TextTestRunner()
-    runner.run(suite)
-    cleanTests()
+    def test_cloudobject(self):
+        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX
+        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw.map_reduce(my_cloudobject_put, data_prefix, my_cloudobject_get)
+        result = pw.get_result()
+        self.checkResult(result)
 
 
 if __name__ == '__main__':
-    run()
+
+    if args.function == 'help':
+        print("available test functions:")
+        print("-> test_call_async")
+        print("-> test_map")
+        print("-> test_map_reduce")
+        print("-> test_multiple_executions")
+        print("-> test_map_reduce_cos_bucket")
+        print("-> test_map_reduce_cos_bucket_one_reducer_per_object")
+        print("-> test_map_reduce_cos_key")
+        print("-> test_map_reduce_cos_key_one_reducer_per_object")
+        print("-> test_map_reduce_url")
+        print("-> test_storage_handler")
+        print("-> test_chunks_bucket")
+        print("-> test_chunks_bucket_one_reducer_per_object")
+        print("-> test_cloudobject")
+
+    else:
+        suite = unittest.TestSuite()
+        if args.function == 'all':
+            suite.addTest(unittest.makeSuite(TestPywren))
+        else:
+            try:
+                suite.addTest(TestPywren(args.function))
+            except ValueError:
+                print("unknown test, use: --help")
+                sys.exit()
+
+        if args.config:
+            args.config = json.load(args.config)
+
+        initTests()
+        runner = unittest.TextTestRunner()
+        runner.run(suite)
+        cleanTests()
