@@ -68,12 +68,12 @@ class Compute(metaclass=ThreadSafeSingleton):
         """
         return self.compute_handler.invoke_with_result(runtime_name, memory, payload)
 
-    def bild_runtime(self, runtime_name):
+    def build_runtime(self, runtime_name):
         """
-        Wrapper method to byuild a new runtime for the compute backend.
+        Wrapper method to build a new runtime for the compute backend.
         return: the name of the runtime
         """
-        self.compute_handler.bild_runtime(runtime_name)
+        self.compute_handler.build_runtime(runtime_name)
 
     def create_runtime(self, runtime_name, memory, timeout=300000):
         """
