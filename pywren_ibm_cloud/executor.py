@@ -29,8 +29,9 @@ class ExecutorState(enum.Enum):
 
 class JobState(enum.Enum):
     running = 1
-    monitoring = 2
-    finished = 3
+    ready = 2
+    done = 3
+    finished = 4
 
 
 class FunctionExecutor:
@@ -111,7 +112,7 @@ class FunctionExecutor:
         job = create_call_async_job(self.config, self.internal_storage, self.executor_id, job_id,
                                     func, data, extra_env, extra_meta, runtime_memory, timeout)
         future = self.invoker.run(job)
-        self.jobs[job['job_id']] = {'futures': future, 'total': job['total_tasks'], 'state': JobState.running}
+        self.jobs[job['job_id']] = {'futures': future, 'total': job['total_calls'], 'state': JobState.running}
         self._state = ExecutorState.running
 
         return future[0]
@@ -153,7 +154,7 @@ class FunctionExecutor:
                                          overwrite_invoke_args=overwrite_invoke_args,
                                          execution_timeout=timeout)
         map_futures = self.invoker.run(job)
-        self.jobs[job['job_id']] = {'futures': map_futures, 'total': job['total_tasks'], 'state': JobState.running}
+        self.jobs[job['job_id']] = {'futures': map_futures, 'total': job['total_calls'], 'state': JobState.running}
         self._state = ExecutorState.running
 
         if len(map_futures) == 1:
@@ -206,7 +207,7 @@ class FunctionExecutor:
                                                overwrite_invoke_args=overwrite_invoke_args,
                                                execution_timeout=timeout)
         map_futures = self.invoker.run(job)
-        self.jobs[job['job_id']] = {'futures': map_futures, 'total': job['total_tasks'], 'state': JobState.running}
+        self.jobs[job['job_id']] = {'futures': map_futures, 'total': job['total_calls'], 'state': JobState.running}
         self._state = ExecutorState.running
 
         if reducer_wait_local:
@@ -217,7 +218,7 @@ class FunctionExecutor:
                                 map_futures, parts_per_object, reducer_one_per_object,
                                 extra_env, extra_meta)
         reduce_futures = self.invoker.run(job)
-        self.jobs[job['job_id']] = {'futures': reduce_futures, 'total': job['total_tasks'], 'state': JobState.running}
+        self.jobs[job['job_id']] = {'futures': reduce_futures, 'total': job['total_calls'], 'state': JobState.running}
 
         for f in map_futures:
             f.produce_output = False
@@ -249,7 +250,7 @@ class FunctionExecutor:
             for job in self.jobs:
                 if self.jobs[job]['state'] == JobState.running:
                     futures.extend(self.jobs[job]['futures'])
-                    self.jobs[job]['state'] = JobState.monitoring
+                    self.jobs[job]['state'] = JobState.ready
 
         if type(futures) != list:
             ftrs = [futures]
@@ -363,11 +364,18 @@ class FunctionExecutor:
         :param WAIT_DUR_SEC: Time interval between each check.
         :return: The result of the future/s
         """
+        if not futures:
+            futures = []
+            for job in self.jobs:
+                if self.jobs[job]['state'] != JobState.done:
+                    futures.extend(self.jobs[job]['futures'])
+                    self.jobs[job]['state'] = JobState.done
+
         fs_dones, unused_fs_notdones = self.monitor(futures=futures, throw_except=throw_except,
                                                     timeout=timeout, download_results=True,
                                                     THREADPOOL_SIZE=THREADPOOL_SIZE,
                                                     WAIT_DUR_SEC=WAIT_DUR_SEC)
-        result = [f.result(internal_storage=self.internal_storage) for f in fs_dones if not f.futures]
+        result = [f.result(internal_storage=self.internal_storage) for f in fs_dones if not f.futures and f.produce_output]
         self._state = ExecutorState.success
         msg = "ExecutorID {} Finished getting results".format(self.executor_id)
         logger.debug(msg)
@@ -391,7 +399,8 @@ class FunctionExecutor:
         if not futures:
             futures = []
             for job in self.jobs:
-                if self.jobs[job]['state'] == JobState.monitoring:
+                if self.jobs[job]['state'] == JobState.ready or \
+                   self.jobs[job]['state'] == JobState.done:
                     futures.extend(self.jobs[job]['futures'])
                     self.jobs[job]['state'] = JobState.finished
 

@@ -2,7 +2,6 @@ import os
 import time
 import random
 import logging
-import threading
 import importlib
 
 logger = logging.getLogger(__name__)

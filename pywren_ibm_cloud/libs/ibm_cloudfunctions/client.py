@@ -195,7 +195,7 @@ class CloudFunctionsClient:
         """
         url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', package, action_name])
         parsed_url = urlparse(url)
-        start = time.time()
+
         try:
             if is_cf_cluster:
                 resp = self.session.post(url, json=payload)
@@ -215,14 +215,11 @@ class CloudFunctionsClient:
             if not is_cf_cluster:
                 conn.close()
             if self_invoked:
-                return None, None, e
+                return None, e
             return self.invoke(package, action_name, payload, is_cf_cluster, self_invoked=True)
 
-        roundtrip = time.time() - start
-        resp_time = format(round(roundtrip, 3), '.3f')
-
         if resp_status == 202 and 'activationId' in data:
-            return data["activationId"], resp_time, None
+            return data["activationId"], None
         else:
             logger.debug(data)
             if resp_status == 401:
@@ -231,7 +228,7 @@ class CloudFunctionsClient:
                 raise Exception('Runtime: {} not deployed'.format(action_name))
             elif resp_status == 429:
                 # Too many concurrent requests in flight
-                return None, None, "Too many concurrent requests in flight"
+                return None, "Too many concurrent requests in flight"
             else:
                 raise Exception(data['error'])
 

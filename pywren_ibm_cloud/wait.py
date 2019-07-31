@@ -168,8 +168,8 @@ def _wait_rabbitmq(fs, executor_id, job_id, rabbit_amqp_url, pbar, total):
         fs_dones = []
         fs_notdones = []
         for f in fs:
-            if f.job_id in task_statuses and f.task_id in task_statuses[f.job_id]:
-                f.run_status = task_statuses[f.job_id][f.task_id]
+            if f.job_id in task_statuses and f.call_id in task_statuses[f.job_id]:
+                f.run_status = task_statuses[f.job_id][f.call_id]
                 f.invoke_status['status_done_timestamp'] = f.run_status['status_done_timestamp']
                 del f.run_status['status_done_timestamp']
                 f._set_state(JobState.ready)
@@ -197,7 +197,7 @@ def _wait_rabbitmq(fs, executor_id, job_id, rabbit_amqp_url, pbar, total):
             raise KeyboardInterrupt
 
         rcvd_job_id = call_status['job_id']
-        rcvd_task_id = call_status['task_id']
+        rcvd_task_id = call_status['call_id']
 
         if rcvd_job_id not in done_task_ids:
             done_task_ids[rcvd_job_id] = {'total': None, 'task_ids': []}
@@ -266,15 +266,15 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
     #print('Time getting list: ', time.time()-t0, len(callids_done_in_callset))
     # print('CALLSET:', callids_done_in_callset, len(callids_done_in_callset))
 
-    not_done_call_ids = set([(f.job_id, f.task_id) for f in not_done_futures])
+    not_done_call_ids = set([(f.job_id, f.call_id) for f in not_done_futures])
     # print('NO TDONE:' ,not_done_call_ids, len(not_done_call_ids))
 
     done_call_ids = not_done_call_ids.intersection(callids_done_in_callset)
     not_done_call_ids = not_done_call_ids - done_call_ids
-    still_not_done_futures = [f for f in not_done_futures if ((f.job_id, f.task_id) in not_done_call_ids)]
+    still_not_done_futures = [f for f in not_done_futures if ((f.job_id, f.call_id) in not_done_call_ids)]
 
     def fetch_future_status(f):
-        return internal_storage.get_call_status(f.executor_id, f.job_id, f.task_id)
+        return internal_storage.get_call_status(f.executor_id, f.job_id, f.call_id)
 
     pool = ThreadPool(THREADPOOL_SIZE)
 
@@ -294,7 +294,7 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
 
         fs_statuses = pool.map(fetch_future_status, fs_to_query)
 
-        callids_found = [(fs_to_query[i].job_id, fs_to_query[i].task_id) for i in range(len(fs_to_query))
+        callids_found = [(fs_to_query[i].job_id, fs_to_query[i].call_id) for i in range(len(fs_to_query))
                          if fs_statuses[i] is not None]
 
         # print('FOUND:', callids_found, len(callids_found))
@@ -308,11 +308,11 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
     fs_notdones = []
     f_to_wait_on = []
     for f in fs:
-        if f.ready or f.done:
+        if (not download_results and f.ready or f.done) or (f.done and download_results):
             # done, don't need to do anything
             fs_dones.append(f)
         else:
-            if (f.job_id, f.task_id) in done_call_ids:
+            if (f.job_id, f.call_id) in done_call_ids:
                 f_to_wait_on.append(f)
                 fs_dones.append(f)
             else:

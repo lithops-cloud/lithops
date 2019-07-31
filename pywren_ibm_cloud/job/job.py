@@ -202,12 +202,12 @@ def _create_job(config, internal_storage, executor_id, job_id, func, iterdata, e
     job_description['func_name'] = func_name
     job_description['extra_env'] = extra_env
     job_description['extra_meta'] = extra_meta
-    job_description['total_tasks'] = len(data)
+    job_description['total_calls'] = len(data)
     job_description['invoke_pool_threads'] = invoke_pool_threads
     job_description['overwrite_invoke_args'] = overwrite_invoke_args
     job_description['job_id'] = job_id
     job_description['remote_invocation'] = remote_invocation
-    job_description['original_total_tasks'] = original_total_tasks
+    job_description['original_total_calls'] = original_total_tasks
 
     log_msg = 'ExecutorID {} | JobID {} - Serializing function and data'.format(executor_id, job_id)
     logger.debug(log_msg)

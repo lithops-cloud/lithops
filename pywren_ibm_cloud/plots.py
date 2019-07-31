@@ -54,7 +54,7 @@ def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses, cos
 
     fields = [('host submit', results_df.host_submit_time - pw_start_time),
               ('action start', results_df.start_time - pw_start_time),
-              #('jobrunner start', results_df.jobrunner_start - pw_start_time),
+              #('taskrunner start', results_df.taskrunner_start - pw_start_time),
               ('action done', results_df.end_time - pw_start_time)]
 
     if 'download_output_timestamp' in results_df:
@@ -67,8 +67,8 @@ def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses, cos
         ax.scatter(val, y, c=[palette[f_i]], edgecolor='none', s=point_size, alpha=0.8)
         patches.append(mpatches.Patch(color=palette[f_i], label=field_name))
 
-    ax.set_xlabel('wallclock time (sec)')
-    ax.set_ylabel('job')
+    ax.set_xlabel('Execution Time (sec)')
+    ax.set_ylabel('Function Call')
     #pylab.ylim(0, 10)
 
     legend = pylab.legend(handles=patches, loc='upper right', frameon=True)
@@ -121,18 +121,18 @@ def create_histogram(dst, name, pw_start_time, run_statuses, cos_config):
 
         N = len(start_time)
 
-        runtime_tasks_hist = np.zeros((N, len(runtime_bins)))
+        runtime_calls_hist = np.zeros((N, len(runtime_bins)))
 
         for i in range(N):
             s = start_time[i]
             e = end_time[i]
             a, b = np.searchsorted(runtime_bins, [s, e])
             if b-a > 0:
-                runtime_tasks_hist[i, a:b] = 1
+                runtime_calls_hist[i, a:b] = 1
 
         return {'start_time': start_time,
                 'end_time': end_time,
-                'runtime_tasks_hist': runtime_tasks_hist}
+                'runtime_calls_hist': runtime_calls_hist}
 
     fig = pylab.figure(figsize=(10, 6))
     ax = fig.add_subplot(1, 1, 1)
@@ -148,15 +148,15 @@ def create_histogram(dst, name, pw_start_time, run_statuses, cos_config):
 
     ax.add_collection(line_segments)
 
-    ax.plot(runtime_bins, time_hist['runtime_tasks_hist'].sum(axis=0),
-            label='Total Active Tasks', zorder=-1)
+    ax.plot(runtime_bins, time_hist['runtime_calls_hist'].sum(axis=0),
+            label='Total Active Calls', zorder=-1)
 
     #ax.set_xlim(0, x_lim)
     ax.set_xlim(0, np.max(time_hist['end_time'])*3)
     ax.set_ylim(0, len(time_hist['start_time'])*1.05)
-    ax.set_xlabel("time (sec)")
+    ax.set_xlabel("Execution Time (sec)")
 
-    ax.set_ylabel("IBM Cloud Function execution (Task)")
+    ax.set_ylabel("Function Call")
     ax.grid(False)
     ax.legend(loc='upper right')
 

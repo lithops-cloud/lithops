@@ -103,7 +103,7 @@ def create_agg_data_key(prefix, executor_id, job_id):
     return '/'.join([prefix, executor_id, job_id, agg_data_key_suffix])
 
 
-def create_data_key(prefix, executor_id, job_id, task_id):
+def create_data_key(prefix, executor_id, job_id, call_id):
     """
     Create data key
     :param prefix: prefix
@@ -111,10 +111,10 @@ def create_data_key(prefix, executor_id, job_id, task_id):
     :param call_id: call's ID
     :return: data key
     """
-    return '/'.join([prefix, executor_id, job_id, task_id, data_key_suffix])
+    return '/'.join([prefix, executor_id, job_id, call_id, data_key_suffix])
 
 
-def create_output_key(prefix, executor_id, job_id, task_id):
+def create_output_key(prefix, executor_id, job_id, call_id):
     """
     Create output key
     :param prefix: prefix
@@ -122,10 +122,10 @@ def create_output_key(prefix, executor_id, job_id, task_id):
     :param call_id: call's ID
     :return: output key
     """
-    return '/'.join([prefix, executor_id, job_id, task_id, output_key_suffix])
+    return '/'.join([prefix, executor_id, job_id, call_id, output_key_suffix])
 
 
-def create_status_key(prefix, executor_id, job_id, task_id):
+def create_status_key(prefix, executor_id, job_id, call_id):
     """
     Create status key
     :param prefix: prefix
@@ -133,10 +133,10 @@ def create_status_key(prefix, executor_id, job_id, task_id):
     :param call_id: call's ID
     :return: status key
     """
-    return '/'.join([prefix, executor_id, job_id, task_id, status_key_suffix])
+    return '/'.join([prefix, executor_id, job_id, call_id, status_key_suffix])
 
 
-def create_keys(prefix, executor_id, job_id, task_id):
+def create_keys(prefix, executor_id, job_id, call_id):
     """
     Create keys for data, output and status given callset and call IDs.
     :param prefix: prefix
@@ -144,9 +144,9 @@ def create_keys(prefix, executor_id, job_id, task_id):
     :param call_id: call's ID
     :return: data_key, output_key, status_key
     """
-    data_key = create_data_key(prefix, executor_id, job_id, task_id)
-    output_key = create_output_key(prefix, executor_id, job_id, task_id)
-    status_key = create_status_key(prefix, executor_id, job_id, task_id)
+    data_key = create_data_key(prefix, executor_id, job_id, call_id)
+    output_key = create_output_key(prefix, executor_id, job_id, call_id)
+    status_key = create_status_key(prefix, executor_id, job_id, call_id)
     return data_key, output_key, status_key
 
 

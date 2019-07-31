@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import logging
 import zipfile
 import pywren_ibm_cloud
@@ -159,16 +160,20 @@ class ComputeBackend:
         Invoke -- return information about this invocation
         """
         exec_id = payload['executor_id']
-        task_id = payload['task_id']
+        job_id = payload['job_id']
+        call_id = payload['call_id']
         action_name = self._format_action_name(docker_image_name, runtime_memory)
-        activation_id, resp_time, exception = self.cf_client.invoke(self.package, action_name, payload, self.is_cf_cluster)
+        start = time.time()
+        activation_id, exception = self.cf_client.invoke(self.package, action_name, payload, self.is_cf_cluster)
+        roundtrip = time.time() - start
+        resp_time = format(round(roundtrip, 3), '.3f')
 
         if activation_id is None:
-            log_msg = ('ExecutorID {} - Function {} invocation failed: {}'.format(exec_id, task_id, str(exception)))
+            log_msg = ('ExecutorID {} | JobID {} - Function {} invocation failed: {}'.format(exec_id, job_id, call_id, str(exception)))
             logger.debug(log_msg)
         else:
-            log_msg = ('ExecutorID {} - Function {} invocation done! ({}s) - Activation ID: '
-                       '{}'.format(exec_id, task_id, resp_time, activation_id))
+            log_msg = ('ExecutorID {} | JobID {} - Function {} invocation done! ({}s) - Activation ID: '
+                       '{}'.format(exec_id, job_id, call_id, resp_time, activation_id))
             logger.debug(log_msg)
 
         return activation_id

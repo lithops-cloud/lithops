@@ -1,5 +1,5 @@
 #
-# (C) Copyright IBM Corp. 2019
+# (C) Copyright PyWren Team
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config
 from pywren_ibm_cloud.storage.backends.ibm_cos.ibm_cos import StorageBackend as ibm_cos_backend
 
 pickling_support.install()
-logger = logging.getLogger('TaskRunner')
+logger = logging.getLogger('JobRunner')
 
 
 class stats:
@@ -51,7 +51,7 @@ class stats:
         self.stats_fid.close()
 
 
-class TaskRunner(Process):
+class JobRunner(Process):
 
     def __init__(self, tr_config, result_queue):
         super().__init__()

@@ -28,7 +28,7 @@ from pywren_ibm_cloud import version
 from pywren_ibm_cloud.utils import sizeof_fmt
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config
-from pywren_ibm_cloud.runtime.function_handler.taskrunner import TaskRunner
+from pywren_ibm_cloud.runtime.function_handler.jobrunner import JobRunner
 
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
@@ -82,10 +82,10 @@ def function_handler(event):
     log_level = event['log_level']
     cloud_logging_config(log_level)
 
-    task_id = event['task_id']
+    call_id = event['call_id']
     job_id = event['job_id']
     executor_id = event['executor_id']
-    logger.info("Execution ID: {}/{}/{}".format(executor_id, job_id, task_id))
+    logger.info("Execution ID: {}/{}/{}".format(executor_id, job_id, call_id))
     task_execution_timeout = event.get("task_execution_timeout", 590)  # default for CF
     status_key = event['status_key']
     func_key = event['func_key']
@@ -94,7 +94,7 @@ def function_handler(event):
     output_key = event['output_key']
     extra_env = event.get('extra_env', {})
 
-    response_status['task_id'] = task_id
+    response_status['call_id'] = call_id
     response_status['job_id'] = job_id
     response_status['executor_id'] = executor_id
     # response_status['func_key'] = func_key
@@ -110,6 +110,8 @@ def function_handler(event):
         # response_status['free_disk_bytes'] = free_disk_space("/tmp")
 
         custom_env = {'CB_CONFIG': json.dumps(config),
+                      'CB_CALL_ID':  call_id,
+                      'CB_JOB_ID':  job_id,
                       'CB_EXECUTOR_ID':  executor_id,
                       'PYTHONPATH': "{}:{}".format(os.getcwd(), PYWREN_LIBS_PATH),
                       'PYTHONUNBUFFERED': 'True'}
@@ -133,9 +135,9 @@ def function_handler(event):
         response_status['setup_time'] = round(setup_time - start_time, 8)
 
         result_queue = multiprocessing.Queue()
-        tr = TaskRunner(jobrunner_config, result_queue)
+        tr = JobRunner(jobrunner_config, result_queue)
         tr.daemon = True
-        logger.info("Starting TaskRunner process")
+        logger.info("Starting JobRunner process")
         tr.start()
         tr.join(task_execution_timeout)
         response_status['exec_time'] = round(time.time() - setup_time, 8)
