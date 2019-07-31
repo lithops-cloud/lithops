@@ -154,8 +154,20 @@ class ComputeBackend:
         """
         Invoke -- return information about this invocation
         """
+        exec_id = payload['executor_id']
+        task_id = payload['task_id']
         action_name = self._format_action_name(docker_image_name, runtime_memory)
-        return self.cf_client.invoke(self.package, action_name, payload, self.is_cf_cluster)
+        activation_id, resp_time, exception = self.cf_client.invoke(self.package, action_name, payload, self.is_cf_cluster)
+
+        if activation_id is None:
+            log_msg = ('ExecutorID {} - Function {} invocation failed: {}'.format(exec_id, task_id, str(exception)))
+            logger.debug(log_msg)
+        else:
+            log_msg = ('ExecutorID {} - Function {} invocation done! ({}s) - Activation ID: '
+                       '{}'.format(exec_id, task_id, resp_time, activation_id))
+            logger.debug(log_msg)
+
+        return activation_id
 
     def invoke_with_result(self, docker_image_name, runtime_memory, payload={}):
         """

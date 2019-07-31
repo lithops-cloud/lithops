@@ -193,8 +193,6 @@ class CloudFunctionsClient:
         """
         Invoke an IBM Cloud Function by using new request.
         """
-        exec_id = payload['executor_id']
-        call_id = payload['call_id']
         url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', package, action_name])
         parsed_url = urlparse(url)
         start = time.time()
@@ -216,29 +214,24 @@ class CloudFunctionsClient:
         except Exception as e:
             if not is_cf_cluster:
                 conn.close()
-            log_msg = ('ExecutorID {} - Function {} invocation failed: {}'.format(exec_id, call_id, str(e)))
-            logger.debug(log_msg)
             if self_invoked:
-                return None
+                return None, None, e
             return self.invoke(package, action_name, payload, is_cf_cluster, self_invoked=True)
 
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 
         if resp_status == 202 and 'activationId' in data:
-            log_msg = ('ExecutorID {} - Function {} invocation done! ({}s) - Activation ID: '
-                       '{}'.format(exec_id, call_id, resp_time, data["activationId"]))
-            logger.debug(log_msg)
-            return data["activationId"]
+            return data["activationId"], resp_time, None
         else:
             logger.debug(data)
             if resp_status == 401:
                 raise Exception('Unauthorized - Invalid API Key')
             elif resp_status == 404:
-                raise Exception('PyWren Runtime: {} not deployed'.format(action_name))
+                raise Exception('Runtime: {} not deployed'.format(action_name))
             elif resp_status == 429:
                 # Too many concurrent requests in flight
-                return None
+                return None, None, "Too many concurrent requests in flight"
             else:
                 raise Exception(data['error'])
 

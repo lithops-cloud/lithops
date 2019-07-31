@@ -25,7 +25,7 @@ import pandas as pd
 import seaborn as sns
 from matplotlib import patches as mpatches
 from matplotlib.collections import LineCollection
-from pywren_ibm_cloud.storage.backends import ibm_cos
+from pywren_ibm_cloud.storage.backends.ibm_cos.ibm_cos import StorageBackend as ibm_cos_backend
 sns.set_style('whitegrid')
 logger = logging.getLogger(__name__)
 
@@ -47,9 +47,9 @@ def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses, cos
     #time_offset = np.min(results_df.host_submit_time)
     fig = pylab.figure(figsize=(10, 6))
     ax = fig.add_subplot(1, 1, 1)
-    total_jobs = len(results_df)
+    total_tasks = len(results_df)
 
-    y = np.arange(total_jobs)
+    y = np.arange(total_tasks)
     point_size = 10
 
     fields = [('host submit', results_df.host_submit_time - pw_start_time),
@@ -75,11 +75,11 @@ def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses, cos
     #pylab.title("Runtime for {} jobs of {:3.0f}M double ops (dgemm) each".format(total_jobs, JOB_GFLOPS))
     legend.get_frame().set_facecolor('#FFFFFF')
 
-    plot_step = int(np.max([1, total_jobs/32]))
+    plot_step = int(np.max([1, total_tasks/32]))
 
-    y_ticks = np.arange(total_jobs//plot_step + 2) * plot_step
+    y_ticks = np.arange(total_tasks//plot_step + 2) * plot_step
     ax.set_yticks(y_ticks)
-    ax.set_ylim(-0.02*total_jobs, total_jobs*1.05)
+    ax.set_ylim(-0.02*total_tasks, total_tasks*1.05)
     for y in y_ticks:
         ax.axhline(y, c='k', alpha=0.1, linewidth=1)
 
@@ -121,18 +121,18 @@ def create_histogram(dst, name, pw_start_time, run_statuses, cos_config):
 
         N = len(start_time)
 
-        runtime_jobs_hist = np.zeros((N, len(runtime_bins)))
+        runtime_tasks_hist = np.zeros((N, len(runtime_bins)))
 
         for i in range(N):
             s = start_time[i]
             e = end_time[i]
             a, b = np.searchsorted(runtime_bins, [s, e])
             if b-a > 0:
-                runtime_jobs_hist[i, a:b] = 1
+                runtime_tasks_hist[i, a:b] = 1
 
         return {'start_time': start_time,
                 'end_time': end_time,
-                'runtime_jobs_hist': runtime_jobs_hist}
+                'runtime_tasks_hist': runtime_tasks_hist}
 
     fig = pylab.figure(figsize=(10, 6))
     ax = fig.add_subplot(1, 1, 1)
@@ -148,15 +148,15 @@ def create_histogram(dst, name, pw_start_time, run_statuses, cos_config):
 
     ax.add_collection(line_segments)
 
-    ax.plot(runtime_bins, time_hist['runtime_jobs_hist'].sum(axis=0),
-            label='active jobs total', zorder=-1)
+    ax.plot(runtime_bins, time_hist['runtime_tasks_hist'].sum(axis=0),
+            label='Total Active Tasks', zorder=-1)
 
     #ax.set_xlim(0, x_lim)
     ax.set_xlim(0, np.max(time_hist['end_time'])*3)
     ax.set_ylim(0, len(time_hist['start_time'])*1.05)
     ax.set_xlabel("time (sec)")
 
-    ax.set_ylabel("IBM Cloud function execution")
+    ax.set_ylabel("IBM Cloud Function execution (Task)")
     ax.grid(False)
     ax.legend(loc='upper right')
 
@@ -177,5 +177,5 @@ def save_plot_in_cos(cos_config, fig, dst, filename):
     fig.savefig(buff)
     buff.seek(0)
 
-    cos_handler = ibm_cos.IbmCosStorageBackend(cos_config)
+    cos_handler = ibm_cos_backend(cos_config)
     cos_handler.put_object(bucketname, key, buff.read())

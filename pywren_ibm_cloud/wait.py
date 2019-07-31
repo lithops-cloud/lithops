@@ -68,8 +68,8 @@ def wait(fs, executor_id, internal_storage, download_results=False,
     if return_when == ALL_COMPLETED:
 
         if rabbit_amqp_url and not download_results:
-            callgroup_id = fs[0].callgroup_id
-            return _wait_rabbitmq(fs, executor_id, callgroup_id, rabbit_amqp_url, pbar, N)
+            job_id = fs[0].job_id
+            return _wait_rabbitmq(fs, executor_id, job_id, rabbit_amqp_url, pbar, N)
 
         result_count = 0
 
@@ -153,23 +153,23 @@ class rabbitmq_checker_worker(threading.Thread):
         self.channel.stop_consuming()
 
 
-def _wait_rabbitmq(fs, executor_id, callgroup_id, rabbit_amqp_url, pbar, total):
+def _wait_rabbitmq(fs, executor_id, job_id, rabbit_amqp_url, pbar, total):
     q = queue.Queue()
     td = rabbitmq_checker_worker(executor_id, rabbit_amqp_url, q)
     td.setDaemon(True)
     td.start()
 
-    done_call_status = {}
-    done_call_status[callgroup_id] = {}
-    done_call_ids = {}
-    done_call_ids[callgroup_id] = {'total': total, 'call_ids': []}
+    task_statuses = {}
+    task_statuses[job_id] = {}
+    done_task_ids = {}
+    done_task_ids[job_id] = {'total': total, 'task_ids': []}
 
     def call_ids_to_futures():
         fs_dones = []
         fs_notdones = []
         for f in fs:
-            if f.callgroup_id in done_call_status and f.call_id in done_call_status[f.callgroup_id]:
-                f.run_status = done_call_status[f.callgroup_id][f.call_id]
+            if f.job_id in task_statuses and f.task_id in task_statuses[f.job_id]:
+                f.run_status = task_statuses[f.job_id][f.task_id]
                 f.invoke_status['status_done_timestamp'] = f.run_status['status_done_timestamp']
                 del f.run_status['status_done_timestamp']
                 f._set_state(JobState.ready)
@@ -179,9 +179,9 @@ def _wait_rabbitmq(fs, executor_id, callgroup_id, rabbit_amqp_url, pbar, total):
         return fs_dones, fs_notdones
 
     def reception_finished():
-        for cg_id in done_call_ids:
-            total = done_call_ids[cg_id]['total']
-            recived_call_ids = len(done_call_ids[cg_id]['call_ids'])
+        for cg_id in done_task_ids:
+            total = done_task_ids[cg_id]['total']
+            recived_call_ids = len(done_task_ids[cg_id]['task_ids'])
 
             if total is None or total > recived_call_ids:
                 return False
@@ -196,16 +196,16 @@ def _wait_rabbitmq(fs, executor_id, callgroup_id, rabbit_amqp_url, pbar, total):
             call_ids_to_futures()
             raise KeyboardInterrupt
 
-        rcv_callgroup_id = call_status['callgroup_id']
-        rcv_call_id = call_status['call_id']
+        rcvd_job_id = call_status['job_id']
+        rcvd_task_id = call_status['task_id']
 
-        if rcv_callgroup_id not in done_call_ids:
-            done_call_ids[rcv_callgroup_id] = {'total': None, 'call_ids': []}
-        if rcv_callgroup_id not in done_call_status:
-            done_call_status[rcv_callgroup_id] = {}
+        if rcvd_job_id not in done_task_ids:
+            done_task_ids[rcvd_job_id] = {'total': None, 'task_ids': []}
+        if rcvd_job_id not in task_statuses:
+            task_statuses[rcvd_job_id] = {}
 
-        done_call_ids[rcv_callgroup_id]['call_ids'].append(rcv_call_id)
-        done_call_status[rcv_callgroup_id][rcv_call_id] = call_status
+        done_task_ids[rcvd_job_id]['task_ids'].append(rcvd_task_id)
+        task_statuses[rcvd_job_id][rcvd_task_id] = call_status
 
         if pbar:
             pbar.update(1)
@@ -215,12 +215,12 @@ def _wait_rabbitmq(fs, executor_id, callgroup_id, rabbit_amqp_url, pbar, total):
             new_futures = call_status['new_futures'].split('/')
             if int(new_futures[1]) != 0:
                 # We received new futures to track
-                callgroup_id_new_futures = new_futures[0]
+                job_id_new_futures = new_futures[0]
                 total_new_futures = int(new_futures[1])
-                if callgroup_id_new_futures not in done_call_ids:
-                    done_call_ids[callgroup_id_new_futures] = {'total': total_new_futures, 'call_ids': []}
+                if job_id_new_futures not in done_task_ids:
+                    done_task_ids[job_id_new_futures] = {'total': total_new_futures, 'task_ids': []}
                 else:
-                    done_call_ids[callgroup_id_new_futures]['total'] = total_new_futures
+                    done_task_ids[job_id_new_futures]['total'] = total_new_futures
 
                 if pbar:
                     pbar.total = pbar.total + total_new_futures
@@ -266,15 +266,15 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
     #print('Time getting list: ', time.time()-t0, len(callids_done_in_callset))
     # print('CALLSET:', callids_done_in_callset, len(callids_done_in_callset))
 
-    not_done_call_ids = set([(f.callgroup_id, f.call_id) for f in not_done_futures])
+    not_done_call_ids = set([(f.job_id, f.task_id) for f in not_done_futures])
     # print('NO TDONE:' ,not_done_call_ids, len(not_done_call_ids))
 
     done_call_ids = not_done_call_ids.intersection(callids_done_in_callset)
     not_done_call_ids = not_done_call_ids - done_call_ids
-    still_not_done_futures = [f for f in not_done_futures if ((f.callgroup_id, f.call_id) in not_done_call_ids)]
+    still_not_done_futures = [f for f in not_done_futures if ((f.job_id, f.task_id) in not_done_call_ids)]
 
     def fetch_future_status(f):
-        return internal_storage.get_call_status(f.executor_id, f.callgroup_id, f.call_id)
+        return internal_storage.get_call_status(f.executor_id, f.job_id, f.task_id)
 
     pool = ThreadPool(THREADPOOL_SIZE)
 
@@ -294,7 +294,7 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
 
         fs_statuses = pool.map(fetch_future_status, fs_to_query)
 
-        callids_found = [(fs_to_query[i].callgroup_id, fs_to_query[i].call_id) for i in range(len(fs_to_query))
+        callids_found = [(fs_to_query[i].job_id, fs_to_query[i].task_id) for i in range(len(fs_to_query))
                          if fs_statuses[i] is not None]
 
         # print('FOUND:', callids_found, len(callids_found))
@@ -312,7 +312,7 @@ def _wait_storage(fs, executor_id, internal_storage, download_results,
             # done, don't need to do anything
             fs_dones.append(f)
         else:
-            if (f.callgroup_id, f.call_id) in done_call_ids:
+            if (f.job_id, f.task_id) in done_call_ids:
                 f_to_wait_on.append(f)
                 fs_dones.append(f)
             else:

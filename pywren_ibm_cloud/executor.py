@@ -8,12 +8,11 @@ import logging
 import traceback
 from pywren_ibm_cloud.invoker import Invoker
 from pywren_ibm_cloud.storage import InternalStorage
-from pywren_ibm_cloud.future import FunctionException
+from pywren_ibm_cloud.future import FunctionException, JobState
 from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
 from pywren_ibm_cloud.storage.utils import clean_os_bucket
-from pywren_ibm_cloud.logging_config import default_logging_config
 from pywren_ibm_cloud.job import create_call_async_job, create_map_job, create_reduce_job
-from pywren_ibm_cloud.config import default_config, extract_storage_config, EXECUTION_TIMEOUT
+from pywren_ibm_cloud.config import default_config, extract_storage_config, EXECUTION_TIMEOUT, default_logging_config
 from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_cf_cluster, create_executor_id
 
 logger = logging.getLogger(__name__)
@@ -26,6 +25,12 @@ class ExecutorState(enum.Enum):
     success = 4
     error = 5
     finished = 6
+
+
+class JobState(enum.Enum):
+    running = 1
+    monitoring = 2
+    finished = 3
 
 
 class FunctionExecutor:
@@ -78,7 +83,7 @@ class FunctionExecutor:
         self.rabbitmq_monitor = rabbitmq_monitor
         if self.rabbitmq_monitor:
             if self.config['rabbitmq']['amqp_url']:
-                os.environ["PYWREN_RABBITMQ_MONITOR"] = 'True'
+                os.environ["CB_RABBITMQ_MONITOR"] = 'True'
             else:
                 self.rabbitmq_monitor = False
         else:
@@ -87,9 +92,7 @@ class FunctionExecutor:
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
         self.invoker = Invoker(self.config, self.executor_id)
-
-        self.executor_futures = []
-        self.futures = []
+        self.jobs = {}
 
     def call_async(self, func, data, extra_env=None, extra_meta=None, runtime_memory=None, timeout=EXECUTION_TIMEOUT):
         """
@@ -101,17 +104,16 @@ class FunctionExecutor:
         """
 
         if self._state == ExecutorState.finished:
-            raise Exception('You cannot run pw.call_async() in the current state,'
-                            ' create a new pywren.ibm_cf_executor() instance.')
+            raise Exception('You cannot run call_async() in the current state,'
+                            ' create a new FunctionExecutor() instance.')
 
-        job = create_call_async_job(self.config, self.internal_storage, self.executor_id,
+        job = create_call_async_job(self.config, self.internal_storage, self.executor_id, len(self.jobs),
                                     func, data, extra_env, extra_meta, runtime_memory, timeout)
         future = self.invoker.run(job)
-
-        self.futures.extend(future)
+        self.jobs[job['job_id']] = {'futures': future, 'total': job['total_tasks'], 'state': JobState.running}
         self._state = ExecutorState.running
 
-        return future
+        return future[0]
 
     def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None, runtime_memory=None,
             chunk_size=None, remote_invocation=False, timeout=EXECUTION_TIMEOUT,
@@ -134,9 +136,10 @@ class FunctionExecutor:
         """
         if self._state == ExecutorState.finished:
             raise Exception('You cannot run map() in the current state.'
-                            ' Create a new ibm_cf_executor() instance.')
+                            ' Create a new FunctionExecutor() instance.')
 
-        job, unused_ppo = create_map_job(self.config, self.internal_storage, self.executor_id,
+        job, unused_ppo = create_map_job(self.config, self.internal_storage,
+                                         self.executor_id, len(self.jobs),
                                          map_function=map_function, iterdata=map_iterdata,
                                          extra_env=extra_env, extra_meta=extra_meta,
                                          obj_chunk_size=chunk_size, runtime_memory=runtime_memory,
@@ -148,8 +151,7 @@ class FunctionExecutor:
                                          overwrite_invoke_args=overwrite_invoke_args,
                                          execution_timeout=timeout)
         map_futures = self.invoker.run(job)
-
-        self.futures.extend(map_futures)
+        self.jobs[job['job_id']] = {'futures': map_futures, 'total': job['total_tasks'], 'state': JobState.running}
         self._state = ExecutorState.running
 
         if len(map_futures) == 1:
@@ -186,9 +188,10 @@ class FunctionExecutor:
 
         if self._state == ExecutorState.finished:
             raise Exception('You cannot run map_reduce() in the current state.'
-                            ' Create a new ibm_cf_executor() instance.')
+                            ' Create a new FunctionExecutor() instance.')
 
-        job, parts_per_object = create_map_job(self.config, self.internal_storage, self.executor_id,
+        job, parts_per_object = create_map_job(self.config, self.internal_storage,
+                                               self.executor_id, len(self.jobs),
                                                map_function=map_function, iterdata=map_iterdata,
                                                extra_env=extra_env, extra_meta=extra_meta,
                                                obj_chunk_size=chunk_size, runtime_memory=map_runtime_memory,
@@ -200,22 +203,23 @@ class FunctionExecutor:
                                                overwrite_invoke_args=overwrite_invoke_args,
                                                execution_timeout=timeout)
         map_futures = self.invoker.run(job)
-
+        self.jobs[job['job_id']] = {'futures': map_futures, 'total': job['total_tasks'], 'state': JobState.running}
         self._state = ExecutorState.running
+
         if reducer_wait_local:
             self.monitor(futures=map_futures)
 
-        job = create_reduce_job(self.config, self.internal_storage, self.executor_id, reduce_function,
-                                reduce_runtime_memory, map_futures, parts_per_object, reducer_one_per_object,
+        job = create_reduce_job(self.config, self.internal_storage, self.executor_id,
+                                len(self.jobs), reduce_function, reduce_runtime_memory,
+                                map_futures, parts_per_object, reducer_one_per_object,
                                 extra_env, extra_meta)
-        reduce_future = self.invoker.run(job)
+        reduce_futures = self.invoker.run(job)
+        self.jobs[job['job_id']] = {'futures': reduce_futures, 'total': job['total_tasks'], 'state': JobState.running}
 
         for f in map_futures:
             f.produce_output = False
-        futures = map_futures + reduce_future
-        self.futures.extend(futures)
 
-        return futures
+        return map_futures + reduce_futures
 
     def monitor(self, futures=None, throw_except=True, return_when=ALL_COMPLETED,
                 download_results=False, timeout=EXECUTION_TIMEOUT,
@@ -237,15 +241,17 @@ class FunctionExecutor:
             and `fs_notdone` is a list of futures that have not completed.
         :rtype: 2-tuple of list
         """
-        if futures:
-            # Ensure futures is a list
-            if type(futures) != list:
-                ftrs = [futures]
-            else:
-                ftrs = futures
+        if not futures:
+            futures = []
+            for job in self.jobs:
+                if self.jobs[job]['state'] == JobState.running:
+                    futures.extend(self.jobs[job]['futures'])
+                    self.jobs[job]['state'] = JobState.monitoring
+
+        if type(futures) != list:
+            ftrs = [futures]
         else:
-            # In this case self.futures is always a list
-            ftrs = self.futures
+            ftrs = futures
 
         if not ftrs:
             raise Exception('You must run call_async(), map() or map_reduce()'
@@ -343,8 +349,7 @@ class FunctionExecutor:
 
         return fs_dones, fs_notdones
 
-    def get_result(self, futures=None, throw_except=True, timeout=EXECUTION_TIMEOUT,
-                   THREADPOOL_SIZE=64, WAIT_DUR_SEC=1):
+    def get_result(self, futures=None, throw_except=True, timeout=EXECUTION_TIMEOUT, THREADPOOL_SIZE=64, WAIT_DUR_SEC=1):
         """
         For getting results
         :param futures: Futures list. Default None
@@ -360,9 +365,6 @@ class FunctionExecutor:
                                                     THREADPOOL_SIZE=THREADPOOL_SIZE,
                                                     WAIT_DUR_SEC=WAIT_DUR_SEC)
         result = [f.result(internal_storage=self.internal_storage) for f in fs_dones if not f.futures]
-        if self.futures:
-            self.executor_futures.append(self.futures)
-            self.futures = []
         self._state = ExecutorState.success
         msg = "ExecutorID {} Finished getting results".format(self.executor_id)
         logger.debug(msg)
@@ -385,11 +387,10 @@ class FunctionExecutor:
 
         if not futures:
             futures = []
-            if self.futures:
-                futures.extend(self.futures)
-            if self.executor_futures:
-                for pre_fut in self.executor_futures:
-                    futures.extend(pre_fut)
+            for job in self.jobs:
+                if self.jobs[job]['state'] == JobState.monitoring:
+                    futures.extend(self.jobs[job]['futures'])
+                    self.jobs[job]['state'] = JobState.finished
 
         if type(futures) != list:
             ftrs = [futures]
@@ -420,17 +421,13 @@ class FunctionExecutor:
         Deletes all the files from COS. These files include the function,
         the data serialization and the function invocation results.
         """
-        storage_backend = self.config['pywren']['storage_backend']
         storage_bucket = self.config['pywren']['storage_bucket']
         storage_prerix = self.config['pywren']['storage_prefix']
         if delete_all:
             storage_prerix = '/'.join([storage_prerix])
         else:
             storage_prerix = '/'.join([storage_prerix, self.executor_id])
-        msg = "ExecutorID {} - Cleaning temporary data from {}://{}/{}".format(self.executor_id,
-                                                                               storage_backend,
-                                                                               storage_bucket,
-                                                                               storage_prerix)
+        msg = "ExecutorID {} - Cleaning temporary data".format(self.executor_id)
         logger.info(msg)
         if not self.log_level:
             print(msg)

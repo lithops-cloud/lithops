@@ -53,9 +53,9 @@ class ResponseFuture:
     GET_RESULT_SLEEP_SECS = 1
     GET_RESULT_MAX_RETRIES = 10
 
-    def __init__(self, call_id, callgroup_id, executor_id, activation_id, storage_config, invoke_metadata):
-        self.call_id = call_id
-        self.callgroup_id = callgroup_id
+    def __init__(self, task_id, job_id, executor_id, activation_id, storage_config, invoke_metadata):
+        self.task_id = task_id
+        self.job_id = job_id
         self.executor_id = executor_id
         self.activation_id = activation_id
         self.storage_config = storage_config
@@ -131,7 +131,7 @@ class ResponseFuture:
             internal_storage = InternalStorage(self.storage_config)
 
         check_storage_path(internal_storage.get_storage_config(), self.storage_path)
-        call_status = internal_storage.get_call_status(self.executor_id, self.callgroup_id, self.call_id)
+        call_status = internal_storage.get_call_status(self.executor_id, self.job_id, self.task_id)
         self.status_query_count += 1
 
         if check_only is True:
@@ -140,7 +140,7 @@ class ResponseFuture:
 
         while call_status is None:
             time.sleep(self.GET_RESULT_SLEEP_SECS)
-            call_status = internal_storage.get_call_status(self.executor_id, self.callgroup_id, self.call_id)
+            call_status = internal_storage.get_call_status(self.executor_id, self.job_id, self.task_id)
             self.status_query_count += 1
 
         self.invoke_status['status_done_timestamp'] = time.time()
@@ -181,7 +181,7 @@ class ResponseFuture:
 
         log_msg = ('ExecutorID {} - Got status from Function {} - Activation '
                    'ID: {} - Time: {} seconds'.format(self.executor_id,
-                                                      self.call_id,
+                                                      self.task_id,
                                                       self.activation_id,
                                                       str(total_time)))
         logger.debug(log_msg)
@@ -239,12 +239,12 @@ class ResponseFuture:
                 return None
 
         call_output_time = time.time()
-        call_invoker_result = internal_storage.get_call_output(self.executor_id, self.callgroup_id, self.call_id)
+        call_invoker_result = internal_storage.get_call_output(self.executor_id, self.job_id, self.task_id)
         self.output_query_count += 1
 
         while call_invoker_result is None and self.output_query_count < self.GET_RESULT_MAX_RETRIES:
             time.sleep(self.GET_RESULT_SLEEP_SECS)
-            call_invoker_result = internal_storage.get_call_output(self.executor_id, self.callgroup_id, self.call_id)
+            call_invoker_result = internal_storage.get_call_output(self.executor_id, self.job_id, self.task_id)
             self.output_query_count += 1
 
         if call_invoker_result is None:
@@ -263,7 +263,7 @@ class ResponseFuture:
         self.invoke_status['download_output_timestamp'] = call_output_time_done
 
         log_msg = ('ExecutorID {} - Got output from Function {} - Activation '
-                   'ID: {}'.format(self.executor_id, self.call_id, self.activation_id))
+                   'ID: {}'.format(self.executor_id, self.task_id, self.activation_id))
         logger.debug(log_msg)
 
         function_result = call_invoker_result['result']
