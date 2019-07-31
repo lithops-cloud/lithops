@@ -122,7 +122,7 @@ class ResponseFuture:
         :raises TimeoutError: If job is not complete after `timeout` seconds.
         """
         if self._state == JobState.new:
-            raise ValueError("job not yet invoked")
+            raise ValueError("task not yet invoked")
 
         if self._state == JobState.ready or self._state == JobState.success:
             return self.run_status
@@ -179,8 +179,9 @@ class ResponseFuture:
                 raise FunctionException(self.executor_id, self.activation_id, self._exception, msg)
             return None
 
-        log_msg = ('ExecutorID {} - Got status from Function {} - Activation '
+        log_msg = ('ExecutorID {} \ JobID {}- Got status from Function {} - Activation '
                    'ID: {} - Time: {} seconds'.format(self.executor_id,
+                                                      self.job_id,
                                                       self.task_id,
                                                       self.activation_id,
                                                       str(total_time)))
@@ -262,8 +263,8 @@ class ResponseFuture:
         self.invoke_status['output_query_count'] = self.output_query_count
         self.invoke_status['download_output_timestamp'] = call_output_time_done
 
-        log_msg = ('ExecutorID {} - Got output from Function {} - Activation '
-                   'ID: {}'.format(self.executor_id, self.task_id, self.activation_id))
+        log_msg = ('ExecutorID {} | JobID {} - Got output from Function {} - Activation '
+                   'ID: {}'.format(self.executor_id, self.job_id, self.task_id, self.activation_id))
         logger.debug(log_msg)
 
         function_result = call_invoker_result['result']

@@ -165,7 +165,6 @@ def _create_job(config, internal_storage, executor_id, job_id, func, iterdata, e
     :rtype:  list of futures.
     """
     log_level = os.getenv('CB_LOG_LEVEL')
-    job_id = str(job_id).zfill(4)
 
     runtime_name = config['pywren']['runtime']
     if runtime_memory is None:
