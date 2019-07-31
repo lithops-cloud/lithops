@@ -20,7 +20,8 @@ def create_call_async_job(config, internal_storage, executor_id, job_id, func, d
     """
     Wrapper to create call_async job that contains only one function invocation.
     """
-    return _create_job(config, internal_storage, executor_id, job_id, func, [data], extra_env=extra_env,
+    async_job_id = f'A{job_id}'
+    return _create_job(config, internal_storage, executor_id, async_job_id, func, [data], extra_env=extra_env,
                        extra_meta=extra_meta, runtime_memory=runtime_memory, execution_timeout=execution_timeout)
 
 
@@ -31,6 +32,7 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
     """
+    map_job_id = f'M{job_id}'
     data = utils.iterdata_as_list(iterdata)
     map_func = map_function
     map_iterdata = data
@@ -75,7 +77,7 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
     # ########
 
     job_description = _create_job(config, internal_storage, executor_id,
-                                  job_id, map_func, map_iterdata,
+                                  map_job_id, map_func, map_iterdata,
                                   extra_env=extra_env,
                                   extra_meta=extra_meta,
                                   runtime_memory=new_runtime_memory,
@@ -95,6 +97,7 @@ def create_reduce_job(config, internal_storage, executor_id, job_id, reduce_func
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
     """
+    reduce_job_id = f'R{job_id}'
     map_iterdata = [[map_futures, ]]
 
     if parts_per_object and reducer_one_per_object:
@@ -128,7 +131,7 @@ def create_reduce_job(config, internal_storage, executor_id, job_id, reduce_func
 
         return reduce_function(**reduce_func_args)
 
-    return _create_job(config, internal_storage, executor_id, job_id, reduce_function_wrapper, map_iterdata,
+    return _create_job(config, internal_storage, executor_id, reduce_job_id, reduce_function_wrapper, map_iterdata,
                        runtime_memory=reduce_runtime_memory, extra_env=extra_env, extra_meta=extra_meta,
                        original_func_name=reduce_function.__name__)
 

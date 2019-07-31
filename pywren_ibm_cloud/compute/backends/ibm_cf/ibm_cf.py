@@ -75,14 +75,18 @@ class ComputeBackend:
         except Exception as e:
             raise Exception('Unable to create the {} package: {}'.format(ZIP_LOCATION, e))
 
-    def build_runtime(self, docker_image_name):
+    def build_runtime(self, docker_image_name, dockerfile):
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
         logger.info('Creating a new docker image from Dockerfile')
         logger.info('Docker image name: {}'.format(docker_image_name))
 
-        cmd = 'docker build -t {} .'.format(docker_image_name)
+        if dockerfile:
+            cmd = 'docker build -t {} -f {} .'.format(docker_image_name, dockerfile)
+        else:
+            cmd = 'docker build -t {} .'.format(docker_image_name)
+
         res = os.system(cmd)
         if res != 0:
             exit()

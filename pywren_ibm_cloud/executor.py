@@ -108,8 +108,7 @@ class FunctionExecutor:
                             ' create a new FunctionExecutor() instance.')
 
         job_id = str(len(self.jobs)).zfill(3)
-        async_job_id = f'A{job_id}'
-        job = create_call_async_job(self.config, self.internal_storage, self.executor_id, async_job_id,
+        job = create_call_async_job(self.config, self.internal_storage, self.executor_id, job_id,
                                     func, data, extra_env, extra_meta, runtime_memory, timeout)
         future = self.invoker.run(job)
         self.jobs[job['job_id']] = {'futures': future, 'total': job['total_tasks'], 'state': JobState.running}
@@ -141,9 +140,8 @@ class FunctionExecutor:
                             ' Create a new FunctionExecutor() instance.')
 
         job_id = str(len(self.jobs)).zfill(3)
-        map_job_id = f'M{job_id}'
         job, unused_ppo = create_map_job(self.config, self.internal_storage,
-                                         self.executor_id, map_job_id,
+                                         self.executor_id, job_id,
                                          map_function=map_function, iterdata=map_iterdata,
                                          extra_env=extra_env, extra_meta=extra_meta,
                                          obj_chunk_size=chunk_size, runtime_memory=runtime_memory,
@@ -195,9 +193,8 @@ class FunctionExecutor:
                             ' Create a new FunctionExecutor() instance.')
 
         job_id = str(len(self.jobs)).zfill(3)
-        map_job_id = f'M{job_id}'
         job, parts_per_object = create_map_job(self.config, self.internal_storage,
-                                               self.executor_id, map_job_id,
+                                               self.executor_id, job_id,
                                                map_function=map_function, iterdata=map_iterdata,
                                                extra_env=extra_env, extra_meta=extra_meta,
                                                obj_chunk_size=chunk_size, runtime_memory=map_runtime_memory,
@@ -215,9 +212,8 @@ class FunctionExecutor:
         if reducer_wait_local:
             self.monitor(futures=map_futures)
 
-        reduce_job_id = f'R{job_id}'
         job = create_reduce_job(self.config, self.internal_storage, self.executor_id,
-                                reduce_job_id, reduce_function, reduce_runtime_memory,
+                                job_id, reduce_function, reduce_runtime_memory,
                                 map_futures, parts_per_object, reducer_one_per_object,
                                 extra_env, extra_meta)
         reduce_futures = self.invoker.run(job)

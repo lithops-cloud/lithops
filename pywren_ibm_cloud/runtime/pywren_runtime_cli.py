@@ -23,8 +23,9 @@ def create(image_name, memory):
 
 @cli.command('build')
 @click.argument('image_name')
-def build(image_name):
-    build_runtime(image_name)
+@click.option('--file', '-f', default=None, help='file needed to build the runtime')
+def build(image_name, file):
+    build_runtime(image_name, file)
 
 
 @cli.command('update')
