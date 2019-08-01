@@ -16,13 +16,12 @@
 
 import ssl
 import json
-import time
 import base64
 import logging
 import requests
 import http.client
 from urllib.parse import urlparse
-from .iam import IBMIAMClient
+from .iam import IbmIamClient
 
 
 logger = logging.getLogger(__name__)
@@ -44,8 +43,8 @@ class CloudFunctionsClient:
             auth = 'Basic %s' % auth_token.decode('UTF-8')
             self.effective_namespace = self.namespace
 
-        elif 'api_key' in config['ibm_iam']:
-            iam_client = IBMIAMClient(config['ibm_iam'], self.endpoint, self.namespace)
+        elif 'ibm_iam' in config and 'api_key' in config['ibm_iam']:
+            iam_client = IbmIamClient(config['ibm_iam'], self.endpoint, self.namespace)
             auth_token = iam_client.get_iam_token()
             auth = 'Bearer ' + auth_token
             self.namespace_id = iam_client.get_function_namespace_id(auth)

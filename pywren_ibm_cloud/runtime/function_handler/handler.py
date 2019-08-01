@@ -108,7 +108,6 @@ def function_handler(event):
                             version.__version__, event['pywren_version'])
 
         # response_status['free_disk_bytes'] = free_disk_space("/tmp")
-
         custom_env = {'CB_CONFIG': json.dumps(config),
                       'CB_CALL_ID':  call_id,
                       'CB_JOB_ID':  job_id,

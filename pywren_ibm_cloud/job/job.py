@@ -15,23 +15,25 @@ from pywren_ibm_cloud.config import EXECUTION_TIMEOUT, MAX_AGG_DATA_SIZE
 logger = logging.getLogger(__name__)
 
 
-def create_call_async_job(config, internal_storage, executor_id, job_id, func, data, extra_env=None,
+def create_call_async_job(config, internal_storage, executor_id, total_current_jobs, func, data, extra_env=None,
                           extra_meta=None, runtime_memory=None, execution_timeout=EXECUTION_TIMEOUT):
     """
     Wrapper to create call_async job that contains only one function invocation.
     """
+    job_id = str(total_current_jobs).zfill(3)
     async_job_id = f'A{job_id}'
     return _create_job(config, internal_storage, executor_id, async_job_id, func, [data], extra_env=extra_env,
                        extra_meta=extra_meta, runtime_memory=runtime_memory, execution_timeout=execution_timeout)
 
 
-def create_map_job(config, internal_storage, executor_id, job_id, map_function, iterdata, obj_chunk_size=None,
+def create_map_job(config, internal_storage, executor_id, total_current_jobs, map_function, iterdata, obj_chunk_size=None,
                    extra_env=None, extra_meta=None, runtime_memory=None, remote_invocation=False,
                    remote_invocation_groups=None, invoke_pool_threads=128, exclude_modules=None, is_cf_cluster=False,
                    execution_timeout=EXECUTION_TIMEOUT, overwrite_invoke_args=None):
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
     """
+    job_id = str(total_current_jobs).zfill(3)
     map_job_id = f'M{job_id}'
     data = utils.iterdata_as_list(iterdata)
     map_func = map_function
@@ -92,11 +94,12 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
     return job_description, parts_per_object
 
 
-def create_reduce_job(config, internal_storage, executor_id, job_id, reduce_function, reduce_runtime_memory,
+def create_reduce_job(config, internal_storage, executor_id, total_current_jobs, reduce_function, reduce_runtime_memory,
                       map_futures, parts_per_object, reducer_one_per_object, extra_env, extra_meta):
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
     """
+    job_id = str(total_current_jobs).zfill(3)
     reduce_job_id = f'R{job_id}'
     map_iterdata = [[map_futures, ]]
 

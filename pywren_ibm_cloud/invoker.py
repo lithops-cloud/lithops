@@ -94,7 +94,7 @@ class Invoker:
             activation_id = self.internal_compute.invoke(job.runtime_name, job.runtime_memory, payload)
 
             if not activation_id:
-                raise Exception("ExecutorID {} - Activation {} failed, therefore job is failed".format(executor_id, call_id))
+                raise Exception("ExecutorID {} | JobID {} - Failed to invoke the job".format(executor_id, job_id))
 
             invoke_metadata['activation_id'] = activation_id
             invoke_metadata['invoke_time'] = time.time() - host_submit_time

@@ -36,7 +36,6 @@ class StorageBackend:
     def __init__(self, ibm_cos_config):
         self.is_cf_cluster = is_cf_cluster()
         self.ibm_cos_config = ibm_cos_config
-        iam_config = ibm_cos_config['ibm_iam']
 
         service_endpoint = ibm_cos_config.get('endpoint').replace('http:', 'https:')
         if self.is_cf_cluster and 'private_endpoint' in ibm_cos_config:
@@ -44,16 +43,14 @@ class StorageBackend:
             if 'api_key' in ibm_cos_config:
                 service_endpoint = service_endpoint.replace('http:', 'https:')
 
-        ibm_auth_endpoint = iam_config['ibm_auth_endpoint']
         logger.debug("Set IBM COS Endpoint to {}".format(service_endpoint))
-        logger.debug("Set IBM IAM Auth Endpoint to {}".format(ibm_auth_endpoint))
 
         api_key = None
         if 'api_key' in ibm_cos_config:
             api_key = ibm_cos_config.get('api_key')
             api_key_type = 'COS'
-        elif 'api_key' in iam_config:
-            api_key = iam_config.get('api_key')
+        elif 'ibm_iam' in ibm_cos_config and 'api_key' in ibm_cos_config['ibm_iam']:
+            api_key = ibm_cos_config['ibm_iam'].get('api_key')
             api_key_type = 'IAM'
 
         if {'secret_key', 'access_key'} <= set(ibm_cos_config):
@@ -74,7 +71,7 @@ class StorageBackend:
                                                        max_pool_connections=128,
                                                        user_agent_extra='pywren-ibm-cloud',
                                                        connect_timeout=1)
-            token_manager = DefaultTokenManager(api_key_id=api_key, auth_endpoint=ibm_auth_endpoint)
+            token_manager = DefaultTokenManager(api_key_id=api_key)
 
             if 'token' not in ibm_cos_config:
                 logger.debug("IBM COS: Using {} api_key - Requesting new token".format(api_key_type))

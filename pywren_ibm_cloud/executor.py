@@ -108,8 +108,7 @@ class FunctionExecutor:
             raise Exception('You cannot run call_async() in the current state,'
                             ' create a new FunctionExecutor() instance.')
 
-        job_id = str(len(self.jobs)).zfill(3)
-        job = create_call_async_job(self.config, self.internal_storage, self.executor_id, job_id,
+        job = create_call_async_job(self.config, self.internal_storage, self.executor_id, len(self.jobs),
                                     func, data, extra_env, extra_meta, runtime_memory, timeout)
         future = self.invoker.run(job)
         self.jobs[job['job_id']] = {'futures': future, 'total': job['total_calls'], 'state': JobState.running}
@@ -140,9 +139,8 @@ class FunctionExecutor:
             raise Exception('You cannot run map() in the current state.'
                             ' Create a new FunctionExecutor() instance.')
 
-        job_id = str(len(self.jobs)).zfill(3)
         job, unused_ppo = create_map_job(self.config, self.internal_storage,
-                                         self.executor_id, job_id,
+                                         self.executor_id, len(self.jobs),
                                          map_function=map_function, iterdata=map_iterdata,
                                          extra_env=extra_env, extra_meta=extra_meta,
                                          obj_chunk_size=chunk_size, runtime_memory=runtime_memory,
@@ -193,9 +191,8 @@ class FunctionExecutor:
             raise Exception('You cannot run map_reduce() in the current state.'
                             ' Create a new FunctionExecutor() instance.')
 
-        job_id = str(len(self.jobs)).zfill(3)
         job, parts_per_object = create_map_job(self.config, self.internal_storage,
-                                               self.executor_id, job_id,
+                                               self.executor_id, len(self.jobs),
                                                map_function=map_function, iterdata=map_iterdata,
                                                extra_env=extra_env, extra_meta=extra_meta,
                                                obj_chunk_size=chunk_size, runtime_memory=map_runtime_memory,
@@ -214,7 +211,7 @@ class FunctionExecutor:
             self.monitor(futures=map_futures)
 
         job = create_reduce_job(self.config, self.internal_storage, self.executor_id,
-                                job_id, reduce_function, reduce_runtime_memory,
+                                len(self.jobs), reduce_function, reduce_runtime_memory,
                                 map_futures, parts_per_object, reducer_one_per_object,
                                 extra_env, extra_meta)
         reduce_futures = self.invoker.run(job)

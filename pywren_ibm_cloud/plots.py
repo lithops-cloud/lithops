@@ -47,14 +47,14 @@ def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses, cos
     #time_offset = np.min(results_df.host_submit_time)
     fig = pylab.figure(figsize=(10, 6))
     ax = fig.add_subplot(1, 1, 1)
-    total_tasks = len(results_df)
+    total_calls = len(results_df)
 
-    y = np.arange(total_tasks)
+    y = np.arange(total_calls)
     point_size = 10
 
     fields = [('host submit', results_df.host_submit_time - pw_start_time),
               ('action start', results_df.start_time - pw_start_time),
-              #('taskrunner start', results_df.taskrunner_start - pw_start_time),
+              #('jobrunner start', results_df.jobrunner_start - pw_start_time),
               ('action done', results_df.end_time - pw_start_time)]
 
     if 'download_output_timestamp' in results_df:
@@ -75,11 +75,11 @@ def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses, cos
     #pylab.title("Runtime for {} jobs of {:3.0f}M double ops (dgemm) each".format(total_jobs, JOB_GFLOPS))
     legend.get_frame().set_facecolor('#FFFFFF')
 
-    plot_step = int(np.max([1, total_tasks/32]))
+    plot_step = int(np.max([1, total_calls/32]))
 
-    y_ticks = np.arange(total_tasks//plot_step + 2) * plot_step
+    y_ticks = np.arange(total_calls//plot_step + 2) * plot_step
     ax.set_yticks(y_ticks)
-    ax.set_ylim(-0.02*total_tasks, total_tasks*1.05)
+    ax.set_ylim(-0.02*total_calls, total_calls*1.05)
     for y in y_ticks:
         ax.axhline(y, c='k', alpha=0.1, linewidth=1)
 

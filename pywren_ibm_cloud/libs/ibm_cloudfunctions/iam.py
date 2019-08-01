@@ -18,15 +18,14 @@ import logging
 import requests
 from urllib.parse import urlencode
 
-
+IBM_IAM_AUTH_ENDPOINT_DEFAULT = 'https://iam.cloud.ibm.com/oidc/token'
 logger = logging.getLogger(__name__)
 
 
-class IBMIAMClient:
+class IbmIamClient:
 
     def __init__(self, iam_config, cf_endpoint, cf_namespace):
         self.iam_api_key = iam_config.get('api_key', None)
-        self.iam_auth_endpoint = iam_config['ibm_auth_endpoint']
         self.cf_endpoint = cf_endpoint
         self.cf_namespace = cf_namespace
 
@@ -36,7 +35,7 @@ class IBMIAMClient:
             'content-type': 'application/x-www-form-urlencoded',
             'Accept': 'application/json'
         }
-        res = requests.post(self.iam_auth_endpoint, data=data, headers=headers)
+        res = requests.post(IBM_IAM_AUTH_ENDPOINT_DEFAULT, data=data, headers=headers)
 
         if res.status_code != 200:
             raise RuntimeError("Error: http code {} while retrieving IAM token for API key.".format(res.status_code))
