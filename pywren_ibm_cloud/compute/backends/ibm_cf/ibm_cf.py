@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import logging
 import zipfile
 import pywren_ibm_cloud
@@ -75,14 +76,18 @@ class ComputeBackend:
         except Exception as e:
             raise Exception('Unable to create the {} package: {}'.format(ZIP_LOCATION, e))
 
-    def build_runtime(self, docker_image_name):
+    def build_runtime(self, docker_image_name, dockerfile):
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
         logger.info('Creating a new docker image from Dockerfile')
         logger.info('Docker image name: {}'.format(docker_image_name))
 
-        cmd = 'docker build -t {} .'.format(docker_image_name)
+        if dockerfile:
+            cmd = 'docker build -t {} -f {} .'.format(docker_image_name, dockerfile)
+        else:
+            cmd = 'docker build -t {} .'.format(docker_image_name)
+
         res = os.system(cmd)
         if res != 0:
             exit()
@@ -154,8 +159,24 @@ class ComputeBackend:
         """
         Invoke -- return information about this invocation
         """
+        exec_id = payload['executor_id']
+        job_id = payload['job_id']
+        call_id = payload['call_id']
         action_name = self._format_action_name(docker_image_name, runtime_memory)
-        return self.cf_client.invoke(self.package, action_name, payload, self.is_cf_cluster)
+        start = time.time()
+        activation_id, exception = self.cf_client.invoke(self.package, action_name, payload, self.is_cf_cluster)
+        roundtrip = time.time() - start
+        resp_time = format(round(roundtrip, 3), '.3f')
+
+        if activation_id is None:
+            log_msg = ('ExecutorID {} | JobID {} - Function {} invocation failed: {}'.format(exec_id, job_id, call_id, str(exception)))
+            logger.debug(log_msg)
+        else:
+            log_msg = ('ExecutorID {} | JobID {} - Function {} invocation done! ({}s) - Activation ID: '
+                       '{}'.format(exec_id, job_id, call_id, resp_time, activation_id))
+            logger.debug(log_msg)
+
+        return activation_id
 
     def invoke_with_result(self, docker_image_name, runtime_memory, payload={}):
         """

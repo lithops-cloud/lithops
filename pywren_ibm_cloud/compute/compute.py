@@ -2,25 +2,20 @@ import os
 import time
 import random
 import logging
-import threading
 import importlib
 
 logger = logging.getLogger(__name__)
 
 
-class ThreadSafeSingleton(type):
+class Singleton(type):
     _instances = {}
-    _singleton_lock = threading.Lock()
-
     def __call__(cls, *args, **kwargs):
         if cls not in cls._instances:
-            with cls._singleton_lock:
-                if cls not in cls._instances:
-                    cls._instances[cls] = super(ThreadSafeSingleton, cls).__call__(*args, **kwargs)
+            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
         return cls._instances[cls]
 
 
-class Compute(metaclass=ThreadSafeSingleton):
+class Compute(metaclass=Singleton):
     """
     An InternalCompute object is used by invokers and other components to access underlying compute backend
     without exposing the the implementation details.
@@ -68,12 +63,12 @@ class Compute(metaclass=ThreadSafeSingleton):
         """
         return self.compute_handler.invoke_with_result(runtime_name, memory, payload)
 
-    def build_runtime(self, runtime_name):
+    def build_runtime(self, runtime_name, file):
         """
         Wrapper method to build a new runtime for the compute backend.
         return: the name of the runtime
         """
-        self.compute_handler.build_runtime(runtime_name)
+        self.compute_handler.build_runtime(runtime_name, file)
 
     def create_runtime(self, runtime_name, memory, timeout=300000):
         """

@@ -27,12 +27,8 @@ def uuid_str():
     return str(uuid.uuid4())
 
 
-def create_executor_id(lenght=13):
-    return uuid_str()[0:lenght]
-
-
-def create_callgroup_id(lenght=8):
-    return uuid_str().replace('-', '')[0:lenght]
+def create_executor_id(lenght=9):
+    return uuid_str()[9:9+lenght]
 
 
 def timeout_handler(signum, frame):

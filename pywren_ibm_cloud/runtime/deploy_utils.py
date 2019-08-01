@@ -73,11 +73,11 @@ def update_runtime(name, config=None):
                 raise("Unable to upload 'preinstalled modules' file into {}".format(internal_storage.backend))
 
 
-def build_runtime(name, config=None):
+def build_runtime(name, file, config=None):
     config = default_config(config)
     compute_config = extract_compute_config(config)
     internal_compute = Compute(compute_config)
-    internal_compute.build_runtime(name)
+    internal_compute.build_runtime(name, file)
 
     create_runtime(name, config=config)
     update_runtime(name, config=config)

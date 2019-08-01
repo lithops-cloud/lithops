@@ -8,7 +8,7 @@ from pywren_ibm_cloud.config import extract_compute_config
 logger = logging.getLogger(__name__)
 
 
-def select_runtime(config, internal_storage, executor_id, runtime_name, runtime_memory):
+def select_runtime(config, internal_storage, executor_id, job_id, runtime_name, runtime_memory):
     """
     Auxiliary method that gets the runtime metadata from the storage. This metadata contains the preinstalled
     python modules needed to serialize the local function.  If the .metadata file does not exists in the storage,
@@ -18,7 +18,7 @@ def select_runtime(config, internal_storage, executor_id, runtime_name, runtime_
     compute_config = extract_compute_config(config)
     internal_compute = Compute(compute_config)
 
-    log_msg = 'ExecutorID {} - Selected Runtime: {} - {}MB'.format(executor_id, runtime_name, runtime_memory)
+    log_msg = 'ExecutorID {} | JobID {} - Selected Runtime: {} - {}MB'.format(executor_id, job_id, runtime_name, runtime_memory)
     logger.info(log_msg)
     if not log_level:
         print(log_msg, end=' ')
@@ -29,7 +29,7 @@ def select_runtime(config, internal_storage, executor_id, runtime_name, runtime_
         if not log_level:
             print()
     except Exception:
-        logger.debug('ExecutorID {} - Runtime {} with {}MB is not yet installed'.format(executor_id, runtime_name, runtime_memory))
+        logger.debug('ExecutorID {} | JobID {} - Runtime {} with {}MB is not yet installed'.format(executor_id, job_id, runtime_name, runtime_memory))
         if not log_level:
             print('(Installing...)')
 

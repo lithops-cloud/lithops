@@ -15,22 +15,24 @@ from pywren_ibm_cloud.config import EXECUTION_TIMEOUT, MAX_AGG_DATA_SIZE
 logger = logging.getLogger(__name__)
 
 
-def create_call_async_job(config, internal_storage, executor_id, func, data, extra_env=None,
+def create_call_async_job(config, internal_storage, executor_id, job_id, func, data, extra_env=None,
                           extra_meta=None, runtime_memory=None, execution_timeout=EXECUTION_TIMEOUT):
     """
     Wrapper to create call_async job that contains only one function invocation.
     """
-    return _create_job(config, internal_storage, executor_id, func, [data], extra_env=extra_env,
+    async_job_id = f'A{job_id}'
+    return _create_job(config, internal_storage, executor_id, async_job_id, func, [data], extra_env=extra_env,
                        extra_meta=extra_meta, runtime_memory=runtime_memory, execution_timeout=execution_timeout)
 
 
-def create_map_job(config, internal_storage, executor_id, map_function, iterdata, obj_chunk_size=None,
+def create_map_job(config, internal_storage, executor_id, job_id, map_function, iterdata, obj_chunk_size=None,
                    extra_env=None, extra_meta=None, runtime_memory=None, remote_invocation=False,
                    remote_invocation_groups=None, invoke_pool_threads=128, exclude_modules=None, is_cf_cluster=False,
                    execution_timeout=EXECUTION_TIMEOUT, overwrite_invoke_args=None):
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
     """
+    map_job_id = f'M{job_id}'
     data = utils.iterdata_as_list(iterdata)
     map_func = map_function
     map_iterdata = data
@@ -43,18 +45,18 @@ def create_map_job(config, internal_storage, executor_id, map_function, iterdata
         '''
         If it is object processing function, create partitions according chunk_size
         '''
-        logger.debug("Calling map on partitions from object storage flow")
+        logger.debug('ExecutorID {} | JobID {} - Calling map on partitions from object storage flow'.format(executor_id, job_id))
         arg_data = utils.verify_args(map_function, data, object_processing=True)
         map_iterdata, parts_per_object = create_partitions(config, arg_data, obj_chunk_size)
         map_func = partition_processor(map_function)
     # ########
 
     # Remote invocation functionality
-    original_iterdata_len = len(map_iterdata)
-    if original_iterdata_len == 1 or is_cf_cluster:
+    original_total_tasks = len(map_iterdata)
+    if original_total_tasks == 1 or is_cf_cluster:
         remote_invocation = False
     if remote_invocation:
-        rabbitmq_monitor = "PYWREN_RABBITMQ_MONITOR" in os.environ
+        rabbitmq_monitor = "CB_RABBITMQ_MONITOR" in os.environ
 
         def remote_invoker(input_data):
             pw = pywren.ibm_cf_executor(rabbitmq_monitor=rabbitmq_monitor)
@@ -67,7 +69,7 @@ def create_map_job(config, internal_storage, executor_id, map_function, iterdata
         map_func = remote_invoker
         if remote_invocation_groups:
             map_iterdata = [[iterdata[x:x+remote_invocation_groups]]
-                            for x in range(0, original_iterdata_len, remote_invocation_groups)]
+                            for x in range(0, original_total_tasks, remote_invocation_groups)]
         else:
             map_iterdata = [iterdata]
         new_invoke_pool_threads = 1
@@ -75,7 +77,7 @@ def create_map_job(config, internal_storage, executor_id, map_function, iterdata
     # ########
 
     job_description = _create_job(config, internal_storage, executor_id,
-                                  map_func, map_iterdata,
+                                  map_job_id, map_func, map_iterdata,
                                   extra_env=extra_env,
                                   extra_meta=extra_meta,
                                   runtime_memory=new_runtime_memory,
@@ -84,17 +86,18 @@ def create_map_job(config, internal_storage, executor_id, map_function, iterdata
                                   exclude_modules=exclude_modules,
                                   original_func_name=map_function.__name__,
                                   remote_invocation=remote_invocation,
-                                  original_iterdata_len=original_iterdata_len,
+                                  original_total_tasks=original_total_tasks,
                                   execution_timeout=execution_timeout)
 
     return job_description, parts_per_object
 
 
-def create_reduce_job(config, internal_storage, executor_id, reduce_function, reduce_runtime_memory,
+def create_reduce_job(config, internal_storage, executor_id, job_id, reduce_function, reduce_runtime_memory,
                       map_futures, parts_per_object, reducer_one_per_object, extra_env, extra_meta):
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
     """
+    reduce_job_id = f'R{job_id}'
     map_iterdata = [[map_futures, ]]
 
     if parts_per_object and reducer_one_per_object:
@@ -128,7 +131,7 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_function, re
 
         return reduce_function(**reduce_func_args)
 
-    return _create_job(config, internal_storage, executor_id, reduce_function_wrapper, map_iterdata,
+    return _create_job(config, internal_storage, executor_id, reduce_job_id, reduce_function_wrapper, map_iterdata,
                        runtime_memory=reduce_runtime_memory, extra_env=extra_env, extra_meta=extra_meta,
                        original_func_name=reduce_function.__name__)
 
@@ -146,9 +149,9 @@ def _agg_data(data_strs):
     return b"".join(data_strs), ranges
 
 
-def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env=None, extra_meta=None,
+def _create_job(config, internal_storage, executor_id, job_id, func, iterdata, extra_env=None, extra_meta=None,
                 runtime_memory=None, invoke_pool_threads=128, overwrite_invoke_args=None,
-                exclude_modules=None, original_func_name=None, remote_invocation=False, original_iterdata_len=None,
+                exclude_modules=None, original_func_name=None, remote_invocation=False, original_total_tasks=None,
                 execution_timeout=EXECUTION_TIMEOUT):
     """
     :param func: the function to map over the data
@@ -171,7 +174,7 @@ def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env
         runtime_memory = config['pywren']['runtime_memory']
     runtime_memory = int(runtime_memory)
     runtime_preinstalls = select_runtime(config, internal_storage, executor_id,
-                                         runtime_name, runtime_memory)
+                                         job_id, runtime_name, runtime_memory)
     serializer = SerializeIndependent(runtime_preinstalls)
 
     if original_func_name:
@@ -190,8 +193,6 @@ def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env
     # This allows multiple parameters in functions
     data = utils.verify_args(func, data)
 
-    callgroup_id = utils.create_callgroup_id()
-
     host_job_meta = {}
     job_description = {}
 
@@ -201,14 +202,14 @@ def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env
     job_description['func_name'] = func_name
     job_description['extra_env'] = extra_env
     job_description['extra_meta'] = extra_meta
-    job_description['total_data_items'] = len(data)
+    job_description['total_calls'] = len(data)
     job_description['invoke_pool_threads'] = invoke_pool_threads
     job_description['overwrite_invoke_args'] = overwrite_invoke_args
-    job_description['callgroup_id'] = callgroup_id
+    job_description['job_id'] = job_id
     job_description['remote_invocation'] = remote_invocation
-    job_description['original_iterdata_len'] = original_iterdata_len
+    job_description['original_total_calls'] = original_total_tasks
 
-    log_msg = 'ExecutorID {} Serializing function and data'.format(executor_id)
+    log_msg = 'ExecutorID {} | JobID {} - Serializing function and data'.format(executor_id, job_id)
     logger.debug(log_msg)
     # pickle func and all data (to capture module dependencies)
     func_and_data_ser, mod_paths = serializer([func] + data)
@@ -220,13 +221,13 @@ def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env
     host_job_meta['agg_data'] = False
     host_job_meta['data_size_bytes'] = data_size_bytes
 
-    log_msg = 'ExecutorID {} - Uploading function and data'.format(executor_id)
+    log_msg = 'ExecutorID {} | JobID {} - Uploading function and data'.format(executor_id, job_id)
     logger.info(log_msg)
     if not log_level:
         print(log_msg, end=' ')
 
     if data_size_bytes < MAX_AGG_DATA_SIZE:
-        agg_data_key = create_agg_data_key(internal_storage.prefix, executor_id, callgroup_id)
+        agg_data_key = create_agg_data_key(internal_storage.prefix, executor_id, job_id)
         job_description['data_key'] = agg_data_key
         agg_data_bytes, agg_data_ranges = _agg_data(data_strs)
         job_description['data_ranges'] = agg_data_ranges
@@ -236,8 +237,8 @@ def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env
         host_job_meta['data_upload_time'] = time.time() - agg_upload_time
         host_job_meta['data_upload_timestamp'] = time.time()
     else:
-        log_msg = ('ExecutorID {} - Total data exceeded '
-                   'maximum size of {} bytes'.format(executor_id, MAX_AGG_DATA_SIZE))
+        log_msg = ('ExecutorID {} | JobID {} - Total data exceeded '
+                   'maximum size of {} bytes'.format(executor_id, job_id, MAX_AGG_DATA_SIZE))
         raise Exception(log_msg)
 
     if exclude_modules:
@@ -253,7 +254,7 @@ def _create_job(config, internal_storage, executor_id, func, iterdata, extra_env
     host_job_meta['func_module_bytes'] = len(func_module_str)
 
     func_upload_time = time.time()
-    func_key = create_func_key(internal_storage.prefix, executor_id, callgroup_id)
+    func_key = create_func_key(internal_storage.prefix, executor_id, job_id)
     job_description['func_key'] = func_key
     internal_storage.put_func(func_key, func_module_str)
     host_job_meta['func_upload_time'] = time.time() - func_upload_time
