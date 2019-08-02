@@ -194,14 +194,16 @@ def function_handler(event):
             rabbit_amqp_url = config['rabbitmq'].get('amqp_url')
             status_sent = False
             output_query_count = 0
+            params = pika.URLParameters(rabbit_amqp_url)
+            queue = f'{executor_id}-{job_id}'
+
             while not status_sent and output_query_count < 5:
                 output_query_count = output_query_count + 1
                 try:
-                    params = pika.URLParameters(rabbit_amqp_url)
                     connection = pika.BlockingConnection(params)
                     channel = connection.channel()
-                    channel.queue_declare(queue=executor_id, auto_delete=True)
-                    channel.basic_publish(exchange='', routing_key=executor_id,
+                    channel.queue_declare(queue=queue, auto_delete=True)
+                    channel.basic_publish(exchange='', routing_key=queue,
                                           body=dmpd_response_status)
                     connection.close()
                     logger.info("Execution stats sent to rabbitmq - Size: {}".format(drs))

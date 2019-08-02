@@ -127,28 +127,28 @@ class InternalStorage(metaclass=Singleton):
         call_ids = [tuple(k[len(self.prefix)+1:].split("/")[:3]) for k in status_keys]
         return call_ids
 
-    def get_call_status(self, executor_id, callgroup_id, call_id):
+    def get_call_status(self, executor_id, job_id, call_id):
         """
         Get status of a call.
         :param executor_id: executor ID of the call
         :param call_id: call ID of the call
         :return: A dictionary containing call's status, or None if no updated status
         """
-        status_key = create_status_key(self.prefix, executor_id, callgroup_id, call_id)
+        status_key = create_status_key(self.prefix, executor_id, job_id, call_id)
         try:
             data = self.storage_handler.get_object(self.bucket, status_key)
             return json.loads(data.decode('ascii'))
         except StorageNoSuchKeyError:
             return None
 
-    def get_call_output(self, executor_id, callgroup_id, call_id):
+    def get_call_output(self, executor_id, job_id, call_id):
         """
         Get the output of a call.
         :param executor_id: executor ID of the call
         :param call_id: call ID of the call
         :return: Output of the call.
         """
-        output_key = create_output_key(self.prefix, executor_id, callgroup_id, call_id)
+        output_key = create_output_key(self.prefix, executor_id, job_id, call_id)
         try:
             return self.storage_handler.get_object(self.bucket, output_key)
         except StorageNoSuchKeyError:

@@ -141,12 +141,13 @@ def _wait_storage(fs, internal_storage, download_results, throw_except,
     if download_results:
         not_done_futures = [f for f in fs if not f.done]
     else:
-        not_done_futures = [f for f in fs if not f.ready]
+        not_done_futures = [f for f in fs if not f.ready and not f.done]
 
     if len(not_done_futures) == 0:
         return fs, []
 
     present_jobs = {(f.executor_id, f.job_id) for f in not_done_futures}
+
     still_not_done_futures = []
     while present_jobs:
         executor_id, job_id = present_jobs.pop()
@@ -157,6 +158,7 @@ def _wait_storage(fs, internal_storage, download_results, throw_except,
         #print('Time getting job status: ', time.time()-t0, len(callids_done_in_job))
 
         not_done_call_ids = set([(f.executor_id, f.job_id, f.call_id) for f in not_done_futures])
+
         done_call_ids = not_done_call_ids.intersection(callids_done_in_job)
         not_done_call_ids = not_done_call_ids - done_call_ids
         still_not_done_futures += [f for f in not_done_futures if ((f.executor_id, f.job_id, f.call_id) in not_done_call_ids)]
