@@ -36,27 +36,31 @@ def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url=None, throw_except=
     if return_when != ALL_COMPLETED:
         raise NotImplementedError(return_when)
 
-    present_jobs = {(f.executor_id, f.job_id) for f in futures}
-
-    print(present_jobs)
+    present_jobs = {}
+    for f in futures:
+        if f'{f.executor_id}-{f.job_id}' not in present_jobs:
+            present_jobs[f'{f.executor_id}-{f.job_id}'] = []
+        present_jobs[f'{f.executor_id}-{f.job_id}'].append(f)
 
     call_statuses = {}
     done_call_ids = {}
 
     checker_worker_queue = queue.Queue()
-    for executor_id, job_id, in present_jobs:
-        td = rabbitmq_checker_worker(executor_id, job_id, rabbit_amqp_url, checker_worker_queue)
+    for job_key in present_jobs.keys():
+        total_calls = len(present_jobs[job_key])
+        call_statuses[job_key] = {}
+        done_call_ids[job_key] = {'total': total_calls, 'call_ids': []}
+        td = rabbitmq_checker_worker(job_key, total_calls, rabbit_amqp_url, checker_worker_queue)
         td.setDaemon(True)
         td.start()
-        call_statuses[f'{executor_id}-{job_id}'] = {}
-        done_call_ids[f'{executor_id}-{job_id}'] = {'total': total, 'call_ids': []}
 
     def call_ids_to_futures():
         fs_dones = []
         fs_notdones = []
         for f in futures:
-            if f.job_id in call_statuses and f.call_id in call_statuses[f.job_id]:
-                f.run_status = call_statuses[f.job_id][f.call_id]
+            job_key = f'{f.executor_id}-{f.job_id}'
+            if job_key in call_statuses and f.call_id in call_statuses[job_key]:
+                f.run_status = call_statuses[job_key][f.call_id]
                 f.invoke_status['status_done_timestamp'] = f.run_status['status_done_timestamp']
                 del f.run_status['status_done_timestamp']
                 f._set_state(CallState.ready)
@@ -87,13 +91,14 @@ def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url=None, throw_except=
         rcvd_job_id = call_status['job_id']
         rcvd_call_id = call_status['call_id']
 
-        if rcvd_job_id not in done_call_ids:
-            done_call_ids[f'{rcvd_executor_id}-{rcvd_job_id}'] = {'total': None, 'call_ids': []}
-        if rcvd_job_id not in call_statuses:
-            call_statuses[f'{rcvd_executor_id}-{rcvd_job_id}'] = {}
+        job_key = f'{rcvd_executor_id}-{rcvd_job_id}'
+        if job_key not in done_call_ids:
+            done_call_ids[job_key] = {'total': None, 'call_ids': []}
+        if job_key not in call_statuses:
+            call_statuses[job_key] = {}
 
-        done_call_ids[f'{rcvd_executor_id}-{rcvd_job_id}']['call_ids'].append(rcvd_call_id)
-        call_statuses[f'{rcvd_executor_id}-{rcvd_job_id}'][rcvd_call_id] = call_status
+        done_call_ids[job_key]['call_ids'].append(rcvd_call_id)
+        call_statuses[job_key][rcvd_call_id] = call_status
 
         if pbar:
             pbar.update(1)
@@ -103,13 +108,13 @@ def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url=None, throw_except=
             new_futures = call_status['new_futures'].split('/')
             if int(new_futures[1]) != 0:
                 # We received new futures to track
-                executor_id_new_futures = 'TODO'
                 job_id_new_futures = new_futures[0]
+                job_key_new_futures = f'{rcvd_executor_id}-{job_id_new_futures}'
                 total_new_futures = int(new_futures[1])
-                if job_id_new_futures not in done_call_ids:
-                    done_call_ids[job_id_new_futures] = {'total': total_new_futures, 'call_ids': []}
+                if job_key_new_futures not in done_call_ids:
+                    done_call_ids[job_key_new_futures] = {'total': total_new_futures, 'call_ids': []}
                 else:
-                    done_call_ids[job_id_new_futures]['total'] = total_new_futures
+                    done_call_ids[job_key_new_futures]['total'] = total_new_futures
 
                 if pbar:
                     pbar.total = pbar.total + total_new_futures
@@ -124,18 +129,23 @@ class rabbitmq_checker_worker(threading.Thread):
 
     def callback(self, ch, method, properties, body):
         self.q.put(body.decode("utf-8"))
+        self.total_calls_rcvd += 1
+        if self.total_calls_rcvd == self.total_calls:
+            self.channel.stop_consuming()
 
-    def __init__(self, executor_id, job_id, rabbit_amqp_url, q):
+    def __init__(self, job_key, total_calls, rabbit_amqp_url, q):
         threading.Thread.__init__(self)
-        self.executor_id = executor_id
-        self.job_id = job_id
+        self.job_key = job_key
+        self.total_calls = total_calls
         self.q = q
-        queue = f'{executor_id}-{job_id}'
+        self.executor_id, self.job_id = job_key.rsplit('-', 1)
+        self.total_calls_rcvd = 0
+
         params = pika.URLParameters(rabbit_amqp_url)
         connection = pika.BlockingConnection(params)
         self.channel = connection.channel()  # start a channel
-        self.channel.queue_declare(queue=queue, auto_delete=True)
-        self.channel.basic_consume(self.callback, queue=queue, no_ack=True)
+        self.channel.queue_declare(queue=job_key, auto_delete=True)
+        self.channel.basic_consume(self.callback, queue=job_key, no_ack=True)
 
     def run(self):
         msg = ('ExecutorID {} | JobID {} - Starting consumer from rabbitmq queue'
@@ -144,5 +154,5 @@ class rabbitmq_checker_worker(threading.Thread):
         self.channel.start_consuming()
 
     def __del__(self):
-        self.channel.queue_delete(queue=self.executor_id)
+        self.channel.queue_delete(queue=self.job_key)
         self.channel.stop_consuming()

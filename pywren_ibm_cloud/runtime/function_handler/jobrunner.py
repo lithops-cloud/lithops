@@ -200,11 +200,11 @@ class JobRunner(Process):
             if result is not None:
                 self.stats.write("result", True)
                 if isinstance(result, ResponseFuture):
-                    callgroup_id = result.callgroup_id
-                    self.stats.write('new_futures', '{}/{}'.format(callgroup_id, 1))
+                    job_id = result.job_id
+                    self.stats.write('new_futures', '{}/{}'.format(job_id, 1))
                 elif type(result) == list and len(result) > 0 and isinstance(result[0], ResponseFuture):
-                    callgroup_id = result[0].callgroup_id
-                    self.stats.write('new_futures', '{}/{}'.format(callgroup_id, len(result)))
+                    job_id = result[0].job_id
+                    self.stats.write('new_futures', '{}/{}'.format(job_id, len(result)))
                 else:
                     self.stats.write('new_futures', '{}/{}'.format(None, 0))
 
