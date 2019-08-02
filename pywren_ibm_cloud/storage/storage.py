@@ -112,7 +112,7 @@ class InternalStorage(metaclass=Singleton):
         else:
             raise Exception("CloudObject: Invalid Storage backend for retrieving the object")
 
-    def get_callset_status(self, executor_id):
+    def get_job_status(self, executor_id, job_id):
         """
         Get the status of a callset.
         :param executor_id: executor's ID
@@ -120,11 +120,11 @@ class InternalStorage(metaclass=Singleton):
         """
         # TODO: a better API for this is to return status for all calls in the callset. We'll fix
         #  this in scheduler refactoring.
-        callset_prefix = '/'.join([self.prefix, executor_id])
+        callset_prefix = '/'.join([self.prefix, executor_id, job_id])
         keys = self.storage_handler.list_keys_with_prefix(self.bucket, callset_prefix)
         suffix = status_key_suffix
         status_keys = [k for k in keys if suffix in k]
-        call_ids = [tuple(k[len(callset_prefix)+1:].split("/")[:2]) for k in status_keys]
+        call_ids = [tuple(k[len(self.prefix)+1:].split("/")[:3]) for k in status_keys]
         return call_ids
 
     def get_call_status(self, executor_id, callgroup_id, call_id):

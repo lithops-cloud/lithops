@@ -8,8 +8,8 @@ import logging
 import traceback
 from pywren_ibm_cloud.invoker import Invoker
 from pywren_ibm_cloud.storage import InternalStorage
-from pywren_ibm_cloud.future import FunctionException, JobState
-from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
+from pywren_ibm_cloud.future import FunctionException
+from pywren_ibm_cloud.monitor import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from pywren_ibm_cloud.storage.utils import clean_os_bucket
 from pywren_ibm_cloud.job import create_call_async_job, create_map_job, create_reduce_job
 from pywren_ibm_cloud.config import default_config, extract_storage_config, EXECUTION_TIMEOUT, default_logging_config
@@ -84,11 +84,11 @@ class FunctionExecutor:
         self.rabbitmq_monitor = rabbitmq_monitor
         if self.rabbitmq_monitor:
             if self.config['rabbitmq']['amqp_url']:
+                self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
+                self.config['pywren']['rabbitmq_monitor'] = True
                 os.environ["CB_RABBITMQ_MONITOR"] = 'True'
             else:
-                self.rabbitmq_monitor = False
-        else:
-            self.config['rabbitmq']['amqp_url'] = None
+                raise Exception("RabbitMQ AMQP url not set in configuration")
 
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
@@ -107,11 +107,12 @@ class FunctionExecutor:
         if self._state == ExecutorState.finished:
             raise Exception('You cannot run call_async() in the current state,'
                             ' create a new FunctionExecutor() instance.')
-
-        job = create_call_async_job(self.config, self.internal_storage, self.executor_id, len(self.jobs),
-                                    func, data, extra_env, extra_meta, runtime_memory, timeout)
+        total_current_jobs = len(self.jobs)
+        job = create_call_async_job(self.config, self.internal_storage, self.executor_id,
+                                    total_current_jobs, func, data, extra_env, extra_meta,
+                                    runtime_memory, timeout)
         future = self.invoker.run(job)
-        self.jobs[job['job_id']] = {'futures': future, 'total': job['total_calls'], 'state': JobState.running}
+        self.jobs[job['job_id']] = {'futures': future, 'total_calls': job['total_calls'], 'state': JobState.running}
         self._state = ExecutorState.running
 
         return future[0]
@@ -138,9 +139,9 @@ class FunctionExecutor:
         if self._state == ExecutorState.finished:
             raise Exception('You cannot run map() in the current state.'
                             ' Create a new FunctionExecutor() instance.')
-
+        total_current_jobs = len(self.jobs)
         job, unused_ppo = create_map_job(self.config, self.internal_storage,
-                                         self.executor_id, len(self.jobs),
+                                         self.executor_id, total_current_jobs,
                                          map_function=map_function, iterdata=map_iterdata,
                                          extra_env=extra_env, extra_meta=extra_meta,
                                          obj_chunk_size=chunk_size, runtime_memory=runtime_memory,
@@ -152,7 +153,7 @@ class FunctionExecutor:
                                          overwrite_invoke_args=overwrite_invoke_args,
                                          execution_timeout=timeout)
         map_futures = self.invoker.run(job)
-        self.jobs[job['job_id']] = {'futures': map_futures, 'total': job['total_calls'], 'state': JobState.running}
+        self.jobs[job['job_id']] = {'futures': map_futures, 'total_calls': job['total_calls'], 'state': JobState.running}
         self._state = ExecutorState.running
 
         if len(map_futures) == 1:
@@ -190,9 +191,9 @@ class FunctionExecutor:
         if self._state == ExecutorState.finished:
             raise Exception('You cannot run map_reduce() in the current state.'
                             ' Create a new FunctionExecutor() instance.')
-
+        total_current_jobs = len(self.jobs)
         job, parts_per_object = create_map_job(self.config, self.internal_storage,
-                                               self.executor_id, len(self.jobs),
+                                               self.executor_id, total_current_jobs,
                                                map_function=map_function, iterdata=map_iterdata,
                                                extra_env=extra_env, extra_meta=extra_meta,
                                                obj_chunk_size=chunk_size, runtime_memory=map_runtime_memory,
@@ -204,18 +205,18 @@ class FunctionExecutor:
                                                overwrite_invoke_args=overwrite_invoke_args,
                                                execution_timeout=timeout)
         map_futures = self.invoker.run(job)
-        self.jobs[job['job_id']] = {'futures': map_futures, 'total': job['total_calls'], 'state': JobState.running}
+        self.jobs[job['job_id']] = {'futures': map_futures, 'total_calls': job['total_calls'], 'state': JobState.running}
         self._state = ExecutorState.running
 
         if reducer_wait_local:
             self.monitor(futures=map_futures)
 
         job = create_reduce_job(self.config, self.internal_storage, self.executor_id,
-                                len(self.jobs), reduce_function, reduce_runtime_memory,
+                                total_current_jobs, reduce_function, reduce_runtime_memory,
                                 map_futures, parts_per_object, reducer_one_per_object,
                                 extra_env, extra_meta)
         reduce_futures = self.invoker.run(job)
-        self.jobs[job['job_id']] = {'futures': reduce_futures, 'total': job['total_calls'], 'state': JobState.running}
+        self.jobs[job['job_id']] = {'futures': reduce_futures, 'total_calls': job['total_calls'], 'state': JobState.running}
 
         for f in map_futures:
             f.produce_output = False
@@ -233,7 +234,7 @@ class FunctionExecutor:
         :param futures: Futures list. Default None
         :param throw_except: Re-raise exception if call raised. Default True.
         :param return_when: One of `ALL_COMPLETED`, `ANY_COMPLETED`, `ALWAYS`
-        :param download_results: Download results. Default false (Only download statuses)
+        :param download_results: Download results. Default false (Only get statuses)
         :param timeout: Timeout of waiting for results.
         :param THREADPOOL_SIZE: Number of threads to use. Default 64
         :param WAIT_DUR_SEC: Time interval between each check.
@@ -255,15 +256,9 @@ class FunctionExecutor:
             ftrs = futures
 
         if not ftrs:
-            raise Exception('You must run call_async(), map() or map_reduce()'
-                            ' before calling get_result() method')
+            raise Exception('You must run the call_async(), map() or map_reduce() or provide'
+                            ' a list of futures before calling the monitor()/get_result() method')
 
-        rabbit_amqp_url = None
-        if self.rabbitmq_monitor:
-            rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
-        if rabbit_amqp_url and not download_results:
-            logger.info('Going to use RabbitMQ to monitor function activations')
-            logging.getLogger('pika').setLevel(logging.WARNING)
         if download_results:
             msg = 'ExecutorID {} - Getting results...'.format(self.executor_id)
         else:
@@ -287,9 +282,14 @@ class FunctionExecutor:
                 pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(ftrs), disable=False)
 
         try:
-            wait(ftrs, self.executor_id, self.internal_storage, download_results=download_results,
-                 throw_except=throw_except, return_when=return_when, rabbit_amqp_url=rabbit_amqp_url,
-                 pbar=pbar, THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
+            if self.rabbitmq_monitor and not download_results:
+                logger.info('Using RabbitMQ to monitor function activations')
+                wait_rabbitmq(ftrs, self.internal_storage, rabbit_amqp_url=self.rabbit_amqp_url,
+                              throw_except=throw_except, pbar=pbar, return_when=return_when)
+            else:
+                wait_storage(ftrs, self.internal_storage, download_results=download_results,
+                             throw_except=throw_except, return_when=return_when, pbar=pbar,
+                             THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
 
         except FunctionException as e:
             if is_unix_system():

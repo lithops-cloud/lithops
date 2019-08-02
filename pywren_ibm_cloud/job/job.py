@@ -7,7 +7,7 @@ import pywren_ibm_cloud as pywren
 from .serialize import SerializeIndependent, create_module_data
 from .partitioner import create_partitions, partition_processor
 from pywren_ibm_cloud import utils
-from pywren_ibm_cloud.wait import wait
+from pywren_ibm_cloud.monitor import wait_storage
 from pywren_ibm_cloud.runtime import select_runtime
 from pywren_ibm_cloud.storage.utils import create_func_key, create_agg_data_key
 from pywren_ibm_cloud.config import EXECUTION_TIMEOUT, MAX_AGG_DATA_SIZE
@@ -117,7 +117,7 @@ def create_reduce_job(config, internal_storage, executor_id, total_current_jobs,
         else:
             show_memory = False
         # Wait for all results
-        wait(fut_list, executor_id, internal_storage, download_results=True)
+        wait_storage(fut_list, internal_storage, download_results=True)
         results = [f.result() for f in fut_list if f.done and not f.futures]
         fut_list.clear()
         reduce_func_args = {'results': results}
@@ -201,7 +201,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, iterdata, e
 
     job_description['runtime_name'] = runtime_name
     job_description['runtime_memory'] = runtime_memory
-    job_description['task_execution_timeout'] = execution_timeout
+    job_description['execution_timeout'] = execution_timeout
     job_description['func_name'] = func_name
     job_description['extra_env'] = extra_env
     job_description['extra_meta'] = extra_meta

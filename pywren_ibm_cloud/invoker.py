@@ -21,7 +21,7 @@ from types import SimpleNamespace
 from pywren_ibm_cloud.version import __version__
 from concurrent.futures import ThreadPoolExecutor
 from pywren_ibm_cloud.compute import Compute
-from pywren_ibm_cloud.future import ResponseFuture, JobState
+from pywren_ibm_cloud.future import ResponseFuture, CallState
 from pywren_ibm_cloud.config import extract_storage_config, extract_compute_config
 from pywren_ibm_cloud.storage.utils import create_output_key, create_status_key
 
@@ -66,7 +66,7 @@ class Invoker:
                 'data_key': data_key,
                 'output_key': output_key,
                 'status_key': status_key,
-                'task_execution_timeout': job.task_execution_timeout,
+                'execution_timeout': job.execution_timeout,
                 'data_byte_range': data_byte_range,
                 'executor_id': executor_id,
                 'job_id': job_id,
@@ -94,7 +94,8 @@ class Invoker:
             activation_id = self.internal_compute.invoke(job.runtime_name, job.runtime_memory, payload)
 
             if not activation_id:
-                raise Exception("ExecutorID {} | JobID {} - Failed to invoke the job".format(executor_id, job_id))
+                raise Exception("ExecutorID {} | JobID {} - Retrying mechanism finished with no success. "
+                                "Failed to invoke the job".format(executor_id, job_id))
 
             invoke_metadata['activation_id'] = activation_id
             invoke_metadata['invoke_time'] = time.time() - host_submit_time
@@ -103,7 +104,7 @@ class Invoker:
             del invoke_metadata['config']
 
             fut = ResponseFuture(call_id, job_id, executor_id, activation_id, self.storage_config, invoke_metadata)
-            fut._set_state(JobState.invoked)
+            fut._set_state(CallState.invoked)
 
             return fut
 

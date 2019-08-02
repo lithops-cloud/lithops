@@ -26,7 +26,7 @@ pickling_support.install()
 logger = logging.getLogger(__name__)
 
 
-class JobState(enum.Enum):
+class CallState(enum.Enum):
     new = 1
     invoked = 2
     running = 3
@@ -37,10 +37,11 @@ class JobState(enum.Enum):
 
 
 class FunctionException(Exception):
-    def __init__(self, executor_id, activation_id, exc, exc_msg):
+    def __init__(self, executor_id, job_id, activation_id, exc, exc_msg):
         self.exception = exc
         self.exc_msg = exc_msg
-        self.msg = 'ExecutorID {} - There was an exception - Activation ID: {}'.format(executor_id, activation_id)
+        self.msg = ('ExecutorID {} | JobID {} - There was an exception - Activation '
+                    'ID: {}'.format(executor_id, job_id, activation_id))
         super().__init__(self.msg)
 
 
@@ -61,12 +62,12 @@ class ResponseFuture:
         self.storage_config = storage_config
         self.produce_output = True
 
-        self._state = JobState.new
+        self._state = CallState.new
         self._exception = Exception()
         self._return_val = None
         self._new_futures = None
         self._traceback = None
-        self._call_invoker_result = None
+        self._call_output = None
 
         self.run_status = None
         self.invoke_status = invoke_metadata.copy()
@@ -94,21 +95,21 @@ class ResponseFuture:
         The response of a call was a FutureResponse instance.
         It has to wait to the new invocation output.
         """
-        return self._state == JobState.futures
+        return self._state == CallState.futures
 
     @property
     def done(self):
-        if self._state in [JobState.success, JobState.futures, JobState.error]:
+        if self._state in [CallState.success, CallState.futures, CallState.error]:
             return True
         return False
 
     @property
     def ready(self):
-        if self._state in [JobState.ready, JobState.futures, JobState.error]:
+        if self._state in [CallState.ready, CallState.futures, CallState.error]:
             return True
         return False
 
-    def status(self, check_only=False, throw_except=True, internal_storage=None):
+    def status(self, throw_except=True, internal_storage=None):
         """
         Return the status returned by the call.
         If the call raised an exception, this method will raise the same exception
@@ -121,10 +122,10 @@ class ResponseFuture:
         :raises CancelledError: If the job is cancelled before completed.
         :raises TimeoutError: If job is not complete after `timeout` seconds.
         """
-        if self._state == JobState.new:
+        if self._state == CallState.new:
             raise ValueError("task not yet invoked")
 
-        if self._state == JobState.ready or self._state == JobState.success:
+        if self._state == CallState.ready or self._state == CallState.success:
             return self.run_status
 
         if internal_storage is None:
@@ -133,10 +134,6 @@ class ResponseFuture:
         check_storage_path(internal_storage.get_storage_config(), self.storage_path)
         call_status = internal_storage.get_call_status(self.executor_id, self.job_id, self.call_id)
         self.status_query_count += 1
-
-        if check_only is True:
-            if call_status is None:
-                return None
 
         while call_status is None:
             time.sleep(self.GET_RESULT_SLEEP_SECS)
@@ -152,7 +149,7 @@ class ResponseFuture:
 
         if call_status['exception']:
             # the action handler/jobrunner/function had an exception
-            self._set_state(JobState.error)
+            self._set_state(CallState.error)
             self._exception = pickle.loads(eval(call_status['exc_info']))
             msg = None
 
@@ -176,20 +173,20 @@ class ResponseFuture:
                 self._exception = (Exception, fault, self._exception['exc_traceback'])
 
             if throw_except:
-                raise FunctionException(self.executor_id, self.activation_id, self._exception, msg)
+                raise FunctionException(self.executor_id, self.job_id, self.activation_id, self._exception, msg)
             return None
 
-        log_msg = ('ExecutorID {} | JobID {}- Got status from Function {} - Activation '
+        log_msg = ('ExecutorID {} | JobID {} - Got status from Function {} - Activation '
                    'ID: {} - Time: {} seconds'.format(self.executor_id,
                                                       self.job_id,
                                                       self.call_id,
                                                       self.activation_id,
                                                       str(total_time)))
         logger.debug(log_msg)
-        self._set_state(JobState.ready)
+        self._set_state(CallState.ready)
         if not call_status['result'] or not self.produce_output:
             # Function did not produce output
-            self._set_state(JobState.success)
+            self._set_state(CallState.success)
 
         if 'new_futures' in call_status:
             unused_callgroup_id, total_new_futures = call_status['new_futures'].split('/')
@@ -198,67 +195,67 @@ class ResponseFuture:
 
         return self.run_status
 
-    def result(self, check_only=False, throw_except=True, internal_storage=None):
+    def result(self, throw_except=True, internal_storage=None):
         """
         Return the value returned by the call.
         If the call raised an exception, this method will raise the same exception
         If the future is cancelled before completing then CancelledError will be raised.
 
         :param throw_except: Reraise exception if call raised. Default true.
-        :param storage_handler: Storage handler to poll cloud storage. Default None.
+        :param internal_storage: Storage handler to poll cloud storage. Default None.
         :return: Result of the call.
         :raises CancelledError: If the job is cancelled before completed.
         :raises TimeoutError: If job is not complete after `timeout` seconds.
         """
-        if self._state == JobState.new:
+        if self._state == CallState.new:
             raise ValueError("task not yet invoked")
 
-        if self._state == JobState.success:
+        if self._state == CallState.success:
             return self._return_val
 
-        if self._state == JobState.futures:
+        if self._state == CallState.futures:
             return self._new_futures
 
         if internal_storage is None:
             internal_storage = InternalStorage(storage_config=self.storage_config)
 
-        self.status(check_only, throw_except, internal_storage)
+        self.status(throw_except, internal_storage)
 
         if not self.produce_output:
             return
 
-        if self._state == JobState.success:
+        if self._state == CallState.success:
             return self._return_val
 
-        if self._state == JobState.futures:
+        if self._state == CallState.futures:
             return self._new_futures
 
-        if self._state == JobState.error:
+        if self._state == CallState.error:
             if throw_except:
-                raise FunctionException(self.executor_id, self.activation_id, self._exception)
+                raise FunctionException(self.executor_id, self.job_id, self.activation_id, self._exception)
             else:
                 return None
 
         call_output_time = time.time()
-        call_invoker_result = internal_storage.get_call_output(self.executor_id, self.job_id, self.call_id)
+        call_output = internal_storage.get_call_output(self.executor_id, self.job_id, self.call_id)
         self.output_query_count += 1
 
-        while call_invoker_result is None and self.output_query_count < self.GET_RESULT_MAX_RETRIES:
+        while call_output is None and self.output_query_count < self.GET_RESULT_MAX_RETRIES:
             time.sleep(self.GET_RESULT_SLEEP_SECS)
-            call_invoker_result = internal_storage.get_call_output(self.executor_id, self.job_id, self.call_id)
+            call_output = internal_storage.get_call_output(self.executor_id, self.job_id, self.call_id)
             self.output_query_count += 1
 
-        if call_invoker_result is None:
+        if call_output is None:
             if throw_except:
                 raise Exception('Unable to get the output of the function {} - '
                                 'Activation ID: {}'.format(self.call_id, self.activation_id))
             else:
-                self._set_state(JobState.error)
+                self._set_state(CallState.error)
                 return None
 
-        call_invoker_result = pickle.loads(call_invoker_result)
+        call_output = pickle.loads(call_output)
         call_output_time_done = time.time()
-        self._call_invoker_result = call_invoker_result
+        self._call_output = call_output
 
         self.invoke_status['download_output_time'] = call_output_time_done - call_output_time
         self.invoke_status['output_query_count'] = self.output_query_count
@@ -268,23 +265,23 @@ class ResponseFuture:
                    'ID: {}'.format(self.executor_id, self.job_id, self.call_id, self.activation_id))
         logger.debug(log_msg)
 
-        function_result = call_invoker_result['result']
+        function_result = call_output['result']
 
         if isinstance(function_result, ResponseFuture):
             self._new_futures = [function_result]
-            self._set_state(JobState.futures)
+            self._set_state(CallState.futures)
             self.invoke_status['status_done_timestamp'] = self.invoke_status['download_output_timestamp']
             del self.invoke_status['download_output_timestamp']
             return self._new_futures
 
         elif type(function_result) == list and len(function_result) > 0 and isinstance(function_result[0], ResponseFuture):
             self._new_futures = function_result
-            self._set_state(JobState.futures)
+            self._set_state(CallState.futures)
             self.invoke_status['status_done_timestamp'] = self.invoke_status['download_output_timestamp']
             del self.invoke_status['download_output_timestamp']
             return self._new_futures
 
         else:
             self._return_val = function_result
-            self._set_state(JobState.success)
+            self._set_state(CallState.success)
             return self._return_val

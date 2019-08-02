@@ -186,11 +186,12 @@ def function_handler(event):
 
     finally:
         store_status = strtobool(os.environ.get('STORE_STATUS', 'True'))
-        rabbit_amqp_url = config['rabbitmq'].get('amqp_url')
         dmpd_response_status = json.dumps(response_status)
         drs = sizeof_fmt(len(dmpd_response_status))
 
-        if rabbit_amqp_url and store_status:
+        rabbitmq_monitor = config['pywren'].get('rabbitmq_monitor', False)
+        if rabbitmq_monitor and store_status:
+            rabbit_amqp_url = config['rabbitmq'].get('amqp_url')
             status_sent = False
             output_query_count = 0
             while not status_sent and output_query_count < 5:
@@ -210,6 +211,7 @@ def function_handler(event):
                     logger.error(str(e))
                     logger.info('Retrying to send stats to rabbitmq...')
                     time.sleep(0.2)
+
         if store_status:
             internal_storage = InternalStorage(storage_config)
             logger.info("Storing execution stats - status.json - Size: {}".format(drs))
