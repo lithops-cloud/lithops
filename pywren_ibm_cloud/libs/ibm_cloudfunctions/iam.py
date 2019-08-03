@@ -41,6 +41,7 @@ class IbmIamClient:
             raise RuntimeError("Error: http code {} while retrieving IAM token for API key.".format(res.status_code))
 
         bearer_response = res.json()
+        logger.debug(bearer_response)
         bearer_token = bearer_response['access_token']
         logger.debug(bearer_token)
 
@@ -57,11 +58,14 @@ class IbmIamClient:
         res = requests.get(url, headers=headers)
         if res.status_code != 200:
             raise RuntimeError("Error: http code {} while listing namespaces.".format(res.status_code))
-        namespaces = res.json()
+        iam_response = res.json()
+        logger.debug(iam_response)
 
-        for current_namespace in namespaces['namespaces']:
-            if 'name' in current_namespace and current_namespace['name'] == self.cf_namespace:
-                logger.debug("Found name space id {} for {}".format(current_namespace['id'], self.cf_namespace))
-                return current_namespace['id']
+        for ns in iam_response['namespaces']:
+            if 'name' in ns and ns['name'] == self.cf_namespace:
+                logger.debug("Found name space id {} for {}".format(ns['id'], self.cf_namespace))
+                return ns['id']
+            elif ns['id'] == self.cf_namespace:
+                raise Exception('IBM Cloud Functions namespace "{}" is not IAM enabled'.format(self.cf_namespace))
 
-        raise Exception("No IBM Cloud Functions namespace \"{}\" found.".format(self.cf_namespace))
+        raise Exception('No IBM Cloud Functions namespace "{}" found'.format(self.cf_namespace))

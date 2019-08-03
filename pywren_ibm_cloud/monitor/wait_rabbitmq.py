@@ -4,7 +4,6 @@ import pika
 import queue
 import logging
 import threading
-from pywren_ibm_cloud.future import CallState
 
 logger = logging.getLogger(__name__)
 logging.getLogger('pika').setLevel(logging.WARNING)
@@ -14,8 +13,8 @@ ANY_COMPLETED = 2
 ALWAYS = 3
 
 
-def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url=None, throw_except=True,
-                  pbar=None, return_when=ALL_COMPLETED):
+def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url=None, download_results=False,
+                  throw_except=True, pbar=None, return_when=ALL_COMPLETED):
     """
     Wait for the Future instances `fs` to complete. Returns a 2-tuple of
     lists. The first list contains the futures that completed
@@ -39,35 +38,20 @@ def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url=None, throw_except=
     present_jobs = {}
     for f in futures:
         if f'{f.executor_id}-{f.job_id}' not in present_jobs:
-            present_jobs[f'{f.executor_id}-{f.job_id}'] = []
-        present_jobs[f'{f.executor_id}-{f.job_id}'].append(f)
+            present_jobs[f'{f.executor_id}-{f.job_id}'] = {}
+        present_jobs[f'{f.executor_id}-{f.job_id}'][f.call_id] = f
 
-    call_statuses = {}
     done_call_ids = {}
 
     checker_worker_queue = queue.Queue()
     for job_key in present_jobs.keys():
         total_calls = len(present_jobs[job_key])
-        call_statuses[job_key] = {}
+
         done_call_ids[job_key] = {'total': total_calls, 'call_ids': []}
-        td = rabbitmq_checker_worker(job_key, total_calls, rabbit_amqp_url, checker_worker_queue)
+        td = rabbitmq_checker_worker(job_key, total_calls, rabbit_amqp_url,
+                                     checker_worker_queue)
         td.setDaemon(True)
         td.start()
-
-    def call_ids_to_futures():
-        fs_dones = []
-        fs_notdones = []
-        for f in futures:
-            job_key = f'{f.executor_id}-{f.job_id}'
-            if job_key in call_statuses and f.call_id in call_statuses[job_key]:
-                f.run_status = call_statuses[job_key][f.call_id]
-                f.invoke_status['status_done_timestamp'] = f.run_status['status_done_timestamp']
-                del f.run_status['status_done_timestamp']
-                f._set_state(CallState.ready)
-                fs_dones.append(f)
-            else:
-                fs_notdones.append(f)
-        return fs_dones, fs_notdones
 
     def reception_finished():
         for job_id in done_call_ids:
@@ -84,7 +68,6 @@ def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url=None, throw_except=
             call_status = json.loads(checker_worker_queue.get())
             call_status['status_done_timestamp'] = time.time()
         except KeyboardInterrupt:
-            call_ids_to_futures()
             raise KeyboardInterrupt
 
         rcvd_executor_id = call_status['executor_id']
@@ -92,13 +75,11 @@ def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url=None, throw_except=
         rcvd_call_id = call_status['call_id']
 
         job_key = f'{rcvd_executor_id}-{rcvd_job_id}'
-        if job_key not in done_call_ids:
-            done_call_ids[job_key] = {'total': None, 'call_ids': []}
-        if job_key not in call_statuses:
-            call_statuses[job_key] = {}
 
+        fut = present_jobs[job_key][rcvd_call_id]
+        fut._call_status = call_status
+        fut.status(throw_except=throw_except, internal_storage=internal_storage)
         done_call_ids[job_key]['call_ids'].append(rcvd_call_id)
-        call_statuses[job_key][rcvd_call_id] = call_status
 
         if pbar:
             pbar.update(1)
@@ -111,18 +92,31 @@ def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url=None, throw_except=
                 job_id_new_futures = new_futures[0]
                 job_key_new_futures = f'{rcvd_executor_id}-{job_id_new_futures}'
                 total_new_futures = int(new_futures[1])
-                if job_key_new_futures not in done_call_ids:
-                    done_call_ids[job_key_new_futures] = {'total': total_new_futures, 'call_ids': []}
-                else:
-                    done_call_ids[job_key_new_futures]['total'] = total_new_futures
+                done_call_ids[job_key_new_futures] = {'total': total_new_futures, 'call_ids': []}
+                present_jobs[job_key_new_futures] = {}
+
+                new_futures = fut.result()
+                futures.extend(new_futures)
+
+                for nf in new_futures:
+                    present_jobs[job_key_new_futures][nf.call_id] = nf
 
                 if pbar:
                     pbar.total = pbar.total + total_new_futures
                     pbar.refresh()
+
+                td = rabbitmq_checker_worker(job_key_new_futures, total_new_futures,
+                                             rabbit_amqp_url, checker_worker_queue)
+                td.setDaemon(True)
+                td.start()
+
+        if download_results:
+            pass
+
     if pbar:
         pbar.close()
 
-    return call_ids_to_futures()
+    return futures, []
 
 
 class rabbitmq_checker_worker(threading.Thread):

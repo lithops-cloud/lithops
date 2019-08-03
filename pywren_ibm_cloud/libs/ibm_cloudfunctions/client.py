@@ -44,6 +44,7 @@ class CloudFunctionsClient:
             self.effective_namespace = self.namespace
 
         elif 'ibm_iam' in config and 'api_key' in config['ibm_iam']:
+            # TODO: Improve performance: It might take +5 seconds to get a token and ns
             iam_client = IbmIamClient(config['ibm_iam'], self.endpoint, self.namespace)
             auth_token = iam_client.get_iam_token()
             auth = 'Bearer ' + auth_token

@@ -67,6 +67,7 @@ class ResponseFuture:
         self._return_val = None
         self._new_futures = None
         self._traceback = None
+        self._call_status = None
         self._call_output = None
 
         self.run_status = None
@@ -131,29 +132,30 @@ class ResponseFuture:
         if internal_storage is None:
             internal_storage = InternalStorage(self.storage_config)
 
-        check_storage_path(internal_storage.get_storage_config(), self.storage_path)
-        call_status = internal_storage.get_call_status(self.executor_id, self.job_id, self.call_id)
-        self.status_query_count += 1
-
-        while call_status is None:
-            time.sleep(self.GET_RESULT_SLEEP_SECS)
-            call_status = internal_storage.get_call_status(self.executor_id, self.job_id, self.call_id)
+        if self._call_status is None:
+            check_storage_path(internal_storage.get_storage_config(), self.storage_path)
+            self._call_status = internal_storage.get_call_status(self.executor_id, self.job_id, self.call_id)
             self.status_query_count += 1
+
+            while self._call_status is None:
+                time.sleep(self.GET_RESULT_SLEEP_SECS)
+                self._call_status = internal_storage.get_call_status(self.executor_id, self.job_id, self.call_id)
+                self.status_query_count += 1
 
         self.invoke_status['status_done_timestamp'] = time.time()
         self.invoke_status['status_query_count'] = self.status_query_count
 
-        self.run_status = call_status  # this is the remote status information
+        self.run_status = self._call_status  # this is the remote status information
 
-        total_time = format(round(call_status['end_time'] - call_status['start_time'], 2), '.2f')
+        total_time = format(round(self._call_status['end_time'] - self._call_status['start_time'], 2), '.2f')
 
-        if call_status['exception']:
+        if self._call_status['exception']:
             # the action handler/jobrunner/function had an exception
             self._set_state(CallState.error)
-            self._exception = pickle.loads(eval(call_status['exc_info']))
+            self._exception = pickle.loads(eval(self._call_status['exc_info']))
             msg = None
 
-            if not call_status.get('exc_pickle_fail', False):
+            if not self._call_status.get('exc_pickle_fail', False):
                 exception_args = self._exception[1].args
 
                 if exception_args[0] == "WRONGVERSION":
@@ -184,12 +186,12 @@ class ResponseFuture:
                                                       str(total_time)))
         logger.debug(log_msg)
         self._set_state(CallState.ready)
-        if not call_status['result'] or not self.produce_output:
+        if not self._call_status['result'] or not self.produce_output:
             # Function did not produce output
             self._set_state(CallState.success)
 
-        if 'new_futures' in call_status:
-            unused_callgroup_id, total_new_futures = call_status['new_futures'].split('/')
+        if 'new_futures' in self._call_status:
+            unused_callgroup_id, total_new_futures = self._call_status['new_futures'].split('/')
             if int(total_new_futures) > 0:
                 self.result(throw_except=throw_except, internal_storage=internal_storage)
 

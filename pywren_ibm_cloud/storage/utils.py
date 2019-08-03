@@ -15,6 +15,7 @@
 #
 import logging
 import json
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ def clean_bucket(bucket, prefix, storage_config):
     in JSON format. In any other case, call directly clean_os_bucket() method.
     """
     from pywren_ibm_cloud.storage import InternalStorage
+    time.sleep(5)
     internal_storage = InternalStorage(json.loads(storage_config))
     # sys.stdout = open(os.devnull, 'w')
     clean_os_bucket(bucket, prefix, internal_storage)
