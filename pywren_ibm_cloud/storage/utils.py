@@ -59,7 +59,6 @@ def clean_bucket(bucket, prefix, storage_config):
     in JSON format. In any other case, call directly clean_os_bucket() method.
     """
     from pywren_ibm_cloud.storage import InternalStorage
-    time.sleep(5)
     internal_storage = InternalStorage(json.loads(storage_config))
     # sys.stdout = open(os.devnull, 'w')
     clean_os_bucket(bucket, prefix, internal_storage)
@@ -80,6 +79,7 @@ def clean_os_bucket(bucket, prefix, internal_storage):
         logger.debug('{} objects found'.format(len(objects_to_delete)))
         total_objects = total_objects + len(objects_to_delete)
         internal_storage.delete_temporal_data(objects_to_delete)
+        time.sleep(5)
         objects_to_delete = internal_storage.list_tmp_data(prefix)
     logger.info('Finished deleting objects, total found: {}'.format(total_objects))
 

@@ -4,6 +4,7 @@ import pika
 import queue
 import logging
 import threading
+from concurrent.futures import ThreadPoolExecutor, wait
 
 logger = logging.getLogger(__name__)
 logging.getLogger('pika').setLevel(logging.WARNING)
@@ -14,7 +15,7 @@ ALWAYS = 3
 
 
 def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url=None, download_results=False,
-                  throw_except=True, pbar=None, return_when=ALL_COMPLETED):
+                  throw_except=True, pbar=None, return_when=ALL_COMPLETED, THREADPOOL_SIZE=128):
     """
     Wait for the Future instances `fs` to complete. Returns a 2-tuple of
     lists. The first list contains the futures that completed
@@ -35,7 +36,9 @@ def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url=None, download_resu
     if return_when != ALL_COMPLETED:
         raise NotImplementedError(return_when)
 
+    thread_pool = ThreadPoolExecutor(max_workers=THREADPOOL_SIZE)
     present_jobs = {}
+
     for f in futures:
         if f'{f.executor_id}-{f.job_id}' not in present_jobs:
             present_jobs[f'{f.executor_id}-{f.job_id}'] = {}
@@ -62,6 +65,11 @@ def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url=None, download_resu
                 return False
 
         return True
+
+    get_result_futures = []
+
+    def get_result(f):
+        f.result(throw_except=throw_except, internal_storage=internal_storage)
 
     while not reception_finished():
         try:
@@ -110,11 +118,14 @@ def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url=None, download_resu
                 td.setDaemon(True)
                 td.start()
 
-        if download_results:
-            pass
+        if 'new_futures' not in call_status and download_results:
+            gr_ft = thread_pool.submit(get_result, fut)
+            get_result_futures.append(gr_ft)
 
     if pbar:
         pbar.close()
+
+    wait(get_result_futures)
 
     return futures, []
 

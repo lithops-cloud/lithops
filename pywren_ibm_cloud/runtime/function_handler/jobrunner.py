@@ -205,8 +205,6 @@ class JobRunner(Process):
                 elif type(result) == list and len(result) > 0 and isinstance(result[0], ResponseFuture):
                     job_id = result[0].job_id
                     self.stats.write('new_futures', '{}/{}'.format(job_id, len(result)))
-                else:
-                    self.stats.write('new_futures', '{}/{}'.format(None, 0))
 
                 logger.debug("Pickling result")
                 output_dict = {'result': result}

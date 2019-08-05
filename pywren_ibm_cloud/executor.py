@@ -282,11 +282,11 @@ class FunctionExecutor:
                 pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(ftrs), disable=False)
 
         try:
-            if self.rabbitmq_monitor and not download_results:
+            if self.rabbitmq_monitor:
                 logger.info('Using RabbitMQ to monitor function activations')
                 wait_rabbitmq(ftrs, self.internal_storage, rabbit_amqp_url=self.rabbit_amqp_url,
                               download_results=download_results, throw_except=throw_except,
-                              pbar=pbar, return_when=return_when)
+                              pbar=pbar, return_when=return_when, THREADPOOL_SIZE=THREADPOOL_SIZE)
             else:
                 wait_storage(ftrs, self.internal_storage, download_results=download_results,
                              throw_except=throw_except, return_when=return_when, pbar=pbar,
@@ -328,8 +328,7 @@ class FunctionExecutor:
             self._state = ExecutorState.error
 
         except Exception as e:
-            msg = str(e)
-            if self.data_cleaner and not self.is_cf_cluster:
+            if not self.is_cf_cluster:
                 self.clean()
             raise e
 

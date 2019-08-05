@@ -73,7 +73,7 @@ def function_handler(event):
 
     context_dict = {
         'ibm_cf_request_id': os.environ.get("__OW_ACTIVATION_ID"),
-        'ibm_cf_python_version': os.environ.get("PYTHON_VERSION"),
+        'python_version': os.environ.get("PYTHON_VERSION"),
     }
 
     config = event['config']
@@ -214,7 +214,7 @@ def function_handler(event):
                     logger.info('Retrying to send stats to rabbitmq...')
                     time.sleep(0.2)
 
-        if store_status:
+        elif store_status:
             internal_storage = InternalStorage(storage_config)
             logger.info("Storing execution stats - status.json - Size: {}".format(drs))
             internal_storage.put_data(status_key, dmpd_response_status)
