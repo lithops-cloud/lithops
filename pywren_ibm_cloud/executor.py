@@ -37,7 +37,7 @@ class JobState(enum.Enum):
 class FunctionExecutor:
 
     def __init__(self, config=None, runtime=None, runtime_memory=None, compute_backend=None,
-                 compute_backend_region=None, log_level=None, rabbitmq_monitor=False):
+                 compute_backend_region=None, log_level=None, rabbitmq_monitor=None):
         """
         Initialize and return a ServerlessExecutor class.
 
@@ -55,14 +55,16 @@ class FunctionExecutor:
         self.data_cleaner = self.config['pywren']['data_cleaner']
 
         # Overwrite runtime variables
-        if runtime:
+        if runtime is not None:
             self.config['pywren']['runtime'] = runtime
-        if runtime_memory:
+        if runtime_memory is not None:
             self.config['pywren']['runtime_memory'] = int(runtime_memory)
-        if compute_backend:
+        if compute_backend is not None:
             self.config['pywren']['compute_backend'] = compute_backend
-        if compute_backend_region:
+        if compute_backend_region is not None:
             self.config['pywren']['compute_backend_region'] = compute_backend_region
+        if rabbitmq_monitor is not None:
+            self.config['pywren']['rabbitmq_monitor'] = rabbitmq_monitor
 
         # Log level Configuration
         self.log_level = log_level
@@ -78,11 +80,10 @@ class FunctionExecutor:
         logger.debug('ServerlessExecutor created with ID: {}'.format(self.executor_id))
 
         # RabbitMQ monitor configuration
-        self.rabbitmq_monitor = rabbitmq_monitor
+        self.rabbitmq_monitor = self.config['pywren'].get('rabbitmq_monitor', False)
         if self.rabbitmq_monitor:
-            if self.config['rabbitmq']['amqp_url']:
+            if 'rabbitmq' in self.config and 'amqp_url' in self.config['rabbitmq']:
                 self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
-                self.config['pywren']['rabbitmq_monitor'] = True
                 os.environ["CB_RABBITMQ_MONITOR"] = 'True'
             else:
                 raise Exception("RabbitMQ 'amqp_url' not provided in configuration")
@@ -314,8 +315,8 @@ class FunctionExecutor:
                 not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
             else:
                 not_dones_activation_ids = [f.activation_id for f in ftrs if not f.ready and not f.done]
-            msg = ('ExecutorID {} - Raised timeout of {} seconds waiting for results '
-                   '\nActivations not done: {}'.format(self.executor_id, timeout, not_dones_activation_ids))
+            msg = ('ExecutorID {} - Raised timeout of {} seconds waiting for results. Total Activations not done: {}'
+                   ' {}'.format(self.executor_id, timeout, len(not_dones_activation_ids), not_dones_activation_ids))
             self._state = ExecutorState.error
 
         except KeyboardInterrupt:
@@ -323,7 +324,7 @@ class FunctionExecutor:
                 not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
             else:
                 not_dones_activation_ids = [f.activation_id for f in ftrs if not f.ready and not f.done]
-            msg = ('ExecutorID {} - Cancelled. Total Activations not done: {} \n--> Activation IDs: '
+            msg = ('ExecutorID {} - Cancelled. Total Activations not done: {} '
                    '{}'.format(self.executor_id, len(not_dones_activation_ids), not_dones_activation_ids))
             self._state = ExecutorState.error
 

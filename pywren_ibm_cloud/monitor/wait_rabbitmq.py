@@ -14,7 +14,7 @@ ANY_COMPLETED = 2
 ALWAYS = 3
 
 
-def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url=None, download_results=False,
+def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url, download_results=False,
                   throw_except=True, pbar=None, return_when=ALL_COMPLETED, THREADPOOL_SIZE=128):
     """
     Wait for the Future instances `fs` to complete. Returns a 2-tuple of
@@ -94,29 +94,32 @@ def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url=None, download_resu
             pbar.refresh()
 
         if 'new_futures' in call_status:
-            new_futures = call_status['new_futures'].split('/')
-            if int(new_futures[1]) != 0:
-                # We received new futures to track
-                job_id_new_futures = new_futures[0]
-                job_key_new_futures = f'{rcvd_executor_id}-{job_id_new_futures}'
-                total_new_futures = int(new_futures[1])
-                done_call_ids[job_key_new_futures] = {'total': total_new_futures, 'call_ids': []}
-                present_jobs[job_key_new_futures] = {}
+            # We received new futures to track
+            new_futures_str = call_status['new_futures'].split('/')
 
-                new_futures = fut.result()
-                futures.extend(new_futures)
+            executor_id_new_futures = new_futures_str[0]
+            job_id_new_futures = new_futures_str[1]
+            total_new_futures = int(new_futures_str[2])
 
-                for nf in new_futures:
-                    present_jobs[job_key_new_futures][nf.call_id] = nf
+            job_key_new_futures = f'{executor_id_new_futures}-{job_id_new_futures}'
 
-                if pbar:
-                    pbar.total = pbar.total + total_new_futures
-                    pbar.refresh()
+            done_call_ids[job_key_new_futures] = {'total': total_new_futures, 'call_ids': []}
+            present_jobs[job_key_new_futures] = {}
 
-                td = rabbitmq_checker_worker(job_key_new_futures, total_new_futures,
-                                             rabbit_amqp_url, checker_worker_queue)
-                td.setDaemon(True)
-                td.start()
+            new_futures = fut.result()
+            futures.extend(new_futures)
+
+            for nf in new_futures:
+                present_jobs[job_key_new_futures][nf.call_id] = nf
+
+            if pbar:
+                pbar.total = pbar.total + total_new_futures
+                pbar.refresh()
+
+            td = rabbitmq_checker_worker(job_key_new_futures, total_new_futures,
+                                         rabbit_amqp_url, checker_worker_queue)
+            td.setDaemon(True)
+            td.start()
 
         if 'new_futures' not in call_status and download_results:
             gr_ft = thread_pool.submit(get_result, fut)

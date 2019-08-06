@@ -58,10 +58,8 @@ def create_map_job(config, internal_storage, executor_id, total_current_jobs, ma
     if original_total_tasks == 1 or is_cf_cluster:
         remote_invocation = False
     if remote_invocation:
-        rabbitmq_monitor = "CB_RABBITMQ_MONITOR" in os.environ
-
         def remote_invoker(input_data):
-            pw = pywren.ibm_cf_executor(rabbitmq_monitor=rabbitmq_monitor)
+            pw = pywren.ibm_cf_executor()
             return pw.map(map_function, input_data,
                           runtime_memory=runtime_memory,
                           invoke_pool_threads=invoke_pool_threads,
