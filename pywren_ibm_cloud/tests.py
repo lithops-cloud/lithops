@@ -13,7 +13,7 @@ import logging
 
 parser = argparse.ArgumentParser(description="test all PyWren's functionality", usage='python -m pywren_ibm_cloud.tests [-c CONFIG] [-f TESTNAME]')
 parser.add_argument('-c', '--config', type=argparse.FileType('r'), metavar='', default=None, help="use json config file")
-parser.add_argument('-f', '--function', metavar='', default='all', help='run a specific test, type "-f help" for tests list')
+parser.add_argument('-t', '--test', metavar='', default='all', help='run a specific test, type "-t help" for tests list')
 args = parser.parse_args()
 
 CONFIG = default_config()
@@ -74,6 +74,15 @@ def simple_reduce_function(results):
     for map_result in results:
         total = total + map_result
     return total
+
+
+def pywren_inside_pywren_map_function(x):
+    def _func(x):
+        return x
+
+    pw = pywren.ibm_cf_executor(config=CONFIG)
+    pw.map(_func, range(10))
+    return pw.get_result()
 
 
 def my_map_function_bucket(bucket, key, data_stream, ibm_cos):
@@ -231,6 +240,12 @@ class TestPywren(unittest.TestCase):
         self.assertEqual(result1, [2, 4])
         self.assertEqual(result2, [6, 8])
 
+    def test_internal_executions(self):
+        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw.map(pywren_inside_pywren_map_function, range(10))
+        result = pw.get_result()
+        self.assertEqual(result, [list(range(10)) for _ in range(10)])
+
     def test_map_reduce_cos_bucket(self):
         data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX
         pw = pywren.ibm_cf_executor(config=CONFIG)
@@ -305,6 +320,7 @@ if __name__ == '__main__':
         print("-> test_map")
         print("-> test_map_reduce")
         print("-> test_multiple_executions")
+        print("-> test_internal_executions")
         print("-> test_map_reduce_cos_bucket")
         print("-> test_map_reduce_cos_bucket_one_reducer_per_object")
         print("-> test_map_reduce_cos_key")
