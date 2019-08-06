@@ -140,7 +140,7 @@ To test that all is working, use the command:
 
 Notice that if you didn't set a local PyWren's config file, you need to provide it as a json file path by `-c <CONFIG>` flag. 
 
-Alternatively, for debugging purposes, you can run specific tests by `-f <TESTNAME>`. use `--help` flag to get more information about the test script.
+Alternatively, for debugging purposes, you can run specific tests by `-t <TESTNAME>`. use `--help` flag to get more information about the test script.
 
 ## How to use PyWren for IBM Cloud Functions
 
