@@ -22,7 +22,7 @@ class ExecutorState(enum.Enum):
     new = 1
     running = 2
     ready = 3
-    success = 4
+    done = 4
     error = 5
     finished = 6
 
@@ -74,10 +74,7 @@ class FunctionExecutor:
             if not self.is_cf_cluster:
                 default_logging_config(self.log_level)
 
-        if 'CB_EXECUTOR_ID' in os.environ:
-            self.executor_id = os.environ['CB_EXECUTOR_ID']
-        else:
-            self.executor_id = create_executor_id()
+        self.executor_id = create_executor_id()
         logger.debug('ServerlessExecutor created with ID: {}'.format(self.executor_id))
 
         # RabbitMQ monitor configuration
@@ -246,9 +243,12 @@ class FunctionExecutor:
         if not futures:
             futures = []
             for job in self.jobs:
-                if self.jobs[job]['state'] == JobState.running:
+                if not download_results and self.jobs[job]['state'] == JobState.running:
                     futures.extend(self.jobs[job]['futures'])
                     self.jobs[job]['state'] = JobState.ready
+                elif download_results and self.jobs[job]['state'] != JobState.done:
+                    futures.extend(self.jobs[job]['futures'])
+                    self.jobs[job]['state'] = JobState.done
 
         if type(futures) != list:
             ftrs = [futures]
@@ -256,7 +256,7 @@ class FunctionExecutor:
             ftrs = futures
 
         if not ftrs:
-            raise Exception('You must run the call_async(), map() or map_reduce() or provide'
+            raise Exception('You must run the call_async(), map() or map_reduce(), or provide'
                             ' a list of futures before calling the monitor()/get_result() method')
 
         if download_results:
@@ -343,8 +343,8 @@ class FunctionExecutor:
                 logger.debug(msg)
                 if not self.log_level:
                     print(msg)
-                if self.data_cleaner and not self.is_cf_cluster:
-                    self.clean()
+            if download_results and self.data_cleaner and not self.is_cf_cluster:
+                self.clean()
 
         if download_results:
             fs_dones = [f for f in ftrs if f.done]
@@ -353,12 +353,12 @@ class FunctionExecutor:
         else:
             fs_dones = [f for f in ftrs if f.ready or f.done]
             fs_notdones = [f for f in ftrs if not f.ready and not f.done]
-            self._state = ExecutorState.success
+            self._state = ExecutorState.done
 
         return fs_dones, fs_notdones
 
     def get_result(self, futures=None, throw_except=True, timeout=EXECUTION_TIMEOUT,
-                   THREADPOOL_SIZE=64, WAIT_DUR_SEC=1):
+                   THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
         """
         For getting results
         :param futures: Futures list. Default None
@@ -369,13 +369,6 @@ class FunctionExecutor:
         :param WAIT_DUR_SEC: Time interval between each check.
         :return: The result of the future/s
         """
-        if not futures:
-            futures = []
-            for job in self.jobs:
-                if self.jobs[job]['state'] != JobState.done:
-                    futures.extend(self.jobs[job]['futures'])
-                    self.jobs[job]['state'] = JobState.done
-
         fs_dones, unused_fs_notdones = self.monitor(futures=futures,
                                                     throw_except=throw_except,
                                                     timeout=timeout,
