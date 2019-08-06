@@ -2,6 +2,8 @@ pywren:
     storage_bucket: <BUCKET_NAME>
     #storage_prefix: pywren.jobs
     #storage_backend: ibm_cos
+    #compute_backend: ibm_cf
+    #rabbitmq_monitor: <True/False>
     #data_cleaner: <True/False>
     #runtime :
     #runtime_timeout: 600000     # Default timeout

@@ -15,6 +15,7 @@
 #
 import logging
 import json
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,7 @@ def clean_os_bucket(bucket, prefix, internal_storage):
         logger.debug('{} objects found'.format(len(objects_to_delete)))
         total_objects = total_objects + len(objects_to_delete)
         internal_storage.delete_temporal_data(objects_to_delete)
+        time.sleep(5)
         objects_to_delete = internal_storage.list_tmp_data(prefix)
     logger.info('Finished deleting objects, total found: {}'.format(total_objects))
 

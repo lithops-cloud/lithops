@@ -73,7 +73,7 @@ def function_handler(event):
 
     context_dict = {
         'ibm_cf_request_id': os.environ.get("__OW_ACTIVATION_ID"),
-        'ibm_cf_python_version': os.environ.get("PYTHON_VERSION"),
+        'python_version': os.environ.get("PYTHON_VERSION"),
     }
 
     config = event['config']
@@ -108,7 +108,6 @@ def function_handler(event):
                             version.__version__, event['pywren_version'])
 
         # response_status['free_disk_bytes'] = free_disk_space("/tmp")
-
         custom_env = {'CB_CONFIG': json.dumps(config),
                       'CB_CALL_ID':  call_id,
                       'CB_JOB_ID':  job_id,
@@ -187,21 +186,24 @@ def function_handler(event):
 
     finally:
         store_status = strtobool(os.environ.get('STORE_STATUS', 'True'))
-        rabbit_amqp_url = config['rabbitmq'].get('amqp_url')
         dmpd_response_status = json.dumps(response_status)
         drs = sizeof_fmt(len(dmpd_response_status))
 
-        if rabbit_amqp_url and store_status:
+        rabbitmq_monitor = config['pywren'].get('rabbitmq_monitor', False)
+        if rabbitmq_monitor and store_status:
+            rabbit_amqp_url = config['rabbitmq'].get('amqp_url')
             status_sent = False
             output_query_count = 0
+            params = pika.URLParameters(rabbit_amqp_url)
+            queue = f'{executor_id}-{job_id}'
+
             while not status_sent and output_query_count < 5:
                 output_query_count = output_query_count + 1
                 try:
-                    params = pika.URLParameters(rabbit_amqp_url)
                     connection = pika.BlockingConnection(params)
                     channel = connection.channel()
-                    channel.queue_declare(queue=executor_id, auto_delete=True)
-                    channel.basic_publish(exchange='', routing_key=executor_id,
+                    channel.queue_declare(queue=queue, auto_delete=True)
+                    channel.basic_publish(exchange='', routing_key=queue,
                                           body=dmpd_response_status)
                     connection.close()
                     logger.info("Execution stats sent to rabbitmq - Size: {}".format(drs))
@@ -211,6 +213,7 @@ def function_handler(event):
                     logger.error(str(e))
                     logger.info('Retrying to send stats to rabbitmq...')
                     time.sleep(0.2)
+
         if store_status:
             internal_storage = InternalStorage(storage_config)
             logger.info("Storing execution stats - status.json - Size: {}".format(drs))

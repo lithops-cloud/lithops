@@ -8,8 +8,8 @@ import logging
 import traceback
 from pywren_ibm_cloud.invoker import Invoker
 from pywren_ibm_cloud.storage import InternalStorage
-from pywren_ibm_cloud.future import FunctionException, JobState
-from pywren_ibm_cloud.wait import wait, ALL_COMPLETED
+from pywren_ibm_cloud.future import FunctionException
+from pywren_ibm_cloud.monitor import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from pywren_ibm_cloud.storage.utils import clean_os_bucket
 from pywren_ibm_cloud.job import create_call_async_job, create_map_job, create_reduce_job
 from pywren_ibm_cloud.config import default_config, extract_storage_config, EXECUTION_TIMEOUT, default_logging_config
@@ -22,7 +22,7 @@ class ExecutorState(enum.Enum):
     new = 1
     running = 2
     ready = 3
-    success = 4
+    done = 4
     error = 5
     finished = 6
 
@@ -37,7 +37,7 @@ class JobState(enum.Enum):
 class FunctionExecutor:
 
     def __init__(self, config=None, runtime=None, runtime_memory=None, compute_backend=None,
-                 compute_backend_region=None, log_level=None, rabbitmq_monitor=False):
+                 compute_backend_region=None, log_level=None, rabbitmq_monitor=None):
         """
         Initialize and return a ServerlessExecutor class.
 
@@ -55,14 +55,16 @@ class FunctionExecutor:
         self.data_cleaner = self.config['pywren']['data_cleaner']
 
         # Overwrite runtime variables
-        if runtime:
+        if runtime is not None:
             self.config['pywren']['runtime'] = runtime
-        if runtime_memory:
+        if runtime_memory is not None:
             self.config['pywren']['runtime_memory'] = int(runtime_memory)
-        if compute_backend:
+        if compute_backend is not None:
             self.config['pywren']['compute_backend'] = compute_backend
-        if compute_backend_region:
+        if compute_backend_region is not None:
             self.config['pywren']['compute_backend_region'] = compute_backend_region
+        if rabbitmq_monitor is not None:
+            self.config['pywren']['rabbitmq_monitor'] = rabbitmq_monitor
 
         # Log level Configuration
         self.log_level = log_level
@@ -74,21 +76,17 @@ class FunctionExecutor:
             if not self.is_cf_cluster:
                 default_logging_config(self.log_level)
 
-        if 'CB_EXECUTOR_ID' in os.environ:
-            self.executor_id = os.environ['CB_EXECUTOR_ID']
-        else:
-            self.executor_id = create_executor_id()
+        self.executor_id = create_executor_id()
         logger.debug('ServerlessExecutor created with ID: {}'.format(self.executor_id))
 
         # RabbitMQ monitor configuration
-        self.rabbitmq_monitor = rabbitmq_monitor
+        self.rabbitmq_monitor = self.config['pywren'].get('rabbitmq_monitor', False)
         if self.rabbitmq_monitor:
-            if self.config['rabbitmq']['amqp_url']:
+            if 'rabbitmq' in self.config and 'amqp_url' in self.config['rabbitmq']:
+                self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
                 os.environ["CB_RABBITMQ_MONITOR"] = 'True'
             else:
-                self.rabbitmq_monitor = False
-        else:
-            self.config['rabbitmq']['amqp_url'] = None
+                raise Exception("RabbitMQ 'amqp_url' not provided in configuration")
 
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
@@ -107,12 +105,12 @@ class FunctionExecutor:
         if self._state == ExecutorState.finished:
             raise Exception('You cannot run call_async() in the current state,'
                             ' create a new FunctionExecutor() instance.')
-
-        job_id = str(len(self.jobs)).zfill(3)
-        job = create_call_async_job(self.config, self.internal_storage, self.executor_id, job_id,
-                                    func, data, extra_env, extra_meta, runtime_memory, timeout)
+        total_current_jobs = len(self.jobs)
+        job = create_call_async_job(self.config, self.internal_storage, self.executor_id,
+                                    total_current_jobs, func, data, extra_env, extra_meta,
+                                    runtime_memory, timeout)
         future = self.invoker.run(job)
-        self.jobs[job['job_id']] = {'futures': future, 'total': job['total_calls'], 'state': JobState.running}
+        self.jobs[job['job_id']] = {'futures': future, 'state': JobState.running}
         self._state = ExecutorState.running
 
         return future[0]
@@ -139,10 +137,9 @@ class FunctionExecutor:
         if self._state == ExecutorState.finished:
             raise Exception('You cannot run map() in the current state.'
                             ' Create a new FunctionExecutor() instance.')
-
-        job_id = str(len(self.jobs)).zfill(3)
+        total_current_jobs = len(self.jobs)
         job, unused_ppo = create_map_job(self.config, self.internal_storage,
-                                         self.executor_id, job_id,
+                                         self.executor_id, total_current_jobs,
                                          map_function=map_function, iterdata=map_iterdata,
                                          extra_env=extra_env, extra_meta=extra_meta,
                                          obj_chunk_size=chunk_size, runtime_memory=runtime_memory,
@@ -154,7 +151,7 @@ class FunctionExecutor:
                                          overwrite_invoke_args=overwrite_invoke_args,
                                          execution_timeout=timeout)
         map_futures = self.invoker.run(job)
-        self.jobs[job['job_id']] = {'futures': map_futures, 'total': job['total_calls'], 'state': JobState.running}
+        self.jobs[job['job_id']] = {'futures': map_futures, 'state': JobState.running}
         self._state = ExecutorState.running
 
         if len(map_futures) == 1:
@@ -192,10 +189,9 @@ class FunctionExecutor:
         if self._state == ExecutorState.finished:
             raise Exception('You cannot run map_reduce() in the current state.'
                             ' Create a new FunctionExecutor() instance.')
-
-        job_id = str(len(self.jobs)).zfill(3)
+        total_current_jobs = len(self.jobs)
         job, parts_per_object = create_map_job(self.config, self.internal_storage,
-                                               self.executor_id, job_id,
+                                               self.executor_id, total_current_jobs,
                                                map_function=map_function, iterdata=map_iterdata,
                                                extra_env=extra_env, extra_meta=extra_meta,
                                                obj_chunk_size=chunk_size, runtime_memory=map_runtime_memory,
@@ -207,18 +203,18 @@ class FunctionExecutor:
                                                overwrite_invoke_args=overwrite_invoke_args,
                                                execution_timeout=timeout)
         map_futures = self.invoker.run(job)
-        self.jobs[job['job_id']] = {'futures': map_futures, 'total': job['total_calls'], 'state': JobState.running}
+        self.jobs[job['job_id']] = {'futures': map_futures, 'state': JobState.running}
         self._state = ExecutorState.running
 
         if reducer_wait_local:
             self.monitor(futures=map_futures)
 
         job = create_reduce_job(self.config, self.internal_storage, self.executor_id,
-                                job_id, reduce_function, reduce_runtime_memory,
+                                total_current_jobs, reduce_function, reduce_runtime_memory,
                                 map_futures, parts_per_object, reducer_one_per_object,
                                 extra_env, extra_meta)
         reduce_futures = self.invoker.run(job)
-        self.jobs[job['job_id']] = {'futures': reduce_futures, 'total': job['total_calls'], 'state': JobState.running}
+        self.jobs[job['job_id']] = {'futures': reduce_futures, 'state': JobState.running}
 
         for f in map_futures:
             f.produce_output = False
@@ -236,7 +232,7 @@ class FunctionExecutor:
         :param futures: Futures list. Default None
         :param throw_except: Re-raise exception if call raised. Default True.
         :param return_when: One of `ALL_COMPLETED`, `ANY_COMPLETED`, `ALWAYS`
-        :param download_results: Download results. Default false (Only download statuses)
+        :param download_results: Download results. Default false (Only get statuses)
         :param timeout: Timeout of waiting for results.
         :param THREADPOOL_SIZE: Number of threads to use. Default 64
         :param WAIT_DUR_SEC: Time interval between each check.
@@ -248,9 +244,12 @@ class FunctionExecutor:
         if not futures:
             futures = []
             for job in self.jobs:
-                if self.jobs[job]['state'] == JobState.running:
+                if not download_results and self.jobs[job]['state'] == JobState.running:
                     futures.extend(self.jobs[job]['futures'])
                     self.jobs[job]['state'] = JobState.ready
+                elif download_results and self.jobs[job]['state'] != JobState.done:
+                    futures.extend(self.jobs[job]['futures'])
+                    self.jobs[job]['state'] = JobState.done
 
         if type(futures) != list:
             ftrs = [futures]
@@ -258,15 +257,9 @@ class FunctionExecutor:
             ftrs = futures
 
         if not ftrs:
-            raise Exception('You must run call_async(), map() or map_reduce()'
-                            ' before calling get_result() method')
+            raise Exception('You must run the call_async(), map() or map_reduce(), or provide'
+                            ' a list of futures before calling the monitor()/get_result() method')
 
-        rabbit_amqp_url = None
-        if self.rabbitmq_monitor:
-            rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
-        if rabbit_amqp_url and not download_results:
-            logger.info('Going to use RabbitMQ to monitor function activations')
-            logging.getLogger('pika').setLevel(logging.WARNING)
         if download_results:
             msg = 'ExecutorID {} - Getting results...'.format(self.executor_id)
         else:
@@ -290,9 +283,15 @@ class FunctionExecutor:
                 pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(ftrs), disable=False)
 
         try:
-            wait(ftrs, self.executor_id, self.internal_storage, download_results=download_results,
-                 throw_except=throw_except, return_when=return_when, rabbit_amqp_url=rabbit_amqp_url,
-                 pbar=pbar, THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
+            if self.rabbitmq_monitor:
+                logger.info('Using RabbitMQ to monitor function activations')
+                wait_rabbitmq(ftrs, self.internal_storage, rabbit_amqp_url=self.rabbit_amqp_url,
+                              download_results=download_results, throw_except=throw_except,
+                              pbar=pbar, return_when=return_when, THREADPOOL_SIZE=THREADPOOL_SIZE)
+            else:
+                wait_storage(ftrs, self.internal_storage, download_results=download_results,
+                             throw_except=throw_except, return_when=return_when, pbar=pbar,
+                             THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
 
         except FunctionException as e:
             if is_unix_system():
@@ -313,20 +312,26 @@ class FunctionExecutor:
 
         except TimeoutError:
             if download_results:
-                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done and not (f.ready and not f.produce_output)]
+                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
             else:
-                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.ready]
-            msg = ('ExecutorID {} - Raised timeout of {} seconds waiting for results '
-                   '\nActivations not done: {}'.format(self.executor_id, timeout, not_dones_activation_ids))
+                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.ready and not f.done]
+            msg = ('ExecutorID {} - Raised timeout of {} seconds waiting for results. Total Activations not done: {}'
+                   ' {}'.format(self.executor_id, timeout, len(not_dones_activation_ids), not_dones_activation_ids))
             self._state = ExecutorState.error
 
         except KeyboardInterrupt:
             if download_results:
-                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done and not (f.ready and not f.produce_output)]
+                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
             else:
-                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.ready]
-            msg = 'ExecutorID {} - Cancelled  \nActivations not done: {}'.format(self.executor_id, not_dones_activation_ids)
+                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.ready and not f.done]
+            msg = ('ExecutorID {} - Cancelled. Total Activations not done: {} '
+                   '{}'.format(self.executor_id, len(not_dones_activation_ids), not_dones_activation_ids))
             self._state = ExecutorState.error
+
+        except Exception as e:
+            if not self.is_cf_cluster:
+                self.clean()
+            raise e
 
         finally:
             if is_unix_system():
@@ -336,7 +341,7 @@ class FunctionExecutor:
                 if not is_notebook():
                     print()
             if self._state == ExecutorState.error:
-                logger.info(msg)
+                logger.debug(msg)
                 if not self.log_level:
                     print(msg)
             if download_results and self.data_cleaner and not self.is_cf_cluster:
@@ -345,15 +350,16 @@ class FunctionExecutor:
         if download_results:
             fs_dones = [f for f in ftrs if f.done]
             fs_notdones = [f for f in ftrs if not f.done]
+            self._state = ExecutorState.ready
         else:
-            fs_dones = [f for f in ftrs if f.ready]
-            fs_notdones = [f for f in ftrs if not f.ready]
-
-        self._state = ExecutorState.ready
+            fs_dones = [f for f in ftrs if f.ready or f.done]
+            fs_notdones = [f for f in ftrs if not f.ready and not f.done]
+            self._state = ExecutorState.done
 
         return fs_dones, fs_notdones
 
-    def get_result(self, futures=None, throw_except=True, timeout=EXECUTION_TIMEOUT, THREADPOOL_SIZE=64, WAIT_DUR_SEC=1):
+    def get_result(self, futures=None, throw_except=True, timeout=EXECUTION_TIMEOUT,
+                   THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
         """
         For getting results
         :param futures: Futures list. Default None
@@ -364,19 +370,14 @@ class FunctionExecutor:
         :param WAIT_DUR_SEC: Time interval between each check.
         :return: The result of the future/s
         """
-        if not futures:
-            futures = []
-            for job in self.jobs:
-                if self.jobs[job]['state'] != JobState.done:
-                    futures.extend(self.jobs[job]['futures'])
-                    self.jobs[job]['state'] = JobState.done
-
-        fs_dones, unused_fs_notdones = self.monitor(futures=futures, throw_except=throw_except,
-                                                    timeout=timeout, download_results=True,
+        fs_dones, unused_fs_notdones = self.monitor(futures=futures,
+                                                    throw_except=throw_except,
+                                                    timeout=timeout,
+                                                    download_results=True,
                                                     THREADPOOL_SIZE=THREADPOOL_SIZE,
                                                     WAIT_DUR_SEC=WAIT_DUR_SEC)
-        result = [f.result(internal_storage=self.internal_storage) for f in fs_dones if not f.futures and f.produce_output]
-        self._state = ExecutorState.success
+        result = [f.result(internal_storage=self.internal_storage)
+                  for f in fs_dones if not f.futures and f.produce_output]
         msg = "ExecutorID {} Finished getting results".format(self.executor_id)
         logger.debug(msg)
         if result and len(result) == 1:
@@ -391,11 +392,6 @@ class FunctionExecutor:
         :param dst_dir: destination folder to save .png plots.
         :param dst_file_name: name of the file.
         """
-        if futures is None and (self._state == ExecutorState.new or self._state == ExecutorState.running):
-            raise Exception('You must run call_async(), map() or map_reduce()'
-                            ' followed by monitor() or get_results()'
-                            ' before calling create_timeline_plots() method')
-
         if not futures:
             futures = []
             for job in self.jobs:
@@ -412,6 +408,10 @@ class FunctionExecutor:
         ftrs_to_plot = [f for f in ftrs if f.ready or f.done]
 
         if not ftrs_to_plot:
+            msg = ('You must run call_async(), map() or map_reduce()'
+                   ' followed by monitor() or get_results()'
+                   ' before calling create_timeline_plots() method')
+            logger.debug(msg)
             return
 
         logging.getLogger('matplotlib').setLevel(logging.WARNING)

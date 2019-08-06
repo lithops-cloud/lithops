@@ -1,8 +1,6 @@
 import sys
 from pywren_ibm_cloud.utils import version_str
 
-IBM_AUTH_ENDPOINT_DEFAULT = 'https://iam.cloud.ibm.com/oidc/token'
-
 RUNTIME_DEFAULT_35 = 'ibmfunctions/pywren:3.5'
 RUNTIME_DEFAULT_36 = 'ibmfunctions/action-python-v3.6'
 RUNTIME_DEFAULT_37 = 'ibmfunctions/action-python-v3.7'
@@ -36,11 +34,17 @@ def load_config(config_data=None):
         # old format. convert to new format
         endpoint = config_data['ibm_cf'].pop('endpoint')
         namespace = config_data['ibm_cf'].pop('namespace')
+        api_key = config_data['ibm_cf'].pop('api_key', None)
         region = endpoint.split('//')[1].split('.')[0].replace('-', '_')
+
+        for k in list(config_data['ibm_cf']):
+            # Delete unnecessary keys
+            del config_data['ibm_cf'][k]
+
         config_data['pywren']['compute_backend_region'] = region
         config_data['ibm_cf'][region] = {'endpoint': endpoint, 'namespace': namespace}
-        if 'api_key' in config_data['ibm_cf']:
-            config_data['ibm_cf'][region]['api_key'] = config_data['ibm_cf'].pop('api_key')
+        if api_key:
+            config_data['ibm_cf'][region]['api_key'] = api_key
     else:
         # new format
         for region in config_data['ibm_cf']:
@@ -61,8 +65,5 @@ def load_config(config_data=None):
         if cbr is not None and cbr not in config_data['ibm_cf']:
             raise Exception('Invalid Compute backend region: {}'.format(cbr))
 
-    if 'ibm_iam' not in config_data or config_data['ibm_iam'] is None:
-        config_data['ibm_iam'] = {}
-    if 'ibm_auth_endpoint' not in config_data['ibm_iam']:
-        config_data['ibm_iam']['ibm_auth_endpoint'] = IBM_AUTH_ENDPOINT_DEFAULT
-    config_data['ibm_cf']['ibm_iam'] = config_data['ibm_iam']
+    if 'ibm_iam' in config_data and config_data['ibm_iam'] is not None:
+        config_data['ibm_cf']['ibm_iam'] = config_data['ibm_iam']
