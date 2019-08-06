@@ -187,13 +187,11 @@ class ResponseFuture:
         logger.debug(log_msg)
         self._set_state(CallState.ready)
         if not self._call_status['result'] or not self.produce_output:
-            # Function did not produce output
+            # Function did not produce output, so let's put it as success
             self._set_state(CallState.success)
 
         if 'new_futures' in self._call_status:
-            unused_callgroup_id, total_new_futures = self._call_status['new_futures'].split('/')
-            if int(total_new_futures) > 0:
-                self.result(throw_except=throw_except, internal_storage=internal_storage)
+            self.result(throw_except=throw_except, internal_storage=internal_storage)
 
         return self.run_status
 

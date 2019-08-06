@@ -166,8 +166,7 @@ def function_handler(event):
                         response_status[key] = float(value)
                     except Exception:
                         response_status[key] = value
-                    if key == 'exception' or key == 'exc_pickle_fail' \
-                       or key == 'result':
+                    if key in ['exception', 'exc_pickle_fail', 'result', 'new_futures']:
                         response_status[key] = eval(value)
 
         # response_status['server_info'] = get_server_info()
