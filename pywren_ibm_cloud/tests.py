@@ -314,7 +314,7 @@ class TestPywren(unittest.TestCase):
 
 if __name__ == '__main__':
 
-    if args.function == 'help':
+    if args.test == 'help':
         print("available test functions:")
         print("-> test_call_async")
         print("-> test_map")
@@ -333,11 +333,11 @@ if __name__ == '__main__':
 
     else:
         suite = unittest.TestSuite()
-        if args.function == 'all':
+        if args.test == 'all':
             suite.addTest(unittest.makeSuite(TestPywren))
         else:
             try:
-                suite.addTest(TestPywren(args.function))
+                suite.addTest(TestPywren(args.test))
             except ValueError:
                 print("unknown test, use: --help")
                 sys.exit()
