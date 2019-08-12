@@ -15,15 +15,17 @@ from pywren_ibm_cloud.config import EXECUTION_TIMEOUT, MAX_AGG_DATA_SIZE
 logger = logging.getLogger(__name__)
 
 
-def create_call_async_job(config, internal_storage, executor_id, total_current_jobs, func, data, extra_env=None,
-                          extra_meta=None, runtime_memory=None, execution_timeout=EXECUTION_TIMEOUT):
+def create_call_async_job(config, internal_storage, executor_id, total_current_jobs, func,
+                          data, extra_env=None, extra_meta=None, runtime_memory=None,
+                          execution_timeout=EXECUTION_TIMEOUT, exclude_modules=None):
     """
     Wrapper to create call_async job that contains only one function invocation.
     """
     job_id = str(total_current_jobs).zfill(3)
     async_job_id = f'A{job_id}'
-    return _create_job(config, internal_storage, executor_id, async_job_id, func, [data], extra_env=extra_env,
-                       extra_meta=extra_meta, runtime_memory=runtime_memory, execution_timeout=execution_timeout)
+    return _create_job(config, internal_storage, executor_id, async_job_id, func, [data],
+                       extra_env=extra_env, extra_meta=extra_meta, runtime_memory=runtime_memory,
+                       execution_timeout=execution_timeout, exclude_modules=exclude_modules)
 
 
 def create_map_job(config, internal_storage, executor_id, total_current_jobs, map_function, iterdata, obj_chunk_size=None,
