@@ -93,7 +93,8 @@ class FunctionExecutor:
         self.invoker = Invoker(self.config, self.executor_id)
         self.jobs = {}
 
-    def call_async(self, func, data, extra_env=None, extra_meta=None, runtime_memory=None, timeout=EXECUTION_TIMEOUT):
+    def call_async(self, func, data, extra_env=None, extra_meta=None, runtime_memory=None,
+                   timeout=EXECUTION_TIMEOUT, exclude_modules=None):
         """
         For running one function execution asynchronously
         :param func: the function to map over the data
@@ -108,7 +109,7 @@ class FunctionExecutor:
         total_current_jobs = len(self.jobs)
         job = create_call_async_job(self.config, self.internal_storage, self.executor_id,
                                     total_current_jobs, func, data, extra_env, extra_meta,
-                                    runtime_memory, timeout)
+                                    runtime_memory, timeout, exclude_modules=exclude_modules)
         future = self.invoker.run(job)
         self.jobs[job['job_id']] = {'futures': future, 'state': JobState.running}
         self._state = ExecutorState.running

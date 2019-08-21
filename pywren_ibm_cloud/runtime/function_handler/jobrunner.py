@@ -199,14 +199,9 @@ class JobRunner(Process):
             # Check for new futures
             if result is not None:
                 self.stats.write("result", True)
-                if isinstance(result, ResponseFuture):
-                    executor_id = result.executor_id
-                    job_id = result.job_id
-                    self.stats.write('new_futures', '{}/{}/{}'.format(executor_id, job_id, 1))
-                elif type(result) == list and len(result) > 0 and isinstance(result[0], ResponseFuture):
-                    executor_id = result[0].executor_id
-                    job_id = result[0].job_id
-                    self.stats.write('new_futures', '{}/{}/{}'.format(executor_id, job_id, len(result)))
+                if isinstance(result, ResponseFuture) or \
+                   (type(result) == list and len(result) > 0 and isinstance(result[0], ResponseFuture)):
+                    self.stats.write('new_futures', True)
 
                 logger.debug("Pickling result")
                 output_dict = {'result': result}

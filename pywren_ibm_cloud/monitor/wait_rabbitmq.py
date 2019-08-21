@@ -94,32 +94,28 @@ def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url, download_results=F
             pbar.refresh()
 
         if 'new_futures' in call_status:
-            # We received new futures to track
-            new_futures_str = call_status['new_futures'].split('/')
-
-            executor_id_new_futures = new_futures_str[0]
-            job_id_new_futures = new_futures_str[1]
-            total_new_futures = int(new_futures_str[2])
-
-            job_key_new_futures = f'{executor_id_new_futures}-{job_id_new_futures}'
-
-            done_call_ids[job_key_new_futures] = {'total': total_new_futures, 'call_ids': []}
-            present_jobs[job_key_new_futures] = {}
-
             new_futures = fut.result()
             futures.extend(new_futures)
 
-            for nf in new_futures:
-                present_jobs[job_key_new_futures][nf.call_id] = nf
-
             if pbar:
-                pbar.total = pbar.total + total_new_futures
+                pbar.total = pbar.total + len(new_futures)
                 pbar.refresh()
 
-            td = rabbitmq_checker_worker(job_key_new_futures, total_new_futures,
-                                         rabbit_amqp_url, checker_worker_queue)
-            td.setDaemon(True)
-            td.start()
+            present_jobs_new_futures = {f'{f.executor_id}-{f.job_id}' for f in new_futures}
+
+            for f in new_futures:
+                job_key_new_futures = f'{f.executor_id}-{f.job_id}'
+                if job_key_new_futures not in present_jobs:
+                    present_jobs[job_key_new_futures] = {}
+                present_jobs[job_key_new_futures][f.call_id] = f
+
+            for job_key_new_futures in present_jobs_new_futures:
+                total_calls = len(present_jobs[job_key_new_futures])
+                done_call_ids[job_key_new_futures] = {'total': total_calls, 'call_ids': []}
+                td = rabbitmq_checker_worker(job_key_new_futures, total_calls,
+                                             rabbit_amqp_url, checker_worker_queue)
+                td.setDaemon(True)
+                td.start()
 
         if 'new_futures' not in call_status and download_results:
             gr_ft = thread_pool.submit(get_result, fut)
