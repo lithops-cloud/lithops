@@ -97,7 +97,7 @@ def create_map_job(config, internal_storage, executor_id, total_current_jobs, ma
 
 def create_reduce_job(config, internal_storage, executor_id, total_current_jobs,
                       reduce_function, reduce_runtime_memory, map_futures, parts_per_object,
-                      reducer_one_per_object=False, extra_env=None, extra_meta=None):
+                      reducer_one_per_object=False, extra_env=None, extra_meta=None, exclude_modules=[]):
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
     """
@@ -138,7 +138,7 @@ def create_reduce_job(config, internal_storage, executor_id, total_current_jobs,
 
     return _create_job(config, internal_storage, executor_id, reduce_job_id, reduce_function_wrapper, map_iterdata,
                        runtime_memory=reduce_runtime_memory, extra_env=extra_env, extra_meta=extra_meta,
-                       original_func_name=reduce_function.__name__)
+                       exclude_modules=exclude_modules, original_func_name=reduce_function.__name__)
 
 
 def _agg_data(data_strs):

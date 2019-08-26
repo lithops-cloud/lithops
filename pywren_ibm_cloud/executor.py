@@ -211,8 +211,8 @@ class FunctionExecutor:
 
         job = create_reduce_job(self.config, self.internal_storage, self.executor_id,
                                 total_current_jobs, reduce_function, reduce_runtime_memory,
-                                map_futures, parts_per_object, reducer_one_per_object,
-                                extra_env, extra_meta)
+                                map_futures, parts_per_object, reducer_one_per_object=reducer_one_per_object,
+                                extra_env=extra_env, extra_meta=extra_meta, exclude_modules=exclude_modules)
         reduce_futures = self.invoker.run(job)
         self.jobs[job['job_id']] = {'futures': reduce_futures, 'state': JobState.running}
 
@@ -315,7 +315,7 @@ class FunctionExecutor:
                 not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
             else:
                 not_dones_activation_ids = [f.activation_id for f in ftrs if not f.ready and not f.done]
-            msg = ('ExecutorID {} - Raised timeout of {} seconds waiting for results. Total Activations not done: {}'
+            msg = ('ExecutorID {} - Raised timeout of {} seconds waiting for results - Total Activations not done: {}'
                    ' {}'.format(self.executor_id, timeout, len(not_dones_activation_ids), not_dones_activation_ids))
             self._state = ExecutorState.error
 
@@ -324,7 +324,7 @@ class FunctionExecutor:
                 not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
             else:
                 not_dones_activation_ids = [f.activation_id for f in ftrs if not f.ready and not f.done]
-            msg = ('ExecutorID {} - Cancelled. Total Activations not done: {} '
+            msg = ('ExecutorID {} - Cancelled - Total Activations not done: {} '
                    '{}'.format(self.executor_id, len(not_dones_activation_ids), not_dones_activation_ids))
             self._state = ExecutorState.error
 

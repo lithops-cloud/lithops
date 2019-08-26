@@ -168,8 +168,8 @@ class ResponseFuture:
                 if exception_args[0] == "OUTOFMEMORY":
                     msg = "Process exceeded maximum memory and was killed"
 
-                if exception_args[0] == "EXCPICKLEERROR":
-                    msg = "PyWren was unable to pickle the exception, check function logs"
+                if exception_args[0] == "UNKNOWNERROR":
+                    msg = "Unknown error - Jobrunner process was suddenly killed without response, check function logs"
             else:
                 fault = Exception(self._exception['exc_value'])
                 self._exception = (Exception, fault, self._exception['exc_traceback'])
