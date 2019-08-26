@@ -116,7 +116,10 @@ class CloudFunctionsClient:
         logger.debug("I am about to list all actions from: {}".format(package))
         url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.effective_namespace, 'actions', package, ''])
         res = self.session.get(url)
-        return res.json()
+        if res.status_code == 200:
+            return res.json()
+        else:
+            return []
 
     def delete_action(self, package, action_name):
         """

@@ -154,7 +154,7 @@ def function_handler(event):
             result_queue.get(block=False)
         except Exception:
             # If no message, this means that the jobrunner process was killed for some reason
-            raise Exception("UNKNOWNERROR",  "Jobrunner process was suddenly killed without response")
+            raise Exception("OUTOFMEMORY",  "Jobrunner process exceeded maximum memory and was killed")
 
         # print(subprocess.check_output("find {}".format(PYTHON_MODULE_PATH), shell=True))
         # print(subprocess.check_output("find {}".format(os.getcwd()), shell=True))
