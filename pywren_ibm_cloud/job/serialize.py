@@ -38,13 +38,14 @@ class SerializeIndependent:
         self.preinstalled_modules.append(['pywren_ibm_cloud', True])
         self._modulemgr = None
 
-    def __call__(self, list_of_objs, **kwargs):
+    def __call__(self, list_of_objs, exclude_modules, **kwargs):
         """
         Serialize f, args, kwargs independently
         """
         self._modulemgr = ModuleDependencyAnalyzer()
         preinstalled_modules = [name for name, _ in self.preinstalled_modules]
         self._modulemgr.ignore(preinstalled_modules)
+        self._modulemgr.ignore(exclude_modules)
 
         cps = []
         strs = []

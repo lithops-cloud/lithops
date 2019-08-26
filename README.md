@@ -244,7 +244,7 @@ def my_reduce_function(results):
 chunk_size = 4*1024**2  # 4MB
 
 pw = pywren.ibm_cf_executor()
-pw.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_size)
+pw.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_size=chunk_size)
 result = pw.get_result()
 ```
 
@@ -275,7 +275,7 @@ def my_reduce_function(results):
 chunk_size = 4*1024**2  # 4MB
 
 pw = pywren.ibm_cf_executor()
-pw.map_reduce(my_map_function, bucket_name, my_reduce_function, chunk_size)
+pw.map_reduce(my_map_function, bucket_name, my_reduce_function, chunk_size=chunk_size)
 result = pw.get_result()
 ```
 
@@ -308,7 +308,7 @@ def my_reduce_function(results):
 chunk_size = 4*1024**2  # 4MB
 
 pw = pywren.ibm_cf_executor()
-pw.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_size)
+pw.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_size=chunk_size)
 result = pw.get_result()
 ```
 
@@ -323,7 +323,7 @@ By default there will be one reducer for all the objects. If you need one reduce
 
 ```python
 pw.map_reduce(my_map_function, bucket_name, my_reduce_function, 
-              chunk_size, reducer_one_per_object=True)
+              chunk_size=chunk_size, reducer_one_per_object=True)
 ```
 
 ### Geting boto3 client from any map function

@@ -43,7 +43,7 @@ If you need some Python modules (or other system libraries) which are not includ
     
     	docker login
     
-    Navigate to `runtime` and update the Dockerfile with your required packages and Python modules.
+    Navigate to `runtime` and update the ibm_cf/Dockerfile with your required packages and Python modules.
     If you need another Python version, for example Python 3.5, you must use the [Dockerfile.python35](Dockerfile.python35) that
     points to a source image based on Python 3.5. Finally run the build script:
     
@@ -52,7 +52,11 @@ If you need some Python modules (or other system libraries) which are not includ
     Note that Docker hub image names look like *"docker_username/runtimename:tag"* and must be all lower case, for example:
     
        $ pywren-runtime build jsampe/pywren-custom-runtime:3.5
-    
+      
+    By default the Dockerfile should be located in the same folder from where you execute the **pywren-runtime** command. If your Dockerfile is located in another folder, or the Dockerfile has another name, you can specify its location with the **-f** parameter, for example:
+
+       $ pywren-runtime build -f ibm_cf/Dockerfile.conda jsampe/pywren-conda-runtime:3.6
+ 
     Once you have built your runtime with all of your necessary packages, now you are able to use it with PyWren.
     To do so you have to specify the full docker image name when you create the *ibm_cf_executor* instance, for example:
     ```python
