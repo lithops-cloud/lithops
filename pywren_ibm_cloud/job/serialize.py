@@ -19,8 +19,8 @@ import logging
 from pathlib import Path
 from io import BytesIO as StringIO
 from pywren_ibm_cloud.utils import bytes_to_b64str
-from pywren_ibm_cloud.libs.cloudpipe.cloudpickle import CloudPickler
-from pywren_ibm_cloud.libs.cloudpipe.module_dependency import ModuleDependencyAnalyzer
+from pywren_ibm_cloud.libs.cloudpickle import CloudPickler
+from pywren_ibm_cloud.libs.multyvac.module_dependency import ModuleDependencyAnalyzer
 
 try:
     import glob2
