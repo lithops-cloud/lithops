@@ -93,6 +93,13 @@ class FunctionExecutor:
         self.invoker = Invoker(self.config, self.executor_id)
         self.jobs = {}
 
+    @property
+    def futures(self):
+        futures = []
+        for job in self.jobs:
+            futures.extend(self.jobs[job]['futures'])
+        return futures
+
     def call_async(self, func, data, extra_env=None, extra_meta=None, runtime_memory=None,
                    timeout=EXECUTION_TIMEOUT, exclude_modules=[]):
         """
