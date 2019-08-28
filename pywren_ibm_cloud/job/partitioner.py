@@ -75,7 +75,7 @@ def partition_processor(map_function):
     return object_processing_wrapper
 
 
-def create_partitions(config, arg_data, chunk_size):
+def create_partitions(config, arg_data, chunk_size, chunk_number):
     """
     Method that returns the function that will create the partitions of the objects in the Cloud
     """

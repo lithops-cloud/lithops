@@ -136,10 +136,10 @@ def function_handler(event):
         result_queue = multiprocessing.Queue()
         tr = JobRunner(jobrunner_config, result_queue)
         tr.daemon = True
-        logger.info("Starting JobRunner process")
+        logger.debug("Starting JobRunner process")
         tr.start()
         tr.join(task_execution_timeout)
-        logger.info("Finished JobRunner process")
+        logger.debug("Finished JobRunner process")
         response_status['exec_time'] = round(time.time() - setup_time, 8)
 
         if tr.is_alive():
