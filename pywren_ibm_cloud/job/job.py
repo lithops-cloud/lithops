@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def create_call_async_job(config, internal_storage, executor_id, total_current_jobs, func,
                           data, extra_env=None, extra_meta=None, runtime_memory=None,
-                          execution_timeout=EXECUTION_TIMEOUT, exclude_modules=None):
+                          execution_timeout=EXECUTION_TIMEOUT, exclude_modules=[]):
     """
     Wrapper to create call_async job that contains only one function invocation.
     """
@@ -28,9 +28,10 @@ def create_call_async_job(config, internal_storage, executor_id, total_current_j
                        execution_timeout=execution_timeout, exclude_modules=exclude_modules)
 
 
-def create_map_job(config, internal_storage, executor_id, total_current_jobs, map_function, iterdata, obj_chunk_size=None,
-                   extra_env=None, extra_meta=None, runtime_memory=None, remote_invocation=False,
-                   remote_invocation_groups=None, invoke_pool_threads=128, exclude_modules=None, is_cf_cluster=False,
+def create_map_job(config, internal_storage, executor_id, total_current_jobs, map_function, iterdata,
+                   obj_chunk_size=None, obj_chunk_number=None, extra_env=None, extra_meta=None,
+                   runtime_memory=None, remote_invocation=False, remote_invocation_groups=None,
+                   invoke_pool_threads=128, exclude_modules=[], is_cf_cluster=False,
                    execution_timeout=EXECUTION_TIMEOUT, overwrite_invoke_args=None):
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
@@ -47,11 +48,11 @@ def create_map_job(config, internal_storage, executor_id, total_current_jobs, ma
     parts_per_object = None
     if utils.is_object_processing_function(map_function):
         '''
-        If it is object processing function, create partitions according chunk_size
+        If it is object processing function, create partitions according chunk_size or chunk_number
         '''
         logger.debug('ExecutorID {} | JobID {} - Calling map on partitions from object storage flow'.format(executor_id, job_id))
         arg_data = utils.verify_args(map_function, data, object_processing=True)
-        map_iterdata, parts_per_object = create_partitions(config, arg_data, obj_chunk_size)
+        map_iterdata, parts_per_object = create_partitions(config, arg_data, obj_chunk_size, obj_chunk_number)
         map_func = partition_processor(map_function)
     # ########
 
@@ -94,8 +95,9 @@ def create_map_job(config, internal_storage, executor_id, total_current_jobs, ma
     return job_description, parts_per_object
 
 
-def create_reduce_job(config, internal_storage, executor_id, total_current_jobs, reduce_function, reduce_runtime_memory,
-                      map_futures, parts_per_object, reducer_one_per_object, extra_env, extra_meta):
+def create_reduce_job(config, internal_storage, executor_id, total_current_jobs,
+                      reduce_function, reduce_runtime_memory, map_futures, parts_per_object,
+                      reducer_one_per_object=False, extra_env=None, extra_meta=None, exclude_modules=[]):
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
     """
@@ -136,7 +138,7 @@ def create_reduce_job(config, internal_storage, executor_id, total_current_jobs,
 
     return _create_job(config, internal_storage, executor_id, reduce_job_id, reduce_function_wrapper, map_iterdata,
                        runtime_memory=reduce_runtime_memory, extra_env=extra_env, extra_meta=extra_meta,
-                       original_func_name=reduce_function.__name__)
+                       exclude_modules=exclude_modules, original_func_name=reduce_function.__name__)
 
 
 def _agg_data(data_strs):
@@ -154,7 +156,7 @@ def _agg_data(data_strs):
 
 def _create_job(config, internal_storage, executor_id, job_id, func, iterdata, extra_env=None, extra_meta=None,
                 runtime_memory=None, invoke_pool_threads=128, overwrite_invoke_args=None,
-                exclude_modules=None, original_func_name=None, remote_invocation=False, original_total_tasks=None,
+                exclude_modules=[], original_func_name=None, remote_invocation=False, original_total_tasks=None,
                 execution_timeout=EXECUTION_TIMEOUT):
     """
     :param func: the function to map over the data
@@ -215,7 +217,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, iterdata, e
     log_msg = 'ExecutorID {} | JobID {} - Serializing function and data'.format(executor_id, job_id)
     logger.debug(log_msg)
     # pickle func and all data (to capture module dependencies)
-    func_and_data_ser, mod_paths = serializer([func] + data)
+    func_and_data_ser, mod_paths = serializer([func] + data, exclude_modules)
 
     func_str = func_and_data_ser[0]
     data_strs = func_and_data_ser[1:]
@@ -243,12 +245,6 @@ def _create_job(config, internal_storage, executor_id, job_id, func, iterdata, e
         log_msg = ('ExecutorID {} | JobID {} - Total data exceeded '
                    'maximum size of {} bytes'.format(executor_id, job_id, MAX_AGG_DATA_SIZE))
         raise Exception(log_msg)
-
-    if exclude_modules:
-        for module in exclude_modules:
-            for mod_path in list(mod_paths):
-                if module in mod_path and mod_path in mod_paths:
-                    mod_paths.remove(mod_path)
 
     module_data = create_module_data(mod_paths)
     # Create func and upload

@@ -22,6 +22,7 @@ import shutil
 import pickle
 import logging
 import inspect
+import traceback
 import numpy as np
 from multiprocessing import Process
 from distutils.util import strtobool
@@ -183,13 +184,13 @@ class JobRunner(Process):
             if self.show_memory:
                 logger.debug("Memory usage before call the function: {}".format(get_current_memory_usage()))
 
-            logger.info("Function: Going to execute '{}()'".format(str(function.__name__)))
+            logger.info("Going to execute '{}()'".format(str(function.__name__)))
             print('---------------------- FUNCTION LOG ----------------------', flush=True)
             func_exec_time_t1 = time.time()
             result = function(**data)
             func_exec_time_t2 = time.time()
             print('----------------------------------------------------------', flush=True)
-            logger.info("Function: Success execution")
+            logger.info("Success Function execution")
 
             if self.show_memory:
                 logger.debug("Memory usage after call the function: {}".format(get_current_memory_usage()))
@@ -216,8 +217,11 @@ class JobRunner(Process):
         except Exception as e:
             exception = True
             self.stats.write("exception", True)
+            exc_type, exc_value, exc_traceback = sys.exc_info()
             print('----------------------- EXCEPTION !-----------------------')
-            logger.error("There was an exception: {}".format(str(e)))
+            traceback.print_tb(exc_traceback)
+            time.sleep(0.1)
+            print('Exception: '+str(e))
             print('----------------------------------------------------------', flush=True)
 
             if self.show_memory:
@@ -225,7 +229,7 @@ class JobRunner(Process):
 
             try:
                 logger.debug("Pickling exception")
-                pickled_exc = pickle.dumps(sys.exc_info())
+                pickled_exc = pickle.dumps((exc_type, exc_value, exc_traceback))
                 pickle.loads(pickled_exc)  # this is just to make sure they can be unpickled
                 self.stats.write("exc_info", str(pickled_exc))
 
@@ -235,9 +239,7 @@ class JobRunner(Process):
                 # being unpickleable. As a result, we actually wrap this in a try/catch block
                 # and more-carefully handle the exceptions if any part of this save / test-reload
                 # fails
-                logger.debug("Failed pickling exception: {}".format(str(pickle_exception)))
                 self.stats.write("exc_pickle_fail", True)
-                exc_type, exc_value, exc_traceback = sys.exc_info()
                 pickled_exc = pickle.dumps({'exc_type': str(exc_type),
                                             'exc_value': str(exc_value),
                                             'exc_traceback': exc_traceback,

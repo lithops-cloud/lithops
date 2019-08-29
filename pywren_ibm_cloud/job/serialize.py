@@ -19,8 +19,8 @@ import logging
 from pathlib import Path
 from io import BytesIO as StringIO
 from pywren_ibm_cloud.utils import bytes_to_b64str
-from pywren_ibm_cloud.libs.cloudpipe.cloudpickle import CloudPickler
-from pywren_ibm_cloud.libs.cloudpipe.module_dependency import ModuleDependencyAnalyzer
+from pywren_ibm_cloud.libs.cloudpickle import CloudPickler
+from pywren_ibm_cloud.libs.multyvac.module_dependency import ModuleDependencyAnalyzer
 
 try:
     import glob2
@@ -38,13 +38,14 @@ class SerializeIndependent:
         self.preinstalled_modules.append(['pywren_ibm_cloud', True])
         self._modulemgr = None
 
-    def __call__(self, list_of_objs, **kwargs):
+    def __call__(self, list_of_objs, exclude_modules, **kwargs):
         """
         Serialize f, args, kwargs independently
         """
         self._modulemgr = ModuleDependencyAnalyzer()
         preinstalled_modules = [name for name, _ in self.preinstalled_modules]
         self._modulemgr.ignore(preinstalled_modules)
+        self._modulemgr.ignore(exclude_modules)
 
         cps = []
         strs = []

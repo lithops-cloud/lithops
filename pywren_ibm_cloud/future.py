@@ -167,9 +167,6 @@ class ResponseFuture:
 
                 if exception_args[0] == "OUTOFMEMORY":
                     msg = "Process exceeded maximum memory and was killed"
-
-                if exception_args[0] == "EXCPICKLEERROR":
-                    msg = "PyWren was unable to pickle the exception, check function logs"
             else:
                 fault = Exception(self._exception['exc_value'])
                 self._exception = (Exception, fault, self._exception['exc_traceback'])

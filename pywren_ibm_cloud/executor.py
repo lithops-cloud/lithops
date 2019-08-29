@@ -93,8 +93,15 @@ class FunctionExecutor:
         self.invoker = Invoker(self.config, self.executor_id)
         self.jobs = {}
 
+    @property
+    def futures(self):
+        futures = []
+        for job in self.jobs:
+            futures.extend(self.jobs[job]['futures'])
+        return futures
+
     def call_async(self, func, data, extra_env=None, extra_meta=None, runtime_memory=None,
-                   timeout=EXECUTION_TIMEOUT, exclude_modules=None):
+                   timeout=EXECUTION_TIMEOUT, exclude_modules=[]):
         """
         For running one function execution asynchronously
         :param func: the function to map over the data
@@ -117,8 +124,8 @@ class FunctionExecutor:
         return future[0]
 
     def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None, runtime_memory=None,
-            chunk_size=None, remote_invocation=False, timeout=EXECUTION_TIMEOUT,
-            remote_invocation_groups=None, invoke_pool_threads=500, overwrite_invoke_args=None, exclude_modules=None):
+            chunk_size=None, chunk_n=None, remote_invocation=False, remote_invocation_groups=None,
+            timeout=EXECUTION_TIMEOUT, invoke_pool_threads=500, overwrite_invoke_args=None, exclude_modules=[]):
         """
         :param func: the function to map over the data
         :param iterdata: An iterable of input data
@@ -143,7 +150,8 @@ class FunctionExecutor:
                                          self.executor_id, total_current_jobs,
                                          map_function=map_function, iterdata=map_iterdata,
                                          extra_env=extra_env, extra_meta=extra_meta,
-                                         obj_chunk_size=chunk_size, runtime_memory=runtime_memory,
+                                         obj_chunk_size=chunk_size, obj_chunk_number=chunk_n,
+                                         runtime_memory=runtime_memory,
                                          remote_invocation=remote_invocation,
                                          remote_invocation_groups=remote_invocation_groups,
                                          invoke_pool_threads=invoke_pool_threads,
@@ -159,13 +167,10 @@ class FunctionExecutor:
             return map_futures[0]
         return map_futures
 
-    def map_reduce(self, map_function, map_iterdata, reduce_function, extra_env=None,
-                   map_runtime_memory=None, reduce_runtime_memory=None,
-                   extra_meta=None, chunk_size=None, remote_invocation=False,
-                   remote_invocation_groups=None, timeout=EXECUTION_TIMEOUT,
-                   reducer_one_per_object=False, reducer_wait_local=False,
-                   invoke_pool_threads=500, overwrite_invoke_args=None,
-                   exclude_modules=None):
+    def map_reduce(self, map_function, map_iterdata, reduce_function, extra_env=None, map_runtime_memory=None,
+                   reduce_runtime_memory=None, extra_meta=None, chunk_size=None,  chunk_n=None, remote_invocation=False,
+                   remote_invocation_groups=None, timeout=EXECUTION_TIMEOUT, reducer_one_per_object=False,
+                   reducer_wait_local=False, invoke_pool_threads=500, overwrite_invoke_args=None, exclude_modules=[]):
         """
         Map the map_function over the data and apply the reduce_function across all futures.
         This method is executed all within CF.
@@ -195,7 +200,8 @@ class FunctionExecutor:
                                                self.executor_id, total_current_jobs,
                                                map_function=map_function, iterdata=map_iterdata,
                                                extra_env=extra_env, extra_meta=extra_meta,
-                                               obj_chunk_size=chunk_size, runtime_memory=map_runtime_memory,
+                                               obj_chunk_size=chunk_size, obj_chunk_number=chunk_n,
+                                               runtime_memory=map_runtime_memory,
                                                remote_invocation=remote_invocation,
                                                remote_invocation_groups=remote_invocation_groups,
                                                invoke_pool_threads=invoke_pool_threads,
@@ -212,8 +218,8 @@ class FunctionExecutor:
 
         job = create_reduce_job(self.config, self.internal_storage, self.executor_id,
                                 total_current_jobs, reduce_function, reduce_runtime_memory,
-                                map_futures, parts_per_object, reducer_one_per_object,
-                                extra_env, extra_meta)
+                                map_futures, parts_per_object, reducer_one_per_object=reducer_one_per_object,
+                                extra_env=extra_env, extra_meta=extra_meta, exclude_modules=exclude_modules)
         reduce_futures = self.invoker.run(job)
         self.jobs[job['job_id']] = {'futures': reduce_futures, 'state': JobState.running}
 
@@ -316,7 +322,7 @@ class FunctionExecutor:
                 not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
             else:
                 not_dones_activation_ids = [f.activation_id for f in ftrs if not f.ready and not f.done]
-            msg = ('ExecutorID {} - Raised timeout of {} seconds waiting for results. Total Activations not done: {}'
+            msg = ('ExecutorID {} - Raised timeout of {} seconds waiting for results - Total Activations not done: {}'
                    ' {}'.format(self.executor_id, timeout, len(not_dones_activation_ids), not_dones_activation_ids))
             self._state = ExecutorState.error
 
@@ -325,7 +331,7 @@ class FunctionExecutor:
                 not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
             else:
                 not_dones_activation_ids = [f.activation_id for f in ftrs if not f.ready and not f.done]
-            msg = ('ExecutorID {} - Cancelled. Total Activations not done: {} '
+            msg = ('ExecutorID {} - Cancelled - Total Activations not done: {} '
                    '{}'.format(self.executor_id, len(not_dones_activation_ids), not_dones_activation_ids))
             self._state = ExecutorState.error
 

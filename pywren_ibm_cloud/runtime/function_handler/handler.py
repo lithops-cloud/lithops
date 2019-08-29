@@ -136,9 +136,10 @@ def function_handler(event):
         result_queue = multiprocessing.Queue()
         tr = JobRunner(jobrunner_config, result_queue)
         tr.daemon = True
-        logger.info("Starting JobRunner process")
+        logger.debug("Starting JobRunner process")
         tr.start()
         tr.join(task_execution_timeout)
+        logger.debug("Finished JobRunner process")
         response_status['exec_time'] = round(time.time() - setup_time, 8)
 
         if tr.is_alive():
@@ -146,14 +147,14 @@ def function_handler(event):
             logger.error("Process exceeded maximum runtime of {} seconds".format(task_execution_timeout))
             # Send the signal to all the process groups
             tr.terminate()
-            raise Exception("OUTATIME",  "Process executed for too long and was killed")
+            raise Exception("OUTATIME",  "Jobrunner process executed for too long and was killed")
 
         try:
             # Only 1 message is returned by jobrunner
             result_queue.get(block=False)
         except Exception:
-            # If no message, this means that the process was killed due an exception pickling an exception
-            raise Exception("EXCPICKLEERROR",  "PyWren was unable to pickle the exception, check function logs")
+            # If no message, this means that the jobrunner process was killed for some reason
+            raise Exception("OUTOFMEMORY",  "Jobrunner process exceeded maximum memory and was killed")
 
         # print(subprocess.check_output("find {}".format(PYTHON_MODULE_PATH), shell=True))
         # print(subprocess.check_output("find {}".format(os.getcwd()), shell=True))
