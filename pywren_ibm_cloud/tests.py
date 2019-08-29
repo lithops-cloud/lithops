@@ -76,13 +76,32 @@ def simple_reduce_function(results):
     return total
 
 
-def pywren_inside_pywren_map_function(x):
+def pywren_inside_pywren_map_function1(x):
     def _func(x):
         return x
 
     pw = pywren.ibm_cf_executor(config=CONFIG)
-    pw.map(_func, range(10))
+    pw.map(_func, range(x))
     return pw.get_result()
+
+
+def pywren_inside_pywren_map_function2(x):
+    def _func(x):
+        return x
+
+    pw = pywren.ibm_cf_executor(config=CONFIG)
+    pw.call_async(_func, x)
+    return pw.get_result()
+
+
+def pywren_inside_pywren_map_function3(x):
+    def _func(x):
+        return x
+
+    pw = pywren.ibm_cf_executor(config=CONFIG)
+    fut1 = pw.map(_func, range(x))
+    fut2 = pw.map(_func, range(x))
+    return [pw.get_result(fut1), pw.get_result(fut2)]
 
 
 def my_map_function_bucket(bucket, key, data_stream, ibm_cos):
@@ -242,9 +261,19 @@ class TestPywren(unittest.TestCase):
 
     def test_internal_executions(self):
         pw = pywren.ibm_cf_executor(config=CONFIG)
-        pw.map(pywren_inside_pywren_map_function, range(10))
+        pw.map(pywren_inside_pywren_map_function1, range(1,11))
         result = pw.get_result()
-        self.assertEqual(result, [list(range(10)) for _ in range(10)])
+        self.assertEqual(result, [0] + [list(range(i)) for i in range(2,11)])
+
+        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw.call_async(pywren_inside_pywren_map_function2, 10)
+        result = pw.get_result()
+        self.assertEqual(result, 10)
+
+        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw.map(pywren_inside_pywren_map_function3, range(1,11))
+        result = pw.get_result()
+        self.assertEqual(result, [[0, 0]] + [[list(range(i)), list(range(i))] for i in range(2,11)])
 
     def test_map_reduce_cos_bucket(self):
         data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX
@@ -314,7 +343,7 @@ class TestPywren(unittest.TestCase):
 
 if __name__ == '__main__':
 
-    if args.function == 'help':
+    if args.test == 'help':
         print("available test functions:")
         print("-> test_call_async")
         print("-> test_map")
@@ -333,11 +362,11 @@ if __name__ == '__main__':
 
     else:
         suite = unittest.TestSuite()
-        if args.function == 'all':
+        if args.test == 'all':
             suite.addTest(unittest.makeSuite(TestPywren))
         else:
             try:
-                suite.addTest(TestPywren(args.function))
+                suite.addTest(TestPywren(args.test))
             except ValueError:
                 print("unknown test, use: --help")
                 sys.exit()
