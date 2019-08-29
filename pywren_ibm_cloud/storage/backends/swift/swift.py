@@ -121,14 +121,14 @@ class StorageBackend:
                     data = res.content
                 return data
             elif res.status_code == 404:
-                raise StorageNoSuchKeyError(key)
+                raise StorageNoSuchKeyError(container_name, key)
             else:
                 raise Exception('{} - {}'.format(res.status_code, key))
         except StorageNoSuchKeyError:
-            raise StorageNoSuchKeyError(key)
+            raise StorageNoSuchKeyError(container_name, key)
         except Exception as e:
             print(e)
-            raise StorageNoSuchKeyError(key)
+            raise StorageNoSuchKeyError(container_name, key)
 
     def head_object(self, container_name, key):
         """
@@ -143,11 +143,11 @@ class StorageBackend:
             if res.status_code == 200:
                 return res.headers
             elif res.status_code == 404:
-                raise StorageNoSuchKeyError(key)
+                raise StorageNoSuchKeyError(container_name, key)
             else:
                 raise Exception('{} - {}'.format(res.status_code, key))
         except Exception as e:
-            raise StorageNoSuchKeyError(key)
+            raise StorageNoSuchKeyError(container_name, key)
 
     def delete_object(self, container_name, key):
         """
@@ -188,11 +188,11 @@ class StorageBackend:
             if res.status_code == 204:
                 return res.headers
             elif res.status_code == 404:
-                raise StorageNoSuchKeyError(container_name)
+                raise StorageNoSuchKeyError(container_name, '')
             else:
                 raise Exception('{} - {}'.format(res.status_code))
         except Exception as e:
-            raise StorageNoSuchKeyError(container_name)
+            raise StorageNoSuchKeyError(container_name, '')
 
     def list_objects(self, container_name, prefix=''):
         """

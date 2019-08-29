@@ -11,22 +11,13 @@ LOCAL_HOME_DIR = os.path.join(os.path.expanduser('~'), '.cloudbutton')
 logger = logging.getLogger(__name__)
 
 
-class Singleton(type):
-    _instances = {}
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
-
-
-class InternalStorage(metaclass=Singleton):
+class InternalStorage:
     """
     An InternalStorage object is used by executors and other components to access underlying storage backend
     without exposing the the implementation details.
     """
 
     def __init__(self, storage_config):
-
         self.config = storage_config
         self.backend = self.config['backend']
         self.bucket = self.config['bucket']

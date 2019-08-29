@@ -108,18 +108,18 @@ def function_handler(event):
                             version.__version__, event['pywren_version'])
 
         # response_status['free_disk_bytes'] = free_disk_space("/tmp")
-        custom_env = {'CB_CONFIG': json.dumps(config),
-                      'CB_CALL_ID':  call_id,
-                      'CB_JOB_ID':  job_id,
-                      'CB_EXECUTOR_ID':  executor_id,
-                      'PYTHONPATH': "{}:{}".format(os.getcwd(), PYWREN_LIBS_PATH),
+        custom_env = {'PYTHONPATH': "{}:{}".format(os.getcwd(), PYWREN_LIBS_PATH),
                       'PYTHONUNBUFFERED': 'True'}
 
         os.environ.update(custom_env)
         os.environ.update(extra_env)
 
         # pass a full json blob
-        jobrunner_config = {'func_key': func_key,
+        jobrunner_config = {'pywren_config': config,
+                            'call_id':  call_id,
+                            'job_id':  job_id,
+                            'executor_id':  executor_id,
+                            'func_key': func_key,
                             'data_key': data_key,
                             'log_level': log_level,
                             'data_byte_range': data_byte_range,

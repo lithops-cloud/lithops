@@ -235,13 +235,13 @@ class WrappedStreamingBody:
 
 def verify_args(func, data, object_processing=False):
     # Verify parameters
-    non_verify_args = ['ibm_cos', 'swift', 'internal_storage']
+    non_verify_args = ['ibm_cos', 'swift', 'internal_storage', 'id', 'rabbitmq']
     func_sig = inspect.signature(func)
 
     # Check mandatory parameters in function
     if object_processing:
         non_verify_args.append('data_stream')
-        err_msg = 'parameter in your map_function() is mandatory for pywren.map_reduce(map_function,...)'
+        err_msg = 'parameter in your map_function() is mandatory for map or map_reduce functions'
         if 'bucket' in func_sig.parameters:
             non_verify_args.append('key')
             if 'key' not in func_sig.parameters:

@@ -16,7 +16,7 @@
 
 import os
 import sys
-import json
+import pika
 import time
 import shutil
 import pickle
@@ -54,27 +54,30 @@ class stats:
 
 class JobRunner(Process):
 
-    def __init__(self, tr_config, result_queue):
+    def __init__(self, jr_config, result_queue):
         super().__init__()
         start_time = time.time()
-        self.config = tr_config
-        log_level = self.config['log_level']
+        self.jr_config = jr_config
         self.result_queue = result_queue
+
+        log_level = self.jr_config['log_level']
         cloud_logging_config(log_level)
-        self.stats = stats(self.config['stats_filename'])
+        self.pywren_config = self.jr_config['pywren_config']
+        self.storage_config = extract_storage_config(self.pywren_config)
+        self.call_id = self.jr_config['call_id']
+
+        self.stats = stats(self.jr_config['stats_filename'])
         self.stats.write('jobrunner_start', start_time)
-        cb_config = json.loads(os.environ.get('CB_CONFIG'))
-        self.storage_config = extract_storage_config(cb_config)
 
         if 'SHOW_MEMORY_USAGE' in os.environ:
             self.show_memory = eval(os.environ['SHOW_MEMORY_USAGE'])
         else:
             self.show_memory = False
 
-        self.func_key = self.config['func_key']
-        self.data_key = self.config['data_key']
-        self.data_byte_range = self.config['data_byte_range']
-        self.output_key = self.config['output_key']
+        self.func_key = self.jr_config['func_key']
+        self.data_key = self.jr_config['data_key']
+        self.data_byte_range = self.jr_config['data_byte_range']
+        self.output_key = self.jr_config['output_key']
 
     def _get_function_and_modules(self):
         """
@@ -95,7 +98,7 @@ class JobRunner(Process):
         Save modules, before we unpickle actual function
         """
         logger.debug("Writing Function dependencies to local disk")
-        PYTHON_MODULE_PATH = self.config['python_module_path']
+        PYTHON_MODULE_PATH = self.jr_config['python_module_path']
         shutil.rmtree(PYTHON_MODULE_PATH, True)  # delete old modules
         os.mkdir(PYTHON_MODULE_PATH)
         sys.path.append(PYTHON_MODULE_PATH)
@@ -151,18 +154,43 @@ class JobRunner(Process):
 
         return loaded_data
 
-    def _create_storage_clients(self, function, data):
-        # Verify storage parameters - Create clients
+    def _fill_optional_args(self, function, data):
+        """
+        Fills in those reserved, optional parameters that might be write to the function signature
+        """
         func_sig = inspect.signature(function)
 
         if 'ibm_cos' in func_sig.parameters:
-            ibm_boto3_client = ibm_cos_backend(self.storage_config['ibm_cos']).get_client()
-            data['ibm_cos'] = ibm_boto3_client
+            if 'ibm_cos' in self.pywren_config:
+                try:
+                    ibm_boto3_client = ibm_cos_backend(self.storage_config['ibm_cos']).get_client()
+                    data['ibm_cos'] = ibm_boto3_client
+                except Exception as e:
+                    logger.error('Cannot create the ibm_cos connection: {}', str(e))
+                    data['ibm_cos'] = None
+            else:
+                logger.error('Cannot create the ibm_cos connection: Configuration not provided')
+                data['ibm_cos'] = None
 
         if 'internal_storage' in func_sig.parameters:
             data['internal_storage'] = self.internal_storage
 
-        return data
+        if 'rabbitmq' in func_sig.parameters:
+            if 'rabbitmq' in self.pywren_config:
+                try:
+                    rabbit_amqp_url = self.pywren_config['rabbitmq'].get('amqp_url')
+                    params = pika.URLParameters(rabbit_amqp_url)
+                    connection = pika.BlockingConnection(params)
+                    data['rabbitmq'] = connection
+                except Exception as e:
+                    logger.error('Cannot create the rabbitmq connection: {}', str(e))
+                    data['rabbitmq'] = None
+            else:
+                logger.error('Cannot create the rabbitmq connection: Configuration not provided')
+                data['rabbitmq'] = None
+
+        if 'id' in func_sig.parameters:
+            data['id'] = int(self.call_id)
 
     def run(self):
         """
@@ -179,7 +207,7 @@ class JobRunner(Process):
             self._save_modules(loaded_func_all['module_data'])
             function = self._unpickle_function(loaded_func_all['func'])
             data = self._load_data()
-            data = self._create_storage_clients(function, data)
+            self._fill_optional_args(function, data)
 
             if self.show_memory:
                 logger.debug("Memory usage before call the function: {}".format(get_current_memory_usage()))
@@ -190,7 +218,7 @@ class JobRunner(Process):
             result = function(**data)
             func_exec_time_t2 = time.time()
             print('----------------------------------------------------------', flush=True)
-            logger.info("Success Function execution")
+            logger.info("Success function execution")
 
             if self.show_memory:
                 logger.debug("Memory usage after call the function: {}".format(get_current_memory_usage()))

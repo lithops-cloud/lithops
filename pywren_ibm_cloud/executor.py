@@ -77,16 +77,16 @@ class FunctionExecutor:
                 default_logging_config(self.log_level)
 
         self.executor_id = create_executor_id()
-        logger.debug('ServerlessExecutor created with ID: {}'.format(self.executor_id))
+        logger.debug('FunctionExecutor created with ID: {}'.format(self.executor_id))
 
         # RabbitMQ monitor configuration
         self.rabbitmq_monitor = self.config['pywren'].get('rabbitmq_monitor', False)
         if self.rabbitmq_monitor:
-            if 'rabbitmq' in self.config and 'amqp_url' in self.config['rabbitmq']:
+            if 'rabbitmq' in self.config and 'amqp_url' is not None:
                 self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
                 os.environ["CB_RABBITMQ_MONITOR"] = 'True'
             else:
-                raise Exception("RabbitMQ 'amqp_url' not provided in configuration")
+                raise Exception("You cannot use rabbitmq_mnonitor since 'amqp_url' is not provided in configuration")
 
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
