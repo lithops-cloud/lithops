@@ -86,7 +86,7 @@ def function_handler(event):
     job_id = event['job_id']
     executor_id = event['executor_id']
     logger.info("Execution ID: {}/{}/{}".format(executor_id, job_id, call_id))
-    task_execution_timeout = event.get("task_execution_timeout", 590)  # default for CF
+    execution_timeout = event.get("execution_timeout", 590)  # default for CF
     status_key = event['status_key']
     func_key = event['func_key']
     data_key = event['data_key']
@@ -108,7 +108,8 @@ def function_handler(event):
                             version.__version__, event['pywren_version'])
 
         # response_status['free_disk_bytes'] = free_disk_space("/tmp")
-        custom_env = {'PYTHONPATH': "{}:{}".format(os.getcwd(), PYWREN_LIBS_PATH),
+        custom_env = {'PYWREN_CONFIG': json.dumps(config),
+                      'PYTHONPATH': "{}:{}".format(os.getcwd(), PYWREN_LIBS_PATH),
                       'PYTHONUNBUFFERED': 'True'}
 
         os.environ.update(custom_env)
@@ -138,13 +139,13 @@ def function_handler(event):
         tr.daemon = True
         logger.debug("Starting JobRunner process")
         tr.start()
-        tr.join(task_execution_timeout)
+        tr.join(execution_timeout)
         logger.debug("Finished JobRunner process")
         response_status['exec_time'] = round(time.time() - setup_time, 8)
 
         if tr.is_alive():
             # If process is still alive after jr.join(job_max_runtime), kill it
-            logger.error("Process exceeded maximum runtime of {} seconds".format(task_execution_timeout))
+            logger.error("Process exceeded maximum runtime of {} seconds".format(execution_timeout))
             # Send the signal to all the process groups
             tr.terminate()
             raise Exception("OUTATIME",  "Jobrunner process executed for too long and was killed")

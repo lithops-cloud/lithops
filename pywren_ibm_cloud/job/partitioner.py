@@ -35,7 +35,7 @@ def partition_processor(map_function):
     Method that returns the function to process objects in the Cloud.
     It creates a ready-to-use data_stream parameter
     """
-    def object_processing_wrapper(map_func_args, data_byte_range, chunk_size, internal_storage, ibm_cos):
+    def object_processing_wrapper(id, map_func_args, data_byte_range, chunk_size, internal_storage, ibm_cos, rabbitmq):
         extra_get_args = {}
         if data_byte_range is not None:
             range_str = 'bytes={}-{}'.format(*data_byte_range)
@@ -54,12 +54,12 @@ def partition_processor(map_function):
                 bucket = map_func_args['bucket']
                 key = map_func_args['key']
 
-            config = json.loads(os.environ.get('CB_CONFIG'))
+            config = json.loads(os.environ.get('PYWREN_CONFIG'))
             storage = ibm_cos_backend(config['ibm_cos'])
             logger.info('Getting dataset from cos://{}/{}'.format(bucket, key))
             sb = storage.get_object(bucket, key, stream=True, extra_get_args=extra_get_args)
             if data_byte_range is not None:
-                logger.info('Chunk range: {}'.format(extra_get_args['Range']))
+                logger.info('Chunk {} range {}'.format(id, extra_get_args['Range']))
                 map_func_args['data_stream'] = WrappedStreamingBodyPartition(sb, chunk_size, data_byte_range)
             else:
                 map_func_args['data_stream'] = sb
@@ -69,6 +69,10 @@ def partition_processor(map_function):
             map_func_args['ibm_cos'] = ibm_cos
         if 'internal_storage' in func_sig.parameters:
             map_func_args['internal_storage'] = internal_storage
+        if 'id' in func_sig.parameters:
+            map_func_args['id'] = id
+        if 'rabbitmq' in func_sig.parameters:
+            map_func_args['rabbitmq'] = rabbitmq
 
         return map_function(**map_func_args)
 

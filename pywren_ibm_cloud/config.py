@@ -72,8 +72,8 @@ def default_config(config_data=None):
     then ~/.pywren_config
     """
     if not config_data:
-        if 'CB_CONFIG' in os.environ:
-            config_data = json.loads(os.environ.get('CB_CONFIG'))
+        if 'PYWREN_CONFIG' in os.environ:
+            config_data = json.loads(os.environ.get('PYWREN_CONFIG'))
         else:
             config_filename = get_default_config_filename()
             if config_filename is None:
