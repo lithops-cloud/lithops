@@ -33,11 +33,23 @@ class StorageNoSuchKeyError(Exception):
         super(StorageNoSuchKeyError, self).__init__(msg)
 
 
+class StorageConfigMismatchError(Exception):
+    def __init__(self, current_path, prev_path):
+        msg = "The data is stored at {}, but current storage is configured at {}.".format(
+            prev_path, current_path)
+        super(StorageConfigMismatchError, self).__init__(msg)
+
+
 class CloudObject:
     def __init__(self, storage_backend, bucket, key):
         self.storage_backend = storage_backend
-        self.key = key
         self.bucket = bucket
+        self.key = key
+
+
+class CloudObjectUrl:
+    def __init__(self, url_path):
+        self.path = url_path
 
 
 def clean_bucket(bucket, prefix, storage_config):

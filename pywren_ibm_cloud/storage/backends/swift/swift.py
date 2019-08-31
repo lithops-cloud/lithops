@@ -214,7 +214,7 @@ class StorageBackend:
         except Exception as e:
             raise e
 
-    def list_keys_with_prefix(self, container_name, prefix):
+    def list_keys(self, container_name, prefix):
         """
         Return a list of keys for the given prefix.
         :param prefix: Prefix to filter object names.

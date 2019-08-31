@@ -163,7 +163,7 @@ class ResponseFuture:
                           "library is version {}".format(exception_args[2], exception_args[3])
 
                 if exception_args[0] == "OUTATIME":
-                    msg = "Process ran out of time"
+                    msg = "Process ran out of time and was killed"
 
                 if exception_args[0] == "OUTOFMEMORY":
                     msg = "Process exceeded maximum memory and was killed"
