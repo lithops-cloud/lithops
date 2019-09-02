@@ -14,7 +14,6 @@ pywren:
 
 #ibm_iam:
 #    api_key: <IAM KEY>
-#    ibm_auth_endpoint: <IAM ENDPOINT>
 
 ibm_cf:
     endpoint    : <REGION_ENDPOINT>

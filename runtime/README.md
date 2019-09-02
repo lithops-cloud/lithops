@@ -16,7 +16,8 @@ Alternatively, you can create the default runtime by running the following comma
     
     $ pywren-runtime create default
 
-To run a function with the default runtime you don't need to specify anything in the code since all is internally managed by PyWren:
+To run a function with the default runtime you don't need to specify anything in the code, since everything is managed internally by PyWren:
+
 ```python
 import pywren_ibm_cloud as pywren
 
@@ -27,6 +28,16 @@ pw = pywren.ibm_cf_executor()
 pw.call_async(my_function, 3)
 result = pw.get_result()
 ```
+
+By default, IBM-PyWren uses 256MB as runtime memory size. However, you can change it in the `config` or when you obtain the executor, for example:
+
+```python
+import pywren_ibm_cloud as pywren
+pw = pywren.ibm_cf_executor(runtime_memory=512)
+```
+
+
+## Custom runtime
 
 If you need some Python modules (or other system libraries) which are not included in the default docker images (see table above), it is possible to build your own PyWren runtime with all of them.
 

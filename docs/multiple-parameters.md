@@ -1,4 +1,4 @@
-# Multiple parameters in PyWren functions
+# Multiple parameters in IBM-PyWren functions
 
 PyWren for IBM Cloud allows to send multiple parameters in the function invocation.
 

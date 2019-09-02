@@ -37,5 +37,5 @@ if __name__ == "__main__":
     """
     pw = pywren.ibm_cf_executor()
     pw.map_reduce(my_map_function, iterdata, my_reduce_function,
-                  reducer_wait_local=False)
+                  reducer_wait_local=True)
     print(pw.get_result())

@@ -1,0 +1,136 @@
+# Configuration
+
+To make PyWren running, you need to configure the access to the IBM Cloud Functions and IBM Cloud Object Storage services.
+
+* Access details to IBM Cloud Functions can be obtained [here](https://cloud.ibm.com/openwhisk/namespace-settings). 
+* Follow [these](cos-credentials.md) instructions to obtain the IBM Cloud Object Storage credentials.
+
+Alternatively, instead of creating one different `api_key` for each service, you can use IBM IAM to authenticate yourself against both services. In this case, setup an IAM api_key [here](https://cloud.ibm.com/iam/apikeys).
+
+Once you have the credentials, there are two options to configure PyWren: Using a configuration file or using a Python dictionary in the runtime:
+
+
+### Using configuration file
+Copy the `default_config.yaml.template` into `~/.pywren_config`
+
+Edit `~/.pywren_config` and configure the following entries:
+
+```yaml
+pywren: 
+    storage_bucket: <BUCKET_NAME>
+
+ibm_cf:
+    # Region endpoint example: https://us-east.functions.cloud.ibm.com
+    endpoint    : <REGION_ENDPOINT>  # make sure to use https:// as prefix
+    namespace   : <NAMESPACE>
+    api_key     : <API_KEY>
+   
+ibm_cos:
+    # Region endpoint example: https://s3.us-east.cloud-object-storage.appdomain.cloud
+    endpoint   : <REGION_ENDPOINT>  # make sure to use https:// as prefix
+    # this is preferable authentication method for IBM COS
+    api_key    : <API_KEY>
+    # alternatively you can use HMAC authentication method
+    # access_key : <ACCESS_KEY>
+    # secret_key : <SECRET_KEY>
+
+#ibm_iam:
+    #api_key: <IAM_API_KEY>
+```
+
+You can choose different name for the config file or keep it into different folder. If this is the case make sure you configure system variable 
+	
+	PYWREN_CONFIG_FILE=<LOCATION OF THE CONFIG FILE>
+
+Once the configuration file is created, you can obtain an IBM-PyWren executor by:
+
+```python
+import pywren_ibm_cloud as pywren
+pw = pywren.ibm_cf_executor()
+```
+
+### Configuration in the runtime
+This option allows you pass all the configuration details as part of the PyWren invocation in runtime. All you need is to configure a Python dictionary with keys and values, for example:
+
+```python
+config = {'pywren' : {'storage_bucket' : 'BUCKET_NAME'},
+
+          'ibm_cf':  {'endpoint': 'HOST', 
+                      'namespace': 'NAMESPACE', 
+                      'api_key': 'API_KEY'}, 
+
+          'ibm_cos': {'endpoint': 'REGION_ENDPOINT', 
+                      'api_key': 'API_KEY'}}
+```
+
+Once created, you can obtain an IBM-PyWren executor by:
+
+```python
+import pywren_ibm_cloud as pywren
+pw = pywren.ibm_cf_executor(config=config)
+```
+
+## Using RabbitMQ to monitor function activations
+By default, IBM-PyWren uses the IBM Cloud Object Storage service to monitor function activations: Each function activation stores a file named *{id}/status.json* to the Object Storage when it finishes its execution. This file contains some statistics about the execution, including if the function activation ran ok or not. Having these files, the default monitoring approach is based on polling the Object Store each X seconds to know which function activations have finished and which not.
+
+As this default approach can slow-down the total application execution time due to the number of requests it has to make against the object store, in IBM-PyWren we integrated a RabitMQ service to monitor function executions in real-time. With this, the content of the *{id}/status.json* file is sent trough RabbitMQ queue. This speeds-up total application execution time, since it only needs one connection to the service in order to monitor all function activations. We currently support the AMQP protocol. To enable PyWren to use this service add the *rabbitmq/amqp_url* key in the configuration, for example:
+
+```yaml
+rabbitmq: 
+    amqp_url: <AMQP_URL>  # amqp://
+```
+
+In addition, activate the monitoring service by:
+
+```python
+pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
+```
+
+## Configuration keys
+
+### Summary of configuration keys for IBM-PyWren:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|pywren|storage_bucket| yes | Any bucket that exists in your COS account. This will be used by PyWren for intermediate data |
+|pywren|storage_prefix|pywren.jobs|no|Storage prefix is a virtual sub-directory in the bucket, to provide better control over location where PyWren writes temporary data. The COS location will be `storage_bucket/storage_prefix` |
+|pywren|data_cleaner|False|no|If set to True, then cleaner will automatically delete temporary data that was written into `storage_bucket/storage_prefix`|
+|pywren | storage_backend| ibm_cos | no | backend storage implementation. IBM COS is the default |
+|pywren | invocation_retry| True | no | Retry invocation in case of failure |
+|pywren | retry_sleeps | [1, 5, 10, 15, 20] | no | Number of seconds to wait before retry |
+|pywren| retries | 5 | no | number of retries |
+|pywren| runtime_timeout | 600000 |no |  Default timeout |
+|pywren| runtime_memory | 256 | no | Default memory |
+
+
+### Summary of configuration keys for IBM Cloud Functions:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|ibm_cf| endpoint | yes | IBM Cloud Functions endpoint from [here](https://cloud.ibm.com/docs/openwhisk?topic=cloud-functions-cloudfunctions_regions#cloud-functions-endpoints). Make sure to use https:// prefix |
+|ibm_cf| namespace | yes | IBM Cloud Functions namespace. Value of CURRENT NAMESPACE from [here](https://cloud.ibm.com/openwhisk/namespace-settings) |
+|ibm_cf| api_key |  yes | IBM Cloud Functions API key. Value of 'KEY' from [here](https://cloud.ibm.com/openwhisk/namespace-settings) |
+
+
+### Summary of configuration keys for IBM Cloud Object Storage:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|ibm_cos | endpoint | yes | Regional endpoint to your COS account. Make sure to use full path with 'https://' as prefix. For example https://s3.us-east.cloud-object-storage.appdomain.cloud |
+|ibm_cos | private_endpoint | no | Private regional endpoint to your COS account. Make sure to use full path. For example: https://s3.private.us-east.cloud-object-storage.appdomain.cloud |
+|ibm_cos | api_key | yes | API Key to your COS account|
+|access_key | api_key | no | HMAC Credentials|
+|secret_key | api_key | no | HMAC Credentials|
+
+### Summary of configuration keys for IBM IAM authentication:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|ibm_iam | api_key | no | IBM key to authenticate against IBM COS and IBM Cloud Functions |
+
+
+### Summary of configuration keys for RabbitMQ
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+| rabbitmq |amqp_url |no | AMQP URL |
