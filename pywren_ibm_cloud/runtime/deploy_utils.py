@@ -111,7 +111,7 @@ def clean_runtimes(config=None):
         shutil.rmtree(cache_dir)
 
     sh = internal_storage.storage_handler
-    runtimes = sh.list_keys_with_prefix(storage_config['bucket'], 'runtime')
+    runtimes = sh.list_keys(storage_config['bucket'], 'runtime')
     if runtimes:
         sh.delete_objects(storage_config['bucket'], runtimes)
 

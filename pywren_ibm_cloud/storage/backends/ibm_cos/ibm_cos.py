@@ -220,7 +220,7 @@ class StorageBackend:
             else:
                 raise e
 
-    def list_keys_with_prefix(self, bucket_name, prefix):
+    def list_keys(self, bucket_name, prefix=None):
         """
         Return a list of keys for the given prefix.
         :param bucket_name: Name of the bucket.

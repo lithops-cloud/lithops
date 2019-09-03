@@ -37,11 +37,11 @@ iterdata = ['https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-wo
             'https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.pubmed.txt']
 
 
-def my_map_function(url, data_stream):
-    print('I am processing the object from {}'.format(url))
+def my_map_function(url):
+    print('I am processing the object from {}'.format(url.path))
     counter = {}
 
-    data = data_stream.read()
+    data = url.data_stream.read()
 
     for line in data.splitlines():
         for word in line.decode('utf-8').split():

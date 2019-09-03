@@ -21,6 +21,7 @@ import pika
 import json
 import pickle
 import logging
+import traceback
 import subprocess
 import multiprocessing
 from distutils.util import strtobool
@@ -72,7 +73,6 @@ def function_handler(event):
     response_status['start_time'] = start_time
 
     context_dict = {
-        'ibm_cf_request_id': os.environ.get("__OW_ACTIVATION_ID"),
         'python_version': os.environ.get("PYTHON_VERSION"),
     }
 
@@ -86,7 +86,8 @@ def function_handler(event):
     job_id = event['job_id']
     executor_id = event['executor_id']
     logger.info("Execution ID: {}/{}/{}".format(executor_id, job_id, call_id))
-    execution_timeout = event.get("execution_timeout", 590)  # default for CF
+    execution_timeout = event['execution_timeout']
+    logger.debug("Set function execution timeout to {}s".format(execution_timeout))
     status_key = event['status_key']
     func_key = event['func_key']
     data_key = event['data_key']
@@ -115,7 +116,6 @@ def function_handler(event):
         os.environ.update(custom_env)
         os.environ.update(extra_env)
 
-        # pass a full json blob
         jobrunner_config = {'pywren_config': config,
                             'call_id':  call_id,
                             'job_id':  job_id,
@@ -137,25 +137,26 @@ def function_handler(event):
         result_queue = multiprocessing.Queue()
         tr = JobRunner(jobrunner_config, result_queue)
         tr.daemon = True
-        logger.debug("Starting JobRunner process")
+        logger.debug('Starting JobRunner process')
         tr.start()
         tr.join(execution_timeout)
-        logger.debug("Finished JobRunner process")
+        logger.debug('Finished JobRunner process')
         response_status['exec_time'] = round(time.time() - setup_time, 8)
 
         if tr.is_alive():
             # If process is still alive after jr.join(job_max_runtime), kill it
-            logger.error("Process exceeded maximum runtime of {} seconds".format(execution_timeout))
-            # Send the signal to all the process groups
             tr.terminate()
-            raise Exception("OUTATIME",  "Jobrunner process executed for too long and was killed")
+            msg = ('Jobrunner process exceeded maximum time of {} '
+                   'seconds and was killed'.format(execution_timeout))
+            raise Exception('OUTATIME',  msg)
 
         try:
-            # Only 1 message is returned by jobrunner
+            # Only 1 message is returned by jobrunner when it finishes
             result_queue.get(block=False)
         except Exception:
-            # If no message, this means that the jobrunner process was killed for some reason
-            raise Exception("OUTOFMEMORY",  "Jobrunner process exceeded maximum memory and was killed")
+            # If no message, this means that the jobrunner process was killed
+            msg = 'Jobrunner process exceeded maximum memory and was killed'
+            raise Exception('OUTOFMEMORY', msg)
 
         # print(subprocess.check_output("find {}".format(PYTHON_MODULE_PATH), shell=True))
         # print(subprocess.check_output("find {}".format(os.getcwd()), shell=True))
@@ -175,9 +176,11 @@ def function_handler(event):
         response_status.update(context_dict)
         response_status['end_time'] = time.time()
 
-    except Exception as e:
+    except Exception:
         # internal runtime exceptions
-        logger.error("There was an exception: {}".format(str(e)))
+        print('----------------------- EXCEPTION !-----------------------', flush=True)
+        traceback.print_exc(file=sys.stdout)
+        print('----------------------------------------------------------', flush=True)
         response_status['end_time'] = time.time()
         response_status['exception'] = True
 
@@ -207,12 +210,12 @@ def function_handler(event):
                     channel.basic_publish(exchange='', routing_key=queue,
                                           body=dmpd_response_status)
                     connection.close()
-                    logger.info("Execution stats sent to rabbitmq - Size: {}".format(drs))
+                    logger.info("Execution status sent to rabbitmq - Size: {}".format(drs))
                     status_sent = True
                 except Exception as e:
                     logger.error("Unable to send status to rabbitmq")
                     logger.error(str(e))
-                    logger.info('Retrying to send stats to rabbitmq...')
+                    logger.info('Retrying to send status to rabbitmq...')
                     time.sleep(0.2)
 
         if store_status:

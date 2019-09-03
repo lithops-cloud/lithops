@@ -112,7 +112,7 @@ class InternalStorage:
         # TODO: a better API for this is to return status for all calls in the callset. We'll fix
         #  this in scheduler refactoring.
         callset_prefix = '/'.join([self.prefix, executor_id, job_id])
-        keys = self.storage_handler.list_keys_with_prefix(self.bucket, callset_prefix)
+        keys = self.storage_handler.list_keys(self.bucket, callset_prefix)
         suffix = status_key_suffix
         status_keys = [k for k in keys if suffix in k]
         call_ids = [tuple(k[len(self.prefix)+1:].split("/")[:3]) for k in status_keys]
@@ -216,7 +216,7 @@ class InternalStorage:
         :param prefix: prefix to search for
         :return: list of objects
         """
-        return self.storage_handler.list_keys_with_prefix(self.bucket, prefix)
+        return self.storage_handler.list_keys(self.bucket, prefix)
 
     def delete_temporal_data(self, key_list):
         """

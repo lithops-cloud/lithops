@@ -29,15 +29,17 @@ from where you can access to the partial results.
 
 import pywren_ibm_cloud as pywren
 
-iterdata = ['pw-sample-data/obj1.txt',
-            'pw-sample-data/obj2.txt',
-            'pw-sample-data/obj3.txt']   # Change-me
+iterdata = ['ibm_cos://pw-sample-data/obj1.txt',
+            'ibm_cos://pw-sample-data/obj2.txt',
+            'ibm_cos://pw-sample-data/obj3.txt']   # Change-me
 
 
-def my_map_function(key, data_stream):
-    print('I am processing the object {}'.format(key))
+def my_map_function(obj):
+    print('Bucket: {}'.format(obj.bucket))
+    print('Key: {}'.format(obj.key))
+    print('Partition num: {}'.format(obj.part))
     counter = {}
-    data = data_stream.read()
+    data = obj.data_stream.read()
 
     for line in data.splitlines():
         for word in line.decode('utf-8').split():

@@ -22,6 +22,7 @@ import shutil
 import pickle
 import logging
 import inspect
+import requests
 import traceback
 import numpy as np
 from multiprocessing import Process
@@ -29,8 +30,8 @@ from distutils.util import strtobool
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.future import ResponseFuture
 from pywren_ibm_cloud.libs.tblib import pickling_support
-from pywren_ibm_cloud.utils import sizeof_fmt, b64str_to_bytes
-from pywren_ibm_cloud.utils import get_current_memory_usage
+from pywren_ibm_cloud.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_function
+from pywren_ibm_cloud.utils import get_current_memory_usage, WrappedStreamingBodyPartition
 from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config
 from pywren_ibm_cloud.storage.backends.ibm_cos.ibm_cos import StorageBackend as ibm_cos_backend
 
@@ -64,20 +65,19 @@ class JobRunner(Process):
         cloud_logging_config(log_level)
         self.pywren_config = self.jr_config['pywren_config']
         self.storage_config = extract_storage_config(self.pywren_config)
+
         self.call_id = self.jr_config['call_id']
-
-        self.stats = stats(self.jr_config['stats_filename'])
-        self.stats.write('jobrunner_start', start_time)
-
-        if 'SHOW_MEMORY_USAGE' in os.environ:
-            self.show_memory = eval(os.environ['SHOW_MEMORY_USAGE'])
-        else:
-            self.show_memory = False
-
+        self.job_id = self.jr_config['job_id']
+        self.executor_id = self.jr_config['executor_id']
         self.func_key = self.jr_config['func_key']
         self.data_key = self.jr_config['data_key']
         self.data_byte_range = self.jr_config['data_byte_range']
         self.output_key = self.jr_config['output_key']
+
+        self.stats = stats(self.jr_config['stats_filename'])
+        self.stats.write('jobrunner_start', start_time)
+
+        self.show_memory = strtobool(os.environ.get('SHOW_MEMORY_USAGE', 'False'))
 
     def _get_function_and_modules(self):
         """
@@ -192,12 +192,39 @@ class JobRunner(Process):
         if 'id' in func_sig.parameters:
             data['id'] = int(self.call_id)
 
+    def _create_data_stream(self, data):
+        """
+        Creates the data stream in case of object processing
+        """
+        extra_get_args = {}
+
+        if 'url' in data:
+            url = data['url']
+            logger.info('Getting dataset from {}'.format(url.path))
+            if url.data_byte_range is not None:
+                range_str = 'bytes={}-{}'.format(*url.data_byte_range)
+                extra_get_args['Range'] = range_str
+                logger.info('Chunk: {} - Range: {}'.format(url.part, extra_get_args['Range']))
+            resp = requests.get(url.path, headers=extra_get_args, stream=True)
+            url.data_stream = resp.raw
+
+        if 'obj' in data:
+            obj = data['obj']
+            storage = ibm_cos_backend(self.pywren_config['ibm_cos'])
+            logger.info('Getting dataset from {}://{}/{}'.format(obj.storage_backend, obj.bucket, obj.key))
+            sb = storage.get_object(obj.bucket, obj.key, stream=True, extra_get_args=extra_get_args)
+            if obj.data_byte_range is not None:
+                extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
+                logger.info('Chunk: {} - Range: {}'.format(obj.part, extra_get_args['Range']))
+                obj.data_stream = WrappedStreamingBodyPartition(sb, obj.chunk_size, obj.data_byte_range)
+            else:
+                obj.data_stream = sb
+
     def run(self):
         """
         Runs the function
         """
         logger.info("Started")
-        # initial output file in case job fails
         result = None
         exception = False
         try:
@@ -207,6 +234,10 @@ class JobRunner(Process):
             self._save_modules(loaded_func_all['module_data'])
             function = self._unpickle_function(loaded_func_all['func'])
             data = self._load_data()
+
+            if is_object_processing_function(function):
+                self._create_data_stream(data)
+
             self._fill_optional_args(function, data)
 
             if self.show_memory:
@@ -242,14 +273,12 @@ class JobRunner(Process):
                 logger.debug("No result to store")
                 self.stats.write("result", False)
 
-        except Exception as e:
+        except Exception:
             exception = True
             self.stats.write("exception", True)
             exc_type, exc_value, exc_traceback = sys.exc_info()
-            print('----------------------- EXCEPTION !-----------------------')
-            traceback.print_tb(exc_traceback)
-            time.sleep(0.1)
-            print('Exception: '+str(e))
+            print('----------------------- EXCEPTION !-----------------------', flush=True)
+            traceback.print_exc(file=sys.stdout)
             print('----------------------------------------------------------', flush=True)
 
             if self.show_memory:

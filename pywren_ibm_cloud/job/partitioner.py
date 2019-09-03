@@ -14,69 +14,16 @@
 # limitations under the License.
 #
 
-import io
-import os
-import json
-import struct
 import logging
 import requests
-import inspect
 from pywren_ibm_cloud import utils
 from multiprocessing.pool import ThreadPool
+from pywren_ibm_cloud.storage.utils import CloudObject, CloudObjectUrl
 from pywren_ibm_cloud.storage.backends.ibm_cos.ibm_cos import StorageBackend as ibm_cos_backend
 
 logger = logging.getLogger(__name__)
 
 CHUNK_THRESHOLD = 128*1024  # 128KB
-
-
-def partition_processor(map_function):
-    """
-    Method that returns the function to process objects in the Cloud.
-    It creates a ready-to-use data_stream parameter
-    """
-    def object_processing_wrapper(id, map_func_args, data_byte_range, chunk_size, internal_storage, ibm_cos, rabbitmq):
-        extra_get_args = {}
-        if data_byte_range is not None:
-            range_str = 'bytes={}-{}'.format(*data_byte_range)
-            extra_get_args['Range'] = range_str
-
-        if 'url' in map_func_args:
-            # it is a public url
-            resp = requests.get(map_func_args['url'], headers=extra_get_args, stream=True)
-            map_func_args['data_stream'] = resp.raw
-
-        elif 'key' in map_func_args:
-            # it is a COS key
-            if 'bucket' not in map_func_args or ('bucket' in map_func_args and not map_func_args['bucket']):
-                bucket, key = map_func_args['key'].split('/', 1)
-            else:
-                bucket = map_func_args['bucket']
-                key = map_func_args['key']
-
-            config = json.loads(os.environ.get('PYWREN_CONFIG'))
-            storage = ibm_cos_backend(config['ibm_cos'])
-            logger.info('Getting dataset from cos://{}/{}'.format(bucket, key))
-            sb = storage.get_object(bucket, key, stream=True, extra_get_args=extra_get_args)
-            if data_byte_range is not None:
-                logger.info('Chunk {} range {}'.format(id, extra_get_args['Range']))
-                map_func_args['data_stream'] = WrappedStreamingBodyPartition(sb, chunk_size, data_byte_range)
-            else:
-                map_func_args['data_stream'] = sb
-
-        func_sig = inspect.signature(map_function)
-        if 'ibm_cos' in func_sig.parameters:
-            map_func_args['ibm_cos'] = ibm_cos
-        if 'internal_storage' in func_sig.parameters:
-            map_func_args['internal_storage'] = internal_storage
-        if 'id' in func_sig.parameters:
-            map_func_args['id'] = id
-        if 'rabbitmq' in func_sig.parameters:
-            map_func_args['rabbitmq'] = rabbitmq
-
-        return map_function(**map_func_args)
-
-    return object_processing_wrapper
 
 
 def create_partitions(config, arg_data, chunk_size, chunk_number):
@@ -85,22 +32,67 @@ def create_partitions(config, arg_data, chunk_size, chunk_number):
     """
     logger.debug('Starting partitioner')
 
-    # We suppose here that the data is always in IBM COS.  TODO: Make it Generic.
-    storage = ibm_cos_backend(config['ibm_cos'])
-
-    map_func_keys = arg_data[0].keys()
     parts_per_object = None
 
-    if 'bucket' in map_func_keys and 'key' not in map_func_keys:
-        partitions, parts_per_object = split_objects_from_bucket(arg_data, chunk_size, storage)
-        if not partitions:
-            raise Exception('No objects available within bucket: {}'.format(arg_data[0]['bucket']))
+    sbs = set()
+    buckets = set()
+    prefixes = set()
+    keys = set()
+    urls = set()
 
-    elif 'key' in map_func_keys:
-        partitions, parts_per_object = split_object_from_key(arg_data, chunk_size, storage)
+    for elem in arg_data:
+        if 'url' in elem:
+            sb, bucket, key_or_prefix = utils.split_object_url(elem['url'])
+            urls.add(key_or_prefix)
+        if 'obj' in elem:
+            sb, bucket, key_or_prefix = utils.split_object_url(elem['obj'])
+            if key_or_prefix:
+                if key_or_prefix.endswith('/'):
+                    prefixes.add((bucket, key_or_prefix))
+                else:
+                    keys.add((bucket, key_or_prefix))
+            else:
+                buckets.add(bucket)
+        sbs.add(sb)
 
-    elif 'url' in map_func_keys:
-        partitions, parts_per_object = split_object_from_url(arg_data, chunk_size)
+    if len(sbs) > 1:
+        raise Exception('Currently we only support to process one storage backend at a time'
+                        'Specified storage backends: {}'.format(sb))
+
+    if [prefixes, keys, urls, buckets].count(True) > 1:
+        raise Exception('You must provide as an input data a list of bucktes, '
+                        'a list of buckets with object prefix, a list of keys '
+                        'or a list of urls. Intermingled types are not allowed.')
+
+    if not urls:
+        # process objects from an object store. No url
+        storage = ibm_cos_backend(config['ibm_cos'])
+        objects = {}
+        if prefixes:
+            for bucket, prefix in prefixes:
+                objects[bucket] = storage.list_objects(bucket, prefix)
+        elif buckets:
+            for bucket in buckets:
+                objects[bucket] = storage.list_objects(bucket)
+        elif keys:
+            present_buckets = {bucket for bucket, key in keys}
+            for bucket in present_buckets:
+                objects[bucket] = storage.list_objects(bucket)
+
+        keys_dict = {}
+        for bucket in objects:
+            keys_dict[bucket] = {}
+            for obj in objects[bucket]:
+                keys_dict[bucket][obj['Key']] = obj['Size']
+
+    if buckets or prefixes:
+        partitions, parts_per_object = _split_objects_from_buckets(arg_data, keys_dict, chunk_size, chunk_number)
+
+    elif keys:
+        partitions, parts_per_object = _split_objects_from_keys(arg_data, keys_dict, chunk_size, chunk_number)
+
+    elif urls:
+        partitions, parts_per_object = _split_objects_from_urls(arg_data, chunk_size, chunk_number)
 
     else:
         raise ValueError('You did not provide any bucket or object key/url')
@@ -108,7 +100,7 @@ def create_partitions(config, arg_data, chunk_size, chunk_number):
     return partitions, parts_per_object
 
 
-def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
+def _split_objects_from_buckets(map_func_args_list, keys_dict, chunk_size, chunk_number):
     """
     Create partitions from bucket/s
     """
@@ -118,99 +110,88 @@ def split_objects_from_bucket(map_func_args_list, chunk_size, storage):
 
     for entry in map_func_args_list:
         # Each entry is a bucket
+        sb, bucket, prefix = utils.split_object_url(entry['obj'])
+
         if chunk_size:
-            logger.info('Creating chunks from objects within: {}'.format(entry['bucket']))
+            logger.info('Creating chunks from objects within: {}'.format(bucket))
         else:
-            logger.info('Discovering objects within: {}'.format(entry['bucket']))
-        bucket_name, prefix = utils.split_path(entry['bucket'])
-        objects = storage.list_objects(bucket_name, prefix)
+            logger.info('Discovering objects within: {}'.format(bucket))
 
-        def _split(obj):
-            key = obj['Key']
-            obj_size = obj['Size']
-            total_partitions = 0
-            #logger.info("Extracted key {} size {}".format(key, obj_size))
-
-            # full_key = '{}/{}'.format(bucket_name, key)
-            size = 0
-            if chunk_size is not None and obj_size > chunk_size:
-                while size < obj_size:
-                    brange = (size, size+chunk_size+CHUNK_THRESHOLD)
-                    size += chunk_size
-                    partition = {}
-                    partition['map_func_args'] = entry.copy()
-                    partition['map_func_args']['key'] = key
-                    partition['map_func_args']['bucket'] = bucket_name
-                    partition['data_byte_range'] = brange
-                    partition['chunk_size'] = chunk_size
+        for key, obj_size in keys_dict[bucket].items():
+            if prefix in key and obj_size > 0:
+                logger.debug('Creating partitions from object {} size {}'.format(key, obj_size))
+                total_partitions = 0
+                size = 0
+                if chunk_size is not None and obj_size > chunk_size:
+                    while size < obj_size:
+                        brange = (size, size+chunk_size+CHUNK_THRESHOLD)
+                        size += chunk_size
+                        partition = entry.copy()
+                        partition['obj'] = CloudObject(sb, bucket, key)
+                        partition['obj'].data_byte_range = brange
+                        partition['obj'].chunk_size = chunk_size
+                        partition['obj'].part = total_partitions
+                        partitions.append(partition)
+                        total_partitions = total_partitions + 1
+                else:
+                    partition = entry.copy()
+                    partition['obj'] = CloudObject(sb, bucket, key)
+                    partition['obj'].data_byte_range = None
+                    partition['obj'].chunk_size = chunk_size
+                    partition['obj'].part = total_partitions
                     partitions.append(partition)
-                    total_partitions = total_partitions + 1
-            else:
-                partition = {}
-                partition['map_func_args'] = entry.copy()
-                partition['map_func_args']['key'] = key
-                partition['map_func_args']['bucket'] = bucket_name
-                partition['data_byte_range'] = None
-                partition['chunk_size'] = obj_size
-                partitions.append(partition)
-                total_partitions = total_partitions + 1
+                    total_partitions = 1
 
-            parts_per_object.append(total_partitions)
-
-        pool = ThreadPool(128)
-        pool.map(_split, objects)
-        pool.close()
-        pool.join()
+                parts_per_object.append(total_partitions)
 
     return partitions, parts_per_object
 
 
-def split_object_from_key(map_func_args_list, chunk_size, storage):
+def _split_objects_from_keys(map_func_args_list, keys_dict, chunk_size, chunk_number):
     """
-    Create partitions from a list of COS objects keys
+    Create partitions from a list of objects keys
     """
     if chunk_size:
         logger.info('Creating chunks from object keys...')
     partitions = []
     parts_per_object = []
 
-    def _split(entry):
+    for entry in map_func_args_list:
+        # each entry is a key
+        sb, bucket, key = utils.split_object_url(entry['obj'])
+        try:
+            obj_size = keys_dict[bucket][key]
+        except Exception:
+            raise Exception('Object key "{}" does not exist in "{}" bucket'.format(key, bucket))
         total_partitions = 0
-        object_key = entry['key']
-        bucket, object_name = object_key.split('/', 1)
-        metadata = storage.head_object(bucket, object_name)
-        obj_size = int(metadata['content-length'])
 
         if chunk_size is not None and obj_size > chunk_size:
             size = 0
             while size < obj_size:
                 brange = (size, size+chunk_size+CHUNK_THRESHOLD)
                 size += chunk_size
-                partition = {}
-                partition['map_func_args'] = entry
-                partition['data_byte_range'] = brange
-                partition['chunk_size'] = chunk_size
+                partition = entry
+                partition['obj'] = CloudObject(sb, bucket, key)
+                partition['obj'].data_byte_range = brange
+                partition['obj'].chunk_size = chunk_size
+                partition['obj'].part = total_partitions
                 partitions.append(partition)
                 total_partitions = total_partitions + 1
         else:
-            partition = {}
-            partition['map_func_args'] = entry
-            partition['data_byte_range'] = None
-            partition['chunk_size'] = obj_size
+            partition = entry
+            partition['obj'] = CloudObject(sb, bucket, key)
+            partition['obj'].data_byte_range = None
+            partition['obj'].chunk_size = chunk_size
+            partition['obj'].part = total_partitions
             partitions.append(partition)
-            total_partitions = total_partitions + 1
+            total_partitions = 1
 
         parts_per_object.append(total_partitions)
-
-    pool = ThreadPool(128)
-    pool.map(_split, map_func_args_list)
-    pool.close()
-    pool.join()
 
     return partitions, parts_per_object
 
 
-def split_object_from_url(map_func_args_list, chunk_size):
+def _split_objects_from_urls(map_func_args_list, chunk_size, chunk_number):
     """
     Create partitions from a list of objects urls
     """
@@ -237,20 +218,22 @@ def split_object_from_url(map_func_args_list, chunk_size):
             while size < obj_size:
                 brange = (size, size+chunk_size+CHUNK_THRESHOLD)
                 size += chunk_size
-                partition = {}
-                partition['map_func_args'] = entry
-                partition['data_byte_range'] = brange
-                partition['chunk_size'] = chunk_size
+                partition = entry
+                partition['url'] = CloudObjectUrl(object_url)
+                partition['url'].data_byte_range = brange
+                partition['url'].chunk_size = chunk_size
+                partition['url'].part = total_partitions
                 partitions.append(partition)
                 total_partitions = total_partitions + 1
         else:
             # Only one partition
-            partition = {}
-            partition['map_func_args'] = entry
-            partition['data_byte_range'] = None
-            partition['chunk_size'] = obj_size
+            partition = entry
+            partition['url'] = CloudObjectUrl(object_url)
+            partition['url'].data_byte_range = None
+            partition['url'].chunk_size = chunk_size
+            partition['url'].part = total_partitions
             partitions.append(partition)
-            total_partitions = total_partitions + 1
+            total_partitions = 1
 
         parts_per_object.append(total_partitions)
 
@@ -260,67 +243,3 @@ def split_object_from_url(map_func_args_list, chunk_size):
     pool.join()
 
     return partitions, parts_per_object
-
-
-class WrappedStreamingBodyPartition(utils.WrappedStreamingBody):
-
-    def __init__(self, sb, size, byterange):
-        super().__init__(sb, size)
-        # Range of the chunk
-        self.range = byterange
-        # The first chunk does not contain plusbyte
-        self.plusbytes = 0 if not self.range or self.range[0] == 0 else 1
-        # To store the first byte of this chunk, which actually is the last byte of previous chunk
-        self.first_byte = None
-        # Flag that indicates the end of the file
-        self.eof = False
-
-    def read(self, n=None):
-        if self.eof:
-            raise EOFError()
-        # Data always contain one byte from the previous chunk,
-        # so l'ets check if it is a \n or not
-        self.first_byte = self.sb.read(self.plusbytes)
-        retval = self.sb.read(n)
-
-        if retval == "":
-            raise EOFError()
-
-        self.pos += len(retval)
-
-        first_row_start_pos = 0
-        if self.first_byte != b'\n' and self.plusbytes != 0:
-            logger.debug('Discarding first partial row')
-            # Previous byte is not \n
-            # This means that we have to discard first row because it is cut
-            first_row_start_pos = retval.find(b'\n')+1
-
-        last_row_end_pos = self.pos
-        # Find end of the line in threshold
-        if self.pos > self.size:
-            buf = io.BytesIO(retval[self.size:])
-            buf.readline()
-            last_row_end_pos = self.size+buf.tell()
-            self.eof = True
-
-        return retval[first_row_start_pos:last_row_end_pos]
-
-    def readline(self):
-        if self.eof:
-            raise EOFError()
-
-        if not self.first_byte and self.plusbytes != 0:
-            self.first_byte = self.sb.read(self.plusbytes)
-            if self.first_byte != b'\n':
-                logger.debug('Discarding first partial row')
-                self.sb._raw_stream.readline()
-        try:
-            retval = self.sb._raw_stream.readline()
-        except struct.error:
-            raise EOFError()
-        self.pos += len(retval)
-
-        if self.pos >= self.size:
-            self.eof = True
-
-        return retval

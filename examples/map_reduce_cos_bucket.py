@@ -27,14 +27,16 @@ from where you can access to the partial results.
 import pywren_ibm_cloud as pywren
 
 
-bucketname = 'pw-sample-data'  # Change-me
+bucketname = 'ibm_cos://pw-sample-data'  # Change-me
 
 
-def my_map_function(bucket, key, data_stream):
-    print('I am processing the object {}/{}'.format(bucket, key))
+def my_map_function(obj):
+    print('Bucket: {}'.format(obj.bucket))
+    print('Key: {}'.format(obj.key))
+    print('Partition num: {}'.format(obj.part))
     counter = {}
 
-    data = data_stream.read()
+    data = obj.data_stream.read()
 
     for line in data.splitlines():
         for word in line.decode('utf-8').split():
@@ -69,7 +71,7 @@ if __name__ == "__main__":
     One reducer for each object in the bucket
     """
     print()
-    print('Testing one reducer per object:')
+    print('One reducer per object:')
     pw = pywren.ibm_cf_executor()
     pw.map_reduce(my_map_function, bucketname, my_reduce_function, chunk_size=chunk_size,
                   reducer_one_per_object=True)

@@ -5,7 +5,7 @@ import logging
 import inspect
 import pywren_ibm_cloud as pywren
 from .serialize import SerializeIndependent, create_module_data
-from .partitioner import create_partitions, partition_processor
+from .partitioner import create_partitions
 from pywren_ibm_cloud import utils
 from pywren_ibm_cloud.monitor import wait_storage
 from pywren_ibm_cloud.runtime import select_runtime
@@ -44,16 +44,14 @@ def create_map_job(config, internal_storage, executor_id, total_current_jobs, ma
     new_invoke_pool_threads = invoke_pool_threads
     new_runtime_memory = runtime_memory
 
+    arg_data = utils.verify_args(map_function, data)
+
     # Object processing functionality
     parts_per_object = None
     if utils.is_object_processing_function(map_function):
-        '''
-        If it is object processing function, create partitions according chunk_size or chunk_number
-        '''
+        # If it is object processing function, create partitions according chunk_size or chunk_number
         logger.debug('ExecutorID {} | JobID {} - Calling map on partitions from object storage flow'.format(executor_id, job_id))
-        arg_data = utils.verify_args(map_function, data, object_processing=True)
         map_iterdata, parts_per_object = create_partitions(config, arg_data, obj_chunk_size, obj_chunk_number)
-        map_func = partition_processor(map_function)
     # ########
 
     # Remote invocation functionality
@@ -87,7 +85,6 @@ def create_map_job(config, internal_storage, executor_id, total_current_jobs, ma
                                   invoke_pool_threads=new_invoke_pool_threads,
                                   overwrite_invoke_args=overwrite_invoke_args,
                                   exclude_modules=exclude_modules,
-                                  original_func_name=map_function.__name__,
                                   remote_invocation=remote_invocation,
                                   original_total_tasks=original_total_tasks,
                                   execution_timeout=execution_timeout)
