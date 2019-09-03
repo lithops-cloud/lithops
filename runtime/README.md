@@ -39,14 +39,15 @@ pw = pywren.ibm_cf_executor(runtime_memory=512)
 
 ## Custom runtime
 
-If you need some Python modules (or other system libraries) which are not included in the default docker images (see table above), it is possible to build your own PyWren runtime with all of them.
 
 1. **Build your own PyWren runtime**
 
+    If you need some Python modules (or other system libraries) which are not included in the default docker images (see table above), it is possible to build your own PyWren runtime with all of them.
+
     This alternative usage is based on to build a local Docker image, deploy it to the docker hub (you need a [Docker Hub account](https://hub.docker.com)) and use it as a PyWren base runtime.
-    Project provides the skeleton of the Docker image:
+    Project provides some skeletons of Docker images, for example:
     
-    * [Dockerfile](Dockerfile) - The image is based on `python:3.6-slim-jessie`. 
+    * [Dockerfile](ibm_cf/Dockerfile) - The image is based on `python:3.6-slim-jessie`. 
     
     To build your own runtime, first install the Docker CE version in your client machine. You can find the instructions [here](https://docs.docker.com/install/). If you already have Docker installed omit this step.
     
@@ -54,7 +55,7 @@ If you need some Python modules (or other system libraries) which are not includ
     
     	docker login
     
-    Navigate to `runtime` and update the ibm_cf/Dockerfile with your required packages and Python modules.
+    Navigate to [ibm_cf/](imb_cf/) and update the Dockerfile that better fits to your requirements with your required system packages and Python modules.
     If you need another Python version, for example Python 3.5, you must use the [Dockerfile.python35](Dockerfile.python35) that
     points to a source image based on Python 3.5. Finally run the build script:
     
@@ -68,17 +69,12 @@ If you need some Python modules (or other system libraries) which are not includ
 
        $ pywren-runtime build -f ibm_cf/Dockerfile.conda jsampe/pywren-conda-runtime:3.6
  
-    Once you have built your runtime with all of your necessary packages, now you are able to use it with PyWren.
-    To do so you have to specify the full docker image name when you create the *ibm_cf_executor* instance, for example:
+    Once you have built your runtime with all of your necessary packages, you can already use it with PyWren.
+    To do so, you have to specify the full docker image name in the configuration or when you create the **ibm_cf_executor** instance, for example:
+    
     ```python
     import pywren_ibm_cloud as pywren
-    
-    def my_function(x):
-        return x + 7
-    
     pw = pywren.ibm_cf_executor(runtime='jsampe/pywren-custom-runtime:3.5')
-    pw.call_async(my_function, 3)
-    result = pw.get_result()
     ```
     
     *NOTE: In this previous example we built a Docker image based on Python 3.5, this means that now we also need Python 3.5 in the client machine.*
@@ -86,34 +82,33 @@ If you need some Python modules (or other system libraries) which are not includ
     In order to use a self-built docker image as a runtime for PyWren, you have to login to your [Docker Hub account](https://hub.docker.com) and ensure that the image is **public**.
 
 
-Maybe someone already built a Docker image with all the packages you need, and put it in a public repository.
-In this case you can use that Docker image and avoid the building process.
 
 2. **Use an already built runtime from a public repository**
 
-    To create a PyWren runtime based on already built Docker image, execute the following command which will create all the necessary information to use the runtime with your PyWren.
+    Maybe someone already built a Docker image with all the packages you need, and put it in a public repository.
+    In this case you can use that Docker image and avoid the building process.
+
+    To create a PyWren runtime based on already built Docker image, execute the following command that will create all the necessary information to use the runtime with your PyWren.
     
         $ pywren-runtime create docker_username/runtimename:tag
       
     For example, you can use an already created runtime based on Python 3.5 and with the *matplotlib* and *nltk* libraries by running:
     
-        $ pywren-runtime create jsampe/pw-mpl-nltk:3.5
+        $ pywren-runtime create jsampe/pywren-conda:3.5
         
     Once finished, you can use the runtime in your PyWren code:
+    
     ```python
     import pywren_ibm_cloud as pywren
-    
-    def my_function(x):
-        return x + 7
-    
-    pw = pywren.ibm_cf_executor(runtime='jsampe/pw-mpl-nltk:3.5')
-    pw.call_async(my_function, 3)
-    result = pw.get_result()
+    pw = pywren.ibm_cf_executor(runtime='jsampe/pywren-conda:3.5')
     ```
 
-If you are a developer, and you modified the PyWeen source code, you need to deploy the changes before executing PyWren.
 
-3. **Update an existing runtime**
+## Runtime Management
+
+1. **Update an existing runtime**
+
+    If you are a developer, and modified the PyWeen source code, you need to deploy the changes before executing PyWren.
 
     You can update default runtime by:
     	
@@ -125,13 +120,17 @@ If you are a developer, and you modified the PyWeen source code, you need to dep
       
     For example, you can update an already created runtime based on the Docker image `jsampe/pw-mpl-nltk:3.5` by:
     
-       $ pywren-runtime update jsampe/pw-mpl-nltk:3.5
+       $ pywren-runtime update jsampe/pywren-conda:3.5
+    
+    Alternatively, you can update all the deployed runtimes at a time by:
+    
+       $ pywren-runtime update all
 
 
 
-You can also delete existing runtimes in your namespace.
-
-4. **Delete an existing runtime**
+2. **Delete a runtime**
+    
+    You can also delete existing runtimes in your namespace.
 
     You can delete default runtime by:
     	
@@ -144,4 +143,11 @@ You can also delete existing runtimes in your namespace.
     For example, you can delete runtime based on the Docker image `jsampe/pw-mpl-nltk:3.5` by:
     
        $ pywren-runtime delete jsampe/pw-mpl-nltk:3.5
-        
+    
+    You can delete all the runtimes at a time by:
+       
+       $ pywren-runtime delete all
+    
+    or alternatively:
+    
+       $ pywren-runtime clean
