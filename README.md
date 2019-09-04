@@ -106,7 +106,7 @@ In the parameters of the `my_map_function` function you must specify a parameter
 ```python
 import pywren_ibm_cloud as pywren
 
-iterdata = ['ibm_cos://bucket1/object1', 'ibm_cos://bucket1/object2', 'ibm_cos://bucket1/object3'] 
+iterdata = ['cos://bucket1/object1', 'cos://bucket1/object2', 'cos://bucket1/object3'] 
 
 def my_map_function(obj):
     for line in obj.data_stream:
@@ -137,7 +137,7 @@ Commonly, a dataset may contains hundreds or thousands of files, so the previous
 ```python
 import pywren_ibm_cloud as pywren
 
-bucket_name = 'ibm_cos://my_data_bucket'
+bucket_name = 'cos://my_data_bucket'
 
 def my_map_function(obj, ibm_cos):
     for line in obj.data_stream:

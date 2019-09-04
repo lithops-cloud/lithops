@@ -27,7 +27,7 @@ from where you can access to the partial results.
 import pywren_ibm_cloud as pywren
 
 
-bucketname = 'ibm_cos://pw-sample-data'  # Change-me
+bucketname = 'cos://pw-sample-data'  # Change-me
 
 
 def my_map_function(obj):

@@ -24,7 +24,7 @@ pw = pywren.ibm_cf_executor()
 ```
 
 ## Executor.call_async()
-This method is used to spawn only one function activation that will run asynchronously in the cloud.
+Spawn only one function activation.
 
 ibm_cf_executor.**call_async**(func, data, \*\*kwargs)
 
@@ -35,7 +35,7 @@ ibm_cf_executor.**call_async**(func, data, \*\*kwargs)
 |extra_env| None |Additional environment variables for CF environment|
 |extra_meta|  None |Additional metadata to pass to CF |
 |runtime_memory| 256 |Memory (in MB) to use to run the functions|
-|timeout| 600 |Max time per function activation |
+|timeout| 600 |Max time per function activation (seconds)|
 |exclude_modules| None |Explicitly keep these modules from pickled dependencies |
 
 * **Returns**: A list with size  len(data)  of futures for each job
@@ -47,18 +47,18 @@ ibm_cf_executor.**call_async**(func, data, \*\*kwargs)
 * **Code example**: [call_async.py](../examples/call_async.py)
 
 ## Executor.map()
-This method is used to spawn multiple function activations, based on the items of an input list,  that will run asynchronously .
+Spawn multiple function activations based on the items of an input list.
 
 ibm_cf_executor.**map**(func, iterdata, \*\*kwargs)
 
 |Parameter| Default |Description|
 |---|---|---|
 |func | |The function to map over the data |
-|iterdata |  |An iterable of input data |
+|iterdata |  |An iterable of input data (e.g python list) |
 |extra_env| None |Additional environment variables for CF environment |
 |extra_meta|  None |Additional metadata to pass to CF |
 |runtime_memory| 256 |Memory (in MB) to use to run the functions |
-|timeout| 600 |Max time per function activation|
+|timeout| 600 |Max time per function activation (seconds) |
 |exclude_modules| None |Explicitly keep these modules from pickled dependencies |
 
 
@@ -72,21 +72,21 @@ ibm_cf_executor.**map**(func, iterdata, \*\*kwargs)
 * **Code example**: [map.py](../examples/map.py)
 
 ## Executor.map_reduce()
-This method is used to spawn multiple *map_function* activations,  based on the items of an input list,  and then spawn one (or multiple) *reduce_function* activations over the results of the map phase.
+Spawn multiple *map_function* activations,  based on the items of an input list,  eventually spawning one (or multiple) *reduce_function* activations over the results of the map phase.
 
 ibm_cf_executor.**map_reduce**(map_func, iterdata, reduce_func, \*\*kwargs)
 
 |Parameter| Default |Description|
 |---|---|---|
 |map_func| |The function to map over the data |
-|iterdata |  |An iterable of input data |
+|iterdata |  |An iterable of input data (e.g python list)|
 |reduce_func|  |The function to map over the results of map_func |
 |reducer_wait_local| False |Wait locally for map results |
 |extra_env| None | Additional environment variables for CF environment|
 |extra_meta|  None | Additional metadata to pass to CF|
 |map_runtime_memory| 256 | Memory (in MB) to use to run the map function|
 |reduce_runtime_memory| 256| Memory (in MB) to use to run the reduce function|
-|timeout| 600 | Max time per function activation|
+|timeout| 600 | Max time per function activation (seconds)|
 |exclude_modules| None| Explicitly keep these modules from pickled dependencies|
 
 

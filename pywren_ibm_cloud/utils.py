@@ -129,6 +129,8 @@ def split_object_url(obj_url):
     else:
         sb = 'ibm_cos'
         full_key = obj_url
+    if sb == 'cos':
+        sb = 'ibm_cos'
     splits = full_key.split("/")
     bucket_name = splits[0]
     key = "/".join(splits[1:])

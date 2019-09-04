@@ -29,9 +29,9 @@ from where you can access to the partial results.
 
 import pywren_ibm_cloud as pywren
 
-iterdata = ['ibm_cos://pw-sample-data/obj1.txt',
-            'ibm_cos://pw-sample-data/obj2.txt',
-            'ibm_cos://pw-sample-data/obj3.txt']   # Change-me
+iterdata = ['cos://pw-sample-data/obj1.txt',
+            'cos://pw-sample-data/obj2.txt',
+            'cos://pw-sample-data/obj3.txt']   # Change-me
 
 
 def my_map_function(obj):
