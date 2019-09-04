@@ -1,5 +1,6 @@
 """
 Simple PyWren example using rabbitmq to monitor map function invocations
+RabbitMQ amqp_url must be in configuration to make it working.
 """
 import pywren_ibm_cloud as pywren
 import time

@@ -11,22 +11,13 @@ LOCAL_HOME_DIR = os.path.join(os.path.expanduser('~'), '.cloudbutton')
 logger = logging.getLogger(__name__)
 
 
-class Singleton(type):
-    _instances = {}
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
-
-
-class InternalStorage(metaclass=Singleton):
+class InternalStorage:
     """
     An InternalStorage object is used by executors and other components to access underlying storage backend
     without exposing the the implementation details.
     """
 
     def __init__(self, storage_config):
-
         self.config = storage_config
         self.backend = self.config['backend']
         self.bucket = self.config['bucket']
@@ -121,7 +112,7 @@ class InternalStorage(metaclass=Singleton):
         # TODO: a better API for this is to return status for all calls in the callset. We'll fix
         #  this in scheduler refactoring.
         callset_prefix = '/'.join([self.prefix, executor_id, job_id])
-        keys = self.storage_handler.list_keys_with_prefix(self.bucket, callset_prefix)
+        keys = self.storage_handler.list_keys(self.bucket, callset_prefix)
         suffix = status_key_suffix
         status_keys = [k for k in keys if suffix in k]
         call_ids = [tuple(k[len(self.prefix)+1:].split("/")[:3]) for k in status_keys]
@@ -225,7 +216,7 @@ class InternalStorage(metaclass=Singleton):
         :param prefix: prefix to search for
         :return: list of objects
         """
-        return self.storage_handler.list_keys_with_prefix(self.bucket, prefix)
+        return self.storage_handler.list_keys(self.bucket, prefix)
 
     def delete_temporal_data(self, key_list):
         """

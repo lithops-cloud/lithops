@@ -32,10 +32,9 @@ if __name__ == "__main__":
     print(pw.get_result())
 
     """
-    Set 'reducer_wait_local=False' to launch the reducer and wait for
-    the results remotely.
+    Set 'reducer_wait_local=True' to wait for the results locally.
     """
     pw = pywren.ibm_cf_executor()
     pw.map_reduce(my_map_function, iterdata, my_reduce_function,
-                  reducer_wait_local=False)
+                  reducer_wait_local=True)
     print(pw.get_result())

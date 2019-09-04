@@ -14,4 +14,3 @@ To generate the `ACCESS_KEY` and the `SECRET_KEY` follow these steps:
  - Click `New credential +` and provide the necessary information. To generate HMAC credentials, specify the following in the Add Inline Configuration Parameters (Optional) field: {"HMAC":true}
  - Click `Add` to generate service credential.
  - Click `View credentials` and copy the *access_key_id* and the *secret_access_key* values.
-

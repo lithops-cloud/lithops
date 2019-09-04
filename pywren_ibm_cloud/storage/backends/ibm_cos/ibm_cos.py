@@ -118,7 +118,7 @@ class StorageBackend:
                 logger.debug('PUT Object {} {}'.format(key, status))
         except ibm_botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == "NoSuchKey":
-                raise StorageNoSuchKeyError(key)
+                raise StorageNoSuchKeyError(bucket_name, key)
             else:
                 raise e
 
@@ -138,7 +138,7 @@ class StorageBackend:
             return data
         except ibm_botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == "NoSuchKey":
-                raise StorageNoSuchKeyError(key)
+                raise StorageNoSuchKeyError(bucket_name, key)
             else:
                 raise e
 
@@ -154,7 +154,7 @@ class StorageBackend:
             return metadata['ResponseMetadata']['HTTPHeaders']
         except ibm_botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == '404':
-                raise StorageNoSuchKeyError(key)
+                raise StorageNoSuchKeyError(bucket_name, key)
             else:
                 raise e
 
@@ -191,17 +191,22 @@ class StorageBackend:
             self.cos_client.head_bucket(Bucket=bucket_name)
         except ibm_botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == '404':
-                raise StorageNoSuchKeyError(bucket_name)
+                raise StorageNoSuchKeyError(bucket_name, '')
             else:
                 raise e
 
     def list_objects(self, bucket_name, prefix=None):
-        paginator = self.cos_client.get_paginator('list_objects_v2')
+        """
+        Return a list of objects for the given bucket and prefix.
+        :param bucket_name: Name of the bucket.
+        :param prefix: Prefix to filter object names.
+        :return: List of objects in bucket that match the given prefix.
+        :rtype: list of str
+        """
         try:
-            if (prefix is not None):
-                page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
-            else:
-                page_iterator = paginator.paginate(Bucket=bucket_name)
+            prefix = '' if prefix is None else prefix
+            paginator = self.cos_client.get_paginator('list_objects_v2')
+            page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
 
             object_list = []
             for page in page_iterator:
@@ -211,28 +216,31 @@ class StorageBackend:
             return object_list
         except ibm_botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == '404':
-                raise StorageNoSuchKeyError(bucket_name)
+                raise StorageNoSuchKeyError(bucket_name, '' if prefix is None else prefix)
             else:
                 raise e
 
-    def list_keys_with_prefix(self, bucket_name, prefix):
+    def list_keys(self, bucket_name, prefix=None):
         """
         Return a list of keys for the given prefix.
+        :param bucket_name: Name of the bucket.
         :param prefix: Prefix to filter object names.
         :return: List of keys in bucket that match the given prefix.
         :rtype: list of str
         """
-        if not prefix:
-            prefix = ''
-        paginator = self.cos_client.get_paginator('list_objects_v2')
-        operation_parameters = {'Bucket': bucket_name,
-                                'Prefix': prefix}
-        page_iterator = paginator.paginate(**operation_parameters)
+        try:
+            prefix = '' if prefix is None else prefix
+            paginator = self.cos_client.get_paginator('list_objects_v2')
+            page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
 
-        key_list = []
-        for page in page_iterator:
-            if 'Contents' in page:
-                for item in page['Contents']:
-                    key_list.append(item['Key'])
-
-        return key_list
+            key_list = []
+            for page in page_iterator:
+                if 'Contents' in page:
+                    for item in page['Contents']:
+                        key_list.append(item['Key'])
+            return key_list
+        except ibm_botocore.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == '404':
+                raise StorageNoSuchKeyError(bucket_name, prefix)
+            else:
+                raise e

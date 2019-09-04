@@ -21,14 +21,17 @@ from where you can access to the partial results.
 
 import pywren_ibm_cloud as pywren
 
-bucketname = 'pw-sample-data'  # Change-me
+# Bucket with prefix
+bucketname = 'cos://pw-sample-data/test/'  # Change-me
 
 
-def my_map_function(bucket, key, data_stream):
-    print('I am processing the object {}/{}'.format(bucket, key))
+def my_map_function(obj):
+    print('Bucket: {}'.format(obj.bucket))
+    print('Key: {}'.format(obj.key))
+    print('Partition num: {}'.format(obj.part))
     counter = {}
 
-    data = data_stream.read()
+    data = obj.data_stream.read()
 
     for line in data.splitlines():
         for word in line.decode('utf-8').split():

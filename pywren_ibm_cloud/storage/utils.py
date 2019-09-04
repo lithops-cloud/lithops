@@ -28,15 +28,9 @@ status_key_suffix = "status.json"
 
 
 class StorageNoSuchKeyError(Exception):
-    def __init__(self, key):
-        msg = "No such key {} found in storage.".format(key)
+    def __init__(self, bucket, key):
+        msg = "No such key /{}/{} found in storage.".format(bucket, key)
         super(StorageNoSuchKeyError, self).__init__(msg)
-
-
-class StorageOutputNotFoundError(Exception):
-    def __init__(self, executor_id, call_id):
-        msg = "Output for {} {} not found in storage.".format(executor_id, call_id)
-        super(StorageOutputNotFoundError, self).__init__(msg)
 
 
 class StorageConfigMismatchError(Exception):
@@ -49,8 +43,13 @@ class StorageConfigMismatchError(Exception):
 class CloudObject:
     def __init__(self, storage_backend, bucket, key):
         self.storage_backend = storage_backend
-        self.key = key
         self.bucket = bucket
+        self.key = key
+
+
+class CloudObjectUrl:
+    def __init__(self, url_path):
+        self.path = url_path
 
 
 def clean_bucket(bucket, prefix, storage_config):

@@ -8,9 +8,9 @@ PyWren provides great value for the variety of uses cases, like processing data 
 
 ### PyWren and IBM Cloud
 This repository is based on [PyWren](https://github.com/pywren/pywren) main branch and adapted for IBM Cloud Functions and IBM Cloud Object Storage. 
-PyWren for IBM Cloud is based on Docker images and we also extended PyWren to execute a reduce function, which now enables PyWren to run complete map reduce flows.  In extending PyWren to work with IBM Cloud Object Storage, we also added a partition discovery component that allows PyWren to process large amounts of data stored in the IBM Cloud Object Storage. See [changelog](changelog.md) for more details.
+PyWren for IBM Cloud is based on Docker images and we also extended PyWren to execute a reduce function, which now enables PyWren to run complete map reduce flows.  In extending PyWren to work with IBM Cloud Object Storage, we also added a partition discovery component that allows PyWren to process large amounts of data stored in the IBM Cloud Object Storage. See [changelog](CHANGELOG.md) for more details.
 
-This document describes the steps to use PyWren-IBM-Cloud over IBM Cloud Functions and IBM Cloud Object Storage (IBM COS)
+This document describes the steps to use PyWren over IBM Cloud Functions and IBM Cloud Object Storage.
 
 ### IBM Cloud for Academic institutions
 [IBM Academic Initiative](https://ibm.biz/academic) is a special program that allows free trial of IBM Cloud for Academic institutions. This program is provided for students and faculty staff members, and allow up to 12 month of free usage. You can register your university email and get a free of charge account.
@@ -37,100 +37,22 @@ This document describes the steps to use PyWren-IBM-Cloud over IBM Cloud Functio
 
 Install PyWren from the PyPi repository:
 
-	pip3 install pywren-ibm-cloud
+	pip install pywren-ibm-cloud
 
 Installation for developers can be found [here](docs/dev-installation.md).
 
 
 ## Configuration
+To make IBM-PyWren running, configure the client with the access details to your IBM Cloud Object Storage and IBM Cloud Functions accounts. IBM-PyWren can be configured trough a configuration file or an in-runtime Python dictionary.
 
-Configure PyWren client with access details to your IBM Cloud Object Storage (COS) account, and with your IBM Cloud Functions account.
-
-Access details to IBM Cloud Functions can be obtained [here](https://cloud.ibm.com/openwhisk/namespace-settings). Details on your IBM Cloud Object Storage account can be obtained from the "service credentials" page on the UI of your COS account. More details on "service credentials" can be obtained [here](docs/cos-info.md).
-
-There are two options to configure PyWren:
-
-### Using configuration file
-Copy the `config/default_config.yaml.template` into `~/.pywren_config`
-
-Edit `~/.pywren_config` and configure the following entries:
-
-```yaml
-pywren: 
-    storage_bucket: <BUCKET_NAME>
-
-ibm_cf:
-    # Region endpoint example: https://us-east.functions.cloud.ibm.com
-    endpoint    : <REGION_ENDPOINT>  # make sure to use https:// as prefix
-    namespace   : <NAMESPACE>
-    api_key     : <API_KEY>
-   
-ibm_cos:
-    # Region endpoint example: https://s3.us-east.cloud-object-storage.appdomain.cloud
-    endpoint   : <REGION_ENDPOINT>  # make sure to use https:// as prefix
-    # this is preferable authentication method for IBM COS
-    api_key    : <API_KEY>
-    # alternatively you may use HMAC authentication method
-    # access_key : <ACCESS_KEY>
-    # secret_key : <SECRET_KEY>
-
-```
-
-You can choose different name for the config file or keep it into different folder. If this is the case make sure you configure system variable 
-	
-	PYWREN_CONFIG_FILE=<LOCATION OF THE CONFIG FILE>
+You can find the complete instructions and all the available configuration keys [here](config/).
 
 
-### Configuration in the runtime
-This option allows you pass all the configuration details as part of the PyWren invocation in runtime. All you need is to configure a Python dictionary with keys and values, for example:
+##  Runtime
+The runtime is the place where your functions will be executed. In IBM-PyWren, runtimes are based on docker images, and it includes by default three different runtimes that allows you to run functions with Python 3.5, 3.6 and 3.7 environments. IBM-PyWren automatically deploys the default runtime, based on the Python version you are using, the first time you execute a function. Additionally, you can also build custom runtimes with libraries that your functions depends on. 
 
-```python
-config = {'pywren' : {'storage_bucket' : 'BUCKET_NAME'},
+Check more information about runtimes [here](runtime/).
 
-          'ibm_cf':  {'endpoint': 'HOST', 
-                      'namespace': 'NAMESPACE', 
-                      'api_key': 'API_KEY'}, 
-
-          'ibm_cos': {'endpoint': 'REGION_ENDPOINT', 
-                      'api_key': 'API_KEY'}}
-```
-
-You can find more configuration keys [here](docs/configuration.md).
-
-
-###  Obtain PyWren executor
-
-Using configuration file you can obtain PyWren executor with:
-
-```python
-import pywren_ibm_cloud as pywren
-pw = pywren.ibm_cf_executor()
-```
-Having a Python dictionary configuration allows you to provide it to the PyWren as follows:
-
-```python
-import pywren_ibm_cloud as pywren
-pw = pywren.ibm_cf_executor(config=config)
-```
-
-###  Runtime
-The runtime is the place where your functions will be executed. In IBM-PyWren, runtimes are based on docker images. It includes by default three different runtimes that allow to run the functions in Python 3.5, Python 3.6 and Python 3.7 environments.
-
-| Runtime name | Python version | Packages included |
-| ----| ----| ---- |
-| ibmfunctions/pywren:3.5 | 3.5 |  |
-| ibmfunctions/action-python-v3.6 | 3.6 | [list of packages](https://github.com/ibm-functions/runtime-python/blob/master/python3.6/CHANGELOG.md) |
-| ibmfunctions/action-python-v3.7 | 3.7 | [list of packages](https://github.com/ibm-functions/runtime-python/blob/master/python3.7/CHANGELOG.md) |
-
-IBM-PyWren automatically deploys the default runtime in the first execution, based on the Python version that you are using.
-By default, it uses 256MB as runtime memory size. However, you can change it in the `config` or when you obtain the executor, for example:
-
-```python
-import pywren_ibm_cloud as pywren
-pw = pywren.ibm_cf_executor(runtime_memory=128)
-```
-
-You can also build custom runtimes with libraries that your functions depends on. Check more information about runtimes [here](runtime/).
 
 ## Verify 
 
@@ -142,83 +64,38 @@ Notice that if you didn't set a local PyWren's config file, you need to provide 
 
 Alternatively, for debugging purposes, you can run specific tests by `-t <TESTNAME>`. use `--help` flag to get more information about the test script.
 
+
 ## How to use PyWren for IBM Cloud Functions
 
-	
-1. **Single function execution example**.
+The primary object in IBM-PyWren is an executor. The standard way to get everything set up is to import `pywren_ibm_cloud`, and call the `ibm_cf_executor()` function.
 
-    ```python
-    import pywren_ibm_cloud as pywren
-    
-    def my_function(x):
-        return x + 7
-    
-    pw = pywren.ibm_cf_executor()
-    pw.call_async(my_function, 3)
-    result = pw.get_result()
-    ```
+```python
+import pywren_ibm_cloud as pywren
+pw = pywren.ibm_cf_executor()
+```
 
-2. **Multiple function execution (Map).**
+IBM-PyWren API (executor) includes three different methods to execute functions in the cloud: `call_async()`, `map()`, and `map_reduce()`, one method to track function activations: `monitor()`, and one method to get the final results: `get_result()`. Additionally, it has two new methods: `create_execution_plots()` and `clean()` described below.
 
-	To run multiple functions in parallel, the executor contains a method called **map()** which applies a function to a list of data in the cloud.
-	The **map()** method will launch one function for each entry of the list. 
-	To get the results of a **map()** call  **`get_result()`** method. The results are returned within an ordered list, where each element of the list is the result of one invocation.
-	For example, in the next code PyWren will launch one function for each value within `iterdata`:
 
-    ```python
-    import pywren_ibm_cloud as pywren
-    
-    iterdata = [1, 2, 3, 4] 
-    
-    def my_map_function(x):
-        return x + 7
-    
-    pw = pywren.ibm_cf_executor()
-    pw.map(my_map_function, iterdata)
-    result = pw.get_result()
-    ```
-    and `result` will be: `[8, 9, 10, 11]`
+|API Call| Type | Description|
+|---|---|---|
+|call_async() | Async. | Method used to spawn one function activation |
+|map() | Async. | Method used to spawn multiple function activations |
+|map_reduce() | Async. | Method used to spawn multiple function activations with one (or multiple) reducers|
+|monitor() | Sync. | Method used to track function activations. It blocks the local execution until all the function activations finished their execution (configurable)|
+|get_result() | Sync. | Method used to retrieve the results of all function activations. The results are returned within an ordered list, where each element of the list is the result of one activation|
+|create_execution_plots() | Sync. | Method used to create execution plots |
+|clean() | Async. | Method used to clean the temporary data generated by PyWren in IBM COS |
 
-3. **Multiple function execution with reduce (map-reduce).**
 
-	PyWren allows to run a *reduce* function over the results of the *map*. 
-	The **`map_reduce()`** method waits until it gets the results from all the *map* functions, and then launches the *reduce* function. By default the *reduce* method waits locally to get all the results. This approach does not consumes CPU time in Cloud Functions, but it has the tradeoff of greater data transfers because it has to download all the results and then upload them again for processing with the *reduce* function.
-	After call the **`map_reduce()`**, it is possible to get the result from it by calling the **`get_result()`** method.
+The complete API details and instructions on how to use PyWren for IBM Cloud can be found [here](docs/pywren-usage.md).
 
-    ```python
-    import pywren_ibm_cloud as pywren
-    
-    iterdata = [1, 2, 3, 4] 
-    
-    def my_map_function(x):
-        return x + 7
-    
-    def my_reduce_function(results):
-        total = 0
-        for map_result in results:
-            total = total + map_result
-        return total
-    
-    pw = pywren.ibm_cf_executor()
-    pw.map_reduce(my_map_function, iterdata, my_reduce_function)
-    result = pw.get_result()
-    ```
-	In this example the `result` will be `38`
-	
-	By default the reducer waits locally for the results, and then launches the **reduce()** function in the cloud.
-	You can change this behaviour and make the reducer waits remotely for the results by setting the 
-	`reducer_wait_local` parameter of the **map_reduce()** method to `False`.
-	
-	```python
-    pw.map_reduce(my_map_function, iterdata, my_reduce_function, reducer_wait_local=False)
-    ```
-	
+
 ## Using PyWren to process data from IBM Cloud Object Storage
 
-
-PyWren for IBM Cloud functions has a built-in method for processing data objects from the IBM Cloud Object Storage.
+PyWren for IBM Cloud functions has built-in logic for processing data objects from IBM Cloud Object Storage.
 	
-We designed a partitioner within the **map_reduce()** method which is configurable by specifying the size of the chunk.  The input to the partitioner may be either a list of data objects, a list of URLs or the entire bucket itself. The partitioner is activated inside PyWren and it responsible to split the objects into smaller chunks. It executes one *`my_map_function`* for each object chunk and when all executions are completed, the partitioner executes the *`my_reduce_function`*. The reduce function will wait for all the partial results before processing them. 
+We designed a partitioner within the **map()** and **map_reduce()** methods that is configurable by specifying the size of the chunk.  The input to the partitioner may be either a list of data objects, a list of URLs or the entire bucket itself. The partitioner is activated inside PyWren and it responsible to split the objects into smaller chunks. It executes one *`my_map_function`* for each object chunk and when all executions are completed, the partitioner executes the *`my_reduce_function`*. The reduce function will wait for all the partial results before processing them. 
 
 In the parameters of the `my_map_function` function you must specify a parameter called **data_stream**. This variable allows access to the data stream of the object.
 
@@ -229,10 +106,10 @@ In the parameters of the `my_map_function` function you must specify a parameter
 ```python
 import pywren_ibm_cloud as pywren
 
-iterdata = ['bucket1/object1', 'bucket1/object2', 'bucket1/object3'] 
+iterdata = ['cos://bucket1/object1', 'cos://bucket1/object2', 'cos://bucket1/object3'] 
 
-def my_map_function(key, data_stream):
-    for line in data_stream:
+def my_map_function(obj):
+    for line in obj.data_stream:
         # Do some process
     return partial_intersting_data
 
@@ -251,7 +128,7 @@ result = pw.get_result()
 | method | method signature |
 |---| ---| 
 | `pw.map_reduce`(`my_map_function`, `iterdata`, `my_reduce_function`, `chunk_size`)| `iterdata` contains list of objects in the format of `bucket_name/object_name` |
-| `my_map_function`(`key`, `data_stream`) | `key` is an entry from `iterdata` that is assigned to the invocation|
+| `my_map_function`(`obj`) | `obj` is a Python class that contains the *bucket*, *key* and *data_stream* of the object assigned to the activation|
 
 #### `map_reduce` where partitioner gets entire bucket
 
@@ -260,10 +137,10 @@ Commonly, a dataset may contains hundreds or thousands of files, so the previous
 ```python
 import pywren_ibm_cloud as pywren
 
-bucket_name = 'my_data_bucket'
+bucket_name = 'cos://my_data_bucket'
 
-def my_map_function(bucket, key, data_stream, ibm_cos):
-    for line in data_stream:
+def my_map_function(obj, ibm_cos):
+    for line in obj.data_stream:
         # Do some process
     return partial_intersting_data
 
@@ -284,7 +161,7 @@ result = pw.get_result()
 | method | method signature |
 |---| ---| 
 | `pw.map_reduce`(`my_map_function`, `bucket_name`, `my_reduce_function`, `chunk_size`)| `bucket_name` contains the name of the bucket |
-| `my_map_function`(`bucket`, `key`, `data_stream`, `ibm_cos`) | `key` is a data object from `bucket` that is assigned to the invocation. `ibm_cos` is an optional parameter which provides a `boto3_client` (see [here](#geting-boto3-client-from-any-map-function))|
+| `my_map_function`(`obj`, `ibm_cos`) | `obj` is a Python class that contains the *bucket*, *key* and *data_stream* of the object assigned to the activation. `ibm_cos` is an optional parameter which provides a `boto3_client` (see [here](#geting-boto3-client-from-any-map-function))|
 
 
 
@@ -295,8 +172,8 @@ import pywren_ibm_cloud as pywren
 
 iterdata = ['http://myurl/myobject1', 'http://myurl/myobject1'] 
 
-def my_map_function(url, data_stream):
-    for line in data_stream:
+def my_map_function(url):
+    for line in url.data_stream:
         # Do some process
     return partial_intersting_data
 
@@ -315,7 +192,7 @@ result = pw.get_result()
 | method | method signature |
 |---| ---| 
 | `pw.map_reduce`(`my_map_function`, `iterdata`, `my_reduce_function`, `chunk_size`)| `iterdata` contains list of objects in the format of `http://myurl/myobject.data` |
-| `my_map_function`(`url`, `data_stream`) | `url` is an entry from `iterdata` that is assigned to the invocation|
+| `my_map_function`(`url`) | `url` is an object Pytnon class that contains the url *path* assigned to the activation (an entry of iterdata) and the *data_stream*|
 
 ### Reducer granularity			
 By default there will be one reducer for all the objects. If you need one reducer for each object, you must set the parameter

@@ -43,10 +43,12 @@ class FunctionExecutor:
 
         :param config: Settings passed in here will override those in config file. Default None.
         :param runtime: Runtime name to use. Default None.
-        :param runtime_memory: memory to use in the runtime
-        :param log_level: log level to use during the execution
-        :param rabbitmq_monitor: use rabbitmq as monitoring system
-        :return `ServerlessExecutor` object.
+        :param runtime_memory: memory to use in the runtime. Default None.
+        :param compute_backend: Name of the compute backend to use. Default None.
+        :param compute_backend_region: Name of the compute backend region to use. Default None.
+        :param log_level: log level to use during the execution. Default None.
+        :param rabbitmq_monitor: use rabbitmq as monitoring system. Default None.
+        :return `FunctionExecutor` object.
         """
         self.start_time = time.time()
         self._state = ExecutorState.new
@@ -77,16 +79,16 @@ class FunctionExecutor:
                 default_logging_config(self.log_level)
 
         self.executor_id = create_executor_id()
-        logger.debug('ServerlessExecutor created with ID: {}'.format(self.executor_id))
+        logger.debug('FunctionExecutor created with ID: {}'.format(self.executor_id))
 
         # RabbitMQ monitor configuration
         self.rabbitmq_monitor = self.config['pywren'].get('rabbitmq_monitor', False)
         if self.rabbitmq_monitor:
             if 'rabbitmq' in self.config and 'amqp_url' in self.config['rabbitmq']:
                 self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
-                os.environ["CB_RABBITMQ_MONITOR"] = 'True'
             else:
-                raise Exception("RabbitMQ 'amqp_url' not provided in configuration")
+                raise Exception("You cannot use rabbitmq_mnonitor since 'amqp_url'"
+                                " is not present in configuration")
 
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
@@ -391,7 +393,7 @@ class FunctionExecutor:
             return result[0]
         return result
 
-    def create_timeline_plots(self, dst_dir, dst_file_name, futures=None):
+    def create_execution_plots(self, dst_dir, dst_file_name, futures=None):
         """
         Creates timeline and histogram of the current execution in dst_dir.
 
@@ -424,7 +426,7 @@ class FunctionExecutor:
         logging.getLogger('matplotlib').setLevel(logging.WARNING)
         from pywren_ibm_cloud.plots import create_timeline, create_histogram
 
-        msg = 'ExecutorID {} - Creating timeline plots'.format(self.executor_id)
+        msg = 'ExecutorID {} - Creating execution plots'.format(self.executor_id)
         logger.info(msg)
         if not self.log_level:
             print(msg)

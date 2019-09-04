@@ -72,8 +72,8 @@ def default_config(config_data=None):
     then ~/.pywren_config
     """
     if not config_data:
-        if 'CB_CONFIG' in os.environ:
-            config_data = json.loads(os.environ.get('CB_CONFIG'))
+        if 'PYWREN_CONFIG' in os.environ:
+            config_data = json.loads(os.environ.get('PYWREN_CONFIG'))
         else:
             config_filename = get_default_config_filename()
             if config_filename is None:
@@ -99,10 +99,9 @@ def default_config(config_data=None):
     if 'compute_backend' not in config_data['pywren']:
         config_data['pywren']['compute_backend'] = COMPUTE_BACKEND_DEFAULT
 
-    if 'rabbitmq' not in config_data or not config_data['rabbitmq'] \
-       or 'amqp_url' not in config_data['rabbitmq']:
-        config_data['rabbitmq'] = {}
-        config_data['rabbitmq']['amqp_url'] = None
+    if 'rabbitmq' in config_data and config_data['rabbitmq'] is None \
+       or 'amqp_url' not in config_data['rabbitmq'] or config_data['rabbitmq']['amqp_url'] is None:
+        del config_data['rabbitmq']
 
     cb = config_data['pywren']['compute_backend']
     cb_config = importlib.import_module('pywren_ibm_cloud.compute.backends.{}.config'.format(cb))

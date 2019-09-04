@@ -23,5 +23,4 @@ if __name__ == "__main__":
     cloudobjects = pw.get_result()
     pw.map(my_function_get, cloudobjects)
     print(pw.get_result())
-    pw.create_timeline_plots('/home/josep/pywren_plots', 'no_rabbitmq')
     pw.clean()

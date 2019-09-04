@@ -21,6 +21,10 @@ import inspect
 import subprocess
 import struct
 import platform
+import logging
+import io
+
+logger = logging.getLogger(__name__)
 
 
 def uuid_str():
@@ -68,7 +72,7 @@ def is_notebook():
 
 def is_object_processing_function(map_function):
     func_sig = inspect.signature(map_function)
-    return {'bucket', 'key', 'url'} & set(func_sig.parameters)
+    return {'obj', 'url'} & set(func_sig.parameters)
 
 
 def iterdata_as_list(iterdata):
@@ -119,14 +123,19 @@ def b64str_to_bytes(str_data):
     return byte_data
 
 
-def split_s3_url(s3_url):
-    if s3_url[:5] != "s3://":
-        raise ValueError("URL {} is not valid".format(s3_url))
-
-    splits = s3_url[5:].split("/")
+def split_object_url(obj_url):
+    if '://' in obj_url:
+        sb, full_key = obj_url.split('://')
+    else:
+        sb = 'ibm_cos'
+        full_key = obj_url
+    if sb == 'cos':
+        sb = 'ibm_cos'
+    splits = full_key.split("/")
     bucket_name = splits[0]
     key = "/".join(splits[1:])
-    return bucket_name, key
+
+    return sb, bucket_name, key
 
 
 def split_path(path):
@@ -156,6 +165,39 @@ def get_current_memory_usage():
     memorybytes = int(process.stdout.read())
 
     return sizeof_fmt(memorybytes)
+
+
+def verify_args(func, data):
+    # Verify parameters
+    non_verify_args = ['ibm_cos', 'swift', 'internal_storage', 'id', 'rabbitmq']
+    func_sig = inspect.signature(func)
+
+    new_parameters = list()
+    for param in func_sig.parameters:
+        if func_sig.parameters[param].default is not None and param not in non_verify_args:
+            new_parameters.append(func_sig.parameters[param])
+
+    new_func_sig = func_sig.replace(parameters=new_parameters)
+
+    new_data = list()
+    for elem in data:
+        if type(elem) == dict:
+            if set(list(new_func_sig.parameters.keys())) <= set(elem):
+                new_data.append(elem)
+            else:
+                raise ValueError("Check the args names in the data. "
+                                 "You provided these args: {}, and "
+                                 "the args must be: {}".format(list(elem.keys()),
+                                                               list(new_func_sig.parameters.keys())))
+        elif type(elem) in (list, tuple):
+            new_elem = dict(new_func_sig.bind(*list(elem)).arguments)
+            new_data.append(new_elem)
+        else:
+            # single value (string, integer, etc)
+            new_elem = dict(new_func_sig.bind(elem).arguments)
+            new_data.append(new_elem)
+
+    return new_data
 
 
 class WrappedStreamingBody:
@@ -233,48 +275,65 @@ class WrappedStreamingBody:
             return getattr(self.sb, attr)
 
 
-def verify_args(func, data, object_processing=False):
-    # Verify parameters
-    non_verify_args = ['ibm_cos', 'swift', 'internal_storage']
-    func_sig = inspect.signature(func)
+class WrappedStreamingBodyPartition(WrappedStreamingBody):
 
-    # Check mandatory parameters in function
-    if object_processing:
-        non_verify_args.append('data_stream')
-        err_msg = 'parameter in your map_function() is mandatory for pywren.map_reduce(map_function,...)'
-        if 'bucket' in func_sig.parameters:
-            non_verify_args.append('key')
-            if 'key' not in func_sig.parameters:
-                raise ValueError('"key" {}'.format(err_msg))
-            if 'data_stream' not in func_sig.parameters:
-                raise ValueError('"data_stream" {}'.format(err_msg))
-        if 'key' in func_sig.parameters or 'url' in func_sig.parameters:
-            if 'data_stream' not in func_sig.parameters:
-                raise ValueError('"data_stream" {}'.format(err_msg))
+    def __init__(self, sb, size, byterange):
+        super().__init__(sb, size)
+        # Range of the chunk
+        self.range = byterange
+        # The first chunk does not contain plusbyte
+        self.plusbytes = 0 if not self.range or self.range[0] == 0 else 1
+        # To store the first byte of this chunk, which actually is the last byte of previous chunk
+        self.first_byte = None
+        # Flag that indicates the end of the file
+        self.eof = False
 
-    new_parameters = list()
-    for param in func_sig.parameters:
-        if func_sig.parameters[param].default is not None and param not in non_verify_args:
-            new_parameters.append(func_sig.parameters[param])
+    def read(self, n=None):
+        if self.eof:
+            raise EOFError()
+        # Data always contain one byte from the previous chunk,
+        # so l'ets check if it is a \n or not
+        self.first_byte = self.sb.read(self.plusbytes)
+        retval = self.sb.read(n)
 
-    new_func_sig = func_sig.replace(parameters=new_parameters)
+        if retval == "":
+            raise EOFError()
 
-    new_data = list()
-    for elem in data:
-        if type(elem) == dict:
-            if set(list(new_func_sig.parameters.keys())) <= set(elem):
-                new_data.append(elem)
-            else:
-                raise ValueError("Check the args names in the data. "
-                                 "You provided these args: {}, and "
-                                 "the args must be: {}".format(list(elem.keys()),
-                                                               list(new_func_sig.parameters.keys())))
-        elif type(elem) in (list, tuple):
-            new_elem = dict(new_func_sig.bind(*list(elem)).arguments)
-            new_data.append(new_elem)
-        else:
-            # single value (string, integer, etc)
-            new_elem = dict(new_func_sig.bind(elem).arguments)
-            new_data.append(new_elem)
+        self.pos += len(retval)
 
-    return new_data
+        first_row_start_pos = 0
+        if self.first_byte != b'\n' and self.plusbytes != 0:
+            logger.debug('Discarding first partial row')
+            # Previous byte is not \n
+            # This means that we have to discard first row because it is cut
+            first_row_start_pos = retval.find(b'\n')+1
+
+        last_row_end_pos = self.pos
+        # Find end of the line in threshold
+        if self.pos > self.size:
+            buf = io.BytesIO(retval[self.size:])
+            buf.readline()
+            last_row_end_pos = self.size+buf.tell()
+            self.eof = True
+
+        return retval[first_row_start_pos:last_row_end_pos]
+
+    def readline(self):
+        if self.eof:
+            raise EOFError()
+
+        if not self.first_byte and self.plusbytes != 0:
+            self.first_byte = self.sb.read(self.plusbytes)
+            if self.first_byte != b'\n':
+                logger.debug('Discarding first partial row')
+                self.sb._raw_stream.readline()
+        try:
+            retval = self.sb._raw_stream.readline()
+        except struct.error:
+            raise EOFError()
+        self.pos += len(retval)
+
+        if self.pos >= self.size:
+            self.eof = True
+
+        return retval
