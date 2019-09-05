@@ -9,7 +9,7 @@ from pywren_ibm_cloud.config import default_config, extract_storage_config
 from multiprocessing.pool import ThreadPool
 
 import logging
-# logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
 
 parser = argparse.ArgumentParser(description="test all PyWren's functionality", usage='python -m pywren_ibm_cloud.tests [-c CONFIG] [-f TESTNAME]')
 parser.add_argument('-c', '--config', type=argparse.FileType('r'), metavar='', default=None, help="use json config file")
@@ -104,12 +104,12 @@ def pywren_inside_pywren_map_function3(x):
     return [pw.get_result(fut1), pw.get_result(fut2)]
 
 
-def my_map_function_bucket(bucket, key, data_stream, ibm_cos):
-    print('I am processing the object {}'.format(key))
+def my_map_function_bucket(obj, ibm_cos):
+    print('I am processing the object {}'.format(obj.key))
     counter = {}
 
-    data = data_stream.read()
-    temp = ibm_cos.get_object(Bucket=bucket, Key=key)['Body'].read()
+    data = obj.data_stream.read()
+    temp = ibm_cos.get_object(Bucket=obj.bucket, Key=obj.key)['Body'].read()
 
     for line in data.splitlines():
         for word in line.decode('utf-8').split():
@@ -121,12 +121,12 @@ def my_map_function_bucket(bucket, key, data_stream, ibm_cos):
     return counter
 
 
-def my_map_function_key(key, data_stream, ibm_cos):
-    print('I am processing the object {}'.format(key))
+def my_map_function_key(obj, ibm_cos):
+    print('I am processing the object {}'.format(obj.key))
     counter = {}
 
-    data = data_stream.read()
-    temp = ibm_cos.get_object(Bucket=key.split('/')[0], Key='/'.join(key.split('/')[1:]))['Body'].read()
+    data = obj.data_stream.read()
+    temp = ibm_cos.get_object(Bucket=obj.key.split('/')[0], Key='/'.join(obj.key.split('/')[1:]))['Body'].read()
 
     for line in data.splitlines():
         for word in line.decode('utf-8').split():
@@ -138,11 +138,11 @@ def my_map_function_key(key, data_stream, ibm_cos):
     return counter
 
 
-def my_map_function_url(url, data_stream):
-    print('I am processing the object from {}'.format(url))
+def my_map_function_url(url):
+    print('I am processing the object from {}'.format(url.path))
     counter = {}
 
-    data = data_stream.read()
+    data = url.data_stream.read()
 
     for line in data.splitlines():
         for word in line.decode('utf-8').split():
@@ -180,8 +180,8 @@ def my_reduce_function(results):
     return final_result
 
 
-def my_cloudobject_put(bucket, key, data_stream, ibm_cos, internal_storage):
-    counter = my_map_function_bucket(bucket, key, data_stream, ibm_cos)
+def my_cloudobject_put(obj, ibm_cos, internal_storage):
+    counter = my_map_function_bucket(obj.bucket, obj.key, obj.data_stream, ibm_cos)
     cloudobject = internal_storage.put_object(counter)
     return cloudobject
 
