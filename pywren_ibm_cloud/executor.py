@@ -103,7 +103,7 @@ class FunctionExecutor:
         return futures
 
     def call_async(self, func, data, extra_env=None, extra_meta=None, runtime_memory=None,
-                   timeout=EXECUTION_TIMEOUT, exclude_modules=[]):
+                   timeout=EXECUTION_TIMEOUT, include_modules=[], exclude_modules=[]):
         """
         For running one function execution asynchronously
         :param func: the function to map over the data
@@ -118,7 +118,8 @@ class FunctionExecutor:
         total_current_jobs = len(self.jobs)
         job = create_call_async_job(self.config, self.internal_storage, self.executor_id,
                                     total_current_jobs, func, data, extra_env, extra_meta,
-                                    runtime_memory, timeout, exclude_modules=exclude_modules)
+                                    runtime_memory, timeout, include_modules=include_modules,
+                                    exclude_modules=exclude_modules)
         future = self.invoker.run(job)
         self.jobs[job['job_id']] = {'futures': future, 'state': JobState.running}
         self._state = ExecutorState.running
@@ -127,7 +128,8 @@ class FunctionExecutor:
 
     def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None, runtime_memory=None,
             chunk_size=None, chunk_n=None, remote_invocation=False, remote_invocation_groups=None,
-            timeout=EXECUTION_TIMEOUT, invoke_pool_threads=500, overwrite_invoke_args=None, exclude_modules=[]):
+            timeout=EXECUTION_TIMEOUT, invoke_pool_threads=500, overwrite_invoke_args=None,
+            include_modules=[], exclude_modules=[]):
         """
         :param func: the function to map over the data
         :param iterdata: An iterable of input data
@@ -157,6 +159,7 @@ class FunctionExecutor:
                                          remote_invocation=remote_invocation,
                                          remote_invocation_groups=remote_invocation_groups,
                                          invoke_pool_threads=invoke_pool_threads,
+                                         include_modules=include_modules,
                                          exclude_modules=exclude_modules,
                                          is_cf_cluster=self.is_cf_cluster,
                                          overwrite_invoke_args=overwrite_invoke_args,
@@ -172,7 +175,8 @@ class FunctionExecutor:
     def map_reduce(self, map_function, map_iterdata, reduce_function, extra_env=None, map_runtime_memory=None,
                    reduce_runtime_memory=None, extra_meta=None, chunk_size=None,  chunk_n=None, remote_invocation=False,
                    remote_invocation_groups=None, timeout=EXECUTION_TIMEOUT, reducer_one_per_object=False,
-                   reducer_wait_local=False, invoke_pool_threads=500, overwrite_invoke_args=None, exclude_modules=[]):
+                   reducer_wait_local=False, invoke_pool_threads=500, overwrite_invoke_args=None,
+                   include_modules=[], exclude_modules=[]):
         """
         Map the map_function over the data and apply the reduce_function across all futures.
         This method is executed all within CF.
@@ -207,6 +211,7 @@ class FunctionExecutor:
                                                remote_invocation=remote_invocation,
                                                remote_invocation_groups=remote_invocation_groups,
                                                invoke_pool_threads=invoke_pool_threads,
+                                               include_modules=include_modules,
                                                exclude_modules=exclude_modules,
                                                is_cf_cluster=self.is_cf_cluster,
                                                overwrite_invoke_args=overwrite_invoke_args,
@@ -218,10 +223,11 @@ class FunctionExecutor:
         if reducer_wait_local:
             self.monitor(futures=map_futures)
 
-        job = create_reduce_job(self.config, self.internal_storage, self.executor_id,
-                                total_current_jobs, reduce_function, reduce_runtime_memory,
-                                map_futures, parts_per_object, reducer_one_per_object=reducer_one_per_object,
-                                extra_env=extra_env, extra_meta=extra_meta, exclude_modules=exclude_modules)
+        job = create_reduce_job(self.config, self.internal_storage, self.executor_id, total_current_jobs,
+                                reduce_function, reduce_runtime_memory, map_futures, parts_per_object,
+                                extra_env=extra_env, extra_meta=extra_meta,
+                                include_modules=include_modules, exclude_modules=exclude_modules,
+                                reducer_one_per_object=reducer_one_per_object)
         reduce_futures = self.invoker.run(job)
         self.jobs[job['job_id']] = {'futures': reduce_futures, 'state': JobState.running}
 
