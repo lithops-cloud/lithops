@@ -5,7 +5,7 @@ RabbitMQ amqp_url must be in configuration to make it working.
 import pywren_ibm_cloud as pywren
 import time
 
-total = 100
+total = 10
 
 
 def my_function(x):
@@ -16,12 +16,11 @@ def my_function(x):
 if __name__ == "__main__":
     pw = pywren.ibm_cf_executor(runtime_memory=256)
     pw.map(my_function, range(total))
-    pw.get_result()
-    pw.create_timeline_plots('/home/josep/pywren_plots', 'no_rabbitmq')
+    pw.monitor()
     pw.clean()
 
+    # Activate RabbitMQ as a monitoring system
     pw = pywren.ibm_cf_executor(runtime_memory=256, rabbitmq_monitor=True)
     pw.map(my_function, range(total))
     pw.monitor()
-    pw.create_timeline_plots('/home/josep/pywren_plots', 'rabbitmq')
     pw.clean()

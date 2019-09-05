@@ -381,7 +381,7 @@ class FunctionExecutor:
         :param throw_except: Reraise exception if call raised. Default True.
         :param verbose: Shows some information prints. Default False
         :param timeout: Timeout for waiting for results.
-        :param THREADPOOL_SIZE: Number of threads to use. Default 64
+        :param THREADPOOL_SIZE: Number of threads to use. Default 128
         :param WAIT_DUR_SEC: Time interval between each check.
         :return: The result of the future/s
         """
