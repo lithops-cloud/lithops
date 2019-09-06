@@ -152,14 +152,14 @@ ibm_cf_executor.**get_result**(\*\*kwargs)
 * **Code example**: [call_async.py](../examples/call_async.py), [map.py](../examples/map.py), [map_reduce.py](../examples/map_reduce.py)
 
 ## Executor.create_execution_plots()
-Gets the results from all the function activations. It internally makes use of the `Executor.monitor()` method.
+Creates 2 execution plots: A timeline plot and a histogram plot.
 
 ibm_cf_executor.**create_execution_plots**(dst_dir, dst_name, \*\*kwargs)
 
 |Parameter| Default |Description|
 |---|---|---|
-|dst_dir|   | Futures list. If None, PyWren uses the internally stored futures |
-|dst_name |   | Re-raise exception if call raised|
+|dst_dir|   | Destination directory to store the plots |
+|dst_name |   | name-prefix of the plots|
 |futures| None | List of futures to plot. If None, PyWren uses the internally stored futures|
 
 

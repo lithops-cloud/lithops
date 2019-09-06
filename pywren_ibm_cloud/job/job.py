@@ -95,20 +95,20 @@ def create_map_job(config, internal_storage, executor_id, total_current_jobs, ma
 
 
 def create_reduce_job(config, internal_storage, executor_id, total_current_jobs, reduce_function,
-                      reduce_runtime_memory, map_futures, parts_per_object, reducer_one_per_object=False,
+                      map_futures, parts_per_object, reducer_one_per_object=False, runtime_memory=None,
                       extra_env=None, extra_meta=None, include_modules=[], exclude_modules=[]):
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
     """
     job_id = str(total_current_jobs).zfill(3)
     reduce_job_id = f'R{job_id}'
-    map_iterdata = [[map_futures, ]]
+    iterdata = [[map_futures, ]]
 
     if parts_per_object and reducer_one_per_object:
         prev_total_partitons = 0
-        map_iterdata = []
+        iterdata = []
         for total_partitions in parts_per_object:
-            map_iterdata.append([map_futures[prev_total_partitons:prev_total_partitons+total_partitions]])
+            iterdata.append([map_futures[prev_total_partitons:prev_total_partitons+total_partitions]])
             prev_total_partitons = prev_total_partitons + total_partitions
 
     def reduce_function_wrapper(fut_list, internal_storage, ibm_cos):
@@ -135,9 +135,12 @@ def create_reduce_job(config, internal_storage, executor_id, total_current_jobs,
 
         return reduce_function(**reduce_func_args)
 
-    return _create_job(config, internal_storage, executor_id, reduce_job_id, reduce_function_wrapper,
-                       map_iterdata, runtime_memory=reduce_runtime_memory, extra_env=extra_env, 
-                       extra_meta=extra_meta, include_modules=include_modules, exclude_modules=exclude_modules, 
+    return _create_job(config, internal_storage, executor_id,
+                       reduce_job_id, reduce_function_wrapper,
+                       iterdata, runtime_memory=runtime_memory,
+                       extra_env=extra_env,  extra_meta=extra_meta,
+                       include_modules=include_modules,
+                       exclude_modules=exclude_modules,
                        original_func_name=reduce_function.__name__)
 
 

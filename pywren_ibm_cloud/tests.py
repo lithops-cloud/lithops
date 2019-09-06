@@ -9,7 +9,7 @@ from pywren_ibm_cloud.config import default_config, extract_storage_config
 from multiprocessing.pool import ThreadPool
 
 import logging
-logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 
 parser = argparse.ArgumentParser(description="test all PyWren's functionality", usage='python -m pywren_ibm_cloud.tests [-c CONFIG] [-f TESTNAME]')
 parser.add_argument('-c', '--config', type=argparse.FileType('r'), metavar='', default=None, help="use json config file")
@@ -50,8 +50,7 @@ def initTests():
 
 
 def list_test_keys():
-    return STORAGE.list_keys_with_prefix(bucket_name=STORAGE_CONFIG['bucket'],
-                                         prefix=PREFIX)
+    return STORAGE.list_keys(bucket_name=STORAGE_CONFIG['bucket'], prefix=PREFIX)
 
 
 def cleanTests():
@@ -104,29 +103,12 @@ def pywren_inside_pywren_map_function3(x):
     return [pw.get_result(fut1), pw.get_result(fut2)]
 
 
-def my_map_function_bucket(obj, ibm_cos):
-    print('I am processing the object {}'.format(obj.key))
+def my_map_function_obj(obj, ibm_cos):
+    print('I am processing the object {}/{}'.format(obj.bucket, obj.key))
     counter = {}
 
     data = obj.data_stream.read()
     temp = ibm_cos.get_object(Bucket=obj.bucket, Key=obj.key)['Body'].read()
-
-    for line in data.splitlines():
-        for word in line.decode('utf-8').split():
-            if word not in counter:
-                counter[word] = 1
-            else:
-                counter[word] += 1
-
-    return counter
-
-
-def my_map_function_key(obj, ibm_cos):
-    print('I am processing the object {}'.format(obj.key))
-    counter = {}
-
-    data = obj.data_stream.read()
-    temp = ibm_cos.get_object(Bucket=obj.key.split('/')[0], Key='/'.join(obj.key.split('/')[1:]))['Body'].read()
 
     for line in data.splitlines():
         for word in line.decode('utf-8').split():
@@ -181,7 +163,7 @@ def my_reduce_function(results):
 
 
 def my_cloudobject_put(obj, ibm_cos, internal_storage):
-    counter = my_map_function_bucket(obj.bucket, obj.key, obj.data_stream, ibm_cos)
+    counter = my_map_function_obj(obj, ibm_cos)
     cloudobject = internal_storage.put_object(counter)
     return cloudobject
 
@@ -261,9 +243,9 @@ class TestPywren(unittest.TestCase):
 
     def test_internal_executions(self):
         pw = pywren.ibm_cf_executor(config=CONFIG)
-        pw.map(pywren_inside_pywren_map_function1, range(1,11))
+        pw.map(pywren_inside_pywren_map_function1, range(1, 11))
         result = pw.get_result()
-        self.assertEqual(result, [0] + [list(range(i)) for i in range(2,11)])
+        self.assertEqual(result, [0] + [list(range(i)) for i in range(2, 11)])
 
         pw = pywren.ibm_cf_executor(config=CONFIG)
         pw.call_async(pywren_inside_pywren_map_function2, 10)
@@ -271,21 +253,21 @@ class TestPywren(unittest.TestCase):
         self.assertEqual(result, 10)
 
         pw = pywren.ibm_cf_executor(config=CONFIG)
-        pw.map(pywren_inside_pywren_map_function3, range(1,11))
+        pw.map(pywren_inside_pywren_map_function3, range(1, 11))
         result = pw.get_result()
-        self.assertEqual(result, [[0, 0]] + [[list(range(i)), list(range(i))] for i in range(2,11)])
+        self.assertEqual(result, [[0, 0]] + [[list(range(i)), list(range(i))] for i in range(2, 11)])
 
     def test_map_reduce_cos_bucket(self):
-        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX
+        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
         pw = pywren.ibm_cf_executor(config=CONFIG)
-        pw.map_reduce(my_map_function_bucket, data_prefix, my_reduce_function)
+        pw.map_reduce(my_map_function_obj, data_prefix, my_reduce_function)
         result = pw.get_result()
         self.checkResult(result)
 
     def test_map_reduce_cos_bucket_one_reducer_per_object(self):
-        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX
+        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
         pw = pywren.ibm_cf_executor(config=CONFIG)
-        pw.map_reduce(my_map_function_bucket, data_prefix, my_reduce_function, reducer_one_per_object=True)
+        pw.map_reduce(my_map_function_obj, data_prefix, my_reduce_function, reducer_one_per_object=True)
         result = pw.get_result()
         self.checkResult(result)
 
@@ -293,7 +275,7 @@ class TestPywren(unittest.TestCase):
         bucket_name = STORAGE_CONFIG['bucket']
         iterdata = [bucket_name + '/' + key for key in list_test_keys()]
         pw = pywren.ibm_cf_executor(config=CONFIG)
-        pw.map_reduce(my_map_function_key, iterdata, my_reduce_function)
+        pw.map_reduce(my_map_function_obj, iterdata, my_reduce_function)
         result = pw.get_result()
         self.checkResult(result)
 
@@ -301,7 +283,7 @@ class TestPywren(unittest.TestCase):
         bucket_name = STORAGE_CONFIG['bucket']
         iterdata = [bucket_name + '/' + key for key in list_test_keys()]
         pw = pywren.ibm_cf_executor(config=CONFIG)
-        pw.map_reduce(my_map_function_key, iterdata, my_reduce_function, reducer_one_per_object=True)
+        pw.map_reduce(my_map_function_obj, iterdata, my_reduce_function, reducer_one_per_object=True)
         result = pw.get_result()
         self.checkResult(result)
 
@@ -319,22 +301,22 @@ class TestPywren(unittest.TestCase):
         self.checkResult(result)
 
     def test_chunks_bucket(self):
-        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX
+        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
         pw = pywren.ibm_cf_executor(config=CONFIG)
-        pw.map_reduce(my_map_function_bucket, data_prefix, my_reduce_function, chunk_size=1 * 1024 ** 2)
+        pw.map_reduce(my_map_function_obj, data_prefix, my_reduce_function, chunk_size=1*1024**2)
         result = pw.get_result()
         self.checkResult(result)
 
     def test_chunks_bucket_one_reducer_per_object(self):
-        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX
+        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
         pw = pywren.ibm_cf_executor(config=CONFIG)
-        pw.map_reduce(my_map_function_bucket, data_prefix, my_reduce_function, chunk_size=1 * 1024 ** 2,
+        pw.map_reduce(my_map_function_obj, data_prefix, my_reduce_function, chunk_size=1*1024**2,
                       reducer_one_per_object=True)
         result = pw.get_result()
         self.checkResult(result)
 
     def test_cloudobject(self):
-        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX
+        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
         pw = pywren.ibm_cf_executor(config=CONFIG)
         pw.map_reduce(my_cloudobject_put, data_prefix, my_cloudobject_get)
         result = pw.get_result()

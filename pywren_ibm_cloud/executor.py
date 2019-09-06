@@ -116,10 +116,14 @@ class FunctionExecutor:
             raise Exception('You cannot run call_async() in the current state,'
                             ' create a new FunctionExecutor() instance.')
         total_current_jobs = len(self.jobs)
-        job = create_call_async_job(self.config, self.internal_storage, self.executor_id,
-                                    total_current_jobs, func, data, extra_env, extra_meta,
-                                    runtime_memory, timeout, include_modules=include_modules,
-                                    exclude_modules=exclude_modules)
+        job = create_call_async_job(self.config, self.internal_storage,
+                                    self.executor_id, total_current_jobs,
+                                    func=func, data=data,
+                                    extra_env=extra_env, extra_meta=extra_meta,
+                                    runtime_memory=runtime_memory,
+                                    include_modules=include_modules,
+                                    exclude_modules=exclude_modules,
+                                    execution_timeout=timeout)
         future = self.invoker.run(job)
         self.jobs[job['job_id']] = {'futures': future, 'state': JobState.running}
         self._state = ExecutorState.running
@@ -223,11 +227,14 @@ class FunctionExecutor:
         if reducer_wait_local:
             self.monitor(futures=map_futures)
 
-        job = create_reduce_job(self.config, self.internal_storage, self.executor_id, total_current_jobs,
-                                reduce_function, reduce_runtime_memory, map_futures, parts_per_object,
+        job = create_reduce_job(self.config, self.internal_storage,
+                                self.executor_id, total_current_jobs,
+                                reduce_function, map_futures, parts_per_object,
+                                reducer_one_per_object=reducer_one_per_object,
+                                runtime_memory=reduce_runtime_memory,
                                 extra_env=extra_env, extra_meta=extra_meta,
-                                include_modules=include_modules, exclude_modules=exclude_modules,
-                                reducer_one_per_object=reducer_one_per_object)
+                                include_modules=include_modules,
+                                exclude_modules=exclude_modules)
         reduce_futures = self.invoker.run(job)
         self.jobs[job['job_id']] = {'futures': reduce_futures, 'state': JobState.running}
 
