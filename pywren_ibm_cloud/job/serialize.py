@@ -38,14 +38,15 @@ class SerializeIndependent:
         self.preinstalled_modules.append(['pywren_ibm_cloud', True])
         self._modulemgr = None
 
-    def __call__(self, list_of_objs, exclude_modules, **kwargs):
+    def __call__(self, list_of_objs, include_modules, exclude_modules):
         """
         Serialize f, args, kwargs independently
         """
         self._modulemgr = ModuleDependencyAnalyzer()
         preinstalled_modules = [name for name, _ in self.preinstalled_modules]
         self._modulemgr.ignore(preinstalled_modules)
-        self._modulemgr.ignore(exclude_modules)
+        if not include_modules:
+            self._modulemgr.ignore(exclude_modules)
 
         cps = []
         strs = []
@@ -59,17 +60,15 @@ class SerializeIndependent:
             finally:
                 file.close()
 
-        if '_ignore_module_dependencies' in kwargs:
-            ignore_modulemgr = kwargs['_ignore_module_dependencies']
-            del kwargs['_ignore_module_dependencies']
-        else:
-            ignore_modulemgr = False
-
-        if not ignore_modulemgr:
+        if include_modules is not None:
             # Add modules
             for cp in cps:
                 for module in cp.modules:
-                    self._modulemgr.add(module.__name__)
+                    if include_modules:
+                        if module.__name__ in include_modules:
+                            self._modulemgr.add(module.__name__)
+                    else:
+                        self._modulemgr.add(module.__name__)
 
         mod_paths = self._modulemgr.get_and_clear_paths()
         logger.debug("Modules to transmit: {}".format(None if not mod_paths else mod_paths))

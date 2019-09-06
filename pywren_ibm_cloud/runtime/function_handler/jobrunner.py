@@ -212,13 +212,13 @@ class JobRunner(Process):
             obj = data['obj']
             storage = ibm_cos_backend(self.pywren_config['ibm_cos'])
             logger.info('Getting dataset from {}://{}/{}'.format(obj.storage_backend, obj.bucket, obj.key))
-            sb = storage.get_object(obj.bucket, obj.key, stream=True, extra_get_args=extra_get_args)
             if obj.data_byte_range is not None:
                 extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
                 logger.info('Chunk: {} - Range: {}'.format(obj.part, extra_get_args['Range']))
+                sb = storage.get_object(obj.bucket, obj.key, stream=True, extra_get_args=extra_get_args)
                 obj.data_stream = WrappedStreamingBodyPartition(sb, obj.chunk_size, obj.data_byte_range)
             else:
-                obj.data_stream = sb
+                obj.data_stream = storage.get_object(obj.bucket, obj.key, stream=True)
 
     def run(self):
         """

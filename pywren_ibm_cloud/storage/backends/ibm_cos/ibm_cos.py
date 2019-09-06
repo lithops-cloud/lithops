@@ -34,6 +34,7 @@ class StorageBackend:
     """
 
     def __init__(self, ibm_cos_config):
+        logger.debug("Creating IBM COS client")
         self.is_cf_cluster = is_cf_cluster()
         self.ibm_cos_config = ibm_cos_config
 
@@ -54,7 +55,7 @@ class StorageBackend:
             api_key_type = 'IAM'
 
         if {'secret_key', 'access_key'} <= set(ibm_cos_config):
-            logger.debug("IBM COS using access_key and secret_key")
+            logger.debug("Using access_key and secret_key")
             access_key = ibm_cos_config.get('access_key')
             secret_key = ibm_cos_config.get('secret_key')
             client_config = ibm_botocore.client.Config(max_pool_connections=128,
@@ -74,25 +75,26 @@ class StorageBackend:
             token_manager = DefaultTokenManager(api_key_id=api_key)
 
             if 'token' not in ibm_cos_config:
-                logger.debug("IBM COS: Using {} api_key - Requesting new token".format(api_key_type))
+                logger.debug("Using IBM {} api_key - Requesting new token".format(api_key_type))
                 ibm_cos_config['token'] = token_manager.get_token()
                 ibm_cos_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
 
             else:
-                logger.debug("IBM COS: Using {} api_key - Reusing token".format(api_key_type))
+                logger.debug("Using IBM {} api_key - Reusing token".format(api_key_type))
                 token_manager._token = ibm_cos_config['token']
                 expiry_time = ibm_cos_config['token_expiry_time']
                 token_manager._expiry_time = datetime.strptime(expiry_time, '%Y-%m-%d %H:%M:%S.%f%z')
 
                 if token_manager._is_expired() and not self.is_cf_cluster:
                     # Only request new token on client machine
-                    logger.debug("IBM COS: Using {} api_key - Token expired, requesting new token".format(api_key_type))
+                    logger.debug("Using IBM {} api_key - Token expired, requesting new token".format(api_key_type))
                     ibm_cos_config['token'] = token_manager.get_token()
                     ibm_cos_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
 
             self.cos_client = ibm_boto3.client('s3', token_manager=token_manager,
                                                config=client_config,
                                                endpoint_url=service_endpoint)
+            logger.debug("IBM COS client created successfully")
 
     def get_client(self):
         """
@@ -184,11 +186,24 @@ class StorageBackend:
         """
         Head bucket from COS with a name. Throws StorageNoSuchKeyError if the given bucket does not exist.
         :param bucket_name: name of the bucket
-        :return: Data of the object
-        :rtype: str/bytes
         """
         try:
             self.cos_client.head_bucket(Bucket=bucket_name)
+        except ibm_botocore.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == '404':
+                raise StorageNoSuchKeyError(bucket_name, '')
+            else:
+                raise e
+
+    def head_bucket(self, bucket_name):
+        """
+        Head bucket from COS with a name. Throws StorageNoSuchKeyError if the given bucket does not exist.
+        :param bucket_name: name of the bucket
+        :return: Metadata of the bucket
+        :rtype: str/bytes
+        """
+        try:
+            return self.cos_client.head_bucket(Bucket=bucket_name)
         except ibm_botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == '404':
                 raise StorageNoSuchKeyError(bucket_name, '')

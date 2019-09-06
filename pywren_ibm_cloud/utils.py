@@ -125,17 +125,25 @@ def b64str_to_bytes(str_data):
 
 def split_object_url(obj_url):
     if '://' in obj_url:
-        sb, full_key = obj_url.split('://')
+        sb, path = obj_url.split('://')
     else:
         sb = 'ibm_cos'
-        full_key = obj_url
-    if sb == 'cos':
-        sb = 'ibm_cos'
-    splits = full_key.split("/")
-    bucket_name = splits[0]
-    key = "/".join(splits[1:])
+        path = obj_url
 
-    return sb, bucket_name, key
+    sb = 'ibm_cos' if sb == 'cos' else sb
+
+    bucket, full_key = path.split('/', 1) if '/' in path else (path, '')
+
+    if full_key.endswith('/'):
+        prefix = full_key
+        obj_name = ''
+    elif full_key:
+        prefix, obj_name = full_key.rsplit('/', 1) if '/' in full_key else ('', full_key)
+    else:
+        prefix = ''
+        obj_name = ''
+
+    return sb, bucket, prefix, obj_name
 
 
 def split_path(path):

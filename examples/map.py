@@ -17,3 +17,4 @@ if __name__ == "__main__":
     pw = pywren.ibm_cf_executor()
     pw.map(my_map_function, iterdata)
     print(pw.get_result())
+    pw.clean()

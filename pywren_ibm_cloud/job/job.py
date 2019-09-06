@@ -15,9 +15,9 @@ from pywren_ibm_cloud.config import EXECUTION_TIMEOUT, MAX_AGG_DATA_SIZE
 logger = logging.getLogger(__name__)
 
 
-def create_call_async_job(config, internal_storage, executor_id, total_current_jobs, func,
-                          data, extra_env=None, extra_meta=None, runtime_memory=None,
-                          execution_timeout=EXECUTION_TIMEOUT, exclude_modules=[]):
+def create_call_async_job(config, internal_storage, executor_id, total_current_jobs, func, data,
+                          extra_env=None, extra_meta=None, runtime_memory=None, include_modules=[],
+                          exclude_modules=[], execution_timeout=EXECUTION_TIMEOUT):
     """
     Wrapper to create call_async job that contains only one function invocation.
     """
@@ -25,13 +25,14 @@ def create_call_async_job(config, internal_storage, executor_id, total_current_j
     async_job_id = f'A{job_id}'
     return _create_job(config, internal_storage, executor_id, async_job_id, func, [data],
                        extra_env=extra_env, extra_meta=extra_meta, runtime_memory=runtime_memory,
-                       execution_timeout=execution_timeout, exclude_modules=exclude_modules)
+                       execution_timeout=execution_timeout, exclude_modules=exclude_modules,
+                       include_modules=include_modules)
 
 
 def create_map_job(config, internal_storage, executor_id, total_current_jobs, map_function, iterdata,
                    obj_chunk_size=None, obj_chunk_number=None, extra_env=None, extra_meta=None,
                    runtime_memory=None, remote_invocation=False, remote_invocation_groups=None,
-                   invoke_pool_threads=128, exclude_modules=[], is_cf_cluster=False,
+                   invoke_pool_threads=128, include_modules=[], exclude_modules=[], is_cf_cluster=False,
                    execution_timeout=EXECUTION_TIMEOUT, overwrite_invoke_args=None):
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
@@ -84,6 +85,7 @@ def create_map_job(config, internal_storage, executor_id, total_current_jobs, ma
                                   runtime_memory=new_runtime_memory,
                                   invoke_pool_threads=new_invoke_pool_threads,
                                   overwrite_invoke_args=overwrite_invoke_args,
+                                  include_modules=include_modules,
                                   exclude_modules=exclude_modules,
                                   remote_invocation=remote_invocation,
                                   original_total_tasks=original_total_tasks,
@@ -92,21 +94,21 @@ def create_map_job(config, internal_storage, executor_id, total_current_jobs, ma
     return job_description, parts_per_object
 
 
-def create_reduce_job(config, internal_storage, executor_id, total_current_jobs,
-                      reduce_function, reduce_runtime_memory, map_futures, parts_per_object,
-                      reducer_one_per_object=False, extra_env=None, extra_meta=None, exclude_modules=[]):
+def create_reduce_job(config, internal_storage, executor_id, total_current_jobs, reduce_function,
+                      map_futures, parts_per_object, reducer_one_per_object=False, runtime_memory=None,
+                      extra_env=None, extra_meta=None, include_modules=[], exclude_modules=[]):
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
     """
     job_id = str(total_current_jobs).zfill(3)
     reduce_job_id = f'R{job_id}'
-    map_iterdata = [[map_futures, ]]
+    iterdata = [[map_futures, ]]
 
     if parts_per_object and reducer_one_per_object:
         prev_total_partitons = 0
-        map_iterdata = []
+        iterdata = []
         for total_partitions in parts_per_object:
-            map_iterdata.append([map_futures[prev_total_partitons:prev_total_partitons+total_partitions]])
+            iterdata.append([map_futures[prev_total_partitons:prev_total_partitons+total_partitions]])
             prev_total_partitons = prev_total_partitons + total_partitions
 
     def reduce_function_wrapper(fut_list, internal_storage, ibm_cos):
@@ -133,9 +135,13 @@ def create_reduce_job(config, internal_storage, executor_id, total_current_jobs,
 
         return reduce_function(**reduce_func_args)
 
-    return _create_job(config, internal_storage, executor_id, reduce_job_id, reduce_function_wrapper, map_iterdata,
-                       runtime_memory=reduce_runtime_memory, extra_env=extra_env, extra_meta=extra_meta,
-                       exclude_modules=exclude_modules, original_func_name=reduce_function.__name__)
+    return _create_job(config, internal_storage, executor_id,
+                       reduce_job_id, reduce_function_wrapper,
+                       iterdata, runtime_memory=runtime_memory,
+                       extra_env=extra_env,  extra_meta=extra_meta,
+                       include_modules=include_modules,
+                       exclude_modules=exclude_modules,
+                       original_func_name=reduce_function.__name__)
 
 
 def _agg_data(data_strs):
@@ -152,7 +158,7 @@ def _agg_data(data_strs):
 
 
 def _create_job(config, internal_storage, executor_id, job_id, func, iterdata, extra_env=None, extra_meta=None,
-                runtime_memory=None, invoke_pool_threads=128, overwrite_invoke_args=None,
+                runtime_memory=None, invoke_pool_threads=128, overwrite_invoke_args=None, include_modules=[],
                 exclude_modules=[], original_func_name=None, remote_invocation=False, original_total_tasks=None,
                 execution_timeout=EXECUTION_TIMEOUT):
     """
@@ -214,7 +220,11 @@ def _create_job(config, internal_storage, executor_id, job_id, func, iterdata, e
     log_msg = 'ExecutorID {} | JobID {} - Serializing function and data'.format(executor_id, job_id)
     logger.debug(log_msg)
     # pickle func and all data (to capture module dependencies)
-    func_and_data_ser, mod_paths = serializer([func] + data, exclude_modules)
+    exclude_modules.extend(config['pywren'].get('exclude_modules', []))
+    include_modules_cfg = config['pywren'].get('include_modules', [])
+    if include_modules is not None and include_modules_cfg is not None:
+        include_modules.extend(include_modules_cfg)
+    func_and_data_ser, mod_paths = serializer([func] + data, include_modules, exclude_modules)
 
     func_str = func_and_data_ser[0]
     data_strs = func_and_data_ser[1:]
