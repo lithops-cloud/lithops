@@ -30,7 +30,7 @@ ibm_db == 2.0.9
 cloudant == 2.11.0
 # pin watson at 1.x, for 2.x use python:3.7 runtime
 watson-developer-cloud == 1.7.1
-ibm-cos-sdk == 2.4.3
+ibm-cos-sdk == 2.5.3
 ibmcloudsql == 0.2.23
 
 # Compose Libs
