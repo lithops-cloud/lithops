@@ -37,46 +37,48 @@ def create_partitions(config, arg_data, chunk_size, chunk_number):
     sbs = set()
     buckets = set()
     prefixes = set()
-    keys = set()
+    obj_names = set()
     urls = set()
 
+    logger.debug("Parsing input data")
     for elem in arg_data:
         if 'url' in elem:
-            sb, bucket, key_or_prefix = utils.split_object_url(elem['url'])
-            urls.add(key_or_prefix)
+            urls.add(elem['url'])
         if 'obj' in elem:
-            sb, bucket, key_or_prefix = utils.split_object_url(elem['obj'])
-            if key_or_prefix:
-                if key_or_prefix.endswith('/'):
-                    prefixes.add((bucket, key_or_prefix))
-                else:
-                    keys.add((bucket, key_or_prefix))
+            sb, bucket, prefix, obj_name = utils.split_object_url(elem['obj'])
+            if obj_name:
+                obj_names.add((bucket, prefix))
+            elif prefix:
+                prefixes.add((bucket, prefix))
             else:
                 buckets.add(bucket)
-        sbs.add(sb)
+            sbs.add(sb)
 
     if len(sbs) > 1:
         raise Exception('Currently we only support to process one storage backend at a time'
                         'Specified storage backends: {}'.format(sb))
 
-    if [prefixes, keys, urls, buckets].count(True) > 1:
+    if [prefixes, obj_names, urls, buckets].count(True) > 1:
         raise Exception('You must provide as an input data a list of bucktes, '
                         'a list of buckets with object prefix, a list of keys '
                         'or a list of urls. Intermingled types are not allowed.')
 
     if not urls:
         # process objects from an object store. No url
-        storage = ibm_cos_backend(config['ibm_cos'])
+        sb = sbs.pop()
+        storage = ibm_cos_backend(config[sb])
         objects = {}
-        if prefixes:
+        if obj_names:
+            for bucket, prefix in obj_names:
+                logger.debug("Listing objects in '{}://{}'".format(sb, '/'.join([bucket, prefix])))
+                objects[bucket] = storage.list_objects(bucket, prefix)
+        elif prefixes:
             for bucket, prefix in prefixes:
+                logger.debug("Listing objects in '{}://{}'".format(sb, '/'.join([bucket, prefix])))
                 objects[bucket] = storage.list_objects(bucket, prefix)
         elif buckets:
             for bucket in buckets:
-                objects[bucket] = storage.list_objects(bucket)
-        elif keys:
-            present_buckets = {bucket for bucket, key in keys}
-            for bucket in present_buckets:
+                logger.debug("Listing objects in '{}://{}'".format(sb, bucket))
                 objects[bucket] = storage.list_objects(bucket)
 
         keys_dict = {}
@@ -88,7 +90,7 @@ def create_partitions(config, arg_data, chunk_size, chunk_number):
     if buckets or prefixes:
         partitions, parts_per_object = _split_objects_from_buckets(arg_data, keys_dict, chunk_size, chunk_number)
 
-    elif keys:
+    elif obj_names:
         partitions, parts_per_object = _split_objects_from_keys(arg_data, keys_dict, chunk_size, chunk_number)
 
     elif urls:
@@ -110,7 +112,7 @@ def _split_objects_from_buckets(map_func_args_list, keys_dict, chunk_size, chunk
 
     for entry in map_func_args_list:
         # Each entry is a bucket
-        sb, bucket, prefix = utils.split_object_url(entry['obj'])
+        sb, bucket, prefix, obj_name = utils.split_object_url(entry['obj'])
 
         if chunk_size:
             logger.info('Creating chunks from objects within: {}'.format(bucket))
@@ -158,7 +160,8 @@ def _split_objects_from_keys(map_func_args_list, keys_dict, chunk_size, chunk_nu
 
     for entry in map_func_args_list:
         # each entry is a key
-        sb, bucket, key = utils.split_object_url(entry['obj'])
+        sb, bucket, prefix, obj_name = utils.split_object_url(entry['obj'])
+        key = '/'.join([prefix, obj_name])
         try:
             obj_size = keys_dict[bucket][key]
         except Exception:
