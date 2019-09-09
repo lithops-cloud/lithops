@@ -1,5 +1,5 @@
 
-# How to use PyWren for IBM Cloud Functions
+# PyWren API Details
 
 
 ## Executor
@@ -33,7 +33,6 @@ ibm_cf_executor.**call_async**(func, data, \*\*kwargs)
 |func | |The function to map over the data |
 |data |  |A single value of data |
 |extra_env| None |Additional environment variables for CF environment|
-|extra_meta|  None |Additional metadata to pass to CF |
 |runtime_memory| 256 |Memory (in MB) to use to run the functions|
 |timeout| 600 |Max time per function activation (seconds)|
 |exclude_modules| None |Explicitly keep these modules from pickled dependencies |
@@ -53,10 +52,10 @@ ibm_cf_executor.**map**(func, iterdata, \*\*kwargs)
 
 |Parameter| Default |Description|
 |---|---|---|
-|func | |The function to map over the data |
-|iterdata |  |An iterable of input data (e.g python list) |
+|map_function | |The function to map over the data |
+|map_iterdata |  |An iterable of input data (e.g python list) |
+|extra_params|  None | Additional parameters to pass to each map_function activation |
 |extra_env| None |Additional environment variables for CF environment |
-|extra_meta|  None |Additional metadata to pass to CF |
 |runtime_memory| 256 |Memory (in MB) to use to run the functions |
 |timeout| 600 |Max time per function activation (seconds) |
 |exclude_modules| None |Explicitly keep these modules from pickled dependencies |
@@ -78,12 +77,12 @@ ibm_cf_executor.**map_reduce**(map_func, iterdata, reduce_func, \*\*kwargs)
 
 |Parameter| Default |Description|
 |---|---|---|
-|map_func| |The function to map over the data |
-|iterdata |  |An iterable of input data (e.g python list)|
-|reduce_func|  |The function to map over the results of map_func |
+|map_function| |The function to map over the data |
+|map_iterdata |  |An iterable of input data (e.g python list)|
+|extra_params|  None | Additional parameters to pass to each map_function activation |
+|reduce_function|  |The function to map over the results of map_func |
 |reducer_wait_local| False |Wait locally for map results |
 |extra_env| None | Additional environment variables for CF environment|
-|extra_meta|  None | Additional metadata to pass to CF|
 |map_runtime_memory| 256 | Memory (in MB) to use to run the map function|
 |reduce_runtime_memory| 256| Memory (in MB) to use to run the reduce function|
 |timeout| 600 | Max time per function activation (seconds)|

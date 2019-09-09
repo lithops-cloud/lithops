@@ -120,8 +120,8 @@ pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
 |ibm_cos | endpoint | |yes | Regional endpoint to your COS account. Make sure to use full path with 'https://' as prefix. For example https://s3.us-east.cloud-object-storage.appdomain.cloud |
 |ibm_cos | private_endpoint | |no | Private regional endpoint to your COS account. Make sure to use full path. For example: https://s3.private.us-east.cloud-object-storage.appdomain.cloud |
 |ibm_cos | api_key | |yes | API Key to your COS account|
-|access_key | api_key | |no | HMAC Credentials|
-|secret_key | api_key | |no | HMAC Credentials|
+|ibm_cos | access_key | |no | HMAC Credentials. Mandatory if not api_key|
+|ibm_cos | secret_key | |no | HMAC Credentials. Mandatory if not api_key|
 
 ### Summary of configuration keys for IBM IAM authentication:
 

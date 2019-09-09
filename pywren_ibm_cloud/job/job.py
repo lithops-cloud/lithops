@@ -16,43 +16,42 @@ logger = logging.getLogger(__name__)
 
 
 def create_call_async_job(config, internal_storage, executor_id, total_current_jobs, func, data,
-                          extra_env=None, extra_meta=None, runtime_memory=None, include_modules=[],
+                          extra_env=None, runtime_memory=None, include_modules=[],
                           exclude_modules=[], execution_timeout=EXECUTION_TIMEOUT):
     """
     Wrapper to create call_async job that contains only one function invocation.
     """
     job_id = str(total_current_jobs).zfill(3)
     async_job_id = f'A{job_id}'
-    return _create_job(config, internal_storage, executor_id, async_job_id, func, [data],
-                       extra_env=extra_env, extra_meta=extra_meta, runtime_memory=runtime_memory,
+    data = utils.verify_args(func, [data], None)
+
+    return _create_job(config, internal_storage, executor_id, async_job_id, func, data,
+                       extra_env=extra_env, runtime_memory=runtime_memory,
                        execution_timeout=execution_timeout, exclude_modules=exclude_modules,
                        include_modules=include_modules)
 
 
 def create_map_job(config, internal_storage, executor_id, total_current_jobs, map_function, iterdata,
-                   obj_chunk_size=None, obj_chunk_number=None, extra_env=None, extra_meta=None,
+                   extra_params=None, extra_env=None, obj_chunk_size=None, obj_chunk_number=None,
                    runtime_memory=None, remote_invocation=False, remote_invocation_groups=None,
                    invoke_pool_threads=128, include_modules=[], exclude_modules=[], is_cf_cluster=False,
-                   execution_timeout=EXECUTION_TIMEOUT, overwrite_invoke_args=None):
+                   execution_timeout=EXECUTION_TIMEOUT):
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
     """
     job_id = str(total_current_jobs).zfill(3)
     map_job_id = f'M{job_id}'
-    data = utils.iterdata_as_list(iterdata)
     map_func = map_function
-    map_iterdata = data
+    map_iterdata = utils.verify_args(map_function, iterdata, extra_params)
     new_invoke_pool_threads = invoke_pool_threads
     new_runtime_memory = runtime_memory
-
-    arg_data = utils.verify_args(map_function, data)
 
     # Object processing functionality
     parts_per_object = None
     if utils.is_object_processing_function(map_function):
         # If it is object processing function, create partitions according chunk_size or chunk_number
         logger.debug('ExecutorID {} | JobID {} - Calling map on partitions from object storage flow'.format(executor_id, job_id))
-        map_iterdata, parts_per_object = create_partitions(config, arg_data, obj_chunk_size, obj_chunk_number)
+        map_iterdata, parts_per_object = create_partitions(config, map_iterdata, obj_chunk_size, obj_chunk_number)
     # ########
 
     # Remote invocation functionality
@@ -65,8 +64,7 @@ def create_map_job(config, internal_storage, executor_id, total_current_jobs, ma
             return pw.map(map_function, input_data,
                           runtime_memory=runtime_memory,
                           invoke_pool_threads=invoke_pool_threads,
-                          extra_env=extra_env,
-                          extra_meta=extra_meta)
+                          extra_env=extra_env)
 
         map_func = remote_invoker
         if remote_invocation_groups:
@@ -81,10 +79,8 @@ def create_map_job(config, internal_storage, executor_id, total_current_jobs, ma
     job_description = _create_job(config, internal_storage, executor_id,
                                   map_job_id, map_func, map_iterdata,
                                   extra_env=extra_env,
-                                  extra_meta=extra_meta,
                                   runtime_memory=new_runtime_memory,
                                   invoke_pool_threads=new_invoke_pool_threads,
-                                  overwrite_invoke_args=overwrite_invoke_args,
                                   include_modules=include_modules,
                                   exclude_modules=exclude_modules,
                                   remote_invocation=remote_invocation,
@@ -96,7 +92,7 @@ def create_map_job(config, internal_storage, executor_id, total_current_jobs, ma
 
 def create_reduce_job(config, internal_storage, executor_id, total_current_jobs, reduce_function,
                       map_futures, parts_per_object, reducer_one_per_object=False, runtime_memory=None,
-                      extra_env=None, extra_meta=None, include_modules=[], exclude_modules=[]):
+                      extra_env=None, include_modules=[], exclude_modules=[]):
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
     """
@@ -135,10 +131,12 @@ def create_reduce_job(config, internal_storage, executor_id, total_current_jobs,
 
         return reduce_function(**reduce_func_args)
 
+    iterdata = utils.verify_args(reduce_function_wrapper, iterdata, None)
+
     return _create_job(config, internal_storage, executor_id,
                        reduce_job_id, reduce_function_wrapper,
                        iterdata, runtime_memory=runtime_memory,
-                       extra_env=extra_env,  extra_meta=extra_meta,
+                       extra_env=extra_env,
                        include_modules=include_modules,
                        exclude_modules=exclude_modules,
                        original_func_name=reduce_function.__name__)
@@ -157,10 +155,10 @@ def _agg_data(data_strs):
     return b"".join(data_strs), ranges
 
 
-def _create_job(config, internal_storage, executor_id, job_id, func, iterdata, extra_env=None, extra_meta=None,
-                runtime_memory=None, invoke_pool_threads=128, overwrite_invoke_args=None, include_modules=[],
-                exclude_modules=[], original_func_name=None, remote_invocation=False, original_total_tasks=None,
-                execution_timeout=EXECUTION_TIMEOUT):
+def _create_job(config, internal_storage, executor_id, job_id, func, data, extra_env=None,
+                runtime_memory=None, invoke_pool_threads=128, include_modules=[],
+                exclude_modules=[], original_func_name=None, remote_invocation=False,
+                original_total_tasks=None, execution_timeout=EXECUTION_TIMEOUT):
     """
     :param func: the function to map over the data
     :param iterdata: An iterable of input data
@@ -190,16 +188,11 @@ def _create_job(config, internal_storage, executor_id, job_id, func, iterdata, e
     else:
         func_name = func.__name__
 
-    data = utils.iterdata_as_list(iterdata)
-
     if extra_env is not None:
         extra_env = utils.convert_bools_to_string(extra_env)
 
     if not data:
         return []
-
-    # This allows multiple parameters in functions
-    data = utils.verify_args(func, data)
 
     host_job_meta = {}
     job_description = {}
@@ -209,10 +202,8 @@ def _create_job(config, internal_storage, executor_id, job_id, func, iterdata, e
     job_description['execution_timeout'] = execution_timeout
     job_description['func_name'] = func_name
     job_description['extra_env'] = extra_env
-    job_description['extra_meta'] = extra_meta
     job_description['total_calls'] = len(data)
     job_description['invoke_pool_threads'] = invoke_pool_threads
-    job_description['overwrite_invoke_args'] = overwrite_invoke_args
     job_description['job_id'] = job_id
     job_description['remote_invocation'] = remote_invocation
     job_description['original_total_calls'] = original_total_tasks

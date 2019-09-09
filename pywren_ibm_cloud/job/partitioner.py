@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 CHUNK_THRESHOLD = 128*1024  # 128KB
 
 
-def create_partitions(pywren_config, arg_data, chunk_size, chunk_number):
+def create_partitions(pywren_config, map_iterdata, chunk_size, chunk_number):
     """
     Method that returns the function that will create the partitions of the objects in the Cloud
     """
@@ -41,7 +41,7 @@ def create_partitions(pywren_config, arg_data, chunk_size, chunk_number):
     urls = set()
 
     logger.debug("Parsing input data")
-    for elem in arg_data:
+    for elem in map_iterdata:
         if 'url' in elem:
             urls.add(elem['url'])
         if 'obj' in elem:
@@ -88,13 +88,13 @@ def create_partitions(pywren_config, arg_data, chunk_size, chunk_number):
                 keys_dict[bucket][obj['Key']] = obj['Size']
 
     if buckets or prefixes:
-        partitions, parts_per_object = _split_objects_from_buckets(arg_data, keys_dict, chunk_size, chunk_number)
+        partitions, parts_per_object = _split_objects_from_buckets(map_iterdata, keys_dict, chunk_size, chunk_number)
 
     elif obj_names:
-        partitions, parts_per_object = _split_objects_from_keys(arg_data, keys_dict, chunk_size, chunk_number)
+        partitions, parts_per_object = _split_objects_from_keys(map_iterdata, keys_dict, chunk_size, chunk_number)
 
     elif urls:
-        partitions, parts_per_object = _split_objects_from_urls(arg_data, chunk_size, chunk_number)
+        partitions, parts_per_object = _split_objects_from_urls(map_iterdata, chunk_size, chunk_number)
 
     else:
         raise ValueError('You did not provide any bucket or object key/url')

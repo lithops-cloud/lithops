@@ -1,9 +1,22 @@
 # Changelog
 
-## [v1.0.19--snapshot]
+## [v1.0.20--snapshot]
 
 ### Added
-- added 'obj' as an optional arg for the functions when a user wants to process objects from OS
+- Added storage abstraction for data partitioner
+- Added extra_params arg to map() and map_reduce() calls
+
+### Changed
+- Docs updated
+
+### Fixed
+- 
+
+
+## [v1.0.19]
+
+### Added
+- Added 'obj' as an optional arg for the functions when a user wants to process objects from OS
 - Added 'rabbitmq' as an optional arg for the functions
 - Added 'id' as an optional arg for the functions
 - Added rabbitmq example
@@ -13,9 +26,13 @@
 - Internal improvements related data partitioning
 - Changed create_timeline_plots() method name to create_execution_plots()
 - Docs updated
+- updated notebooks
+- Upgrade cos-sdk Python module version
 
 ### Fixed
-- 
+- Fixed tests
+- Fixed CVE-2019-12855 security alert
+
 
 ## [v1.0.18]
 

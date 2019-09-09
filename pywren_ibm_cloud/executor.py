@@ -102,14 +102,14 @@ class FunctionExecutor:
             futures.extend(self.jobs[job]['futures'])
         return futures
 
-    def call_async(self, func, data, extra_env=None, extra_meta=None, runtime_memory=None,
+    def call_async(self, func, data, extra_env=None, runtime_memory=None,
                    timeout=EXECUTION_TIMEOUT, include_modules=[], exclude_modules=[]):
         """
         For running one function execution asynchronously
         :param func: the function to map over the data
         :param data: input data
+        :param extra_data: Additional data to pass to action. Default None.
         :param extra_env: Additional environment variables for action environment. Default None.
-        :param extra_meta: Additional metadata to pass to action. Default None.
         """
 
         if self._state == ExecutorState.finished:
@@ -119,7 +119,7 @@ class FunctionExecutor:
         job = create_call_async_job(self.config, self.internal_storage,
                                     self.executor_id, total_current_jobs,
                                     func=func, data=data,
-                                    extra_env=extra_env, extra_meta=extra_meta,
+                                    extra_env=extra_env,
                                     runtime_memory=runtime_memory,
                                     include_modules=include_modules,
                                     exclude_modules=exclude_modules,
@@ -130,15 +130,14 @@ class FunctionExecutor:
 
         return future[0]
 
-    def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None, runtime_memory=None,
+    def map(self, map_function, map_iterdata, extra_params=None, extra_env=None, runtime_memory=None,
             chunk_size=None, chunk_n=None, remote_invocation=False, remote_invocation_groups=None,
-            timeout=EXECUTION_TIMEOUT, invoke_pool_threads=500, overwrite_invoke_args=None,
-            include_modules=[], exclude_modules=[]):
+            timeout=EXECUTION_TIMEOUT, invoke_pool_threads=500, include_modules=[], exclude_modules=[]):
         """
         :param func: the function to map over the data
         :param iterdata: An iterable of input data
         :param extra_env: Additional environment variables for action environment. Default None.
-        :param extra_meta: Additional metadata to pass to action. Default None.
+        :param extra_params: Additional parameters to pass to the function activation. Default None.
         :param chunk_size: the size of the data chunks. 'None' for processing the whole file in one map
         :param remote_invocation: Enable or disable remote_invocayion mechanism. Default 'False'
         :param timeout: Time that the functions have to complete their execution before raising a timeout.
@@ -157,7 +156,7 @@ class FunctionExecutor:
         job, unused_ppo = create_map_job(self.config, self.internal_storage,
                                          self.executor_id, total_current_jobs,
                                          map_function=map_function, iterdata=map_iterdata,
-                                         extra_env=extra_env, extra_meta=extra_meta,
+                                         extra_params=extra_params, extra_env=extra_env,
                                          obj_chunk_size=chunk_size, obj_chunk_number=chunk_n,
                                          runtime_memory=runtime_memory,
                                          remote_invocation=remote_invocation,
@@ -166,7 +165,6 @@ class FunctionExecutor:
                                          include_modules=include_modules,
                                          exclude_modules=exclude_modules,
                                          is_cf_cluster=self.is_cf_cluster,
-                                         overwrite_invoke_args=overwrite_invoke_args,
                                          execution_timeout=timeout)
         map_futures = self.invoker.run(job)
         self.jobs[job['job_id']] = {'futures': map_futures, 'state': JobState.running}
@@ -176,10 +174,10 @@ class FunctionExecutor:
             return map_futures[0]
         return map_futures
 
-    def map_reduce(self, map_function, map_iterdata, reduce_function, extra_env=None, map_runtime_memory=None,
-                   reduce_runtime_memory=None, extra_meta=None, chunk_size=None,  chunk_n=None, remote_invocation=False,
-                   remote_invocation_groups=None, timeout=EXECUTION_TIMEOUT, reducer_one_per_object=False,
-                   reducer_wait_local=False, invoke_pool_threads=500, overwrite_invoke_args=None,
+    def map_reduce(self, map_function, map_iterdata, reduce_function, extra_params=None, extra_env=None,
+                   map_runtime_memory=None, reduce_runtime_memory=None, chunk_size=None, chunk_n=None,
+                   remote_invocation=False, remote_invocation_groups=None, timeout=EXECUTION_TIMEOUT,
+                   reducer_one_per_object=False, reducer_wait_local=False, invoke_pool_threads=500,
                    include_modules=[], exclude_modules=[]):
         """
         Map the map_function over the data and apply the reduce_function across all futures.
@@ -188,7 +186,7 @@ class FunctionExecutor:
         :param map_iterdata:  the function to reduce over the futures
         :param reduce_function:  the function to reduce over the futures
         :param extra_env: Additional environment variables for action environment. Default None.
-        :param extra_meta: Additional metadata to pass to action. Default None.
+        :param extra_params: Additional parameters to pass to function activation. Default None.
         :param chunk_size: the size of the data chunks. 'None' for processing the whole file in one map
         :param remote_invocation: Enable or disable remote_invocayion mechanism. Default 'False'
         :param timeout: Time that the functions have to complete their execution before raising a timeout.
@@ -209,7 +207,7 @@ class FunctionExecutor:
         job, parts_per_object = create_map_job(self.config, self.internal_storage,
                                                self.executor_id, total_current_jobs,
                                                map_function=map_function, iterdata=map_iterdata,
-                                               extra_env=extra_env, extra_meta=extra_meta,
+                                               extra_params=extra_params, extra_env=extra_env,
                                                obj_chunk_size=chunk_size, obj_chunk_number=chunk_n,
                                                runtime_memory=map_runtime_memory,
                                                remote_invocation=remote_invocation,
@@ -218,7 +216,6 @@ class FunctionExecutor:
                                                include_modules=include_modules,
                                                exclude_modules=exclude_modules,
                                                is_cf_cluster=self.is_cf_cluster,
-                                               overwrite_invoke_args=overwrite_invoke_args,
                                                execution_timeout=timeout)
         map_futures = self.invoker.run(job)
         self.jobs[job['job_id']] = {'futures': map_futures, 'state': JobState.running}
@@ -232,7 +229,7 @@ class FunctionExecutor:
                                 reduce_function, map_futures, parts_per_object,
                                 reducer_one_per_object=reducer_one_per_object,
                                 runtime_memory=reduce_runtime_memory,
-                                extra_env=extra_env, extra_meta=extra_meta,
+                                extra_env=extra_env,
                                 include_modules=include_modules,
                                 exclude_modules=exclude_modules)
         reduce_futures = self.invoker.run(job)

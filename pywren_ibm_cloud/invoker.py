@@ -77,17 +77,6 @@ class Invoker:
                 logger.debug("Extra environment vars {}".format(job.extra_env))
                 payload['extra_env'] = job.extra_env
 
-            if job.extra_meta is not None:
-                # sanity
-                for k, v in job.extra_meta.items():
-                    if k in payload:
-                        raise ValueError("Key {} already in dict".format(k))
-                    payload[k] = v
-
-            # overwrite explicit args, mostly used for testing via injection
-            if job.overwrite_invoke_args is not None:
-                payload.update(job.overwrite_invoke_args)
-
             host_submit_time = time.time()
             payload['host_submit_time'] = host_submit_time
             # do the invocation

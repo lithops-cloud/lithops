@@ -25,7 +25,7 @@ import pandas as pd
 import seaborn as sns
 from matplotlib import patches as mpatches
 from matplotlib.collections import LineCollection
-from pywren_ibm_cloud.storage.backends.ibm_cos.ibm_cos import StorageBackend as ibm_cos_backend
+from pywren_ibm_cloud.storage.backends.ibm_cos.ibm_cos import IbmCosBackend
 sns.set_style('whitegrid')
 logger = logging.getLogger(__name__)
 
@@ -177,5 +177,5 @@ def save_plot_in_cos(cos_config, fig, dst, filename):
     fig.savefig(buff)
     buff.seek(0)
 
-    cos_handler = ibm_cos_backend(cos_config)
+    cos_handler = IbmCosBackend(cos_config)
     cos_handler.put_object(bucketname, key, buff.read())
