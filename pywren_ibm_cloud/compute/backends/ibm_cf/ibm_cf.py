@@ -3,6 +3,7 @@ import sys
 import time
 import logging
 import zipfile
+import textwrap
 import pywren_ibm_cloud
 from . import config as ibm_cf_config
 from pywren_ibm_cloud.utils import version_str
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 ZIP_LOCATION = os.path.join(os.getcwd(), 'cloudbutton_ibm_cf.zip')
 
 
-class ComputeBackend:
+class IbmCloudFunctionsBackend:
     """
     A wrap-up around IBM Cloud Functions backend.
     """
@@ -203,19 +204,29 @@ class ComputeBackend:
         if docker_image_name == 'default':
             docker_image_name = self._get_default_runtime_image_name()
 
-        module_location = os.path.dirname(os.path.abspath(pywren_ibm_cloud.__file__))
-        action_location = os.path.join(module_location, 'runtime', 'extract_preinstalls_fn.py')
+        action_code = """
+            import sys
+            import pkgutil
 
-        with open(action_location, "r") as action_py:
-            action_code = action_py.read()
+            def main(args):
+                print("Extracting preinstalled Python modules...")
+                runtime_meta = dict()
+                mods = list(pkgutil.iter_modules())
+                runtime_meta["preinstalls"] = [entry for entry in sorted([[mod, is_pkg] for _, mod, is_pkg in mods])]
+                python_version = sys.version_info
+                runtime_meta["python_ver"] = str(python_version[0])+"."+str(python_version[1])
+                print("Done !")
+                return runtime_meta
+            """
 
         runtime_memory = 130
         # old_stdout = sys.stdout
         # sys.stdout = open(os.devnull, 'w')
         action_name = self._format_action_name(docker_image_name, runtime_memory)
         self.cf_client.create_package(self.package)
-        self.cf_client.create_action(self.package, action_name, docker_image_name, code=action_code,
-                                     memory=runtime_memory, is_binary=False, timeout=30000)
+        self.cf_client.create_action(self.package, action_name, docker_image_name,
+                                     code=textwrap.dedent(action_code), is_binary=False,
+                                     memory=runtime_memory, timeout=30000)
         # sys.stdout = old_stdout
         logger.debug("Extracting Python modules list from: {}".format(docker_image_name))
         try:

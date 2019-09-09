@@ -28,7 +28,7 @@ logging.getLogger('urllib3').setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
-class StorageBackend:
+class IbmCosBackend:
     """
     A wrap-up around IBM COS ibm_boto3 APIs.
     """

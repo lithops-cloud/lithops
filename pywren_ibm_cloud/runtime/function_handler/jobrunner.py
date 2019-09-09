@@ -27,13 +27,13 @@ import traceback
 import numpy as np
 from multiprocessing import Process
 from distutils.util import strtobool
+from pywren_ibm_cloud.storage import Storage
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.future import ResponseFuture
 from pywren_ibm_cloud.libs.tblib import pickling_support
 from pywren_ibm_cloud.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_function
 from pywren_ibm_cloud.utils import get_current_memory_usage, WrappedStreamingBodyPartition
 from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config
-from pywren_ibm_cloud.storage.backends.ibm_cos.ibm_cos import StorageBackend as ibm_cos_backend
 
 pickling_support.install()
 logger = logging.getLogger('JobRunner')
@@ -163,7 +163,7 @@ class JobRunner(Process):
         if 'ibm_cos' in func_sig.parameters:
             if 'ibm_cos' in self.pywren_config:
                 try:
-                    ibm_boto3_client = ibm_cos_backend(self.storage_config['ibm_cos']).get_client()
+                    ibm_boto3_client = Storage(self.storage_config, 'ibm_cos').get_client()
                     data['ibm_cos'] = ibm_boto3_client
                 except Exception as e:
                     logger.error('Cannot create the ibm_cos connection: {}', str(e))
@@ -210,15 +210,16 @@ class JobRunner(Process):
 
         if 'obj' in data:
             obj = data['obj']
-            storage = ibm_cos_backend(self.pywren_config['ibm_cos'])
+            obj.storage_backend
+            storage_handler = Storage(self.pywren_config, obj.storage_backend).get_storage_handler()
             logger.info('Getting dataset from {}://{}/{}'.format(obj.storage_backend, obj.bucket, obj.key))
             if obj.data_byte_range is not None:
                 extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
                 logger.info('Chunk: {} - Range: {}'.format(obj.part, extra_get_args['Range']))
-                sb = storage.get_object(obj.bucket, obj.key, stream=True, extra_get_args=extra_get_args)
+                sb = storage_handler.get_object(obj.bucket, obj.key, stream=True, extra_get_args=extra_get_args)
                 obj.data_stream = WrappedStreamingBodyPartition(sb, obj.chunk_size, obj.data_byte_range)
             else:
-                obj.data_stream = storage.get_object(obj.bucket, obj.key, stream=True)
+                obj.data_stream = storage_handler.get_object(obj.bucket, obj.key, stream=True)
 
     def run(self):
         """

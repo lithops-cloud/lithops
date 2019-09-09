@@ -16,14 +16,14 @@ def select_runtime(config, internal_storage, executor_id, job_id, runtime_name, 
     """
     log_level = os.getenv('CB_LOG_LEVEL')
     compute_config = extract_compute_config(config)
-    internal_compute = Compute(compute_config)
+    compute = Compute(compute_config)
 
     log_msg = 'ExecutorID {} | JobID {} - Selected Runtime: {} - {}MB'.format(executor_id, job_id, runtime_name, runtime_memory)
     logger.info(log_msg)
     if not log_level:
         print(log_msg, end=' ')
 
-    runtime_key = internal_compute.get_runtime_key(runtime_name, runtime_memory)
+    runtime_key = compute.get_runtime_key(runtime_name, runtime_memory)
     try:
         runtime_meta = internal_storage.get_runtime_meta(runtime_key)
         if not log_level:
@@ -35,8 +35,8 @@ def select_runtime(config, internal_storage, executor_id, job_id, runtime_name, 
 
         timeout = config['pywren']['runtime_timeout']
         logger.debug('Creating runtime: {}, memory: {}'.format(runtime_name, runtime_memory))
-        runtime_meta = internal_compute.generate_runtime_meta(runtime_name)
-        internal_compute.create_runtime(runtime_name, runtime_memory, timeout=timeout)
+        runtime_meta = compute.generate_runtime_meta(runtime_name)
+        compute.create_runtime(runtime_name, runtime_memory, timeout=timeout)
         internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
     if not _runtime_valid(runtime_meta):

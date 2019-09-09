@@ -39,7 +39,7 @@ class FunctionExecutor:
     def __init__(self, config=None, runtime=None, runtime_memory=None, compute_backend=None,
                  compute_backend_region=None, log_level=None, rabbitmq_monitor=None):
         """
-        Initialize and return a ServerlessExecutor class.
+        Initialize and return a FunctionExecutor class.
 
         :param config: Settings passed in here will override those in config file. Default None.
         :param runtime: Runtime name to use. Default None.

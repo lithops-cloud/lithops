@@ -11,10 +11,35 @@ LOCAL_HOME_DIR = os.path.join(os.path.expanduser('~'), '.cloudbutton')
 logger = logging.getLogger(__name__)
 
 
+class Storage:
+    """
+    An Storage object is used by partitioner and other components to access
+    underlying storage backend without exposing the the implementation details.
+    """
+    def __init__(self, pywren_config, storage_backend):
+        self.pywren_config = pywren_config
+        self.backend = storage_backend
+
+        try:
+            module_location = 'pywren_ibm_cloud.storage.backends.{}'.format(self.backend)
+            sb_module = importlib.import_module(module_location)
+            StorageBackend = getattr(sb_module, 'StorageBackend')
+            self.storage_handler = StorageBackend(self.pywren_config[self.backend])
+        except Exception as e:
+            raise NotImplementedError("An exception was produced trying to create the "
+                                      "'{}' storage backend: {}".format(self.backend, e))
+
+    def get_storage_handler(self):
+        return self.storage_handler
+
+    def get_client(self):
+        return self.storage_handler.get_client()
+
+
 class InternalStorage:
     """
-    An InternalStorage object is used by executors and other components to access underlying storage backend
-    without exposing the the implementation details.
+    An InternalStorage object is used by executors and other components to access
+    underlying storage backend without exposing the the implementation details.
     """
 
     def __init__(self, storage_config):
@@ -30,7 +55,8 @@ class InternalStorage:
             ComputeBackend = getattr(sb_module, 'StorageBackend')
             self.storage_handler = ComputeBackend(self.config[self.backend])
         except Exception as e:
-            raise NotImplementedError("An exception was produced trying to create the '{}' storage backend: {}".format(self.backend, e))
+            raise NotImplementedError("An exception was produced trying to create the "
+                                      "'{}' storage backend: {}".format(self.backend, e))
 
     def get_storage_config(self):
         """

@@ -7,18 +7,10 @@ import importlib
 logger = logging.getLogger(__name__)
 
 
-class Singleton(type):
-    _instances = {}
-    def __call__(cls, *args, **kwargs):
-        if cls not in cls._instances:
-            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
-        return cls._instances[cls]
-
-
-class Compute(metaclass=Singleton):
+class Compute:
     """
-    An InternalCompute object is used by invokers and other components to access underlying compute backend
-    without exposing the the implementation details.
+    A Compute object is used by invokers and other components to access
+    underlying compute backend without exposing the implementation details.
     """
 
     def __init__(self, compute_config):
@@ -36,7 +28,8 @@ class Compute(metaclass=Singleton):
             ComputeBackend = getattr(cb_module, 'ComputeBackend')
             self.compute_handler = ComputeBackend(self.config[self.backend])
         except Exception as e:
-            raise Exception("An exception was produced trying to create the '{}' compute backend: {}".format(self.backend, e))
+            raise Exception("An exception was produced trying to create the "
+                            "'{}' compute backend: {}".format(self.backend, e))
 
     def invoke(self, runtime_name, memory, payload):
         """
