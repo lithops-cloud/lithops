@@ -30,7 +30,6 @@ MAX_AGG_DATA_SIZE = 4e6
 INVOCATION_RETRY_DEFAULT = True
 RETRY_SLEEPS_DEFAULT = [1, 2, 4, 8]
 RETRIES_DEFAULT = 5
-AMQP_URL_DEFAULT = None
 
 
 def load(config_filename):
@@ -99,9 +98,11 @@ def default_config(config_data=None):
     if 'compute_backend' not in config_data['pywren']:
         config_data['pywren']['compute_backend'] = COMPUTE_BACKEND_DEFAULT
 
-    if 'rabbitmq' in config_data and config_data['rabbitmq'] is None \
-       or 'amqp_url' not in config_data['rabbitmq'] or config_data['rabbitmq']['amqp_url'] is None:
-        del config_data['rabbitmq']
+    if 'rabbitmq' in config_data:
+        if config_data['rabbitmq'] is None \
+           or 'amqp_url' not in config_data['rabbitmq'] \
+           or config_data['rabbitmq']['amqp_url'] is None:
+            del config_data['rabbitmq']
 
     cb = config_data['pywren']['compute_backend']
     cb_config = importlib.import_module('pywren_ibm_cloud.compute.backends.{}.config'.format(cb))

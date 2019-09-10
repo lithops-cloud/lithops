@@ -8,39 +8,34 @@ from .serialize import SerializeIndependent, create_module_data
 from .partitioner import create_partitions
 from pywren_ibm_cloud import utils
 from pywren_ibm_cloud.monitor import wait_storage
-from pywren_ibm_cloud.runtime import select_runtime
 from pywren_ibm_cloud.storage.utils import create_func_key, create_agg_data_key
 from pywren_ibm_cloud.config import EXECUTION_TIMEOUT, MAX_AGG_DATA_SIZE
 
 logger = logging.getLogger(__name__)
 
 
-def create_call_async_job(config, internal_storage, executor_id, total_current_jobs, func, data,
-                          extra_env=None, runtime_memory=None, include_modules=[],
+def create_call_async_job(config, internal_storage, executor_id, async_job_id, func, data,
+                          runtime_meta, extra_env=None, runtime_memory=None, include_modules=[],
                           exclude_modules=[], execution_timeout=EXECUTION_TIMEOUT):
     """
     Wrapper to create call_async job that contains only one function invocation.
     """
-    job_id = str(total_current_jobs).zfill(3)
-    async_job_id = f'A{job_id}'
     data = utils.verify_args(func, [data], None)
 
-    return _create_job(config, internal_storage, executor_id, async_job_id, func, data,
-                       extra_env=extra_env, runtime_memory=runtime_memory,
-                       execution_timeout=execution_timeout, exclude_modules=exclude_modules,
-                       include_modules=include_modules)
+    return _create_job(config, internal_storage, executor_id, async_job_id,
+                       func, data, runtime_meta, runtime_memory=runtime_memory,
+                       extra_env=extra_env, execution_timeout=execution_timeout,
+                       exclude_modules=exclude_modules, include_modules=include_modules)
 
 
-def create_map_job(config, internal_storage, executor_id, total_current_jobs, map_function, iterdata,
-                   extra_params=None, extra_env=None, obj_chunk_size=None, obj_chunk_number=None,
-                   runtime_memory=None, remote_invocation=False, remote_invocation_groups=None,
+def create_map_job(config, internal_storage, executor_id, map_job_id, map_function, iterdata, runtime_meta,
+                   runtime_memory=None, extra_params=None, extra_env=None, obj_chunk_size=None,
+                   obj_chunk_number=None, remote_invocation=False, remote_invocation_groups=None,
                    invoke_pool_threads=128, include_modules=[], exclude_modules=[], is_cf_cluster=False,
                    execution_timeout=EXECUTION_TIMEOUT):
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
     """
-    job_id = str(total_current_jobs).zfill(3)
-    map_job_id = f'M{job_id}'
     map_func = map_function
     map_iterdata = utils.verify_args(map_function, iterdata, extra_params)
     new_invoke_pool_threads = invoke_pool_threads
@@ -50,7 +45,7 @@ def create_map_job(config, internal_storage, executor_id, total_current_jobs, ma
     parts_per_object = None
     if utils.is_object_processing_function(map_function):
         # If it is object processing function, create partitions according chunk_size or chunk_number
-        logger.debug('ExecutorID {} | JobID {} - Calling map on partitions from object storage flow'.format(executor_id, job_id))
+        logger.debug('ExecutorID {} | JobID {} - Calling map on partitions from object storage flow'.format(executor_id, map_job_id))
         map_iterdata, parts_per_object = create_partitions(config, map_iterdata, obj_chunk_size, obj_chunk_number)
     # ########
 
@@ -78,8 +73,9 @@ def create_map_job(config, internal_storage, executor_id, total_current_jobs, ma
 
     job_description = _create_job(config, internal_storage, executor_id,
                                   map_job_id, map_func, map_iterdata,
-                                  extra_env=extra_env,
+                                  runtime_meta=runtime_meta,
                                   runtime_memory=new_runtime_memory,
+                                  extra_env=extra_env,
                                   invoke_pool_threads=new_invoke_pool_threads,
                                   include_modules=include_modules,
                                   exclude_modules=exclude_modules,
@@ -90,14 +86,12 @@ def create_map_job(config, internal_storage, executor_id, total_current_jobs, ma
     return job_description, parts_per_object
 
 
-def create_reduce_job(config, internal_storage, executor_id, total_current_jobs, reduce_function,
-                      map_futures, parts_per_object, reducer_one_per_object=False, runtime_memory=None,
-                      extra_env=None, include_modules=[], exclude_modules=[]):
+def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, reduce_function,
+                      map_futures, parts_per_object, runtime_meta, reducer_one_per_object=False,
+                      runtime_memory=None, extra_env=None, include_modules=[], exclude_modules=[]):
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
     """
-    job_id = str(total_current_jobs).zfill(3)
-    reduce_job_id = f'R{job_id}'
     iterdata = [[map_futures, ]]
 
     if parts_per_object and reducer_one_per_object:
@@ -135,7 +129,8 @@ def create_reduce_job(config, internal_storage, executor_id, total_current_jobs,
 
     return _create_job(config, internal_storage, executor_id,
                        reduce_job_id, reduce_function_wrapper,
-                       iterdata, runtime_memory=runtime_memory,
+                       iterdata, runtime_meta=runtime_meta,
+                       runtime_memory=runtime_memory,
                        extra_env=extra_env,
                        include_modules=include_modules,
                        exclude_modules=exclude_modules,
@@ -155,8 +150,8 @@ def _agg_data(data_strs):
     return b"".join(data_strs), ranges
 
 
-def _create_job(config, internal_storage, executor_id, job_id, func, data, extra_env=None,
-                runtime_memory=None, invoke_pool_threads=128, include_modules=[],
+def _create_job(config, internal_storage, executor_id, job_id, func, data, runtime_meta,
+                runtime_memory=None, extra_env=None, invoke_pool_threads=128, include_modules=[],
                 exclude_modules=[], original_func_name=None, remote_invocation=False,
                 original_total_tasks=None, execution_timeout=EXECUTION_TIMEOUT):
     """
@@ -178,10 +173,6 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, extra
     runtime_name = config['pywren']['runtime']
     if runtime_memory is None:
         runtime_memory = config['pywren']['runtime_memory']
-    runtime_memory = int(runtime_memory)
-    runtime_preinstalls = select_runtime(config, internal_storage, executor_id,
-                                         job_id, runtime_name, runtime_memory)
-    serializer = SerializeIndependent(runtime_preinstalls)
 
     if original_func_name:
         func_name = original_func_name
@@ -198,7 +189,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, extra
     job_description = {}
 
     job_description['runtime_name'] = runtime_name
-    job_description['runtime_memory'] = runtime_memory
+    job_description['runtime_memory'] = int(runtime_memory)
     job_description['execution_timeout'] = execution_timeout
     job_description['func_name'] = func_name
     job_description['extra_env'] = extra_env
@@ -210,11 +201,13 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, extra
 
     log_msg = 'ExecutorID {} | JobID {} - Serializing function and data'.format(executor_id, job_id)
     logger.debug(log_msg)
+
     # pickle func and all data (to capture module dependencies)
     exclude_modules.extend(config['pywren'].get('exclude_modules', []))
     include_modules_cfg = config['pywren'].get('include_modules', [])
     if include_modules is not None and include_modules_cfg is not None:
         include_modules.extend(include_modules_cfg)
+    serializer = SerializeIndependent(runtime_meta['preinstalls'])
     func_and_data_ser, mod_paths = serializer([func] + data, include_modules, exclude_modules)
 
     func_str = func_and_data_ser[0]

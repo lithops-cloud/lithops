@@ -6,13 +6,15 @@ import json
 import signal
 import logging
 import traceback
-from pywren_ibm_cloud.invoker import Invoker
+from pywren_ibm_cloud.compute import Compute
+from pywren_ibm_cloud.runtime import select_runtime
+from pywren_ibm_cloud.invoker import FunctionInvoker
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.future import FunctionException
-from pywren_ibm_cloud.monitor import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from pywren_ibm_cloud.storage.utils import clean_os_bucket
+from pywren_ibm_cloud.monitor import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from pywren_ibm_cloud.job import create_call_async_job, create_map_job, create_reduce_job
-from pywren_ibm_cloud.config import default_config, extract_storage_config, EXECUTION_TIMEOUT, default_logging_config
+from pywren_ibm_cloud.config import default_config, extract_storage_config, extract_compute_config, EXECUTION_TIMEOUT, default_logging_config
 from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_cf_cluster, create_executor_id
 
 logger = logging.getLogger(__name__)
@@ -47,7 +49,7 @@ class FunctionExecutor:
         :param compute_backend: Name of the compute backend to use. Default None.
         :param compute_backend_region: Name of the compute backend region to use. Default None.
         :param log_level: log level to use during the execution. Default None.
-        :param rabbitmq_monitor: use rabbitmq as monitoring system. Default None.
+        :param rabbitmq_monitor: use rabbitmq as the monitoring system. Default None.
         :return `FunctionExecutor` object.
         """
         self.start_time = time.time()
@@ -92,7 +94,11 @@ class FunctionExecutor:
 
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
-        self.invoker = Invoker(self.config, self.executor_id)
+
+        compute_config = extract_compute_config(self.config)
+        self.compute_handler = Compute(compute_config)
+        self.invoker = FunctionInvoker(self.config, self.executor_id, self.compute_handler)
+
         self.jobs = {}
 
     @property
@@ -111,21 +117,27 @@ class FunctionExecutor:
         :param extra_data: Additional data to pass to action. Default None.
         :param extra_env: Additional environment variables for action environment. Default None.
         """
-
         if self._state == ExecutorState.finished:
             raise Exception('You cannot run call_async() in the current state,'
                             ' create a new FunctionExecutor() instance.')
-        total_current_jobs = len(self.jobs)
+
+        job_id = str(len(self.jobs)).zfill(3)
+        async_job_id = f'A{job_id}'
+
+        runtime_meta = select_runtime(self.config, self.internal_storage, self.compute_handler,
+                                      self.executor_id, async_job_id, runtime_memory)
+
         job = create_call_async_job(self.config, self.internal_storage,
-                                    self.executor_id, total_current_jobs,
+                                    self.executor_id, async_job_id,
                                     func=func, data=data,
-                                    extra_env=extra_env,
+                                    runtime_meta=runtime_meta,
                                     runtime_memory=runtime_memory,
+                                    extra_env=extra_env,
+                                    execution_timeout=timeout,
                                     include_modules=include_modules,
-                                    exclude_modules=exclude_modules,
-                                    execution_timeout=timeout)
+                                    exclude_modules=exclude_modules)
         future = self.invoker.run(job)
-        self.jobs[job['job_id']] = {'futures': future, 'state': JobState.running}
+        self.jobs[async_job_id] = {'futures': future, 'state': JobState.running}
         self._state = ExecutorState.running
 
         return future[0]
@@ -152,13 +164,24 @@ class FunctionExecutor:
         if self._state == ExecutorState.finished:
             raise Exception('You cannot run map() in the current state.'
                             ' Create a new FunctionExecutor() instance.')
+
         total_current_jobs = len(self.jobs)
+        job_id = str(total_current_jobs).zfill(3)
+        map_job_id = f'M{job_id}'
+
+        runtime_meta = select_runtime(self.config, self.internal_storage, self.compute_handler,
+                                      self.executor_id, map_job_id, runtime_memory)
+
         job, unused_ppo = create_map_job(self.config, self.internal_storage,
-                                         self.executor_id, total_current_jobs,
-                                         map_function=map_function, iterdata=map_iterdata,
-                                         extra_params=extra_params, extra_env=extra_env,
-                                         obj_chunk_size=chunk_size, obj_chunk_number=chunk_n,
+                                         self.executor_id, map_job_id,
+                                         map_function=map_function,
+                                         iterdata=map_iterdata,
+                                         runtime_meta=runtime_meta,
                                          runtime_memory=runtime_memory,
+                                         extra_params=extra_params,
+                                         extra_env=extra_env,
+                                         obj_chunk_size=chunk_size,
+                                         obj_chunk_number=chunk_n,
                                          remote_invocation=remote_invocation,
                                          remote_invocation_groups=remote_invocation_groups,
                                          invoke_pool_threads=invoke_pool_threads,
@@ -166,8 +189,9 @@ class FunctionExecutor:
                                          exclude_modules=exclude_modules,
                                          is_cf_cluster=self.is_cf_cluster,
                                          execution_timeout=timeout)
+
         map_futures = self.invoker.run(job)
-        self.jobs[job['job_id']] = {'futures': map_futures, 'state': JobState.running}
+        self.jobs[map_job_id] = {'futures': map_futures, 'state': JobState.running}
         self._state = ExecutorState.running
 
         if len(map_futures) == 1:
@@ -199,17 +223,27 @@ class FunctionExecutor:
         :param exclude_modules: Explicitly keep these modules from pickled dependencies.
         :return: A list with size `len(map_iterdata)` of futures for each job
         """
-
         if self._state == ExecutorState.finished:
             raise Exception('You cannot run map_reduce() in the current state.'
                             ' Create a new FunctionExecutor() instance.')
+
         total_current_jobs = len(self.jobs)
+        job_id = str(total_current_jobs).zfill(3)
+        map_job_id = f'M{job_id}'
+
+        runtime_meta = select_runtime(self.config, self.internal_storage, self.compute_handler,
+                                      self.executor_id, map_job_id, map_runtime_memory)
+
         job, parts_per_object = create_map_job(self.config, self.internal_storage,
-                                               self.executor_id, total_current_jobs,
-                                               map_function=map_function, iterdata=map_iterdata,
-                                               extra_params=extra_params, extra_env=extra_env,
-                                               obj_chunk_size=chunk_size, obj_chunk_number=chunk_n,
+                                               self.executor_id, map_job_id,
+                                               map_function=map_function,
+                                               iterdata=map_iterdata,
+                                               runtime_meta=runtime_meta,
                                                runtime_memory=map_runtime_memory,
+                                               extra_params=extra_params,
+                                               extra_env=extra_env,
+                                               obj_chunk_size=chunk_size,
+                                               obj_chunk_number=chunk_n,
                                                remote_invocation=remote_invocation,
                                                remote_invocation_groups=remote_invocation_groups,
                                                invoke_pool_threads=invoke_pool_threads,
@@ -217,23 +251,31 @@ class FunctionExecutor:
                                                exclude_modules=exclude_modules,
                                                is_cf_cluster=self.is_cf_cluster,
                                                execution_timeout=timeout)
+
         map_futures = self.invoker.run(job)
-        self.jobs[job['job_id']] = {'futures': map_futures, 'state': JobState.running}
+        self.jobs[map_job_id] = {'futures': map_futures, 'state': JobState.running}
         self._state = ExecutorState.running
 
         if reducer_wait_local:
             self.monitor(futures=map_futures)
 
+        reduce_job_id = f'R{job_id}'
+
+        runtime_meta = select_runtime(self.config, self.internal_storage, self.compute_handler,
+                                      self.executor_id, reduce_job_id, reduce_runtime_memory)
+
         job = create_reduce_job(self.config, self.internal_storage,
-                                self.executor_id, total_current_jobs,
+                                self.executor_id, reduce_job_id,
                                 reduce_function, map_futures, parts_per_object,
+                                runtime_meta=runtime_meta,
                                 reducer_one_per_object=reducer_one_per_object,
                                 runtime_memory=reduce_runtime_memory,
                                 extra_env=extra_env,
                                 include_modules=include_modules,
                                 exclude_modules=exclude_modules)
+
         reduce_futures = self.invoker.run(job)
-        self.jobs[job['job_id']] = {'futures': reduce_futures, 'state': JobState.running}
+        self.jobs[reduce_job_id] = {'futures': reduce_futures, 'state': JobState.running}
 
         for f in map_futures:
             f.produce_output = False
@@ -369,11 +411,11 @@ class FunctionExecutor:
         if download_results:
             fs_dones = [f for f in ftrs if f.done]
             fs_notdones = [f for f in ftrs if not f.done]
-            self._state = ExecutorState.ready
+            self._state = ExecutorState.done
         else:
             fs_dones = [f for f in ftrs if f.ready or f.done]
             fs_notdones = [f for f in ftrs if not f.ready and not f.done]
-            self._state = ExecutorState.done
+            self._state = ExecutorState.ready
 
         return fs_dones, fs_notdones
 
