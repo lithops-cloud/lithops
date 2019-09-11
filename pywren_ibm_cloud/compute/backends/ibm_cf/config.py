@@ -64,6 +64,9 @@ def load_config(config_data=None):
     if 'compute_backend_region' not in config_data['pywren']:
         config_data['pywren']['compute_backend_region'] = list(config_data['ibm_cf']['regions'].keys())[0]
 
+    if 'region' not in config_data['ibm_cf']:
+        config_data['ibm_cf']['region'] = config_data['pywren']['compute_backend_region']
+
     cbr = config_data['pywren']['compute_backend_region']
     if cbr is not None and cbr not in config_data['ibm_cf']['regions']:
         raise Exception('Invalid Compute backend region: {}'.format(cbr))

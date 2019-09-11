@@ -148,10 +148,8 @@ def extract_compute_config(config):
     compute_config['invocation_retry'] = config['pywren']['invocation_retry']
     compute_config['retry_sleeps'] = config['pywren']['retry_sleeps']
     compute_config['retries'] = config['pywren']['retries']
-    compute_config[cb] = config[cb].copy()
+    compute_config[cb] = config[cb]
     compute_config[cb]['user_agent'] = 'pywren-ibm-cloud/{}'.format(__version__)
-    if 'compute_backend_region' in config['pywren']:
-        compute_config[cb]['region'] = config['pywren']['compute_backend_region']
 
     return compute_config
 

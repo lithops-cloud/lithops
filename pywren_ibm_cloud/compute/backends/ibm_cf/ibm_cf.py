@@ -6,9 +6,12 @@ import zipfile
 import textwrap
 import pywren_ibm_cloud
 from . import config as ibm_cf_config
+from datetime import datetime
+from ibm_botocore.credentials import DefaultTokenManager
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import is_remote_cluster
+from pywren_ibm_cloud.config import CONFIG_DIR, load_yaml_config, dump_yaml_config
 from pywren_ibm_cloud.libs.ibm_cloudfunctions.client import CloudFunctionsClient
 
 logger = logging.getLogger(__name__)
@@ -21,20 +24,69 @@ class IBMCloudFunctionsBackend:
     """
 
     def __init__(self, ibm_cf_config):
+        logger.debug("Creating IBM Cloud Functions client")
         self.log_level = os.getenv('CB_LOG_LEVEL')
         self.name = 'ibm_cf'
         self.ibm_cf_config = ibm_cf_config
         self.package = 'pywren_v'+__version__
-        self.region = ibm_cf_config['region']
-        self.cf_client = CloudFunctionsClient(self.ibm_cf_config)
         self.is_remote_cluster = is_remote_cluster()
-        self.namespace = ibm_cf_config['regions'][self.region]['namespace']
 
-        log_msg = ('PyWren v{} init for IBM Cloud Functions - Namespace: {} '
-                   '- Region: {}'.format(__version__, self.namespace, self.region))
-        logger.info(log_msg)
+        self.user_agent = ibm_cf_config['user_agent']
+        self.region = ibm_cf_config['region']
+        self.endpoint = ibm_cf_config['regions'][self.region]['endpoint']
+        self.namespace = ibm_cf_config['regions'][self.region]['namespace']
+        self.namespace_id = ibm_cf_config['regions'][self.region].get('namespace_id', None)
+        self.api_key = ibm_cf_config['regions'][self.region].get('api_key', None)
+        self.iam_api_key = ibm_cf_config.get('iam_api_key', None)
+
+        logger.debug("Set IBM CF namespace to {}".format(self.namespace))
+        logger.debug("Set IBM CF Endpoint to {}".format(self.endpoint))
+
+        if self.api_key:
+            self.cf_client = CloudFunctionsClient(region=self.region,
+                                                  endpoint=self.endpoint,
+                                                  namespace=self.namespace,
+                                                  api_key=self.api_key,
+                                                  user_agent=self.user_agent)
+        elif self.iam_api_key:
+            token_manager = DefaultTokenManager(api_key_id=self.iam_api_key)
+            token_filename = os.path.join(CONFIG_DIR, 'IAM_TOKEN')
+
+            if 'token' in self.ibm_cf_config:
+                logger.debug("Using IBM IAM API Key - Reusing Token")
+                token_manager._token = self.ibm_cf_config['token']
+                token_manager._expiry_time = datetime.strptime(self.ibm_cf_config['token_expiry_time'],
+                                                               '%Y-%m-%d %H:%M:%S.%f%z')
+            elif os.path.exists(token_filename):
+                logger.debug("Using IBM IAM API Key - Reusing Token from local cache")
+                token_data = load_yaml_config(token_filename)
+                token_manager._token = token_data['token']
+                token_manager._expiry_time = datetime.strptime(token_data['token_expiry_time'],
+                                                               '%Y-%m-%d %H:%M:%S.%f%z')
+
+            if token_manager._is_expired() and not is_remote_cluster():
+                logger.debug("Using IBM IAM API Key - Token expired. Requesting new token")
+                token_manager.get_token()
+                token_data = {}
+                token_data['token'] = token_manager._token
+                token_data['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
+                dump_yaml_config(token_filename, token_data)
+
+            ibm_cf_config['token'] = token_manager._token
+            ibm_cf_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
+
+            self.cf_client = CloudFunctionsClient(region=self.region,
+                                                  endpoint=self.endpoint,
+                                                  namespace=self.namespace,
+                                                  namespace_id=self.namespace_id,
+                                                  token_manager=token_manager,
+                                                  user_agent=self.user_agent)
+
+        log_msg = ('PyWren v{} init for IBM Cloud Functions - Namespace: {} - '
+                   'Region: {}'.format(__version__, self.namespace, self.region))
         if not self.log_level:
             print(log_msg)
+        logger.debug("IBM CF client created successfully")
 
     def _format_action_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '_').replace(':', '_')

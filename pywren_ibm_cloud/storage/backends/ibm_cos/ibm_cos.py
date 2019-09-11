@@ -1,5 +1,5 @@
 #
-# (C) Copyright IBM Corp. 2018
+# (C) Copyright IBM Corp. 2019
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import os
 import logging
 import ibm_boto3
 import ibm_botocore
@@ -21,6 +22,8 @@ from datetime import datetime
 from ibm_botocore.credentials import DefaultTokenManager
 from pywren_ibm_cloud.storage.utils import StorageNoSuchKeyError
 from pywren_ibm_cloud.utils import sizeof_fmt, is_remote_cluster
+from pywren_ibm_cloud.config import CONFIG_DIR, load_yaml_config, dump_yaml_config
+
 
 logging.getLogger('ibm_boto3').setLevel(logging.CRITICAL)
 logging.getLogger('ibm_botocore').setLevel(logging.CRITICAL)
@@ -74,22 +77,30 @@ class IBMCloudObjectStorageBackend:
                                                        connect_timeout=1)
 
             token_manager = DefaultTokenManager(api_key_id=api_key)
+            token_filename = os.path.join(CONFIG_DIR, api_key_type+'_TOKEN')
 
-            if 'token' in ibm_cos_config:
-                logger.debug("Using IBM {} API Key - Reusing token".format(api_key_type))
-                token_manager._token = ibm_cos_config['token']
-                token_manager._expiry_time = datetime.strptime(ibm_cos_config['token_expiry_time'],
+            if 'token' in self.ibm_cos_config:
+                logger.debug("Using IBM {} API Key - Reusing Token".format(api_key_type))
+                token_manager._token = self.ibm_cos_config['token']
+                token_manager._expiry_time = datetime.strptime(self.ibm_cos_config['token_expiry_time'],
+                                                               '%Y-%m-%d %H:%M:%S.%f%z')
+            elif os.path.exists(token_filename):
+                logger.debug("Using IBM {} API Key - Reusing Token from local cache".format(api_key_type))
+                token_data = load_yaml_config(token_filename)
+                token_manager._token = token_data['token']
+                token_manager._expiry_time = datetime.strptime(token_data['token_expiry_time'],
                                                                '%Y-%m-%d %H:%M:%S.%f%z')
 
-                if token_manager._is_expired() and not self.is_remote_cluster:
-                    print('Token expired. Requesting new token')
-                    token_manager.get_token()
-            else:
-                logger.debug("Using IBM {} API Key - Requesting new token".format(api_key_type))
+            if token_manager._is_expired() and not is_remote_cluster():
+                logger.debug("Using IBM {} API Key - Token expired. Requesting new token".format(api_key_type))
                 token_manager.get_token()
+                token_data = {}
+                token_data['token'] = token_manager._token
+                token_data['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
+                dump_yaml_config(token_filename, token_data)
 
-            ibm_cos_config['token'] = token_manager._token
-            ibm_cos_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
+            self.ibm_cos_config['token'] = token_manager._token
+            self.ibm_cos_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
 
             self.cos_client = ibm_boto3.client('s3', token_manager=token_manager,
                                                config=client_config,

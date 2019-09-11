@@ -21,36 +21,35 @@ import logging
 import requests
 import http.client
 from urllib.parse import urlparse
-from .iam import IBMIAMClient
-
 
 logger = logging.getLogger(__name__)
 
 
 class CloudFunctionsClient:
 
-    def __init__(self, config):
+    def __init__(self, region, endpoint, namespace, namespace_id=None, api_key=None,
+                 iam_api_key=None, token_manager=None, user_agent=None):
         """
-        Constructor
+        CloudFunctionsClient Constructor
         """
-        region = config['region']
-        self.endpoint = config['regions'][region]['endpoint'].replace('http:', 'https:')
-        self.namespace = config['regions'][region]['namespace']
+        self.region = region
+        self.endpoint = endpoint.replace('http:', 'https:')
+        self.namespace = namespace
+        self.namespace_id = namespace_id
+        self.api_key = api_key
+        self.iam_api_key = iam_api_key
+        self.token_manager = token_manager
 
-        if 'api_key' in config['regions'][region]:
-            api_key = str.encode(config['regions'][region]['api_key'])
+        if self.api_key:
+            api_key = str.encode(self.api_key)
             auth_token = base64.encodebytes(api_key).replace(b'\n', b'')
             auth = 'Basic %s' % auth_token.decode('UTF-8')
             self.effective_namespace = self.namespace
 
-        elif 'iam_api_key' in config:
-            # current_time = datetime.now().astimezone()
-            iam_client = IBMIAMClient(config['iam_api_key'], self.endpoint, self.namespace)
-            config['token'] = iam_client.get_iam_token()
-            auth_token = config['token']
+        elif self.token_manager:
+            auth_token = token_manager._token
             auth = 'Bearer ' + auth_token
-            # self.namespace_id = iam_client.get_function_namespace_id(auth)
-            self.effective_namespace = config['regions'][region]['namespace_id']
+            self.effective_namespace = self.namespace_id
 
         self.session = requests.session()
         default_user_agent = self.session.headers['User-Agent']
@@ -58,16 +57,12 @@ class CloudFunctionsClient:
         self.headers = {
             'content-type': 'application/json',
             'Authorization': auth,
-            'User-Agent': default_user_agent + ' {}'.format(config['user_agent'])
+            'User-Agent': default_user_agent + ' {}'.format(user_agent)
         }
 
         self.session.headers.update(self.headers)
         adapter = requests.adapters.HTTPAdapter()
         self.session.mount('https://', adapter)
-
-        logger.debug('IBM CF init for namespace: {}'.format(self.namespace))
-        logger.debug('IBM CF init for host: {}'.format(self.endpoint))
-        logger.debug("IBM CF user agent set to: {}".format(self.session.headers['User-Agent']))
 
     def create_action(self, package, action_name, image_name, code=None, memory=None,
                       timeout=30000, kind='blackbox', is_binary=True, overwrite=True):

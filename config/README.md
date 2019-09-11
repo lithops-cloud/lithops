@@ -1,4 +1,4 @@
-iam_api_key# Configuration
+# Configuration
 
 To make PyWren running, you need to configure the access to the IBM Cloud Functions and IBM Cloud Object Storage services.
 
