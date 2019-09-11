@@ -8,14 +8,14 @@ import pywren_ibm_cloud
 from . import config as ibm_cf_config
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
-from pywren_ibm_cloud.utils import is_cf_cluster
+from pywren_ibm_cloud.utils import is_remote_cluster
 from pywren_ibm_cloud.libs.ibm_cloudfunctions.client import CloudFunctionsClient
 
 logger = logging.getLogger(__name__)
 ZIP_LOCATION = os.path.join(os.getcwd(), 'cloudbutton_ibm_cf.zip')
 
 
-class IbmCloudFunctionsBackend:
+class IBMCloudFunctionsBackend:
     """
     A wrap-up around IBM Cloud Functions backend.
     """
@@ -27,8 +27,8 @@ class IbmCloudFunctionsBackend:
         self.package = 'pywren_v'+__version__
         self.region = ibm_cf_config['region']
         self.cf_client = CloudFunctionsClient(self.ibm_cf_config)
-        self.is_cf_cluster = is_cf_cluster()
-        self.namespace = ibm_cf_config[self.region]['namespace']
+        self.is_remote_cluster = is_remote_cluster()
+        self.namespace = ibm_cf_config['regions'][self.region]['namespace']
 
         log_msg = ('PyWren v{} init for IBM Cloud Functions - Namespace: {} '
                    '- Region: {}'.format(__version__, self.namespace, self.region))
@@ -165,7 +165,7 @@ class IbmCloudFunctionsBackend:
         call_id = payload['call_id']
         action_name = self._format_action_name(docker_image_name, runtime_memory)
         start = time.time()
-        activation_id, exception = self.cf_client.invoke(self.package, action_name, payload, self.is_cf_cluster)
+        activation_id, exception = self.cf_client.invoke(self.package, action_name, payload, self.is_remote_cluster)
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 

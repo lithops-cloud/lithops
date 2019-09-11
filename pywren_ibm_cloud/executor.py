@@ -15,7 +15,7 @@ from pywren_ibm_cloud.storage.utils import clean_os_bucket
 from pywren_ibm_cloud.monitor import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from pywren_ibm_cloud.job import create_call_async_job, create_map_job, create_reduce_job
 from pywren_ibm_cloud.config import default_config, extract_storage_config, extract_compute_config, EXECUTION_TIMEOUT, default_logging_config
-from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_cf_cluster, create_executor_id
+from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_remote_cluster, create_executor_id
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +54,19 @@ class FunctionExecutor:
         """
         self.start_time = time.time()
         self._state = ExecutorState.new
+        self.is_remote_cluster = is_remote_cluster()
+
+        # Log level Configuration
+        self.log_level = log_level
+        if not self.log_level:
+            if(logger.getEffectiveLevel() != logging.WARNING):
+                self.log_level = logging.getLevelName(logger.getEffectiveLevel())
+        if self.log_level:
+            os.environ["CB_LOG_LEVEL"] = self.log_level
+            if not self.is_remote_cluster:
+                default_logging_config(self.log_level)
+
         self.config = default_config(config)
-        self.is_cf_cluster = is_cf_cluster()
         self.data_cleaner = self.config['pywren']['data_cleaner']
 
         # Overwrite runtime variables
@@ -69,16 +80,6 @@ class FunctionExecutor:
             self.config['pywren']['compute_backend_region'] = compute_backend_region
         if rabbitmq_monitor is not None:
             self.config['pywren']['rabbitmq_monitor'] = rabbitmq_monitor
-
-        # Log level Configuration
-        self.log_level = log_level
-        if not self.log_level:
-            if(logger.getEffectiveLevel() != logging.WARNING):
-                self.log_level = logging.getLevelName(logger.getEffectiveLevel())
-        if self.log_level:
-            os.environ["CB_LOG_LEVEL"] = self.log_level
-            if not self.is_cf_cluster:
-                default_logging_config(self.log_level)
 
         self.executor_id = create_executor_id()
         logger.debug('FunctionExecutor created with ID: {}'.format(self.executor_id))
@@ -187,7 +188,7 @@ class FunctionExecutor:
                                          invoke_pool_threads=invoke_pool_threads,
                                          include_modules=include_modules,
                                          exclude_modules=exclude_modules,
-                                         is_cf_cluster=self.is_cf_cluster,
+                                         is_remote_cluster=self.is_remote_cluster,
                                          execution_timeout=timeout)
 
         map_futures = self.invoker.run(job)
@@ -249,7 +250,7 @@ class FunctionExecutor:
                                                invoke_pool_threads=invoke_pool_threads,
                                                include_modules=include_modules,
                                                exclude_modules=exclude_modules,
-                                               is_cf_cluster=self.is_cf_cluster,
+                                               is_remote_cluster=self.is_remote_cluster,
                                                execution_timeout=timeout)
 
         map_futures = self.invoker.run(job)
@@ -334,7 +335,7 @@ class FunctionExecutor:
             signal.alarm(timeout)
 
         pbar = None
-        if not self.is_cf_cluster and self._state == ExecutorState.running \
+        if not self.is_remote_cluster and self._state == ExecutorState.running \
            and not self.log_level:
             from tqdm.auto import tqdm
             if is_notebook():
@@ -390,7 +391,7 @@ class FunctionExecutor:
             self._state = ExecutorState.error
 
         except Exception as e:
-            if not self.is_cf_cluster:
+            if not self.is_remote_cluster:
                 self.clean()
             raise e
 
@@ -405,7 +406,7 @@ class FunctionExecutor:
                 logger.debug(msg)
                 if not self.log_level:
                     print(msg)
-            if download_results and self.data_cleaner and not self.is_cf_cluster:
+            if download_results and self.data_cleaner and not self.is_remote_cluster:
                 self.clean()
 
         if download_results:

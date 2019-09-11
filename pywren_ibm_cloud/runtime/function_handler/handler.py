@@ -110,6 +110,7 @@ def function_handler(event):
 
         # response_status['free_disk_bytes'] = free_disk_space("/tmp")
         custom_env = {'PYWREN_CONFIG': json.dumps(config),
+                      'PYWREN_REMOTE': 'TRUE',
                       'PYTHONPATH': "{}:{}".format(os.getcwd(), PYWREN_LIBS_PATH),
                       'PYTHONUNBUFFERED': 'True'}
 

@@ -19,8 +19,8 @@ import ibm_boto3
 import ibm_botocore
 from datetime import datetime
 from ibm_botocore.credentials import DefaultTokenManager
-from ...utils import StorageNoSuchKeyError
-from ....utils import sizeof_fmt, is_cf_cluster
+from pywren_ibm_cloud.storage.utils import StorageNoSuchKeyError
+from pywren_ibm_cloud.utils import sizeof_fmt, is_remote_cluster
 
 logging.getLogger('ibm_boto3').setLevel(logging.CRITICAL)
 logging.getLogger('ibm_botocore').setLevel(logging.CRITICAL)
@@ -28,18 +28,18 @@ logging.getLogger('urllib3').setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
-class IbmCosBackend:
+class IBMCloudObjectStorageBackend:
     """
     A wrap-up around IBM COS ibm_boto3 APIs.
     """
 
     def __init__(self, ibm_cos_config):
         logger.debug("Creating IBM COS client")
-        self.is_cf_cluster = is_cf_cluster()
         self.ibm_cos_config = ibm_cos_config
+        self.is_remote_cluster = is_remote_cluster()
 
         service_endpoint = ibm_cos_config.get('endpoint').replace('http:', 'https:')
-        if self.is_cf_cluster and 'private_endpoint' in ibm_cos_config:
+        if self.is_remote_cluster and 'private_endpoint' in ibm_cos_config:
             service_endpoint = ibm_cos_config.get('private_endpoint')
             if 'api_key' in ibm_cos_config:
                 service_endpoint = service_endpoint.replace('http:', 'https:')
@@ -50,8 +50,8 @@ class IbmCosBackend:
         if 'api_key' in ibm_cos_config:
             api_key = ibm_cos_config.get('api_key')
             api_key_type = 'COS'
-        elif 'ibm_iam' in ibm_cos_config and 'api_key' in ibm_cos_config['ibm_iam']:
-            api_key = ibm_cos_config['ibm_iam'].get('api_key')
+        elif 'iam_api_key' in ibm_cos_config:
+            api_key = ibm_cos_config.get('iam_api_key')
             api_key_type = 'IAM'
 
         if {'secret_key', 'access_key'} <= set(ibm_cos_config):
@@ -72,29 +72,29 @@ class IbmCosBackend:
                                                        max_pool_connections=128,
                                                        user_agent_extra='pywren-ibm-cloud',
                                                        connect_timeout=1)
+
             token_manager = DefaultTokenManager(api_key_id=api_key)
 
-            if 'token' not in ibm_cos_config:
-                logger.debug("Using IBM {} api_key - Requesting new token".format(api_key_type))
-                ibm_cos_config['token'] = token_manager.get_token()
-                ibm_cos_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
-
-            else:
-                logger.debug("Using IBM {} api_key - Reusing token".format(api_key_type))
+            if 'token' in ibm_cos_config:
+                logger.debug("Using IBM {} API Key - Reusing token".format(api_key_type))
                 token_manager._token = ibm_cos_config['token']
-                expiry_time = ibm_cos_config['token_expiry_time']
-                token_manager._expiry_time = datetime.strptime(expiry_time, '%Y-%m-%d %H:%M:%S.%f%z')
+                token_manager._expiry_time = datetime.strptime(ibm_cos_config['token_expiry_time'],
+                                                               '%Y-%m-%d %H:%M:%S.%f%z')
 
-                if token_manager._is_expired() and not self.is_cf_cluster:
-                    # Only request new token on client machine
-                    logger.debug("Using IBM {} api_key - Token expired, requesting new token".format(api_key_type))
-                    ibm_cos_config['token'] = token_manager.get_token()
-                    ibm_cos_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
+                if token_manager._is_expired() and not self.is_remote_cluster:
+                    print('Token expired. Requesting new token')
+                    token_manager.get_token()
+            else:
+                logger.debug("Using IBM {} API Key - Requesting new token".format(api_key_type))
+                token_manager.get_token()
+
+            ibm_cos_config['token'] = token_manager._token
+            ibm_cos_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
 
             self.cos_client = ibm_boto3.client('s3', token_manager=token_manager,
                                                config=client_config,
                                                endpoint_url=service_endpoint)
-            logger.debug("IBM COS client created successfully")
+        logger.debug("IBM COS client created successfully")
 
     def get_client(self):
         """

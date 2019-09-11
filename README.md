@@ -232,7 +232,7 @@ except:
 ```
 Installation supports PyWren version as an input parameter, for example:
 
-	!{sys.executable} -m pip install -U pywren-ibm-cloud==1.0.15
+	!{sys.executable} -m pip install -U pywren-ibm-cloud==1.0.20
 
 Once installed, you can use IBM-PyWren as usual inside the notebook. Don't forget of the [configuration](config/):
 

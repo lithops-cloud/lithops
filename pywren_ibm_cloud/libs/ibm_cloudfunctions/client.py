@@ -21,7 +21,7 @@ import logging
 import requests
 import http.client
 from urllib.parse import urlparse
-from .iam import IbmIamClient
+from .iam import IBMIAMClient
 
 
 logger = logging.getLogger(__name__)
@@ -34,22 +34,23 @@ class CloudFunctionsClient:
         Constructor
         """
         region = config['region']
-        self.endpoint = config[region]['endpoint'].replace('http:', 'https:')
-        self.namespace = config[region]['namespace']
+        self.endpoint = config['regions'][region]['endpoint'].replace('http:', 'https:')
+        self.namespace = config['regions'][region]['namespace']
 
-        if 'api_key' in config[region]:
-            api_key = str.encode(config[region]['api_key'])
+        if 'api_key' in config['regions'][region]:
+            api_key = str.encode(config['regions'][region]['api_key'])
             auth_token = base64.encodebytes(api_key).replace(b'\n', b'')
             auth = 'Basic %s' % auth_token.decode('UTF-8')
             self.effective_namespace = self.namespace
 
-        elif 'ibm_iam' in config and 'api_key' in config['ibm_iam']:
-            # TODO: Improve performance: It might take +5 seconds to get a token and ns
-            iam_client = IbmIamClient(config['ibm_iam'], self.endpoint, self.namespace)
-            auth_token = iam_client.get_iam_token()
+        elif 'iam_api_key' in config:
+            # current_time = datetime.now().astimezone()
+            iam_client = IBMIAMClient(config['iam_api_key'], self.endpoint, self.namespace)
+            config['token'] = iam_client.get_iam_token()
+            auth_token = config['token']
             auth = 'Bearer ' + auth_token
-            self.namespace_id = iam_client.get_function_namespace_id(auth)
-            self.effective_namespace = self.namespace_id
+            # self.namespace_id = iam_client.get_function_namespace_id(auth)
+            self.effective_namespace = config['regions'][region]['namespace_id']
 
         self.session = requests.session()
         default_user_agent = self.session.headers['User-Agent']
@@ -192,7 +193,7 @@ class CloudFunctionsClient:
         else:
             logger.debug("OK --> Created package {}".format(package))
 
-    def invoke(self, package, action_name, payload={}, is_cf_cluster=False, self_invoked=False):
+    def invoke(self, package, action_name, payload={}, is_remote_cluster=False, self_invoked=False):
         """
         Invoke an IBM Cloud Function by using new request.
         """
@@ -200,7 +201,7 @@ class CloudFunctionsClient:
         parsed_url = urlparse(url)
 
         try:
-            if is_cf_cluster:
+            if is_remote_cluster:
                 resp = self.session.post(url, json=payload)
                 resp_status = resp.status_code
                 data = resp.json()
@@ -215,11 +216,11 @@ class CloudFunctionsClient:
                 data = json.loads(resp.read().decode("utf-8"))
                 conn.close()
         except Exception as e:
-            if not is_cf_cluster:
+            if not is_remote_cluster:
                 conn.close()
             if self_invoked:
                 return None, e
-            return self.invoke(package, action_name, payload, is_cf_cluster, self_invoked=True)
+            return self.invoke(package, action_name, payload, is_remote_cluster=True)
 
         if resp_status == 202 and 'activationId' in data:
             return data["activationId"], None

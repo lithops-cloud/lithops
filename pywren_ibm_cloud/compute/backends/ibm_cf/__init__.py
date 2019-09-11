@@ -1,1 +1,1 @@
-from .ibm_cf import IbmCloudFunctionsBackend as ComputeBackend
+from .ibm_cf import IBMCloudFunctionsBackend as ComputeBackend

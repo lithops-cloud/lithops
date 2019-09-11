@@ -48,11 +48,11 @@ def is_unix_system():
     return curret_system != 'Windows'
 
 
-def is_cf_cluster():
+def is_remote_cluster():
     """
-    Checks if the current execution is in an OpenWhisk function
+    Checks if the current execution is remote
     """
-    if any([k.startswith('__OW_') for k in os.environ.keys()]):
+    if 'PYWREN_REMOTE' in os.environ:
         return True
     return False
 

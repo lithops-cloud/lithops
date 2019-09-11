@@ -31,7 +31,7 @@ def create_call_async_job(config, internal_storage, executor_id, async_job_id, f
 def create_map_job(config, internal_storage, executor_id, map_job_id, map_function, iterdata, runtime_meta,
                    runtime_memory=None, extra_params=None, extra_env=None, obj_chunk_size=None,
                    obj_chunk_number=None, remote_invocation=False, remote_invocation_groups=None,
-                   invoke_pool_threads=128, include_modules=[], exclude_modules=[], is_cf_cluster=False,
+                   invoke_pool_threads=128, include_modules=[], exclude_modules=[], is_remote_cluster=False,
                    execution_timeout=EXECUTION_TIMEOUT):
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
@@ -51,7 +51,7 @@ def create_map_job(config, internal_storage, executor_id, map_job_id, map_functi
 
     # Remote invocation functionality
     original_total_tasks = len(map_iterdata)
-    if original_total_tasks == 1 or is_cf_cluster:
+    if original_total_tasks == 1 or is_remote_cluster:
         remote_invocation = False
     if remote_invocation:
         def remote_invoker(input_data):

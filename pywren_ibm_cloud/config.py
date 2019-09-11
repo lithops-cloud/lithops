@@ -20,6 +20,8 @@ import importlib
 import logging.config
 from pywren_ibm_cloud.version import __version__
 
+logger = logging.getLogger(__name__)
+
 COMPUTE_BACKEND_DEFAULT = 'ibm_cf'
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
 STORAGE_PREFIX_DEFAULT = "pywren.jobs"
@@ -31,13 +33,24 @@ INVOCATION_RETRY_DEFAULT = True
 RETRY_SLEEPS_DEFAULT = [1, 2, 4, 8]
 RETRIES_DEFAULT = 5
 
+CONFIG_DIR = os.path.expanduser('~/.cloudbutton')
 
-def load(config_filename):
+
+def load_yaml_config(config_filename):
     import yaml
     with open(config_filename, 'r') as config_file:
-        res = yaml.safe_load(config_file)
+        data = yaml.safe_load(config_file)
 
-    return res
+    return data
+
+
+def dump_yaml_config(config_filename, data):
+    import yaml
+    if not os.path.exists(os.path.dirname(config_filename)):
+        os.makedirs(os.path.dirname(config_filename))
+
+    with open(config_filename, "w") as config_file:
+        yaml.dump(data, config_file, default_flow_style=False)
 
 
 def get_default_home_filename():
@@ -70,6 +83,7 @@ def default_config(config_data=None):
     then checks PYWREN_CONFIG_FILE environment variable
     then ~/.pywren_config
     """
+    logger.debug("Loading configuration")
     if not config_data:
         if 'PYWREN_CONFIG' in os.environ:
             config_data = json.loads(os.environ.get('PYWREN_CONFIG'))
@@ -78,7 +92,7 @@ def default_config(config_data=None):
             if config_filename is None:
                 raise ValueError("could not find configuration file")
 
-            config_data = load(config_filename)
+            config_data = load_yaml_config(config_filename)
 
     if 'pywren' not in config_data:
         raise Exception("pywren section is mandatory in the configuration")

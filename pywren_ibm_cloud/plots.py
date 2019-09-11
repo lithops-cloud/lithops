@@ -25,7 +25,7 @@ import pandas as pd
 import seaborn as sns
 from matplotlib import patches as mpatches
 from matplotlib.collections import LineCollection
-from pywren_ibm_cloud.storage.backends.ibm_cos.ibm_cos import IbmCosBackend
+from pywren_ibm_cloud.storage.backends.ibm_cos.ibm_cos import IBMCloudObjectStorageBackend
 sns.set_style('whitegrid')
 logger = logging.getLogger(__name__)
 

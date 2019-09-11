@@ -1,17 +1,17 @@
-# Configuration
+iam_api_key# Configuration
 
 To make PyWren running, you need to configure the access to the IBM Cloud Functions and IBM Cloud Object Storage services.
 
 * Access details to IBM Cloud Functions can be obtained [here](https://cloud.ibm.com/openwhisk/namespace-settings). 
 * Follow [these](cos-credentials.md) instructions to obtain the IBM Cloud Object Storage credentials.
 
-Alternatively, instead of creating one different `api_key` for each service, you can use IBM IAM to authenticate yourself against both services. In this case, setup an IAM api_key [here](https://cloud.ibm.com/iam/apikeys).
+Alternatively, instead of creating one different `api_key` for each service, you can use the IBM IAM service to authenticate yourself against both services. In this case, setup an IAM API Key [here](https://cloud.ibm.com/iam/apikeys).
 
 Once you have the credentials, there are two options to configure PyWren: Using a configuration file or using a Python dictionary in the runtime:
 
 
 ### Using configuration file
-Copy the `default_config.yaml.template` into `~/.pywren_config`
+Copy the `config_template.yaml.` into `~/.pywren_config`
 
 Edit `~/.pywren_config` and configure the following entries:
 
@@ -19,23 +19,23 @@ Edit `~/.pywren_config` and configure the following entries:
 pywren: 
     storage_bucket: <BUCKET_NAME>
 
+#ibm:
+    #iam_api_key: <IAM_API_KEY>
+
 ibm_cf:
     # Region endpoint example: https://us-east.functions.cloud.ibm.com
     endpoint    : <REGION_ENDPOINT>  # make sure to use https:// as prefix
     namespace   : <NAMESPACE>
-    api_key     : <API_KEY>
+    api_key     : <API_KEY>  # Not needed if using IAM API Key
+    # namespace_id : <NAMESPACE_ID>  # Mandatory if using IAM API Key
    
 ibm_cos:
     # Region endpoint example: https://s3.us-east.cloud-object-storage.appdomain.cloud
     endpoint   : <REGION_ENDPOINT>  # make sure to use https:// as prefix
-    # this is preferable authentication method for IBM COS
-    api_key    : <API_KEY>
+    api_key    : <API_KEY>  # Not needed if using IAM API Key
     # alternatively you can use HMAC authentication method
     # access_key : <ACCESS_KEY>
     # secret_key : <SECRET_KEY>
-
-#ibm_iam:
-    #api_key: <IAM_API_KEY>
 ```
 
 You can choose different name for the config file or keep it into different folder. If this is the case make sure you configure system variable 
@@ -104,13 +104,21 @@ pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
 |pywren| runtime_memory | 256 | no | Default runtime memory |
 
 
+### Summary of configuration keys for IBM Cloud authentication:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|ibm | iam_api_key | |no | IBM Cloud API key to authenticate against IBM COS and IBM Cloud Functions |
+
+
 ### Summary of configuration keys for IBM Cloud Functions:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |ibm_cf| endpoint | |yes | IBM Cloud Functions endpoint from [here](https://cloud.ibm.com/docs/openwhisk?topic=cloud-functions-cloudfunctions_regions#cloud-functions-endpoints). Make sure to use https:// prefix |
-|ibm_cf| namespace | |yes | IBM Cloud Functions namespace. Value of CURRENT NAMESPACE from [here](https://cloud.ibm.com/openwhisk/namespace-settings) |
-|ibm_cf| api_key |  |yes | IBM Cloud Functions API key. Value of 'KEY' from [here](https://cloud.ibm.com/openwhisk/namespace-settings) |
+|ibm_cf| namespace | |yes | Value of CURRENT NAMESPACE from [here](https://cloud.ibm.com/functions/namespace-settings) |
+|ibm_cf| api_key |  | no | **Mandatory** if using Cloud Foundry-based namespace. Value of 'KEY' from [here](https://cloud.ibm.com/functions/namespace-settings)|
+|ibm_cf| namespace_id |  |no | **Mandatory** if using IAM-based namespace with IAM API Key. Value of 'GUID' from [here](https://cloud.ibm.com/functions/namespace-settings)|
 
 
 ### Summary of configuration keys for IBM Cloud Object Storage:
@@ -119,15 +127,9 @@ pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
 |---|---|---|---|---|
 |ibm_cos | endpoint | |yes | Regional endpoint to your COS account. Make sure to use full path with 'https://' as prefix. For example https://s3.us-east.cloud-object-storage.appdomain.cloud |
 |ibm_cos | private_endpoint | |no | Private regional endpoint to your COS account. Make sure to use full path. For example: https://s3.private.us-east.cloud-object-storage.appdomain.cloud |
-|ibm_cos | api_key | |yes | API Key to your COS account|
-|ibm_cos | access_key | |no | HMAC Credentials. Mandatory if not api_key|
-|ibm_cos | secret_key | |no | HMAC Credentials. Mandatory if not api_key|
-
-### Summary of configuration keys for IBM IAM authentication:
-
-|Group|Key|Default|Mandatory|Additional info|
-|---|---|---|---|---|
-|ibm_iam | api_key | |no | IBM key to authenticate against IBM COS and IBM Cloud Functions |
+|ibm_cos | api_key | |no | API Key to your COS account. **Mandatory** if not access_key and secret_key. Not needed if using IAM API Key|
+|ibm_cos | access_key | |no | HMAC Credentials. **Mandatory** if not api_key. Not needed if using IAM API Key|
+|ibm_cos | secret_key | |no | HMAC Credentials. **Mandatory** if not api_key. Not needed if using IAM API Key|
 
 
 ### Summary of configuration keys for RabbitMQ

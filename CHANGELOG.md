@@ -393,7 +393,7 @@
 
 
 ## [v1.0.0]
-First release. From PyWren to IBM-PyWren.
+First release.
 
 - New runtime based on Docker images.
 - Added IBM Cloud Functions API connector for function invocations.
