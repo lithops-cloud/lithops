@@ -119,10 +119,12 @@ def default_config(config_data=None):
             del config_data['rabbitmq']
 
     cb = config_data['pywren']['compute_backend']
+    logger.debug("Loading Compute backend module: {}".format(cb))
     cb_config = importlib.import_module('pywren_ibm_cloud.compute.backends.{}.config'.format(cb))
     cb_config.load_config(config_data)
 
     sb = config_data['pywren']['storage_backend']
+    logger.debug("Loading Storage backend module: {}".format(sb))
     sb_config = importlib.import_module('pywren_ibm_cloud.storage.backends.{}.config'.format(sb))
     sb_config.load_config(config_data)
 
@@ -137,6 +139,8 @@ def extract_storage_config(config):
     storage_config['bucket'] = config['pywren']['storage_bucket']
     storage_config[sb] = config[sb]
     storage_config[sb]['user_agent'] = 'pywren-ibm-cloud/{}'.format(__version__)
+    if 'storage_backend_region' in config['pywren']:
+        storage_config[sb]['region'] = config['pywren']['storage_backend_region']
 
     return storage_config
 
@@ -150,6 +154,8 @@ def extract_compute_config(config):
     compute_config['retries'] = config['pywren']['retries']
     compute_config[cb] = config[cb]
     compute_config[cb]['user_agent'] = 'pywren-ibm-cloud/{}'.format(__version__)
+    if 'compute_backend_region' in config['pywren']:
+        compute_config[cb]['region'] = config['pywren']['compute_backend_region']
 
     return compute_config
 

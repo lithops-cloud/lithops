@@ -177,5 +177,5 @@ def save_plot_in_cos(cos_config, fig, dst, filename):
     fig.savefig(buff)
     buff.seek(0)
 
-    cos_handler = IbmCosBackend(cos_config)
+    cos_handler = IBMCloudObjectStorageBackend(cos_config)
     cos_handler.put_object(bucketname, key, buff.read())

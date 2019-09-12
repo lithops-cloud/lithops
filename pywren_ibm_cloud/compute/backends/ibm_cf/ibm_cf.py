@@ -39,7 +39,7 @@ class IBMCloudFunctionsBackend:
         self.api_key = ibm_cf_config['regions'][self.region].get('api_key', None)
         self.iam_api_key = ibm_cf_config.get('iam_api_key', None)
 
-        logger.debug("Set IBM CF namespace to {}".format(self.namespace))
+        logger.debug("Set IBM CF Namespace to {}".format(self.namespace))
         logger.debug("Set IBM CF Endpoint to {}".format(self.endpoint))
 
         if self.api_key:
@@ -150,7 +150,7 @@ class IBMCloudFunctionsBackend:
         if res != 0:
             exit()
 
-    def create_runtime(self, docker_image_name, memory, timeout=300000):
+    def create_runtime(self, docker_image_name, memory, timeout=ibm_cf_config.RUNTIME_TIMEOUT_DEFAULT):
         """
         Creates a new runtime into IBM CF namespace from an already built Docker image
         """
@@ -277,7 +277,7 @@ class IBMCloudFunctionsBackend:
         action_name = self._format_action_name(docker_image_name, runtime_memory)
         self.cf_client.create_package(self.package)
         self.cf_client.create_action(self.package, action_name, docker_image_name,
-                                     code=textwrap.dedent(action_code), is_binary=False,
+                                     is_binary=False, code=textwrap.dedent(action_code),
                                      memory=runtime_memory, timeout=30000)
         # sys.stdout = old_stdout
         logger.debug("Extracting Python modules list from: {}".format(docker_image_name))

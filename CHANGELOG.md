@@ -3,14 +3,16 @@
 ## [v1.0.20--snapshot]
 
 ### Added
-- Added storage abstraction for data partitioner
-- Added extra_params arg to map() and map_reduce() calls
+- Storage abstraction for data partitioner
+- 'extra_params' arg to map() and map_reduce() calls
+- Logic to reuse IAM API Key tokens during 1 hour
+- More debug logging
 
 ### Changed
 - Docs updated
 
 ### Fixed
-- 
+- Fixed minor issue in config
 
 
 ## [v1.0.19]

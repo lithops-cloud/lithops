@@ -39,7 +39,8 @@ class JobState(enum.Enum):
 class FunctionExecutor:
 
     def __init__(self, config=None, runtime=None, runtime_memory=None, compute_backend=None,
-                 compute_backend_region=None, log_level=None, rabbitmq_monitor=None):
+                 compute_backend_region=None, storage_backend=None, storage_backend_region=None,
+                 log_level=None, rabbitmq_monitor=None):
         """
         Initialize and return a FunctionExecutor class.
 
@@ -48,6 +49,8 @@ class FunctionExecutor:
         :param runtime_memory: memory to use in the runtime. Default None.
         :param compute_backend: Name of the compute backend to use. Default None.
         :param compute_backend_region: Name of the compute backend region to use. Default None.
+        :param storage_backend: Name of the storage backend to use. Default None.
+        :param storage_backend_region: Name of the storage backend region to use. Default None.
         :param log_level: log level to use during the execution. Default None.
         :param rabbitmq_monitor: use rabbitmq as the monitoring system. Default None.
         :return `FunctionExecutor` object.
@@ -67,7 +70,6 @@ class FunctionExecutor:
                 default_logging_config(self.log_level)
 
         self.config = default_config(config)
-        self.data_cleaner = self.config['pywren']['data_cleaner']
 
         # Overwrite runtime variables
         if runtime is not None:
@@ -78,6 +80,10 @@ class FunctionExecutor:
             self.config['pywren']['compute_backend'] = compute_backend
         if compute_backend_region is not None:
             self.config['pywren']['compute_backend_region'] = compute_backend_region
+        if storage_backend is not None:
+            self.config['pywren']['storage_backend'] = storage_backend
+        if storage_backend_region is not None:
+            self.config['pywren']['storage_backend_region'] = storage_backend_region
         if rabbitmq_monitor is not None:
             self.config['pywren']['rabbitmq_monitor'] = rabbitmq_monitor
 
@@ -92,10 +98,10 @@ class FunctionExecutor:
             else:
                 raise Exception("You cannot use rabbitmq_mnonitor since 'amqp_url'"
                                 " is not present in configuration")
+        self.data_cleaner = self.config['pywren']['data_cleaner']
 
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
-
         compute_config = extract_compute_config(self.config)
         self.compute_handler = Compute(compute_config)
         self.invoker = FunctionInvoker(self.config, self.executor_id, self.compute_handler)

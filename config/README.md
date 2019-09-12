@@ -104,11 +104,11 @@ pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
 |pywren| runtime_memory | 256 | no | Default runtime memory |
 
 
-### Summary of configuration keys for IBM Cloud authentication:
+### Summary of configuration keys for IBM Cloud:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ibm | iam_api_key | |no | IBM Cloud API key to authenticate against IBM COS and IBM Cloud Functions |
+|ibm | iam_api_key | |no | IBM Cloud IAM API key to authenticate against IBM COS and IBM Cloud Functions. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
 
 
 ### Summary of configuration keys for IBM Cloud Functions:
