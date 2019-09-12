@@ -40,9 +40,10 @@ def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url, download_results=F
     present_jobs = {}
 
     for f in futures:
-        if f'{f.executor_id}-{f.job_id}' not in present_jobs:
-            present_jobs[f'{f.executor_id}-{f.job_id}'] = {}
-        present_jobs[f'{f.executor_id}-{f.job_id}'][f.call_id] = f
+        job_key = '{}-{}'.format(f.executor_id, f.job_id)
+        if job_key not in present_jobs:
+            present_jobs[job_key] = {}
+        present_jobs[job_key][f.call_id] = f
 
     done_call_ids = {}
 
@@ -82,7 +83,7 @@ def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url, download_results=F
         rcvd_job_id = call_status['job_id']
         rcvd_call_id = call_status['call_id']
 
-        job_key = f'{rcvd_executor_id}-{rcvd_job_id}'
+        job_key = '{}-{}'.format(rcvd_executor_id, rcvd_job_id)
 
         fut = present_jobs[job_key][rcvd_call_id]
         fut._call_status = call_status
@@ -101,10 +102,10 @@ def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url, download_results=F
                 pbar.total = pbar.total + len(new_futures)
                 pbar.refresh()
 
-            present_jobs_new_futures = {f'{f.executor_id}-{f.job_id}' for f in new_futures}
+            present_jobs_new_futures = {'{}-{}'.format(f.executor_id, f.job_id) for f in new_futures}
 
             for f in new_futures:
-                job_key_new_futures = f'{f.executor_id}-{f.job_id}'
+                job_key_new_futures = '{}-{}'.format(f.executor_id, f.job_id)
                 if job_key_new_futures not in present_jobs:
                     present_jobs[job_key_new_futures] = {}
                 present_jobs[job_key_new_futures][f.call_id] = f

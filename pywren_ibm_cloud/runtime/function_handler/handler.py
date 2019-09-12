@@ -200,7 +200,7 @@ def function_handler(event):
             status_sent = False
             output_query_count = 0
             params = pika.URLParameters(rabbit_amqp_url)
-            queue = f'{executor_id}-{job_id}'
+            queue = '{}-{}'.format(executor_id, job_id)
 
             while not status_sent and output_query_count < 5:
                 output_query_count = output_query_count + 1

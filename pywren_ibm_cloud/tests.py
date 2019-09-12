@@ -34,7 +34,7 @@ def initTests():
         i, url = param
         content = urllib.request.urlopen(url).read()
         STORAGE.put_object(bucket_name=STORAGE_CONFIG['bucket'],
-                           key=f'{PREFIX}/test{str(i)}',
+                           key='{}/test{}'.format(PREFIX, str(i)),
                            data=content)
         return len(content.split())
 
@@ -45,7 +45,7 @@ def initTests():
     result_to_compare = 1 + sum(results)  # including result's word
 
     STORAGE.put_object(bucket_name=STORAGE_CONFIG['bucket'],
-                       key=f'{PREFIX}/result',
+                       key='{}/result'.format(PREFIX),
                        data=str(result_to_compare).encode())
 
 

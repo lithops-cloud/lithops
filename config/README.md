@@ -95,13 +95,14 @@ pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
 |pywren|storage_bucket| |yes | Any bucket that exists in your COS account. This will be used by PyWren for intermediate data |
 |pywren|storage_prefix|pywren.jobs|no|Storage prefix is a virtual sub-directory in the bucket, to provide better control over location where PyWren writes temporary data. The COS location will be `storage_bucket/storage_prefix` |
 |pywren|data_cleaner|False|no|If set to True, then cleaner will automatically delete temporary data that was written into `storage_bucket/storage_prefix`|
-|pywren | storage_backend| ibm_cos | no | backend storage implementation. IBM COS is the default |
+|pywren | storage_backend| ibm_cos | no | Storage backend implementation. IBM Cloud Object Storage is the default |
+|pywren | compute_backend| ibm_cf | no | Compute backend implementation. IBM Cloud Functions is the default |
 |pywren | rabbitmq_monitor| False | no | Activate the rabbitmq monitoring feature |
 |pywren | invocation_retry| True | no | Retry invocation in case of failure |
 |pywren | retry_sleeps | [1, 5, 10, 15, 20] | no | Number of seconds to wait before retry |
 |pywren| retries | 5 | no | Number of retries |
-|pywren| runtime_timeout | 600000 |no |  Default runtime timeout |
-|pywren| runtime_memory | 256 | no | Default runtime memory |
+|pywren| runtime_timeout | 600000 |no |  Default runtime timeout (in milliseconds) |
+|pywren| runtime_memory | 256 | no | Default runtime memory (in MB) |
 
 
 ### Summary of configuration keys for IBM Cloud:

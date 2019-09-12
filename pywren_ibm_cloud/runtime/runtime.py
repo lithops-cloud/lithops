@@ -39,17 +39,12 @@ def select_runtime(config, internal_storage, compute_handler, executor_id, job_i
         compute_handler.create_runtime(runtime_name, runtime_memory, timeout=timeout)
         internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
-    if not _runtime_valid(runtime_meta):
-        raise Exception(("The indicated runtime: {} "
-                         "is not appropriate for this Python version.")
-                        .format(runtime_name))
+    py_local_version = version_str(sys.version_info)
+    py_remote_version = runtime_meta['python_ver']
+
+    if py_local_version != py_remote_version:
+        raise Exception(("The indicated runtime '{}' is running Python {} and it "
+                         "is not compatible with the local Python version {}")
+                        .format(runtime_name, py_remote_version, py_local_version))
 
     return runtime_meta
-
-
-def _runtime_valid(runtime_meta):
-    """
-    Basic checks
-    """
-    this_version_str = version_str(sys.version_info)
-    return this_version_str == runtime_meta['python_ver']
