@@ -281,8 +281,14 @@ class IBMCloudFunctionsBackend:
                                      memory=runtime_memory, timeout=30000)
         # sys.stdout = old_stdout
         logger.debug("Extracting Python modules list from: {}".format(docker_image_name))
+
         try:
-            runtime_meta = self.invoke_with_result(docker_image_name, runtime_memory)
+            retry_invoke = True
+            while retry_invoke:
+                retry_invoke = False
+                runtime_meta = self.invoke_with_result(docker_image_name, runtime_memory)
+                if 'activationId' in runtime_meta:
+                    retry_invoke = True
         except Exception:
             raise("Unable to invoke 'modules' action")
         try:

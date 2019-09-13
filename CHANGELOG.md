@@ -4,15 +4,17 @@
 
 ### Added
 - Storage abstraction for data partitioner
-- 'extra_params' arg to map() and map_reduce() calls
+- Added 'extra_params' arg to map() and map_reduce() calls
 - Logic to reuse IAM API Key tokens during 1 hour
 - More debug logging
 
 ### Changed
 - Docs updated
+- Full support for Python3.5
 
 ### Fixed
 - Fixed minor issue in config
+- Fixed possible issue extracting metadata from large docker images (runtimes)
 
 
 ## [v1.0.19]
