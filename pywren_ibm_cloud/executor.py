@@ -6,14 +6,16 @@ import json
 import signal
 import logging
 import traceback
-from pywren_ibm_cloud.invoker import Invoker
+from pywren_ibm_cloud.compute import Compute
+from pywren_ibm_cloud.runtime import select_runtime
+from pywren_ibm_cloud.invoker import FunctionInvoker
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.future import FunctionException
-from pywren_ibm_cloud.monitor import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from pywren_ibm_cloud.storage.utils import clean_os_bucket
+from pywren_ibm_cloud.monitor import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from pywren_ibm_cloud.job import create_call_async_job, create_map_job, create_reduce_job
-from pywren_ibm_cloud.config import default_config, extract_storage_config, EXECUTION_TIMEOUT, default_logging_config
-from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_cf_cluster, create_executor_id
+from pywren_ibm_cloud.config import default_config, extract_storage_config, extract_compute_config, EXECUTION_TIMEOUT, default_logging_config
+from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_remote_cluster, create_executor_id
 
 logger = logging.getLogger(__name__)
 
@@ -37,24 +39,37 @@ class JobState(enum.Enum):
 class FunctionExecutor:
 
     def __init__(self, config=None, runtime=None, runtime_memory=None, compute_backend=None,
-                 compute_backend_region=None, log_level=None, rabbitmq_monitor=None):
+                 compute_backend_region=None, storage_backend=None, storage_backend_region=None,
+                 log_level=None, rabbitmq_monitor=None):
         """
-        Initialize and return a ServerlessExecutor class.
+        Initialize and return a FunctionExecutor class.
 
         :param config: Settings passed in here will override those in config file. Default None.
         :param runtime: Runtime name to use. Default None.
         :param runtime_memory: memory to use in the runtime. Default None.
         :param compute_backend: Name of the compute backend to use. Default None.
         :param compute_backend_region: Name of the compute backend region to use. Default None.
+        :param storage_backend: Name of the storage backend to use. Default None.
+        :param storage_backend_region: Name of the storage backend region to use. Default None.
         :param log_level: log level to use during the execution. Default None.
-        :param rabbitmq_monitor: use rabbitmq as monitoring system. Default None.
+        :param rabbitmq_monitor: use rabbitmq as the monitoring system. Default None.
         :return `FunctionExecutor` object.
         """
         self.start_time = time.time()
         self._state = ExecutorState.new
+        self.is_remote_cluster = is_remote_cluster()
+
+        # Log level Configuration
+        self.log_level = log_level
+        if not self.log_level:
+            if(logger.getEffectiveLevel() != logging.WARNING):
+                self.log_level = logging.getLevelName(logger.getEffectiveLevel())
+        if self.log_level:
+            os.environ["CB_LOG_LEVEL"] = self.log_level
+            if not self.is_remote_cluster:
+                default_logging_config(self.log_level)
+
         self.config = default_config(config)
-        self.is_cf_cluster = is_cf_cluster()
-        self.data_cleaner = self.config['pywren']['data_cleaner']
 
         # Overwrite runtime variables
         if runtime is not None:
@@ -65,18 +80,12 @@ class FunctionExecutor:
             self.config['pywren']['compute_backend'] = compute_backend
         if compute_backend_region is not None:
             self.config['pywren']['compute_backend_region'] = compute_backend_region
+        if storage_backend is not None:
+            self.config['pywren']['storage_backend'] = storage_backend
+        if storage_backend_region is not None:
+            self.config['pywren']['storage_backend_region'] = storage_backend_region
         if rabbitmq_monitor is not None:
             self.config['pywren']['rabbitmq_monitor'] = rabbitmq_monitor
-
-        # Log level Configuration
-        self.log_level = log_level
-        if not self.log_level:
-            if(logger.getEffectiveLevel() != logging.WARNING):
-                self.log_level = logging.getLevelName(logger.getEffectiveLevel())
-        if self.log_level:
-            os.environ["CB_LOG_LEVEL"] = self.log_level
-            if not self.is_cf_cluster:
-                default_logging_config(self.log_level)
 
         self.executor_id = create_executor_id()
         logger.debug('FunctionExecutor created with ID: {}'.format(self.executor_id))
@@ -89,10 +98,14 @@ class FunctionExecutor:
             else:
                 raise Exception("You cannot use rabbitmq_mnonitor since 'amqp_url'"
                                 " is not present in configuration")
+        self.data_cleaner = self.config['pywren']['data_cleaner']
 
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
-        self.invoker = Invoker(self.config, self.executor_id)
+        compute_config = extract_compute_config(self.config)
+        self.compute_handler = Compute(compute_config)
+        self.invoker = FunctionInvoker(self.config, self.executor_id, self.compute_handler)
+
         self.jobs = {}
 
     @property
@@ -102,43 +115,48 @@ class FunctionExecutor:
             futures.extend(self.jobs[job]['futures'])
         return futures
 
-    def call_async(self, func, data, extra_env=None, extra_meta=None, runtime_memory=None,
+    def call_async(self, func, data, extra_env=None, runtime_memory=None,
                    timeout=EXECUTION_TIMEOUT, include_modules=[], exclude_modules=[]):
         """
         For running one function execution asynchronously
         :param func: the function to map over the data
         :param data: input data
+        :param extra_data: Additional data to pass to action. Default None.
         :param extra_env: Additional environment variables for action environment. Default None.
-        :param extra_meta: Additional metadata to pass to action. Default None.
         """
-
         if self._state == ExecutorState.finished:
             raise Exception('You cannot run call_async() in the current state,'
                             ' create a new FunctionExecutor() instance.')
-        total_current_jobs = len(self.jobs)
+
+        job_id = str(len(self.jobs)).zfill(3)
+        async_job_id = f'A{job_id}'
+
+        runtime_meta = select_runtime(self.config, self.internal_storage, self.compute_handler,
+                                      self.executor_id, async_job_id, runtime_memory)
+
         job = create_call_async_job(self.config, self.internal_storage,
-                                    self.executor_id, total_current_jobs,
+                                    self.executor_id, async_job_id,
                                     func=func, data=data,
-                                    extra_env=extra_env, extra_meta=extra_meta,
+                                    runtime_meta=runtime_meta,
                                     runtime_memory=runtime_memory,
+                                    extra_env=extra_env,
+                                    execution_timeout=timeout,
                                     include_modules=include_modules,
-                                    exclude_modules=exclude_modules,
-                                    execution_timeout=timeout)
+                                    exclude_modules=exclude_modules)
         future = self.invoker.run(job)
-        self.jobs[job['job_id']] = {'futures': future, 'state': JobState.running}
+        self.jobs[async_job_id] = {'futures': future, 'state': JobState.running}
         self._state = ExecutorState.running
 
         return future[0]
 
-    def map(self, map_function, map_iterdata, extra_env=None, extra_meta=None, runtime_memory=None,
+    def map(self, map_function, map_iterdata, extra_params=None, extra_env=None, runtime_memory=None,
             chunk_size=None, chunk_n=None, remote_invocation=False, remote_invocation_groups=None,
-            timeout=EXECUTION_TIMEOUT, invoke_pool_threads=500, overwrite_invoke_args=None,
-            include_modules=[], exclude_modules=[]):
+            timeout=EXECUTION_TIMEOUT, invoke_pool_threads=500, include_modules=[], exclude_modules=[]):
         """
         :param func: the function to map over the data
         :param iterdata: An iterable of input data
         :param extra_env: Additional environment variables for action environment. Default None.
-        :param extra_meta: Additional metadata to pass to action. Default None.
+        :param extra_params: Additional parameters to pass to the function activation. Default None.
         :param chunk_size: the size of the data chunks. 'None' for processing the whole file in one map
         :param remote_invocation: Enable or disable remote_invocayion mechanism. Default 'False'
         :param timeout: Time that the functions have to complete their execution before raising a timeout.
@@ -153,33 +171,44 @@ class FunctionExecutor:
         if self._state == ExecutorState.finished:
             raise Exception('You cannot run map() in the current state.'
                             ' Create a new FunctionExecutor() instance.')
+
         total_current_jobs = len(self.jobs)
+        job_id = str(total_current_jobs).zfill(3)
+        map_job_id = f'M{job_id}'
+
+        runtime_meta = select_runtime(self.config, self.internal_storage, self.compute_handler,
+                                      self.executor_id, map_job_id, runtime_memory)
+
         job, unused_ppo = create_map_job(self.config, self.internal_storage,
-                                         self.executor_id, total_current_jobs,
-                                         map_function=map_function, iterdata=map_iterdata,
-                                         extra_env=extra_env, extra_meta=extra_meta,
-                                         obj_chunk_size=chunk_size, obj_chunk_number=chunk_n,
+                                         self.executor_id, map_job_id,
+                                         map_function=map_function,
+                                         iterdata=map_iterdata,
+                                         runtime_meta=runtime_meta,
                                          runtime_memory=runtime_memory,
+                                         extra_params=extra_params,
+                                         extra_env=extra_env,
+                                         obj_chunk_size=chunk_size,
+                                         obj_chunk_number=chunk_n,
                                          remote_invocation=remote_invocation,
                                          remote_invocation_groups=remote_invocation_groups,
                                          invoke_pool_threads=invoke_pool_threads,
                                          include_modules=include_modules,
                                          exclude_modules=exclude_modules,
-                                         is_cf_cluster=self.is_cf_cluster,
-                                         overwrite_invoke_args=overwrite_invoke_args,
+                                         is_remote_cluster=self.is_remote_cluster,
                                          execution_timeout=timeout)
+
         map_futures = self.invoker.run(job)
-        self.jobs[job['job_id']] = {'futures': map_futures, 'state': JobState.running}
+        self.jobs[map_job_id] = {'futures': map_futures, 'state': JobState.running}
         self._state = ExecutorState.running
 
         if len(map_futures) == 1:
             return map_futures[0]
         return map_futures
 
-    def map_reduce(self, map_function, map_iterdata, reduce_function, extra_env=None, map_runtime_memory=None,
-                   reduce_runtime_memory=None, extra_meta=None, chunk_size=None,  chunk_n=None, remote_invocation=False,
-                   remote_invocation_groups=None, timeout=EXECUTION_TIMEOUT, reducer_one_per_object=False,
-                   reducer_wait_local=False, invoke_pool_threads=500, overwrite_invoke_args=None,
+    def map_reduce(self, map_function, map_iterdata, reduce_function, extra_params=None, extra_env=None,
+                   map_runtime_memory=None, reduce_runtime_memory=None, chunk_size=None, chunk_n=None,
+                   remote_invocation=False, remote_invocation_groups=None, timeout=EXECUTION_TIMEOUT,
+                   reducer_one_per_object=False, reducer_wait_local=False, invoke_pool_threads=500,
                    include_modules=[], exclude_modules=[]):
         """
         Map the map_function over the data and apply the reduce_function across all futures.
@@ -188,7 +217,7 @@ class FunctionExecutor:
         :param map_iterdata:  the function to reduce over the futures
         :param reduce_function:  the function to reduce over the futures
         :param extra_env: Additional environment variables for action environment. Default None.
-        :param extra_meta: Additional metadata to pass to action. Default None.
+        :param extra_params: Additional parameters to pass to function activation. Default None.
         :param chunk_size: the size of the data chunks. 'None' for processing the whole file in one map
         :param remote_invocation: Enable or disable remote_invocayion mechanism. Default 'False'
         :param timeout: Time that the functions have to complete their execution before raising a timeout.
@@ -201,42 +230,59 @@ class FunctionExecutor:
         :param exclude_modules: Explicitly keep these modules from pickled dependencies.
         :return: A list with size `len(map_iterdata)` of futures for each job
         """
-
         if self._state == ExecutorState.finished:
             raise Exception('You cannot run map_reduce() in the current state.'
                             ' Create a new FunctionExecutor() instance.')
+
         total_current_jobs = len(self.jobs)
+        job_id = str(total_current_jobs).zfill(3)
+        map_job_id = f'M{job_id}'
+
+        runtime_meta = select_runtime(self.config, self.internal_storage, self.compute_handler,
+                                      self.executor_id, map_job_id, map_runtime_memory)
+
         job, parts_per_object = create_map_job(self.config, self.internal_storage,
-                                               self.executor_id, total_current_jobs,
-                                               map_function=map_function, iterdata=map_iterdata,
-                                               extra_env=extra_env, extra_meta=extra_meta,
-                                               obj_chunk_size=chunk_size, obj_chunk_number=chunk_n,
+                                               self.executor_id, map_job_id,
+                                               map_function=map_function,
+                                               iterdata=map_iterdata,
+                                               runtime_meta=runtime_meta,
                                                runtime_memory=map_runtime_memory,
+                                               extra_params=extra_params,
+                                               extra_env=extra_env,
+                                               obj_chunk_size=chunk_size,
+                                               obj_chunk_number=chunk_n,
                                                remote_invocation=remote_invocation,
                                                remote_invocation_groups=remote_invocation_groups,
                                                invoke_pool_threads=invoke_pool_threads,
                                                include_modules=include_modules,
                                                exclude_modules=exclude_modules,
-                                               is_cf_cluster=self.is_cf_cluster,
-                                               overwrite_invoke_args=overwrite_invoke_args,
+                                               is_remote_cluster=self.is_remote_cluster,
                                                execution_timeout=timeout)
+
         map_futures = self.invoker.run(job)
-        self.jobs[job['job_id']] = {'futures': map_futures, 'state': JobState.running}
+        self.jobs[map_job_id] = {'futures': map_futures, 'state': JobState.running}
         self._state = ExecutorState.running
 
         if reducer_wait_local:
             self.monitor(futures=map_futures)
 
+        reduce_job_id = f'R{job_id}'
+
+        runtime_meta = select_runtime(self.config, self.internal_storage, self.compute_handler,
+                                      self.executor_id, reduce_job_id, reduce_runtime_memory)
+
         job = create_reduce_job(self.config, self.internal_storage,
-                                self.executor_id, total_current_jobs,
+                                self.executor_id, reduce_job_id,
                                 reduce_function, map_futures, parts_per_object,
+                                runtime_meta=runtime_meta,
                                 reducer_one_per_object=reducer_one_per_object,
                                 runtime_memory=reduce_runtime_memory,
-                                extra_env=extra_env, extra_meta=extra_meta,
+                                extra_env=extra_env,
                                 include_modules=include_modules,
                                 exclude_modules=exclude_modules)
+
         reduce_futures = self.invoker.run(job)
-        self.jobs[job['job_id']] = {'futures': reduce_futures, 'state': JobState.running}
+        self.jobs[reduce_job_id] = {'futures': reduce_futures, 'state': JobState.running}
 
         for f in map_futures:
             f.produce_output = False
@@ -295,7 +341,7 @@ class FunctionExecutor:
             signal.alarm(timeout)
 
         pbar = None
-        if not self.is_cf_cluster and self._state == ExecutorState.running \
+        if not self.is_remote_cluster and self._state == ExecutorState.running \
            and not self.log_level:
             from tqdm.auto import tqdm
             if is_notebook():
@@ -351,7 +397,7 @@ class FunctionExecutor:
             self._state = ExecutorState.error
 
         except Exception as e:
-            if not self.is_cf_cluster:
+            if not self.is_remote_cluster:
                 self.clean()
             raise e
 
@@ -366,17 +412,17 @@ class FunctionExecutor:
                 logger.debug(msg)
                 if not self.log_level:
                     print(msg)
-            if download_results and self.data_cleaner and not self.is_cf_cluster:
+            if download_results and self.data_cleaner and not self.is_remote_cluster:
                 self.clean()
 
         if download_results:
             fs_dones = [f for f in ftrs if f.done]
             fs_notdones = [f for f in ftrs if not f.done]
-            self._state = ExecutorState.ready
+            self._state = ExecutorState.done
         else:
             fs_dones = [f for f in ftrs if f.ready or f.done]
             fs_notdones = [f for f in ftrs if not f.ready and not f.done]
-            self._state = ExecutorState.done
+            self._state = ExecutorState.ready
 
         return fs_dones, fs_notdones
 

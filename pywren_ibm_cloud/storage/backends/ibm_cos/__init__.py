@@ -1,1 +1,1 @@
-from .ibm_cos import StorageBackend
+from .ibm_cos import IBMCloudObjectStorageBackend as StorageBackend

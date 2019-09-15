@@ -20,23 +20,21 @@ import time
 from types import SimpleNamespace
 from pywren_ibm_cloud.version import __version__
 from concurrent.futures import ThreadPoolExecutor
-from pywren_ibm_cloud.compute import Compute
+from pywren_ibm_cloud.config import extract_storage_config
 from pywren_ibm_cloud.future import ResponseFuture, CallState
-from pywren_ibm_cloud.config import extract_storage_config, extract_compute_config
 from pywren_ibm_cloud.storage.utils import create_output_key, create_status_key
 
 logger = logging.getLogger(__name__)
 
 
-class Invoker:
+class FunctionInvoker:
 
-    def __init__(self, config, executor_id):
+    def __init__(self, config, executor_id, compute_handler):
         self.log_level = os.getenv('CB_LOG_LEVEL')
         self.config = config
         self.executor_id = executor_id
+        self.compute = compute_handler
         self.storage_config = extract_storage_config(self.config)
-        compute_config = extract_compute_config(config)
-        self.internal_compute = Compute(compute_config)
 
     def run(self, job_description):
         job = SimpleNamespace(**job_description)
@@ -77,21 +75,10 @@ class Invoker:
                 logger.debug("Extra environment vars {}".format(job.extra_env))
                 payload['extra_env'] = job.extra_env
 
-            if job.extra_meta is not None:
-                # sanity
-                for k, v in job.extra_meta.items():
-                    if k in payload:
-                        raise ValueError("Key {} already in dict".format(k))
-                    payload[k] = v
-
-            # overwrite explicit args, mostly used for testing via injection
-            if job.overwrite_invoke_args is not None:
-                payload.update(job.overwrite_invoke_args)
-
             host_submit_time = time.time()
             payload['host_submit_time'] = host_submit_time
             # do the invocation
-            activation_id = self.internal_compute.invoke(job.runtime_name, job.runtime_memory, payload)
+            activation_id = self.compute.invoke(job.runtime_name, job.runtime_memory, payload)
 
             if not activation_id:
                 raise Exception("ExecutorID {} | JobID {} - Retrying mechanism finished with no success. "

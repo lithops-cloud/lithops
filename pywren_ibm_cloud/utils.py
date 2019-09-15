@@ -48,11 +48,11 @@ def is_unix_system():
     return curret_system != 'Windows'
 
 
-def is_cf_cluster():
+def is_remote_cluster():
     """
-    Checks if the current execution is in an OpenWhisk function
+    Checks if the current execution is remote
     """
-    if any([k.startswith('__OW_') for k in os.environ.keys()]):
+    if 'PYWREN_REMOTE' in os.environ:
         return True
     return False
 
@@ -73,18 +73,6 @@ def is_notebook():
 def is_object_processing_function(map_function):
     func_sig = inspect.signature(map_function)
     return {'obj', 'url'} & set(func_sig.parameters)
-
-
-def iterdata_as_list(iterdata):
-    """
-    Converts iteradat to a list
-    """
-    if type(iterdata) == str:
-        return [iterdata]
-    elif type(iterdata) != list:
-        return list(iterdata)
-    else:
-        return iterdata
 
 
 def convert_bools_to_string(extra_env):
@@ -175,7 +163,44 @@ def get_current_memory_usage():
     return sizeof_fmt(memorybytes)
 
 
-def verify_args(func, data):
+def format_data(iterdata, extra_params):
+    """
+    Converts iteradat to a list with extra_params
+    """
+    if type(iterdata) == str or type(iterdata) == int:
+        data = [iterdata]
+    elif type(iterdata) != list:
+        data = list(iterdata)
+    else:
+        data = iterdata
+
+    if extra_params:
+        new_iterdata = []
+        for data_i in data:
+            if type(data_i) in [list, dict] and type(data_i) != type(extra_params):
+                raise Exception('Input iterdata and extra_params must be of '
+                                'the same class (dict or list)')
+            else:
+                if type(data_i) == dict:
+                    data_i.update(extra_params)
+                elif type(data_i) == list:
+                    data_i.extend(extra_params)
+                elif type(extra_params) == list:
+                    new_iterdata.append([data_i, *extra_params])
+                else:
+                    raise Exception('Input extra_params cannot be a dict if '
+                                    'iteradata is not a dict-per-activation')
+
+        if new_iterdata:
+            data = new_iterdata
+
+    return data
+
+
+def verify_args(func, iterdata, extra_params):
+
+    data = format_data(iterdata, extra_params)
+
     # Verify parameters
     non_verify_args = ['ibm_cos', 'swift', 'internal_storage', 'id', 'rabbitmq']
     func_sig = inspect.signature(func)

@@ -21,34 +21,34 @@ import logging
 import requests
 import http.client
 from urllib.parse import urlparse
-from .iam import IbmIamClient
-
 
 logger = logging.getLogger(__name__)
 
 
 class CloudFunctionsClient:
 
-    def __init__(self, config):
+    def __init__(self, region, endpoint, namespace, namespace_id=None, api_key=None,
+                 iam_api_key=None, token_manager=None, user_agent=None):
         """
-        Constructor
+        CloudFunctionsClient Constructor
         """
-        region = config['region']
-        self.endpoint = config[region]['endpoint'].replace('http:', 'https:')
-        self.namespace = config[region]['namespace']
+        self.region = region
+        self.endpoint = endpoint.replace('http:', 'https:')
+        self.namespace = namespace
+        self.namespace_id = namespace_id
+        self.api_key = api_key
+        self.iam_api_key = iam_api_key
+        self.token_manager = token_manager
 
-        if 'api_key' in config[region]:
-            api_key = str.encode(config[region]['api_key'])
+        if self.api_key:
+            api_key = str.encode(self.api_key)
             auth_token = base64.encodebytes(api_key).replace(b'\n', b'')
             auth = 'Basic %s' % auth_token.decode('UTF-8')
             self.effective_namespace = self.namespace
 
-        elif 'ibm_iam' in config and 'api_key' in config['ibm_iam']:
-            # TODO: Improve performance: It might take +5 seconds to get a token and ns
-            iam_client = IbmIamClient(config['ibm_iam'], self.endpoint, self.namespace)
-            auth_token = iam_client.get_iam_token()
+        elif self.token_manager:
+            auth_token = token_manager._token
             auth = 'Bearer ' + auth_token
-            self.namespace_id = iam_client.get_function_namespace_id(auth)
             self.effective_namespace = self.namespace_id
 
         self.session = requests.session()
@@ -57,16 +57,12 @@ class CloudFunctionsClient:
         self.headers = {
             'content-type': 'application/json',
             'Authorization': auth,
-            'User-Agent': default_user_agent + ' {}'.format(config['user_agent'])
+            'User-Agent': default_user_agent + ' {}'.format(user_agent)
         }
 
         self.session.headers.update(self.headers)
         adapter = requests.adapters.HTTPAdapter()
         self.session.mount('https://', adapter)
-
-        logger.debug('IBM CF init for namespace: {}'.format(self.namespace))
-        logger.debug('IBM CF init for host: {}'.format(self.endpoint))
-        logger.debug("IBM CF user agent set to: {}".format(self.session.headers['User-Agent']))
 
     def create_action(self, package, action_name, image_name, code=None, memory=None,
                       timeout=30000, kind='blackbox', is_binary=True, overwrite=True):
@@ -192,7 +188,7 @@ class CloudFunctionsClient:
         else:
             logger.debug("OK --> Created package {}".format(package))
 
-    def invoke(self, package, action_name, payload={}, is_cf_cluster=False, self_invoked=False):
+    def invoke(self, package, action_name, payload={}, is_remote_cluster=False, self_invoked=False):
         """
         Invoke an IBM Cloud Function by using new request.
         """
@@ -200,7 +196,7 @@ class CloudFunctionsClient:
         parsed_url = urlparse(url)
 
         try:
-            if is_cf_cluster:
+            if is_remote_cluster:
                 resp = self.session.post(url, json=payload)
                 resp_status = resp.status_code
                 data = resp.json()
@@ -215,11 +211,11 @@ class CloudFunctionsClient:
                 data = json.loads(resp.read().decode("utf-8"))
                 conn.close()
         except Exception as e:
-            if not is_cf_cluster:
+            if not is_remote_cluster:
                 conn.close()
             if self_invoked:
                 return None, e
-            return self.invoke(package, action_name, payload, is_cf_cluster, self_invoked=True)
+            return self.invoke(package, action_name, payload, is_remote_cluster=True)
 
         if resp_status == 202 and 'activationId' in data:
             return data["activationId"], None

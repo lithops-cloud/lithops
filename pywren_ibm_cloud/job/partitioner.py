@@ -18,15 +18,15 @@ import logging
 import requests
 from pywren_ibm_cloud import utils
 from multiprocessing.pool import ThreadPool
+from pywren_ibm_cloud.storage import Storage
 from pywren_ibm_cloud.storage.utils import CloudObject, CloudObjectUrl
-from pywren_ibm_cloud.storage.backends.ibm_cos.ibm_cos import StorageBackend as ibm_cos_backend
 
 logger = logging.getLogger(__name__)
 
 CHUNK_THRESHOLD = 128*1024  # 128KB
 
 
-def create_partitions(config, arg_data, chunk_size, chunk_number):
+def create_partitions(pywren_config, map_iterdata, chunk_size, chunk_number):
     """
     Method that returns the function that will create the partitions of the objects in the Cloud
     """
@@ -41,7 +41,7 @@ def create_partitions(config, arg_data, chunk_size, chunk_number):
     urls = set()
 
     logger.debug("Parsing input data")
-    for elem in arg_data:
+    for elem in map_iterdata:
         if 'url' in elem:
             urls.add(elem['url'])
         if 'obj' in elem:
@@ -66,20 +66,20 @@ def create_partitions(config, arg_data, chunk_size, chunk_number):
     if not urls:
         # process objects from an object store. No url
         sb = sbs.pop()
-        storage = ibm_cos_backend(config[sb])
+        storage_handler = Storage(pywren_config, sb).get_storage_handler()
         objects = {}
         if obj_names:
             for bucket, prefix in obj_names:
                 logger.debug("Listing objects in '{}://{}'".format(sb, '/'.join([bucket, prefix])))
-                objects[bucket] = storage.list_objects(bucket, prefix)
+                objects[bucket] = storage_handler.list_objects(bucket, prefix)
         elif prefixes:
             for bucket, prefix in prefixes:
                 logger.debug("Listing objects in '{}://{}'".format(sb, '/'.join([bucket, prefix])))
-                objects[bucket] = storage.list_objects(bucket, prefix)
+                objects[bucket] = storage_handler.list_objects(bucket, prefix)
         elif buckets:
             for bucket in buckets:
                 logger.debug("Listing objects in '{}://{}'".format(sb, bucket))
-                objects[bucket] = storage.list_objects(bucket)
+                objects[bucket] = storage_handler.list_objects(bucket)
 
         keys_dict = {}
         for bucket in objects:
@@ -88,13 +88,13 @@ def create_partitions(config, arg_data, chunk_size, chunk_number):
                 keys_dict[bucket][obj['Key']] = obj['Size']
 
     if buckets or prefixes:
-        partitions, parts_per_object = _split_objects_from_buckets(arg_data, keys_dict, chunk_size, chunk_number)
+        partitions, parts_per_object = _split_objects_from_buckets(map_iterdata, keys_dict, chunk_size, chunk_number)
 
     elif obj_names:
-        partitions, parts_per_object = _split_objects_from_keys(arg_data, keys_dict, chunk_size, chunk_number)
+        partitions, parts_per_object = _split_objects_from_keys(map_iterdata, keys_dict, chunk_size, chunk_number)
 
     elif urls:
-        partitions, parts_per_object = _split_objects_from_urls(arg_data, chunk_size, chunk_number)
+        partitions, parts_per_object = _split_objects_from_urls(map_iterdata, chunk_size, chunk_number)
 
     else:
         raise ValueError('You did not provide any bucket or object key/url')

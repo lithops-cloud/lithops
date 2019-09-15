@@ -26,44 +26,44 @@ def load_config(config_data=None):
     if 'ibm_cf' not in config_data:
         raise Exception("ibm_cf section is mandatory in the configuration")
 
-    if 'ibm_iam' in config_data['ibm_cf']:
-        del config_data['ibm_cf']['ibm_iam']
-
     required_parameters_0 = ('endpoint', 'namespace')
+    required_parameters_1 = ('endpoint', 'namespace', 'api_key')
+    required_parameters_2 = ('endpoint', 'namespace', 'namespace_id', 'ibm:iam_api_key')
+
+    # Check old format. Convert to new format
     if set(required_parameters_0) <= set(config_data['ibm_cf']):
-        # old format. convert to new format
         endpoint = config_data['ibm_cf'].pop('endpoint')
         namespace = config_data['ibm_cf'].pop('namespace')
         api_key = config_data['ibm_cf'].pop('api_key', None)
+        namespace_id = config_data['ibm_cf'].pop('namespace_id', None)
         region = endpoint.split('//')[1].split('.')[0].replace('-', '_')
 
         for k in list(config_data['ibm_cf']):
             # Delete unnecessary keys
             del config_data['ibm_cf'][k]
 
+        config_data['ibm_cf']['regions'] = {}
         config_data['pywren']['compute_backend_region'] = region
-        config_data['ibm_cf'][region] = {'endpoint': endpoint, 'namespace': namespace}
+        config_data['ibm_cf']['regions'][region] = {'endpoint': endpoint, 'namespace': namespace}
         if api_key:
-            config_data['ibm_cf'][region]['api_key'] = api_key
-    else:
-        # new format
-        for region in config_data['ibm_cf']:
-            required_parameters_1 = ('endpoint', 'namespace', 'api_key')
-            required_parameters_2 = ('endpoint', 'namespace', 'ibm_iam:api_key')
+            config_data['ibm_cf']['regions'][region]['api_key'] = api_key
+        if namespace_id:
+            config_data['ibm_cf']['regions'][region]['namespace_id'] = namespace_id
+    # -------------------
 
-            if set(required_parameters_1) <= set(config_data['ibm_cf'][region]) or \
-               set(required_parameters_0) <= set(config_data['ibm_cf'][region]) and 'api_key' in config_data['ibm_iam']:
-                pass
-            else:
-                raise Exception('You must provide {} or {} to access to IBM Cloud Functions'.format(required_parameters_1,
-                                                                                                    required_parameters_2))
+    if 'ibm' in config_data and config_data['ibm'] is not None:
+        config_data['ibm_cf'].update(config_data['ibm'])
 
-        if 'compute_backend_region' not in config_data['pywren']:
-            config_data['pywren']['compute_backend_region'] = list(config_data['ibm_cf'].keys())[0]
+    for region in config_data['ibm_cf']['regions']:
+        if not set(required_parameters_1) <= set(config_data['ibm_cf']['regions'][region]) \
+           and (not set(required_parameters_0) <= set(config_data['ibm_cf']['regions'][region])
+           or 'namespace_id' not in config_data['ibm_cf']['regions'][region] or 'iam_api_key' not in config_data['ibm_cf']):
+            raise Exception('You must provide {} or {} to access to IBM Cloud '
+                            'Functions'.format(required_parameters_1, required_parameters_2))
 
-        cbr = config_data['pywren']['compute_backend_region']
-        if cbr is not None and cbr not in config_data['ibm_cf']:
-            raise Exception('Invalid Compute backend region: {}'.format(cbr))
+    if 'compute_backend_region' not in config_data['pywren']:
+        config_data['pywren']['compute_backend_region'] = list(config_data['ibm_cf']['regions'].keys())[0]
 
-    if 'ibm_iam' in config_data and config_data['ibm_iam'] is not None:
-        config_data['ibm_cf']['ibm_iam'] = config_data['ibm_iam']
+    cbr = config_data['pywren']['compute_backend_region']
+    if cbr is not None and cbr not in config_data['ibm_cf']['regions']:
+        raise Exception('Invalid Compute backend region: {}'.format(cbr))

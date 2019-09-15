@@ -3,37 +3,90 @@ import sys
 import time
 import logging
 import zipfile
+import textwrap
 import pywren_ibm_cloud
 from . import config as ibm_cf_config
+from datetime import datetime
+from ibm_botocore.credentials import DefaultTokenManager
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
-from pywren_ibm_cloud.utils import is_cf_cluster
+from pywren_ibm_cloud.utils import is_remote_cluster
+from pywren_ibm_cloud.config import CONFIG_DIR, load_yaml_config, dump_yaml_config
 from pywren_ibm_cloud.libs.ibm_cloudfunctions.client import CloudFunctionsClient
 
 logger = logging.getLogger(__name__)
 ZIP_LOCATION = os.path.join(os.getcwd(), 'cloudbutton_ibm_cf.zip')
 
 
-class ComputeBackend:
+class IBMCloudFunctionsBackend:
     """
     A wrap-up around IBM Cloud Functions backend.
     """
 
     def __init__(self, ibm_cf_config):
+        logger.debug("Creating IBM Cloud Functions client")
         self.log_level = os.getenv('CB_LOG_LEVEL')
         self.name = 'ibm_cf'
         self.ibm_cf_config = ibm_cf_config
         self.package = 'pywren_v'+__version__
-        self.region = ibm_cf_config['region']
-        self.cf_client = CloudFunctionsClient(self.ibm_cf_config)
-        self.is_cf_cluster = is_cf_cluster()
-        self.namespace = ibm_cf_config[self.region]['namespace']
+        self.is_remote_cluster = is_remote_cluster()
 
-        log_msg = ('PyWren v{} init for IBM Cloud Functions - Namespace: {} '
-                   '- Region: {}'.format(__version__, self.namespace, self.region))
-        logger.info(log_msg)
+        self.user_agent = ibm_cf_config['user_agent']
+        self.region = ibm_cf_config['region']
+        self.endpoint = ibm_cf_config['regions'][self.region]['endpoint']
+        self.namespace = ibm_cf_config['regions'][self.region]['namespace']
+        self.namespace_id = ibm_cf_config['regions'][self.region].get('namespace_id', None)
+        self.api_key = ibm_cf_config['regions'][self.region].get('api_key', None)
+        self.iam_api_key = ibm_cf_config.get('iam_api_key', None)
+
+        logger.debug("Set IBM CF Namespace to {}".format(self.namespace))
+        logger.debug("Set IBM CF Endpoint to {}".format(self.endpoint))
+
+        if self.api_key:
+            self.cf_client = CloudFunctionsClient(region=self.region,
+                                                  endpoint=self.endpoint,
+                                                  namespace=self.namespace,
+                                                  api_key=self.api_key,
+                                                  user_agent=self.user_agent)
+        elif self.iam_api_key:
+            token_manager = DefaultTokenManager(api_key_id=self.iam_api_key)
+            token_filename = os.path.join(CONFIG_DIR, 'IAM_TOKEN')
+
+            if 'token' in self.ibm_cf_config:
+                logger.debug("Using IBM IAM API Key - Reusing Token")
+                token_manager._token = self.ibm_cf_config['token']
+                token_manager._expiry_time = datetime.strptime(self.ibm_cf_config['token_expiry_time'],
+                                                               '%Y-%m-%d %H:%M:%S.%f%z')
+            elif os.path.exists(token_filename):
+                logger.debug("Using IBM IAM API Key - Reusing Token from local cache")
+                token_data = load_yaml_config(token_filename)
+                token_manager._token = token_data['token']
+                token_manager._expiry_time = datetime.strptime(token_data['token_expiry_time'],
+                                                               '%Y-%m-%d %H:%M:%S.%f%z')
+
+            if token_manager._is_expired() and not is_remote_cluster():
+                logger.debug("Using IBM IAM API Key - Token expired. Requesting new token")
+                token_manager.get_token()
+                token_data = {}
+                token_data['token'] = token_manager._token
+                token_data['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
+                dump_yaml_config(token_filename, token_data)
+
+            ibm_cf_config['token'] = token_manager._token
+            ibm_cf_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
+
+            self.cf_client = CloudFunctionsClient(region=self.region,
+                                                  endpoint=self.endpoint,
+                                                  namespace=self.namespace,
+                                                  namespace_id=self.namespace_id,
+                                                  token_manager=token_manager,
+                                                  user_agent=self.user_agent)
+
+        log_msg = ('PyWren v{} init for IBM Cloud Functions - Namespace: {} - '
+                   'Region: {}'.format(__version__, self.namespace, self.region))
         if not self.log_level:
             print(log_msg)
+        logger.debug("IBM CF client created successfully")
 
     def _format_action_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '_').replace(':', '_')
@@ -97,7 +150,7 @@ class ComputeBackend:
         if res != 0:
             exit()
 
-    def create_runtime(self, docker_image_name, memory, timeout=300000):
+    def create_runtime(self, docker_image_name, memory, timeout=ibm_cf_config.RUNTIME_TIMEOUT_DEFAULT):
         """
         Creates a new runtime into IBM CF namespace from an already built Docker image
         """
@@ -164,7 +217,7 @@ class ComputeBackend:
         call_id = payload['call_id']
         action_name = self._format_action_name(docker_image_name, runtime_memory)
         start = time.time()
-        activation_id, exception = self.cf_client.invoke(self.package, action_name, payload, self.is_cf_cluster)
+        activation_id, exception = self.cf_client.invoke(self.package, action_name, payload, self.is_remote_cluster)
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 
@@ -203,23 +256,39 @@ class ComputeBackend:
         if docker_image_name == 'default':
             docker_image_name = self._get_default_runtime_image_name()
 
-        module_location = os.path.dirname(os.path.abspath(pywren_ibm_cloud.__file__))
-        action_location = os.path.join(module_location, 'runtime', 'extract_preinstalls_fn.py')
+        action_code = """
+            import sys
+            import pkgutil
 
-        with open(action_location, "r") as action_py:
-            action_code = action_py.read()
+            def main(args):
+                print("Extracting preinstalled Python modules...")
+                runtime_meta = dict()
+                mods = list(pkgutil.iter_modules())
+                runtime_meta["preinstalls"] = [entry for entry in sorted([[mod, is_pkg] for _, mod, is_pkg in mods])]
+                python_version = sys.version_info
+                runtime_meta["python_ver"] = str(python_version[0])+"."+str(python_version[1])
+                print("Done!")
+                return runtime_meta
+            """
 
         runtime_memory = 130
         # old_stdout = sys.stdout
         # sys.stdout = open(os.devnull, 'w')
         action_name = self._format_action_name(docker_image_name, runtime_memory)
         self.cf_client.create_package(self.package)
-        self.cf_client.create_action(self.package, action_name, docker_image_name, code=action_code,
-                                     memory=runtime_memory, is_binary=False, timeout=30000)
+        self.cf_client.create_action(self.package, action_name, docker_image_name,
+                                     is_binary=False, code=textwrap.dedent(action_code),
+                                     memory=runtime_memory, timeout=30000)
         # sys.stdout = old_stdout
         logger.debug("Extracting Python modules list from: {}".format(docker_image_name))
+
         try:
-            runtime_meta = self.invoke_with_result(docker_image_name, runtime_memory)
+            retry_invoke = True
+            while retry_invoke:
+                retry_invoke = False
+                runtime_meta = self.invoke_with_result(docker_image_name, runtime_memory)
+                if 'activationId' in runtime_meta:
+                    retry_invoke = True
         except Exception:
             raise("Unable to invoke 'modules' action")
         try:

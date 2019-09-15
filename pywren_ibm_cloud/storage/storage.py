@@ -3,18 +3,45 @@ import json
 import pickle
 import logging
 import importlib
-from ..version import __version__
-from .utils import create_status_key, create_output_key, status_key_suffix, CloudObject, StorageNoSuchKeyError
+from pywren_ibm_cloud.version import __version__
+from pywren_ibm_cloud.config import CONFIG_DIR
+from pywren_ibm_cloud.utils import is_remote_cluster
+from pywren_ibm_cloud.storage.utils import create_status_key, create_output_key, \
+    status_key_suffix, CloudObject, StorageNoSuchKeyError
 
 
-LOCAL_HOME_DIR = os.path.join(os.path.expanduser('~'), '.cloudbutton')
 logger = logging.getLogger(__name__)
+
+
+class Storage:
+    """
+    An Storage object is used by partitioner and other components to access
+    underlying storage backend without exposing the the implementation details.
+    """
+    def __init__(self, pywren_config, storage_backend):
+        self.pywren_config = pywren_config
+        self.backend = storage_backend
+
+        try:
+            module_location = 'pywren_ibm_cloud.storage.backends.{}'.format(self.backend)
+            sb_module = importlib.import_module(module_location)
+            StorageBackend = getattr(sb_module, 'StorageBackend')
+            self.storage_handler = StorageBackend(self.pywren_config[self.backend])
+        except Exception as e:
+            raise NotImplementedError("An exception was produced trying to create the "
+                                      "'{}' storage backend: {}".format(self.backend, e))
+
+    def get_storage_handler(self):
+        return self.storage_handler
+
+    def get_client(self):
+        return self.storage_handler.get_client()
 
 
 class InternalStorage:
     """
-    An InternalStorage object is used by executors and other components to access underlying storage backend
-    without exposing the the implementation details.
+    An InternalStorage object is used by executors and other components to access
+    underlying storage backend without exposing the the implementation details.
     """
 
     def __init__(self, storage_config):
@@ -30,7 +57,8 @@ class InternalStorage:
             ComputeBackend = getattr(sb_module, 'StorageBackend')
             self.storage_handler = ComputeBackend(self.config[self.backend])
         except Exception as e:
-            raise NotImplementedError("An exception was produced trying to create the '{}' storage backend: {}".format(self.backend, e))
+            raise NotImplementedError("An exception was produced trying to create the "
+                                      "'{}' storage backend: {}".format(self.backend, e))
 
     def get_storage_config(self):
         """
@@ -152,9 +180,9 @@ class InternalStorage:
         :return: runtime metadata
         """
         path = ['runtimes', __version__,  key+".meta.json"]
-        filename_local_path = os.path.join(LOCAL_HOME_DIR, *path)
+        filename_local_path = os.path.join(CONFIG_DIR, *path)
 
-        if os.path.exists(filename_local_path):
+        if os.path.exists(filename_local_path) and not is_remote_cluster:
             logger.debug("Runtime metadata found in local cache")
             with open(filename_local_path, "r") as f:
                 runtime_meta = json.loads(f.read())
@@ -184,17 +212,18 @@ class InternalStorage:
         """
         path = ['runtimes', __version__,  key+".meta.json"]
         obj_key = '/'.join(path).replace('\\', '/')
-        # logger.debug("Uploading Runtime metadata to: {}/{}".format(self.bucket, obj_key))
+        logger.debug("Uploading Runtime metadata to: /{}/{}".format(self.bucket, obj_key))
         self.storage_handler.put_object(self.bucket, obj_key, json.dumps(runtime_meta))
 
-        filename_local_path = os.path.join(LOCAL_HOME_DIR, *path)
-        # logger.debug("Saving runtime metadata in local cache: {}".format(filename_local_path))
+        if not is_remote_cluster:
+            filename_local_path = os.path.join(CONFIG_DIR, *path)
+            logger.debug("Saving runtime metadata into local cache: {}".format(filename_local_path))
 
-        if not os.path.exists(os.path.dirname(filename_local_path)):
-            os.makedirs(os.path.dirname(filename_local_path))
+            if not os.path.exists(os.path.dirname(filename_local_path)):
+                os.makedirs(os.path.dirname(filename_local_path))
 
-        with open(filename_local_path, "w") as f:
-            f.write(json.dumps(runtime_meta))
+            with open(filename_local_path, "w") as f:
+                f.write(json.dumps(runtime_meta))
 
     def delete_runtime_meta(self, key):
         """
@@ -204,7 +233,7 @@ class InternalStorage:
         """
         path = ['runtimes', __version__,  key+".meta.json"]
         obj_key = '/'.join(path).replace('\\', '/')
-        filename_local_path = os.path.join(LOCAL_HOME_DIR, *path)
+        filename_local_path = os.path.join(CONFIG_DIR, *path)
         if os.path.exists(filename_local_path):
             os.remove(filename_local_path)
         self.storage_handler.delete_object(self.bucket, obj_key)

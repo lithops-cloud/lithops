@@ -110,6 +110,7 @@ def function_handler(event):
 
         # response_status['free_disk_bytes'] = free_disk_space("/tmp")
         custom_env = {'PYWREN_CONFIG': json.dumps(config),
+                      'PYWREN_REMOTE': 'TRUE',
                       'PYTHONPATH': "{}:{}".format(os.getcwd(), PYWREN_LIBS_PATH),
                       'PYTHONUNBUFFERED': 'True'}
 
@@ -199,7 +200,7 @@ def function_handler(event):
             status_sent = False
             output_query_count = 0
             params = pika.URLParameters(rabbit_amqp_url)
-            queue = f'{executor_id}-{job_id}'
+            queue = '{}-{}'.format(executor_id, job_id)
 
             while not status_sent and output_query_count < 5:
                 output_query_count = output_query_count + 1

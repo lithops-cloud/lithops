@@ -84,7 +84,7 @@ pw.call_async(sum_list_mult, params)
 print (pw.get_result())
 ```
 
-To test all of the previous examples run the [multiple_parameters_call_async](../examples/multiple_parameters_call_async.py) located in the `examples` folder.
+To test all of the previous examples run the [multiple_parameters_call_async.py](../examples/multiple_parameters_call_async.py) located in the `examples` folder.
 
 ## Multiple function invocation using the map() method.
 The 'iterdata' variable must be always a list []. In this case to send multiple parameters to the function, the parameters of
@@ -189,7 +189,7 @@ pw.call_async(sum_list_mult, params)
 print (pw.get_result())
 ```
 
-To test all of the previous examples run the [multiple_parameters_map](../examples/multiple_parameters_map.py) located in the `examples` folder.
+To test all of the previous examples run the [multiple_parameters_map.py](../examples/multiple_parameters_map.py) located in the `examples` folder.
 
 ## Multiple function invocation using the map_reduce() method.
 

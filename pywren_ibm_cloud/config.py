@@ -20,6 +20,8 @@ import importlib
 import logging.config
 from pywren_ibm_cloud.version import __version__
 
+logger = logging.getLogger(__name__)
+
 COMPUTE_BACKEND_DEFAULT = 'ibm_cf'
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
 STORAGE_PREFIX_DEFAULT = "pywren.jobs"
@@ -30,15 +32,25 @@ MAX_AGG_DATA_SIZE = 4e6
 INVOCATION_RETRY_DEFAULT = True
 RETRY_SLEEPS_DEFAULT = [1, 2, 4, 8]
 RETRIES_DEFAULT = 5
-AMQP_URL_DEFAULT = None
+
+CONFIG_DIR = os.path.expanduser('~/.cloudbutton')
 
 
-def load(config_filename):
+def load_yaml_config(config_filename):
     import yaml
     with open(config_filename, 'r') as config_file:
-        res = yaml.safe_load(config_file)
+        data = yaml.safe_load(config_file)
 
-    return res
+    return data
+
+
+def dump_yaml_config(config_filename, data):
+    import yaml
+    if not os.path.exists(os.path.dirname(config_filename)):
+        os.makedirs(os.path.dirname(config_filename))
+
+    with open(config_filename, "w") as config_file:
+        yaml.dump(data, config_file, default_flow_style=False)
 
 
 def get_default_home_filename():
@@ -71,6 +83,7 @@ def default_config(config_data=None):
     then checks PYWREN_CONFIG_FILE environment variable
     then ~/.pywren_config
     """
+    logger.debug("Loading configuration")
     if not config_data:
         if 'PYWREN_CONFIG' in os.environ:
             config_data = json.loads(os.environ.get('PYWREN_CONFIG'))
@@ -79,7 +92,7 @@ def default_config(config_data=None):
             if config_filename is None:
                 raise ValueError("could not find configuration file")
 
-            config_data = load(config_filename)
+            config_data = load_yaml_config(config_filename)
 
     if 'pywren' not in config_data:
         raise Exception("pywren section is mandatory in the configuration")
@@ -99,15 +112,19 @@ def default_config(config_data=None):
     if 'compute_backend' not in config_data['pywren']:
         config_data['pywren']['compute_backend'] = COMPUTE_BACKEND_DEFAULT
 
-    if 'rabbitmq' in config_data and config_data['rabbitmq'] is None \
-       or 'amqp_url' not in config_data['rabbitmq'] or config_data['rabbitmq']['amqp_url'] is None:
-        del config_data['rabbitmq']
+    if 'rabbitmq' in config_data:
+        if config_data['rabbitmq'] is None \
+           or 'amqp_url' not in config_data['rabbitmq'] \
+           or config_data['rabbitmq']['amqp_url'] is None:
+            del config_data['rabbitmq']
 
     cb = config_data['pywren']['compute_backend']
+    logger.debug("Loading Compute backend module: {}".format(cb))
     cb_config = importlib.import_module('pywren_ibm_cloud.compute.backends.{}.config'.format(cb))
     cb_config.load_config(config_data)
 
     sb = config_data['pywren']['storage_backend']
+    logger.debug("Loading Storage backend module: {}".format(sb))
     sb_config = importlib.import_module('pywren_ibm_cloud.storage.backends.{}.config'.format(sb))
     sb_config.load_config(config_data)
 
@@ -122,6 +139,8 @@ def extract_storage_config(config):
     storage_config['bucket'] = config['pywren']['storage_bucket']
     storage_config[sb] = config[sb]
     storage_config[sb]['user_agent'] = 'pywren-ibm-cloud/{}'.format(__version__)
+    if 'storage_backend_region' in config['pywren']:
+        storage_config[sb]['region'] = config['pywren']['storage_backend_region']
 
     return storage_config
 
@@ -133,7 +152,7 @@ def extract_compute_config(config):
     compute_config['invocation_retry'] = config['pywren']['invocation_retry']
     compute_config['retry_sleeps'] = config['pywren']['retry_sleeps']
     compute_config['retries'] = config['pywren']['retries']
-    compute_config[cb] = config[cb].copy()
+    compute_config[cb] = config[cb]
     compute_config[cb]['user_agent'] = 'pywren-ibm-cloud/{}'.format(__version__)
     if 'compute_backend_region' in config['pywren']:
         compute_config[cb]['region'] = config['pywren']['compute_backend_region']

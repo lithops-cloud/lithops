@@ -22,10 +22,10 @@ IBM_IAM_AUTH_ENDPOINT = 'https://iam.cloud.ibm.com/oidc/token'
 logger = logging.getLogger(__name__)
 
 
-class IbmIamClient:
+class IBMIAMClient:
 
-    def __init__(self, iam_config, cf_endpoint, cf_namespace):
-        self.iam_api_key = iam_config.get('api_key', None)
+    def __init__(self, iam_api_key, cf_endpoint, cf_namespace):
+        self.iam_api_key = iam_api_key
         self.cf_endpoint = cf_endpoint
         self.cf_namespace = cf_namespace
 
