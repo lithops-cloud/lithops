@@ -128,9 +128,9 @@ pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
 |---|---|---|---|---|
 |ibm_cos | endpoint | |yes | Regional endpoint to your COS account. Make sure to use full path with 'https://' as prefix. For example https://s3.us-east.cloud-object-storage.appdomain.cloud |
 |ibm_cos | private_endpoint | |no | Private regional endpoint to your COS account. Make sure to use full path. For example: https://s3.private.us-east.cloud-object-storage.appdomain.cloud |
-|ibm_cos | api_key | |no | API Key to your COS account. **Mandatory** if not access_key and secret_key. Not needed if using IAM API Key|
-|ibm_cos | access_key | |no | HMAC Credentials. **Mandatory** if not api_key. Not needed if using IAM API Key|
-|ibm_cos | secret_key | |no | HMAC Credentials. **Mandatory** if not api_key. Not needed if using IAM API Key|
+|ibm_cos | api_key | |no | API Key to your COS account. **Mandatory** if no access_key and secret_key. Not needed if using IAM API Key|
+|ibm_cos | access_key | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key|
+|ibm_cos | secret_key | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key|
 
 
 ### Summary of configuration keys for RabbitMQ
