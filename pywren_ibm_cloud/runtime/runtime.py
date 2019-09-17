@@ -8,9 +8,11 @@ logger = logging.getLogger(__name__)
 
 def select_runtime(config, internal_storage, compute_handler, executor_id, job_id, runtime_memory):
     """
-    Auxiliary method that gets the runtime metadata from the storage. This metadata contains the preinstalled
-    python modules needed to serialize the local function.  If the .metadata file does not exists in the storage,
-    this means that the runtime is not installed, so this method will proceed to install it.
+    Auxiliary method that selects the runtime to use. To do so it gets the
+    runtime metadata from the storage. This metadata contains the preinstalled
+    python modules needed to serialize the local function. If the .metadata
+    file does not exists in the storage, this means that the runtime is not
+    installed, so this method will proceed to install it.
     """
     log_level = os.getenv('CB_LOG_LEVEL')
     runtime_name = config['pywren']['runtime']
@@ -18,7 +20,8 @@ def select_runtime(config, internal_storage, compute_handler, executor_id, job_i
         runtime_memory = config['pywren']['runtime_memory']
     runtime_memory = int(runtime_memory)
 
-    log_msg = 'ExecutorID {} | JobID {} - Selected Runtime: {} - {}MB'.format(executor_id, job_id, runtime_name, runtime_memory)
+    log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} - {}MB'
+               .format(executor_id, job_id, runtime_name, runtime_memory))
     logger.info(log_msg)
     if not log_level:
         print(log_msg, end=' ')
@@ -29,7 +32,8 @@ def select_runtime(config, internal_storage, compute_handler, executor_id, job_i
         if not log_level:
             print()
     except Exception:
-        logger.debug('ExecutorID {} | JobID {} - Runtime {} with {}MB is not yet installed'.format(executor_id, job_id, runtime_name, runtime_memory))
+        logger.debug('ExecutorID {} | JobID {} - Runtime {} with {}MB is not yet '
+                     'installed'.format(executor_id, job_id, runtime_name, runtime_memory))
         if not log_level:
             print('(Installing...)')
 

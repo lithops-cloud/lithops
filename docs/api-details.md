@@ -35,8 +35,8 @@ ibm_cf_executor.**call_async**(func, data, \*\*kwargs)
 |extra_env| None |Additional environment variables for CF environment|
 |runtime_memory| 256 |Memory (in MB) to use to run the functions|
 |timeout| 600 |Max time per function activation (seconds)|
-|include_modules| [] |Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependencies is pickled if it is explicitly set to None |
-|exclude_modules| [] |Explicitly keep these modules from pickled dependencies. It is not take into account if include_modules |
+|include_modules| [] |Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None |
+|exclude_modules| [] |Explicitly keep these modules from pickled dependencies. It is not taken into account if include_modules |
 
 * **Returns**: One future for each job (Futures are also internally stored by PyWren).
 
@@ -59,7 +59,7 @@ ibm_cf_executor.**map**(func, iterdata, \*\*kwargs)
 |extra_env| None |Additional environment variables for CF environment |
 |runtime_memory| 256 |Memory (in MB) to use to run the functions |
 |timeout| 600 |Max time per function activation (seconds) |
-|include_modules| [] |Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependencies is pickled if it is explicitly set to None |
+|include_modules| [] |Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None |
 |exclude_modules| [] |Explicitly keep these modules from pickled dependencies. It is not taken into account if include_modules |
 
 
@@ -88,8 +88,8 @@ ibm_cf_executor.**map_reduce**(map_func, iterdata, reduce_func, \*\*kwargs)
 |map_runtime_memory| 256 | Memory (in MB) to use to run the map function|
 |reduce_runtime_memory| 256| Memory (in MB) to use to run the reduce function|
 |timeout| 600 | Max time per function activation (seconds)|
-|include_modules| [] |Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependencies is pickled if it is explicitly set to None |
-|exclude_modules| [] |Explicitly keep these modules from pickled dependencies. It is not take into account if include_modules |
+|include_modules| [] |Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None |
+|exclude_modules| [] |Explicitly keep these modules from pickled dependencies. It is not taken into account if include_modules |
 
 
 * **Returns**: A list with size  len(iterdata)  of futures for each job (Futures are also internally stored by PyWren).

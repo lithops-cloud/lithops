@@ -44,7 +44,7 @@ def create_partitions(pywren_config, map_iterdata, chunk_size, chunk_number):
     for elem in map_iterdata:
         if 'url' in elem:
             urls.add(elem['url'])
-        if 'obj' in elem:
+        elif 'obj' in elem:
             sb, bucket, prefix, obj_name = utils.split_object_url(elem['obj'])
             if obj_name:
                 obj_names.add((bucket, prefix))
