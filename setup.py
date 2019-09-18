@@ -43,7 +43,7 @@ setup(
         'Click', 'ibm-cos-sdk', 'PyYAML', 'pika==0.13.1',
         'enum34', 'glob2', 'tqdm', 'tblib',
         'requests', 'python-dateutil', 'lxml',
-        'pandas', 'seaborn', 'matplotlib'
+        'pandas', 'seaborn', 'matplotlib', 'kubernetes'
     ],
     include_package_data=True,
     entry_points='''
