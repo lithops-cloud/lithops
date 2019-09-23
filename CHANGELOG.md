@@ -1,6 +1,22 @@
 # Changelog
 
-## [v1.0.20--snapshot]
+## [v1.0.21--snapshot]
+
+### Added
+- Allowed partitioner to split files by a number of chunks
+- Added knative-serving compute backend
+- Added Dockerfile skeleton for slim Python3.6 runtime (only 307MB)
+
+### Changed
+- Docs updated
+- Runtime Dockerfiles updated
+- Updated runtime requirements
+
+### Fixed
+- Internal logic to generate runtime_metadata
+
+
+## [v1.0.20]
 
 ### Added
 - Storage abstraction for data partitioner

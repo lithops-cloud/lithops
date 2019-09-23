@@ -69,23 +69,24 @@ class FunctionExecutor:
             if not self.is_remote_cluster:
                 default_logging_config(self.log_level)
 
-        self.config = default_config(config)
-
-        # Overwrite runtime variables
+        # Overwrite pywren config parameters
+        config_ow = {'pywren': {}}
         if runtime is not None:
-            self.config['pywren']['runtime'] = runtime
+            config_ow['pywren']['runtime'] = runtime
         if runtime_memory is not None:
-            self.config['pywren']['runtime_memory'] = int(runtime_memory)
+            config_ow['pywren']['runtime_memory'] = int(runtime_memory)
         if compute_backend is not None:
-            self.config['pywren']['compute_backend'] = compute_backend
+            config_ow['pywren']['compute_backend'] = compute_backend
         if compute_backend_region is not None:
-            self.config['pywren']['compute_backend_region'] = compute_backend_region
+            config_ow['pywren']['compute_backend_region'] = compute_backend_region
         if storage_backend is not None:
-            self.config['pywren']['storage_backend'] = storage_backend
+            config_ow['pywren']['storage_backend'] = storage_backend
         if storage_backend_region is not None:
-            self.config['pywren']['storage_backend_region'] = storage_backend_region
+            config_ow['pywren']['storage_backend_region'] = storage_backend_region
         if rabbitmq_monitor is not None:
-            self.config['pywren']['rabbitmq_monitor'] = rabbitmq_monitor
+            config_ow['pywren']['rabbitmq_monitor'] = rabbitmq_monitor
+
+        self.config = default_config(config, config_ow)
 
         self.executor_id = create_executor_id()
         logger.debug('FunctionExecutor created with ID: {}'.format(self.executor_id))

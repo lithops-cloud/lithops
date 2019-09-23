@@ -1,3 +1,4 @@
+import os
 import sys
 from pywren_ibm_cloud.utils import version_str
 
@@ -8,8 +9,10 @@ RUNTIME_DEFAULT_37 = 'ibmfunctions/action-python-v3.7'
 RUNTIME_TIMEOUT_DEFAULT = 600000  # Default: 600000 milliseconds => 10 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
 
+FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'pywren_ibmcf.zip')
 
-def load_config(config_data=None):
+
+def load_config(config_data):
     if 'runtime_memory' not in config_data['pywren']:
         config_data['pywren']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
     if 'runtime_timeout' not in config_data['pywren']:

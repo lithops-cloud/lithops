@@ -1,1 +1,1 @@
-from .knative import ComputeBackend
+from .knative import KnativeBackend as ComputeBackend

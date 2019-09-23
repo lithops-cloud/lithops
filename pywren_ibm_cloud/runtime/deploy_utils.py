@@ -36,14 +36,13 @@ def create_runtime(name, memory=None, config=None):
     timeout = config['pywren']['runtime_timeout']
     logger.info('Creating runtime: {}, memory: {}'.format(name, memory))
 
-    runtime_meta = compute_handler.generate_runtime_meta(name)
-    compute_handler.create_runtime(name, memory, timeout=timeout)
+    runtime_key = compute_handler.get_runtime_key(name, memory)
+    runtime_meta = compute_handler.create_runtime(name, memory, timeout=timeout)
 
     try:
-        runtime_key = compute_handler.get_runtime_key(name, memory)
         internal_storage.put_runtime_meta(runtime_key, runtime_meta)
     except Exception:
-        raise("Unable to upload 'preinstalled modules' file into {}".format(internal_storage.backend))
+        raise("Unable to upload 'preinstalled-modules' file into {}".format(internal_storage.backend))
 
 
 def update_runtime(name, config=None):
@@ -56,21 +55,16 @@ def update_runtime(name, config=None):
     timeout = config['pywren']['runtime_timeout']
     logger.info('Updating runtime: {}'.format(name))
 
-    if name != 'all':
-        runtime_meta = compute_handler.generate_runtime_meta(name)
-    else:
-        runtime_meta = None
-
     runtimes = compute_handler.list_runtimes(name)
 
     for runtime in runtimes:
-        compute_handler.create_runtime(runtime[0], runtime[1], timeout)
-        if runtime_meta:
-            try:
-                runtime_key = compute_handler.get_runtime_key(runtime[0], runtime[1])
-                internal_storage.put_runtime_meta(runtime_key, runtime_meta)
-            except Exception:
-                raise("Unable to upload 'preinstalled modules' file into {}".format(internal_storage.backend))
+        runtime_key = compute_handler.get_runtime_key(runtime[0], runtime[1])
+        runtime_meta = compute_handler.create_runtime(runtime[0], runtime[1], timeout)
+
+        try:
+            internal_storage.put_runtime_meta(runtime_key, runtime_meta)
+        except Exception:
+            raise("Unable to upload 'preinstalled-modules' file into {}".format(internal_storage.backend))
 
 
 def build_runtime(name, file, config=None):

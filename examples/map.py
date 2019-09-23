@@ -8,7 +8,8 @@ pw.get_all_result()
 import pywren_ibm_cloud as pywren
 
 
-def my_map_function(x):
+def my_map_function(id, x):
+    print("I'm activation number {}".format(id))
     return x + 7
 
 

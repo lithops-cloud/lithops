@@ -2,7 +2,7 @@
 
 # Setup modules
 gevent == 1.4.0
-flask == 1.0.2
+flask == 1.1.1
 
 # default available packages for python3action
 beautifulsoup4 == 4.7.1

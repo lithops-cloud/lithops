@@ -163,7 +163,7 @@ class JobRunner(Process):
         if 'ibm_cos' in func_sig.parameters:
             if 'ibm_cos' in self.pywren_config:
                 try:
-                    ibm_boto3_client = Storage(self.storage_config, 'ibm_cos').get_client()
+                    ibm_boto3_client = Storage(self.pywren_config, 'ibm_cos').get_client()
                     data['ibm_cos'] = ibm_boto3_client
                 except Exception as e:
                     logger.error('Cannot create the ibm_cos connection: {}', str(e))

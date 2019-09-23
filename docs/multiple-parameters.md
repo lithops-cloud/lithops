@@ -86,7 +86,7 @@ print (pw.get_result())
 
 To test all of the previous examples run the [multiple_parameters_call_async.py](../examples/multiple_parameters_call_async.py) located in the `examples` folder.
 
-## Multiple function invocation using the map() method.
+## Multiple function invocation using the map() and map_reduce() methods.
 The 'iterdata' variable must be always a list []. In this case to send multiple parameters to the function, the parameters of
 each function must be enclosed within another list [] as in the next example. The parameters will be mapped in the order you wrote
 them.
@@ -104,7 +104,7 @@ def my_function(x, y):
     return x + y
 
 pw = pywren.ibm_cf_executor()
-pw.call_async(my_function, params)
+pw.map(my_function, iterdata)
 print (pw.get_result())
 ```
 
@@ -124,7 +124,7 @@ def my_function(x, y):
     return x + y
 
 pw = pywren.ibm_cf_executor()
-pw.call_async(my_function, params)
+pw.map(my_function, iterdata)
 print (pw.get_result())
 ```
 
@@ -147,7 +147,7 @@ def sum_list(list_of_numbers):
     return total
 
 pw = pywren.ibm_cf_executor()
-pw.call_async(sum_list, params)
+pw.map(sum_list, iterdata)
 print (pw.get_result())
 ```
 
@@ -169,7 +169,7 @@ def sum_list_mult(list_of_numbers, x):
     return total*x
 
 pw = pywren.ibm_cf_executor()
-pw.call_async(sum_list_mult, params)
+pw.map(sum_list_mult, iterdata)
 print (pw.get_result())
 ```
 
@@ -185,13 +185,13 @@ iterdata = [  # Init list of parameters for PyWren
            ]  # End list of parameters for PyWren
 
 pw = pywren.ibm_cf_executor()
-pw.call_async(sum_list_mult, params)
+pw.map(sum_list_mult, iterdata)
 print (pw.get_result())
 ```
 
 To test all of the previous examples run the [multiple_parameters_map.py](../examples/multiple_parameters_map.py) located in the `examples` folder.
 
-## Multiple function invocation using the map_reduce() method.
+## Multiple parameters when using PyWren to process data from public URLs or from IBM Cloud Object Storage
 
 With the map_reduce() method, the previous examples showed in the map() method are also valid. 
 However, in this case you have to take into account that there are some reserved parameter names. They are **bucket**, **key** and **url**.
