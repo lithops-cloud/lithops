@@ -67,7 +67,11 @@ def get_server_info():
 
 def function_handler(event):
     start_time = time.time()
+
+    log_level = event['log_level']
+    cloud_logging_config(log_level)
     logger.debug("Action handler started")
+
     response_status = {'exception': False}
     response_status['host_submit_time'] = event['host_submit_time']
     response_status['start_time'] = start_time
@@ -78,9 +82,6 @@ def function_handler(event):
 
     config = event['config']
     storage_config = extract_storage_config(config)
-
-    log_level = event['log_level']
-    cloud_logging_config(log_level)
 
     call_id = event['call_id']
     job_id = event['job_id']
@@ -151,11 +152,10 @@ def function_handler(event):
                    'seconds and was killed'.format(execution_timeout))
             raise Exception('OUTATIME',  msg)
 
-        try:
-            # Only 1 message is returned by jobrunner when it finishes
-            result_queue.get(block=False)
-        except Exception:
-            # If no message, this means that the jobrunner process was killed
+        if result_queue.empty():
+            # Only 1 message is returned by jobrunner when it finishes.
+            # If no message, this means that the jobrunner process was killed.
+            # 99% of times the jobrunner is killed due an OOM, so we assume here an OOM.
             msg = 'Jobrunner process exceeded maximum memory and was killed'
             raise Exception('OUTOFMEMORY', msg)
 

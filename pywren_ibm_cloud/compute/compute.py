@@ -95,11 +95,3 @@ class Compute:
         into the storage
         """
         return self.compute_handler.get_runtime_key(runtime_name, memory)
-
-    def generate_runtime_meta(self, runtime_name):
-        """
-        Wrapper method that returns a dictionary that contains the preinstalled
-        python modules in the runtime
-        into the storage
-        """
-        return self.compute_handler.generate_runtime_meta(runtime_name)

@@ -39,9 +39,7 @@ def select_runtime(config, internal_storage, compute_handler, executor_id, job_i
 
         timeout = config['pywren']['runtime_timeout']
         logger.debug('Creating runtime: {}, memory: {}'.format(runtime_name, runtime_memory))
-        runtime_meta = compute_handler.generate_runtime_meta(runtime_name)
-        if config['pywren']['separate_preinstalls_func'] is None or config['pywren']['separate_preinstalls_func']:
-            compute_handler.create_runtime(runtime_name, runtime_memory, timeout=timeout)
+        runtime_meta = compute_handler.create_runtime(runtime_name, runtime_memory, timeout=timeout)
         internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
     py_local_version = version_str(sys.version_info)

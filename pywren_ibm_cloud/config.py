@@ -77,13 +77,14 @@ def get_default_config_filename():
     return config_filename
 
 
-def default_config(config_data=None):
+def default_config(config_data=None, config_overwrite={'pywren': {}}):
     """
     First checks .pywren_config
     then checks PYWREN_CONFIG_FILE environment variable
     then ~/.pywren_config
     """
     logger.debug("Loading configuration")
+
     if not config_data:
         if 'PYWREN_CONFIG' in os.environ:
             config_data = json.loads(os.environ.get('PYWREN_CONFIG'))
@@ -91,11 +92,16 @@ def default_config(config_data=None):
             config_filename = get_default_config_filename()
             if config_filename is None:
                 raise ValueError("could not find configuration file")
-
             config_data = load_yaml_config(config_filename)
+
+    # overwrite values provided by the user
+    config_data['pywren'].update(config_overwrite['pywren'])
 
     if 'pywren' not in config_data:
         raise Exception("pywren section is mandatory in the configuration")
+
+    if 'storage_bucket' not in config_data['pywren']:
+        raise Exception("storage_bucket is mandatory in pywren section of the configuration")
 
     if 'storage_backend' not in config_data['pywren']:
         config_data['pywren']['storage_backend'] = STORAGE_BACKEND_DEFAULT

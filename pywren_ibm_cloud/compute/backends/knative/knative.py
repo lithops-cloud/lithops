@@ -22,7 +22,7 @@ V1ContainerImage.names = V1ContainerImage.names.setter(names)
 logger = logging.getLogger(__name__)
 
 
-class ComputeBackend:
+class KnativeBackend:
     """
     A wrap-up around Knative Serving APIs.
     """
@@ -50,10 +50,10 @@ class ComputeBackend:
                 self.endpoint = node.items[0].status.addresses[0].address + ":" + str(node_port)
         except ApiException as e:
             print("Exception when calling read_namespaced_service")
-        
+
         print(self.endpoint)
         service_name = self._format_action_name(self.knative_config['service_name'])
-        
+
         #basically for the domain host - but if endpoint still None then read it from the ksvc resource
         if self.endpoint is None or self.serving_host is None:
             try:
@@ -75,7 +75,6 @@ class ComputeBackend:
                     log_msg = 'ksvc resource: {} Not Found'.format(service_name)
                     logger.debug(log_msg)
 
-        
         self.headers = {
             'content-type': 'application/json',
             'Host': self.serving_host
@@ -100,7 +99,7 @@ class ComputeBackend:
     def _get_default_runtime_image_name(self):
         image_name = kconfig.RUNTIME_DEFAULT
         return image_name
-   
+
     def _create_account_resources(self):
         string_data = {'username': self.knative_config['docker_user'], 
                        'password': self.knative_config['docker_password']}
@@ -122,18 +121,18 @@ class ComputeBackend:
         self.v1.create_namespaced_service_account('default', account_res)
 
     def _create_build_resources(self):
-        
+
         git_res = yaml.load(kconfig.git_res, Loader=yaml.FullLoader)
         task = yaml.load(kconfig.task_def, Loader=yaml.FullLoader)
         task_name = task['metadata']['name']
         git_res_name = git_res['metadata']['name']
-        
+
         git_url_param = {'name': 'url', 'value': kconfig.GIT_URL_DEFAULT}
         git_rev_param = {'name': 'revision', 'value': kconfig.GIT_REV_DEFAULT}
         params = [git_url_param, git_rev_param]
-        
+
         git_res['spec']['params'] = params
-        
+
         try:
             self.api.delete_namespaced_custom_object(
                 group="tekton.dev",
@@ -226,7 +225,7 @@ class ComputeBackend:
         logger.info(log_msg)
         if not self.log_level:
             print(log_msg)
-        
+
     def create_service(self, docker_image_name):
         # custom resource as Dict
         svc_res = yaml.load(kconfig.service_res, Loader=yaml.FullLoader)
@@ -234,7 +233,7 @@ class ComputeBackend:
             self.knative_config['docker_repo'] + '/' + docker_image_name
         service_name = self._format_action_name(docker_image_name) 
         svc_res['metadata']['name'] = service_name
-     
+
         try:
             self.api.delete_namespaced_custom_object(
                 group="serving.knative.dev",
@@ -275,7 +274,7 @@ class ComputeBackend:
                     url = event['object']['status']['url']
             if conditions and conditions[0]['status'] == 'True' and conditions[1]['status'] == 'True' and conditions[2]['status'] == 'True':
                 w.stop()
-        
+
         log_msg = 'Service resource created - URL: {}'.format(url)
         logger.info(log_msg)
         if not self.log_level:
@@ -291,8 +290,7 @@ class ComputeBackend:
 
         self.create_runtime(docker_image_name, dockerfile)
 
-
-    def create_runtime(self, docker_image_name, memory, code=None, is_binary=True, timeout=300000):
+    def create_runtime(self, docker_image_name, memory, timeout=kconfig.RUNTIME_TIMEOUT_DEFAULT):
         #TODO check options such as if image exists or not..
         # create image not needed in all cases (if it exists)
         if docker_image_name == 'default':
@@ -309,8 +307,12 @@ class ComputeBackend:
             self.endpoint = service_url[7:]
         self.headers['Host'] = service_url[7:]
 
+        runtime_meta = self._generate_runtime_meta(docker_image_name)
+
+        return runtime_meta
+
     def delete_runtime(self, docker_image_name, memory):
-        service_name = self._format_action_name(docker_image_name) 
+        service_name = self._format_action_name(docker_image_name)
         try:
             self.api.delete_namespaced_custom_object(
                 group="serving.knative.dev",
@@ -400,18 +402,15 @@ class ComputeBackend:
         runtime_key = runtime_name
 
         return runtime_key
-    
-    def generate_runtime_meta(self, docker_image_name):
+
+    def _generate_runtime_meta(self, docker_image_name):
 
         """
         Extract installed Python modules from docker image
         """
         payload = {}
-
         payload['service_route'] = "/preinstalls"
-        
-        self.create_runtime(docker_image_name, memory=0)
-        
+
         logger.debug("Extracting Python modules list from: {}".format(docker_image_name))
         try:
             _, runtime_meta = self.invoke_with_result(docker_image_name, 0, payload)

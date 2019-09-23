@@ -5,7 +5,7 @@ import logging
 import zipfile
 import textwrap
 import pywren_ibm_cloud
-from . import config as ibm_cf_config
+from . import config as ibmcf_config
 from datetime import datetime
 from ibm_botocore.credentials import DefaultTokenManager
 from pywren_ibm_cloud.utils import version_str
@@ -15,7 +15,6 @@ from pywren_ibm_cloud.config import CONFIG_DIR, load_yaml_config, dump_yaml_conf
 from pywren_ibm_cloud.libs.ibm_cloudfunctions.client import CloudFunctionsClient
 
 logger = logging.getLogger(__name__)
-ZIP_LOCATION = os.path.join(os.getcwd(), 'cloudbutton_ibm_cf.zip')
 
 
 class IBMCloudFunctionsBackend:
@@ -101,33 +100,33 @@ class IBMCloudFunctionsBackend:
     def _get_default_runtime_image_name(self):
         this_version_str = version_str(sys.version_info)
         if this_version_str == '3.5':
-            image_name = ibm_cf_config.RUNTIME_DEFAULT_35
+            image_name = ibmcf_config.RUNTIME_DEFAULT_35
         elif this_version_str == '3.6':
-            image_name = ibm_cf_config.RUNTIME_DEFAULT_36
+            image_name = ibmcf_config.RUNTIME_DEFAULT_36
         elif this_version_str == '3.7':
-            image_name = ibm_cf_config.RUNTIME_DEFAULT_37
+            image_name = ibmcf_config.RUNTIME_DEFAULT_37
         return image_name
 
-    def _create_handler_zip(self):
-        logger.debug("Creating function handler zip in {}".format(ZIP_LOCATION))
+    def _create_function_handler_zip(self):
+        logger.debug("Creating function handler zip in {}".format(ibmcf_config.FH_ZIP_LOCATION))
 
         def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
             for file in os.listdir(full_dir_path):
                 full_path = os.path.join(full_dir_path, file)
                 if os.path.isfile(full_path):
-                    zip_file.write(full_path, os.path.join('pywren_ibm_cloud', sub_dir, file), zipfile.ZIP_DEFLATED)
+                    zip_file.write(full_path, os.path.join('pywren_ibm_cloud', sub_dir, file))
                 elif os.path.isdir(full_path) and '__pycache__' not in full_path:
                     add_folder_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
 
         try:
-            with zipfile.ZipFile(ZIP_LOCATION, 'w') as ibmcf_pywren_zip:
+            with zipfile.ZipFile(ibmcf_config.FH_ZIP_LOCATION, 'w', zipfile.ZIP_DEFLATED) as ibmcf_pywren_zip:
                 current_location = os.path.dirname(os.path.abspath(__file__))
                 module_location = os.path.dirname(os.path.abspath(pywren_ibm_cloud.__file__))
                 main_file = os.path.join(current_location, 'entry_point.py')
-                ibmcf_pywren_zip.write(main_file, '__main__.py', zipfile.ZIP_DEFLATED)
+                ibmcf_pywren_zip.write(main_file, '__main__.py')
                 add_folder_to_zip(ibmcf_pywren_zip, module_location)
         except Exception as e:
-            raise Exception('Unable to create the {} package: {}'.format(ZIP_LOCATION, e))
+            raise Exception('Unable to create the {} package: {}'.format(ibmcf_config.FH_ZIP_LOCATION, e))
 
     def build_runtime(self, docker_image_name, dockerfile):
         """
@@ -150,24 +149,27 @@ class IBMCloudFunctionsBackend:
         if res != 0:
             exit()
 
-    def create_runtime(self, docker_image_name, memory, timeout=ibm_cf_config.RUNTIME_TIMEOUT_DEFAULT):
+    def create_runtime(self, docker_image_name, memory, timeout=ibmcf_config.RUNTIME_TIMEOUT_DEFAULT):
         """
         Creates a new runtime into IBM CF namespace from an already built Docker image
         """
         if docker_image_name == 'default':
             docker_image_name = self._get_default_runtime_image_name()
+
+        runtime_meta = self._generate_runtime_meta(docker_image_name)
+
         logger.info('Creating new PyWren runtime based on Docker image {}'.format(docker_image_name))
 
         self.cf_client.create_package(self.package)
         action_name = self._format_action_name(docker_image_name, memory)
 
-        self._create_handler_zip()
+        self._create_function_handler_zip()
 
-        with open(ZIP_LOCATION, "rb") as action_zip:
+        with open(ibmcf_config.FH_ZIP_LOCATION, "rb") as action_zip:
             action_bin = action_zip.read()
         self.cf_client.create_action(self.package, action_name, docker_image_name, code=action_bin,
                                      memory=memory, is_binary=True, timeout=timeout)
-        return action_name
+        return runtime_meta
 
     def delete_runtime(self, docker_image_name, memory):
         """
@@ -217,16 +219,18 @@ class IBMCloudFunctionsBackend:
         call_id = payload['call_id']
         action_name = self._format_action_name(docker_image_name, runtime_memory)
         start = time.time()
-        activation_id, exception = self.cf_client.invoke(self.package, action_name, payload, self.is_remote_cluster)
+        activation_id, exception = self.cf_client.invoke(self.package, action_name,
+                                                         payload, self.is_remote_cluster)
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 
         if activation_id is None:
-            log_msg = ('ExecutorID {} | JobID {} - Function {} invocation failed: {}'.format(exec_id, job_id, call_id, str(exception)))
+            log_msg = ('ExecutorID {} | JobID {} - Function {} invocation failed: '
+                       '{}'.format(exec_id, job_id, call_id, str(exception)))
             logger.debug(log_msg)
         else:
-            log_msg = ('ExecutorID {} | JobID {} - Function {} invocation done! ({}s) - Activation ID: '
-                       '{}'.format(exec_id, job_id, call_id, resp_time, activation_id))
+            log_msg = ('ExecutorID {} | JobID {} - Function {} invocation done! ({}s) - Activation'
+                       ' ID: {}'.format(exec_id, job_id, call_id, resp_time, activation_id))
             logger.debug(log_msg)
 
         return activation_id
@@ -249,13 +253,10 @@ class IBMCloudFunctionsBackend:
 
         return runtime_key
 
-    def generate_runtime_meta(self, docker_image_name):
+    def _generate_runtime_meta(self, docker_image_name):
         """
         Extract installed Python modules from docker image
         """
-        if docker_image_name == 'default':
-            docker_image_name = self._get_default_runtime_image_name()
-
         action_code = """
             import sys
             import pkgutil

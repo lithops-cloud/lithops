@@ -13,7 +13,7 @@
 - Updated runtime requirements
 
 ### Fixed
-- 
+- Internal logic to generate runtime_metadata
 
 
 ## [v1.0.20]
