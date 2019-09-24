@@ -10,10 +10,13 @@
 ### Changed
 - Docs updated
 - Runtime Dockerfiles updated
-- Updated runtime requirements
+- Runtime requirements updated
+- Updated Cloudpickle lib to accept more import types
+- Parameters introduced in the executer now overwrite the config
 
 ### Fixed
 - Internal logic to generate runtime_metadata
+- invalid call to "is_remote_cluster" method
 
 
 ## [v1.0.20]

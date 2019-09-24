@@ -6,11 +6,11 @@ RUNTIME_DEFAULT_35 = '<USER>/pywren-kn-runtime-v35'
 RUNTIME_DEFAULT_36 = '<USER>/pywren-kn-runtime-v36'
 RUNTIME_DEFAULT_37 = '<USER>/pywren-kn-runtime-v37'
 
-RUNTIME_TIMEOUT_DEFAULT = 600  # 10 minutes
-RUNTIME_MEMORY_DEFAULT = 256  # 256Mi
-
 GIT_URL_DEFAULT = 'https://github.com/pywren/pywren-ibm-cloud'
 GIT_REV_DEFAULT = 'master'
+
+RUNTIME_TIMEOUT_DEFAULT = 600  # 10 minutes
+RUNTIME_MEMORY_DEFAULT = 256  # 256Mi
 
 secret_res = """
 apiVersion: v1
@@ -124,9 +124,6 @@ spec:
       timeoutSeconds: TIMEOUT
       container:
         image: IMAGE
-        env:
-        - name: PYWREN_LIB
-          value: BIN_ZIP
         resources:
           limits:
             memory: MEMORY

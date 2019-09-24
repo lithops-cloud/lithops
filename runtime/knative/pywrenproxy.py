@@ -10,8 +10,6 @@ cloud_logging_config(logging.INFO)
 logger = logging.getLogger('__main__')
 
 
-TOTAL_REQUESTS = 0
-
 proxy = flask.Flask(__name__)
 
 
@@ -30,7 +28,7 @@ def run():
     function_handler(message)
     result = {"Execution": "Finished"}
     response = flask.jsonify(result)
-    response.status_code = 202
+    response.status_code = 200
 
     return complete(response)
 
@@ -45,7 +43,7 @@ def preinstalls_task():
     python_version = sys.version_info
     runtime_meta['python_ver'] = str(python_version[0])+"."+str(python_version[1])
     response = flask.jsonify(runtime_meta)
-    response.status_code = 202
+    response.status_code = 200
     logger.info("Done!")
 
     return complete(response)

@@ -65,7 +65,8 @@ class SerializeIndependent:
             for cp in cps:
                 for module in cp.modules:
                     if include_modules:
-                        if module.__name__ in include_modules:
+                        if module.__name__ in include_modules or \
+                           module.__name__.split('.')[0] in include_modules:
                             self._modulemgr.add(module.__name__)
                     else:
                         self._modulemgr.add(module.__name__)
