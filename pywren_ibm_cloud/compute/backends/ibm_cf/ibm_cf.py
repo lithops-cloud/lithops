@@ -295,7 +295,7 @@ class IBMCloudFunctionsBackend:
         try:
             self.delete_runtime(docker_image_name, runtime_memory)
         except Exception:
-            raise("Unable to delete 'modules' action")
+            raise Exception("Unable to delete 'modules' action")
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
             raise Exception(runtime_meta)
