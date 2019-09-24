@@ -1,38 +1,37 @@
 import sys
 from pywren_ibm_cloud.utils import version_str
 
-RUNTIME_DEFAULT = '<USER>/kpywren'
 DOCKER_REPO_DEFAULT = 'docker.io'
-#relative to git rep home
-DOCKERFILE_DEFAULT = './runtime/knative/Dockerfile'
+RUNTIME_DEFAULT_35 = '<USER>/pywren-kn-runtime-v35'
+RUNTIME_DEFAULT_36 = '<USER>/pywren-kn-runtime-v36'
+RUNTIME_DEFAULT_37 = '<USER>/pywren-kn-runtime-v37'
 
-GIT_URL_DEFAULT = 'https://github.com/pywren/pywren-ibm-cloud.git'
+RUNTIME_TIMEOUT_DEFAULT = 600  # 10 minutes
+RUNTIME_MEMORY_DEFAULT = 256  # 256Mi
+
+GIT_URL_DEFAULT = 'https://github.com/pywren/pywren-ibm-cloud'
 GIT_REV_DEFAULT = 'master'
 
-RUNTIME_TIMEOUT_DEFAULT = 600000  # TODO
-RUNTIME_MEMORY_DEFAULT = 0  # TODO
-
-#bluemix-default-secret default name chosen for IKS
 secret_res = """
 apiVersion: v1
 kind: Secret
 metadata:
-  name: bluemix-default-secret
+  name: dockerhub-user-token
   annotations:
     tekton.dev/docker-0: https://index.docker.io/v1/
 type: kubernetes.io/basic-auth
 stringData:
-  username: <user/iamapikey>
-  password: <pass>
+  username: USER
+  password: TOKEN
 """
 
 account_res = """
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: pipeline-account
+  name: pywren-build-pipeline
 secrets:
-- name: bluemix-default-secret
+- name: dockerhub-user-token
 """
 
 git_res = """
@@ -42,6 +41,11 @@ metadata:
   name: pywren-git
 spec:
   type: git
+  params:
+    - name: revision
+      value: master
+    - name: url
+      value: https://github.com/pywren/pywren-ibm-cloud
 """
 
 task_def = """
@@ -65,23 +69,23 @@ spec:
       - name: imageTag
   steps:
     - name: build-and-push
-      image: gcr.io/kaniko-project/executor
+      image: gcr.io/kaniko-project/executor:latest
       env:
         - name: "DOCKER_CONFIG"
           value: "/builder/home/.docker/"
       command:
         - /kaniko/executor
       args:
-        - --dockerfile=${inputs.params.pathToDockerFile}
-        - --destination=${inputs.params.imageUrl}:${inputs.params.imageTag}
-        - --context=/workspace/git-source/${inputs.params.pathToContext}
+        - --dockerfile=$(inputs.params.pathToDockerFile)
+        - --destination=$(inputs.params.imageUrl):$(inputs.params.imageTag)
+        - --context=/workspace/git-source/$(inputs.params.pathToContext)
 """
 
 task_run = """
 apiVersion: tekton.dev/v1alpha1
 kind: TaskRun
 metadata:
-  generateName: image-from-git-
+  name: image-from-git
 spec:
   taskRef:
     name: git-source-to-image
@@ -91,45 +95,65 @@ spec:
         resourceRef:
           name: pywren-git
     params:
-      - name: pathToDockerFile
-        value: ./runtime/knative/Dockerfile
       - name: pathToContext
         value: .
+      - name: pathToDockerFile
+        value: runtime/knative/Dockerfile
       - name: imageTag
         value: latest
-  serviceAccount: pipeline-account
+  serviceAccount: pywren-build-pipeline
 """
+
 
 service_res = """
 apiVersion: serving.knative.dev/v1alpha1
 kind: Service
 metadata:
-  name: pywren-action
+  name: pywren-runtime
   namespace: default
 spec:
-  runLatest:
-    configuration:
-      revisionTemplate:
-        spec:
-          container:
-            image: IMAGE_URL
-          containerConcurrency: 1
+  template:
+    #metadata:
+      #annotations:
+        # Target 1 in-flight-requests per pod.
+        #autoscaling.knative.dev/target: "1"
+        #autoscaling.knative.dev/minScale: "0"
+        #autoscaling.knative.dev/maxScale: "1000"
+    spec:
+      containerConcurrency: 1
+      timeoutSeconds: TIMEOUT
+      container:
+        image: IMAGE
+        env:
+        - name: PYWREN_LIB
+          value: BIN_ZIP
+        resources:
+          limits:
+            memory: MEMORY
+            cpu: 1000m
 """
 
-def load_config(config_data=None):
+
+def load_config(config_data):
+
+    required_keys = ('endpoint', 'docker_user', 'docker_token')
+    if not set(required_keys) <= set(config_data['knative']):
+        raise Exception('You must provide {} to access to Knative'.format(required_keys))
+
     if 'runtime_memory' not in config_data['pywren']:
-        config_data['pywren']['runtime_memory'] = 0
+        config_data['pywren']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
     if 'runtime_timeout' not in config_data['pywren']:
         config_data['pywren']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
 
     if 'docker_repo' not in config_data['knative']:
         config_data['knative']['docker_repo'] = DOCKER_REPO_DEFAULT
-    
+
     if 'runtime' not in config_data['pywren']:
-        config_data['pywren']['runtime'] = RUNTIME_DEFAULT
-  
-    #pass config to knative backend to load service details by init
-    config_data['knative']['service_name'] = config_data['pywren']['runtime']
-    
-    if 'separate_preinstalls_func' not in config_data['pywren']:
-        config_data['pywren']['separate_preinstalls_func'] = False  
+        docker_user = config_data['knative']['docker_user']
+        this_version_str = version_str(sys.version_info)
+        if this_version_str == '3.5':
+            config_data['pywren']['runtime'] = RUNTIME_DEFAULT_35.replace('<USER>', docker_user)
+        elif this_version_str == '3.6':
+            config_data['pywren']['runtime'] = RUNTIME_DEFAULT_36.replace('<USER>', docker_user)
+        elif this_version_str == '3.7':
+            config_data['pywren']['runtime'] = RUNTIME_DEFAULT_37.replace('<USER>', docker_user)
