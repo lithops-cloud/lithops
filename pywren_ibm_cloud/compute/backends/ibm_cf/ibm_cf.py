@@ -11,7 +11,7 @@ from ibm_botocore.credentials import DefaultTokenManager
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import is_remote_cluster
-from pywren_ibm_cloud.config import CONFIG_DIR, load_yaml_config, dump_yaml_config
+from pywren_ibm_cloud.config import CACHE_DIR, load_yaml_config, dump_yaml_config
 from pywren_ibm_cloud.libs.ibm_cloudfunctions.client import CloudFunctionsClient
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ class IBMCloudFunctionsBackend:
                                                   user_agent=self.user_agent)
         elif self.iam_api_key:
             token_manager = DefaultTokenManager(api_key_id=self.iam_api_key)
-            token_filename = os.path.join(CONFIG_DIR, 'IAM_TOKEN')
+            token_filename = os.path.join(CACHE_DIR, 'IAM_TOKEN')
 
             if 'token' in self.ibm_cf_config:
                 logger.debug("Using IBM IAM API Key - Reusing Token")
@@ -197,7 +197,7 @@ class IBMCloudFunctionsBackend:
     def list_runtimes(self, docker_image_name='all'):
         """
         List all the runtimes deployed in the IBM CF service
-        return: list of tuples [docker_image_name, memory]
+        return: list of tuples (docker_image_name, memory)
         """
         if docker_image_name == 'default':
             docker_image_name = self._get_default_runtime_image_name()
@@ -207,7 +207,7 @@ class IBMCloudFunctionsBackend:
         for action in actions:
             action_image_name, memory = self._unformat_action_name(action['name'])
             if docker_image_name == action_image_name or docker_image_name == 'all':
-                runtimes.append([action_image_name, memory])
+                runtimes.append((action_image_name, memory))
         return runtimes
 
     def invoke(self, docker_image_name, runtime_memory, payload):

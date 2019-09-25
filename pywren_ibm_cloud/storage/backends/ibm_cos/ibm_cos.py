@@ -22,7 +22,7 @@ from datetime import datetime
 from ibm_botocore.credentials import DefaultTokenManager
 from pywren_ibm_cloud.storage.utils import StorageNoSuchKeyError
 from pywren_ibm_cloud.utils import sizeof_fmt, is_remote_cluster
-from pywren_ibm_cloud.config import CONFIG_DIR, load_yaml_config, dump_yaml_config
+from pywren_ibm_cloud.config import CACHE_DIR, load_yaml_config, dump_yaml_config
 
 
 logging.getLogger('ibm_boto3').setLevel(logging.CRITICAL)
@@ -77,7 +77,7 @@ class IBMCloudObjectStorageBackend:
                                                        connect_timeout=1)
 
             token_manager = DefaultTokenManager(api_key_id=api_key)
-            token_filename = os.path.join(CONFIG_DIR, api_key_type+'_TOKEN')
+            token_filename = os.path.join(CACHE_DIR, api_key_type+'_TOKEN')
 
             if 'token' in self.ibm_cos_config:
                 logger.debug("Using IBM {} API Key - Reusing Token".format(api_key_type))
