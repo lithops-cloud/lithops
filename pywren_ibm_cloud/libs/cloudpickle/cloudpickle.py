@@ -271,12 +271,6 @@ def _find_imported_submodules(code, top_level_dependencies):
                     tokens = set(name[len(prefix):].split('.'))
                     if not tokens - set(code.co_names):
                         subimports.append(sys.modules[name])
-        else:
-            name = getattr(x, '__name__', None)
-            module_name = _whichmodule(x, name)
-            module = sys.modules.get(module_name, None)
-            if module:
-                subimports.append(module)
     return subimports
 
 
@@ -724,6 +718,16 @@ class CloudPickler(Pickler):
 
         save(_fill_function)  # skeleton function updater
         write(pickle.MARK)    # beginning of tuple that _fill_function expects
+
+        for f_g in f_globals.values():
+            if type(f_g) == (types.ModuleType):
+                module = f_g
+            else:
+                name = getattr(f_g, '__name__', None)
+                module_name = _whichmodule(f_g, name)
+                module = sys.modules.get(module_name, None)
+            if module:
+                self.modules.add(module)
 
         # Extract currently-imported submodules used by func. Storing these
         # modules in a smoke _cloudpickle_subimports attribute of the object's

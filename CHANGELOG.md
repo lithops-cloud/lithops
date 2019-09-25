@@ -20,6 +20,7 @@
 - Internal logic to generate runtime_metadata
 - invalid call to "is_remote_cluster" method
 - Cloudpickle lib to accept any kind of import
+- include_modules option in serializer
 
 
 ## [v1.0.20]
