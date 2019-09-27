@@ -40,7 +40,7 @@ class FunctionExecutor:
 
     def __init__(self, config=None, runtime=None, runtime_memory=None, compute_backend=None,
                  compute_backend_region=None, storage_backend=None, storage_backend_region=None,
-                 log_level=None, rabbitmq_monitor=None):
+                 rabbitmq_monitor=None, log_level=None):
         """
         Initialize and return a FunctionExecutor class.
 
