@@ -32,8 +32,8 @@ def my_function(x):
     return x + 7
 
 if __name__ == '__main__':
-    pw = pywren.ibm_cf_executor(compute_backend='knative')
-    pw.call_async(my_function, 3)
+    kn = pywren.knative_executor()
+    kn.call_async(my_function, 3)
     print (pw.get_result())
 ```
 

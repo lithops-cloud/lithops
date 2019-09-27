@@ -1,5 +1,5 @@
-PyWren on IBM Cloud
-==============================
+<h1><p align="center"> PyWren on IBM Cloud </p></h1>
+
 
 ### What is PyWren
 [PyWren](https://github.com/pywren/pywren) is an open source project whose goals are massively scaling the execution of Python code and its dependencies on serverless computing platforms and monitoring the results. PyWren delivers the user’s code into the serverless platform without requiring knowledge of how functions are invoked and run. 
@@ -66,7 +66,7 @@ Alternatively, for debugging purposes, you can run specific tests by `-t <TESTNA
 
 
 ## How to use PyWren for IBM Cloud
-The primary object in PyWren is the executor. The standard way to get everything set up is to import pywren_ibm_cloud, and call on of the available methods to get a ready-to-use executor. The available executors are: `ibm_cf_executor`, `knative_executor` and `function_executor`.
+The primary object in PyWren is the executor. The standard way to get everything set up is to import pywren_ibm_cloud, and call on of the available methods to get a ready-to-use executor. The available executors are: `ibm_cf_executor()`, `knative_executor()` and `function_executor()`. For example:
 
 ```python
 import pywren_ibm_cloud as pywren
