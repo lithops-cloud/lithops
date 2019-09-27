@@ -6,14 +6,21 @@
 - Allowed partitioner to split files by a number of chunks
 - Added knative-serving compute backend
 - Added Dockerfile skeleton for slim Python3.6 runtime (only 307MB)
+- Added CACHE_DIR in ~/.pywren/cache
 
 ### Changed
 - Docs updated
 - Runtime Dockerfiles updated
-- Updated runtime requirements
+- Runtime requirements updated
+- Updated Cloudpickle lib to version 1.2.2
+- Parameters introduced in the executer now overwrite the config
+- updated tests
 
 ### Fixed
 - Internal logic to generate runtime_metadata
+- invalid call to "is_remote_cluster" method
+- Cloudpickle lib to accept any kind of import
+- include_modules option in serializer
 
 
 ## [v1.0.20]

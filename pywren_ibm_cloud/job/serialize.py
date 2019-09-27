@@ -60,17 +60,32 @@ class SerializeIndependent:
             finally:
                 file.close()
 
-        if include_modules is not None:
-            # Add modules
-            for cp in cps:
-                for module in cp.modules:
-                    if include_modules:
-                        if module.__name__ in include_modules:
-                            self._modulemgr.add(module.__name__)
-                    else:
-                        self._modulemgr.add(module.__name__)
+        # Add modules
+        direct_modules = set()
+        for cp in cps:
+            for module in cp.modules:
+                try:
+                    direct_modules.add(module.__file__)
+                except Exception:
+                    pass
+                self._modulemgr.add(module.__name__)
 
-        mod_paths = self._modulemgr.get_and_clear_paths()
+        logger.debug("Referenced modules: {}".format(None if not direct_modules else direct_modules))
+
+        mod_paths = set()
+        if include_modules is not None:
+            tent_mod_paths = self._modulemgr.get_and_clear_paths()
+            if include_modules:
+                logger.debug("Tentative modules to transmit: {}".format(None if not tent_mod_paths else tent_mod_paths))
+                logger.debug("Filtering modules: {}".format(include_modules))
+                for im in include_modules:
+                    for mp in tent_mod_paths:
+                        if im in mp:
+                            mod_paths.add(mp)
+                            break
+            else:
+                mod_paths = tent_mod_paths
+
         logger.debug("Modules to transmit: {}".format(None if not mod_paths else mod_paths))
 
         return (strs, mod_paths)

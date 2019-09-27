@@ -263,7 +263,8 @@ class TestPywren(unittest.TestCase):
 
     def test_map_reduce_cos_bucket(self):
         print('Testing map_reduce() over a COS bucket...')
-        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
+        sb = STORAGE_CONFIG['backend']
+        data_prefix = sb+'://'+STORAGE_CONFIG['bucket']+'/'+PREFIX+'/'
         pw = pywren.ibm_cf_executor(config=CONFIG)
         pw.map_reduce(my_map_function_obj, data_prefix, my_reduce_function)
         result = pw.get_result()
@@ -271,7 +272,8 @@ class TestPywren(unittest.TestCase):
 
     def test_map_reduce_cos_bucket_one_reducer_per_object(self):
         print('Testing map_reduce() over a COS bucket with one reducer per object...')
-        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
+        sb = STORAGE_CONFIG['backend']
+        data_prefix = sb+'://'+STORAGE_CONFIG['bucket']+'/'+PREFIX+'/'
         pw = pywren.ibm_cf_executor(config=CONFIG)
         pw.map_reduce(my_map_function_obj, data_prefix, my_reduce_function, reducer_one_per_object=True)
         result = pw.get_result()
@@ -279,8 +281,9 @@ class TestPywren(unittest.TestCase):
 
     def test_map_reduce_cos_key(self):
         print('Testing map_reduce() over COS keys...')
+        sb = STORAGE_CONFIG['backend']
         bucket_name = STORAGE_CONFIG['bucket']
-        iterdata = [bucket_name + '/' + key for key in list_test_keys()]
+        iterdata = [sb+'://'+bucket_name+'/'+key for key in list_test_keys()]
         pw = pywren.ibm_cf_executor(config=CONFIG)
         pw.map_reduce(my_map_function_obj, iterdata, my_reduce_function)
         result = pw.get_result()
@@ -288,8 +291,9 @@ class TestPywren(unittest.TestCase):
 
     def test_map_reduce_cos_key_one_reducer_per_object(self):
         print('Testing map_reduce() over COS keys with one reducer per object...')
+        sb = STORAGE_CONFIG['backend']
         bucket_name = STORAGE_CONFIG['bucket']
-        iterdata = [bucket_name + '/' + key for key in list_test_keys()]
+        iterdata = [sb+'://'+bucket_name+'/'+key for key in list_test_keys()]
         pw = pywren.ibm_cf_executor(config=CONFIG)
         pw.map_reduce(my_map_function_obj, iterdata, my_reduce_function, reducer_one_per_object=True)
         result = pw.get_result()

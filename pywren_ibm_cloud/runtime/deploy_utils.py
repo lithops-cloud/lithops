@@ -17,7 +17,7 @@
 import os
 import shutil
 import logging
-from pywren_ibm_cloud.config import default_config, extract_storage_config, extract_compute_config
+from pywren_ibm_cloud.config import CACHE_DIR, default_config, extract_storage_config, extract_compute_config
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.compute import Compute
 
@@ -92,7 +92,7 @@ def delete_runtime(name, config=None):
 
 
 def clean_runtimes(config=None):
-    logger.info('Cleaning all runtimes')
+    logger.info('Cleaning all runtimes and cache information')
     config = default_config(config)
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
@@ -100,9 +100,8 @@ def clean_runtimes(config=None):
     compute_handler = Compute(compute_config)
 
     # Clean local runtime_meta cache
-    cache_dir = os.path.join(os.path.expanduser('~'), '.cloudbutton')
-    if os.path.exists(cache_dir):
-        shutil.rmtree(cache_dir)
+    if os.path.exists(CACHE_DIR):
+        shutil.rmtree(CACHE_DIR)
 
     sh = internal_storage.storage_handler
     runtimes = sh.list_keys(storage_config['bucket'], 'runtime')

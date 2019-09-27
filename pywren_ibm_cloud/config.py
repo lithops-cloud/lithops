@@ -33,7 +33,8 @@ INVOCATION_RETRY_DEFAULT = True
 RETRY_SLEEPS_DEFAULT = [1, 2, 4, 8]
 RETRIES_DEFAULT = 5
 
-CONFIG_DIR = os.path.expanduser('~/.cloudbutton')
+CONFIG_DIR = os.path.expanduser('~/.pywren')
+CACHE_DIR = os.path.join(CONFIG_DIR, 'cache')
 
 
 def load_yaml_config(config_filename):

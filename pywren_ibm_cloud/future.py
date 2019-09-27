@@ -159,7 +159,7 @@ class ResponseFuture:
                 exception_args = self._exception[1].args
 
                 if exception_args[0] == "WRONGVERSION":
-                    msg = "PyWren version mismatch: remote expected version {}, local" \
+                    msg = "PyWren version mismatch: remote library is version {}, local " \
                           "library is version {}".format(exception_args[2], exception_args[3])
 
                 if exception_args[0] == "OUTATIME":

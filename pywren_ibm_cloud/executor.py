@@ -130,7 +130,7 @@ class FunctionExecutor:
                             ' create a new FunctionExecutor() instance.')
 
         job_id = str(len(self.jobs)).zfill(3)
-        async_job_id = f'A{job_id}'
+        async_job_id = 'A{}'.format(job_id)
 
         runtime_meta = select_runtime(self.config, self.internal_storage, self.compute_handler,
                                       self.executor_id, async_job_id, runtime_memory)
@@ -175,7 +175,7 @@ class FunctionExecutor:
 
         total_current_jobs = len(self.jobs)
         job_id = str(total_current_jobs).zfill(3)
-        map_job_id = f'M{job_id}'
+        map_job_id = 'M{}'.format(job_id)
 
         runtime_meta = select_runtime(self.config, self.internal_storage, self.compute_handler,
                                       self.executor_id, map_job_id, runtime_memory)
@@ -237,7 +237,7 @@ class FunctionExecutor:
 
         total_current_jobs = len(self.jobs)
         job_id = str(total_current_jobs).zfill(3)
-        map_job_id = f'M{job_id}'
+        map_job_id = 'M{}'.format(job_id)
 
         runtime_meta = select_runtime(self.config, self.internal_storage, self.compute_handler,
                                       self.executor_id, map_job_id, map_runtime_memory)
@@ -267,7 +267,7 @@ class FunctionExecutor:
         if reducer_wait_local:
             self.monitor(futures=map_futures)
 
-        reduce_job_id = f'R{job_id}'
+        reduce_job_id = 'R{}'.format(job_id)
 
         runtime_meta = select_runtime(self.config, self.internal_storage, self.compute_handler,
                                       self.executor_id, reduce_job_id, reduce_runtime_memory)

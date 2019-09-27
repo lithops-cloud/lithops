@@ -14,11 +14,11 @@ ENV FLASK_PROXY_PORT 8080
 
 RUN pip install --upgrade setuptools six \
     && pip install --no-cache-dir \
-	    simplejson==3.16.0 \
-	    httplib2==0.12.1 \
-		kafka_python==1.4.4 \
-		lxml==4.3.1 \
-		python-dateutil==2.7.5 \
+        simplejson==3.16.0 \
+        httplib2==0.12.1 \
+        kafka_python==1.4.4 \
+        lxml==4.3.1 \
+        python-dateutil==2.7.5 \
 	    pika==0.13.1 \
 	    flask==1.1.1 \
 	    gevent==1.4.0 \
