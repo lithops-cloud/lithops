@@ -234,6 +234,9 @@ class KnativeServingBackend:
                 pod_name = event['object']['status']['podName']
                 w.stop()
 
+        if pod_name is None:
+            raise Exception('Unable to get the pod name from the task that is building the runtime')
+
         w = watch.Watch()
         for event in w.stream(self.v1.list_namespaced_pod, namespace='default',
                               field_selector="metadata.name={0}".format(pod_name), _request_timeout=120):
@@ -411,15 +414,18 @@ class KnativeServingBackend:
                          headers=self.headers)
             resp = conn.getresponse()
             resp_status = resp.status
-            resp_data = resp.read()
+            resp_data = resp.read().decode("utf-8")
             conn.close()
             roundtrip = time.time() - start
             resp_time = format(round(roundtrip, 3), '.3f')
 
             try:
-                data = json.loads(resp_data.decode("utf-8"))
+                data = json.loads(resp_data)
             except Exception:
-                raise Exception('Response from invocation is not a dict: {}'.format(resp_data))
+                msg = ('Something went wrong in the function execution. Function '
+                       'activation returned: {} {}'.format(resp_status, resp_data))
+                logger.debug(msg)
+                raise Exception(msg)
 
             if resp_status in [200, 202]:
                 log_msg = ('ExecutorID {} - Function {} invocation done! ({}s) '

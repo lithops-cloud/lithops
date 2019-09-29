@@ -22,9 +22,10 @@ This document describes the steps to use PyWren over IBM Cloud Functions and IBM
 3. [Configuration](#configuration)
 4. [Verify installation](#verify)
 5. [How to use PyWren for IBM Cloud](#how-to-use-pywren-for-ibm-cloud)
-6. [Using PyWren to process data from IBM Cloud Object Storage and public URLs](#using-pywren-to-process-data-from-ibm-cloud-object-storage-and-public-urls)
-7. [PyWren on IBM Watson Studio and Jupyter notebooks](#pywren-on-ibm-watson-studio-and-jupyter-notebooks)
-8. [Additional resources](#additional-resources)
+5.1. [Functions](#functions)
+5.2. [Using PyWren to process data from IBM Cloud Object Storage and public URLs](#using-pywren-to-process-data-from-ibm-cloud-object-storage-and-public-urls)
+5.3. [PyWren on IBM Watson Studio and Jupyter notebooks](#pywren-on-ibm-watson-studio-and-jupyter-notebooks)
+6. [Additional resources](#additional-resources)
 
 
 ## Initial Requirements
@@ -100,10 +101,8 @@ if __name__ == '__main__':
     print (ibmcf.get_result())
 ```
 
-### Multiple parameters
-PyWren for IBM Cloud allows to send multiple parameters in each function invocation. See detailed examples [here](docs/multiple-parameters.md).
-
-Moreover, multiple parameters in functions allowed us to add some new built-in capabilities in PyWren. Thus, take into account that there are some reserved parameter names that activate internal logic. These reserved parameters are:
+### Functions
+PyWren for IBM Cloud allows to send multiple parameters in each function invocation. See detailed examples [here](docs/multiple-parameters.md). Moreover, multiple parameters in functions allowed us to add some new built-in capabilities in PyWren. Thus, take into account that there are some reserved parameter names that activate internal logic. These reserved parameters are:
 
 - **id**: To get the call id. For instance, if you spawn 10 activations of a function, you will get here a number from 0 to 9, for example: [map.py](examples/map.py)
 

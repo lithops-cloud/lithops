@@ -69,7 +69,7 @@ spec:
       - name: imageTag
   steps:
     - name: build-and-push
-      image: gcr.io/kaniko-project/executor:latest
+      image: gcr.io/kaniko-project/executor
       env:
         - name: "DOCKER_CONFIG"
           value: "/builder/home/.docker/"
@@ -127,7 +127,7 @@ spec:
         resources:
           limits:
             memory: MEMORY
-            cpu: 1000m
+            #cpu: 1000m
 """
 
 
