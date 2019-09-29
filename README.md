@@ -22,9 +22,9 @@ This document describes the steps to use PyWren over IBM Cloud Functions and IBM
 3. [Configuration](#configuration)
 4. [Verify installation](#verify)
 5. [How to use PyWren for IBM Cloud](#how-to-use-pywren-for-ibm-cloud)
-5.1. [Functions](#functions)
-5.2. [Using PyWren to process data from IBM Cloud Object Storage and public URLs](#using-pywren-to-process-data-from-ibm-cloud-object-storage-and-public-urls)
-5.3. [PyWren on IBM Watson Studio and Jupyter notebooks](#pywren-on-ibm-watson-studio-and-jupyter-notebooks)
+   5.1. [Functions](#functions)
+   5.2. [Using PyWren to process data from IBM Cloud Object Storage and public URLs](#using-pywren-to-process-data-from-ibm-cloud-object-storage-and-public-urls)
+   5.3. [PyWren on IBM Watson Studio and Jupyter notebooks](#pywren-on-ibm-watson-studio-and-jupyter-notebooks)
 6. [Additional resources](#additional-resources)
 
 
@@ -140,7 +140,7 @@ Once installed, you can use IBM-PyWren as usual inside the notebook. See an exam
 ## Additional resources
 
 * [Your easy move to serverless computing and radically simplified data processing](https://conferences.oreilly.com/strata/strata-ny/public/schedule/detail/77226) Strata Data Conference, NY 2019
-See video of PyWren-IBM usage [here](https://www.youtube.com/watch?v=EYa95KyYEtg&list=PLpR7f3Www9KCjYisaG7AMaR0C2GqLUh2G&index=3&t=0s) and Monte Carlo example [here](https://www.youtube.com/watch?v=vF5HI2q5VKw&list=PLpR7f3Www9KCjYisaG7AMaR0C2GqLUh2G&index=2&t=0s)
+  * See video of PyWren-IBM usage [here](https://www.youtube.com/watch?v=EYa95KyYEtg&list=PLpR7f3Www9KCjYisaG7AMaR0C2GqLUh2G&index=3&t=0s) and Montecarlo example [here](https://www.youtube.com/watch?v=vF5HI2q5VKw&list=PLpR7f3Www9KCjYisaG7AMaR0C2GqLUh2G&index=2&t=0s)
 * [Ants, serverless computing, and simplified data processing](https://developer.ibm.com/blogs/2019/01/31/ants-serverless-computing-and-simplified-data-processing/)
 * [Speed up data pre-processing with PyWren in deep learning](https://developer.ibm.com/patterns/speed-up-data-pre-processing-with-pywren-in-deep-learning/)
 * [Predicting the future with Monte Carlo simulations over IBM Cloud Functions](https://www.ibm.com/blogs/bluemix/2019/01/monte-carlo-simulations-with-ibm-cloud-functions/)

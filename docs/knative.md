@@ -41,6 +41,9 @@ Then, follow these steps:
 
     - **docker_token**: Login to your docker hub account and generate a new docker access token [here](https://hub.docker.com/settings/security)
 
+5. Done!
+
+
 To finish the process, test if everything is working properly:
 
 ```python

@@ -215,7 +215,7 @@ class CloudFunctionsClient:
                 conn.close()
             if self_invoked:
                 return None, e
-            return self.invoke(package, action_name, payload, is_remote_cluster=True)
+            return self.invoke(package, action_name, payload, is_remote_cluster=is_remote_cluster, self_invoked=True)
 
         if resp_status == 202 and 'activationId' in data:
             return data["activationId"], None

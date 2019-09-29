@@ -419,30 +419,23 @@ class KnativeServingBackend:
             roundtrip = time.time() - start
             resp_time = format(round(roundtrip, 3), '.3f')
 
-            try:
-                data = json.loads(resp_data)
-            except Exception:
-                msg = ('Something went wrong in the function execution. Function '
-                       'activation returned: {} {}'.format(resp_status, resp_data))
-                logger.debug(msg)
-                raise Exception(msg)
-
             if resp_status in [200, 202]:
-                log_msg = ('ExecutorID {} - Function {} invocation done! ({}s) '
+                data = json.loads(resp_data)
+                log_msg = ('ExecutorID {} - Function invocation {} done! ({}s) '
                            .format(exec_id, call_id, resp_time))
                 logger.debug(log_msg)
                 return exec_id + job_id + call_id, data
+            elif resp_status == 404:
+                raise Exception("PyWren runtime is not deployed in your k8s cluster")
             else:
-                logger.debug(data)
-                if resp_status == 404:
-                    raise Exception('Service Not Found')
-                else:
-                    raise Exception(resp_status, resp_data)
+                log_msg = ('ExecutorID {} - Function invocation {} failed: {} {}'
+                           .format(exec_id, call_id, resp_status, resp_data))
+                logger.debug(log_msg)
 
         except Exception as e:
-            raise e
             conn.close()
-            log_msg = ('ExecutorID {} - Function {} invocation failed: {}'.format(exec_id, call_id, str(e)))
+            log_msg = ('ExecutorID {} - Function invocation {} failed: {}'
+                       .format(exec_id, call_id, str(e)))
             logger.debug(log_msg)
 
     def invoke_with_result(self, docker_image_name, memory, payload={}):
