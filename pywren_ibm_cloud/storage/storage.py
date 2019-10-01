@@ -212,7 +212,7 @@ class InternalStorage:
         """
         path = ['runtimes', __version__,  key+".meta.json"]
         obj_key = '/'.join(path).replace('\\', '/')
-        logger.debug("Uploading Runtime metadata to: /{}/{}".format(self.bucket, obj_key))
+        logger.debug("Uploading runtime metadata to: /{}/{}".format(self.bucket, obj_key))
         self.storage_handler.put_object(self.bucket, obj_key, json.dumps(runtime_meta))
 
         if not is_remote_cluster():

@@ -133,7 +133,7 @@ spec:
 
 def load_config(config_data):
 
-    required_keys = ('endpoint', 'docker_user', 'docker_token')
+    required_keys = ('docker_user', 'docker_token')
     if not set(required_keys) <= set(config_data['knative']):
         raise Exception('You must provide {} to access to Knative'.format(required_keys))
 

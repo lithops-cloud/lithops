@@ -42,7 +42,7 @@ def select_runtime(config, internal_storage, compute_handler, executor_id, job_i
             print('(Installing...)')
 
         timeout = config['pywren']['runtime_timeout']
-        logger.debug('Creating runtime: {}, memory: {}'.format(runtime_name, runtime_memory))
+        logger.debug('Creating runtime: {}, memory: {}MB'.format(runtime_name, runtime_memory))
         runtime_meta = compute_handler.create_runtime(runtime_name, runtime_memory, timeout=timeout)
         internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 

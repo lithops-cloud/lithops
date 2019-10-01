@@ -4,47 +4,53 @@ The easiest way to make it working is to create an IBM Kubernetes (IKS) cluster 
 - Install Kubernetes v1.15.3
 - Select a **single zone** to place the worker nodes
 - *Master service endpoint*: Public endpoint only
-- You must create a cluster with at least 3 worker nodes, each one with a minimum flavor of 4vCPU and 16GB RAM.
+- You must create a cluster with at least 3 worker nodes, each one with a minimum flavor of 4vCPU and 16GB RAM
+- No need to encrypt local disk
 
-Then, follow these steps:
+Once the cluster is running, follow the instructions of the "Access" tab to configure the *kubectl* client in your local machine. Then, follow one of this two options to install the PyWren environment:
 
-1. Wait until the cluster is created. Then follow the instructions of the "Access" tab to configure the *kubectl* client in your local machine.
+  - Option 1:
 
-2. Install tekton>=0.6: 
-    ```
-    kubectl apply --filename https://storage.googleapis.com/tekton-releases/latest/release.yaml`
-    ```
-    Wait until all pods in `kubectl get pods --namespace tekton-pipelines` are in *Running* status.
+    1. In the Dashboard of your cluster, go to the "Add-ons" tab and install knative (It automatically installs Istio and Tekton).
 
-3. In the IBM Dashboard of your cluster, go to the "Add-ons" tab and install knative (It will automatically install Istio as dependency)
-    Wait until all the pods from the output of these commands are in Running status: 
-    ```
-    kubectl get pods --namespace istio-system
-    kubectl get pods --namespace knative-serving
-    kubectl get pods --namespace knative-eventing
-    kubectl get pods --namespace knative-monitoring
-    ```
-
-4. Edit *~/.pywren_config* and add the next section:
-
-    ```yaml
-    knative:
-          endpoint: http://ip-or-url.com:31380  # istio-ingressgateway endpoint
-          docker_user: my-username
-          docker_token: 12e9075f-6cd7-4147-a01e-8e34ffe9196e
-    ```
-
-    - **endpoint**: You can obtain the istio-ingressgateway endpoint by running:
+    2. Install Tekton v0.7.0: 
         ```
-        echo http://$(kubectl get svc istio-ingressgateway --namespace istio-system --output 'jsonpath={.status.loadBalancer.ingress[0].ip}'):$(kubectl get svc istio-ingressgateway --namespace istio-system --output 'jsonpath={.spec.ports[?(@.port==80)].nodePort}')
+        kubectl delete --filename https://storage.googleapis.com/tekton-releases/previous/v0.3.1/release.yaml
+        kubectl apply --filename https://storage.googleapis.com/tekton-releases/previous/v0.7.0/release.yaml
         ```
 
-    - **docker_token**: Login to your docker hub account and generate a new docker access token [here](https://hub.docker.com/settings/security)
+  - Option 2:
 
-5. Done!
+    1. Install the **helm** Kubernetes package manager in your local machine. Instructions can be found [here](https://github.com/helm/helm#install).
+
+    2. Install the PyWren environment into the k8s cluster: Istio v1.1.7, Knative v0.9.0 and Tekton v0.7.0:
+        ```
+        curl http://cloudlab.urv.cat/josep/install_pywren_env.sh | bash
+        ```
 
 
-To finish the process, test if everything is working properly:
+#### Verify that all the pods from the output of these commands are in *Running* status: 
+```
+kubectl get pods --namespace istio-system
+kubectl get pods --namespace knative-serving
+kubectl get pods --namespace knative-eventing
+kubectl get pods --namespace knative-monitoring
+kubectl get pods --namespace tekton-pipelines
+```
+
+
+#### Edit *~/.pywren_config* and add the next section:
+
+```yaml
+knative:
+      docker_user: my-username
+      docker_token: 12e9075f-6cd7-4147-a01e-8e34ffe9196e
+```
+- **docker_token**: Login to your docker hub account and generate a new docker access token [here](https://hub.docker.com/settings/security)
+
+
+
+#### Test if everything is working properly:
 
 ```python
 import pywren_ibm_cloud as pywren
@@ -58,7 +64,8 @@ if __name__ == '__main__':
     print(kn.get_result())
 ```
 
-You can see in another terminal how pods and other resources are created with:
+
+#### Check how pods and other resources are created:
 
 ```
 export KUBECONFIG=/home/... (Same as before in "Access" tab)

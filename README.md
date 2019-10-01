@@ -22,9 +22,9 @@ This document describes the steps to use PyWren over IBM Cloud Functions and IBM
 3. [Configuration](#configuration)
 4. [Verify installation](#verify)
 5. [How to use PyWren for IBM Cloud](#how-to-use-pywren-for-ibm-cloud)
-   5.1. [Functions](#functions)
-   5.2. [Using PyWren to process data from IBM Cloud Object Storage and public URLs](#using-pywren-to-process-data-from-ibm-cloud-object-storage-and-public-urls)
-   5.3. [PyWren on IBM Watson Studio and Jupyter notebooks](#pywren-on-ibm-watson-studio-and-jupyter-notebooks)
+   - [Functions](#functions)
+   - [Using PyWren to process data from IBM Cloud Object Storage and public URLs](#using-pywren-to-process-data-from-ibm-cloud-object-storage-and-public-urls)
+   - [PyWren on IBM Watson Studio and Jupyter notebooks](#pywren-on-ibm-watson-studio-and-jupyter-notebooks)
 6. [Additional resources](#additional-resources)
 
 
