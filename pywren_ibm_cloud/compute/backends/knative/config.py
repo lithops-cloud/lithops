@@ -76,9 +76,9 @@ spec:
       command:
         - /kaniko/executor
       args:
-        - --dockerfile=$(inputs.params.pathToDockerFile)
-        - --destination=$(inputs.params.imageUrl):$(inputs.params.imageTag)
-        - --context=/workspace/git-source/$(inputs.params.pathToContext)
+        - --dockerfile=${inputs.params.pathToDockerFile}
+        - --destination=${inputs.params.imageUrl}:${inputs.params.imageTag}
+        - --context=/workspace/git-source/${inputs.params.pathToContext}
 """
 
 task_run = """

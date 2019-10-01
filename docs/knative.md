@@ -9,27 +9,22 @@ The easiest way to make it working is to create an IBM Kubernetes (IKS) cluster 
 
 Once the cluster is running, follow the instructions of the "Access" tab to configure the *kubectl* client in your local machine. Then, follow one of this two options to install the PyWren environment:
 
-  - Option 1:
+  - Option 1 (IBM IKS):
 
-    1. In the Dashboard of your cluster, go to the "Add-ons" tab and install knative (It automatically installs Istio and Tekton).
+    1. In the Dashboard of your cluster, go to the "Add-ons" tab and install knative v0.8.0. It automatically installs Istio v1.2.5 and Tekton v0.3.1.
 
-    2. Install Tekton v0.7.0: 
-        ```
-        kubectl delete --filename https://storage.googleapis.com/tekton-releases/previous/v0.3.1/release.yaml
-        kubectl apply --filename https://storage.googleapis.com/tekton-releases/previous/v0.7.0/release.yaml
-        ```
 
-  - Option 2:
+  - Option 2 (IBM IKS or any other Kubernetes Cluster):
 
     1. Install the **helm** Kubernetes package manager in your local machine. Instructions can be found [here](https://github.com/helm/helm#install).
 
-    2. Install the PyWren environment into the k8s cluster: Istio v1.1.7, Knative v0.9.0 and Tekton v0.7.0:
+    2. Install the PyWren environment into the k8s cluster: Istio v1.1.7, Knative v0.9.0 and Tekton v0.5.0:
         ```
-        curl http://cloudlab.urv.cat/josep/install_pywren_env.sh | bash
+        curl http://cloudlab.urv.cat/josep/knative/install_pywren_env.sh | bash
         ```
 
 
-#### Verify that all the pods from the output of these commands are in *Running* status: 
+#### Verify that all the pods from the following namespaces are in *Running* status: 
 ```
 kubectl get pods --namespace istio-system
 kubectl get pods --namespace knative-serving

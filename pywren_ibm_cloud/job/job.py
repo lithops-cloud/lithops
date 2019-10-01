@@ -14,20 +14,6 @@ from pywren_ibm_cloud.config import EXECUTION_TIMEOUT, MAX_AGG_DATA_SIZE
 logger = logging.getLogger(__name__)
 
 
-def create_call_async_job(config, internal_storage, executor_id, async_job_id, func, data,
-                          runtime_meta, extra_env=None, runtime_memory=None, include_modules=[],
-                          exclude_modules=[], execution_timeout=EXECUTION_TIMEOUT):
-    """
-    Wrapper to create call_async job that contains only one function invocation.
-    """
-    data = utils.verify_args(func, [data], None)
-
-    return _create_job(config, internal_storage, executor_id, async_job_id,
-                       func, data, runtime_meta, runtime_memory=runtime_memory,
-                       extra_env=extra_env, execution_timeout=execution_timeout,
-                       exclude_modules=exclude_modules, include_modules=include_modules)
-
-
 def create_map_job(config, internal_storage, executor_id, map_job_id, map_function, iterdata, runtime_meta,
                    runtime_memory=None, extra_params=None, extra_env=None, obj_chunk_size=None,
                    obj_chunk_number=None, remote_invocation=False, remote_invocation_groups=None,
@@ -67,6 +53,7 @@ def create_map_job(config, internal_storage, executor_id, map_job_id, map_functi
                             for x in range(0, original_total_tasks, remote_invocation_groups)]
         else:
             map_iterdata = [iterdata]
+        map_iterdata = utils.verify_args(remote_invoker, map_iterdata, extra_params)
         new_invoke_pool_threads = 1
         new_runtime_memory = runtime_memory
     # ########
@@ -83,21 +70,23 @@ def create_map_job(config, internal_storage, executor_id, map_job_id, map_functi
                                   original_total_tasks=original_total_tasks,
                                   execution_timeout=execution_timeout)
 
-    return job_description, parts_per_object
+    job_description['parts_per_object'] = parts_per_object
+
+    return job_description
 
 
 def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, reduce_function,
-                      map_futures, parts_per_object, runtime_meta, reducer_one_per_object=False,
+                      map_job, map_futures, runtime_meta, reducer_one_per_object=False,
                       runtime_memory=None, extra_env=None, include_modules=[], exclude_modules=[]):
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
     """
     iterdata = [[map_futures, ]]
 
-    if parts_per_object and reducer_one_per_object:
+    if map_job['parts_per_object'] and reducer_one_per_object:
         prev_total_partitons = 0
         iterdata = []
-        for total_partitions in parts_per_object:
+        for total_partitions in map_job['parts_per_object']:
             iterdata.append([map_futures[prev_total_partitons:prev_total_partitons+total_partitions]])
             prev_total_partitons = prev_total_partitons + total_partitions
 
