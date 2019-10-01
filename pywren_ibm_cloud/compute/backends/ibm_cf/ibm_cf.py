@@ -225,11 +225,11 @@ class IBMCloudFunctionsBackend:
         resp_time = format(round(roundtrip, 3), '.3f')
 
         if activation_id is None:
-            log_msg = ('ExecutorID {} | JobID {} - Function {} invocation failed: '
+            log_msg = ('ExecutorID {} | JobID {} - Function invocation {} failed: '
                        '{}'.format(exec_id, job_id, call_id, str(exception)))
             logger.debug(log_msg)
         else:
-            log_msg = ('ExecutorID {} | JobID {} - Function {} invocation done! ({}s) - Activation'
+            log_msg = ('ExecutorID {} | JobID {} - Function invocation {} done! ({}s) - Activation'
                        ' ID: {}'.format(exec_id, job_id, call_id, resp_time, activation_id))
             logger.debug(log_msg)
 

@@ -13,6 +13,7 @@ from . import config as kconfig
 
 import urllib3
 urllib3.disable_warnings()
+logging.getLogger('kubernetes').setLevel(logging.CRITICAL)
 
 #Monkey patch for issue: https://github.com/kubernetes-client/python/issues/895
 from kubernetes.client.models.v1_container_image import V1ContainerImage
@@ -29,19 +30,38 @@ class KnativeServingBackend:
     """
 
     def __init__(self, knative_config):
-        self.log_level = os.getenv('PYWREN_LOG_LEVEL')
+        self.log_level = os.getenv('CB_LOG_LEVEL')
         self.name = 'knative'
         self.knative_config = knative_config
         self.endpoint = self.knative_config.get('endpoint')
         self.service_hosts = {}
 
-        # k8s config must be in ~/.kube/config or generate kube-config.yml file and
+        # k8s config can be in ~/.kube/config or generate kube-config.yml file and
         # set env variable KUBECONFIG=<path-to-kube-confg>
         config.load_kube_config()
         self.api = client.CustomObjectsApi()
         self.v1 = client.CoreV1Api()
 
         self.headers = {'content-type': 'application/json'}
+
+        if self.endpoint is None:
+            try:
+                ingress = self.v1.read_namespaced_service('istio-ingressgateway', 'istio-system')
+                http_port = list(filter(lambda port: port.port == 80, ingress.spec.ports))[0].node_port
+                https_port = list(filter(lambda port: port.port == 443, ingress.spec.ports))[0].node_port
+
+                if ingress.status.load_balancer.ingress is not None:
+                    # get loadbalancer ip
+                    ip = ingress.status.load_balancer.ingress[0].ip
+                else:
+                    # for minikube or a baremetal cluster that has no external load balancer
+                    node = self.v1.list_node()
+                    ip = node.items[0].status.addresses[0].address
+
+                self.endpoint = 'http://{}:{}'.format(ip, http_port)
+
+            except Exception as e:
+                raise Exception("Something went wrong getting the istio-ingressgateway endpoint: {}".format(e))
 
         log_msg = 'PyWren v{} init for Knative Serving - Endpoint: {}'.format(__version__, self.endpoint)
         logger.info(log_msg)
@@ -121,10 +141,9 @@ class KnativeServingBackend:
         try:
             self.v1.delete_namespaced_secret(secret_res_name, 'default')
             self.v1.delete_namespaced_service_account(account_res_name, 'default')
-        except Exception as e:
-            if json.loads(e.body)['code'] == 404:
-                log_msg = 'account resource Not Found - Not deleted'
-                logger.debug(log_msg)
+        except Exception:
+            # account resource Not Found - Not deleted
+            pass
 
         self.v1.create_namespaced_secret('default', secret_res)
         self.v1.create_namespaced_service_account('default', account_res)
@@ -152,10 +171,9 @@ class KnativeServingBackend:
                     plural="tasks",
                     body=client.V1DeleteOptions()
                 )
-        except Exception as e:
-            if json.loads(e.body)['code'] == 404:
-                log_msg = 'ksvc resource: {} Not Found'.format(task_name)
-                logger.debug(log_msg)
+        except Exception:
+            # ksvc resource Not Found  - Not deleted
+            pass
 
         try:
             self.api.delete_namespaced_custom_object(
@@ -166,10 +184,9 @@ class KnativeServingBackend:
                     plural="pipelineresources",
                     body=client.V1DeleteOptions()
                 )
-        except Exception as e:
-            if json.loads(e.body)['code'] == 404:
-                log_msg = 'ksvc resource: {} Not Found'.format(git_res_name)
-                logger.debug(log_msg)
+        except Exception:
+            # ksvc resource Not Found - Not deleted
+            pass
 
         self.api.create_namespaced_custom_object(
                 group="tekton.dev",
@@ -192,10 +209,10 @@ class KnativeServingBackend:
         Builds the docker image and pushes it to the docker container registry
         """
         # TODO: Test if the image already exists
-
         self._create_account_resources()
         self._create_build_resources()
 
+        logger.debug("Building default docker image from git")
         task_run = yaml.safe_load(kconfig.task_run)
         image_url = {'name': 'imageUrl', 'value': '/'.join([self.knative_config['docker_repo'], docker_image_name])}
         task_run['spec']['inputs']['params'].append(image_url)
@@ -212,10 +229,8 @@ class KnativeServingBackend:
                     plural="taskruns",
                     body=client.V1DeleteOptions()
                 )
-        except Exception as e:
-            if json.loads(e.body)['code'] == 404:
-                log_msg = 'ksvc resource: {} Not Found'.format(task_run_name)
-                logger.debug(log_msg)
+        except Exception:
+            pass
 
         self.api.create_namespaced_custom_object(
                     group="tekton.dev",
@@ -229,14 +244,17 @@ class KnativeServingBackend:
         w = watch.Watch()
         for event in w.stream(self.api.list_namespaced_custom_object, namespace='default',
                               group="tekton.dev", version="v1alpha1", plural="taskruns",
-                              field_selector="metadata.name={0}".format(task_run_name), _request_timeout=10):
+                              field_selector="metadata.name={0}".format(task_run_name)):
             if event['object'].get('status') is not None:
                 pod_name = event['object']['status']['podName']
                 w.stop()
 
+        if pod_name is None:
+            raise Exception('Unable to get the pod name from the task that is building the runtime')
+
         w = watch.Watch()
         for event in w.stream(self.v1.list_namespaced_pod, namespace='default',
-                              field_selector="metadata.name={0}".format(pod_name), _request_timeout=120):
+                              field_selector="metadata.name={0}".format(pod_name)):
             if event['object'].status.phase == "Succeeded":
                 w.stop()
             if event['object'].status.phase == "Failed":
@@ -258,6 +276,7 @@ class KnativeServingBackend:
         """
         Creates a service in knative based on the docker_image_name and the memory provided
         """
+        logger.debug("Creating PyWren runtime service resource in k8s")
         svc_res = yaml.safe_load(kconfig.service_res)
 
         service_name = self._format_service_name(docker_image_name, runtime_memory)
@@ -280,10 +299,8 @@ class KnativeServingBackend:
                     plural="services",
                     body=client.V1DeleteOptions()
                 )
-        except Exception as e:
-            if json.loads(e.body)['code'] == 404:
-                log_msg = 'Knative service: resource "{}" Not Found'.format(service_name)
-                logger.debug(log_msg)
+        except Exception:
+            pass
 
         # create the service resource
         self.api.create_namespaced_custom_object(
@@ -298,8 +315,7 @@ class KnativeServingBackend:
         for event in w.stream(self.api.list_namespaced_custom_object,
                               namespace='default', group="serving.knative.dev",
                               version="v1alpha1", plural="services",
-                              field_selector="metadata.name={0}".format(service_name),
-                              _request_timeout=120):
+                              field_selector="metadata.name={0}".format(service_name)):
             conditions = None
             if event['object'].get('status') is not None:
                 conditions = event['object']['status']['conditions']
@@ -310,7 +326,7 @@ class KnativeServingBackend:
                 w.stop()
 
         log_msg = 'Runtime Service resource created - URL: {}'.format(service_url)
-        logger.debug(service_url)
+        logger.debug(log_msg)
 
         self.service_hosts[service_name] = service_url[7:]
 
@@ -411,32 +427,28 @@ class KnativeServingBackend:
                          headers=self.headers)
             resp = conn.getresponse()
             resp_status = resp.status
-            resp_data = resp.read()
+            resp_data = resp.read().decode("utf-8")
             conn.close()
             roundtrip = time.time() - start
             resp_time = format(round(roundtrip, 3), '.3f')
 
-            try:
-                data = json.loads(resp_data.decode("utf-8"))
-            except Exception:
-                raise Exception('Response from invocation is not a dict: {}'.format(resp_data))
-
             if resp_status in [200, 202]:
-                log_msg = ('ExecutorID {} - Function {} invocation done! ({}s) '
+                data = json.loads(resp_data)
+                log_msg = ('ExecutorID {} - Function invocation {} done! ({}s) '
                            .format(exec_id, call_id, resp_time))
                 logger.debug(log_msg)
                 return exec_id + job_id + call_id, data
+            elif resp_status == 404:
+                raise Exception("PyWren runtime is not deployed in your k8s cluster")
             else:
-                logger.debug(data)
-                if resp_status == 404:
-                    raise Exception('Service Not Found')
-                else:
-                    raise Exception(resp_status, resp_data)
+                log_msg = ('ExecutorID {} - Function invocation {} failed: {} {}'
+                           .format(exec_id, call_id, resp_status, resp_data))
+                logger.debug(log_msg)
 
         except Exception as e:
-            raise e
             conn.close()
-            log_msg = ('ExecutorID {} - Function {} invocation failed: {}'.format(exec_id, call_id, str(e)))
+            log_msg = ('ExecutorID {} - Function invocation {} failed: {}'
+                       .format(exec_id, call_id, str(e)))
             logger.debug(log_msg)
 
     def invoke_with_result(self, docker_image_name, memory, payload={}):

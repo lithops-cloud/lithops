@@ -69,16 +69,16 @@ spec:
       - name: imageTag
   steps:
     - name: build-and-push
-      image: gcr.io/kaniko-project/executor:latest
+      image: gcr.io/kaniko-project/executor
       env:
         - name: "DOCKER_CONFIG"
           value: "/builder/home/.docker/"
       command:
         - /kaniko/executor
       args:
-        - --dockerfile=$(inputs.params.pathToDockerFile)
-        - --destination=$(inputs.params.imageUrl):$(inputs.params.imageTag)
-        - --context=/workspace/git-source/$(inputs.params.pathToContext)
+        - --dockerfile=${inputs.params.pathToDockerFile}
+        - --destination=${inputs.params.imageUrl}:${inputs.params.imageTag}
+        - --context=/workspace/git-source/${inputs.params.pathToContext}
 """
 
 task_run = """
@@ -127,13 +127,13 @@ spec:
         resources:
           limits:
             memory: MEMORY
-            cpu: 1000m
+            #cpu: 1000m
 """
 
 
 def load_config(config_data):
 
-    required_keys = ('endpoint', 'docker_user', 'docker_token')
+    required_keys = ('docker_user', 'docker_token')
     if not set(required_keys) <= set(config_data['knative']):
         raise Exception('You must provide {} to access to Knative'.format(required_keys))
 

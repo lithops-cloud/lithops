@@ -79,7 +79,7 @@ def pywren_inside_pywren_map_function1(x):
     def _func(x):
         return x
 
-    pw = pywren.ibm_cf_executor(config=CONFIG)
+    pw = pywren.function_executor(config=CONFIG)
     pw.map(_func, range(x))
     return pw.get_result()
 
@@ -88,7 +88,7 @@ def pywren_inside_pywren_map_function2(x):
     def _func(x):
         return x
 
-    pw = pywren.ibm_cf_executor(config=CONFIG)
+    pw = pywren.function_executor(config=CONFIG)
     pw.call_async(_func, x)
     return pw.get_result()
 
@@ -97,7 +97,7 @@ def pywren_inside_pywren_map_function3(x):
     def _func(x):
         return x
 
-    pw = pywren.ibm_cf_executor(config=CONFIG)
+    pw = pywren.function_executor(config=CONFIG)
     fut1 = pw.map(_func, range(x))
     fut2 = pw.map(_func, range(x))
     return [pw.get_result(fut1), pw.get_result(fut2)]
@@ -189,17 +189,17 @@ class TestPywren(unittest.TestCase):
 
     def test_call_async(self):
         print('Testing call_async()...')
-        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw = pywren.function_executor(config=CONFIG)
         pw.call_async(hello_world, "")
         result = pw.get_result()
         self.assertEqual(result, "Hello World!")
 
-        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw = pywren.function_executor(config=CONFIG)
         pw.call_async(simple_map_function, [4, 6])
         result = pw.get_result()
         self.assertEqual(result, 10)
 
-        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw = pywren.function_executor(config=CONFIG)
         pw.call_async(simple_map_function, {'x': 2, 'y': 8})
         result = pw.get_result()
         self.assertEqual(result, 10)
@@ -207,7 +207,7 @@ class TestPywren(unittest.TestCase):
     def test_map(self):
         print('Testing map()...')
         iterdata = [[1, 1], [2, 2], [3, 3], [4, 4]]
-        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw = pywren.function_executor(config=CONFIG)
         pw.map(simple_map_function, iterdata)
         result = pw.get_result()
         self.assertEqual(result, [2, 4, 6, 8])
@@ -215,14 +215,14 @@ class TestPywren(unittest.TestCase):
     def test_map_reduce(self):
         print('Testing map_reduce()...')
         iterdata = [[1, 1], [2, 2], [3, 3], [4, 4]]
-        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(simple_map_function, iterdata, simple_reduce_function)
         result = pw.get_result()
         self.assertEqual(result, 20)
 
     def test_multiple_executions(self):
         print('Testing multiple executions...')
-        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw = pywren.function_executor(config=CONFIG)
         iterdata = [[1, 1], [2, 2]]
         pw.map(simple_map_function, iterdata)
         iterdata = [[3, 3], [4, 4]]
@@ -246,17 +246,17 @@ class TestPywren(unittest.TestCase):
 
     def test_internal_executions(self):
         print('Testing internal executions...')
-        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw = pywren.function_executor(config=CONFIG)
         pw.map(pywren_inside_pywren_map_function1, range(1, 11))
         result = pw.get_result()
         self.assertEqual(result, [0] + [list(range(i)) for i in range(2, 11)])
 
-        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw = pywren.function_executor(config=CONFIG)
         pw.call_async(pywren_inside_pywren_map_function2, 10)
         result = pw.get_result()
         self.assertEqual(result, 10)
 
-        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw = pywren.function_executor(config=CONFIG)
         pw.map(pywren_inside_pywren_map_function3, range(1, 11))
         result = pw.get_result()
         self.assertEqual(result, [[0, 0]] + [[list(range(i)), list(range(i))] for i in range(2, 11)])
@@ -265,7 +265,7 @@ class TestPywren(unittest.TestCase):
         print('Testing map_reduce() over a COS bucket...')
         sb = STORAGE_CONFIG['backend']
         data_prefix = sb+'://'+STORAGE_CONFIG['bucket']+'/'+PREFIX+'/'
-        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(my_map_function_obj, data_prefix, my_reduce_function)
         result = pw.get_result()
         self.checkResult(result)
@@ -274,7 +274,7 @@ class TestPywren(unittest.TestCase):
         print('Testing map_reduce() over a COS bucket with one reducer per object...')
         sb = STORAGE_CONFIG['backend']
         data_prefix = sb+'://'+STORAGE_CONFIG['bucket']+'/'+PREFIX+'/'
-        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(my_map_function_obj, data_prefix, my_reduce_function, reducer_one_per_object=True)
         result = pw.get_result()
         self.checkResult(result)
@@ -284,7 +284,7 @@ class TestPywren(unittest.TestCase):
         sb = STORAGE_CONFIG['backend']
         bucket_name = STORAGE_CONFIG['bucket']
         iterdata = [sb+'://'+bucket_name+'/'+key for key in list_test_keys()]
-        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(my_map_function_obj, iterdata, my_reduce_function)
         result = pw.get_result()
         self.checkResult(result)
@@ -294,14 +294,14 @@ class TestPywren(unittest.TestCase):
         sb = STORAGE_CONFIG['backend']
         bucket_name = STORAGE_CONFIG['bucket']
         iterdata = [sb+'://'+bucket_name+'/'+key for key in list_test_keys()]
-        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(my_map_function_obj, iterdata, my_reduce_function, reducer_one_per_object=True)
         result = pw.get_result()
         self.checkResult(result)
 
     def test_map_reduce_url(self):
         print('Testing map_reduce() over URLs...')
-        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(my_map_function_url, TEST_FILES_URLS, my_reduce_function)
         result = pw.get_result()
         self.checkResult(result + 1)
@@ -309,7 +309,7 @@ class TestPywren(unittest.TestCase):
     def test_storage_handler(self):
         print('Testing ibm_cos function arg...')
         iterdata = [[key, STORAGE_CONFIG['bucket']] for key in list_test_keys()]
-        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(my_map_function_ibm_cos, iterdata, my_reduce_function)
         result = pw.get_result()
         self.checkResult(result)
@@ -317,7 +317,7 @@ class TestPywren(unittest.TestCase):
     def test_chunks_bucket(self):
         print('Testing cunk_size on a bucket...')
         data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
-        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(my_map_function_obj, data_prefix, my_reduce_function, chunk_size=1*1024**2)
         result = pw.get_result()
         self.checkResult(result)
@@ -325,7 +325,7 @@ class TestPywren(unittest.TestCase):
     def test_chunks_bucket_one_reducer_per_object(self):
         print('Testing cunk_size on a bucket with one reducer per object...')
         data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
-        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(my_map_function_obj, data_prefix, my_reduce_function, chunk_size=1*1024**2,
                       reducer_one_per_object=True)
         result = pw.get_result()
@@ -334,7 +334,7 @@ class TestPywren(unittest.TestCase):
     def test_cloudobject(self):
         print('Testing cloudobjects...')
         data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
-        pw = pywren.ibm_cf_executor(config=CONFIG)
+        pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(my_cloudobject_put, data_prefix, my_cloudobject_get)
         result = pw.get_result()
         self.checkResult(result)

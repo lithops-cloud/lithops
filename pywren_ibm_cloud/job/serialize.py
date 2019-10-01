@@ -18,14 +18,10 @@ import os
 import logging
 from pathlib import Path
 from io import BytesIO as StringIO
+from pywren_ibm_cloud.libs import glob2
 from pywren_ibm_cloud.utils import bytes_to_b64str
 from pywren_ibm_cloud.libs.cloudpickle import CloudPickler
 from pywren_ibm_cloud.libs.multyvac.module_dependency import ModuleDependencyAnalyzer
-
-try:
-    import glob2
-except Exception:
-    from pywren_ibm_cloud.libs import glob2
 
 
 logger = logging.getLogger(__name__)

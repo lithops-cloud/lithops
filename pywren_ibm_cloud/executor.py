@@ -13,7 +13,7 @@ from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.future import FunctionException
 from pywren_ibm_cloud.storage.utils import clean_os_bucket
 from pywren_ibm_cloud.monitor import wait_storage, wait_rabbitmq, ALL_COMPLETED
-from pywren_ibm_cloud.job import create_call_async_job, create_map_job, create_reduce_job
+from pywren_ibm_cloud.job import create_map_job, create_reduce_job
 from pywren_ibm_cloud.config import default_config, extract_storage_config, extract_compute_config, EXECUTION_TIMEOUT, default_logging_config
 from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_remote_cluster, create_executor_id
 
@@ -40,7 +40,7 @@ class FunctionExecutor:
 
     def __init__(self, config=None, runtime=None, runtime_memory=None, compute_backend=None,
                  compute_backend_region=None, storage_backend=None, storage_backend_region=None,
-                 log_level=None, rabbitmq_monitor=None):
+                 rabbitmq_monitor=None, log_level=None):
         """
         Initialize and return a FunctionExecutor class.
 
@@ -117,7 +117,8 @@ class FunctionExecutor:
         return futures
 
     def call_async(self, func, data, extra_env=None, runtime_memory=None,
-                   timeout=EXECUTION_TIMEOUT, include_modules=[], exclude_modules=[]):
+                   chunk_size=None, chunk_n=None, timeout=EXECUTION_TIMEOUT,
+                   include_modules=[], exclude_modules=[]):
         """
         For running one function execution asynchronously
         :param func: the function to map over the data
@@ -135,15 +136,19 @@ class FunctionExecutor:
         runtime_meta = select_runtime(self.config, self.internal_storage, self.compute_handler,
                                       self.executor_id, async_job_id, runtime_memory)
 
-        job = create_call_async_job(self.config, self.internal_storage,
-                                    self.executor_id, async_job_id,
-                                    func=func, data=data,
-                                    runtime_meta=runtime_meta,
-                                    runtime_memory=runtime_memory,
-                                    extra_env=extra_env,
-                                    execution_timeout=timeout,
-                                    include_modules=include_modules,
-                                    exclude_modules=exclude_modules)
+        job = create_map_job(self.config, self.internal_storage,
+                             self.executor_id, async_job_id,
+                             map_function=func,
+                             iterdata=[data],
+                             runtime_meta=runtime_meta,
+                             runtime_memory=runtime_memory,
+                             extra_env=extra_env,
+                             obj_chunk_size=chunk_size,
+                             obj_chunk_number=chunk_n,
+                             include_modules=include_modules,
+                             exclude_modules=exclude_modules,
+                             execution_timeout=timeout)
+
         future = self.invoker.run(job)
         self.jobs[async_job_id] = {'futures': future, 'state': JobState.running}
         self._state = ExecutorState.running
@@ -180,23 +185,23 @@ class FunctionExecutor:
         runtime_meta = select_runtime(self.config, self.internal_storage, self.compute_handler,
                                       self.executor_id, map_job_id, runtime_memory)
 
-        job, unused_ppo = create_map_job(self.config, self.internal_storage,
-                                         self.executor_id, map_job_id,
-                                         map_function=map_function,
-                                         iterdata=map_iterdata,
-                                         runtime_meta=runtime_meta,
-                                         runtime_memory=runtime_memory,
-                                         extra_params=extra_params,
-                                         extra_env=extra_env,
-                                         obj_chunk_size=chunk_size,
-                                         obj_chunk_number=chunk_n,
-                                         remote_invocation=remote_invocation,
-                                         remote_invocation_groups=remote_invocation_groups,
-                                         invoke_pool_threads=invoke_pool_threads,
-                                         include_modules=include_modules,
-                                         exclude_modules=exclude_modules,
-                                         is_remote_cluster=self.is_remote_cluster,
-                                         execution_timeout=timeout)
+        job = create_map_job(self.config, self.internal_storage,
+                             self.executor_id, map_job_id,
+                             map_function=map_function,
+                             iterdata=map_iterdata,
+                             runtime_meta=runtime_meta,
+                             runtime_memory=runtime_memory,
+                             extra_params=extra_params,
+                             extra_env=extra_env,
+                             obj_chunk_size=chunk_size,
+                             obj_chunk_number=chunk_n,
+                             remote_invocation=remote_invocation,
+                             remote_invocation_groups=remote_invocation_groups,
+                             invoke_pool_threads=invoke_pool_threads,
+                             include_modules=include_modules,
+                             exclude_modules=exclude_modules,
+                             is_remote_cluster=self.is_remote_cluster,
+                             execution_timeout=timeout)
 
         map_futures = self.invoker.run(job)
         self.jobs[map_job_id] = {'futures': map_futures, 'state': JobState.running}
@@ -242,25 +247,25 @@ class FunctionExecutor:
         runtime_meta = select_runtime(self.config, self.internal_storage, self.compute_handler,
                                       self.executor_id, map_job_id, map_runtime_memory)
 
-        job, parts_per_object = create_map_job(self.config, self.internal_storage,
-                                               self.executor_id, map_job_id,
-                                               map_function=map_function,
-                                               iterdata=map_iterdata,
-                                               runtime_meta=runtime_meta,
-                                               runtime_memory=map_runtime_memory,
-                                               extra_params=extra_params,
-                                               extra_env=extra_env,
-                                               obj_chunk_size=chunk_size,
-                                               obj_chunk_number=chunk_n,
-                                               remote_invocation=remote_invocation,
-                                               remote_invocation_groups=remote_invocation_groups,
-                                               invoke_pool_threads=invoke_pool_threads,
-                                               include_modules=include_modules,
-                                               exclude_modules=exclude_modules,
-                                               is_remote_cluster=self.is_remote_cluster,
-                                               execution_timeout=timeout)
+        map_job = create_map_job(self.config, self.internal_storage,
+                                 self.executor_id, map_job_id,
+                                 map_function=map_function,
+                                 iterdata=map_iterdata,
+                                 runtime_meta=runtime_meta,
+                                 runtime_memory=map_runtime_memory,
+                                 extra_params=extra_params,
+                                 extra_env=extra_env,
+                                 obj_chunk_size=chunk_size,
+                                 obj_chunk_number=chunk_n,
+                                 remote_invocation=remote_invocation,
+                                 remote_invocation_groups=remote_invocation_groups,
+                                 invoke_pool_threads=invoke_pool_threads,
+                                 include_modules=include_modules,
+                                 exclude_modules=exclude_modules,
+                                 is_remote_cluster=self.is_remote_cluster,
+                                 execution_timeout=timeout)
 
-        map_futures = self.invoker.run(job)
+        map_futures = self.invoker.run(map_job)
         self.jobs[map_job_id] = {'futures': map_futures, 'state': JobState.running}
         self._state = ExecutorState.running
 
@@ -272,17 +277,17 @@ class FunctionExecutor:
         runtime_meta = select_runtime(self.config, self.internal_storage, self.compute_handler,
                                       self.executor_id, reduce_job_id, reduce_runtime_memory)
 
-        job = create_reduce_job(self.config, self.internal_storage,
-                                self.executor_id, reduce_job_id,
-                                reduce_function, map_futures, parts_per_object,
-                                runtime_meta=runtime_meta,
-                                reducer_one_per_object=reducer_one_per_object,
-                                runtime_memory=reduce_runtime_memory,
-                                extra_env=extra_env,
-                                include_modules=include_modules,
-                                exclude_modules=exclude_modules)
+        reduce_job = create_reduce_job(self.config, self.internal_storage,
+                                       self.executor_id, reduce_job_id,
+                                       reduce_function, map_job, map_futures,
+                                       runtime_meta=runtime_meta,
+                                       reducer_one_per_object=reducer_one_per_object,
+                                       runtime_memory=reduce_runtime_memory,
+                                       extra_env=extra_env,
+                                       include_modules=include_modules,
+                                       exclude_modules=exclude_modules)
 
-        reduce_futures = self.invoker.run(job)
+        reduce_futures = self.invoker.run(reduce_job)
         self.jobs[reduce_job_id] = {'futures': reduce_futures, 'state': JobState.running}
 
         for f in map_futures:
@@ -461,6 +466,7 @@ class FunctionExecutor:
         :param dst_dir: destination folder to save .png plots.
         :param dst_file_name: name of the file.
         """
+        print()
         if not futures:
             futures = []
             for job in self.jobs:

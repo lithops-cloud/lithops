@@ -14,7 +14,63 @@
 # limitations under the License.
 #
 
-from pywren_ibm_cloud.executor import FunctionExecutor as ibm_cf_executor
+from pywren_ibm_cloud.executor import FunctionExecutor
 from pywren_ibm_cloud.version import __version__
 
 name = "pywren_ibm_cloud"
+
+
+def ibm_cf_executor(config=None, runtime=None, runtime_memory=None,
+                    compute_backend_region=None, storage_backend=None,
+                    storage_backend_region=None, rabbitmq_monitor=None,
+                    log_level=None):
+    """
+    Function executor for IBM Cloud Functions
+    """
+    compute_backend = 'ibm_cf'
+    return FunctionExecutor(
+        config=config, runtime=runtime, runtime_memory=runtime_memory,
+        compute_backend=compute_backend,
+        compute_backend_region=compute_backend_region,
+        storage_backend=storage_backend,
+        storage_backend_region=storage_backend_region,
+        rabbitmq_monitor=rabbitmq_monitor,
+        log_level=log_level
+    )
+
+
+def knative_executor(config=None, runtime=None, runtime_memory=None,
+                     compute_backend_region=None, storage_backend=None,
+                     storage_backend_region=None, rabbitmq_monitor=None,
+                     log_level=None):
+    """
+    Function executor for Knative
+    """
+    compute_backend = 'knative'
+    return FunctionExecutor(
+        config=config, runtime=runtime, runtime_memory=runtime_memory,
+        compute_backend=compute_backend,
+        compute_backend_region=compute_backend_region,
+        storage_backend=storage_backend,
+        storage_backend_region=storage_backend_region,
+        rabbitmq_monitor=rabbitmq_monitor,
+        log_level=log_level
+    )
+
+
+def function_executor(config=None, runtime=None, runtime_memory=None,
+                      compute_backend=None, compute_backend_region=None,
+                      storage_backend=None, storage_backend_region=None,
+                      rabbitmq_monitor=None, log_level=None):
+    """
+    Generic function executor
+    """
+    return FunctionExecutor(
+        config=config, runtime=runtime, runtime_memory=runtime_memory,
+        compute_backend=compute_backend,
+        compute_backend_region=compute_backend_region,
+        storage_backend=storage_backend,
+        storage_backend_region=storage_backend_region,
+        rabbitmq_monitor=rabbitmq_monitor,
+        log_level=log_level
+    )

@@ -27,18 +27,22 @@ def select_runtime(config, internal_storage, compute_handler, executor_id, job_i
         print(log_msg, end=' ')
 
     runtime_key = compute_handler.get_runtime_key(runtime_name, runtime_memory)
+    runtime_deployed = True
     try:
         runtime_meta = internal_storage.get_runtime_meta(runtime_key)
         if not log_level:
             print()
     except Exception:
+        runtime_deployed = False
+
+    if not runtime_deployed:
         logger.debug('ExecutorID {} | JobID {} - Runtime {} with {}MB is not yet '
                      'installed'.format(executor_id, job_id, runtime_name, runtime_memory))
         if not log_level:
             print('(Installing...)')
 
         timeout = config['pywren']['runtime_timeout']
-        logger.debug('Creating runtime: {}, memory: {}'.format(runtime_name, runtime_memory))
+        logger.debug('Creating runtime: {}, memory: {}MB'.format(runtime_name, runtime_memory))
         runtime_meta = compute_handler.create_runtime(runtime_name, runtime_memory, timeout=timeout)
         internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 

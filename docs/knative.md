@@ -1,29 +1,51 @@
-# PyWren on Knative
+# PyWren on Knative (Experimental)
 
-The easiest way to make it working is to create an IBM Kuberentes (IKS) cluster (1.15.3) trough the [IBM dashboard](https://cloud.ibm.com/kubernetes/landing). You must create a cluster with at least 3 worker nodes, each one with a minimum flavor of 4vCPU and 16GB RAM.
+The easiest way to make it working is to create an IBM Kubernetes (IKS) cluster trough the [IBM dashboard](https://cloud.ibm.com/kubernetes/landing). At this moment, for testing purposes, it is preferable to use this setup:
+- Install Kubernetes v1.15.3
+- Select a **single zone** to place the worker nodes
+- *Master service endpoint*: Public endpoint only
+- You must create a cluster with at least 3 worker nodes, each one with a minimum flavor of 4vCPU and 16GB RAM
+- No need to encrypt local disk
+
+Once the cluster is running, follow the instructions of the "Access" tab to configure the *kubectl* client in your local machine. Then, follow one of this two options to install the PyWren environment:
+
+  - Option 1 (IBM IKS):
+
+    1. In the Dashboard of your cluster, go to the "Add-ons" tab and install knative v0.8.0. It automatically installs Istio v1.2.5 and Tekton v0.3.1.
 
 
-Once created, follow instructions of the "Access" tab to configure the kubectl clt in your local machine. Then:
+  - Option 2 (IBM IKS or any other Kubernetes Cluster):
 
-1. Install tekton>=0.6: `kubectl apply --filename https://storage.googleapis.com/tekton-releases/latest/release.yaml`
-2. Go to the "Add-ons" tab and install knative (It will automatically install Istio as a dependency)
-3. Wait until all pods are in Running state: `kubectl get pods --namespace knative-serving; kubectl get pods --namespace knative-eventing; kubectl get pods --namespace knative-monitoring`
+    1. Install the **helm** Kubernetes package manager in your local machine. Instructions can be found [here](https://github.com/helm/helm#install).
 
-Once all pods are ready, edit *~/.pywren_config* and add the next section:
+    2. Install the PyWren environment into the k8s cluster: Istio v1.1.7, Knative v0.9.0 and Tekton v0.5.0:
+        ```
+        curl http://cloudlab.urv.cat/josep/knative/install_pywren_env.sh | bash
+        ```
+
+
+#### Verify that all the pods from the following namespaces are in *Running* status: 
+```
+kubectl get pods --namespace istio-system
+kubectl get pods --namespace knative-serving
+kubectl get pods --namespace knative-eventing
+kubectl get pods --namespace knative-monitoring
+kubectl get pods --namespace tekton-pipelines
+```
+
+
+#### Edit *~/.pywren_config* and add the next section:
 
 ```yaml
 knative:
-      endpoint: http://ip-or-url.com:31380  # istio-ingressgateway endpoint
       docker_user: my-username
       docker_token: 12e9075f-6cd7-4147-a01e-8e34ffe9196e
 ```
-
-- **endpoint**: You can obtain the istio-ingressgateway endpoint by running: 
-`echo http://$(kubectl get svc istio-ingressgateway --namespace istio-system --output 'jsonpath={.status.loadBalancer.ingress[0].ip}'):$(kubectl get svc istio-ingressgateway --namespace istio-system --output 'jsonpath={.spec.ports[?(@.port==80)].nodePort}')`
-
 - **docker_token**: Login to your docker hub account and generate a new docker access token [here](https://hub.docker.com/settings/security)
 
-To finish the process, test if everything is working:
+
+
+#### Test if everything is working properly:
 
 ```python
 import pywren_ibm_cloud as pywren
@@ -32,12 +54,13 @@ def my_function(x):
     return x + 7
 
 if __name__ == '__main__':
-    pw = pywren.ibm_cf_executor(compute_backend='knative')
-    pw.call_async(my_function, 3)
-    print (pw.get_result())
+    kn = pywren.knative_executor()
+    kn.call_async(my_function, 3)
+    print(kn.get_result())
 ```
 
-You can see in another terminal how pods and other resources are created with:
+
+#### Check how pods and other resources are created:
 
 ```
 export KUBECONFIG=/home/... (Same as before in "Access" tab)
