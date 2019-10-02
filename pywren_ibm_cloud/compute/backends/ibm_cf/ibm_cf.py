@@ -272,7 +272,7 @@ class IBMCloudFunctionsBackend:
                 return runtime_meta
             """
 
-        runtime_memory = 130
+        runtime_memory = 128
         # old_stdout = sys.stdout
         # sys.stdout = open(os.devnull, 'w')
         action_name = self._format_action_name(docker_image_name, runtime_memory)
