@@ -1,0 +1,14 @@
+# Based on: https://github.com/ibm-functions/runtime-python/tree/master/python3.6
+
+FROM ibmfunctions/action-python-v3.6:master
+
+RUN apt-get update && apt-get install -y \
+        wget build-essential cmake pkg-config \
+        && rm -rf /var/lib/apt/lists/*
+
+RUN apt-cache search linux-headers-generic
+
+RUN pip install opencv-contrib-python-headless opencv-python-headless dlib
+RUN wget https://sourceforge.net/projects/protomol/files/ProtoMol/Protomol%203.3/ProtoMol-3.3.0-Linux-64bit.tar.gz && tar -zxvf ProtoMol-3.3.0-Linux-64bit.tar.gz
+RUN cp /ProtoMol-3.3.0-Linux-64bit/ProtoMol /tmp/ProtoMol
+RUN chmod +x /tmp/ProtoMol
