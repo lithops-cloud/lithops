@@ -7,6 +7,8 @@
 - Added knative-serving compute backend
 - Added Dockerfile skeleton for slim Python3.6 runtime (only 307MB)
 - Added CACHE_DIR in ~/.pywren/cache
+- knative_executor() and function_executor()
+- support to work on multiple regions at a time
 
 ### Changed
 - Docs updated

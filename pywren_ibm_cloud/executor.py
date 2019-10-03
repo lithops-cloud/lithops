@@ -6,15 +6,13 @@ import json
 import signal
 import logging
 import traceback
-from pywren_ibm_cloud.compute import Compute
-from pywren_ibm_cloud.runtime import select_runtime
 from pywren_ibm_cloud.invoker import FunctionInvoker
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.future import FunctionException
 from pywren_ibm_cloud.storage.utils import clean_os_bucket
 from pywren_ibm_cloud.monitor import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from pywren_ibm_cloud.job import create_map_job, create_reduce_job
-from pywren_ibm_cloud.config import default_config, extract_storage_config, extract_compute_config, EXECUTION_TIMEOUT, default_logging_config
+from pywren_ibm_cloud.config import default_config, extract_storage_config, EXECUTION_TIMEOUT, default_logging_config
 from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_remote_cluster, create_executor_id
 
 logger = logging.getLogger(__name__)
@@ -103,9 +101,7 @@ class FunctionExecutor:
 
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
-        compute_config = extract_compute_config(self.config)
-        self.compute_handler = Compute(compute_config)
-        self.invoker = FunctionInvoker(self.config, self.executor_id, self.compute_handler)
+        self.invoker = FunctionInvoker(self.config, self.executor_id, self.internal_storage)
 
         self.jobs = {}
 
@@ -133,8 +129,7 @@ class FunctionExecutor:
         job_id = str(len(self.jobs)).zfill(3)
         async_job_id = 'A{}'.format(job_id)
 
-        runtime_meta = select_runtime(self.config, self.internal_storage, self.compute_handler,
-                                      self.executor_id, async_job_id, runtime_memory)
+        runtime_meta = self.invoker.select_runtime(async_job_id, runtime_memory)
 
         job = create_map_job(self.config, self.internal_storage,
                              self.executor_id, async_job_id,
@@ -182,8 +177,7 @@ class FunctionExecutor:
         job_id = str(total_current_jobs).zfill(3)
         map_job_id = 'M{}'.format(job_id)
 
-        runtime_meta = select_runtime(self.config, self.internal_storage, self.compute_handler,
-                                      self.executor_id, map_job_id, runtime_memory)
+        runtime_meta = self.invoker.select_runtime(map_job_id, runtime_memory)
 
         job = create_map_job(self.config, self.internal_storage,
                              self.executor_id, map_job_id,
@@ -244,8 +238,7 @@ class FunctionExecutor:
         job_id = str(total_current_jobs).zfill(3)
         map_job_id = 'M{}'.format(job_id)
 
-        runtime_meta = select_runtime(self.config, self.internal_storage, self.compute_handler,
-                                      self.executor_id, map_job_id, map_runtime_memory)
+        runtime_meta = self.invoker.select_runtime(map_job_id, map_runtime_memory)
 
         map_job = create_map_job(self.config, self.internal_storage,
                                  self.executor_id, map_job_id,
@@ -274,8 +267,7 @@ class FunctionExecutor:
 
         reduce_job_id = 'R{}'.format(job_id)
 
-        runtime_meta = select_runtime(self.config, self.internal_storage, self.compute_handler,
-                                      self.executor_id, reduce_job_id, reduce_runtime_memory)
+        runtime_meta = self.invoker.select_runtime(reduce_job_id, reduce_runtime_memory)
 
         reduce_job = create_reduce_job(self.config, self.internal_storage,
                                        self.executor_id, reduce_job_id,
@@ -466,7 +458,6 @@ class FunctionExecutor:
         :param dst_dir: destination folder to save .png plots.
         :param dst_file_name: name of the file.
         """
-        print()
         if not futures:
             futures = []
             for job in self.jobs:

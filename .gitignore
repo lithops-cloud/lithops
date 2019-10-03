@@ -12,9 +12,12 @@ pywren_*.zip
 # Mac
 .DS_Store
 
-# IDE - Eclipse PyDev 
+# IDE - Eclipse PyDev
 .project
 .pydevproject
+
+# IDE - PyCharm
+.idea/
 
 # Jupyter Notebook
 .ipynb_checkpoints

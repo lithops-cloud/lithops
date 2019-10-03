@@ -64,9 +64,15 @@ def load_config(config_data):
             raise Exception('You must provide {} or {} to access to IBM Cloud '
                             'Functions'.format(required_parameters_1, required_parameters_2))
 
-    if 'compute_backend_region' not in config_data['pywren']:
-        config_data['pywren']['compute_backend_region'] = list(config_data['ibm_cf']['regions'].keys())[0]
+    cbr = config_data['pywren'].get('compute_backend_region')
+    if type(cbr) == list:
+        for region in cbr:
+            if region not in config_data['ibm_cf']['regions']:
+                raise Exception('Invalid Compute backend region: {}'.format(region))
+    else:
+        if cbr is None:
+            cbr = list(config_data['ibm_cf']['regions'].keys())[0]
+            config_data['pywren']['compute_backend_region'] = cbr
 
-    cbr = config_data['pywren']['compute_backend_region']
-    if cbr is not None and cbr not in config_data['ibm_cf']['regions']:
-        raise Exception('Invalid Compute backend region: {}'.format(cbr))
+        if cbr not in config_data['ibm_cf']['regions']:
+            raise Exception('Invalid Compute backend region: {}'.format(cbr))
