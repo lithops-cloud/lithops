@@ -11,7 +11,7 @@ RUN pip install --upgrade setuptools six \
 	    ibm-cos-sdk \
 	    redis \
 	    requests \
-	    numpy \
+	    numpy
 
 # Copy PyWren proxy  and lib to the container image.
 ENV APP_HOME /pywren
