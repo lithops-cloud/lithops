@@ -6,80 +6,64 @@ Additionally, the built-in data-processing logic integrates a **data partitioner
 
 
 ## Processing data from IBM Cloud Object Storage
-The input to the partitioner may be either a list of data objects, a list of URLs or the entire bucket itself. The partitioner is activated inside PyWren and it responsible to split the objects into smaller chunks. It executes one *`my_map_function`* for each object chunk and when all executions are completed, the partitioner executes the *`my_reduce_function`*. The reduce function will wait for all the partial results before processing them. 
+This mode is activated when you write the parameter **obj** into the function arguments. The input to the partitioner may be either a list of buckets, a list of buckets with object prefix, or a list of data objects. If you set the *size of the chunk* or the *number of chunks*, the partitioner is activated inside PyWren and it is responsible to split the objects into smaller chunks, eventually running one function activation for each generated chunk. If *size of the chunk* and *number of chunks* are not set, chunk is an entire object, so one function activation is executed for each individual object. For example consider the following function:
 
 
-#### Partitioner get a list of objects
+The *obj** parameter is a class from where you can access all the information related to the object (or chunk) that the function is processing. For example, consider the following function:
+
 
 ```python
-import pywren_ibm_cloud as pywren
-
-iterdata = ['cos://bucket1/object1', 'cos://bucket1/object2', 'cos://bucket1/object3'] 
-
 def my_map_function(obj):
-    for line in obj.data_stream:
-        # Do some process
-    return partial_intersting_data
-
-def my_reduce_function(results):
-    for partial_intersting_data in results:
-        # Do some process
-    return final_result
-
-chunk_size = 4*1024**2  # 4MB
-
-pw = pywren.ibm_cf_executor()
-pw.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_size=chunk_size)
-result = pw.get_result()
+    print(obj.bucket)
+    print(obj.key)
+    print(obj.data_stream.read())
+    print(obj.part)
+    print(obj.data_byte_range)
+    print(obj.chunk_size)
 ```
 
-| method | method signature |
-|---| ---| 
-| `pw.map_reduce`(`my_map_function`, `iterdata`, `my_reduce_function`, `chunk_size`)| `iterdata` contains list of objects in the format of `bucket_name/object_name` |
-| `my_map_function`(`obj`) | `obj` is a Python class that contains the *bucket*, *key* and *data_stream* of the object assigned to the activation|
+As stated above, the allowed inputs of the function can be:
+- Partitioner gets entire bucket(s):
+    ```python
+    iterdata = 'cos://bucket1'
+    ```
 
-#### Partitioner gets entire bucket
+- Partitioner gets bucket(s) with object prefix:
+    ```python
+    iterdata = ['cos://bucket1/images/', 'cos://bucket1/videos/']
+    ```
+    Notice that you must write the end slash (/) to inform partitioner you are providing an object prefix.
 
-Commonly, a dataset may contains hundreds or thousands of files, so the previous approach where you have to specify each object one by one is not well suited in this case. With this new `map_reduce()` method you can specify, instead, the bucket name which contains all the object of the dataset.
-    
-```python
+- Partitioner get a list of objects:
+    ```python
+    iterdata = ['cos://bucket1/object1', 'cos://bucket1/object2', 'cos://bucket1/object3'] 
+    ```
+
+Once iterdata is defined, you can execute PyWren as usual, either using *map()* or **map_reduce()* calls. If you need to split the files in smaller chunks, you can set (optionally) the *chunk_size* or *chunk_n* parameters.
+
+```
 import pywren_ibm_cloud as pywren
 
-bucket_name = 'cos://my_data_bucket'
-
-def my_map_function(obj, ibm_cos):
-    for line in obj.data_stream:
-        # Do some process
-    return partial_intersting_data
-
-def my_reduce_function(results):
-    for partial_intersting_data in results:
-        # Do some process
-    return final_result
-
 chunk_size = 4*1024**2  # 4MB
 
 pw = pywren.ibm_cf_executor()
-pw.map_reduce(my_map_function, bucket_name, my_reduce_function, chunk_size=chunk_size)
+pw.map_reduce(my_map_function, iterdata, chunk_size=chunk_size)
 result = pw.get_result()
 ```
-
-* If `chunk_size=None` then partitioner's granularity is a single object. 
-    
-| method | method signature |
-|---| ---| 
-| `pw.map_reduce`(`my_map_function`, `bucket_name`, `my_reduce_function`, `chunk_size`)| `bucket_name` contains the name of the bucket |
-| `my_map_function`(`obj`, `ibm_cos`) | `obj` is a Python class that contains the *bucket*, *key* and *data_stream* of the object assigned to the activation. `ibm_cos` is an optional parameter which provides a `ibm_boto3.Client()`|
-
 
 ## Processing data from public URLs
+This mode is activated when you write the parameter **url** into the function arguments. The input to the partitioner must be a list of object URls. As with COS data processing, if you set the *size of the chunk* or the *number of chunks*, the partitioner is activated inside PyWren and it is responsible to split the objects into smaller chunks, as long as the remote storage server allows requests in chunks (ranges). If range requests are not allowed in the remote storage server, each URL is treated as a single object. For example consider the following code:
 
 ```python
 import pywren_ibm_cloud as pywren
 
-iterdata = ['http://myurl/myobject1', 'http://myurl/myobject1'] 
-
 def my_map_function(url):
+    print(url.path)
+    print(url.data_stream.read())
+    print(url.part)
+    print(url.data_byte_range)
+    print(url.chunk_size)
+
     for line in url.data_stream:
         # Do some process
     return partial_intersting_data
@@ -89,24 +73,20 @@ def my_reduce_function(results):
         # Do some process
     return final_result
 
-chunk_size = 4*1024**2  # 4MB
+iterdata = ['http://myurl/myobject1', 'http://myurl/myobject1'] 
+chunk_n = 5
 
 pw = pywren.ibm_cf_executor()
-pw.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_size=chunk_size)
+pw.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_n=chunk_n)
 result = pw.get_result()
 ```
 
-| method | method signature |
-|---| ---| 
-| `pw.map_reduce`(`my_map_function`, `iterdata`, `my_reduce_function`, `chunk_size`)| `iterdata` contains list of objects in the format of `http://myurl/myobject.data` |
-| `my_map_function`(`url`) | `url` is an object Pytnon class that contains the url *path* assigned to the activation (an entry of iterdata) and the *data_stream*|
 
 ## Reducer granularity            
-By default there will be one reducer for all the objects. If you need one reducer for each object, you must set the parameter
-`reducer_one_per_object=True` into the **map_reduce()** method.
+By default there will be one reducer for all the object chunks. If you need one reducer for each object, you must set the parameter
+`reducer_one_per_object=True` into the *map()* or *map_reduce()* methods.
 
 ```python
 pw.map_reduce(my_map_function, bucket_name, my_reduce_function, 
               chunk_size=chunk_size, reducer_one_per_object=True)
 ```
-

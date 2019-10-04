@@ -485,11 +485,11 @@ class KnativeServingBackend:
         payload['service_route'] = "/preinstalls"
         logger.debug("Extracting Python modules list from: {}".format(docker_image_name))
         try:
-            _, runtime_meta = self.invoke_with_result(docker_image_name, memory, payload)
+            runtime_meta = self.invoke_with_result(docker_image_name, memory, payload)
         except Exception as e:
             raise Exception("Unable to invoke 'modules' action {}".format(e))
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
-            raise Exception(runtime_meta)
+            raise Exception('Failed getting runtime metadata: {}'.format(runtime_meta))
 
         return runtime_meta
