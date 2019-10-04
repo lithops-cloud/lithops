@@ -213,10 +213,15 @@ class ResponseFuture:
         if self._state == CallState.futures:
             return self._new_futures
 
+        if self._state == CallState.error:
+            if throw_except:
+                raise FunctionException(self.executor_id, self.job_id, self.activation_id, self._exception)
+            else:
+                return None
+
         if internal_storage is None:
             internal_storage = InternalStorage(storage_config=self.storage_config)
-
-        self.status(throw_except, internal_storage)
+        self.status(throw_except=throw_except, internal_storage=internal_storage)
 
         if not self.produce_output:
             return

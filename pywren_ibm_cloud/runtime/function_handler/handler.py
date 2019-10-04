@@ -142,7 +142,7 @@ def function_handler(event):
         logger.debug('Starting JobRunner process')
         tr.start()
         tr.join(execution_timeout)
-        logger.debug('Finished JobRunner process')
+        logger.debug('JobRunner process finished')
         response_status['exec_time'] = round(time.time() - setup_time, 8)
 
         if tr.is_alive():
@@ -153,6 +153,8 @@ def function_handler(event):
             raise Exception('OUTATIME',  msg)
 
         if result_queue.empty():
+            logger.error('No completion message received from JobRunner process')
+            logger.debug('Assuming memory overflow...')
             # Only 1 message is returned by jobrunner when it finishes.
             # If no message, this means that the jobrunner process was killed.
             # 99% of times the jobrunner is killed due an OOM, so we assume here an OOM.

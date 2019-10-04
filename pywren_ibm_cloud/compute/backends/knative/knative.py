@@ -14,6 +14,7 @@ from . import config as kconfig
 import urllib3
 urllib3.disable_warnings()
 logging.getLogger('kubernetes').setLevel(logging.CRITICAL)
+logging.getLogger('urllib3.connectionpool').setLevel(logging.CRITICAL)
 
 #Monkey patch for issue: https://github.com/kubernetes-client/python/issues/895
 from kubernetes.client.models.v1_container_image import V1ContainerImage
@@ -419,6 +420,7 @@ class KnativeServingBackend:
         route = payload.get("service_route", '/')
 
         try:
+            logger.debug('ExecutorID {} - Starting function invocation {}'.format(exec_id, call_id))
             start = time.time()
             parsed_url = urlparse(self.endpoint)
             conn = http.client.HTTPConnection(parsed_url.netloc, timeout=600)

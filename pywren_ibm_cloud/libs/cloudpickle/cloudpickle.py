@@ -551,13 +551,10 @@ class CloudPickler(Pickler):
         Determines what kind of function obj is (e.g. lambda, defined at
         interactive prompt, etc) and handles the pickling appropriately.
         """
-        if type(obj) == (types.ModuleType):
-            module = obj
-        else:
-            name = getattr(obj, '__name__', None)
-            module_name = _whichmodule(obj, name)
-            module = sys.modules.get(module_name, None)
-        if module:
+        name = getattr(obj, '__name__', None)
+        module_name = _whichmodule(obj, name)
+        module = sys.modules.get(module_name, None)
+        if module and 'cloudpickle' not in module.__name__:
             self.modules.add(module)
 
         if _is_global(obj, name=name):

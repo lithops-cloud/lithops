@@ -4,14 +4,14 @@ The easiest way to make it working is to create an IBM Kubernetes (IKS) cluster 
 - Install Kubernetes v1.15.3
 - Select a **single zone** to place the worker nodes
 - *Master service endpoint*: Public endpoint only
-- You must create a cluster with at least 3 worker nodes, each one with a minimum flavor of 4vCPU and 16GB RAM
+- Your cluster must have 3 or more worker nodes with at least 4 cores and 16GB RAM.
 - No need to encrypt local disk
 
 Once the cluster is running, follow the instructions of the "Access" tab to configure the *kubectl* client in your local machine. Then, follow one of this two options to install the PyWren environment:
 
   - Option 1 (IBM IKS):
 
-    1. In the Dashboard of your cluster, go to the "Add-ons" tab and install knative v0.8.0. It automatically installs Istio v1.2.5 and Tekton v0.3.1.
+    1. In the Dashboard of your cluster, go to the "Add-ons" tab and install knative v0.8.0. It automatically installs Istio v1.3.0 and Tekton v0.3.1.
 
 
   - Option 2 (IBM IKS or any other Kubernetes Cluster):

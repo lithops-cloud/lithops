@@ -116,7 +116,7 @@ pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ibm_cf| endpoint | |yes | IBM Cloud Functions endpoint from [here](https://cloud.ibm.com/docs/openwhisk?topic=cloud-functions-cloudfunctions_regions#cloud-functions-endpoints). Make sure to use https:// prefix |
+|ibm_cf| endpoint | |yes | IBM Cloud Functions endpoint from [here](https://cloud.ibm.com/docs/openwhisk?topic=cloud-functions-cloudfunctions_regions#cloud-functions-endpoints). Make sure to use https:// prefix, for example: https://us-east.functions.cloud.ibm.com |
 |ibm_cf| namespace | |yes | Value of CURRENT NAMESPACE from [here](https://cloud.ibm.com/functions/namespace-settings) |
 |ibm_cf| api_key |  | no | **Mandatory** if using Cloud Foundry-based namespace. Value of 'KEY' from [here](https://cloud.ibm.com/functions/namespace-settings)|
 |ibm_cf| namespace_id |  |no | **Mandatory** if using IAM-based namespace with IAM API Key. Value of 'GUID' from [here](https://cloud.ibm.com/functions/namespace-settings)|

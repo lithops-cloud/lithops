@@ -442,7 +442,7 @@ class FunctionExecutor:
                                                     download_results=True,
                                                     THREADPOOL_SIZE=THREADPOOL_SIZE,
                                                     WAIT_DUR_SEC=WAIT_DUR_SEC)
-        result = [f.result(internal_storage=self.internal_storage)
+        result = [f.result(throw_except=throw_except, internal_storage=self.internal_storage)
                   for f in fs_dones if not f.futures and f.produce_output]
         msg = "ExecutorID {} Finished getting results".format(self.executor_id)
         logger.debug(msg)
