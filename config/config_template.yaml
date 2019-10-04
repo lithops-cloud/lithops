@@ -21,17 +21,22 @@ ibm_cf:
     api_key     : <API_KEY>
 
 ibm_cos:
-    endpoint   : <REGION_ENDPOINT>
-    api_key    : <API_KEY>
+    endpoint    : <REGION_ENDPOINT>
+    api_key     : <API_KEY>
     #access_key : <ACCESS_KEY>  # Optional
     #secret_key : <SECRET_KEY>  # Optional
-    
+
+#rabbitmq:
+    #amqp_url   : <RABBIT_AMQP_URL>  # amqp://
+
+#knative:
+#   endpoint    : <ISTIO_INGRESS_ENDPOINT>
+#   docker_user : <DOCKER_HUB_USERNAME>
+#   docker_token: <DOCKER_HUB_TOKEN>
+
 #swift:
     #auth_url   : <SWIFT_AUTH_URL>
     #region     : <SWIFT_REGION>
     #user_id    : <SWIFT_USER_ID>
     #project_id : <SWIFT_PROJECT_ID>
     #password   : <SWIFT_PASSWORD>
-
-#rabbitmq:
-    #amqp_url 	: <RABBIT_AMQP_URL>  # amqp://

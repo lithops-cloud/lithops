@@ -137,4 +137,13 @@ pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-| rabbitmq |amqp_url | |no | AMQP URL |
+| rabbitmq |amqp_url | |no | AMQP URL from RabbitMQ service. Make sure to use amqp:// prefix |
+
+
+### Summary of configuration keys for Knative:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|ibm_cos | endpoint | |no | Istio IngressGateway Endpoint. Make sure to use http:// prefix |
+|ibm_cos | docker_user | |yes | Docker hub username |
+|ibm_cos | docker_token | |yes | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|

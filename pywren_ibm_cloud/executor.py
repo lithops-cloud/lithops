@@ -365,12 +365,14 @@ class FunctionExecutor:
             if pbar:
                 pbar.close()
             logger.info(e.msg)
-            if not is_notebook():
-                print()
             if not self.log_level:
+                if not is_notebook():
+                    print()
                 print(e.msg)
             if e.exc_msg:
-                print('--> Exception: ' + e.exc_msg)
+                logger.info('Exception: ' + e.exc_msg)
+                if not self.log_level:
+                    print('--> Exception: ' + e.exc_msg)
             else:
                 print()
                 traceback.print_exception(*e.exception)

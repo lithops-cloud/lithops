@@ -41,7 +41,7 @@ knative:
       docker_user: my-username
       docker_token: 12e9075f-6cd7-4147-a01e-8e34ffe9196e
 ```
-- **docker_token**: Login to your docker hub account and generate a new docker access token [here](https://hub.docker.com/settings/security)
+- **docker_token**: Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)
 
 
 
@@ -63,6 +63,5 @@ if __name__ == '__main__':
 #### Check how pods and other resources are created:
 
 ```
-export KUBECONFIG=/home/... (Same as before in "Access" tab)
 watch kubectl get pod,revision,service,deployment -o wide
 ```
