@@ -1,0 +1,9 @@
+# GDAL layers
+FROM continuumio/miniconda3
+RUN conda install gdal
+
+# pyrip layers
+RUN pip install pyrip
+
+# Application layers
+RUN pip install ibm-cos-sdk pyarrow
