@@ -41,6 +41,11 @@ class KnativeServingBackend:
         config.load_kube_config()
         self.api = client.CustomObjectsApi()
         self.v1 = client.CoreV1Api()
+        # get current context
+        current_context = config.list_kube_config_contexts()[1]
+        current_context_details = current_context.get('context')
+        # get namespace of current context
+        self.namespace = current_context_details.get('namespace')
 
         self.headers = {'content-type': 'application/json'}
 
@@ -103,7 +108,7 @@ class KnativeServingBackend:
                             group="serving.knative.dev",
                             version="v1alpha1",
                             name=service_name,
-                            namespace="default",
+                            namespace=self.namespace,
                             plural="services"
                     )
                 if svc is not None:
@@ -139,14 +144,14 @@ class KnativeServingBackend:
         account_res_name = account_res['metadata']['name']
 
         try:
-            self.v1.delete_namespaced_secret(secret_res_name, 'default')
-            self.v1.delete_namespaced_service_account(account_res_name, 'default')
+            self.v1.delete_namespaced_secret(secret_res_name, self.namespace)
+            self.v1.delete_namespaced_service_account(account_res_name, self.namespace)
         except Exception:
             # account resource Not Found - Not deleted
             pass
 
-        self.v1.create_namespaced_secret('default', secret_res)
-        self.v1.create_namespaced_service_account('default', account_res)
+        self.v1.create_namespaced_secret(self.namespace, secret_res)
+        self.v1.create_namespaced_service_account(self.namespace, account_res)
 
     def _create_build_resources(self):
         logger.debug("Creating Build resources: PipelineResource and Task")
@@ -167,7 +172,7 @@ class KnativeServingBackend:
                     group="tekton.dev",
                     version="v1alpha1",
                     name=task_name,
-                    namespace="default",
+                    namespace=self.namespace,
                     plural="tasks",
                     body=client.V1DeleteOptions()
                 )
@@ -180,7 +185,7 @@ class KnativeServingBackend:
                     group="tekton.dev",
                     version="v1alpha1",
                     name=git_res_name,
-                    namespace="default",
+                    namespace=self.namespace,
                     plural="pipelineresources",
                     body=client.V1DeleteOptions()
                 )
@@ -191,7 +196,7 @@ class KnativeServingBackend:
         self.api.create_namespaced_custom_object(
                 group="tekton.dev",
                 version="v1alpha1",
-                namespace="default",
+                namespace=self.namespace,
                 plural="pipelineresources",
                 body=git_res
             )
@@ -199,7 +204,7 @@ class KnativeServingBackend:
         self.api.create_namespaced_custom_object(
                 group="tekton.dev",
                 version="v1alpha1",
-                namespace="default",
+                namespace=self.namespace,
                 plural="tasks",
                 body=task_def
             )
@@ -225,7 +230,7 @@ class KnativeServingBackend:
                     group="tekton.dev",
                     version="v1alpha1",
                     name=task_run_name,
-                    namespace="default",
+                    namespace=self.namespace,
                     plural="taskruns",
                     body=client.V1DeleteOptions()
                 )
@@ -235,14 +240,14 @@ class KnativeServingBackend:
         self.api.create_namespaced_custom_object(
                     group="tekton.dev",
                     version="v1alpha1",
-                    namespace="default",
+                    namespace=self.namespace,
                     plural="taskruns",
                     body=task_run
                 )
 
         pod_name = None
         w = watch.Watch()
-        for event in w.stream(self.api.list_namespaced_custom_object, namespace='default',
+        for event in w.stream(self.api.list_namespaced_custom_object, namespace=self.namespace,
                               group="tekton.dev", version="v1alpha1", plural="taskruns",
                               field_selector="metadata.name={0}".format(task_run_name)):
             if event['object'].get('status') is not None:
@@ -253,7 +258,7 @@ class KnativeServingBackend:
             raise Exception('Unable to get the pod name from the task that is building the runtime')
 
         w = watch.Watch()
-        for event in w.stream(self.v1.list_namespaced_pod, namespace='default',
+        for event in w.stream(self.v1.list_namespaced_pod, namespace=self.namespace,
                               field_selector="metadata.name={0}".format(pod_name)):
             if event['object'].status.phase == "Succeeded":
                 w.stop()
@@ -265,7 +270,7 @@ class KnativeServingBackend:
                     group="tekton.dev",
                     version="v1alpha1",
                     name=task_run_name,
-                    namespace="default",
+                    namespace=self.namespace,
                     plural="taskruns",
                     body=client.V1DeleteOptions()
                 )
@@ -281,6 +286,7 @@ class KnativeServingBackend:
 
         service_name = self._format_service_name(docker_image_name, runtime_memory)
         svc_res['metadata']['name'] = service_name
+        svc_res['metadata']['namespace'] = self.namespace
 
         svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
 
@@ -295,7 +301,7 @@ class KnativeServingBackend:
                     group="serving.knative.dev",
                     version="v1alpha1",
                     name=service_name,
-                    namespace="default",
+                    namespace=self.namespace,
                     plural="services",
                     body=client.V1DeleteOptions()
                 )
@@ -306,14 +312,14 @@ class KnativeServingBackend:
         self.api.create_namespaced_custom_object(
                 group="serving.knative.dev",
                 version="v1alpha1",
-                namespace="default",
+                namespace=self.namespace,
                 plural="services",
                 body=svc_res
             )
 
         w = watch.Watch()
         for event in w.stream(self.api.list_namespaced_custom_object,
-                              namespace='default', group="serving.knative.dev",
+                              namespace=self.namespace, group="serving.knative.dev",
                               version="v1alpha1", plural="services",
                               field_selector="metadata.name={0}".format(service_name)):
             conditions = None
@@ -383,7 +389,7 @@ class KnativeServingBackend:
                     group="serving.knative.dev",
                     version="v1alpha1",
                     name=service_name,
-                    namespace="default",
+                    namespace=self.namespace,
                     plural="services",
                     body=client.V1DeleteOptions()
                 )
@@ -402,7 +408,7 @@ class KnativeServingBackend:
         return: list of tuples [docker_image_name, memory]
         """
         #TODO
-        runtimes = [[docker_image_name, 0]]
+        runtimes = [[docker_image_name, 256]]
         return runtimes
 
     def invoke(self, docker_image_name, memory, payload):
