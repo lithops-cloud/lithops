@@ -9,7 +9,7 @@ Additionally, the built-in data-processing logic integrates a **data partitioner
 This mode is activated when you write the parameter **obj** into the function arguments. The input to the partitioner may be either a list of buckets, a list of buckets with object prefix, or a list of data objects. If you set the *size of the chunk* or the *number of chunks*, the partitioner is activated inside PyWren and it is responsible to split the objects into smaller chunks, eventually running one function activation for each generated chunk. If *size of the chunk* and *number of chunks* are not set, chunk is an entire object, so one function activation is executed for each individual object. For example consider the following function:
 
 
-The *obj** parameter is a class from where you can access all the information related to the object (or chunk) that the function is processing. For example, consider the following function:
+The *obj* parameter is a python class from where you can access all the information related to the object (or chunk) that the function is processing. For example, consider the following function that shows all the available attributes in *obj*:
 
 
 ```python
@@ -23,25 +23,32 @@ def my_map_function(obj):
 ```
 
 As stated above, the allowed inputs of the function can be:
-- Partitioner gets entire bucket(s):
+
+- Input data is a bucket or a list of buckets. See a complete example in [map_reduce_cos_bucket.py](../examples/map_reduce_cos_bucket.py):
     ```python
     iterdata = 'cos://bucket1'
     ```
 
-- Partitioner gets bucket(s) with object prefix:
+-  Input data is a bucket(s) with object prefix. See a complete example in [map_cos_prefix.py](../examples/map_cos_prefix.py):
     ```python
     iterdata = ['cos://bucket1/images/', 'cos://bucket1/videos/']
     ```
     Notice that you must write the end slash (/) to inform partitioner you are providing an object prefix.
 
-- Partitioner get a list of objects:
+- Input data is a list of object keys. See a complete example in [map_reduce_cos_key.py](../examples/map_reduce_cos_key.py):
     ```python
     iterdata = ['cos://bucket1/object1', 'cos://bucket1/object2', 'cos://bucket1/object3'] 
     ```
+    
+Notice that *iterdata* must be only one of the previous 3 types. Intermingled types are not allowed. For example, you cannot set in the same *iterdata* list a bucket and some object keys:
+
+```python
+iterdata = ['cos://bucket1', 'cos://bucket1/object2', 'cos://bucket1/object3'] 
+```
 
 Once iterdata is defined, you can execute PyWren as usual, either using *map()* or **map_reduce()* calls. If you need to split the files in smaller chunks, you can set (optionally) the *chunk_size* or *chunk_n* parameters.
 
-```
+```python
 import pywren_ibm_cloud as pywren
 
 chunk_size = 4*1024**2  # 4MB
@@ -52,7 +59,7 @@ result = pw.get_result()
 ```
 
 ## Processing data from public URLs
-This mode is activated when you write the parameter **url** into the function arguments. The input to the partitioner must be a list of object URls. As with COS data processing, if you set the *size of the chunk* or the *number of chunks*, the partitioner is activated inside PyWren and it is responsible to split the objects into smaller chunks, as long as the remote storage server allows requests in chunks (ranges). If range requests are not allowed in the remote storage server, each URL is treated as a single object. For example consider the following code:
+This mode is activated when you write the parameter **url** into the function arguments. The input to the partitioner must be a list of object URls. As with COS data processing, if you set the *size of the chunk* or the *number of chunks*, the partitioner is activated inside PyWren and it is responsible to split the objects into smaller chunks, as long as the remote storage server allows requests in chunks (ranges). If range requests are not allowed in the remote storage server, each URL is treated as a single object. For example consider the following code that shows all the available attributes in *url*:
 
 ```python
 import pywren_ibm_cloud as pywren
@@ -80,6 +87,8 @@ pw = pywren.ibm_cf_executor()
 pw.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_n=chunk_n)
 result = pw.get_result()
 ```
+
+See a complete example in [map_reduce_url.py](../examples/map_reduce_url.py).
 
 
 ## Reducer granularity            

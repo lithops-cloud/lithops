@@ -3,7 +3,7 @@ Simple PyWren example using the map method.
 In this example the map() method will launch one
 map function for each entry in 'iterdata'. Finally
 it will print the results for each invocation with
-pw.get_all_result()
+pw.get_result()
 """
 import pywren_ibm_cloud as pywren
 

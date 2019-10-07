@@ -25,7 +25,7 @@ RUN pip install --upgrade setuptools six \
 	    ibm-cos-sdk==2.5.3 \
 	    redis==3.3.8 \
 	    requests \
-	    numpy==1.17.2 \
+	    numpy==1.17.2
 
 
 # create action working directory
