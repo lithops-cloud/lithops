@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-__version__ = "1.0.21-SNAPSHOT"
+__version__ = "1.1.1-SNAPSHOT"
 
 if __name__ == "__main__":
     print(__version__)
