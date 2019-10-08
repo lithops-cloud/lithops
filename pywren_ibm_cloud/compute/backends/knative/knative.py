@@ -46,7 +46,7 @@ class KnativeServingBackend:
         current_context = config.list_kube_config_contexts()[1]
         current_context_details = current_context.get('context')
         # get namespace of current context
-        self.namespace = current_context_details.get('namespace')
+        self.namespace = current_context_details.get('namespace', 'default')
 
         self.headers = {'content-type': 'application/json'}
 
