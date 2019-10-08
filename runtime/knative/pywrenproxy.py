@@ -1,5 +1,6 @@
 import sys
 import os
+import uuid
 import flask
 import logging
 import pkgutil
@@ -24,11 +25,11 @@ def run():
     if message and not isinstance(message, dict):
         return error()
 
+    act_id = str(uuid.uuid4()).replace('-', '')[:12]
     logger.info("Starting knative Function execution")
     function_handler(message)
-    result = {"Execution": "Finished"}
-    response = flask.jsonify(result)
-    response.status_code = 200
+    response = flask.jsonify({"activationId": act_id})
+    response.status_code = 202
 
     return complete(response)
 

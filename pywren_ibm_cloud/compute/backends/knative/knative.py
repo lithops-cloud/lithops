@@ -14,6 +14,7 @@ from . import config as kconfig
 import urllib3
 urllib3.disable_warnings()
 logging.getLogger('kubernetes').setLevel(logging.CRITICAL)
+logging.getLogger('urllib3.connectionpool').setLevel(logging.CRITICAL)
 
 #Monkey patch for issue: https://github.com/kubernetes-client/python/issues/895
 from kubernetes.client.models.v1_container_image import V1ContainerImage
@@ -411,7 +412,7 @@ class KnativeServingBackend:
         runtimes = [[docker_image_name, 256]]
         return runtimes
 
-    def invoke(self, docker_image_name, memory, payload):
+    def invoke(self, docker_image_name, memory, payload, return_result=False):
         """
         Invoke -- return information about this invocation
         """
@@ -425,12 +426,16 @@ class KnativeServingBackend:
         route = payload.get("service_route", '/')
 
         try:
+            logger.debug('ExecutorID {} | JobID {} - Starting function invocation {}'
+                         .format(exec_id, job_id, call_id))
             start = time.time()
             parsed_url = urlparse(self.endpoint)
             conn = http.client.HTTPConnection(parsed_url.netloc, timeout=600)
             conn.request("POST", route,
                          body=json.dumps(payload),
                          headers=self.headers)
+            logger.debug('ExecutorID {} | JobID {} - Function invocation {} done. Waiting '
+                         'for a response'.format(exec_id, job_id, call_id))
             resp = conn.getresponse()
             resp_status = resp.status
             resp_data = resp.read().decode("utf-8")
@@ -440,28 +445,30 @@ class KnativeServingBackend:
 
             if resp_status in [200, 202]:
                 data = json.loads(resp_data)
-                log_msg = ('ExecutorID {} - Function invocation {} done! ({}s) '
-                           .format(exec_id, call_id, resp_time))
+                log_msg = ('ExecutorID {} | JobID {} - Function activation {} finished! ({}s) '
+                           .format(exec_id, job_id, call_id, resp_time))
                 logger.debug(log_msg)
-                return exec_id + job_id + call_id, data
+                if return_result:
+                    return data
+                return data["activationId"]
             elif resp_status == 404:
                 raise Exception("PyWren runtime is not deployed in your k8s cluster")
             else:
-                log_msg = ('ExecutorID {} - Function invocation {} failed: {} {}'
-                           .format(exec_id, call_id, resp_status, resp_data))
+                log_msg = ('ExecutorID {} | JobID {} - Function invocation {} failed: {} {}'
+                           .format(exec_id, job_id, call_id, resp_status, resp_data))
                 logger.debug(log_msg)
 
         except Exception as e:
             conn.close()
-            log_msg = ('ExecutorID {} - Function invocation {} failed: {}'
-                       .format(exec_id, call_id, str(e)))
+            log_msg = ('ExecutorID {} | JobID {} - Function invocation {} failed: {}'
+                       .format(exec_id, job_id, call_id, str(e)))
             logger.debug(log_msg)
 
     def invoke_with_result(self, docker_image_name, memory, payload={}):
         """
         Invoke waiting for a result -- return information about this invocation
         """
-        return self.invoke(docker_image_name, memory, payload)
+        return self.invoke(docker_image_name, memory, payload, return_result=True)
 
     def get_runtime_key(self, docker_image_name, runtime_memory):
         """
@@ -484,11 +491,11 @@ class KnativeServingBackend:
         payload['service_route'] = "/preinstalls"
         logger.debug("Extracting Python modules list from: {}".format(docker_image_name))
         try:
-            _, runtime_meta = self.invoke_with_result(docker_image_name, memory, payload)
+            runtime_meta = self.invoke_with_result(docker_image_name, memory, payload)
         except Exception as e:
             raise Exception("Unable to invoke 'modules' action {}".format(e))
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
-            raise Exception(runtime_meta)
+            raise Exception('Failed getting runtime metadata: {}'.format(runtime_meta))
 
         return runtime_meta

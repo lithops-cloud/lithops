@@ -1,23 +1,20 @@
 """
-Simple PyWren example using one single function invocation
+Simple PyWren example using the map method.
+In this example the map() method will launch one
+map function for each entry in 'iterdata'. Finally
+it will print the results for each invocation with
+pw.get_result()
 """
 import pywren_ibm_cloud as pywren
 
 
-#iterdata = [1, 2, 3, 4]
-iterdata = range(10)
-#iterdata = [2, 3, 4]
-
-def my_function(x):
+def my_function(id, x):
+    print("I'm activation number {}".format(id))
     return x + 7
 
-config = {'pywren': {'runtime': '<>','compute_backend': 'knative', 'storage_bucket': 'pywren-knative', 'storage_prefix': 'pywren.jobs'},
-          #'knative': {'docker_user': 'iamapikey', 'docker_password': '<iamkey>', 'docker_repo': 'uk.icr.io'},
-          'knative': {'docker_user': '<docker-hub user>', 'docker_password': 'docker-hub password', 'docker_repo': 'docker.io'},
-          'ibm_cos': {}}
 
 if __name__ == '__main__':
-    pw = pywren.ibm_cf_executor(config=config)
-    #pw.call_async(my_function, 3)
+    iterdata = [1, 2, 3, 4]
+    pw = pywren.knative_executor()
     pw.map(my_function, iterdata)
-    print (pw.get_result())
+    print(pw.get_result())

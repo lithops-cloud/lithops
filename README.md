@@ -98,7 +98,7 @@ def add_seven(x):
 if __name__ == '__main__':
     ibmcf = pywren.ibm_cf_executor()
     ibmcf.call_async(add_seven, 3)
-    print (ibmcf.get_result())
+    print(ibmcf.get_result())
 ```
 
 ### Functions

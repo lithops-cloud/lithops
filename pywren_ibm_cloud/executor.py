@@ -365,12 +365,14 @@ class FunctionExecutor:
             if pbar:
                 pbar.close()
             logger.info(e.msg)
-            if not is_notebook():
-                print()
             if not self.log_level:
+                if not is_notebook():
+                    print()
                 print(e.msg)
             if e.exc_msg:
-                print('--> Exception: ' + e.exc_msg)
+                logger.info('Exception: ' + e.exc_msg)
+                if not self.log_level:
+                    print('--> Exception: ' + e.exc_msg)
             else:
                 print()
                 traceback.print_exception(*e.exception)
@@ -442,7 +444,7 @@ class FunctionExecutor:
                                                     download_results=True,
                                                     THREADPOOL_SIZE=THREADPOOL_SIZE,
                                                     WAIT_DUR_SEC=WAIT_DUR_SEC)
-        result = [f.result(internal_storage=self.internal_storage)
+        result = [f.result(throw_except=throw_except, internal_storage=self.internal_storage)
                   for f in fs_dones if not f.futures and f.produce_output]
         msg = "ExecutorID {} Finished getting results".format(self.executor_id)
         logger.debug(msg)
