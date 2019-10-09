@@ -113,14 +113,17 @@ class FunctionExecutor:
         return futures
 
     def call_async(self, func, data, extra_env=None, runtime_memory=None,
-                   chunk_size=None, chunk_n=None, timeout=EXECUTION_TIMEOUT,
-                   include_modules=[], exclude_modules=[]):
+                   timeout=EXECUTION_TIMEOUT, include_modules=[], exclude_modules=[]):
         """
         For running one function execution asynchronously
         :param func: the function to map over the data
         :param data: input data
         :param extra_data: Additional data to pass to action. Default None.
         :param extra_env: Additional environment variables for action environment. Default None.
+        :param runtime_memory: Memory to use to run the function. Default None (loaded from config).
+        :param timeout: Time that the functions have to complete their execution before raising a timeout.
+        :param include_modules: Explicitly pickle these dependencies.
+        :param exclude_modules: Explicitly keep these modules from pickled dependencies.
         """
         if self._state == ExecutorState.finished:
             raise Exception('You cannot run call_async() in the current state,'
@@ -138,8 +141,6 @@ class FunctionExecutor:
                              runtime_meta=runtime_meta,
                              runtime_memory=runtime_memory,
                              extra_env=extra_env,
-                             obj_chunk_size=chunk_size,
-                             obj_chunk_number=chunk_n,
                              include_modules=include_modules,
                              exclude_modules=exclude_modules,
                              execution_timeout=timeout)
@@ -154,17 +155,19 @@ class FunctionExecutor:
             chunk_size=None, chunk_n=None, remote_invocation=False, remote_invocation_groups=None,
             timeout=EXECUTION_TIMEOUT, invoke_pool_threads=500, include_modules=[], exclude_modules=[]):
         """
-        :param func: the function to map over the data
-        :param iterdata: An iterable of input data
-        :param extra_env: Additional environment variables for action environment. Default None.
+        :param map_function: the function to map over the data
+        :param map_iterdata: An iterable of input data
         :param extra_params: Additional parameters to pass to the function activation. Default None.
-        :param chunk_size: the size of the data chunks. 'None' for processing the whole file in one map
-        :param remote_invocation: Enable or disable remote_invocayion mechanism. Default 'False'
+        :param extra_env: Additional environment variables for action environment. Default None.
+        :param runtime_memory: Memory to use to run the function. Default None (loaded from config).
+        :param chunk_size: the size of the data chunks to split each object. 'None' for processing
+                           the whole file in one function activation.
+        :param chunk_n: Number of chunks to split each object. 'None' for processing the whole
+                        file in one function activation.
+        :param remote_invocation: Enable or disable remote_invocation mechanism. Default 'False'
         :param timeout: Time that the functions have to complete their execution before raising a timeout.
-        :param data_type: the type of the data. Now allowed: None (files with newline) and csv.
         :param invoke_pool_threads: Number of threads to use to invoke.
-        :param data_all_as_one: upload the data as a single object. Default True
-        :param overwrite_invoke_args: Overwrite other args. Mainly used for testing.
+        :param include_modules: Explicitly pickle these dependencies.
         :param exclude_modules: Explicitly keep these modules from pickled dependencies.
         :return: A list with size `len(iterdata)` of futures for each job
         :rtype: list of futures.
@@ -218,16 +221,20 @@ class FunctionExecutor:
         :param reduce_function:  the function to reduce over the futures
         :param extra_env: Additional environment variables for action environment. Default None.
         :param extra_params: Additional parameters to pass to function activation. Default None.
-        :param chunk_size: the size of the data chunks. 'None' for processing the whole file in one map
-        :param remote_invocation: Enable or disable remote_invocayion mechanism. Default 'False'
+        :param map_runtime_memory: Memory to use to run the map function. Default None (loaded from config).
+        :param reduce_runtime_memory: Memory to use to run the reduce function. Default None (loaded from config).
+        :param chunk_size: the size of the data chunks to split each object. 'None' for processing
+                           the whole file in one function activation.
+        :param chunk_n: Number of chunks to split each object. 'None' for processing the whole
+                        file in one function activation.
+        :param remote_invocation: Enable or disable remote_invocation mechanism. Default 'False'
         :param timeout: Time that the functions have to complete their execution before raising a timeout.
-        :param data_type: the type of the data. Now allowed: None (files with newline) and csv.
         :param reducer_one_per_object: Set one reducer per object after running the partitioner
         :param reducer_wait_local: Wait for results locally
         :param invoke_pool_threads: Number of threads to use to invoke.
-        :param data_all_as_one: upload the data as a single object. Default True
-        :param overwrite_invoke_args: Overwrite other args. Mainly used for testing.
+        :param include_modules: Explicitly pickle these dependencies.
         :param exclude_modules: Explicitly keep these modules from pickled dependencies.
+
         :return: A list with size `len(map_iterdata)` of futures for each job
         """
         if self._state == ExecutorState.finished:
