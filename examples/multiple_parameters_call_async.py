@@ -35,7 +35,7 @@ def sum_list_mult(list_of_numbers, x):
 if __name__ == "__main__":
     pw = pywren.ibm_cf_executor()
     pw.call_async(my_function, params)
-    print (pw.get_result())
+    print(pw.get_result())
 
     """
     The parameters can also be sent into a dictionary. In this
@@ -46,7 +46,7 @@ if __name__ == "__main__":
 
     pw = pywren.ibm_cf_executor()
     pw.call_async(my_function, params)
-    print (pw.get_result())
+    print(pw.get_result())
 
     """
     If you want to send a list or a dict as a parameter of the
@@ -57,7 +57,7 @@ if __name__ == "__main__":
 
     pw = pywren.ibm_cf_executor()
     pw.call_async(sum_list, params)
-    print (pw.get_result())
+    print(pw.get_result())
 
     """
     You can also send multiple parameters which include a list
@@ -66,7 +66,7 @@ if __name__ == "__main__":
 
     pw = pywren.ibm_cf_executor()
     pw.call_async(sum_list_mult, params)
-    print (pw.get_result())
+    print(pw.get_result())
 
     """
     Or alternatively
@@ -75,4 +75,4 @@ if __name__ == "__main__":
 
     pw = pywren.ibm_cf_executor()
     pw.call_async(sum_list_mult, params)
-    print (pw.get_result())
+    print(pw.get_result())

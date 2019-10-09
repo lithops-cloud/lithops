@@ -31,7 +31,7 @@ class KnativeServingBackend:
     """
 
     def __init__(self, knative_config):
-        self.log_level = os.getenv('CB_LOG_LEVEL')
+        self.log_level = os.getenv('PYWREN_LOGLEVEL')
         self.name = 'knative'
         self.knative_config = knative_config
         self.endpoint = self.knative_config.get('endpoint')

@@ -109,10 +109,10 @@ Spawn multiple *map_function* activations,  based on the items of an input list,
 
 By default, the *reduce_function* is immediately spawned, and then it waits remotely to get all the results from the map phase. It should be note that, although faster, this approach consumes CPU time in Cloud Functions. You can change this behavior and make *reduce_function* to wait locally for the results by setting the `reducer_wait_local` parameter to `True`. However, it has the tradeoff of greater data transfers, because it has to download all the results to the local machine and then upload them again to the cloud for processing with the *reduce_function*.
 
-## Executor.monitor()
+## Executor.wait()
 Waits for the function activations to finish.
 
-**monitor**(\*\*kwargs)
+**wait**(\*\*kwargs)
 
 |Parameter| Default |Description|
 |---|---|---|
@@ -131,9 +131,9 @@ Waits for the function activations to finish.
     ```python
     iterdata = [1, 2, 3, 4]
     futures = pw.map(foo, iterdata)
-    pw.monitor()
+    pw.wait()
     ```
-* **Code example**: [monitoring.py](../examples/monitoring.py)
+* **Code example**: [wait.py](../examples/wait.py)
 
 ## Executor.get_result()
 Gets the results from all the function activations. It internally makes use of the `Executor.monitor()` method.

@@ -24,7 +24,7 @@ class IBMCloudFunctionsBackend:
 
     def __init__(self, ibm_cf_config):
         logger.debug("Creating IBM Cloud Functions client")
-        self.log_level = os.getenv('CB_LOG_LEVEL')
+        self.log_level = os.getenv('PYWREN_LOGLEVEL')
         self.name = 'ibm_cf'
         self.ibm_cf_config = ibm_cf_config
         self.package = 'pywren_v'+__version__

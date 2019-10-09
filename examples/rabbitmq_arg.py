@@ -38,4 +38,4 @@ if __name__ == '__main__':
 
     pw = pywren.ibm_cf_executor()
     pw.call_async(my_function_reader, queue_name)
-    print (pw.get_result())
+    print(pw.get_result())

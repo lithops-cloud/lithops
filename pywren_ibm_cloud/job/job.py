@@ -7,7 +7,7 @@ import pywren_ibm_cloud as pywren
 from .serialize import SerializeIndependent, create_module_data
 from .partitioner import create_partitions
 from pywren_ibm_cloud import utils
-from pywren_ibm_cloud.monitor import wait_storage
+from pywren_ibm_cloud.wait import wait_storage
 from pywren_ibm_cloud.storage.utils import create_func_key, create_agg_data_key
 from pywren_ibm_cloud.config import EXECUTION_TIMEOUT, MAX_AGG_DATA_SIZE
 
@@ -157,7 +157,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     :return: A list with size `len(iterdata)` of futures for each job
     :rtype:  list of futures.
     """
-    log_level = os.getenv('CB_LOG_LEVEL')
+    log_level = os.getenv('PYWREN_LOGLEVEL')
 
     runtime_name = config['pywren']['runtime']
     if runtime_memory is None:

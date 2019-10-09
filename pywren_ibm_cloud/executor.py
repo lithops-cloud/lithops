@@ -10,7 +10,7 @@ from pywren_ibm_cloud.invoker import FunctionInvoker
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.future import FunctionException
 from pywren_ibm_cloud.storage.utils import clean_os_bucket
-from pywren_ibm_cloud.monitor import wait_storage, wait_rabbitmq, ALL_COMPLETED
+from pywren_ibm_cloud.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from pywren_ibm_cloud.job import create_map_job, create_reduce_job
 from pywren_ibm_cloud.config import default_config, extract_storage_config, EXECUTION_TIMEOUT, default_logging_config
 from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_remote_cluster, create_executor_id
@@ -40,7 +40,7 @@ class FunctionExecutor:
                  compute_backend_region=None, storage_backend=None, storage_backend_region=None,
                  rabbitmq_monitor=None, log_level=None):
         """
-        Initialize and return a FunctionExecutor class.
+        Initialize a FunctionExecutor class.
 
         :param config: Settings passed in here will override those in config file. Default None.
         :param runtime: Runtime name to use. Default None.
@@ -51,6 +51,7 @@ class FunctionExecutor:
         :param storage_backend_region: Name of the storage backend region to use. Default None.
         :param log_level: log level to use during the execution. Default None.
         :param rabbitmq_monitor: use rabbitmq as the monitoring system. Default None.
+
         :return `FunctionExecutor` object.
         """
         self.start_time = time.time()
@@ -63,7 +64,7 @@ class FunctionExecutor:
             if(logger.getEffectiveLevel() != logging.WARNING):
                 self.log_level = logging.getLevelName(logger.getEffectiveLevel())
         if self.log_level:
-            os.environ["CB_LOG_LEVEL"] = self.log_level
+            os.environ["PYWREN_LOGLEVEL"] = self.log_level
             if not self.is_remote_cluster:
                 default_logging_config(self.log_level)
 
@@ -124,6 +125,8 @@ class FunctionExecutor:
         :param timeout: Time that the functions have to complete their execution before raising a timeout.
         :param include_modules: Explicitly pickle these dependencies.
         :param exclude_modules: Explicitly keep these modules from pickled dependencies.
+
+        :return: future object.
         """
         if self._state == ExecutorState.finished:
             raise Exception('You cannot run call_async() in the current state,'
@@ -169,8 +172,8 @@ class FunctionExecutor:
         :param invoke_pool_threads: Number of threads to use to invoke.
         :param include_modules: Explicitly pickle these dependencies.
         :param exclude_modules: Explicitly keep these modules from pickled dependencies.
-        :return: A list with size `len(iterdata)` of futures for each job
-        :rtype: list of futures.
+
+        :return: A list with size `len(iterdata)` of futures.
         """
         if self._state == ExecutorState.finished:
             raise Exception('You cannot run map() in the current state.'
@@ -216,6 +219,7 @@ class FunctionExecutor:
         """
         Map the map_function over the data and apply the reduce_function across all futures.
         This method is executed all within CF.
+
         :param map_function: the function to map over the data
         :param map_iterdata:  the function to reduce over the futures
         :param reduce_function:  the function to reduce over the futures
@@ -235,7 +239,7 @@ class FunctionExecutor:
         :param include_modules: Explicitly pickle these dependencies.
         :param exclude_modules: Explicitly keep these modules from pickled dependencies.
 
-        :return: A list with size `len(map_iterdata)` of futures for each job
+        :return: A list with size `len(map_iterdata)` of futures.
         """
         if self._state == ExecutorState.finished:
             raise Exception('You cannot run map_reduce() in the current state.'
@@ -294,42 +298,45 @@ class FunctionExecutor:
 
         return map_futures + reduce_futures
 
-    def monitor(self, futures=None, throw_except=True, return_when=ALL_COMPLETED,
-                download_results=False, timeout=EXECUTION_TIMEOUT,
-                THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
+    def wait(self, fs=None, throw_except=True, return_when=ALL_COMPLETED, download_results=False,
+             timeout=EXECUTION_TIMEOUT, THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
         """
-        Wait for the Future instances `fs` to complete. Returns a 2-tuple of
-        lists. The first list contains the futures that completed
-        (finished or cancelled) before the wait completed. The second
-        contains uncompleted futures.
-        :param futures: Futures list. Default None
+        Wait for the Future instances (possibly created by different Executor instances)
+        given by fs to complete. Returns a named 2-tuple of sets. The first set, named done,
+        contains the futures that completed (finished or cancelled futures) before the wait
+        completed. The second set, named not_done, contains the futures that did not complete
+        (pending or running futures). timeout can be used to control the maximum number of
+        seconds to wait before returning.
+
+        :param fs: Futures list. Default None
         :param throw_except: Re-raise exception if call raised. Default True.
         :param return_when: One of `ALL_COMPLETED`, `ANY_COMPLETED`, `ALWAYS`
         :param download_results: Download results. Default false (Only get statuses)
         :param timeout: Timeout of waiting for results.
         :param THREADPOOL_SIZE: Number of threads to use. Default 64
         :param WAIT_DUR_SEC: Time interval between each check.
+
         :return: `(fs_done, fs_notdone)`
             where `fs_done` is a list of futures that have completed
             and `fs_notdone` is a list of futures that have not completed.
         :rtype: 2-tuple of list
         """
-        if not futures:
-            futures = []
+        if not fs:
+            fs = []
             for job in self.jobs:
                 if not download_results and self.jobs[job]['state'] == JobState.running:
-                    futures.extend(self.jobs[job]['futures'])
+                    fs.extend(self.jobs[job]['futures'])
                     self.jobs[job]['state'] = JobState.ready
                 elif download_results and self.jobs[job]['state'] != JobState.done:
-                    futures.extend(self.jobs[job]['futures'])
+                    fs.extend(self.jobs[job]['futures'])
                     self.jobs[job]['state'] = JobState.done
 
-        if type(futures) != list:
-            ftrs = [futures]
+        if type(fs) != list:
+            futures = [fs]
         else:
-            ftrs = futures
+            futures = fs
 
-        if not ftrs:
+        if not futures:
             raise Exception('You must run the call_async(), map() or map_reduce(), or provide'
                             ' a list of futures before calling the monitor()/get_result() method')
 
@@ -350,19 +357,19 @@ class FunctionExecutor:
            and not self.log_level:
             from tqdm.auto import tqdm
             if is_notebook():
-                pbar = tqdm(bar_format='{n}/|/ {n_fmt}/{total_fmt}', total=len(ftrs))  # ncols=800
+                pbar = tqdm(bar_format='{n}/|/ {n_fmt}/{total_fmt}', total=len(futures))  # ncols=800
             else:
                 print()
-                pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(ftrs), disable=False)
+                pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(futures), disable=False)
 
         try:
             if self.rabbitmq_monitor:
                 logger.info('Using RabbitMQ to monitor function activations')
-                wait_rabbitmq(ftrs, self.internal_storage, rabbit_amqp_url=self.rabbit_amqp_url,
+                wait_rabbitmq(futures, self.internal_storage, rabbit_amqp_url=self.rabbit_amqp_url,
                               download_results=download_results, throw_except=throw_except,
                               pbar=pbar, return_when=return_when, THREADPOOL_SIZE=THREADPOOL_SIZE)
             else:
-                wait_storage(ftrs, self.internal_storage, download_results=download_results,
+                wait_storage(futures, self.internal_storage, download_results=download_results,
                              throw_except=throw_except, return_when=return_when, pbar=pbar,
                              THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
 
@@ -387,18 +394,18 @@ class FunctionExecutor:
 
         except TimeoutError:
             if download_results:
-                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
+                not_dones_activation_ids = [f.activation_id for f in futures if not f.done]
             else:
-                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.ready and not f.done]
+                not_dones_activation_ids = [f.activation_id for f in futures if not f.ready and not f.done]
             msg = ('ExecutorID {} - Raised timeout of {} seconds waiting for results - Total Activations not done: {}'
                    ' {}'.format(self.executor_id, timeout, len(not_dones_activation_ids), not_dones_activation_ids))
             self._state = ExecutorState.error
 
         except KeyboardInterrupt:
             if download_results:
-                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.done]
+                not_dones_activation_ids = [f.activation_id for f in futures if not f.done]
             else:
-                not_dones_activation_ids = [f.activation_id for f in ftrs if not f.ready and not f.done]
+                not_dones_activation_ids = [f.activation_id for f in futures if not f.ready and not f.done]
             msg = ('ExecutorID {} - Cancelled - Total Activations not done: {} '
                    '{}'.format(self.executor_id, len(not_dones_activation_ids), not_dones_activation_ids))
             self._state = ExecutorState.error
@@ -423,36 +430,36 @@ class FunctionExecutor:
                 self.clean()
 
         if download_results:
-            fs_dones = [f for f in ftrs if f.done]
-            fs_notdones = [f for f in ftrs if not f.done]
+            fs_done = [f for f in futures if f.done]
+            fs_notdone = [f for f in futures if not f.done]
             self._state = ExecutorState.done
         else:
-            fs_dones = [f for f in ftrs if f.ready or f.done]
-            fs_notdones = [f for f in ftrs if not f.ready and not f.done]
+            fs_done = [f for f in futures if f.ready or f.done]
+            fs_notdone = [f for f in futures if not f.ready and not f.done]
             self._state = ExecutorState.ready
 
-        return fs_dones, fs_notdones
+        return fs_done, fs_notdone
 
-    def get_result(self, futures=None, throw_except=True, timeout=EXECUTION_TIMEOUT,
+    def get_result(self, fs=None, throw_except=True, timeout=EXECUTION_TIMEOUT,
                    THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
         """
-        For getting results
-        :param futures: Futures list. Default None
+        For getting the results from all function activations
+
+        :param fs: Futures list. Default None
         :param throw_except: Reraise exception if call raised. Default True.
         :param verbose: Shows some information prints. Default False
         :param timeout: Timeout for waiting for results.
         :param THREADPOOL_SIZE: Number of threads to use. Default 128
         :param WAIT_DUR_SEC: Time interval between each check.
+
         :return: The result of the future/s
         """
-        fs_dones, unused_fs_notdones = self.monitor(futures=futures,
-                                                    throw_except=throw_except,
-                                                    timeout=timeout,
-                                                    download_results=True,
-                                                    THREADPOOL_SIZE=THREADPOOL_SIZE,
-                                                    WAIT_DUR_SEC=WAIT_DUR_SEC)
+        fs_done, unused_fs_notdone = self.wait(fs=fs, throw_except=throw_except,
+                                               timeout=timeout, download_results=True,
+                                               THREADPOOL_SIZE=THREADPOOL_SIZE,
+                                               WAIT_DUR_SEC=WAIT_DUR_SEC)
         result = [f.result(throw_except=throw_except, internal_storage=self.internal_storage)
-                  for f in fs_dones if not f.futures and f.produce_output]
+                  for f in fs_done if not f.futures and f.produce_output]
         msg = "ExecutorID {} Finished getting results".format(self.executor_id)
         logger.debug(msg)
         if result and len(result) == 1:
