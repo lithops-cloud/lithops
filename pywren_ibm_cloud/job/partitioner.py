@@ -237,8 +237,8 @@ def _split_objects_from_urls(map_func_args_list, chunk_size, chunk_number):
             chunk_rest = obj_size % chunk_number
             chunk_size_co = chunk_size_co // chunk_number + chunk_rest
 
-        if chunk_size and chunk_size < CHUNK_SIZE_MIN:
-            chunk_size = None
+        if chunk_size_co and chunk_size_co < CHUNK_SIZE_MIN:
+            chunk_size_co = None
 
         if 'accept-ranges' in metadata.headers and chunk_size_co is not None \
            and obj_size is not None and obj_size > chunk_size_co:
