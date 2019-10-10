@@ -117,6 +117,7 @@ class FunctionExecutor:
                    timeout=EXECUTION_TIMEOUT, include_modules=[], exclude_modules=[]):
         """
         For running one function execution asynchronously
+
         :param func: the function to map over the data
         :param data: input data
         :param extra_data: Additional data to pass to action. Default None.

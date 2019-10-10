@@ -43,15 +43,12 @@ def wait_storage(futures, internal_storage, download_results=False,
     :param return_when: One of `ALL_COMPLETED`, `ANY_COMPLETED`, `ALWAYS`
     :param THREADPOOL_SIZE: Number of threads to use. Default 128
     :param WAIT_DUR_SEC: Time interval between each check.
+
     :return: `(fs_dones, fs_notdones)`
         where `fs_dones` is a list of futures that have completed
         and `fs_notdones` is a list of futures that have not completed.
     :rtype: 2-tuple of lists
     """
-    # FIXME:  this will eventually provide an optimization for checking if a large
-    # number of futures have completed without too much network traffic
-    # by exploiting the callset
-
     N = len(futures)
     # These are performance-related settings that we may eventually
     # want to expose to end users:

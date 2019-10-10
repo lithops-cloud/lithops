@@ -23,6 +23,7 @@ from pywren_ibm_cloud.storage.utils import CloudObject, CloudObjectUrl
 
 logger = logging.getLogger(__name__)
 
+CHUNK_SIZE_MIN = 1024*1024  # 1MB
 CHUNK_THRESHOLD = 128*1024  # 128KB
 
 
@@ -129,6 +130,9 @@ def _split_objects_from_buckets(map_func_args_list, keys_dict, chunk_size, chunk
                     chunk_rest = obj_size % chunk_number
                     chunk_size = obj_size // chunk_number + chunk_rest
 
+                if chunk_size and chunk_size < CHUNK_SIZE_MIN:
+                    chunk_size = None
+
                 if chunk_size is not None and obj_size > chunk_size:
                     while size < obj_size:
                         brange = (size, size+chunk_size+CHUNK_THRESHOLD)
@@ -175,6 +179,9 @@ def _split_objects_from_keys(map_func_args_list, keys_dict, chunk_size, chunk_nu
         if chunk_number:
             chunk_rest = obj_size % chunk_number
             chunk_size = obj_size // chunk_number + chunk_rest
+
+        if chunk_size and chunk_size < CHUNK_SIZE_MIN:
+            chunk_size = None
 
         total_partitions = 0
 
@@ -229,6 +236,9 @@ def _split_objects_from_urls(map_func_args_list, chunk_size, chunk_number):
         if chunk_number:
             chunk_rest = obj_size % chunk_number
             chunk_size_co = chunk_size_co // chunk_number + chunk_rest
+
+        if chunk_size and chunk_size < CHUNK_SIZE_MIN:
+            chunk_size = None
 
         if 'accept-ranges' in metadata.headers and chunk_size_co is not None \
            and obj_size is not None and obj_size > chunk_size_co:
