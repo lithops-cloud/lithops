@@ -99,3 +99,11 @@ if __name__ == "__main__":
     pw = pywren.ibm_cf_executor()
     pw.map(sum_list_mult, iterdata)
     print(pw.get_result())
+
+    """
+    extra_params
+    """
+    iterdata = [0, 1, 2]
+    pw = pywren.ibm_cf_executor()
+    pw.map(my_map_function, iterdata, extra_params=[10])
+    print(pw.get_result())

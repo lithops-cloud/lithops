@@ -1,9 +1,9 @@
 # Changelog
 
 ## [v1.1.1--snapshot]
-- Allowed partitioner to split files by a number of chunks
 
 ### Added
+- Allowed partitioner to split files by a number of chunks
 
 ### Changed
 - Docs updated

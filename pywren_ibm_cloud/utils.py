@@ -165,12 +165,15 @@ def get_current_memory_usage():
 
 def format_data(iterdata, extra_params):
     """
-    Converts iteradat to a list with extra_params
+    Converts iteradata to a list with extra_params
     """
-    if type(iterdata) == str or type(iterdata) == int:
-        data = [iterdata]
-    elif type(iterdata) != list:
+    if extra_params and type(extra_params) not in [list, dict]:
+        raise Exception('extra_params must be a list or a dict')
+
+    if type(iterdata) == range:
         data = list(iterdata)
+    elif type(iterdata) != list:
+        data = [iterdata]
     else:
         data = iterdata
 
@@ -179,7 +182,7 @@ def format_data(iterdata, extra_params):
         for data_i in data:
             if type(data_i) in [list, dict] and type(data_i) != type(extra_params):
                 raise Exception('Input iterdata and extra_params must be of '
-                                'the same class (dict or list)')
+                                'the same type (dict or list)')
             else:
                 if type(data_i) == dict:
                     data_i.update(extra_params)
@@ -188,8 +191,8 @@ def format_data(iterdata, extra_params):
                 elif type(extra_params) == list:
                     new_iterdata.append([data_i, *extra_params])
                 else:
-                    raise Exception('Input extra_params cannot be a dict if '
-                                    'iteradata is not a dict-per-activation')
+                    raise Exception('extra_params cannot be a dict if '
+                                    'iteradata is not a dict')
 
         if new_iterdata:
             data = new_iterdata

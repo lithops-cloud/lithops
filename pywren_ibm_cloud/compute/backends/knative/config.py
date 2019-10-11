@@ -110,10 +110,12 @@ apiVersion: serving.knative.dev/v1alpha1
 kind: Service
 metadata:
   name: pywren-runtime
-  namespace: default
+  #namespace: default
 spec:
   template:
-    #metadata:
+    metadata:
+      labels:
+        type: pywren-runtime
       #annotations:
         # Target 1 in-flight-requests per pod.
         #autoscaling.knative.dev/target: "1"

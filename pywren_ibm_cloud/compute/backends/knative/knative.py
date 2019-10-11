@@ -4,6 +4,7 @@ import json
 import time
 import yaml
 import logging
+import requests
 import http.client
 from urllib.parse import urlparse
 from kubernetes import client, config, watch
@@ -79,8 +80,8 @@ class KnativeServingBackend:
         runtime_name = runtime_name.replace('/', '--').replace(':', '--')
         return '{}--{}mb'.format(runtime_name, runtime_memory)
 
-    def _unformat_service_name(self, action_name):
-        runtime_name, memory = action_name.rsplit('--', 1)
+    def _unformat_service_name(self, service_name):
+        runtime_name, memory = service_name.rsplit('--', 1)
         image_name = runtime_name.replace('--', '/', 1)
         image_name = image_name.replace('--', ':', -1)
         return image_name, int(memory.replace('mb', ''))
@@ -214,16 +215,20 @@ class KnativeServingBackend:
         """
         Builds the docker image and pushes it to the docker container registry
         """
-        # TODO: Test if the image already exists
-        self._create_account_resources()
-        self._create_build_resources()
-
         logger.debug("Building default docker image from git")
         task_run = yaml.safe_load(kconfig.task_run)
         image_url = {'name': 'imageUrl', 'value': '/'.join([self.knative_config['docker_repo'], docker_image_name])}
         task_run['spec']['inputs']['params'].append(image_url)
         #image_tag = {'name': 'imageTag', 'value':  __version__}
         #task_run['spec']['inputs']['params'].append(image_tag)
+
+        resp = requests.get('https://index.docker.io/v1/repositories/{}/tags/latest'.format(docker_image_name))
+        if resp.status_code == 200:
+            logger.debug('Docker image already created in Dockerhub. Skipping build process.')
+            return
+
+        self._create_account_resources()
+        self._create_build_resources()
 
         task_run_name = task_run['metadata']['name']
         try:
@@ -400,16 +405,47 @@ class KnativeServingBackend:
                 logger.debug(log_msg)
 
     def delete_all_runtimes(self):
-        #TODO
-        pass
+        """
+        Deletes all runtimes deployed in knative
+        """
+        runtimes = self.list_runtimes()
+        for image_name, memory in runtimes:
+            service_name = self._format_service_name(image_name, memory)
+            log_msg = 'Deleting runtime: {}'.format(service_name)
+            logger.debug(log_msg)
+            self.api.delete_namespaced_custom_object(
+                    group="serving.knative.dev",
+                    version="v1alpha1",
+                    name=service_name,
+                    namespace=self.namespace,
+                    plural="services",
+                    body=client.V1DeleteOptions()
+                )
 
     def list_runtimes(self, docker_image_name='all'):
         """
-        List all the runtimes deployed in the IBM CF service
+        List all the runtimes deployed in knative
         return: list of tuples [docker_image_name, memory]
         """
-        #TODO
-        runtimes = [[docker_image_name, 256]]
+        knative_services = self.api.list_namespaced_custom_object(
+                                group="serving.knative.dev",
+                                version="v1alpha1",
+                                namespace=self.namespace,
+                                plural="services"
+                            )
+        runtimes = []
+
+        for service in knative_services['items']:
+            try:
+                if service['spec']['template']['metadata']['labels']['type'] == 'pywren-runtime':
+                    runtime_name = service['metadata']['name']
+                    image_name, memory = self._unformat_service_name(runtime_name)
+                    if docker_image_name == image_name or docker_image_name == 'all':
+                        runtimes.append((image_name, memory))
+            except Exception:
+                # It is not a pywren runtime
+                pass
+
         return runtimes
 
     def invoke(self, docker_image_name, memory, payload, return_result=False):
