@@ -59,6 +59,10 @@ Spawn multiple function activations based on the items of an input list.
 |timeout| 600 |Max time per function activation (seconds) |
 |include_modules| [] |Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None |
 |exclude_modules| [] |Explicitly keep these modules from pickled dependencies. It is not taken into account if include_modules |
+|chunk_size| None | Used for data_processing. Chunk size to split each object in bytes. Must be >= 1MiB. 'None' for processing the whole file in one function activation|
+|chunk_n| None | Used for data_processing. Number of chunks to split each object. 'None' for processing the whole file in one function activation. chunk_n has prevalence over chunk_size if both parameters are set|
+|invoke_pool_threads| 500 | Number of threads to use to invoke the functions |
+
 
 
 * **Returns**: A list with size  len(iterdata) of futures for each job (Futures are also internally stored by PyWren).
@@ -88,6 +92,10 @@ Spawn multiple *map_function* activations,  based on the items of an input list,
 |timeout| 600 | Max time per function activation (seconds)|
 |include_modules| [] |Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None |
 |exclude_modules| [] |Explicitly keep these modules from pickled dependencies. It is not taken into account if include_modules |
+|chunk_size| None | Used for data_processing. Chunk size to split each object in bytes. Must be >= 1MiB. 'None' for processing the whole file in one function activation|
+|chunk_n| None | Used for data_processing. Number of chunks to split each object. 'None' for processing the whole file in one function activation. chunk_n has prevalence over chunk_size if both parameters are set|
+|reducer_one_per_object| False| Used for data_processing. Set one reducer per object after running the partitioner (reduce-by-key) |
+|invoke_pool_threads| 500 | Number of threads to use to invoke the functions |
 
 
 * **Returns**: A list with size  len(iterdata)  of futures for each job (Futures are also internally stored by PyWren).
@@ -101,10 +109,10 @@ Spawn multiple *map_function* activations,  based on the items of an input list,
 
 By default, the *reduce_function* is immediately spawned, and then it waits remotely to get all the results from the map phase. It should be note that, although faster, this approach consumes CPU time in Cloud Functions. You can change this behavior and make *reduce_function* to wait locally for the results by setting the `reducer_wait_local` parameter to `True`. However, it has the tradeoff of greater data transfers, because it has to download all the results to the local machine and then upload them again to the cloud for processing with the *reduce_function*.
 
-## Executor.monitor()
+## Executor.wait()
 Waits for the function activations to finish.
 
-**monitor**(\*\*kwargs)
+**wait**(\*\*kwargs)
 
 |Parameter| Default |Description|
 |---|---|---|
@@ -123,9 +131,9 @@ Waits for the function activations to finish.
     ```python
     iterdata = [1, 2, 3, 4]
     futures = pw.map(foo, iterdata)
-    pw.monitor()
+    pw.wait()
     ```
-* **Code example**: [monitoring.py](../examples/monitoring.py)
+* **Code example**: [wait.py](../examples/wait.py)
 
 ## Executor.get_result()
 Gets the results from all the function activations. It internally makes use of the `Executor.monitor()` method.

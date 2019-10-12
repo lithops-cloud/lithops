@@ -1,9 +1,20 @@
 # Changelog
 
-## [v1.0.21--snapshot]
+## [v1.1.1--snapshot]
 
 ### Added
 - Allowed partitioner to split files by a number of chunks
+
+### Changed
+- Docs updated
+
+### Fixed
+- Internal fixes
+
+
+## [v1.1.0]
+
+### Added
 - Added knative-serving compute backend
 - Added Dockerfile skeleton for slim Python3.6 runtime (only 307MB)
 - Added CACHE_DIR in ~/.pywren/cache

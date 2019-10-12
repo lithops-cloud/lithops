@@ -74,6 +74,7 @@ print (pw.get_result())
 ```
 
 Or alternatively using a dict.
+
 ```python
 import pywren_ibm_cloud as pywren
 
@@ -186,124 +187,72 @@ iterdata = [  # Init list of parameters for PyWren
 
 pw = pywren.ibm_cf_executor()
 pw.map(sum_list_mult, iterdata)
-print (pw.get_result())
+print(pw.get_result())
 ```
 
-To test all of the previous examples run the [multiple_parameters_map.py](../examples/multiple_parameters_map.py) located in the `examples` folder.
 
-## Multiple parameters when using PyWren to process data from public URLs or from IBM Cloud Object Storage
+## Common parameters across functions invocations
+Sometimes, functions have common parameters for all the invocations. In this case you have two options to proceed:
 
-With the map_reduce() method, the previous examples showed in the map() method are also valid. 
-However, in this case you have to take into account that there are some reserved parameter names. They are **bucket**, **key** and **url**.
-These parameters should be used when you want to process objcts from COS or a public url with the map_reduce() method.
+- Setting variables in the global scope: You can define the desired variables in the global scope before defining the function. All of these variables can be catched within the function, for example:
 
-* **bucket** : If you put the parameter **bucket** in the map function parameters, you are telling to PyWren that you want to process the objects
-  located in your COS bucket. In this case you must write also the parameters **key** and **data_stream** to the map function parameters
-  as in the next example. The **key** parameter will contain the full object key in the format 'bucketname/objectname'. The data_stream
-  parameter will contain the data object from COS ready to be read.
- 
-  	```python
-	bucketname = 'sample-data'
-	
-	def my_map_function(bucket, key, data_stream):
-       print('I am processing the object {}'.format(key))
-       counter = {}
-        
-       data = data_stream.read()
-        
-       for line in data.splitlines():
-           for word in line.decode('utf-8').split():
-               if word not in counter:
-                   counter[word] = 1
-               else:
-                   counter[word] += 1
-        
-       return counter
-   ```
+    ```python
+    import pywren_ibm_cloud as pywren
     
-    More parameters are allowed in the map function. However, if you want to process a bucket/s, you must also put: **bucket**, **key** and **data_stream** as parameters of the map function.
+    y = 10
     
-    The full example is in [map_reduce_cos_bucket](../examples/map_reduce_cos_bucket.py) located in the `examples` folder
-
-* **key** : If you put only the parameter **key** in the map function parameters, you are telling to PyWren that you want to process the objects listed in the `iterdata` variable and
-  located in your COS account. In this case you must write also the parameter **data_stream** to the map function parameters. The data_stream
-  parameter will contain the data object from COS ready to be read.
-  	
-  	```python
-   iterdata = ['sample-data/obj1.txt',
-               'sample-data/obj2.txt',
-               'sample-data/obj3.txt'] 
-
-	def my_map_function(key, data_stream):
-	    print('I am processing the object {}'.format(key))
-	    counter = {}
-	    
-	    data = data_stream.read()
-	    
-	    for line in data.splitlines():
-	        for word in line.decode('utf-8').split():
-	            if word not in counter:
-	                counter[word] = 1
-	            else:
-	                counter[word] += 1
-	
-	    return counter
-	```
-	
-	The full example is in [map_reduce_cos_key](../examples/map_reduce_cos_key.py) located in the `examples` folder
-	
-	In this case more parameters are allowed. They must be put enclosed with [] as in the map() method example explained above.
-	The parameters will be mapped in the order you wrote them. Just make sure you always put the **data_stream** parameter at the end, and the
-	parameter **key** points to the object key, in the next example located in the second position of the parameters of the map function.
-	
-  	```python
-   iterdata = [  # Init list of parameters for PyWren
-               ['cat', 'sample-data/obj1.txt'],  # Parameters for function1
-               ['dog', 'sample-data/obj2.txt'],  # Parameters for function2
-               ['canary', 'sample-data/obj3.txt']  # Parameters for function3
-              ]  # End list of parameters for PyWren
-
-   def my_map_function(name, key, data_stream):
-       print('I am a {}'.format(name))
-       print('I am processing the object {}'.format(key))
-       counter = {}
-        
-       data = data_stream.read()
-        
-       for line in data.splitlines():
-           for word in line.decode('utf-8').split():
-               if word not in counter:
-                   counter[word] = 1
-               else:
-                   counter[word] += 1
-        
-       return counter
-	```	
-
-* **url** : If you put the parameter **url** in the map function parameters, you are telling to PyWren that you want to process the objects listed in the `iterdata` variable and
-  located in a public URL. In this case you must write also the parameter **data_stream** to the map function parameters. The data_stream
-  parameter will contain the data object from the public URL ready to be read.
-
-  	```python
-   iterdata = ['https://dataplatform.ibm.com/exchange-api/v1/entries/107ab470f90be9a4815791d8ec829133/data?accessKey=2bae90b7a0ecacef062954f94e98e0d3',
-               'https://dataplatform.ibm.com/exchange-api/v1/entries/9fc8543fabfc26f908cf0c592c89d137/data?accessKey=4b4cf6ce8ad2338fd042e30513693eb0'] 
-
-   def my_map_function(url, data_stream):
-       print('I am processing the object {}'.format(key))
-       counter = {}
+    def sum_x_y(x):
+        return x+y
     
-       data = data_stream.read()
-    
-       for line in data.splitlines():
-           for word in line.decode('utf-8').split():
-               if word not in counter:
-                   counter[word] = 1
-               else:
-                   counter[word] += 1
-    
-       return counter
-	```
-	
-	The full example is in [map_reduce_url](../examples/map_reduce_url.py) located in the `examples` folder.
+    iterdata = [0, 1, 2]
+    pw = pywren.ibm_cf_executor()
+    pw.map(sum_list_mult, iterdata)
+    print(pw.get_result())
+    ```
 
-	In this case more parameters are also allowed, just like if you use the **key** parameter explained above.
+- Using `extra_params` parameter in the `map()` or `map_reduce()` calls:
+
+    ```python
+    import pywren_ibm_cloud as pywren
+    
+    def sum_x_y(x, y):
+        return x+y
+    
+    iterdata = [0, 1, 2]
+    pw = pywren.ibm_cf_executor()
+    pw.map(sum_x_y, iterdata, extra_params=[10])
+    print(pw.get_result())
+    ```
+    
+    `extra_params` must be always a list or a dict, depending of iterdata. The previous example is equivalent to this:
+    
+    ```python
+    import pywren_ibm_cloud as pywren
+    
+    def sum_x_y(x, y):
+        return x+y
+
+    iterdata = [  # Init list of parameters for PyWren
+                [0, 10],  # Parameters for function1
+                [1, 10],  # Parameters for function2
+                [2, 10],  # Parameters for function3
+               ]  # End list of parameters for PyWren
+    pw = pywren.ibm_cf_executor()
+    pw.map(sum_x_y, iterdata)
+    print(pw.get_result())
+    ```
+
+To test all of the previous examples run the [multiple_parameters_map.py](../examples/multiple_parameters_map.py) located in the `examples/` folder.
+
+
+## Reserved parameters
+
+Take into account that there are some reserved parameter names that activate internal logic. These reserved parameters are:
+
+- **id**: To get the call id. For instance, if you spawn 10 activations of a function, you will get here a number from 0 to 9, for example: [map.py](../examples/map.py)
+
+- **ibm_cos**: To get a ready-to use [ibm_boto3.Client()](https://ibm.github.io/ibm-cos-sdk-python/reference/services/s3.html#client) instance. This allows you to access your IBM COS account from any function in an easy way, for example: [ibmcos_arg.py](../examples/ibmcos_arg.py)
+
+- **rabbitmq**: To get a ready-to use [pika.BlockingConnection()](https://pika.readthedocs.io/en/0.13.1/modules/adapters/blocking.html) instance (AMQP URL must be set in the [configuration](config/) to make it working). This allows you to access the RabbitMQ service from any function in an easy way, for example: [rabbitmq_arg.py](../examples/rabbitmq_arg.py)
+
+- **obj** & **url**: These two parameter activate internal logic that allows to process data objects stored in the IBM Cloud Object Storage service or public URLs in transparent way. See [data-processing](../docs/data-processing.md) documentation for more details and instructions on how to use this built-in data-processing logic.

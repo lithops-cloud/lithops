@@ -24,4 +24,4 @@ def my_function(bucket_name, key, ibm_cos):
 if __name__ == '__main__':
     pw = pywren.ibm_cf_executor()
     pw.call_async(my_function, ['pw-sample-data', 'obj1.txt'])
-    print (pw.get_result())
+    print(pw.get_result())

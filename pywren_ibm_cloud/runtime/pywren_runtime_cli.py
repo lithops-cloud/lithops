@@ -5,7 +5,7 @@ import click
 import os
 
 logging.basicConfig(level=logging.DEBUG)
-os.environ["CB_LOG_LEVEL"] = 'DEBUG'
+os.environ["PYWREN_LOGLEVEL"] = 'DEBUG'
 
 
 @click.group()

@@ -19,5 +19,8 @@ pywren_*.zip
 # IDE - PyCharm
 .idea/
 
+# IDE - VSCode
+.vscode/
+
 # Jupyter Notebook
 .ipynb_checkpoints

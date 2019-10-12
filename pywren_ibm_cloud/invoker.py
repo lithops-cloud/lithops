@@ -37,7 +37,7 @@ class FunctionInvoker:
     """
 
     def __init__(self, pywren_config, executor_id, internal_storage):
-        self.log_level = os.getenv('CB_LOG_LEVEL')
+        self.log_level = os.getenv('PYWREN_LOGLEVEL')
         self.pywren_config = pywren_config
         self.executor_id = executor_id
         self.storage_config = extract_storage_config(self.pywren_config)
@@ -63,7 +63,7 @@ class FunctionInvoker:
         file does not exists in the storage, this means that the runtime is not
         installed, so this method will proceed to install it.
         """
-        log_level = os.getenv('CB_LOG_LEVEL')
+        log_level = os.getenv('PYWREN_LOGLEVEL')
         runtime_name = self.pywren_config['pywren']['runtime']
         if runtime_memory is None:
             runtime_memory = self.pywren_config['pywren']['runtime_memory']

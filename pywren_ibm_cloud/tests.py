@@ -237,10 +237,10 @@ class TestPywren(unittest.TestCase):
 
         iterdata = [[1, 1], [2, 2]]
         futures1 = pw.map(simple_map_function, iterdata)
-        result1 = pw.get_result(futures=futures1)
+        result1 = pw.get_result(fs=futures1)
         iterdata = [[3, 3], [4, 4]]
         futures2 = pw.map(simple_map_function, iterdata)
-        result2 = pw.get_result(futures=futures2)
+        result2 = pw.get_result(fs=futures2)
         self.assertEqual(result1, [2, 4])
         self.assertEqual(result2, [6, 8])
 
