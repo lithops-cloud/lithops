@@ -216,16 +216,22 @@ class KnativeServingBackend:
         Builds the docker image and pushes it to the docker container registry
         """
         logger.debug("Building default docker image from git")
+
+        current_version = 'latest' if 'SNAPSHOT' in __version__ else __version__
+
+        if self.knative_config['docker_repo'] == 'docker.io' and current_version != 'latest':
+            resp = requests.get('https://index.docker.io/v1/repositories/{}/tags/{}'
+                                .format(docker_image_name, current_version))
+            if resp.status_code == 200:
+                logger.debug('Docker image docker.io/{}:{} already created in Dockerhub. '
+                             'Skipping build process.'.format(docker_image_name, current_version))
+                return
+
         task_run = yaml.safe_load(kconfig.task_run)
         image_url = {'name': 'imageUrl', 'value': '/'.join([self.knative_config['docker_repo'], docker_image_name])}
         task_run['spec']['inputs']['params'].append(image_url)
-        #image_tag = {'name': 'imageTag', 'value':  __version__}
-        #task_run['spec']['inputs']['params'].append(image_tag)
-
-        resp = requests.get('https://index.docker.io/v1/repositories/{}/tags/latest'.format(docker_image_name))
-        if resp.status_code == 200:
-            logger.debug('Docker image already created in Dockerhub. Skipping build process.')
-            return
+        image_tag = {'name': 'imageTag', 'value':  current_version}
+        task_run['spec']['inputs']['params'].append(image_tag)
 
         self._create_account_resources()
         self._create_build_resources()
@@ -251,6 +257,7 @@ class KnativeServingBackend:
                     body=task_run
                 )
 
+        logger.debug("Building image...")
         pod_name = None
         w = watch.Watch()
         for event in w.stream(self.api.list_namespaced_custom_object, namespace=self.namespace,
@@ -290,15 +297,15 @@ class KnativeServingBackend:
         logger.debug("Creating PyWren runtime service resource in k8s")
         svc_res = yaml.safe_load(kconfig.service_res)
 
+        current_version = 'latest' if 'SNAPSHOT' in __version__ else __version__
+        # TODO: Take into account current_version in service name
         service_name = self._format_service_name(docker_image_name, runtime_memory)
         svc_res['metadata']['name'] = service_name
         svc_res['metadata']['namespace'] = self.namespace
 
         svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
-
         docker_image = '/'.join([self.knative_config['docker_repo'], docker_image_name])
-        svc_res['spec']['template']['spec']['container']['image'] = docker_image
-
+        svc_res['spec']['template']['spec']['container']['image'] = '{}:{}'.format(docker_image, current_version)
         svc_res['spec']['template']['spec']['container']['resources']['limits']['memory'] = '{}Mi'.format(runtime_memory)
 
         try:
@@ -353,8 +360,9 @@ class KnativeServingBackend:
         """
         default_runtime_img_name = self._get_default_runtime_image_name()
         if docker_image_name in ['default', default_runtime_img_name]:
-            # We only build default image. rest of images must already exist
+            # We only build the default image. rest of images must already exist
             # in the docker registry.
+            docker_image_name = default_runtime_img_name
             self._build_docker_image_from_git(default_runtime_img_name)
 
         service_url = self._create_service(docker_image_name, memory, timeout)

@@ -217,7 +217,7 @@ class InternalStorage:
 
         if not is_remote_cluster():
             filename_local_path = os.path.join(CACHE_DIR, *path)
-            logger.debug("Saving runtime metadata into local cache: {}".format(filename_local_path))
+            logger.debug("Storing runtime metadata into local cache: {}".format(filename_local_path))
 
             if not os.path.exists(os.path.dirname(filename_local_path)):
                 os.makedirs(os.path.dirname(filename_local_path))
