@@ -275,7 +275,7 @@ class FunctionExecutor:
         self._state = ExecutorState.running
 
         if reducer_wait_local:
-            self.monitor(futures=map_futures)
+            self.wait(fs=map_futures)
 
         reduce_job_id = 'R{}'.format(job_id)
 
