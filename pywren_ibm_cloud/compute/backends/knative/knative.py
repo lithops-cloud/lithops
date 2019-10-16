@@ -163,16 +163,16 @@ class KnativeServingBackend:
         task_def = yaml.safe_load(kconfig.task_def)
         task_name = task_def['metadata']['name']
 
-        if self.knative_config['git_url']:
+        if 'git_url' in self.knative_config:
             git_url_param = {'name': 'url', 'value': self.knative_config['git_url']}
         else:
             git_url_param = {'name': 'url', 'value': kconfig.GIT_URL_DEFAULT}
 
-        if self.knative_config['git_rev']:
+        if 'git_rev' in self.knative_config:
             git_rev_param = {'name': 'revision', 'value': self.knative_config['git_rev']}
         else:
             revision = 'master' if 'SNAPSHOT' in __version__ else __version__
-            git_url_param = {'name': 'revision', 'value': revision}
+            git_rev_param = {'name': 'revision', 'value': revision}
 
         params = [git_url_param, git_rev_param]
         git_res['spec']['params'] = params

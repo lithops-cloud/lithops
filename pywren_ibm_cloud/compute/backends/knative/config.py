@@ -154,5 +154,3 @@ def load_config(config_data):
             config_data['pywren']['runtime'] = RUNTIME_DEFAULT_36.replace('<USER>', docker_user)
         elif this_version_str == '3.7':
             config_data['pywren']['runtime'] = RUNTIME_DEFAULT_37.replace('<USER>', docker_user)
-
-    
