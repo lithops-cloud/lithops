@@ -55,11 +55,11 @@ class stats:
 
 class JobRunner(Process):
 
-    def __init__(self, jr_config, jr_success_flag):
+    def __init__(self, jr_config, jobrunner_conn):
         super().__init__()
         start_time = time.time()
         self.jr_config = jr_config
-        self.success_flag = jr_success_flag
+        self.jobrunner_conn = jobrunner_conn
 
         log_level = self.jr_config['log_level']
         cloud_logging_config(log_level)
@@ -312,5 +312,5 @@ class JobRunner(Process):
                 self.internal_storage.put_data(self.output_key, pickled_output)
                 output_upload_timestamp_t2 = time.time()
                 self.stats.write("output_upload_time", round(output_upload_timestamp_t2 - output_upload_timestamp_t1, 8))
-            self.success_flag.value = 1
+            self.jobrunner_conn.send("Finished")
             logger.info("Finished")

@@ -99,8 +99,6 @@ spec:
         value: .
       - name: pathToDockerFile
         value: runtime/knative/Dockerfile
-      - name: imageTag
-        value: latest
   serviceAccount: pywren-build-pipeline
 """
 

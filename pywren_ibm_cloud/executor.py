@@ -275,7 +275,7 @@ class FunctionExecutor:
         self._state = ExecutorState.running
 
         if reducer_wait_local:
-            self.monitor(futures=map_futures)
+            self.wait(fs=map_futures)
 
         reduce_job_id = 'R{}'.format(job_id)
 
@@ -548,7 +548,7 @@ class FunctionExecutor:
                          'STORE_RESULT': False}
             old_stdout = sys.stdout
             sys.stdout = open(os.devnull, 'w')
-            self.executor.call_async(clean_os_bucket, [storage_bucket, storage_prerix], extra_env=extra_env)
+            self.call_async(clean_os_bucket, [storage_bucket, storage_prerix], extra_env=extra_env)
             sys.stdout = old_stdout
 
         self._state = ExecutorState.finished

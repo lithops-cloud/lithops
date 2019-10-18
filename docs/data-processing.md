@@ -6,8 +6,7 @@ Additionally, the built-in data-processing logic integrates a **data partitioner
 
 
 ## Processing data from IBM Cloud Object Storage
-This mode is activated when you write the parameter **obj** into the function arguments. The input to the partitioner may be either a list of buckets, a list of buckets with object prefix, or a list of data objects. If you set the *size of the chunk* or the *number of chunks*, the partitioner is activated inside PyWren and it is responsible to split the objects into smaller chunks, eventually running one function activation for each generated chunk. If *size of the chunk* and *number of chunks* are not set, chunk is an entire object, so one function activation is executed for each individual object. For example consider the following function:
-
+This mode is activated when you write the parameter **obj** into the function arguments. The input to the partitioner may be either a list of buckets, a list of buckets with object prefix, or a list of data objects. If you set the *size of the chunk* or the *number of chunks*, the partitioner is activated inside PyWren and it is responsible to split the objects into smaller chunks, eventually running one function activation for each generated chunk. If *size of the chunk* and *number of chunks* are not set, chunk is an entire object, so one function activation is executed for each individual object.
 
 The *obj* parameter is a python class from where you can access all the information related to the object (or chunk) that the function is processing. For example, consider the following function that shows all the available attributes in *obj*:
 
@@ -24,26 +23,26 @@ def my_map_function(obj):
 
 As stated above, the allowed inputs of the function can be:
 
-- Input data is a bucket or a list of buckets. See a complete example in [map_reduce_cos_bucket.py](../examples/map_reduce_cos_bucket.py):
+- Input data is a bucket or a list of buckets. See an example in [map_reduce_cos_bucket.py](../examples/map_reduce_cos_bucket.py):
     ```python
     iterdata = 'cos://bucket1'
     ```
 
--  Input data is a bucket(s) with object prefix. See a complete example in [map_cos_prefix.py](../examples/map_cos_prefix.py):
+-  Input data is a bucket(s) with object prefix. See an example in [map_cos_prefix.py](../examples/map_cos_prefix.py):
     ```python
     iterdata = ['cos://bucket1/images/', 'cos://bucket1/videos/']
     ```
     Notice that you must write the end slash (/) to inform partitioner you are providing an object prefix.
 
-- Input data is a list of object keys. See a complete example in [map_reduce_cos_key.py](../examples/map_reduce_cos_key.py):
+- Input data is a list of object keys. See an example in [map_reduce_cos_key.py](../examples/map_reduce_cos_key.py):
     ```python
     iterdata = ['cos://bucket1/object1', 'cos://bucket1/object2', 'cos://bucket1/object3'] 
     ```
     
-Notice that *iterdata* must be only one of the previous 3 types. Intermingled types are not allowed. For example, you cannot set in the same *iterdata* list a bucket and some object keys:
+Notice that *iterdata* must be only one of the previous 3 types. Intermingled types are not allowed. For example, you cannot set in the same *iterdata* a bucket and some object keys:
 
 ```python
-iterdata = ['cos://bucket1', 'cos://bucket1/object2', 'cos://bucket1/object3'] 
+iterdata = ['cos://bucket1', 'cos://bucket1/object2', 'cos://bucket1/object3']  # Not allowed
 ```
 
 Once iterdata is defined, you can execute PyWren as usual, either using *map()* or **map_reduce()* calls. If you need to split the files in smaller chunks, you can set (optionally) the *chunk_size* or *chunk_n* parameters.
@@ -92,8 +91,7 @@ See a complete example in [map_reduce_url.py](../examples/map_reduce_url.py).
 
 
 ## Reducer granularity            
-By default there will be one reducer for all the object chunks. If you need one reducer for each object, you must set the parameter
-`reducer_one_per_object=True` into the *map()* or *map_reduce()* methods.
+When using the `map_reduce()` API call with `chunk_size` or `chunk_n`, by default there will be only one reducer for all the object chunks from all the objects. Alternatively, you can spawn one reducer for each object by setting the parameter `reducer_one_per_object=True`.
 
 ```python
 pw.map_reduce(my_map_function, bucket_name, my_reduce_function, 

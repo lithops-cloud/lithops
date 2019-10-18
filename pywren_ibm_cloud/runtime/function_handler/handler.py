@@ -23,7 +23,7 @@ import pickle
 import logging
 import traceback
 import subprocess
-from multiprocessing import Value
+from multiprocessing import Pipe
 from distutils.util import strtobool
 from pywren_ibm_cloud import version
 from pywren_ibm_cloud.utils import sizeof_fmt
@@ -136,8 +136,8 @@ def function_handler(event):
         setup_time = time.time()
         response_status['setup_time'] = round(setup_time - start_time, 8)
 
-        jr_success_flag = Value('i', 0)
-        tr = JobRunner(jobrunner_config, jr_success_flag)
+        handler_conn, jobrunner_conn = Pipe()
+        tr = JobRunner(jobrunner_config, jobrunner_conn)
         tr.daemon = True
         logger.debug('Starting JobRunner process')
         tr.start()
@@ -152,7 +152,9 @@ def function_handler(event):
                    'seconds and was killed'.format(execution_timeout))
             raise Exception('OUTATIME',  msg)
 
-        if jr_success_flag.value == 0:
+        try:
+            handler_conn.recv()
+        except EOFError:
             logger.error('No completion message received from JobRunner process')
             logger.debug('Assuming memory overflow...')
             # Only 1 message is returned by jobrunner when it finishes.
