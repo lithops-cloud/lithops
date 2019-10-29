@@ -23,7 +23,7 @@ scipy == 1.2.1
 pandas == 0.24.1
 
 # packages for image processing
-Pillow == 5.4.1
+Pillow == 6.2.0
 
 # IBM specific python modules
 ibm_db == 3.0.1
