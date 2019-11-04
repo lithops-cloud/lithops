@@ -13,7 +13,7 @@ PyWren - IBM provides great value for the variety of uses cases, like processing
 This document describes the steps to use PyWren over IBM Cloud Functions and IBM Cloud Object Storage.
 
 ### IBM Cloud for Academic institutions
-[IBM Academic Initiative](https://ibm.biz/academic) is a special program that allows free trial of IBM Cloud for Academic institutions. This program is provided for students and faculty staff members, and allow up to 12 month of free usage. You can register your university email and get a free of charge account.
+[IBM Academic Initiative](https://ibm.biz/academic) is a special program that allows free trial of IBM Cloud for Academic institutions. This program is provided for students and faculty staff members, and allow up to 12 months of free usage. You can register your university email and get a free of charge account.
 
 
 # Getting Started
@@ -44,13 +44,13 @@ Installation for developers can be found [here](docs/dev-installation.md).
 
 
 ## Configuration
-To make IBM-PyWren running, configure the client with the access details to your IBM Cloud Object Storage and IBM Cloud Functions accounts. IBM-PyWren can be configured trough a configuration file or an in-runtime Python dictionary.
+To make IBM-PyWren running, configure the client with the access details to your IBM Cloud Object Storage and IBM Cloud Functions accounts. IBM-PyWren can be configured through a configuration file or an in-runtime Python dictionary.
 
 You can find the complete instructions and all the available configuration keys [here](config/).
 
 
 ##  Runtime
-The runtime is the place where your functions will be executed. In IBM-PyWren, runtimes are based on docker images, and it includes by default three different runtimes that allows you to run functions with Python 3.5, 3.6 and 3.7 environments. IBM-PyWren automatically deploys the default runtime, based on the Python version you are using, the first time you execute a function. Additionally, you can also build custom runtimes with libraries that your functions depends on. 
+The runtime is the place where your functions will be executed. In IBM-PyWren, runtimes are based on docker images, and it includes by default three different runtimes that allows you to run functions with Python 3.5, 3.6 and 3.7 environments. IBM-PyWren automatically deploys the default runtime, based on the Python version you are using, the first time you execute a function. Additionally, you can also build custom runtimes with libraries that your functions depend on.
 
 Check more information about runtimes [here](runtime/).
 
@@ -102,7 +102,7 @@ if __name__ == '__main__':
 ```
 
 ### Functions
-PyWren for IBM Cloud allows to send multiple parameters in each function invocation. See detailed examples [here](docs/multiple-parameters.md). Moreover, multiple parameters in functions allowed us to add some new built-in capabilities in PyWren. Thus, take into account that there are some reserved parameter names that activate internal logic. These reserved parameters are:
+PyWren for IBM Cloud allows sending multiple parameters in each function invocation. See detailed examples [here](docs/multiple-parameters.md). Moreover, multiple parameters in functions allowed us to add some new built-in capabilities in PyWren. Thus, take into account that there are some reserved parameter names that activate internal logic. These reserved parameters are:
 
 - **id**: To get the call id. For instance, if you spawn 10 activations of a function, you will get here a number from 0 to 9, for example: [map.py](examples/map.py)
 
@@ -110,7 +110,7 @@ PyWren for IBM Cloud allows to send multiple parameters in each function invocat
 
 - **rabbitmq**: To get a ready-to use [pika.BlockingConnection()](https://pika.readthedocs.io/en/0.13.1/modules/adapters/blocking.html) instance (AMQP URL must be set in the [configuration](config/) to make it working). This allows you to access the RabbitMQ service from any function in an easy way, for example: [rabbitmq_arg.py](examples/rabbitmq_arg.py)
 
-- **obj** & **url**: These two parameter activate internal logic that allows to process data objects stored in the IBM Cloud Object Storage service or public URLs in transparent way. Read the following section that provides full details and instructions on how to use this built-in data-processing logic.
+- **obj** & **url**: These two parameters activate internal logic that allows processing data objects stored in the IBM Cloud Object Storage service or public URLs in a transparent way. Read the following section that provides full details and instructions on how to use this built-in data-processing logic.
 
 
 ### Using PyWren to process data from IBM Cloud Object Storage and public URLs

@@ -20,6 +20,7 @@ import time
 import logging
 import random
 from types import SimpleNamespace
+from multiprocessing import Process, Queue
 from pywren_ibm_cloud.compute import Compute
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
@@ -54,6 +55,13 @@ class FunctionInvoker:
                 self.compute_handlers.append(Compute(compute_config))
         else:
             self.compute_handlers.append(Compute(self.compute_config))
+
+        self.jobs_queue = Queue()
+        self.invoker_process = InvokerProcess(pywren_config, executor_id, self.jobs_queue)
+        self.invoker_process.daemon = True
+        print('Starting Invoker process')
+        self.invoker_process.start()
+        self.jobs = []
 
     def select_runtime(self, job_id, runtime_memory):
         """
@@ -109,82 +117,115 @@ class FunctionInvoker:
 
         return runtime_meta
 
-    def run(self, job_description):
+    def submit_job(self, job_description):
+        self.jobs.append(job_description)
+
+        self.jobs_queue.put(job_description)
+
+        return []
+
+
+class InvokerProcess(Process):
+    def __init__(self, pywren_config, executor_id, jobs_queue):
+        super().__init__()
+        self.log_level = os.getenv('PYWREN_LOGLEVEL')
+        self.pywren_config = pywren_config
+        self.executor_id = executor_id
+        self.jobs_queue = jobs_queue
+        self.storage_config = extract_storage_config(self.pywren_config)
+        self.compute_config = extract_compute_config(self.pywren_config)
+
+        self.compute_handlers = []
+        cb = self.compute_config['backend']
+        regions = self.compute_config[cb].get('region')
+        if type(regions) == list:
+            for region in regions:
+                compute_config = self.compute_config.copy()
+                compute_config[cb]['region'] = region
+                self.compute_handlers.append(Compute(compute_config))
+        else:
+            self.compute_handlers.append(Compute(self.compute_config))
+
+    def run(self):
         """
         Run a job described in job_description
         """
-        job = SimpleNamespace(**job_description)
+        while True:
+            job_description = self.jobs_queue.get()
+            print(job_description)
+            time.sleep(10)
+            job = SimpleNamespace(**job_description)
 
-        if job.remote_invocation:
-            log_msg = ('ExecutorID {} | JobID {} - Starting {} remote invocation function: Spawning {}() '
-                       '- Total: {} activations'.format(self.executor_id, job.job_id, job.total_calls,
-                                                        job.func_name, job.original_total_calls))
-        else:
-            log_msg = ('ExecutorID {} | JobID {} - Starting function invocation: {}()  - Total: {} '
-                       'activations'.format(self.executor_id, job.job_id, job.func_name, job.total_calls))
-        logger.info(log_msg)
-        if not self.log_level:
-            print(log_msg)
-
-        ########################
-
-        def invoke(executor_id, job_id, call_id, func_key, invoke_metadata, data_key, data_byte_range):
-
-            output_key = create_output_key(self.storage_config['prefix'], executor_id, job_id, call_id)
-            status_key = create_status_key(self.storage_config['prefix'], executor_id, job_id, call_id)
-
-            payload = {
-                'config': self.pywren_config,
-                'log_level': self.log_level,
-                'func_key': func_key,
-                'data_key': data_key,
-                'output_key': output_key,
-                'status_key': status_key,
-                'execution_timeout': job.execution_timeout,
-                'data_byte_range': data_byte_range,
-                'executor_id': executor_id,
-                'job_id': job_id,
-                'call_id': call_id,
-                'pywren_version': __version__}
-
-            if job.extra_env is not None:
-                logger.debug("Extra environment vars {}".format(job.extra_env))
-                payload['extra_env'] = job.extra_env
-
-            host_submit_time = time.time()
-            payload['host_submit_time'] = host_submit_time
-            # do the invocation
-            compute_handler = random.choice(self.compute_handlers)
-            activation_id = compute_handler.invoke(job.runtime_name, job.runtime_memory, payload)
-
-            if not activation_id:
-                raise Exception("ExecutorID {} | JobID {} - Retrying mechanism finished with no success. "
-                                "Failed to invoke the job".format(executor_id, job_id))
-
-            invoke_metadata['activation_id'] = activation_id
-            invoke_metadata['invoke_time'] = time.time() - host_submit_time
-
-            invoke_metadata.update(payload)
-            del invoke_metadata['config']
-
-            fut = ResponseFuture(call_id, job_id, executor_id, activation_id, self.storage_config, invoke_metadata)
-            fut._set_state(CallState.invoked)
-
-            return fut
-
-        ########################
-
-        call_futures = []
-        with ThreadPoolExecutor(max_workers=job.invoke_pool_threads) as executor:
-            for i in range(job.total_calls):
-                call_id = "{:05d}".format(i)
-                data_byte_range = job.data_ranges[i]
-                future = executor.submit(invoke, self.executor_id,
-                                         job.job_id, call_id, job.func_key,
-                                         job.host_job_meta.copy(),
-                                         job.data_key, data_byte_range)
-                call_futures.append(future)
-
-        res = [ft.result() for ft in call_futures]
-
-        return res
+            if job.remote_invocation:
+                log_msg = ('ExecutorID {} | JobID {} - Starting {} remote invocation function: Spawning {}() '
+                           '- Total: {} activations'.format(self.executor_id, job.job_id, job.total_calls,
+                                                            job.func_name, job.original_total_calls))
+            else:
+                log_msg = ('ExecutorID {} | JobID {} - Starting function invocation: {}()  - Total: {} '
+                           'activations'.format(self.executor_id, job.job_id, job.func_name, job.total_calls))
+            logger.info(log_msg)
+            if not self.log_level:
+                print(log_msg)
+    
+            ########################
+    
+            def invoke(executor_id, job_id, call_id, func_key, invoke_metadata, data_key, data_byte_range):
+    
+                output_key = create_output_key(self.storage_config['prefix'], executor_id, job_id, call_id)
+                status_key = create_status_key(self.storage_config['prefix'], executor_id, job_id, call_id)
+    
+                payload = {
+                    'config': self.pywren_config,
+                    'log_level': self.log_level,
+                    'func_key': func_key,
+                    'data_key': data_key,
+                    'output_key': output_key,
+                    'status_key': status_key,
+                    'execution_timeout': job.execution_timeout,
+                    'data_byte_range': data_byte_range,
+                    'executor_id': executor_id,
+                    'job_id': job_id,
+                    'call_id': call_id,
+                    'pywren_version': __version__}
+    
+                if job.extra_env is not None:
+                    logger.debug("Extra environment vars {}".format(job.extra_env))
+                    payload['extra_env'] = job.extra_env
+    
+                host_submit_time = time.time()
+                payload['host_submit_time'] = host_submit_time
+                # do the invocation
+                compute_handler = random.choice(self.compute_handlers)
+                activation_id = compute_handler.invoke(job.runtime_name, job.runtime_memory, payload)
+    
+                if not activation_id:
+                    raise Exception("ExecutorID {} | JobID {} - Retrying mechanism finished with no success. "
+                                    "Failed to invoke the job".format(executor_id, job_id))
+    
+                invoke_metadata['activation_id'] = activation_id
+                invoke_metadata['invoke_time'] = time.time() - host_submit_time
+    
+                invoke_metadata.update(payload)
+                del invoke_metadata['config']
+    
+                fut = ResponseFuture(call_id, job_id, executor_id, activation_id, self.storage_config, invoke_metadata)
+                fut._set_state(CallState.invoked)
+    
+                return fut
+    
+            ########################
+    
+            call_futures = []
+            with ThreadPoolExecutor(max_workers=job.invoke_pool_threads) as executor:
+                for i in range(job.total_calls):
+                    call_id = "{:05d}".format(i)
+                    data_byte_range = job.data_ranges[i]
+                    future = executor.submit(invoke, self.executor_id,
+                                             job.job_id, call_id, job.func_key,
+                                             job.host_job_meta.copy(),
+                                             job.data_key, data_byte_range)
+                    call_futures.append(future)
+    
+            res = [ft.result() for ft in call_futures]
+    
+            return res
