@@ -149,7 +149,7 @@ class FunctionExecutor:
                              exclude_modules=exclude_modules,
                              execution_timeout=timeout)
 
-        future = self.invoker.run(job)
+        future = self.invoker.submit_job(job)
         self.jobs[async_job_id] = {'futures': future, 'state': JobState.running}
         self._state = ExecutorState.running
 
@@ -204,7 +204,7 @@ class FunctionExecutor:
                              is_remote_cluster=self.is_remote_cluster,
                              execution_timeout=timeout)
 
-        map_futures = self.invoker.run(job)
+        map_futures = self.invoker.submit_job(job)
         self.jobs[map_job_id] = {'futures': map_futures, 'state': JobState.running}
         self._state = ExecutorState.running
 
@@ -270,7 +270,7 @@ class FunctionExecutor:
                                  is_remote_cluster=self.is_remote_cluster,
                                  execution_timeout=timeout)
 
-        map_futures = self.invoker.run(map_job)
+        map_futures = self.invoker.submit_job(map_job)
         self.jobs[map_job_id] = {'futures': map_futures, 'state': JobState.running}
         self._state = ExecutorState.running
 
@@ -291,7 +291,7 @@ class FunctionExecutor:
                                        include_modules=include_modules,
                                        exclude_modules=exclude_modules)
 
-        reduce_futures = self.invoker.run(reduce_job)
+        reduce_futures = self.invoker.submit_job(reduce_job)
         self.jobs[reduce_job_id] = {'futures': reduce_futures, 'state': JobState.running}
 
         for f in map_futures:
@@ -322,6 +322,8 @@ class FunctionExecutor:
             and `fs_notdone` is a list of futures that have not completed.
         :rtype: 2-tuple of list
         """
+        print('in waitting')
+        time.sleep(20)
         if not fs:
             fs = []
             for job in self.jobs:
