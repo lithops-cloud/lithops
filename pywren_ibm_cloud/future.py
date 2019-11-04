@@ -54,7 +54,7 @@ class ResponseFuture:
     GET_RESULT_SLEEP_SECS = 1
     GET_RESULT_MAX_RETRIES = 10
 
-    def __init__(self, call_id, job_id, executor_id, activation_id, storage_config, invoke_metadata):
+    def __init__(self, call_id, job_id, executor_id, storage_config, activation_id=None, invoke_metadata={}):
         self.call_id = call_id
         self.job_id = job_id
         self.executor_id = executor_id

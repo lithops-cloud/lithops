@@ -323,7 +323,8 @@ class FunctionExecutor:
         :rtype: 2-tuple of list
         """
         print('in waitting')
-        time.sleep(20)
+        time.sleep(5)
+        print(self.jobs)
         if not fs:
             fs = []
             for job in self.jobs:
