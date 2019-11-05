@@ -123,17 +123,28 @@ class FunctionInvoker:
         return runtime_meta
 
     def submit_job(self, job_description):
+        # generate and return futures
         job = SimpleNamespace(**job_description)
-        self.jobs[job.job_id] = []  # list of futures
+        self.jobs[job.job_id] = {}
+        futures = []
+        for i in range(job.total_calls):
+            call_id = "{:05d}".format(i)
+            fut = ResponseFuture(call_id, job.job_id, self.executor_id, self.storage_config)
+            fut._set_state(CallState.new)
+            futures.append(fut)
+            self.jobs[job.job_id][call_id] = fut
+
         self.jobs_queue.put(job_description)
 
-        return self.jobs[job.job_id]
+        return futures
 
 
 def fut_getter_thread(jobs, futures_queue):
     while True:
-        job_id, fut = futures_queue.get()
-        jobs[job_id].append(fut)
+        job_id, call_id, fut = futures_queue.get()
+        jobs[job_id][call_id].invoke_status = fut.invoke_status
+        jobs[job_id][call_id].activation_id = fut.activation_id
+        jobs[job_id][call_id]._set_state(CallState.invoked)
 
 
 class InvokerProcess(Process):
@@ -223,7 +234,7 @@ class InvokerProcess(Process):
 
                 fut = ResponseFuture(call_id, job_id, executor_id, self.storage_config, activation_id, invoke_metadata)
                 fut._set_state(CallState.invoked)
-                self.futures_queue.put((job_id, fut))
+                self.futures_queue.put((job_id, call_id, fut))
                 #return fut
 
             ########################
