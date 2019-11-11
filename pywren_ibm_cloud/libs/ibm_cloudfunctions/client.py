@@ -27,12 +27,11 @@ logger = logging.getLogger(__name__)
 
 class CloudFunctionsClient:
 
-    def __init__(self, region, endpoint, namespace, namespace_id=None, api_key=None,
+    def __init__(self, endpoint, namespace, namespace_id=None, api_key=None,
                  iam_api_key=None, token_manager=None, user_agent=None):
         """
         CloudFunctionsClient Constructor
         """
-        self.region = region
         self.endpoint = endpoint.replace('http:', 'https:')
         self.namespace = namespace
         self.namespace_id = namespace_id

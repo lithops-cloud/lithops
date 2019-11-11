@@ -42,8 +42,7 @@ class IBMCloudFunctionsBackend:
         logger.debug("Set IBM CF Endpoint to {}".format(self.endpoint))
 
         if self.api_key:
-            self.cf_client = CloudFunctionsClient(region=self.region,
-                                                  endpoint=self.endpoint,
+            self.cf_client = CloudFunctionsClient(endpoint=self.endpoint,
                                                   namespace=self.namespace,
                                                   api_key=self.api_key,
                                                   user_agent=self.user_agent)

@@ -18,15 +18,6 @@ from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system,
 logger = logging.getLogger(__name__)
 
 
-class ExecutorState(enum.Enum):
-    new = 1
-    running = 2
-    ready = 3
-    done = 4
-    error = 5
-    finished = 6
-
-
 class JobState(enum.Enum):
     running = 1
     ready = 2
@@ -35,6 +26,14 @@ class JobState(enum.Enum):
 
 
 class FunctionExecutor:
+
+    class State:
+        New = 'New'
+        Running = 'Running'
+        Ready = 'Ready'
+        Done = 'Done'
+        Error = 'Error'
+        Finished = 'Finished'
 
     def __init__(self, config=None, runtime=None, runtime_memory=None, compute_backend=None,
                  compute_backend_region=None, storage_backend=None, storage_backend_region=None,
@@ -55,7 +54,7 @@ class FunctionExecutor:
         :return `FunctionExecutor` object.
         """
         self.start_time = time.time()
-        self._state = ExecutorState.new
+        self._state = FunctionExecutor.State.New
         self.is_remote_cluster = is_remote_cluster()
 
         # Log level Configuration
@@ -129,7 +128,7 @@ class FunctionExecutor:
 
         :return: future object.
         """
-        if self._state == ExecutorState.finished:
+        if self._state == FunctionExecutor.State.Finished:
             raise Exception('You cannot run call_async() in the current state,'
                             ' create a new FunctionExecutor() instance.')
 
@@ -151,7 +150,7 @@ class FunctionExecutor:
 
         future = self.invoker.submit_job(job)
         self.jobs[async_job_id] = {'futures': future, 'state': JobState.running}
-        self._state = ExecutorState.running
+        self._state = FunctionExecutor.State.Running
 
         return future[0]
 
@@ -176,7 +175,7 @@ class FunctionExecutor:
 
         :return: A list with size `len(iterdata)` of futures.
         """
-        if self._state == ExecutorState.finished:
+        if self._state == FunctionExecutor.State.Finished:
             raise Exception('You cannot run map() in the current state.'
                             ' Create a new FunctionExecutor() instance.')
 
@@ -206,7 +205,7 @@ class FunctionExecutor:
 
         map_futures = self.invoker.submit_job(job)
         self.jobs[map_job_id] = {'futures': map_futures, 'state': JobState.running}
-        self._state = ExecutorState.running
+        self._state = FunctionExecutor.State.Running
 
         if len(map_futures) == 1:
             return map_futures[0]
@@ -242,7 +241,7 @@ class FunctionExecutor:
 
         :return: A list with size `len(map_iterdata)` of futures.
         """
-        if self._state == ExecutorState.finished:
+        if self._state == FunctionExecutor.State.Finished:
             raise Exception('You cannot run map_reduce() in the current state.'
                             ' Create a new FunctionExecutor() instance.')
 
@@ -272,7 +271,7 @@ class FunctionExecutor:
 
         map_futures = self.invoker.submit_job(map_job)
         self.jobs[map_job_id] = {'futures': map_futures, 'state': JobState.running}
-        self._state = ExecutorState.running
+        self._state = FunctionExecutor.State.Running
 
         if reducer_wait_local:
             self.wait(fs=map_futures)
@@ -350,7 +349,7 @@ class FunctionExecutor:
         else:
             msg = 'ExecutorID {} - Waiting for functions to complete...'.format(self.executor_id)
         logger.info(msg)
-        if not self.log_level and self._state == ExecutorState.running:
+        if not self.log_level and self._state == FunctionExecutor.State.Running:
             print(msg)
 
         if is_unix_system():
@@ -358,7 +357,7 @@ class FunctionExecutor:
             signal.alarm(timeout)
 
         pbar = None
-        if not self.is_remote_cluster and self._state == ExecutorState.running \
+        if not self.is_remote_cluster and self._state == FunctionExecutor.State.Running \
            and not self.log_level:
             from tqdm.auto import tqdm
             if is_notebook():
@@ -404,7 +403,7 @@ class FunctionExecutor:
                 not_dones_activation_ids = [f.activation_id for f in futures if not f.ready and not f.done]
             msg = ('ExecutorID {} - Raised timeout of {} seconds waiting for results - Total Activations not done: {}'
                    ' {}'.format(self.executor_id, timeout, len(not_dones_activation_ids), not_dones_activation_ids))
-            self._state = ExecutorState.error
+            self._state = FunctionExecutor.State.Error
 
         except KeyboardInterrupt:
             if download_results:
@@ -413,7 +412,7 @@ class FunctionExecutor:
                 not_dones_activation_ids = [f.activation_id for f in futures if not f.ready and not f.done]
             msg = ('ExecutorID {} - Cancelled - Total Activations not done: {} '
                    '{}'.format(self.executor_id, len(not_dones_activation_ids), not_dones_activation_ids))
-            self._state = ExecutorState.error
+            self._state = FunctionExecutor.State.Error
 
         except Exception as e:
             if not self.is_remote_cluster:
@@ -427,7 +426,7 @@ class FunctionExecutor:
                 pbar.close()
                 if not is_notebook():
                     print()
-            if self._state == ExecutorState.error:
+            if self._state == FunctionExecutor.State.Error:
                 logger.debug(msg)
                 if not self.log_level:
                     print(msg)
@@ -437,11 +436,11 @@ class FunctionExecutor:
         if download_results:
             fs_done = [f for f in futures if f.done]
             fs_notdone = [f for f in futures if not f.done]
-            self._state = ExecutorState.done
+            self._state = FunctionExecutor.State.Done
         else:
             fs_done = [f for f in futures if f.ready or f.done]
             fs_notdone = [f for f in futures if not f.ready and not f.done]
-            self._state = ExecutorState.ready
+            self._state = FunctionExecutor.State.Ready
 
         return fs_done, fs_notdone
 
@@ -555,4 +554,4 @@ class FunctionExecutor:
             self.call_async(clean_os_bucket, [storage_bucket, storage_prerix], extra_env=extra_env)
             sys.stdout = old_stdout
 
-        self._state = ExecutorState.finished
+        self._state = FunctionExecutor.State.Finished
