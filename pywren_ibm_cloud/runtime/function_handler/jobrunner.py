@@ -25,7 +25,6 @@ import inspect
 import requests
 import traceback
 import numpy as np
-from multiprocessing import Process
 from distutils.util import strtobool
 from pywren_ibm_cloud.storage import Storage
 from pywren_ibm_cloud.storage import InternalStorage
@@ -56,10 +55,9 @@ class stats:
         self.stats_fid.close()
 
 
-class JobRunner(Process):
+class JobRunner:
 
     def __init__(self, jr_config, jobrunner_conn):
-        super().__init__()
         start_time = time.time()
         self.jr_config = jr_config
         self.jobrunner_conn = jobrunner_conn

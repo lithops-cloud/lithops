@@ -198,7 +198,6 @@ class FunctionExecutor:
         map_futures = self.invoker.run(job)
         self.jobs[map_job_id] = {'futures': map_futures, 'state': JobState.Running}
         self._state = FunctionExecutor.State.Running
-
         if len(map_futures) == 1:
             return map_futures[0]
         return map_futures
@@ -313,7 +312,6 @@ class FunctionExecutor:
             and `fs_notdone` is a list of futures that have not completed.
         :rtype: 2-tuple of list
         """
-        time.sleep(5)
         if not fs:
             fs = []
             for job in self.jobs:
@@ -391,7 +389,7 @@ class FunctionExecutor:
             else:
                 not_dones_activation_ids = [f.activation_id for f in futures if not f.ready and not f.done]
             msg = ('ExecutorID {} - Raised timeout of {} seconds waiting for results - Total Activations not done: {}'
-                   ' {}'.format(self.executor_id, timeout, len(not_dones_activation_ids), not_dones_activation_ids))
+                   .format(self.executor_id, timeout, len(not_dones_activation_ids)))
             self._state = FunctionExecutor.State.Error
 
         except KeyboardInterrupt:
@@ -399,8 +397,8 @@ class FunctionExecutor:
                 not_dones_activation_ids = [f.activation_id for f in futures if not f.done]
             else:
                 not_dones_activation_ids = [f.activation_id for f in futures if not f.ready and not f.done]
-            msg = ('ExecutorID {} - Cancelled - Total Activations not done: {} '
-                   '{}'.format(self.executor_id, len(not_dones_activation_ids), not_dones_activation_ids))
+            msg = ('ExecutorID {} - Cancelled - Total Activations not done: {}'
+                   .format(self.executor_id, len(not_dones_activation_ids)))
             self._state = FunctionExecutor.State.Error
 
         except Exception as e:

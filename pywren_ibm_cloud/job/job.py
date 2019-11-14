@@ -175,8 +175,10 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     else:
         func_name = func.__name__
 
-    if extra_env is not None:
+    extra_env = {} if extra_env is None else extra_env
+    if extra_env:
         extra_env = utils.convert_bools_to_string(extra_env)
+        logger.debug("Extra environment vars {}".format(extra_env))
 
     if not data:
         return []

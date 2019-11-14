@@ -24,6 +24,7 @@ import logging
 import tempfile
 import traceback
 import subprocess
+from threading import Thread
 from multiprocessing import Pipe
 from distutils.util import strtobool
 from pywren_ibm_cloud import version
@@ -31,7 +32,7 @@ from pywren_ibm_cloud.utils import sizeof_fmt
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config
 from pywren_ibm_cloud.runtime.function_handler.jobrunner import JobRunner
-
+from multiprocessing import Process
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('handler')
@@ -140,17 +141,23 @@ def function_handler(event):
         response_status['setup_time'] = round(setup_time - start_time, 8)
 
         handler_conn, jobrunner_conn = Pipe()
-        jr = JobRunner(jobrunner_config, jobrunner_conn)
-        jr.daemon = True
+        jobrunner = JobRunner(jobrunner_config, jobrunner_conn)
+
         logger.debug('Starting JobRunner process')
-        jr.start()
-        jr.join(execution_timeout)
+        local_execution = strtobool(os.environ.get('LOCAL_EXECUTION', 'False'))
+        if local_execution:
+            jrp = Thread(target=jobrunner.run)
+        else:
+            jrp = Process(target=jobrunner.run)
+        jrp.daemon = True
+        jrp.start()
+        jrp.join(execution_timeout)
         logger.debug('JobRunner process finished')
         response_status['exec_time'] = round(time.time() - setup_time, 8)
 
-        if jr.is_alive():
+        if jrp.is_alive():
             # If process is still alive after jr.join(job_max_runtime), kill it
-            jr.terminate()
+            jrp.terminate()
             msg = ('Jobrunner process exceeded maximum time of {} '
                    'seconds and was killed'.format(execution_timeout))
             raise Exception('OUTATIME',  msg)

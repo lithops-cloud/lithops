@@ -140,16 +140,13 @@ class FunctionInvoker:
                 'data_key': data_key,
                 'output_key': output_key,
                 'status_key': status_key,
+                'extra_env': job.extra_env,
                 'execution_timeout': job.execution_timeout,
                 'data_byte_range': data_byte_range,
                 'executor_id': executor_id,
                 'job_id': job_id,
                 'call_id': call_id,
                 'pywren_version': __version__}
-
-            if job.extra_env is not None:
-                logger.debug("Extra environment vars {}".format(job.extra_env))
-                payload['extra_env'] = job.extra_env
 
             host_submit_time = time.time()
             payload['host_submit_time'] = host_submit_time
