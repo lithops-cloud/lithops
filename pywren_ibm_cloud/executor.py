@@ -1,7 +1,6 @@
 import os
 import sys
 import time
-import enum
 import json
 import signal
 import logging
@@ -11,18 +10,11 @@ from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.future import FunctionException
 from pywren_ibm_cloud.storage.utils import clean_os_bucket
 from pywren_ibm_cloud.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
-from pywren_ibm_cloud.job import create_map_job, create_reduce_job
+from pywren_ibm_cloud.job import JobState, create_map_job, create_reduce_job
 from pywren_ibm_cloud.config import default_config, extract_storage_config, EXECUTION_TIMEOUT, default_logging_config
 from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_remote_cluster, create_executor_id
 
 logger = logging.getLogger(__name__)
-
-
-class JobState(enum.Enum):
-    running = 1
-    ready = 2
-    done = 3
-    finished = 4
 
 
 class FunctionExecutor:
@@ -148,8 +140,8 @@ class FunctionExecutor:
                              exclude_modules=exclude_modules,
                              execution_timeout=timeout)
 
-        future = self.invoker.submit_job(job)
-        self.jobs[async_job_id] = {'futures': future, 'state': JobState.running}
+        future = self.invoker.run(job)
+        self.jobs[async_job_id] = {'futures': future, 'state': JobState.Running}
         self._state = FunctionExecutor.State.Running
 
         return future[0]
@@ -203,8 +195,8 @@ class FunctionExecutor:
                              is_remote_cluster=self.is_remote_cluster,
                              execution_timeout=timeout)
 
-        map_futures = self.invoker.submit_job(job)
-        self.jobs[map_job_id] = {'futures': map_futures, 'state': JobState.running}
+        map_futures = self.invoker.run(job)
+        self.jobs[map_job_id] = {'futures': map_futures, 'state': JobState.Running}
         self._state = FunctionExecutor.State.Running
 
         if len(map_futures) == 1:
@@ -269,8 +261,8 @@ class FunctionExecutor:
                                  is_remote_cluster=self.is_remote_cluster,
                                  execution_timeout=timeout)
 
-        map_futures = self.invoker.submit_job(map_job)
-        self.jobs[map_job_id] = {'futures': map_futures, 'state': JobState.running}
+        map_futures = self.invoker.run(map_job)
+        self.jobs[map_job_id] = {'futures': map_futures, 'state': JobState.Running}
         self._state = FunctionExecutor.State.Running
 
         if reducer_wait_local:
@@ -290,8 +282,8 @@ class FunctionExecutor:
                                        include_modules=include_modules,
                                        exclude_modules=exclude_modules)
 
-        reduce_futures = self.invoker.submit_job(reduce_job)
-        self.jobs[reduce_job_id] = {'futures': reduce_futures, 'state': JobState.running}
+        reduce_futures = self.invoker.run(reduce_job)
+        self.jobs[reduce_job_id] = {'futures': reduce_futures, 'state': JobState.Running}
 
         for f in map_futures:
             f.produce_output = False
@@ -321,19 +313,16 @@ class FunctionExecutor:
             and `fs_notdone` is a list of futures that have not completed.
         :rtype: 2-tuple of list
         """
-        print('in waitting')
         time.sleep(5)
-        print(self.jobs)
-
         if not fs:
             fs = []
             for job in self.jobs:
-                if not download_results and self.jobs[job]['state'] == JobState.running:
+                if not download_results and self.jobs[job]['state'] == JobState.Running:
                     fs.extend(self.jobs[job]['futures'])
-                    self.jobs[job]['state'] = JobState.ready
-                elif download_results and self.jobs[job]['state'] != JobState.done:
+                    self.jobs[job]['state'] = JobState.Ready
+                elif download_results and self.jobs[job]['state'] != JobState.Done:
                     fs.extend(self.jobs[job]['futures'])
-                    self.jobs[job]['state'] = JobState.done
+                    self.jobs[job]['state'] = JobState.Done
 
         if type(fs) != list:
             futures = [fs]
@@ -481,10 +470,10 @@ class FunctionExecutor:
         if not futures:
             futures = []
             for job in self.jobs:
-                if self.jobs[job]['state'] == JobState.ready or \
-                   self.jobs[job]['state'] == JobState.done:
+                if self.jobs[job]['state'] == JobState.Ready or \
+                   self.jobs[job]['state'] == JobState.Done:
                     futures.extend(self.jobs[job]['futures'])
-                    self.jobs[job]['state'] = JobState.finished
+                    self.jobs[job]['state'] = JobState.Finished
 
         if type(futures) != list:
             ftrs = [futures]

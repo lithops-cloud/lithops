@@ -74,3 +74,18 @@ def function_executor(config=None, runtime=None, runtime_memory=None,
         rabbitmq_monitor=rabbitmq_monitor,
         log_level=log_level
     )
+
+
+def local_executor(config=None, storage_backend=None, storage_backend_region=None,
+                   rabbitmq_monitor=None, log_level=None):
+    """
+    Local function executor
+    """
+    compute_backend = 'local'
+    return FunctionExecutor(
+        config=config, compute_backend=compute_backend,
+        storage_backend=storage_backend,
+        storage_backend_region=storage_backend_region,
+        rabbitmq_monitor=rabbitmq_monitor,
+        log_level=log_level
+    )

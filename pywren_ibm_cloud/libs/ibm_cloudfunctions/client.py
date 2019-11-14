@@ -218,15 +218,14 @@ class CloudFunctionsClient:
 
         if resp_status == 202 and 'activationId' in data:
             return data["activationId"], None
+        elif resp_status == 429:
+            return None, "Too many concurrent requests in flight"
         else:
             logger.debug(data)
             if resp_status == 401:
                 raise Exception('Unauthorized - Invalid API Key')
             elif resp_status == 404:
                 raise Exception('Runtime: {} not deployed'.format(action_name))
-            elif resp_status == 429:
-                # Too many concurrent requests in flight
-                return None, "Too many concurrent requests in flight"
             else:
                 raise Exception(data['error'])
 
