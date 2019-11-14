@@ -14,9 +14,9 @@ logger = logging.getLogger(__name__)
 LOCAL_RUN_DIR = os.path.join(os.getcwd(), 'pywren_jobs')
 
 
-class LocalBackend:
+class LocalhostBackend:
     """
-    A wrap-up around Local Computer environment APIs.
+    A wrap-up around Localhost multiprocessing APIs.
     """
 
     def __init__(self, local_config):
@@ -26,12 +26,12 @@ class LocalBackend:
         self.queue = multiprocessing.Queue()
         self.run_dir = LOCAL_RUN_DIR
 
-        for cpu in range(multiprocessing.cpu_count()):
+        for cpu in range(self.config['cores']):
             p = multiprocessing.Process(target=self._process_runner)
             p.daemon = True
             p.start()
 
-        log_msg = 'PyWren v{} init for Local Computer'.format(__version__)
+        log_msg = 'PyWren v{} init for Localhost - Total workers: {} (CPUs)'.format(__version__, self.config['cores'])
         logger.info(log_msg)
         if not self.log_level:
             print(log_msg)

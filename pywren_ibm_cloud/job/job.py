@@ -253,6 +253,6 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
         log_msg = '- Total: {}'.format(func_and_data_size)
         print(log_msg)
 
-    job_description['host_job_meta'] = host_job_meta
+    job_description['metadata'] = host_job_meta
 
     return job_description

@@ -37,8 +37,8 @@ from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config
 pickling_support.install()
 logger = logging.getLogger('JobRunner')
 
-
-PYTHON_MODULE_PATH = os.path.join(tempfile.gettempdir(), "pymodules")
+TEMP = tempfile.gettempdir()
+PYTHON_MODULE_PATH = os.path.join(TEMP, "pymodules")
 
 
 class stats:

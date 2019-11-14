@@ -148,7 +148,7 @@ class FunctionExecutor:
 
     def map(self, map_function, map_iterdata, extra_params=None, extra_env=None, runtime_memory=None,
             chunk_size=None, chunk_n=None, remote_invocation=False, remote_invocation_groups=None,
-            timeout=EXECUTION_TIMEOUT, invoke_pool_threads=500, include_modules=[], exclude_modules=[]):
+            timeout=EXECUTION_TIMEOUT, invoke_pool_threads=450, include_modules=[], exclude_modules=[]):
         """
         :param map_function: the function to map over the data
         :param map_iterdata: An iterable of input data
@@ -205,7 +205,7 @@ class FunctionExecutor:
     def map_reduce(self, map_function, map_iterdata, reduce_function, extra_params=None, extra_env=None,
                    map_runtime_memory=None, reduce_runtime_memory=None, chunk_size=None, chunk_n=None,
                    remote_invocation=False, remote_invocation_groups=None, timeout=EXECUTION_TIMEOUT,
-                   reducer_one_per_object=False, reducer_wait_local=False, invoke_pool_threads=500,
+                   reducer_one_per_object=False, reducer_wait_local=False, invoke_pool_threads=450,
                    include_modules=[], exclude_modules=[]):
         """
         Map the map_function over the data and apply the reduce_function across all futures.
@@ -385,20 +385,20 @@ class FunctionExecutor:
 
         except TimeoutError:
             if download_results:
-                not_dones_activation_ids = [f.activation_id for f in futures if not f.done]
+                not_dones_call_ids = [(f.job_id, f.call_id) for f in futures if not f.done]
             else:
-                not_dones_activation_ids = [f.activation_id for f in futures if not f.ready and not f.done]
+                not_dones_call_ids = [(f.job_id, f.call_id) for f in futures if not f.ready and not f.done]
             msg = ('ExecutorID {} - Raised timeout of {} seconds waiting for results - Total Activations not done: {}'
-                   .format(self.executor_id, timeout, len(not_dones_activation_ids)))
+                   .format(self.executor_id, timeout, len(not_dones_call_ids)))
             self._state = FunctionExecutor.State.Error
 
         except KeyboardInterrupt:
             if download_results:
-                not_dones_activation_ids = [f.activation_id for f in futures if not f.done]
+                not_dones_call_ids = [(f.job_id, f.call_id) for f in futures if not f.done]
             else:
-                not_dones_activation_ids = [f.activation_id for f in futures if not f.ready and not f.done]
+                not_dones_call_ids = [(f.job_id, f.call_id) for f in futures if not f.ready and not f.done]
             msg = ('ExecutorID {} - Cancelled - Total Activations not done: {}'
-                   .format(self.executor_id, len(not_dones_activation_ids)))
+                   .format(self.executor_id, len(not_dones_call_ids)))
             self._state = FunctionExecutor.State.Error
 
         except Exception as e:
@@ -495,11 +495,11 @@ class FunctionExecutor:
         if not self.log_level:
             print(msg)
 
-        run_statuses = [f.run_status for f in ftrs_to_plot]
-        invoke_statuses = [f.invoke_status for f in ftrs_to_plot]
+        call_status = [f._call_status for f in ftrs_to_plot]
+        call_metadata = [f._call_metadata for f in ftrs_to_plot]
 
-        create_timeline(dst_dir, dst_file_name, self.start_time, run_statuses, invoke_statuses, self.config['ibm_cos'])
-        create_histogram(dst_dir, dst_file_name, self.start_time, run_statuses, self.config['ibm_cos'])
+        create_timeline(dst_dir, dst_file_name, self.start_time, call_status, call_metadata, self.config['ibm_cos'])
+        create_histogram(dst_dir, dst_file_name, self.start_time, call_status, self.config['ibm_cos'])
 
     def clean(self, local_execution=True, delete_all=False):
         """

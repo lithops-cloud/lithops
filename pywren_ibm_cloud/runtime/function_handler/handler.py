@@ -25,6 +25,7 @@ import tempfile
 import traceback
 import subprocess
 from threading import Thread
+from multiprocessing import Process
 from multiprocessing import Pipe
 from distutils.util import strtobool
 from pywren_ibm_cloud import version
@@ -32,12 +33,13 @@ from pywren_ibm_cloud.utils import sizeof_fmt
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config
 from pywren_ibm_cloud.runtime.function_handler.jobrunner import JobRunner
-from multiprocessing import Process
+
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('handler')
 
-JOBRUNNER_STATS_BASE_DIR = os.path.join(tempfile.gettempdir(), "pywren_jobs")
+TEMP = tempfile.gettempdir()
+JOBRUNNER_STATS_BASE_DIR = os.path.join(TEMP, "pywren_jobs")
 PYWREN_LIBS_PATH = '/action/pywren_ibm_cloud/libs'
 
 
@@ -100,6 +102,7 @@ def function_handler(event):
     response_status['call_id'] = call_id
     response_status['job_id'] = job_id
     response_status['executor_id'] = executor_id
+    response_status['activation_id'] = os.environ.get('__OW_ACTIVATION_ID')
     # response_status['func_key'] = func_key
     # response_status['data_key'] = data_key
     # response_status['output_key'] = output_key
@@ -142,7 +145,6 @@ def function_handler(event):
 
         handler_conn, jobrunner_conn = Pipe()
         jobrunner = JobRunner(jobrunner_config, jobrunner_conn)
-
         logger.debug('Starting JobRunner process')
         local_execution = strtobool(os.environ.get('LOCAL_EXECUTION', 'False'))
         if local_execution:
@@ -157,7 +159,11 @@ def function_handler(event):
 
         if jrp.is_alive():
             # If process is still alive after jr.join(job_max_runtime), kill it
-            jrp.terminate()
+            try:
+                jrp.terminate()
+            except Exception:
+                # thread does not have terminate method
+                pass
             msg = ('Jobrunner process exceeded maximum time of {} '
                    'seconds and was killed'.format(execution_timeout))
             raise Exception('OUTATIME',  msg)

@@ -51,11 +51,10 @@ class ResponseFuture:
     GET_RESULT_SLEEP_SECS = 1
     GET_RESULT_MAX_RETRIES = 10
 
-    def __init__(self, call_id, job_id, executor_id, storage_config, activation_id=None, invoke_metadata={}):
+    def __init__(self, executor_id, job_id, call_id, storage_config, call_metadata):
         self.call_id = call_id
         self.job_id = job_id
         self.executor_id = executor_id
-        self.activation_id = activation_id
         self.storage_config = storage_config
         self.produce_output = True
 
@@ -66,9 +65,9 @@ class ResponseFuture:
         self._traceback = None
         self._call_status = None
         self._call_output = None
+        self._call_metadata = call_metadata.copy()
 
-        self.run_status = None
-        self.invoke_status = invoke_metadata.copy()
+        self.activation_id = self._call_metadata.pop('activation_id', None)
 
         self.status_query_count = 0
         self.output_query_count = 0
@@ -124,7 +123,7 @@ class ResponseFuture:
             raise ValueError("task not yet invoked")
 
         if self._state == ResponseFuture.State.Ready or self._state == ResponseFuture.State.Success:
-            return self.run_status
+            return self._call_status
 
         if internal_storage is None:
             internal_storage = InternalStorage(self.storage_config)
@@ -139,10 +138,11 @@ class ResponseFuture:
                 self._call_status = internal_storage.get_call_status(self.executor_id, self.job_id, self.call_id)
                 self.status_query_count += 1
 
-        self.invoke_status['status_done_timestamp'] = time.time()
-        self.invoke_status['status_query_count'] = self.status_query_count
+        self.activation_id = self._call_status['activation_id']
 
-        self.run_status = self._call_status  # this is the remote status information
+        self._call_metadata['host_submit_time'] = self._call_status['host_submit_time']
+        self._call_metadata['status_done_timestamp'] = time.time()
+        self._call_metadata['status_query_count'] = self.status_query_count
 
         total_time = format(round(self._call_status['end_time'] - self._call_status['start_time'], 2), '.2f')
 
@@ -187,7 +187,7 @@ class ResponseFuture:
         if 'new_futures' in self._call_status:
             self.result(throw_except=throw_except, internal_storage=internal_storage)
 
-        return self.run_status
+        return self._call_status
 
     def result(self, throw_except=True, internal_storage=None):
         """
@@ -256,9 +256,9 @@ class ResponseFuture:
         call_output_time_done = time.time()
         self._call_output = call_output
 
-        self.invoke_status['download_output_time'] = call_output_time_done - call_output_time
-        self.invoke_status['output_query_count'] = self.output_query_count
-        self.invoke_status['download_output_timestamp'] = call_output_time_done
+        self._call_metadata['download_output_time'] = call_output_time_done - call_output_time
+        self._call_metadata['output_query_count'] = self.output_query_count
+        self._call_metadata['download_output_timestamp'] = call_output_time_done
 
         log_msg = ('ExecutorID {} | JobID {} - Got output from Function {} - Activation '
                    'ID: {}'.format(self.executor_id, self.job_id, self.call_id, self.activation_id))
@@ -269,15 +269,15 @@ class ResponseFuture:
         if isinstance(function_result, ResponseFuture):
             self._new_futures = [function_result]
             self._set_state(ResponseFuture.State.Futures)
-            self.invoke_status['status_done_timestamp'] = self.invoke_status['download_output_timestamp']
-            del self.invoke_status['download_output_timestamp']
+            self._call_metadata['status_done_timestamp'] = self._call_metadata['download_output_timestamp']
+            del self._call_metadata['download_output_timestamp']
             return self._new_futures
 
         elif type(function_result) == list and len(function_result) > 0 and isinstance(function_result[0], ResponseFuture):
             self._new_futures = function_result
             self._set_state(ResponseFuture.State.Futures)
-            self.invoke_status['status_done_timestamp'] = self.invoke_status['download_output_timestamp']
-            del self.invoke_status['download_output_timestamp']
+            self._call_metadata['status_done_timestamp'] = self._call_metadata['download_output_timestamp']
+            del self._call_metadata['download_output_timestamp']
             return self._new_futures
 
         else:

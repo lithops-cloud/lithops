@@ -30,18 +30,16 @@ sns.set_style('whitegrid')
 logger = logging.getLogger(__name__)
 
 
-def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses, cos_config):
-    results_df = pd.DataFrame(run_statuses)
-
-    if invoke_statuses:
-        invoke_df = pd.DataFrame(invoke_statuses)
-        results_df = pd.concat([results_df, invoke_df], axis=1)
-        Cols = list(results_df.columns)
-        for i, item in enumerate(results_df.columns):
-            if item in results_df.columns[:i]:
-                Cols[i] = "toDROP"
-        results_df.columns = Cols
-        results_df = results_df.drop("toDROP", 1)
+def create_timeline(dst, name, pw_start_time, call_status, call_metadata, cos_config):
+    status_df = pd.DataFrame(call_status)
+    metadata_df = pd.DataFrame(call_metadata)
+    results_df = pd.concat([status_df, metadata_df], axis=1)
+    Cols = list(results_df.columns)
+    for i, item in enumerate(results_df.columns):
+        if item in results_df.columns[:i]:
+            Cols[i] = "toDROP"
+    results_df.columns = Cols
+    results_df = results_df.drop("toDROP", 1)
 
     palette = sns.color_palette("deep", 6)
     #time_offset = np.min(results_df.host_submit_time)
@@ -108,7 +106,7 @@ def create_timeline(dst, name, pw_start_time, run_statuses, invoke_statuses, cos
     pylab.close(fig)
 
 
-def create_histogram(dst, name, pw_start_time, run_statuses, cos_config):
+def create_histogram(dst, name, pw_start_time, call_status, cos_config):
     runtime_bins = np.linspace(0, 600, 600)
 
     def compute_times_rates(time_rates):
@@ -137,7 +135,7 @@ def create_histogram(dst, name, pw_start_time, run_statuses, cos_config):
     fig = pylab.figure(figsize=(10, 6))
     ax = fig.add_subplot(1, 1, 1)
 
-    time_rates = [(rs['start_time'], rs['end_time']) for rs in run_statuses]
+    time_rates = [(rs['start_time'], rs['end_time']) for rs in call_status]
 
     time_hist = compute_times_rates(time_rates)
 

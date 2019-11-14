@@ -128,28 +128,26 @@ class FunctionInvoker:
 
         ########################
 
-        def invoke(executor_id, job_id, call_id, func_key, invoke_metadata, data_key, data_byte_range):
+        def invoke(executor_id, job_id, call_id, func_key, job_metadata, data_key, data_byte_range):
 
             output_key = create_output_key(self.storage_config['prefix'], executor_id, job_id, call_id)
             status_key = create_status_key(self.storage_config['prefix'], executor_id, job_id, call_id)
 
-            payload = {
-                'config': self.pywren_config,
-                'log_level': self.log_level,
-                'func_key': func_key,
-                'data_key': data_key,
-                'output_key': output_key,
-                'status_key': status_key,
-                'extra_env': job.extra_env,
-                'execution_timeout': job.execution_timeout,
-                'data_byte_range': data_byte_range,
-                'executor_id': executor_id,
-                'job_id': job_id,
-                'call_id': call_id,
-                'pywren_version': __version__}
+            payload = {'config': self.pywren_config,
+                       'log_level': self.log_level,
+                       'func_key': func_key,
+                       'data_key': data_key,
+                       'output_key': output_key,
+                       'status_key': status_key,
+                       'extra_env': job.extra_env,
+                       'execution_timeout': job.execution_timeout,
+                       'data_byte_range': data_byte_range,
+                       'executor_id': executor_id,
+                       'job_id': job_id,
+                       'call_id': call_id,
+                       'host_submit_time': time.time(),
+                       'pywren_version': __version__}
 
-            host_submit_time = time.time()
-            payload['host_submit_time'] = host_submit_time
             # do the invocation
             compute_handler = random.choice(self.compute_handlers)
             activation_id = compute_handler.invoke(job.runtime_name, job.runtime_memory, payload)
@@ -158,13 +156,8 @@ class FunctionInvoker:
                 raise Exception("ExecutorID {} | JobID {} - Retrying mechanism finished with no success. "
                                 "Failed to invoke the job".format(executor_id, job_id))
 
-            invoke_metadata['activation_id'] = activation_id
-            invoke_metadata['invoke_time'] = time.time() - host_submit_time
-
-            invoke_metadata.update(payload)
-            del invoke_metadata['config']
-
-            fut = ResponseFuture(call_id, job_id, executor_id, self.storage_config, activation_id, invoke_metadata)
+            job_metadata['activation_id'] = activation_id
+            fut = ResponseFuture(executor_id, job_id, call_id, self.storage_config, job_metadata)
             fut._set_state(ResponseFuture.State.Invoked)
 
             return fut
@@ -178,7 +171,7 @@ class FunctionInvoker:
                 data_byte_range = job.data_ranges[i]
                 future = executor.submit(invoke, self.executor_id,
                                          job.job_id, call_id, job.func_key,
-                                         job.host_job_meta.copy(),
+                                         job.metadata.copy(),
                                          job.data_key, data_byte_range)
                 call_futures.append(future)
 

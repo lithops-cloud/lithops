@@ -79,9 +79,9 @@ def function_executor(config=None, runtime=None, runtime_memory=None,
 def local_executor(config=None, storage_backend=None, storage_backend_region=None,
                    rabbitmq_monitor=None, log_level=None):
     """
-    Local function executor
+    Localhost function executor
     """
-    compute_backend = 'local'
+    compute_backend = 'localhost'
     return FunctionExecutor(
         config=config, compute_backend=compute_backend,
         storage_backend=storage_backend,
