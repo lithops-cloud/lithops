@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import tempfile
 from pywren_ibm_cloud.executor import FunctionExecutor
 from pywren_ibm_cloud.version import __version__
 
@@ -82,6 +83,10 @@ def local_executor(config=None, storage_backend=None, storage_backend_region=Non
     Localhost function executor
     """
     compute_backend = 'localhost'
+
+    if storage_backend is None:
+        storage_backend = 'localhost'
+
     return FunctionExecutor(
         config=config, compute_backend=compute_backend,
         storage_backend=storage_backend,

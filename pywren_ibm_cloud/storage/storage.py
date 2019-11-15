@@ -4,7 +4,7 @@ import pickle
 import logging
 import importlib
 from pywren_ibm_cloud.version import __version__
-from pywren_ibm_cloud.config import CACHE_DIR
+from pywren_ibm_cloud.config import CACHE_DIR, RUNTIMES_PREFIX_DEFAULT
 from pywren_ibm_cloud.utils import is_remote_cluster
 from pywren_ibm_cloud.storage.utils import create_status_key, create_output_key, \
     status_key_suffix, CloudObject, StorageNoSuchKeyError
@@ -179,7 +179,7 @@ class InternalStorage:
         :param runtime: name of the runtime
         :return: runtime metadata
         """
-        path = ['runtimes', __version__,  key+".meta.json"]
+        path = [RUNTIMES_PREFIX_DEFAULT, __version__,  key+".meta.json"]
         filename_local_path = os.path.join(CACHE_DIR, *path)
 
         if os.path.exists(filename_local_path) and not is_remote_cluster():
@@ -210,7 +210,7 @@ class InternalStorage:
         :param runtime: name of the runtime
         :param runtime_meta metadata
         """
-        path = ['runtimes', __version__,  key+".meta.json"]
+        path = [RUNTIMES_PREFIX_DEFAULT, __version__,  key+".meta.json"]
         obj_key = '/'.join(path).replace('\\', '/')
         logger.debug("Uploading runtime metadata to: /{}/{}".format(self.bucket, obj_key))
         self.storage_handler.put_object(self.bucket, obj_key, json.dumps(runtime_meta))
@@ -231,7 +231,7 @@ class InternalStorage:
         :param runtime: name of the runtime
         :param runtime_meta metadata
         """
-        path = ['runtimes', __version__,  key+".meta.json"]
+        path = [RUNTIMES_PREFIX_DEFAULT, __version__,  key+".meta.json"]
         obj_key = '/'.join(path).replace('\\', '/')
         filename_local_path = os.path.join(CACHE_DIR, *path)
         if os.path.exists(filename_local_path):

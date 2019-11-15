@@ -80,7 +80,7 @@ def clean_os_bucket(bucket, prefix, internal_storage):
         internal_storage.delete_temporal_data(objects_to_delete)
         time.sleep(5)
         objects_to_delete = internal_storage.list_tmp_data(prefix)
-    logger.info('Finished deleting objects, total found: {}'.format(total_objects))
+    logger.debug('Finished deleting objects, total found: {}'.format(total_objects))
 
 
 def create_func_key(prefix, executor_id, job_id):

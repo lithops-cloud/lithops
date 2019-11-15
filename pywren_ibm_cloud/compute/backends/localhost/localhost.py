@@ -41,19 +41,14 @@ class LocalhostBackend:
         Handler to run local functions.
         """
         current_run_dir = os.path.join(LOCAL_RUN_DIR, event['executor_id'], event['job_id'])
-
-        try:
-            os.makedirs(current_run_dir)
-        except Exception:
-            pass
-
+        os.makedirs(current_run_dir, exist_ok=True)
         os.chdir(current_run_dir)
         old_stdout = sys.stdout
+        sys.stdout = open('{}.log'.format(event['call_id']), 'w')
 
         event['extra_env']['LOCAL_EXECUTION'] = 'True'
-
-        sys.stdout = open('{}.log'.format(event['call_id']), 'w')
         function_handler(event)
+
         os.chdir(original_dir)
         sys.stdout = old_stdout
 

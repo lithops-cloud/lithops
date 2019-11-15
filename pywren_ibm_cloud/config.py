@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 COMPUTE_BACKEND_DEFAULT = 'ibm_cf'
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
 STORAGE_PREFIX_DEFAULT = "pywren.jobs"
+RUNTIMES_PREFIX_DEFAULT = "pywren.runtimes"
 
 EXECUTION_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
 DATA_CLEANER_DEFAULT = False
@@ -104,10 +105,9 @@ def default_config(config_data=None, config_overwrite={'pywren': {}}):
     if 'storage_bucket' not in config_data['pywren']:
         raise Exception("storage_bucket is mandatory in pywren section of the configuration")
 
+    config_data['pywren']['storage_prefix'] = STORAGE_PREFIX_DEFAULT
     if 'storage_backend' not in config_data['pywren']:
         config_data['pywren']['storage_backend'] = STORAGE_BACKEND_DEFAULT
-    if 'storage_prefix' not in config_data['pywren']:
-        config_data['pywren']['storage_prefix'] = STORAGE_PREFIX_DEFAULT
     if 'data_cleaner' not in config_data['pywren']:
         config_data['pywren']['data_cleaner'] = DATA_CLEANER_DEFAULT
     if 'invocation_retry' not in config_data['pywren']:

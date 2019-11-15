@@ -1,4 +1,4 @@
-def load_config(config_data=None):
+def load_config(config_data):
     if 'ibm_cos' not in config_data:
         raise Exception("ibm_cos section is mandatory in the configuration")
 

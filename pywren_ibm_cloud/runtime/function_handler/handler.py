@@ -31,7 +31,7 @@ from distutils.util import strtobool
 from pywren_ibm_cloud import version
 from pywren_ibm_cloud.utils import sizeof_fmt
 from pywren_ibm_cloud.storage import InternalStorage
-from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config
+from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config, STORAGE_PREFIX_DEFAULT
 from pywren_ibm_cloud.runtime.function_handler.jobrunner import JobRunner
 
 
@@ -39,7 +39,7 @@ logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('handler')
 
 TEMP = tempfile.gettempdir()
-JOBRUNNER_STATS_BASE_DIR = os.path.join(TEMP, "pywren_jobs")
+STORAGE_BASE_DIR = os.path.join(TEMP, STORAGE_PREFIX_DEFAULT)
 PYWREN_LIBS_PATH = '/action/pywren_ibm_cloud/libs'
 
 
@@ -124,10 +124,9 @@ def function_handler(event):
 
         # if os.path.exists(JOBRUNNER_STATS_BASE_DIR):
         #     shutil.rmtree(JOBRUNNER_STATS_BASE_DIR, True)
-        current_jr_stats_dir = os.path.join(JOBRUNNER_STATS_BASE_DIR, executor_id, job_id)
-        os.makedirs(current_jr_stats_dir, exist_ok=True)
-
-        jobrunner_stats_filename = os.path.join(current_jr_stats_dir, 'jobrunner.stats.{}.txt'.format(call_id))
+        jobrunner_stats_dir = os.path.join(STORAGE_BASE_DIR, executor_id, job_id, call_id)
+        os.makedirs(jobrunner_stats_dir, exist_ok=True)
+        jobrunner_stats_filename = os.path.join(jobrunner_stats_dir, 'jobrunner.stats.txt')
 
         jobrunner_config = {'pywren_config': config,
                             'call_id':  call_id,

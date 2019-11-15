@@ -38,7 +38,7 @@ pickling_support.install()
 logger = logging.getLogger('JobRunner')
 
 TEMP = tempfile.gettempdir()
-PYTHON_MODULE_PATH = os.path.join(TEMP, "pymodules")
+PYTHON_MODULE_PATH = os.path.join(TEMP, "pywren.modules")
 
 
 class stats:
