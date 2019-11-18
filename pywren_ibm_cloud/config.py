@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 COMPUTE_BACKEND_DEFAULT = 'ibm_cf'
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
 STORAGE_PREFIX_DEFAULT = "pywren.jobs"
+RUNTIMES_PREFIX_DEFAULT = "pywren.runtimes"
 
 EXECUTION_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
 DATA_CLEANER_DEFAULT = False
@@ -104,10 +105,9 @@ def default_config(config_data=None, config_overwrite={'pywren': {}}):
     if 'storage_bucket' not in config_data['pywren']:
         raise Exception("storage_bucket is mandatory in pywren section of the configuration")
 
+    config_data['pywren']['storage_prefix'] = STORAGE_PREFIX_DEFAULT
     if 'storage_backend' not in config_data['pywren']:
         config_data['pywren']['storage_backend'] = STORAGE_BACKEND_DEFAULT
-    if 'storage_prefix' not in config_data['pywren']:
-        config_data['pywren']['storage_prefix'] = STORAGE_PREFIX_DEFAULT
     if 'data_cleaner' not in config_data['pywren']:
         config_data['pywren']['data_cleaner'] = DATA_CLEANER_DEFAULT
     if 'invocation_retry' not in config_data['pywren']:
@@ -144,7 +144,8 @@ def extract_storage_config(config):
     storage_config['backend'] = sb
     storage_config['prefix'] = config['pywren']['storage_prefix']
     storage_config['bucket'] = config['pywren']['storage_bucket']
-    storage_config[sb] = config[sb]
+    if sb in config:
+        storage_config[sb] = config[sb]
     storage_config[sb]['user_agent'] = 'pywren-ibm-cloud/{}'.format(__version__)
     if 'storage_backend_region' in config['pywren']:
         storage_config[sb]['region'] = config['pywren']['storage_backend_region']
@@ -159,7 +160,8 @@ def extract_compute_config(config):
     compute_config['invocation_retry'] = config['pywren']['invocation_retry']
     compute_config['retry_sleeps'] = config['pywren']['retry_sleeps']
     compute_config['retries'] = config['pywren']['retries']
-    compute_config[cb] = config[cb]
+    if cb in config:
+        compute_config[cb] = config[cb]
     compute_config[cb]['user_agent'] = 'pywren-ibm-cloud/{}'.format(__version__)
     if 'compute_backend_region' in config['pywren']:
         compute_config[cb]['region'] = config['pywren']['compute_backend_region']

@@ -1,9 +1,24 @@
 # Changelog
 
-## [v1.1.1--snapshot]
+## [v1.1.2--snapshot]
+
+### Added
+- New local_executor() to run pywren jobs in the local machine
+
+### Changed
+- Docs updated
+- Code refactor
+
+### Fixed
+- Internal fixes
+- Bump pillow from 5.4.1 to 6.2.0
+
+
+## [v1.1.1]
 
 ### Added
 - Allowed partitioner to split files by a number of chunks
+- Missing logic in knative backend
 
 ### Changed
 - Docs updated

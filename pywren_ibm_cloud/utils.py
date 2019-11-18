@@ -170,7 +170,7 @@ def format_data(iterdata, extra_params):
     if extra_params and type(extra_params) not in [list, dict]:
         raise Exception('extra_params must be a list or a dict')
 
-    if type(iterdata) == range:
+    if type(iterdata) in [range, set]:
         data = list(iterdata)
     elif type(iterdata) != list:
         data = [iterdata]

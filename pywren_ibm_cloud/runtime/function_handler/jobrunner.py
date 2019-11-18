@@ -18,14 +18,13 @@ import os
 import sys
 import pika
 import time
-import shutil
 import pickle
+import tempfile
 import logging
 import inspect
 import requests
 import traceback
 import numpy as np
-from multiprocessing import Process
 from distutils.util import strtobool
 from pywren_ibm_cloud.storage import Storage
 from pywren_ibm_cloud.storage import InternalStorage
@@ -37,6 +36,9 @@ from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config
 
 pickling_support.install()
 logger = logging.getLogger('JobRunner')
+
+TEMP = tempfile.gettempdir()
+PYTHON_MODULE_PATH = os.path.join(TEMP, "pywren.modules")
 
 
 class stats:
@@ -53,10 +55,9 @@ class stats:
         self.stats_fid.close()
 
 
-class JobRunner(Process):
+class JobRunner:
 
     def __init__(self, jr_config, jobrunner_conn):
-        super().__init__()
         start_time = time.time()
         self.jr_config = jr_config
         self.jobrunner_conn = jobrunner_conn
@@ -97,34 +98,36 @@ class JobRunner(Process):
         """
         Save modules, before we unpickle actual function
         """
-        logger.debug("Writing Function dependencies to local disk")
-        PYTHON_MODULE_PATH = self.jr_config['python_module_path']
-        shutil.rmtree(PYTHON_MODULE_PATH, True)  # delete old modules
-        os.mkdir(PYTHON_MODULE_PATH)
-        sys.path.append(PYTHON_MODULE_PATH)
+        if module_data:
+            logger.debug("Writing Function dependencies to local disk")
+            module_path = os.path.join(PYTHON_MODULE_PATH, self.executor_id,
+                                       self.job_id, self.call_id)
+            # shutil.rmtree(PYTHON_MODULE_PATH, True)  # delete old modules
+            os.makedirs(module_path, exist_ok=True)
+            sys.path.append(module_path)
 
-        for m_filename, m_data in module_data.items():
-            m_path = os.path.dirname(m_filename)
+            for m_filename, m_data in module_data.items():
+                m_path = os.path.dirname(m_filename)
 
-            if len(m_path) > 0 and m_path[0] == "/":
-                m_path = m_path[1:]
-            to_make = os.path.join(PYTHON_MODULE_PATH, m_path)
-            try:
-                os.makedirs(to_make)
-            except OSError as e:
-                if e.errno == 17:
-                    pass
-                else:
-                    raise e
-            full_filename = os.path.join(to_make, os.path.basename(m_filename))
+                if len(m_path) > 0 and m_path[0] == "/":
+                    m_path = m_path[1:]
+                to_make = os.path.join(module_path, m_path)
+                try:
+                    os.makedirs(to_make)
+                except OSError as e:
+                    if e.errno == 17:
+                        pass
+                    else:
+                        raise e
+                full_filename = os.path.join(to_make, os.path.basename(m_filename))
 
-            with open(full_filename, 'wb') as fid:
-                fid.write(b64str_to_bytes(m_data))
+                with open(full_filename, 'wb') as fid:
+                    fid.write(b64str_to_bytes(m_data))
 
-        #logger.info("Finished writing {} module files".format(len(loaded_func_all['module_data'])))
-        #logger.debug(subprocess.check_output("find {}".format(PYTHON_MODULE_PATH), shell=True))
-        #logger.debug(subprocess.check_output("find {}".format(os.getcwd()), shell=True))
-        logger.debug("Finished writing Function dependencies")
+            #logger.info("Finished writing {} module files".format(len(module_data)))
+            #logger.debug(subprocess.check_output("find {}".format(module_path), shell=True))
+            #logger.debug(subprocess.check_output("find {}".format(os.getcwd()), shell=True))
+            logger.debug("Finished writing Function dependencies")
 
     def _unpickle_function(self, pickled_func):
         """

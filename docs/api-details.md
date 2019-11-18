@@ -34,7 +34,7 @@ Spawn only one function activation.
 |runtime_memory| 256 |Memory (in MB) to use to run the functions|
 |timeout| 600 |Max time per function activation (seconds)|
 |include_modules| [] |Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None |
-|exclude_modules| [] |Explicitly keep these modules from pickled dependencies. It is not taken into account if include_modules |
+|exclude_modules| [] |Explicitly keep these modules from pickled dependencies. It is not taken into account if you set include_modules |
 
 * **Returns**: One future for each job (Futures are also internally stored by PyWren).
 
@@ -58,7 +58,7 @@ Spawn multiple function activations based on the items of an input list.
 |runtime_memory| 256 |Memory (in MB) to use to run the functions |
 |timeout| 600 |Max time per function activation (seconds) |
 |include_modules| [] |Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None |
-|exclude_modules| [] |Explicitly keep these modules from pickled dependencies. It is not taken into account if include_modules |
+|exclude_modules| [] |Explicitly keep these modules from pickled dependencies. It is not taken into account if you set include_modules |
 |chunk_size| None | Used for data_processing. Chunk size to split each object in bytes. Must be >= 1MiB. 'None' for processing the whole file in one function activation|
 |chunk_n| None | Used for data_processing. Number of chunks to split each object. 'None' for processing the whole file in one function activation. chunk_n has prevalence over chunk_size if both parameters are set|
 |invoke_pool_threads| 500 | Number of threads to use to invoke the functions |
@@ -91,7 +91,7 @@ Spawn multiple *map_function* activations,  based on the items of an input list,
 |reduce_runtime_memory| 256| Memory (in MB) to use to run the reduce function|
 |timeout| 600 | Max time per function activation (seconds)|
 |include_modules| [] |Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None |
-|exclude_modules| [] |Explicitly keep these modules from pickled dependencies. It is not taken into account if include_modules |
+|exclude_modules| [] |Explicitly keep these modules from pickled dependencies. It is not taken into account if you set include_modules |
 |chunk_size| None | Used for data_processing. Chunk size to split each object in bytes. Must be >= 1MiB. 'None' for processing the whole file in one function activation|
 |chunk_n| None | Used for data_processing. Number of chunks to split each object. 'None' for processing the whole file in one function activation. chunk_n has prevalence over chunk_size if both parameters are set|
 |reducer_one_per_object| False| Used for data_processing. Set one reducer per object after running the partitioner (reduce-by-key) |
@@ -116,7 +116,7 @@ Waits for the function activations to finish.
 
 |Parameter| Default |Description|
 |---|---|---|
-|futures| None | List of futures to monitor. If None, PyWren uses the internally stored futures |
+|fs| None | List of futures to monitor. If None, PyWren uses the internally stored futures |
 |throw_except | True | Re-raise exception if call raised|
 |return_when| 'ALL_COMPLETED' | One of 'ALL_COMPLETED', 'ANY_COMPLETED', 'ALWAYS' |
 |download_results| False | Whether or not download the results results while monitoring activations |
@@ -142,7 +142,7 @@ Gets the results from all the function activations. It internally makes use of t
 
 |Parameter| Default |Description|
 |---|---|---|
-|futures| None | List of futures to get the results. If None, PyWren uses the internally stored futures |
+|fs| None | List of futures to get the results. If None, PyWren uses the internally stored futures |
 |throw_except | True | Re-raise exception if call raised|
 |timeout| 600 | Timeout of waiting for results|
 |THREADPOOL_SIZE|  128 | Number of threads to use waiting for results|

@@ -14,6 +14,13 @@ from pywren_ibm_cloud.config import EXECUTION_TIMEOUT, MAX_AGG_DATA_SIZE
 logger = logging.getLogger(__name__)
 
 
+class JobState:
+    Running = 'Running'
+    Ready = 'Ready'
+    Done = 'Done'
+    Finished = 'Finished'
+
+
 def create_map_job(config, internal_storage, executor_id, map_job_id, map_function, iterdata, runtime_meta,
                    runtime_memory=None, extra_params=None, extra_env=None, obj_chunk_size=None,
                    obj_chunk_number=None, remote_invocation=False, remote_invocation_groups=None,
@@ -168,8 +175,10 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     else:
         func_name = func.__name__
 
-    if extra_env is not None:
+    extra_env = {} if extra_env is None else extra_env
+    if extra_env:
         extra_env = utils.convert_bools_to_string(extra_env)
+        logger.debug("Extra environment vars {}".format(extra_env))
 
     if not data:
         return []
@@ -244,6 +253,6 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
         log_msg = '- Total: {}'.format(func_and_data_size)
         print(log_msg)
 
-    job_description['host_job_meta'] = host_job_meta
+    job_description['metadata'] = host_job_meta
 
     return job_description

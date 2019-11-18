@@ -27,12 +27,11 @@ logger = logging.getLogger(__name__)
 
 class CloudFunctionsClient:
 
-    def __init__(self, region, endpoint, namespace, namespace_id=None, api_key=None,
+    def __init__(self, endpoint, namespace, namespace_id=None, api_key=None,
                  iam_api_key=None, token_manager=None, user_agent=None):
         """
         CloudFunctionsClient Constructor
         """
-        self.region = region
         self.endpoint = endpoint.replace('http:', 'https:')
         self.namespace = namespace
         self.namespace_id = namespace_id
@@ -219,15 +218,14 @@ class CloudFunctionsClient:
 
         if resp_status == 202 and 'activationId' in data:
             return data["activationId"], None
+        elif resp_status == 429:
+            return None, "Too many concurrent requests in flight"
         else:
             logger.debug(data)
             if resp_status == 401:
                 raise Exception('Unauthorized - Invalid API Key')
             elif resp_status == 404:
                 raise Exception('Runtime: {} not deployed'.format(action_name))
-            elif resp_status == 429:
-                # Too many concurrent requests in flight
-                return None, "Too many concurrent requests in flight"
             else:
                 raise Exception(data['error'])
 

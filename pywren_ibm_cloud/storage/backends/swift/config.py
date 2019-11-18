@@ -1,4 +1,4 @@
-def load_config(config_data=None):
+def load_config(config_data):
     if 'swift' not in config_data:
         raise Exception("swift section is mandatory in the configuration")
 

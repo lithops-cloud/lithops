@@ -21,22 +21,25 @@ import pika
 import json
 import pickle
 import logging
+import tempfile
 import traceback
 import subprocess
+from threading import Thread
+from multiprocessing import Process
 from multiprocessing import Pipe
 from distutils.util import strtobool
 from pywren_ibm_cloud import version
 from pywren_ibm_cloud.utils import sizeof_fmt
 from pywren_ibm_cloud.storage import InternalStorage
-from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config
+from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config, STORAGE_PREFIX_DEFAULT
 from pywren_ibm_cloud.runtime.function_handler.jobrunner import JobRunner
 
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('handler')
 
-PYTHON_MODULE_PATH = "/tmp/pymodules"
-JOBRUNNER_STATS_FILENAME = "/tmp/jobrunner.stats.txt"
+TEMP = tempfile.gettempdir()
+STORAGE_BASE_DIR = os.path.join(TEMP, STORAGE_PREFIX_DEFAULT)
 PYWREN_LIBS_PATH = '/action/pywren_ibm_cloud/libs'
 
 
@@ -99,6 +102,7 @@ def function_handler(event):
     response_status['call_id'] = call_id
     response_status['job_id'] = job_id
     response_status['executor_id'] = executor_id
+    response_status['activation_id'] = os.environ.get('__OW_ACTIVATION_ID')
     # response_status['func_key'] = func_key
     # response_status['data_key'] = data_key
     # response_status['output_key'] = output_key
@@ -118,6 +122,12 @@ def function_handler(event):
         os.environ.update(custom_env)
         os.environ.update(extra_env)
 
+        # if os.path.exists(JOBRUNNER_STATS_BASE_DIR):
+        #     shutil.rmtree(JOBRUNNER_STATS_BASE_DIR, True)
+        jobrunner_stats_dir = os.path.join(STORAGE_BASE_DIR, executor_id, job_id, call_id)
+        os.makedirs(jobrunner_stats_dir, exist_ok=True)
+        jobrunner_stats_filename = os.path.join(jobrunner_stats_dir, 'jobrunner.stats.txt')
+
         jobrunner_config = {'pywren_config': config,
                             'call_id':  call_id,
                             'job_id':  job_id,
@@ -126,28 +136,33 @@ def function_handler(event):
                             'data_key': data_key,
                             'log_level': log_level,
                             'data_byte_range': data_byte_range,
-                            'python_module_path': PYTHON_MODULE_PATH,
                             'output_key': output_key,
-                            'stats_filename': JOBRUNNER_STATS_FILENAME}
-
-        if os.path.exists(JOBRUNNER_STATS_FILENAME):
-            os.remove(JOBRUNNER_STATS_FILENAME)
+                            'stats_filename': jobrunner_stats_filename}
 
         setup_time = time.time()
         response_status['setup_time'] = round(setup_time - start_time, 8)
 
         handler_conn, jobrunner_conn = Pipe()
-        tr = JobRunner(jobrunner_config, jobrunner_conn)
-        tr.daemon = True
+        jobrunner = JobRunner(jobrunner_config, jobrunner_conn)
         logger.debug('Starting JobRunner process')
-        tr.start()
-        tr.join(execution_timeout)
+        local_execution = strtobool(os.environ.get('LOCAL_EXECUTION', 'False'))
+        if local_execution:
+            jrp = Thread(target=jobrunner.run)
+        else:
+            jrp = Process(target=jobrunner.run)
+        jrp.daemon = True
+        jrp.start()
+        jrp.join(execution_timeout)
         logger.debug('JobRunner process finished')
         response_status['exec_time'] = round(time.time() - setup_time, 8)
 
-        if tr.is_alive():
+        if jrp.is_alive():
             # If process is still alive after jr.join(job_max_runtime), kill it
-            tr.terminate()
+            try:
+                jrp.terminate()
+            except Exception:
+                # thread does not have terminate method
+                pass
             msg = ('Jobrunner process exceeded maximum time of {} '
                    'seconds and was killed'.format(execution_timeout))
             raise Exception('OUTATIME',  msg)
@@ -166,8 +181,8 @@ def function_handler(event):
         # print(subprocess.check_output("find {}".format(PYTHON_MODULE_PATH), shell=True))
         # print(subprocess.check_output("find {}".format(os.getcwd()), shell=True))
 
-        if os.path.exists(JOBRUNNER_STATS_FILENAME):
-            with open(JOBRUNNER_STATS_FILENAME, 'r') as fid:
+        if os.path.exists(jobrunner_stats_filename):
+            with open(jobrunner_stats_filename, 'r') as fid:
                 for l in fid.readlines():
                     key, value = l.strip().split(" ", 1)
                     try:
