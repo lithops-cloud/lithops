@@ -1,38 +1,38 @@
 import os
+import json
 import sys
 import uuid
+import docker
 import pkgutil
 import logging
-import multiprocessing
+import tempfile
 from pywren_ibm_cloud.utils import version_str
+from pywren_ibm_cloud.config import STORAGE_PREFIX_DEFAULT
 from pywren_ibm_cloud.runtime.function_handler import function_handler
 from pywren_ibm_cloud.version import __version__
 
 logger = logging.getLogger(__name__)
 
-
+TEMP = tempfile.gettempdir()
+STORAGE_BASE_DIR = os.path.join(TEMP, STORAGE_PREFIX_DEFAULT)
 LOCAL_RUN_DIR = os.path.join(os.getcwd(), 'pywren_jobs')
 
 
-class LocalhostBackend:
+class DockerBackend:
     """
-    A wrap-up around Localhost multiprocessing APIs.
+    A wrap-up around Docker APIs.
     """
 
-    def __init__(self, local_config):
+    def __init__(self, docker_config):
         self.log_level = os.getenv('PYWREN_LOGLEVEL')
-        self.config = local_config
-        self.name = 'local'
-        self.queue = multiprocessing.Queue()
+        self.config = docker_config
+        self.name = 'docker'
         self.run_dir = LOCAL_RUN_DIR
+
         self.workers = self.config['workers']
+        self.docker_client = docker.from_env()
 
-        for cpu in range(self.workers):
-            p = multiprocessing.Process(target=self._process_runner)
-            p.daemon = True
-            p.start()
-
-        log_msg = 'PyWren v{} init for Localhost - Total workers: {}'.format(__version__, self.workers)
+        log_msg = 'PyWren v{} init for Docker - Total workers: {}'.format(__version__, self.workers)
         logger.info(log_msg)
         if not self.log_level:
             print(log_msg)
@@ -75,7 +75,19 @@ class LocalhostBackend:
         Invoke the function with the payload. runtime_name and memory
         are not used since it runs in the local machine.
         """
-        self.queue.put(payload)
+        exec_id = payload['executor_id']
+        job_id = payload['job_id']
+        call_id = payload['call_id']
+
+        payload_dir = os.path.join(STORAGE_BASE_DIR, exec_id, job_id, call_id)
+        os.makedirs(payload_dir, exist_ok=True)
+        payload_filename = os.path.join(payload_dir, 'payload.json')
+
+        with open(payload_filename, "w") as f:
+            f.write(json.dumps(payload))
+
+        self.docker_client.containers.run(runtime_name, payload_filename, volumes=['/tmp:/tmp'], detach=True, auto_remove=True)
+
         act_id = str(uuid.uuid4()).replace('-', '')[:12]
         return act_id
 

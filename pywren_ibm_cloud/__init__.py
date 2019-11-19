@@ -94,3 +94,22 @@ def local_executor(config=None, storage_backend=None, storage_backend_region=Non
         rabbitmq_monitor=rabbitmq_monitor,
         log_level=log_level
     )
+
+
+def docker_executor(config=None, storage_backend=None, storage_backend_region=None,
+                    rabbitmq_monitor=None, log_level=None):
+    """
+    Localhost function executor
+    """
+    compute_backend = 'docker'
+
+    if storage_backend is None:
+        storage_backend = 'localhost'
+
+    return FunctionExecutor(
+        config=config, compute_backend=compute_backend,
+        storage_backend=storage_backend,
+        storage_backend_region=storage_backend_region,
+        rabbitmq_monitor=rabbitmq_monitor,
+        log_level=log_level
+    )

@@ -144,8 +144,8 @@ def extract_storage_config(config):
     storage_config['backend'] = sb
     storage_config['prefix'] = config['pywren']['storage_prefix']
     storage_config['bucket'] = config['pywren']['storage_bucket']
-    if sb in config:
-        storage_config[sb] = config[sb]
+
+    storage_config[sb] = config[sb]
     storage_config[sb]['user_agent'] = 'pywren-ibm-cloud/{}'.format(__version__)
     if 'storage_backend_region' in config['pywren']:
         storage_config[sb]['region'] = config['pywren']['storage_backend_region']
@@ -160,8 +160,8 @@ def extract_compute_config(config):
     compute_config['invocation_retry'] = config['pywren']['invocation_retry']
     compute_config['retry_sleeps'] = config['pywren']['retry_sleeps']
     compute_config['retries'] = config['pywren']['retries']
-    if cb in config:
-        compute_config[cb] = config[cb]
+
+    compute_config[cb] = config[cb]
     compute_config[cb]['user_agent'] = 'pywren-ibm-cloud/{}'.format(__version__)
     if 'compute_backend_region' in config['pywren']:
         compute_config[cb]['region'] = config['pywren']['compute_backend_region']

@@ -1,2 +1,3 @@
 def load_config(config_data):
-    pass
+    if 'localhost' not in config_data:
+        config_data['localhost'] = {}

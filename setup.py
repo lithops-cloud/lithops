@@ -41,13 +41,13 @@ setup(
     packages=find_packages(),
     install_requires=[
         'Click', 'ibm-cos-sdk', 'PyYAML', 'pika==0.13.1',
-        'enum34', 'glob2', 'tqdm', 'tblib',
+        'enum34', 'glob2', 'tqdm', 'tblib', 'docker'
         'requests', 'python-dateutil', 'lxml',
         'pandas', 'seaborn', 'matplotlib', 'kubernetes'
     ],
     include_package_data=True,
     entry_points='''
         [console_scripts]
-        pywren-runtime=pywren_ibm_cloud.runtime.pywren_runtime_cli:cli
+        pywren-runtime=pywren_ibm_cloud.runtime.cli:cli
     ''',
 )
