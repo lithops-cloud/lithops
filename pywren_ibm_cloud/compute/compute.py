@@ -50,12 +50,6 @@ class Compute:
 
         return act_id
 
-    def invoke_with_result(self, runtime_name, memory, payload={}):
-        """
-        Invoke waiting for a result -- return information about this invocation
-        """
-        return self.compute_handler.invoke_with_result(runtime_name, memory, payload)
-
     def build_runtime(self, runtime_name, file):
         """
         Wrapper method to build a new runtime for the compute backend.

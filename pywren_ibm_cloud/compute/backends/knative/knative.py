@@ -359,6 +359,24 @@ class KnativeServingBackend:
 
         return service_url
 
+    def _generate_runtime_meta(self, docker_image_name, memory):
+        """
+        Extract installed Python modules from docker image
+        """
+        payload = {}
+
+        payload['service_route'] = "/preinstalls"
+        logger.debug("Extracting Python modules list from: {}".format(docker_image_name))
+        try:
+            runtime_meta = self.invoke(docker_image_name, memory, payload, return_result=True)
+        except Exception as e:
+            raise Exception("Unable to invoke 'modules' action {}".format(e))
+
+        if not runtime_meta or 'preinstalls' not in runtime_meta:
+            raise Exception('Failed getting runtime metadata: {}'.format(runtime_meta))
+
+        return runtime_meta
+
     def create_runtime(self, docker_image_name, memory, timeout=kconfig.RUNTIME_TIMEOUT_DEFAULT):
         """
         Creates a new runtime into the knative default namespace from an already built Docker image.
@@ -504,12 +522,6 @@ class KnativeServingBackend:
                        .format(exec_id, job_id, call_id, str(e)))
             logger.debug(log_msg)
 
-    def invoke_with_result(self, docker_image_name, memory, payload={}):
-        """
-        Invoke waiting for a result -- return information about this invocation
-        """
-        return self.invoke(docker_image_name, memory, payload, return_result=True)
-
     def get_runtime_key(self, docker_image_name, runtime_memory):
         """
         Method that creates and returns the runtime key.
@@ -521,21 +533,3 @@ class KnativeServingBackend:
         runtime_key = os.path.join(parsed_url.netloc, service_name)
 
         return runtime_key
-
-    def _generate_runtime_meta(self, docker_image_name, memory):
-        """
-        Extract installed Python modules from docker image
-        """
-        payload = {}
-
-        payload['service_route'] = "/preinstalls"
-        logger.debug("Extracting Python modules list from: {}".format(docker_image_name))
-        try:
-            runtime_meta = self.invoke_with_result(docker_image_name, memory, payload)
-        except Exception as e:
-            raise Exception("Unable to invoke 'modules' action {}".format(e))
-
-        if not runtime_meta or 'preinstalls' not in runtime_meta:
-            raise Exception('Failed getting runtime metadata: {}'.format(runtime_meta))
-
-        return runtime_meta

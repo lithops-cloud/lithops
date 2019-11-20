@@ -91,12 +91,6 @@ class DockerBackend:
         act_id = str(uuid.uuid4()).replace('-', '')[:12]
         return act_id
 
-    def invoke_with_result(self, runtime_name, memory, payload={}):
-        """
-        Invoke waiting for a result. Never called in this case
-        """
-        return self.invoke(runtime_name, memory, payload)
-
     def create_runtime(self, docker_image_name, memory, timeout):
         """
         Extracts local python metadata. No need to create any runtime
@@ -109,29 +103,51 @@ class DockerBackend:
 
         return runtime_meta
 
-    def build_runtime(self, runtime_name, dockerfile):
+    def build_runtime(self, docker_image_name, dockerfile):
         """
-        Pass. No need to build any runtime since it runs in the local machine
+        Builds a new runtime from a Docker file
         """
-        pass
+        logger.info('Creating a new docker image from Dockerfile')
+        logger.info('Docker image name: {}'.format(docker_image_name))
 
-    def delete_runtime(self, runtime_name, memory):
+        if dockerfile:
+            cmd = 'docker build -t {} -f {} .'.format(docker_image_name, dockerfile)
+        else:
+            cmd = 'docker build -t {} .'.format(docker_image_name)
+
+        res = os.system(cmd)
+        if res != 0:
+            exit()
+
+    def delete_runtime(self, docker_image_name, memory):
         """
-        Pass. No runtime to delete since it runs in the local machine
+        Deletes a runtime
         """
-        pass
+        if docker_image_name == 'default':
+            docker_image_name = self._get_default_runtime_image_name()
+        self.docker_client.images.remove(docker_image_name, force=True)
 
     def delete_all_runtimes(self):
         """
         Pass. No runtimes to delete since it runs in the local machine
         """
-        pass
+        raise NotImplementedError('Delete the runtimes individually')
 
-    def list_runtimes(self, runtime_name='all'):
+    def list_runtimes(self, docker_image_name='all'):
         """
-        Pass. No runtimes to list since it runs in the local machine
+         List all the runtimes deployed in the local machine
+        return: list of tuples (docker_image_name, memory)
         """
-        pass
+        if docker_image_name == 'default':
+            docker_image_name = self._get_default_runtime_image_name()
+        runtimes = []
+        images = self.docker_client.images.list()
+        for img in images:
+            for tag in img.tags:
+                if docker_image_name in tag:
+                    runtimes.append((docker_image_name, None))
+
+        return runtimes
 
     def get_runtime_key(self, docker_image_name, runtime_memory):
         """

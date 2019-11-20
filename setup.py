@@ -41,7 +41,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         'Click', 'ibm-cos-sdk', 'PyYAML', 'pika==0.13.1',
-        'enum34', 'glob2', 'tqdm', 'tblib', 'docker'
+        'enum34', 'glob2', 'tqdm', 'tblib', 'docker',
         'requests', 'python-dateutil', 'lxml',
         'pandas', 'seaborn', 'matplotlib', 'kubernetes'
     ],
