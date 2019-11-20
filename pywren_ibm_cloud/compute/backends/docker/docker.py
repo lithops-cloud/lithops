@@ -3,12 +3,11 @@ import json
 import sys
 import uuid
 import docker
-import pkgutil
 import logging
 import tempfile
+from . import config as docker_config
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.config import STORAGE_PREFIX_DEFAULT
-from pywren_ibm_cloud.runtime.function_handler import function_handler
 from pywren_ibm_cloud.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -37,36 +36,35 @@ class DockerBackend:
         if not self.log_level:
             print(log_msg)
 
-    def _local_handler(self, event, original_dir):
-        """
-        Handler to run local functions.
-        """
-        current_run_dir = os.path.join(LOCAL_RUN_DIR, event['executor_id'], event['job_id'])
-        os.makedirs(current_run_dir, exist_ok=True)
-        os.chdir(current_run_dir)
-        old_stdout = sys.stdout
-        sys.stdout = open('{}.log'.format(event['call_id']), 'w')
+    def _format_runtime_name(self, docker_image_name, runtime_memory):
+        runtime_name = docker_image_name.replace('/', '_').replace(':', '_')
+        return '{}_{}MB'.format(runtime_name, runtime_memory)
 
-        event['extra_env']['LOCAL_EXECUTION'] = 'True'
-        function_handler(event)
+    def _unformat_runtime_name(self, action_name):
+        runtime_name, memory = action_name.rsplit('_', 1)
+        image_name = runtime_name.replace('_', '/', 1)
+        image_name = image_name.replace('_', ':', -1)
+        return image_name, int(memory.replace('MB', ''))
 
-        os.chdir(original_dir)
-        sys.stdout = old_stdout
+    def _get_default_runtime_image_name(self):
+        this_version_str = version_str(sys.version_info)
+        if this_version_str == '3.5':
+            image_name = docker_config.RUNTIME_DEFAULT_35
+        elif this_version_str == '3.6':
+            image_name = docker_config.RUNTIME_DEFAULT_36
+        elif this_version_str == '3.7':
+            image_name = docker_config.RUNTIME_DEFAULT_37
+        return image_name
 
-    def _process_runner(self):
-        while True:
-            event = self.queue.get(block=True)
-            self._local_handler(event, os.getcwd())
-
-    def _generate_python_meta(self):
+    def _generate_runtime_meta(self, runtime_name):
         """
         Extracts installed Python modules from the local machine
         """
-        logger.debug("Extracting preinstalled Python modules...")
-        runtime_meta = dict()
-        mods = list(pkgutil.iter_modules())
-        runtime_meta["preinstalls"] = [entry for entry in sorted([[mod, is_pkg] for _, mod, is_pkg in mods])]
-        runtime_meta["python_ver"] = version_str(sys.version_info)
+        runtime_meta = self.docker_client.containers.run(runtime_name, 'metadata', auto_remove=True)
+        runtime_meta = json.loads(runtime_meta)
+
+        if not runtime_meta or 'preinstalls' not in runtime_meta:
+            raise Exception(runtime_meta)
 
         return runtime_meta
 
@@ -86,7 +84,9 @@ class DockerBackend:
         with open(payload_filename, "w") as f:
             f.write(json.dumps(payload))
 
-        self.docker_client.containers.run(runtime_name, payload_filename, volumes=['/tmp:/tmp'], detach=True, auto_remove=True)
+        self.docker_client.containers.run(runtime_name, ['run', payload_filename],
+                                          volumes=['{}:/tmp'.format(TEMP)],
+                                          detach=True, auto_remove=True)
 
         act_id = str(uuid.uuid4()).replace('-', '')[:12]
         return act_id
@@ -97,12 +97,15 @@ class DockerBackend:
         """
         return self.invoke(runtime_name, memory, payload)
 
-    def create_runtime(self, runtime_name, memory, timeout):
+    def create_runtime(self, docker_image_name, memory, timeout):
         """
         Extracts local python metadata. No need to create any runtime
         since it runs in the local machine
         """
-        runtime_meta = self._generate_python_meta()
+        if docker_image_name == 'default':
+            docker_image_name = self._get_default_runtime_image_name()
+
+        runtime_meta = self._generate_runtime_meta(docker_image_name)
 
         return runtime_meta
 
@@ -130,12 +133,13 @@ class DockerBackend:
         """
         pass
 
-    def get_runtime_key(self, runtime_name, runtime_memory):
+    def get_runtime_key(self, docker_image_name, runtime_memory):
         """
         Method that creates and returns the runtime key.
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know what runtimes are installed and what not.
         """
-        runtime_key = '{}_{}'.format(runtime_name, str(runtime_memory))
+        runtime_name = self._format_runtime_name(docker_image_name, runtime_memory)
+        runtime_key = os.path.join(self.name, runtime_name)
 
         return runtime_key

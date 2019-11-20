@@ -124,6 +124,7 @@ class LocalhostBackend:
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know what runtimes are installed and what not.
         """
-        runtime_key = '{}_{}'.format(runtime_name, str(runtime_memory))
+        runtime_key = '{}_{}MB'.format(runtime_name, str(runtime_memory))
+        runtime_key = os.path.join(self.name, runtime_key)
 
         return runtime_key
