@@ -12,8 +12,6 @@ RUN pip install --upgrade pip setuptools six \
 	    redis \
 	    requests \
 	    numpy
-	   
-
 
 # Copy PyWren app to the container image.
 ENV APP_HOME /pywren
@@ -21,7 +19,8 @@ WORKDIR $APP_HOME
 
 RUN git clone https://github.com/JosepSampe/pywren-ibm-cloud -b pywren-dev && cd pywren-ibm-cloud && pip install .
 
-COPY app.py .
+# entry_point.py is automatically generated. Do not modify next lines!
+COPY entry_point.py .
 
-ENTRYPOINT ["python", "app.py"]
+ENTRYPOINT ["python", "entry_point.py"]
 CMD []

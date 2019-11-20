@@ -2,11 +2,48 @@ import sys
 import multiprocessing
 from pywren_ibm_cloud.utils import version_str
 
-RUNTIME_DEFAULT_35 = 'jsampe/docker-pywren-runtime-v3.5'
-RUNTIME_DEFAULT_36 = 'jsampe/docker-pywren-runtime-v3.6'
-RUNTIME_DEFAULT_37 = 'jsampe/docker-pywren-runtime-v3.7'
+RUNTIME_DEFAULT_35 = 'docker-pywren-runtime-v3.5:latest'
+RUNTIME_DEFAULT_36 = 'docker-pywren-runtime-v3.6:latest'
+RUNTIME_DEFAULT_37 = 'docker-pywren-runtime-v3.7:latest'
 RUNTIME_TIMEOUT_DEFAULT = 600  # 10 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # 256 MB
+
+_DOCKERFILE_DEFAULT = """
+RUN apt-get update && apt-get install -y \
+        git
+
+RUN pip install --upgrade pip setuptools six \
+    && pip install --no-cache-dir \
+        pika==0.13.1 \
+        ibm-cos-sdk \
+        redis \
+        requests \
+        numpy
+
+# Copy PyWren app to the container image.
+ENV APP_HOME /pywren
+WORKDIR $APP_HOME
+
+RUN git clone https://github.com/JosepSampe/pywren-ibm-cloud -b pywren-dev && cd pywren-ibm-cloud && pip install .
+
+# entry_point.py is automatically generated. Do not modify next lines!
+COPY entry_point.py .
+
+ENTRYPOINT ["python", "entry_point.py"]
+CMD []
+"""
+
+DOCKERFILE_DEFAULT_35 = """
+FROM python:3.5-slim-buster
+""" + _DOCKERFILE_DEFAULT
+
+DOCKERFILE_DEFAULT_36 = """
+FROM python:3.6-slim-buster
+""" + _DOCKERFILE_DEFAULT
+
+DOCKERFILE_DEFAULT_37 = """
+FROM python:3.7-slim-buster
+""" + _DOCKERFILE_DEFAULT
 
 
 def load_config(config_data):

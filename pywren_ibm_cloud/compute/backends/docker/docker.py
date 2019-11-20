@@ -5,6 +5,7 @@ import uuid
 import docker
 import logging
 import tempfile
+from shutil import copyfile
 from . import config as docker_config
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.config import STORAGE_PREFIX_DEFAULT
@@ -15,6 +16,8 @@ logger = logging.getLogger(__name__)
 TEMP = tempfile.gettempdir()
 STORAGE_BASE_DIR = os.path.join(TEMP, STORAGE_PREFIX_DEFAULT)
 LOCAL_RUN_DIR = os.path.join(os.getcwd(), 'pywren_jobs')
+
+logging.getLogger('urllib3.connectionpool').setLevel(logging.CRITICAL)
 
 
 class DockerBackend:
@@ -56,11 +59,23 @@ class DockerBackend:
             image_name = docker_config.RUNTIME_DEFAULT_37
         return image_name
 
-    def _generate_runtime_meta(self, runtime_name):
+    def _get_default_dockefile(self):
+        this_version_str = version_str(sys.version_info)
+        if this_version_str == '3.5':
+            dockefile = docker_config.DOCKERFILE_DEFAULT_35
+        elif this_version_str == '3.6':
+            dockefile = docker_config.DOCKERFILE_DEFAULT_36
+        elif this_version_str == '3.7':
+            dockefile = docker_config.DOCKERFILE_DEFAULT_37
+        return dockefile
+
+    def _generate_runtime_meta(self, docker_image_name):
         """
         Extracts installed Python modules from the local machine
         """
-        runtime_meta = self.docker_client.containers.run(runtime_name, 'metadata', auto_remove=True)
+        runtime_meta = self.docker_client.containers.run(docker_image_name,
+                                                         'metadata',
+                                                         auto_remove=True)
         runtime_meta = json.loads(runtime_meta)
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
@@ -68,7 +83,7 @@ class DockerBackend:
 
         return runtime_meta
 
-    def invoke(self, runtime_name, memory, payload):
+    def invoke(self, docker_image_name, memory, payload):
         """
         Invoke the function with the payload. runtime_name and memory
         are not used since it runs in the local machine.
@@ -84,7 +99,7 @@ class DockerBackend:
         with open(payload_filename, "w") as f:
             f.write(json.dumps(payload))
 
-        self.docker_client.containers.run(runtime_name, ['run', payload_filename],
+        self.docker_client.containers.run(docker_image_name, ['run', payload_filename],
                                           volumes=['{}:/tmp'.format(TEMP)],
                                           detach=True, auto_remove=True)
 
@@ -99,15 +114,38 @@ class DockerBackend:
         if docker_image_name == 'default':
             docker_image_name = self._get_default_runtime_image_name()
 
+        runtime = self.list_runtimes(docker_image_name)
+        if not runtime:
+            logger.debug("Default image is not yet created")
+            current_location = os.path.dirname(os.path.abspath(__file__))
+            df_path = os.path.join(TEMP, 'pywren.docker')
+            os.makedirs(df_path, exist_ok=True)
+            copyfile(os.path.join(current_location, 'entry_point.py'),
+                     os.path.join(df_path, 'entry_point.py'))
+            with open(os.path.join(df_path, 'Dockerfile'), "w") as f:
+                dockerfile = self._get_default_dockefile()
+                f.write(dockerfile)
+            self._build_runtime(docker_image_name, df_path)
+
         runtime_meta = self._generate_runtime_meta(docker_image_name)
 
         return runtime_meta
 
+    def _build_runtime(self, docker_image_name, dockerfile_path):
+        """
+        Builds a new runtime from a Dockerfile path
+        """
+        logger.debug('Building a new docker image from Dockerfile')
+        logger.debug('Dockefile path: {}'.format(dockerfile_path))
+        logger.debug('Docker image name: {}'.format(docker_image_name))
+
+        self.docker_client.images.build(path=dockerfile_path, tag=docker_image_name)
+
     def build_runtime(self, docker_image_name, dockerfile):
         """
-        Builds a new runtime from a Docker file
+        Builds a new runtime from a Dockerfile
         """
-        logger.info('Creating a new docker image from Dockerfile')
+        logger.info('Building a new docker image from Dockerfile')
         logger.info('Docker image name: {}'.format(docker_image_name))
 
         if dockerfile:
@@ -129,13 +167,24 @@ class DockerBackend:
 
     def delete_all_runtimes(self):
         """
-        Pass. No runtimes to delete since it runs in the local machine
+        Delete all Default runtimes
         """
-        raise NotImplementedError('Delete the runtimes individually')
+        try:
+            self.docker_client.images.remove(docker_config.RUNTIME_DEFAULT_35, force=True)
+        except Exception:
+            pass
+        try:
+            self.docker_client.images.remove(docker_config.RUNTIME_DEFAULT_36, force=True)
+        except Exception:
+            pass
+        try:
+            self.docker_client.images.remove(docker_config.RUNTIME_DEFAULT_37, force=True)
+        except Exception:
+            pass
 
     def list_runtimes(self, docker_image_name='all'):
         """
-         List all the runtimes deployed in the local machine
+        List all the runtimes deployed in the local machine
         return: list of tuples (docker_image_name, memory)
         """
         if docker_image_name == 'default':
@@ -144,18 +193,18 @@ class DockerBackend:
         images = self.docker_client.images.list()
         for img in images:
             for tag in img.tags:
-                if docker_image_name in tag:
-                    runtimes.append((docker_image_name, None))
+                if docker_image_name in tag or docker_image_name == 'all':
+                    runtimes.append((tag, None))
 
         return runtimes
 
-    def get_runtime_key(self, docker_image_name, runtime_memory):
+    def get_runtime_key(self, docker_image_name, memory):
         """
         Method that creates and returns the runtime key.
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know what runtimes are installed and what not.
         """
-        runtime_name = self._format_runtime_name(docker_image_name, runtime_memory)
+        runtime_name = self._format_runtime_name(docker_image_name, memory)
         runtime_key = os.path.join(self.name, runtime_name)
 
         return runtime_key

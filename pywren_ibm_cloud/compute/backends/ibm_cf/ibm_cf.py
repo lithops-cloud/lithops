@@ -131,7 +131,7 @@ class IBMCloudFunctionsBackend:
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
-        logger.info('Creating a new docker image from Dockerfile')
+        logger.info('Building a new docker image from Dockerfile')
         logger.info('Docker image name: {}'.format(docker_image_name))
 
         if dockerfile:
