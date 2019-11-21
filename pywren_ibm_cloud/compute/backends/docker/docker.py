@@ -5,6 +5,7 @@ import uuid
 import docker
 import logging
 import tempfile
+import multiprocessing
 from shutil import copyfile
 from . import config as docker_config
 from pywren_ibm_cloud.utils import version_str
@@ -30,14 +31,37 @@ class DockerBackend:
         self.config = docker_config
         self.name = 'docker'
         self.run_dir = LOCAL_RUN_DIR
-
+        self.queue = multiprocessing.Queue()
         self.workers = self.config['workers']
         self.docker_client = docker.from_env()
+
+        for cpu in range(self.workers):
+            p = multiprocessing.Process(target=self._process_runner)
+            p.daemon = True
+            p.start()
 
         log_msg = 'PyWren v{} init for Docker - Total workers: {}'.format(__version__, self.workers)
         logger.info(log_msg)
         if not self.log_level:
             print(log_msg)
+
+    def _process_runner(self):
+        while True:
+            docker_image_name, payload = self.queue.get(block=True)
+            exec_id = payload['executor_id']
+            job_id = payload['job_id']
+            call_id = payload['call_id']
+
+            payload_dir = os.path.join(STORAGE_BASE_DIR, exec_id, job_id, call_id)
+            os.makedirs(payload_dir, exist_ok=True)
+            payload_filename = os.path.join(payload_dir, 'payload.json')
+
+            with open(payload_filename, "w") as f:
+                f.write(json.dumps(payload))
+
+            self.docker_client.containers.run(docker_image_name, ['run', payload_filename],
+                                              volumes=['{}:/tmp'.format(TEMP)],
+                                              detach=True, auto_remove=True)
 
     def _format_runtime_name(self, docker_image_name, runtime_memory):
         runtime_name = docker_image_name.replace('/', '_').replace(':', '_')
@@ -88,21 +112,7 @@ class DockerBackend:
         Invoke the function with the payload. runtime_name and memory
         are not used since it runs in the local machine.
         """
-        exec_id = payload['executor_id']
-        job_id = payload['job_id']
-        call_id = payload['call_id']
-
-        payload_dir = os.path.join(STORAGE_BASE_DIR, exec_id, job_id, call_id)
-        os.makedirs(payload_dir, exist_ok=True)
-        payload_filename = os.path.join(payload_dir, 'payload.json')
-
-        with open(payload_filename, "w") as f:
-            f.write(json.dumps(payload))
-
-        self.docker_client.containers.run(docker_image_name, ['run', payload_filename],
-                                          volumes=['{}:/tmp'.format(TEMP)],
-                                          detach=True, auto_remove=True)
-
+        self.queue.put((docker_image_name, payload))
         act_id = str(uuid.uuid4()).replace('-', '')[:12]
         return act_id
 
