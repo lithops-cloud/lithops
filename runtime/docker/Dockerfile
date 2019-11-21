@@ -17,7 +17,7 @@ RUN pip install --upgrade pip setuptools six \
 ENV APP_HOME /pywren
 WORKDIR $APP_HOME
 
-RUN git clone https://github.com/JosepSampe/pywren-ibm-cloud -b pywren-dev && cd pywren-ibm-cloud && pip install .
+RUN git clone https://github.com/pywren/pywren-ibm-cloud && cd pywren-ibm-cloud && pip install .
 
 # entry_point.py is automatically generated. Do not modify next lines!
 COPY entry_point.py .

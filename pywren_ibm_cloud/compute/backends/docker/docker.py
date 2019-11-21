@@ -61,7 +61,7 @@ class DockerBackend:
 
             self.docker_client.containers.run(docker_image_name, ['run', payload_filename],
                                               volumes=['{}:/tmp'.format(TEMP)],
-                                              detach=True, auto_remove=True)
+                                              detach=False, auto_remove=True)
 
     def _format_runtime_name(self, docker_image_name, runtime_memory):
         runtime_name = docker_image_name.replace('/', '_').replace(':', '_')

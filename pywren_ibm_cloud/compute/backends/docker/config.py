@@ -2,9 +2,9 @@ import sys
 import multiprocessing
 from pywren_ibm_cloud.utils import version_str
 
-RUNTIME_DEFAULT_35 = 'docker-pywren-runtime-v3.5:latest'
-RUNTIME_DEFAULT_36 = 'docker-pywren-runtime-v3.6:latest'
-RUNTIME_DEFAULT_37 = 'docker-pywren-runtime-v3.7:latest'
+RUNTIME_DEFAULT_35 = 'pywren-docker-runtime-v3.5:latest'
+RUNTIME_DEFAULT_36 = 'pywren-docker-runtime-v3.6:latest'
+RUNTIME_DEFAULT_37 = 'pywren-docker-runtime-v3.7:latest'
 RUNTIME_TIMEOUT_DEFAULT = 600  # 10 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # 256 MB
 
@@ -24,7 +24,7 @@ RUN pip install --upgrade pip setuptools six \
 ENV APP_HOME /pywren
 WORKDIR $APP_HOME
 
-RUN git clone https://github.com/JosepSampe/pywren-ibm-cloud -b pywren-dev && cd pywren-ibm-cloud && pip install .
+RUN git clone https://github.com/pywren/pywren-ibm-cloud && cd pywren-ibm-cloud && pip install .
 
 # entry_point.py is automatically generated. Do not modify next lines!
 COPY entry_point.py .
