@@ -1,17 +1,18 @@
 # PyWren API Details
 
 ## Executor
-The primary object in PyWren is the executor. The standard way to get everything set up is to import pywren_ibm_cloud, and call on of the available methods to get a ready-to-use executor. The available executors are: `ibm_cf_executor()`, `knative_executor()` and `function_executor()`
+The primary object in PyWren is the executor. The standard way to get everything set up is to import pywren_ibm_cloud, and call on of the available methods to get a ready-to-use executor. The available executors are: `ibm_cf_executor()`, `knative_executor()`, `function_executor()`, `local_executor()` and `docker_executor()`
 
-**ibm_cf_executor(\*\*kwargs)**, **knative_executor(\*\*kwargs)**, **function_executor(\*\*kwargs)**
+**ibm_cf_executor(\*\*kwargs)**
 
-Initialize and return an executor object. All the parameters set in the executor will overwrite those set in the configuration.
+Initialize and return an IBM Cloud Functions executor object. All the parameters set in the executor will overwrite those set in the configuration.
 
 |Parameter | Default | Description|
 |---|---|---|
 |config | None | Settings passed in here will override those in pywren_config|
 |runtime |  None | Name of the docker image to run the functions |
 |runtime_memory | 256 | Memory (in MB) to use to run the functions |
+|storage_backend | ibm_cos | Storage backend to store temp data|
 |rabbitmq_monitor | False | Activate RabbitMQ monitoring |
 |log_level | None | Log level printing (INFO, DEBUG, ...) |
 
@@ -19,6 +20,83 @@ Usage:
 ```python
 import pywren_ibm_cloud as pywren
 pw = pywren.ibm_cf_executor()
+```
+
+**knative_executor(\*\*kwargs)**
+
+Initialize and return a Knative executor object. All the parameters set in the executor will overwrite those set in the configuration.
+
+|Parameter | Default | Description|
+|---|---|---|
+|config | None | Settings passed in here will override those in pywren_config|
+|runtime |  None | Name of the docker image to run the functions |
+|runtime_memory | 256 | Memory (in MB) to use to run the functions |
+|storage_backend | ibm_cos | Storage backend to store temp data|
+|rabbitmq_monitor | False | Activate RabbitMQ monitoring |
+|log_level | None | Log level printing (INFO, DEBUG, ...) |
+
+Usage:
+```python
+import pywren_ibm_cloud as pywren
+pw = pywren.knative_executor()
+```
+
+**function_executor(\*\*kwargs)**
+
+Initialize and return a generic executor object. All the parameters set in the executor will overwrite those set in the configuration.
+
+|Parameter | Default | Description|
+|---|---|---|
+|config | None | Settings passed in here will override those in pywren_config|
+|runtime |  None | Name of the docker image to run the functions |
+|runtime_memory | 256 | Memory (in MB) to use to run the functions |
+|backend | ibm_cf | name of the compute backend to run the functions |
+|storage_backend | ibm_cos | Storage backend to store temp data|
+|rabbitmq_monitor | False | Activate RabbitMQ monitoring |
+|log_level | None | Log level printing (INFO, DEBUG, ...) |
+
+Usage:
+```python
+import pywren_ibm_cloud as pywren
+pw = pywren.function_executor()
+```
+
+**local_executor(\*\*kwargs)**
+
+Initialize and return a Localhost executor object. This executor runs the function in local processes. All the parameters set in the executor will overwrite those set in the configuration.
+
+
+|Parameter | Default | Description|
+|---|---|---|
+|config | None | Settings passed in here will override those in pywren_config|
+|rabbitmq_monitor | False | Activate RabbitMQ monitoring |
+|storage_backend | localhost | Storage backend to store temp data |
+|rabbitmq_monitor | False | Activate RabbitMQ monitoring |
+|log_level | None | Log level printing (INFO, DEBUG, ...) |
+
+Usage:
+```python
+import pywren_ibm_cloud as pywren
+pw = pywren.local_executor()
+```
+
+**docker_executor(\*\*kwargs)**
+
+Initialize and return a Docker executor object. This executor runs the function in local Dockers. All the parameters set in the executor will overwrite those set in the configuration.
+
+
+|Parameter | Default | Description|
+|---|---|---|
+|config | None | Settings passed in here will override those in pywren_config|
+|runtime |  None | Name of the docker image to run the functions |
+|storage_backend | localhost | Storage backend to store temp data |
+|rabbitmq_monitor | False | Activate RabbitMQ monitoring |
+|log_level | None | Log level printing (INFO, DEBUG, ...) |
+
+Usage:
+```python
+import pywren_ibm_cloud as pywren
+pw = pywren.docker_executor()
 ```
 
 ## Executor.call_async()
