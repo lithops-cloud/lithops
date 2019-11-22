@@ -63,13 +63,12 @@ pw = pywren.function_executor()
 
 **local_executor(\*\*kwargs)**
 
-Initialize and return a Localhost executor object. This executor runs the function in local processes. All the parameters set in the executor will overwrite those set in the configuration.
+Initialize and return a Localhost executor object. This executor runs the functions in local processes. All the parameters set in the executor will overwrite those set in the configuration.
 
 
 |Parameter | Default | Description|
 |---|---|---|
 |config | None | Settings passed in here will override those in pywren_config|
-|rabbitmq_monitor | False | Activate RabbitMQ monitoring |
 |storage_backend | localhost | Storage backend to store temp data |
 |rabbitmq_monitor | False | Activate RabbitMQ monitoring |
 |log_level | None | Log level printing (INFO, DEBUG, ...) |
@@ -82,7 +81,7 @@ pw = pywren.local_executor()
 
 **docker_executor(\*\*kwargs)**
 
-Initialize and return a Docker executor object. This executor runs the function in local Dockers. All the parameters set in the executor will overwrite those set in the configuration.
+Initialize and return a Docker executor object. This executor runs the functions in local Dockers. All the parameters set in the executor will overwrite those set in the configuration.
 
 
 |Parameter | Default | Description|

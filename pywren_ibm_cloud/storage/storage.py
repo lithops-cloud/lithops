@@ -54,8 +54,8 @@ class InternalStorage:
         try:
             module_location = 'pywren_ibm_cloud.storage.backends.{}'.format(self.backend)
             sb_module = importlib.import_module(module_location)
-            ComputeBackend = getattr(sb_module, 'StorageBackend')
-            self.storage_handler = ComputeBackend(self.config[self.backend])
+            StorageBackend = getattr(sb_module, 'StorageBackend')
+            self.storage_handler = StorageBackend(self.config[self.backend])
         except Exception as e:
             raise NotImplementedError("An exception was produced trying to create the "
                                       "'{}' storage backend: {}".format(self.backend, e))
