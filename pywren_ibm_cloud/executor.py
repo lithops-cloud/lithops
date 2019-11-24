@@ -148,7 +148,7 @@ class FunctionExecutor:
 
     def map(self, map_function, map_iterdata, extra_params=None, extra_env=None, runtime_memory=None,
             chunk_size=None, chunk_n=None, remote_invocation=False, remote_invocation_groups=None,
-            timeout=EXECUTION_TIMEOUT, invoke_pool_threads=450, include_modules=[], exclude_modules=[]):
+            timeout=EXECUTION_TIMEOUT, invoke_pool_threads=500, include_modules=[], exclude_modules=[]):
         """
         :param map_function: the function to map over the data
         :param map_iterdata: An iterable of input data
@@ -205,7 +205,7 @@ class FunctionExecutor:
     def map_reduce(self, map_function, map_iterdata, reduce_function, extra_params=None, extra_env=None,
                    map_runtime_memory=None, reduce_runtime_memory=None, chunk_size=None, chunk_n=None,
                    remote_invocation=False, remote_invocation_groups=None, timeout=EXECUTION_TIMEOUT,
-                   reducer_one_per_object=False, reducer_wait_local=False, invoke_pool_threads=450,
+                   reducer_one_per_object=False, reducer_wait_local=False, invoke_pool_threads=500,
                    include_modules=[], exclude_modules=[]):
         """
         Map the map_function over the data and apply the reduce_function across all futures.

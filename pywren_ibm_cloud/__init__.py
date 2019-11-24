@@ -22,7 +22,7 @@ name = "pywren_ibm_cloud"
 
 
 def ibm_cf_executor(config=None, runtime=None, runtime_memory=None,
-                    compute_backend_region=None, storage_backend=None,
+                    region=None, storage_backend=None,
                     storage_backend_region=None, rabbitmq_monitor=None,
                     log_level=None):
     """
@@ -32,7 +32,7 @@ def ibm_cf_executor(config=None, runtime=None, runtime_memory=None,
     return FunctionExecutor(
         config=config, runtime=runtime, runtime_memory=runtime_memory,
         compute_backend=compute_backend,
-        compute_backend_region=compute_backend_region,
+        compute_backend_region=region,
         storage_backend=storage_backend,
         storage_backend_region=storage_backend_region,
         rabbitmq_monitor=rabbitmq_monitor,
@@ -40,10 +40,9 @@ def ibm_cf_executor(config=None, runtime=None, runtime_memory=None,
     )
 
 
-def knative_executor(config=None, runtime=None, runtime_memory=None,
-                     compute_backend_region=None, storage_backend=None,
-                     storage_backend_region=None, rabbitmq_monitor=None,
-                     log_level=None):
+def knative_executor(config=None, runtime=None, runtime_memory=None, region=None,
+                     storage_backend=None, storage_backend_region=None,
+                     rabbitmq_monitor=None, log_level=None):
     """
     Function executor for Knative
     """
@@ -51,7 +50,7 @@ def knative_executor(config=None, runtime=None, runtime_memory=None,
     return FunctionExecutor(
         config=config, runtime=runtime, runtime_memory=runtime_memory,
         compute_backend=compute_backend,
-        compute_backend_region=compute_backend_region,
+        compute_backend_region=region,
         storage_backend=storage_backend,
         storage_backend_region=storage_backend_region,
         rabbitmq_monitor=rabbitmq_monitor,
@@ -60,16 +59,17 @@ def knative_executor(config=None, runtime=None, runtime_memory=None,
 
 
 def function_executor(config=None, runtime=None, runtime_memory=None,
-                      compute_backend=None, compute_backend_region=None,
+                      backend=None, region=None,
                       storage_backend=None, storage_backend_region=None,
                       rabbitmq_monitor=None, log_level=None):
     """
     Generic function executor
     """
     return FunctionExecutor(
-        config=config, runtime=runtime, runtime_memory=runtime_memory,
-        compute_backend=compute_backend,
-        compute_backend_region=compute_backend_region,
+        config=config, runtime=runtime,
+        runtime_memory=runtime_memory,
+        compute_backend=backend,
+        compute_backend_region=region,
         storage_backend=storage_backend,
         storage_backend_region=storage_backend_region,
         rabbitmq_monitor=rabbitmq_monitor,
@@ -89,6 +89,27 @@ def local_executor(config=None, storage_backend=None, storage_backend_region=Non
 
     return FunctionExecutor(
         config=config, compute_backend=compute_backend,
+        storage_backend=storage_backend,
+        storage_backend_region=storage_backend_region,
+        rabbitmq_monitor=rabbitmq_monitor,
+        log_level=log_level
+    )
+
+
+def docker_executor(config=None, runtime=None, storage_backend=None,
+                    storage_backend_region=None, rabbitmq_monitor=None,
+                    log_level=None):
+    """
+    Localhost function executor
+    """
+    compute_backend = 'docker'
+
+    if storage_backend is None:
+        storage_backend = 'localhost'
+
+    return FunctionExecutor(
+        config=config, runtime=runtime,
+        compute_backend=compute_backend,
         storage_backend=storage_backend,
         storage_backend_region=storage_backend_region,
         rabbitmq_monitor=rabbitmq_monitor,

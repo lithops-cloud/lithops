@@ -131,7 +131,7 @@ class IBMCloudFunctionsBackend:
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
-        logger.info('Creating a new docker image from Dockerfile')
+        logger.info('Building a new docker image from Dockerfile')
         logger.info('Docker image name: {}'.format(docker_image_name))
 
         if dockerfile:
@@ -234,13 +234,6 @@ class IBMCloudFunctionsBackend:
 
         return activation_id
 
-    def invoke_with_result(self, docker_image_name, runtime_memory, payload={}):
-        """
-        Invoke waiting for a result -- return information about this invocation
-        """
-        action_name = self._format_action_name(docker_image_name, runtime_memory)
-        return self.cf_client.invoke_with_result(self.package, action_name, payload)
-
     def get_runtime_key(self, docker_image_name, runtime_memory):
         """
         Method that creates and returns the runtime key.
@@ -286,7 +279,7 @@ class IBMCloudFunctionsBackend:
             retry_invoke = True
             while retry_invoke:
                 retry_invoke = False
-                runtime_meta = self.invoke_with_result(docker_image_name, runtime_memory)
+                runtime_meta = self.cf_client.invoke_with_result(self.package, action_name)
                 if 'activationId' in runtime_meta:
                     retry_invoke = True
         except Exception:

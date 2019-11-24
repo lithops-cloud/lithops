@@ -4,6 +4,10 @@
 
 ### Added
 - New local_executor() to run pywren jobs in the local machine
+- New localhost compute backend
+- New localhost storage backend
+- New docker_executor() to run pywren jobs in the local machine by using docker
+- New docker compute backend
 
 ### Changed
 - Docs updated

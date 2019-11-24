@@ -154,15 +154,14 @@ class ResponseFuture:
 
             if not self._call_status.get('exc_pickle_fail', False):
                 exception_args = self._exception[1].args
-
-                if exception_args[0] == "WRONGVERSION":
+                if exception_args and exception_args[0] == "WRONGVERSION":
                     msg = "PyWren version mismatch: remote library is version {}, local " \
                           "library is version {}".format(exception_args[2], exception_args[3])
 
-                if exception_args[0] == "OUTATIME":
+                elif exception_args and exception_args[0] == "OUTATIME":
                     msg = "Process ran out of time and was killed"
 
-                if exception_args[0] == "OUTOFMEMORY":
+                elif exception_args and exception_args[0] == "OUTOFMEMORY":
                     msg = "Process exceeded maximum memory and was killed"
             else:
                 fault = Exception(self._exception['exc_value'])
