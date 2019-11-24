@@ -48,7 +48,8 @@ class KnativeServingBackend:
         current_context_details = current_context.get('context')
         # get namespace of current context
         self.namespace = current_context_details.get('namespace', 'default')
-
+        # get the cluster
+        self.cluster = current_context_details.get('cluster')
         self.headers = {'content-type': 'application/json'}
 
         if self.endpoint is None:
@@ -68,7 +69,8 @@ class KnativeServingBackend:
                 self.endpoint = 'http://{}:{}'.format(ip, http_port)
 
             except Exception as e:
-                raise Exception("Something went wrong getting the istio-ingressgateway endpoint: {}".format(e))
+                log_msg = "Something went wrong getting the istio-ingressgateway endpoint: {}".format(e)
+                logger.info(log_msg)
 
         log_msg = 'PyWren v{} init for Knative Serving - Endpoint: {}'.format(__version__, self.endpoint)
         logger.info(log_msg)
@@ -350,6 +352,9 @@ class KnativeServingBackend:
                     service_url = event['object']['status']['url']
             if conditions and conditions[0]['status'] == 'True' and \
                conditions[1]['status'] == 'True' and conditions[2]['status'] == 'True':
+                # Workaround to prevent invoking the service immediately after creation.
+                # TODO: Open issue.
+                time.sleep(1)
                 w.stop()
 
         log_msg = 'Runtime Service resource created - URL: {}'.format(service_url)
@@ -459,7 +464,8 @@ class KnativeServingBackend:
         service_name = self._format_service_name(docker_image_name, memory)
 
         self.headers['Host'] = self._get_service_host(service_name)
-
+        if self.endpoint is None:
+            self.endpoint = 'http://{}'.format(self._get_service_host(service_name))
         exec_id = payload.get('executor_id', '')
         call_id = payload.get('call_id', '')
         job_id = payload.get('job_id', '')
@@ -517,8 +523,9 @@ class KnativeServingBackend:
         in order to know which runtimes are installed and which not.
         """
         service_name = self._format_service_name(docker_image_name, runtime_memory)
-        parsed_url = urlparse(self.endpoint)
-        runtime_key = os.path.join(parsed_url.netloc, service_name)
+        cluster_key = urlparse(self.cluster).netloc if urlparse(self.cluster).netloc != '' \
+                          else urlparse(self.cluster).path
+        runtime_key = os.path.join(cluster_key, self.namespace, service_name)
 
         return runtime_key
 
