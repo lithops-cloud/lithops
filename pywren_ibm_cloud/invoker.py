@@ -1,5 +1,5 @@
 #
-# Copyright 2018 PyWren Team
+# (C) Copyright IBM Corp. 2019
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,15 +20,20 @@ import time
 import logging
 import random
 from types import SimpleNamespace
+from threading import Thread
+from multiprocessing import Process, Queue
 from pywren_ibm_cloud.compute import Compute
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
 from concurrent.futures import ThreadPoolExecutor
+from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.config import extract_storage_config, extract_compute_config
 from pywren_ibm_cloud.future import ResponseFuture
 from pywren_ibm_cloud.storage.utils import create_output_key, create_status_key
 
+
 logger = logging.getLogger(__name__)
+MAX_DIRECT_INVOCATIONS = 1200
 
 
 class FunctionInvoker:
@@ -43,6 +48,7 @@ class FunctionInvoker:
         self.storage_config = extract_storage_config(self.pywren_config)
         self.internal_storage = internal_storage
         self.compute_config = extract_compute_config(self.pywren_config)
+        self.invoked = False
 
         self.compute_handlers = []
         cb = self.compute_config['backend']
@@ -54,6 +60,12 @@ class FunctionInvoker:
                 self.compute_handlers.append(Compute(compute_config))
         else:
             self.compute_handlers.append(Compute(self.compute_config))
+
+        logger.debug('ExecutorID {} - Creating invoker process'.format(self.executor_id))
+        self.failed_calls_queue = Queue()
+        self.invoker_process = InvokerProcess(pywren_config, executor_id, self.failed_calls_queue)
+        self.invoker_process.daemon = True
+        self.invoker_process.start()
 
     def select_runtime(self, job_id, runtime_memory):
         """
@@ -109,6 +121,39 @@ class FunctionInvoker:
 
         return runtime_meta
 
+    def _invoke(self, job, call_id):
+        """
+        Method used to perform the actual invocation against the Compute Backend
+        """
+        storage_prefix = self.storage_config['prefix']
+        output_key = create_output_key(storage_prefix, job.executor_id, job.job_id, call_id)
+        status_key = create_status_key(storage_prefix, job.executor_id, job.job_id, call_id)
+
+        payload = {'config': self.pywren_config,
+                   'log_level': self.log_level,
+                   'func_key': job.func_key,
+                   'data_key': job.data_key,
+                   'output_key': output_key,
+                   'status_key': status_key,
+                   'extra_env': job.extra_env,
+                   'execution_timeout': job.execution_timeout,
+                   'data_byte_range': job.data_ranges[int(call_id)],
+                   'executor_id': job.executor_id,
+                   'job_id': job.job_id,
+                   'call_id': call_id,
+                   'host_submit_time': time.time(),
+                   'pywren_version': __version__}
+
+        # do the invocation
+        compute_handler = random.choice(self.compute_handlers)
+        activation_id = compute_handler.invoke(job.runtime_name, job.runtime_memory, payload)
+
+        if not activation_id:
+            self.failed_calls_queue.put((job, call_id))
+            return
+
+        return call_id
+
     def run(self, job_description):
         """
         Run a job described in job_description
@@ -126,24 +171,121 @@ class FunctionInvoker:
         if not self.log_level:
             print(log_msg)
 
+        if not self.invoked:
+            # Only invoke MAX_DIRECT_INVOCATIONS
+            callids = range(job.total_calls)
+            callids_to_invoke_direct = callids[:MAX_DIRECT_INVOCATIONS]
+            callids_to_invoke_nondirect = callids[MAX_DIRECT_INVOCATIONS:]
+
+            call_futures = []
+            with ThreadPoolExecutor(max_workers=job.invoke_pool_threads) as executor:
+                for i in callids_to_invoke_direct:
+                    call_id = "{:05d}".format(i)
+                    future = executor.submit(self._invoke, job, call_id)
+                    call_futures.append(future)
+
+            # Block until all direct invocations have finished
+            callids_invoked = [ft.result() for ft in call_futures]
+
+            # Put into the queue the rest of the callids to invoke within the process
+            for i in callids_to_invoke_nondirect:
+                call_id = "{:05d}".format(i)
+                self.failed_calls_queue.put((job, call_id))
+
+            if self.failed_calls_queue.qsize() > 0:
+                self.invoker_process.start_job_status_checker(job)
+            self.invoked = True
+        else:
+            # Second and subsequent jobs will go all directly to the InvokerProcess
+            for i in range(job.total_calls):
+                call_id = "{:05d}".format(i)
+                self.failed_calls_queue.put((job, call_id))
+                self.invoker_process.start_job_status_checker(job)
+
+        # Create all futures an return them
+        futures = []
+        for i in range(job.total_calls):
+            call_id = "{:05d}".format(i)
+            fut = ResponseFuture(self.executor_id, job.job_id, call_id, self.storage_config, job.metadata)
+            fut._set_state(ResponseFuture.State.Invoked)
+            futures.append(fut)
+
+        return futures
+
+
+class InvokerProcess(Process):
+
+    def __init__(self, pywren_config, executor_id, failed_calls_queue):
+        super().__init__()
+        self.log_level = os.getenv('PYWREN_LOGLEVEL')
+        self.pywren_config = pywren_config
+        self.executor_id = executor_id
+        self.failed_calls_queue = failed_calls_queue
+        self.token_bucket_queue = Queue()
+
+        self.storage_config = extract_storage_config(self.pywren_config)
+        self.internal_storage = InternalStorage(self.storage_config)
+        self.compute_config = extract_compute_config(self.pywren_config)
+        old_stdout = sys.stdout
+        sys.stdout = open('/dev/null', 'w')
+        self.compute_handlers = []
+        cb = self.compute_config['backend']
+        regions = self.compute_config[cb].get('region')
+        if type(regions) == list:
+            for region in regions:
+                compute_config = self.compute_config.copy()
+                compute_config[cb]['region'] = region
+                self.compute_handlers.append(Compute(compute_config))
+        else:
+            self.compute_handlers.append(Compute(self.compute_config))
+        sys.stdout = old_stdout
+        logger.debug('ExecutorID {} - Invoker process created'.format(self.executor_id))
+
+    def start_job_status_checker(self, job):
+        th = Thread(target=self._job_status_checker_worker, args=(job,))
+        th.daemon = True
+        th.start()
+
+    def _job_status_checker_worker(self, job):
+        logger.debug('ExecutorID {} | JobID {} - Starting job status checker worker'.format(self.executor_id, job.job_id))
+        total_callids_done_in_job = 0
+
+        while total_callids_done_in_job < job.total_calls:
+            callids_done_in_job = set(self.internal_storage.get_job_status(self.executor_id, job.job_id))
+            total_new_tokens = len(callids_done_in_job) - total_callids_done_in_job
+            total_callids_done_in_job = total_callids_done_in_job + total_new_tokens
+            for i in range(total_new_tokens):
+                self.token_bucket_queue.put('#')
+            time.sleep(0.1)
+
+    def run(self):
+        """
+        Run a job described in job_description
+        """
+        logger.debug('ExecutorID {} - Invoker process started'.format(self.executor_id))
+
+        executor = ThreadPoolExecutor(max_workers=500)
+
         ########################
 
-        def invoke(executor_id, job_id, call_id, func_key, job_metadata, data_key, data_byte_range):
+        def invoke(job, call_id):
+            storage_prefix = self.storage_config['prefix']
+            output_key = create_output_key(storage_prefix, job.executor_id, job.job_id, call_id)
+            status_key = create_status_key(storage_prefix, job.executor_id, job.job_id, call_id)
 
-            output_key = create_output_key(self.storage_config['prefix'], executor_id, job_id, call_id)
-            status_key = create_status_key(self.storage_config['prefix'], executor_id, job_id, call_id)
+            data_byte_range = job.data_ranges[int(call_id)]
 
             payload = {'config': self.pywren_config,
                        'log_level': self.log_level,
-                       'func_key': func_key,
-                       'data_key': data_key,
+                       'func_key': job.func_key,
+                       'data_key': job.data_key,
                        'output_key': output_key,
                        'status_key': status_key,
                        'extra_env': job.extra_env,
                        'execution_timeout': job.execution_timeout,
                        'data_byte_range': data_byte_range,
-                       'executor_id': executor_id,
-                       'job_id': job_id,
+                       'executor_id': job.executor_id,
+                       'job_id': job.job_id,
                        'call_id': call_id,
                        'host_submit_time': time.time(),
                        'pywren_version': __version__}
@@ -153,28 +295,16 @@ class FunctionInvoker:
             activation_id = compute_handler.invoke(job.runtime_name, job.runtime_memory, payload)
 
             if not activation_id:
-                raise Exception("ExecutorID {} | JobID {} - Retrying mechanism finished with no success. "
-                                "Failed to invoke the job".format(executor_id, job_id))
+                self.failed_calls_queue.put((job, call_id))
 
-            job_metadata['activation_id'] = activation_id
-            fut = ResponseFuture(executor_id, job_id, call_id, self.storage_config, job_metadata)
-            fut._set_state(ResponseFuture.State.Invoked)
-
-            return fut
+            return call_id
 
         ########################
 
-        call_futures = []
-        with ThreadPoolExecutor(max_workers=job.invoke_pool_threads) as executor:
-            for i in range(job.total_calls):
-                call_id = "{:05d}".format(i)
-                data_byte_range = job.data_ranges[i]
-                future = executor.submit(invoke, self.executor_id,
-                                         job.job_id, call_id, job.func_key,
-                                         job.metadata.copy(),
-                                         job.data_key, data_byte_range)
-                call_futures.append(future)
-
-        res = [ft.result() for ft in call_futures]
-
-        return res
+        while True:
+            try:
+                token = self.token_bucket_queue.get(timeout=0.5)
+            except Exception:
+                pass
+            job, call_id = self.failed_calls_queue.get()
+            executor.submit(invoke, job, call_id)

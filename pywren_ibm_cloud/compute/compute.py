@@ -1,6 +1,4 @@
 import os
-import time
-import random
 import logging
 import importlib
 
@@ -35,20 +33,7 @@ class Compute:
         """
         Invoke -- return information about this invocation
         """
-        act_id = self.compute_handler.invoke(runtime_name, memory, payload)
-        attempts = 1
-
-        while not act_id and self.invocation_retry and attempts < self.retries:
-            attempts += 1
-            selected_sleep = random.choice(self.retry_sleeps)
-            exec_id = payload['executor_id']
-            call_id = payload['call_id']
-            log_msg = ('ExecutorID {} - Function {} - Retry {} in {} seconds'.format(exec_id, call_id, attempts, selected_sleep))
-            logger.debug(log_msg)
-            time.sleep(selected_sleep)
-            act_id = self.compute_handler.invoke(runtime_name, memory, payload)
-
-        return act_id
+        return self.compute_handler.invoke(runtime_name, memory, payload)
 
     def build_runtime(self, runtime_name, file):
         """

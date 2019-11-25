@@ -193,6 +193,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     job_description['extra_env'] = extra_env
     job_description['total_calls'] = len(data)
     job_description['invoke_pool_threads'] = invoke_pool_threads
+    job_description['executor_id'] = executor_id
     job_description['job_id'] = job_id
     job_description['remote_invocation'] = remote_invocation
     job_description['original_total_calls'] = original_total_tasks
