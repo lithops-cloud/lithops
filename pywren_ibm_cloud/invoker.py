@@ -26,7 +26,6 @@ from pywren_ibm_cloud.compute import Compute
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
 from concurrent.futures import ThreadPoolExecutor
-from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.config import extract_storage_config, extract_compute_config
 from pywren_ibm_cloud.future import ResponseFuture
 from pywren_ibm_cloud.storage.utils import create_output_key, create_status_key
@@ -62,8 +61,10 @@ class FunctionInvoker:
             self.compute_handlers.append(Compute(self.compute_config))
 
         logger.debug('ExecutorID {} - Creating invoker process'.format(self.executor_id))
+
+        self.token_bucket_queue = Queue()
         self.failed_calls_queue = Queue()
-        self.invoker_process = InvokerProcess(pywren_config, executor_id, self.failed_calls_queue)
+        self.invoker_process = Process(target=self.run_process, args=())
         self.invoker_process.daemon = True
         self.invoker_process.start()
 
@@ -193,14 +194,14 @@ class FunctionInvoker:
                 self.failed_calls_queue.put((job, call_id))
 
             if self.failed_calls_queue.qsize() > 0:
-                self.invoker_process.start_job_status_checker(job)
+                self.start_job_status_checker(job)
             self.invoked = True
         else:
             # Second and subsequent jobs will go all directly to the InvokerProcess
             for i in range(job.total_calls):
                 call_id = "{:05d}".format(i)
                 self.failed_calls_queue.put((job, call_id))
-                self.invoker_process.start_job_status_checker(job)
+            self.start_job_status_checker(job)
 
         # Create all futures an return them
         futures = []
@@ -211,35 +212,6 @@ class FunctionInvoker:
             futures.append(fut)
 
         return futures
-
-
-class InvokerProcess(Process):
-
-    def __init__(self, pywren_config, executor_id, failed_calls_queue):
-        super().__init__()
-        self.log_level = os.getenv('PYWREN_LOGLEVEL')
-        self.pywren_config = pywren_config
-        self.executor_id = executor_id
-        self.failed_calls_queue = failed_calls_queue
-        self.token_bucket_queue = Queue()
-
-        self.storage_config = extract_storage_config(self.pywren_config)
-        self.internal_storage = InternalStorage(self.storage_config)
-        self.compute_config = extract_compute_config(self.pywren_config)
-        old_stdout = sys.stdout
-        sys.stdout = open('/dev/null', 'w')
-        self.compute_handlers = []
-        cb = self.compute_config['backend']
-        regions = self.compute_config[cb].get('region')
-        if type(regions) == list:
-            for region in regions:
-                compute_config = self.compute_config.copy()
-                compute_config[cb]['region'] = region
-                self.compute_handlers.append(Compute(compute_config))
-        else:
-            self.compute_handlers.append(Compute(self.compute_config))
-        sys.stdout = old_stdout
-        logger.debug('ExecutorID {} - Invoker process created'.format(self.executor_id))
 
     def start_job_status_checker(self, job):
         th = Thread(target=self._job_status_checker_worker, args=(job,))
@@ -258,48 +230,13 @@ class InvokerProcess(Process):
                 self.token_bucket_queue.put('#')
             time.sleep(0.1)
 
-    def run(self):
+    def run_process(self):
         """
-        Run a job described in job_description
+        Run process that implements token bucket scheduling approach
         """
         logger.debug('ExecutorID {} - Invoker process started'.format(self.executor_id))
 
         executor = ThreadPoolExecutor(max_workers=500)
-
-        ########################
-
-        def invoke(job, call_id):
-            storage_prefix = self.storage_config['prefix']
-            output_key = create_output_key(storage_prefix, job.executor_id, job.job_id, call_id)
-            status_key = create_status_key(storage_prefix, job.executor_id, job.job_id, call_id)
-
-            data_byte_range = job.data_ranges[int(call_id)]
-
-            payload = {'config': self.pywren_config,
-                       'log_level': self.log_level,
-                       'func_key': job.func_key,
-                       'data_key': job.data_key,
-                       'output_key': output_key,
-                       'status_key': status_key,
-                       'extra_env': job.extra_env,
-                       'execution_timeout': job.execution_timeout,
-                       'data_byte_range': data_byte_range,
-                       'executor_id': job.executor_id,
-                       'job_id': job.job_id,
-                       'call_id': call_id,
-                       'host_submit_time': time.time(),
-                       'pywren_version': __version__}
-
-            # do the invocation
-            compute_handler = random.choice(self.compute_handlers)
-            activation_id = compute_handler.invoke(job.runtime_name, job.runtime_memory, payload)
-
-            if not activation_id:
-                self.failed_calls_queue.put((job, call_id))
-
-            return call_id
-
-        ########################
 
         while True:
             try:
@@ -307,4 +244,4 @@ class InvokerProcess(Process):
             except Exception:
                 pass
             job, call_id = self.failed_calls_queue.get()
-            executor.submit(invoke, job, call_id)
+            executor.submit(self._invoke, job, call_id)
