@@ -25,7 +25,7 @@ def create_map_job(config, internal_storage, executor_id, map_job_id, map_functi
                    runtime_memory=None, extra_params=None, extra_env=None, obj_chunk_size=None,
                    obj_chunk_number=None, remote_invocation=False, remote_invocation_groups=None,
                    invoke_pool_threads=128, include_modules=[], exclude_modules=[], is_remote_cluster=False,
-                   execution_timeout=EXECUTION_TIMEOUT):
+                   execution_timeout=EXECUTION_TIMEOUT, recover_session=False):
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
     """
@@ -75,7 +75,8 @@ def create_map_job(config, internal_storage, executor_id, map_job_id, map_functi
                                   exclude_modules=exclude_modules,
                                   remote_invocation=remote_invocation,
                                   original_total_tasks=original_total_tasks,
-                                  execution_timeout=execution_timeout)
+                                  execution_timeout=execution_timeout,
+                                  recover_session=recover_session)
 
     job_description['parts_per_object'] = parts_per_object
 
@@ -84,7 +85,8 @@ def create_map_job(config, internal_storage, executor_id, map_job_id, map_functi
 
 def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, reduce_function,
                       map_job, map_futures, runtime_meta, reducer_one_per_object=False,
-                      runtime_memory=None, extra_env=None, include_modules=[], exclude_modules=[]):
+                      runtime_memory=None, extra_env=None, include_modules=[], exclude_modules=[],
+                      recover_session=False):
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
     """
@@ -130,7 +132,8 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
                        extra_env=extra_env,
                        include_modules=include_modules,
                        exclude_modules=exclude_modules,
-                       original_func_name=reduce_function.__name__)
+                       original_func_name=reduce_function.__name__,
+                       recover_session=recover_session)
 
 
 def _agg_data(data_strs):
@@ -149,7 +152,7 @@ def _agg_data(data_strs):
 def _create_job(config, internal_storage, executor_id, job_id, func, data, runtime_meta,
                 runtime_memory=None, extra_env=None, invoke_pool_threads=128, include_modules=[],
                 exclude_modules=[], original_func_name=None, remote_invocation=False,
-                original_total_tasks=None, execution_timeout=EXECUTION_TIMEOUT):
+                original_total_tasks=None, execution_timeout=EXECUTION_TIMEOUT, recover_session=False):
     """
     :param func: the function to map over the data
     :param iterdata: An iterable of input data
@@ -183,6 +186,11 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     if not data:
         return []
 
+    already_invoked = False
+    if recover_session:
+        job_objects = internal_storage.get_job_status(executor_id, job_id)
+        if len(job_objects) != 0:
+            already_invoked = True
     host_job_meta = {}
     job_description = {}
 
@@ -197,6 +205,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     job_description['job_id'] = job_id
     job_description['remote_invocation'] = remote_invocation
     job_description['original_total_calls'] = original_total_tasks
+    job_description['already_invoked'] = already_invoked
 
     log_msg = 'ExecutorID {} | JobID {} - Serializing function and data'.format(executor_id, job_id)
     logger.debug(log_msg)

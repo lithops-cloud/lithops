@@ -147,7 +147,11 @@ class FunctionInvoker:
 
         # do the invocation
         compute_handler = random.choice(self.compute_handlers)
-        activation_id = compute_handler.invoke(job.runtime_name, job.runtime_memory, payload)
+        if not job.already_invoked:
+            print('!! Actually invoking now!')
+            activation_id = compute_handler.invoke(job.runtime_name, job.runtime_memory, payload)
+        else:
+            activation_id = 1
 
         if not activation_id:
             self.failed_calls_queue.put((job, call_id))

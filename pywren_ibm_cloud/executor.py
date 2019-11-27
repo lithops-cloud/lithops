@@ -27,7 +27,7 @@ class FunctionExecutor:
         Error = 'Error'
         Finished = 'Finished'
 
-    def __init__(self, config=None, runtime=None, runtime_memory=None, compute_backend=None,
+    def __init__(self, executor_id=None, config=None, runtime=None, runtime_memory=None, compute_backend=None,
                  compute_backend_region=None, storage_backend=None, storage_backend_region=None,
                  rabbitmq_monitor=None, log_level=None):
         """
@@ -78,7 +78,13 @@ class FunctionExecutor:
 
         self.config = default_config(config, config_ow)
 
-        self.executor_id = create_executor_id()
+        if executor_id is None:
+            self.recover_session = False
+            self.executor_id = create_executor_id()
+        else:
+            self.recover_session = True
+            self.executor_id = executor_id
+
         logger.debug('FunctionExecutor created with ID: {}'.format(self.executor_id))
 
         # RabbitMQ monitor configuration
@@ -138,7 +144,8 @@ class FunctionExecutor:
                              extra_env=extra_env,
                              include_modules=include_modules,
                              exclude_modules=exclude_modules,
-                             execution_timeout=timeout)
+                             execution_timeout=timeout,
+                             recover_session=self.recover_session)
 
         future = self.invoker.run(job)
         self.jobs[async_job_id] = {'futures': future, 'state': JobState.Running}
@@ -193,7 +200,8 @@ class FunctionExecutor:
                              include_modules=include_modules,
                              exclude_modules=exclude_modules,
                              is_remote_cluster=self.is_remote_cluster,
-                             execution_timeout=timeout)
+                             execution_timeout=timeout,
+                             recover_session=self.recover_session)
 
         map_futures = self.invoker.run(job)
         self.jobs[map_job_id] = {'futures': map_futures, 'state': JobState.Running}
@@ -258,7 +266,8 @@ class FunctionExecutor:
                                  include_modules=include_modules,
                                  exclude_modules=exclude_modules,
                                  is_remote_cluster=self.is_remote_cluster,
-                                 execution_timeout=timeout)
+                                 execution_timeout=timeout,
+                                 recover_session=self.recover_session)
 
         map_futures = self.invoker.run(map_job)
         self.jobs[map_job_id] = {'futures': map_futures, 'state': JobState.Running}
@@ -279,7 +288,8 @@ class FunctionExecutor:
                                        runtime_memory=reduce_runtime_memory,
                                        extra_env=extra_env,
                                        include_modules=include_modules,
-                                       exclude_modules=exclude_modules)
+                                       exclude_modules=exclude_modules,
+                                       recover_session=self.recover_session)
 
         reduce_futures = self.invoker.run(reduce_job)
         self.jobs[reduce_job_id] = {'futures': reduce_futures, 'state': JobState.Running}
