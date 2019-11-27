@@ -146,9 +146,6 @@ def extract_compute_config(config):
     compute_config = dict()
     cb = config['pywren']['compute_backend']
     compute_config['backend'] = cb
-    compute_config['invocation_retry'] = config['pywren']['invocation_retry']
-    compute_config['retry_sleeps'] = config['pywren']['retry_sleeps']
-    compute_config['retries'] = config['pywren']['retries']
 
     compute_config[cb] = config[cb]
     compute_config[cb]['user_agent'] = 'pywren-ibm-cloud/{}'.format(__version__)
