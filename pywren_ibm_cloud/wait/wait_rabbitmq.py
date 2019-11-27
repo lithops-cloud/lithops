@@ -137,6 +137,7 @@ class rabbitmq_checker_worker(threading.Thread):
         self.total_calls_rcvd += 1
         if self.total_calls_rcvd == self.total_calls:
             self.channel.stop_consuming()
+            self.channel.exchange_delete(self.exchange)
 
     def __init__(self, job_key, total_calls, rabbit_amqp_url, q):
         threading.Thread.__init__(self)
@@ -146,11 +147,16 @@ class rabbitmq_checker_worker(threading.Thread):
         self.executor_id, self.job_id = job_key.rsplit('-', 1)
         self.total_calls_rcvd = 0
 
+        self.exchange = 'pywren-{}-{}'.format(self.executor_id, self.job_id)
+        self.queue_0 = '{}-0'.format(self.exchange)
+
         params = pika.URLParameters(rabbit_amqp_url)
         connection = pika.BlockingConnection(params)
         self.channel = connection.channel()  # start a channel
-        self.channel.queue_declare(queue=job_key, auto_delete=True)
-        self.channel.basic_consume(self.callback, queue=job_key, no_ack=True)
+        self.channel.exchange_declare(exchange=self.exchange, exchange_type='fanout')
+        self.channel.queue_declare(queue=self.queue_0, exclusive=True)
+        self.channel.queue_bind(exchange=self.exchange, queue=self.queue_0)
+        self.channel.basic_consume(self.callback, queue=self.queue_0, no_ack=True)
 
     def run(self):
         msg = ('ExecutorID {} | JobID {} - Consuming from rabbitmq '
@@ -159,5 +165,6 @@ class rabbitmq_checker_worker(threading.Thread):
         self.channel.start_consuming()
 
     def __del__(self):
-        self.channel.queue_delete(queue=self.job_key)
         self.channel.stop_consuming()
+        self.channel.queue_delete(queue=self.queue_0)
+        self.channel.exchange_delete(self.exchange)

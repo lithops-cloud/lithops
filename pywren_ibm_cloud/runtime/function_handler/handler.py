@@ -219,15 +219,15 @@ def function_handler(event):
             status_sent = False
             output_query_count = 0
             params = pika.URLParameters(rabbit_amqp_url)
-            queue = '{}-{}'.format(executor_id, job_id)
+            exchange = 'pywren-{}-{}'.format(executor_id, job_id)
 
             while not status_sent and output_query_count < 5:
                 output_query_count = output_query_count + 1
                 try:
                     connection = pika.BlockingConnection(params)
                     channel = connection.channel()
-                    channel.queue_declare(queue=queue, auto_delete=True)
-                    channel.basic_publish(exchange='', routing_key=queue,
+                    channel.exchange_declare(exchange=exchange, exchange_type='fanout')
+                    channel.basic_publish(exchange=exchange, routing_key='',
                                           body=dmpd_response_status)
                     connection.close()
                     logger.info("Execution status sent to rabbitmq - Size: {}".format(drs))
