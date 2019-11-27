@@ -24,15 +24,12 @@ logger = logging.getLogger(__name__)
 
 COMPUTE_BACKEND_DEFAULT = 'ibm_cf'
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
-STORAGE_PREFIX_DEFAULT = "pywren.jobs"
-RUNTIMES_PREFIX_DEFAULT = "pywren.runtimes"
+JOBS_PREFIX = "pywren.jobs"
+RUNTIMES_PREFIX = "pywren.runtimes"
 
 EXECUTION_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
 DATA_CLEANER_DEFAULT = False
 MAX_AGG_DATA_SIZE = 4e6
-INVOCATION_RETRY_DEFAULT = True
-RETRY_SLEEPS_DEFAULT = [4, 8, 16, 24]
-RETRIES_DEFAULT = 5
 
 CONFIG_DIR = os.path.expanduser('~/.pywren')
 CACHE_DIR = os.path.join(CONFIG_DIR, 'cache')
@@ -105,19 +102,12 @@ def default_config(config_data=None, config_overwrite={'pywren': {}}):
     if 'storage_bucket' not in config_data['pywren']:
         raise Exception("storage_bucket is mandatory in pywren section of the configuration")
 
-    config_data['pywren']['storage_prefix'] = STORAGE_PREFIX_DEFAULT
+    if 'compute_backend' not in config_data['pywren']:
+        config_data['pywren']['compute_backend'] = COMPUTE_BACKEND_DEFAULT
     if 'storage_backend' not in config_data['pywren']:
         config_data['pywren']['storage_backend'] = STORAGE_BACKEND_DEFAULT
     if 'data_cleaner' not in config_data['pywren']:
         config_data['pywren']['data_cleaner'] = DATA_CLEANER_DEFAULT
-    if 'invocation_retry' not in config_data['pywren']:
-        config_data['pywren']['invocation_retry'] = INVOCATION_RETRY_DEFAULT
-    if 'retry_sleeps' not in config_data['pywren']:
-        config_data['pywren']['retry_sleeps'] = RETRY_SLEEPS_DEFAULT
-    if 'retries' not in config_data['pywren']:
-        config_data['pywren']['retries'] = RETRIES_DEFAULT
-    if 'compute_backend' not in config_data['pywren']:
-        config_data['pywren']['compute_backend'] = COMPUTE_BACKEND_DEFAULT
 
     if 'rabbitmq' in config_data:
         if config_data['rabbitmq'] is None \
@@ -142,7 +132,6 @@ def extract_storage_config(config):
     storage_config = dict()
     sb = config['pywren']['storage_backend']
     storage_config['backend'] = sb
-    storage_config['prefix'] = config['pywren']['storage_prefix']
     storage_config['bucket'] = config['pywren']['storage_bucket']
 
     storage_config[sb] = config[sb]

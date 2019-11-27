@@ -60,9 +60,15 @@ def load_config(config_data):
         elif this_version_str == '3.7':
             config_data['pywren']['runtime'] = RUNTIME_DEFAULT_37
 
-    total_cores = multiprocessing.cpu_count()
     if 'docker' not in config_data:
         config_data['docker'] = {}
-        config_data['docker']['workers'] = total_cores
-    elif 'workers' not in config_data['docker']:
-        config_data['docker']['workers'] = total_cores
+
+    if 'workers' in config_data['pywren']:
+        config_data['docker']['workers'] = config_data['pywren']['workers']
+    else:
+        if 'workers' not in config_data['docker']:
+            total_cores = multiprocessing.cpu_count()
+            config_data['pywren']['workers'] = total_cores
+            config_data['docker']['workers'] = total_cores
+        else:
+            config_data['pywren']['workers'] = config_data['docker']['workers']

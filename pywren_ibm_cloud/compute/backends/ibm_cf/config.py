@@ -8,6 +8,8 @@ RUNTIME_DEFAULT_37 = 'ibmfunctions/action-python-v3.7'
 
 RUNTIME_TIMEOUT_DEFAULT = 600000  # Default: 600000 milliseconds => 10 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
+MAX_CONCURRENT_WORKERS = 1200
+
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'pywren_ibmcf.zip')
 
@@ -25,6 +27,8 @@ def load_config(config_data):
             config_data['pywren']['runtime'] = RUNTIME_DEFAULT_36
         elif this_version_str == '3.7':
             config_data['pywren']['runtime'] = RUNTIME_DEFAULT_37
+    if 'workers' not in config_data['pywren']:
+        config_data['pywren']['workers'] = MAX_CONCURRENT_WORKERS
 
     if 'ibm_cf' not in config_data:
         raise Exception("ibm_cf section is mandatory in the configuration")
