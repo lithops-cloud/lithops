@@ -153,10 +153,9 @@ def create_keys(prefix, executor_id, job_id, call_id):
 
 def get_storage_path(storage_config):
     storage_bucket = storage_config['bucket']
-    storage_prefix = storage_config['prefix']
     storage_backend = storage_config['backend']
 
-    return [storage_backend, storage_bucket, storage_prefix]
+    return [storage_backend, storage_bucket]
 
 
 def check_storage_path(config, prev_path):

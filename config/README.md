@@ -92,14 +92,12 @@ pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|pywren|storage_bucket| |yes | Any bucket that exists in your COS account. This will be used by PyWren for intermediate data |
-|pywren|data_cleaner|False|no|If set to True, then cleaner will automatically delete temporary data that was written into `storage_bucket/storage_prefix`|
-|pywren | storage_backend| ibm_cos | no | Storage backend implementation. IBM Cloud Object Storage is the default |
-|pywren | compute_backend| ibm_cf | no | Compute backend implementation. IBM Cloud Functions is the default |
-|pywren | rabbitmq_monitor| False | no | Activate the rabbitmq monitoring feature |
-|pywren | invocation_retry| True | no | Retry invocation in case of failure |
-|pywren | retry_sleeps | [1, 5, 10, 15, 20] | no | Number of seconds to wait before retry |
-|pywren| retries | 5 | no | Number of retries |
+|pywren|storage_bucket | |yes | Any bucket that exists in your COS account. This will be used by PyWren for intermediate data |
+|pywren|data_cleaner |False|no|If set to True, then cleaner will automatically delete temporary data that was written into `storage_bucket/storage_prefix`|
+|pywren | storage_backend | ibm_cos | no | Storage backend implementation. IBM Cloud Object Storage is the default |
+|pywren | compute_backend | ibm_cf | no | Compute backend implementation. IBM Cloud Functions is the default |
+|pywren | rabbitmq_monitor | False | no | Activate the rabbitmq monitoring feature |
+|pywren | workers | Depends of the ComputeBackend | no | Max number of concurrent workers |
 |pywren| runtime_timeout | 600000 |no |  Default runtime timeout (in milliseconds) |
 |pywren| runtime_memory | 256 | no | Default runtime memory (in MB) |
 

@@ -9,13 +9,13 @@ import multiprocessing
 from shutil import copyfile
 from . import config as docker_config
 from pywren_ibm_cloud.utils import version_str
-from pywren_ibm_cloud.config import STORAGE_PREFIX_DEFAULT
+from pywren_ibm_cloud.config import JOBS_PREFIX
 from pywren_ibm_cloud.version import __version__
 
 logger = logging.getLogger(__name__)
 
 TEMP = tempfile.gettempdir()
-STORAGE_BASE_DIR = os.path.join(TEMP, STORAGE_PREFIX_DEFAULT)
+STORAGE_BASE_DIR = os.path.join(TEMP, JOBS_PREFIX)
 LOCAL_RUN_DIR = os.path.join(os.getcwd(), 'pywren_jobs')
 
 logging.getLogger('urllib3.connectionpool').setLevel(logging.CRITICAL)

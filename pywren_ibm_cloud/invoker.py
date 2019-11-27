@@ -27,13 +27,12 @@ from pywren_ibm_cloud.compute import Compute
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
 from concurrent.futures import ThreadPoolExecutor
-from pywren_ibm_cloud.config import extract_storage_config, extract_compute_config
+from pywren_ibm_cloud.config import extract_storage_config, extract_compute_config, JOBS_PREFIX
 from pywren_ibm_cloud.future import ResponseFuture
 from pywren_ibm_cloud.storage.utils import create_output_key, create_status_key
 
 
 logger = logging.getLogger(__name__)
-MAX_DIRECT_INVOCATIONS = 1200
 
 
 class FunctionInvoker:
@@ -53,6 +52,8 @@ class FunctionInvoker:
         self.rabbitmq_monitor = self.config['pywren'].get('rabbitmq_monitor', False)
         if self.rabbitmq_monitor:
             self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
+
+        self.workers = self.config['pywren'].get('workers')
 
         self.compute_handlers = []
         cb = self.compute_config['backend']
@@ -131,9 +132,8 @@ class FunctionInvoker:
         """
         Method used to perform the actual invocation against the Compute Backend
         """
-        storage_prefix = self.storage_config['prefix']
-        output_key = create_output_key(storage_prefix, job.executor_id, job.job_id, call_id)
-        status_key = create_status_key(storage_prefix, job.executor_id, job.job_id, call_id)
+        output_key = create_output_key(JOBS_PREFIX, job.executor_id, job.job_id, call_id)
+        status_key = create_status_key(JOBS_PREFIX, job.executor_id, job.job_id, call_id)
 
         payload = {'config': self.config,
                    'log_level': self.log_level,
@@ -160,18 +160,6 @@ class FunctionInvoker:
 
         return call_id
 
-    def _create_rabbitmq_context(self, job):
-        exchange = 'pywren-{}-{}'.format(job.executor_id, job.job_id)
-        queue_1 = '{}-1'.format(exchange)
-
-        params = pika.URLParameters(self.rabbit_amqp_url)
-        connection = pika.BlockingConnection(params)
-        channel = connection.channel()
-        channel.exchange_declare(exchange=exchange, exchange_type='fanout')
-        channel.queue_declare(queue=queue_1, exclusive=True)
-        channel.queue_bind(exchange=exchange, queue=queue_1)
-        connection.close()
-
     def run(self, job_description):
         """
         Run a job described in job_description
@@ -192,8 +180,8 @@ class FunctionInvoker:
         if not self.invoked:
             # Only invoke MAX_DIRECT_INVOCATIONS
             callids = range(job.total_calls)
-            callids_to_invoke_direct = callids[:MAX_DIRECT_INVOCATIONS]
-            callids_to_invoke_nondirect = callids[MAX_DIRECT_INVOCATIONS:]
+            callids_to_invoke_direct = callids[:self.workers]
+            callids_to_invoke_nondirect = callids[self.workers:]
 
             call_futures = []
             with ThreadPoolExecutor(max_workers=job.invoke_pool_threads) as executor:
@@ -286,7 +274,7 @@ class FunctionInvoker:
 
         while True:
             try:
-                token = self.token_bucket_queue.get(timeout=0.5)
+                token = self.token_bucket_queue.get()
             except Exception:
                 pass
             job, call_id = self.failed_calls_queue.get()

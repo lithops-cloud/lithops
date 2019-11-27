@@ -31,7 +31,7 @@ from distutils.util import strtobool
 from pywren_ibm_cloud import version
 from pywren_ibm_cloud.utils import sizeof_fmt
 from pywren_ibm_cloud.storage import InternalStorage
-from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config, STORAGE_PREFIX_DEFAULT
+from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config, JOBS_PREFIX
 from pywren_ibm_cloud.runtime.function_handler.jobrunner import JobRunner
 
 
@@ -39,7 +39,7 @@ logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('handler')
 
 TEMP = tempfile.gettempdir()
-STORAGE_BASE_DIR = os.path.join(TEMP, STORAGE_PREFIX_DEFAULT)
+STORAGE_BASE_DIR = os.path.join(TEMP, JOBS_PREFIX)
 PYWREN_LIBS_PATH = '/action/pywren_ibm_cloud/libs'
 
 

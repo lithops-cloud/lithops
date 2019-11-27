@@ -18,8 +18,8 @@ import os
 import shutil
 import tempfile
 import logging
-from pywren_ibm_cloud.config import CACHE_DIR, RUNTIMES_PREFIX_DEFAULT, \
-    STORAGE_PREFIX_DEFAULT, default_config, extract_storage_config, extract_compute_config
+from pywren_ibm_cloud.config import CACHE_DIR, RUNTIMES_PREFIX, \
+    JOBS_PREFIX, default_config, extract_storage_config, extract_compute_config
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.compute import Compute
 
@@ -106,16 +106,16 @@ def clean_runtimes(config=None):
         shutil.rmtree(CACHE_DIR)
 
     # Clean localhost dirs
-    localhost_jobs_path = os.path.join(TEMP, STORAGE_PREFIX_DEFAULT)
+    localhost_jobs_path = os.path.join(TEMP, JOBS_PREFIX)
     if os.path.exists(localhost_jobs_path):
         shutil.rmtree(localhost_jobs_path)
-    localhost_runtimes_path = os.path.join(TEMP, RUNTIMES_PREFIX_DEFAULT)
+    localhost_runtimes_path = os.path.join(TEMP, RUNTIMES_PREFIX)
     if os.path.exists(localhost_runtimes_path):
         shutil.rmtree(localhost_runtimes_path)
 
     # Clean runtime metadata in the object storage
     sh = internal_storage.storage_handler
-    runtimes = sh.list_keys(storage_config['bucket'], RUNTIMES_PREFIX_DEFAULT)
+    runtimes = sh.list_keys(storage_config['bucket'], RUNTIMES_PREFIX)
     if runtimes:
         sh.delete_objects(storage_config['bucket'], runtimes)
 
