@@ -47,7 +47,7 @@ class FunctionInvoker:
         self.storage_config = extract_storage_config(self.config)
         self.internal_storage = internal_storage
         self.compute_config = extract_compute_config(self.config)
-        self.invoked = False
+        self.total_direct_activations = 0
 
         self.rabbitmq_monitor = self.config['pywren'].get('rabbitmq_monitor', False)
         if self.rabbitmq_monitor:
@@ -177,11 +177,13 @@ class FunctionInvoker:
         if not self.log_level:
             print(log_msg)
 
-        if not self.invoked:
+        if self.total_direct_activations < self.workers:
             # Only invoke MAX_DIRECT_INVOCATIONS
             callids = range(job.total_calls)
             callids_to_invoke_direct = callids[:self.workers]
             callids_to_invoke_nondirect = callids[self.workers:]
+
+            self.total_direct_activations += len(callids_to_invoke_direct)
 
             call_futures = []
             with ThreadPoolExecutor(max_workers=job.invoke_pool_threads) as executor:
@@ -198,9 +200,7 @@ class FunctionInvoker:
                 call_id = "{:05d}".format(i)
                 self.failed_calls_queue.put((job, call_id))
 
-            if self.failed_calls_queue.qsize() > 0:
-                self.start_job_status_checker(job)
-            self.invoked = True
+            self.start_job_status_checker(job)
         else:
             # Second and subsequent jobs will go all directly to the InvokerProcess
             for i in range(job.total_calls):
@@ -275,7 +275,7 @@ class FunctionInvoker:
         while True:
             try:
                 token = self.token_bucket_queue.get()
-            except Exception:
-                pass
+            except KeyboardInterrupt:
+                break
             job, call_id = self.failed_calls_queue.get()
             executor.submit(self._invoke, job, call_id)

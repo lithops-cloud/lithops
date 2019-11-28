@@ -260,22 +260,22 @@ class TestPywren(unittest.TestCase):
         self.assertEqual(result1, [2, 4])
         self.assertEqual(result2, [6, 8])
 
-    def test_internal_executions(self):
-        print('Testing internal executions...')
-        pw = pywren.function_executor(config=CONFIG)
-        pw.map(pywren_inside_pywren_map_function1, range(1, 11))
-        result = pw.get_result()
-        self.assertEqual(result, [0] + [list(range(i)) for i in range(2, 11)])
-
-        pw = pywren.function_executor(config=CONFIG)
-        pw.call_async(pywren_inside_pywren_map_function2, 10)
-        result = pw.get_result()
-        self.assertEqual(result, 10)
-
-        pw = pywren.function_executor(config=CONFIG)
-        pw.map(pywren_inside_pywren_map_function3, range(1, 11))
-        result = pw.get_result()
-        self.assertEqual(result, [[0, 0]] + [[list(range(i)), list(range(i))] for i in range(2, 11)])
+#     def test_internal_executions(self):
+#         print('Testing internal executions...')
+#         pw = pywren.function_executor(config=CONFIG)
+#         pw.map(pywren_inside_pywren_map_function1, range(1, 11))
+#         result = pw.get_result()
+#         self.assertEqual(result, [0] + [list(range(i)) for i in range(2, 11)])
+# 
+#         pw = pywren.function_executor(config=CONFIG)
+#         pw.call_async(pywren_inside_pywren_map_function2, 10)
+#         result = pw.get_result()
+#         self.assertEqual(result, 10)
+# 
+#         pw = pywren.function_executor(config=CONFIG)
+#         pw.map(pywren_inside_pywren_map_function3, range(1, 11))
+#         result = pw.get_result()
+#         self.assertEqual(result, [[0, 0]] + [[list(range(i)), list(range(i))] for i in range(2, 11)])
 
     def test_map_reduce_cos_bucket(self):
         print('Testing map_reduce() over a COS bucket...')
