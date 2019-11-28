@@ -31,7 +31,7 @@ from distutils.util import strtobool
 from pywren_ibm_cloud import version
 from pywren_ibm_cloud.utils import sizeof_fmt
 from pywren_ibm_cloud.storage import InternalStorage
-from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config, STORAGE_PREFIX_DEFAULT
+from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config, JOBS_PREFIX
 from pywren_ibm_cloud.runtime.function_handler.jobrunner import JobRunner
 
 
@@ -39,7 +39,7 @@ logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('handler')
 
 TEMP = tempfile.gettempdir()
-STORAGE_BASE_DIR = os.path.join(TEMP, STORAGE_PREFIX_DEFAULT)
+STORAGE_BASE_DIR = os.path.join(TEMP, JOBS_PREFIX)
 PYWREN_LIBS_PATH = '/action/pywren_ibm_cloud/libs'
 
 
@@ -219,15 +219,15 @@ def function_handler(event):
             status_sent = False
             output_query_count = 0
             params = pika.URLParameters(rabbit_amqp_url)
-            queue = '{}-{}'.format(executor_id, job_id)
+            exchange = 'pywren-{}-{}'.format(executor_id, job_id)
 
             while not status_sent and output_query_count < 5:
                 output_query_count = output_query_count + 1
                 try:
                     connection = pika.BlockingConnection(params)
                     channel = connection.channel()
-                    channel.queue_declare(queue=queue, auto_delete=True)
-                    channel.basic_publish(exchange='', routing_key=queue,
+                    channel.exchange_declare(exchange=exchange, exchange_type='fanout')
+                    channel.basic_publish(exchange=exchange, routing_key='',
                                           body=dmpd_response_status)
                     connection.close()
                     logger.info("Execution status sent to rabbitmq - Size: {}".format(drs))

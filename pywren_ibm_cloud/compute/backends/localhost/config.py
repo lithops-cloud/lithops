@@ -13,9 +13,15 @@ def load_config(config_data):
     if 'runtime_timeout' not in config_data['pywren']:
         config_data['pywren']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
 
-    total_cores = multiprocessing.cpu_count()
     if 'localhost' not in config_data:
         config_data['localhost'] = {}
-        config_data['localhost']['workers'] = total_cores
-    elif 'workers' not in config_data['localhost']:
-        config_data['localhost']['workers'] = total_cores
+
+    if 'workers' in config_data['pywren']:
+        config_data['localhost']['workers'] = config_data['pywren']['workers']
+    else:
+        if 'workers' not in config_data['localhost']:
+            total_cores = multiprocessing.cpu_count()
+            config_data['pywren']['workers'] = total_cores
+            config_data['localhost']['workers'] = total_cores
+        else:
+            config_data['pywren']['workers'] = config_data['localhost']['workers']

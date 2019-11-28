@@ -9,7 +9,7 @@ from .partitioner import create_partitions
 from pywren_ibm_cloud import utils
 from pywren_ibm_cloud.wait import wait_storage
 from pywren_ibm_cloud.storage.utils import create_func_key, create_agg_data_key
-from pywren_ibm_cloud.config import EXECUTION_TIMEOUT, MAX_AGG_DATA_SIZE
+from pywren_ibm_cloud.config import EXECUTION_TIMEOUT, MAX_AGG_DATA_SIZE, JOBS_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -222,7 +222,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
         print(log_msg, end=' ')
 
     if data_size_bytes < MAX_AGG_DATA_SIZE:
-        agg_data_key = create_agg_data_key(internal_storage.prefix, executor_id, job_id)
+        agg_data_key = create_agg_data_key(JOBS_PREFIX, executor_id, job_id)
         job_description['data_key'] = agg_data_key
         agg_data_bytes, agg_data_ranges = _agg_data(data_strs)
         job_description['data_ranges'] = agg_data_ranges
@@ -243,7 +243,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     host_job_meta['func_module_bytes'] = len(func_module_str)
 
     func_upload_time = time.time()
-    func_key = create_func_key(internal_storage.prefix, executor_id, job_id)
+    func_key = create_func_key(JOBS_PREFIX, executor_id, job_id)
     job_description['func_key'] = func_key
     internal_storage.put_func(func_key, func_module_str)
     host_job_meta['func_upload_time'] = time.time() - func_upload_time

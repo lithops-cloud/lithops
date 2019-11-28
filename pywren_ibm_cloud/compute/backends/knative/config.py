@@ -11,6 +11,8 @@ GIT_REV_DEFAULT = 'master'
 
 RUNTIME_TIMEOUT_DEFAULT = 600  # 10 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # 256Mi
+MAX_CONCURRENT_WORKERS = 1200
+
 
 secret_res = """
 apiVersion: v1
@@ -154,3 +156,6 @@ def load_config(config_data):
             config_data['pywren']['runtime'] = RUNTIME_DEFAULT_36.replace('<USER>', docker_user)
         elif this_version_str == '3.7':
             config_data['pywren']['runtime'] = RUNTIME_DEFAULT_37.replace('<USER>', docker_user)
+
+    if 'workers' not in config_data['pywren']:
+        config_data['pywren']['workers'] = MAX_CONCURRENT_WORKERS

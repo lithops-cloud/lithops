@@ -4,6 +4,7 @@ import uuid
 import pkgutil
 import logging
 import multiprocessing
+from pywren_ibm_cloud.config import JOBS_PREFIX
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.runtime.function_handler import function_handler
 from pywren_ibm_cloud.version import __version__
@@ -11,7 +12,7 @@ from pywren_ibm_cloud.version import __version__
 logger = logging.getLogger(__name__)
 
 
-LOCAL_RUN_DIR = os.path.join(os.getcwd(), 'pywren_jobs')
+LOCAL_RUN_DIR = os.path.join(os.getcwd(), JOBS_PREFIX)
 
 
 class LocalhostBackend:

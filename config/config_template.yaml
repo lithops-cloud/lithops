@@ -1,19 +1,16 @@
 pywren: 
     storage_bucket: <BUCKET_NAME>
-    #storage_prefix: pywren.jobs
     #storage_backend: ibm_cos
     #compute_backend: ibm_cf
     #rabbitmq_monitor: <True/False>
     #data_cleaner: <True/False>
-    #runtime :
-    #runtime_timeout: 600000     # Default timeout
-    #runtime_memory: 256         # Default memory
-    #invocation_retry: <True/False>
-    #retry_sleeps: [1, 5, 10, 20, 30]
-    #retries: 5
+    #runtime : <RUNTIME_NAME>
+    #runtime_timeout: 600000
+    #runtime_memory: 256
+    #workers: <MAX_NUM_OF_WORKERS>
 
 #ibm:
-#    iam_api_key: <IAM KEY>
+   #iam_api_key: <IAM KEY>
 
 ibm_cf:
     endpoint    : <REGION_ENDPOINT>
@@ -30,9 +27,9 @@ ibm_cos:
     #amqp_url   : <RABBIT_AMQP_URL>  # amqp://
 
 #knative:
-#   endpoint    : <ISTIO_INGRESS_ENDPOINT>
-#   docker_user : <DOCKER_HUB_USERNAME>
-#   docker_token: <DOCKER_HUB_TOKEN>
+   #endpoint    : <ISTIO_INGRESS_ENDPOINT>
+   #docker_user : <DOCKER_HUB_USERNAME>
+   #docker_token: <DOCKER_HUB_TOKEN>
 
 #swift:
     #auth_url   : <SWIFT_AUTH_URL>

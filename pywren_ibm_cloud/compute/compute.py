@@ -16,10 +16,6 @@ class Compute:
         self.config = compute_config
         self.backend = self.config['backend']
 
-        self.invocation_retry = self.config['invocation_retry']
-        self.retry_sleeps = self.config['retry_sleeps']
-        self.retries = self.config['retries']
-
         try:
             module_location = 'pywren_ibm_cloud.compute.backends.{}'.format(self.backend)
             cb_module = importlib.import_module(module_location)

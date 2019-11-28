@@ -4,7 +4,7 @@ import pickle
 import logging
 import importlib
 from pywren_ibm_cloud.version import __version__
-from pywren_ibm_cloud.config import CACHE_DIR, RUNTIMES_PREFIX_DEFAULT
+from pywren_ibm_cloud.config import CACHE_DIR, RUNTIMES_PREFIX, JOBS_PREFIX
 from pywren_ibm_cloud.utils import is_remote_cluster
 from pywren_ibm_cloud.storage.utils import create_status_key, create_output_key, \
     status_key_suffix, CloudObject, StorageNoSuchKeyError
@@ -48,7 +48,6 @@ class InternalStorage:
         self.config = storage_config
         self.backend = self.config['backend']
         self.bucket = self.config['bucket']
-        self.prefix = self.config['prefix']
         self.tmp_obj_count = 0
 
         try:
@@ -139,11 +138,11 @@ class InternalStorage:
         """
         # TODO: a better API for this is to return status for all calls in the callset. We'll fix
         #  this in scheduler refactoring.
-        callset_prefix = '/'.join([self.prefix, executor_id, job_id])
+        callset_prefix = '/'.join([JOBS_PREFIX, executor_id, job_id])
         keys = self.storage_handler.list_keys(self.bucket, callset_prefix)
         suffix = status_key_suffix
         status_keys = [k for k in keys if suffix in k]
-        call_ids = [tuple(k[len(self.prefix)+1:].split("/")[:3]) for k in status_keys]
+        call_ids = [tuple(k[len(JOBS_PREFIX)+1:].split("/")[:3]) for k in status_keys]
         return call_ids
 
     def get_call_status(self, executor_id, job_id, call_id):
@@ -153,7 +152,7 @@ class InternalStorage:
         :param call_id: call ID of the call
         :return: A dictionary containing call's status, or None if no updated status
         """
-        status_key = create_status_key(self.prefix, executor_id, job_id, call_id)
+        status_key = create_status_key(JOBS_PREFIX, executor_id, job_id, call_id)
         try:
             data = self.storage_handler.get_object(self.bucket, status_key)
             return json.loads(data.decode('ascii'))
@@ -167,7 +166,7 @@ class InternalStorage:
         :param call_id: call ID of the call
         :return: Output of the call.
         """
-        output_key = create_output_key(self.prefix, executor_id, job_id, call_id)
+        output_key = create_output_key(JOBS_PREFIX, executor_id, job_id, call_id)
         try:
             return self.storage_handler.get_object(self.bucket, output_key)
         except StorageNoSuchKeyError:
@@ -179,7 +178,7 @@ class InternalStorage:
         :param runtime: name of the runtime
         :return: runtime metadata
         """
-        path = [RUNTIMES_PREFIX_DEFAULT, __version__,  key+".meta.json"]
+        path = [RUNTIMES_PREFIX, __version__,  key+".meta.json"]
         filename_local_path = os.path.join(CACHE_DIR, *path)
 
         if os.path.exists(filename_local_path) and not is_remote_cluster():
@@ -210,7 +209,7 @@ class InternalStorage:
         :param runtime: name of the runtime
         :param runtime_meta metadata
         """
-        path = [RUNTIMES_PREFIX_DEFAULT, __version__,  key+".meta.json"]
+        path = [RUNTIMES_PREFIX, __version__,  key+".meta.json"]
         obj_key = '/'.join(path).replace('\\', '/')
         logger.debug("Uploading runtime metadata to: /{}/{}".format(self.bucket, obj_key))
         self.storage_handler.put_object(self.bucket, obj_key, json.dumps(runtime_meta))
@@ -231,7 +230,7 @@ class InternalStorage:
         :param runtime: name of the runtime
         :param runtime_meta metadata
         """
-        path = [RUNTIMES_PREFIX_DEFAULT, __version__,  key+".meta.json"]
+        path = [RUNTIMES_PREFIX, __version__,  key+".meta.json"]
         obj_key = '/'.join(path).replace('\\', '/')
         filename_local_path = os.path.join(CACHE_DIR, *path)
         if os.path.exists(filename_local_path):

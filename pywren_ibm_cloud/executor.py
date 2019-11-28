@@ -11,7 +11,7 @@ from pywren_ibm_cloud.future import FunctionException
 from pywren_ibm_cloud.storage.utils import clean_os_bucket
 from pywren_ibm_cloud.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from pywren_ibm_cloud.job import JobState, create_map_job, create_reduce_job
-from pywren_ibm_cloud.config import default_config, extract_storage_config, EXECUTION_TIMEOUT, default_logging_config
+from pywren_ibm_cloud.config import default_config, extract_storage_config, EXECUTION_TIMEOUT, JOBS_PREFIX, default_logging_config
 from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_remote_cluster, create_executor_id
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ class FunctionExecutor:
 
     def __init__(self, config=None, runtime=None, runtime_memory=None, compute_backend=None,
                  compute_backend_region=None, storage_backend=None, storage_backend_region=None,
-                 rabbitmq_monitor=None, log_level=None):
+                 workers=None, rabbitmq_monitor=None, log_level=None):
         """
         Initialize a FunctionExecutor class.
 
@@ -40,8 +40,9 @@ class FunctionExecutor:
         :param compute_backend_region: Name of the compute backend region to use. Default None.
         :param storage_backend: Name of the storage backend to use. Default None.
         :param storage_backend_region: Name of the storage backend region to use. Default None.
-        :param log_level: log level to use during the execution. Default None.
+        :param workers: Max number of concurrent workers.
         :param rabbitmq_monitor: use rabbitmq as the monitoring system. Default None.
+        :param log_level: log level to use during the execution. Default None.
 
         :return `FunctionExecutor` object.
         """
@@ -75,6 +76,8 @@ class FunctionExecutor:
             config_ow['pywren']['storage_backend_region'] = storage_backend_region
         if rabbitmq_monitor is not None:
             config_ow['pywren']['rabbitmq_monitor'] = rabbitmq_monitor
+        if workers is not None:
+            config_ow['pywren']['workers'] = workers
 
         self.config = default_config(config, config_ow)
 
@@ -507,11 +510,10 @@ class FunctionExecutor:
         the data serialization and the function invocation results.
         """
         storage_bucket = self.config['pywren']['storage_bucket']
-        storage_prerix = self.config['pywren']['storage_prefix']
         if delete_all:
-            storage_prerix = '/'.join([storage_prerix])
+            storage_prerix = '/'.join([JOBS_PREFIX])
         else:
-            storage_prerix = '/'.join([storage_prerix, self.executor_id])
+            storage_prerix = '/'.join([JOBS_PREFIX, self.executor_id])
         msg = "ExecutorID {} - Cleaning temporary data".format(self.executor_id)
         logger.info(msg)
         if not self.log_level:

@@ -16,6 +16,7 @@
 
 import os
 import sys
+import pika
 import time
 import logging
 import random
@@ -26,13 +27,12 @@ from pywren_ibm_cloud.compute import Compute
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
 from concurrent.futures import ThreadPoolExecutor
-from pywren_ibm_cloud.config import extract_storage_config, extract_compute_config
+from pywren_ibm_cloud.config import extract_storage_config, extract_compute_config, JOBS_PREFIX
 from pywren_ibm_cloud.future import ResponseFuture
 from pywren_ibm_cloud.storage.utils import create_output_key, create_status_key
 
 
 logger = logging.getLogger(__name__)
-MAX_DIRECT_INVOCATIONS = 1200
 
 
 class FunctionInvoker:
@@ -40,14 +40,20 @@ class FunctionInvoker:
     Module responsible to perform the invocations against the compute backend
     """
 
-    def __init__(self, pywren_config, executor_id, internal_storage):
+    def __init__(self, config, executor_id, internal_storage):
         self.log_level = os.getenv('PYWREN_LOGLEVEL')
-        self.pywren_config = pywren_config
+        self.config = config
         self.executor_id = executor_id
-        self.storage_config = extract_storage_config(self.pywren_config)
+        self.storage_config = extract_storage_config(self.config)
         self.internal_storage = internal_storage
-        self.compute_config = extract_compute_config(self.pywren_config)
-        self.invoked = False
+        self.compute_config = extract_compute_config(self.config)
+        self.total_direct_activations = 0
+
+        self.rabbitmq_monitor = self.config['pywren'].get('rabbitmq_monitor', False)
+        if self.rabbitmq_monitor:
+            self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
+
+        self.workers = self.config['pywren'].get('workers')
 
         self.compute_handlers = []
         cb = self.compute_config['backend']
@@ -77,9 +83,9 @@ class FunctionInvoker:
         installed, so this method will proceed to install it.
         """
         log_level = os.getenv('PYWREN_LOGLEVEL')
-        runtime_name = self.pywren_config['pywren']['runtime']
+        runtime_name = self.config['pywren']['runtime']
         if runtime_memory is None:
-            runtime_memory = self.pywren_config['pywren']['runtime_memory']
+            runtime_memory = self.config['pywren']['runtime_memory']
         runtime_memory = int(runtime_memory)
 
         log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} - {}MB'
@@ -104,7 +110,7 @@ class FunctionInvoker:
                     installing = True
                     print('(Installing...)')
 
-                timeout = self.pywren_config['pywren']['runtime_timeout']
+                timeout = self.config['pywren']['runtime_timeout']
                 logger.debug('Creating runtime: {}, memory: {}MB'.format(runtime_name, runtime_memory))
                 runtime_meta = compute_handler.create_runtime(runtime_name, runtime_memory, timeout=timeout)
                 self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
@@ -126,11 +132,10 @@ class FunctionInvoker:
         """
         Method used to perform the actual invocation against the Compute Backend
         """
-        storage_prefix = self.storage_config['prefix']
-        output_key = create_output_key(storage_prefix, job.executor_id, job.job_id, call_id)
-        status_key = create_status_key(storage_prefix, job.executor_id, job.job_id, call_id)
+        output_key = create_output_key(JOBS_PREFIX, job.executor_id, job.job_id, call_id)
+        status_key = create_status_key(JOBS_PREFIX, job.executor_id, job.job_id, call_id)
 
-        payload = {'config': self.pywren_config,
+        payload = {'config': self.config,
                    'log_level': self.log_level,
                    'func_key': job.func_key,
                    'data_key': job.data_key,
@@ -172,11 +177,13 @@ class FunctionInvoker:
         if not self.log_level:
             print(log_msg)
 
-        if not self.invoked:
+        if self.total_direct_activations < self.workers:
             # Only invoke MAX_DIRECT_INVOCATIONS
             callids = range(job.total_calls)
-            callids_to_invoke_direct = callids[:MAX_DIRECT_INVOCATIONS]
-            callids_to_invoke_nondirect = callids[MAX_DIRECT_INVOCATIONS:]
+            callids_to_invoke_direct = callids[:self.workers]
+            callids_to_invoke_nondirect = callids[self.workers:]
+
+            self.total_direct_activations += len(callids_to_invoke_direct)
 
             call_futures = []
             with ThreadPoolExecutor(max_workers=job.invoke_pool_threads) as executor:
@@ -193,9 +200,7 @@ class FunctionInvoker:
                 call_id = "{:05d}".format(i)
                 self.failed_calls_queue.put((job, call_id))
 
-            if self.failed_calls_queue.qsize() > 0:
-                self.start_job_status_checker(job)
-            self.invoked = True
+            self.start_job_status_checker(job)
         else:
             # Second and subsequent jobs will go all directly to the InvokerProcess
             for i in range(job.total_calls):
@@ -214,11 +219,14 @@ class FunctionInvoker:
         return futures
 
     def start_job_status_checker(self, job):
-        th = Thread(target=self._job_status_checker_worker, args=(job,))
+        if self.rabbitmq_monitor:
+            th = Thread(target=self._job_status_checker_worker_rabbitmq, args=(job,))
+        else:
+            th = Thread(target=self._job_status_checker_worker_os, args=(job,))
         th.daemon = True
         th.start()
 
-    def _job_status_checker_worker(self, job):
+    def _job_status_checker_worker_os(self, job):
         logger.debug('ExecutorID {} | JobID {} - Starting job status checker worker'.format(self.executor_id, job.job_id))
         total_callids_done_in_job = 0
 
@@ -230,6 +238,32 @@ class FunctionInvoker:
                 self.token_bucket_queue.put('#')
             time.sleep(0.1)
 
+    def _job_status_checker_worker_rabbitmq(self, job):
+        logger.debug('ExecutorID {} | JobID {} - Starting job status checker worker'.format(self.executor_id, job.job_id))
+        total_callids_done_in_job = 0
+
+        exchange = 'pywren-{}-{}'.format(job.executor_id, job.job_id)
+        queue_1 = '{}-1'.format(exchange)
+
+        params = pika.URLParameters(self.rabbit_amqp_url)
+        connection = pika.BlockingConnection(params)
+        channel = connection.channel()
+        channel.exchange_declare(exchange=exchange, exchange_type='fanout')
+        channel.queue_declare(queue=queue_1, exclusive=True)
+        channel.queue_bind(exchange=exchange, queue=queue_1)
+
+        def callback(ch, method, properties, body):
+            nonlocal total_callids_done_in_job
+            self.token_bucket_queue.put('#')
+            #self.q.put(body.decode("utf-8"))
+            total_callids_done_in_job += 1
+            if total_callids_done_in_job == job.total_calls:
+                ch.stop_consuming()
+                ch.exchange_delete(exchange)
+
+        channel.basic_consume(callback, queue=queue_1, no_ack=True)
+        channel.start_consuming()
+
     def run_process(self):
         """
         Run process that implements token bucket scheduling approach
@@ -240,8 +274,8 @@ class FunctionInvoker:
 
         while True:
             try:
-                token = self.token_bucket_queue.get(timeout=0.5)
-            except Exception:
-                pass
+                token = self.token_bucket_queue.get()
+            except KeyboardInterrupt:
+                break
             job, call_id = self.failed_calls_queue.get()
             executor.submit(self._invoke, job, call_id)
