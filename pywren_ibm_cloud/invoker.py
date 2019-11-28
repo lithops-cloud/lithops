@@ -24,7 +24,7 @@ from types import SimpleNamespace
 from threading import Thread
 from multiprocessing import Process, Queue
 from pywren_ibm_cloud.compute import Compute
-from pywren_ibm_cloud.utils import version_str
+from pywren_ibm_cloud.utils import version_str, is_remote_cluster
 from pywren_ibm_cloud.version import __version__
 from concurrent.futures import ThreadPoolExecutor
 from pywren_ibm_cloud.config import extract_storage_config, extract_compute_config, JOBS_PREFIX
@@ -54,6 +54,7 @@ class FunctionInvoker:
             self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
 
         self.workers = self.config['pywren'].get('workers')
+        logger.debug('ExecutorID {} - Total workers:'.format(self.workers))
 
         self.compute_handlers = []
         cb = self.compute_config['backend']
@@ -68,11 +69,16 @@ class FunctionInvoker:
 
         logger.debug('ExecutorID {} - Creating invoker process'.format(self.executor_id))
 
-        self.token_bucket_queue = Queue()
-        self.failed_calls_queue = Queue()
-        self.invoker_process = Process(target=self.run_process, args=())
+        self.token_bucket_q = Queue()
+        self.pending_calls_q = Queue()
+        if is_remote_cluster():
+            self.invoker_process = Thread(target=self.run_process, args=())
+        else:
+            self.invoker_process = Process(target=self.run_process, args=())
         self.invoker_process.daemon = True
         self.invoker_process.start()
+
+        self.jobs = {}
 
     def select_runtime(self, job_id, runtime_memory):
         """
@@ -155,7 +161,7 @@ class FunctionInvoker:
         activation_id = compute_handler.invoke(job.runtime_name, job.runtime_memory, payload)
 
         if not activation_id:
-            self.failed_calls_queue.put((job, call_id))
+            self.pending_calls_q.put((job, call_id))
             return
 
         return call_id
@@ -198,14 +204,16 @@ class FunctionInvoker:
             # Put into the queue the rest of the callids to invoke within the process
             for i in callids_to_invoke_nondirect:
                 call_id = "{:05d}".format(i)
-                self.failed_calls_queue.put((job, call_id))
+                self.pending_calls_q.put((job, call_id))
 
             self.start_job_status_checker(job)
         else:
+            print('ACCESSING TO PROCES')
+            print(self.total_direct_activations)
             # Second and subsequent jobs will go all directly to the InvokerProcess
             for i in range(job.total_calls):
                 call_id = "{:05d}".format(i)
-                self.failed_calls_queue.put((job, call_id))
+                self.pending_calls_q.put((job, call_id))
             self.start_job_status_checker(job)
 
         # Create all futures an return them
@@ -235,8 +243,10 @@ class FunctionInvoker:
             total_new_tokens = len(callids_done_in_job) - total_callids_done_in_job
             total_callids_done_in_job = total_callids_done_in_job + total_new_tokens
             for i in range(total_new_tokens):
-                self.token_bucket_queue.put('#')
+                self.token_bucket_q.put('#')
             time.sleep(0.1)
+        
+        
 
     def _job_status_checker_worker_rabbitmq(self, job):
         logger.debug('ExecutorID {} | JobID {} - Starting job status checker worker'.format(self.executor_id, job.job_id))
@@ -254,7 +264,7 @@ class FunctionInvoker:
 
         def callback(ch, method, properties, body):
             nonlocal total_callids_done_in_job
-            self.token_bucket_queue.put('#')
+            self.token_bucket_q.put('#')
             #self.q.put(body.decode("utf-8"))
             total_callids_done_in_job += 1
             if total_callids_done_in_job == job.total_calls:
@@ -274,8 +284,8 @@ class FunctionInvoker:
 
         while True:
             try:
-                token = self.token_bucket_queue.get()
+                self.token_bucket_q.get()
+                job, call_id = self.pending_calls_q.get()
             except KeyboardInterrupt:
                 break
-            job, call_id = self.failed_calls_queue.get()
             executor.submit(self._invoke, job, call_id)

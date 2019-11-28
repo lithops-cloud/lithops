@@ -27,7 +27,8 @@ def load_config(config_data):
             config_data['pywren']['runtime'] = RUNTIME_DEFAULT_36
         elif this_version_str == '3.7':
             config_data['pywren']['runtime'] = RUNTIME_DEFAULT_37
-    if 'workers' not in config_data['pywren']:
+    if 'workers' not in config_data['pywren'] or \
+       config_data['pywren']['workers'] > MAX_CONCURRENT_WORKERS:
         config_data['pywren']['workers'] = MAX_CONCURRENT_WORKERS
 
     if 'ibm_cf' not in config_data:
