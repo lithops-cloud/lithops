@@ -20,8 +20,8 @@ import pika
 import time
 import logging
 import random
-from types import SimpleNamespace
 from threading import Thread
+from types import SimpleNamespace
 from multiprocessing import Process, Queue
 from pywren_ibm_cloud.compute import Compute
 from pywren_ibm_cloud.utils import version_str, is_remote_cluster
@@ -47,7 +47,6 @@ class FunctionInvoker:
         self.storage_config = extract_storage_config(self.config)
         self.internal_storage = internal_storage
         self.compute_config = extract_compute_config(self.config)
-        self.total_direct_activations = 0
 
         self.rabbitmq_monitor = self.config['pywren'].get('rabbitmq_monitor', False)
         if self.rabbitmq_monitor:
@@ -78,7 +77,7 @@ class FunctionInvoker:
         self.invoker_process.daemon = True
         self.invoker_process.start()
 
-        self.jobs = {}
+        self.ongoing_activations = 0
 
     def select_runtime(self, job_id, runtime_memory):
         """
@@ -172,6 +171,13 @@ class FunctionInvoker:
         """
         job = SimpleNamespace(**job_description)
 
+        try:
+            while True:
+                self.token_bucket_q.get_nowait()
+                self.ongoing_activations -= 1
+        except Exception:
+            pass
+
         if job.remote_invocation:
             log_msg = ('ExecutorID {} | JobID {} - Starting {} remote invocation function: Spawning {}() '
                        '- Total: {} activations'.format(self.executor_id, job.job_id, job.total_calls,
@@ -183,13 +189,14 @@ class FunctionInvoker:
         if not self.log_level:
             print(log_msg)
 
-        if self.total_direct_activations < self.workers:
+        if self.ongoing_activations < self.workers:
             # Only invoke MAX_DIRECT_INVOCATIONS
             callids = range(job.total_calls)
-            callids_to_invoke_direct = callids[:self.workers]
-            callids_to_invoke_nondirect = callids[self.workers:]
+            total_direct = self.workers-self.ongoing_activations
+            callids_to_invoke_direct = callids[:total_direct]
+            callids_to_invoke_nondirect = callids[total_direct:]
 
-            self.total_direct_activations += len(callids_to_invoke_direct)
+            self.ongoing_activations += len(callids_to_invoke_direct)
 
             call_futures = []
             with ThreadPoolExecutor(max_workers=job.invoke_pool_threads) as executor:
@@ -208,8 +215,6 @@ class FunctionInvoker:
 
             self.start_job_status_checker(job)
         else:
-            print('ACCESSING TO PROCES')
-            print(self.total_direct_activations)
             # Second and subsequent jobs will go all directly to the InvokerProcess
             for i in range(job.total_calls):
                 call_id = "{:05d}".format(i)
@@ -245,8 +250,6 @@ class FunctionInvoker:
             for i in range(total_new_tokens):
                 self.token_bucket_q.put('#')
             time.sleep(0.1)
-        
-        
 
     def _job_status_checker_worker_rabbitmq(self, job):
         logger.debug('ExecutorID {} | JobID {} - Starting job status checker worker'.format(self.executor_id, job.job_id))
