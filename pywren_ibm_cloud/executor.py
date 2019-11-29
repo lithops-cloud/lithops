@@ -80,8 +80,8 @@ class FunctionExecutor:
             config_ow['pywren']['workers'] = workers
 
         self.config = default_config(config, config_ow)
-
         self.executor_id = create_executor_id()
+
         logger.debug('FunctionExecutor created with ID: {}'.format(self.executor_id))
 
         # RabbitMQ monitor configuration
@@ -99,6 +99,10 @@ class FunctionExecutor:
         self.invoker = FunctionInvoker(self.config, self.executor_id, self.internal_storage)
 
         self.jobs = {}
+
+    def _create_job_id(self, call_type):
+        job_id = str(len(self.jobs)).zfill(3)
+        return '{}{}'.format(call_type, job_id)
 
     @property
     def futures(self):
@@ -127,13 +131,12 @@ class FunctionExecutor:
             raise Exception('You cannot run call_async() in the current state,'
                             ' create a new FunctionExecutor() instance.')
 
-        job_id = str(len(self.jobs)).zfill(3)
-        async_job_id = 'A{}'.format(job_id)
+        job_id = self._create_job_id('A')
 
-        runtime_meta = self.invoker.select_runtime(async_job_id, runtime_memory)
+        runtime_meta = self.invoker.select_runtime(job_id, runtime_memory)
 
         job = create_map_job(self.config, self.internal_storage,
-                             self.executor_id, async_job_id,
+                             self.executor_id, job_id,
                              map_function=func,
                              iterdata=[data],
                              runtime_meta=runtime_meta,
@@ -144,7 +147,7 @@ class FunctionExecutor:
                              execution_timeout=timeout)
 
         future = self.invoker.run(job)
-        self.jobs[async_job_id] = {'futures': future, 'state': JobState.Running}
+        self.jobs[job_id] = {'futures': future, 'state': JobState.Running}
         self._state = FunctionExecutor.State.Running
 
         return future[0]
@@ -174,14 +177,12 @@ class FunctionExecutor:
             raise Exception('You cannot run map() in the current state.'
                             ' Create a new FunctionExecutor() instance.')
 
-        total_current_jobs = len(self.jobs)
-        job_id = str(total_current_jobs).zfill(3)
-        map_job_id = 'M{}'.format(job_id)
+        job_id = self._create_job_id('M')
 
-        runtime_meta = self.invoker.select_runtime(map_job_id, runtime_memory)
+        runtime_meta = self.invoker.select_runtime(job_id, runtime_memory)
 
         job = create_map_job(self.config, self.internal_storage,
-                             self.executor_id, map_job_id,
+                             self.executor_id, job_id,
                              map_function=map_function,
                              iterdata=map_iterdata,
                              runtime_meta=runtime_meta,
@@ -199,7 +200,7 @@ class FunctionExecutor:
                              execution_timeout=timeout)
 
         map_futures = self.invoker.run(job)
-        self.jobs[map_job_id] = {'futures': map_futures, 'state': JobState.Running}
+        self.jobs[job_id] = {'futures': map_futures, 'state': JobState.Running}
         self._state = FunctionExecutor.State.Running
         if len(map_futures) == 1:
             return map_futures[0]
@@ -239,9 +240,7 @@ class FunctionExecutor:
             raise Exception('You cannot run map_reduce() in the current state.'
                             ' Create a new FunctionExecutor() instance.')
 
-        total_current_jobs = len(self.jobs)
-        job_id = str(total_current_jobs).zfill(3)
-        map_job_id = 'M{}'.format(job_id)
+        map_job_id = self._create_job_id('M')
 
         runtime_meta = self.invoker.select_runtime(map_job_id, map_runtime_memory)
 
@@ -270,7 +269,7 @@ class FunctionExecutor:
         if reducer_wait_local:
             self.wait(fs=map_futures)
 
-        reduce_job_id = 'R{}'.format(job_id)
+        reduce_job_id = map_job_id.replace('M', 'R')
 
         runtime_meta = self.invoker.select_runtime(reduce_job_id, reduce_runtime_memory)
 

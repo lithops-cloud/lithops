@@ -117,7 +117,8 @@ def function_handler(event):
         custom_env = {'PYWREN_CONFIG': json.dumps(config),
                       'PYWREN_REMOTE': 'TRUE',
                       'PYTHONPATH': "{}:{}".format(os.getcwd(), PYWREN_LIBS_PATH),
-                      'PYTHONUNBUFFERED': 'True'}
+                      'PYTHONUNBUFFERED': 'True',
+                      'PYWREN_EXECUTION_ID': executor_id.split('-')[0]}
 
         os.environ.update(custom_env)
         os.environ.update(extra_env)

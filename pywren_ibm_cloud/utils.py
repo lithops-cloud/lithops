@@ -31,8 +31,17 @@ def uuid_str():
     return str(uuid.uuid4())
 
 
-def create_executor_id(lenght=9):
-    return uuid_str()[9:9+lenght]
+def create_executor_id(lenght=4):
+
+    if 'PYWREN_EXECUTION_ID' in os.environ:
+        execution_id = os.environ['PYWREN_EXECUTION_ID']
+    else:
+        execution_id = uuid_str().replace('-', '')[:4]
+        os.environ['PYWREN_EXECUTION_ID'] = execution_id
+
+    executor_id = uuid_str().replace('-', '')[:lenght]
+
+    return '{}-{}'.format(execution_id, executor_id)
 
 
 def timeout_handler(signum, frame):

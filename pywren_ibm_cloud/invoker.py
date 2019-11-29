@@ -156,12 +156,19 @@ class FunctionInvoker:
                    'pywren_version': __version__}
 
         # do the invocation
+        start = time.time()
         compute_handler = random.choice(self.compute_handlers)
         activation_id = compute_handler.invoke(job.runtime_name, job.runtime_memory, payload)
+        roundtrip = time.time() - start
+        resp_time = format(round(roundtrip, 3), '.3f')
 
         if not activation_id:
             self.pending_calls_q.put((job, call_id))
             return
+
+        log_msg = ('ExecutorID {} | JobID {} - Function invocation {} done! ({}s) - Activation'
+                   ' ID: {}'.format(job.executor_id, job.job_id, call_id, resp_time, activation_id))
+        logger.debug(log_msg)
 
         return call_id
 

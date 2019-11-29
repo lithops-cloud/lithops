@@ -484,6 +484,7 @@ class KnativeServingBackend:
         self.headers['Host'] = self._get_service_host(service_name)
         if self.endpoint is None:
             self.endpoint = 'http://{}'.format(self._get_service_host(service_name))
+
         exec_id = payload.get('executor_id', '')
         call_id = payload.get('call_id', '')
         job_id = payload.get('job_id', '')
