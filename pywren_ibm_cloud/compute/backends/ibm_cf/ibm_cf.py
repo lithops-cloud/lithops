@@ -1,6 +1,5 @@
 import os
 import sys
-import time
 import logging
 import zipfile
 import textwrap
@@ -10,7 +9,7 @@ from datetime import datetime
 from ibm_botocore.credentials import DefaultTokenManager
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
-from pywren_ibm_cloud.utils import is_remote_cluster
+from pywren_ibm_cloud.utils import is_pywren_function
 from pywren_ibm_cloud.config import CACHE_DIR, load_yaml_config, dump_yaml_config
 from pywren_ibm_cloud.libs.ibm_cloudfunctions.client import CloudFunctionsClient
 
@@ -28,7 +27,7 @@ class IBMCloudFunctionsBackend:
         self.name = 'ibm_cf'
         self.ibm_cf_config = ibm_cf_config
         self.package = 'pywren_v'+__version__
-        self.is_remote_cluster = is_remote_cluster()
+        self.is_pywren_function = is_pywren_function()
 
         self.user_agent = ibm_cf_config['user_agent']
         self.region = ibm_cf_config['region']
@@ -62,7 +61,7 @@ class IBMCloudFunctionsBackend:
                 token_manager._expiry_time = datetime.strptime(token_data['token_expiry_time'],
                                                                '%Y-%m-%d %H:%M:%S.%f%z')
 
-            if token_manager._is_expired() and not is_remote_cluster():
+            if token_manager._is_expired() and not is_pywren_function():
                 logger.debug("Using IBM IAM API Key - Token expired. Requesting new token")
                 token_manager.get_token()
                 token_data = {}
@@ -216,7 +215,7 @@ class IBMCloudFunctionsBackend:
         action_name = self._format_action_name(docker_image_name, runtime_memory)
 
         activation_id = self.cf_client.invoke(self.package, action_name,
-                                              payload, self.is_remote_cluster)
+                                              payload, self.is_pywren_function)
 
         return activation_id
 

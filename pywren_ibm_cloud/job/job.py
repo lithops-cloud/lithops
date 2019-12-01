@@ -24,7 +24,7 @@ class JobState:
 def create_map_job(config, internal_storage, executor_id, map_job_id, map_function, iterdata, runtime_meta,
                    runtime_memory=None, extra_params=None, extra_env=None, obj_chunk_size=None,
                    obj_chunk_number=None, remote_invocation=False, remote_invocation_groups=None,
-                   invoke_pool_threads=128, include_modules=[], exclude_modules=[], is_remote_cluster=False,
+                   invoke_pool_threads=128, include_modules=[], exclude_modules=[], is_pywren_function=False,
                    execution_timeout=EXECUTION_TIMEOUT):
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
@@ -44,7 +44,7 @@ def create_map_job(config, internal_storage, executor_id, map_job_id, map_functi
 
     # Remote invocation functionality
     original_total_tasks = len(map_iterdata)
-    if original_total_tasks == 1 or is_remote_cluster:
+    if original_total_tasks == 1 or is_pywren_function:
         remote_invocation = False
     if remote_invocation:
         def remote_invoker(input_data):
@@ -183,6 +183,14 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     if not data:
         return []
 
+    already_invoked = False
+    if 'PYWREN_RECOVER_SESSION' in os.environ:
+        logger.debug('ExecutorID {} | JobID {} - Trying to recover the Job'.format(executor_id, job_id))
+        job_objects = internal_storage.get_job_status(executor_id, job_id)
+        if len(job_objects) == len(data):
+            logger.debug('ExecutorID {} | JobID {} - Job found in storage'.format(executor_id, job_id))
+            already_invoked = True
+
     host_job_meta = {}
     job_description = {}
 
@@ -197,62 +205,62 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     job_description['job_id'] = job_id
     job_description['remote_invocation'] = remote_invocation
     job_description['original_total_calls'] = original_total_tasks
+    job_description['already_invoked'] = already_invoked
 
-    log_msg = 'ExecutorID {} | JobID {} - Serializing function and data'.format(executor_id, job_id)
-    logger.debug(log_msg)
+    if not already_invoked:
+        logger.debug('ExecutorID {} | JobID {} - Serializing function and data'.format(executor_id, job_id))
+        # pickle func and all data (to capture module dependencies)
+        exclude_modules.extend(config['pywren'].get('exclude_modules', []))
+        include_modules_cfg = config['pywren'].get('include_modules', [])
+        if include_modules is not None and include_modules_cfg is not None:
+            include_modules.extend(include_modules_cfg)
+        serializer = SerializeIndependent(runtime_meta['preinstalls'])
+        func_and_data_ser, mod_paths = serializer([func] + data, include_modules, exclude_modules)
 
-    # pickle func and all data (to capture module dependencies)
-    exclude_modules.extend(config['pywren'].get('exclude_modules', []))
-    include_modules_cfg = config['pywren'].get('include_modules', [])
-    if include_modules is not None and include_modules_cfg is not None:
-        include_modules.extend(include_modules_cfg)
-    serializer = SerializeIndependent(runtime_meta['preinstalls'])
-    func_and_data_ser, mod_paths = serializer([func] + data, include_modules, exclude_modules)
+        func_str = func_and_data_ser[0]
+        data_strs = func_and_data_ser[1:]
+        data_size_bytes = sum(len(x) for x in data_strs)
 
-    func_str = func_and_data_ser[0]
-    data_strs = func_and_data_ser[1:]
-    data_size_bytes = sum(len(x) for x in data_strs)
+        host_job_meta['agg_data'] = False
+        host_job_meta['data_size_bytes'] = data_size_bytes
 
-    host_job_meta['agg_data'] = False
-    host_job_meta['data_size_bytes'] = data_size_bytes
+        log_msg = 'ExecutorID {} | JobID {} - Uploading function and data'.format(executor_id, job_id)
+        logger.info(log_msg)
+        if not log_level:
+            print(log_msg, end=' ')
 
-    log_msg = 'ExecutorID {} | JobID {} - Uploading function and data'.format(executor_id, job_id)
-    logger.info(log_msg)
-    if not log_level:
-        print(log_msg, end=' ')
+        if data_size_bytes < MAX_AGG_DATA_SIZE:
+            agg_data_key = create_agg_data_key(JOBS_PREFIX, executor_id, job_id)
+            job_description['data_key'] = agg_data_key
+            agg_data_bytes, agg_data_ranges = _agg_data(data_strs)
+            job_description['data_ranges'] = agg_data_ranges
+            agg_upload_time = time.time()
+            internal_storage.put_data(agg_data_key, agg_data_bytes)
+            host_job_meta['agg_data'] = True
+            host_job_meta['data_upload_time'] = time.time() - agg_upload_time
+            host_job_meta['data_upload_timestamp'] = time.time()
+        else:
+            log_msg = ('ExecutorID {} | JobID {} - Total data exceeded '
+                       'maximum size of {} bytes'.format(executor_id, job_id, MAX_AGG_DATA_SIZE))
+            raise Exception(log_msg)
 
-    if data_size_bytes < MAX_AGG_DATA_SIZE:
-        agg_data_key = create_agg_data_key(JOBS_PREFIX, executor_id, job_id)
-        job_description['data_key'] = agg_data_key
-        agg_data_bytes, agg_data_ranges = _agg_data(data_strs)
-        job_description['data_ranges'] = agg_data_ranges
-        agg_upload_time = time.time()
-        internal_storage.put_data(agg_data_key, agg_data_bytes)
-        host_job_meta['agg_data'] = True
-        host_job_meta['data_upload_time'] = time.time() - agg_upload_time
-        host_job_meta['data_upload_timestamp'] = time.time()
-    else:
-        log_msg = ('ExecutorID {} | JobID {} - Total data exceeded '
-                   'maximum size of {} bytes'.format(executor_id, job_id, MAX_AGG_DATA_SIZE))
-        raise Exception(log_msg)
+        module_data = create_module_data(mod_paths)
+        # Create func and upload
+        host_job_meta['func_name'] = func_name
+        func_module_str = pickle.dumps({'func': func_str, 'module_data': module_data}, -1)
+        host_job_meta['func_module_bytes'] = len(func_module_str)
 
-    module_data = create_module_data(mod_paths)
-    # Create func and upload
-    host_job_meta['func_name'] = func_name
-    func_module_str = pickle.dumps({'func': func_str, 'module_data': module_data}, -1)
-    host_job_meta['func_module_bytes'] = len(func_module_str)
+        func_upload_time = time.time()
+        func_key = create_func_key(JOBS_PREFIX, executor_id, job_id)
+        job_description['func_key'] = func_key
+        internal_storage.put_func(func_key, func_module_str)
+        host_job_meta['func_upload_time'] = time.time() - func_upload_time
+        host_job_meta['func_upload_timestamp'] = time.time()
 
-    func_upload_time = time.time()
-    func_key = create_func_key(JOBS_PREFIX, executor_id, job_id)
-    job_description['func_key'] = func_key
-    internal_storage.put_func(func_key, func_module_str)
-    host_job_meta['func_upload_time'] = time.time() - func_upload_time
-    host_job_meta['func_upload_timestamp'] = time.time()
-
-    if not log_level:
-        func_and_data_size = utils.sizeof_fmt(host_job_meta['func_module_bytes']+host_job_meta['data_size_bytes'])
-        log_msg = '- Total: {}'.format(func_and_data_size)
-        print(log_msg)
+        if not log_level:
+            func_and_data_size = utils.sizeof_fmt(host_job_meta['func_module_bytes']+host_job_meta['data_size_bytes'])
+            log_msg = '- Total: {}'.format(func_and_data_size)
+            print(log_msg)
 
     job_description['metadata'] = host_job_meta
 

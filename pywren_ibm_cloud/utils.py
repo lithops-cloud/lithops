@@ -31,17 +31,21 @@ def uuid_str():
     return str(uuid.uuid4())
 
 
-def create_executor_id(lenght=4):
+def create_executor_id(lenght=6):
 
-    if 'PYWREN_EXECUTION_ID' in os.environ:
-        execution_id = os.environ['PYWREN_EXECUTION_ID']
+    if 'PYWREN_SESSION_ID' in os.environ:
+        session_id = os.environ['PYWREN_SESSION_ID']
     else:
-        execution_id = uuid_str().replace('-', '')[:4]
-        os.environ['PYWREN_EXECUTION_ID'] = execution_id
+        session_id = uuid_str().replace('/', '')[:lenght]
+        os.environ['PYWREN_SESSION_ID'] = session_id
 
-    executor_id = uuid_str().replace('-', '')[:lenght]
+    if 'PYWREN_TOTAL_EXECUTORS' in os.environ:
+        exec_num = int(os.environ['PYWREN_TOTAL_EXECUTORS']) + 1
+    else:
+        exec_num = 0
+    os.environ['PYWREN_TOTAL_EXECUTORS'] = str(exec_num)
 
-    return '{}-{}'.format(execution_id, executor_id)
+    return '{}/{}'.format(session_id, exec_num)
 
 
 def timeout_handler(signum, frame):
@@ -57,11 +61,11 @@ def is_unix_system():
     return curret_system != 'Windows'
 
 
-def is_remote_cluster():
+def is_pywren_function():
     """
-    Checks if the current execution is remote
+    Checks if the current execution is within a pywren fn
     """
-    if 'PYWREN_REMOTE' in os.environ:
+    if 'PYWREN_FUNCTION' in os.environ:
         return True
     return False
 

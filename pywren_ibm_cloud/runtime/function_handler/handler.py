@@ -89,7 +89,8 @@ def function_handler(event):
     call_id = event['call_id']
     job_id = event['job_id']
     executor_id = event['executor_id']
-    logger.info("Execution ID: {}/{}/{}".format(executor_id, job_id, call_id))
+    exec_id = "{}/{}/{}".format(executor_id, job_id, call_id)
+    logger.info("Execution ID: {}".format(exec_id))
     execution_timeout = event['execution_timeout']
     logger.debug("Set function execution timeout to {}s".format(execution_timeout))
     status_key = event['status_key']
@@ -115,10 +116,10 @@ def function_handler(event):
 
         # response_status['free_disk_bytes'] = free_disk_space("/tmp")
         custom_env = {'PYWREN_CONFIG': json.dumps(config),
-                      'PYWREN_REMOTE': 'TRUE',
+                      'PYWREN_FUNCTION': 'True',
                       'PYTHONPATH': "{}:{}".format(os.getcwd(), PYWREN_LIBS_PATH),
                       'PYTHONUNBUFFERED': 'True',
-                      'PYWREN_EXECUTION_ID': executor_id.split('-')[0]}
+                      'PYWREN_SESSION_ID': exec_id}
 
         os.environ.update(custom_env)
         os.environ.update(extra_env)

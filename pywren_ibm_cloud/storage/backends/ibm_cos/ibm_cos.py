@@ -21,7 +21,7 @@ import ibm_botocore
 from datetime import datetime
 from ibm_botocore.credentials import DefaultTokenManager
 from pywren_ibm_cloud.storage.utils import StorageNoSuchKeyError
-from pywren_ibm_cloud.utils import sizeof_fmt, is_remote_cluster
+from pywren_ibm_cloud.utils import sizeof_fmt, is_pywren_function
 from pywren_ibm_cloud.config import CACHE_DIR, load_yaml_config, dump_yaml_config
 
 
@@ -39,10 +39,10 @@ class IBMCloudObjectStorageBackend:
     def __init__(self, ibm_cos_config):
         logger.debug("Creating IBM COS client")
         self.ibm_cos_config = ibm_cos_config
-        self.is_remote_cluster = is_remote_cluster()
+        self.is_pywren_function = is_pywren_function()
 
         service_endpoint = ibm_cos_config.get('endpoint').replace('http:', 'https:')
-        if self.is_remote_cluster and 'private_endpoint' in ibm_cos_config:
+        if self.is_pywren_function and 'private_endpoint' in ibm_cos_config:
             service_endpoint = ibm_cos_config.get('private_endpoint')
             if 'api_key' in ibm_cos_config:
                 service_endpoint = service_endpoint.replace('http:', 'https:')
@@ -91,7 +91,7 @@ class IBMCloudObjectStorageBackend:
                 token_manager._expiry_time = datetime.strptime(token_data['token_expiry_time'],
                                                                '%Y-%m-%d %H:%M:%S.%f%z')
 
-            if token_manager._is_expired() and not is_remote_cluster():
+            if token_manager._is_expired() and not is_pywren_function():
                 logger.debug("Using IBM {} API Key - Token expired. Requesting new token".format(api_key_type))
                 token_manager.get_token()
                 token_data = {}

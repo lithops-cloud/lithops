@@ -22,9 +22,9 @@ import logging
 import random
 from threading import Thread
 from types import SimpleNamespace
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, Value
 from pywren_ibm_cloud.compute import Compute
-from pywren_ibm_cloud.utils import version_str, is_remote_cluster
+from pywren_ibm_cloud.utils import version_str, is_pywren_function
 from pywren_ibm_cloud.version import __version__
 from concurrent.futures import ThreadPoolExecutor
 from pywren_ibm_cloud.config import extract_storage_config, extract_compute_config, JOBS_PREFIX
@@ -70,7 +70,8 @@ class FunctionInvoker:
 
         self.token_bucket_q = Queue()
         self.pending_calls_q = Queue()
-        if is_remote_cluster():
+        self.invoker_process_stop_flag = Value('i', 0)
+        if is_pywren_function():
             self.invoker_process = Thread(target=self.run_process, args=())
         else:
             self.invoker_process = Process(target=self.run_process, args=())
@@ -178,57 +179,58 @@ class FunctionInvoker:
         """
         job = SimpleNamespace(**job_description)
 
-        try:
-            while True:
-                self.token_bucket_q.get_nowait()
-                self.ongoing_activations -= 1
-        except Exception:
-            pass
+        if not job.already_invoked:
+            try:
+                while True:
+                    self.token_bucket_q.get_nowait()
+                    self.ongoing_activations -= 1
+            except Exception:
+                pass
 
-        if job.remote_invocation:
-            log_msg = ('ExecutorID {} | JobID {} - Starting {} remote invocation function: Spawning {}() '
-                       '- Total: {} activations'.format(self.executor_id, job.job_id, job.total_calls,
-                                                        job.func_name, job.original_total_calls))
-        else:
-            log_msg = ('ExecutorID {} | JobID {} - Starting function invocation: {}()  - Total: {} '
-                       'activations'.format(self.executor_id, job.job_id, job.func_name, job.total_calls))
-        logger.info(log_msg)
-        if not self.log_level:
-            print(log_msg)
+            if job.remote_invocation:
+                log_msg = ('ExecutorID {} | JobID {} - Starting {} remote invocation function: Spawning {}() '
+                           '- Total: {} activations'.format(self.executor_id, job.job_id, job.total_calls,
+                                                            job.func_name, job.original_total_calls))
+            else:
+                log_msg = ('ExecutorID {} | JobID {} - Starting function invocation: {}()  - Total: {} '
+                           'activations'.format(self.executor_id, job.job_id, job.func_name, job.total_calls))
+            logger.info(log_msg)
+            if not self.log_level:
+                print(log_msg)
 
-        if self.ongoing_activations < self.workers:
-            # Only invoke MAX_DIRECT_INVOCATIONS
-            callids = range(job.total_calls)
-            total_direct = self.workers-self.ongoing_activations
-            callids_to_invoke_direct = callids[:total_direct]
-            callids_to_invoke_nondirect = callids[total_direct:]
+            if self.ongoing_activations < self.workers:
+                # Only invoke MAX_DIRECT_INVOCATIONS
+                callids = range(job.total_calls)
+                total_direct = self.workers-self.ongoing_activations
+                callids_to_invoke_direct = callids[:total_direct]
+                callids_to_invoke_nondirect = callids[total_direct:]
 
-            self.ongoing_activations += len(callids_to_invoke_direct)
+                self.ongoing_activations += len(callids_to_invoke_direct)
 
-            call_futures = []
-            with ThreadPoolExecutor(max_workers=job.invoke_pool_threads) as executor:
-                for i in callids_to_invoke_direct:
+                call_futures = []
+                with ThreadPoolExecutor(max_workers=job.invoke_pool_threads) as executor:
+                    for i in callids_to_invoke_direct:
+                        call_id = "{:05d}".format(i)
+                        future = executor.submit(self._invoke, job, call_id)
+                        call_futures.append(future)
+
+                # Block until all direct invocations have finished
+                callids_invoked = [ft.result() for ft in call_futures]
+
+                # Put into the queue the rest of the callids to invoke within the process
+                for i in callids_to_invoke_nondirect:
                     call_id = "{:05d}".format(i)
-                    future = executor.submit(self._invoke, job, call_id)
-                    call_futures.append(future)
+                    self.pending_calls_q.put((job, call_id))
 
-            # Block until all direct invocations have finished
-            callids_invoked = [ft.result() for ft in call_futures]
+                self.start_job_status_checker(job)
+            else:
+                # Second and subsequent jobs will go all directly to the InvokerProcess
+                for i in range(job.total_calls):
+                    call_id = "{:05d}".format(i)
+                    self.pending_calls_q.put((job, call_id))
+                self.start_job_status_checker(job)
 
-            # Put into the queue the rest of the callids to invoke within the process
-            for i in callids_to_invoke_nondirect:
-                call_id = "{:05d}".format(i)
-                self.pending_calls_q.put((job, call_id))
-
-            self.start_job_status_checker(job)
-        else:
-            # Second and subsequent jobs will go all directly to the InvokerProcess
-            for i in range(job.total_calls):
-                call_id = "{:05d}".format(i)
-                self.pending_calls_q.put((job, call_id))
-            self.start_job_status_checker(job)
-
-        # Create all futures an return them
+        # Create all futures
         futures = []
         for i in range(job.total_calls):
             call_id = "{:05d}".format(i)
@@ -284,6 +286,13 @@ class FunctionInvoker:
         channel.basic_consume(callback, queue=queue_1, no_ack=True)
         channel.start_consuming()
 
+    def stop(self):
+        """
+        Stop the invoker process
+        """
+        logger.debug('ExecutorID {} - Stopping invoker process'.format(self.executor_id))
+        self.invoker_process_stop_flag.value = 1
+
     def run_process(self):
         """
         Run process that implements token bucket scheduling approach
@@ -292,10 +301,12 @@ class FunctionInvoker:
 
         executor = ThreadPoolExecutor(max_workers=500)
 
-        while True:
+        while not self.invoker_process_stop_flag.value:
             try:
                 self.token_bucket_q.get()
                 job, call_id = self.pending_calls_q.get()
             except KeyboardInterrupt:
                 break
             executor.submit(self._invoke, job, call_id)
+
+        logger.debug('ExecutorID {} - Invoker process finished'.format(self.executor_id))

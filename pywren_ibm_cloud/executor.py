@@ -12,7 +12,7 @@ from pywren_ibm_cloud.storage.utils import clean_os_bucket
 from pywren_ibm_cloud.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from pywren_ibm_cloud.job import JobState, create_map_job, create_reduce_job
 from pywren_ibm_cloud.config import default_config, extract_storage_config, EXECUTION_TIMEOUT, JOBS_PREFIX, default_logging_config
-from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_remote_cluster, create_executor_id
+from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_pywren_function, create_executor_id
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ class FunctionExecutor:
         """
         self.start_time = time.time()
         self._state = FunctionExecutor.State.New
-        self.is_remote_cluster = is_remote_cluster()
+        self.is_pywren_function = is_pywren_function()
 
         # Log level Configuration
         self.log_level = log_level
@@ -57,7 +57,7 @@ class FunctionExecutor:
                 self.log_level = logging.getLevelName(logger.getEffectiveLevel())
         if self.log_level:
             os.environ["PYWREN_LOGLEVEL"] = self.log_level
-            if not self.is_remote_cluster:
+            if not self.is_pywren_function:
                 default_logging_config(self.log_level)
 
         # Overwrite pywren config parameters
@@ -196,7 +196,7 @@ class FunctionExecutor:
                              invoke_pool_threads=invoke_pool_threads,
                              include_modules=include_modules,
                              exclude_modules=exclude_modules,
-                             is_remote_cluster=self.is_remote_cluster,
+                             is_pywren_function=self.is_pywren_function,
                              execution_timeout=timeout)
 
         map_futures = self.invoker.run(job)
@@ -259,7 +259,7 @@ class FunctionExecutor:
                                  invoke_pool_threads=invoke_pool_threads,
                                  include_modules=include_modules,
                                  exclude_modules=exclude_modules,
-                                 is_remote_cluster=self.is_remote_cluster,
+                                 is_pywren_function=self.is_pywren_function,
                                  execution_timeout=timeout)
 
         map_futures = self.invoker.run(map_job)
@@ -331,7 +331,7 @@ class FunctionExecutor:
 
         if not futures:
             raise Exception('You must run the call_async(), map() or map_reduce(), or provide'
-                            ' a list of futures before calling the monitor()/get_result() method')
+                            ' a list of futures before calling the wait()/get_result() method')
 
         if download_results:
             msg = 'ExecutorID {} - Getting results...'.format(self.executor_id)
@@ -346,7 +346,7 @@ class FunctionExecutor:
             signal.alarm(timeout)
 
         pbar = None
-        if not self.is_remote_cluster and self._state == FunctionExecutor.State.Running \
+        if not self.is_pywren_function and self._state == FunctionExecutor.State.Running \
            and not self.log_level:
             from tqdm.auto import tqdm
             if is_notebook():
@@ -367,6 +367,7 @@ class FunctionExecutor:
                              THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
 
         except FunctionException as e:
+            self.invoker.stop()
             if is_unix_system():
                 signal.alarm(0)
             if pbar:
@@ -386,6 +387,7 @@ class FunctionExecutor:
             sys.exit()
 
         except TimeoutError:
+            self.invoker.stop()
             if download_results:
                 not_dones_call_ids = [(f.job_id, f.call_id) for f in futures if not f.done]
             else:
@@ -395,6 +397,7 @@ class FunctionExecutor:
             self._state = FunctionExecutor.State.Error
 
         except KeyboardInterrupt:
+            self.invoker.stop()
             if download_results:
                 not_dones_call_ids = [(f.job_id, f.call_id) for f in futures if not f.done]
             else:
@@ -404,7 +407,8 @@ class FunctionExecutor:
             self._state = FunctionExecutor.State.Error
 
         except Exception as e:
-            if not self.is_remote_cluster:
+            self.invoker.stop()
+            if not self.is_pywren_function:
                 self.clean()
             raise e
 
@@ -419,7 +423,7 @@ class FunctionExecutor:
                 logger.debug(msg)
                 if not self.log_level:
                     print(msg)
-            if download_results and self.data_cleaner and not self.is_remote_cluster:
+            if download_results and self.data_cleaner and not self.is_pywren_function:
                 self.clean()
 
         if download_results:

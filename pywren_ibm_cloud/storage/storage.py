@@ -5,7 +5,7 @@ import logging
 import importlib
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.config import CACHE_DIR, RUNTIMES_PREFIX, JOBS_PREFIX
-from pywren_ibm_cloud.utils import is_remote_cluster
+from pywren_ibm_cloud.utils import is_pywren_function
 from pywren_ibm_cloud.storage.utils import create_status_key, create_output_key, \
     status_key_suffix, CloudObject, StorageNoSuchKeyError
 
@@ -142,7 +142,7 @@ class InternalStorage:
         keys = self.storage_handler.list_keys(self.bucket, callset_prefix)
         suffix = status_key_suffix
         status_keys = [k for k in keys if suffix in k]
-        call_ids = [tuple(k[len(JOBS_PREFIX)+1:].split("/")[:3]) for k in status_keys]
+        call_ids = [tuple(k[len(JOBS_PREFIX)+1:].rsplit("/", 3)[:3]) for k in status_keys]
         return call_ids
 
     def get_call_status(self, executor_id, job_id, call_id):
@@ -181,7 +181,7 @@ class InternalStorage:
         path = [RUNTIMES_PREFIX, __version__,  key+".meta.json"]
         filename_local_path = os.path.join(CACHE_DIR, *path)
 
-        if os.path.exists(filename_local_path) and not is_remote_cluster():
+        if os.path.exists(filename_local_path) and not is_pywren_function():
             logger.debug("Runtime metadata found in local cache")
             with open(filename_local_path, "r") as f:
                 runtime_meta = json.loads(f.read())
@@ -214,7 +214,7 @@ class InternalStorage:
         logger.debug("Uploading runtime metadata to: /{}/{}".format(self.bucket, obj_key))
         self.storage_handler.put_object(self.bucket, obj_key, json.dumps(runtime_meta))
 
-        if not is_remote_cluster():
+        if not is_pywren_function():
             filename_local_path = os.path.join(CACHE_DIR, *path)
             logger.debug("Storing runtime metadata into local cache: {}".format(filename_local_path))
 

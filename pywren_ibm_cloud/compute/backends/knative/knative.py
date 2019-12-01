@@ -493,7 +493,7 @@ class KnativeServingBackend:
         try:
             logger.debug('ExecutorID {} | JobID {} - Starting function invocation {}'
                          .format(exec_id, job_id, call_id))
-            start = time.time()
+
             parsed_url = urlparse(self.endpoint)
             conn = http.client.HTTPConnection(parsed_url.netloc, timeout=600)
             conn.request("POST", route,
@@ -505,29 +505,18 @@ class KnativeServingBackend:
             resp_status = resp.status
             resp_data = resp.read().decode("utf-8")
             conn.close()
-            roundtrip = time.time() - start
-            resp_time = format(round(roundtrip, 3), '.3f')
-
-            if resp_status in [200, 202]:
-                data = json.loads(resp_data)
-                log_msg = ('ExecutorID {} | JobID {} - Function activation {} finished! ({}s) '
-                           .format(exec_id, job_id, call_id, resp_time))
-                logger.debug(log_msg)
-                if return_result:
-                    return data
-                return data["activationId"]
-            elif resp_status == 404:
-                raise Exception("PyWren runtime is not deployed in your k8s cluster")
-            else:
-                log_msg = ('ExecutorID {} | JobID {} - Function invocation {} failed: {} {}'
-                           .format(exec_id, job_id, call_id, resp_status, resp_data))
-                logger.debug(log_msg)
-
         except Exception as e:
-            conn.close()
-            log_msg = ('ExecutorID {} | JobID {} - Function invocation {} failed: {}'
-                       .format(exec_id, job_id, call_id, str(e)))
-            logger.debug(log_msg)
+            raise e
+
+        if resp_status in [200, 202]:
+            data = json.loads(resp_data)
+            if return_result:
+                return data
+            return data["activationId"]
+        elif resp_status == 404:
+            raise Exception("PyWren runtime is not deployed in your k8s cluster")
+        else:
+            raise Exception(resp_status, resp_data)
 
     def get_runtime_key(self, docker_image_name, runtime_memory):
         """
