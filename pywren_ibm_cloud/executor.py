@@ -507,16 +507,13 @@ class FunctionExecutor:
         create_timeline(dst_dir, dst_file_name, self.start_time, call_status, call_metadata, self.config['ibm_cos'])
         create_histogram(dst_dir, dst_file_name, self.start_time, call_status, self.config['ibm_cos'])
 
-    def clean(self, local_execution=True, delete_all=False):
+    def clean(self, local_execution=True):
         """
         Deletes all the files from COS. These files include the function,
         the data serialization and the function invocation results.
         """
         storage_bucket = self.config['pywren']['storage_bucket']
-        if delete_all:
-            storage_prerix = '/'.join([JOBS_PREFIX])
-        else:
-            storage_prerix = '/'.join([JOBS_PREFIX, self.executor_id])
+        storage_prerix = '/'.join([JOBS_PREFIX, self.executor_id])
         msg = "ExecutorID {} - Cleaning temporary data".format(self.executor_id)
         logger.info(msg)
         if not self.log_level:
