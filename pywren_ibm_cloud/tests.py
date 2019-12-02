@@ -377,7 +377,7 @@ class TestPywren(unittest.TestCase):
         futures = pw.map_reduce(TestMethods.my_map_function_obj, data_prefix, TestMethods.my_reduce_function, chunk_n=2)
         result = pw.get_result(futures)
         self.checkResult(result)
-        self.assertEqual(len(futures), 11)
+        self.assertEqual(len(futures), 8)
 
     def test_chunks_bucket_one_reducer_per_object(self):
         print('Testing chunks on a bucket with one reducer per object...')
@@ -395,7 +395,7 @@ class TestPywren(unittest.TestCase):
                                 reducer_one_per_object=True)
         result = pw.get_result(futures)
         self.checkResult(result)
-        self.assertEqual(len(futures), 15)
+        self.assertEqual(len(futures), 12)
 
     def test_cloudobject(self):
         print('Testing cloudobjects...')
