@@ -33,11 +33,11 @@ def uuid_str():
 
 def create_executor_id(lenght=6):
 
-    if 'PYWREN_SESSION_ID' in os.environ:
-        session_id = os.environ['PYWREN_SESSION_ID']
+    if 'PYWREN_EXECUTION_ID' in os.environ:
+        session_id = os.environ['PYWREN_EXECUTION_ID']
     else:
         session_id = uuid_str().replace('/', '')[:lenght]
-        os.environ['PYWREN_SESSION_ID'] = session_id
+        os.environ['PYWREN_EXECUTION_ID'] = session_id
 
     if 'PYWREN_TOTAL_EXECUTORS' in os.environ:
         exec_num = int(os.environ['PYWREN_TOTAL_EXECUTORS']) + 1

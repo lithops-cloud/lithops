@@ -179,56 +179,55 @@ class FunctionInvoker:
         """
         job = SimpleNamespace(**job_description)
 
-        if not job.already_invoked:
-            try:
-                while True:
-                    self.token_bucket_q.get_nowait()
-                    self.ongoing_activations -= 1
-            except Exception:
-                pass
+        try:
+            while True:
+                self.token_bucket_q.get_nowait()
+                self.ongoing_activations -= 1
+        except Exception:
+            pass
 
-            if job.remote_invocation:
-                log_msg = ('ExecutorID {} | JobID {} - Starting {} remote invocation function: Spawning {}() '
-                           '- Total: {} activations'.format(self.executor_id, job.job_id, job.total_calls,
-                                                            job.func_name, job.original_total_calls))
-            else:
-                log_msg = ('ExecutorID {} | JobID {} - Starting function invocation: {}()  - Total: {} '
-                           'activations'.format(self.executor_id, job.job_id, job.func_name, job.total_calls))
-            logger.info(log_msg)
-            if not self.log_level:
-                print(log_msg)
+        if job.remote_invocation:
+            log_msg = ('ExecutorID {} | JobID {} - Starting {} remote invocation function: Spawning {}() '
+                       '- Total: {} activations'.format(self.executor_id, job.job_id, job.total_calls,
+                                                        job.func_name, job.original_total_calls))
+        else:
+            log_msg = ('ExecutorID {} | JobID {} - Starting function invocation: {}()  - Total: {} '
+                       'activations'.format(self.executor_id, job.job_id, job.func_name, job.total_calls))
+        logger.info(log_msg)
+        if not self.log_level:
+            print(log_msg)
 
-            if self.ongoing_activations < self.workers:
-                # Only invoke MAX_DIRECT_INVOCATIONS
-                callids = range(job.total_calls)
-                total_direct = self.workers-self.ongoing_activations
-                callids_to_invoke_direct = callids[:total_direct]
-                callids_to_invoke_nondirect = callids[total_direct:]
+        if self.ongoing_activations < self.workers:
+            # Only invoke MAX_DIRECT_INVOCATIONS
+            callids = range(job.total_calls)
+            total_direct = self.workers-self.ongoing_activations
+            callids_to_invoke_direct = callids[:total_direct]
+            callids_to_invoke_nondirect = callids[total_direct:]
 
-                self.ongoing_activations += len(callids_to_invoke_direct)
+            self.ongoing_activations += len(callids_to_invoke_direct)
 
-                call_futures = []
-                with ThreadPoolExecutor(max_workers=job.invoke_pool_threads) as executor:
-                    for i in callids_to_invoke_direct:
-                        call_id = "{:05d}".format(i)
-                        future = executor.submit(self._invoke, job, call_id)
-                        call_futures.append(future)
-
-                # Block until all direct invocations have finished
-                callids_invoked = [ft.result() for ft in call_futures]
-
-                # Put into the queue the rest of the callids to invoke within the process
-                for i in callids_to_invoke_nondirect:
+            call_futures = []
+            with ThreadPoolExecutor(max_workers=job.invoke_pool_threads) as executor:
+                for i in callids_to_invoke_direct:
                     call_id = "{:05d}".format(i)
-                    self.pending_calls_q.put((job, call_id))
+                    future = executor.submit(self._invoke, job, call_id)
+                    call_futures.append(future)
 
-                self.start_job_status_checker(job)
-            else:
-                # Second and subsequent jobs will go all directly to the InvokerProcess
-                for i in range(job.total_calls):
-                    call_id = "{:05d}".format(i)
-                    self.pending_calls_q.put((job, call_id))
-                self.start_job_status_checker(job)
+            # Block until all direct invocations have finished
+            callids_invoked = [ft.result() for ft in call_futures]
+
+            # Put into the queue the rest of the callids to invoke within the process
+            for i in callids_to_invoke_nondirect:
+                call_id = "{:05d}".format(i)
+                self.pending_calls_q.put((job, call_id))
+
+            self.start_job_status_checker(job)
+        else:
+            # Second and subsequent jobs will go all directly to the InvokerProcess
+            for i in range(job.total_calls):
+                call_id = "{:05d}".format(i)
+                self.pending_calls_q.put((job, call_id))
+            self.start_job_status_checker(job)
 
         # Create all futures
         futures = []

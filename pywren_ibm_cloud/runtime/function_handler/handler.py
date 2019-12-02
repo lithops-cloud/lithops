@@ -119,7 +119,7 @@ def function_handler(event):
                       'PYWREN_FUNCTION': 'True',
                       'PYTHONPATH': "{}:{}".format(os.getcwd(), PYWREN_LIBS_PATH),
                       'PYTHONUNBUFFERED': 'True',
-                      'PYWREN_SESSION_ID': exec_id}
+                      'PYWREN_EXECUTION_ID': exec_id}
 
         os.environ.update(custom_env)
         os.environ.update(extra_env)
