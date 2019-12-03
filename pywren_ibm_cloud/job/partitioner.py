@@ -23,7 +23,7 @@ from pywren_ibm_cloud.storage.utils import CloudObject, CloudObjectUrl
 
 logger = logging.getLogger(__name__)
 
-CHUNK_SIZE_MIN = 1024*1024  # 1MB
+CHUNK_SIZE_MIN = 0*1024  # 0MB
 CHUNK_THRESHOLD = 128*1024  # 128KB
 
 
