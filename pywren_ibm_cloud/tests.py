@@ -252,7 +252,7 @@ class TestPywren(unittest.TestCase):
 
         pw = pywren.function_executor(config=CONFIG)
         listDicts_iterdata = [{'x': 2, 'y': 8}, {'x': 2, 'y': 8}]
-        pw.call_async(TestMethods.simple_map_function, listDicts_iterdata)
+        pw.map(TestMethods.simple_map_function, listDicts_iterdata)
         result = pw.get_result()
         self.assertEqual(result, [10, 10])
 
