@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from pywren_ibm_cloud.runtime import create_runtime, update_runtime, build_runtime, delete_runtime, clean_runtimes
+from pywren_ibm_cloud.runtime import create_runtime, update_runtime, build_runtime, delete_runtime, clean_all
 import logging
 import click
 import os
@@ -42,7 +42,7 @@ def delete(image_name):
 
 @cli.command('clean')
 def clean():
-    clean_runtimes()
+    clean_all()
 
 
 if __name__ == "__main__":

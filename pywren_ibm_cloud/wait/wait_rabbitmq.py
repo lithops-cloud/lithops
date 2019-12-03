@@ -132,17 +132,11 @@ def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url, download_results=F
 
 class rabbitmq_checker_worker(threading.Thread):
 
-    def callback(self, ch, method, properties, body):
-        self.q.put(body.decode("utf-8"))
-        self.total_calls_rcvd += 1
-        if self.total_calls_rcvd == self.total_calls:
-            self.channel.stop_consuming()
-            self.channel.exchange_delete(self.exchange)
-
     def __init__(self, job_key, total_calls, rabbit_amqp_url, q):
         threading.Thread.__init__(self)
         self.job_key = job_key
         self.total_calls = total_calls
+        self.rabbit_amqp_url = rabbit_amqp_url
         self.q = q
         self.executor_id, self.job_id = job_key.rsplit('-', 1)
         self.total_calls_rcvd = 0
@@ -150,18 +144,24 @@ class rabbitmq_checker_worker(threading.Thread):
         self.exchange = 'pywren-{}-{}'.format(self.executor_id, self.job_id)
         self.queue_0 = '{}-0'.format(self.exchange)
 
-        params = pika.URLParameters(rabbit_amqp_url)
+    def run(self):
+        logger.debug('ExecutorID {} | JobID {} - Consuming from rabbitmq '
+                     'queue'.format(self.executor_id, self.job_id))
+
+        def callback(ch, method, properties, body):
+            self.q.put(body.decode("utf-8"))
+            self.total_calls_rcvd += 1
+            if self.total_calls_rcvd == self.total_calls:
+                ch.stop_consuming()
+                ch.exchange_delete(self.exchange)
+
+        params = pika.URLParameters(self.rabbit_amqp_url)
         connection = pika.BlockingConnection(params)
         self.channel = connection.channel()  # start a channel
         self.channel.exchange_declare(exchange=self.exchange, exchange_type='fanout')
         self.channel.queue_declare(queue=self.queue_0, exclusive=True)
         self.channel.queue_bind(exchange=self.exchange, queue=self.queue_0)
-        self.channel.basic_consume(self.callback, queue=self.queue_0, no_ack=True)
-
-    def run(self):
-        msg = ('ExecutorID {} | JobID {} - Consuming from rabbitmq '
-               'queue'.format(self.executor_id, self.job_id))
-        logger.debug(msg)
+        self.channel.basic_consume(callback, queue=self.queue_0, no_ack=True)
         self.channel.start_consuming()
 
     def __del__(self):

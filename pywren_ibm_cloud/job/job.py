@@ -24,7 +24,7 @@ class JobState:
 def create_map_job(config, internal_storage, executor_id, map_job_id, map_function, iterdata, runtime_meta,
                    runtime_memory=None, extra_params=None, extra_env=None, obj_chunk_size=None,
                    obj_chunk_number=None, remote_invocation=False, remote_invocation_groups=None,
-                   invoke_pool_threads=128, include_modules=[], exclude_modules=[], is_remote_cluster=False,
+                   invoke_pool_threads=128, include_modules=[], exclude_modules=[], is_pywren_function=False,
                    execution_timeout=EXECUTION_TIMEOUT):
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
@@ -44,7 +44,7 @@ def create_map_job(config, internal_storage, executor_id, map_job_id, map_functi
 
     # Remote invocation functionality
     original_total_tasks = len(map_iterdata)
-    if original_total_tasks == 1 or is_remote_cluster:
+    if original_total_tasks == 1 or is_pywren_function:
         remote_invocation = False
     if remote_invocation:
         def remote_invoker(input_data):
@@ -198,9 +198,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     job_description['remote_invocation'] = remote_invocation
     job_description['original_total_calls'] = original_total_tasks
 
-    log_msg = 'ExecutorID {} | JobID {} - Serializing function and data'.format(executor_id, job_id)
-    logger.debug(log_msg)
-
+    logger.debug('ExecutorID {} | JobID {} - Serializing function and data'.format(executor_id, job_id))
     # pickle func and all data (to capture module dependencies)
     exclude_modules.extend(config['pywren'].get('exclude_modules', []))
     include_modules_cfg = config['pywren'].get('include_modules', [])

@@ -213,13 +213,13 @@ class CloudFunctionsClient:
             if not is_remote_cluster:
                 conn.close()
             if self_invoked:
-                return None, e
+                return None
             return self.invoke(package, action_name, payload, is_remote_cluster=is_remote_cluster, self_invoked=True)
 
         if resp_status == 202 and 'activationId' in data:
-            return data["activationId"], None
+            return data["activationId"]
         elif resp_status == 429:
-            return None, "Too many concurrent requests in flight"
+            return None  # "Too many concurrent requests in flight"
         else:
             logger.debug(data)
             if resp_status == 401:
