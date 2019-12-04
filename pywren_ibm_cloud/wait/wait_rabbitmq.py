@@ -36,6 +36,10 @@ def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url, download_results=F
     if return_when != ALL_COMPLETED:
         raise NotImplementedError(return_when)
 
+    for f in futures:
+        if (download_results and f.done) or (not download_results and (f.ready or f.done)):
+            pbar.update(1)
+
     thread_pool = ThreadPoolExecutor(max_workers=THREADPOOL_SIZE)
     present_jobs = {}
 

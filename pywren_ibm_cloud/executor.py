@@ -463,26 +463,30 @@ class FunctionExecutor:
             return result[0]
         return result
 
-    def create_execution_plots(self, dst_dir, dst_file_name, futures=None):
+    def create_execution_plots(self, dst_dir, dst_file_name, fs=None):
         """
         Creates timeline and histogram of the current execution in dst_dir.
 
-        :param futures: list of futures.
         :param dst_dir: destination folder to save .png plots.
-        :param dst_file_name: name of the file.
+        :param dst_file_name: prefix name of the file.
+        :param fs: list of futures.
         """
-        if not futures:
-            futures = []
+
+        
+        #futures_to_jobs(from_status=JobState.Done, to_status=JobState.Finished)
+        
+        if not fs:
+            fs = []
             for job in self.jobs:
                 if self.jobs[job]['state'] == JobState.Ready or \
                    self.jobs[job]['state'] == JobState.Done:
-                    futures.extend(self.jobs[job]['futures'])
+                    fs.extend(self.jobs[job]['futures'])
                     self.jobs[job]['state'] = JobState.Finished
 
-        if type(futures) != list:
-            ftrs = [futures]
+        if type(fs) != list:
+            ftrs = [fs]
         else:
-            ftrs = futures
+            ftrs = fs
 
         ftrs_to_plot = [f for f in ftrs if f.ready or f.done]
 

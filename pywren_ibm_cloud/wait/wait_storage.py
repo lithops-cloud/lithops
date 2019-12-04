@@ -56,6 +56,10 @@ def wait_storage(futures, internal_storage, download_results=False,
     RETURN_EARLY_N = 32
     RANDOM_QUERY = False
 
+    for f in futures:
+        if (download_results and f.done) or (not download_results and (f.ready or f.done)):
+            pbar.update(1)
+
     if return_when == ALL_COMPLETED:
 
         result_count = 0
@@ -195,7 +199,7 @@ def _wait_storage(fs, internal_storage, download_results, throw_except,
     fs_notdones = []
     f_to_wait_on = []
     for f in fs:
-        if (not download_results and f.ready or f.done) or (f.done and download_results):
+        if (download_results and f.done) or (not download_results and (f.ready or f.done)):
             # done, don't need to do anything
             fs_dones.append(f)
         else:
@@ -232,7 +236,7 @@ def _wait_storage(fs, internal_storage, download_results, throw_except,
 
     if pbar:
         for f in f_to_wait_on:
-            if f.ready or f.done:
+            if (download_results and f.done) or (not download_results and (f.ready or f.done)):
                 pbar.update(1)
         pbar.refresh()
     pool.close()
