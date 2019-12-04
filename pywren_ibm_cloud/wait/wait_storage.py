@@ -26,7 +26,7 @@ ANY_COMPLETED = 2
 ALWAYS = 3
 
 
-def wait_storage(futures, internal_storage, download_results=False,
+def wait_storage(fs, internal_storage, download_results=False,
                  throw_except=True, pbar=None, return_when=ALL_COMPLETED,
                  THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
     """
@@ -49,23 +49,20 @@ def wait_storage(futures, internal_storage, download_results=False,
         and `fs_notdones` is a list of futures that have not completed.
     :rtype: 2-tuple of lists
     """
-    N = len(futures)
+    N = len(fs)
+
     # These are performance-related settings that we may eventually
     # want to expose to end users:
     MAX_DIRECT_QUERY_N = 64
     RETURN_EARLY_N = 32
     RANDOM_QUERY = False
 
-    for f in futures:
-        if (download_results and f.done) or (not download_results and (f.ready or f.done)):
-            pbar.update(1)
-
     if return_when == ALL_COMPLETED:
 
         result_count = 0
 
         while result_count < N:
-            fs_dones, fs_notdones = _wait_storage(futures,
+            fs_dones, fs_notdones = _wait_storage(fs,
                                                   internal_storage,
                                                   download_results,
                                                   throw_except,
@@ -74,11 +71,7 @@ def wait_storage(futures, internal_storage, download_results=False,
                                                   pbar=pbar,
                                                   random_query=RANDOM_QUERY,
                                                   THREADPOOL_SIZE=THREADPOOL_SIZE)
-            N = len(futures)
-            if pbar and pbar.total != N:
-                pbar.total = N
-                pbar.refresh()
-
+            N = len(fs)
             result_count = len(fs_dones)
             if result_count == N:
                 return fs_dones, fs_notdones
@@ -92,7 +85,7 @@ def wait_storage(futures, internal_storage, download_results=False,
 
     elif return_when == ANY_COMPLETED:
         while True:
-            fs_dones, fs_notdones = _wait_storage(futures,
+            fs_dones, fs_notdones = _wait_storage(fs,
                                                   internal_storage,
                                                   download_results,
                                                   throw_except,
@@ -107,7 +100,7 @@ def wait_storage(futures, internal_storage, download_results=False,
                 time.sleep(WAIT_DUR_SEC)
 
     elif return_when == ALWAYS:
-        return _wait_storage(futures,
+        return _wait_storage(fs,
                              internal_storage,
                              download_results,
                              throw_except,
@@ -142,7 +135,7 @@ def _wait_storage(fs, internal_storage, download_results, throw_except,
     if download_results:
         not_done_futures = [f for f in fs if not f.done]
     else:
-        not_done_futures = [f for f in fs if not f.ready and not f.done]
+        not_done_futures = [f for f in fs if not (f.ready or f.done)]
 
     if len(not_done_futures) == 0:
         return fs, []
@@ -246,5 +239,8 @@ def _wait_storage(fs, internal_storage, download_results, throw_except,
     new_futures = [f.result() for f in f_to_wait_on if f.futures]
     for futures in new_futures:
         fs.extend(futures)
+        if pbar:
+            pbar.total = pbar.total + len(futures)
+            pbar.refresh()
 
     return fs_dones, fs_notdones

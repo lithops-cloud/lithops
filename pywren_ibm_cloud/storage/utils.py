@@ -75,9 +75,9 @@ def clean_os_bucket(bucket, prefix, internal_storage):
     objects_to_delete = internal_storage.list_tmp_data(prefix)
 
     while objects_to_delete:
-        logger.debug('{} objects found'.format(len(objects_to_delete)))
         total_objects = total_objects + len(objects_to_delete)
         internal_storage.delete_temporal_data(objects_to_delete)
+        time.sleep(2)
         objects_to_delete = internal_storage.list_tmp_data(prefix)
     logger.debug('Finished deleting objects, total found: {}'.format(total_objects))
 

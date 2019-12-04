@@ -14,7 +14,7 @@ ANY_COMPLETED = 2
 ALWAYS = 3
 
 
-def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url, download_results=False,
+def wait_rabbitmq(fs, internal_storage, rabbit_amqp_url, download_results=False,
                   throw_except=True, pbar=None, return_when=ALL_COMPLETED, THREADPOOL_SIZE=128):
     """
     Wait for the Future instances `fs` to complete. Returns a 2-tuple of
@@ -36,18 +36,15 @@ def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url, download_results=F
     if return_when != ALL_COMPLETED:
         raise NotImplementedError(return_when)
 
-    for f in futures:
-        if (download_results and f.done) or (not download_results and (f.ready or f.done)):
-            pbar.update(1)
-
     thread_pool = ThreadPoolExecutor(max_workers=THREADPOOL_SIZE)
     present_jobs = {}
 
-    for f in futures:
-        job_key = '{}-{}'.format(f.executor_id, f.job_id)
-        if job_key not in present_jobs:
-            present_jobs[job_key] = {}
-        present_jobs[job_key][f.call_id] = f
+    for f in fs:
+        if (download_results and not f.done) or (not download_results and not (f.ready or f.done)):
+            job_key = '{}-{}'.format(f.executor_id, f.job_id)
+            if job_key not in present_jobs:
+                present_jobs[job_key] = {}
+            present_jobs[job_key][f.call_id] = f
 
     done_call_ids = {}
 
@@ -100,7 +97,7 @@ def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url, download_results=F
 
         if 'new_futures' in call_status:
             new_futures = fut.result()
-            futures.extend(new_futures)
+            fs.extend(new_futures)
 
             if pbar:
                 pbar.total = pbar.total + len(new_futures)
@@ -131,7 +128,7 @@ def wait_rabbitmq(futures, internal_storage, rabbit_amqp_url, download_results=F
 
     wait(get_result_futures)
 
-    return futures, []
+    return fs, []
 
 
 class rabbitmq_checker_worker(threading.Thread):
