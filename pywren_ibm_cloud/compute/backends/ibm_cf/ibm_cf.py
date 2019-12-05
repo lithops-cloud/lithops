@@ -37,8 +37,8 @@ class IBMCloudFunctionsBackend:
         self.api_key = ibm_cf_config['regions'][self.region].get('api_key', None)
         self.iam_api_key = ibm_cf_config.get('iam_api_key', None)
 
-        logger.debug("Set IBM CF Namespace to {}".format(self.namespace))
-        logger.debug("Set IBM CF Endpoint to {}".format(self.endpoint))
+        logger.info("Set IBM CF Namespace to {}".format(self.namespace))
+        logger.info("Set IBM CF Endpoint to {}".format(self.endpoint))
 
         if self.api_key:
             self.cf_client = CloudFunctionsClient(endpoint=self.endpoint,
@@ -83,7 +83,7 @@ class IBMCloudFunctionsBackend:
                    'Region: {}'.format(__version__, self.namespace, self.region))
         if not self.log_level:
             print(log_msg)
-        logger.debug("IBM CF client created successfully")
+        logger.info("IBM CF client created successfully")
 
     def _format_action_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '_').replace(':', '_')
