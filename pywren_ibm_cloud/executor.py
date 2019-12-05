@@ -363,6 +363,7 @@ class FunctionExecutor:
             else:
                 print()
                 traceback.print_exception(*e.exception)
+                print()
             if self.data_cleaner and not self.is_pywren_function:
                 self.clean()
             sys.exit()
@@ -376,8 +377,6 @@ class FunctionExecutor:
             msg = ('ExecutorID {} - Raised timeout of {} seconds waiting for results - Total Activations not done: {}'
                    .format(self.executor_id, timeout, len(not_dones_call_ids)))
             self._state = FunctionExecutor.State.Error
-            if self.data_cleaner and not self.is_pywren_function:
-                self.clean()
 
         except KeyboardInterrupt:
             self.invoker.stop()
@@ -388,8 +387,6 @@ class FunctionExecutor:
             msg = ('ExecutorID {} - Cancelled - Total Activations not done: {}'
                    .format(self.executor_id, len(not_dones_call_ids)))
             self._state = FunctionExecutor.State.Error
-            if self.data_cleaner and not self.is_pywren_function:
-                self.clean()
 
         except Exception as e:
             self.invoker.stop()
@@ -408,6 +405,8 @@ class FunctionExecutor:
                 logger.debug(msg)
                 if not self.log_level:
                     print(msg)
+            if self.data_cleaner and not self.is_pywren_function:
+                self.clean()
 
         if download_results:
             fs_done = [f for f in futures if f.done]
@@ -440,18 +439,18 @@ class FunctionExecutor:
                                                WAIT_DUR_SEC=WAIT_DUR_SEC)
         result = []
         for f in fs_done:
-            if not f.futures and f.produce_output and not f.read:
+            if fs and not f.futures and f.produce_output:
+                # Process futures provided by the user
                 result.append(f.result(throw_except=throw_except, internal_storage=self.internal_storage))
-                f.read = True
+            elif not fs and not f.futures and f.produce_output and not f.read:
+                # Process internally stored futures
+                result.append(f.result(throw_except=throw_except, internal_storage=self.internal_storage))
+            f.read = True
 
         logger.debug("ExecutorID {} Finished getting results".format(self.executor_id))
 
-        if self.data_cleaner and not self.is_pywren_function:
-            self.clean()
-
         if result and len(result) == 1:
             return result[0]
-
         return result
 
     def create_execution_plots(self, dst_dir, dst_file_name, fs=None):
@@ -501,10 +500,16 @@ class FunctionExecutor:
             raise Exception('You must run the call_async(), map() or map_reduce(), or provide'
                             ' a list of futures before calling the clean() method')
 
-        present_jobs = {(f.executor_id, f.job_id) for f in futures
-                        if (f.read or not f.produce_output or f.futures)
-                        and f.executor_id.count('/') == 1}
+        if not fs:
+            present_jobs = {(f.executor_id, f.job_id) for f in futures
+                            if (f.done or not f.produce_output)
+                            and f.executor_id.count('/') == 1}
+        else:
+            present_jobs = {(f.executor_id, f.job_id) for f in futures
+                            if f.executor_id.count('/') == 1}
+
         jobs_to_clean = present_jobs - self.cleaned_jobs
+
         if jobs_to_clean:
             msg = "ExecutorID {} - Cleaning temporary data".format(self.executor_id)
             logger.info(msg)
@@ -540,4 +545,3 @@ class FunctionExecutor:
                 sys.stdout = old_stdout
 
         self.cleaned_jobs.update(jobs_to_clean)
-        print()

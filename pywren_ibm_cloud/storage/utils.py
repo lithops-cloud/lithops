@@ -64,7 +64,7 @@ def clean_bucket(bucket, prefix, storage_config):
     # sys.stdout = sys.__stdout__
 
 
-def clean_os_bucket(bucket, prefix, internal_storage):
+def clean_os_bucket(bucket, prefix, internal_storage, sleep=5):
     """
     Deletes all the files from COS. These files include the function,
     the data serialization and the function invocation results.
@@ -77,7 +77,7 @@ def clean_os_bucket(bucket, prefix, internal_storage):
     while objects_to_delete:
         total_objects = total_objects + len(objects_to_delete)
         internal_storage.delete_temporal_data(objects_to_delete)
-        time.sleep(2)
+        time.sleep(sleep)
         objects_to_delete = internal_storage.list_tmp_data(prefix)
     logger.debug('Finished deleting objects, total found: {}'.format(total_objects))
 

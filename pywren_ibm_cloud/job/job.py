@@ -55,7 +55,7 @@ def create_map_job(config, internal_storage, executor_id, map_job_id, map_functi
             map_iterdata = [iterdata]
         map_iterdata = utils.verify_args(remote_invoker, map_iterdata, extra_params)
         new_invoke_pool_threads = 1
-        new_runtime_memory = runtime_memory
+        new_runtime_memory = 2048
     # ########
 
     job_description = _create_job(config, internal_storage, executor_id,

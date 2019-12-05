@@ -187,7 +187,11 @@ class FunctionInvoker:
             pass
 
         if job.remote_invocation:
-            log_msg = ('ExecutorID {} | JobID {} - Starting {} remote invocation function: Spawning {}() '
+            old_stdout = sys.stdout
+            sys.stdout = open(os.devnull, 'w')
+            self.select_runtime(job.job_id, 2048)
+            sys.stdout = old_stdout
+            log_msg = ('ExecutorID {} | JobID {} - Starting {} remote invocation function: {}() '
                        '- Total: {} activations'.format(self.executor_id, job.job_id, job.total_calls,
                                                         job.func_name, job.original_total_calls))
         else:

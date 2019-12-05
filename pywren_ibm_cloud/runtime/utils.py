@@ -119,6 +119,6 @@ def clean_all(config=None):
     runtimes = sh.list_keys(storage_config['bucket'], RUNTIMES_PREFIX)
     if runtimes:
         sh.delete_objects(storage_config['bucket'], runtimes)
-    clean_os_bucket(storage_config['bucket'], JOBS_PREFIX, internal_storage)
+    clean_os_bucket(storage_config['bucket'], JOBS_PREFIX, internal_storage, sleep=1)
 
     compute_handler.delete_all_runtimes()
