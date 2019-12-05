@@ -56,7 +56,9 @@ class ResponseFuture:
         self.job_id = job_id
         self.executor_id = executor_id
         self.storage_config = storage_config
+
         self.produce_output = True
+        self.read = False
 
         self._state = ResponseFuture.State.New
         self._exception = Exception()
@@ -179,9 +181,10 @@ class ResponseFuture:
                                                       str(total_time)))
         logger.debug(log_msg)
         self._set_state(ResponseFuture.State.Ready)
-        if not self._call_status['result'] or not self.produce_output:
-            # Function did not produce output, so let's put it as success
+
+        if not self._call_status['result']:
             self._set_state(ResponseFuture.State.Success)
+            self.produce_output = False
 
         if 'new_futures' in self._call_status:
             self.result(throw_except=throw_except, internal_storage=internal_storage)
@@ -217,10 +220,11 @@ class ResponseFuture:
 
         if internal_storage is None:
             internal_storage = InternalStorage(storage_config=self.storage_config)
+
         self.status(throw_except=throw_except, internal_storage=internal_storage)
 
         if not self.produce_output:
-            return
+            self._set_state(ResponseFuture.State.Success)
 
         if self._state == ResponseFuture.State.Success:
             return self._return_val

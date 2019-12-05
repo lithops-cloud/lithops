@@ -14,13 +14,6 @@ from pywren_ibm_cloud.config import EXECUTION_TIMEOUT, MAX_AGG_DATA_SIZE, JOBS_P
 logger = logging.getLogger(__name__)
 
 
-class JobState:
-    Running = 'Running'
-    Ready = 'Ready'
-    Done = 'Done'
-    Finished = 'Finished'
-
-
 def create_map_job(config, internal_storage, executor_id, map_job_id, map_function, iterdata, runtime_meta,
                    runtime_memory=None, extra_params=None, extra_env=None, obj_chunk_size=None,
                    obj_chunk_number=None, remote_invocation=False, remote_invocation_groups=None,
@@ -62,7 +55,7 @@ def create_map_job(config, internal_storage, executor_id, map_job_id, map_functi
             map_iterdata = [iterdata]
         map_iterdata = utils.verify_args(remote_invoker, map_iterdata, extra_params)
         new_invoke_pool_threads = 1
-        new_runtime_memory = runtime_memory
+        new_runtime_memory = 2048
     # ########
 
     job_description = _create_job(config, internal_storage, executor_id,

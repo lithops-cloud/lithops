@@ -10,7 +10,7 @@ from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.future import FunctionException
 from pywren_ibm_cloud.storage.utils import clean_os_bucket
 from pywren_ibm_cloud.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
-from pywren_ibm_cloud.job import JobState, create_map_job, create_reduce_job
+from pywren_ibm_cloud.job import create_map_job, create_reduce_job
 from pywren_ibm_cloud.config import default_config, extract_storage_config, EXECUTION_TIMEOUT, JOBS_PREFIX, default_logging_config
 from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_pywren_function, create_executor_id
 
@@ -25,7 +25,6 @@ class FunctionExecutor:
         Ready = 'Ready'
         Done = 'Done'
         Error = 'Error'
-        Finished = 'Finished'
 
     def __init__(self, config=None, runtime=None, runtime_memory=None, compute_backend=None,
                  compute_backend_region=None, storage_backend=None, storage_backend_region=None,
@@ -98,18 +97,14 @@ class FunctionExecutor:
         self.internal_storage = InternalStorage(storage_config)
         self.invoker = FunctionInvoker(self.config, self.executor_id, self.internal_storage)
 
-        self.jobs = {}
+        self.futures = []
+        self.total_jobs = 0
+        self.cleaned_jobs = set()
 
     def _create_job_id(self, call_type):
-        job_id = str(len(self.jobs)).zfill(3)
+        job_id = str(self.total_jobs).zfill(3)
+        self.total_jobs += 1
         return '{}{}'.format(call_type, job_id)
-
-    @property
-    def futures(self):
-        futures = []
-        for job in self.jobs:
-            futures.extend(self.jobs[job]['futures'])
-        return futures
 
     def call_async(self, func, data, extra_env=None, runtime_memory=None,
                    timeout=EXECUTION_TIMEOUT, include_modules=[], exclude_modules=[]):
@@ -127,10 +122,6 @@ class FunctionExecutor:
 
         :return: future object.
         """
-        if self._state == FunctionExecutor.State.Finished:
-            raise Exception('You cannot run call_async() in the current state,'
-                            ' create a new FunctionExecutor() instance.')
-
         job_id = self._create_job_id('A')
 
         runtime_meta = self.invoker.select_runtime(job_id, runtime_memory)
@@ -146,11 +137,11 @@ class FunctionExecutor:
                              exclude_modules=exclude_modules,
                              execution_timeout=timeout)
 
-        future = self.invoker.run(job)
-        self.jobs[job_id] = {'futures': future, 'state': JobState.Running}
+        futures = self.invoker.run(job)
+        self.futures.extend(futures)
         self._state = FunctionExecutor.State.Running
 
-        return future[0]
+        return futures[0]
 
     def map(self, map_function, map_iterdata, extra_params=None, extra_env=None, runtime_memory=None,
             chunk_size=None, chunk_n=None, remote_invocation=False, remote_invocation_groups=None,
@@ -173,10 +164,6 @@ class FunctionExecutor:
 
         :return: A list with size `len(iterdata)` of futures.
         """
-        if self._state == FunctionExecutor.State.Finished:
-            raise Exception('You cannot run map() in the current state.'
-                            ' Create a new FunctionExecutor() instance.')
-
         job_id = self._create_job_id('M')
 
         runtime_meta = self.invoker.select_runtime(job_id, runtime_memory)
@@ -199,12 +186,12 @@ class FunctionExecutor:
                              is_pywren_function=self.is_pywren_function,
                              execution_timeout=timeout)
 
-        map_futures = self.invoker.run(job)
-        self.jobs[job_id] = {'futures': map_futures, 'state': JobState.Running}
+        futures = self.invoker.run(job)
+        self.futures.extend(futures)
         self._state = FunctionExecutor.State.Running
-        if len(map_futures) == 1:
-            return map_futures[0]
-        return map_futures
+        if len(futures) == 1:
+            return futures[0]
+        return futures
 
     def map_reduce(self, map_function, map_iterdata, reduce_function, extra_params=None, extra_env=None,
                    map_runtime_memory=None, reduce_runtime_memory=None, chunk_size=None, chunk_n=None,
@@ -236,10 +223,6 @@ class FunctionExecutor:
 
         :return: A list with size `len(map_iterdata)` of futures.
         """
-        if self._state == FunctionExecutor.State.Finished:
-            raise Exception('You cannot run map_reduce() in the current state.'
-                            ' Create a new FunctionExecutor() instance.')
-
         map_job_id = self._create_job_id('M')
 
         runtime_meta = self.invoker.select_runtime(map_job_id, map_runtime_memory)
@@ -263,8 +246,7 @@ class FunctionExecutor:
                                  execution_timeout=timeout)
 
         map_futures = self.invoker.run(map_job)
-        self.jobs[map_job_id] = {'futures': map_futures, 'state': JobState.Running}
-        self._state = FunctionExecutor.State.Running
+        self.futures.extend(map_futures)
 
         if reducer_wait_local:
             self.wait(fs=map_futures)
@@ -284,10 +266,13 @@ class FunctionExecutor:
                                        exclude_modules=exclude_modules)
 
         reduce_futures = self.invoker.run(reduce_job)
-        self.jobs[reduce_job_id] = {'futures': reduce_futures, 'state': JobState.Running}
+
+        self.futures.extend(reduce_futures)
 
         for f in map_futures:
             f.produce_output = False
+
+        self._state = FunctionExecutor.State.Running
 
         return map_futures + reduce_futures
 
@@ -314,21 +299,9 @@ class FunctionExecutor:
             and `fs_notdone` is a list of futures that have not completed.
         :rtype: 2-tuple of list
         """
-        if not fs:
-            fs = []
-            for job in self.jobs:
-                if not download_results and self.jobs[job]['state'] == JobState.Running:
-                    fs.extend(self.jobs[job]['futures'])
-                    self.jobs[job]['state'] = JobState.Ready
-                elif download_results and self.jobs[job]['state'] != JobState.Done:
-                    fs.extend(self.jobs[job]['futures'])
-                    self.jobs[job]['state'] = JobState.Done
-
-        if type(fs) != list:
-            futures = [fs]
-        else:
-            futures = fs
-
+        futures = self.futures if not fs else fs
+        if type(futures) != list:
+            futures = [futures]
         if not futures:
             raise Exception('You must run the call_async(), map() or map_reduce(), or provide'
                             ' a list of futures before calling the wait()/get_result() method')
@@ -349,11 +322,17 @@ class FunctionExecutor:
         if not self.is_pywren_function and self._state == FunctionExecutor.State.Running \
            and not self.log_level:
             from tqdm.auto import tqdm
+
+            if download_results:
+                total_to_check = len([f for f in futures if not f.done])
+            else:
+                total_to_check = len([f for f in futures if not f.ready and not (f.ready or f.done)])
+
             if is_notebook():
-                pbar = tqdm(bar_format='{n}/|/ {n_fmt}/{total_fmt}', total=len(futures))  # ncols=800
+                pbar = tqdm(bar_format='{n}/|/ {n_fmt}/{total_fmt}', total=total_to_check)  # ncols=800
             else:
                 print()
-                pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(futures), disable=False)
+                pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=total_to_check, disable=False)
 
         try:
             if self.rabbitmq_monitor:
@@ -384,6 +363,9 @@ class FunctionExecutor:
             else:
                 print()
                 traceback.print_exception(*e.exception)
+                print()
+            if self.data_cleaner and not self.is_pywren_function:
+                self.clean()
             sys.exit()
 
         except TimeoutError:
@@ -423,7 +405,7 @@ class FunctionExecutor:
                 logger.debug(msg)
                 if not self.log_level:
                     print(msg)
-            if download_results and self.data_cleaner and not self.is_pywren_function:
+            if self.data_cleaner and not self.is_pywren_function:
                 self.clean()
 
         if download_results:
@@ -455,35 +437,34 @@ class FunctionExecutor:
                                                timeout=timeout, download_results=True,
                                                THREADPOOL_SIZE=THREADPOOL_SIZE,
                                                WAIT_DUR_SEC=WAIT_DUR_SEC)
-        result = [f.result(throw_except=throw_except, internal_storage=self.internal_storage)
-                  for f in fs_done if not f.futures and f.produce_output]
-        msg = "ExecutorID {} Finished getting results".format(self.executor_id)
-        logger.debug(msg)
+        result = []
+        for f in fs_done:
+            if fs and not f.futures and f.produce_output:
+                # Process futures provided by the user
+                result.append(f.result(throw_except=throw_except, internal_storage=self.internal_storage))
+            elif not fs and not f.futures and f.produce_output and not f.read:
+                # Process internally stored futures
+                result.append(f.result(throw_except=throw_except, internal_storage=self.internal_storage))
+            f.read = True
+
+        logger.debug("ExecutorID {} Finished getting results".format(self.executor_id))
+
         if result and len(result) == 1:
             return result[0]
         return result
 
-    def create_execution_plots(self, dst_dir, dst_file_name, futures=None):
+    def create_execution_plots(self, dst_dir, dst_file_name, fs=None):
         """
         Creates timeline and histogram of the current execution in dst_dir.
 
-        :param futures: list of futures.
         :param dst_dir: destination folder to save .png plots.
-        :param dst_file_name: name of the file.
+        :param dst_file_name: prefix name of the file.
+        :param fs: list of futures.
         """
-        if not futures:
-            futures = []
-            for job in self.jobs:
-                if self.jobs[job]['state'] == JobState.Ready or \
-                   self.jobs[job]['state'] == JobState.Done:
-                    futures.extend(self.jobs[job]['futures'])
-                    self.jobs[job]['state'] = JobState.Finished
 
-        if type(futures) != list:
-            ftrs = [futures]
-        else:
-            ftrs = futures
-
+        ftrs = self.futures if not fs else fs
+        if type(ftrs) != list:
+            ftrs = [ftrs]
         ftrs_to_plot = [f for f in ftrs if f.ready or f.done]
 
         if not ftrs_to_plot:
@@ -507,40 +488,60 @@ class FunctionExecutor:
         create_timeline(dst_dir, dst_file_name, self.start_time, call_status, call_metadata, self.config['ibm_cos'])
         create_histogram(dst_dir, dst_file_name, self.start_time, call_status, self.config['ibm_cos'])
 
-    def clean(self, local_execution=True):
+    def clean(self, fs=None, local_execution=True):
         """
         Deletes all the files from COS. These files include the function,
         the data serialization and the function invocation results.
         """
-        storage_bucket = self.config['pywren']['storage_bucket']
-        storage_prerix = '/'.join([JOBS_PREFIX, self.executor_id])
-        msg = "ExecutorID {} - Cleaning temporary data".format(self.executor_id)
-        logger.info(msg)
-        if not self.log_level:
-            print(msg)
+        futures = self.futures if not fs else fs
+        if type(futures) != list:
+            futures = [futures]
+        if not futures:
+            raise Exception('You must run the call_async(), map() or map_reduce(), or provide'
+                            ' a list of futures before calling the clean() method')
 
-        if local_execution:
-            # 1st case: Not background. The main code waits until the cleaner finishes its execution.
-            # It is not ideal for performance tests, since it can take long time to complete.
-            # clean_os_bucket(storage_bucket, storage_prerix, self.internal_storage)
-
-            # 2nd case: Execute in Background as a subprocess. The main program does not wait for its completion.
-            storage_config = json.dumps(self.internal_storage.get_storage_config())
-            storage_config = storage_config.replace('"', '\\"')
-
-            cmdstr = ("{} -c 'from pywren_ibm_cloud.storage.utils import clean_bucket; \
-                              clean_bucket(\"{}\", \"{}\", \"{}\")'".format(sys.executable,
-                                                                            storage_bucket,
-                                                                            storage_prerix,
-                                                                            storage_config))
-            os.popen(cmdstr)
-
+        if not fs:
+            present_jobs = {(f.executor_id, f.job_id) for f in futures
+                            if (f.done or not f.produce_output)
+                            and f.executor_id.count('/') == 1}
         else:
-            extra_env = {'STORE_STATUS': False,
-                         'STORE_RESULT': False}
-            old_stdout = sys.stdout
-            sys.stdout = open(os.devnull, 'w')
-            self.call_async(clean_os_bucket, [storage_bucket, storage_prerix], extra_env=extra_env)
-            sys.stdout = old_stdout
+            present_jobs = {(f.executor_id, f.job_id) for f in futures
+                            if f.executor_id.count('/') == 1}
 
-        self._state = FunctionExecutor.State.Finished
+        jobs_to_clean = present_jobs - self.cleaned_jobs
+
+        if jobs_to_clean:
+            msg = "ExecutorID {} - Cleaning temporary data".format(self.executor_id)
+            logger.info(msg)
+            if not self.log_level:
+                print(msg)
+
+        for executor_id, job_id in jobs_to_clean:
+            storage_bucket = self.config['pywren']['storage_bucket']
+            storage_prerix = '/'.join([JOBS_PREFIX, executor_id, job_id])
+
+            if local_execution:
+                # 1st case: Not background. The main code waits until the cleaner finishes its execution.
+                # It is not ideal for performance tests, since it can take long time to complete.
+                # clean_os_bucket(storage_bucket, storage_prerix, self.internal_storage)
+
+                # 2nd case: Execute in Background as a subprocess. The main program does not wait for its completion.
+                storage_config = json.dumps(self.internal_storage.get_storage_config())
+                storage_config = storage_config.replace('"', '\\"')
+
+                cmdstr = ("{} -c 'from pywren_ibm_cloud.storage.utils import clean_bucket; \
+                                  clean_bucket(\"{}\", \"{}\", \"{}\")'".format(sys.executable,
+                                                                                storage_bucket,
+                                                                                storage_prerix,
+                                                                                storage_config))
+                os.popen(cmdstr)
+
+            else:
+                extra_env = {'STORE_STATUS': False,
+                             'STORE_RESULT': False}
+                old_stdout = sys.stdout
+                sys.stdout = open(os.devnull, 'w')
+                self.call_async(clean_os_bucket, [storage_bucket, storage_prerix], extra_env=extra_env)
+                sys.stdout = old_stdout
+
+        self.cleaned_jobs.update(jobs_to_clean)
