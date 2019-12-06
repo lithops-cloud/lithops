@@ -3,12 +3,11 @@ import time
 import pickle
 import logging
 import inspect
-import pywren_ibm_cloud as pywren
-from .serialize import SerializeIndependent, create_module_data
-from .partitioner import create_partitions
 from pywren_ibm_cloud import utils
 from pywren_ibm_cloud.wait import wait_storage
+from pywren_ibm_cloud.job.partitioner import create_partitions
 from pywren_ibm_cloud.storage.utils import create_func_key, create_agg_data_key
+from pywren_ibm_cloud.job.serialize import SerializeIndependent, create_module_data
 from pywren_ibm_cloud.config import EXECUTION_TIMEOUT, MAX_AGG_DATA_SIZE, JOBS_PREFIX
 
 logger = logging.getLogger(__name__)

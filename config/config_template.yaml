@@ -3,6 +3,7 @@ pywren:
     #storage_backend: ibm_cos
     #compute_backend: ibm_cf
     #rabbitmq_monitor: <True/False>
+    #remote_invoker: <True/False>
     #data_cleaner: <True/False>
     #runtime : <RUNTIME_NAME>
     #runtime_timeout: 600000

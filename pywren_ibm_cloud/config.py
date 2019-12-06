@@ -26,10 +26,8 @@ COMPUTE_BACKEND_DEFAULT = 'ibm_cf'
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
 JOBS_PREFIX = "pywren.jobs"
 RUNTIMES_PREFIX = "pywren.runtimes"
-
-EXECUTION_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
-DATA_CLEANER_DEFAULT = False
-MAX_AGG_DATA_SIZE = 4e6
+EXECUTION_TIMEOUT = 600  # 600 seconds => 10 minutes
+MAX_AGG_DATA_SIZE = 4e6  # 4MB
 
 CONFIG_DIR = os.path.expanduser('~/.pywren')
 CACHE_DIR = os.path.join(CONFIG_DIR, 'cache')
@@ -76,7 +74,7 @@ def get_default_config_filename():
     return config_filename
 
 
-def default_config(config_data=None, config_overwrite={'pywren': {}}):
+def default_config(config_data=None, config_overwrite={}):
     """
     First checks .pywren_config
     then checks PYWREN_CONFIG_FILE environment variable
@@ -93,11 +91,11 @@ def default_config(config_data=None, config_overwrite={'pywren': {}}):
                 raise ValueError("could not find configuration file")
             config_data = load_yaml_config(config_filename)
 
-    # overwrite values provided by the user
-    config_data['pywren'].update(config_overwrite['pywren'])
-
     if 'pywren' not in config_data:
-        raise Exception("pywren section is mandatory in the configuration")
+        raise Exception("pywren section is mandatory in configuration")
+
+    # overwrite values provided by the user
+    config_data['pywren'].update(config_overwrite)
 
     if 'storage_bucket' not in config_data['pywren']:
         raise Exception("storage_bucket is mandatory in pywren section of the configuration")
@@ -106,8 +104,6 @@ def default_config(config_data=None, config_overwrite={'pywren': {}}):
         config_data['pywren']['compute_backend'] = COMPUTE_BACKEND_DEFAULT
     if 'storage_backend' not in config_data['pywren']:
         config_data['pywren']['storage_backend'] = STORAGE_BACKEND_DEFAULT
-    if 'data_cleaner' not in config_data['pywren']:
-        config_data['pywren']['data_cleaner'] = DATA_CLEANER_DEFAULT
 
     if 'rabbitmq' in config_data:
         if config_data['rabbitmq'] is None \
