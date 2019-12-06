@@ -4,12 +4,21 @@
 
 ### Added
 - New invoker mechanism
+- New native remote invoker
+- pywren-runtime clean command to delete all tmp data
+- capacity to limit the number of concurrent workers
+- architecture documentation
 
 ### Changed
-- 
+- Internal data cleaner
+- ibm_cf Dockerfiles
+- chunk min size from 1MB to 0MB
+- executor id format
 
 ### Fixed
-- 
+- Internal fixes
+- Tests
+- pywren inside pywren function executions
 
 ## [v1.2.0]
 

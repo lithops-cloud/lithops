@@ -48,6 +48,7 @@ class FunctionInvoker:
         self.internal_storage = internal_storage
         self.compute_config = extract_compute_config(self.config)
 
+        self.remote_invoker = self.config['pywren'].get('remote_invoker', False)
         self.rabbitmq_monitor = self.config['pywren'].get('rabbitmq_monitor', False)
         if self.rabbitmq_monitor:
             self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
@@ -71,7 +72,9 @@ class FunctionInvoker:
         self.token_bucket_q = Queue()
         self.pending_calls_q = Queue()
         self.invoker_process_stop_flag = Value('i', 0)
-        if is_pywren_function():
+        self.is_pywren_function = is_pywren_function()
+
+        if self.is_pywren_function:
             self.invoker_process = Thread(target=self.run_process, args=())
         else:
             self.invoker_process = Process(target=self.run_process, args=())
@@ -167,11 +170,35 @@ class FunctionInvoker:
             self.pending_calls_q.put((job, call_id))
             return
 
-        log_msg = ('ExecutorID {} | JobID {} - Function invocation {} done! ({}s) - Activation'
-                   ' ID: {}'.format(job.executor_id, job.job_id, call_id, resp_time, activation_id))
-        logger.debug(log_msg)
+        logger.debug('ExecutorID {} | JobID {} - Function invocation {} done! ({}s) - Activation'
+                     ' ID: {}'.format(job.executor_id, job.job_id, call_id, resp_time, activation_id))
 
         return call_id
+
+    def _remote_invoke(self, job_description):
+        """
+        Method used to send a job_description to the remote invoker
+        """
+        start = time.time()
+        compute_handler = random.choice(self.compute_handlers)
+        job = SimpleNamespace(**job_description)
+
+        payload = {'config': self.config,
+                   'log_level': self.log_level,
+                   'job_description': job_description,
+                   'remote_invoker': True,
+                   'invoke_type': 'Process',
+                   'pywren_version': __version__}
+
+        activation_id = compute_handler.invoke(job.runtime_name, 2048, payload)
+        roundtrip = time.time() - start
+        resp_time = format(round(roundtrip, 3), '.3f')
+
+        if activation_id:
+            logger.debug('ExecutorID {} | JobID {} - Remote function invocation done! ({}s) - Activation'
+                         ' ID: {}'.format(job.executor_id, job.job_id, resp_time, activation_id))
+        else:
+            raise Exception('Unable to spawn remote invoker')
 
     def run(self, job_description):
         """
@@ -186,52 +213,58 @@ class FunctionInvoker:
         except Exception:
             pass
 
-        if job.remote_invocation:
+        if self.remote_invoker and job.total_calls > 1:
             old_stdout = sys.stdout
             sys.stdout = open(os.devnull, 'w')
             self.select_runtime(job.job_id, 2048)
             sys.stdout = old_stdout
-            log_msg = ('ExecutorID {} | JobID {} - Starting {} remote invocation function: {}() '
-                       '- Total: {} activations'.format(self.executor_id, job.job_id, job.total_calls,
-                                                        job.func_name, job.original_total_calls))
+            log_msg = ('ExecutorID {} | JobID {} - Starting remote function invocation: {}() '
+                       '- Total: {} activations'.format(job.executor_id, job.job_id,
+                                                        job.func_name, job.total_calls))
+            logger.info(log_msg)
+            if not self.log_level:
+                print(log_msg)
+
+            th = Thread(target=self._remote_invoke, args=(job_description,))
+            th.daemon = True
+            th.start()
+
         else:
             log_msg = ('ExecutorID {} | JobID {} - Starting function invocation: {}()  - Total: {} '
-                       'activations'.format(self.executor_id, job.job_id, job.func_name, job.total_calls))
-        logger.info(log_msg)
-        if not self.log_level:
-            print(log_msg)
+                       'activations'.format(job.executor_id, job.job_id, job.func_name, job.total_calls))
+            logger.info(log_msg)
+            if not self.log_level:
+                print(log_msg)
 
-        if self.ongoing_activations < self.workers:
-            # Only invoke MAX_DIRECT_INVOCATIONS
-            callids = range(job.total_calls)
-            total_direct = self.workers-self.ongoing_activations
-            callids_to_invoke_direct = callids[:total_direct]
-            callids_to_invoke_nondirect = callids[total_direct:]
+            if self.ongoing_activations < self.workers:
+                callids = range(job.total_calls)
+                total_direct = self.workers-self.ongoing_activations
+                callids_to_invoke_direct = callids[:total_direct]
+                callids_to_invoke_nondirect = callids[total_direct:]
 
-            self.ongoing_activations += len(callids_to_invoke_direct)
+                self.ongoing_activations += len(callids_to_invoke_direct)
 
-            call_futures = []
-            with ThreadPoolExecutor(max_workers=job.invoke_pool_threads) as executor:
-                for i in callids_to_invoke_direct:
+                call_futures = []
+                with ThreadPoolExecutor(max_workers=job.invoke_pool_threads) as executor:
+                    for i in callids_to_invoke_direct:
+                        call_id = "{:05d}".format(i)
+                        future = executor.submit(self._invoke, job, call_id)
+                        call_futures.append(future)
+
+                # Block until all direct invocations have finished
+                callids_invoked = [ft.result() for ft in call_futures]
+
+                # Put into the queue the rest of the callids to invoke within the process
+                for i in callids_to_invoke_nondirect:
                     call_id = "{:05d}".format(i)
-                    future = executor.submit(self._invoke, job, call_id)
-                    call_futures.append(future)
+                    self.pending_calls_q.put((job, call_id))
 
-            # Block until all direct invocations have finished
-            callids_invoked = [ft.result() for ft in call_futures]
-
-            # Put into the queue the rest of the callids to invoke within the process
-            for i in callids_to_invoke_nondirect:
-                call_id = "{:05d}".format(i)
-                self.pending_calls_q.put((job, call_id))
-
-            self.start_job_status_checker(job)
-        else:
-            # Second and subsequent jobs will go all directly to the InvokerProcess
-            for i in range(job.total_calls):
-                call_id = "{:05d}".format(i)
-                self.pending_calls_q.put((job, call_id))
-            self.start_job_status_checker(job)
+                self.start_job_status_checker(job)
+            else:
+                for i in range(job.total_calls):
+                    call_id = "{:05d}".format(i)
+                    self.pending_calls_q.put((job, call_id))
+                self.start_job_status_checker(job)
 
         # Create all futures
         futures = []
@@ -248,15 +281,16 @@ class FunctionInvoker:
             th = Thread(target=self._job_status_checker_worker_rabbitmq, args=(job,))
         else:
             th = Thread(target=self._job_status_checker_worker_os, args=(job,))
-        th.daemon = True
+        if not self.is_pywren_function:
+            th.daemon = True
         th.start()
 
     def _job_status_checker_worker_os(self, job):
-        logger.debug('ExecutorID {} | JobID {} - Starting job status checker worker'.format(self.executor_id, job.job_id))
+        logger.debug('ExecutorID {} | JobID {} - Starting job status checker worker'.format(job.executor_id, job.job_id))
         total_callids_done_in_job = 0
 
         while total_callids_done_in_job < job.total_calls:
-            callids_done_in_job = set(self.internal_storage.get_job_status(self.executor_id, job.job_id))
+            callids_done_in_job = set(self.internal_storage.get_job_status(job.executor_id, job.job_id))
             total_new_tokens = len(callids_done_in_job) - total_callids_done_in_job
             total_callids_done_in_job = total_callids_done_in_job + total_new_tokens
             for i in range(total_new_tokens):
@@ -264,7 +298,7 @@ class FunctionInvoker:
             time.sleep(0.1)
 
     def _job_status_checker_worker_rabbitmq(self, job):
-        logger.debug('ExecutorID {} | JobID {} - Starting job status checker worker'.format(self.executor_id, job.job_id))
+        logger.debug('ExecutorID {} | JobID {} - Starting job status checker worker'.format(job.executor_id, job.job_id))
         total_callids_done_in_job = 0
 
         exchange = 'pywren-{}-{}'.format(job.executor_id, job.job_id)
