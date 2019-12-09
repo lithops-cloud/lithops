@@ -2,7 +2,7 @@
 
 # Setup modules
 gevent == 1.4.0
-flask == 1.1.1
+flask == 1.0.2
 
 # default available packages for python3action
 beautifulsoup4 == 4.7.1
@@ -14,7 +14,7 @@ requests == 2.21.0
 scrapy == 1.6.0
 simplejson == 3.16.0
 virtualenv == 16.3.0
-twisted >= 19.7.0
+twisted == 19.7.0
 
 # packages for numerics
 numpy == 1.16.1
@@ -23,14 +23,14 @@ scipy == 1.2.1
 pandas == 0.24.1
 
 # packages for image processing
-Pillow == 6.2.0
+Pillow == 5.4.1
 
 # IBM specific python modules
-ibm_db == 3.0.1
+ibm_db == 2.0.9
 cloudant == 2.11.0
 # pin watson at 1.x, for 2.x use python:3.7 runtime
 watson-developer-cloud == 1.7.1
-ibm-cos-sdk == 2.5.3
+ibm-cos-sdk == 2.4.3
 ibmcloudsql == 0.2.23
 
 # Compose Libs

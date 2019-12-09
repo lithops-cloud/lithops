@@ -15,6 +15,7 @@ Initialize and return an IBM Cloud Functions executor object. All the parameters
 |storage_backend | ibm_cos | Storage backend to store temp data|
 |rabbitmq_monitor | False | Activate RabbitMQ monitoring |
 |log_level | None | Log level printing (INFO, DEBUG, ...) |
+|remote_invoker | None | Spawn a function that will perform the actual job invocation (True/False) |
 
 Usage:
 ```python
@@ -34,6 +35,7 @@ Initialize and return a Knative executor object. All the parameters set in the e
 |storage_backend | ibm_cos | Storage backend to store temp data|
 |rabbitmq_monitor | False | Activate RabbitMQ monitoring |
 |log_level | None | Log level printing (INFO, DEBUG, ...) |
+|remote_invoker | None | Spawn a function that will perform the actual job invocation (True/False) |
 
 Usage:
 ```python
