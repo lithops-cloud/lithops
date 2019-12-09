@@ -24,7 +24,7 @@ import pywren_ibm_cloud as pywren
 import urllib.request
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.config import default_config, extract_storage_config
-from multiprocessing.pool import ThreadPool
+from concurrent.futures import ThreadPoolExecutor
 
 # logging.basicConfig(level=logging.DEBUG)
 parser = argparse.ArgumentParser(description="test all PyWren's functionality",
@@ -50,33 +50,26 @@ class TestUtils:
 
     @staticmethod
     def initTests():
-        print('Uploading test files...')
-
         def up(param):
             i, url = param
             content = urllib.request.urlopen(url).read()
             STORAGE.put_object(bucket_name=STORAGE_CONFIG['bucket'],
-                               key='{}/tests/test{}'.format(PREFIX, str(i)),
+                               key='{}/test{}'.format(PREFIX, str(i)),
                                data=content)
             return len(content.split())
 
-        pool = ThreadPool(128)
-        results = pool.map(up, enumerate(TEST_FILES_URLS))
-        pool.close()
-        pool.join()
-        result_to_compare = sum(results)
+        with ThreadPoolExecutor() as pool:
+            results = list(pool.map(up, enumerate(TEST_FILES_URLS)))
 
-        STORAGE.put_object(bucket_name=STORAGE_CONFIG['bucket'],
-                           key='{}/result'.format(PREFIX),
-                           data=str(result_to_compare).encode())
+        result_to_compare = sum(results)
+        return result_to_compare
 
     @staticmethod
     def list_test_keys():
-        return STORAGE.list_keys(bucket_name=STORAGE_CONFIG['bucket'], prefix=PREFIX+'/tests/')
+        return STORAGE.list_keys(bucket_name=STORAGE_CONFIG['bucket'], prefix=PREFIX + '/')
 
     @staticmethod
     def cleanTests():
-        print('Deleting test files...')
         for key in TestUtils.list_test_keys():
             STORAGE.delete_object(bucket_name=STORAGE_CONFIG['bucket'],
                                   key=key)
@@ -197,16 +190,17 @@ class TestMethods:
 
 
 class TestPywren(unittest.TestCase):
+    cos_result_to_compare = None
 
-    def checkResult(self, result):
-        result_to_compare = STORAGE.get_object(bucket_name=STORAGE_CONFIG['bucket'], key=f'{PREFIX}/result')
-        if isinstance(result, list):
-            total = 0
-            for r in result:
-                total += r
-        else:
-            total = result
-        self.assertEqual(total, int(result_to_compare))
+    @classmethod
+    def setUpClass(cls):
+        print('Uploading test files...')
+        cls.cos_result_to_compare = TestUtils.initTests()
+
+    @classmethod
+    def tearDownClass(cls):
+        print('Deleting test files...')
+        TestUtils.cleanTests()
 
     def test_call_async(self):
         print('Testing call_async()...')
@@ -310,21 +304,21 @@ class TestPywren(unittest.TestCase):
     def test_map_reduce_cos_bucket(self):
         print('Testing map_reduce() over a COS bucket...')
         sb = STORAGE_CONFIG['backend']
-        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/tests/'
+        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
         pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(TestMethods.my_map_function_obj, data_prefix, TestMethods.my_reduce_function)
         result = pw.get_result()
-        self.checkResult(result)
+        self.assertEqual(result, self.__class__.cos_result_to_compare)
 
     def test_map_reduce_cos_bucket_one_reducer_per_object(self):
         print('Testing map_reduce() over a COS bucket with one reducer per object...')
         sb = STORAGE_CONFIG['backend']
-        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/tests/'
+        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
         pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(TestMethods.my_map_function_obj, data_prefix, TestMethods.my_reduce_function,
                       reducer_one_per_object=True)
         result = pw.get_result()
-        self.checkResult(result)
+        self.assertEqual(sum(result), self.__class__.cos_result_to_compare)
 
     def test_map_reduce_cos_key(self):
         print('Testing map_reduce() over COS keys...')
@@ -334,7 +328,7 @@ class TestPywren(unittest.TestCase):
         pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(TestMethods.my_map_function_obj, iterdata, TestMethods.my_reduce_function)
         result = pw.get_result()
-        self.checkResult(result)
+        self.assertEqual(result, self.__class__.cos_result_to_compare)
 
     def test_map_reduce_cos_key_one_reducer_per_object(self):
         print('Testing map_reduce() over COS keys with one reducer per object...')
@@ -345,14 +339,14 @@ class TestPywren(unittest.TestCase):
         pw.map_reduce(TestMethods.my_map_function_obj, iterdata, TestMethods.my_reduce_function,
                       reducer_one_per_object=True)
         result = pw.get_result()
-        self.checkResult(result)
+        self.assertEqual(sum(result), self.__class__.cos_result_to_compare)
 
     def test_map_reduce_url(self):
         print('Testing map_reduce() over URLs...')
         pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(TestMethods.my_map_function_url, TEST_FILES_URLS, TestMethods.my_reduce_function)
         result = pw.get_result()
-        self.checkResult(result)
+        self.assertEqual(result, self.__class__.cos_result_to_compare)
 
     def test_storage_handler(self):
         print('Testing ibm_cos function arg...')
@@ -360,50 +354,50 @@ class TestPywren(unittest.TestCase):
         pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(TestMethods.my_map_function_ibm_cos, iterdata, TestMethods.my_reduce_function)
         result = pw.get_result()
-        self.checkResult(result)
+        self.assertEqual(result, self.__class__.cos_result_to_compare)
 
     def test_chunks_bucket(self):
         print('Testing chunks on a bucket...')
-        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/tests/'
+        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
 
         pw = pywren.function_executor(config=CONFIG)
         futures = pw.map_reduce(TestMethods.my_map_function_obj, data_prefix, TestMethods.my_reduce_function,
                                 chunk_size=1 * 1024 ** 2)
         result = pw.get_result(futures)
-        self.checkResult(result)
+        self.assertEqual(result, self.__class__.cos_result_to_compare)
         self.assertEqual(len(futures), 8)
 
         pw = pywren.function_executor(config=CONFIG)
         futures = pw.map_reduce(TestMethods.my_map_function_obj, data_prefix, TestMethods.my_reduce_function, chunk_n=2)
         result = pw.get_result(futures)
-        self.checkResult(result)
+        self.assertEqual(result, self.__class__.cos_result_to_compare)
         self.assertEqual(len(futures), 11)
 
     def test_chunks_bucket_one_reducer_per_object(self):
         print('Testing chunks on a bucket with one reducer per object...')
-        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/tests/'
+        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
 
         pw = pywren.function_executor(config=CONFIG)
         futures = pw.map_reduce(TestMethods.my_map_function_obj, data_prefix, TestMethods.my_reduce_function,
                                 chunk_size=1 * 1024 ** 2, reducer_one_per_object=True)
         result = pw.get_result(futures)
-        self.checkResult(result)
+        self.assertEqual(sum(result), self.__class__.cos_result_to_compare)
         self.assertEqual(len(futures), 12)
 
         pw = pywren.function_executor(config=CONFIG)
         futures = pw.map_reduce(TestMethods.my_map_function_obj, data_prefix, TestMethods.my_reduce_function, chunk_n=2,
                                 reducer_one_per_object=True)
         result = pw.get_result(futures)
-        self.checkResult(result)
+        self.assertEqual(sum(result), self.__class__.cos_result_to_compare)
         self.assertEqual(len(futures), 15)
 
     def test_cloudobject(self):
         print('Testing cloudobjects...')
-        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/tests/'
+        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
         pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(TestMethods.my_cloudobject_put, data_prefix, TestMethods.my_cloudobject_get)
         result = pw.get_result()
-        self.checkResult(result)
+        self.assertEqual(result, self.__class__.cos_result_to_compare)
 
 
 if __name__ == '__main__':
@@ -429,7 +423,5 @@ if __name__ == '__main__':
         if args.config:
             args.config = json.load(args.config)
 
-        TestUtils.initTests()
         runner = unittest.TextTestRunner()
         runner.run(suite)
-        TestUtils.cleanTests()
