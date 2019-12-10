@@ -4,7 +4,7 @@
 
 ### Added
 - New invoker mechanism
-- New native remote invoker
+- New native remote invoker for ibm_cf
 - pywren-runtime clean command to delete all tmp data
 - capacity to limit the number of concurrent workers
 - architecture documentation
@@ -15,6 +15,7 @@
 - Moved chunk min size from 1MB to 0MB
 - changed executor id format
 - Timeout waiting for functions to complete set to None by default
+- Updated ibm_cf base image requirements
 
 ### Fixed
 - Internal fixes

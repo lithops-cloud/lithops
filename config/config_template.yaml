@@ -17,6 +17,7 @@ ibm_cf:
     endpoint    : <REGION_ENDPOINT>
     namespace   : <NAMESPACE>
     api_key     : <API_KEY>
+    #namespace_id : <NAMESPACE_ID> # Only for IAM auth
 
 ibm_cos:
     endpoint    : <REGION_ENDPOINT>

@@ -207,7 +207,7 @@ class FunctionInvoker:
         logger.info('Invoker process started')
         call_futures = []
         with ThreadPoolExecutor(max_workers=self.invoke_pool_threads) as executor:
-            while len(call_futures) < self.total_calls:
+            while self.pending_calls_q.qsize() > 0:
                 self.token_bucket_q.get()
                 job, call_id = self.pending_calls_q.get()
                 future = executor.submit(self._invoke, job, call_id)

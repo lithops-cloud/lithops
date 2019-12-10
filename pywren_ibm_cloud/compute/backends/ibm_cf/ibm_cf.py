@@ -72,8 +72,7 @@ class IBMCloudFunctionsBackend:
             ibm_cf_config['token'] = token_manager._token
             ibm_cf_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
 
-            self.cf_client = CloudFunctionsClient(region=self.region,
-                                                  endpoint=self.endpoint,
+            self.cf_client = CloudFunctionsClient(endpoint=self.endpoint,
                                                   namespace=self.namespace,
                                                   namespace_id=self.namespace_id,
                                                   token_manager=token_manager,
