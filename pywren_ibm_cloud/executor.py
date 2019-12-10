@@ -145,8 +145,8 @@ class FunctionExecutor:
         return futures[0]
 
     def map(self, map_function, map_iterdata, extra_params=None, extra_env=None, runtime_memory=None,
-            chunk_size=None, chunk_n=None, remote_invoker=False, timeout=EXECUTION_TIMEOUT,
-            invoke_pool_threads=500, include_modules=[], exclude_modules=[]):
+            chunk_size=None, chunk_n=None, timeout=EXECUTION_TIMEOUT, invoke_pool_threads=500,
+            include_modules=[], exclude_modules=[]):
         """
         :param map_function: the function to map over the data
         :param map_iterdata: An iterable of input data
@@ -193,9 +193,8 @@ class FunctionExecutor:
 
     def map_reduce(self, map_function, map_iterdata, reduce_function, extra_params=None, extra_env=None,
                    map_runtime_memory=None, reduce_runtime_memory=None, chunk_size=None, chunk_n=None,
-                   remote_invoker=False, timeout=EXECUTION_TIMEOUT, invoke_pool_threads=500,
-                   reducer_one_per_object=False, reducer_wait_local=False,
-                   include_modules=[], exclude_modules=[]):
+                   timeout=EXECUTION_TIMEOUT, invoke_pool_threads=500, reducer_one_per_object=False,
+                   reducer_wait_local=False, include_modules=[], exclude_modules=[]):
         """
         Map the map_function over the data and apply the reduce_function across all futures.
         This method is executed all within CF.
@@ -272,7 +271,7 @@ class FunctionExecutor:
         return map_futures + reduce_futures
 
     def wait(self, fs=None, throw_except=True, return_when=ALL_COMPLETED, download_results=False,
-             timeout=EXECUTION_TIMEOUT, THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
+             timeout=None, THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
         """
         Wait for the Future instances (possibly created by different Executor instances)
         given by fs to complete. Returns a named 2-tuple of sets. The first set, named done,
@@ -309,7 +308,7 @@ class FunctionExecutor:
         if not self.log_level and self._state == FunctionExecutor.State.Running:
             print(msg)
 
-        if is_unix_system():
+        if is_unix_system() and timeout is not None:
             signal.signal(signal.SIGALRM, timeout_handler)
             signal.alarm(timeout)
 
@@ -414,8 +413,7 @@ class FunctionExecutor:
 
         return fs_done, fs_notdone
 
-    def get_result(self, fs=None, throw_except=True, timeout=EXECUTION_TIMEOUT,
-                   THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
+    def get_result(self, fs=None, throw_except=True, timeout=None, THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
         """
         For getting the results from all function activations
 

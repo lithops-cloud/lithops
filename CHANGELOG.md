@@ -10,15 +10,16 @@
 - architecture documentation
 
 ### Changed
-- Internal data cleaner
-- ibm_cf Dockerfiles
-- chunk min size from 1MB to 0MB
-- executor id format
+- Changed Internal data cleaner logic to delete only desired job
+- Updated ibm_cf Dockerfiles
+- Moved chunk min size from 1MB to 0MB
+- changed executor id format
+- Timeout waiting for functions to complete set to None by default
 
 ### Fixed
 - Internal fixes
-- Tests
-- pywren inside pywren function executions
+- Fixed tests
+- Fixed pywren inside pywren function executions
 
 ## [v1.2.0]
 
