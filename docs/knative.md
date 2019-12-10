@@ -23,6 +23,13 @@ Once the cluster is running, follow the instructions of the "Access" tab to conf
         curl http://cloudlab.urv.cat/josep/knative/install_pywren_env.sh | bash
         ```
 
+**Before running** any pywren operation, **first** get or create k8s config file and set it in KUBECONFIG environment variable. For example in ~/.kube/config, or if you are using IKS cluster, download the kubeconfig files by (follow instructions in the access dashboard):
+		
+	ibmcloud ks cluster config --cluster <ID from IKS access dashboard>
+
+Set the KUBECONFIG environment variable:
+
+	export KUBECONFIG=<path-to-kube-config-file>
 
 #### Verify that all the pods from the following namespaces are in *Running* status: 
 ```
