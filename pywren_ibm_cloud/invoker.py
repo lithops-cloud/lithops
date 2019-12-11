@@ -24,7 +24,7 @@ from threading import Thread
 from types import SimpleNamespace
 from multiprocessing import Process, Queue, Value
 from pywren_ibm_cloud.compute import Compute
-from pywren_ibm_cloud.utils import version_str, is_pywren_function
+from pywren_ibm_cloud.utils import version_str, is_pywren_function, is_unix_system
 from pywren_ibm_cloud.version import __version__
 from concurrent.futures import ThreadPoolExecutor
 from pywren_ibm_cloud.config import extract_storage_config, extract_compute_config, JOBS_PREFIX
@@ -74,7 +74,7 @@ class FunctionInvoker:
         self.invoker_process_stop_flag = Value('i', 0)
         self.is_pywren_function = is_pywren_function()
 
-        if self.is_pywren_function:
+        if self.is_pywren_function or not is_unix_system():
             self.invoker_process = Thread(target=self.run_process, args=())
         else:
             self.invoker_process = Process(target=self.run_process, args=())

@@ -522,13 +522,12 @@ class FunctionExecutor:
                 storage_config = json.dumps(self.internal_storage.get_storage_config())
                 storage_config = storage_config.replace('"', '\\"')
 
-                cmdstr = ("{} -c 'from pywren_ibm_cloud.storage.utils import clean_bucket; \
-                                  clean_bucket(\"{}\", \"{}\", \"{}\")'".format(sys.executable,
+                cmdstr = ('{} -c "from pywren_ibm_cloud.storage.utils import clean_bucket; \
+                                  clean_bucket(\'{}\', \'{}\', \'{}\')"'.format(sys.executable,
                                                                                 storage_bucket,
                                                                                 storage_prerix,
                                                                                 storage_config))
                 os.popen(cmdstr)
-
             else:
                 extra_env = {'STORE_STATUS': False,
                              'STORE_RESULT': False}
