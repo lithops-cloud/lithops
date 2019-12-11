@@ -3,6 +3,7 @@ pywren:
     #storage_backend: ibm_cos
     #compute_backend: ibm_cf
     #rabbitmq_monitor: <True/False>
+    #remote_invoker: <True/False>
     #data_cleaner: <True/False>
     #runtime : <RUNTIME_NAME>
     #runtime_timeout: 600000
@@ -16,6 +17,7 @@ ibm_cf:
     endpoint    : <REGION_ENDPOINT>
     namespace   : <NAMESPACE>
     api_key     : <API_KEY>
+    #namespace_id : <NAMESPACE_ID> # Only for IAM auth
 
 ibm_cos:
     endpoint    : <REGION_ENDPOINT>

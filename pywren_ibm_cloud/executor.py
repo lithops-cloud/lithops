@@ -28,7 +28,7 @@ class FunctionExecutor:
 
     def __init__(self, config=None, runtime=None, runtime_memory=None, compute_backend=None,
                  compute_backend_region=None, storage_backend=None, storage_backend_region=None,
-                 workers=None, rabbitmq_monitor=None, log_level=None):
+                 workers=None, rabbitmq_monitor=None, remote_invoker=None, log_level=None):
         """
         Initialize a FunctionExecutor class.
 
@@ -60,38 +60,39 @@ class FunctionExecutor:
                 default_logging_config(self.log_level)
 
         # Overwrite pywren config parameters
-        config_ow = {'pywren': {}}
+        pw_config_ow = {}
         if runtime is not None:
-            config_ow['pywren']['runtime'] = runtime
+            pw_config_ow['runtime'] = runtime
         if runtime_memory is not None:
-            config_ow['pywren']['runtime_memory'] = int(runtime_memory)
+            pw_config_ow['runtime_memory'] = int(runtime_memory)
         if compute_backend is not None:
-            config_ow['pywren']['compute_backend'] = compute_backend
+            pw_config_ow['compute_backend'] = compute_backend
         if compute_backend_region is not None:
-            config_ow['pywren']['compute_backend_region'] = compute_backend_region
+            pw_config_ow['compute_backend_region'] = compute_backend_region
         if storage_backend is not None:
-            config_ow['pywren']['storage_backend'] = storage_backend
+            pw_config_ow['storage_backend'] = storage_backend
         if storage_backend_region is not None:
-            config_ow['pywren']['storage_backend_region'] = storage_backend_region
-        if rabbitmq_monitor is not None:
-            config_ow['pywren']['rabbitmq_monitor'] = rabbitmq_monitor
+            pw_config_ow['storage_backend_region'] = storage_backend_region
         if workers is not None:
-            config_ow['pywren']['workers'] = workers
+            pw_config_ow['workers'] = workers
+        if rabbitmq_monitor is not None:
+            pw_config_ow['rabbitmq_monitor'] = rabbitmq_monitor
+        if remote_invoker is not None:
+            pw_config_ow['remote_invoker'] = remote_invoker
 
-        self.config = default_config(config, config_ow)
+        self.config = default_config(config, pw_config_ow)
         self.executor_id = create_executor_id()
-
         logger.debug('FunctionExecutor created with ID: {}'.format(self.executor_id))
 
-        # RabbitMQ monitor configuration
+        self.data_cleaner = self.config['pywren'].get('data_cleaner', False)
         self.rabbitmq_monitor = self.config['pywren'].get('rabbitmq_monitor', False)
+
         if self.rabbitmq_monitor:
             if 'rabbitmq' in self.config and 'amqp_url' in self.config['rabbitmq']:
                 self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
             else:
                 raise Exception("You cannot use rabbitmq_mnonitor since 'amqp_url'"
                                 " is not present in configuration")
-        self.data_cleaner = self.config['pywren']['data_cleaner']
 
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
@@ -144,8 +145,8 @@ class FunctionExecutor:
         return futures[0]
 
     def map(self, map_function, map_iterdata, extra_params=None, extra_env=None, runtime_memory=None,
-            chunk_size=None, chunk_n=None, remote_invocation=False, remote_invocation_groups=None,
-            timeout=EXECUTION_TIMEOUT, invoke_pool_threads=500, include_modules=[], exclude_modules=[]):
+            chunk_size=None, chunk_n=None, timeout=EXECUTION_TIMEOUT, invoke_pool_threads=500,
+            include_modules=[], exclude_modules=[]):
         """
         :param map_function: the function to map over the data
         :param map_iterdata: An iterable of input data
@@ -178,12 +179,9 @@ class FunctionExecutor:
                              extra_env=extra_env,
                              obj_chunk_size=chunk_size,
                              obj_chunk_number=chunk_n,
-                             remote_invocation=remote_invocation,
-                             remote_invocation_groups=remote_invocation_groups,
                              invoke_pool_threads=invoke_pool_threads,
                              include_modules=include_modules,
                              exclude_modules=exclude_modules,
-                             is_pywren_function=self.is_pywren_function,
                              execution_timeout=timeout)
 
         futures = self.invoker.run(job)
@@ -195,9 +193,8 @@ class FunctionExecutor:
 
     def map_reduce(self, map_function, map_iterdata, reduce_function, extra_params=None, extra_env=None,
                    map_runtime_memory=None, reduce_runtime_memory=None, chunk_size=None, chunk_n=None,
-                   remote_invocation=False, remote_invocation_groups=None, timeout=EXECUTION_TIMEOUT,
-                   reducer_one_per_object=False, reducer_wait_local=False, invoke_pool_threads=500,
-                   include_modules=[], exclude_modules=[]):
+                   timeout=EXECUTION_TIMEOUT, invoke_pool_threads=500, reducer_one_per_object=False,
+                   reducer_wait_local=False, include_modules=[], exclude_modules=[]):
         """
         Map the map_function over the data and apply the reduce_function across all futures.
         This method is executed all within CF.
@@ -237,12 +234,9 @@ class FunctionExecutor:
                                  extra_env=extra_env,
                                  obj_chunk_size=chunk_size,
                                  obj_chunk_number=chunk_n,
-                                 remote_invocation=remote_invocation,
-                                 remote_invocation_groups=remote_invocation_groups,
                                  invoke_pool_threads=invoke_pool_threads,
                                  include_modules=include_modules,
                                  exclude_modules=exclude_modules,
-                                 is_pywren_function=self.is_pywren_function,
                                  execution_timeout=timeout)
 
         map_futures = self.invoker.run(map_job)
@@ -277,7 +271,7 @@ class FunctionExecutor:
         return map_futures + reduce_futures
 
     def wait(self, fs=None, throw_except=True, return_when=ALL_COMPLETED, download_results=False,
-             timeout=EXECUTION_TIMEOUT, THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
+             timeout=None, THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
         """
         Wait for the Future instances (possibly created by different Executor instances)
         given by fs to complete. Returns a named 2-tuple of sets. The first set, named done,
@@ -314,7 +308,7 @@ class FunctionExecutor:
         if not self.log_level and self._state == FunctionExecutor.State.Running:
             print(msg)
 
-        if is_unix_system():
+        if is_unix_system() and timeout is not None:
             signal.signal(signal.SIGALRM, timeout_handler)
             signal.alarm(timeout)
 
@@ -419,8 +413,7 @@ class FunctionExecutor:
 
         return fs_done, fs_notdone
 
-    def get_result(self, fs=None, throw_except=True, timeout=EXECUTION_TIMEOUT,
-                   THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
+    def get_result(self, fs=None, throw_except=True, timeout=None, THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
         """
         For getting the results from all function activations
 
@@ -529,13 +522,12 @@ class FunctionExecutor:
                 storage_config = json.dumps(self.internal_storage.get_storage_config())
                 storage_config = storage_config.replace('"', '\\"')
 
-                cmdstr = ("{} -c 'from pywren_ibm_cloud.storage.utils import clean_bucket; \
-                                  clean_bucket(\"{}\", \"{}\", \"{}\")'".format(sys.executable,
+                cmdstr = ('{} -c "from pywren_ibm_cloud.storage.utils import clean_bucket; \
+                                  clean_bucket(\'{}\', \'{}\', \'{}\')"'.format(sys.executable,
                                                                                 storage_bucket,
                                                                                 storage_prerix,
                                                                                 storage_config))
                 os.popen(cmdstr)
-
             else:
                 extra_env = {'STORE_STATUS': False,
                              'STORE_RESULT': False}

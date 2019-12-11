@@ -3,12 +3,11 @@ import time
 import pickle
 import logging
 import inspect
-import pywren_ibm_cloud as pywren
-from .serialize import SerializeIndependent, create_module_data
-from .partitioner import create_partitions
 from pywren_ibm_cloud import utils
 from pywren_ibm_cloud.wait import wait_storage
+from pywren_ibm_cloud.job.partitioner import create_partitions
 from pywren_ibm_cloud.storage.utils import create_func_key, create_agg_data_key
+from pywren_ibm_cloud.job.serialize import SerializeIndependent, create_module_data
 from pywren_ibm_cloud.config import EXECUTION_TIMEOUT, MAX_AGG_DATA_SIZE, JOBS_PREFIX
 
 logger = logging.getLogger(__name__)
@@ -16,8 +15,7 @@ logger = logging.getLogger(__name__)
 
 def create_map_job(config, internal_storage, executor_id, map_job_id, map_function, iterdata, runtime_meta,
                    runtime_memory=None, extra_params=None, extra_env=None, obj_chunk_size=None,
-                   obj_chunk_number=None, remote_invocation=False, remote_invocation_groups=None,
-                   invoke_pool_threads=128, include_modules=[], exclude_modules=[], is_pywren_function=False,
+                   obj_chunk_number=None, invoke_pool_threads=128, include_modules=[], exclude_modules=[],
                    execution_timeout=EXECUTION_TIMEOUT):
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
@@ -35,29 +33,6 @@ def create_map_job(config, internal_storage, executor_id, map_job_id, map_functi
         map_iterdata, parts_per_object = create_partitions(config, map_iterdata, obj_chunk_size, obj_chunk_number)
     # ########
 
-    # Remote invocation functionality
-    original_total_tasks = len(map_iterdata)
-    if original_total_tasks == 1 or is_pywren_function:
-        remote_invocation = False
-    if remote_invocation:
-        def remote_invoker(input_data):
-            pw = pywren.ibm_cf_executor()
-            return pw.map(map_function, input_data,
-                          runtime_memory=runtime_memory,
-                          invoke_pool_threads=invoke_pool_threads,
-                          extra_env=extra_env)
-
-        map_func = remote_invoker
-        if remote_invocation_groups:
-            map_iterdata = [[iterdata[x:x+remote_invocation_groups]]
-                            for x in range(0, original_total_tasks, remote_invocation_groups)]
-        else:
-            map_iterdata = [iterdata]
-        map_iterdata = utils.verify_args(remote_invoker, map_iterdata, extra_params)
-        new_invoke_pool_threads = 1
-        new_runtime_memory = 2048
-    # ########
-
     job_description = _create_job(config, internal_storage, executor_id,
                                   map_job_id, map_func, map_iterdata,
                                   runtime_meta=runtime_meta,
@@ -66,8 +41,6 @@ def create_map_job(config, internal_storage, executor_id, map_job_id, map_functi
                                   invoke_pool_threads=new_invoke_pool_threads,
                                   include_modules=include_modules,
                                   exclude_modules=exclude_modules,
-                                  remote_invocation=remote_invocation,
-                                  original_total_tasks=original_total_tasks,
                                   execution_timeout=execution_timeout)
 
     job_description['parts_per_object'] = parts_per_object
@@ -141,8 +114,7 @@ def _agg_data(data_strs):
 
 def _create_job(config, internal_storage, executor_id, job_id, func, data, runtime_meta,
                 runtime_memory=None, extra_env=None, invoke_pool_threads=128, include_modules=[],
-                exclude_modules=[], original_func_name=None, remote_invocation=False,
-                original_total_tasks=None, execution_timeout=EXECUTION_TIMEOUT):
+                exclude_modules=[], original_func_name=None, execution_timeout=EXECUTION_TIMEOUT):
     """
     :param func: the function to map over the data
     :param iterdata: An iterable of input data
@@ -188,8 +160,6 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     job_description['invoke_pool_threads'] = invoke_pool_threads
     job_description['executor_id'] = executor_id
     job_description['job_id'] = job_id
-    job_description['remote_invocation'] = remote_invocation
-    job_description['original_total_calls'] = original_total_tasks
 
     logger.debug('ExecutorID {} | JobID {} - Serializing function and data'.format(executor_id, job_id))
     # pickle func and all data (to capture module dependencies)

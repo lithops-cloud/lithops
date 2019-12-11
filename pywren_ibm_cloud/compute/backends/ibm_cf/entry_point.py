@@ -17,12 +17,18 @@
 import logging
 from pywren_ibm_cloud.config import cloud_logging_config
 from pywren_ibm_cloud.runtime.function_handler import function_handler
+from pywren_ibm_cloud.runtime.function_handler import function_invoker
 
 cloud_logging_config(logging.INFO)
 logger = logging.getLogger('__main__')
 
 
 def main(args):
-    logger.info("Starting IBM Cloud Functions execution")
-    function_handler(args)
+    if 'remote_invoker' in args:
+        logger.info("Starting IBM Cloud Functions invoker")
+        function_invoker(args)
+    else:
+        logger.info("Starting IBM Cloud Functions execution")
+        function_handler(args)
+
     return {"Execution": "Finished"}

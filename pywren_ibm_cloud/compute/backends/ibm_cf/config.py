@@ -4,7 +4,7 @@ from pywren_ibm_cloud.utils import version_str
 
 RUNTIME_DEFAULT_35 = 'ibmfunctions/pywren:3.5'
 RUNTIME_DEFAULT_36 = 'ibmfunctions/action-python-v3.6'
-RUNTIME_DEFAULT_37 = 'ibmfunctions/action-python-v3.7'
+RUNTIME_DEFAULT_37 = 'ibmfunctions/action-python-v3.7:1.6.0'
 
 RUNTIME_TIMEOUT_DEFAULT = 600000  # Default: 600000 milliseconds => 10 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB

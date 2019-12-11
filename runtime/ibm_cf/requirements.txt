@@ -5,40 +5,39 @@ gevent == 1.4.0
 flask == 1.1.1
 
 # default available packages for python3action
-beautifulsoup4 == 4.7.1
+beautifulsoup4 == 4.8.0
 httplib2 == 0.12.1
-kafka_python == 1.4.4
+kafka_python == 1.4.6
 lxml == 4.3.1
 python-dateutil == 2.7.5
 requests == 2.21.0
 scrapy == 1.6.0
 simplejson == 3.16.0
-virtualenv == 16.3.0
+virtualenv == 16.7.1
 twisted >= 19.7.0
 
 # packages for numerics
-numpy == 1.16.1
-scikit-learn == 0.20.2
+numpy == 1.16.4
+scikit-learn == 0.20.3
 scipy == 1.2.1
-pandas == 0.24.1
+pandas == 0.24.2
 
 # packages for image processing
-Pillow == 6.2.0
+Pillow == 6.2.1
 
 # IBM specific python modules
 ibm_db == 3.0.1
-cloudant == 2.11.0
-# pin watson at 1.x, for 2.x use python:3.7 runtime
+cloudant == 2.12.0
 watson-developer-cloud == 1.7.1
-ibm-cos-sdk == 2.5.3
+ibm-cos-sdk == 2.5.1
 ibmcloudsql == 0.2.23
 
 # Compose Libs
 psycopg2 == 2.7.7
-pymongo == 3.7.2
+pymongo == 3.8.0
 # pin redis at 2.x, for 3.x use python:3.7 runtime
 redis == 2.10.6
-pika == 0.13.0
+pika == 0.13.1
 # pin elasticsearch at 5.x, for 6.x use python:3.7 runtime
 elasticsearch >=5.0.0,<6.0.0
-cassandra-driver == 3.16.0
+cassandra-driver == 3.18.0

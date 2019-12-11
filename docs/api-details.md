@@ -15,6 +15,7 @@ Initialize and return an IBM Cloud Functions executor object. All the parameters
 |storage_backend | ibm_cos | Storage backend to store temp data|
 |rabbitmq_monitor | False | Activate RabbitMQ monitoring |
 |log_level | None | Log level printing (INFO, DEBUG, ...) |
+|remote_invoker | None | Spawn a function that will perform the actual job invocation (True/False) |
 
 Usage:
 ```python
@@ -34,6 +35,7 @@ Initialize and return a Knative executor object. All the parameters set in the e
 |storage_backend | ibm_cos | Storage backend to store temp data|
 |rabbitmq_monitor | False | Activate RabbitMQ monitoring |
 |log_level | None | Log level printing (INFO, DEBUG, ...) |
+|remote_invoker | None | Spawn a function that will perform the actual job invocation (True/False) |
 
 Usage:
 ```python
@@ -199,7 +201,7 @@ Waits for the function activations to finish.
 |download_results| False | Whether or not download the results results while monitoring activations |
 |timeout| 600 | Timeout of waiting for results|
 |THREADPOOL_SIZE|  128 | Number of threads to use waiting for results|
-|WAIT_DUR_SEC| 1 |  Time interval between each check (seconds)|
+|WAIT_DUR_SEC| 1 |  Time interval between each check (seconds) if no rabbitmq_monitor activated |
 
 
 * **Returns**: `(fs_done, fs_notdone)` where `fs_done` is a list of futures that have completed and `fs_notdone` is a list of futures that have not completed.
@@ -223,7 +225,7 @@ Gets the results from all the function activations. It internally makes use of t
 |throw_except | True | Re-raise exception if call raised|
 |timeout| 600 | Timeout of waiting for results|
 |THREADPOOL_SIZE|  128 | Number of threads to use waiting for results|
-|WAIT_DUR_SEC| 1 |  Time interval between each check (seconds)|
+|WAIT_DUR_SEC| 1 |  Time interval between each check (seconds) if no rabbitmq_monitor activated |
 
 
 * **Returns**: If `Executor.call_async()` is called, it returns one result.  If `Executor.map()` is called, it returns a list of results from all the `map_func` calls. The results are returned within an ordered list, where each element of the list is the result of one activation. If `Executor.map_reduce()` is called, it only returns the result of the `reduce_func`.
