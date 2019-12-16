@@ -43,6 +43,7 @@ RUN wget https://download.open-mpi.org/release/open-mpi/v4.0/openmpi-4.0.2.tar.g
 	&& ldconfig
 
 #install GROMACS
+#	make check 
 RUN wget http://ftp.gromacs.org/pub/gromacs/gromacs-2019.4.tar.gz \
 	&& tar xfz gromacs-2019.4.tar.gz \ 
 	&& cd gromacs-2019.4 \
@@ -50,9 +51,8 @@ RUN wget http://ftp.gromacs.org/pub/gromacs/gromacs-2019.4.tar.gz \
 	&& cd build \
 	&& cmake .. -DGMX_BUILD_OWN_FFTW=ON -DREGRESSIONTEST_DOWNLOAD=ON -DCMAKE_C_COMPILER=mpicc -DCMAKE_CXX_COMPILER=mpicxx -DGMX_MPI=on \
 	&& make \
-	&& make check \
-	&& sudo make install \
-	&& source /usr/local/gromacs/bin/GMXRC
+	&& make install \
+	&& /bin/dash /usr/local/gromacs/bin/GMXRC
 
 # create action working directory
 RUN mkdir -p /action
