@@ -401,6 +401,8 @@ class FunctionExecutor:
                     print(msg)
             if self.data_cleaner and not self.is_pywren_function:
                 self.clean()
+                if not fs and self._state == FunctionExecutor.State.Error:
+                    del self.futures[len(self.futures)-len(futures):]
 
         if download_results:
             fs_done = [f for f in futures if f.done]

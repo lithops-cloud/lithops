@@ -73,14 +73,7 @@ class FunctionInvoker:
         self.pending_calls_q = Queue()
         self.invoker_process_stop_flag = Value('i', 0)
         self.is_pywren_function = is_pywren_function()
-
-        if self.is_pywren_function or not is_unix_system():
-            self.invoker_process = Thread(target=self.run_process, args=())
-        else:
-            self.invoker_process = Process(target=self.run_process, args=())
-        self.invoker_process.daemon = True
-        self.invoker_process.start()
-
+        self.invoker_process = self._start_invoker_process()
         self.ongoing_activations = 0
 
     def select_runtime(self, job_id, runtime_memory):
@@ -136,6 +129,19 @@ class FunctionInvoker:
             print()
 
         return runtime_meta
+
+    def _start_invoker_process(self):
+        """
+        Starts the invoker process responsible to spawn pending calls in background
+        """
+        if self.is_pywren_function or not is_unix_system():
+            invoker_process = Thread(target=self.run_process, args=())
+        else:
+            invoker_process = Process(target=self.run_process, args=())
+        invoker_process.daemon = True
+        invoker_process.start()
+
+        return invoker_process
 
     def _invoke(self, job, call_id):
         """
@@ -212,6 +218,11 @@ class FunctionInvoker:
                 self.ongoing_activations -= 1
         except Exception:
             pass
+
+        if self.invoker_process_stop_flag.value == 1:
+            self.ongoing_activations = 0
+            self.invoker_process_stop_flag.value = 0
+            self._start_invoker_process()
 
         if self.remote_invoker and job.total_calls > 1:
             old_stdout = sys.stdout
@@ -345,5 +356,8 @@ class FunctionInvoker:
             except KeyboardInterrupt:
                 break
             executor.submit(self._invoke, job, call_id)
+
+        while not self.pending_calls_q.empty():
+            self.pending_calls_q.get()
 
         logger.debug('ExecutorID {} - Invoker process finished'.format(self.executor_id))
