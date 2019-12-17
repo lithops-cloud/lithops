@@ -1,6 +1,18 @@
 # Changelog
 
-## [v1.2.1--snapshot]
+## [v1.3.1--snapshot]
+
+### Added
+- 
+
+### Changed
+- 
+
+### Fixed
+- 
+
+
+## [v1.3.0]
 
 ### Added
 - New invoker mechanism
@@ -22,6 +34,7 @@
 - Fixed tests
 - Fixed pywren inside pywren function executions
 
+
 ## [v1.2.0]
 
 ### Added
@@ -30,7 +43,6 @@
 - New localhost storage backend
 - New docker_executor() to run pywren jobs in the local machine by using docker
 - New docker compute backend
-
 
 ### Changed
 - Docs updated
