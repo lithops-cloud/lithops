@@ -6,10 +6,12 @@
 - 
 
 ### Changed
-- 
+- COS token will expire 10 minutes before
+- CF IAM token will expire 10 minutes before
 
 ### Fixed
-- 
+- new invoker usage in notebooks
+- internal fixes
 
 
 ## [v1.3.0]
