@@ -345,10 +345,10 @@ class FunctionExecutor:
                 signal.alarm(0)
             if pbar:
                 pbar.close()
+                print()
+            msg = None
             logger.info(e.msg)
             if not self.log_level:
-                if not is_notebook():
-                    print()
                 print(e.msg)
             if e.exc_msg:
                 logger.info('Exception: ' + e.exc_msg)
@@ -357,10 +357,7 @@ class FunctionExecutor:
             else:
                 print()
                 traceback.print_exception(*e.exception)
-                print()
-            if self.data_cleaner and not self.is_pywren_function:
-                self.clean()
-            sys.exit()
+            self._state = FunctionExecutor.State.Error
 
         except TimeoutError:
             self.invoker.stop()
@@ -384,6 +381,9 @@ class FunctionExecutor:
 
         except Exception as e:
             self.invoker.stop()
+            if pbar:
+                pbar.close()
+                print()
             if not self.is_pywren_function:
                 self.clean()
             raise e
@@ -395,7 +395,7 @@ class FunctionExecutor:
                 pbar.close()
                 if not is_notebook():
                     print()
-            if self._state == FunctionExecutor.State.Error:
+            if self._state == FunctionExecutor.State.Error and msg:
                 logger.debug(msg)
                 if not self.log_level:
                     print(msg)
@@ -492,8 +492,7 @@ class FunctionExecutor:
         if type(futures) != list:
             futures = [futures]
         if not futures:
-            raise Exception('You must run the call_async(), map() or map_reduce(), or provide'
-                            ' a list of futures before calling the clean() method')
+            return
 
         if not fs:
             present_jobs = {(f.executor_id, f.job_id) for f in futures
