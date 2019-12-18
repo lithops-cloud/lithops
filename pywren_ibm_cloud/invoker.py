@@ -34,6 +34,8 @@ from pywren_ibm_cloud.storage.utils import create_output_key, create_status_key
 
 logger = logging.getLogger(__name__)
 
+REMOTE_INVOKER_MEMORY = 1024
+
 
 class FunctionInvoker:
     """
@@ -196,7 +198,7 @@ class FunctionInvoker:
                    'invoke_type': 'Process',
                    'pywren_version': __version__}
 
-        activation_id = compute_handler.invoke(job.runtime_name, 1024, payload)
+        activation_id = compute_handler.invoke(job.runtime_name, REMOTE_INVOKER_MEMORY, payload)
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 
@@ -227,7 +229,7 @@ class FunctionInvoker:
         if self.remote_invoker and job.total_calls > 1:
             old_stdout = sys.stdout
             sys.stdout = open(os.devnull, 'w')
-            self.select_runtime(job.job_id, 1024)
+            self.select_runtime(job.job_id, REMOTE_INVOKER_MEMORY)
             sys.stdout = old_stdout
             log_msg = ('ExecutorID {} | JobID {} - Starting remote function invocation: {}() '
                        '- Total: {} activations'.format(job.executor_id, job.job_id,

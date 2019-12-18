@@ -17,6 +17,7 @@
 import ssl
 import json
 import base64
+import urllib3
 import logging
 import requests
 import http.client
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 class CloudFunctionsClient:
 
     def __init__(self, endpoint, namespace, namespace_id=None, api_key=None,
-                 iam_api_key=None, token_manager=None, user_agent=None):
+                 iam_api_key=None, token_manager=None, user_agent=None, insecure=False):
         """
         CloudFunctionsClient Constructor
         """
@@ -51,6 +52,12 @@ class CloudFunctionsClient:
             self.effective_namespace = self.namespace_id
 
         self.session = requests.session()
+
+        if insecure:
+            from urllib3.exceptions import InsecureRequestWarning
+            urllib3.disable_warnings(InsecureRequestWarning)
+            self.session.verify = False
+
         default_user_agent = self.session.headers['User-Agent']
 
         self.headers = {

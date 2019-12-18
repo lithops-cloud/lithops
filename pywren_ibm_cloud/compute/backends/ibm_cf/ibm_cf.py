@@ -36,6 +36,7 @@ class IBMCloudFunctionsBackend:
         self.namespace_id = ibm_cf_config['regions'][self.region].get('namespace_id', None)
         self.api_key = ibm_cf_config['regions'][self.region].get('api_key', None)
         self.iam_api_key = ibm_cf_config.get('iam_api_key', None)
+        self.insecure = ibm_cf_config['regions'][self.region].get('insecure', False)
 
         logger.info("Set IBM CF Namespace to {}".format(self.namespace))
         logger.info("Set IBM CF Endpoint to {}".format(self.endpoint))
@@ -44,7 +45,8 @@ class IBMCloudFunctionsBackend:
             self.cf_client = CloudFunctionsClient(endpoint=self.endpoint,
                                                   namespace=self.namespace,
                                                   api_key=self.api_key,
-                                                  user_agent=self.user_agent)
+                                                  user_agent=self.user_agent,
+                                                  insecure=self.insecure)
         elif self.iam_api_key:
             token_manager = DefaultTokenManager(api_key_id=self.iam_api_key)
             token_filename = os.path.join(CACHE_DIR, 'IAM_TOKEN')
@@ -82,7 +84,8 @@ class IBMCloudFunctionsBackend:
                                                   namespace=self.namespace,
                                                   namespace_id=self.namespace_id,
                                                   token_manager=token_manager,
-                                                  user_agent=self.user_agent)
+                                                  user_agent=self.user_agent,
+                                                  insecure=self.insecure)
 
         log_msg = ('PyWren v{} init for IBM Cloud Functions - Namespace: {} - '
                    'Region: {}'.format(__version__, self.namespace, self.region))

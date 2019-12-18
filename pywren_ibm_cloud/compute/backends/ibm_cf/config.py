@@ -45,6 +45,7 @@ def load_config(config_data):
         api_key = config_data['ibm_cf'].pop('api_key', None)
         namespace_id = config_data['ibm_cf'].pop('namespace_id', None)
         region = endpoint.split('//')[1].split('.')[0].replace('-', '_')
+        insecure = config_data['ibm_cf'].pop('insecure', False)
 
         for k in list(config_data['ibm_cf']):
             # Delete unnecessary keys
@@ -57,6 +58,8 @@ def load_config(config_data):
             config_data['ibm_cf']['regions'][region]['api_key'] = api_key
         if namespace_id:
             config_data['ibm_cf']['regions'][region]['namespace_id'] = namespace_id
+        if insecure:
+            config_data['ibm_cf']['regions'][region]['insecure'] = insecure
     # -------------------
 
     if 'ibm' in config_data and config_data['ibm'] is not None:
