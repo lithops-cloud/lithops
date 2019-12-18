@@ -117,9 +117,10 @@ def function_handler(event):
         # response_status['free_disk_bytes'] = free_disk_space("/tmp")
         custom_env = {'PYWREN_CONFIG': json.dumps(config),
                       'PYWREN_FUNCTION': 'True',
+                      'PYWREN_EXECUTION_ID': exec_id,
+                      'PYWREN_STORAGE_BUCKET': storage_config['bucket'],
                       'PYTHONPATH': "{}:{}".format(os.getcwd(), PYWREN_LIBS_PATH),
-                      'PYTHONUNBUFFERED': 'True',
-                      'PYWREN_EXECUTION_ID': exec_id}
+                      'PYTHONUNBUFFERED': 'True'}
 
         os.environ.update(custom_env)
         os.environ.update(extra_env)

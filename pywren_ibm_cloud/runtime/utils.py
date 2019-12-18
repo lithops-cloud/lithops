@@ -102,6 +102,14 @@ def clean_all(config=None):
     compute_config = extract_compute_config(config)
     compute_handler = Compute(compute_config)
 
+    # Clean object storage temp dirs
+    sh = internal_storage.storage_handler
+    runtimes = sh.list_keys(storage_config['bucket'], RUNTIMES_PREFIX)
+    if runtimes:
+        sh.delete_objects(storage_config['bucket'], runtimes)
+    compute_handler.delete_all_runtimes()
+    clean_os_bucket(storage_config['bucket'], JOBS_PREFIX, internal_storage, sleep=1)
+
     # Clean local runtime_meta cache
     if os.path.exists(CACHE_DIR):
         shutil.rmtree(CACHE_DIR)
@@ -113,12 +121,3 @@ def clean_all(config=None):
     localhost_runtimes_path = os.path.join(TEMP, RUNTIMES_PREFIX)
     if os.path.exists(localhost_runtimes_path):
         shutil.rmtree(localhost_runtimes_path)
-
-    # Clean object storage temp dirs
-    sh = internal_storage.storage_handler
-    runtimes = sh.list_keys(storage_config['bucket'], RUNTIMES_PREFIX)
-    if runtimes:
-        sh.delete_objects(storage_config['bucket'], runtimes)
-    clean_os_bucket(storage_config['bucket'], JOBS_PREFIX, internal_storage, sleep=1)
-
-    compute_handler.delete_all_runtimes()

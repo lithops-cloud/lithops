@@ -18,7 +18,7 @@ import os
 import logging
 import ibm_boto3
 import ibm_botocore
-from datetime import datetime
+from datetime import datetime, timezone
 from ibm_botocore.credentials import DefaultTokenManager
 from pywren_ibm_cloud.storage.utils import StorageNoSuchKeyError
 from pywren_ibm_cloud.utils import sizeof_fmt, is_pywren_function
@@ -78,21 +78,28 @@ class IBMCloudObjectStorageBackend:
 
             token_manager = DefaultTokenManager(api_key_id=api_key)
             token_filename = os.path.join(CACHE_DIR, api_key_type+'_TOKEN')
+            token_minutes_diff = 0
 
             if 'token' in self.ibm_cos_config:
-                logger.debug("Using IBM {} API Key - Reusing Token".format(api_key_type))
+                logger.debug("Using IBM {} API Key - Reusing Token from config".format(api_key_type))
                 token_manager._token = self.ibm_cos_config['token']
                 token_manager._expiry_time = datetime.strptime(self.ibm_cos_config['token_expiry_time'],
                                                                '%Y-%m-%d %H:%M:%S.%f%z')
+                token_minutes_diff = int((token_manager._expiry_time - datetime.now(timezone.utc)).total_seconds() / 60.0)
+                logger.debug("Token expiry time: {} - Minutes left: {}".format(token_manager._expiry_time, token_minutes_diff))
+
             elif os.path.exists(token_filename):
-                logger.debug("Using IBM {} API Key - Reusing Token from local cache".format(api_key_type))
                 token_data = load_yaml_config(token_filename)
+                logger.debug("Using IBM {} API Key - Reusing Token from local cache".format(api_key_type))
                 token_manager._token = token_data['token']
                 token_manager._expiry_time = datetime.strptime(token_data['token_expiry_time'],
                                                                '%Y-%m-%d %H:%M:%S.%f%z')
+                token_minutes_diff = int((token_manager._expiry_time - datetime.now(timezone.utc)).total_seconds() / 60.0)
+                logger.debug("Token expiry time: {} - Minutes left: {}".format(token_manager._expiry_time, token_minutes_diff))
 
-            if token_manager._is_expired() and not is_pywren_function():
+            if (token_manager._is_expired() or token_minutes_diff < 11) and not is_pywren_function():
                 logger.debug("Using IBM {} API Key - Token expired. Requesting new token".format(api_key_type))
+                token_manager._token = None
                 token_manager.get_token()
                 token_data = {}
                 token_data['token'] = token_manager._token
