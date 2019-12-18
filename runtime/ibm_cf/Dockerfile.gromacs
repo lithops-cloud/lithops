@@ -49,10 +49,26 @@ RUN wget http://ftp.gromacs.org/pub/gromacs/gromacs-2019.4.tar.gz \
 	&& cd gromacs-2019.4 \
 	&& mkdir build \
 	&& cd build \
-	&& cmake .. -DGMX_BUILD_OWN_FFTW=ON -DREGRESSIONTEST_DOWNLOAD=ON -DCMAKE_C_COMPILER=mpicc -DCMAKE_CXX_COMPILER=mpicxx -DGMX_MPI=on \
+	&& cmake .. -DGMX_BUILD_OWN_FFTW=ON -DREGRESSIONTEST_DOWNLOAD=OFF \
 	&& make \
 	&& make install \
 	&& /bin/dash /usr/local/gromacs/bin/GMXRC
+
+RUN cd gromacs-2019.4 \
+	&& rm -R -f build \
+	&& mkdir build \
+	&& cd build \
+	&& cmake .. -DGMX_BUILD_OWN_FFTW=ON -DREGRESSIONTEST_DOWNLOAD=OFF -DCMAKE_C_COMPILER=mpicc -DCMAKE_CXX_COMPILER=mpicxx -DGMX_MPI=on \
+	&& make \
+	&& make install \
+	&& /bin/dash /usr/local/gromacs/bin/GMXRC
+
+#RUN export PATH=$PATH:/usr/local/gromax/bin:
+
+#delete old files
+RUN rm openmpi-4.0.2.tar.gz
+RUN rm gromacs-2019.4.tar.gz
+RUN rm cmake-3.16.1.tar.gz
 
 # create action working directory
 RUN mkdir -p /action
