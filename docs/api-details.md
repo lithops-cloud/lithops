@@ -15,7 +15,7 @@ Initialize and return an IBM Cloud Functions executor object. All the parameters
 |storage_backend | ibm_cos | Storage backend to store temp data|
 |rabbitmq_monitor | False | Activate RabbitMQ monitoring |
 |log_level | None | Log level printing (INFO, DEBUG, ...) |
-|remote_invoker | None | Spawn a function that will perform the actual job invocation (True/False) |
+|remote_invoker | False | Spawn a function that will perform the actual job invocation (True/False) |
 
 Usage:
 ```python
@@ -35,12 +35,32 @@ Initialize and return a Knative executor object. All the parameters set in the e
 |storage_backend | ibm_cos | Storage backend to store temp data|
 |rabbitmq_monitor | False | Activate RabbitMQ monitoring |
 |log_level | None | Log level printing (INFO, DEBUG, ...) |
-|remote_invoker | None | Spawn a function that will perform the actual job invocation (True/False) |
+|remote_invoker | False | Spawn a function that will perform the actual job invocation (True/False) |
 
 Usage:
 ```python
 import pywren_ibm_cloud as pywren
 pw = pywren.knative_executor()
+```
+
+**openwhisk_executor(\*\*kwargs)**
+
+Initialize and return an OpenWhisk executor object. All the parameters set in the executor will overwrite those set in the configuration.
+
+|Parameter | Default | Description|
+|---|---|---|
+|config | None | Settings passed in here will override those in pywren_config|
+|runtime |  None | Name of the docker image to run the functions |
+|runtime_memory | 256 | Memory (in MB) to use to run the functions |
+|storage_backend | ibm_cos | Storage backend to store temp data|
+|rabbitmq_monitor | False | Activate RabbitMQ monitoring |
+|log_level | None | Log level printing (INFO, DEBUG, ...) |
+|remote_invoker | False | Spawn a function that will perform the actual job invocation (True/False) |
+
+Usage:
+```python
+import pywren_ibm_cloud as pywren
+pw = pywren.ibm_cf_executor()
 ```
 
 **function_executor(\*\*kwargs)**
@@ -56,6 +76,7 @@ Initialize and return a generic executor object. All the parameters set in the e
 |storage_backend | ibm_cos | Storage backend to store temp data|
 |rabbitmq_monitor | False | Activate RabbitMQ monitoring |
 |log_level | None | Log level printing (INFO, DEBUG, ...) |
+|remote_invoker | False | Spawn a function that will perform the actual job invocation (True/False) |
 
 Usage:
 ```python

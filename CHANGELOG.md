@@ -3,14 +3,15 @@
 ## [v1.3.1--snapshot]
 
 ### Added
-- 
+- OpenWhisk Compute backend
+- openwhisk_executor()
 
 ### Changed
 - COS token will expire 10 minutes before
 - CF IAM token will expire 10 minutes before
 
 ### Fixed
-- new invoker usage in notebooks
+- Fixed new invoker usage in notebooks
 - internal fixes
 
 

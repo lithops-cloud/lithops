@@ -33,6 +33,12 @@ ibm_cos:
    #docker_user : <DOCKER_HUB_USERNAME>
    #docker_token: <DOCKER_HUB_TOKEN>
 
+#openwhisk:
+    #endpoint    : <OW_ENDPOINT>
+    #namespace   : <NAMESPACE>
+    #api_key     : <AUTH_KEY>
+    #insecure    : <True/False>
+
 #swift:
     #auth_url   : <SWIFT_AUTH_URL>
     #region     : <SWIFT_REGION>

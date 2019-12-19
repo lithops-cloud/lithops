@@ -60,6 +60,25 @@ def knative_executor(config=None, runtime=None, runtime_memory=None, workers=Non
     )
 
 
+def openwhisk_executor(config=None, runtime=None, runtime_memory=None,
+                       workers=None, storage_backend=None,
+                       storage_backend_region=None, rabbitmq_monitor=None,
+                       remote_invoker=None, log_level=None):
+    """
+    Function executor for OpenWhisk
+    """
+    compute_backend = 'openwhisk'
+    return FunctionExecutor(
+        config=config, runtime=runtime, runtime_memory=runtime_memory,
+        workers=workers, compute_backend=compute_backend,
+        storage_backend=storage_backend,
+        storage_backend_region=storage_backend_region,
+        rabbitmq_monitor=rabbitmq_monitor,
+        remote_invoker=remote_invoker,
+        log_level=log_level
+    )
+
+
 def function_executor(config=None, runtime=None, runtime_memory=None,
                       workers=None, backend=None, region=None,
                       storage_backend=None, storage_backend_region=None,
