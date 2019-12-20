@@ -22,7 +22,10 @@ import logging
 import requests
 import http.client
 from urllib.parse import urlparse
+from urllib3.exceptions import InsecureRequestWarning
 
+
+urllib3.disable_warnings(InsecureRequestWarning)
 logger = logging.getLogger(__name__)
 
 
@@ -52,8 +55,6 @@ class OpenWhiskClient:
         self.session = requests.session()
 
         if insecure:
-            from urllib3.exceptions import InsecureRequestWarning
-            urllib3.disable_warnings(InsecureRequestWarning)
             self.session.verify = False
 
         self.headers = {
@@ -193,7 +194,7 @@ class OpenWhiskClient:
         else:
             logger.debug("OK --> Created package {}".format(package))
 
-    def invoke(self, package, action_name, payload={}, is_remote_cluster=False, self_invoked=False):
+    def invoke(self, package, action_name, payload={}, is_ow_action=False, self_invoked=False):
         """
         Invoke an IBM Cloud Function by using new request.
         """
@@ -201,8 +202,8 @@ class OpenWhiskClient:
         parsed_url = urlparse(url)
 
         try:
-            if is_remote_cluster:
-                resp = self.session.post(url, json=payload)
+            if is_ow_action:
+                resp = self.session.post(url, json=payload, verify=False)
                 resp_status = resp.status_code
                 data = resp.json()
             else:
@@ -216,11 +217,11 @@ class OpenWhiskClient:
                 data = json.loads(resp.read().decode("utf-8"))
                 conn.close()
         except Exception as e:
-            if not is_remote_cluster:
+            if not is_ow_action:
                 conn.close()
             if self_invoked:
                 return None
-            return self.invoke(package, action_name, payload, is_remote_cluster=is_remote_cluster, self_invoked=True)
+            return self.invoke(package, action_name, payload, is_ow_action=is_ow_action, self_invoked=True)
 
         if resp_status == 202 and 'activationId' in data:
             return data["activationId"]

@@ -195,7 +195,6 @@ class FunctionInvoker:
                    'log_level': self.log_level,
                    'job_description': job_description,
                    'remote_invoker': True,
-                   'invoke_type': 'Process',
                    'pywren_version': __version__}
 
         activation_id = compute_handler.invoke(job.runtime_name, REMOTE_INVOKER_MEMORY, payload)

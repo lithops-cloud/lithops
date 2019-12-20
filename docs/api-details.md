@@ -60,7 +60,7 @@ Initialize and return an OpenWhisk executor object. All the parameters set in th
 Usage:
 ```python
 import pywren_ibm_cloud as pywren
-pw = pywren.ibm_cf_executor()
+pw = pywren.openwhisk_executor()
 ```
 
 **function_executor(\*\*kwargs)**
