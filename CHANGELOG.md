@@ -10,10 +10,12 @@
 - COS token will expire 10 minutes before
 - CF IAM token will expire 10 minutes before
 - Improved remote invoker
+- reraise exception from functions
+- docs updated
 
 ### Fixed
 - Fixed new invoker usage in notebooks
-- internal fixes
+- Internal fixes
 
 
 ## [v1.3.0]
