@@ -1,101 +1,53 @@
 import os
 import sys
-import base64
 import logging
 import zipfile
 import textwrap
 import pywren_ibm_cloud
-from . import config as ibmcf_config
-from datetime import datetime, timezone
-from ibm_botocore.credentials import DefaultTokenManager
+from . import config as openwhisk_config
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import is_pywren_function
-from pywren_ibm_cloud.config import CACHE_DIR, load_yaml_config, dump_yaml_config
 from pywren_ibm_cloud.libs.openwhisk.client import OpenWhiskClient
 
 logger = logging.getLogger(__name__)
 
 
-class IBMCloudFunctionsBackend:
+class OpenWhiskBackend:
     """
-    A wrap-up around IBM Cloud Functions backend.
+    A wrap-up around OpenWhisk Functions backend.
     """
 
-    def __init__(self, ibm_cf_config):
-        logger.debug("Creating IBM Cloud Functions client")
+    def __init__(self, ow_config):
+        logger.debug("Creating OpenWhisk client")
         self.log_level = os.getenv('PYWREN_LOGLEVEL')
-        self.name = 'ibm_cf'
-        self.ibm_cf_config = ibm_cf_config
+        self.name = 'openwhisk'
+        self.ow_config = ow_config
         self.package = 'pywren_v'+__version__
         self.is_pywren_function = is_pywren_function()
 
-        self.user_agent = ibm_cf_config['user_agent']
-        self.region = ibm_cf_config['region']
-        self.endpoint = ibm_cf_config['regions'][self.region]['endpoint']
-        self.namespace = ibm_cf_config['regions'][self.region]['namespace']
-        self.namespace_id = ibm_cf_config['regions'][self.region].get('namespace_id', None)
-        self.api_key = ibm_cf_config['regions'][self.region].get('api_key', None)
-        self.iam_api_key = ibm_cf_config.get('iam_api_key', None)
+        self.user_agent = ow_config['user_agent']
 
-        logger.info("Set IBM CF Namespace to {}".format(self.namespace))
-        logger.info("Set IBM CF Endpoint to {}".format(self.endpoint))
+        self.endpoint = ow_config['endpoint']
+        self.namespace = ow_config['namespace']
+        self.api_key = ow_config['api_key']
+        self.insecure = ow_config.get('insecure', False)
 
-        if self.api_key:
-            enc_api_key = str.encode(self.api_key)
-            auth_token = base64.encodebytes(enc_api_key).replace(b'\n', b'')
-            auth = 'Basic %s' % auth_token.decode('UTF-8')
+        logger.info("Set OpenWhisk Endpoint to {}".format(self.endpoint))
+        logger.info("Set OpenWhisk Namespace to {}".format(self.namespace))
+        logger.info("Set OpenWhisk Insecure to {}".format(self.insecure))
 
-            self.cf_client = OpenWhiskClient(endpoint=self.endpoint,
-                                             namespace=self.namespace,
-                                             auth=auth,
-                                             user_agent=self.user_agent)
-        elif self.iam_api_key:
-            token_manager = DefaultTokenManager(api_key_id=self.iam_api_key)
-            token_filename = os.path.join(CACHE_DIR, 'IAM_TOKEN')
+        self.cf_client = OpenWhiskClient(endpoint=self.endpoint,
+                                         namespace=self.namespace,
+                                         api_key=self.api_key,
+                                         insecure=self.insecure,
+                                         user_agent=self.user_agent)
 
-            if 'token' in self.ibm_cf_config:
-                logger.debug("Using IBM IAM API Key - Reusing Token from config")
-                token_manager._token = self.ibm_cf_config['token']
-                token_manager._expiry_time = datetime.strptime(self.ibm_cf_config['token_expiry_time'],
-                                                               '%Y-%m-%d %H:%M:%S.%f%z')
-                token_minutes_diff = int((token_manager._expiry_time - datetime.now(timezone.utc)).total_seconds() / 60.0)
-                logger.debug("Token expiry time: {} - Minutes left: {}".format(token_manager._expiry_time, token_minutes_diff))
-
-            elif os.path.exists(token_filename):
-                logger.debug("Using IBM IAM API Key - Reusing Token from local cache")
-                token_data = load_yaml_config(token_filename)
-                token_manager._token = token_data['token']
-                token_manager._expiry_time = datetime.strptime(token_data['token_expiry_time'],
-                                                               '%Y-%m-%d %H:%M:%S.%f%z')
-                token_minutes_diff = int((token_manager._expiry_time - datetime.now(timezone.utc)).total_seconds() / 60.0)
-                logger.debug("Token expiry time: {} - Minutes left: {}".format(token_manager._expiry_time, token_minutes_diff))
-
-            if (token_manager._is_expired() or token_minutes_diff < 11) and not is_pywren_function():
-                logger.debug("Using IBM IAM API Key - Token expired. Requesting new token")
-                token_manager._token = None
-                token_manager.get_token()
-                token_data = {}
-                token_data['token'] = token_manager._token
-                token_data['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
-                dump_yaml_config(token_filename, token_data)
-
-            ibm_cf_config['token'] = token_manager._token
-            ibm_cf_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
-
-            auth_token = token_manager._token
-            auth = 'Bearer ' + auth_token
-
-            self.cf_client = OpenWhiskClient(endpoint=self.endpoint,
-                                             namespace=self.namespace_id,
-                                             auth=auth,
-                                             user_agent=self.user_agent)
-
-        log_msg = ('PyWren v{} init for IBM Cloud Functions - Namespace: {} - '
-                   'Region: {}'.format(__version__, self.namespace, self.region))
+        log_msg = ('PyWren v{} init for OpenWhisk - Namespace: {}'
+                   .format(__version__, self.namespace))
         if not self.log_level:
             print(log_msg)
-        logger.info("IBM CF client created successfully")
+        logger.info("OpenWhisk client created successfully")
 
     def _format_action_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '_').replace(':', '_')
@@ -110,15 +62,15 @@ class IBMCloudFunctionsBackend:
     def _get_default_runtime_image_name(self):
         this_version_str = version_str(sys.version_info)
         if this_version_str == '3.5':
-            image_name = ibmcf_config.RUNTIME_DEFAULT_35
+            image_name = openwhisk_config.RUNTIME_DEFAULT_35
         elif this_version_str == '3.6':
-            image_name = ibmcf_config.RUNTIME_DEFAULT_36
+            image_name = openwhisk_config.RUNTIME_DEFAULT_36
         elif this_version_str == '3.7':
-            image_name = ibmcf_config.RUNTIME_DEFAULT_37
+            image_name = openwhisk_config.RUNTIME_DEFAULT_37
         return image_name
 
     def _create_function_handler_zip(self):
-        logger.debug("Creating function handler zip in {}".format(ibmcf_config.FH_ZIP_LOCATION))
+        logger.debug("Creating function handler zip in {}".format(openwhisk_config.FH_ZIP_LOCATION))
 
         def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
             for file in os.listdir(full_dir_path):
@@ -129,14 +81,14 @@ class IBMCloudFunctionsBackend:
                     add_folder_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
 
         try:
-            with zipfile.ZipFile(ibmcf_config.FH_ZIP_LOCATION, 'w', zipfile.ZIP_DEFLATED) as ibmcf_pywren_zip:
+            with zipfile.ZipFile(openwhisk_config.FH_ZIP_LOCATION, 'w', zipfile.ZIP_DEFLATED) as ibmcf_pywren_zip:
                 current_location = os.path.dirname(os.path.abspath(__file__))
                 module_location = os.path.dirname(os.path.abspath(pywren_ibm_cloud.__file__))
                 main_file = os.path.join(current_location, 'entry_point.py')
                 ibmcf_pywren_zip.write(main_file, '__main__.py')
                 add_folder_to_zip(ibmcf_pywren_zip, module_location)
         except Exception as e:
-            raise Exception('Unable to create the {} package: {}'.format(ibmcf_config.FH_ZIP_LOCATION, e))
+            raise Exception('Unable to create the {} package: {}'.format(openwhisk_config.FH_ZIP_LOCATION, e))
 
     def build_runtime(self, docker_image_name, dockerfile):
         """
@@ -159,7 +111,7 @@ class IBMCloudFunctionsBackend:
         if res != 0:
             exit()
 
-    def create_runtime(self, docker_image_name, memory, timeout=ibmcf_config.RUNTIME_TIMEOUT_DEFAULT):
+    def create_runtime(self, docker_image_name, memory, timeout=openwhisk_config.RUNTIME_TIMEOUT_DEFAULT):
         """
         Creates a new runtime into IBM CF namespace from an already built Docker image
         """
@@ -175,7 +127,7 @@ class IBMCloudFunctionsBackend:
 
         self._create_function_handler_zip()
 
-        with open(ibmcf_config.FH_ZIP_LOCATION, "rb") as action_zip:
+        with open(openwhisk_config.FH_ZIP_LOCATION, "rb") as action_zip:
             action_bin = action_zip.read()
         self.cf_client.create_action(self.package, action_name, docker_image_name, code=action_bin,
                                      memory=memory, is_binary=True, timeout=timeout)
@@ -226,10 +178,8 @@ class IBMCloudFunctionsBackend:
         """
         action_name = self._format_action_name(docker_image_name, runtime_memory)
 
-        activation_id = self.cf_client.invoke(package=self.package,
-                                              action_name=action_name,
-                                              payload=payload,
-                                              is_ow_action=self.is_pywren_function)
+        activation_id = self.cf_client.invoke(self.package, action_name,
+                                              payload, self.is_pywren_function)
 
         return activation_id
 
@@ -240,7 +190,7 @@ class IBMCloudFunctionsBackend:
         in order to know which runtimes are installed and which not.
         """
         action_name = self._format_action_name(docker_image_name, runtime_memory)
-        runtime_key = os.path.join(self.name, self.region, self.namespace, action_name)
+        runtime_key = os.path.join(self.name, self.namespace, action_name)
 
         return runtime_key
 

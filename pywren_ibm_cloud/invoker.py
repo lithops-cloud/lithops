@@ -34,6 +34,8 @@ from pywren_ibm_cloud.storage.utils import create_output_key, create_status_key
 
 logger = logging.getLogger(__name__)
 
+REMOTE_INVOKER_MEMORY = 1024
+
 
 class FunctionInvoker:
     """
@@ -54,7 +56,7 @@ class FunctionInvoker:
             self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
 
         self.workers = self.config['pywren'].get('workers')
-        logger.debug('ExecutorID {} - Total workers:'.format(self.workers))
+        logger.debug('ExecutorID {} - Total workers: {}'.format(self.executor_id, self.workers))
 
         self.compute_handlers = []
         cb = self.compute_config['backend']
@@ -73,14 +75,7 @@ class FunctionInvoker:
         self.pending_calls_q = Queue()
         self.invoker_process_stop_flag = Value('i', 0)
         self.is_pywren_function = is_pywren_function()
-
-        if self.is_pywren_function or not is_unix_system():
-            self.invoker_process = Thread(target=self.run_process, args=())
-        else:
-            self.invoker_process = Process(target=self.run_process, args=())
-        self.invoker_process.daemon = True
-        self.invoker_process.start()
-
+        self.invoker_process = self._start_invoker_process()
         self.ongoing_activations = 0
 
     def select_runtime(self, job_id, runtime_memory):
@@ -137,6 +132,19 @@ class FunctionInvoker:
 
         return runtime_meta
 
+    def _start_invoker_process(self):
+        """
+        Starts the invoker process responsible to spawn pending calls in background
+        """
+        if self.is_pywren_function or not is_unix_system():
+            invoker_process = Thread(target=self.run_process, args=())
+        else:
+            invoker_process = Process(target=self.run_process, args=())
+        invoker_process.daemon = True
+        invoker_process.start()
+
+        return invoker_process
+
     def _invoke(self, job, call_id):
         """
         Method used to perform the actual invocation against the Compute Backend
@@ -187,10 +195,9 @@ class FunctionInvoker:
                    'log_level': self.log_level,
                    'job_description': job_description,
                    'remote_invoker': True,
-                   'invoke_type': 'Process',
                    'pywren_version': __version__}
 
-        activation_id = compute_handler.invoke(job.runtime_name, 1024, payload)
+        activation_id = compute_handler.invoke(job.runtime_name, REMOTE_INVOKER_MEMORY, payload)
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 
@@ -213,10 +220,15 @@ class FunctionInvoker:
         except Exception:
             pass
 
+        if self.invoker_process_stop_flag.value == 1:
+            self.ongoing_activations = 0
+            self.invoker_process_stop_flag.value = 0
+            self._start_invoker_process()
+
         if self.remote_invoker and job.total_calls > 1:
             old_stdout = sys.stdout
             sys.stdout = open(os.devnull, 'w')
-            self.select_runtime(job.job_id, 1024)
+            self.select_runtime(job.job_id, REMOTE_INVOKER_MEMORY)
             sys.stdout = old_stdout
             log_msg = ('ExecutorID {} | JobID {} - Starting remote function invocation: {}() '
                        '- Total: {} activations'.format(job.executor_id, job.job_id,
@@ -345,5 +357,8 @@ class FunctionInvoker:
             except KeyboardInterrupt:
                 break
             executor.submit(self._invoke, job, call_id)
+
+        while not self.pending_calls_q.empty():
+            self.pending_calls_q.get()
 
         logger.debug('ExecutorID {} - Invoker process finished'.format(self.executor_id))

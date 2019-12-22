@@ -47,8 +47,7 @@ def function_invoker(event):
                   'PYWREN_LOGLEVEL': log_level}
     os.environ.update(custom_env)
     config = event['config']
-    invoke_type = event['invoke_type']
-    invoker = FunctionInvoker(config, invoke_type, log_level)
+    invoker = FunctionInvoker(config, log_level)
     invoker.run(event['job_description'])
 
 
@@ -57,9 +56,8 @@ class FunctionInvoker:
     Module responsible to perform the invocations against the compute backend
     """
 
-    def __init__(self, config, invoke_type, log_level):
+    def __init__(self, config, log_level):
         self.config = config
-        self.invoke_type = invoke_type
         self.log_level = log_level
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
@@ -136,7 +134,6 @@ class FunctionInvoker:
         logger.info(log_msg)
 
         self.total_calls = job.total_calls
-        self.invoke_pool_threads = job.invoke_pool_threads
 
         for i in range(self.workers):
             self.token_bucket_q.put('#')
@@ -146,13 +143,15 @@ class FunctionInvoker:
             self.pending_calls_q.put((job, call_id))
         self._start_job_status_checker(job)
 
-        if self.invoke_type == 'Process':
-            invoker_process = Process(target=self.run_process, args=())
-        else:
-            invoker_process = Thread(target=self.run_process, args=())
-        invoker_process.daemon = True
-        invoker_process.start()
-        invoker_process.join()
+        invokers = []
+        for i in range(4):
+            p = Process(target=self.run_process, args=())
+            invokers.append(p)
+            p.daemon = True
+            p.start()
+
+        for p in invokers:
+            p.join()
 
     def _start_job_status_checker(self, job):
         if self.rabbitmq_monitor:
@@ -206,7 +205,7 @@ class FunctionInvoker:
         """
         logger.info('Invoker process started')
         call_futures = []
-        with ThreadPoolExecutor(max_workers=self.invoke_pool_threads) as executor:
+        with ThreadPoolExecutor(max_workers=250) as executor:
             while self.pending_calls_q.qsize() > 0:
                 self.token_bucket_q.get()
                 job, call_id = self.pending_calls_q.get()

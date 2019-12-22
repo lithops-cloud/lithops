@@ -17,6 +17,7 @@
 import time
 import pickle
 import logging
+from six import reraise
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.storage.utils import check_storage_path, get_storage_path
 from pywren_ibm_cloud.libs.tblib import pickling_support
@@ -170,8 +171,8 @@ class ResponseFuture:
                 self._exception = (Exception, fault, self._exception['exc_traceback'])
 
             if throw_except:
-                raise FunctionException(self.executor_id, self.job_id, self.activation_id, self._exception, msg)
-            return None
+                reraise(*self._exception)
+            raise FunctionException(self.executor_id, self.job_id, self.activation_id, self._exception, msg)
 
         log_msg = ('ExecutorID {} | JobID {} - Got status from Function {} - Activation '
                    'ID: {} - Time: {} seconds'.format(self.executor_id,

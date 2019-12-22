@@ -16,6 +16,8 @@
 import logging
 import json
 import time
+import sys
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +54,7 @@ class CloudObjectUrl:
         self.path = url_path
 
 
-def clean_bucket(bucket, prefix, storage_config):
+def clean_bucket(bucket, prefix, storage_config, sleep=5, log=False):
     """
     Wrapper of clean_os_bucket(). Use this method only when storage_config is
     in JSON format. In any other case, call directly clean_os_bucket() method.
@@ -60,17 +62,18 @@ def clean_bucket(bucket, prefix, storage_config):
     from pywren_ibm_cloud.storage import InternalStorage
     internal_storage = InternalStorage(json.loads(storage_config))
     # sys.stdout = open(os.devnull, 'w')
-    clean_os_bucket(bucket, prefix, internal_storage)
+    clean_os_bucket(bucket, prefix, internal_storage, sleep, log)
     # sys.stdout = sys.__stdout__
 
 
-def clean_os_bucket(bucket, prefix, internal_storage, sleep=5):
+def clean_os_bucket(bucket, prefix, internal_storage, sleep=5, log=True):
     """
     Deletes all the files from COS. These files include the function,
     the data serialization and the function invocation results.
     """
     msg = "Going to delete all objects from bucket '{}' and prefix '{}'".format(bucket, prefix)
-    logger.debug(msg)
+    if log:
+        logger.debug(msg)
     total_objects = 0
     objects_to_delete = internal_storage.list_tmp_data(prefix)
 
@@ -79,7 +82,8 @@ def clean_os_bucket(bucket, prefix, internal_storage, sleep=5):
         internal_storage.delete_temporal_data(objects_to_delete)
         time.sleep(sleep)
         objects_to_delete = internal_storage.list_tmp_data(prefix)
-    logger.debug('Finished deleting objects, total found: {}'.format(total_objects))
+    if log:
+        logger.debug('Finished deleting objects, total found: {}'.format(total_objects))
 
 
 def create_func_key(prefix, executor_id, job_id):

@@ -1,6 +1,24 @@
 # Changelog
 
-## [v1.2.1--snapshot]
+## [v1.3.1--snapshot]
+
+### Added
+- OpenWhisk Compute backend
+- openwhisk_executor()
+
+### Changed
+- COS token will expire 10 minutes before
+- CF IAM token will expire 10 minutes before
+- Improved remote invoker
+- reraise exception from functions
+- docs updated
+
+### Fixed
+- Fixed new invoker usage in notebooks
+- Internal fixes
+
+
+## [v1.3.0]
 
 ### Added
 - New invoker mechanism
@@ -22,6 +40,7 @@
 - Fixed tests
 - Fixed pywren inside pywren function executions
 
+
 ## [v1.2.0]
 
 ### Added
@@ -30,7 +49,6 @@
 - New localhost storage backend
 - New docker_executor() to run pywren jobs in the local machine by using docker
 - New docker compute backend
-
 
 ### Changed
 - Docs updated

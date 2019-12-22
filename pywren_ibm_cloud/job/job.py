@@ -161,14 +161,28 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     job_description['executor_id'] = executor_id
     job_description['job_id'] = job_id
 
+    exclude_modules_cfg = config['pywren'].get('exclude_modules', [])
+    include_modules_cfg = config['pywren'].get('include_modules', [])
+    exc_modules = set()
+    inc_modules = set()
+    if exclude_modules_cfg:
+        exc_modules.update(exclude_modules_cfg)
+    if exclude_modules:
+        exc_modules.update(exclude_modules)
+    if include_modules_cfg is not None:
+        inc_modules.update(include_modules_cfg)
+    if include_modules_cfg is None and not include_modules:
+        inc_modules = None
+    if include_modules is not None and include_modules:
+        inc_modules.update(include_modules)
+    if include_modules is None:
+        inc_modules = None
+
     logger.debug('ExecutorID {} | JobID {} - Serializing function and data'.format(executor_id, job_id))
     # pickle func and all data (to capture module dependencies)
-    exclude_modules.extend(config['pywren'].get('exclude_modules', []))
-    include_modules_cfg = config['pywren'].get('include_modules', [])
-    if include_modules is not None and include_modules_cfg is not None:
-        include_modules.extend(include_modules_cfg)
+
     serializer = SerializeIndependent(runtime_meta['preinstalls'])
-    func_and_data_ser, mod_paths = serializer([func] + data, include_modules, exclude_modules)
+    func_and_data_ser, mod_paths = serializer([func] + data, inc_modules, exc_modules)
 
     func_str = func_and_data_ser[0]
     data_strs = func_and_data_ser[1:]
