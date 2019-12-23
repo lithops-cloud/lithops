@@ -1,0 +1,82 @@
+# Based on: https://github.com/ibm-functions/runtime-python/tree/master/python3.6
+
+FROM python:3.6-slim-jessie
+
+ENV FLASK_PROXY_PORT 8080
+
+RUN apt-get update && apt-get install -y \
+        gcc \
+        wget \
+        libc-dev \
+        libxslt-dev \
+        libxml2-dev \
+        libffi-dev \
+        libssl-dev \
+        zip \
+        unzip \
+        vim \
+        build-essential \
+        cmake pkg-config \
+        openssh-server \
+        && rm -rf /var/lib/apt/lists/*
+
+RUN apt-cache search linux-headers-generic
+
+COPY requirements.txt requirements.txt
+
+RUN pip install --upgrade pip setuptools six && pip install --no-cache-dir -r requirements.txt
+
+#Upgrade cmake
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.16.1/cmake-3.16.1.tar.gz \
+	&& tar -xvzf cmake-3.16.1.tar.gz \
+	&& cd cmake-3.16.1 \
+	&& ./configure \
+	&& make \
+	&& make install
+
+#install open-mpi
+RUN wget https://download.open-mpi.org/release/open-mpi/v4.0/openmpi-4.0.2.tar.gz \
+	&& gunzip -c openmpi-4.0.2.tar.gz | tar xf - \
+	&& cd openmpi-4.0.2 \
+	&& ./configure --prefix=/usr/local \
+	&& make all install \
+	&& ldconfig
+
+#install GROMACS
+#	make check 
+RUN wget http://ftp.gromacs.org/pub/gromacs/gromacs-2019.4.tar.gz \
+	&& tar xfz gromacs-2019.4.tar.gz \ 
+	&& cd gromacs-2019.4 \
+	&& mkdir build \
+	&& cd build \
+	&& cmake .. -DGMX_BUILD_OWN_FFTW=ON -DREGRESSIONTEST_DOWNLOAD=OFF \
+	&& make \
+	&& make install \
+	&& /bin/dash /usr/local/gromacs/bin/GMXRC
+
+RUN cd gromacs-2019.4 \
+	&& rm -R -f build \
+	&& mkdir build \
+	&& cd build \
+	&& cmake .. -DGMX_BUILD_OWN_FFTW=ON -DREGRESSIONTEST_DOWNLOAD=OFF -DCMAKE_C_COMPILER=mpicc -DCMAKE_CXX_COMPILER=mpicxx -DGMX_MPI=on \
+	&& make \
+	&& make install \
+	&& /bin/dash /usr/local/gromacs/bin/GMXRC
+
+#RUN export PATH=$PATH:/usr/local/gromax/bin:
+
+#delete old files
+RUN rm openmpi-4.0.2.tar.gz
+RUN rm gromacs-2019.4.tar.gz
+RUN rm cmake-3.16.1.tar.gz
+
+# create action working directory
+RUN mkdir -p /action
+
+RUN mkdir -p /actionProxy
+ADD https://raw.githubusercontent.com/apache/openwhisk-runtime-docker/8b2e205c39d84ed5ede6b1b08cccf314a2b13105/core/actionProxy/actionproxy.py /actionProxy/actionproxy.py
+
+RUN mkdir -p /pythonAction
+ADD https://raw.githubusercontent.com/apache/openwhisk-runtime-python/3%401.0.3/core/pythonAction/pythonrunner.py /pythonAction/pythonrunner.py
+
+CMD ["/bin/bash", "-c", "cd /pythonAction && python -u pythonrunner.py"]
