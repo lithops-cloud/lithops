@@ -36,21 +36,35 @@ openwhisk:
     insecure    : <True/False>
 ```
 
-You can find all the values in `~/.wskprops` file, for example:
+You can find all the values in `~/.wskprops` file. For example, the content of the file should looks like:
 
 ```
 APIHOST=192.168.1.30
-AUTH=23bc46b1-71f6-4ed5-8c54-816aa4f8c502:123zO3xZCLrMN6v2BKK1dXYFpXlPkccOFqm12CdAsMgRU4VrNZ9lyGVCGuMDGIwP
+AUTH=23bc46b1-71f6-4ed5-8c54-816aa4f8c502:123zO3xZCLrMN6v2BKK1dXYFpXlPkccOFqm12CdAsMgRU4VrNZ9lyGVCG
 INSECURE_SSL=true
 NAMESPACE=guest
 ```
 
-Should be copied into the pywren config file as:
+Copy all the values into the pywren config file as:
 
 ```yaml
 openwhisk:
     endpoint    : https://192.168.1.30
     namespace   : guest
-    api_key     : 23bc46b1-71f6-4ed5-8c54-816aa4f8c502:123zO3xZCLrMN6v2BKK1dXYFpXlPkccOFqm12CdAsMgRU4VrNZ9lyGVCGuMDGIwP
+    api_key     : 23bc46b1-71f6-4ed5-8c54-816aa4f8c502:123zO3xZCLrMN6v2BKK1dXYFpXlPkccOFqm12CdAsMgRU4VrNZ9lyGVCG
     insecure    : True
+```
+
+Once configured, you can start running functions:
+
+```python
+import pywren_ibm_cloud as pywren
+
+def add_seven(x):
+    return x + 7
+
+if __name__ == '__main__':
+    ibmcf = pywren.openwhisk_executor()
+    ibmcf.call_async(add_seven, 3)
+    print(ibmcf.get_result())
 ```

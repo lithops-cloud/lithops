@@ -34,7 +34,7 @@ from pywren_ibm_cloud.storage.utils import create_output_key, create_status_key
 
 logger = logging.getLogger(__name__)
 
-REMOTE_INVOKER_MEMORY = 1024
+REMOTE_INVOKER_MEMORY = 2048
 
 
 class FunctionInvoker:
@@ -230,7 +230,7 @@ class FunctionInvoker:
             sys.stdout = open(os.devnull, 'w')
             self.select_runtime(job.job_id, REMOTE_INVOKER_MEMORY)
             sys.stdout = old_stdout
-            log_msg = ('ExecutorID {} | JobID {} - Starting remote function invocation: {}() '
+            log_msg = ('ExecutorID {} | JobID {} - Starting function invocation with remote invoker: {}() '
                        '- Total: {} activations'.format(job.executor_id, job.job_id,
                                                         job.func_name, job.total_calls))
             logger.info(log_msg)
@@ -247,6 +247,8 @@ class FunctionInvoker:
             logger.info(log_msg)
             if not self.log_level:
                 print(log_msg)
+
+            self.start_job_status_checker(job)
 
             if self.ongoing_activations < self.workers:
                 callids = range(job.total_calls)
@@ -271,12 +273,10 @@ class FunctionInvoker:
                     call_id = "{:05d}".format(i)
                     self.pending_calls_q.put((job, call_id))
 
-                self.start_job_status_checker(job)
             else:
                 for i in range(job.total_calls):
                     call_id = "{:05d}".format(i)
                     self.pending_calls_q.put((job, call_id))
-                self.start_job_status_checker(job)
 
         # Create all futures
         futures = []
@@ -300,6 +300,7 @@ class FunctionInvoker:
     def _job_status_checker_worker_os(self, job):
         logger.debug('ExecutorID {} | JobID {} - Starting job status checker worker'.format(job.executor_id, job.job_id))
         total_callids_done_in_job = 0
+        time.sleep(1)
 
         while total_callids_done_in_job < job.total_calls:
             callids_done_in_job = set(self.internal_storage.get_job_status(job.executor_id, job.job_id))
@@ -314,19 +315,22 @@ class FunctionInvoker:
         total_callids_done_in_job = 0
 
         exchange = 'pywren-{}-{}'.format(job.executor_id, job.job_id)
-        queue_1 = '{}-1'.format(exchange)
+        queue_0 = '{}-0'.format(exchange)  # For waiting
+        queue_1 = '{}-1'.format(exchange)  # For invoker
 
         params = pika.URLParameters(self.rabbit_amqp_url)
         connection = pika.BlockingConnection(params)
         channel = connection.channel()
-        channel.exchange_declare(exchange=exchange, exchange_type='fanout')
+        channel.exchange_declare(exchange=exchange, exchange_type='fanout', auto_delete=True)
+        channel.queue_declare(queue=queue_0, auto_delete=True)
+        channel.queue_bind(exchange=exchange, queue=queue_0)
         channel.queue_declare(queue=queue_1, exclusive=True)
         channel.queue_bind(exchange=exchange, queue=queue_1)
 
         def callback(ch, method, properties, body):
             nonlocal total_callids_done_in_job
             self.token_bucket_q.put('#')
-            #self.q.put(body.decode("utf-8"))
+            # self.q.put(body.decode("utf-8"))
             total_callids_done_in_job += 1
             if total_callids_done_in_job == job.total_calls:
                 ch.stop_consuming()

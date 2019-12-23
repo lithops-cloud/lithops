@@ -159,8 +159,8 @@ class rabbitmq_checker_worker(threading.Thread):
         params = pika.URLParameters(self.rabbit_amqp_url)
         connection = pika.BlockingConnection(params)
         self.channel = connection.channel()  # start a channel
-        self.channel.exchange_declare(exchange=self.exchange, exchange_type='fanout')
-        self.channel.queue_declare(queue=self.queue_0, exclusive=True)
+        self.channel.exchange_declare(exchange=self.exchange, exchange_type='fanout', auto_delete=True)
+        self.channel.queue_declare(queue=self.queue_0, auto_delete=True)
         self.channel.queue_bind(exchange=self.exchange, queue=self.queue_0)
         self.channel.basic_consume(callback, queue=self.queue_0, no_ack=True)
         self.channel.start_consuming()
