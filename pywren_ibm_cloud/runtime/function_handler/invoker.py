@@ -69,7 +69,7 @@ class FunctionInvoker:
             self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
 
         self.workers = self.config['pywren'].get('workers')
-        logger.debug('ExecutorID {} - Total workers:'.format(self.workers))
+        logger.debug('Total workers: {}'.format(self.workers))
 
         self.compute_handlers = []
         cb = compute_config['backend']

@@ -64,7 +64,7 @@ def add_seven(x):
     return x + 7
 
 if __name__ == '__main__':
-    ibmcf = pywren.openwhisk_executor()
-    ibmcf.call_async(add_seven, 3)
-    print(ibmcf.get_result())
+    wsk = pywren.openwhisk_executor()
+    wsk.call_async(add_seven, 3)
+    print(wsk.get_result())
 ```
