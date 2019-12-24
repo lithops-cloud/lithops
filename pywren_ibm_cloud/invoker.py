@@ -230,7 +230,7 @@ class FunctionInvoker:
             sys.stdout = open(os.devnull, 'w')
             self.select_runtime(job.job_id, REMOTE_INVOKER_MEMORY)
             sys.stdout = old_stdout
-            log_msg = ('ExecutorID {} | JobID {} - Starting function invocation with remote invoker: {}() '
+            log_msg = ('ExecutorID {} | JobID {} - Starting remote function invocation: {}() '
                        '- Total: {} activations'.format(job.executor_id, job.job_id,
                                                         job.func_name, job.total_calls))
             logger.info(log_msg)

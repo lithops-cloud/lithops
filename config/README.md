@@ -144,3 +144,5 @@ pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
 |knative | endpoint | |no | Istio IngressGateway Endpoint. Make sure to use http:// prefix |
 |knative | docker_user | |yes | Docker hub username |
 |knative | docker_token | |yes | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
+|knative | git_url | |no | Git repository to build the image |
+|knative | git_rev | |no | Git revision to build the image |

@@ -165,19 +165,13 @@ class KnativeServingBackend:
         task_def = yaml.safe_load(kconfig.task_def)
         task_name = task_def['metadata']['name']
 
-        if 'git_url' in self.knative_config:
-            git_url_param = {'name': 'url', 'value': self.knative_config['git_url']}
-        else:
-            git_url_param = {'name': 'url', 'value': kconfig.GIT_URL_DEFAULT}
-
-        if 'git_rev' in self.knative_config:
-            git_rev_param = {'name': 'revision', 'value': self.knative_config['git_rev']}
-        else:
-            revision = 'master' if 'SNAPSHOT' in __version__ else __version__
-            git_rev_param = {'name': 'revision', 'value': revision}
-
+        git_url_param = {'name': 'url', 'value': self.knative_config['git_url']}
+        git_rev_param = {'name': 'revision', 'value': self.knative_config['git_rev']}
         params = [git_url_param, git_rev_param]
         git_res['spec']['params'] = params
+
+        logger.debug('Setting git url to: {}'.format(self.knative_config['git_url']))
+        logger.debug('Setting git rev to: {}'.format(self.knative_config['git_rev']))
 
         try:
             self.api.delete_namespaced_custom_object(
@@ -225,8 +219,6 @@ class KnativeServingBackend:
         """
         Builds the docker image and pushes it to the docker container registry
         """
-        logger.debug("Building default docker image from git")
-
         revision = 'latest' if 'SNAPSHOT' in __version__ else __version__
 
         if self.knative_config['docker_repo'] == 'docker.io' and revision != 'latest':
@@ -236,6 +228,8 @@ class KnativeServingBackend:
                 logger.debug('Docker image docker.io/{}:{} already created in Dockerhub. '
                              'Skipping build process.'.format(docker_image_name, revision))
                 return
+
+        logger.debug("Building default docker image from git")
 
         task_run = yaml.safe_load(kconfig.task_run)
         image_url = {'name': 'imageUrl', 'value': '/'.join([self.knative_config['docker_repo'], docker_image_name])}
@@ -315,8 +309,9 @@ class KnativeServingBackend:
 
         svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
         docker_image = '/'.join([self.knative_config['docker_repo'], docker_image_name])
-        svc_res['spec']['template']['spec']['container']['image'] = '{}:{}'.format(docker_image, revision)
-        svc_res['spec']['template']['spec']['container']['resources']['limits']['memory'] = '{}Mi'.format(runtime_memory)
+
+        svc_res['spec']['template']['spec']['containers'][0]['image'] = '{}:{}'.format(docker_image, revision)
+        svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['memory'] = '{}Mi'.format(runtime_memory)
 
         try:
             # delete the service resource if exists
