@@ -40,7 +40,7 @@ You can find all the values in `~/.wskprops` file. For example, the content of t
 
 ```
 APIHOST=192.168.1.30
-AUTH=23bc46b1-71f6-4ed5-8c54-816aa4f8c502:123zO3xZCLrMN6v2BKK1dXYFpXlPkccOFqm12CdAsMgRU4VrNZ9lyGVCG
+AUTH=23bc46b1-71f6-4ed5-8c54-816aa4f8c50:123zO3xZCLrMN6v2BKK1dXYFpXlPkccOFqm12CdAsMgRU4VrNZ9lyGVCG
 INSECURE_SSL=true
 NAMESPACE=guest
 ```
@@ -51,7 +51,7 @@ Copy all the values into the pywren config file as:
 openwhisk:
     endpoint    : https://192.168.1.30
     namespace   : guest
-    api_key     : 23bc46b1-71f6-4ed5-8c54-816aa4f8c502:123zO3xZCLrMN6v2BKK1dXYFpXlPkccOFqm12CdAsMgRU4VrNZ9lyGVCG
+    api_key     : 23bc46b1-71f6-4ed5-8c54-816aa4f8c50:123zO3xZCLrMN6v2BKK1dXYFpXlPkccOFqm12CdAsMgRU4VrNZ9lyGVCG
     insecure    : True
 ```
 

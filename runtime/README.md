@@ -151,7 +151,7 @@ pw = pywren.ibm_cf_executor(runtime_memory=512)
        $ pywren-runtime delete all
     
 
-2. **Clean everything ** 
+2. **Clean everything** 
      
      You can clean everything related to PyWren, such as all deployed runtimes and cache information, and start from scratch by simply running the next command (Configuration is not deleted):
     
