@@ -50,7 +50,6 @@ class KnativeServingBackend:
             self.namespace = current_context_details.get('namespace', 'default')
             # get the cluster
             self.cluster = current_context_details.get('cluster')
-            print(self.cluster)
         except:
             config.load_incluster_config()
             self.namespace = 'default'
