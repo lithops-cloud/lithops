@@ -440,7 +440,7 @@ class FunctionExecutor:
             elif not fs and not f.futures and f.produce_output and not f.read:
                 # Process internally stored futures
                 result.append(f.result(throw_except=throw_except, internal_storage=self.internal_storage))
-            f.read = True
+                f.read = True
 
         logger.debug("ExecutorID {} Finished getting results".format(self.executor_id))
 

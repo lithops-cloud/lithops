@@ -16,14 +16,6 @@ This document describes the steps to use PyWren over IBM Cloud Functions and IBM
 [IBM Academic Initiative](https://ibm.biz/academic) is a special program that allows free trial of IBM Cloud for Academic institutions. This program is provided for students and faculty staff members, and allow up to 12 months of free usage. You can register your university email and get a free of charge account.
 
 
-# Getting Started
-1. [Initial requirements](#initial-requirements)
-2. [PyWren setup](#pywren-setup)
-3. [How to use PyWren for IBM Cloud](#how-to-use-pywren-for-ibm-cloud)
-4. [Verify - Unit Testing](#verify-unit-testing)
-5. [Additional resources](#additional-resources)
-
-
 ## Initial Requirements
 * [IBM Cloud Functions account](https://cloud.ibm.com/functions)
 * [IBM Cloud Object Storage account](https://www.ibm.com/cloud/object-storage)
@@ -32,23 +24,25 @@ This document describes the steps to use PyWren over IBM Cloud Functions and IBM
 
 ## PyWren Setup
 
-Install PyWren from the PyPi repository:
+1. Install PyWren from the PyPi repository:
 
 	pip install pywren-ibm-cloud
 
-Navigate into [config/](config/) and follow the instructions to configure the client with the access details to your IBM Cloud Object Storage and IBM Cloud Functions accounts. Once installed an configured, you can test PyWren by simply running the next code:
+2. Navigate into [config/](config/) and follow the instructions to configure the client with the access details to your IBM Cloud Object Storage and IBM Cloud Functions accounts. 
 
-```python
-import pywren_ibm_cloud as pywren
+3. Test PyWren by simply running the next code:
 
-def add_seven(x):
-    return x + 7
-
-if __name__ == '__main__':
-    ibmcf = pywren.ibm_cf_executor()
-    ibmcf.call_async(add_seven, 3)
-    print(ibmcf.get_result())
-```
+    ```python
+    import pywren_ibm_cloud as pywren
+    
+    def add_seven(x):
+        return x + 7
+    
+    if __name__ == '__main__':
+        ibmcf = pywren.ibm_cf_executor()
+        ibmcf.call_async(add_seven, 3)
+        print(ibmcf.get_result())
+    ```
 
 
 ## How to use PyWren for IBM Cloud
@@ -56,10 +50,10 @@ The primary object in PyWren is the executor. The standard way to get everything
 
 The available executors are:
 
-- `ibm_cf_executor()`: IBM Cloud Functions executor.
-- `knative_executor()`: Knative executor.
-- `openwhisk_executor()`: Vanilla OpenWhisk executor.
-- `function_executor()`: Generic executor based on the compute_backend specified in configuration.
+- `ibm_cf_executor()`: IBM Cloud Functions executor. See the [configuration instructions](config/).
+- `knative_executor()`: Knative executor. See the [configuration instructions](docs/knative.md).
+- `openwhisk_executor()`: Vanilla OpenWhisk executor. See the [configuration instructions](docs/openwhisk.md).
+- `function_executor()`: Generic executor based on the compute backend specified in configuration.
 - `local_executor()`: Localhost executor to run functions by using local processes.
 
 The available calls within an executor are:

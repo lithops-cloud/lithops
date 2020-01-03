@@ -174,7 +174,7 @@ class ResponseFuture:
                 reraise(*self._exception)
             raise FunctionException(self.executor_id, self.job_id, self.activation_id, self._exception, msg)
 
-        log_msg = ('ExecutorID {} | JobID {} - Got status from Function {} - Activation '
+        log_msg = ('ExecutorID {} | JobID {} - Got status from call {} - Activation '
                    'ID: {} - Time: {} seconds'.format(self.executor_id,
                                                       self.job_id,
                                                       self.call_id,
@@ -215,29 +215,20 @@ class ResponseFuture:
 
         if self._state == ResponseFuture.State.Error:
             if throw_except:
-                raise FunctionException(self.executor_id, self.job_id, self.activation_id, self._exception)
+                reraise(*self._exception)
             else:
-                return None
+                raise FunctionException(self.executor_id, self.job_id, self.activation_id, self._exception)
 
         if internal_storage is None:
             internal_storage = InternalStorage(storage_config=self.storage_config)
 
         self.status(throw_except=throw_except, internal_storage=internal_storage)
 
-        if not self.produce_output:
-            self._set_state(ResponseFuture.State.Success)
-
         if self._state == ResponseFuture.State.Success:
             return self._return_val
 
         if self._state == ResponseFuture.State.Futures:
             return self._new_futures
-
-        if self._state == ResponseFuture.State.Error:
-            if throw_except:
-                raise FunctionException(self.executor_id, self.job_id, self.activation_id, self._exception)
-            else:
-                return None
 
         call_output_time = time.time()
         call_output = internal_storage.get_call_output(self.executor_id, self.job_id, self.call_id)
@@ -250,7 +241,7 @@ class ResponseFuture:
 
         if call_output is None:
             if throw_except:
-                raise Exception('Unable to get the output of the function {} - '
+                raise Exception('Unable to get the output from call {} - '
                                 'Activation ID: {}'.format(self.call_id, self.activation_id))
             else:
                 self._set_state(ResponseFuture.State.Error)
@@ -264,21 +255,15 @@ class ResponseFuture:
         self._call_metadata['output_query_count'] = self.output_query_count
         self._call_metadata['download_output_timestamp'] = call_output_time_done
 
-        log_msg = ('ExecutorID {} | JobID {} - Got output from Function {} - Activation '
+        log_msg = ('ExecutorID {} | JobID {} - Got output from call {} - Activation '
                    'ID: {}'.format(self.executor_id, self.job_id, self.call_id, self.activation_id))
         logger.debug(log_msg)
 
         function_result = call_output['result']
 
-        if isinstance(function_result, ResponseFuture):
-            self._new_futures = [function_result]
-            self._set_state(ResponseFuture.State.Futures)
-            self._call_metadata['status_done_timestamp'] = self._call_metadata['download_output_timestamp']
-            del self._call_metadata['download_output_timestamp']
-            return self._new_futures
-
-        elif type(function_result) == list and len(function_result) > 0 and isinstance(function_result[0], ResponseFuture):
-            self._new_futures = function_result
+        if isinstance(function_result, ResponseFuture) or \
+           (type(function_result) == list and len(function_result) > 0 and isinstance(function_result[0], ResponseFuture)):
+            self._new_futures = [function_result] if type(function_result) == ResponseFuture else function_result
             self._set_state(ResponseFuture.State.Futures)
             self._call_metadata['status_done_timestamp'] = self._call_metadata['download_output_timestamp']
             del self._call_metadata['download_output_timestamp']
