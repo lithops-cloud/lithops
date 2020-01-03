@@ -178,7 +178,7 @@ class FunctionInvoker:
             self.pending_calls_q.put((job, call_id))
             return
 
-        logger.debug('ExecutorID {} | JobID {} - Function invocation {} done! ({}s) - Activation'
+        logger.debug('ExecutorID {} | JobID {} - Function call {} done! ({}s) - Activation'
                      ' ID: {}'.format(job.executor_id, job.job_id, call_id, resp_time, activation_id))
 
         return call_id
@@ -202,7 +202,7 @@ class FunctionInvoker:
         resp_time = format(round(roundtrip, 3), '.3f')
 
         if activation_id:
-            logger.debug('ExecutorID {} | JobID {} - Remote function invocation done! ({}s) - Activation'
+            logger.debug('ExecutorID {} | JobID {} - Remote function call done! ({}s) - Activation'
                          ' ID: {}'.format(job.executor_id, job.job_id, resp_time, activation_id))
         else:
             raise Exception('Unable to spawn remote invoker')

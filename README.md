@@ -5,12 +5,10 @@
 [PyWren](https://github.com/pywren/pywren) is an open source project whose goals are massively scaling the execution of Python code and its dependencies on serverless computing platforms and monitoring the results. PyWren delivers the user’s code into the serverless platform without requiring knowledge of how functions are invoked and run. 
 
 ### PyWren and IBM Cloud
-This repository is based on [PyWren](https://github.com/pywren/pywren) main branch and adapted for IBM Cloud Functions and IBM Cloud Object Storage. IBM-PyWren is not, however, just a mere reimplementation of PyWren’s API atop IBM Cloud Functions. Rather, it is must be viewed as an advanced extension of PyWren to run broader Map-Reduce jobs, based on Docker images. In extending PyWren to work with IBM Cloud Object Storage, we also added a partition discovery component that allows PyWren to process large amounts of data stored in the IBM Cloud Object Storage. See [changelog](CHANGELOG.md) for more details.
+This repository is based on [PyWren](https://github.com/pywren/pywren) main branch and adapted for IBM Cloud Functions and IBM Cloud Object Storage. IBM-PyWren is not, however, just a mere reimplementation of PyWren’s API atop IBM Cloud Functions. Rather, it is must be viewed as an advanced extension of PyWren to run broader Map-Reduce jobs, based on Docker images. See the complete [design overview](docs/DESIGN.md). In extending PyWren to work with IBM Cloud Object Storage, we also added a partition discovery component that allows PyWren to process large amounts of data stored in the IBM Cloud Object Storage. See [changelog](CHANGELOG.md) for more details.
 
-PyWren - IBM provides great value for the variety of uses cases, like processing data in object storage, running embarrassingly parallel compute jobs (e.g. Monte-Carlo simulations), enriching data with additional attributes and many more
+PyWren for IBM Cloud provides great value for the variety of uses cases, like processing data in object storage, running embarrassingly parallel compute jobs (e.g. Monte-Carlo simulations), enriching data with additional attributes and many more
 
-
-This document describes the steps to use PyWren over IBM Cloud Functions and IBM Cloud Object Storage.
 
 ### IBM Cloud for Academic institutions
 [IBM Academic Initiative](https://ibm.biz/academic) is a special program that allows free trial of IBM Cloud for Academic institutions. This program is provided for students and faculty staff members, and allow up to 12 months of free usage. You can register your university email and get a free of charge account.
@@ -26,7 +24,9 @@ This document describes the steps to use PyWren over IBM Cloud Functions and IBM
 
 1. Install PyWren from the PyPi repository:
 
+    ```
 	pip install pywren-ibm-cloud
+	```
 
 2. Navigate into [config/](config/) and follow the instructions to configure the client with the access details to your IBM Cloud Object Storage and IBM Cloud Functions accounts. 
 
@@ -50,9 +50,9 @@ The primary object in PyWren is the executor. The standard way to get everything
 
 The available executors are:
 
-- `ibm_cf_executor()`: IBM Cloud Functions executor. See the [configuration instructions](config/).
-- `knative_executor()`: Knative executor. See the [configuration instructions](docs/knative.md).
-- `openwhisk_executor()`: Vanilla OpenWhisk executor. See the [configuration instructions](docs/openwhisk.md).
+- `ibm_cf_executor()`: IBM Cloud Functions executor.
+- `knative_executor()`: Knative executor. See [additional information](docs/knative.md).
+- `openwhisk_executor()`: Vanilla OpenWhisk executor. See [additional information](docs/openwhisk.md).
 - `function_executor()`: Generic executor based on the compute backend specified in configuration.
 - `local_executor()`: Localhost executor to run functions by using local processes.
 
@@ -71,7 +71,7 @@ The available calls within an executor are:
 
 Additional information and examples:
 
-- **Functions**: [PyWren functions style and parameters](docs/functions.md)
+- **Functions**: [PyWren functions and parameters](docs/functions.md)
 - **Runtimes**: [Building and managing PyWren runtimes to run the functions](runtime/)
 - **Data processing**: [Using PyWren to process data from IBM Cloud Object Storage and public URLs](docs/data-processing.md)
 - **Notebooks**: [PyWren on IBM Watson Studio and Jupyter notebooks](examples/hello_world.ipynb)

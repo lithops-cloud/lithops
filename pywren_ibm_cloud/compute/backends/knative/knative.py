@@ -38,18 +38,27 @@ class KnativeServingBackend:
         self.endpoint = self.knative_config.get('endpoint')
         self.service_hosts = {}
 
-        # k8s config can be in ~/.kube/config or generate kube-config.yml file and
+        # k8s config can be incluster, in ~/.kube/config or generate kube-config.yml file and
         # set env variable KUBECONFIG=<path-to-kube-confg>
-        config.load_kube_config()
+        try:
+            config.load_kube_config()
+
+            # get current context
+            current_context = config.list_kube_config_contexts()[1]
+            current_context_details = current_context.get('context')
+            # get namespace of current context
+            self.namespace = current_context_details.get('namespace', 'default')
+            # get the cluster
+            self.cluster = current_context_details.get('cluster')
+            print(self.cluster)
+        except:
+            config.load_incluster_config()
+            self.namespace = 'default'
+            self.cluster = 'default'
+
         self.api = client.CustomObjectsApi()
         self.v1 = client.CoreV1Api()
-        # get current context
-        current_context = config.list_kube_config_contexts()[1]
-        current_context_details = current_context.get('context')
-        # get namespace of current context
-        self.namespace = current_context_details.get('namespace', 'default')
-        # get the cluster
-        self.cluster = current_context_details.get('cluster')
+
         self.headers = {'content-type': 'application/json'}
 
         if self.endpoint is None:
@@ -72,11 +81,11 @@ class KnativeServingBackend:
                 log_msg = "Something went wrong getting the istio-ingressgateway endpoint: {}".format(e)
                 logger.info(log_msg)
 
-        log_msg = 'PyWren v{} init for Knative Serving - Endpoint: {}'.format(__version__, self.endpoint)
+        log_msg = 'PyWren v{} init for Knative - Endpoint: {}'.format(__version__, self.endpoint)
         logger.info(log_msg)
         if not self.log_level:
             print(log_msg)
-        logger.debug('Knative Serving init for endpoint: {}'.format(self.endpoint))
+        logger.debug('Knative init for endpoint: {}'.format(self.endpoint))
 
     def _format_service_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '--').replace(':', '--')
@@ -486,7 +495,7 @@ class KnativeServingBackend:
         route = payload.get("service_route", '/')
 
         try:
-            logger.debug('ExecutorID {} | JobID {} - Starting function invocation {}'
+            logger.debug('ExecutorID {} | JobID {} - Starting function call {}'
                          .format(exec_id, job_id, call_id))
 
             parsed_url = urlparse(self.endpoint)
@@ -494,7 +503,7 @@ class KnativeServingBackend:
             conn.request("POST", route,
                          body=json.dumps(payload),
                          headers=self.headers)
-            logger.debug('ExecutorID {} | JobID {} - Function invocation {} done. Waiting '
+            logger.debug('ExecutorID {} | JobID {} - Function call {} done. Waiting '
                          'for a response'.format(exec_id, job_id, call_id))
             resp = conn.getresponse()
             resp_status = resp.status

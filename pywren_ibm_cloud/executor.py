@@ -84,7 +84,7 @@ class FunctionExecutor:
         self.executor_id = create_executor_id()
         logger.debug('FunctionExecutor created with ID: {}'.format(self.executor_id))
 
-        self.data_cleaner = self.config['pywren'].get('data_cleaner', False)
+        self.data_cleaner = self.config['pywren'].get('data_cleaner', True)
         self.rabbitmq_monitor = self.config['pywren'].get('rabbitmq_monitor', False)
 
         if self.rabbitmq_monitor:
