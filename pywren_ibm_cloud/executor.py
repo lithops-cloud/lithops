@@ -401,7 +401,7 @@ class FunctionExecutor:
                     print(msg)
             if self.data_cleaner and not self.is_pywren_function:
                 self.clean()
-                if not fs and self._state == FunctionExecutor.State.Error:
+                if not fs and self._state == FunctionExecutor.State.Error and is_notebook():
                     del self.futures[len(self.futures)-len(futures):]
 
         if download_results:
@@ -463,10 +463,7 @@ class FunctionExecutor:
         ftrs_to_plot = [f for f in ftrs if f.ready or f.done]
 
         if not ftrs_to_plot:
-            msg = ('You must run call_async(), map() or map_reduce()'
-                   ' followed by monitor() or get_results()'
-                   ' before calling create_timeline_plots() method')
-            logger.debug(msg)
+            logger.debug('ExecutorID {} - No futures ready to plot'.format(self.executor_id))
             return
 
         logging.getLogger('matplotlib').setLevel(logging.WARNING)

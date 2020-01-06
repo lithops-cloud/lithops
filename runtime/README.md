@@ -76,7 +76,7 @@ pw = pywren.ibm_cf_executor(runtime_memory=512)
     pw = pywren.ibm_cf_executor(runtime='jsampe/pywren-custom-runtime-3.7:0.1')
     ```
     
-    *NOTE: In this previous example we built a Docker image based on Python 3.5, this means that now we also need Python 3.5 in the client machine.*
+    *NOTE: In this previous example we built a Docker image based on Python 3.7, this means that now we also need Python 3.7 in the client machine.*
     
 
 

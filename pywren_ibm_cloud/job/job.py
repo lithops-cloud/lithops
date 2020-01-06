@@ -43,7 +43,8 @@ def create_map_job(config, internal_storage, executor_id, map_job_id, map_functi
                                   exclude_modules=exclude_modules,
                                   execution_timeout=execution_timeout)
 
-    job_description['parts_per_object'] = parts_per_object
+    if parts_per_object:
+        job_description['parts_per_object'] = parts_per_object
 
     return job_description
 
@@ -56,7 +57,7 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
     """
     iterdata = [[map_futures, ]]
 
-    if map_job['parts_per_object'] and reducer_one_per_object:
+    if 'parts_per_object' in map_job and reducer_one_per_object:
         prev_total_partitons = 0
         iterdata = []
         for total_partitions in map_job['parts_per_object']:

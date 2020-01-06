@@ -183,7 +183,7 @@ class FunctionInvoker:
 
         return call_id
 
-    def _remote_invoke(self, job_description):
+    def _invoke_remote(self, job_description):
         """
         Method used to send a job_description to the remote invoker
         """
@@ -202,7 +202,7 @@ class FunctionInvoker:
         resp_time = format(round(roundtrip, 3), '.3f')
 
         if activation_id:
-            logger.debug('ExecutorID {} | JobID {} - Remote function call done! ({}s) - Activation'
+            logger.debug('ExecutorID {} | JobID {} - Remote invoker call done! ({}s) - Activation'
                          ' ID: {}'.format(job.executor_id, job.job_id, resp_time, activation_id))
         else:
             raise Exception('Unable to spawn remote invoker')
@@ -237,7 +237,7 @@ class FunctionInvoker:
             if not self.log_level:
                 print(log_msg)
 
-            th = Thread(target=self._remote_invoke, args=(job_description,))
+            th = Thread(target=self._invoke_remote, args=(job_description,))
             th.daemon = True
             th.start()
 

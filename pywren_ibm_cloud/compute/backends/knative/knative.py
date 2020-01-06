@@ -3,6 +3,7 @@ import sys
 import json
 import time
 import yaml
+import urllib3
 import logging
 import requests
 import http.client
@@ -10,18 +11,12 @@ from urllib.parse import urlparse
 from kubernetes import client, config, watch
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
+from pywren_ibm_cloud.config import CACHE_DIR, load_yaml_config, dump_yaml_config
 from . import config as kconfig
 
-import urllib3
 urllib3.disable_warnings()
 logging.getLogger('kubernetes').setLevel(logging.CRITICAL)
 logging.getLogger('urllib3.connectionpool').setLevel(logging.CRITICAL)
-
-#Monkey patch for issue: https://github.com/kubernetes-client/python/issues/895
-from kubernetes.client.models.v1_container_image import V1ContainerImage
-def names(self, names):
-    self._names = names
-V1ContainerImage.names = V1ContainerImage.names.setter(names)
 
 logger = logging.getLogger(__name__)
 
@@ -38,19 +33,14 @@ class KnativeServingBackend:
         self.endpoint = self.knative_config.get('endpoint')
         self.service_hosts = {}
 
-        # k8s config can be incluster, in ~/.kube/config or generate kube-config.yml file and
+        # k8s config can be incluster, in ~/.kube/config or generate kube-config.yaml file and
         # set env variable KUBECONFIG=<path-to-kube-confg>
         try:
             config.load_kube_config()
-
-            # get current context
-            current_context = config.list_kube_config_contexts()[1]
-            current_context_details = current_context.get('context')
-            # get namespace of current context
-            self.namespace = current_context_details.get('namespace', 'default')
-            # get the cluster
-            self.cluster = current_context_details.get('cluster')
-        except:
+            current_context = config.list_kube_config_contexts()[1].get('context')
+            self.namespace = current_context.get('namespace', 'default')
+            self.cluster = current_context.get('cluster')
+        except Exception:
             config.load_incluster_config()
             self.namespace = 'default'
             self.cluster = 'default'
@@ -80,11 +70,17 @@ class KnativeServingBackend:
                 log_msg = "Something went wrong getting the istio-ingressgateway endpoint: {}".format(e)
                 logger.info(log_msg)
 
+        self.serice_host_filename = os.path.join(CACHE_DIR, 'knative', self.cluster, 'service_host')
+        self.service_host_suffix = None
+        if os.path.exists(self.serice_host_filename):
+            serice_host_data = load_yaml_config(self.serice_host_filename)
+            self.service_host_suffix = serice_host_data['service_host_suffix']
+            logger.debug('Loaded service host suffix: {}'.format(self.service_host_suffix))
+
         log_msg = 'PyWren v{} init for Knative - Endpoint: {}'.format(__version__, self.endpoint)
-        logger.info(log_msg)
         if not self.log_level:
             print(log_msg)
-        logger.debug('Knative init for endpoint: {}'.format(self.endpoint))
+        logger.info(log_msg)
 
     def _format_service_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '--').replace(':', '--')
@@ -111,32 +107,30 @@ class KnativeServingBackend:
         """
         gets the service host needed for the invocation
         """
-        # Check local cache
-        if service_name in self.service_hosts:
-            return self.service_hosts[service_name]
-        else:
-            try:
-                svc = self.api.get_namespaced_custom_object(
-                            group="serving.knative.dev",
-                            version="v1alpha1",
-                            name=service_name,
-                            namespace=self.namespace,
-                            plural="services"
-                    )
-                if svc is not None:
-                    service_host = svc['status']['url'][7:]
-                else:
-                    raise Exception('Unable to get service details from {}'.format(service_name))
-            except Exception as e:
-                if json.loads(e.body)['code'] == 404:
-                    log_msg = 'Knative service: resource "{}" Not Found'.format(service_name)
-                    raise(log_msg)
-                else:
-                    raise(e)
+        logger.debug('Getting service host for: {}'.format(service_name))
+        try:
+            t0 = time.time()
+            svc = self.api.get_namespaced_custom_object(
+                        group="serving.knative.dev",
+                        version="v1alpha1",
+                        name=service_name,
+                        namespace=self.namespace,
+                        plural="services"
+                )
+            if svc is not None:
+                service_host = svc['status']['url'][7:]
+            else:
+                raise Exception('Unable to get service details from {}'.format(service_name))
+            print(time.time()-t0)
+        except Exception as e:
+            if json.loads(e.body)['code'] == 404:
+                log_msg = 'Knative service: resource "{}" Not Found'.format(service_name)
+                raise(log_msg)
+            else:
+                raise(e)
 
-            self.service_hosts[service_name] = service_host
-
-            return service_host
+        logger.debug('Service host: {}'.format(service_host))
+        return service_host
 
     def _create_account_resources(self):
         """
@@ -331,6 +325,7 @@ class KnativeServingBackend:
                     plural="services",
                     body=client.V1DeleteOptions()
                 )
+            time.sleep(2)
         except Exception:
             pass
 
@@ -357,13 +352,17 @@ class KnativeServingBackend:
                conditions[1]['status'] == 'True' and conditions[2]['status'] == 'True':
                 # Workaround to prevent invoking the service immediately after creation.
                 # TODO: Open issue.
-                time.sleep(1)
+                time.sleep(2)
                 w.stop()
 
         log_msg = 'Runtime Service resource created - URL: {}'.format(service_url)
         logger.debug(log_msg)
 
-        self.service_hosts[service_name] = service_url[7:]
+        self.service_host_suffix = service_url[7:].replace(service_name, '')
+        # Store service host suffix in local cache
+        serice_host_data = {}
+        serice_host_data['service_host_suffix'] = self.service_host_suffix
+        dump_yaml_config(self.serice_host_filename, serice_host_data)
 
         return service_url
 
@@ -399,11 +398,7 @@ class KnativeServingBackend:
             docker_image_name = default_runtime_img_name
             self._build_docker_image_from_git(default_runtime_img_name)
 
-        service_url = self._create_service(docker_image_name, memory, timeout)
-
-        if self.endpoint is None:
-            self.endpoint = service_url
-
+        self._create_service(docker_image_name, memory, timeout)
         runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
 
         return runtime_meta
@@ -483,10 +478,14 @@ class KnativeServingBackend:
         Invoke -- return information about this invocation
         """
         service_name = self._format_service_name(docker_image_name, memory)
+        if self.service_host_suffix:
+            service_host = service_name+self.service_host_suffix
+        else:
+            service_host = self._get_service_host(service_name)
 
-        self.headers['Host'] = self._get_service_host(service_name)
+        self.headers['Host'] = service_host
         if self.endpoint is None:
-            self.endpoint = 'http://{}'.format(self._get_service_host(service_name))
+            self.endpoint = 'http://{}'.format(service_host)
 
         exec_id = payload.get('executor_id', '')
         call_id = payload.get('call_id', '')
@@ -528,8 +527,6 @@ class KnativeServingBackend:
         in order to know which runtimes are installed and which not.
         """
         service_name = self._format_service_name(docker_image_name, runtime_memory)
-        cluster_key = urlparse(self.cluster).netloc if urlparse(self.cluster).netloc != '' \
-                          else urlparse(self.cluster).path
-        runtime_key = os.path.join(cluster_key, self.namespace, service_name)
+        runtime_key = os.path.join(self.cluster, self.namespace, service_name)
 
         return runtime_key

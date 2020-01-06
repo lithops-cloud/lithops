@@ -5,9 +5,9 @@
 [PyWren](https://github.com/pywren/pywren) is an open source project whose goals are massively scaling the execution of Python code and its dependencies on serverless computing platforms and monitoring the results. PyWren delivers the user’s code into the serverless platform without requiring knowledge of how functions are invoked and run. 
 
 ### PyWren and IBM Cloud
-This repository is based on [PyWren](https://github.com/pywren/pywren) main branch and adapted for IBM Cloud Functions and IBM Cloud Object Storage. IBM-PyWren is not, however, just a mere reimplementation of PyWren’s API atop IBM Cloud Functions. Rather, it is must be viewed as an advanced extension of PyWren to run broader Map-Reduce jobs, based on Docker images. See the complete [design overview](docs/DESIGN.md). In extending PyWren to work with IBM Cloud Object Storage, we also added a partition discovery component that allows PyWren to process large amounts of data stored in the IBM Cloud Object Storage. See [changelog](CHANGELOG.md) for more details.
+This repository is based on [PyWren](https://github.com/pywren/pywren) main branch and adapted for IBM Cloud Functions and IBM Cloud Object Storage. PyWren for IBM Cloud is not, however, just a mere reimplementation of PyWren’s API atop IBM Cloud Functions. Rather, it is must be viewed as an advanced extension of PyWren. See the complete [design overview](docs/DESIGN.md). 
 
-PyWren for IBM Cloud provides great value for the variety of uses cases, like processing data in object storage, running embarrassingly parallel compute jobs (e.g. Monte-Carlo simulations), enriching data with additional attributes and many more
+PyWren for IBM Cloud provides great value for the variety of uses cases, like processing data in object storage, running embarrassingly parallel compute jobs (e.g. Monte-Carlo simulations), enriching data with additional attributes and many more. In extending PyWren to work with IBM Cloud Object Storage, we also added a partition discovery component that allows PyWren to process large amounts of data stored in the IBM Cloud Object Storage. See [changelog](CHANGELOG.md) for more details.
 
 
 ### IBM Cloud for Academic institutions

@@ -52,7 +52,7 @@ class IBMCloudFunctionsBackend:
                                              user_agent=self.user_agent)
         elif self.iam_api_key:
             token_manager = DefaultTokenManager(api_key_id=self.iam_api_key)
-            token_filename = os.path.join(CACHE_DIR, 'IAM_TOKEN')
+            token_filename = os.path.join(CACHE_DIR, 'ibm_cf', 'iam_token')
 
             if 'token' in self.ibm_cf_config:
                 logger.debug("Using IBM IAM API Key - Reusing Token from config")

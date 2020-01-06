@@ -12,6 +12,7 @@
 - Improved remote invoker
 - reraise exception from functions
 - docs updated
+- default function timeout set to 595 secs
 
 ### Fixed
 - Fixed new invoker usage in notebooks
