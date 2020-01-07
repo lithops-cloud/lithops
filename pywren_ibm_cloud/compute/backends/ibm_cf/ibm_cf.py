@@ -27,7 +27,6 @@ class IBMCloudFunctionsBackend:
         self.log_level = os.getenv('PYWREN_LOGLEVEL')
         self.name = 'ibm_cf'
         self.ibm_cf_config = ibm_cf_config
-        self.package = 'pywren_v'+__version__
         self.is_pywren_function = is_pywren_function()
 
         self.user_agent = ibm_cf_config['user_agent']
@@ -40,6 +39,9 @@ class IBMCloudFunctionsBackend:
 
         logger.info("Set IBM CF Namespace to {}".format(self.namespace))
         logger.info("Set IBM CF Endpoint to {}".format(self.endpoint))
+
+        self.user_key = self.api_key[:5] if self.api_key else self.iam_api_key[:5]
+        self.package = 'pywren_v{}_{}'.format(__version__, self.user_key)
 
         if self.api_key:
             enc_api_key = str.encode(self.api_key)
@@ -196,7 +198,8 @@ class IBMCloudFunctionsBackend:
         """
         packages = self.cf_client.list_packages()
         for pkg in packages:
-            if 'pywren_v' in pkg['name']:
+            if (pkg['name'].startswith('pywren') and pkg['name'].endswith(self.user_key)) or \
+               (pkg['name'].startswith('pywren') and pkg['name'].count('_') == 1):
                 actions = self.cf_client.list_actions(pkg['name'])
                 while actions:
                     for action in actions:
