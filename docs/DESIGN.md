@@ -1,4 +1,4 @@
-### PyWren for IBM Cloud - Architecture
+# PyWren for IBM Cloud - Architecture
 
 ## Overview
 The chart below presents the main components of the architecture of PyWren for IBM Cloud. The components are largely divided into three sets: 

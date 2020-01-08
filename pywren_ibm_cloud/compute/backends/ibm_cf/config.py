@@ -19,6 +19,8 @@ def load_config(config_data):
         config_data['pywren']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
     if 'runtime_timeout' not in config_data['pywren']:
         config_data['pywren']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+    else:
+        config_data['pywren']['runtime_timeout'] = config_data['pywren']['runtime_timeout']*1000
     if 'runtime' not in config_data['pywren']:
         this_version_str = version_str(sys.version_info)
         if this_version_str == '3.5':

@@ -69,7 +69,7 @@ class FunctionInvoker:
             self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
 
         self.workers = self.config['pywren'].get('workers')
-        logger.debug('ExecutorID {} - Total workers:'.format(self.workers))
+        logger.debug('Total workers: {}'.format(self.workers))
 
         self.compute_handlers = []
         cb = compute_config['backend']
@@ -164,6 +164,7 @@ class FunctionInvoker:
     def _job_status_checker_worker_os(self, job):
         logger.debug('ExecutorID {} | JobID {} - Starting job status checker worker'.format(job.executor_id, job.job_id))
         total_callids_done_in_job = 0
+        time.sleep(1)
 
         while total_callids_done_in_job < job.total_calls:
             callids_done_in_job = set(self.internal_storage.get_job_status(job.executor_id, job.job_id))
@@ -178,12 +179,15 @@ class FunctionInvoker:
         total_callids_done_in_job = 0
 
         exchange = 'pywren-{}-{}'.format(job.executor_id, job.job_id)
-        queue_1 = '{}-1'.format(exchange)
+        queue_0 = '{}-0'.format(exchange)  # For waiting
+        queue_1 = '{}-1'.format(exchange)  # For invoker
 
         params = pika.URLParameters(self.rabbit_amqp_url)
         connection = pika.BlockingConnection(params)
         channel = connection.channel()
-        channel.exchange_declare(exchange=exchange, exchange_type='fanout')
+        channel.exchange_declare(exchange=exchange, exchange_type='fanout', auto_delete=True)
+        channel.queue_declare(queue=queue_0, auto_delete=True)
+        channel.queue_bind(exchange=exchange, queue=queue_0)
         channel.queue_declare(queue=queue_1, exclusive=True)
         channel.queue_bind(exchange=exchange, queue=queue_1)
 

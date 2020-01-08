@@ -1,4 +1,5 @@
 import sys
+from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import version_str
 
 DOCKER_REPO_DEFAULT = 'docker.io'
@@ -6,8 +7,7 @@ RUNTIME_DEFAULT_35 = '<USER>/pywren-kn-runtime-v35'
 RUNTIME_DEFAULT_36 = '<USER>/pywren-kn-runtime-v36'
 RUNTIME_DEFAULT_37 = '<USER>/pywren-kn-runtime-v37'
 
-GIT_URL_DEFAULT = 'https://github.com/pywren/pywren-ibm-cloud'
-GIT_REV_DEFAULT = 'master'
+BUILD_GIT_URL_DEFAULT = 'https://github.com/pywren/pywren-ibm-cloud'
 
 RUNTIME_TIMEOUT_DEFAULT = 600  # 10 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # 256Mi
@@ -124,12 +124,12 @@ spec:
     spec:
       containerConcurrency: 1
       timeoutSeconds: TIMEOUT
-      container:
-        image: IMAGE
-        resources:
-          limits:
-            memory: MEMORY
-            #cpu: 1000m
+      containers:
+        - image: IMAGE
+          resources:
+            limits:
+              memory: MEMORY
+              #cpu: 1000m
 """
 
 
@@ -140,6 +140,12 @@ def load_config(config_data):
     required_keys = ('docker_user', 'docker_token')
     if not set(required_keys) <= set(config_data['knative']):
         raise Exception('You must provide {} to access to Knative'.format(required_keys))
+
+    if 'git_url' not in config_data['knative']:
+        config_data['knative']['git_url'] = BUILD_GIT_URL_DEFAULT
+    if 'git_rev' not in config_data['knative']:
+        revision = 'master' if 'SNAPSHOT' in __version__ else __version__
+        config_data['knative']['git_rev'] = revision
 
     if 'runtime_memory' not in config_data['pywren']:
         config_data['pywren']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT

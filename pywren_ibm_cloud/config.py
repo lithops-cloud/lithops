@@ -26,7 +26,7 @@ COMPUTE_BACKEND_DEFAULT = 'ibm_cf'
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
 JOBS_PREFIX = "pywren.jobs"
 RUNTIMES_PREFIX = "pywren.runtimes"
-EXECUTION_TIMEOUT = 600  # 600 seconds => 10 minutes
+EXECUTION_TIMEOUT = 595  # 595 seconds => 10 minutes
 MAX_AGG_DATA_SIZE = 4e6  # 4MB
 
 CONFIG_DIR = os.path.expanduser('~/.pywren')

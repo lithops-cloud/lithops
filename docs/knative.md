@@ -1,6 +1,6 @@
 # PyWren on Knative (Experimental)
 
-The easiest way to make it working is to create an IBM Kubernetes (IKS) cluster trough the [IBM dashboard](https://cloud.ibm.com/kubernetes/landing). At this moment, for testing purposes, it is preferable to use this setup:
+The easiest way to make it working is to create an IBM Kubernetes (IKS) cluster trough the [IBM dashboard](https://cloud.ibm.com/kubernetes/landing). For testing purposes, it is preferable to use this setup:
 - Install Kubernetes > v1.14
 - Select a **single zone** to place the worker nodes
 - *Master service endpoint*: Public endpoint only

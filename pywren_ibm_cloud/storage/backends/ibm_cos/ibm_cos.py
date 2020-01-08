@@ -77,7 +77,7 @@ class IBMCloudObjectStorageBackend:
                                                        connect_timeout=1)
 
             token_manager = DefaultTokenManager(api_key_id=api_key)
-            token_filename = os.path.join(CACHE_DIR, api_key_type+'_TOKEN')
+            token_filename = os.path.join(CACHE_DIR, 'ibm_cos', api_key_type.lower()+'_token')
             token_minutes_diff = 0
 
             if 'token' in self.ibm_cos_config:

@@ -5,57 +5,79 @@
 [PyWren](https://github.com/pywren/pywren) is an open source project whose goals are massively scaling the execution of Python code and its dependencies on serverless computing platforms and monitoring the results. PyWren delivers the user’s code into the serverless platform without requiring knowledge of how functions are invoked and run. 
 
 ### PyWren and IBM Cloud
-This repository is based on [PyWren](https://github.com/pywren/pywren) main branch and adapted for IBM Cloud Functions and IBM Cloud Object Storage. IBM-PyWren is not, however, just a mere reimplementation of PyWren’s API atop IBM Cloud Functions. Rather, it is must be viewed as an advanced extension of PyWren to run broader Map-Reduce jobs, based on Docker images. In extending PyWren to work with IBM Cloud Object Storage, we also added a partition discovery component that allows PyWren to process large amounts of data stored in the IBM Cloud Object Storage. See [changelog](CHANGELOG.md) for more details.
+This repository is based on [PyWren](https://github.com/pywren/pywren) main branch and adapted for IBM Cloud Functions and IBM Cloud Object Storage. PyWren for IBM Cloud is not, however, just a mere reimplementation of PyWren’s API atop IBM Cloud Functions. Rather, it is must be viewed as an advanced extension of PyWren. See the complete [design overview](docs/DESIGN.md). 
 
-PyWren - IBM provides great value for the variety of uses cases, like processing data in object storage, running embarrassingly parallel compute jobs (e.g. Monte-Carlo simulations), enriching data with additional attributes and many more
+PyWren for IBM Cloud provides great value for the variety of uses cases, like processing data in object storage, running embarrassingly parallel compute jobs (e.g. Monte-Carlo simulations), enriching data with additional attributes and many more. In extending PyWren to work with IBM Cloud Object Storage, we also added a partition discovery component that allows PyWren to process large amounts of data stored in the IBM Cloud Object Storage. See [changelog](CHANGELOG.md) for more details.
 
-
-This document describes the steps to use PyWren over IBM Cloud Functions and IBM Cloud Object Storage.
 
 ### IBM Cloud for Academic institutions
 [IBM Academic Initiative](https://ibm.biz/academic) is a special program that allows free trial of IBM Cloud for Academic institutions. This program is provided for students and faculty staff members, and allow up to 12 months of free usage. You can register your university email and get a free of charge account.
 
 
-# Getting Started
-1. [Initial requirements](#initial-requirements)
-2. [PyWren setup](#pywren-setup)
-3. [Configuration](#configuration)
-4. [Verify installation](#verify)
-5. [How to use PyWren for IBM Cloud](#how-to-use-pywren-for-ibm-cloud)
-   - [Functions](#functions)
-   - [Using PyWren to process data from IBM Cloud Object Storage and public URLs](#using-pywren-to-process-data-from-ibm-cloud-object-storage-and-public-urls)
-   - [PyWren on IBM Watson Studio and Jupyter notebooks](#pywren-on-ibm-watson-studio-and-jupyter-notebooks)
-6. [Additional resources](#additional-resources)
-
-
 ## Initial Requirements
-* IBM Cloud Functions account, as described [here](https://cloud.ibm.com/openwhisk/). Make sure you can run end-to-end example with Python.
-* IBM Cloud Object Storage [account](https://www.ibm.com/cloud/object-storage)
+* [IBM Cloud Functions account](https://cloud.ibm.com/functions)
+* [IBM Cloud Object Storage account](https://www.ibm.com/cloud/object-storage)
 * Python 3.5, Python 3.6 or Python 3.7
 
 
 ## PyWren Setup
 
-Install PyWren from the PyPi repository:
+1. Install PyWren from the PyPi repository:
 
+    ```
 	pip install pywren-ibm-cloud
+	```
 
-Installation for developers can be found [here](docs/dev-installation.md).
+2. Navigate into [config/](config/) and follow the instructions to configure the client with the access details to your IBM Cloud Object Storage and IBM Cloud Functions accounts. 
+
+3. Test PyWren by simply running the next code:
+
+    ```python
+    import pywren_ibm_cloud as pywren
+    
+    def add_seven(x):
+        return x + 7
+    
+    if __name__ == '__main__':
+        ibmcf = pywren.ibm_cf_executor()
+        ibmcf.call_async(add_seven, 3)
+        print(ibmcf.get_result())
+    ```
 
 
-## Configuration
-To make IBM-PyWren running, configure the client with the access details to your IBM Cloud Object Storage and IBM Cloud Functions accounts. IBM-PyWren can be configured through a configuration file or an in-runtime Python dictionary.
+## How to use PyWren for IBM Cloud
+The primary object in PyWren is the executor. The standard way to get everything set up is to import `pywren_ibm_cloud`, and call one of the available functions to get a [ready-to-use executor](docs/api-details.md#executor). 
 
-You can find the complete instructions and all the available configuration keys [here](config/).
+The available executors are:
+
+- `ibm_cf_executor()`: IBM Cloud Functions executor.
+- `knative_executor()`: Knative executor. See [additional information](docs/knative.md).
+- `openwhisk_executor()`: Vanilla OpenWhisk executor. See [additional information](docs/openwhisk.md).
+- `function_executor()`: Generic executor based on the compute backend specified in configuration.
+- `local_executor()`: Localhost executor to run functions by using local processes.
+
+The available calls within an executor are:
+
+|API Call| Type | Description|
+|---|---|---|
+|[call_async()](docs/api-details.md#executorcall_async) | Async. | Method used to spawn one function activation |
+|[map()](docs/api-details.md#executormap) | Async. | Method used to spawn multiple function activations |
+|[map_reduce()](docs/api-details.md#executormap_reduce) | Async. | Method used to spawn multiple function activations with one (or multiple) reducers|
+|[wait()](docs/api-details.md#executorwait) | Sync. | Wait for the function activations to complete. It blocks the local execution until all the function activations finished their execution (configurable)|
+|[get_result()](docs/api-details.md#executorget_result) | Sync. | Method used to retrieve the results of all function activations. The results are returned within an ordered list, where each element of the list is the result of one activation|
+|[create_execution_plots()](docs/api-details.md#executorcreate_execution_plots) | Sync. | Method used to create execution plots |
+|[clean()](docs/api-details.md#executorclean) | Async. | Method used to clean the temporary data generated by PyWren in IBM COS |
 
 
-##  Runtime
-The runtime is the place where your functions will be executed. In IBM-PyWren, runtimes are based on docker images, and it includes by default three different runtimes that allows you to run functions with Python 3.5, 3.6 and 3.7 environments. IBM-PyWren automatically deploys the default runtime, based on the Python version you are using, the first time you execute a function. Additionally, you can also build custom runtimes with libraries that your functions depend on.
+Additional information and examples:
 
-Check more information about runtimes [here](runtime/).
+- **Functions**: [PyWren functions and parameters](docs/functions.md)
+- **Runtimes**: [Building and managing PyWren runtimes to run the functions](runtime/)
+- **Data processing**: [Using PyWren to process data from IBM Cloud Object Storage and public URLs](docs/data-processing.md)
+- **Notebooks**: [PyWren on IBM Watson Studio and Jupyter notebooks](examples/hello_world.ipynb)
 
 
-## Verify 
+## Verify - Unit Testing
 
 To test that all is working, use the command:
 
@@ -64,77 +86,6 @@ To test that all is working, use the command:
 Notice that if you didn't set a local PyWren's config file, you need to provide it as a json file path by `-c <CONFIG>` flag. 
 
 Alternatively, for debugging purposes, you can run specific tests by `-t <TESTNAME>`. use `--help` flag to get more information about the test script.
-
-
-## How to use PyWren for IBM Cloud
-The primary object in PyWren is the executor. The standard way to get everything set up is to import pywren_ibm_cloud, and call on of the available methods to get a ready-to-use executor. The available executors are: `ibm_cf_executor()`, `knative_executor()` and `function_executor()`. For example:
-
-```python
-import pywren_ibm_cloud as pywren
-ibmcf = pywren.ibm_cf_executor()
-```
-
-The executor, or PyWren API, includes three different methods to execute functions in the cloud: `call_async()`, `map()`, and `map_reduce()`, one method to track the function activations: `wait()`, and one method to get the final results: `get_result()`. Additionally, it has two new methods: `create_execution_plots()` to create 2 detailed execution plots, and `clean()` to delete the temporary data generated by PyWren in IBM COS. For additional information and examples check the complete [API details](docs/api-details.md).
-
-
-|API Call| Type | Description|
-|---|---|---|
-|call_async() | Async. | Method used to spawn one function activation |
-|map() | Async. | Method used to spawn multiple function activations |
-|map_reduce() | Async. | Method used to spawn multiple function activations with one (or multiple) reducers|
-|wait() | Sync. | Wait for the function activations to complete. It blocks the local execution until all the function activations finished their execution (configurable)|
-|get_result() | Sync. | Method used to retrieve the results of all function activations. The results are returned within an ordered list, where each element of the list is the result of one activation|
-|create_execution_plots() | Sync. | Method used to create execution plots |
-|clean() | Async. | Method used to clean the temporary data generated by PyWren in IBM COS |
-
-As a simple example, you can copy-paste the next code and run the `add_seven()` function on IBM Cloud Functions:
-
-```python
-import pywren_ibm_cloud as pywren
-
-def add_seven(x):
-    return x + 7
-
-if __name__ == '__main__':
-    ibmcf = pywren.ibm_cf_executor()
-    ibmcf.call_async(add_seven, 3)
-    print(ibmcf.get_result())
-```
-
-### Functions
-PyWren for IBM Cloud allows sending multiple parameters in each function invocation. See detailed examples [here](docs/multiple-parameters.md). Moreover, multiple parameters in functions allowed us to add some new built-in capabilities in PyWren. Thus, take into account that there are some reserved parameter names that activate internal logic. These reserved parameters are:
-
-- **id**: To get the call id. For instance, if you spawn 10 activations of a function, you will get here a number from 0 to 9, for example: [map.py](examples/map.py)
-
-- **ibm_cos**: To get a ready-to use [ibm_boto3.Client()](https://ibm.github.io/ibm-cos-sdk-python/reference/services/s3.html#client) instance. This allows you to access your IBM COS account from any function in an easy way, for example: [ibmcos_arg.py](examples/ibmcos_arg.py)
-
-- **rabbitmq**: To get a ready-to use [pika.BlockingConnection()](https://pika.readthedocs.io/en/0.13.1/modules/adapters/blocking.html) instance (AMQP URL must be set in the [configuration](config/) to make it working). This allows you to access the RabbitMQ service from any function in an easy way, for example: [rabbitmq_arg.py](examples/rabbitmq_arg.py)
-
-- **obj** & **url**: These two parameters activate internal logic that allows processing data objects stored in the IBM Cloud Object Storage service or public URLs in a transparent way. Read the following section that provides full details and instructions on how to use this built-in data-processing logic.
-
-
-### Using PyWren to process data from IBM Cloud Object Storage and public URLs
-PyWren for IBM Cloud functions has built-in logic for processing data objects from public URLs and IBM Cloud Object Storage. When you write in the parameters of a function the parameter name: **obj**, you are telling to PyWren that you want to process objects located in IBM Cloud Object Storage service. In contrast, when you write in the parameters of a function the parameter name: **url**, you are telling to PyWren that you want to process data from publicly accessible URLs. 
-
-Additionally, the built-in data-processing logic integrates a **data partitioner** system that allows to automatically split the dataset in smallest chunks. Navigate into [docs/data-processing.md](docs/data-processing.md) to see the complete details about data processing in PyWren.
-
-
-### PyWren on IBM Watson Studio and Jupyter notebooks
-It is possible to use **IBM-PyWren** inside **IBM Watson Studio** or Jupyter notebooks in order to run your workloads. You must ensure that the **IBM-PyWren** package is installed in the environment you are using the notebook. To do so, if you can't install the package manually, we recommend to add these lines at the beginning of the notebook:
-
-```python
-import sys
-try:
-    import pywren_ibm_cloud as pywren
-except:
-    !{sys.executable} -m pip install pywren-ibm-cloud
-    import pywren_ibm_cloud as pywren
-```
-Installation supports PyWren version as an input parameter, for example:
-
-	!{sys.executable} -m pip install -U pywren-ibm-cloud==1.3.0
-
-Once installed, you can use IBM-PyWren as usual inside the notebook. See an example in [hello_world.ipynb](examples/hello_world.ipynb). Don't forget of the [configuration](config/).
 
 
 ## Additional resources

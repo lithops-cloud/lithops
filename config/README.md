@@ -93,12 +93,12 @@ pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |pywren|storage_bucket | |yes | Any bucket that exists in your COS account. This will be used by PyWren for intermediate data |
-|pywren|data_cleaner |False|no|If set to True, then cleaner will automatically delete temporary data that was written into `storage_bucket/storage_prefix`|
+|pywren|data_cleaner |True|no|If set to True, then cleaner will automatically delete temporary data that was written into `storage_bucket/pywren.jobs`|
 |pywren | storage_backend | ibm_cos | no | Storage backend implementation. IBM Cloud Object Storage is the default |
 |pywren | compute_backend | ibm_cf | no | Compute backend implementation. IBM Cloud Functions is the default |
 |pywren | rabbitmq_monitor | False | no | Activate the rabbitmq monitoring feature |
 |pywren | workers | Depends of the ComputeBackend | no | Max number of concurrent workers |
-|pywren| runtime_timeout | 600000 |no |  Default runtime timeout (in milliseconds) |
+|pywren| runtime_timeout | 600 |no |  Default runtime timeout (in seconds) |
 |pywren| runtime_memory | 256 | no | Default runtime memory (in MB) |
 
 
@@ -144,3 +144,5 @@ pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
 |knative | endpoint | |no | Istio IngressGateway Endpoint. Make sure to use http:// prefix |
 |knative | docker_user | |yes | Docker hub username |
 |knative | docker_token | |yes | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
+|knative | git_url | |no | Git repository to build the image |
+|knative | git_rev | |no | Git revision to build the image |

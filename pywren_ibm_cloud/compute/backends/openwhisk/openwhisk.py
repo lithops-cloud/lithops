@@ -23,7 +23,6 @@ class OpenWhiskBackend:
         self.log_level = os.getenv('PYWREN_LOGLEVEL')
         self.name = 'openwhisk'
         self.ow_config = ow_config
-        self.package = 'pywren_v'+__version__
         self.is_pywren_function = is_pywren_function()
 
         self.user_agent = ow_config['user_agent']
@@ -36,6 +35,9 @@ class OpenWhiskBackend:
         logger.info("Set OpenWhisk Endpoint to {}".format(self.endpoint))
         logger.info("Set OpenWhisk Namespace to {}".format(self.namespace))
         logger.info("Set OpenWhisk Insecure to {}".format(self.insecure))
+
+        self.user_key = self.api_key[:5]
+        self.package = 'pywren_v{}_{}'.format(__version__, self.user_key)
 
         self.cf_client = OpenWhiskClient(endpoint=self.endpoint,
                                          namespace=self.namespace,
@@ -148,7 +150,7 @@ class OpenWhiskBackend:
         """
         packages = self.cf_client.list_packages()
         for pkg in packages:
-            if 'pywren_v' in pkg['name']:
+            if pkg['name'].startswith('pywren') and pkg['name'].endswith(self.user_key):
                 actions = self.cf_client.list_actions(pkg['name'])
                 while actions:
                     for action in actions:

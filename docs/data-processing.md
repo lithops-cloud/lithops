@@ -45,7 +45,7 @@ Notice that *iterdata* must be only one of the previous 3 types. Intermingled ty
 iterdata = ['cos://bucket1', 'cos://bucket1/object2', 'cos://bucket1/object3']  # Not allowed
 ```
 
-Once iterdata is defined, you can execute PyWren as usual, either using *map()* or **map_reduce()* calls. If you need to split the files in smaller chunks, you can set (optionally) the *chunk_size* or *chunk_n* parameters.
+Once iterdata is defined, you can execute PyWren as usual, either using *map()* or *map_reduce()* calls. If you need to split the files in smaller chunks, you can set (optionally) the *chunk_size* or *chunk_n* parameters.
 
 ```python
 import pywren_ibm_cloud as pywren

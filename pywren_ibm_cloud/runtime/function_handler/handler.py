@@ -229,7 +229,7 @@ def function_handler(event):
                 try:
                     connection = pika.BlockingConnection(params)
                     channel = connection.channel()
-                    channel.exchange_declare(exchange=exchange, exchange_type='fanout')
+                    channel.exchange_declare(exchange=exchange, exchange_type='fanout', auto_delete=True)
                     channel.basic_publish(exchange=exchange, routing_key='',
                                           body=dmpd_response_status)
                     connection.close()

@@ -6,6 +6,7 @@ import logging
 import pkgutil
 from pywren_ibm_cloud.config import cloud_logging_config
 from pywren_ibm_cloud.runtime.function_handler import function_handler
+from pywren_ibm_cloud.runtime.function_handler import function_invoker
 
 cloud_logging_config(logging.INFO)
 logger = logging.getLogger('__main__')
@@ -26,8 +27,15 @@ def run():
         return error()
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
-    logger.info("Starting knative Function execution")
-    function_handler(message)
+    os.environ['__OW_ACTIVATION_ID'] = act_id
+
+    if 'remote_invoker' in message:
+        logger.info("Starting Knative invoker")
+        function_invoker(message)
+    else:
+        logger.info("Starting Knative execution")
+        function_handler(message)
+
     response = flask.jsonify({"activationId": act_id})
     response.status_code = 202
 
