@@ -38,7 +38,7 @@ class Compute:
         """
         self.compute_handler.build_runtime(runtime_name, file)
 
-    def create_runtime(self, runtime_name, memory, timeout=300000):
+    def create_runtime(self, runtime_name, memory, timeout):
         """
         Wrapper method to create a runtime in the compute backend.
         return: the name of the runtime

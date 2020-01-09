@@ -31,8 +31,9 @@ from distutils.util import strtobool
 from pywren_ibm_cloud import version
 from pywren_ibm_cloud.utils import sizeof_fmt
 from pywren_ibm_cloud.storage import InternalStorage
-from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config, JOBS_PREFIX
 from pywren_ibm_cloud.runtime.function_handler.jobrunner import JobRunner
+from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config, JOBS_PREFIX
+from pywren_ibm_cloud.storage.utils import create_output_key, create_status_key, create_init_key
 
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
@@ -68,12 +69,26 @@ def get_server_info():
     return server_info
 
 
+def send_init_event(config, init_key, response_status):
+    store_status = strtobool(os.environ.get('STORE_STATUS', 'True'))
+    response_status['type'] = '__init__'
+    dmpd_response_status = json.dumps(response_status)
+
+    if store_status:
+        storage_config = extract_storage_config(config)
+        internal_storage = InternalStorage(storage_config)
+        internal_storage.put_data(init_key, '')
+
+
 def function_handler(event):
     start_time = time.time()
 
     log_level = event['log_level']
     cloud_logging_config(log_level)
     logger.debug("Action handler started")
+
+    extra_env = event.get('extra_env', {})
+    os.environ.update(extra_env)
 
     response_status = {'exception': False}
     response_status['host_submit_time'] = event['host_submit_time']
@@ -84,46 +99,44 @@ def function_handler(event):
     }
 
     config = event['config']
-    storage_config = extract_storage_config(config)
 
     call_id = event['call_id']
     job_id = event['job_id']
     executor_id = event['executor_id']
     exec_id = "{}/{}/{}".format(executor_id, job_id, call_id)
     logger.info("Execution ID: {}".format(exec_id))
+
     execution_timeout = event['execution_timeout']
     logger.debug("Set function execution timeout to {}s".format(execution_timeout))
-    status_key = event['status_key']
+
     func_key = event['func_key']
     data_key = event['data_key']
     data_byte_range = event['data_byte_range']
-    output_key = event['output_key']
-    extra_env = event.get('extra_env', {})
+
+    status_key = create_status_key(JOBS_PREFIX, executor_id, job_id, call_id)
+    output_key = create_output_key(JOBS_PREFIX, executor_id, job_id, call_id)
+    init_key = create_init_key(JOBS_PREFIX, executor_id, job_id, call_id)
 
     response_status['call_id'] = call_id
     response_status['job_id'] = job_id
     response_status['executor_id'] = executor_id
     response_status['activation_id'] = os.environ.get('__OW_ACTIVATION_ID')
-    # response_status['func_key'] = func_key
-    # response_status['data_key'] = data_key
-    # response_status['output_key'] = output_key
-    # response_status['status_key'] = status_key
 
     try:
         if version.__version__ != event['pywren_version']:
             raise Exception("WRONGVERSION", "PyWren version mismatch",
                             version.__version__, event['pywren_version'])
 
+        #send_init_event(config, init_key, response_status.copy())
+
         # response_status['free_disk_bytes'] = free_disk_space("/tmp")
         custom_env = {'PYWREN_CONFIG': json.dumps(config),
                       'PYWREN_FUNCTION': 'True',
                       'PYWREN_EXECUTION_ID': exec_id,
-                      'PYWREN_STORAGE_BUCKET': storage_config['bucket'],
+                      'PYWREN_STORAGE_BUCKET': config['pywren']['storage_bucket'],
                       'PYTHONPATH': "{}:{}".format(os.getcwd(), PYWREN_LIBS_PATH),
                       'PYTHONUNBUFFERED': 'True'}
-
         os.environ.update(custom_env)
-        os.environ.update(extra_env)
 
         # if os.path.exists(JOBRUNNER_STATS_BASE_DIR):
         #     shutil.rmtree(JOBRUNNER_STATS_BASE_DIR, True)
@@ -213,6 +226,7 @@ def function_handler(event):
 
     finally:
         store_status = strtobool(os.environ.get('STORE_STATUS', 'True'))
+        response_status['type'] = '__end__'
         dmpd_response_status = json.dumps(response_status)
         drs = sizeof_fmt(len(dmpd_response_status))
 
@@ -242,6 +256,7 @@ def function_handler(event):
                     time.sleep(0.2)
 
         if store_status:
+            storage_config = extract_storage_config(config)
             internal_storage = InternalStorage(storage_config)
             logger.info("Storing execution stats - status.json - Size: {}".format(drs))
             internal_storage.put_data(status_key, dmpd_response_status)

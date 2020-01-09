@@ -37,6 +37,7 @@ def create_runtime(name, memory=None, config=None):
 
     memory = config['pywren']['runtime_memory'] if not memory else memory
     timeout = config['pywren']['runtime_timeout']
+
     logger.info('Creating runtime: {}, memory: {}'.format(name, memory))
 
     runtime_key = compute_handler.get_runtime_key(name, memory)
@@ -76,6 +77,7 @@ def build_runtime(name, file, config=None):
     compute_handler = Compute(compute_config)
     compute_handler.build_runtime(name, file)
 
+    print(config)
     create_runtime(name, config=config)
     update_runtime(name, config=config)
 

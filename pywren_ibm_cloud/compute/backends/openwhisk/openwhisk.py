@@ -113,7 +113,7 @@ class OpenWhiskBackend:
         if res != 0:
             exit()
 
-    def create_runtime(self, docker_image_name, memory, timeout=openwhisk_config.RUNTIME_TIMEOUT_DEFAULT):
+    def create_runtime(self, docker_image_name, memory, timeout):
         """
         Creates a new runtime into IBM CF namespace from an already built Docker image
         """
@@ -132,7 +132,7 @@ class OpenWhiskBackend:
         with open(openwhisk_config.FH_ZIP_LOCATION, "rb") as action_zip:
             action_bin = action_zip.read()
         self.cf_client.create_action(self.package, action_name, docker_image_name, code=action_bin,
-                                     memory=memory, is_binary=True, timeout=timeout)
+                                     memory=memory, is_binary=True, timeout=timeout*1000)
         return runtime_meta
 
     def delete_runtime(self, docker_image_name, memory):

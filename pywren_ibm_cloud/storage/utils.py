@@ -16,8 +16,6 @@
 import logging
 import json
 import time
-import sys
-import os
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +25,7 @@ agg_data_key_suffix = "aggdata.pickle"
 data_key_suffix = "data.pickle"
 output_key_suffix = "output.pickle"
 status_key_suffix = "status.json"
+init_key_suffix = "__init__"
 
 
 class StorageNoSuchKeyError(Exception):
@@ -138,6 +137,17 @@ def create_status_key(prefix, executor_id, job_id, call_id):
     :return: status key
     """
     return '/'.join([prefix, executor_id, job_id, call_id, status_key_suffix])
+
+
+def create_init_key(prefix, executor_id, job_id, call_id):
+    """
+    Create output key
+    :param prefix: prefix
+    :param executor_id: callset's ID
+    :param call_id: call's ID
+    :return: output key
+    """
+    return '/'.join([prefix, executor_id, job_id, call_id, init_key_suffix])
 
 
 def create_keys(prefix, executor_id, job_id, call_id):
