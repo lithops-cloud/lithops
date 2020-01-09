@@ -30,6 +30,8 @@ logging.getLogger('ibm_botocore').setLevel(logging.CRITICAL)
 logging.getLogger('urllib3').setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
+OBJ_REQ_RETRIES = 5
+
 
 class IBMCloudObjectStorageBackend:
     """
@@ -40,6 +42,7 @@ class IBMCloudObjectStorageBackend:
         logger.debug("Creating IBM COS client")
         self.ibm_cos_config = ibm_cos_config
         self.is_pywren_function = is_pywren_function()
+        user_agent = ibm_cos_config['user_agent']
 
         service_endpoint = ibm_cos_config.get('endpoint').replace('http:', 'https:')
         if self.is_pywren_function and 'private_endpoint' in ibm_cos_config:
@@ -62,8 +65,10 @@ class IBMCloudObjectStorageBackend:
             access_key = ibm_cos_config.get('access_key')
             secret_key = ibm_cos_config.get('secret_key')
             client_config = ibm_botocore.client.Config(max_pool_connections=128,
-                                                       user_agent_extra='pywren-ibm-cloud',
-                                                       connect_timeout=1)
+                                                       user_agent_extra=user_agent,
+                                                       connect_timeout=1,
+                                                       read_timeout=10)
+
             self.cos_client = ibm_boto3.client('s3',
                                                aws_access_key_id=access_key,
                                                aws_secret_access_key=secret_key,
@@ -73,8 +78,9 @@ class IBMCloudObjectStorageBackend:
         elif api_key is not None:
             client_config = ibm_botocore.client.Config(signature_version='oauth',
                                                        max_pool_connections=128,
-                                                       user_agent_extra='pywren-ibm-cloud',
-                                                       connect_timeout=1)
+                                                       user_agent_extra=user_agent,
+                                                       connect_timeout=1,
+                                                       read_timeout=10)
 
             token_manager = DefaultTokenManager(api_key_id=api_key)
             token_filename = os.path.join(CACHE_DIR, 'ibm_cos', api_key_type.lower()+'_token')
@@ -129,18 +135,25 @@ class IBMCloudObjectStorageBackend:
         :type data: str/bytes
         :return: None
         """
-        try:
-            res = self.cos_client.put_object(Bucket=bucket_name, Key=key, Body=data)
-            status = 'OK' if res['ResponseMetadata']['HTTPStatusCode'] == 200 else 'Error'
+        retries = 0
+        status = None
+        while status is None:
             try:
-                logger.debug('PUT Object {} - Size: {} - {}'.format(key, sizeof_fmt(len(data)), status))
-            except Exception:
-                logger.debug('PUT Object {} {}'.format(key, status))
-        except ibm_botocore.exceptions.ClientError as e:
-            if e.response['Error']['Code'] == "NoSuchKey":
-                raise StorageNoSuchKeyError(bucket_name, key)
-            else:
-                raise e
+                res = self.cos_client.put_object(Bucket=bucket_name, Key=key, Body=data)
+                status = 'OK' if res['ResponseMetadata']['HTTPStatusCode'] == 200 else 'Error'
+                try:
+                    logger.debug('PUT Object {} - Size: {} - {}'.format(key, sizeof_fmt(len(data)), status))
+                except Exception:
+                    logger.debug('PUT Object {} {}'.format(key, status))
+            except ibm_botocore.exceptions.ClientError as e:
+                if e.response['Error']['Code'] == "NoSuchKey":
+                    raise StorageNoSuchKeyError(bucket_name, key)
+                else:
+                    raise e
+            except ibm_botocore.exceptions.ReadTimeoutError as e:
+                if retries == OBJ_REQ_RETRIES:
+                    raise e
+                retries += 1
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
         """
@@ -149,18 +162,25 @@ class IBMCloudObjectStorageBackend:
         :return: Data of the object
         :rtype: str/bytes
         """
-        try:
-            r = self.cos_client.get_object(Bucket=bucket_name, Key=key, **extra_get_args)
-            if stream:
-                data = r['Body']
-            else:
-                data = r['Body'].read()
-            return data
-        except ibm_botocore.exceptions.ClientError as e:
-            if e.response['Error']['Code'] == "NoSuchKey":
-                raise StorageNoSuchKeyError(bucket_name, key)
-            else:
-                raise e
+        data = None
+        retries = 0
+        while data is None:
+            try:
+                r = self.cos_client.get_object(Bucket=bucket_name, Key=key, **extra_get_args)
+                if stream:
+                    data = r['Body']
+                else:
+                    data = r['Body'].read()
+            except ibm_botocore.exceptions.ClientError as e:
+                if e.response['Error']['Code'] == "NoSuchKey":
+                    raise StorageNoSuchKeyError(bucket_name, key)
+                else:
+                    raise e
+            except ibm_botocore.exceptions.ReadTimeoutError as e:
+                if retries == OBJ_REQ_RETRIES:
+                    raise e
+                retries += 1
+        return data
 
     def head_object(self, bucket_name, key):
         """
@@ -169,14 +189,21 @@ class IBMCloudObjectStorageBackend:
         :return: Data of the object
         :rtype: str/bytes
         """
-        try:
-            metadata = self.cos_client.head_object(Bucket=bucket_name, Key=key)
-            return metadata['ResponseMetadata']['HTTPHeaders']
-        except ibm_botocore.exceptions.ClientError as e:
-            if e.response['Error']['Code'] == '404':
-                raise StorageNoSuchKeyError(bucket_name, key)
-            else:
-                raise e
+        metadata = None
+        retries = 0
+        while metadata is None:
+            try:
+                metadata = self.cos_client.head_object(Bucket=bucket_name, Key=key)
+            except ibm_botocore.exceptions.ClientError as e:
+                if e.response['Error']['Code'] == '404':
+                    raise StorageNoSuchKeyError(bucket_name, key)
+                else:
+                    raise e
+            except ibm_botocore.exceptions.ReadTimeoutError as e:
+                if retries == OBJ_REQ_RETRIES:
+                    raise e
+                retries += 1
+        return metadata['ResponseMetadata']['HTTPHeaders']
 
     def delete_object(self, bucket_name, key):
         """
