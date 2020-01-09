@@ -26,18 +26,16 @@ from pywren_ibm_cloud.compute import Compute
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.version import __version__
 from concurrent.futures import ThreadPoolExecutor
-from pywren_ibm_cloud.config import cloud_logging_config, extract_compute_config, extract_storage_config, JOBS_PREFIX
-from pywren_ibm_cloud.storage.utils import create_output_key, create_status_key
-from pywren_ibm_cloud import version
+from pywren_ibm_cloud.config import cloud_logging_config, extract_compute_config, extract_storage_config
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('invoker')
 
 
 def function_invoker(event):
-    if version.__version__ != event['pywren_version']:
+    if __version__ != event['pywren_version']:
         raise Exception("WRONGVERSION", "PyWren version mismatch",
-                        version.__version__, event['pywren_version'])
+                        __version__, event['pywren_version'])
 
     log_level = event['log_level']
     cloud_logging_config(log_level)
@@ -89,15 +87,10 @@ class FunctionInvoker:
         """
         Method used to perform the actual invocation against the Compute Backend
         """
-        output_key = create_output_key(JOBS_PREFIX, job.executor_id, job.job_id, call_id)
-        status_key = create_status_key(JOBS_PREFIX, job.executor_id, job.job_id, call_id)
-
         payload = {'config': self.config,
                    'log_level': self.log_level,
                    'func_key': job.func_key,
                    'data_key': job.data_key,
-                   'output_key': output_key,
-                   'status_key': status_key,
                    'extra_env': job.extra_env,
                    'execution_timeout': job.execution_timeout,
                    'data_byte_range': job.data_ranges[int(call_id)],
