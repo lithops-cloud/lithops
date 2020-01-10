@@ -56,26 +56,26 @@ def create_rabbitmq_resources(config, executor_id, job_id):
     Called when a job is created.
     """
     logger.debug('ExecutorID {} | JobID {} - Creating RabbitMQ resources'.format(executor_id, job_id))
+
+    def create_resources(rabbit_amqp_url, executor_id, job_id):
+        exchange = 'pywren-{}-{}'.format(executor_id, job_id)
+        queue_0 = '{}-0'.format(exchange)  # For waiting
+        queue_1 = '{}-1'.format(exchange)  # For invoker
+
+        params = pika.URLParameters(rabbit_amqp_url)
+        connection = pika.BlockingConnection(params)
+        channel = connection.channel()
+        channel.exchange_declare(exchange=exchange, exchange_type='fanout', auto_delete=True)
+        channel.queue_declare(queue=queue_0, auto_delete=True)
+        channel.queue_bind(exchange=exchange, queue=queue_0)
+        channel.queue_declare(queue=queue_1, auto_delete=True)
+        channel.queue_bind(exchange=exchange, queue=queue_1)
+        connection.close()
+
     rabbit_amqp_url = config['rabbitmq'].get('amqp_url')
-    th = threading.Thread(target=_create_rabbitmq_resources, args=(rabbit_amqp_url, executor_id, job_id))
+    th = threading.Thread(target=create_resources, args=(rabbit_amqp_url, executor_id, job_id))
     th.daemon = True
     th.start()
-
-
-def _create_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id):
-    exchange = 'pywren-{}-{}'.format(executor_id, job_id)
-    queue_0 = '{}-0'.format(exchange)  # For waiting
-    queue_1 = '{}-1'.format(exchange)  # For invoker
-
-    params = pika.URLParameters(rabbit_amqp_url)
-    connection = pika.BlockingConnection(params)
-    channel = connection.channel()
-    channel.exchange_declare(exchange=exchange, exchange_type='fanout', auto_delete=True)
-    channel.queue_declare(queue=queue_0, auto_delete=True)
-    channel.queue_bind(exchange=exchange, queue=queue_0)
-    channel.queue_declare(queue=queue_1, auto_delete=True)
-    channel.queue_bind(exchange=exchange, queue=queue_1)
-    connection.close()
 
 
 def delete_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id):

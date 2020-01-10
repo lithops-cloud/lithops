@@ -16,6 +16,7 @@
 
 import os
 import sys
+import json
 import pika
 import time
 import logging
@@ -34,6 +35,7 @@ from pywren_ibm_cloud.future import ResponseFuture
 logger = logging.getLogger(__name__)
 
 REMOTE_INVOKER_MEMORY = 2048
+INVOKER_PROCESSES = 2
 
 
 class FunctionInvoker:
@@ -48,12 +50,9 @@ class FunctionInvoker:
         self.storage_config = extract_storage_config(self.config)
         self.internal_storage = internal_storage
         self.compute_config = extract_compute_config(self.config)
+        self.is_pywren_function = is_pywren_function()
 
         self.remote_invoker = self.config['pywren'].get('remote_invoker', False)
-        self.rabbitmq_monitor = self.config['pywren'].get('rabbitmq_monitor', False)
-        if self.rabbitmq_monitor:
-            self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
-
         self.workers = self.config['pywren'].get('workers')
         logger.debug('ExecutorID {} - Total workers: {}'.format(self.executor_id, self.workers))
 
@@ -68,14 +67,15 @@ class FunctionInvoker:
         else:
             self.compute_handlers.append(Compute(self.compute_config))
 
-        logger.debug('ExecutorID {} - Creating invoker process'.format(self.executor_id))
+        logger.debug('ExecutorID {} - Creating function invoker'.format(self.executor_id))
 
         self.token_bucket_q = Queue()
         self.pending_calls_q = Queue()
         self.invoker_process_stop_flag = Value('i', 0)
-        self.is_pywren_function = is_pywren_function()
         self.invoker_process = self._start_invoker_process()
         self.ongoing_activations = 0
+
+        self.job_monitor = JobMonitor(self.config, self.internal_storage, self.token_bucket_q)
 
     def select_runtime(self, job_id, runtime_memory):
         """
@@ -135,14 +135,46 @@ class FunctionInvoker:
         """
         Starts the invoker process responsible to spawn pending calls in background
         """
+        self.invokers = []
         if self.is_pywren_function or not is_unix_system():
-            invoker_process = Thread(target=self.run_process, args=())
+            for inv_id in range(INVOKER_PROCESSES):
+                p = Thread(target=self._run_process, args=(inv_id, ))
+                self.invokers.append(p)
+                p.daemon = True
+                p.start()
         else:
-            invoker_process = Process(target=self.run_process, args=())
-        invoker_process.daemon = True
-        invoker_process.start()
+            for inv_id in range(INVOKER_PROCESSES):
+                p = Process(target=self._run_process, args=(inv_id, ))
+                self.invokers.append(p)
+                p.daemon = True
+                p.start()
 
-        return invoker_process
+    def _run_process(self, inv_id):
+        """
+        Run process that implements token bucket scheduling approach
+        """
+        logger.debug('ExecutorID {} - Invoker process {} started'.format(self.executor_id, inv_id))
+
+        with ThreadPoolExecutor(max_workers=250) as executor:
+            while not self.invoker_process_stop_flag.value:
+                try:
+                    self.token_bucket_q.get()
+                    job, call_id = self.pending_calls_q.get()
+                except KeyboardInterrupt:
+                    break
+                executor.submit(self._invoke, job, call_id)
+
+        while not self.pending_calls_q.empty():
+            self.pending_calls_q.get()
+
+        logger.debug('ExecutorID {} - Invoker process {} finished'.format(self.executor_id, inv_id))
+
+    def stop(self):
+        """
+        Stop the invoker process
+        """
+        logger.debug('ExecutorID {} - Stopping invoker process'.format(self.executor_id))
+        self.invoker_process_stop_flag.value = 1
 
     def _invoke(self, job, call_id):
         """
@@ -207,7 +239,6 @@ class FunctionInvoker:
         """
         job = SimpleNamespace(**job_description)
 
-        # TODO: Check if there is another job running, if so omit next lines
         try:
             while True:
                 self.token_bucket_q.get_nowait()
@@ -262,7 +293,7 @@ class FunctionInvoker:
                         call_id = "{:05d}".format(i)
                         self.pending_calls_q.put((job, call_id))
 
-                self.start_job_monitoring(job)
+                self.job_monitor.start_job_monitoring(job)
 
                 call_futures = []
                 with ThreadPoolExecutor(max_workers=job.invoke_pool_threads) as executor:
@@ -292,6 +323,27 @@ class FunctionInvoker:
 
         return futures
 
+
+class JobMonitor:
+
+    def __init__(self, pywren_config, internal_storage, token_bucket_q):
+        self.config = pywren_config
+        self.internal_storage = internal_storage
+        self.token_bucket_q = token_bucket_q
+        self.is_pywren_function = is_pywren_function()
+        self.monitors = []
+
+        self.rabbitmq_monitor = self.config['pywren'].get('rabbitmq_monitor', False)
+        if self.rabbitmq_monitor:
+            self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
+
+    def get_active_jobs(self):
+        active_jobs = 0
+        for job_monitor_th in self.monitors:
+            if job_monitor_th.is_alive():
+                active_jobs += 1
+        return active_jobs
+
     def start_job_monitoring(self, job):
         logger.debug('ExecutorID {} | JobID {} - Starting job monitoring'.format(job.executor_id, job.job_id))
         if self.rabbitmq_monitor:
@@ -301,6 +353,8 @@ class FunctionInvoker:
         if not self.is_pywren_function:
             th.daemon = True
         th.start()
+
+        self.monitors.append(th)
 
     def _job_monitoring_os(self, job):
         total_callids_done_in_job = 0
@@ -312,7 +366,7 @@ class FunctionInvoker:
             total_callids_done_in_job = total_callids_done_in_job + total_new_tokens
             for i in range(total_new_tokens):
                 self.token_bucket_q.put('#')
-            time.sleep(0.1)
+            time.sleep(0.5)
 
     def _job_monitoring_rabbitmq(self, job):
         total_callids_done_in_job = 0
@@ -326,39 +380,12 @@ class FunctionInvoker:
 
         def callback(ch, method, properties, body):
             nonlocal total_callids_done_in_job
-            self.token_bucket_q.put('#')
-            # self.q.put(body.decode("utf-8"))
-            total_callids_done_in_job += 1
+            call_status = json.loads(body.decode("utf-8"))
+            if call_status['type'] == '__end__':
+                self.token_bucket_q.put('#')
+                total_callids_done_in_job += 1
             if total_callids_done_in_job == job.total_calls:
                 ch.stop_consuming()
 
         channel.basic_consume(callback, queue=queue_1, no_ack=True)
         channel.start_consuming()
-
-    def stop(self):
-        """
-        Stop the invoker process
-        """
-        logger.debug('ExecutorID {} - Stopping invoker process'.format(self.executor_id))
-        self.invoker_process_stop_flag.value = 1
-
-    def run_process(self):
-        """
-        Run process that implements token bucket scheduling approach
-        """
-        logger.debug('ExecutorID {} - Invoker process started'.format(self.executor_id))
-
-        executor = ThreadPoolExecutor(max_workers=500)
-
-        while not self.invoker_process_stop_flag.value:
-            try:
-                self.token_bucket_q.get()
-                job, call_id = self.pending_calls_q.get()
-            except KeyboardInterrupt:
-                break
-            executor.submit(self._invoke, job, call_id)
-
-        while not self.pending_calls_q.empty():
-            self.pending_calls_q.get()
-
-        logger.debug('ExecutorID {} - Invoker process finished'.format(self.executor_id))

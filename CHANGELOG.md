@@ -1,6 +1,19 @@
 # Changelog
 
-## [v1.3.1--snapshot]
+## [v1.3.2--snapshot]
+
+### Added
+- 
+
+### Changed
+- Docs updated
+
+
+### Fixed
+- Internal fixes
+
+
+## [v1.3.1]
 
 ### Added
 - OpenWhisk Compute backend
@@ -11,7 +24,7 @@
 - CF IAM token will expire 10 minutes before
 - Improved remote invoker
 - reraise exception from functions
-- docs updated
+- Docs updated
 - default function timeout set to 595 secs
 
 ### Fixed
