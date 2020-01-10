@@ -35,7 +35,7 @@ from pywren_ibm_cloud.future import ResponseFuture
 logger = logging.getLogger(__name__)
 
 REMOTE_INVOKER_MEMORY = 2048
-INVOKER_PROCESSES = 2
+INVOKER_PROCESSES = 1
 
 
 class FunctionInvoker:
@@ -71,8 +71,7 @@ class FunctionInvoker:
 
         self.token_bucket_q = Queue()
         self.pending_calls_q = Queue()
-        self.invoker_process_stop_flag = Value('i', 0)
-        self.invoker_process = self._start_invoker_process()
+        self.running_flag = Value('i', 0)
         self.ongoing_activations = 0
 
         self.job_monitor = JobMonitor(self.config, self.internal_storage, self.token_bucket_q)
@@ -156,16 +155,16 @@ class FunctionInvoker:
         logger.debug('ExecutorID {} - Invoker process {} started'.format(self.executor_id, inv_id))
 
         with ThreadPoolExecutor(max_workers=250) as executor:
-            while not self.invoker_process_stop_flag.value:
+            while True:
                 try:
                     self.token_bucket_q.get()
                     job, call_id = self.pending_calls_q.get()
                 except KeyboardInterrupt:
                     break
-                executor.submit(self._invoke, job, call_id)
-
-        while not self.pending_calls_q.empty():
-            self.pending_calls_q.get()
+                if self.running_flag.value:
+                    executor.submit(self._invoke, job, call_id)
+                else:
+                    break
 
         logger.debug('ExecutorID {} - Invoker process {} finished'.format(self.executor_id, inv_id))
 
@@ -174,7 +173,14 @@ class FunctionInvoker:
         Stop the invoker process
         """
         logger.debug('ExecutorID {} - Stopping invoker process'.format(self.executor_id))
-        self.invoker_process_stop_flag.value = 1
+        self.running_flag.value = 0
+
+        for invoker in self.invokers:
+            self.token_bucket_q.put('#')
+            self.pending_calls_q.put((None, None))
+
+        while not self.pending_calls_q.empty():
+            self.pending_calls_q.get()
 
     def _invoke(self, job, call_id):
         """
@@ -246,9 +252,9 @@ class FunctionInvoker:
         except Exception:
             pass
 
-        if self.invoker_process_stop_flag.value == 1:
+        if self.running_flag.value == 0:
             self.ongoing_activations = 0
-            self.invoker_process_stop_flag.value = 0
+            self.running_flag.value = 1
             self._start_invoker_process()
 
         if self.remote_invoker and job.total_calls > 1:
@@ -293,9 +299,8 @@ class FunctionInvoker:
                         call_id = "{:05d}".format(i)
                         self.pending_calls_q.put((job, call_id))
 
-                self.job_monitor.start_job_monitoring(job)
-
                 call_futures = []
+
                 with ThreadPoolExecutor(max_workers=job.invoke_pool_threads) as executor:
                     for i in callids_to_invoke_direct:
                         call_id = "{:05d}".format(i)
@@ -312,6 +317,8 @@ class FunctionInvoker:
                 for i in range(job.total_calls):
                     call_id = "{:05d}".format(i)
                     self.pending_calls_q.put((job, call_id))
+
+            self.job_monitor.start_job_monitoring(job)
 
         # Create all futures
         futures = []

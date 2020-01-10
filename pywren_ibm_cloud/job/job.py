@@ -26,7 +26,8 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
     new_runtime_memory = runtime_memory
 
     if config['pywren'].get('rabbitmq_monitor', False):
-        utils.create_rabbitmq_resources(config, executor_id, job_id)
+        rabbit_amqp_url = config['rabbitmq'].get('amqp_url')
+        utils.create_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id)
 
     # Object processing functionality
     parts_per_object = None

@@ -50,7 +50,7 @@ def create_executor_id(lenght=6):
     return '{}/{}'.format(session_id, exec_num)
 
 
-def create_rabbitmq_resources(config, executor_id, job_id):
+def create_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id):
     """
     Creates RabbitMQ queues and exchanges of a given job in a thread.
     Called when a job is created.
@@ -72,7 +72,6 @@ def create_rabbitmq_resources(config, executor_id, job_id):
         channel.queue_bind(exchange=exchange, queue=queue_1)
         connection.close()
 
-    rabbit_amqp_url = config['rabbitmq'].get('amqp_url')
     th = threading.Thread(target=create_resources, args=(rabbit_amqp_url, executor_id, job_id))
     th.daemon = True
     th.start()

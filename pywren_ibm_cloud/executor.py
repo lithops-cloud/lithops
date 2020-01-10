@@ -1,5 +1,6 @@
 import os
 import sys
+import copy
 import time
 import json
 import signal
@@ -80,7 +81,8 @@ class FunctionExecutor:
         if remote_invoker is not None:
             pw_config_ow['remote_invoker'] = remote_invoker
 
-        self.config = default_config(config, pw_config_ow)
+        self.config = default_config(copy.deepcopy(config), pw_config_ow)
+
         self.executor_id = create_executor_id()
         logger.debug('FunctionExecutor created with ID: {}'.format(self.executor_id))
 
@@ -340,7 +342,6 @@ class FunctionExecutor:
                              THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
 
         except FunctionException as e:
-            self.invoker.stop()
             if is_unix_system():
                 signal.alarm(0)
             if pbar:
@@ -360,7 +361,6 @@ class FunctionExecutor:
             self._state = FunctionExecutor.State.Error
 
         except TimeoutError:
-            self.invoker.stop()
             if download_results:
                 not_dones_call_ids = [(f.job_id, f.call_id) for f in futures if not f.done]
             else:
@@ -370,7 +370,6 @@ class FunctionExecutor:
             self._state = FunctionExecutor.State.Error
 
         except KeyboardInterrupt:
-            self.invoker.stop()
             if download_results:
                 not_dones_call_ids = [(f.job_id, f.call_id) for f in futures if not f.done]
             else:
@@ -389,6 +388,7 @@ class FunctionExecutor:
             raise e
 
         finally:
+            self.invoker.stop()
             if is_unix_system():
                 signal.alarm(0)
             if pbar:
