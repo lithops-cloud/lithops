@@ -224,6 +224,9 @@ class ResponseFuture:
 
         self.status(throw_except=throw_except, internal_storage=internal_storage)
 
+        if not self.produce_output:
+            self._set_state(ResponseFuture.State.Success)
+
         if self._state == ResponseFuture.State.Success:
             return self._return_val
 

@@ -16,12 +16,14 @@
 
 import base64
 import os
+import pika
 import uuid
 import inspect
 import subprocess
 import struct
 import platform
 import logging
+import threading
 import io
 
 logger = logging.getLogger(__name__)
@@ -46,6 +48,53 @@ def create_executor_id(lenght=6):
     os.environ['PYWREN_TOTAL_EXECUTORS'] = str(exec_num)
 
     return '{}/{}'.format(session_id, exec_num)
+
+
+def create_rabbitmq_resources(config, executor_id, job_id):
+    """
+    Creates RabbitMQ queues and exchanges of a given job in a thread.
+    Called when a job is created.
+    """
+    logger.debug('ExecutorID {} | JobID {} - Creating RabbitMQ resources'.format(executor_id, job_id))
+    rabbit_amqp_url = config['rabbitmq'].get('amqp_url')
+    th = threading.Thread(target=_create_rabbitmq_resources, args=(rabbit_amqp_url, executor_id, job_id))
+    th.daemon = True
+    th.start()
+
+
+def _create_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id):
+    exchange = 'pywren-{}-{}'.format(executor_id, job_id)
+    queue_0 = '{}-0'.format(exchange)  # For waiting
+    queue_1 = '{}-1'.format(exchange)  # For invoker
+
+    params = pika.URLParameters(rabbit_amqp_url)
+    connection = pika.BlockingConnection(params)
+    channel = connection.channel()
+    channel.exchange_declare(exchange=exchange, exchange_type='fanout', auto_delete=True)
+    channel.queue_declare(queue=queue_0, auto_delete=True)
+    channel.queue_bind(exchange=exchange, queue=queue_0)
+    channel.queue_declare(queue=queue_1, auto_delete=True)
+    channel.queue_bind(exchange=exchange, queue=queue_1)
+    connection.close()
+
+
+def delete_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id):
+    """
+    Deletes RabbitMQ queues and exchanges of a given job.
+    Only called when an exception is produced, otherwise resources are
+    automatically deleted.
+    """
+    exchange = 'pywren-{}-{}'.format(executor_id, job_id)
+    queue_0 = '{}-0'.format(exchange)  # For waiting
+    queue_1 = '{}-1'.format(exchange)  # For invoker
+
+    params = pika.URLParameters(rabbit_amqp_url)
+    connection = pika.BlockingConnection(params)
+    channel = connection.channel()
+    channel.queue_delete(queue=queue_0)
+    channel.queue_delete(queue=queue_1)
+    channel.exchange_delete(exchange=exchange)
+    connection.close()
 
 
 def timeout_handler(signum, frame):

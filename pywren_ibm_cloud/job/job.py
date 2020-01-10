@@ -13,7 +13,7 @@ from pywren_ibm_cloud.config import EXECUTION_TIMEOUT, MAX_AGG_DATA_SIZE, JOBS_P
 logger = logging.getLogger(__name__)
 
 
-def create_map_job(config, internal_storage, executor_id, map_job_id, map_function, iterdata, runtime_meta,
+def create_map_job(config, internal_storage, executor_id, job_id, map_function, iterdata, runtime_meta,
                    runtime_memory=None, extra_params=None, extra_env=None, obj_chunk_size=None,
                    obj_chunk_number=None, invoke_pool_threads=128, include_modules=[], exclude_modules=[],
                    execution_timeout=EXECUTION_TIMEOUT):
@@ -25,16 +25,19 @@ def create_map_job(config, internal_storage, executor_id, map_job_id, map_functi
     new_invoke_pool_threads = invoke_pool_threads
     new_runtime_memory = runtime_memory
 
+    if config['pywren'].get('rabbitmq_monitor', False):
+        utils.create_rabbitmq_resources(config, executor_id, job_id)
+
     # Object processing functionality
     parts_per_object = None
     if utils.is_object_processing_function(map_function):
         # If it is object processing function, create partitions according chunk_size or chunk_number
-        logger.debug('ExecutorID {} | JobID {} - Calling map on partitions from object storage flow'.format(executor_id, map_job_id))
+        logger.debug('ExecutorID {} | JobID {} - Calling map on partitions from object storage flow'.format(executor_id, job_id))
         map_iterdata, parts_per_object = create_partitions(config, map_iterdata, obj_chunk_size, obj_chunk_number)
     # ########
 
     job_description = _create_job(config, internal_storage, executor_id,
-                                  map_job_id, map_func, map_iterdata,
+                                  job_id, map_func, map_iterdata,
                                   runtime_meta=runtime_meta,
                                   runtime_memory=new_runtime_memory,
                                   extra_env=extra_env,

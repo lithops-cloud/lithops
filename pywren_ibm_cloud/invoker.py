@@ -27,7 +27,7 @@ from pywren_ibm_cloud.compute import Compute
 from pywren_ibm_cloud.utils import version_str, is_pywren_function, is_unix_system
 from pywren_ibm_cloud.version import __version__
 from concurrent.futures import ThreadPoolExecutor
-from pywren_ibm_cloud.config import extract_storage_config, extract_compute_config, JOBS_PREFIX
+from pywren_ibm_cloud.config import extract_storage_config, extract_compute_config
 from pywren_ibm_cloud.future import ResponseFuture
 
 
@@ -207,6 +207,7 @@ class FunctionInvoker:
         """
         job = SimpleNamespace(**job_description)
 
+        # TODO: Check if there is another job running, if so omit next lines
         try:
             while True:
                 self.token_bucket_q.get_nowait()
@@ -242,8 +243,6 @@ class FunctionInvoker:
             if not self.log_level:
                 print(log_msg)
 
-            self.start_job_status_checker(job)
-
             if self.ongoing_activations < self.workers:
                 callids = range(job.total_calls)
                 total_direct = self.workers-self.ongoing_activations
@@ -251,6 +250,19 @@ class FunctionInvoker:
                 callids_to_invoke_nondirect = callids[total_direct:]
 
                 self.ongoing_activations += len(callids_to_invoke_direct)
+
+                logger.debug('ExecutorID {} | JobID {} - Free workers: {} - Going to invoke {} function activations'
+                             .format(job.executor_id,  job.job_id, total_direct, len(callids_to_invoke_direct)))
+
+                # Put into the queue the rest of the callids to invoke within the process
+                if callids_to_invoke_nondirect:
+                    logger.debug('ExecutorID {} | JobID {} - Putting remaining {} function invocations into pending queue'
+                                 .format(job.executor_id, job.job_id, len(callids_to_invoke_nondirect)))
+                    for i in callids_to_invoke_nondirect:
+                        call_id = "{:05d}".format(i)
+                        self.pending_calls_q.put((job, call_id))
+
+                self.start_job_monitoring(job)
 
                 call_futures = []
                 with ThreadPoolExecutor(max_workers=job.invoke_pool_threads) as executor:
@@ -262,12 +274,10 @@ class FunctionInvoker:
                 # Block until all direct invocations have finished
                 callids_invoked = [ft.result() for ft in call_futures]
 
-                # Put into the queue the rest of the callids to invoke within the process
-                for i in callids_to_invoke_nondirect:
-                    call_id = "{:05d}".format(i)
-                    self.pending_calls_q.put((job, call_id))
-
             else:
+                logger.debug('ExecutorID {} | JobID {} - Ongoing activations reached {} workers, '
+                             'putting {} function invocations into pending queue'
+                             .format(job.executor_id, job.job_id, self.workers, job.total_calls))
                 for i in range(job.total_calls):
                     call_id = "{:05d}".format(i)
                     self.pending_calls_q.put((job, call_id))
@@ -282,17 +292,17 @@ class FunctionInvoker:
 
         return futures
 
-    def start_job_status_checker(self, job):
+    def start_job_monitoring(self, job):
+        logger.debug('ExecutorID {} | JobID {} - Starting job monitoring'.format(job.executor_id, job.job_id))
         if self.rabbitmq_monitor:
-            th = Thread(target=self._job_status_checker_worker_rabbitmq, args=(job,))
+            th = Thread(target=self._job_monitoring_rabbitmq, args=(job,))
         else:
-            th = Thread(target=self._job_status_checker_worker_os, args=(job,))
+            th = Thread(target=self._job_monitoring_os, args=(job,))
         if not self.is_pywren_function:
             th.daemon = True
         th.start()
 
-    def _job_status_checker_worker_os(self, job):
-        logger.debug('ExecutorID {} | JobID {} - Starting job status checker worker'.format(job.executor_id, job.job_id))
+    def _job_monitoring_os(self, job):
         total_callids_done_in_job = 0
         time.sleep(1)
 
@@ -304,22 +314,15 @@ class FunctionInvoker:
                 self.token_bucket_q.put('#')
             time.sleep(0.1)
 
-    def _job_status_checker_worker_rabbitmq(self, job):
-        logger.debug('ExecutorID {} | JobID {} - Starting job status checker worker'.format(job.executor_id, job.job_id))
+    def _job_monitoring_rabbitmq(self, job):
         total_callids_done_in_job = 0
 
         exchange = 'pywren-{}-{}'.format(job.executor_id, job.job_id)
-        queue_0 = '{}-0'.format(exchange)  # For waiting
-        queue_1 = '{}-1'.format(exchange)  # For invoker
+        queue_1 = '{}-1'.format(exchange)
 
         params = pika.URLParameters(self.rabbit_amqp_url)
         connection = pika.BlockingConnection(params)
         channel = connection.channel()
-        channel.exchange_declare(exchange=exchange, exchange_type='fanout', auto_delete=True)
-        channel.queue_declare(queue=queue_0, auto_delete=True)
-        channel.queue_bind(exchange=exchange, queue=queue_0)
-        channel.queue_declare(queue=queue_1, exclusive=True)
-        channel.queue_bind(exchange=exchange, queue=queue_1)
 
         def callback(ch, method, properties, body):
             nonlocal total_callids_done_in_job
@@ -328,7 +331,6 @@ class FunctionInvoker:
             total_callids_done_in_job += 1
             if total_callids_done_in_job == job.total_calls:
                 ch.stop_consuming()
-                ch.exchange_delete(exchange)
 
         channel.basic_consume(callback, queue=queue_1, no_ack=True)
         channel.start_consuming()

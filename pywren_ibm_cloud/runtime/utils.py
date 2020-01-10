@@ -77,7 +77,6 @@ def build_runtime(name, file, config=None):
     compute_handler = Compute(compute_config)
     compute_handler.build_runtime(name, file)
 
-    print(config)
     create_runtime(name, config=config)
     update_runtime(name, config=config)
 
