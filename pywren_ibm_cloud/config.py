@@ -80,7 +80,7 @@ def default_config(config_data=None, config_overwrite={}):
     then checks PYWREN_CONFIG_FILE environment variable
     then ~/.pywren_config
     """
-    logger.debug('PyWren v{}'.format(__version__))
+    logger.info('PyWren v{}'.format(__version__))
     logger.debug("Loading configuration")
 
     if not config_data:

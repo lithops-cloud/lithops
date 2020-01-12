@@ -87,7 +87,7 @@ class ResponseFuture:
         raise NotImplementedError("Cannot cancel dispatched jobs")
 
     def running(self):
-        raise NotImplementedError()
+        return self._state == ResponseFuture.State.Running
 
     @property
     def futures(self):
@@ -125,7 +125,7 @@ class ResponseFuture:
         if self._state == ResponseFuture.State.New:
             raise ValueError("task not yet invoked")
 
-        if self._state == ResponseFuture.State.Ready or self._state == ResponseFuture.State.Success:
+        if self._state in [ResponseFuture.State.Ready, ResponseFuture.State.Success]:
             return self._call_status
 
         if internal_storage is None:
@@ -142,6 +142,10 @@ class ResponseFuture:
                 self.status_query_count += 1
 
         self.activation_id = self._call_status['activation_id']
+
+        if self._call_status['type'] == '__init__':
+            self._set_state(ResponseFuture.State.Running)
+            return self._call_status
 
         self._call_metadata['host_submit_time'] = self._call_status['host_submit_time']
         self._call_metadata['status_done_timestamp'] = time.time()
@@ -180,7 +184,7 @@ class ResponseFuture:
                                                       self.call_id,
                                                       self.activation_id,
                                                       str(total_time)))
-        logger.debug(log_msg)
+        logger.info(log_msg)
         self._set_state(ResponseFuture.State.Ready)
 
         if not self._call_status['result']:
@@ -260,7 +264,7 @@ class ResponseFuture:
 
         log_msg = ('ExecutorID {} | JobID {} - Got output from call {} - Activation '
                    'ID: {}'.format(self.executor_id, self.job_id, self.call_id, self.activation_id))
-        logger.debug(log_msg)
+        logger.info(log_msg)
 
         function_result = call_output['result']
 

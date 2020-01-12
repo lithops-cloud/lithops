@@ -97,7 +97,7 @@ class TestMethods:
         def _func(x):
             return x
 
-        pw = pywren.function_executor(config=CONFIG)
+        pw = pywren.function_executor()
         pw.map(_func, range(x))
         return pw.get_result()
 

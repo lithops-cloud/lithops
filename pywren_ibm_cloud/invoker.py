@@ -35,7 +35,7 @@ from pywren_ibm_cloud.future import ResponseFuture
 logger = logging.getLogger(__name__)
 
 REMOTE_INVOKER_MEMORY = 2048
-INVOKER_PROCESSES = 1
+INVOKER_PROCESSES = 2
 
 
 class FunctionInvoker:
@@ -137,18 +137,18 @@ class FunctionInvoker:
         self.invokers = []
         if self.is_pywren_function or not is_unix_system():
             for inv_id in range(INVOKER_PROCESSES):
-                p = Thread(target=self._run_process, args=(inv_id, ))
+                p = Thread(target=self._run_invoker_process, args=(inv_id, ))
                 self.invokers.append(p)
                 p.daemon = True
                 p.start()
         else:
             for inv_id in range(INVOKER_PROCESSES):
-                p = Process(target=self._run_process, args=(inv_id, ))
+                p = Process(target=self._run_invoker_process, args=(inv_id, ))
                 self.invokers.append(p)
                 p.daemon = True
                 p.start()
 
-    def _run_process(self, inv_id):
+    def _run_invoker_process(self, inv_id):
         """
         Run process that implements token bucket scheduling approach
         """
@@ -172,7 +172,7 @@ class FunctionInvoker:
         """
         Stop the invoker process
         """
-        logger.debug('ExecutorID {} - Stopping invoker process'.format(self.executor_id))
+        logger.debug('ExecutorID {} - Stopping invoker'.format(self.executor_id))
         self.running_flag.value = 0
 
         for invoker in self.invokers:
@@ -180,7 +180,10 @@ class FunctionInvoker:
             self.pending_calls_q.put((None, None))
 
         while not self.pending_calls_q.empty():
-            self.pending_calls_q.get()
+            try:
+                self.pending_calls_q.get(False)
+            except Exception:
+                break
 
     def _invoke(self, job, call_id):
         """
@@ -203,6 +206,7 @@ class FunctionInvoker:
         start = time.time()
         compute_handler = random.choice(self.compute_handlers)
         activation_id = compute_handler.invoke(job.runtime_name, job.runtime_memory, payload)
+
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 
@@ -291,14 +295,6 @@ class FunctionInvoker:
                 logger.debug('ExecutorID {} | JobID {} - Free workers: {} - Going to invoke {} function activations'
                              .format(job.executor_id,  job.job_id, total_direct, len(callids_to_invoke_direct)))
 
-                # Put into the queue the rest of the callids to invoke within the process
-                if callids_to_invoke_nondirect:
-                    logger.debug('ExecutorID {} | JobID {} - Putting remaining {} function invocations into pending queue'
-                                 .format(job.executor_id, job.job_id, len(callids_to_invoke_nondirect)))
-                    for i in callids_to_invoke_nondirect:
-                        call_id = "{:05d}".format(i)
-                        self.pending_calls_q.put((job, call_id))
-
                 call_futures = []
 
                 with ThreadPoolExecutor(max_workers=job.invoke_pool_threads) as executor:
@@ -310,6 +306,13 @@ class FunctionInvoker:
                 # Block until all direct invocations have finished
                 callids_invoked = [ft.result() for ft in call_futures]
 
+                # Put into the queue the rest of the callids to invoke within the process
+                if callids_to_invoke_nondirect:
+                    logger.debug('ExecutorID {} | JobID {} - Putting remaining {} function invocations into pending queue'
+                                 .format(job.executor_id, job.job_id, len(callids_to_invoke_nondirect)))
+                    for i in callids_to_invoke_nondirect:
+                        call_id = "{:05d}".format(i)
+                        self.pending_calls_q.put((job, call_id))
             else:
                 logger.debug('ExecutorID {} | JobID {} - Ongoing activations reached {} workers, '
                              'putting {} function invocations into pending queue'
@@ -373,7 +376,7 @@ class JobMonitor:
             total_callids_done_in_job = total_callids_done_in_job + total_new_tokens
             for i in range(total_new_tokens):
                 self.token_bucket_q.put('#')
-            time.sleep(0.5)
+            time.sleep(0.3)
 
     def _job_monitoring_rabbitmq(self, job):
         total_callids_done_in_job = 0

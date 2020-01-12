@@ -81,14 +81,10 @@ def wait_rabbitmq(fs, internal_storage, rabbit_amqp_url, download_results=False,
         rcvd_call_id = call_status['call_id']
         job_key = '{}-{}'.format(rcvd_executor_id, rcvd_job_id)
         fut = present_jobs[job_key][rcvd_call_id]
+        fut._call_status = call_status
+        fut.status(throw_except=throw_except, internal_storage=internal_storage)
 
-        if call_status['type'] == '__init__':
-            pass
-
-        elif call_status['type'] == '__end__':
-            call_status['status_done_timestamp'] = time.time()
-            fut._call_status = call_status
-            fut.status(throw_except=throw_except, internal_storage=internal_storage)
+        if call_status['type'] == '__end__':
             done_call_ids[job_key]['call_ids'].append(rcvd_call_id)
 
             if pbar:
