@@ -84,8 +84,9 @@ def function_handler(event):
 
     try:
         if version.__version__ != event['pywren_version']:
-            raise Exception("WRONGVERSION", "PyWren version mismatch",
-                            version.__version__, event['pywren_version'])
+            msg = ("PyWren version mismatch. Host version: {} - Runtime version: {}"
+                   .format(event['pywren_version'], version.__version__))
+            raise Exception('HANDLER', msg)
 
         # send init status event
         call_status.send('__init__')
@@ -140,9 +141,9 @@ def function_handler(event):
             except Exception:
                 # thread does not have terminate method
                 pass
-            msg = ('Jobrunner process exceeded maximum time of {} '
-                   'seconds and was killed'.format(execution_timeout))
-            raise Exception('OUTATIME',  msg)
+            msg = ('Function exceeded maximum time of {} seconds and was '
+                   'killed'.format(execution_timeout))
+            raise TimeoutError('HANDLER', msg)
 
         try:
             handler_conn.recv()
@@ -152,8 +153,8 @@ def function_handler(event):
             # Only 1 message is returned by jobrunner when it finishes.
             # If no message, this means that the jobrunner process was killed.
             # 99% of times the jobrunner is killed due an OOM, so we assume here an OOM.
-            msg = 'Jobrunner process exceeded maximum memory and was killed'
-            raise Exception('OUTOFMEMORY', msg)
+            msg = 'Function exceeded maximum memory and was killed'
+            raise MemoryError('HANDLER', msg)
 
         # print(subprocess.check_output("find {}".format(PYTHON_MODULE_PATH), shell=True))
         # print(subprocess.check_output("find {}".format(os.getcwd()), shell=True))
@@ -219,7 +220,7 @@ class CallStatus:
 
         if self.response['type'] == '__init__':
             init_key = create_init_key(JOBS_PREFIX, executor_id, job_id, call_id)
-            self.internal_storage.put_data(init_key, '')
+            #self.internal_storage.put_data(init_key, '')
 
         elif self.response['type'] == '__end__':
             status_key = create_status_key(JOBS_PREFIX, executor_id, job_id, call_id)

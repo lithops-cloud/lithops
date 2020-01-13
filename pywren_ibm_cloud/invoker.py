@@ -183,7 +183,7 @@ class FunctionInvoker:
             try:
                 self.pending_calls_q.get(False)
             except Exception:
-                break
+                pass
 
     def _invoke(self, job, call_id):
         """
@@ -206,7 +206,6 @@ class FunctionInvoker:
         start = time.time()
         compute_handler = random.choice(self.compute_handlers)
         activation_id = compute_handler.invoke(job.runtime_name, job.runtime_memory, payload)
-
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 
@@ -327,7 +326,8 @@ class FunctionInvoker:
         futures = []
         for i in range(job.total_calls):
             call_id = "{:05d}".format(i)
-            fut = ResponseFuture(self.executor_id, job.job_id, call_id, self.storage_config, job.metadata)
+            fut = ResponseFuture(self.executor_id, job.job_id, call_id, self.storage_config,
+                                 job.execution_timeout, job.metadata)
             fut._set_state(ResponseFuture.State.Invoked)
             futures.append(fut)
 

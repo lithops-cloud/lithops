@@ -1,6 +1,6 @@
 # Changelog
 
-## [v1.3.2--snapshot]
+## [v1.4.1--snapshot]
 
 ### Added
 - 
@@ -11,6 +11,12 @@
 
 ### Fixed
 - Internal fixes
+
+
+## [v1.4.0]
+
+### Fixed
+- Important Internal fixes
 
 
 ## [v1.3.1]

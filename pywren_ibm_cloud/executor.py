@@ -5,10 +5,9 @@ import time
 import json
 import signal
 import logging
-import traceback
+from functools import partial
 from pywren_ibm_cloud.invoker import FunctionInvoker
 from pywren_ibm_cloud.storage import InternalStorage
-from pywren_ibm_cloud.future import FunctionException
 from pywren_ibm_cloud.storage.utils import clean_os_bucket
 from pywren_ibm_cloud.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from pywren_ibm_cloud.job import create_map_job, create_reduce_job
@@ -311,7 +310,9 @@ class FunctionExecutor:
             print(msg)
 
         if is_unix_system() and timeout is not None:
-            signal.signal(signal.SIGALRM, timeout_handler)
+            logger.debug('Setting waiting timeout to {} seconds'.format(timeout))
+            error_msg = 'Timeout of {} seconds exceeded waiting for function activations to finish'.format(timeout)
+            signal.signal(signal.SIGALRM, partial(timeout_handler, error_msg))
             signal.alarm(timeout)
 
         pbar = None
@@ -341,34 +342,6 @@ class FunctionExecutor:
                              throw_except=throw_except, return_when=return_when, pbar=pbar,
                              THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
 
-        except FunctionException as e:
-            if is_unix_system():
-                signal.alarm(0)
-            if pbar:
-                pbar.close()
-                print()
-            msg = None
-            logger.info(e.msg)
-            if not self.log_level:
-                print(e.msg)
-            if e.exc_msg:
-                logger.info('Exception: ' + e.exc_msg)
-                if not self.log_level:
-                    print('--> Exception: ' + e.exc_msg)
-            else:
-                print()
-                traceback.print_exception(*e.exception)
-            self._state = FunctionExecutor.State.Error
-
-        except TimeoutError:
-            if download_results:
-                not_dones_call_ids = [(f.job_id, f.call_id) for f in futures if not f.done]
-            else:
-                not_dones_call_ids = [(f.job_id, f.call_id) for f in futures if not f.ready and not f.done]
-            msg = ('ExecutorID {} - Raised timeout of {} seconds waiting for results - Total Activations not done: {}'
-                   .format(self.executor_id, timeout, len(not_dones_call_ids)))
-            self._state = FunctionExecutor.State.Error
-
         except KeyboardInterrupt:
             if download_results:
                 not_dones_call_ids = [(f.job_id, f.call_id) for f in futures if not f.done]
@@ -379,12 +352,7 @@ class FunctionExecutor:
             self._state = FunctionExecutor.State.Error
 
         except Exception as e:
-            self.invoker.stop()
-            if pbar:
-                pbar.close()
-                print()
-            if not self.is_pywren_function:
-                self.clean()
+            self._state = FunctionExecutor.State.Error
             raise e
 
         finally:
@@ -395,10 +363,6 @@ class FunctionExecutor:
                 pbar.close()
                 if not is_notebook():
                     print()
-            if self._state == FunctionExecutor.State.Error and msg:
-                logger.debug(msg)
-                if not self.log_level:
-                    print(msg)
             if self.data_cleaner and not self.is_pywren_function:
                 self.clean()
                 if not fs and self._state == FunctionExecutor.State.Error and is_notebook():
@@ -460,7 +424,7 @@ class FunctionExecutor:
         ftrs = self.futures if not fs else fs
         if type(ftrs) != list:
             ftrs = [ftrs]
-        ftrs_to_plot = [f for f in ftrs if f.ready or f.done]
+        ftrs_to_plot = [f for f in ftrs if (f.ready or f.done) and not f.error]
 
         if not ftrs_to_plot:
             logger.debug('ExecutorID {} - No futures ready to plot'.format(self.executor_id))
