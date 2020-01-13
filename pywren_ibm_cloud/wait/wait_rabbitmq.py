@@ -47,16 +47,13 @@ def wait_rabbitmq(fs, internal_storage, rabbit_amqp_url, download_results=False,
             present_jobs[job_key][f.call_id] = f
 
     done_call_ids = {}
-
-    checker_worker_queue = queue.Queue()
+    job_monitor_q = queue.Queue()
     for job_key in present_jobs.keys():
         total_calls = len(present_jobs[job_key])
-
         done_call_ids[job_key] = {'total': total_calls, 'call_ids': []}
-        td = rabbitmq_checker_worker(job_key, total_calls, rabbit_amqp_url,
-                                     checker_worker_queue)
-        td.setDaemon(True)
-        td.start()
+        job_monitor = JobMonitor(job_key, total_calls, rabbit_amqp_url, job_monitor_q)
+        job_monitor.setDaemon(True)
+        job_monitor.start()
 
     def reception_finished():
         for job_id in done_call_ids:
@@ -75,53 +72,51 @@ def wait_rabbitmq(fs, internal_storage, rabbit_amqp_url, download_results=False,
 
     while not reception_finished():
         try:
-            call_status = json.loads(checker_worker_queue.get())
-            call_status['status_done_timestamp'] = time.time()
+            call_status = job_monitor_q.get()
         except KeyboardInterrupt:
             raise KeyboardInterrupt
 
         rcvd_executor_id = call_status['executor_id']
         rcvd_job_id = call_status['job_id']
         rcvd_call_id = call_status['call_id']
-
         job_key = '{}-{}'.format(rcvd_executor_id, rcvd_job_id)
-
         fut = present_jobs[job_key][rcvd_call_id]
         fut._call_status = call_status
         fut.status(throw_except=throw_except, internal_storage=internal_storage)
-        done_call_ids[job_key]['call_ids'].append(rcvd_call_id)
 
-        if pbar:
-            pbar.update(1)
-            pbar.refresh()
-
-        if 'new_futures' in call_status:
-            new_futures = fut.result()
-            fs.extend(new_futures)
+        if call_status['type'] == '__end__':
+            done_call_ids[job_key]['call_ids'].append(rcvd_call_id)
 
             if pbar:
-                pbar.total = pbar.total + len(new_futures)
+                pbar.update(1)
                 pbar.refresh()
 
-            present_jobs_new_futures = {'{}-{}'.format(f.executor_id, f.job_id) for f in new_futures}
+            if 'new_futures' in call_status:
+                new_futures = fut.result()
+                fs.extend(new_futures)
 
-            for f in new_futures:
-                job_key_new_futures = '{}-{}'.format(f.executor_id, f.job_id)
-                if job_key_new_futures not in present_jobs:
-                    present_jobs[job_key_new_futures] = {}
-                present_jobs[job_key_new_futures][f.call_id] = f
+                if pbar:
+                    pbar.total = pbar.total + len(new_futures)
+                    pbar.refresh()
 
-            for job_key_new_futures in present_jobs_new_futures:
-                total_calls = len(present_jobs[job_key_new_futures])
-                done_call_ids[job_key_new_futures] = {'total': total_calls, 'call_ids': []}
-                td = rabbitmq_checker_worker(job_key_new_futures, total_calls,
-                                             rabbit_amqp_url, checker_worker_queue)
-                td.setDaemon(True)
-                td.start()
+                present_jobs_new_futures = {'{}-{}'.format(f.executor_id, f.job_id) for f in new_futures}
 
-        if 'new_futures' not in call_status and download_results:
-            gr_ft = thread_pool.submit(get_result, fut)
-            get_result_futures.append(gr_ft)
+                for f in new_futures:
+                    job_key_new_futures = '{}-{}'.format(f.executor_id, f.job_id)
+                    if job_key_new_futures not in present_jobs:
+                        present_jobs[job_key_new_futures] = {}
+                    present_jobs[job_key_new_futures][f.call_id] = f
+
+                for job_key_new_futures in present_jobs_new_futures:
+                    total_calls = len(present_jobs[job_key_new_futures])
+                    done_call_ids[job_key_new_futures] = {'total': total_calls, 'call_ids': []}
+                    job_monitor = JobMonitor(job_key_new_futures, total_calls, rabbit_amqp_url, job_monitor_q)
+                    job_monitor.setDaemon(True)
+                    job_monitor.start()
+
+            if 'new_futures' not in call_status and download_results:
+                gr_ft = thread_pool.submit(get_result, fut)
+                get_result_futures.append(gr_ft)
 
     if pbar:
         pbar.close()
@@ -131,7 +126,7 @@ def wait_rabbitmq(fs, internal_storage, rabbit_amqp_url, download_results=False,
     return fs, []
 
 
-class rabbitmq_checker_worker(threading.Thread):
+class JobMonitor(threading.Thread):
 
     def __init__(self, job_key, total_calls, rabbit_amqp_url, q):
         threading.Thread.__init__(self)
@@ -141,7 +136,7 @@ class rabbitmq_checker_worker(threading.Thread):
         self.q = q
         self.executor_id, self.job_id = job_key.rsplit('-', 1)
         self.total_calls_rcvd = 0
-
+        self.channel = None
         self.exchange = 'pywren-{}-{}'.format(self.executor_id, self.job_id)
         self.queue_0 = '{}-0'.format(self.exchange)
 
@@ -150,22 +145,21 @@ class rabbitmq_checker_worker(threading.Thread):
                      'queue'.format(self.executor_id, self.job_id))
 
         def callback(ch, method, properties, body):
-            self.q.put(body.decode("utf-8"))
-            self.total_calls_rcvd += 1
+            call_status = json.loads(body.decode("utf-8"))
+            self.q.put(call_status)
+            if call_status['type'] == '__end__':
+                self.total_calls_rcvd += 1
             if self.total_calls_rcvd == self.total_calls:
                 ch.stop_consuming()
-                ch.exchange_delete(self.exchange)
 
         params = pika.URLParameters(self.rabbit_amqp_url)
         connection = pika.BlockingConnection(params)
-        self.channel = connection.channel()  # start a channel
-        self.channel.exchange_declare(exchange=self.exchange, exchange_type='fanout', auto_delete=True)
-        self.channel.queue_declare(queue=self.queue_0, auto_delete=True)
-        self.channel.queue_bind(exchange=self.exchange, queue=self.queue_0)
+        self.channel = connection.channel()
         self.channel.basic_consume(callback, queue=self.queue_0, no_ack=True)
         self.channel.start_consuming()
 
     def __del__(self):
-        self.channel.stop_consuming()
-        self.channel.queue_delete(queue=self.queue_0)
-        self.channel.exchange_delete(self.exchange)
+        if self.channel:
+            self.channel.stop_consuming()
+            self.channel.queue_delete(queue=self.queue_0)
+            self.channel.exchange_delete(self.exchange)

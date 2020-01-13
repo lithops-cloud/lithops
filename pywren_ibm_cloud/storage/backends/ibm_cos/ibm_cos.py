@@ -153,6 +153,7 @@ class IBMCloudObjectStorageBackend:
             except ibm_botocore.exceptions.ReadTimeoutError as e:
                 if retries == OBJ_REQ_RETRIES:
                     raise e
+                logger.debug('PUT Object timeout. Retrying request')
                 retries += 1
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
@@ -179,6 +180,7 @@ class IBMCloudObjectStorageBackend:
             except ibm_botocore.exceptions.ReadTimeoutError as e:
                 if retries == OBJ_REQ_RETRIES:
                     raise e
+                logger.debug('GET Object timeout. Retrying request')
                 retries += 1
         return data
 
@@ -202,6 +204,7 @@ class IBMCloudObjectStorageBackend:
             except ibm_botocore.exceptions.ReadTimeoutError as e:
                 if retries == OBJ_REQ_RETRIES:
                     raise e
+                logger.debug('HEAD Object timeout. Retrying request')
                 retries += 1
         return metadata['ResponseMetadata']['HTTPHeaders']
 

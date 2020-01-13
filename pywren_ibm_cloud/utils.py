@@ -16,12 +16,14 @@
 
 import base64
 import os
+import pika
 import uuid
 import inspect
 import subprocess
 import struct
 import platform
 import logging
+import threading
 import io
 
 logger = logging.getLogger(__name__)
@@ -46,6 +48,92 @@ def create_executor_id(lenght=6):
     os.environ['PYWREN_TOTAL_EXECUTORS'] = str(exec_num)
 
     return '{}/{}'.format(session_id, exec_num)
+
+
+def create_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id):
+    """
+    Creates RabbitMQ queues and exchanges of a given job in a thread.
+    Called when a job is created.
+    """
+    logger.debug('ExecutorID {} | JobID {} - Creating RabbitMQ resources'.format(executor_id, job_id))
+
+    def create_resources(rabbit_amqp_url, executor_id, job_id):
+        exchange = 'pywren-{}-{}'.format(executor_id, job_id)
+        queue_0 = '{}-0'.format(exchange)  # For waiting
+        queue_1 = '{}-1'.format(exchange)  # For invoker
+
+        params = pika.URLParameters(rabbit_amqp_url)
+        connection = pika.BlockingConnection(params)
+        channel = connection.channel()
+        channel.exchange_declare(exchange=exchange, exchange_type='fanout', auto_delete=True)
+        channel.queue_declare(queue=queue_0, auto_delete=True)
+        channel.queue_bind(exchange=exchange, queue=queue_0)
+        channel.queue_declare(queue=queue_1, auto_delete=True)
+        channel.queue_bind(exchange=exchange, queue=queue_1)
+        connection.close()
+
+    th = threading.Thread(target=create_resources, args=(rabbit_amqp_url, executor_id, job_id))
+    th.daemon = True
+    th.start()
+
+
+def delete_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id):
+    """
+    Deletes RabbitMQ queues and exchanges of a given job.
+    Only called when an exception is produced, otherwise resources are
+    automatically deleted.
+    """
+    exchange = 'pywren-{}-{}'.format(executor_id, job_id)
+    queue_0 = '{}-0'.format(exchange)  # For waiting
+    queue_1 = '{}-1'.format(exchange)  # For invoker
+
+    params = pika.URLParameters(rabbit_amqp_url)
+    connection = pika.BlockingConnection(params)
+    channel = connection.channel()
+    channel.queue_delete(queue=queue_0)
+    channel.queue_delete(queue=queue_1)
+    channel.exchange_delete(exchange=exchange)
+    connection.close()
+
+
+def free_disk_space(dirname):
+    """
+    Returns the number of free bytes on the mount point containing DIRNAME
+    """
+    s = os.statvfs(dirname)
+    return s.f_bsize * s.f_bavail
+
+
+def get_server_info():
+    """
+    Returns server information
+    """
+    container_name = subprocess.check_output("uname -n", shell=True).decode("ascii").strip()
+    ip_addr = subprocess.check_output("hostname -I", shell=True).decode("ascii").strip()
+    cores = subprocess.check_output("nproc", shell=True).decode("ascii").strip()
+
+    cmd = "cat /sys/class/net/eth0/speed | awk '{print $0 / 1000\"GbE\"}'"
+    net_speed = subprocess.check_output(cmd, shell=True).decode("ascii").strip()
+
+    # cmd = "cat /sys/class/net/eth0/address"
+    # mac_address = subprocess.check_output(cmd, shell=True).decode("ascii").strip()
+
+    cmd = "grep MemTotal /proc/meminfo | awk '{print $2 / 1024 / 1024\"GB\"}'"
+    memory = subprocess.check_output(cmd, shell=True).decode("ascii").strip()
+
+    server_info = {'container_name': container_name,
+                   'ip_address': ip_addr,
+                   'net_speed': net_speed,
+                   'cores': cores,
+                   'memory': memory}
+    """
+    if os.path.exists("/proc"):
+        server_info.update({'/proc/cpuinfo': open("/proc/cpuinfo", 'r').read(),
+                            '/proc/meminfo': open("/proc/meminfo", 'r').read(),
+                            '/proc/self/cgroup': open("/proc/meminfo", 'r').read(),
+                            '/proc/cgroups': open("/proc/cgroups", 'r').read()})
+    """
+    return server_info
 
 
 def timeout_handler(signum, frame):

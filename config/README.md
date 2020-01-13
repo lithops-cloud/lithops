@@ -71,7 +71,7 @@ pw = pywren.ibm_cf_executor(config=config)
 ```
 
 ## Using RabbitMQ to monitor function activations
-By default, IBM-PyWren uses the IBM Cloud Object Storage service to monitor function activations: Each function activation stores a file named *{id}/status.json* to the Object Storage when it finishes its execution. This file contains some statistics about the execution, including if the function activation ran ok or not. Having these files, the default monitoring approach is based on polling the Object Store each X seconds to know which function activations have finished and which not.
+By default, IBM-PyWren uses the IBM Cloud Object Storage service to monitor function activations: Each function activation stores a file named *{id}/status.json* to the Object Storage when it finishes its execution. This file contains some statistics about the execution, including if the function activation ran successfully or not. Having these files, the default monitoring approach is based on polling the Object Store each X seconds to know which function activations have finished and which not.
 
 As this default approach can slow-down the total application execution time, due to the number of requests it has to make against the object store, in IBM-PyWren we integrated a RabitMQ service to monitor function activations in real-time. With RabitMQ, the content of the *{id}/status.json* file is sent trough a queue. This speeds-up total application execution time, since PyWren only needs one connection to the messaging service to monitor all function activations. We currently support the AMQP protocol. To enable PyWren to use this service, add the *AMQP_URL* key into the *rabbitmq* section in the configuration, for example:
 
