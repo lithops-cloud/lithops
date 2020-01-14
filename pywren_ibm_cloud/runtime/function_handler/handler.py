@@ -86,7 +86,7 @@ def function_handler(event):
         if version.__version__ != event['pywren_version']:
             msg = ("PyWren version mismatch. Host version: {} - Runtime version: {}"
                    .format(event['pywren_version'], version.__version__))
-            raise Exception('HANDLER', msg)
+            raise RuntimeError('HANDLER', msg)
 
         # send init status event
         call_status.send('__init__')

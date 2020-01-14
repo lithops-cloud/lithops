@@ -420,7 +420,6 @@ class FunctionExecutor:
         :param dst_file_name: prefix name of the file.
         :param fs: list of futures.
         """
-
         ftrs = self.futures if not fs else fs
         if type(ftrs) != list:
             ftrs = [ftrs]

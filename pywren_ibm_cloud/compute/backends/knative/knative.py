@@ -94,14 +94,9 @@ class KnativeServingBackend:
 
     def _get_default_runtime_image_name(self):
         docker_user = self.knative_config['docker_user']
-        this_version_str = version_str(sys.version_info)
-        if this_version_str == '3.5':
-            image_name = kconfig.RUNTIME_DEFAULT_35
-        elif this_version_str == '3.6':
-            image_name = kconfig.RUNTIME_DEFAULT_36
-        elif this_version_str == '3.7':
-            image_name = kconfig.RUNTIME_DEFAULT_37
-        return image_name.replace('<USER>', docker_user)
+        python_version = version_str(sys.version_info).replace('.', '')
+        revision = 'latest' if 'SNAPSHOT' in __version__ else __version__
+        return '{}/{}-{}:{}'.format(docker_user, kconfig.RUNTIME_NAME_DEFAULT, python_version, revision)
 
     def _get_service_host(self, service_name):
         """
@@ -217,11 +212,12 @@ class KnativeServingBackend:
                 body=task_def
             )
 
-    def _build_docker_image_from_git(self, docker_image_name):
+    def _build_default_runtime_from_git(self, docker_image_name):
         """
-        Builds the docker image and pushes it to the docker container registry
+        Builds the default docker image and pushes it to the docker container registry
         """
-        revision = 'latest' if 'SNAPSHOT' in __version__ else __version__
+        image_name = docker_image_name.split(':')[0]
+        revision = docker_image_name.split(':')[1] if ':' in docker_image_name else 'latest'
 
         if self.knative_config['docker_repo'] == 'docker.io' and revision != 'latest':
             resp = requests.get('https://index.docker.io/v1/repositories/{}/tags/{}'
@@ -234,7 +230,7 @@ class KnativeServingBackend:
         logger.debug("Building default docker image from git")
 
         task_run = yaml.safe_load(kconfig.task_run)
-        image_url = {'name': 'imageUrl', 'value': '/'.join([self.knative_config['docker_repo'], docker_image_name])}
+        image_url = {'name': 'imageUrl', 'value': '/'.join([self.knative_config['docker_repo'], image_name])}
         task_run['spec']['inputs']['params'].append(image_url)
         image_tag = {'name': 'imageTag', 'value':  revision}
         task_run['spec']['inputs']['params'].append(image_tag)
@@ -303,16 +299,13 @@ class KnativeServingBackend:
         logger.debug("Creating PyWren runtime service resource in k8s")
         svc_res = yaml.safe_load(kconfig.service_res)
 
-        revision = 'latest' if 'SNAPSHOT' in __version__ else __version__
-        # TODO: Take into account revision in service name
         service_name = self._format_service_name(docker_image_name, runtime_memory)
         svc_res['metadata']['name'] = service_name
         svc_res['metadata']['namespace'] = self.namespace
 
         svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
-        docker_image = '/'.join([self.knative_config['docker_repo'], docker_image_name])
-
-        svc_res['spec']['template']['spec']['containers'][0]['image'] = '{}:{}'.format(docker_image, revision)
+        full_docker_image_name = '/'.join([self.knative_config['docker_repo'], docker_image_name])
+        svc_res['spec']['template']['spec']['containers'][0]['image'] = full_docker_image_name
         svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['memory'] = '{}Mi'.format(runtime_memory)
 
         try:
@@ -377,7 +370,7 @@ class KnativeServingBackend:
         try:
             runtime_meta = self.invoke(docker_image_name, memory, payload, return_result=True)
         except Exception as e:
-            raise Exception("Unable to invoke 'modules' action {}".format(e))
+            raise Exception("Unable to invoke 'modules' action: {}".format(e))
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
             raise Exception('Failed getting runtime metadata: {}'.format(runtime_meta))
@@ -396,7 +389,7 @@ class KnativeServingBackend:
             # We only build the default image. rest of images must already exist
             # in the docker registry.
             docker_image_name = default_runtime_img_name
-            self._build_docker_image_from_git(default_runtime_img_name)
+            self._build_default_runtime_from_git(default_runtime_img_name)
 
         self._create_service(docker_image_name, memory, timeout)
         runtime_meta = self._generate_runtime_meta(docker_image_name, memory)

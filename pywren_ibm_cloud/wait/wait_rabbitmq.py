@@ -89,9 +89,6 @@ def wait_rabbitmq(fs, internal_storage, rabbit_amqp_url, download_results=False,
         except KeyboardInterrupt:
             raise KeyboardInterrupt
 
-        if call_status['type'] == '__exception__':
-            raise call_status['exception']
-
         rcvd_executor_id = call_status['executor_id']
         rcvd_job_id = call_status['job_id']
         rcvd_call_id = call_status['call_id']

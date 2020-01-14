@@ -26,15 +26,11 @@ from pywren_ibm_cloud.libs.tblib import pickling_support
 
 pickling_support.install()
 logger = logging.getLogger(__name__)
+COUNT = 0
 
 
 class FunctionException(Exception):
-    def __init__(self, executor_id, job_id, activation_id, exc, exc_msg):
-        self.exception = exc
-        self.exc_msg = exc_msg
-        self.msg = ('ExecutorID {} | JobID {} - There was an exception - Activation '
-                    'ID: {}'.format(executor_id, job_id, activation_id))
-        super().__init__(self.msg)
+    pass
 
 
 class ResponseFuture:
@@ -67,6 +63,7 @@ class ResponseFuture:
 
         self._state = ResponseFuture.State.New
         self._exception = Exception()
+        self._handler_exception = None
         self._return_val = None
         self._new_futures = None
         self._traceback = None
@@ -162,39 +159,44 @@ class ResponseFuture:
             self._exception = pickle.loads(eval(self._call_status['exc_info']))
 
             if not self._call_status.get('exc_pickle_fail', False):
-                exception_args = self._exception[1].args
-                if exception_args and exception_args[0] == "HANDLER":
-                    handler_exception = True
-                    del self._exception[1].errno
-                    self._exception[1].args = (exception_args[1],)
-                else:
-                    handler_exception = False
+                if self._handler_exception is None:
+                    exception_args = self._exception[1].args
+                    if exception_args and exception_args[0] == "HANDLER":
+                        self._handler_exception = True
+                        del self._exception[1].errno
+                        self._exception[1].args = (exception_args[1],)
+                    else:
+                        self._handler_exception = False
 
                 msg1 = ('ExecutorID {} | JobID {} - There was an exception - Activation '
                         'ID: {}'.format(self.executor_id, self.job_id, self.activation_id))
 
-                def exception_hook(exctype, exc, trcbck):
-                    nonlocal handler_exception
-                    msg2 = '--> Exception: {} - {}'.format(exctype.__name__, exc)
-                    logger.info(msg1)
-                    if not self.log_level:
-                        print(msg1)
-                    if handler_exception:
+                def exception_hook(exctype, excvalue, trcbck):
+                    exc_type = self._exception[0]
+                    exc_value = self._exception[1]
+                    if exctype == exc_type and excvalue == exc_value:
+                        msg2 = '--> Exception: {} - {}'.format(exc_type.__name__, exc_value)
+                        logger.info(msg1)
                         if not self.log_level:
-                            print(msg2+'\n')
+                            print(msg1)
+                        if self._handler_exception:
+                            if not self.log_level:
+                                print(msg2+'\n')
+                            else:
+                                logger.info(msg2)
                         else:
-                            logger.info(msg2)
+                            print()
+                            traceback.print_exception(*self._exception)
+                            print()
                     else:
-                        print()
-                        traceback.print_exception(*self._exception)
-                        print()
-                sys.excepthook = exception_hook
-
+                        sys.excepthook = sys.__excepthook__
+                        traceback.print_exception(exctype, excvalue, trcbck)
             else:
                 fault = Exception(self._exception['exc_value'])
                 self._exception = (Exception, fault, self._exception['exc_traceback'])
 
             if throw_except:
+                sys.excepthook = exception_hook
                 reraise(*self._exception)
             else:
                 logger.info(msg1)
@@ -246,12 +248,6 @@ class ResponseFuture:
 
         if self._state == ResponseFuture.State.Futures:
             return self._new_futures
-
-        if self._state == ResponseFuture.State.Error:
-            if throw_except:
-                reraise(*self._exception)
-            else:
-                raise FunctionException(self.executor_id, self.job_id, self.activation_id, self._exception)
 
         if internal_storage is None:
             internal_storage = InternalStorage(storage_config=self.storage_config)

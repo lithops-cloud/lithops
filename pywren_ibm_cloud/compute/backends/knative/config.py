@@ -3,9 +3,7 @@ from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import version_str
 
 DOCKER_REPO_DEFAULT = 'docker.io'
-RUNTIME_DEFAULT_35 = '<USER>/pywren-kn-runtime-v35'
-RUNTIME_DEFAULT_36 = '<USER>/pywren-kn-runtime-v36'
-RUNTIME_DEFAULT_37 = '<USER>/pywren-kn-runtime-v37'
+RUNTIME_NAME_DEFAULT = 'pywren-kn-runtime'
 
 BUILD_GIT_URL_DEFAULT = 'https://github.com/pywren/pywren-ibm-cloud'
 
@@ -157,13 +155,10 @@ def load_config(config_data):
 
     if 'runtime' not in config_data['pywren']:
         docker_user = config_data['knative']['docker_user']
-        this_version_str = version_str(sys.version_info)
-        if this_version_str == '3.5':
-            config_data['pywren']['runtime'] = RUNTIME_DEFAULT_35.replace('<USER>', docker_user)
-        elif this_version_str == '3.6':
-            config_data['pywren']['runtime'] = RUNTIME_DEFAULT_36.replace('<USER>', docker_user)
-        elif this_version_str == '3.7':
-            config_data['pywren']['runtime'] = RUNTIME_DEFAULT_37.replace('<USER>', docker_user)
+        python_version = version_str(sys.version_info).replace('.', '')
+        revision = 'latest' if 'SNAPSHOT' in __version__ else __version__
+        runtime_name = '{}/{}-{}:{}'.format(docker_user, RUNTIME_NAME_DEFAULT, python_version, revision)
+        config_data['pywren']['runtime'] = runtime_name
 
     if 'workers' not in config_data['pywren']:
         config_data['pywren']['workers'] = CONCURRENT_WORKERS_DEFAULT
