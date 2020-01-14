@@ -1,3 +1,4 @@
+import os
 import sys
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import version_str
@@ -11,6 +12,7 @@ RUNTIME_TIMEOUT_DEFAULT = 600  # 10 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # 256Mi
 CONCURRENT_WORKERS_DEFAULT = 500
 
+FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'pywren_knative.zip')
 
 secret_res = """
 apiVersion: v1
@@ -98,7 +100,7 @@ spec:
       - name: pathToContext
         value: .
       - name: pathToDockerFile
-        value: runtime/knative/Dockerfile
+        value: pywren_ibm_cloud/compute/backends/knative/Dockerfile
   serviceAccount: pywren-build-pipeline
 """
 

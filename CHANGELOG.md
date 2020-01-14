@@ -4,12 +4,14 @@
 
 ### Added
 - Prevent get_result() to wait forever when using RabbitMQ
+- Added new Dockerflies for knative
 
 ### Changed
 - Changed way to raise function exceptions
+- Changed way to build custom runtimes for knative
 
 ### Fixed
-- Fixed knative backend when creating a runtime based on an already built image
+- Fixed knative when it creates a runtime based on an already built image
 - Some other Internal fixes
 
 

@@ -1,12 +1,10 @@
 import os
 import shutil
 import logging
-import tempfile
 from pywren_ibm_cloud.storage.utils import StorageNoSuchKeyError
+from .config import STORAGE_BASE_DIR
 
 
-TEMP = tempfile.gettempdir()
-STORAGE_BASE_DIR = os.path.join(TEMP)
 logger = logging.getLogger(__name__)
 
 

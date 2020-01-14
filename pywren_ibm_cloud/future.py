@@ -26,11 +26,6 @@ from pywren_ibm_cloud.libs.tblib import pickling_support
 
 pickling_support.install()
 logger = logging.getLogger(__name__)
-COUNT = 0
-
-
-class FunctionException(Exception):
-    pass
 
 
 class ResponseFuture:

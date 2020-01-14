@@ -140,6 +140,9 @@ class IBMCloudFunctionsBackend:
         except Exception as e:
             raise Exception('Unable to create the {} package: {}'.format(ibmcf_config.FH_ZIP_LOCATION, e))
 
+    def _delete_function_handler_zip(self):
+        os.remove(ibmcf_config.FH_ZIP_LOCATION)
+
     def build_runtime(self, docker_image_name, dockerfile):
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
@@ -181,6 +184,7 @@ class IBMCloudFunctionsBackend:
             action_bin = action_zip.read()
         self.cf_client.create_action(self.package, action_name, docker_image_name, code=action_bin,
                                      memory=memory, is_binary=True, timeout=timeout*1000)
+        self._delete_function_handler_zip()
         return runtime_meta
 
     def delete_runtime(self, docker_image_name, memory):

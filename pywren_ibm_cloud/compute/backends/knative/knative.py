@@ -3,10 +3,12 @@ import sys
 import json
 import time
 import yaml
+import zipfile
 import urllib3
 import logging
 import requests
 import http.client
+import pywren_ibm_cloud
 from urllib.parse import urlparse
 from kubernetes import client, config, watch
 from pywren_ibm_cloud.utils import version_str
@@ -396,12 +398,38 @@ class KnativeServingBackend:
 
         return runtime_meta
 
+    def _create_function_handler_zip(self):
+        logger.debug("Creating function handler zip in {}".format(kconfig.FH_ZIP_LOCATION))
+
+        def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
+            for file in os.listdir(full_dir_path):
+                full_path = os.path.join(full_dir_path, file)
+                if os.path.isfile(full_path):
+                    zip_file.write(full_path, os.path.join('pywren_ibm_cloud', sub_dir, file))
+                elif os.path.isdir(full_path) and '__pycache__' not in full_path:
+                    add_folder_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
+
+        try:
+            with zipfile.ZipFile(kconfig.FH_ZIP_LOCATION, 'w', zipfile.ZIP_DEFLATED) as ibmcf_pywren_zip:
+                current_location = os.path.dirname(os.path.abspath(__file__))
+                module_location = os.path.dirname(os.path.abspath(pywren_ibm_cloud.__file__))
+                main_file = os.path.join(current_location, 'entry_point.py')
+                ibmcf_pywren_zip.write(main_file, 'pywrenproxy.py')
+                add_folder_to_zip(ibmcf_pywren_zip, module_location)
+        except Exception as e:
+            raise Exception('Unable to create the {} package: {}'.format(kconfig.FH_ZIP_LOCATION, e))
+
+    def _delete_function_handler_zip(self):
+        os.remove(kconfig.FH_ZIP_LOCATION)
+
     def build_runtime(self, docker_image_name, dockerfile):
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
         logger.info('Building a new docker image from Dockerfile')
         logger.info('Docker image name: {}'.format(docker_image_name))
+
+        self._create_function_handler_zip()
 
         if dockerfile:
             cmd = 'docker build -t {} -f {} .'.format(docker_image_name, dockerfile)
@@ -411,6 +439,8 @@ class KnativeServingBackend:
         res = os.system(cmd)
         if res != 0:
             exit()
+
+        self._delete_function_handler_zip()
 
         cmd = 'docker push {}'.format(docker_image_name)
         res = os.system(cmd)
