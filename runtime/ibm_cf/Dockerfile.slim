@@ -1,14 +1,13 @@
-# Minimal Docker image based on Python 3.6
+# Minimal Docker image for pyWren
 
-#FROM ubuntu:18.04
+# Python 3.5
+#FROM python:3.5-slim-jessie
 
-#RUN apt-get update \
-#  && apt-get install -y python3-pip python3-dev unzip \
-#  && cd /usr/local/bin \
-#  && ln -s /usr/bin/python3 python \
-#  && pip3 install --upgrade pip
-
+# Python 3.6
 FROM python:3.6-slim-jessie
+
+# Python 3.7
+#FROM python:3.7-slim-buster
 
 ENV FLASK_PROXY_PORT 8080
 

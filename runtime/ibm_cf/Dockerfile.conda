@@ -1,8 +1,13 @@
-# Example of Docker image that is based on anaconda image (Python 3.6)
-# This image also includes PyWren requirements and needed dependencies
-# so it can be used as a base image for IBM Cloud Functions
+# Python 3.6
+FROM continuumio/miniconda3:4.5.4 
 
-FROM continuumio/miniconda3:4.5.4
+# Python 3.7
+#FROM continuumio/miniconda3:4.7.12 
+
+# YOU MUST PIN THE PYTHON VERSION TO PREVENT IT TO BE UPDATED
+# For python 3.6 use "python==3.6.5"
+# For python 3.7 use "python==3.7.4"
+RUN echo "python==3.6.5" >> /opt/conda/conda-meta/pinned
 
 ENV FLASK_PROXY_PORT 8080
 

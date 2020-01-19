@@ -1,4 +1,14 @@
-FROM python:3.7-slim-buster
+# Python 3.6
+FROM continuumio/miniconda3:4.5.4 
+
+# Python 3.7
+#FROM continuumio/miniconda3:4.7.12 
+
+# YOU MUST PIN THE PYTHON VERSION TO PREVENT IT TO BE UPDATED
+# For python 3.6 use "python==3.6.5"
+# For python 3.7 use "python==3.7.4"
+RUN echo "python==3.6.5" >> /opt/conda/conda-meta/pinned
+
 
 RUN apt-get update && apt-get install -y \
         zip \
@@ -17,6 +27,11 @@ RUN pip install --upgrade setuptools six pip \
         PyYAML \
         kubernetes \
         numpy
+
+# Add your Conda required packages here. Ensure "conda clean --all" at 
+# the end to remove temporary data. One "RUN" line is better than multiple
+# ones in terms of image size. For example:
+#RUN conda install -c conda-forge opencv && conda install sortedcontainers gevent-websocket && conda clean --all
 
 # Copy PyWren proxy and lib to the container image.
 ENV APP_HOME /pywren

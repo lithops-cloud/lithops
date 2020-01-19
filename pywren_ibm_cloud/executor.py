@@ -305,9 +305,7 @@ class FunctionExecutor:
             msg = 'ExecutorID {} - Getting results...'.format(self.executor_id)
         else:
             msg = 'ExecutorID {} - Waiting for functions to complete...'.format(self.executor_id)
-        logger.info(msg)
-        if not self.log_level and self._state == FunctionExecutor.State.Running:
-            print(msg)
+        print(msg) if not self.log_level else logger.info(msg)
 
         if is_unix_system() and timeout is not None:
             logger.debug('Setting waiting timeout to {} seconds'.format(timeout))
@@ -349,6 +347,9 @@ class FunctionExecutor:
                 not_dones_call_ids = [(f.job_id, f.call_id) for f in futures if not f.ready and not f.done]
             msg = ('ExecutorID {} - Cancelled - Total Activations not done: {}'
                    .format(self.executor_id, len(not_dones_call_ids)))
+            if pbar:
+                pbar.close()
+            print(msg) if not self.log_level else logger.info(msg)
             self._state = FunctionExecutor.State.Error
 
         except Exception as e:
@@ -359,14 +360,14 @@ class FunctionExecutor:
             self.invoker.stop()
             if is_unix_system():
                 signal.alarm(0)
-            if pbar:
+            if pbar and not pbar.disable:
                 pbar.close()
                 if not is_notebook():
                     print()
             if self.data_cleaner and not self.is_pywren_function:
                 self.clean()
-                if not fs and self._state == FunctionExecutor.State.Error and is_notebook():
-                    del self.futures[len(self.futures)-len(futures):]
+            if not fs and self._state == FunctionExecutor.State.Error and is_notebook():
+                del self.futures[len(self.futures)-len(futures):]
 
         if download_results:
             fs_done = [f for f in futures if f.done]
@@ -433,9 +434,7 @@ class FunctionExecutor:
         from pywren_ibm_cloud.plots import create_timeline, create_histogram
 
         msg = 'ExecutorID {} - Creating execution plots'.format(self.executor_id)
-        logger.info(msg)
-        if not self.log_level:
-            print(msg)
+        print(msg) if not self.log_level else logger.info(msg)
 
         call_status = [f._call_status for f in ftrs_to_plot]
         call_metadata = [f._call_metadata for f in ftrs_to_plot]
@@ -452,6 +451,7 @@ class FunctionExecutor:
         if type(futures) != list:
             futures = [futures]
         if not futures:
+            logger.debug('ExecutorID {} - No jobs to clean'.format(self.executor_id))
             return
 
         if not fs:
@@ -466,9 +466,7 @@ class FunctionExecutor:
 
         if jobs_to_clean:
             msg = "ExecutorID {} - Cleaning temporary data".format(self.executor_id)
-            logger.info(msg)
-            if not self.log_level:
-                print(msg)
+            print(msg) if not self.log_level else logger.info(msg)
 
         for executor_id, job_id in jobs_to_clean:
             storage_bucket = self.config['pywren']['storage_bucket']

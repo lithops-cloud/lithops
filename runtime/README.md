@@ -46,7 +46,7 @@ pw = pywren.ibm_cf_executor(runtime_memory=512)
     This alternative usage is based on to build a local Docker image, deploy it to the docker hub (you need a [Docker Hub account](https://hub.docker.com)) and use it as a PyWren base runtime.
     Project provides some skeletons of Docker images, for example:
     
-    * [Dockerfile](ibm_cf/Dockerfile.python36) - The image is based on `python:3.6-slim-jessie`. 
+    * [Dockerfile](ibm_cf/Dockerfile) - The image is based on `python:3.6-slim-jessie`. 
     
     To build your own runtime, first install the Docker CE version in your client machine. You can find the instructions [here](https://docs.docker.com/install/). If you already have Docker installed omit this step.
     
@@ -55,8 +55,8 @@ pw = pywren.ibm_cf_executor(runtime_memory=512)
     	docker login
     
     Navigate to [ibm_cf/](imb_cf/) and update the Dockerfile that better fits to your requirements with your required system packages and Python modules.
-    If you need another Python version, for example Python 3.5, you must use the [Dockerfile.python35](ibm_cf/Dockerfile.python35) that
-    points to a source image based on Python 3.5. Finally run the build script:
+    If you need another Python version, for example Python 3.7, you must use the [Dockerfile.python37](ibm_cf/Dockerfile.python37) that
+    points to a source image based on Python 3.7. Finally run the build script:
     
         $ pywren-runtime build docker_username/runtimename:tag
     
