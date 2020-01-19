@@ -3,10 +3,12 @@ import sys
 import json
 import time
 import yaml
+import zipfile
 import urllib3
 import logging
 import requests
 import http.client
+import pywren_ibm_cloud
 from urllib.parse import urlparse
 from kubernetes import client, config, watch
 from pywren_ibm_cloud.utils import version_str
@@ -94,14 +96,9 @@ class KnativeServingBackend:
 
     def _get_default_runtime_image_name(self):
         docker_user = self.knative_config['docker_user']
-        this_version_str = version_str(sys.version_info)
-        if this_version_str == '3.5':
-            image_name = kconfig.RUNTIME_DEFAULT_35
-        elif this_version_str == '3.6':
-            image_name = kconfig.RUNTIME_DEFAULT_36
-        elif this_version_str == '3.7':
-            image_name = kconfig.RUNTIME_DEFAULT_37
-        return image_name.replace('<USER>', docker_user)
+        python_version = version_str(sys.version_info).replace('.', '')
+        revision = 'latest' if 'SNAPSHOT' in __version__ else __version__
+        return '{}/{}-{}:{}'.format(docker_user, kconfig.RUNTIME_NAME_DEFAULT, python_version, revision)
 
     def _get_service_host(self, service_name):
         """
@@ -217,11 +214,12 @@ class KnativeServingBackend:
                 body=task_def
             )
 
-    def _build_docker_image_from_git(self, docker_image_name):
+    def _build_default_runtime_from_git(self, docker_image_name):
         """
-        Builds the docker image and pushes it to the docker container registry
+        Builds the default docker image and pushes it to the docker container registry
         """
-        revision = 'latest' if 'SNAPSHOT' in __version__ else __version__
+        image_name = docker_image_name.split(':')[0]
+        revision = docker_image_name.split(':')[1] if ':' in docker_image_name else 'latest'
 
         if self.knative_config['docker_repo'] == 'docker.io' and revision != 'latest':
             resp = requests.get('https://index.docker.io/v1/repositories/{}/tags/{}'
@@ -234,7 +232,7 @@ class KnativeServingBackend:
         logger.debug("Building default docker image from git")
 
         task_run = yaml.safe_load(kconfig.task_run)
-        image_url = {'name': 'imageUrl', 'value': '/'.join([self.knative_config['docker_repo'], docker_image_name])}
+        image_url = {'name': 'imageUrl', 'value': '/'.join([self.knative_config['docker_repo'], image_name])}
         task_run['spec']['inputs']['params'].append(image_url)
         image_tag = {'name': 'imageTag', 'value':  revision}
         task_run['spec']['inputs']['params'].append(image_tag)
@@ -303,16 +301,13 @@ class KnativeServingBackend:
         logger.debug("Creating PyWren runtime service resource in k8s")
         svc_res = yaml.safe_load(kconfig.service_res)
 
-        revision = 'latest' if 'SNAPSHOT' in __version__ else __version__
-        # TODO: Take into account revision in service name
         service_name = self._format_service_name(docker_image_name, runtime_memory)
         svc_res['metadata']['name'] = service_name
         svc_res['metadata']['namespace'] = self.namespace
 
         svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
-        docker_image = '/'.join([self.knative_config['docker_repo'], docker_image_name])
-
-        svc_res['spec']['template']['spec']['containers'][0]['image'] = '{}:{}'.format(docker_image, revision)
+        full_docker_image_name = '/'.join([self.knative_config['docker_repo'], docker_image_name])
+        svc_res['spec']['template']['spec']['containers'][0]['image'] = full_docker_image_name
         svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['memory'] = '{}Mi'.format(runtime_memory)
 
         try:
@@ -377,7 +372,7 @@ class KnativeServingBackend:
         try:
             runtime_meta = self.invoke(docker_image_name, memory, payload, return_result=True)
         except Exception as e:
-            raise Exception("Unable to invoke 'modules' action {}".format(e))
+            raise Exception("Unable to invoke 'modules' action: {}".format(e))
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
             raise Exception('Failed getting runtime metadata: {}'.format(runtime_meta))
@@ -396,12 +391,36 @@ class KnativeServingBackend:
             # We only build the default image. rest of images must already exist
             # in the docker registry.
             docker_image_name = default_runtime_img_name
-            self._build_docker_image_from_git(default_runtime_img_name)
+            self._build_default_runtime_from_git(default_runtime_img_name)
 
         self._create_service(docker_image_name, memory, timeout)
         runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
 
         return runtime_meta
+
+    def _create_function_handler_zip(self):
+        logger.debug("Creating function handler zip in {}".format(kconfig.FH_ZIP_LOCATION))
+
+        def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
+            for file in os.listdir(full_dir_path):
+                full_path = os.path.join(full_dir_path, file)
+                if os.path.isfile(full_path):
+                    zip_file.write(full_path, os.path.join('pywren_ibm_cloud', sub_dir, file))
+                elif os.path.isdir(full_path) and '__pycache__' not in full_path:
+                    add_folder_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
+
+        try:
+            with zipfile.ZipFile(kconfig.FH_ZIP_LOCATION, 'w', zipfile.ZIP_DEFLATED) as ibmcf_pywren_zip:
+                current_location = os.path.dirname(os.path.abspath(__file__))
+                module_location = os.path.dirname(os.path.abspath(pywren_ibm_cloud.__file__))
+                main_file = os.path.join(current_location, 'entry_point.py')
+                ibmcf_pywren_zip.write(main_file, 'pywrenproxy.py')
+                add_folder_to_zip(ibmcf_pywren_zip, module_location)
+        except Exception as e:
+            raise Exception('Unable to create the {} package: {}'.format(kconfig.FH_ZIP_LOCATION, e))
+
+    def _delete_function_handler_zip(self):
+        os.remove(kconfig.FH_ZIP_LOCATION)
 
     def build_runtime(self, docker_image_name, dockerfile):
         """
@@ -409,6 +428,8 @@ class KnativeServingBackend:
         """
         logger.info('Building a new docker image from Dockerfile')
         logger.info('Docker image name: {}'.format(docker_image_name))
+
+        self._create_function_handler_zip()
 
         if dockerfile:
             cmd = 'docker build -t {} -f {} .'.format(docker_image_name, dockerfile)
@@ -418,6 +439,8 @@ class KnativeServingBackend:
         res = os.system(cmd)
         if res != 0:
             exit()
+
+        self._delete_function_handler_zip()
 
         cmd = 'docker push {}'.format(docker_image_name)
         res = os.system(cmd)

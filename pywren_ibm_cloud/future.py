@@ -13,10 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+import os
+import sys
 import time
 import pickle
 import logging
+import traceback
 from six import reraise
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.storage.utils import check_storage_path, get_storage_path
@@ -24,15 +26,6 @@ from pywren_ibm_cloud.libs.tblib import pickling_support
 
 pickling_support.install()
 logger = logging.getLogger(__name__)
-
-
-class FunctionException(Exception):
-    def __init__(self, executor_id, job_id, activation_id, exc, exc_msg):
-        self.exception = exc
-        self.exc_msg = exc_msg
-        self.msg = ('ExecutorID {} | JobID {} - There was an exception - Activation '
-                    'ID: {}'.format(executor_id, job_id, activation_id))
-        super().__init__(self.msg)
 
 
 class ResponseFuture:
@@ -52,17 +45,20 @@ class ResponseFuture:
     GET_RESULT_SLEEP_SECS = 1
     GET_RESULT_MAX_RETRIES = 10
 
-    def __init__(self, executor_id, job_id, call_id, storage_config, call_metadata):
+    def __init__(self, executor_id, job_id, call_id, storage_config, execution_timeout, call_metadata):
+        self.log_level = os.getenv('PYWREN_LOGLEVEL')
         self.call_id = call_id
         self.job_id = job_id
         self.executor_id = executor_id
         self.storage_config = storage_config
+        self.execution_timeout = execution_timeout
 
         self.produce_output = True
         self.read = False
 
         self._state = ResponseFuture.State.New
         self._exception = Exception()
+        self._handler_exception = None
         self._return_val = None
         self._new_futures = None
         self._traceback = None
@@ -86,8 +82,13 @@ class ResponseFuture:
     def cancelled(self):
         raise NotImplementedError("Cannot cancel dispatched jobs")
 
+    @property
     def running(self):
         return self._state == ResponseFuture.State.Running
+
+    @property
+    def error(self):
+        return self._state == ResponseFuture.State.Error
 
     @property
     def futures(self):
@@ -141,43 +142,67 @@ class ResponseFuture:
                 self._call_status = internal_storage.get_call_status(self.executor_id, self.job_id, self.call_id)
                 self.status_query_count += 1
 
-        self.activation_id = self._call_status['activation_id']
+        self.activation_id = self._call_status.get('activation_id', None)
 
         if self._call_status['type'] == '__init__':
             self._set_state(ResponseFuture.State.Running)
             return self._call_status
+
+        if self._call_status['exception']:
+            # the action handler/jobrunner/function had an exception
+            self._set_state(ResponseFuture.State.Error)
+            self._exception = pickle.loads(eval(self._call_status['exc_info']))
+
+            if not self._call_status.get('exc_pickle_fail', False):
+                if self._handler_exception is None:
+                    exception_args = self._exception[1].args
+                    if exception_args and exception_args[0] == "HANDLER":
+                        self._handler_exception = True
+                        del self._exception[1].errno
+                        self._exception[1].args = (exception_args[1],)
+                    else:
+                        self._handler_exception = False
+
+                msg1 = ('ExecutorID {} | JobID {} - There was an exception - Activation '
+                        'ID: {}'.format(self.executor_id, self.job_id, self.activation_id))
+
+                def exception_hook(exctype, excvalue, trcbck):
+                    exc_type = self._exception[0]
+                    exc_value = self._exception[1]
+                    if exctype == exc_type and excvalue == exc_value:
+                        msg2 = '--> Exception: {} - {}'.format(exc_type.__name__, exc_value)
+                        logger.info(msg1)
+                        if not self.log_level:
+                            print(msg1)
+                        if self._handler_exception:
+                            if not self.log_level:
+                                print(msg2+'\n')
+                            else:
+                                logger.info(msg2)
+                        else:
+                            print()
+                            traceback.print_exception(*self._exception)
+                            print()
+                    else:
+                        sys.excepthook = sys.__excepthook__
+                        traceback.print_exception(exctype, excvalue, trcbck)
+            else:
+                fault = Exception(self._exception['exc_value'])
+                self._exception = (Exception, fault, self._exception['exc_traceback'])
+
+            if throw_except:
+                sys.excepthook = exception_hook
+                reraise(*self._exception)
+            else:
+                logger.info(msg1)
+                logger.debug('Exception: {} - {}'.format(self._exception[0].__name__, self._exception[1]))
+                return None
 
         self._call_metadata['host_submit_time'] = self._call_status['host_submit_time']
         self._call_metadata['status_done_timestamp'] = time.time()
         self._call_metadata['status_query_count'] = self.status_query_count
 
         total_time = format(round(self._call_status['end_time'] - self._call_status['start_time'], 2), '.2f')
-
-        if self._call_status['exception']:
-            # the action handler/jobrunner/function had an exception
-            self._set_state(ResponseFuture.State.Error)
-            self._exception = pickle.loads(eval(self._call_status['exc_info']))
-            msg = None
-
-            if not self._call_status.get('exc_pickle_fail', False):
-                exception_args = self._exception[1].args
-                if exception_args and exception_args[0] == "WRONGVERSION":
-                    msg = "PyWren version mismatch: remote library is version {}, local " \
-                          "library is version {}".format(exception_args[2], exception_args[3])
-
-                elif exception_args and exception_args[0] == "OUTATIME":
-                    msg = "Process ran out of time and was killed"
-
-                elif exception_args and exception_args[0] == "OUTOFMEMORY":
-                    msg = "Process exceeded maximum memory and was killed"
-            else:
-                fault = Exception(self._exception['exc_value'])
-                self._exception = (Exception, fault, self._exception['exc_traceback'])
-
-            if throw_except:
-                reraise(*self._exception)
-            raise FunctionException(self.executor_id, self.job_id, self.activation_id, self._exception, msg)
-
         log_msg = ('ExecutorID {} | JobID {} - Got status from call {} - Activation '
                    'ID: {} - Time: {} seconds'.format(self.executor_id,
                                                       self.job_id,
@@ -188,8 +213,10 @@ class ResponseFuture:
         self._set_state(ResponseFuture.State.Ready)
 
         if not self._call_status['result']:
-            self._set_state(ResponseFuture.State.Success)
             self.produce_output = False
+
+        if not self.produce_output:
+            self._set_state(ResponseFuture.State.Success)
 
         if 'new_futures' in self._call_status:
             self.result(throw_except=throw_except, internal_storage=internal_storage)
@@ -217,19 +244,10 @@ class ResponseFuture:
         if self._state == ResponseFuture.State.Futures:
             return self._new_futures
 
-        if self._state == ResponseFuture.State.Error:
-            if throw_except:
-                reraise(*self._exception)
-            else:
-                raise FunctionException(self.executor_id, self.job_id, self.activation_id, self._exception)
-
         if internal_storage is None:
             internal_storage = InternalStorage(storage_config=self.storage_config)
 
         self.status(throw_except=throw_except, internal_storage=internal_storage)
-
-        if not self.produce_output:
-            self._set_state(ResponseFuture.State.Success)
 
         if self._state == ResponseFuture.State.Success:
             return self._return_val

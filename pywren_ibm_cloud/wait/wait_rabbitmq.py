@@ -1,9 +1,11 @@
+import sys
 import json
 import time
 import pika
 import queue
+import pickle
 import logging
-import threading
+from threading import Thread
 from concurrent.futures import ThreadPoolExecutor, wait
 
 logger = logging.getLogger(__name__)
@@ -38,6 +40,7 @@ def wait_rabbitmq(fs, internal_storage, rabbit_amqp_url, download_results=False,
 
     thread_pool = ThreadPoolExecutor(max_workers=THREADPOOL_SIZE)
     present_jobs = {}
+    done_call_ids = {}
 
     for f in fs:
         if (download_results and not f.done) or (not download_results and not (f.ready or f.done)):
@@ -46,16 +49,26 @@ def wait_rabbitmq(fs, internal_storage, rabbit_amqp_url, download_results=False,
                 present_jobs[job_key] = {}
             present_jobs[job_key][f.call_id] = f
 
-    done_call_ids = {}
     job_monitor_q = queue.Queue()
     for job_key in present_jobs.keys():
         total_calls = len(present_jobs[job_key])
         done_call_ids[job_key] = {'total': total_calls, 'call_ids': []}
-        job_monitor = JobMonitor(job_key, total_calls, rabbit_amqp_url, job_monitor_q)
-        job_monitor.setDaemon(True)
+        job_monitor = Thread(target=_job_monitor_thread, args=(job_key, total_calls, rabbit_amqp_url, job_monitor_q))
+        job_monitor.daemon = True
         job_monitor.start()
 
+    # thread to check possible function activations unexpected errors.
+    # It will raise a Timeout error if the status is not received after X seconds.
+    running_futures = []
+    ftc = Thread(target=_future_timeout_checker_thread, args=(running_futures, job_monitor_q))
+    ftc.daemon = True
+    ftc.start()
+
     def reception_finished():
+        """
+        Method to check if the call_status from all the function activations
+        have been received.
+        """
         for job_id in done_call_ids:
             total = done_call_ids[job_id]['total']
             recived_call_ids = len(done_call_ids[job_id]['call_ids'])
@@ -84,6 +97,9 @@ def wait_rabbitmq(fs, internal_storage, rabbit_amqp_url, download_results=False,
         fut._call_status = call_status
         fut.status(throw_except=throw_except, internal_storage=internal_storage)
 
+        if call_status['type'] == '__init__':
+            running_futures.append(fut)
+
         if call_status['type'] == '__end__':
             done_call_ids[job_key]['call_ids'].append(rcvd_call_id)
 
@@ -110,8 +126,8 @@ def wait_rabbitmq(fs, internal_storage, rabbit_amqp_url, download_results=False,
                 for job_key_new_futures in present_jobs_new_futures:
                     total_calls = len(present_jobs[job_key_new_futures])
                     done_call_ids[job_key_new_futures] = {'total': total_calls, 'call_ids': []}
-                    job_monitor = JobMonitor(job_key_new_futures, total_calls, rabbit_amqp_url, job_monitor_q)
-                    job_monitor.setDaemon(True)
+                    job_monitor = Thread(target=_job_monitor_thread, args=(job_key, total_calls, rabbit_amqp_url, job_monitor_q))
+                    job_monitor.daemon = True
                     job_monitor.start()
 
             if 'new_futures' not in call_status and download_results:
@@ -126,40 +142,49 @@ def wait_rabbitmq(fs, internal_storage, rabbit_amqp_url, download_results=False,
     return fs, []
 
 
-class JobMonitor(threading.Thread):
+def _job_monitor_thread(job_key, total_calls, rabbit_amqp_url, job_monitor_q):
+    executor_id, job_id = job_key.rsplit('-', 1)
+    exchange = 'pywren-{}-{}'.format(executor_id, job_id)
+    queue_0 = '{}-0'.format(exchange)
+    total_calls_rcvd = 0
 
-    def __init__(self, job_key, total_calls, rabbit_amqp_url, q):
-        threading.Thread.__init__(self)
-        self.job_key = job_key
-        self.total_calls = total_calls
-        self.rabbit_amqp_url = rabbit_amqp_url
-        self.q = q
-        self.executor_id, self.job_id = job_key.rsplit('-', 1)
-        self.total_calls_rcvd = 0
-        self.channel = None
-        self.exchange = 'pywren-{}-{}'.format(self.executor_id, self.job_id)
-        self.queue_0 = '{}-0'.format(self.exchange)
+    def callback(ch, method, properties, body):
+        nonlocal total_calls_rcvd
+        call_status = json.loads(body.decode("utf-8"))
+        job_monitor_q.put(call_status)
+        if call_status['type'] == '__end__':
+            total_calls_rcvd += 1
+        if total_calls_rcvd == total_calls:
+            ch.stop_consuming()
 
-    def run(self):
-        logger.debug('ExecutorID {} | JobID {} - Consuming from rabbitmq '
-                     'queue'.format(self.executor_id, self.job_id))
+    logger.debug('ExecutorID {} | JobID {} - Consuming from RabbitMQ '
+                 'queue'.format(executor_id, job_id))
+    params = pika.URLParameters(rabbit_amqp_url)
+    connection = pika.BlockingConnection(params)
+    channel = connection.channel()
+    channel.basic_consume(callback, queue=queue_0, no_ack=True)
+    channel.start_consuming()
 
-        def callback(ch, method, properties, body):
-            call_status = json.loads(body.decode("utf-8"))
-            self.q.put(call_status)
-            if call_status['type'] == '__end__':
-                self.total_calls_rcvd += 1
-            if self.total_calls_rcvd == self.total_calls:
-                ch.stop_consuming()
 
-        params = pika.URLParameters(self.rabbit_amqp_url)
-        connection = pika.BlockingConnection(params)
-        self.channel = connection.channel()
-        self.channel.basic_consume(callback, queue=self.queue_0, no_ack=True)
-        self.channel.start_consuming()
-
-    def __del__(self):
-        if self.channel:
-            self.channel.stop_consuming()
-            self.channel.queue_delete(queue=self.queue_0)
-            self.channel.exchange_delete(self.exchange)
+def _future_timeout_checker_thread(running_futures, job_monitor_q):
+    try:
+        while True:
+            current_time = time.time()
+            for fut in running_futures:
+                if fut.running:
+                    fut_timeout = fut._call_status['start_time'] + fut.execution_timeout + 5
+                    if current_time > fut_timeout:
+                        msg = 'The function did not run as expected.'
+                        raise TimeoutError('HANDLER', msg)
+            time.sleep(5)
+    except Exception:
+        # generate fake TimeoutError call status
+        pickled_exception = str(pickle.dumps(sys.exc_info()))
+        call_status = {'type': '__end__',
+                       'exception': True,
+                       'exc_info': pickled_exception,
+                       'executor_id': fut.executor_id,
+                       'job_id': fut.job_id,
+                       'call_id': fut.call_id,
+                       'activation_id': fut.activation_id}
+        job_monitor_q.put(call_status)

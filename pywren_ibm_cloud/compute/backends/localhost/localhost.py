@@ -4,15 +4,12 @@ import uuid
 import pkgutil
 import logging
 import multiprocessing
-from pywren_ibm_cloud.config import JOBS_PREFIX
+from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.runtime.function_handler import function_handler
-from pywren_ibm_cloud.version import __version__
+from .config import LOCAL_RUN_DIR
 
 logger = logging.getLogger(__name__)
-
-
-LOCAL_RUN_DIR = os.path.join(os.getcwd(), JOBS_PREFIX)
 
 
 class LocalhostBackend:
@@ -28,8 +25,8 @@ class LocalhostBackend:
         self.run_dir = LOCAL_RUN_DIR
         self.workers = self.config['workers']
 
-        for cpu in range(self.workers):
-            p = multiprocessing.Process(target=self._process_runner)
+        for worker_id in range(self.workers):
+            p = multiprocessing.Process(target=self._process_runner, args=(worker_id,))
             p.daemon = True
             p.start()
 
@@ -42,7 +39,7 @@ class LocalhostBackend:
         """
         Handler to run local functions.
         """
-        current_run_dir = os.path.join(LOCAL_RUN_DIR, event['executor_id'], event['job_id'])
+        current_run_dir = os.path.join(self.run_dir, event['executor_id'], event['job_id'])
         os.makedirs(current_run_dir, exist_ok=True)
         os.chdir(current_run_dir)
         old_stdout = sys.stdout
@@ -54,10 +51,14 @@ class LocalhostBackend:
         os.chdir(original_dir)
         sys.stdout = old_stdout
 
-    def _process_runner(self):
+    def _process_runner(self, worker_id):
+        logger.debug('Localhost worker process {} started'.format(worker_id))
         while True:
-            event = self.queue.get(block=True)
-            self._local_handler(event, os.getcwd())
+            try:
+                event = self.queue.get(block=True)
+                self._local_handler(event, os.getcwd())
+            except KeyboardInterrupt:
+                break
 
     def _generate_python_meta(self):
         """
@@ -117,7 +118,7 @@ class LocalhostBackend:
         """
         Pass. No runtimes to list since it runs in the local machine
         """
-        pass
+        return []
 
     def get_runtime_key(self, runtime_name, runtime_memory):
         """

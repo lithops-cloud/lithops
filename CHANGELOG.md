@@ -1,16 +1,33 @@
 # Changelog
 
-## [v1.3.2--snapshot]
+## [v1.4.1--snapshot]
 
 ### Added
-- 
+- Prevent get_result() to wait forever when using RabbitMQ
+- Added new Dockerflies for knative
 
 ### Changed
-- Docs updated
-
+- Changed way to raise function exceptions
+- Changed way to build custom runtimes for knative
 
 ### Fixed
-- Internal fixes
+- Fixed knative when it creates a runtime based on an already built image
+- Some other Internal fixes
+
+
+## [v1.4.0]
+
+### Added
+- New way to create RabbitMQ resources
+
+### Changed
+- Default invoker background processed set to 2
+- Code refactoring
+
+### Fixed
+- Fixed issue when config in runtime is used multiple times
+- Fixed invoker stop() method
+- Some other Internal fixes
 
 
 ## [v1.3.1]
@@ -18,18 +35,22 @@
 ### Added
 - OpenWhisk Compute backend
 - openwhisk_executor()
+- Allowed multiple users in same CF namespace
+- Added IBM COS request retrying when ReadTimeoutError
 
 ### Changed
 - COS token will expire 10 minutes before
 - CF IAM token will expire 10 minutes before
 - Improved remote invoker
-- reraise exception from functions
+- Reraise exception from functions
 - Docs updated
+- Default runtime timeout set to seconds
 - default function timeout set to 595 secs
 
 ### Fixed
 - Fixed new invoker usage in notebooks
-- Internal fixes
+- fixes in knative backend
+- Some other Internal fixes
 
 
 ## [v1.3.0]

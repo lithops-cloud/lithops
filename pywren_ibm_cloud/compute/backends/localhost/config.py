@@ -1,9 +1,16 @@
+import os
+import tempfile
 import multiprocessing
 from psutil import virtual_memory
+from pywren_ibm_cloud.config import LOGS_PREFIX
 
 
 RUNTIME_NAME_DEFAULT = 'localhost'
 RUNTIME_TIMEOUT_DEFAULT = 600  # 10 minutes
+
+TEMP = tempfile.gettempdir()
+STORAGE_BASE_DIR = os.path.join(TEMP)
+LOCAL_RUN_DIR = os.path.join(STORAGE_BASE_DIR, LOGS_PREFIX)
 
 
 def load_config(config_data):

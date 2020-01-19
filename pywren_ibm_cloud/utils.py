@@ -136,8 +136,8 @@ def get_server_info():
     return server_info
 
 
-def timeout_handler(signum, frame):
-    raise TimeoutError()
+def timeout_handler(error_msg, signum, frame):
+    raise TimeoutError(error_msg)
 
 
 def version_str(version_info):
