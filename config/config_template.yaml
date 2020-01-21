@@ -45,3 +45,8 @@ ibm_cos:
     #user_id    : <SWIFT_USER_ID>
     #project_id : <SWIFT_PROJECT_ID>
     #password   : <SWIFT_PASSWORD>
+
+#infinispan:
+    #username   : <USER_NAME>
+    #password   : <PASSWORD>
+    #endpoint   : <INFINISPAN_SERVER_URL:PORT>

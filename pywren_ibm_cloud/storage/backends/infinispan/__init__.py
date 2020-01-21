@@ -1,0 +1,1 @@
+from pywren_ibm_cloud.storage.backends.infinispan.infinispan import InfinispanBackend as StorageBackend
