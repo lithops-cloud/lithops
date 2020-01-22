@@ -17,6 +17,7 @@
 import os
 import logging
 import requests
+import base64
 from requests.auth import HTTPBasicAuth
 
 from datetime import datetime, timezone
@@ -47,10 +48,16 @@ class InfinispanBackend:
         logger.debug("Infinispan client created successfully")
 
     def key_url(self, bucket_name, key):
-        if (bucket_name is not None):
-            url = self.endpoint + '/rest/v2/caches/' + self.cache_name + '/' + bucket_name + '/' + key
+        if (bucket_name is not None and key is not None):
+            targetKey = bucket_name + '/' + key
+        elif (bucket_name is not None and key is None):
+            targetKey = bucket_name
         else:
-            url = self.endpoint + '/rest/v2/caches/' + self.cache_name + '/' + key
+            targetKey = key
+
+        urlSafeEncodedBytes = base64.urlsafe_b64encode(targetKey.encode("utf-8"))
+        urlSafeEncodedStr = str(urlSafeEncodedBytes, "utf-8")
+        url = self.endpoint + '/rest/v2/caches/' + self.cache_name + '/' + urlSafeEncodedStr
         return url
     
     def get_client(self):
@@ -68,10 +75,10 @@ class InfinispanBackend:
         :type data: str/bytes
         :return: None
         """
-        #key = 'id1201'
-        self.infinispan_client.headers.update({"Content-Type": "application/octet-stream"})
+        headers = {"Content-Type": "application/octet-stream"
+                                              ,'Key-Content-Type': "application/octet-stream;encoding=base64"}
         resp = self.infinispan_client.put(self.key_url(bucket_name, key), data = data,
-                auth=self.basicAuth )
+                auth=self.basicAuth, headers = headers )
         print (resp)
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
