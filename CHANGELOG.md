@@ -9,9 +9,11 @@
 ### Changed
 - Changed way to raise function exceptions
 - Changed way to build custom runtimes for knative
+- COS private_endpoint is now mandatory if using IBM CF
 
 ### Fixed
 - Fixed knative when it creates a runtime based on an already built image
+- Fixed throw_except parameter on wait() and get_result()
 - Some other Internal fixes
 
 
@@ -21,7 +23,7 @@
 - New way to create RabbitMQ resources
 
 ### Changed
-- Default invoker background processed set to 2
+- Default invoker background processes set to 2
 - Code refactoring
 
 ### Fixed
