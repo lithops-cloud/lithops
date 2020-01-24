@@ -56,8 +56,8 @@ def create_partitions(pywren_config, map_iterdata, chunk_size, chunk_number):
             sbs.add(sb)
 
     if len(sbs) > 1:
-        raise Exception('Currently we only support to process one storage backend at a time'
-                        'Specified storage backends: {}'.format(sb))
+        raise Exception('Currently we only support to process one storage backend at a time. '
+                        'Current storage backends: {}'.format(sbs))
 
     if [prefixes, obj_names, urls, buckets].count(True) > 1:
         raise Exception('You must provide as an input data a list of bucktes, '
