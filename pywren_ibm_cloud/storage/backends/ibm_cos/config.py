@@ -8,6 +8,8 @@ def load_config(config_data):
             raise Exception('You must provide the private_endpoint to access to IBM COS')
         elif 'private' not in config_data['ibm_cos']['private_endpoint']:
             raise Exception('The private_endpoint you provided to access to IBM COS is not valid')
+    elif 'private_endpoint' in config_data['ibm_cos']:
+        del config_data['ibm_cos']['private_endpoint']
 
     required_keys_1 = ('endpoint', 'api_key')
     required_keys_2 = ('endpoint', 'secret_key', 'access_key')
