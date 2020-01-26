@@ -7,7 +7,7 @@ import multiprocessing
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.runtime.function_handler import function_handler
-from .config import LOCAL_RUN_DIR
+from .config import LOCAL_LOGS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ class LocalhostBackend:
         self.config = local_config
         self.name = 'local'
         self.queue = multiprocessing.Queue()
-        self.run_dir = LOCAL_RUN_DIR
+        self.logs_dir = LOCAL_LOGS_DIR
         self.workers = self.config['workers']
 
         for worker_id in range(self.workers):
@@ -39,7 +39,7 @@ class LocalhostBackend:
         """
         Handler to run local functions.
         """
-        current_run_dir = os.path.join(self.run_dir, event['executor_id'], event['job_id'])
+        current_run_dir = os.path.join(self.logs_dir, event['executor_id'], event['job_id'])
         os.makedirs(current_run_dir, exist_ok=True)
         os.chdir(current_run_dir)
         old_stdout = sys.stdout

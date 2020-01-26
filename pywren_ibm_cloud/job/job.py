@@ -104,19 +104,6 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
                        original_func_name=reduce_function.__name__)
 
 
-def _agg_data(data_strs):
-    """
-    Auxiliary function that aggregates data of a job to a single byte string
-    """
-    ranges = []
-    pos = 0
-    for datum in data_strs:
-        datum_len = len(datum)
-        ranges.append((pos, pos+datum_len-1))
-        pos += datum_len
-    return b"".join(data_strs), ranges
-
-
 def _create_job(config, internal_storage, executor_id, job_id, func, data, runtime_meta,
                 runtime_memory=None, extra_env=None, invoke_pool_threads=128, include_modules=[],
                 exclude_modules=[], original_func_name=None, execution_timeout=EXECUTION_TIMEOUT):
@@ -184,55 +171,43 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
         inc_modules = None
 
     logger.debug('ExecutorID {} | JobID {} - Serializing function and data'.format(executor_id, job_id))
-    # pickle func and all data (to capture module dependencies)
-
     serializer = SerializeIndependent(runtime_meta['preinstalls'])
     func_and_data_ser, mod_paths = serializer([func] + data, inc_modules, exc_modules)
-
-    func_str = func_and_data_ser[0]
     data_strs = func_and_data_ser[1:]
     data_size_bytes = sum(len(x) for x in data_strs)
+    module_data = create_module_data(mod_paths)
+    func_str = func_and_data_ser[0]
+    func_module_str = pickle.dumps({'func': func_str, 'module_data': module_data}, -1)
+    func_module_size_bytes = len(func_module_str)
+    total_size = utils.sizeof_fmt(data_size_bytes+func_module_size_bytes)
 
-    host_job_meta['agg_data'] = False
     host_job_meta['data_size_bytes'] = data_size_bytes
+    host_job_meta['func_module_size_bytes'] = func_module_size_bytes
 
-    log_msg = 'ExecutorID {} | JobID {} - Uploading function and data'.format(executor_id, job_id)
-    logger.info(log_msg)
-    if not log_level:
-        print(log_msg, end=' ')
-
-    if data_size_bytes < MAX_AGG_DATA_SIZE:
-        agg_data_key = create_agg_data_key(JOBS_PREFIX, executor_id, job_id)
-        job_description['data_key'] = agg_data_key
-        agg_data_bytes, agg_data_ranges = _agg_data(data_strs)
-        job_description['data_ranges'] = agg_data_ranges
-        agg_upload_time = time.time()
-        internal_storage.put_data(agg_data_key, agg_data_bytes)
-        host_job_meta['agg_data'] = True
-        host_job_meta['data_upload_time'] = time.time() - agg_upload_time
-        host_job_meta['data_upload_timestamp'] = time.time()
-    else:
-        log_msg = ('ExecutorID {} | JobID {} - Total data exceeded '
-                   'maximum size of {} bytes'.format(executor_id, job_id, MAX_AGG_DATA_SIZE))
+    if data_size_bytes > MAX_AGG_DATA_SIZE:
+        log_msg = ('ExecutorID {} | JobID {} - Total data exceeded maximum size '
+                   'of {} bytes'.format(executor_id, job_id, MAX_AGG_DATA_SIZE))
         raise Exception(log_msg)
 
-    module_data = create_module_data(mod_paths)
-    # Create func and upload
-    host_job_meta['func_name'] = func_name
-    func_module_str = pickle.dumps({'func': func_str, 'module_data': module_data}, -1)
-    host_job_meta['func_module_bytes'] = len(func_module_str)
-
+    log_msg = ('ExecutorID {} | JobID {} - Uploading function and data '
+               '- Total: {}'.format(executor_id, job_id, total_size))
+    print(log_msg) if not log_level else logger.info(log_msg)
+    # Upload data
+    data_key = create_agg_data_key(JOBS_PREFIX, executor_id, job_id)
+    job_description['data_key'] = data_key
+    data_bytes, data_ranges = utils.agg_data(data_strs)
+    job_description['data_ranges'] = data_ranges
+    data_upload_time = time.time()
+    internal_storage.put_data(data_key, data_bytes)
+    host_job_meta['data_upload_time'] = time.time() - data_upload_time
+    host_job_meta['data_upload_timestamp'] = time.time()
+    # Upload function and modules
     func_upload_time = time.time()
     func_key = create_func_key(JOBS_PREFIX, executor_id, job_id)
     job_description['func_key'] = func_key
     internal_storage.put_func(func_key, func_module_str)
     host_job_meta['func_upload_time'] = time.time() - func_upload_time
     host_job_meta['func_upload_timestamp'] = time.time()
-
-    if not log_level:
-        func_and_data_size = utils.sizeof_fmt(host_job_meta['func_module_bytes']+host_job_meta['data_size_bytes'])
-        log_msg = '- Total: {}'.format(func_and_data_size)
-        print(log_msg)
 
     job_description['metadata'] = host_job_meta
 

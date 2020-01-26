@@ -96,6 +96,19 @@ def delete_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id):
     connection.close()
 
 
+def agg_data(data_strs):
+    """
+    Auxiliary function that aggregates data of a job to a single byte string
+    """
+    ranges = []
+    pos = 0
+    for datum in data_strs:
+        datum_len = len(datum)
+        ranges.append((pos, pos+datum_len-1))
+        pos += datum_len
+    return b"".join(data_strs), ranges
+
+
 def free_disk_space(dirname):
     """
     Returns the number of free bytes on the mount point containing DIRNAME

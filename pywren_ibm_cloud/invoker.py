@@ -51,6 +51,7 @@ class FunctionInvoker:
         self.internal_storage = internal_storage
         self.compute_config = extract_compute_config(self.config)
         self.is_pywren_function = is_pywren_function()
+        self.invokers = []
 
         self.remote_invoker = self.config['pywren'].get('remote_invoker', False)
         self.workers = self.config['pywren'].get('workers')
@@ -92,9 +93,8 @@ class FunctionInvoker:
 
         log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} - {}MB'
                    .format(self.executor_id, job_id, runtime_name, runtime_memory))
-        logger.info(log_msg)
-        if not log_level:
-            print(log_msg, end=' ')
+        print(log_msg, end=' ') if not self.log_level else logger.info(log_msg)
+
         installing = False
 
         for compute_handler in self.compute_handlers:
@@ -134,7 +134,6 @@ class FunctionInvoker:
         """
         Starts the invoker process responsible to spawn pending calls in background
         """
-        self.invokers = []
         if self.is_pywren_function or not is_unix_system():
             for inv_id in range(INVOKER_PROCESSES):
                 p = Thread(target=self._run_invoker_process, args=(inv_id, ))
@@ -172,18 +171,20 @@ class FunctionInvoker:
         """
         Stop the invoker process
         """
-        logger.debug('ExecutorID {} - Stopping invoker'.format(self.executor_id))
-        self.running_flag.value = 0
+        if self.invokers:
+            logger.debug('ExecutorID {} - Stopping invoker'.format(self.executor_id))
+            self.running_flag.value = 0
 
-        for invoker in self.invokers:
-            self.token_bucket_q.put('#')
-            self.pending_calls_q.put((None, None))
+            for invoker in self.invokers:
+                self.token_bucket_q.put('#')
+                self.pending_calls_q.put((None, None))
 
-        while not self.pending_calls_q.empty():
-            try:
-                self.pending_calls_q.get(False)
-            except Exception:
-                pass
+            while not self.pending_calls_q.empty():
+                try:
+                    self.pending_calls_q.get(False)
+                except Exception:
+                    pass
+            self.invokers = []
 
     def _invoke(self, job, call_id):
         """
@@ -213,8 +214,8 @@ class FunctionInvoker:
             self.pending_calls_q.put((job, call_id))
             return
 
-        logger.debug('ExecutorID {} | JobID {} - Function call {} done! ({}s) - Activation'
-                     ' ID: {}'.format(job.executor_id, job.job_id, call_id, resp_time, activation_id))
+        logger.info('ExecutorID {} | JobID {} - Function call {} done! ({}s) - Activation'
+                    ' ID: {}'.format(job.executor_id, job.job_id, call_id, resp_time, activation_id))
 
         return call_id
 
@@ -237,8 +238,8 @@ class FunctionInvoker:
         resp_time = format(round(roundtrip, 3), '.3f')
 
         if activation_id:
-            logger.debug('ExecutorID {} | JobID {} - Remote invoker call done! ({}s) - Activation'
-                         ' ID: {}'.format(job.executor_id, job.job_id, resp_time, activation_id))
+            logger.info('ExecutorID {} | JobID {} - Remote invoker call done! ({}s) - Activation'
+                        ' ID: {}'.format(job.executor_id, job.job_id, resp_time, activation_id))
         else:
             raise Exception('Unable to spawn remote invoker')
 
@@ -268,9 +269,7 @@ class FunctionInvoker:
             log_msg = ('ExecutorID {} | JobID {} - Starting remote function invocation: {}() '
                        '- Total: {} activations'.format(job.executor_id, job.job_id,
                                                         job.func_name, job.total_calls))
-            logger.info(log_msg)
-            if not self.log_level:
-                print(log_msg)
+            print(log_msg) if not self.log_level else logger.info(log_msg)
 
             th = Thread(target=self._invoke_remote, args=(job_description,))
             th.daemon = True
@@ -279,9 +278,7 @@ class FunctionInvoker:
         else:
             log_msg = ('ExecutorID {} | JobID {} - Starting function invocation: {}()  - Total: {} '
                        'activations'.format(job.executor_id, job.job_id, job.func_name, job.total_calls))
-            logger.info(log_msg)
-            if not self.log_level:
-                print(log_msg)
+            print(log_msg) if not self.log_level else logger.info(log_msg)
 
             if self.ongoing_activations < self.workers:
                 callids = range(job.total_calls)

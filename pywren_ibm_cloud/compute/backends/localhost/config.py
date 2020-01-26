@@ -10,7 +10,7 @@ RUNTIME_TIMEOUT_DEFAULT = 600  # 10 minutes
 
 TEMP = tempfile.gettempdir()
 STORAGE_BASE_DIR = os.path.join(TEMP)
-LOCAL_RUN_DIR = os.path.join(STORAGE_BASE_DIR, LOGS_PREFIX)
+LOCAL_LOGS_DIR = os.path.join(STORAGE_BASE_DIR, LOGS_PREFIX)
 
 
 def load_config(config_data):
