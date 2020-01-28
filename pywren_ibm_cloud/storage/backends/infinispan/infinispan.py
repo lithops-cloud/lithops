@@ -35,7 +35,7 @@ class InfinispanBackend:
     Infinispan backend
     """
 
-    def __init__(self, infinispan_config):
+    def __init__(self, infinispan_config, bucket = None, executor_id = None):
         logger.debug("Creating Infinispan client")
         self.infinispan_config = infinispan_config
         self.is_pywren_function = is_pywren_function()
