@@ -16,6 +16,7 @@
 
 import logging
 import requests
+import json
 import base64
 from requests.auth import HTTPBasicAuth
 
@@ -38,6 +39,10 @@ class InfinispanBackend:
         self.endpoint = infinispan_config.get('endpoint')
         self.cache_name = self.generate_cache_name(bucket, executor_id)
         self.infinispan_client = requests.session()
+
+        server_version = self.get_server_version()
+        if (int(server_version[0]) < 10 or (int(server_version[0]) == 10 and int(server_version[1]) < 1)):
+            raise Exception('Infinispan versions 10.1 and up supported')
 
         res = self.infinispan_client.head(self.endpoint + '/rest/v2/caches/' + self.cache_name,
                                    auth=self.basicAuth)
@@ -66,6 +71,12 @@ class InfinispanBackend:
         url = self.endpoint + '/rest/v2/caches/' + self.cache_name + '/' + urlSafeEncodedStr
         return url
     
+    def get_server_version(self):
+        res = self.infinispan_client.get(self.endpoint + '/rest/v2/cache-managers/' + self.cache_manager,
+                                         auth=self.basicAuth)
+        json_resp = json.loads(res.content.decode('utf-8'))
+        return json_resp['version'].split('.')
+
     def get_client(self):
         """
         Get infinispan client.
