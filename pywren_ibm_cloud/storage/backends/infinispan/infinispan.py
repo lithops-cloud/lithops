@@ -14,18 +14,12 @@
 # limitations under the License.
 #
 
-import os
 import logging
 import requests
 import base64
 from requests.auth import HTTPBasicAuth
 
-from datetime import datetime, timezone
-
-from pywren_ibm_cloud.storage.utils import StorageNoSuchKeyError
-from pywren_ibm_cloud.utils import sizeof_fmt, is_pywren_function
-from pywren_ibm_cloud.config import CACHE_DIR, load_yaml_config, dump_yaml_config
-
+from pywren_ibm_cloud.utils import is_pywren_function
 
 logger = logging.getLogger(__name__)
 
@@ -42,20 +36,32 @@ class InfinispanBackend:
         self.basicAuth=HTTPBasicAuth(infinispan_config.get('username'), 
                                 infinispan_config.get('password'))
         self.endpoint = infinispan_config.get('endpoint')
-        self.cache_name = infinispan_config.get('cache','default')
-                                        
+        self.cache_name = self.generate_cache_name(bucket, executor_id)
         self.infinispan_client = requests.session()
+
+        res = self.infinispan_client.head(self.endpoint + '/rest/v2/caches/' + self.cache_name,
+                                   auth=self.basicAuth)
+        if res.status_code == 404:
+            logger.debug ('going to create new Infinispan cache {}'.format(self.cache_name))
+            res = self.infinispan_client.post(self.endpoint + '/rest/v2/caches/' + self.cache_name + '?template=org.infinispan.DIST_SYNC')
+            logger.debug ('New Infinispan cache {} created with status {}'.format(self.cache_name, res.status_code))
+
         logger.debug("Infinispan client created successfully")
 
-    def key_url(self, bucket_name, key):
-        if (bucket_name is not None and key is not None):
-            targetKey = bucket_name + '/' + key
-        elif (bucket_name is not None and key is None):
-            targetKey = bucket_name
+    def generate_cache_name(self, bucket, executor_id):
+        if executor_id == None and bucket == None:
+            raise Exception ('at least one of bucket or executor_id should be non empty')
+        if executor_id is not None and executor_id.find('/') > 0:
+            executor_id = executor_id.replace('/','_')
+        if bucket is not None:
+            cache_name = bucket + '_' + executor_id
         else:
-            targetKey = key
+            cache_name = executor_id
 
-        urlSafeEncodedBytes = base64.urlsafe_b64encode(targetKey.encode("utf-8"))
+        return cache_name
+
+    def key_url(self, key):
+        urlSafeEncodedBytes = base64.urlsafe_b64encode(key.encode("utf-8"))
         urlSafeEncodedStr = str(urlSafeEncodedBytes, "utf-8")
         url = self.endpoint + '/rest/v2/caches/' + self.cache_name + '/' + urlSafeEncodedStr
         return url
@@ -77,7 +83,7 @@ class InfinispanBackend:
         """
         headers = {"Content-Type": "application/octet-stream"
                                               ,'Key-Content-Type': "application/octet-stream;encoding=base64"}
-        resp = self.infinispan_client.put(self.key_url(bucket_name, key), data = data,
+        resp = self.infinispan_client.put(self.key_url(key), data = data,
                 auth=self.basicAuth, headers = headers )
         print (resp)
 
@@ -88,10 +94,7 @@ class InfinispanBackend:
         :return: Data of the object
         :rtype: str/bytes
         """
-        data = None
-
-        res = self.infinispan_client.get(self.key_url(bucket_name, key),
-                                   auth=self.basicAuth)
+        res = self.infinispan_client.get(self.key_url(key), auth=self.basicAuth)
         data = res.content
         return data
 
@@ -102,10 +105,9 @@ class InfinispanBackend:
         :return: Data of the object
         :rtype: str/bytes
         """
-        metadata = None
-        metadata = self.infinispan_client.head(self.endpoint + '/rest/v2/caches/default/' + bucket_name + '/' + key,
+        res = self.infinispan_client.head(self.endpoint + '/rest/v2/caches/default/' + bucket_name + '/' + key,
                                    auth=self.basicAuth)
-        return metadata['ResponseMetadata']['HTTPHeaders']
+        return res.status_code
 
     def delete_object(self, bucket_name, key):
         """
@@ -113,7 +115,8 @@ class InfinispanBackend:
         :param bucket: bucket name
         :param key: data key
         """
-        return self.infinispan_client.delet(self.endpoint + '/rest/v2/caches/default/' + bucket_name + '/' + key,
+
+        return self.infinispan_client.delete(self.endpoint + '/rest/v2/caches/default/' + bucket_name + '/' + key,
                                    auth=self.basicAuth)
 
     def delete_objects(self, bucket_name, key_list):
