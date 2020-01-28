@@ -26,10 +26,10 @@ logger = logging.getLogger('__main__')
 
 def main(args):
     if 'remote_invoker' in args:
-        logger.info("PyWren v{} - Starting IBM Cloud Functions invoker".format(__version__))
+        logger.info("PyWren v{} - Starting IBM CF invoker".format(__version__))
         function_invoker(args)
     else:
-        logger.info("PyWren v{} - Starting IBM Cloud Functions execution".format(__version__))
+        logger.info("PyWren v{} - Starting IBM CF execution".format(__version__))
         function_handler(args)
 
     return {"Execution": "Finished"}

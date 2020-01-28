@@ -58,7 +58,7 @@ class ResponseFuture:
 
         self._state = ResponseFuture.State.New
         self._exception = Exception()
-        self._handler_exception = None
+        self._handler_exception = False
         self._return_val = None
         self._new_futures = None
         self._traceback = None
@@ -158,14 +158,10 @@ class ResponseFuture:
             if not self._call_status.get('exc_pickle_fail', False):
                 fn_exctype = self._exception[0]
                 fn_exc = self._exception[1]
-
-                if self._handler_exception is None:
-                    if fn_exc.args and fn_exc.args[0] == "HANDLER":
-                        self._handler_exception = True
-                        del fn_exc.errno
-                        fn_exc.args = (fn_exc.args[1],)
-                    else:
-                        self._handler_exception = False
+                if fn_exc.args and fn_exc.args[0] == "HANDLER":
+                    self._handler_exception = True
+                    del fn_exc.errno
+                    fn_exc.args = (fn_exc.args[1],)
             else:
                 fn_exctype = Exception
                 fn_exc = Exception(self._exception['exc_value'])
