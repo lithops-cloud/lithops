@@ -368,7 +368,7 @@ class JobMonitor:
         time.sleep(1)
 
         while total_callids_done_in_job < job.total_calls:
-            callids_done_in_job = set(self.internal_storage.get_job_status(job.executor_id, job.job_id))
+            callids_running_in_job, callids_done_in_job = self.internal_storage.get_job_status(job.executor_id, job.job_id)
             total_new_tokens = len(callids_done_in_job) - total_callids_done_in_job
             total_callids_done_in_job = total_callids_done_in_job + total_new_tokens
             for i in range(total_new_tokens):

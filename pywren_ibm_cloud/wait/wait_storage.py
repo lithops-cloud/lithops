@@ -148,7 +148,7 @@ def _wait_storage(fs, internal_storage, download_results, throw_except,
         # note this returns everything done, so we have to figure out
         # the intersection of those that are done
         #t0 = time.time()
-        callids_done_in_job = set(internal_storage.get_job_status(executor_id, job_id))
+        callids_running_in_job, callids_done_in_job = internal_storage.get_job_status(executor_id, job_id)
         #print('Time getting job status: ', time.time()-t0, len(callids_done_in_job))
 
         not_done_call_ids = set([(f.executor_id, f.job_id, f.call_id) for f in not_done_futures])

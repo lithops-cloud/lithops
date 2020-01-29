@@ -58,7 +58,7 @@ class ResponseFuture:
 
         self._state = ResponseFuture.State.New
         self._exception = Exception()
-        self._handler_exception = None
+        self._handler_exception = False
         self._return_val = None
         self._new_futures = None
         self._traceback = None
@@ -152,35 +152,32 @@ class ResponseFuture:
             self._set_state(ResponseFuture.State.Error)
             self._exception = pickle.loads(eval(self._call_status['exc_info']))
 
+            msg1 = ('ExecutorID {} | JobID {} - There was an exception - Activation '
+                    'ID: {}'.format(self.executor_id, self.job_id, self.activation_id))
+
             if not self._call_status.get('exc_pickle_fail', False):
                 fn_exctype = self._exception[0]
                 fn_exc = self._exception[1]
-
-                if self._handler_exception is None:
-                    if fn_exc.args and fn_exc.args[0] == "HANDLER":
-                        self._handler_exception = True
-                        del fn_exc.errno
-                        fn_exc.args = (fn_exc.args[1],)
-                    else:
-                        self._handler_exception = False
-
-                msg1 = ('ExecutorID {} | JobID {} - There was an exception - Activation '
-                        'ID: {}'.format(self.executor_id, self.job_id, self.activation_id))
-
-                def exception_hook(exctype, exc, trcbck):
-                    if exctype == fn_exctype and exc == fn_exc:
-                        msg2 = '--> Exception: {} - {}'.format(fn_exctype.__name__, fn_exc)
-                        print(msg1) if not self.log_level else logger.info(msg1)
-                        if self._handler_exception:
-                            print(msg2+'\n') if not self.log_level else logger.info(msg2)
-                        else:
-                            traceback.print_exception(*self._exception)
-                    else:
-                        sys.excepthook = sys.__excepthook__
-                        traceback.print_exception(exctype, exc, trcbck)
+                if fn_exc.args and fn_exc.args[0] == "HANDLER":
+                    self._handler_exception = True
+                    del fn_exc.errno
+                    fn_exc.args = (fn_exc.args[1],)
             else:
+                fn_exctype = Exception
                 fn_exc = Exception(self._exception['exc_value'])
-                self._exception = (Exception, fn_exc, self._exception['exc_traceback'])
+                self._exception = (fn_exctype, fn_exc, self._exception['exc_traceback'])
+
+            def exception_hook(exctype, exc, trcbck):
+                if exctype == fn_exctype and exc == fn_exc:
+                    msg2 = '--> Exception: {} - {}'.format(fn_exctype.__name__, fn_exc)
+                    print(msg1) if not self.log_level else logger.info(msg1)
+                    if self._handler_exception:
+                        print(msg2+'\n') if not self.log_level else logger.info(msg2)
+                    else:
+                        traceback.print_exception(*self._exception)
+                else:
+                    sys.excepthook = sys.__excepthook__
+                    traceback.print_exception(exctype, exc, trcbck)
 
             if throw_except:
                 sys.excepthook = exception_hook

@@ -217,16 +217,17 @@ class CallStatus:
         executor_id = self.response['executor_id']
         job_id = self.response['job_id']
         call_id = self.response['call_id']
+        act_id = self.response['activation_id']
 
         if self.response['type'] == '__init__':
-            init_key = create_init_key(JOBS_PREFIX, executor_id, job_id, call_id)
-            #self.internal_storage.put_data(init_key, '')
+            init_key = create_init_key(JOBS_PREFIX, executor_id, job_id, call_id, act_id)
+            self.internal_storage.put_data(init_key, '')
 
         elif self.response['type'] == '__end__':
             status_key = create_status_key(JOBS_PREFIX, executor_id, job_id, call_id)
             dmpd_response_status = json.dumps(self.response)
             drs = sizeof_fmt(len(dmpd_response_status))
-            logger.info("Storing execution stats - status.json - Size: {}".format(drs))
+            logger.info("Storing execution stats - Size: {}".format(drs))
             self.internal_storage.put_data(status_key, dmpd_response_status)
 
     def _send_status_rabbitmq(self):

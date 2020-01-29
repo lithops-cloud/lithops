@@ -7,7 +7,7 @@ from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.config import CACHE_DIR, RUNTIMES_PREFIX, JOBS_PREFIX
 from pywren_ibm_cloud.utils import is_pywren_function
 from pywren_ibm_cloud.storage.utils import create_status_key, create_output_key, \
-    status_key_suffix, CloudObject, StorageNoSuchKeyError
+    status_key_suffix, init_key_suffix, CloudObject, StorageNoSuchKeyError
 
 
 logger = logging.getLogger(__name__)
@@ -139,14 +139,16 @@ class InternalStorage:
         :param executor_id: executor's ID
         :return: A list of call IDs that have updated status.
         """
-        # TODO: a better API for this is to return status for all calls in the callset. We'll fix
-        #  this in scheduler refactoring.
         callset_prefix = '/'.join([JOBS_PREFIX, executor_id, job_id])
         keys = self.storage_handler.list_keys(self.bucket, callset_prefix)
-        suffix = status_key_suffix
-        status_keys = [k for k in keys if suffix in k]
-        call_ids = [tuple(k[len(JOBS_PREFIX)+1:].rsplit("/", 3)[:3]) for k in status_keys]
-        return call_ids
+
+        running_keys = [k for k in keys if init_key_suffix in k]
+        running_callids = set([tuple(k[len(JOBS_PREFIX)+1:].rsplit("/", 3)[:3]) for k in running_keys])
+
+        done_keys = [k for k in keys if status_key_suffix in k]
+        done_callids = set([tuple(k[len(JOBS_PREFIX)+1:].rsplit("/", 3)[:3]) for k in done_keys])
+
+        return running_callids-done_callids, done_callids
 
     def get_call_status(self, executor_id, job_id, call_id):
         """

@@ -67,7 +67,8 @@ class IBMCloudObjectStorageBackend:
             client_config = ibm_botocore.client.Config(max_pool_connections=128,
                                                        user_agent_extra=user_agent,
                                                        connect_timeout=1,
-                                                       read_timeout=5)
+                                                       read_timeout=5,
+                                                       retries={'max_attempts': OBJ_REQ_RETRIES})
 
             self.cos_client = ibm_boto3.client('s3',
                                                aws_access_key_id=access_key,
@@ -80,7 +81,8 @@ class IBMCloudObjectStorageBackend:
                                                        max_pool_connections=128,
                                                        user_agent_extra=user_agent,
                                                        connect_timeout=1,
-                                                       read_timeout=5)
+                                                       read_timeout=5,
+                                                       retries={'max_attempts': OBJ_REQ_RETRIES})
 
             token_manager = DefaultTokenManager(api_key_id=api_key)
             token_filename = os.path.join(CACHE_DIR, 'ibm_cos', api_key_type.lower()+'_token')
