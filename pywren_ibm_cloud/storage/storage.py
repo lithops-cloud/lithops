@@ -141,13 +141,14 @@ class InternalStorage:
         callset_prefix = '/'.join([JOBS_PREFIX, executor_id, job_id])
         keys = self.storage_handler.list_keys(self.bucket, callset_prefix)
 
-        running_keys = [k for k in keys if init_key_suffix in k]
-        running_callids = set([tuple(k[len(JOBS_PREFIX)+1:].rsplit("/", 3)[:3]) for k in running_keys])
+        running_keys = [k[len(JOBS_PREFIX)+1:-len(init_key_suffix)].rsplit("/", 3)
+                        for k in keys if init_key_suffix in k]
+        running_callids = [((k[0], k[1], k[2]), k[3]) for k in running_keys]
 
         done_keys = [k for k in keys if status_key_suffix in k]
-        done_callids = set([tuple(k[len(JOBS_PREFIX)+1:].rsplit("/", 3)[:3]) for k in done_keys])
+        done_callids = [tuple(k[len(JOBS_PREFIX)+1:].rsplit("/", 3)[:3]) for k in done_keys]
 
-        return running_callids-done_callids, done_callids
+        return set(running_callids), set(done_callids)
 
     def get_call_status(self, executor_id, job_id, call_id):
         """

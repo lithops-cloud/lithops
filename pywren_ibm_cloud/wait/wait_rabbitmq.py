@@ -60,7 +60,7 @@ def wait_rabbitmq(fs, internal_storage, rabbit_amqp_url, download_results=False,
     # thread to check possible function activations unexpected errors.
     # It will raise a Timeout error if the status is not received after X seconds.
     running_futures = []
-    ftc = Thread(target=_future_timeout_checker_thread, args=(running_futures, job_monitor_q))
+    ftc = Thread(target=_future_timeout_checker_thread, args=(running_futures, job_monitor_q, throw_except))
     ftc.daemon = True
     ftc.start()
 
@@ -166,25 +166,29 @@ def _job_monitor_thread(job_key, total_calls, rabbit_amqp_url, job_monitor_q):
     channel.start_consuming()
 
 
-def _future_timeout_checker_thread(running_futures, job_monitor_q):
-    try:
-        while True:
-            current_time = time.time()
-            for fut in running_futures:
-                if fut.running:
-                    fut_timeout = fut._call_status['start_time'] + fut.execution_timeout + 5
-                    if current_time > fut_timeout:
-                        msg = 'The function did not run as expected.'
-                        raise TimeoutError('HANDLER', msg)
-            time.sleep(5)
-    except Exception:
-        # generate fake TimeoutError call status
-        pickled_exception = str(pickle.dumps(sys.exc_info()))
-        call_status = {'type': '__end__',
-                       'exception': True,
-                       'exc_info': pickled_exception,
-                       'executor_id': fut.executor_id,
-                       'job_id': fut.job_id,
-                       'call_id': fut.call_id,
-                       'activation_id': fut.activation_id}
-        job_monitor_q.put(call_status)
+def _future_timeout_checker_thread(running_futures, job_monitor_q, throw_except):
+    should_run = True
+    while should_run:
+        try:
+            while True:
+                current_time = time.time()
+                for fut in running_futures:
+                    if fut.running:
+                        fut_timeout = fut._call_status['start_time'] + fut.execution_timeout + 5
+                        if current_time > fut_timeout:
+                            msg = 'The function did not run as expected.'
+                            raise TimeoutError('HANDLER', msg)
+                time.sleep(5)
+        except Exception:
+            # generate fake TimeoutError call status
+            pickled_exception = str(pickle.dumps(sys.exc_info()))
+            call_status = {'type': '__end__',
+                           'exception': True,
+                           'exc_info': pickled_exception,
+                           'executor_id': fut.executor_id,
+                           'job_id': fut.job_id,
+                           'call_id': fut.call_id,
+                           'activation_id': fut.activation_id}
+            job_monitor_q.put(call_status)
+            if throw_except:
+                should_run = False
