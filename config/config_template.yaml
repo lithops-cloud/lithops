@@ -50,3 +50,4 @@ ibm_cos:
     #username   : <USER_NAME>
     #password   : <PASSWORD>
     #endpoint   : <INFINISPAN_SERVER_URL:PORT>
+    #cache_manager : <CACHE MANAGER> # Optional. 'default' in default value
