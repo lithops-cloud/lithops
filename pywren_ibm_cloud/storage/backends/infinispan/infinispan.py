@@ -93,8 +93,8 @@ class InfinispanBackend:
         :type data: str/bytes
         :return: None
         """
-        headers = {"Content-Type": "application/octet-stream"
-                                              ,'Key-Content-Type': "application/octet-stream;encoding=base64"}
+        headers = {"Content-Type": "application/octet-stream",
+                   'Key-Content-Type': "application/octet-stream;encoding=base64"}
         resp = self.infinispan_client.put(self.__key_url(key), data = data,
                 auth=self.basicAuth, headers = headers )
         print (resp)
@@ -106,7 +106,11 @@ class InfinispanBackend:
         :return: Data of the object
         :rtype: str/bytes
         """
-        res = self.infinispan_client.get(self.__key_url(key), auth=self.basicAuth)
+        headers = {"Content-Type": "application/octet-stream",
+                   'Key-Content-Type': "application/octet-stream;encoding=base64"}
+
+        res = self.infinispan_client.get(self.__key_url(key), headers = headers,
+                                         auth=self.basicAuth)
         data = res.content
         return data
 
