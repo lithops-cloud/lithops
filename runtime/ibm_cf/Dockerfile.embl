@@ -1,6 +1,6 @@
 # Minimal Docker image based on Python 3.6
 
-FROM python:3.6-slim-buster
+FROM python:3.6-slim-jessie
 
 ENV FLASK_PROXY_PORT 8080
 
@@ -14,7 +14,7 @@ RUN pip install --upgrade setuptools six \
 	    pika==0.13.1 \
 	    flask==1.1.1 \
 	    gevent==1.4.0 \
-	    ibm-cos-sdk==2.5.3 \
+	    ibm-cos-sdk==2.6.0 \
 	    redis==3.3.8 \
 	    requests \
 	    numpy==1.17.2 \
