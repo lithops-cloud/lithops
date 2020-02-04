@@ -1,6 +1,21 @@
 # Changelog
 
-## [v1.4.1--snapshot]
+## [v1.4.2--snapshot]
+
+### Added
+- Prevent get_result() to wait forever when using COS
+- Added more debug logs
+
+### Changed
+- Reduced the number of COS clients created in each function activation
+
+### Fixed
+- Fixed internal issue with storage
+- Fixed future exception handling
+- Some other Internal fixes
+
+
+## [v1.4.1]
 
 ### Added
 - Prevent get_result() to wait forever when using RabbitMQ
