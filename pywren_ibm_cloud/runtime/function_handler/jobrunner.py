@@ -27,7 +27,6 @@ import traceback
 import numpy as np
 from distutils.util import strtobool
 from pywren_ibm_cloud.storage import Storage
-from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.future import ResponseFuture
 from pywren_ibm_cloud.libs.tblib import pickling_support
 from pywren_ibm_cloud.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_function
@@ -57,10 +56,11 @@ class stats:
 
 class JobRunner:
 
-    def __init__(self, jr_config, jobrunner_conn):
+    def __init__(self, jr_config, jobrunner_conn, internal_storage):
         start_time = time.time()
         self.jr_config = jr_config
         self.jobrunner_conn = jobrunner_conn
+        self.internal_storage = internal_storage
 
         log_level = self.jr_config['log_level']
         cloud_logging_config(log_level)
@@ -165,12 +165,11 @@ class JobRunner:
 
         if 'ibm_cos' in func_sig.parameters:
             if 'ibm_cos' in self.pywren_config:
-                try:
+                if self.internal_storage.backend == 'ibm_cos':
+                    ibm_boto3_client = self.internal_storage.storage_handler.get_client()
+                else:
                     ibm_boto3_client = Storage(self.pywren_config, 'ibm_cos').get_client()
-                    data['ibm_cos'] = ibm_boto3_client
-                except Exception as e:
-                    logger.error('Cannot create the ibm_cos connection: {}', str(e))
-                    data['ibm_cos'] = None
+                data['ibm_cos'] = ibm_boto3_client
             else:
                 logger.error('Cannot create the ibm_cos connection: Configuration not provided')
                 data['ibm_cos'] = None
@@ -213,8 +212,10 @@ class JobRunner:
 
         if 'obj' in data:
             obj = data['obj']
-            obj.storage_backend
-            storage_handler = Storage(self.pywren_config, obj.storage_backend).get_storage_handler()
+            if obj.storage_backend == self.internal_storage.backend:
+                storage_handler = self.internal_storage.storage_handler
+            else:
+                storage_handler = Storage(self.pywren_config, obj.storage_backend).get_storage_handler()
             logger.info('Getting dataset from {}://{}/{}'.format(obj.storage_backend, obj.bucket, obj.key))
             if obj.data_byte_range is not None:
                 extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
@@ -232,7 +233,6 @@ class JobRunner:
         result = None
         exception = False
         try:
-            self.internal_storage = InternalStorage(self.storage_config)
             self.internal_storage.tmp_obj_prefix = self.output_key.rsplit('/', 1)[0]
             loaded_func_all = self._get_function_and_modules()
             self._save_modules(loaded_func_all['module_data'])
@@ -311,7 +311,7 @@ class JobRunner:
             store_result = strtobool(os.environ.get('STORE_RESULT', 'True'))
             if result is not None and store_result and not exception:
                 output_upload_timestamp_t1 = time.time()
-                logger.info("Storing function result - output.pickle - Size: {}".format(sizeof_fmt(len(pickled_output))))
+                logger.info("Storing function result - Size: {}".format(sizeof_fmt(len(pickled_output))))
                 self.internal_storage.put_data(self.output_key, pickled_output)
                 output_upload_timestamp_t2 = time.time()
                 self.stats.write("output_upload_time", round(output_upload_timestamp_t2 - output_upload_timestamp_t1, 8))

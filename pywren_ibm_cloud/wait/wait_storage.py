@@ -99,6 +99,7 @@ def wait_storage(fs, internal_storage, download_results=False,
     elif return_when == ANY_COMPLETED:
         while True:
             fs_dones, fs_notdones = _wait_storage(fs,
+                                                  running_futures,
                                                   internal_storage,
                                                   download_results,
                                                   throw_except,
@@ -114,6 +115,7 @@ def wait_storage(fs, internal_storage, download_results=False,
 
     elif return_when == ALWAYS:
         return _wait_storage(fs,
+                             running_futures,
                              internal_storage,
                              download_results,
                              throw_except,
@@ -171,7 +173,7 @@ def _wait_storage(fs, running_futures, internal_storage, download_results, throw
                         f._call_status = {'type': '__init__',
                                           'activation_id': call[1],
                                           'start_time': current_time}
-                        f.status()
+                        f.status(throw_except=throw_except, internal_storage=internal_storage)
                         running_futures.add(f)
 
         #print('Time getting job status: ', time.time()-t0, len(callids_done_in_job))

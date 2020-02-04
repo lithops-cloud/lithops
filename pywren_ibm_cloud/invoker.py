@@ -201,7 +201,9 @@ class FunctionInvoker:
                    'job_id': job.job_id,
                    'call_id': call_id,
                    'host_submit_time': time.time(),
-                   'pywren_version': __version__}
+                   'pywren_version': __version__,
+                   'runtime_name': job.runtime_name,
+                   'runtime_memory': job.runtime_memory}
 
         # do the invocation
         start = time.time()

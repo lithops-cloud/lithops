@@ -54,33 +54,43 @@ def function_handler(event):
     extra_env = event.get('extra_env', {})
     os.environ.update(extra_env)
 
+    os.environ.update({'PYWREN_FUNCTION': 'True',
+                       'PYTHONUNBUFFERED': 'True'})
+
     config = event['config']
-
-    call_status = CallStatus(config)
-    call_status.response['host_submit_time'] = event['host_submit_time']
-    call_status.response['start_time'] = start_time
-
-    context_dict = {
-        'python_version': os.environ.get("PYTHON_VERSION"),
-    }
-
     call_id = event['call_id']
     job_id = event['job_id']
     executor_id = event['executor_id']
     exec_id = "{}/{}/{}".format(executor_id, job_id, call_id)
-    logger.info("Execution ID: {}".format(exec_id))
+    logger.info("Execution-ID: {}".format(exec_id))
 
+    runtime_name = event['runtime_name']
+    runtime_memory = event['runtime_memory']
     execution_timeout = event['execution_timeout']
-    logger.debug("Set function execution timeout to {}s".format(execution_timeout))
+    logger.debug("Runtime name: {}".format(runtime_name))
+    logger.debug("Runtime memory: {}MB".format(runtime_memory))
+    logger.debug("Function timeout: {}s".format(execution_timeout))
 
     func_key = event['func_key']
     data_key = event['data_key']
     data_byte_range = event['data_byte_range']
 
-    call_status.response['call_id'] = call_id
-    call_status.response['job_id'] = job_id
-    call_status.response['executor_id'] = executor_id
-    call_status.response['activation_id'] = os.environ.get('__OW_ACTIVATION_ID')
+    storage_config = extract_storage_config(config)
+    internal_storage = InternalStorage(storage_config)
+
+    call_status = CallStatus(config, internal_storage)
+    call_status.response['host_submit_time'] = event['host_submit_time']
+    call_status.response['start_time'] = start_time
+    context_dict = {
+        'python_version': os.environ.get("PYTHON_VERSION"),
+        'call_id': call_id,
+        'job_id': job_id,
+        'executor_id': executor_id,
+        'activation_id': os.environ.get('__OW_ACTIVATION_ID'),
+        'runtime_name': runtime_memory,
+        'runtime_memory': runtime_memory
+    }
+    call_status.response.update(context_dict)
 
     try:
         if version.__version__ != event['pywren_version']:
@@ -93,15 +103,11 @@ def function_handler(event):
 
         # call_status.response['free_disk_bytes'] = free_disk_space("/tmp")
         custom_env = {'PYWREN_CONFIG': json.dumps(config),
-                      'PYWREN_FUNCTION': 'True',
                       'PYWREN_EXECUTION_ID': exec_id,
                       'PYWREN_STORAGE_BUCKET': config['pywren']['storage_bucket'],
-                      'PYTHONPATH': "{}:{}".format(os.getcwd(), PYWREN_LIBS_PATH),
-                      'PYTHONUNBUFFERED': 'True'}
+                      'PYTHONPATH': "{}:{}".format(os.getcwd(), PYWREN_LIBS_PATH)}
         os.environ.update(custom_env)
 
-        # if os.path.exists(JOBRUNNER_STATS_BASE_DIR):
-        #     shutil.rmtree(JOBRUNNER_STATS_BASE_DIR, True)
         jobrunner_stats_dir = os.path.join(STORAGE_BASE_DIR, executor_id, job_id, call_id)
         os.makedirs(jobrunner_stats_dir, exist_ok=True)
         jobrunner_stats_filename = os.path.join(jobrunner_stats_dir, 'jobrunner.stats.txt')
@@ -121,7 +127,7 @@ def function_handler(event):
         call_status.response['setup_time'] = round(setup_time - start_time, 8)
 
         handler_conn, jobrunner_conn = Pipe()
-        jobrunner = JobRunner(jobrunner_config, jobrunner_conn)
+        jobrunner = JobRunner(jobrunner_config, jobrunner_conn, internal_storage)
         logger.debug('Starting JobRunner process')
         local_execution = strtobool(os.environ.get('LOCAL_EXECUTION', 'False'))
         if local_execution:
@@ -171,7 +177,6 @@ def function_handler(event):
                         call_status.response[key] = eval(value)
 
         # call_status.response['server_info'] = get_server_info()
-        call_status.response.update(context_dict)
         call_status.response['end_time'] = time.time()
 
     except Exception:
@@ -193,13 +198,11 @@ def function_handler(event):
 
 class CallStatus:
 
-    def __init__(self, pywren_config):
+    def __init__(self, pywren_config, internal_storage):
         self.config = pywren_config
         self.rabbitmq_monitor = self.config['pywren'].get('rabbitmq_monitor', False)
         self.store_status = strtobool(os.environ.get('STORE_STATUS', 'True'))
-        storage_config = extract_storage_config(self.config)
-        self.internal_storage = InternalStorage(storage_config)
-
+        self.internal_storage = internal_storage
         self.response = {'exception': False}
 
     def send(self, event_type):
