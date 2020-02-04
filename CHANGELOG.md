@@ -5,6 +5,7 @@
 ### Added
 - Prevent get_result() to wait forever when using COS
 - Added more debug logs
+- Infinispan storage backend
 
 ### Changed
 - Reduced the number of COS clients created in each function activation

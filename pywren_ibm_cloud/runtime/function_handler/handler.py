@@ -86,9 +86,7 @@ def function_handler(event):
         'call_id': call_id,
         'job_id': job_id,
         'executor_id': executor_id,
-        'activation_id': os.environ.get('__OW_ACTIVATION_ID'),
-        'runtime_name': runtime_memory,
-        'runtime_memory': runtime_memory
+        'activation_id': os.environ.get('__OW_ACTIVATION_ID')
     }
     call_status.response.update(context_dict)
 

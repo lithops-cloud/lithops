@@ -57,7 +57,6 @@ class stats:
 class JobRunner:
 
     def __init__(self, jr_config, jobrunner_conn, internal_storage):
-        start_time = time.time()
         self.jr_config = jr_config
         self.jobrunner_conn = jobrunner_conn
         self.internal_storage = internal_storage
@@ -76,7 +75,6 @@ class JobRunner:
         self.output_key = self.jr_config['output_key']
 
         self.stats = stats(self.jr_config['stats_filename'])
-        self.stats.write('jobrunner_start', start_time)
 
         self.show_memory = strtobool(os.environ.get('SHOW_MEMORY_USAGE', 'False'))
 
@@ -229,6 +227,7 @@ class JobRunner:
         """
         Runs the function
         """
+        # self.stats.write('jobrunner_start', time.time())
         logger.info("Started")
         result = None
         exception = False

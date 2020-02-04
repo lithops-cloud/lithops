@@ -126,7 +126,7 @@ class FunctionInvoker:
         job = SimpleNamespace(**job_description)
 
         log_msg = ('ExecutorID {} | JobID {} - Starting function invocation: {}()  - Total: {} '
-                   'activations'.format(job.executor_id, job.job_id, job.func_name, job.total_calls))
+                   'activations'.format(job.executor_id, job.job_id, job.function_name, job.total_calls))
         logger.info(log_msg)
 
         self.total_calls = job.total_calls

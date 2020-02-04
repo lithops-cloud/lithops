@@ -45,17 +45,21 @@ class ResponseFuture:
     GET_RESULT_SLEEP_SECS = 1
     GET_RESULT_MAX_RETRIES = 10
 
-    def __init__(self, executor_id, job_id, call_id, storage_config, execution_timeout, call_metadata):
+    def __init__(self, call_id, job_description, job_metadata, storage_config):
         self.log_level = os.getenv('PYWREN_LOGLEVEL')
+
         self.call_id = call_id
-        self.job_id = job_id
-        self.executor_id = executor_id
-        self.storage_config = storage_config
-        self.execution_timeout = execution_timeout
+        self.job_id = job_description['job_id']
+        self.executor_id = job_description['executor_id']
+        self.function_name = job_description['function_name']
+        self.execution_timeout = job_description['execution_timeout']
+        self.runtime_name = job_description['runtime_name']
+        self.runtime_memory = job_description['runtime_memory']
+        self.activation_id = None
 
-        self.produce_output = True
-        self.read = False
-
+        self._storage_config = storage_config
+        self._produce_output = True
+        self._read = False
         self._state = ResponseFuture.State.New
         self._exception = Exception()
         self._handler_exception = False
@@ -64,14 +68,12 @@ class ResponseFuture:
         self._traceback = None
         self._call_status = None
         self._call_output = None
-        self._call_metadata = call_metadata.copy()
+        self._call_metadata = job_metadata.copy()
 
-        self.activation_id = self._call_metadata.pop('activation_id', None)
+        self._status_query_count = 0
+        self._output_query_count = 0
 
-        self.status_query_count = 0
-        self.output_query_count = 0
-
-        self.storage_path = get_storage_path(self.storage_config)
+        self._storage_path = get_storage_path(self._storage_config)
 
     def _set_state(self, new_state):
         self._state = new_state
@@ -130,17 +132,17 @@ class ResponseFuture:
             return self._call_status
 
         if internal_storage is None:
-            internal_storage = InternalStorage(self.storage_config)
+            internal_storage = InternalStorage(self._storage_config)
 
         if self._call_status is None:
-            check_storage_path(internal_storage.get_storage_config(), self.storage_path)
+            check_storage_path(internal_storage.get_storage_config(), self._storage_path)
             self._call_status = internal_storage.get_call_status(self.executor_id, self.job_id, self.call_id)
-            self.status_query_count += 1
+            self._status_query_count += 1
 
             while self._call_status is None:
                 time.sleep(self.GET_RESULT_SLEEP_SECS)
                 self._call_status = internal_storage.get_call_status(self.executor_id, self.job_id, self.call_id)
-                self.status_query_count += 1
+                self._status_query_count += 1
 
         self.activation_id = self._call_status.get('activation_id', None)
 
@@ -189,7 +191,7 @@ class ResponseFuture:
 
         self._call_metadata['host_submit_time'] = self._call_status['host_submit_time']
         self._call_metadata['status_done_timestamp'] = time.time()
-        self._call_metadata['status_query_count'] = self.status_query_count
+        self._call_metadata['status_query_count'] = self._status_query_count
 
         total_time = format(round(self._call_status['end_time'] - self._call_status['start_time'], 2), '.2f')
         log_msg = ('ExecutorID {} | JobID {} - Got status from call {} - Activation '
@@ -202,9 +204,9 @@ class ResponseFuture:
         self._set_state(ResponseFuture.State.Ready)
 
         if not self._call_status['result']:
-            self.produce_output = False
+            self._produce_output = False
 
-        if not self.produce_output:
+        if not self._produce_output:
             self._set_state(ResponseFuture.State.Success)
 
         if 'new_futures' in self._call_status:
@@ -234,7 +236,7 @@ class ResponseFuture:
             return self._new_futures
 
         if internal_storage is None:
-            internal_storage = InternalStorage(storage_config=self.storage_config)
+            internal_storage = InternalStorage(storage_config=self._storage_config)
 
         self.status(throw_except=throw_except, internal_storage=internal_storage)
 
@@ -246,12 +248,12 @@ class ResponseFuture:
 
         call_output_time = time.time()
         call_output = internal_storage.get_call_output(self.executor_id, self.job_id, self.call_id)
-        self.output_query_count += 1
+        self._output_query_count += 1
 
-        while call_output is None and self.output_query_count < self.GET_RESULT_MAX_RETRIES:
+        while call_output is None and self._output_query_count < self.GET_RESULT_MAX_RETRIES:
             time.sleep(self.GET_RESULT_SLEEP_SECS)
             call_output = internal_storage.get_call_output(self.executor_id, self.job_id, self.call_id)
-            self.output_query_count += 1
+            self._output_query_count += 1
 
         if call_output is None:
             if throw_except:
@@ -266,7 +268,7 @@ class ResponseFuture:
         self._call_output = call_output
 
         self._call_metadata['download_output_time'] = call_output_time_done - call_output_time
-        self._call_metadata['output_query_count'] = self.output_query_count
+        self._call_metadata['output_query_count'] = self._output_query_count
         self._call_metadata['download_output_timestamp'] = call_output_time_done
 
         log_msg = ('ExecutorID {} | JobID {} - Got output from call {} - Activation '
