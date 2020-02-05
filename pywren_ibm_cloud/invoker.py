@@ -201,7 +201,9 @@ class FunctionInvoker:
                    'job_id': job.job_id,
                    'call_id': call_id,
                    'host_submit_time': time.time(),
-                   'pywren_version': __version__}
+                   'pywren_version': __version__,
+                   'runtime_name': job.runtime_name,
+                   'runtime_memory': job.runtime_memory}
 
         # do the invocation
         start = time.time()
@@ -268,7 +270,7 @@ class FunctionInvoker:
             sys.stdout = old_stdout
             log_msg = ('ExecutorID {} | JobID {} - Starting remote function invocation: {}() '
                        '- Total: {} activations'.format(job.executor_id, job.job_id,
-                                                        job.func_name, job.total_calls))
+                                                        job.function_name, job.total_calls))
             print(log_msg) if not self.log_level else logger.info(log_msg)
 
             th = Thread(target=self._invoke_remote, args=(job_description,))
@@ -277,7 +279,7 @@ class FunctionInvoker:
 
         else:
             log_msg = ('ExecutorID {} | JobID {} - Starting function invocation: {}()  - Total: {} '
-                       'activations'.format(job.executor_id, job.job_id, job.func_name, job.total_calls))
+                       'activations'.format(job.executor_id, job.job_id, job.function_name, job.total_calls))
             print(log_msg) if not self.log_level else logger.info(log_msg)
 
             if self.ongoing_activations < self.workers:
@@ -323,8 +325,7 @@ class FunctionInvoker:
         futures = []
         for i in range(job.total_calls):
             call_id = "{:05d}".format(i)
-            fut = ResponseFuture(self.executor_id, job.job_id, call_id, self.storage_config,
-                                 job.execution_timeout, job.metadata)
+            fut = ResponseFuture(call_id, job_description, job.metadata, self.storage_config)
             fut._set_state(ResponseFuture.State.Invoked)
             futures.append(fut)
 

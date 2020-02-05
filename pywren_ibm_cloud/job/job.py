@@ -8,7 +8,7 @@ from pywren_ibm_cloud.wait import wait_storage
 from pywren_ibm_cloud.job.partitioner import create_partitions
 from pywren_ibm_cloud.storage.utils import create_func_key, create_agg_data_key
 from pywren_ibm_cloud.job.serialize import SerializeIndependent, create_module_data
-from pywren_ibm_cloud.config import EXECUTION_TIMEOUT, MAX_AGG_DATA_SIZE, JOBS_PREFIX
+from pywren_ibm_cloud.config import MAX_AGG_DATA_SIZE, JOBS_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def create_map_job(config, internal_storage, executor_id, job_id, map_function, iterdata, runtime_meta,
                    runtime_memory=None, extra_params=None, extra_env=None, obj_chunk_size=None,
                    obj_chunk_number=None, invoke_pool_threads=128, include_modules=[], exclude_modules=[],
-                   execution_timeout=EXECUTION_TIMEOUT):
+                   execution_timeout=None):
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
     """
@@ -55,7 +55,8 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
 
 def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, reduce_function,
                       map_job, map_futures, runtime_meta, reducer_one_per_object=False,
-                      runtime_memory=None, extra_env=None, include_modules=[], exclude_modules=[]):
+                      runtime_memory=None, extra_env=None, include_modules=[], exclude_modules=[],
+                      execution_timeout=None):
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
     """
@@ -101,12 +102,13 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
                        extra_env=extra_env,
                        include_modules=include_modules,
                        exclude_modules=exclude_modules,
-                       original_func_name=reduce_function.__name__)
+                       original_func_name=reduce_function.__name__,
+                       execution_timeout=execution_timeout)
 
 
 def _create_job(config, internal_storage, executor_id, job_id, func, data, runtime_meta,
                 runtime_memory=None, extra_env=None, invoke_pool_threads=128, include_modules=[],
-                exclude_modules=[], original_func_name=None, execution_timeout=EXECUTION_TIMEOUT):
+                exclude_modules=[], original_func_name=None, execution_timeout=None):
     """
     :param func: the function to map over the data
     :param iterdata: An iterable of input data
@@ -140,13 +142,16 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     if not data:
         return []
 
+    if execution_timeout is None:
+        execution_timeout = config['pywren']['runtime_timeout'] - 5
+
     host_job_meta = {}
     job_description = {}
 
     job_description['runtime_name'] = runtime_name
     job_description['runtime_memory'] = int(runtime_memory)
     job_description['execution_timeout'] = execution_timeout
-    job_description['func_name'] = func_name
+    job_description['function_name'] = func_name
     job_description['extra_env'] = extra_env
     job_description['total_calls'] = len(data)
     job_description['invoke_pool_threads'] = invoke_pool_threads

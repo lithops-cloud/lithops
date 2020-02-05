@@ -11,7 +11,7 @@ from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.storage.utils import clean_os_bucket
 from pywren_ibm_cloud.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from pywren_ibm_cloud.job import create_map_job, create_reduce_job
-from pywren_ibm_cloud.config import default_config, extract_storage_config, EXECUTION_TIMEOUT, JOBS_PREFIX, default_logging_config
+from pywren_ibm_cloud.config import default_config, extract_storage_config, JOBS_PREFIX, default_logging_config
 from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_pywren_function, create_executor_id
 
 logger = logging.getLogger(__name__)
@@ -109,7 +109,7 @@ class FunctionExecutor:
         return '{}{}'.format(call_type, job_id)
 
     def call_async(self, func, data, extra_env=None, runtime_memory=None,
-                   timeout=EXECUTION_TIMEOUT, include_modules=[], exclude_modules=[]):
+                   timeout=None, include_modules=[], exclude_modules=[]):
         """
         For running one function execution asynchronously
 
@@ -146,7 +146,7 @@ class FunctionExecutor:
         return futures[0]
 
     def map(self, map_function, map_iterdata, extra_params=None, extra_env=None, runtime_memory=None,
-            chunk_size=None, chunk_n=None, timeout=EXECUTION_TIMEOUT, invoke_pool_threads=500,
+            chunk_size=None, chunk_n=None, timeout=None, invoke_pool_threads=500,
             include_modules=[], exclude_modules=[]):
         """
         :param map_function: the function to map over the data
@@ -194,7 +194,7 @@ class FunctionExecutor:
 
     def map_reduce(self, map_function, map_iterdata, reduce_function, extra_params=None, extra_env=None,
                    map_runtime_memory=None, reduce_runtime_memory=None, chunk_size=None, chunk_n=None,
-                   timeout=EXECUTION_TIMEOUT, invoke_pool_threads=500, reducer_one_per_object=False,
+                   timeout=None, invoke_pool_threads=500, reducer_one_per_object=False,
                    reducer_wait_local=False, include_modules=[], exclude_modules=[]):
         """
         Map the map_function over the data and apply the reduce_function across all futures.
@@ -265,7 +265,7 @@ class FunctionExecutor:
         self.futures.extend(reduce_futures)
 
         for f in map_futures:
-            f.produce_output = False
+            f._produce_output = False
 
         self._state = FunctionExecutor.State.Running
 
@@ -399,13 +399,13 @@ class FunctionExecutor:
                                                WAIT_DUR_SEC=WAIT_DUR_SEC)
         result = []
         for f in fs_done:
-            if fs and not f.futures and f.produce_output:
+            if fs and not f.futures and f._produce_output:
                 # Process futures provided by the user
                 result.append(f.result(throw_except=throw_except, internal_storage=self.internal_storage))
-            elif not fs and not f.futures and f.produce_output and not f.read:
+            elif not fs and not f.futures and f._produce_output and not f._read:
                 # Process internally stored futures
                 result.append(f.result(throw_except=throw_except, internal_storage=self.internal_storage))
-                f.read = True
+                f._read = True
 
         logger.debug("ExecutorID {} Finished getting results".format(self.executor_id))
 
@@ -456,7 +456,7 @@ class FunctionExecutor:
 
         if not fs:
             present_jobs = {(f.executor_id, f.job_id) for f in futures
-                            if (f.done or not f.produce_output)
+                            if (f.done or not f._produce_output)
                             and f.executor_id.count('/') == 1}
         else:
             present_jobs = {(f.executor_id, f.job_id) for f in futures

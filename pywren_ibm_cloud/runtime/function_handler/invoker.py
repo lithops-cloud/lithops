@@ -99,7 +99,9 @@ class FunctionInvoker:
                    'job_id': job.job_id,
                    'call_id': call_id,
                    'host_submit_time': time.time(),
-                   'pywren_version': __version__}
+                   'pywren_version': __version__,
+                   'runtime_name': job.runtime_name,
+                   'runtime_memory': job.runtime_memory}
 
         # do the invocation
         start = time.time()
@@ -124,7 +126,7 @@ class FunctionInvoker:
         job = SimpleNamespace(**job_description)
 
         log_msg = ('ExecutorID {} | JobID {} - Starting function invocation: {}()  - Total: {} '
-                   'activations'.format(job.executor_id, job.job_id, job.func_name, job.total_calls))
+                   'activations'.format(job.executor_id, job.job_id, job.function_name, job.total_calls))
         logger.info(log_msg)
 
         self.total_calls = job.total_calls
