@@ -192,10 +192,11 @@ class JobRunner:
         if 'id' in func_sig.parameters:
             data['id'] = int(self.call_id)
 
-    def _create_data_stream(self, data):
+    def _load_object(self, data):
         """
-        Creates the data stream in case of object processing
+        Loads the object in /tmp in case of object processing
         """
+        retries = 0
         extra_get_args = {}
 
         if 'url' in data:
@@ -210,18 +211,38 @@ class JobRunner:
 
         if 'obj' in data:
             obj = data['obj']
+            obj.data_stream = None
             if obj.storage_backend == self.internal_storage.backend:
                 storage_handler = self.internal_storage.storage_handler
             else:
                 storage_handler = Storage(self.pywren_config, obj.storage_backend).get_storage_handler()
             logger.info('Getting dataset from {}://{}/{}'.format(obj.storage_backend, obj.bucket, obj.key))
-            if obj.data_byte_range is not None:
-                extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
-                logger.info('Chunk: {} - Range: {}'.format(obj.part, extra_get_args['Range']))
-                sb = storage_handler.get_object(obj.bucket, obj.key, stream=True, extra_get_args=extra_get_args)
-                obj.data_stream = WrappedStreamingBodyPartition(sb, obj.chunk_size, obj.data_byte_range)
-            else:
-                obj.data_stream = storage_handler.get_object(obj.bucket, obj.key, stream=True)
+
+            while obj.data_stream is None:
+                try:
+                    if obj.data_byte_range is not None:
+                        extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
+                        logger.info('Chunk: {} - Range: {}'.format(obj.part, extra_get_args['Range']))
+                        sb = storage_handler.get_object(obj.bucket, obj.key, stream=True, extra_get_args=extra_get_args)
+                        data_stream = WrappedStreamingBodyPartition(sb, obj.chunk_size, obj.data_byte_range)
+                    else:
+                        data_stream = storage_handler.get_object(obj.bucket, obj.key, stream=True)
+
+                    dest_filename = '/tmp/{}'.format(obj.key)
+                    if not os.path.exists(os.path.dirname(dest_filename)):
+                        os.makedirs(os.path.dirname(dest_filename))
+                    with open(dest_filename, 'wb') as f:
+                        if obj.data_byte_range:
+                            f.write(data_stream.read())
+                        else:
+                            for chunk in iter(lambda: data_stream.read(65535), b''):
+                                f.write(chunk)
+                    obj.data_stream = open(dest_filename, 'rb')
+                except Exception as e:
+                    if retries == 4:
+                        raise e
+                    logger.debug('GET Object timeout. Retrying request')
+                    retries += 1
 
     def run(self):
         """
@@ -239,7 +260,7 @@ class JobRunner:
             data = self._load_data()
 
             if is_object_processing_function(function):
-                self._create_data_stream(data)
+                self._load_object(data)
 
             self._fill_optional_args(function, data)
 

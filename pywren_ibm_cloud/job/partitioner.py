@@ -72,11 +72,15 @@ def create_partitions(pywren_config, map_iterdata, chunk_size, chunk_number):
         if obj_names:
             for bucket, prefix in obj_names:
                 logger.debug("Listing objects in '{}://{}'".format(sb, '/'.join([bucket, prefix])))
-                objects[bucket] = storage_handler.list_objects(bucket, prefix)
+                if bucket not in objects:
+                    objects[bucket] = []
+                objects[bucket].extend(storage_handler.list_objects(bucket, prefix))
         elif prefixes:
             for bucket, prefix in prefixes:
                 logger.debug("Listing objects in '{}://{}'".format(sb, '/'.join([bucket, prefix])))
-                objects[bucket] = storage_handler.list_objects(bucket, prefix)
+                if bucket not in objects:
+                    objects[bucket] = []
+                objects[bucket].extend(storage_handler.list_objects(bucket, prefix))
         elif buckets:
             for bucket in buckets:
                 logger.debug("Listing objects in '{}://{}'".format(sb, bucket))
@@ -171,6 +175,7 @@ def _split_objects_from_keys(map_func_args_list, keys_dict, chunk_size, chunk_nu
         # each entry is a key
         sb, bucket, prefix, obj_name = utils.split_object_url(entry['obj'])
         key = '/'.join([prefix, obj_name]) if prefix else obj_name
+
         try:
             obj_size = keys_dict[bucket][key]
         except Exception:
