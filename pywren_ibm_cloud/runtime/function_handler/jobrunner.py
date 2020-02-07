@@ -241,7 +241,7 @@ class JobRunner:
                 except Exception as e:
                     if retries == 4:
                         raise e
-                    logger.debug('GET Object timeout. Retrying request')
+                    logger.debug('Error getting the dataset: {}'.format(str(e)))
                     retries += 1
 
     def run(self):
@@ -325,7 +325,7 @@ class JobRunner:
                                             'exc_value': str(exc_value),
                                             'exc_traceback': exc_traceback,
                                             'pickle_exception': pickle_exception})
-                pickle.loads(pickled_exc)  # this is just to make sure they can be unpickled
+                pickle.loads(pickled_exc)  # this is just to make sure it can be unpickled
                 self.stats.write("exc_info", str(pickled_exc))
         finally:
             store_result = strtobool(os.environ.get('STORE_RESULT', 'True'))

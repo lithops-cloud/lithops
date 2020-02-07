@@ -1,6 +1,20 @@
 # Changelog
 
-## [v1.4.2--snapshot]
+## [v1.4.3--snapshot]
+
+### Added
+- Added retry logic when reading data from COS through 'obj' parameter
+
+### Changed
+- Memory optimization when reading data from COS through 'obj' parameter
+
+### Fixed
+- Fixed issue with internal partitioner
+- Fixed issue with get_result()
+- Some other Internal fixes
+
+
+## [v1.4.2]
 
 ### Added
 - Prevent get_result() to wait forever when using COS
