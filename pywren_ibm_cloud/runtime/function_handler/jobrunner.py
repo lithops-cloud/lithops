@@ -169,25 +169,19 @@ class JobRunner:
                     ibm_boto3_client = Storage(self.pywren_config, 'ibm_cos').get_client()
                 data['ibm_cos'] = ibm_boto3_client
             else:
-                logger.error('Cannot create the ibm_cos connection: Configuration not provided')
-                data['ibm_cos'] = None
+                raise Exception('Cannot create the ibm_cos client: missing configuration')
 
         if 'internal_storage' in func_sig.parameters:
             data['internal_storage'] = self.internal_storage
 
         if 'rabbitmq' in func_sig.parameters:
             if 'rabbitmq' in self.pywren_config:
-                try:
-                    rabbit_amqp_url = self.pywren_config['rabbitmq'].get('amqp_url')
-                    params = pika.URLParameters(rabbit_amqp_url)
-                    connection = pika.BlockingConnection(params)
-                    data['rabbitmq'] = connection
-                except Exception as e:
-                    logger.error('Cannot create the rabbitmq connection: {}', str(e))
-                    data['rabbitmq'] = None
+                rabbit_amqp_url = self.pywren_config['rabbitmq'].get('amqp_url')
+                params = pika.URLParameters(rabbit_amqp_url)
+                connection = pika.BlockingConnection(params)
+                data['rabbitmq'] = connection
             else:
-                logger.error('Cannot create the rabbitmq connection: Configuration not provided')
-                data['rabbitmq'] = None
+                raise Exception('Cannot create the rabbitmq client: missing configuration')
 
         if 'id' in func_sig.parameters:
             data['id'] = int(self.call_id)
@@ -211,12 +205,17 @@ class JobRunner:
 
         if 'obj' in data:
             obj = data['obj']
+            logger.info('Getting dataset from {}://{}/{}'.format(obj.storage_backend, obj.bucket, obj.key))
             obj.data_stream = None
+
             if obj.storage_backend == self.internal_storage.backend:
                 storage_handler = self.internal_storage.storage_handler
             else:
                 storage_handler = Storage(self.pywren_config, obj.storage_backend).get_storage_handler()
-            logger.info('Getting dataset from {}://{}/{}'.format(obj.storage_backend, obj.bucket, obj.key))
+
+            dest_filename = '/tmp/{}'.format(obj.key)
+            if not os.path.exists(os.path.dirname(dest_filename)):
+                os.makedirs(os.path.dirname(dest_filename))
 
             while obj.data_stream is None:
                 try:
@@ -225,17 +224,12 @@ class JobRunner:
                         logger.info('Chunk: {} - Range: {}'.format(obj.part, extra_get_args['Range']))
                         sb = storage_handler.get_object(obj.bucket, obj.key, stream=True, extra_get_args=extra_get_args)
                         data_stream = WrappedStreamingBodyPartition(sb, obj.chunk_size, obj.data_byte_range)
+                        with open(dest_filename, 'wb') as f:
+                            f.write(data_stream.read())
                     else:
                         data_stream = storage_handler.get_object(obj.bucket, obj.key, stream=True)
-
-                    dest_filename = '/tmp/{}'.format(obj.key)
-                    if not os.path.exists(os.path.dirname(dest_filename)):
-                        os.makedirs(os.path.dirname(dest_filename))
-                    with open(dest_filename, 'wb') as f:
-                        if obj.data_byte_range:
-                            f.write(data_stream.read())
-                        else:
-                            for chunk in iter(lambda: data_stream.read(65535), b''):
+                        with open(dest_filename, 'wb') as f:
+                            for chunk in iter(lambda: data_stream.read(512*1024), b''):
                                 f.write(chunk)
                     obj.data_stream = open(dest_filename, 'rb')
                 except Exception as e:
