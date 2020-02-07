@@ -13,7 +13,7 @@ class LocalhostStorageBackend:
     A wrap-up around Localhost filesystem APIs.
     """
 
-    def __init__(self, config):
+    def __init__(self, config,  bucket = None, executor_id = None):
         logger.debug("Creating Localhost storage client")
         self.config = config
         logger.debug("Localhost storage client created successfully")

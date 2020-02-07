@@ -46,17 +46,18 @@ class InternalStorage:
     underlying storage backend without exposing the the implementation details.
     """
 
-    def __init__(self, storage_config):
+    def __init__(self, storage_config, executor_id = None):
         self.config = storage_config
         self.backend = self.config['backend']
         self.bucket = self.config['bucket']
+        self.executor_id = executor_id
         self.tmp_obj_count = 0
 
         try:
             module_location = 'pywren_ibm_cloud.storage.backends.{}'.format(self.backend)
             sb_module = importlib.import_module(module_location)
             StorageBackend = getattr(sb_module, 'StorageBackend')
-            self.storage_handler = StorageBackend(self.config[self.backend])
+            self.storage_handler = StorageBackend(self.config[self.backend], self.bucket, self.executor_id)
         except Exception as e:
             raise NotImplementedError("An exception was produced trying to create the "
                                       "'{}' storage backend: {}".format(self.backend, e))
