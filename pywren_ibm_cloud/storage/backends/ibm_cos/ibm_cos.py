@@ -157,6 +157,7 @@ class IBMCloudObjectStorageBackend:
                     raise e
                 logger.debug('PUT Object timeout. Retrying request')
                 retries += 1
+        return True
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
         """
@@ -185,6 +186,63 @@ class IBMCloudObjectStorageBackend:
                 logger.debug('GET Object timeout. Retrying request')
                 retries += 1
         return data
+
+    def upload_file(self, filename, bucket, key=None):
+        """Upload a file to an S3 bucket
+
+        :param filename: File to upload
+        :param bucket: Bucket to upload to
+        :param key: S3 object name. If not specified then file_name is used
+        :return: True if file was uploaded
+        """
+        # If S3 object_name was not specified, use file_name
+        if key is None:
+            key = filename
+
+        retries = 0
+        status = None
+        while status is None:
+            try:
+                self.cos_client.upload_file(filename, bucket, key)
+                status = 'OK'
+            except ibm_botocore.exceptions.ClientError as e:
+                if e.response['Error']['Code'] == "NoSuchKey":
+                    raise StorageNoSuchKeyError(bucket, key)
+                else:
+                    raise e
+            except ibm_botocore.exceptions.ReadTimeoutError as e:
+                if retries == OBJ_REQ_RETRIES:
+                    raise e
+                logger.debug('PUT Object timeout. Retrying request')
+                retries += 1
+        return True
+
+    def download_file(self, bucket, key, filename):
+        """Download a file from S3 to a local file
+
+        :param file_name: File to upload
+        :param bucket: Bucket to upload to
+        :param key: S3 object name.
+        :param file_name: local file to upload
+        :return: True if file was uploaded
+        """
+        retries = 0
+        status = None
+        while status is None:
+            try:
+                self.cos_client.download_file(bucket, key, filename)
+                status = 'OK'
+            except ibm_botocore.exceptions.ClientError as e:
+                if e.response['Error']['Code'] == "NoSuchKey":
+                    raise StorageNoSuchKeyError(bucket, key)
+                else:
+                    raise e
+            except ibm_botocore.exceptions.ReadTimeoutError as e:
+                if retries == OBJ_REQ_RETRIES:
+                    raise e
+                logger.debug('GET Object timeout. Retrying request')
+                retries += 1
+        return True
 
     def head_object(self, bucket_name, key):
         """

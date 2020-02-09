@@ -170,7 +170,7 @@ class ResponseFuture:
                 self._exception = (fn_exctype, fn_exc, self._exception['exc_traceback'])
 
             def exception_hook(exctype, exc, trcbck):
-                if exctype == fn_exctype and exc == fn_exc:
+                if exctype == fn_exctype and str(exc) == str(fn_exc):
                     msg2 = '--> Exception: {} - {}'.format(fn_exctype.__name__, fn_exc)
                     print(msg1) if not self.log_level else logger.info(msg1)
                     if self._handler_exception:

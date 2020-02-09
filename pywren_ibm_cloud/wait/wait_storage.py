@@ -176,7 +176,8 @@ def _wait_storage(fs, running_futures, internal_storage, download_results, throw
                         f.status(throw_except=throw_except, internal_storage=internal_storage)
                         running_futures.add(f)
 
-        #print('Time getting job status: ', time.time()-t0, len(callids_done_in_job))
+        # print('Time getting job status: {} - Running: {} - Done: {}'
+        #       .format(round(time.time()-current_time, 3),  len(callids_running_in_job), len(callids_done_in_job)))
 
         not_done_call_ids = set([(f.executor_id, f.job_id, f.call_id) for f in not_done_futures])
 
@@ -282,13 +283,13 @@ def _future_timeout_checker_thread(running_futures, internal_storage, throw_exce
             while True:
                 current_time = time.time()
                 for fut in running_futures:
-                    if fut.running:
+                    if fut.running and fut._call_status:
                         fut_timeout = fut._call_status['start_time'] + fut.execution_timeout + 5
                         if current_time > fut_timeout:
                             msg = 'The function did not run as expected.'
                             raise TimeoutError('HANDLER', msg)
                 time.sleep(5)
-        except Exception:
+        except TimeoutError:
             # generate fake TimeoutError call status
             pickled_exception = str(pickle.dumps(sys.exc_info()))
             call_status = {'type': '__end__',
@@ -298,10 +299,10 @@ def _future_timeout_checker_thread(running_futures, internal_storage, throw_exce
                            'job_id': fut.job_id,
                            'call_id': fut.call_id,
                            'activation_id': fut.activation_id}
-            fut._state = 'Invoked'
-            fut._call_status = None
             status_key = create_status_key(JOBS_PREFIX, fut.executor_id, fut.job_id, fut.call_id)
             dmpd_response_status = json.dumps(call_status)
             internal_storage.put_data(status_key, dmpd_response_status)
             if throw_except:
                 should_run = False
+        except Exception:
+            pass
