@@ -5,7 +5,7 @@ import logging
 import importlib
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.config import CACHE_DIR, RUNTIMES_PREFIX, JOBS_PREFIX
-from pywren_ibm_cloud.utils import is_pywren_function, get_current_memory_usage
+from pywren_ibm_cloud.utils import is_pywren_function
 from pywren_ibm_cloud.storage.utils import create_status_key, create_output_key, \
     status_key_suffix, init_key_suffix, CloudObject, StorageNoSuchKeyError
 
@@ -113,7 +113,14 @@ class InternalStorage:
         key = key or '{}.pickle'.format('data_{}'.format(self.tmp_obj_count))
         key = '/'.join([prefix, key])
         bucket = bucket or self.bucket
-        self.storage_handler.put_object(bucket, key, pickle.dumps(content))
+        filename = '/tmp/{}'.format(key)
+        if not os.path.exists(os.path.dirname(filename)):
+            os.makedirs(os.path.dirname(filename))
+        with open(filename, 'wb') as f:
+            p = pickle._Pickler(f)
+            p.fast = True
+            p.dump(content)
+        self.storage_handler.upload_file(filename, bucket, key)
         self.tmp_obj_count += 1
 
         return CloudObject(self.backend, bucket, key)

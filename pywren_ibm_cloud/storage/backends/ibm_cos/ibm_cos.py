@@ -19,6 +19,7 @@ import logging
 import ibm_boto3
 import ibm_botocore
 from datetime import datetime, timezone
+from ibm_boto3.s3.transfer import TransferConfig
 from ibm_botocore.credentials import DefaultTokenManager
 from pywren_ibm_cloud.storage.utils import StorageNoSuchKeyError
 from pywren_ibm_cloud.utils import sizeof_fmt, is_pywren_function
@@ -38,7 +39,7 @@ class IBMCloudObjectStorageBackend:
     A wrap-up around IBM COS ibm_boto3 APIs.
     """
 
-    def __init__(self, ibm_cos_config, bucket = None, executor_id = None):
+    def __init__(self, ibm_cos_config, bucket=None, executor_id=None):
         logger.debug("Creating IBM COS client")
         self.ibm_cos_config = ibm_cos_config
         self.is_pywren_function = is_pywren_function()
@@ -187,7 +188,7 @@ class IBMCloudObjectStorageBackend:
                 retries += 1
         return data
 
-    def upload_file(self, filename, bucket, key=None):
+    def upload_file(self, filename, bucket, key=None, config=None):
         """Upload a file to an S3 bucket
 
         :param filename: File to upload
@@ -201,9 +202,10 @@ class IBMCloudObjectStorageBackend:
 
         retries = 0
         status = None
+        tc = config if config else TransferConfig(max_concurrency=3)
         while status is None:
             try:
-                self.cos_client.upload_file(filename, bucket, key)
+                self.cos_client.upload_file(filename, bucket, key, Config=tc)
                 status = 'OK'
             except ibm_botocore.exceptions.ClientError as e:
                 if e.response['Error']['Code'] == "NoSuchKey":
@@ -217,7 +219,7 @@ class IBMCloudObjectStorageBackend:
                 retries += 1
         return True
 
-    def download_file(self, bucket, key, filename):
+    def download_file(self, bucket, key, filename, config=None):
         """Download a file from S3 to a local file
 
         :param file_name: File to upload
@@ -228,9 +230,10 @@ class IBMCloudObjectStorageBackend:
         """
         retries = 0
         status = None
+        tc = config if config else TransferConfig(max_concurrency=3)
         while status is None:
             try:
-                self.cos_client.download_file(bucket, key, filename)
+                self.cos_client.download_file(bucket, key, filename, Config=tc)
                 status = 'OK'
             except ibm_botocore.exceptions.ClientError as e:
                 if e.response['Error']['Code'] == "NoSuchKey":

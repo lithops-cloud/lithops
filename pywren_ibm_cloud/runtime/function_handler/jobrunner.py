@@ -227,6 +227,7 @@ class JobRunner:
                         with open(dest_filename, 'wb') as f:
                             f.write(data_stream.read())
                     else:
+                        #storage_handler.download_file(obj.bucket, obj.key, dest_filename)
                         data_stream = storage_handler.get_object(obj.bucket, obj.key, stream=True)
                         with open(dest_filename, 'wb') as f:
                             for chunk in iter(lambda: data_stream.read(512*1024), b''):
