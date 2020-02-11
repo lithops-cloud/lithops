@@ -24,8 +24,7 @@ import logging
 import tempfile
 import traceback
 from threading import Thread
-from multiprocessing import Process
-from multiprocessing import Pipe
+from multiprocessing import Process, Pipe
 from distutils.util import strtobool
 from pywren_ibm_cloud import version
 from pywren_ibm_cloud.config import extract_storage_config
@@ -35,6 +34,11 @@ from pywren_ibm_cloud.runtime.function_handler.jobrunner import JobRunner
 from pywren_ibm_cloud.config import cloud_logging_config, JOBS_PREFIX
 from pywren_ibm_cloud.storage.utils import create_output_key, create_status_key, create_init_key
 
+try:
+    import psutil
+    psutil_installed = True
+except Exception:
+    psutil_installed = False
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('handler')
@@ -128,12 +132,23 @@ def function_handler(event):
         jobrunner = JobRunner(jobrunner_config, jobrunner_conn, internal_storage)
         logger.debug('Starting JobRunner process')
         local_execution = strtobool(os.environ.get('LOCAL_EXECUTION', 'False'))
+
         if local_execution:
-            jrp = Thread(target=jobrunner.run)
+            jrp = Thread(target=jobrunner.run, daemon=True)
+            jrp.start()
+            jr_pid = os.getpid()
         else:
-            jrp = Process(target=jobrunner.run)
-        jrp.daemon = True
-        jrp.start()
+            jrp = Process(target=jobrunner.run, daemon=True)
+            jrp.start()
+            jr_pid = jrp.pid
+
+        memory_monitor = None
+        peak_memory_usage = 0
+        if log_level == 'DEBUG' and (psutil_installed or '3.6' in context_dict['python_version']):
+            mm_handler_conn, mm_conn = Pipe()
+            memory_monitor = Process(target=monitor_worker, args=(os.getpid(), jr_pid, mm_conn))
+            memory_monitor.start()
+
         jrp.join(execution_timeout)
         logger.debug('JobRunner process finished')
         call_status.response['exec_time'] = round(time.time() - setup_time, 8)
@@ -148,6 +163,11 @@ def function_handler(event):
             msg = ('Function exceeded maximum time of {} seconds and was '
                    'killed'.format(execution_timeout))
             raise TimeoutError('HANDLER', msg)
+
+        if memory_monitor:
+            memory_monitor.join()
+            peak_memory_usage = int(mm_handler_conn.recv())
+        call_status.response['peak_memory_usage'] = peak_memory_usage
 
         try:
             handler_conn.recv()
@@ -263,3 +283,31 @@ class CallStatus:
                 logger.error(str(e))
                 logger.info('Retrying to send status to rabbitmq...')
                 time.sleep(0.2)
+
+
+def monitor_worker(h_pid, jr_pid, mm_conn, delay=0.05):
+    try:
+        import psutil
+    except Exception:
+        from pywren_ibm_cloud.libs import psutil
+
+    jobrunner = psutil.Process(jr_pid)
+    handler = psutil.Process(h_pid)
+    peak = 0
+
+    def make_measurement(peak):
+        jr_mem = jobrunner.memory_info().rss
+        h_mem = handler.memory_info().rss
+        mem = jr_mem+h_mem
+        if mem > peak:
+            peak = mem
+        return peak
+
+    pids = psutil.pids()
+    while jr_pid in pids:
+        peak = make_measurement(peak)
+        time.sleep(delay)
+        pids = psutil.pids()
+
+    mm_conn.send(peak)
+    logger.info("Peak memory usage: {}".format(sizeof_fmt(peak)))

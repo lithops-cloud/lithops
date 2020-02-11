@@ -30,7 +30,7 @@ from pywren_ibm_cloud.storage import Storage
 from pywren_ibm_cloud.future import ResponseFuture
 from pywren_ibm_cloud.libs.tblib import pickling_support
 from pywren_ibm_cloud.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_function
-from pywren_ibm_cloud.utils import get_current_memory_usage, WrappedStreamingBodyPartition
+from pywren_ibm_cloud.utils import WrappedStreamingBodyPartition
 from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config
 
 pickling_support.install()
@@ -75,8 +75,6 @@ class JobRunner:
         self.output_key = self.jr_config['output_key']
 
         self.stats = stats(self.jr_config['stats_filename'])
-
-        self.show_memory = strtobool(os.environ.get('SHOW_MEMORY_USAGE', 'False'))
 
     def _get_function_and_modules(self):
         """
@@ -259,9 +257,6 @@ class JobRunner:
 
             self._fill_optional_args(function, data)
 
-            if self.show_memory:
-                logger.debug("Memory usage before call the function: {}".format(get_current_memory_usage()))
-
             logger.info("Going to execute '{}()'".format(str(function.__name__)))
             print('---------------------- FUNCTION LOG ----------------------', flush=True)
             func_exec_time_t1 = time.time()
@@ -269,9 +264,6 @@ class JobRunner:
             func_exec_time_t2 = time.time()
             print('----------------------------------------------------------', flush=True)
             logger.info("Success function execution")
-
-            if self.show_memory:
-                logger.debug("Memory usage after call the function: {}".format(get_current_memory_usage()))
 
             self.stats.write('function_exec_time', round(func_exec_time_t2-func_exec_time_t1, 8))
 
@@ -286,8 +278,6 @@ class JobRunner:
                 output_dict = {'result': result}
                 pickled_output = pickle.dumps(output_dict)
 
-                if self.show_memory:
-                    logger.debug("Memory usage after output serialization: {}".format(get_current_memory_usage()))
             else:
                 logger.debug("No result to store")
                 self.stats.write("result", False)
@@ -299,9 +289,6 @@ class JobRunner:
             print('----------------------- EXCEPTION !-----------------------', flush=True)
             traceback.print_exc(file=sys.stdout)
             print('----------------------------------------------------------', flush=True)
-
-            if self.show_memory:
-                logger.debug("Memory usage after call the function: {}".format(get_current_memory_usage()))
 
             try:
                 logger.debug("Pickling exception")

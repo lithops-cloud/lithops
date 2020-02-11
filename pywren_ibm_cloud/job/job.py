@@ -71,18 +71,11 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
 
     def reduce_function_wrapper(fut_list, internal_storage, ibm_cos):
         logger.info('Waiting for results')
-        if 'SHOW_MEMORY_USAGE' in os.environ:
-            show_memory = eval(os.environ['SHOW_MEMORY_USAGE'])
-        else:
-            show_memory = False
         # Wait for all results
         wait_storage(fut_list, internal_storage, download_results=True)
         results = [f.result() for f in fut_list if f.done and not f.futures]
         fut_list.clear()
         reduce_func_args = {'results': results}
-
-        if show_memory:
-            logger.debug("Memory usage after getting the results: {}".format(utils.get_current_memory_usage()))
 
         # Run reduce function
         func_sig = inspect.signature(reduce_function)
