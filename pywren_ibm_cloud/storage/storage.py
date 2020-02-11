@@ -117,9 +117,7 @@ class InternalStorage:
         if not os.path.exists(os.path.dirname(filename)):
             os.makedirs(os.path.dirname(filename))
         with open(filename, 'wb') as f:
-            p = pickle._Pickler(f)
-            p.fast = True
-            p.dump(content)
+            pickle.dump(content, f)
         self.storage_handler.upload_file(filename, bucket, key)
         self.tmp_obj_count += 1
 
