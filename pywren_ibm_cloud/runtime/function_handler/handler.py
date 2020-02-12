@@ -23,22 +23,18 @@ import pickle
 import logging
 import tempfile
 import traceback
+import subprocess
 from threading import Thread
 from multiprocessing import Process, Pipe
 from distutils.util import strtobool
 from pywren_ibm_cloud import version
 from pywren_ibm_cloud.config import extract_storage_config
-from pywren_ibm_cloud.utils import sizeof_fmt
+from pywren_ibm_cloud.utils import sizeof_fmt, get_memory_usage
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.runtime.function_handler.jobrunner import JobRunner
 from pywren_ibm_cloud.config import cloud_logging_config, JOBS_PREFIX
 from pywren_ibm_cloud.storage.utils import create_output_key, create_status_key, create_init_key
 
-try:
-    import psutil
-    psutil_installed = True
-except Exception:
-    psutil_installed = False
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('handler')
@@ -94,6 +90,10 @@ def function_handler(event):
     }
     call_status.response.update(context_dict)
 
+    show_memory_peak = strtobool(os.environ.get('SHOW_MEMORY_PEAK', 'False'))
+    show_memory_peak = show_memory_peak or log_level == 'DEBUG'
+    call_status.response['peak_memory_usage'] = 0
+
     try:
         if version.__version__ != event['pywren_version']:
             msg = ("PyWren version mismatch. Host version: {} - Runtime version: {}"
@@ -135,18 +135,13 @@ def function_handler(event):
 
         if local_execution:
             jrp = Thread(target=jobrunner.run, daemon=True)
-            jrp.start()
-            jr_pid = os.getpid()
         else:
             jrp = Process(target=jobrunner.run, daemon=True)
-            jrp.start()
-            jr_pid = jrp.pid
+        jrp.start()
 
-        memory_monitor = None
-        peak_memory_usage = 0
-        if log_level == 'DEBUG' and (psutil_installed or '3.6' in context_dict['python_version']):
+        if show_memory_peak:
             mm_handler_conn, mm_conn = Pipe()
-            memory_monitor = Process(target=monitor_worker, args=(os.getpid(), jr_pid, mm_conn))
+            memory_monitor = Thread(target=memory_monitor_worker, args=(mm_conn, ), daemon=True)
             memory_monitor.start()
 
         jrp.join(execution_timeout)
@@ -164,10 +159,11 @@ def function_handler(event):
                    'killed'.format(execution_timeout))
             raise TimeoutError('HANDLER', msg)
 
-        if memory_monitor:
+        if show_memory_peak:
+            mm_handler_conn.send('STOP')
             memory_monitor.join()
             peak_memory_usage = int(mm_handler_conn.recv())
-        call_status.response['peak_memory_usage'] = peak_memory_usage
+            call_status.response['peak_memory_usage'] = peak_memory_usage
 
         try:
             handler_conn.recv()
@@ -285,29 +281,21 @@ class CallStatus:
                 time.sleep(0.2)
 
 
-def monitor_worker(h_pid, jr_pid, mm_conn, delay=0.05):
-    try:
-        import psutil
-    except Exception:
-        from pywren_ibm_cloud.libs import psutil
-
-    jobrunner = psutil.Process(jr_pid)
-    handler = psutil.Process(h_pid)
+def memory_monitor_worker(mm_conn, delay=0.08):
     peak = 0
 
     def make_measurement(peak):
-        jr_mem = jobrunner.memory_info().rss
-        h_mem = handler.memory_info().rss
-        mem = jr_mem+h_mem
+        mem = get_memory_usage(format=False) + 5*1024**2
         if mem > peak:
             peak = mem
         return peak
 
-    pids = psutil.pids()
-    while jr_pid in pids:
-        peak = make_measurement(peak)
-        time.sleep(delay)
-        pids = psutil.pids()
+    while not mm_conn.poll(delay):
+        try:
+            peak = make_measurement(peak)
+        except Exception:
+            break
 
+    peak = make_measurement(peak)
     mm_conn.send(peak)
     logger.info("Peak memory usage: {}".format(sizeof_fmt(peak)))
