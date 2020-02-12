@@ -16,10 +16,6 @@ map function for each partition. To finish one reducer will be
 launched for all the objects in the Bucket. So In this case you
 will get just one result from the reduce method.
 
-Note that when you want to process objects stored in COS by
-using a 'bucketname', the 'bucket', 'key' and 'data_stream'
-parameters are mandatory in the parameters of the map function.
-
 In the reduce function there will be always one parameter
 from where you can access to the partial results.
 """
@@ -36,7 +32,7 @@ def my_map_function(obj):
     print('Partition num: {}'.format(obj.part))
     counter = {}
 
-    data = obj.data_stream.read()
+    data = obj.data.read()
 
     for line in data.splitlines():
         for word in line.decode('utf-8').split():

@@ -134,7 +134,7 @@ class TestMethods:
         print('Partition num: {}'.format(obj.part))
         print('Action id: {}'.format(id))
         counter = {}
-        data = obj.data_stream.read()
+        data = obj.data.read()
         for line in data.splitlines():
             for word in line.decode('utf-8').split():
                 if word not in counter:
@@ -147,7 +147,7 @@ class TestMethods:
     def my_map_function_url(url):
         print('I am processing the object from {}'.format(url.path))
         counter = {}
-        data = url.data_stream.read()
+        data = url.data.read()
         for line in data.splitlines():
             for word in line.decode('utf-8').split():
                 if word not in counter:

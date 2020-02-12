@@ -15,10 +15,12 @@ The *obj* parameter is a python class from where you can access all the informat
 def my_map_function(obj):
     print(obj.bucket)
     print(obj.key)
-    print(obj.data_stream.read())
     print(obj.part)
     print(obj.data_byte_range)
     print(obj.chunk_size)
+
+    data = obj.data.read()
+    
 ```
 
 As stated above, the allowed inputs of the function can be:
@@ -65,12 +67,13 @@ import pywren_ibm_cloud as pywren
 
 def my_map_function(url):
     print(url.path)
-    print(url.data_stream.read())
     print(url.part)
     print(url.data_byte_range)
     print(url.chunk_size)
 
-    for line in url.data_stream:
+    data = url.data.read()
+
+    for line in data:
         # Do some process
     return partial_intersting_data
 

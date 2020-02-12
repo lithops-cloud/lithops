@@ -19,10 +19,6 @@ map function for each partition, and one reducer for all
 partitions of the same object. In this case you will get
 one result for each object specified in 'iterdata' variable.
 
-Note that when you want to process objects stored in COS,
-the 'key' and the 'data_stream' parameters are mandatory
-in the parameters of the map function.
-
 In the reduce function there will be always one parameter
 from where you can access to the partial results.
 """
@@ -41,7 +37,7 @@ def my_map_function(url):
     print('I am processing the object from {}'.format(url.path))
     counter = {}
 
-    data = url.data_stream.read()
+    data = url.data.read()
 
     for line in data.splitlines():
         for word in line.decode('utf-8').split():
@@ -66,9 +62,7 @@ def my_reduce_function(results):
 
 
 if __name__ == "__main__":
-    chunk_size = 4*1024**2  # 4MB
-
     pw = pywren.ibm_cf_executor()
-    pw.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_size=chunk_size)
+    pw.map_reduce(my_map_function, iterdata, my_reduce_function)
     result = pw.get_result()
     print("Done!")

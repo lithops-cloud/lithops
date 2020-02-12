@@ -25,6 +25,7 @@ import inspect
 import requests
 import traceback
 import numpy as np
+from io import BytesIO
 from distutils.util import strtobool
 from pywren_ibm_cloud.storage import Storage
 from pywren_ibm_cloud.future import ResponseFuture
@@ -188,7 +189,6 @@ class JobRunner:
         """
         Loads the object in /tmp in case of object processing
         """
-        retries = 0
         extra_get_args = {}
 
         if 'url' in data:
@@ -199,43 +199,30 @@ class JobRunner:
                 extra_get_args['Range'] = range_str
                 logger.info('Chunk: {} - Range: {}'.format(url.part, extra_get_args['Range']))
             resp = requests.get(url.path, headers=extra_get_args, stream=True)
-            url.data_stream = resp.raw
+            url.data_stream = BytesIO(resp.content)
+            url.data = url.data_stream
 
         if 'obj' in data:
             obj = data['obj']
             logger.info('Getting dataset from {}://{}/{}'.format(obj.storage_backend, obj.bucket, obj.key))
-            obj.data_stream = None
 
             if obj.storage_backend == self.internal_storage.backend:
                 storage_handler = self.internal_storage.storage_handler
             else:
                 storage_handler = Storage(self.pywren_config, obj.storage_backend).get_storage_handler()
 
-            dest_filename = '/tmp/{}'.format(obj.key)
-            if not os.path.exists(os.path.dirname(dest_filename)):
-                os.makedirs(os.path.dirname(dest_filename))
-
-            while obj.data_stream is None:
-                try:
-                    if obj.data_byte_range is not None:
-                        extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
-                        logger.info('Chunk: {} - Range: {}'.format(obj.part, extra_get_args['Range']))
-                        sb = storage_handler.get_object(obj.bucket, obj.key, stream=True, extra_get_args=extra_get_args)
-                        data_stream = WrappedStreamingBodyPartition(sb, obj.chunk_size, obj.data_byte_range)
-                        with open(dest_filename, 'wb') as f:
-                            f.write(data_stream.read())
-                    else:
-                        #storage_handler.download_file(obj.bucket, obj.key, dest_filename)
-                        data_stream = storage_handler.get_object(obj.bucket, obj.key, stream=True)
-                        with open(dest_filename, 'wb') as f:
-                            for chunk in iter(lambda: data_stream.read(512*1024), b''):
-                                f.write(chunk)
-                    obj.data_stream = open(dest_filename, 'rb')
-                except Exception as e:
-                    if retries == 4:
-                        raise e
-                    logger.debug('Error getting the dataset: {}'.format(str(e)))
-                    retries += 1
+            if obj.data_byte_range is not None:
+                extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
+                logger.info('Chunk: {} - Range: {}'.format(obj.part, extra_get_args['Range']))
+                sb = storage_handler.get_object(obj.bucket, obj.key, stream=True,
+                                                extra_get_args=extra_get_args)
+                wsb = WrappedStreamingBodyPartition(sb, obj.chunk_size, obj.data_byte_range)
+                obj.data_stream = BytesIO(wsb.read())
+            else:
+                sb = storage_handler.get_object(obj.bucket, obj.key, stream=True,
+                                                extra_get_args=extra_get_args)
+                obj.data_stream = BytesIO(sb.read())
+            obj.data = obj.data_stream
 
     def run(self):
         """
