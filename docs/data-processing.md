@@ -19,7 +19,7 @@ def my_map_function(obj):
     print(obj.data_byte_range)
     print(obj.chunk_size)
 
-    data = obj.data.read()
+    data = obj.data_stream.read()
     
 ```
 
@@ -71,9 +71,9 @@ def my_map_function(url):
     print(url.data_byte_range)
     print(url.chunk_size)
 
-    data = url.data.read()
+    data = url.data_stream.read()
 
-    for line in data:
+    for line in data.splitlines():
         # Do some process
     return partial_intersting_data
 

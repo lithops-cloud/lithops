@@ -110,7 +110,7 @@ class InternalStorage:
         :return: CloudObject instance
         """
         prefix = self.tmp_obj_prefix or 'tmp'
-        key = key or '{}.pickle'.format('data_{}'.format(self.tmp_obj_count))
+        key = key or 'cloudobject_{}'.format(self.tmp_obj_count)
         key = '/'.join([prefix, key])
         bucket = bucket or self.bucket
         self.storage_handler.put_object(bucket, key, content)
@@ -121,7 +121,9 @@ class InternalStorage:
     def get_object(self, cloudobject: CloudObject=None, bucket: str=None, key: str=None):
         """
         get temporal data object from storage.
-        :param cloudobject:
+        :param cloudobject: CloudObject instance
+        :param key: data bucket
+        :param key: data key
         :return: body text
         """
         if cloudobject:
@@ -130,7 +132,7 @@ class InternalStorage:
                 key = cloudobject.key
                 return self.storage_handler.get_object(bucket, key)
             else:
-                raise Exception("CloudObject: Invalid Storage backend for retrieving the object")
+                raise Exception("CloudObject: Invalid Storage backend")
         elif (bucket and key) or key:
             bucket = bucket or self.bucket
             return self.storage_handler.get_object(bucket, key)

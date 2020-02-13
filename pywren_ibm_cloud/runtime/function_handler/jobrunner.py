@@ -199,8 +199,7 @@ class JobRunner:
                 extra_get_args['Range'] = range_str
                 logger.info('Chunk: {} - Range: {}'.format(url.part, extra_get_args['Range']))
             resp = requests.get(url.path, headers=extra_get_args, stream=True)
-            url.data_stream = BytesIO(resp.content)
-            url.data = url.data_stream
+            url.data_stream = resp.raw
 
         if 'obj' in data:
             obj = data['obj']
@@ -217,12 +216,11 @@ class JobRunner:
                 sb = storage_handler.get_object(obj.bucket, obj.key, stream=True,
                                                 extra_get_args=extra_get_args)
                 wsb = WrappedStreamingBodyPartition(sb, obj.chunk_size, obj.data_byte_range)
-                obj.data_stream = BytesIO(wsb.read())
+                obj.data_stream = wsb
             else:
                 sb = storage_handler.get_object(obj.bucket, obj.key, stream=True,
                                                 extra_get_args=extra_get_args)
-                obj.data_stream = BytesIO(sb.read())
-            obj.data = obj.data_stream
+                obj.data_stream = sb
 
     def run(self):
         """

@@ -37,7 +37,7 @@ def my_map_function(url):
     print('I am processing the object from {}'.format(url.path))
     counter = {}
 
-    data = url.data.read()
+    data = url.data_stream.read()
 
     for line in data.splitlines():
         for word in line.decode('utf-8').split():

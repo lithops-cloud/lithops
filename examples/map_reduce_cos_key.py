@@ -35,7 +35,7 @@ def my_map_function(obj):
     print('Key: {}'.format(obj.key))
     print('Partition num: {}'.format(obj.part))
     counter = {}
-    data = obj.data.read()
+    data = obj.data_stream.read()
 
     for line in data.splitlines():
         for word in line.decode('utf-8').split():
