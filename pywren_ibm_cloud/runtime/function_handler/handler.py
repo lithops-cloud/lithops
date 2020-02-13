@@ -23,7 +23,6 @@ import pickle
 import logging
 import tempfile
 import traceback
-import subprocess
 from threading import Thread
 from multiprocessing import Process, Pipe
 from distutils.util import strtobool
@@ -132,16 +131,12 @@ def function_handler(event):
         jobrunner = JobRunner(jobrunner_config, jobrunner_conn, internal_storage)
         logger.debug('Starting JobRunner process')
         local_execution = strtobool(os.environ.get('LOCAL_EXECUTION', 'False'))
-
-        if local_execution:
-            jrp = Thread(target=jobrunner.run, daemon=True)
-        else:
-            jrp = Process(target=jobrunner.run, daemon=True)
+        jrp = Thread(target=jobrunner.run) if local_execution else Process(target=jobrunner.run)
         jrp.start()
 
         if show_memory_peak:
             mm_handler_conn, mm_conn = Pipe()
-            memory_monitor = Thread(target=memory_monitor_worker, args=(mm_conn, ), daemon=True)
+            memory_monitor = Thread(target=memory_monitor_worker, args=(mm_conn, ))
             memory_monitor.start()
 
         jrp.join(execution_timeout)

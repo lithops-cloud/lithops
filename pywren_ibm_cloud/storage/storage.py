@@ -113,12 +113,7 @@ class InternalStorage:
         key = key or '{}.pickle'.format('data_{}'.format(self.tmp_obj_count))
         key = '/'.join([prefix, key])
         bucket = bucket or self.bucket
-        filename = '/tmp/{}'.format(key)
-        if not os.path.exists(os.path.dirname(filename)):
-            os.makedirs(os.path.dirname(filename))
-        with open(filename, 'wb') as f:
-            pickle.dump(content, f)
-        self.storage_handler.upload_file(filename, bucket, key)
+        self.storage_handler.put_object(bucket, key, pickle.dumps(content))
         self.tmp_obj_count += 1
 
         return CloudObject(self.backend, bucket, key)
