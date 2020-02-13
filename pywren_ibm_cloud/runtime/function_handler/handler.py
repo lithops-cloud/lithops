@@ -276,7 +276,7 @@ class CallStatus:
                 time.sleep(0.2)
 
 
-def memory_monitor_worker(mm_conn, delay=0.08):
+def memory_monitor_worker(mm_conn, delay=0.01):
     peak = 0
 
     def make_measurement(peak):

@@ -113,23 +113,29 @@ class InternalStorage:
         key = key or '{}.pickle'.format('data_{}'.format(self.tmp_obj_count))
         key = '/'.join([prefix, key])
         bucket = bucket or self.bucket
-        self.storage_handler.put_object(bucket, key, pickle.dumps(content))
+        self.storage_handler.put_object(bucket, key, content)
         self.tmp_obj_count += 1
 
         return CloudObject(self.backend, bucket, key)
 
-    def get_object(self, cloudobject):
+    def get_object(self, cloudobject: CloudObject=None, bucket: str=None, key: str=None):
         """
         get temporal data object from storage.
         :param cloudobject:
         :return: body text
         """
-        if self.backend == cloudobject.storage_backend:
-            bucket = cloudobject.bucket
-            key = cloudobject.key
-            return pickle.loads(self.storage_handler.get_object(bucket, key))
+        if cloudobject:
+            if cloudobject.storage_backend == self.backend:
+                bucket = cloudobject.bucket
+                key = cloudobject.key
+                return self.storage_handler.get_object(bucket, key)
+            else:
+                raise Exception("CloudObject: Invalid Storage backend for retrieving the object")
+        elif (bucket and key) or key:
+            bucket = bucket or self.bucket
+            return self.storage_handler.get_object(bucket, key)
         else:
-            raise Exception("CloudObject: Invalid Storage backend for retrieving the object")
+            return None
 
     def get_job_status(self, executor_id, job_id):
         """
