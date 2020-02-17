@@ -25,12 +25,13 @@ import inspect
 import requests
 import traceback
 import numpy as np
+from io import BytesIO
 from distutils.util import strtobool
 from pywren_ibm_cloud.storage import Storage
 from pywren_ibm_cloud.future import ResponseFuture
 from pywren_ibm_cloud.libs.tblib import pickling_support
 from pywren_ibm_cloud.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_function
-from pywren_ibm_cloud.utils import get_current_memory_usage, WrappedStreamingBodyPartition
+from pywren_ibm_cloud.utils import WrappedStreamingBodyPartition
 from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config
 
 pickling_support.install()
@@ -75,8 +76,6 @@ class JobRunner:
         self.output_key = self.jr_config['output_key']
 
         self.stats = stats(self.jr_config['stats_filename'])
-
-        self.show_memory = strtobool(os.environ.get('SHOW_MEMORY_USAGE', 'False'))
 
     def _get_function_and_modules(self):
         """
@@ -190,7 +189,6 @@ class JobRunner:
         """
         Loads the object in /tmp in case of object processing
         """
-        retries = 0
         extra_get_args = {}
 
         if 'url' in data:
@@ -206,37 +204,23 @@ class JobRunner:
         if 'obj' in data:
             obj = data['obj']
             logger.info('Getting dataset from {}://{}/{}'.format(obj.storage_backend, obj.bucket, obj.key))
-            obj.data_stream = None
 
             if obj.storage_backend == self.internal_storage.backend:
                 storage_handler = self.internal_storage.storage_handler
             else:
                 storage_handler = Storage(self.pywren_config, obj.storage_backend).get_storage_handler()
 
-            dest_filename = '/tmp/{}'.format(obj.key)
-            if not os.path.exists(os.path.dirname(dest_filename)):
-                os.makedirs(os.path.dirname(dest_filename))
-
-            while obj.data_stream is None:
-                try:
-                    if obj.data_byte_range is not None:
-                        extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
-                        logger.info('Chunk: {} - Range: {}'.format(obj.part, extra_get_args['Range']))
-                        sb = storage_handler.get_object(obj.bucket, obj.key, stream=True, extra_get_args=extra_get_args)
-                        data_stream = WrappedStreamingBodyPartition(sb, obj.chunk_size, obj.data_byte_range)
-                        with open(dest_filename, 'wb') as f:
-                            f.write(data_stream.read())
-                    else:
-                        data_stream = storage_handler.get_object(obj.bucket, obj.key, stream=True)
-                        with open(dest_filename, 'wb') as f:
-                            for chunk in iter(lambda: data_stream.read(512*1024), b''):
-                                f.write(chunk)
-                    obj.data_stream = open(dest_filename, 'rb')
-                except Exception as e:
-                    if retries == 4:
-                        raise e
-                    logger.debug('Error getting the dataset: {}'.format(str(e)))
-                    retries += 1
+            if obj.data_byte_range is not None:
+                extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
+                logger.info('Chunk: {} - Range: {}'.format(obj.part, extra_get_args['Range']))
+                sb = storage_handler.get_object(obj.bucket, obj.key, stream=True,
+                                                extra_get_args=extra_get_args)
+                wsb = WrappedStreamingBodyPartition(sb, obj.chunk_size, obj.data_byte_range)
+                obj.data_stream = wsb
+            else:
+                sb = storage_handler.get_object(obj.bucket, obj.key, stream=True,
+                                                extra_get_args=extra_get_args)
+                obj.data_stream = sb
 
     def run(self):
         """
@@ -258,9 +242,6 @@ class JobRunner:
 
             self._fill_optional_args(function, data)
 
-            if self.show_memory:
-                logger.debug("Memory usage before call the function: {}".format(get_current_memory_usage()))
-
             logger.info("Going to execute '{}()'".format(str(function.__name__)))
             print('---------------------- FUNCTION LOG ----------------------', flush=True)
             func_exec_time_t1 = time.time()
@@ -268,9 +249,6 @@ class JobRunner:
             func_exec_time_t2 = time.time()
             print('----------------------------------------------------------', flush=True)
             logger.info("Success function execution")
-
-            if self.show_memory:
-                logger.debug("Memory usage after call the function: {}".format(get_current_memory_usage()))
 
             self.stats.write('function_exec_time', round(func_exec_time_t2-func_exec_time_t1, 8))
 
@@ -285,8 +263,6 @@ class JobRunner:
                 output_dict = {'result': result}
                 pickled_output = pickle.dumps(output_dict)
 
-                if self.show_memory:
-                    logger.debug("Memory usage after output serialization: {}".format(get_current_memory_usage()))
             else:
                 logger.debug("No result to store")
                 self.stats.write("result", False)
@@ -298,9 +274,6 @@ class JobRunner:
             print('----------------------- EXCEPTION !-----------------------', flush=True)
             traceback.print_exc(file=sys.stdout)
             print('----------------------------------------------------------', flush=True)
-
-            if self.show_memory:
-                logger.debug("Memory usage after call the function: {}".format(get_current_memory_usage()))
 
             try:
                 logger.debug("Pickling exception")

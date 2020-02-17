@@ -19,10 +19,6 @@ map function for each partition, and one reducer for all
 partitions of the same object. In this case you will get
 one result for each object specified in 'iterdata' variable.
 
-Note that when you want to process objects stored in COS,
-the 'key' and the 'data_stream' parameters are mandatory
-in the parameters of the map function.
-
 In the reduce function there will be always one parameter
 from where you can access to the partial results.
 """

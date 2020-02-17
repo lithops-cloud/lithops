@@ -24,12 +24,11 @@ import logging
 import tempfile
 import traceback
 from threading import Thread
-from multiprocessing import Process
-from multiprocessing import Pipe
+from multiprocessing import Process, Pipe
 from distutils.util import strtobool
 from pywren_ibm_cloud import version
 from pywren_ibm_cloud.config import extract_storage_config
-from pywren_ibm_cloud.utils import sizeof_fmt
+from pywren_ibm_cloud.utils import sizeof_fmt, get_memory_usage
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.runtime.function_handler.jobrunner import JobRunner
 from pywren_ibm_cloud.config import cloud_logging_config, JOBS_PREFIX
@@ -90,6 +89,10 @@ def function_handler(event):
     }
     call_status.response.update(context_dict)
 
+    show_memory_peak = strtobool(os.environ.get('SHOW_MEMORY_PEAK', 'False'))
+    show_memory_peak = show_memory_peak or log_level == 'DEBUG'
+    call_status.response['peak_memory_usage'] = 0
+
     try:
         if version.__version__ != event['pywren_version']:
             msg = ("PyWren version mismatch. Host version: {} - Runtime version: {}"
@@ -128,12 +131,14 @@ def function_handler(event):
         jobrunner = JobRunner(jobrunner_config, jobrunner_conn, internal_storage)
         logger.debug('Starting JobRunner process')
         local_execution = strtobool(os.environ.get('LOCAL_EXECUTION', 'False'))
-        if local_execution:
-            jrp = Thread(target=jobrunner.run)
-        else:
-            jrp = Process(target=jobrunner.run)
-        jrp.daemon = True
+        jrp = Thread(target=jobrunner.run) if local_execution else Process(target=jobrunner.run)
         jrp.start()
+
+        if show_memory_peak:
+            mm_handler_conn, mm_conn = Pipe()
+            memory_monitor = Thread(target=memory_monitor_worker, args=(mm_conn, ))
+            memory_monitor.start()
+
         jrp.join(execution_timeout)
         logger.debug('JobRunner process finished')
         call_status.response['exec_time'] = round(time.time() - setup_time, 8)
@@ -148,6 +153,12 @@ def function_handler(event):
             msg = ('Function exceeded maximum time of {} seconds and was '
                    'killed'.format(execution_timeout))
             raise TimeoutError('HANDLER', msg)
+
+        if show_memory_peak:
+            mm_handler_conn.send('STOP')
+            memory_monitor.join()
+            peak_memory_usage = int(mm_handler_conn.recv())
+            call_status.response['peak_memory_usage'] = peak_memory_usage
 
         try:
             handler_conn.recv()
@@ -263,3 +274,23 @@ class CallStatus:
                 logger.error(str(e))
                 logger.info('Retrying to send status to rabbitmq...')
                 time.sleep(0.2)
+
+
+def memory_monitor_worker(mm_conn, delay=0.01):
+    peak = 0
+
+    def make_measurement(peak):
+        mem = get_memory_usage(format=False) + 5*1024**2
+        if mem > peak:
+            peak = mem
+        return peak
+
+    while not mm_conn.poll(delay):
+        try:
+            peak = make_measurement(peak)
+        except Exception:
+            break
+
+    peak = make_measurement(peak)
+    mm_conn.send(peak)
+    logger.info("Peak memory usage: {}".format(sizeof_fmt(peak)))

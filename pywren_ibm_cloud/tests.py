@@ -16,6 +16,7 @@
 
 import sys
 import json
+import pickle
 import argparse
 import unittest
 import logging
@@ -180,12 +181,12 @@ class TestMethods:
     @staticmethod
     def my_cloudobject_put(obj, internal_storage):
         counter = TestMethods.my_map_function_obj(obj, 0)
-        cloudobject = internal_storage.put_object(counter)
+        cloudobject = internal_storage.put_object(pickle.dumps(counter))
         return cloudobject
 
     @staticmethod
     def my_cloudobject_get(results, internal_storage):
-        data = [internal_storage.get_object(cloudobject) for cloudobject in results]
+        data = [pickle.loads(internal_storage.get_object(cloudobject)) for cloudobject in results]
         return TestMethods.my_reduce_function(data)
 
 

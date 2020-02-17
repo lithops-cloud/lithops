@@ -25,6 +25,8 @@ import platform
 import logging
 import threading
 import io
+from pywren_ibm_cloud.libs import ps_mem
+
 
 logger = logging.getLogger(__name__)
 
@@ -262,19 +264,34 @@ def split_path(path):
     return bucket_name, key
 
 
+def get_memory_usage(format=True):
+    """
+    Gets the current memory usage of the runtime.
+    To be used only in the action code.
+    """
+    split_args = False
+    pids_to_show = None
+    discriminate_by_pid = False
+
+    ps_mem.verify_environment(pids_to_show)
+    sorted_cmds, shareds, count, total, swaps, total_swap = \
+        ps_mem.get_memory_usage(pids_to_show, split_args, discriminate_by_pid,
+                                include_self=True, only_self=False)
+    if format:
+        return sizeof_fmt(int(ps_mem.human(total, units=1)))
+    else:
+        return int(ps_mem.human(total, units=1))
+
+
 def get_current_memory_usage():
     """
     Gets the current memory usage of the runtime.
     To be used only in the action code.
     """
-    #cmd = "ps -eo pss | tail -n +2 | awk '{ SUM += $1} END { print SUM/1024}'"
-    #memorymbytes = subprocess.check_output(cmd, shell=True).decode("ascii").strip()
+    print("WARNING - get_current_memory_usage() is deprecated "
+          "and it will be removed. Use get_memory_usage()")
 
-    cmd = "python pywren_ibm_cloud/libs/ps_mem/ps_mem.py --total"
-    process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
-    memorybytes = int(process.stdout.read())
-
-    return sizeof_fmt(memorybytes)
+    return get_memory_usage()
 
 
 def format_data(iterdata, extra_params):
