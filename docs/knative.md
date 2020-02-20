@@ -1,7 +1,7 @@
 # PyWren on Knative (Experimental)
 
 The easiest way to make it working is to create an IBM Kubernetes (IKS) cluster trough the [IBM dashboard](https://cloud.ibm.com/kubernetes/landing). For testing purposes, it is preferable to use this setup:
-- Install Kubernetes > v1.14
+- Install Kubernetes >= v1.15
 - Select a **single zone** to place the worker nodes
 - *Master service endpoint*: Public endpoint only
 - Your cluster must have 3 or more worker nodes with at least 4 cores and 16GB RAM.
@@ -11,14 +11,14 @@ Once the cluster is running, follow the instructions of the "Access" tab to conf
 
   - Option 1 (IBM IKS):
 
-    1. In the Dashboard of your cluster, go to the "Add-ons" tab and install knative v0.8.0. It automatically installs Istio v1.3.4 and Tekton v0.3.1.
+    1. In the Dashboard of your cluster, go to the "Add-ons" tab and install knative v0.12.1. It automatically installs Istio v1.4 and Tekton v0.10.1.
 
 
   - Option 2 (IBM IKS or any other Kubernetes Cluster):
 
     1. Install the **helm** Kubernetes package manager in your local machine. Instructions can be found [here](https://github.com/helm/helm#install).
 
-    2. Install the PyWren environment into the k8s cluster: Istio v1.3.5, Knative v0.11.0 and Tekton v0.5.0:
+    2. Install the PyWren environment into the k8s cluster: Istio v1.4.2, Knative v0.12.1 and Tekton v0.10.1:
         ```
         curl http://cloudlab.urv.cat/josep/knative/install_pywren_env.sh | bash
         ```
