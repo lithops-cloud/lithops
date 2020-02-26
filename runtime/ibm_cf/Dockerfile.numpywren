@@ -1,7 +1,4 @@
-# Minimal Docker image for pyWren
-
-# Python 3.5
-#FROM python:3.5-slim-jessie
+# Minimal Docker image for numpywren
 
 # Python 3.6
 FROM python:3.6-slim-jessie
@@ -22,10 +19,25 @@ RUN pip install --upgrade setuptools six \
         flask==1.1.1 \
         gevent==1.4.0 \
         ibm-cos-sdk==2.6.0 \
+        docutils<0.16 \
         redis==3.3.8 \
-        requests \
-        numpy==1.17.2
-
+        numpy==1.14.3 \
+        aiobotocore==0.10.0 \
+        boto3==1.9.0 \
+        botocore==1.12.49 \
+        cloudpickle==1.3.0 \
+        dill==0.3.1.1 \
+        pandas==0.25.3 \
+        pywren==0.4.0 \
+        PyYAML==5.1.2 \
+        requests==2.22.0 \
+        s3transfer==0.1.13 \
+        scikit-learn==0.22.1 \
+        scipy==1.3.2 \
+        sympy==1.5.1 \
+        tblib==1.5.0 \
+        pywren==0.4.0 \
+        sklearn pytest astor enum34 flaky glob2 watchtower
 
 # create action working directory
 RUN mkdir -p /action

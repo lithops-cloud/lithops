@@ -188,8 +188,7 @@ class FunctionExecutor:
         futures = self.invoker.run(job)
         self.futures.extend(futures)
         self._state = FunctionExecutor.State.Running
-        if len(futures) == 1:
-            return futures[0]
+
         return futures
 
     def map_reduce(self, map_function, map_iterdata, reduce_function, extra_params=None, extra_env=None,

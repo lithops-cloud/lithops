@@ -51,7 +51,10 @@ def dump_yaml_config(config_filename, data):
 
 
 def get_default_home_filename():
-    default_home_filename = os.path.join(os.path.expanduser("~/.pywren_config"))
+    default_home_filename = os.path.join(os.path.expanduser("~/.pywren/config"))
+    if not os.path.exists(default_home_filename):
+        default_home_filename = os.path.join(os.path.expanduser("~/.pywren_config"))
+
     return default_home_filename
 
 
@@ -63,13 +66,14 @@ def get_default_config_filename():
     """
     if 'PYWREN_CONFIG_FILE' in os.environ:
         config_filename = os.environ['PYWREN_CONFIG_FILE']
-        # FIXME log this
 
     elif os.path.exists(".pywren_config"):
         config_filename = os.path.abspath('.pywren_config')
 
     else:
         config_filename = get_default_home_filename()
+
+    logger.info('Getting configuration from {}'.format(config_filename))
 
     return config_filename
 
