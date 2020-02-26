@@ -3,10 +3,13 @@
 ## [v1.4.3--snapshot]
 
 ### Added
-- Added retry logic when reading data from COS through 'obj' parameter
+- Added memory monitor
 
 ### Changed
-- Memory optimization when reading data from COS through 'obj' parameter
+- Updated knative to work for new releases
+- Updated tblib from 1.4.0 to 1.6.0
+- Changed get_current_memory_usage() to get_memory_usage()
+- Docs updated
 
 ### Fixed
 - Fixed issue with internal partitioner

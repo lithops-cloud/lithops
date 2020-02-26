@@ -4,13 +4,13 @@ from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import version_str
 
 DOCKER_REPO_DEFAULT = 'docker.io'
-RUNTIME_NAME_DEFAULT = 'pywren-kn-runtime'
+RUNTIME_NAME_DEFAULT = 'pywren-knative'
 
 BUILD_GIT_URL_DEFAULT = 'https://github.com/pywren/pywren-ibm-cloud'
 
 RUNTIME_TIMEOUT_DEFAULT = 600  # 10 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # 256Mi
-CONCURRENT_WORKERS_DEFAULT = 500
+CONCURRENT_WORKERS_DEFAULT = 200
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'pywren_knative.zip')
 
@@ -20,7 +20,7 @@ kind: Secret
 metadata:
   name: dockerhub-user-token
   annotations:
-    tekton.dev/docker-0: https://index.docker.io/v1/
+    tekton.dev/docker-0: https://index.docker.io
 type: kubernetes.io/basic-auth
 stringData:
   username: USER
@@ -63,7 +63,7 @@ spec:
     params:
       - name: pathToContext
         description: Path to build context, within the workspace used by Kaniko
-        default: .
+        default: /workspace/git-source/
       - name: pathToDockerFile
         description: Relative to the context
         default: Dockerfile
@@ -71,16 +71,16 @@ spec:
       - name: imageTag
   steps:
     - name: build-and-push
-      image: gcr.io/kaniko-project/executor
+      image: gcr.io/kaniko-project/executor:v0.15.0
       env:
         - name: "DOCKER_CONFIG"
-          value: "/builder/home/.docker/"
+          value: "/tekton/home/.docker/"
       command:
         - /kaniko/executor
       args:
-        - --dockerfile=${inputs.params.pathToDockerFile}
-        - --destination=${inputs.params.imageUrl}:${inputs.params.imageTag}
-        - --context=/workspace/git-source/${inputs.params.pathToContext}
+        - --dockerfile=$(inputs.params.pathToDockerFile)
+        - --destination=$(inputs.params.imageUrl):$(inputs.params.imageTag)
+        - --context=$(inputs.params.pathToContext)
 """
 
 task_run = """
@@ -89,6 +89,7 @@ kind: TaskRun
 metadata:
   name: image-from-git
 spec:
+  serviceAccountName: pywren-build-pipeline
   taskRef:
     name: git-source-to-image
   inputs:
@@ -97,11 +98,8 @@ spec:
         resourceRef:
           name: pywren-git
     params:
-      - name: pathToContext
-        value: .
       - name: pathToDockerFile
         value: pywren_ibm_cloud/compute/backends/knative/Dockerfile
-  serviceAccount: pywren-build-pipeline
 """
 
 
@@ -159,7 +157,7 @@ def load_config(config_data):
         docker_user = config_data['knative']['docker_user']
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'SNAPSHOT' in __version__ else __version__
-        runtime_name = '{}/{}-{}:{}'.format(docker_user, RUNTIME_NAME_DEFAULT, python_version, revision)
+        runtime_name = '{}/{}-v{}:{}'.format(docker_user, RUNTIME_NAME_DEFAULT, python_version, revision)
         config_data['pywren']['runtime'] = runtime_name
 
     if 'workers' not in config_data['pywren']:
