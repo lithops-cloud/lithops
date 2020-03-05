@@ -11,7 +11,7 @@ Once you have the credentials, there are two options to configure PyWren: Using 
 
 
 ### Using configuration file
-Copy the `config_template.yaml.` into `~/.pywren/config`
+Create a new `config` file in the `~/.pywren` folder and copy the content of the the `config_template.yaml` to it.
 
 Edit `~/.pywren/config` and configure the following entries:
 
@@ -30,7 +30,7 @@ ibm_cos:
     api_key    : <API_KEY>
 ```
 
-You can choose different name for the config file or keep it into different folder. If this is the case make sure you configure system variable 
+Alternatively, you can create the config file (`.pywren_config`) in the root directory of your project from where you will execute your PyWren scripts, or choose a different location and configure the `PYWREN_CONFIG_FILE` system environment variable:
 	
 	PYWREN_CONFIG_FILE=<LOCATION OF THE CONFIG FILE>
 
