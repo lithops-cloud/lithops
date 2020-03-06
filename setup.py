@@ -15,8 +15,11 @@
 # limitations under the License.
 #
 
+import os
 import sys
 from setuptools import setup, find_packages
+from setuptools.command.build_py import build_py
+
 
 if sys.version_info < (3,):
     sys.exit('Sorry, Python 2.x is not supported')
@@ -26,10 +29,20 @@ if sys.version_info > (3,) and sys.version_info < (3, 4):
 
 # http://stackoverflow.com/questions/6344076/differences-between-distribute-distutils-setuptools-and-distutils2
 
+exec(open('pywren_ibm_cloud/config.py').read())
+class BuildPyCommand(build_py):
+    def run(self):
+        os.makedirs(os.path.basename(CONFIG_FILE), exist_ok=True)
+        if not os.path.isfile(CONFIG_FILE):
+            with open(CONFIG_FILE, 'w'):
+                pass
+            build_py.run(self)
+
+
 # how to get version info into the project
 exec(open('pywren_ibm_cloud/version.py').read())
-
 setup(
+    cmdclass={'build_py': BuildPyCommand},
     name='pywren_ibm_cloud',
     version=__version__,
     url='https://github.com/pywren/pywren-ibm-cloud',

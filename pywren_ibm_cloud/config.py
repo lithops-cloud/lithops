@@ -31,6 +31,7 @@ MAX_AGG_DATA_SIZE = 4e6  # 4MB
 
 HOME_DIR = os.path.expanduser('~')
 CONFIG_DIR = os.path.join(HOME_DIR, '.pywren')
+CONFIG_FILE = os.path.join(CONFIG_DIR, 'config')
 CACHE_DIR = os.path.join(CONFIG_DIR, 'cache')
 
 
@@ -52,7 +53,7 @@ def dump_yaml_config(config_filename, data):
 
 
 def get_default_home_filename():
-    default_home_filename = os.path.join(HOME_DIR, '.pywren', 'config')
+    default_home_filename = CONFIG_FILE
     if not os.path.exists(default_home_filename):
         default_home_filename = os.path.join(HOME_DIR, '.pywren_config')
 
