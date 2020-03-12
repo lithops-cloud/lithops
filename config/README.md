@@ -11,25 +11,28 @@ Once you have the credentials, there are two options to configure PyWren: Using 
 
 
 ### Using configuration file
-Edit the `~/.pywren/config` file and configure the following entries:
+To configure PyWren through a file you have multiple options:
 
-```yaml
-pywren: 
-    storage_bucket: <BUCKET_NAME>
+1. Create e new file called `config` in the `~/.pywren` folder and configure the following entries:
 
-ibm_cf:
-    endpoint    : <REGION_ENDPOINT>
-    namespace   : <NAMESPACE>
-    api_key     : <API_KEY>
-   
-ibm_cos:
-    endpoint   : <REGION_ENDPOINT>  
-    private_endpoint : <PRIVATE_REGION_ENDPOINT>
-    api_key    : <API_KEY>
-```
+    ```yaml
+    pywren: 
+        storage_bucket: <BUCKET_NAME>
+    
+    ibm_cf:
+        endpoint    : <REGION_ENDPOINT>
+        namespace   : <NAMESPACE>
+        api_key     : <API_KEY>
+       
+    ibm_cos:
+        endpoint   : <REGION_ENDPOINT>  
+        private_endpoint : <PRIVATE_REGION_ENDPOINT>
+        api_key    : <API_KEY>
+    ```
 
-Alternatively, you can create the `.pywren_config` config file in the root directory of your project from where you will execute your PyWren scripts. 
-Last choice it to create the config file in a different location and configure the `PYWREN_CONFIG_FILE` system environment variable:
+2. Create a new file called `.pywren_config` in the root directory of your project from where you will execute your PyWren scripts.
+
+3. Create the config file in any other location and configure the `PYWREN_CONFIG_FILE` system environment variable:
 	
 	PYWREN_CONFIG_FILE=<LOCATION OF THE CONFIG FILE>
 

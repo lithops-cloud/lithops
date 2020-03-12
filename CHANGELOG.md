@@ -14,6 +14,7 @@
 ### Fixed
 - Fixed issue with internal partitioner
 - Fixed issue with get_result()
+- Fixed issue with windows hosts
 - Some other Internal fixes
 
 
