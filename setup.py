@@ -37,12 +37,12 @@ setup(
     include_package_data=True,
     entry_points='''
         [console_scripts]
-        pywren-runtime=pywren_ibm_cloud.runtime.cli:cli
+        pywren-ibm-cloud=pywren_ibm_cloud.cli.cli:cli
     ''',
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: Apache Software License",
         "Operating System :: OS Independent",
     ],
-    python_requires='>=3.6',
+    python_requires='>=3.5',
 )

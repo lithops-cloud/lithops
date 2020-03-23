@@ -10,7 +10,7 @@ BUILD_GIT_URL_DEFAULT = 'https://github.com/pywren/pywren-ibm-cloud'
 
 RUNTIME_TIMEOUT_DEFAULT = 600  # 10 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # 256Mi
-CONCURRENT_WORKERS_DEFAULT = 200
+CONCURRENT_WORKERS_DEFAULT = 100
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'pywren_knative.zip')
 

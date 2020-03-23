@@ -6,7 +6,7 @@ import logging
 import multiprocessing
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import version_str
-from pywren_ibm_cloud.runtime.function_handler import function_handler
+from pywren_ibm_cloud.function import function_handler
 from .config import LOCAL_LOGS_DIR
 
 logger = logging.getLogger(__name__)

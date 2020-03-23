@@ -2,9 +2,10 @@ import os
 import sys
 from pywren_ibm_cloud.utils import version_str
 
-RUNTIME_DEFAULT_35 = 'ibmfunctions/pywren:3.5'
-RUNTIME_DEFAULT_36 = 'ibmfunctions/action-python-v3.6'
-RUNTIME_DEFAULT_37 = 'ibmfunctions/action-python-v3.7:1.6.0'
+RUNTIME_DEFAULT = {'3.5': 'ibmfunctions/pywren:3.5',
+                   '3.6': 'ibmfunctions/action-python-v3.6',
+                   '3.7': 'ibmfunctions/action-python-v3.7:1.6.0',
+                   '3.8': 'jsampe/action-python-v3.8'}
 
 RUNTIME_TIMEOUT_DEFAULT = 600  # Default: 600 seconds => 10 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
@@ -19,15 +20,12 @@ def load_config(config_data):
         config_data['pywren']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
     if 'runtime_timeout' not in config_data['pywren']:
         config_data['pywren']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
-
     if 'runtime' not in config_data['pywren']:
         this_version_str = version_str(sys.version_info)
-        if this_version_str == '3.5':
-            config_data['pywren']['runtime'] = RUNTIME_DEFAULT_35
-        elif this_version_str == '3.6':
-            config_data['pywren']['runtime'] = RUNTIME_DEFAULT_36
-        elif this_version_str == '3.7':
-            config_data['pywren']['runtime'] = RUNTIME_DEFAULT_37
+        try:
+            config_data['pywren']['runtime'] = RUNTIME_DEFAULT[this_version_str]
+        except KeyError:
+            raise Exception('Unsupported Python version: {}'.format(this_version_str))
     if 'workers' not in config_data['pywren'] or \
        config_data['pywren']['workers'] > MAX_CONCURRENT_WORKERS:
         config_data['pywren']['workers'] = MAX_CONCURRENT_WORKERS

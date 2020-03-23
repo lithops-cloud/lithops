@@ -4,8 +4,7 @@ import pkgutil
 import logging
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.config import cloud_logging_config
-from pywren_ibm_cloud.runtime.function_handler import function_handler
-
+from pywren_ibm_cloud.function import function_handler
 
 cloud_logging_config(logging.INFO)
 logger = logging.getLogger('__main__')

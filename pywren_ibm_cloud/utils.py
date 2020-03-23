@@ -25,8 +25,12 @@ import platform
 import logging
 import threading
 import io
-from pywren_ibm_cloud.libs import ps_mem
 
+try:
+    from pywren_ibm_cloud.libs import ps_mem
+except:
+    # Not supported on Windows hosts
+    pass
 
 logger = logging.getLogger(__name__)
 
