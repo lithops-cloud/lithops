@@ -2,10 +2,10 @@
 
 
 ### What is PyWren
-[PyWren](https://github.com/pywren/pywren) is an open source project whose goals are massively scaling the execution of Python code and its dependencies on serverless computing platforms and monitoring the results. PyWren delivers the user’s code into the serverless platform without requiring knowledge of how functions are invoked and run. 
+[PyWren](https://github.com/pywren/pywren) is an open source project whose goals are massively scaling the execution of Python code and its dependencies on serverless computing platforms and monitoring the results. PyWren delivers the user’s code into the serverless platform without requiring knowledge of how functions are invoked and run.
 
 ### PyWren and IBM Cloud
-This repository is based on [PyWren](https://github.com/pywren/pywren) main branch and adapted for IBM Cloud Functions and IBM Cloud Object Storage. PyWren for IBM Cloud is not, however, just a mere reimplementation of PyWren’s API atop IBM Cloud Functions. Rather, it is must be viewed as an advanced extension of PyWren. See the complete [design overview](docs/DESIGN.md). 
+This repository is based on [PyWren](https://github.com/pywren/pywren) main branch and adapted for IBM Cloud Functions and IBM Cloud Object Storage. PyWren for IBM Cloud is not, however, just a mere reimplementation of PyWren’s API atop IBM Cloud Functions. Rather, it is must be viewed as an advanced extension of PyWren. See the complete [design overview](docs/DESIGN.md).
 
 PyWren for IBM Cloud provides great value for the variety of uses cases, like processing data in object storage, running embarrassingly parallel compute jobs (e.g. Monte-Carlo simulations), enriching data with additional attributes and many more. In extending PyWren to work with IBM Cloud Object Storage, we also added a partition discovery component that allows PyWren to process large amounts of data stored in the IBM Cloud Object Storage. See [changelog](CHANGELOG.md) for more details.
 
@@ -17,7 +17,7 @@ PyWren for IBM Cloud provides great value for the variety of uses cases, like pr
 ## Initial Requirements
 * [IBM Cloud Functions account](https://cloud.ibm.com/functions)
 * [IBM Cloud Object Storage account](https://www.ibm.com/cloud/object-storage)
-* Python 3.5, Python 3.6 or Python 3.7
+* Python 3.5, 3.6, 3.7 or 3.8
 
 
 ## PyWren Setup
@@ -28,16 +28,16 @@ PyWren for IBM Cloud provides great value for the variety of uses cases, like pr
 	pip install pywren-ibm-cloud
 	```
 
-2. Navigate into [config/](config/) and follow the instructions to configure the client with the access details to your IBM Cloud Object Storage and IBM Cloud Functions accounts. 
+2. Navigate into [config/](config/) and follow the instructions to configure the client with the access details to your IBM Cloud Object Storage and IBM Cloud Functions accounts.
 
 3. Test PyWren by simply running the next code:
 
     ```python
     import pywren_ibm_cloud as pywren
-    
+
     def add_seven(x):
         return x + 7
-    
+
     if __name__ == '__main__':
         ibmcf = pywren.ibm_cf_executor()
         ibmcf.call_async(add_seven, 3)
@@ -46,7 +46,7 @@ PyWren for IBM Cloud provides great value for the variety of uses cases, like pr
 
 
 ## How to use PyWren for IBM Cloud
-The primary object in PyWren is the executor. The standard way to get everything set up is to import `pywren_ibm_cloud`, and call one of the available functions to get a [ready-to-use executor](docs/api-details.md#executor). 
+The primary object in PyWren is the executor. The standard way to get everything set up is to import `pywren_ibm_cloud`, and call one of the available functions to get a [ready-to-use executor](docs/api-details.md#executor).
 
 The available executors are:
 
@@ -83,7 +83,7 @@ To test that all is working, use the command:
 
     python -m pywren_ibm_cloud.tests
 
-Notice that if you didn't set a local PyWren's config file, you need to provide it as a json file path by `-c <CONFIG>` flag. 
+Notice that if you didn't set a local PyWren's config file, you need to provide it as a json file path by `-c <CONFIG>` flag.
 
 Alternatively, for debugging purposes, you can run specific tests by `-t <TESTNAME>`. use `--help` flag to get more information about the test script.
 
