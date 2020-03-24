@@ -1,5 +1,5 @@
 #
-# (C) Copyright IBM Corp. 2019
+# (C) Copyright IBM Corp. 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -72,9 +72,6 @@ def build_runtime(name, file, config=None):
     compute_config = extract_compute_config(config)
     compute_handler = Compute(compute_config)
     compute_handler.build_runtime(name, file)
-
-    create_runtime(name, config=config)
-    update_runtime(name, config=config)
 
 
 def delete_runtime(name, config=None):
