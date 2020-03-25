@@ -408,8 +408,6 @@ class FunctionExecutor:
 
         logger.debug("ExecutorID {} Finished getting results".format(self.executor_id))
 
-        if result and len(result) == 1:
-            return result[0]
         return result
 
     def create_execution_plots(self, dst_dir, dst_file_name, fs=None):
