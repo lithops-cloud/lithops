@@ -32,6 +32,7 @@ logging.getLogger('urllib3').setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 OBJ_REQ_RETRIES = 5
+CONN_READ_TIMEOUT = 10
 
 
 class IBMCloudObjectStorageBackend:
@@ -67,8 +68,8 @@ class IBMCloudObjectStorageBackend:
             secret_key = ibm_cos_config.get('secret_key')
             client_config = ibm_botocore.client.Config(max_pool_connections=128,
                                                        user_agent_extra=user_agent,
-                                                       connect_timeout=3,
-                                                       read_timeout=3,
+                                                       connect_timeout=CONN_READ_TIMEOUT,
+                                                       read_timeout=CONN_READ_TIMEOUT,
                                                        retries={'max_attempts': OBJ_REQ_RETRIES})
 
             self.cos_client = ibm_boto3.client('s3',
@@ -81,8 +82,8 @@ class IBMCloudObjectStorageBackend:
             client_config = ibm_botocore.client.Config(signature_version='oauth',
                                                        max_pool_connections=128,
                                                        user_agent_extra=user_agent,
-                                                       connect_timeout=3,
-                                                       read_timeout=3,
+                                                       connect_timeout=CONN_READ_TIMEOUT,
+                                                       read_timeout=CONN_READ_TIMEOUT,
                                                        retries={'max_attempts': OBJ_REQ_RETRIES})
 
             token_manager = DefaultTokenManager(api_key_id=api_key)
@@ -187,65 +188,6 @@ class IBMCloudObjectStorageBackend:
                 logger.debug('GET Object timeout. Retrying request')
                 retries += 1
         return data
-
-    def upload_file(self, filename, bucket, key=None, config=None):
-        """Upload a file to an S3 bucket
-
-        :param filename: File to upload
-        :param bucket: Bucket to upload to
-        :param key: S3 object name. If not specified then file_name is used
-        :return: True if file was uploaded
-        """
-        # If S3 object_name was not specified, use file_name
-        if key is None:
-            key = filename
-
-        retries = 0
-        status = None
-        tc = config if config else TransferConfig(max_concurrency=3)
-        while status is None:
-            try:
-                self.cos_client.upload_file(filename, bucket, key, Config=tc)
-                status = 'OK'
-            except ibm_botocore.exceptions.ClientError as e:
-                if e.response['Error']['Code'] == "NoSuchKey":
-                    raise StorageNoSuchKeyError(bucket, key)
-                else:
-                    raise e
-            except ibm_botocore.exceptions.ReadTimeoutError as e:
-                if retries == OBJ_REQ_RETRIES:
-                    raise e
-                logger.debug('PUT Object timeout. Retrying request')
-                retries += 1
-        return True
-
-    def download_file(self, bucket, key, filename, config=None):
-        """Download a file from S3 to a local file
-
-        :param file_name: File to upload
-        :param bucket: Bucket to upload to
-        :param key: S3 object name.
-        :param file_name: local file to upload
-        :return: True if file was uploaded
-        """
-        retries = 0
-        status = None
-        tc = config if config else TransferConfig(max_concurrency=3)
-        while status is None:
-            try:
-                self.cos_client.download_file(bucket, key, filename, Config=tc)
-                status = 'OK'
-            except ibm_botocore.exceptions.ClientError as e:
-                if e.response['Error']['Code'] == "NoSuchKey":
-                    raise StorageNoSuchKeyError(bucket, key)
-                else:
-                    raise e
-            except ibm_botocore.exceptions.ReadTimeoutError as e:
-                if retries == OBJ_REQ_RETRIES:
-                    raise e
-                logger.debug('GET Object timeout. Retrying request')
-                retries += 1
-        return True
 
     def head_object(self, bucket_name, key):
         """
