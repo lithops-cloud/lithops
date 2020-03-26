@@ -21,6 +21,7 @@ ibm_cf:
 
 ibm_cos:
     endpoint    : <REGION_ENDPOINT>
+    private_endpoint: <PRIVATE_REGION_ENDPOINT>
     api_key     : <API_KEY>
     #access_key : <ACCESS_KEY>  # Optional
     #secret_key : <SECRET_KEY>  # Optional

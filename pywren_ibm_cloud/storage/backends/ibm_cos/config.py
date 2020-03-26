@@ -24,3 +24,8 @@ def load_config(config_data):
        or config_data['ibm_cos']['iam_api_key'] is None):
         raise Exception('You must provide {}, {} or {} to access to IBM COS'
                         .format(required_keys_1, required_keys_2, required_keys_3))
+
+    if not config_data['ibm_cos']['endpoint'].startswith('http'):
+        raise Exception('IBM COS Endpoint must start with http:// or https://')
+    if not config_data['ibm_cos']['private_endpoint'].startswith('http'):
+        raise Exception('IBM COS Private Endpoint must start with http:// or https://')

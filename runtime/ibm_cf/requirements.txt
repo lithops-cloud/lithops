@@ -6,18 +6,19 @@ flask == 1.1.1
 
 # default available packages for python3action
 beautifulsoup4 == 4.8.0
-httplib2 == 0.12.1
+httplib2 == 0.13.0
 kafka_python == 1.4.6
 lxml == 4.3.1
-python-dateutil == 2.7.5
-requests == 2.21.0
+python-dateutil == 2.8.0
+requests == 2.22.0
 scrapy == 1.6.0
 simplejson == 3.16.0
 virtualenv == 16.7.1
-twisted >= 19.7.0
+twisted == 19.7.0
+PyJWT == 1.7.1
 
 # packages for numerics
-numpy == 1.16.4
+numpy == 1.17.2
 scikit-learn == 0.20.3
 scipy == 1.2.1
 pandas == 0.24.2
@@ -29,15 +30,14 @@ Pillow == 6.2.1
 ibm_db == 3.0.1
 cloudant == 2.12.0
 watson-developer-cloud == 1.7.1
-ibm-cos-sdk == 2.5.1
+ibm-cos-sdk == 2.6.0
 ibmcloudsql == 0.2.23
 
 # Compose Libs
-psycopg2 == 2.7.7
+psycopg2 == 2.8.2
 pymongo == 3.8.0
-# pin redis at 2.x, for 3.x use python:3.7 runtime
-redis == 2.10.6
+redis == 3.3.8
 pika == 0.13.1
-# pin elasticsearch at 5.x, for 6.x use python:3.7 runtime
-elasticsearch >=5.0.0,<6.0.0
+elasticsearch == 6.3.1
 cassandra-driver == 3.18.0
+etcd3 == 0.10.0

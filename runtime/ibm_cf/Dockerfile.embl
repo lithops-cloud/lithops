@@ -16,7 +16,7 @@ RUN pip install --upgrade setuptools six \
 	    gevent==1.4.0 \
 	    ibm-cos-sdk==2.6.0 \
 	    redis==3.3.8 \
-	    requests \
+	    requests==2.22.0 \
 	    numpy==1.17.2 \
 	    # Modules for annotation-pipeline:
 	    cpyMSpec==0.3.5 \

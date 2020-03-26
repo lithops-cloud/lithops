@@ -267,7 +267,7 @@ class KnativeServingBackend:
         for event in w.stream(self.api.list_namespaced_custom_object, namespace=self.namespace,
                               group="tekton.dev", version="v1alpha1", plural="taskruns",
                               field_selector="metadata.name={0}".format(task_run_name)):
-            if event['object'].get('status') is not None:
+            if event['object'].get('status'):
                 pod_name = event['object']['status']['podName']
                 w.stop()
 
@@ -339,7 +339,7 @@ class KnativeServingBackend:
                               version="v1alpha1", plural="services",
                               field_selector="metadata.name={0}".format(service_name)):
             conditions = None
-            if event['object'].get('status') is not None:
+            if event['object'].get('status'):
                 conditions = event['object']['status']['conditions']
                 if event['object']['status'].get('url') is not None:
                     service_url = event['object']['status']['url']

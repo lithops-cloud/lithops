@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 #
-# (C) Copyright IBM Corp. 2018
+# (C) Copyright IBM Corp. 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,28 +15,17 @@
 # limitations under the License.
 #
 
-import sys
 from setuptools import setup, find_packages
-
-if sys.version_info < (3,):
-    sys.exit('Sorry, Python 2.x is not supported')
-
-if sys.version_info > (3,) and sys.version_info < (3, 4):
-    sys.exit('Sorry, Python3 version < 3.4 is not supported')
-
-# http://stackoverflow.com/questions/6344076/differences-between-distribute-distutils-setuptools-and-distutils2
 
 # how to get version info into the project
 exec(open('pywren_ibm_cloud/version.py').read())
-
 setup(
     name='pywren_ibm_cloud',
     version=__version__,
     url='https://github.com/pywren/pywren-ibm-cloud',
     author='Gil Vernik',
-    description='Run many jobs over IBM Cloud Functions',
-    long_description="PyWren lets you transparently run your Python functions"
-    "on IBM Cloud Functions",
+    description='Run many jobs over IBM Cloud',
+    long_description="PyWren lets you transparently run your Python functions on IBM Cloud",
     author_email='gilv@il.ibm.com',
     packages=find_packages(),
     install_requires=[
@@ -48,6 +37,12 @@ setup(
     include_package_data=True,
     entry_points='''
         [console_scripts]
-        pywren-runtime=pywren_ibm_cloud.runtime.cli:cli
+        pywren-ibm-cloud=pywren_ibm_cloud.cli.cli:cli
     ''',
+    classifiers=[
+        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: Apache Software License",
+        "Operating System :: OS Independent",
+    ],
+    python_requires='>=3.5',
 )

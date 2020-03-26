@@ -188,8 +188,7 @@ class FunctionExecutor:
         futures = self.invoker.run(job)
         self.futures.extend(futures)
         self._state = FunctionExecutor.State.Running
-        if len(futures) == 1:
-            return futures[0]
+
         return futures
 
     def map_reduce(self, map_function, map_iterdata, reduce_function, extra_params=None, extra_env=None,
@@ -409,8 +408,6 @@ class FunctionExecutor:
 
         logger.debug("ExecutorID {} Finished getting results".format(self.executor_id))
 
-        if result and len(result) == 1:
-            return result[0]
         return result
 
     def create_execution_plots(self, dst_dir, dst_file_name, fs=None):

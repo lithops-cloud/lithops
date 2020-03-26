@@ -67,7 +67,7 @@ class IBMCloudObjectStorageBackend:
             secret_key = ibm_cos_config.get('secret_key')
             client_config = ibm_botocore.client.Config(max_pool_connections=128,
                                                        user_agent_extra=user_agent,
-                                                       connect_timeout=1,
+                                                       connect_timeout=3,
                                                        read_timeout=3,
                                                        retries={'max_attempts': OBJ_REQ_RETRIES})
 
@@ -81,7 +81,7 @@ class IBMCloudObjectStorageBackend:
             client_config = ibm_botocore.client.Config(signature_version='oauth',
                                                        max_pool_connections=128,
                                                        user_agent_extra=user_agent,
-                                                       connect_timeout=1,
+                                                       connect_timeout=3,
                                                        read_timeout=3,
                                                        retries={'max_attempts': OBJ_REQ_RETRIES})
 

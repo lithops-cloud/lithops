@@ -29,7 +29,9 @@ LOGS_PREFIX = "pywren.logs"
 RUNTIMES_PREFIX = "pywren.runtimes"
 MAX_AGG_DATA_SIZE = 4e6  # 4MB
 
-CONFIG_DIR = os.path.expanduser('~/.pywren')
+HOME_DIR = os.path.expanduser('~')
+CONFIG_DIR = os.path.join(HOME_DIR, '.pywren')
+CONFIG_FILE = os.path.join(CONFIG_DIR, 'config')
 CACHE_DIR = os.path.join(CONFIG_DIR, 'cache')
 
 
@@ -51,7 +53,10 @@ def dump_yaml_config(config_filename, data):
 
 
 def get_default_home_filename():
-    default_home_filename = os.path.join(os.path.expanduser("~/.pywren_config"))
+    default_home_filename = CONFIG_FILE
+    if not os.path.exists(default_home_filename):
+        default_home_filename = os.path.join(HOME_DIR, '.pywren_config')
+
     return default_home_filename
 
 
@@ -63,13 +68,14 @@ def get_default_config_filename():
     """
     if 'PYWREN_CONFIG_FILE' in os.environ:
         config_filename = os.environ['PYWREN_CONFIG_FILE']
-        # FIXME log this
 
     elif os.path.exists(".pywren_config"):
         config_filename = os.path.abspath('.pywren_config')
 
     else:
         config_filename = get_default_home_filename()
+
+    logger.info('Getting configuration from {}'.format(config_filename))
 
     return config_filename
 

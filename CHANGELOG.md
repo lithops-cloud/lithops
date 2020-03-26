@@ -4,16 +4,19 @@
 
 ### Added
 - Added memory monitor
+- Added support for Python 3.8
 
 ### Changed
 - Updated knative to work for new releases
 - Updated tblib from 1.4.0 to 1.6.0
 - Changed get_current_memory_usage() to get_memory_usage()
 - Docs updated
+- pywren-runtime client is now called pywren-ibm-cloud
 
 ### Fixed
 - Fixed issue with internal partitioner
 - Fixed issue with get_result()
+- Fixed issue with windows hosts
 - Some other Internal fixes
 
 

@@ -11,38 +11,32 @@ Once you have the credentials, there are two options to configure PyWren: Using 
 
 
 ### Using configuration file
-Copy the `config_template.yaml.` into `~/.pywren_config`
+To configure PyWren through a file you have multiple options:
 
-Edit `~/.pywren_config` and configure the following entries:
+1. Create e new file called `config` in the `~/.pywren` folder and configure the following entries:
 
-```yaml
-pywren: 
-    storage_bucket: <BUCKET_NAME>
+    ```yaml
+    pywren: 
+        storage_bucket: <BUCKET_NAME>
+    
+    ibm_cf:
+        endpoint    : <REGION_ENDPOINT>
+        namespace   : <NAMESPACE>
+        api_key     : <API_KEY>
+       
+    ibm_cos:
+        endpoint   : <REGION_ENDPOINT>  
+        private_endpoint : <PRIVATE_REGION_ENDPOINT>
+        api_key    : <API_KEY>
+    ```
 
-#ibm:
-    #iam_api_key: <IAM_API_KEY>
+2. Create a new file called `.pywren_config` in the root directory of your project from where you will execute your PyWren scripts.
 
-ibm_cf:
-    # Region endpoint example: https://us-east.functions.cloud.ibm.com
-    endpoint    : <REGION_ENDPOINT>  # make sure to use https:// as prefix
-    namespace   : <NAMESPACE>
-    api_key     : <API_KEY>  # Not needed if using IAM API Key
-    # namespace_id : <NAMESPACE_ID>  # Mandatory if using IAM API Key
-   
-ibm_cos:
-    # Region endpoint example: https://s3.us-east.cloud-object-storage.appdomain.cloud
-    endpoint   : <REGION_ENDPOINT>  # make sure to use https:// as prefix
-    api_key    : <API_KEY>  # Not needed if using IAM API Key
-    # alternatively you can use HMAC authentication method
-    # access_key : <ACCESS_KEY>
-    # secret_key : <SECRET_KEY>
-```
-
-You can choose different name for the config file or keep it into different folder. If this is the case make sure you configure system variable 
+3. Create the config file in any other location and configure the `PYWREN_CONFIG_FILE` system environment variable:
 	
 	PYWREN_CONFIG_FILE=<LOCATION OF THE CONFIG FILE>
 
-Once the configuration file is created, you can obtain an IBM-PyWren executor by:
+Once the configuration file is created, you can obtain an IBM Cloud Functions executor by:
 
 ```python
 import pywren_ibm_cloud as pywren
@@ -59,7 +53,8 @@ config = {'pywren' : {'storage_bucket' : 'BUCKET_NAME'},
                       'namespace': 'NAMESPACE', 
                       'api_key': 'API_KEY'}, 
 
-          'ibm_cos': {'endpoint': 'REGION_ENDPOINT', 
+          'ibm_cos': {'endpoint': 'ENDPOINT', 
+                      'private_endpoint': 'PRIVATE_ENDPOINT', 
                       'api_key': 'API_KEY'}}
 ```
 
