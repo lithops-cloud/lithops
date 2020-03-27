@@ -202,17 +202,17 @@ class TestPywren(unittest.TestCase):
         pw = pywren.function_executor(config=CONFIG)
         pw.call_async(TestMethods.hello_world, "")
         result = pw.get_result()
-        self.assertEqual(result[0], "Hello World!")
+        self.assertEqual(result, "Hello World!")
 
         pw = pywren.function_executor(config=CONFIG)
         pw.call_async(TestMethods.simple_map_function, [4, 6])
         result = pw.get_result()
-        self.assertEqual(result[0], 10)
+        self.assertEqual(result, 10)
 
         pw = pywren.function_executor(config=CONFIG)
         pw.call_async(TestMethods.simple_map_function, {'x': 2, 'y': 8})
         result = pw.get_result()
-        self.assertEqual(result[0], 10)
+        self.assertEqual(result, 10)
 
     def test_map(self):
         print('Testing map()...')
@@ -251,7 +251,7 @@ class TestPywren(unittest.TestCase):
         pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(TestMethods.simple_map_function, iterdata, TestMethods.simple_reduce_function)
         result = pw.get_result()
-        self.assertEqual(result[0], 20)
+        self.assertEqual(result, 20)
 
     def test_multiple_executions(self):
         print('Testing multiple executions...')
@@ -303,7 +303,7 @@ class TestPywren(unittest.TestCase):
         pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(TestMethods.my_map_function_obj, data_prefix, TestMethods.my_reduce_function)
         result = pw.get_result()
-        self.assertEqual(result[0], self.__class__.cos_result_to_compare)
+        self.assertEqual(result, self.__class__.cos_result_to_compare)
 
     def test_map_reduce_cos_bucket_one_reducer_per_object(self):
         print('Testing map_reduce() over a COS bucket with one reducer per object...')
@@ -323,7 +323,7 @@ class TestPywren(unittest.TestCase):
         pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(TestMethods.my_map_function_obj, iterdata, TestMethods.my_reduce_function)
         result = pw.get_result()
-        self.assertEqual(result[0], self.__class__.cos_result_to_compare)
+        self.assertEqual(result, self.__class__.cos_result_to_compare)
 
     def test_map_reduce_cos_key_one_reducer_per_object(self):
         print('Testing map_reduce() over COS keys with one reducer per object...')
@@ -341,7 +341,7 @@ class TestPywren(unittest.TestCase):
         pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(TestMethods.my_map_function_url, TEST_FILES_URLS, TestMethods.my_reduce_function)
         result = pw.get_result()
-        self.assertEqual(result[0], self.__class__.cos_result_to_compare)
+        self.assertEqual(result, self.__class__.cos_result_to_compare)
 
     def test_storage_handler(self):
         print('Testing ibm_cos function arg...')
@@ -349,7 +349,7 @@ class TestPywren(unittest.TestCase):
         pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(TestMethods.my_map_function_ibm_cos, iterdata, TestMethods.my_reduce_function)
         result = pw.get_result()
-        self.assertEqual(result[0], self.__class__.cos_result_to_compare)
+        self.assertEqual(result, self.__class__.cos_result_to_compare)
 
     def test_chunks_bucket(self):
         print('Testing chunks on a bucket...')
@@ -359,13 +359,13 @@ class TestPywren(unittest.TestCase):
         futures = pw.map_reduce(TestMethods.my_map_function_obj, data_prefix, TestMethods.my_reduce_function,
                                 chunk_size=1 * 1024 ** 2)
         result = pw.get_result(futures)
-        self.assertEqual(result[0], self.__class__.cos_result_to_compare)
+        self.assertEqual(result, self.__class__.cos_result_to_compare)
         self.assertEqual(len(futures), 8)
 
         pw = pywren.function_executor(config=CONFIG)
         futures = pw.map_reduce(TestMethods.my_map_function_obj, data_prefix, TestMethods.my_reduce_function, chunk_n=2)
         result = pw.get_result(futures)
-        self.assertEqual(result[0], self.__class__.cos_result_to_compare)
+        self.assertEqual(result, self.__class__.cos_result_to_compare)
         self.assertEqual(len(futures), 11)
 
     def test_chunks_bucket_one_reducer_per_object(self):
@@ -392,7 +392,7 @@ class TestPywren(unittest.TestCase):
         pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(TestMethods.my_cloudobject_put, data_prefix, TestMethods.my_cloudobject_get)
         result = pw.get_result()
-        self.assertEqual(result[0], self.__class__.cos_result_to_compare)
+        self.assertEqual(result, self.__class__.cos_result_to_compare)
 
 
 def print_help():

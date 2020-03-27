@@ -102,6 +102,7 @@ class FunctionExecutor:
         self.futures = []
         self.total_jobs = 0
         self.cleaned_jobs = set()
+        self.last_call = None
 
     def _create_job_id(self, call_type):
         job_id = str(self.total_jobs).zfill(3)
@@ -125,6 +126,7 @@ class FunctionExecutor:
         :return: future object.
         """
         job_id = self._create_job_id('A')
+        self.last_call = 'call_async'
 
         runtime_meta = self.invoker.select_runtime(job_id, runtime_memory)
 
@@ -167,6 +169,7 @@ class FunctionExecutor:
         :return: A list with size `len(iterdata)` of futures.
         """
         job_id = self._create_job_id('M')
+        self.last_call = 'map'
 
         runtime_meta = self.invoker.select_runtime(job_id, runtime_memory)
 
@@ -221,6 +224,7 @@ class FunctionExecutor:
         :return: A list with size `len(map_iterdata)` of futures.
         """
         map_job_id = self._create_job_id('M')
+        self.last_call = 'map_reduce'
 
         runtime_meta = self.invoker.select_runtime(map_job_id, map_runtime_memory)
 
@@ -407,6 +411,9 @@ class FunctionExecutor:
                 f._read = True
 
         logger.debug("ExecutorID {} Finished getting results".format(self.executor_id))
+
+        if len(result) == 1 and self.last_call != 'map':
+            return result[0]
 
         return result
 

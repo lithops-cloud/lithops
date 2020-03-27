@@ -18,7 +18,7 @@ PyWren for IBM Cloud provides great value for the variety of uses cases, like pr
 
 * [IBM Cloud Functions account](https://cloud.ibm.com/functions)
 * [IBM Cloud Object Storage account](https://www.ibm.com/cloud/object-storage)
-* Python 3.5, 3.6, 3.7 or 3.8
+* Python >=3.5, <=3.8
 
 ## PyWren Setup
 
@@ -46,7 +46,7 @@ PyWren for IBM Cloud provides great value for the variety of uses cases, like pr
 
    pw = pywren.ibm_cf_executor()
    pw.call_async(hello, 'World')
-   print(pw.get_result()[0])
+   print(pw.get_result())
    ```
 
 ## How to use PyWren for IBM Cloud
