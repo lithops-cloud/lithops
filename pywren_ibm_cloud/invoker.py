@@ -55,7 +55,8 @@ class FunctionInvoker:
 
         self.remote_invoker = self.config['pywren'].get('remote_invoker', False)
         self.workers = self.config['pywren'].get('workers')
-        logger.debug('ExecutorID {} - Total workers: {}'.format(self.executor_id, self.workers))
+        logger.debug('ExecutorID {} - Total available workers: {}'
+                     .format(self.executor_id, self.workers))
 
         self.compute_handlers = []
         cb = self.compute_config['backend']

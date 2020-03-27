@@ -1,5 +1,5 @@
 #
-# (C) Copyright IBM Corp. 2019
+# (C) Copyright IBM Corp. 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,17 +28,11 @@ from pywren_ibm_cloud.config import default_config, extract_storage_config
 from concurrent.futures import ThreadPoolExecutor
 
 # logging.basicConfig(level=logging.DEBUG)
-parser = argparse.ArgumentParser(description="test all PyWren's functionality",
-                                 usage='python -m pywren_ibm_cloud.tests [-c CONFIG] [-t TESTNAME]')
-parser.add_argument('-c', '--config', type=argparse.FileType('r'), metavar='', default=None,
-                    help="use json config file")
-parser.add_argument('-t', '--test', metavar='', default='all',
-                    help='run a specific test, type "-t help" for tests list')
-args = parser.parse_args()
 
-CONFIG = default_config()
-STORAGE_CONFIG = extract_storage_config(CONFIG)
-STORAGE = InternalStorage(STORAGE_CONFIG).storage_handler
+CONFIG = None
+STORAGE_CONFIG = None
+STORAGE = None
+
 PREFIX = '__pywren.test'
 TEST_FILES_URLS = ["http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.enron.txt",
                    "http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.kos.txt",
@@ -288,7 +282,7 @@ class TestPywren(unittest.TestCase):
         pw = pywren.function_executor(config=CONFIG)
         pw.map(TestMethods.pywren_inside_pywren_map_function, range(1, 11))
         result = pw.get_result()
-        self.assertEqual(result, [0] + [list(range(i)) for i in range(2, 11)])
+        self.assertEqual(result, [list(range(i)) for i in range(1, 11)])
 
         pw = pywren.function_executor(config=CONFIG)
         pw.call_async(TestMethods.pywren_return_futures_map_function1, 3)
@@ -401,28 +395,45 @@ class TestPywren(unittest.TestCase):
         self.assertEqual(result, self.__class__.cos_result_to_compare)
 
 
+def print_help():
+    print("available test functions:")
+    func_names = filter(lambda s: s[:4] == 'test',
+                        map(lambda t: t[0], inspect.getmembers(TestPywren(), inspect.ismethod)))
+    for func_name in func_names:
+        print(f'-> {func_name}')
+
+
+def run_tests(test_to_run, config=None):
+    global CONFIG, STORAGE_CONFIG, STORAGE
+
+    CONFIG = json.load(args.config) if config else default_config()
+    STORAGE_CONFIG = extract_storage_config(CONFIG)
+    STORAGE = InternalStorage(STORAGE_CONFIG).storage_handler
+
+    suite = unittest.TestSuite()
+    if test_to_run == 'all':
+        suite.addTest(unittest.makeSuite(TestPywren))
+    else:
+        try:
+            suite.addTest(TestPywren(test_to_run))
+        except ValueError:
+            print("unknown test, use: --help")
+            sys.exit()
+
+    runner = unittest.TextTestRunner()
+    runner.run(suite)
+
+
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="test all PyWren's functionality",
+                                     usage='python -m pywren_ibm_cloud.tests [-c CONFIG] [-t TESTNAME]')
+    parser.add_argument('-c', '--config', type=argparse.FileType('r'), metavar='', default=None,
+                        help="use json config file")
+    parser.add_argument('-t', '--test', metavar='', default='all',
+                        help='run a specific test, type "-t help" for tests list')
+    args = parser.parse_args()
 
     if args.test == 'help':
-        print("available test functions:")
-        func_names = filter(lambda s: s[:4] == 'test',
-                            map(lambda t: t[0], inspect.getmembers(TestPywren(), inspect.ismethod)))
-        for func_name in func_names:
-            print(f'-> {func_name}')
-
+        print_help()
     else:
-        suite = unittest.TestSuite()
-        if args.test == 'all':
-            suite.addTest(unittest.makeSuite(TestPywren))
-        else:
-            try:
-                suite.addTest(TestPywren(args.test))
-            except ValueError:
-                print("unknown test, use: --help")
-                sys.exit()
-
-        if args.config:
-            args.config = json.load(args.config)
-
-        runner = unittest.TextTestRunner()
-        runner.run(suite)
+        run_tests(args.test, args.config)
