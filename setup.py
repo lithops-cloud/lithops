@@ -29,10 +29,10 @@ setup(
     author_email='gilv@il.ibm.com',
     packages=find_packages(),
     install_requires=[
-        'Click', 'ibm-cos-sdk', 'PyYAML', 'pika==0.13.1',
-        'enum34', 'glob2', 'tqdm', 'tblib', 'docker',
-        'requests', 'python-dateutil', 'lxml',
-        'pandas', 'seaborn', 'matplotlib', 'kubernetes'
+        'Click', 'pandas', 'PyYAML', 'python-dateutil',
+        'pika==0.13.1', 'enum34', 'glob2', 'tqdm', 'lxml',
+        'tblib', 'docker', 'requests', 'seaborn',
+        'matplotlib', 'kubernetes', 'ibm-cos-sdk'
     ],
     include_package_data=True,
     entry_points='''

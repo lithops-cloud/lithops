@@ -25,7 +25,7 @@ PyWren for IBM Cloud provides great value for the variety of uses cases, like pr
 1. Install PyWren from the PyPi repository:
 
     ```bash
-    pip install pywren-ibm-cloud
+    $ pip install pywren-ibm-cloud
     ```
 
 2. Navigate into [config/](config/) and follow the instructions to configure the client with the access details to your IBM Cloud Object Storage and IBM Cloud Functions accounts.
@@ -33,7 +33,7 @@ PyWren for IBM Cloud provides great value for the variety of uses cases, like pr
 3. Test PyWren by simply running the next command:
   
    ```bash
-   pywren-ibm-cloud test
+    $ pywren-ibm-cloud test
    ```
 
    or by running the next code:
@@ -84,15 +84,15 @@ Additional information and examples:
 
 To test that all is working, use the command:
 
-  ```bash
-  pywren-ibm-cloud verify
-  ```
+```bash
+$ pywren-ibm-cloud verify
+```
 
 or
 
-  ```bash
-  python -m pywren_ibm_cloud.tests`
-  ```
+```bash
+$ python -m pywren_ibm_cloud.tests`
+```
 
 Notice that if you didn't set a local PyWren's config file, you need to provide it as a json file path by `-c <CONFIG>` flag.
 

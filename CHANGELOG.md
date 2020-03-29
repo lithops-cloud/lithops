@@ -1,10 +1,22 @@
 # Changelog
 
-## [v1.4.3--snapshot]
+## [v1.5.1--snapshot]
 
 ### Added
-- Added memory monitor
+- 
+
+### Changed
+- Docs updated
+
+### Fixed
+- 
+
+
+## [v1.5.0]
+
+### Added
 - Added support for Python 3.8
+- Added memory monitor
 
 ### Changed
 - Updated knative to work for new releases
@@ -18,7 +30,6 @@
 - Fixed issue with get_result()
 - Fixed issue with windows hosts
 - Some other Internal fixes
-
 
 ## [v1.4.2]
 
