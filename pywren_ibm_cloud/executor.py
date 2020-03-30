@@ -426,13 +426,17 @@ class FunctionExecutor:
         :param fs: list of futures.
         """
         ftrs = self.futures if not fs else fs
+
         if type(ftrs) != list:
             ftrs = [ftrs]
+
         ftrs_to_plot = [f for f in ftrs if (f.ready or f.done) and not f.error]
 
         if not ftrs_to_plot:
             logger.debug('ExecutorID {} - No futures ready to plot'.format(self.executor_id))
             return
+
+        start_time = self.start_time if not fs else ftrs_to_plot[0]._call_metadata['host_submit_time']-1
 
         logging.getLogger('matplotlib').setLevel(logging.WARNING)
         from pywren_ibm_cloud.plots import create_timeline, create_histogram
@@ -443,8 +447,9 @@ class FunctionExecutor:
         call_status = [f._call_status for f in ftrs_to_plot]
         call_metadata = [f._call_metadata for f in ftrs_to_plot]
 
-        create_timeline(dst_dir, dst_file_name, self.start_time, call_status, call_metadata, self.config['ibm_cos'])
-        create_histogram(dst_dir, dst_file_name, self.start_time, call_status, self.config['ibm_cos'])
+        dst_dir = os.path.expanduser(dst_dir)
+        create_timeline(dst_dir, dst_file_name, start_time, call_status, call_metadata, self.config['ibm_cos'])
+        create_histogram(dst_dir, dst_file_name, start_time, call_status, self.config['ibm_cos'])
 
     def clean(self, fs=None, local_execution=True):
         """
