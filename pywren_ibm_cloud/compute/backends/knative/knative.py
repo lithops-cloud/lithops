@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import json
 import time
@@ -428,6 +429,12 @@ class KnativeServingBackend:
         """
         logger.info('Building a new docker image from Dockerfile')
         logger.info('Docker image name: {}'.format(docker_image_name))
+
+        expression = '^([a-z0-9]+)/([-a-z0-9]+)(:[a-z0-9]+)?'
+        result = re.match(expression, docker_image_name)
+
+        if not result or result.group() != docker_image_name:
+            raise Exception("Invalid docker image name: '.' or '_' characters are not allowed")
 
         self._create_function_handler_zip()
 

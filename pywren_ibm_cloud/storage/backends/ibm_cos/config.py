@@ -8,6 +8,9 @@ def load_config(config_data):
             raise Exception('You must provide the private_endpoint to access to IBM COS')
         elif 'private' not in config_data['ibm_cos']['private_endpoint']:
             raise Exception('The private_endpoint you provided to access to IBM COS is not valid')
+        if not config_data['ibm_cos']['private_endpoint'].startswith('http'):
+            raise Exception('IBM COS Private Endpoint must start with http:// or https://')
+
     elif 'private_endpoint' in config_data['ibm_cos']:
         del config_data['ibm_cos']['private_endpoint']
 
@@ -27,5 +30,3 @@ def load_config(config_data):
 
     if not config_data['ibm_cos']['endpoint'].startswith('http'):
         raise Exception('IBM COS Endpoint must start with http:// or https://')
-    if not config_data['ibm_cos']['private_endpoint'].startswith('http'):
-        raise Exception('IBM COS Private Endpoint must start with http:// or https://')

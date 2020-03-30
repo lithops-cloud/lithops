@@ -48,6 +48,9 @@ NAMESPACE=guest
 Copy all the values into the pywren config file as:
 
 ```yaml
+pywren:
+    compute_backend: openwhisk
+
 openwhisk:
     endpoint    : https://192.168.1.30
     namespace   : guest
