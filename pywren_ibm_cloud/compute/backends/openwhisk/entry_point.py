@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import os
 import logging
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.config import cloud_logging_config
@@ -25,6 +26,7 @@ logger = logging.getLogger('__main__')
 
 
 def main(args):
+    os.environ['__PW_ACTIVATION_ID'] = os.environ['__OW_ACTIVATION_ID']
     if 'remote_invoker' in args:
         logger.info("PyWren v{} - Starting OpenWhisk Functions invoker".format(__version__))
         function_invoker(args)

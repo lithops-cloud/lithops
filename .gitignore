@@ -3,7 +3,8 @@
 __pycache__/
 build/
 dist/
-pywren_ibm_cloud.egg-info
+plots/
+*.egg-info
 pywren_*.zip
 
 # Linux
