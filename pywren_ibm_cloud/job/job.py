@@ -6,6 +6,7 @@ import inspect
 from pywren_ibm_cloud import utils
 from pywren_ibm_cloud.wait import wait_storage
 from pywren_ibm_cloud.job.partitioner import create_partitions
+from pywren_ibm_cloud.function.utils import is_object_processing_function
 from pywren_ibm_cloud.storage.utils import create_func_key, create_agg_data_key
 from pywren_ibm_cloud.job.serialize import SerializeIndependent, create_module_data
 from pywren_ibm_cloud.config import MAX_AGG_DATA_SIZE, JOBS_PREFIX
@@ -20,6 +21,7 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
     """
+    job_created_timestamp = time.time()
     map_func = map_function
     map_iterdata = utils.verify_args(map_function, iterdata, extra_params)
     new_invoke_pool_threads = invoke_pool_threads
@@ -31,7 +33,7 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
 
     # Object processing functionality
     parts_per_object = None
-    if utils.is_object_processing_function(map_function):
+    if is_object_processing_function(map_function):
         # If it is object processing function, create partitions according chunk_size or chunk_number
         logger.debug('ExecutorID {} | JobID {} - Calling map on partitions from object storage flow'.format(executor_id, job_id))
         map_iterdata, parts_per_object = create_partitions(config, map_iterdata, obj_chunk_size, obj_chunk_number)
@@ -45,7 +47,8 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
                                   invoke_pool_threads=new_invoke_pool_threads,
                                   include_modules=include_modules,
                                   exclude_modules=exclude_modules,
-                                  execution_timeout=execution_timeout)
+                                  execution_timeout=execution_timeout,
+                                  job_created_timestamp=job_created_timestamp)
 
     if parts_per_object:
         job_description['parts_per_object'] = parts_per_object
@@ -60,6 +63,7 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
     """
+    job_created_timestamp = time.time()
     iterdata = [[map_futures, ]]
 
     if 'parts_per_object' in map_job and reducer_one_per_object:
@@ -96,12 +100,14 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
                        include_modules=include_modules,
                        exclude_modules=exclude_modules,
                        original_func_name=reduce_function.__name__,
-                       execution_timeout=execution_timeout)
+                       execution_timeout=execution_timeout,
+                       job_created_timestamp=job_created_timestamp)
 
 
 def _create_job(config, internal_storage, executor_id, job_id, func, data, runtime_meta,
                 runtime_memory=None, extra_env=None, invoke_pool_threads=128, include_modules=[],
-                exclude_modules=[], original_func_name=None, execution_timeout=None):
+                exclude_modules=[], original_func_name=None, execution_timeout=None,
+                job_created_timestamp=None):
     """
     :param func: the function to map over the data
     :param iterdata: An iterable of input data
@@ -138,9 +144,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     if execution_timeout is None:
         execution_timeout = config['pywren']['runtime_timeout'] - 5
 
-    host_job_meta = {}
     job_description = {}
-
     job_description['runtime_name'] = runtime_name
     job_description['runtime_memory'] = int(runtime_memory)
     job_description['execution_timeout'] = execution_timeout
@@ -167,6 +171,8 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
         inc_modules.update(include_modules)
     if include_modules is None:
         inc_modules = None
+
+    host_job_meta = {'job_created_timestamp': job_created_timestamp}
 
     logger.debug('ExecutorID {} | JobID {} - Serializing function and data'.format(executor_id, job_id))
     serializer = SerializeIndependent(runtime_meta['preinstalls'])

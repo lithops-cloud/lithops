@@ -7,9 +7,10 @@
 
 ### Changed
 - Docs updated
+- pw.create execution_plots() renamed to pw.plot()
 
 ### Fixed
-- 
+- Fixed minor issue in knative
 
 
 ## [v1.5.0]

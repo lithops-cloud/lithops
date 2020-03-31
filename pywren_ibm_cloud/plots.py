@@ -19,6 +19,7 @@ matplotlib.use('Agg')
 import io
 import os
 import pylab
+import time
 import logging
 import numpy as np
 import pandas as pd
@@ -30,7 +31,11 @@ sns.set_style('whitegrid')
 logger = logging.getLogger(__name__)
 
 
-def create_timeline(dst, name, pw_start_time, call_status, call_metadata, cos_config):
+def create_timeline(fs, dst):
+    call_status = [f._call_status for f in fs]
+    call_metadata = [f._call_metadata for f in fs]
+    fs_start_time = min([cm['job_created_timestamp'] for cm in call_metadata])
+
     status_df = pd.DataFrame(call_status)
     metadata_df = pd.DataFrame(call_metadata)
     results_df = pd.concat([status_df, metadata_df], axis=1)
@@ -50,15 +55,15 @@ def create_timeline(dst, name, pw_start_time, call_status, call_metadata, cos_co
     y = np.arange(total_calls)
     point_size = 10
 
-    fields = [('host submit', results_df.host_submit_time - pw_start_time),
-              ('action start', results_df.start_time - pw_start_time),
+    fields = [('host submit', results_df.host_submit_time - fs_start_time),
+              ('action start', results_df.start_time - fs_start_time),
               #('jobrunner start', results_df.jobrunner_start - pw_start_time),
-              ('action done', results_df.end_time - pw_start_time)]
+              ('action done', results_df.end_time - fs_start_time)]
 
-    fields.append(('status fetched', results_df.status_done_timestamp - pw_start_time))
+    fields.append(('status fetched', results_df.status_done_timestamp - fs_start_time))
 
     if 'download_output_timestamp' in results_df:
-        fields.append(('results fetched', results_df.download_output_timestamp - pw_start_time))       
+        fields.append(('results fetched', results_df.download_output_timestamp - fs_start_time))
 
     patches = []
     for f_i, (field_name, val) in enumerate(fields):
@@ -82,11 +87,11 @@ def create_timeline(dst, name, pw_start_time, call_status, call_metadata, cos_co
         ax.axhline(y, c='k', alpha=0.1, linewidth=1)
 
     if 'download_output_timestamp' in results_df:
-        max_seconds = np.max(results_df.download_output_timestamp - pw_start_time)*1.25
+        max_seconds = np.max(results_df.download_output_timestamp - fs_start_time)*1.25
     elif 'status_done_timestamp' in results_df:
-        max_seconds = np.max(results_df.status_done_timestamp - pw_start_time)*1.25
+        max_seconds = np.max(results_df.status_done_timestamp - fs_start_time)*1.25
     else:
-        max_seconds = np.max(results_df.end_time - pw_start_time)*1.25
+        max_seconds = np.max(results_df.end_time - fs_start_time)*1.25
 
     xplot_step = max(int(max_seconds/8), 1)
     x_ticks = np.arange(max_seconds//xplot_step + 2) * xplot_step
@@ -99,21 +104,27 @@ def create_timeline(dst, name, pw_start_time, call_status, call_metadata, cos_co
     ax.grid(False)
     fig.tight_layout()
 
-    if dst.split('://')[0] == 'cos':
-        save_plot_in_cos(cos_config, fig, dst, name+"_timeline.png")
+    if dst is None:
+        dst = os.path.join(os.getcwd(), '{}_{}'.format(int(time.time()), 'timeline.png'))
     else:
-        fig.savefig(os.path.join(dst, name+"_timeline.png"))
-    pylab.close(fig)
+        dst = os.path.expanduser(dst) if '~' in dst else dst
+        dst = '{}_{}'.format(dst, 'timeline.png')
+
+    fig.savefig(dst)
 
 
-def create_histogram(dst, name, pw_start_time, call_status, cos_config):
+def create_histogram(fs, dst):
+    call_status = [f._call_status for f in fs]
+    call_metadata = [f._call_metadata for f in fs]
+    fs_start_time = min([cm['job_created_timestamp'] for cm in call_metadata])
+
     runtime_bins = np.linspace(0, 600, 600)
 
     def compute_times_rates(time_rates):
         x = np.array(time_rates)
 
         #tzero = np.min(x[:, 0])
-        tzero = pw_start_time
+        tzero = fs_start_time
         start_time = x[:, 0] - tzero
         end_time = x[:, 1] - tzero
 
@@ -159,21 +170,12 @@ def create_histogram(dst, name, pw_start_time, call_status, cos_config):
     ax.legend(loc='upper right')
 
     fig.tight_layout()
-    if dst.split('://')[0] == 'cos':
-        save_plot_in_cos(cos_config, fig, dst, name+"_histogram.png")
+
+    if dst is None:
+        dst = os.path.join(os.getcwd(), '{}_{}'.format(int(time.time()), 'histogram.png'))
     else:
-        fig.savefig(os.path.join(dst, name+"_histogram.png"))
+        dst = os.path.expanduser(dst) if '~' in dst else dst
+        dst = '{}_{}'.format(dst, 'histogram.png')
 
+    fig.savefig(dst)
     pylab.close(fig)
-
-
-def save_plot_in_cos(cos_config, fig, dst, filename):
-    bucketname = dst.split('cos://')[1].split('/')[0]
-    key = os.path.join(*dst.split('cos://')[1].split('/')[1:], filename)
-
-    buff = io.BytesIO()
-    fig.savefig(buff)
-    buff.seek(0)
-
-    cos_handler = IBMCloudObjectStorageBackend(cos_config)
-    cos_handler.put_object(bucketname, key, buff.read())
