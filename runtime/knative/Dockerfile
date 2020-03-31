@@ -29,4 +29,4 @@ WORKDIR $APP_HOME
 COPY pywren_knative.zip .
 RUN unzip pywren_knative.zip && rm pywren_knative.zip
 
-CMD exec gunicorn --bind :$PORT --workers 1 pywrenproxy:proxy
+CMD exec gunicorn --bind :$PORT --workers 1 --timeout 600 pywrenproxy:proxy
