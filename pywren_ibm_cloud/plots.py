@@ -36,15 +36,8 @@ def create_timeline(fs, dst):
 
     status_df = pd.DataFrame(call_status)
     metadata_df = pd.DataFrame(call_metadata)
-    results_df = pd.concat([status_df, metadata_df], axis=1)
+    results_df = pd.concat([status_df, metadata_df], axis=1).T.drop_duplicates().T
     total_calls = len(results_df)
-
-    Cols = list(results_df.columns)
-    for i, item in enumerate(results_df.columns):
-        if item in results_df.columns[:i]:
-            Cols[i] = "toDROP"
-    results_df.columns = Cols
-    results_df = results_df.drop("toDROP", 1)
 
     palette = sns.color_palette("deep", 6)
 

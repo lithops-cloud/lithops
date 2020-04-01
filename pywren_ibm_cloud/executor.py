@@ -1,7 +1,6 @@
 import os
 import sys
 import copy
-import time
 import json
 import signal
 import logging
@@ -299,14 +298,18 @@ class FunctionExecutor:
         futures = self.futures if not fs else fs
         if type(futures) != list:
             futures = [futures]
+
         if not futures:
             raise Exception('You must run the call_async(), map() or map_reduce(), or provide'
                             ' a list of futures before calling the wait()/get_result() method')
 
         if download_results:
             msg = 'ExecutorID {} - Getting results...'.format(self.executor_id)
+            futures = [f for f in futures if not f.done and f._produce_output]
         else:
             msg = 'ExecutorID {} - Waiting for functions to complete...'.format(self.executor_id)
+            futures = [f for f in futures if not f.ready and not f.done]
+
         print(msg) if not self.log_level else logger.info(msg)
 
         if is_unix_system() and timeout is not None:
@@ -316,20 +319,14 @@ class FunctionExecutor:
             signal.alarm(timeout)
 
         pbar = None
-        if not self.is_pywren_function and self._state == FunctionExecutor.State.Running \
-           and not self.log_level:
+        if not self.is_pywren_function and not self.log_level:
             from tqdm.auto import tqdm
 
-            if download_results:
-                total_to_check = len([f for f in futures if not f.done])
-            else:
-                total_to_check = len([f for f in futures if not f.ready and not (f.ready or f.done)])
-
             if is_notebook():
-                pbar = tqdm(bar_format='{n}/|/ {n_fmt}/{total_fmt}', total=total_to_check)  # ncols=800
+                pbar = tqdm(bar_format='{n}/|/ {n_fmt}/{total_fmt}', total=len(futures))  # ncols=800
             else:
                 print()
-                pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=total_to_check, disable=False)
+                pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(futures), disable=False)
 
         try:
             if self.rabbitmq_monitor:

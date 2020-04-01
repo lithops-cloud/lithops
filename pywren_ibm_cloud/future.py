@@ -189,7 +189,7 @@ class ResponseFuture:
                 logger.debug('Exception: {} - {}'.format(self._exception[0].__name__, self._exception[1]))
                 return None
 
-        self._call_metadata['host_submit_time'] = self._call_status['host_submit_time']
+        self._call_metadata['host_submit_time'] = self._call_status.pop('host_submit_time')
         self._call_metadata['status_done_timestamp'] = time.time()
         self._call_metadata['status_query_count'] = self._status_query_count
 
