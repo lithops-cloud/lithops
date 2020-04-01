@@ -1,4 +1,4 @@
-# PyWren on Knative (Experimental)
+# PyWren on Knative
 
 The easiest way to make it working is to create an IBM Kubernetes (IKS) cluster trough the [IBM dashboard](https://cloud.ibm.com/kubernetes/landing). For testing purposes, it is preferable to use this setup:
 - Install Kubernetes >= v1.15
@@ -41,12 +41,15 @@ kubectl get pods --namespace tekton-pipelines
 ```
 
 
-#### Edit *~/.pywren_config* and add the next section:
+#### Edit your pywren config file and add the next section:
 
 ```yaml
+pywren:
+    compute_backend: knative
+    
 knative:
-      docker_user: my-username
-      docker_token: 12e9075f-6cd7-4147-a01e-8e34ffe9196e
+    docker_user: username
+    docker_token: 12e9075f-6cd7-4147-a01e-8e34ffe9196e
 ```
 - **docker_token**: Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)
 

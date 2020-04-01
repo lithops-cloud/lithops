@@ -9,34 +9,36 @@ Alternatively, instead of creating one different `api_key` for each service, you
 
 Once you have the credentials, there are two options to configure PyWren: Using a configuration file or using a Python dictionary in the runtime:
 
+### Using a configuration file
 
-### Using configuration file
-To configure PyWren through a file you have multiple options:
+To configure PyWren through a config file you have multiple options:
 
-1. Create e new file called `config` in the `~/.pywren` folder and configure the following entries:
-
-    ```yaml
-    pywren: 
-        storage_bucket: <BUCKET_NAME>
-    
-    ibm_cf:
-        endpoint    : <REGION_ENDPOINT>
-        namespace   : <NAMESPACE>
-        api_key     : <API_KEY>
-       
-    ibm_cos:
-        endpoint   : <REGION_ENDPOINT>  
-        private_endpoint : <PRIVATE_REGION_ENDPOINT>
-        api_key    : <API_KEY>
-    ```
+1. Create e new file called `config` in the `~/.pywren` folder.
 
 2. Create a new file called `.pywren_config` in the root directory of your project from where you will execute your PyWren scripts.
 
 3. Create the config file in any other location and configure the `PYWREN_CONFIG_FILE` system environment variable:
-	
-	PYWREN_CONFIG_FILE=<LOCATION OF THE CONFIG FILE>
 
-Once the configuration file is created, you can obtain an IBM Cloud Functions executor by:
+    PYWREN_CONFIG_FILE=<CONFIG_FILE_LOCATION>
+
+Once the configuration file is created, configure the following entries:
+
+```yaml
+pywren:
+    storage_bucket: <BUCKET_NAME>
+
+ibm_cf:
+    endpoint    : <REGION_ENDPOINT>
+    namespace   : <NAMESPACE>
+    api_key     : <API_KEY>
+
+ibm_cos:
+    endpoint   : <REGION_ENDPOINT>  
+    private_endpoint : <PRIVATE_REGION_ENDPOINT>
+    api_key    : <API_KEY>
+```
+
+Now, you can obtain an IBM Cloud Functions executor by:
 
 ```python
 import pywren_ibm_cloud as pywren
@@ -44,17 +46,19 @@ pw = pywren.ibm_cf_executor()
 ```
 
 ### Configuration in the runtime
-This option allows you pass all the configuration details as part of the PyWren invocation in runtime. All you need is to configure a Python dictionary with keys and values, for example:
+
+This option allows to pass all the configuration details as part of the PyWren invocation in runtime. 
+All you need is to configure a Python dictionary with keys and values, for example:
 
 ```python
 config = {'pywren' : {'storage_bucket' : 'BUCKET_NAME'},
 
-          'ibm_cf':  {'endpoint': 'HOST', 
-                      'namespace': 'NAMESPACE', 
-                      'api_key': 'API_KEY'}, 
+          'ibm_cf':  {'endpoint': 'HOST',
+                      'namespace': 'NAMESPACE',
+                      'api_key': 'API_KEY'},
 
-          'ibm_cos': {'endpoint': 'ENDPOINT', 
-                      'private_endpoint': 'PRIVATE_ENDPOINT', 
+          'ibm_cos': {'endpoint': 'ENDPOINT',
+                      'private_endpoint': 'PRIVATE_ENDPOINT',
                       'api_key': 'API_KEY'}}
 ```
 
@@ -66,12 +70,13 @@ pw = pywren.ibm_cf_executor(config=config)
 ```
 
 ## Using RabbitMQ to monitor function activations
+
 By default, IBM-PyWren uses the IBM Cloud Object Storage service to monitor function activations: Each function activation stores a file named *{id}/status.json* to the Object Storage when it finishes its execution. This file contains some statistics about the execution, including if the function activation ran successfully or not. Having these files, the default monitoring approach is based on polling the Object Store each X seconds to know which function activations have finished and which not.
 
 As this default approach can slow-down the total application execution time, due to the number of requests it has to make against the object store, in IBM-PyWren we integrated a RabitMQ service to monitor function activations in real-time. With RabitMQ, the content of the *{id}/status.json* file is sent trough a queue. This speeds-up total application execution time, since PyWren only needs one connection to the messaging service to monitor all function activations. We currently support the AMQP protocol. To enable PyWren to use this service, add the *AMQP_URL* key into the *rabbitmq* section in the configuration, for example:
 
 ```yaml
-rabbitmq: 
+rabbitmq:
     amqp_url: <AMQP_URL>  # amqp://
 ```
 

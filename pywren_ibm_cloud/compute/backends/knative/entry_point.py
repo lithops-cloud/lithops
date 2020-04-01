@@ -28,7 +28,7 @@ def run():
         return error()
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
-    os.environ['__OW_ACTIVATION_ID'] = act_id
+    os.environ['__PW_ACTIVATION_ID'] = act_id
 
     if 'remote_invoker' in message:
         logger.info("PyWren v{} - Starting Knative invoker".format(__version__))

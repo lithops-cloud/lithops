@@ -19,18 +19,12 @@ import os
 import pika
 import uuid
 import inspect
-import subprocess
 import struct
 import platform
 import logging
 import threading
 import io
 
-try:
-    from pywren_ibm_cloud.libs import ps_mem
-except:
-    # Not supported on Windows hosts
-    pass
 
 logger = logging.getLogger(__name__)
 
@@ -115,46 +109,6 @@ def agg_data(data_strs):
     return b"".join(data_strs), ranges
 
 
-def free_disk_space(dirname):
-    """
-    Returns the number of free bytes on the mount point containing DIRNAME
-    """
-    s = os.statvfs(dirname)
-    return s.f_bsize * s.f_bavail
-
-
-def get_server_info():
-    """
-    Returns server information
-    """
-    container_name = subprocess.check_output("uname -n", shell=True).decode("ascii").strip()
-    ip_addr = subprocess.check_output("hostname -I", shell=True).decode("ascii").strip()
-    cores = subprocess.check_output("nproc", shell=True).decode("ascii").strip()
-
-    cmd = "cat /sys/class/net/eth0/speed | awk '{print $0 / 1000\"GbE\"}'"
-    net_speed = subprocess.check_output(cmd, shell=True).decode("ascii").strip()
-
-    # cmd = "cat /sys/class/net/eth0/address"
-    # mac_address = subprocess.check_output(cmd, shell=True).decode("ascii").strip()
-
-    cmd = "grep MemTotal /proc/meminfo | awk '{print $2 / 1024 / 1024\"GB\"}'"
-    memory = subprocess.check_output(cmd, shell=True).decode("ascii").strip()
-
-    server_info = {'container_name': container_name,
-                   'ip_address': ip_addr,
-                   'net_speed': net_speed,
-                   'cores': cores,
-                   'memory': memory}
-    """
-    if os.path.exists("/proc"):
-        server_info.update({'/proc/cpuinfo': open("/proc/cpuinfo", 'r').read(),
-                            '/proc/meminfo': open("/proc/meminfo", 'r').read(),
-                            '/proc/self/cgroup': open("/proc/meminfo", 'r').read(),
-                            '/proc/cgroups': open("/proc/cgroups", 'r').read()})
-    """
-    return server_info
-
-
 def timeout_handler(error_msg, signum, frame):
     raise TimeoutError(error_msg)
 
@@ -188,11 +142,6 @@ def is_notebook():
             return False  # Other type (?)
     except NameError:
         return False      # Probably standard Python interpreter
-
-
-def is_object_processing_function(map_function):
-    func_sig = inspect.signature(map_function)
-    return {'obj', 'url'} & set(func_sig.parameters)
 
 
 def convert_bools_to_string(extra_env):
@@ -266,36 +215,6 @@ def split_path(path):
         bucket_name = path
         key = None
     return bucket_name, key
-
-
-def get_memory_usage(format=True):
-    """
-    Gets the current memory usage of the runtime.
-    To be used only in the action code.
-    """
-    split_args = False
-    pids_to_show = None
-    discriminate_by_pid = False
-
-    ps_mem.verify_environment(pids_to_show)
-    sorted_cmds, shareds, count, total, swaps, total_swap = \
-        ps_mem.get_memory_usage(pids_to_show, split_args, discriminate_by_pid,
-                                include_self=True, only_self=False)
-    if format:
-        return sizeof_fmt(int(ps_mem.human(total, units=1)))
-    else:
-        return int(ps_mem.human(total, units=1))
-
-
-def get_current_memory_usage():
-    """
-    Gets the current memory usage of the runtime.
-    To be used only in the action code.
-    """
-    print("WARNING - get_current_memory_usage() is deprecated "
-          "and it will be removed. Use get_memory_usage()")
-
-    return get_memory_usage()
 
 
 def format_data(iterdata, extra_params):

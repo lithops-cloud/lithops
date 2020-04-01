@@ -276,19 +276,18 @@ Gets the results from all the function activations. It internally makes use of t
 
 * **Code example**: [call_async.py](../examples/call_async.py), [map.py](../examples/map.py), [map_reduce.py](../examples/map_reduce.py)
 
-## Executor.create_execution_plots()
+## Executor.plot()
 
 Creates 2 detailed execution plots: A timeline plot and a histogram plot.
 
-**create_execution_plots**(dst_dir, dst_name, \*\*kwargs)
+**plot**(\*\*kwargs)
 
 |Parameter| Default |Description|
 |---|---|---|
-|dst_dir|   | Destination directory to store the plots |
-|dst_name |   | name-prefix of the plots|
 |fs| None | List of futures to plot. If None, PyWren uses the internally stored futures|
+|dst| None  | Path to destination file. If None, PyWren uses current directory |
 
-* **Returns**: *Nothing*. It stores 2 different plots in the selected `dst_dir` location.
+* **Returns**: *Nothing*. It stores 2 different plots in the selected `dst` path.
 
 * **Usage**:
 
@@ -296,7 +295,7 @@ Creates 2 detailed execution plots: A timeline plot and a histogram plot.
     iterdata = [1, 2, 3, 4]
     pw.map(foo, iterdata)
     results = pw.get_result()  # or pw.wait()
-    pw.create_execution_plots('/home/user/pywren_plots', 'test')
+    pw.plot(dst='~/pywren_plots/test')
     ```
 
 * **Example**:

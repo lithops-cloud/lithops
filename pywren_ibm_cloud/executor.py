@@ -45,7 +45,6 @@ class FunctionExecutor:
 
         :return `FunctionExecutor` object.
         """
-        self.start_time = time.time()
         self._state = FunctionExecutor.State.New
         self.is_pywren_function = is_pywren_function()
 
@@ -417,7 +416,7 @@ class FunctionExecutor:
 
         return result
 
-    def create_execution_plots(self, dst_dir, dst_file_name, fs=None):
+    def plot(self, fs=None, dst=None):
         """
         Creates timeline and histogram of the current execution in dst_dir.
 
@@ -426,8 +425,10 @@ class FunctionExecutor:
         :param fs: list of futures.
         """
         ftrs = self.futures if not fs else fs
+
         if type(ftrs) != list:
             ftrs = [ftrs]
+
         ftrs_to_plot = [f for f in ftrs if (f.ready or f.done) and not f.error]
 
         if not ftrs_to_plot:
@@ -440,11 +441,8 @@ class FunctionExecutor:
         msg = 'ExecutorID {} - Creating execution plots'.format(self.executor_id)
         print(msg) if not self.log_level else logger.info(msg)
 
-        call_status = [f._call_status for f in ftrs_to_plot]
-        call_metadata = [f._call_metadata for f in ftrs_to_plot]
-
-        create_timeline(dst_dir, dst_file_name, self.start_time, call_status, call_metadata, self.config['ibm_cos'])
-        create_histogram(dst_dir, dst_file_name, self.start_time, call_status, self.config['ibm_cos'])
+        create_timeline(ftrs_to_plot, dst)
+        create_histogram(ftrs_to_plot, dst)
 
     def clean(self, fs=None, local_execution=True):
         """

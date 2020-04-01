@@ -46,6 +46,8 @@ class LocalhostBackend:
         sys.stdout = open('{}.log'.format(event['call_id']), 'w')
 
         event['extra_env']['LOCAL_EXECUTION'] = 'True'
+        act_id = str(uuid.uuid4()).replace('-', '')[:12]
+        os.environ['__PW_ACTIVATION_ID'] = act_id
         function_handler(event)
 
         os.chdir(original_dir)

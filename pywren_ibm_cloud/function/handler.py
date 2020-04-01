@@ -27,10 +27,11 @@ from threading import Thread
 from multiprocessing import Process, Pipe
 from distutils.util import strtobool
 from pywren_ibm_cloud import version
+from pywren_ibm_cloud.utils import sizeof_fmt
 from pywren_ibm_cloud.config import extract_storage_config
-from pywren_ibm_cloud.utils import sizeof_fmt, get_memory_usage
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.function.jobrunner import JobRunner
+from pywren_ibm_cloud.function.utils import get_memory_usage
 from pywren_ibm_cloud.config import cloud_logging_config, JOBS_PREFIX
 from pywren_ibm_cloud.storage.utils import create_output_key, create_status_key, create_init_key
 
@@ -85,12 +86,11 @@ def function_handler(event):
         'call_id': call_id,
         'job_id': job_id,
         'executor_id': executor_id,
-        'activation_id': os.environ.get('__OW_ACTIVATION_ID')
+        'activation_id': os.environ.get('__PW_ACTIVATION_ID')
     }
     call_status.response.update(context_dict)
 
     show_memory_peak = strtobool(os.environ.get('SHOW_MEMORY_PEAK', 'False'))
-    show_memory_peak = show_memory_peak or log_level == 'DEBUG'
     call_status.response['peak_memory_usage'] = 0
 
     try:
@@ -105,7 +105,6 @@ def function_handler(event):
         # call_status.response['free_disk_bytes'] = free_disk_space("/tmp")
         custom_env = {'PYWREN_CONFIG': json.dumps(config),
                       'PYWREN_EXECUTION_ID': exec_id,
-                      'PYWREN_STORAGE_BUCKET': config['pywren']['storage_bucket'],
                       'PYTHONPATH': "{}:{}".format(os.getcwd(), PYWREN_LIBS_PATH)}
         os.environ.update(custom_env)
 
