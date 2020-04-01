@@ -115,7 +115,7 @@ def create_histogram(fs, dst):
     fs_start_time = min([cm['job_created_timestamp'] for cm in call_metadata])
 
     total_calls = len(call_status)
-    max_seconds = max([cs['end_time']-fs_start_time for cs in call_status])*2.5
+    max_seconds = int(max([cs['end_time']-fs_start_time for cs in call_status])*2.5)
 
     runtime_bins = np.linspace(0, max_seconds, max_seconds)
 
