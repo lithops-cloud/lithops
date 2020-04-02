@@ -348,6 +348,7 @@ class FunctionExecutor:
                    .format(self.executor_id, len(not_dones_call_ids)))
             if pbar:
                 pbar.close()
+                print()
             print(msg) if not self.log_level else logger.info(msg)
             self._state = FunctionExecutor.State.Error
 

@@ -9,9 +9,9 @@
 - 
 
 ### Fixed
-- Fixed issues with map_reduce() method
-- Fixed issues with plot() method
-
+- Fixed issue in map_reduce() method
+- Fixed issue in plot() method
+- Fixed issue in knative
 
 ## [v1.5.1]
 

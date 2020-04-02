@@ -216,7 +216,7 @@ class JobRunner:
                 sb = storage_handler.get_object(obj.bucket, obj.key, stream=True,
                                                 extra_get_args=extra_get_args)
                 wsb = WrappedStreamingBodyPartition(sb, obj.chunk_size, obj.data_byte_range)
-                obj.data_stream = sb
+                obj.data_stream = wsb
             else:
                 sb = storage_handler.get_object(obj.bucket, obj.key, stream=True,
                                                 extra_get_args=extra_get_args)

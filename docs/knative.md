@@ -36,7 +36,6 @@ Set the KUBECONFIG environment variable:
 kubectl get pods --namespace istio-system
 kubectl get pods --namespace knative-serving
 kubectl get pods --namespace knative-eventing
-kubectl get pods --namespace knative-monitoring
 kubectl get pods --namespace tekton-pipelines
 ```
 
