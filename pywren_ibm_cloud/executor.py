@@ -305,7 +305,7 @@ class FunctionExecutor:
 
         if download_results:
             msg = 'ExecutorID {} - Getting results...'.format(self.executor_id)
-            futures = [f for f in futures if not f.done and f._produce_output]
+            futures = [f for f in futures if not f.done]
         else:
             msg = 'ExecutorID {} - Waiting for functions to complete...'.format(self.executor_id)
             futures = [f for f in futures if not f.ready and not f.done]

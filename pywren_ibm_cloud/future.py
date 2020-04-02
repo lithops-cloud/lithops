@@ -85,6 +85,14 @@ class ResponseFuture:
         raise NotImplementedError("Cannot cancel dispatched jobs")
 
     @property
+    def new(self):
+        return self._state == ResponseFuture.State.New
+
+    @property
+    def invoked(self):
+        return self._state == ResponseFuture.State.Invoked
+
+    @property
     def running(self):
         return self._state == ResponseFuture.State.Running
 
