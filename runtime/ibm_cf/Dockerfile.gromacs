@@ -4,27 +4,38 @@ FROM python:3.6-slim-jessie
 
 ENV FLASK_PROXY_PORT 8080
 
-RUN apt-get update && apt-get install -y \
-        gcc \
-        wget \
-        libc-dev \
-        libxslt-dev \
-        libxml2-dev \
-        libffi-dev \
-        libssl-dev \
-        zip \
-        unzip \
-        vim \
-        build-essential \
-        cmake pkg-config \
-        openssh-server \
-        && rm -rf /var/lib/apt/lists/*
-
-RUN apt-cache search linux-headers-generic
-
 COPY requirements.txt requirements.txt
 
+RUN apt-get update \
+        # Upgrade installed packages to get latest security fixes if the base image does not contain them already.
+        && apt-get upgrade -y --no-install-recommends \
+        # add some packages required for the pip install
+        && apt-get install -y --no-install-recommends \
+           gcc \
+           libc-dev \
+           libxslt-dev \
+           libxml2-dev \
+           libffi-dev \
+           libssl-dev \
+           zip \
+           unzip \
+           vim \
+           build-essential \
+           cmake pkg-config \
+           openssh-server \
+        # cleanup package lists, they are not used anymore in this image
+        && rm -rf /var/lib/apt/lists/* \
+        && apt-cache search linux-headers-generic
+
+# install additional python modules
+COPY requirements.txt requirements.txt
 RUN pip install --upgrade pip setuptools six && pip install --no-cache-dir -r requirements.txt
+        
+# create action working directory
+RUN mkdir -p /action \
+    && mkdir -p /actionProxy \
+    && mkdir -p /pythonAction
+
 
 #Upgrade cmake
 RUN wget https://github.com/Kitware/CMake/releases/download/v3.16.1/cmake-3.16.1.tar.gz \
@@ -66,17 +77,9 @@ RUN cd gromacs-2019.4 \
 #RUN export PATH=$PATH:/usr/local/gromax/bin:
 
 #delete old files
-RUN rm openmpi-4.0.2.tar.gz
-RUN rm gromacs-2019.4.tar.gz
-RUN rm cmake-3.16.1.tar.gz
+RUN rm openmpi-4.0.2.tar.gz && rm gromacs-2019.4.tar.gz && rm cmake-3.16.1.tar.gz
 
-# create action working directory
-RUN mkdir -p /action
-
-RUN mkdir -p /actionProxy
 ADD https://raw.githubusercontent.com/apache/openwhisk-runtime-docker/8b2e205c39d84ed5ede6b1b08cccf314a2b13105/core/actionProxy/actionproxy.py /actionProxy/actionproxy.py
-
-RUN mkdir -p /pythonAction
 ADD https://raw.githubusercontent.com/apache/openwhisk-runtime-python/3%401.0.3/core/pythonAction/pythonrunner.py /pythonAction/pythonrunner.py
 
 CMD ["/bin/bash", "-c", "cd /pythonAction && python -u pythonrunner.py"]

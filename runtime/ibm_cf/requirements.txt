@@ -34,7 +34,7 @@ ibm-cos-sdk == 2.6.0
 ibmcloudsql == 0.2.23
 
 # Compose Libs
-psycopg2 == 2.8.2
+psycopg2 == 2.7.7
 pymongo == 3.8.0
 redis == 3.3.8
 pika == 0.13.1
