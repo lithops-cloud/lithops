@@ -285,7 +285,7 @@ Creates 2 detailed execution plots: A timeline plot and a histogram plot.
 |Parameter| Default |Description|
 |---|---|---|
 |fs| None | List of futures to plot. If None, PyWren uses the internally stored futures|
-|dst| None  | Path to destination file. If None, PyWren uses current directory |
+|dst| None  | Path to destination file, either absolute or relative. If set, you must specify the path + the file prefix (see example below), then pywren will generate the *prefix*_histogram.png and *prefix*_timeline.png files. If None, PyWren will create a new folder called *plots* in the current directory and use the current timestamp as file *prefix* |
 
 * **Returns**: *Nothing*. It stores 2 different plots in the selected `dst` path.
 
@@ -295,12 +295,13 @@ Creates 2 detailed execution plots: A timeline plot and a histogram plot.
     iterdata = [1, 2, 3, 4]
     pw.map(foo, iterdata)
     results = pw.get_result()  # or pw.wait()
-    pw.plot(dst='~/pywren_plots/test')
+    # The next command will generate test_timeline.png and test_histogram.png in ~/pywren_plots
+    pw.plot(dst='~/pywren_plots/test') 
     ```
 
 * **Example**:
 
-![Execution Histogram](images/histogram.png?raw=true "Execution Histogram") ![Execution Timeline](images/timeline.png?raw=true "Execution Timeline")
+![Execution Timeline](images/timeline.png?raw=true "Execution Timeline") ![Execution Histogram](images/histogram.png?raw=true "Execution Histogram")
 
 ## Executor.clean()
 

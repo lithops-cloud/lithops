@@ -24,12 +24,12 @@ import random
 from threading import Thread
 from types import SimpleNamespace
 from multiprocessing import Process, Queue, Value
-from pywren_ibm_cloud.compute import Compute
-from pywren_ibm_cloud.utils import version_str, is_pywren_function, is_unix_system
-from pywren_ibm_cloud.version import __version__
 from concurrent.futures import ThreadPoolExecutor
-from pywren_ibm_cloud.config import extract_storage_config, extract_compute_config
+from pywren_ibm_cloud.compute import Compute
+from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.future import ResponseFuture
+from pywren_ibm_cloud.config import extract_storage_config, extract_compute_config
+from pywren_ibm_cloud.utils import version_str, is_pywren_function, is_unix_system
 
 
 logger = logging.getLogger(__name__)

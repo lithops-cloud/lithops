@@ -31,8 +31,8 @@ setup(
     install_requires=[
         'Click', 'pandas', 'PyYAML', 'python-dateutil',
         'pika==0.13.1', 'enum34', 'glob2', 'tqdm', 'lxml',
-        'tblib', 'docker', 'requests', 'seaborn',
-        'matplotlib', 'kubernetes', 'ibm-cos-sdk'
+        'tblib', 'docker', 'requests==2.22.0', 'seaborn',
+        'matplotlib', 'kubernetes', 'ibm-cos-sdk==2.6.0'
     ],
     include_package_data=True,
     entry_points='''

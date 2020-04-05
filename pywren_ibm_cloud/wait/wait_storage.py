@@ -168,7 +168,7 @@ def _wait_storage(fs, running_futures, internal_storage, download_results, throw
         for f in not_done_futures:
             for call in callids_running_in_job:
                 if (f.executor_id, f.job_id, f.call_id) == call[0]:
-                    if f not in running_futures:
+                    if f.invoked and f not in running_futures:
                         f.activation_id = call[1]
                         f._call_status = {'type': '__init__',
                                           'activation_id': call[1],
@@ -235,16 +235,14 @@ def _wait_storage(fs, running_futures, internal_storage, download_results, throw
 #         fs_dones.extend(still_not_done_futures)
 
     def get_result(f):
-        f._call_status = None
+        if f.running:
+            f._call_status = None
         f.result(throw_except=throw_except, internal_storage=internal_storage)
-        #if pbar and f.done:
-        #    pbar.update(1)
 
     def get_status(f):
-        f._call_status = None
+        if f.running:
+            f._call_status = None
         f.status(throw_except=throw_except, internal_storage=internal_storage)
-        #if pbar and f.ready:
-        #    pbar.update(1)
 
 #     with ThreadPoolExecutor(max_workers=THREADPOOL_SIZE) as executor:
 #         if download_results:

@@ -99,7 +99,7 @@ class KnativeServingBackend:
         docker_user = self.knative_config['docker_user']
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'SNAPSHOT' in __version__ else __version__
-        return '{}/{}-{}:{}'.format(docker_user, kconfig.RUNTIME_NAME_DEFAULT, python_version, revision)
+        return '{}/{}-v{}:{}'.format(docker_user, kconfig.RUNTIME_NAME_DEFAULT, python_version, revision)
 
     def _get_service_host(self, service_name):
         """

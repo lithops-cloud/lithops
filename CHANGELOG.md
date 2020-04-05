@@ -1,16 +1,27 @@
 # Changelog
 
-## [v1.5.1--snapshot]
+## [v1.5.2--snapshot]
 
 ### Added
 - 
 
 ### Changed
-- Docs updated
+- 
+
+### Fixed
+- Fixed issue in map_reduce() method
+- Fixed issue in plot() method
+- Fixed issue in knative
+
+## [v1.5.1]
+
+### Changed
 - pw.create execution_plots() renamed to pw.plot()
+- Docs updated
 
 ### Fixed
 - Fixed minor issue in knative
+- Fixed internal issues
 
 
 ## [v1.5.0]

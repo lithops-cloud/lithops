@@ -85,6 +85,14 @@ class ResponseFuture:
         raise NotImplementedError("Cannot cancel dispatched jobs")
 
     @property
+    def new(self):
+        return self._state == ResponseFuture.State.New
+
+    @property
+    def invoked(self):
+        return self._state == ResponseFuture.State.Invoked
+
+    @property
     def running(self):
         return self._state == ResponseFuture.State.Running
 
@@ -189,7 +197,7 @@ class ResponseFuture:
                 logger.debug('Exception: {} - {}'.format(self._exception[0].__name__, self._exception[1]))
                 return None
 
-        self._call_metadata['host_submit_time'] = self._call_status['host_submit_time']
+        self._call_metadata['host_submit_time'] = self._call_status.pop('host_submit_time')
         self._call_metadata['status_done_timestamp'] = time.time()
         self._call_metadata['status_query_count'] = self._status_query_count
 
