@@ -2,16 +2,14 @@
 
 ## [v1.5.2--snapshot]
 
-### Added
-- 
-
 ### Changed
-- 
+- Reducer logic moved to jobrunner
 
 ### Fixed
 - Fixed issue in map_reduce() method
-- Fixed issue in plot() method
-- Fixed issue in knative
+- Fixed issue in plot() method when using numpy 1.18.1
+- Fixed issue in knative when the default runtime is built
+- Fixed issue with extra_env passed to functions
 
 ## [v1.5.1]
 

@@ -488,8 +488,8 @@ class FunctionExecutor:
                                                                                 storage_config))
                 os.popen(cmdstr)
             else:
-                extra_env = {'STORE_STATUS': False,
-                             'STORE_RESULT': False}
+                extra_env = {'__PW_STORE_STATUS': False,
+                             '__PW_STORE_RESULT': False}
                 old_stdout = sys.stdout
                 sys.stdout = open(os.devnull, 'w')
                 self.call_async(clean_os_bucket, [storage_bucket, storage_prerix], extra_env=extra_env)

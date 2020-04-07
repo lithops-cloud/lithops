@@ -201,6 +201,8 @@ def function_handler(event):
 
     finally:
         call_status.send('__end__')
+        for key in extra_env:
+            del os.environ[key]
         logger.info("Finished")
 
 
@@ -209,7 +211,7 @@ class CallStatus:
     def __init__(self, pywren_config, internal_storage):
         self.config = pywren_config
         self.rabbitmq_monitor = self.config['pywren'].get('rabbitmq_monitor', False)
-        self.store_status = strtobool(os.environ.get('STORE_STATUS', 'True'))
+        self.store_status = strtobool(os.environ.get('__PW_STORE_STATUS', 'True'))
         self.internal_storage = internal_storage
         self.response = {'exception': False}
 
