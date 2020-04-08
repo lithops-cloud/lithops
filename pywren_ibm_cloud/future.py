@@ -170,7 +170,10 @@ class ResponseFuture:
                 fn_exc = self._exception[1]
                 if fn_exc.args and fn_exc.args[0] == "HANDLER":
                     self._handler_exception = True
-                    del fn_exc.errno
+                    try:
+                        del fn_exc.errno
+                    except Exception:
+                        pass
                     fn_exc.args = (fn_exc.args[1],)
             else:
                 fn_exctype = Exception

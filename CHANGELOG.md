@@ -4,12 +4,15 @@
 
 ### Changed
 - Reducer logic moved to jobrunner
+- Set default knative runtime timeout to 10 minutes
 
 ### Fixed
 - Fixed issue in map_reduce() method
 - Fixed issue in plot() method when using numpy 1.18.1
 - Fixed issue in knative when the default runtime is built
 - Fixed issue with extra_env passed to functions
+- Fixed issue when pywren version mismatch in knative
+- Fixed include_modules and exclude_modules vars
 
 ## [v1.5.1]
 

@@ -523,16 +523,12 @@ class KnativeServingBackend:
         route = payload.get("service_route", '/')
 
         try:
-            logger.debug('ExecutorID {} | JobID {} - Starting function call {}'
-                         .format(exec_id, job_id, call_id))
-
             parsed_url = urlparse(self.endpoint)
             conn = http.client.HTTPConnection(parsed_url.netloc, timeout=600)
             conn.request("POST", route,
                          body=json.dumps(payload),
                          headers=self.headers)
-            logger.debug('ExecutorID {} | JobID {} - Function call {} done. Waiting '
-                         'for a response'.format(exec_id, job_id, call_id))
+            logger.debug('ExecutorID {} | JobID {} - Function call {} invoked'.format(exec_id, job_id, call_id))
             resp = conn.getresponse()
             resp_status = resp.status
             resp_data = resp.read().decode("utf-8")

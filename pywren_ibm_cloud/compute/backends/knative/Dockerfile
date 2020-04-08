@@ -21,4 +21,4 @@ WORKDIR $APP_HOME
 COPY pywren_ibm_cloud ./pywren_ibm_cloud
 COPY pywren_ibm_cloud/compute/backends/knative/entry_point.py pywrenproxy.py
 
-CMD exec gunicorn --bind :$PORT --workers 1 pywrenproxy:proxy
+CMD exec gunicorn --bind :$PORT --workers 1 --timeout 600 pywrenproxy:proxy
