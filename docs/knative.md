@@ -54,23 +54,31 @@ knative:
 
 
 
-#### Test if everything is working properly:
+#### Test if PyWren on Knative is working properly:
+
+Run the next command:
+
+```bash
+$ pywren-ibm-cloud test
+```
+
+or run the next Python code:
 
 ```python
 import pywren_ibm_cloud as pywren
 
-def my_function(x):
-    return x + 7
+def hello_world(name):
+    return 'Hello {}!'.format(name)
 
 if __name__ == '__main__':
     kn = pywren.knative_executor()
-    kn.call_async(my_function, 3)
-    print(kn.get_result())
+    kn.call_async(hello_world, 'World')
+    print("Response from function: ", kn.get_result())
 ```
 
 
-#### Check how pods and other resources are created:
+#### Monitor how pods and other resources are created:
 
 ```
-watch kubectl get pod,revision,service,deployment -o wide
+watch kubectl get pod,service,revision,deployment -o wide
 ```

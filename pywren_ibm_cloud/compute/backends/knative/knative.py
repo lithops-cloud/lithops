@@ -135,7 +135,7 @@ class KnativeServingBackend:
         """
         Creates the secret to access to the docker hub and the ServiceAcount
         """
-        logger.debug("Creating Account resources: Secret and ServiceAccount")
+        logger.debug("Creating Tekton account resources: Secret and ServiceAccount")
         string_data = {'username': self.knative_config['docker_user'],
                        'password': self.knative_config['docker_token']}
         secret_res = yaml.safe_load(kconfig.secret_res)
@@ -159,7 +159,7 @@ class KnativeServingBackend:
         self.v1.create_namespaced_service_account(self.namespace, account_res)
 
     def _create_build_resources(self):
-        logger.debug("Creating Build resources: PipelineResource and Task")
+        logger.debug("Creating Tekton build resources: PipelineResource and Task")
         git_res = yaml.safe_load(kconfig.git_res)
         git_res_name = git_res['metadata']['name']
 
@@ -231,7 +231,10 @@ class KnativeServingBackend:
                              'Skipping build process.'.format(docker_image_name, revision))
                 return
 
-        logger.debug("Building default docker image from git")
+        logger.debug("Building default PyWren runtime from git with Tekton")
+
+        if not {"docker_user", "docker_token"} <= set(self.knative_config):
+            raise Exception("You must provide 'docker_user' and 'docker_token' to create the default runtime")
 
         task_run = yaml.safe_load(kconfig.task_run)
         image_url = {'name': 'imageUrl', 'value': '/'.join([self.knative_config['docker_repo'], image_name])}
@@ -263,7 +266,7 @@ class KnativeServingBackend:
                     body=task_run
                 )
 
-        logger.debug("Building image...")
+        logger.debug("Building runtime...")
         pod_name = None
         w = watch.Watch()
         for event in w.stream(self.api.list_namespaced_custom_object, namespace=self.namespace,
@@ -283,7 +286,15 @@ class KnativeServingBackend:
                 w.stop()
             if event['object'].status.phase == "Failed":
                 w.stop()
-                raise Exception('Unable to create the Docker image from the git repository')
+                logger.debug('Something went wrong creating the default PyWren runtime with Tekton')
+                for container in event['object'].status.container_statuses:
+                    if container.state.terminated.reason == 'Error':
+                        logs = self.v1.read_namespaced_pod_log(name=pod_name,
+                                                               container=container.name,
+                                                               namespace=self.namespace)
+                        logger.debug("Tekton container '{}' failed: {}".format(container.name, logs.strip()))
+
+                raise Exception('Unable to create the default PyWren runtime with Tekton')
 
         self.api.delete_namespaced_custom_object(
                     group="tekton.dev",
@@ -294,7 +305,7 @@ class KnativeServingBackend:
                     body=client.V1DeleteOptions()
                 )
 
-        logger.debug('Docker image created from git and uploaded to Dockerhub')
+        logger.debug('Default PyWren runtime created from git and uploaded to Dockerhub')
 
     def _create_service(self, docker_image_name, runtime_memory, timeout):
         """
@@ -529,11 +540,7 @@ class KnativeServingBackend:
             conn.request("POST", route,
                          body=json.dumps(payload),
                          headers=self.headers)
-            msg = 'ExecutorID {} | JobID {} - Function call {} invoked'.format(exec_id, job_id, call_id)
-            if self.istio_endpoint:
-                logger.debug(msg)
-            else:
-                logger.debug('{} ({})'.format(msg, endpoint))
+            logger.debug('ExecutorID {} | JobID {} - Function call {} invoked'.format(exec_id, job_id, call_id))
             resp = conn.getresponse()
             resp_status = resp.status
             resp_data = resp.read().decode("utf-8")

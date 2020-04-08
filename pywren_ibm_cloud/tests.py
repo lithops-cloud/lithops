@@ -396,7 +396,7 @@ class TestPywren(unittest.TestCase):
 
 
 def print_help():
-    print("available test functions:")
+    print("Available test functions:")
     func_names = filter(lambda s: s[:4] == 'test',
                         map(lambda t: t[0], inspect.getmembers(TestPywren(), inspect.ismethod)))
     for func_name in func_names:
