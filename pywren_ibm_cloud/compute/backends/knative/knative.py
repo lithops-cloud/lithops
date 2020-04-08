@@ -33,8 +33,7 @@ class KnativeServingBackend:
         self.log_level = os.getenv('PYWREN_LOGLEVEL')
         self.name = 'knative'
         self.knative_config = knative_config
-        self.endpoint = self.knative_config.get('endpoint')
-        self.service_hosts = {}
+        self.istio_endpoint = self.knative_config.get('istio_endpoint')
 
         # k8s config can be incluster, in ~/.kube/config or generate kube-config.yaml file and
         # set env variable KUBECONFIG=<path-to-kube-confg>
@@ -53,11 +52,11 @@ class KnativeServingBackend:
 
         self.headers = {'content-type': 'application/json'}
 
-        if self.endpoint is None:
+        if self.istio_endpoint is None:
             try:
                 ingress = self.v1.read_namespaced_service('istio-ingressgateway', 'istio-system')
                 http_port = list(filter(lambda port: port.port == 80, ingress.spec.ports))[0].node_port
-                https_port = list(filter(lambda port: port.port == 443, ingress.spec.ports))[0].node_port
+                # https_port = list(filter(lambda port: port.port == 443, ingress.spec.ports))[0].node_port
 
                 if ingress.status.load_balancer.ingress is not None:
                     # get loadbalancer ip
@@ -67,11 +66,10 @@ class KnativeServingBackend:
                     node = self.v1.list_node()
                     ip = node.items[0].status.addresses[0].address
 
-                self.endpoint = 'http://{}:{}'.format(ip, http_port)
+                self.istio_endpoint = 'http://{}:{}'.format(ip, http_port)
 
             except Exception as e:
-                log_msg = "Something went wrong getting the istio-ingressgateway endpoint: {}".format(e)
-                logger.info(log_msg)
+                logger.info("istio-ingressgateway endpoint not found")
 
         self.serice_host_filename = os.path.join(CACHE_DIR, 'knative', self.cluster, 'service_host')
         self.service_host_suffix = None
@@ -80,7 +78,10 @@ class KnativeServingBackend:
             self.service_host_suffix = serice_host_data['service_host_suffix']
             logger.debug('Loaded service host suffix: {}'.format(self.service_host_suffix))
 
-        log_msg = 'PyWren v{} init for Knative - Endpoint: {}'.format(__version__, self.endpoint)
+        if self.istio_endpoint:
+            log_msg = 'PyWren v{} init for Knative - Istio Endpoint: {}'.format(__version__, self.istio_endpoint)
+        else:
+            log_msg = 'PyWren v{} init for Knative'.format(__version__)
         if not self.log_level:
             print(log_msg)
         logger.info(log_msg)
@@ -299,12 +300,15 @@ class KnativeServingBackend:
         """
         Creates a service in knative based on the docker_image_name and the memory provided
         """
-        logger.debug("Creating PyWren runtime service resource in k8s")
+        logger.debug("Creating PyWren runtime service in Knative")
         svc_res = yaml.safe_load(kconfig.service_res)
 
         service_name = self._format_service_name(docker_image_name, runtime_memory)
         svc_res['metadata']['name'] = service_name
         svc_res['metadata']['namespace'] = self.namespace
+
+        logger.debug("Service name: {}".format(service_name))
+        logger.debug("Namespace: {}".format(self.namespace))
 
         svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
         full_docker_image_name = '/'.join([self.knative_config['docker_repo'], docker_image_name])
@@ -338,20 +342,18 @@ class KnativeServingBackend:
         for event in w.stream(self.api.list_namespaced_custom_object,
                               namespace=self.namespace, group="serving.knative.dev",
                               version="v1alpha1", plural="services",
-                              field_selector="metadata.name={0}".format(service_name)):
-            conditions = None
+                              field_selector="metadata.name={0}".format(service_name),
+                              timeout_seconds=30):
             if event['object'].get('status'):
+                service_url = event['object']['status'].get('url')
                 conditions = event['object']['status']['conditions']
-                if event['object']['status'].get('url') is not None:
-                    service_url = event['object']['status']['url']
-            if conditions and conditions[0]['status'] == 'True' and \
-               conditions[1]['status'] == 'True' and conditions[2]['status'] == 'True':
-                # Workaround to prevent invoking the service immediately after creation.
-                # TODO: Open issue.
-                time.sleep(2)
-                w.stop()
+                if conditions[0]['status'] == 'True' and \
+                   conditions[1]['status'] == 'True' and \
+                   conditions[2]['status'] == 'True':
+                    w.stop()
+                    time.sleep(2)
 
-        log_msg = 'Runtime Service resource created - URL: {}'.format(service_url)
+        log_msg = 'Runtime Service created - URL: {}'.format(service_url)
         logger.debug(log_msg)
 
         self.service_host_suffix = service_url[7:].replace(service_name, '')
@@ -514,8 +516,7 @@ class KnativeServingBackend:
             service_host = self._get_service_host(service_name)
 
         self.headers['Host'] = service_host
-        if self.endpoint is None:
-            self.endpoint = 'http://{}'.format(service_host)
+        endpoint = self.istio_endpoint or 'http://{}'.format(service_host)
 
         exec_id = payload.get('executor_id', '')
         call_id = payload.get('call_id', '')
@@ -523,12 +524,16 @@ class KnativeServingBackend:
         route = payload.get("service_route", '/')
 
         try:
-            parsed_url = urlparse(self.endpoint)
+            parsed_url = urlparse(endpoint)
             conn = http.client.HTTPConnection(parsed_url.netloc, timeout=600)
             conn.request("POST", route,
                          body=json.dumps(payload),
                          headers=self.headers)
-            logger.debug('ExecutorID {} | JobID {} - Function call {} invoked'.format(exec_id, job_id, call_id))
+            msg = 'ExecutorID {} | JobID {} - Function call {} invoked'.format(exec_id, job_id, call_id)
+            if self.istio_endpoint:
+                logger.debug(msg)
+            else:
+                logger.debug('{} ({})'.format(msg, endpoint))
             resp = conn.getresponse()
             resp_status = resp.status
             resp_data = resp.read().decode("utf-8")
