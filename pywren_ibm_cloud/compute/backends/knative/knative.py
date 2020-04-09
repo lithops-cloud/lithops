@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 from kubernetes import client, config, watch
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
+from pywren_ibm_cloud.utils import is_pywren_function
 from pywren_ibm_cloud.config import CACHE_DIR, load_yaml_config, dump_yaml_config
 from . import config as kconfig
 
@@ -34,18 +35,21 @@ class KnativeServingBackend:
         self.name = 'knative'
         self.knative_config = knative_config
         self.istio_endpoint = self.knative_config.get('istio_endpoint')
+        self.is_pywren_function = is_pywren_function()
 
         # k8s config can be incluster, in ~/.kube/config or generate kube-config.yaml file and
         # set env variable KUBECONFIG=<path-to-kube-confg>
-        try:
+        if not self.is_pywren_function:
             config.load_kube_config()
             current_context = config.list_kube_config_contexts()[1].get('context')
             self.namespace = current_context.get('namespace', 'default')
             self.cluster = current_context.get('cluster')
-        except Exception:
+            self.knative_config['namespace'] = self.namespace
+            self.knative_config['cluster'] = self.cluster
+        else:
             config.load_incluster_config()
-            self.namespace = 'default'
-            self.cluster = 'default'
+            self.namespace = self.knative_config.get('namespace')
+            self.cluster = self.knative_config.get('cluster')
 
         self.api = client.CustomObjectsApi()
         self.v1 = client.CoreV1Api()
@@ -227,14 +231,15 @@ class KnativeServingBackend:
             resp = requests.get('https://index.docker.io/v1/repositories/{}/tags/{}'
                                 .format(docker_image_name, revision))
             if resp.status_code == 200:
-                logger.debug('Docker image docker.io/{}:{} already created in Dockerhub. '
+                logger.debug('Docker image docker.io/{}:{} already exists in Dockerhub. '
                              'Skipping build process.'.format(docker_image_name, revision))
                 return
 
         logger.debug("Building default PyWren runtime from git with Tekton")
 
         if not {"docker_user", "docker_token"} <= set(self.knative_config):
-            raise Exception("You must provide 'docker_user' and 'docker_token' to create the default runtime")
+            raise Exception("You must provide 'docker_user' and 'docker_token'"
+                            " to build the default runtime")
 
         task_run = yaml.safe_load(kconfig.task_run)
         image_url = {'name': 'imageUrl', 'value': '/'.join([self.knative_config['docker_repo'], image_name])}
@@ -286,7 +291,7 @@ class KnativeServingBackend:
                 w.stop()
             if event['object'].status.phase == "Failed":
                 w.stop()
-                logger.debug('Something went wrong creating the default PyWren runtime with Tekton')
+                logger.debug('Something went wrong building the default PyWren runtime with Tekton')
                 for container in event['object'].status.container_statuses:
                     if container.state.terminated.reason == 'Error':
                         logs = self.v1.read_namespaced_pod_log(name=pod_name,
@@ -294,7 +299,7 @@ class KnativeServingBackend:
                                                                namespace=self.namespace)
                         logger.debug("Tekton container '{}' failed: {}".format(container.name, logs.strip()))
 
-                raise Exception('Unable to create the default PyWren runtime with Tekton')
+                raise Exception('Unable to build the default PyWren runtime with Tekton')
 
         self.api.delete_namespaced_custom_object(
                     group="tekton.dev",
@@ -305,7 +310,7 @@ class KnativeServingBackend:
                     body=client.V1DeleteOptions()
                 )
 
-        logger.debug('Default PyWren runtime created from git and uploaded to Dockerhub')
+        logger.debug('Default PyWren runtime built from git and uploaded to Dockerhub')
 
     def _create_service(self, docker_image_name, runtime_memory, timeout):
         """
