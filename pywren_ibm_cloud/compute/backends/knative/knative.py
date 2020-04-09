@@ -14,7 +14,6 @@ from urllib.parse import urlparse
 from kubernetes import client, config, watch
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
-from pywren_ibm_cloud.utils import is_pywren_function
 from pywren_ibm_cloud.config import CACHE_DIR, load_yaml_config, dump_yaml_config
 from . import config as kconfig
 
@@ -35,21 +34,20 @@ class KnativeServingBackend:
         self.name = 'knative'
         self.knative_config = knative_config
         self.istio_endpoint = self.knative_config.get('istio_endpoint')
-        self.is_pywren_function = is_pywren_function()
 
         # k8s config can be incluster, in ~/.kube/config or generate kube-config.yaml file and
         # set env variable KUBECONFIG=<path-to-kube-confg>
-        if not self.is_pywren_function:
+        try:
             config.load_kube_config()
             current_context = config.list_kube_config_contexts()[1].get('context')
             self.namespace = current_context.get('namespace', 'default')
             self.cluster = current_context.get('cluster')
             self.knative_config['namespace'] = self.namespace
             self.knative_config['cluster'] = self.cluster
-        else:
+        except Exception:
             config.load_incluster_config()
-            self.namespace = self.knative_config.get('namespace')
-            self.cluster = self.knative_config.get('cluster')
+            self.namespace = self.knative_config.get('namespace', 'default')
+            self.cluster = self.knative_config.get('cluster', 'default')
 
         self.api = client.CustomObjectsApi()
         self.v1 = client.CoreV1Api()

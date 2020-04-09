@@ -1,6 +1,5 @@
 import os
 import json
-import pickle
 import logging
 import importlib
 from pywren_ibm_cloud.version import __version__
@@ -45,7 +44,7 @@ class InternalStorage:
     underlying storage backend without exposing the the implementation details.
     """
 
-    def __init__(self, storage_config, executor_id = None):
+    def __init__(self, storage_config, executor_id=None):
         self.config = storage_config
         self.backend = self.config['backend']
         self.bucket = self.config['bucket']

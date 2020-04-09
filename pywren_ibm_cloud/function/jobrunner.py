@@ -30,8 +30,7 @@ from pywren_ibm_cloud.storage import Storage
 from pywren_ibm_cloud.wait import wait_storage
 from pywren_ibm_cloud.future import ResponseFuture
 from pywren_ibm_cloud.libs.tblib import pickling_support
-from pywren_ibm_cloud.utils import sizeof_fmt, b64str_to_bytes
-from pywren_ibm_cloud.function.utils import is_object_processing_function
+from pywren_ibm_cloud.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_function
 from pywren_ibm_cloud.utils import WrappedStreamingBodyPartition
 from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config
 

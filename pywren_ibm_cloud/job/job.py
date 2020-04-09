@@ -4,7 +4,7 @@ import pickle
 import logging
 from pywren_ibm_cloud import utils
 from pywren_ibm_cloud.job.partitioner import create_partitions
-from pywren_ibm_cloud.function.utils import is_object_processing_function
+from pywren_ibm_cloud.utils import is_object_processing_function
 from pywren_ibm_cloud.storage.utils import create_func_key, create_agg_data_key
 from pywren_ibm_cloud.job.serialize import SerializeIndependent, create_module_data
 from pywren_ibm_cloud.config import MAX_AGG_DATA_SIZE, JOBS_PREFIX
