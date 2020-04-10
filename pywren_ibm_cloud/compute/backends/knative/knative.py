@@ -534,9 +534,9 @@ class KnativeServingBackend:
         self.headers['Host'] = service_host
         endpoint = self.istio_endpoint or 'http://{}'.format(service_host)
 
-        exec_id = payload.get('executor_id', '')
-        call_id = payload.get('call_id', '')
-        job_id = payload.get('job_id', '')
+        exec_id = payload.get('executor_id')
+        call_id = payload.get('call_id')
+        job_id = payload.get('job_id')
         route = payload.get("service_route", '/')
 
         try:
@@ -545,7 +545,16 @@ class KnativeServingBackend:
             conn.request("POST", route,
                          body=json.dumps(payload),
                          headers=self.headers)
-            logger.debug('ExecutorID {} | JobID {} - Function call {} invoked'.format(exec_id, job_id, call_id))
+
+            if exec_id and job_id and call_id:
+                logger.debug('ExecutorID {} | JobID {} - Function call {} invoked'
+                             .format(exec_id, job_id, call_id))
+            elif exec_id and job_id:
+                logger.debug('ExecutorID {} | JobID {} - Function invoked'
+                             .format(exec_id, job_id))
+            else:
+                logger.debug('Function invoked')
+
             resp = conn.getresponse()
             resp_status = resp.status
             resp_data = resp.read().decode("utf-8")

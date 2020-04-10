@@ -232,6 +232,8 @@ class FunctionInvoker:
 
         payload = {'config': self.config,
                    'log_level': self.log_level,
+                   'executor_id': job.executor_id,
+                   'job_id': job.job_id,
                    'job_description': job_description,
                    'remote_invoker': True,
                    'pywren_version': __version__}
@@ -259,11 +261,6 @@ class FunctionInvoker:
         except Exception:
             pass
 
-        if self.running_flag.value == 0:
-            self.ongoing_activations = 0
-            self.running_flag.value = 1
-            self._start_invoker_process()
-
         if self.remote_invoker and job.total_calls > 1:
             old_stdout = sys.stdout
             sys.stdout = open(os.devnull, 'w')
@@ -277,8 +274,15 @@ class FunctionInvoker:
             th = Thread(target=self._invoke_remote, args=(job_description,))
             th.daemon = True
             th.start()
+            time.sleep(1)
 
         else:
+
+            if self.running_flag.value == 0:
+                self.ongoing_activations = 0
+                self.running_flag.value = 1
+                self._start_invoker_process()
+
             log_msg = ('ExecutorID {} | JobID {} - Starting function invocation: {}()  - Total: {} '
                        'activations'.format(job.executor_id, job.job_id, job.function_name, job.total_calls))
             print(log_msg) if not self.log_level else logger.info(log_msg)
