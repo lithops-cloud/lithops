@@ -44,10 +44,12 @@ class KnativeServingBackend:
             self.cluster = current_context.get('cluster')
             self.knative_config['namespace'] = self.namespace
             self.knative_config['cluster'] = self.cluster
+            self.is_incluster = False
         except Exception:
             config.load_incluster_config()
             self.namespace = self.knative_config.get('namespace', 'default')
             self.cluster = self.knative_config.get('cluster', 'default')
+            self.is_incluster = True
 
         self.api = client.CustomObjectsApi()
         self.v1 = client.CoreV1Api()

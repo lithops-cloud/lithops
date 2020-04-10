@@ -87,7 +87,7 @@ task_run = """
 apiVersion: tekton.dev/v1alpha1
 kind: TaskRun
 metadata:
-  name: pywren-image-from-git
+  name: pywren-runtime-from-git
 spec:
   serviceAccountName: pywren-build-pipeline
   taskRef:

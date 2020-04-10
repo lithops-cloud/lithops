@@ -16,7 +16,8 @@
 - Fixed include_modules and exclude_modules vars
 - Fixed issue in pywren-ibm-cloud cli
 - Fixed minor issue with ps_mem module in windows hosts
-- All test passing with knative
+- Fixed knative to pass all tests
+- Fixed remote_invoker in knative
 
 
 ## [v1.5.1]
