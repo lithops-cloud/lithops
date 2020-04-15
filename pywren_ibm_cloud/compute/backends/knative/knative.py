@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+import ssl
 import json
 import time
 import yaml
@@ -54,13 +55,11 @@ class KnativeServingBackend:
         self.api = client.CustomObjectsApi()
         self.v1 = client.CoreV1Api()
 
-        self.headers = {'content-type': 'application/json'}
-
         if self.istio_endpoint is None:
             try:
                 ingress = self.v1.read_namespaced_service('istio-ingressgateway', 'istio-system')
                 http_port = list(filter(lambda port: port.port == 80, ingress.spec.ports))[0].node_port
-                # https_port = list(filter(lambda port: port.port == 443, ingress.spec.ports))[0].node_port
+                https_port = list(filter(lambda port: port.port == 443, ingress.spec.ports))[0].node_port
 
                 if ingress.status.load_balancer.ingress is not None:
                     # get loadbalancer ip
@@ -531,8 +530,13 @@ class KnativeServingBackend:
         else:
             service_host = self._get_service_host(service_name)
 
-        self.headers['Host'] = service_host
-        endpoint = self.istio_endpoint or 'http://{}'.format(service_host)
+        headers = {}
+
+        if self.istio_endpoint:
+            headers['Host'] = service_host
+            endpoint = self.istio_endpoint
+        else:
+            endpoint = 'http://{}'.format(service_host)
 
         exec_id = payload.get('executor_id')
         call_id = payload.get('call_id')
@@ -541,10 +545,14 @@ class KnativeServingBackend:
 
         try:
             parsed_url = urlparse(endpoint)
-            conn = http.client.HTTPConnection(parsed_url.netloc, timeout=600)
-            conn.request("POST", route,
-                         body=json.dumps(payload),
-                         headers=self.headers)
+
+            if endpoint.startswith('https'):
+                ctx = ssl._create_unverified_context()
+                conn = http.client.HTTPSConnection(parsed_url.netloc, context=ctx)
+            else:
+                conn = http.client.HTTPConnection(parsed_url.netloc)
+
+            conn.request("POST", route, body=json.dumps(payload), headers=headers)
 
             if exec_id and job_id and call_id:
                 logger.debug('ExecutorID {} | JobID {} - Function call {} invoked'
@@ -570,7 +578,8 @@ class KnativeServingBackend:
         elif resp_status == 404:
             raise Exception("PyWren runtime is not deployed in your k8s cluster")
         else:
-            raise Exception(resp_status, resp_data)
+            logger.error('ExecutorID {} | JobID {} - Function call {} failed ({}). Retrying request'
+                         .format(exec_id, job_id, call_id, resp_data.replace('.', '')))
 
     def get_runtime_key(self, docker_image_name, runtime_memory):
         """

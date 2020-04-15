@@ -18,7 +18,7 @@ Once the cluster is running, follow the instructions of the "Access" tab to conf
 
     1. Install the **helm** Kubernetes package manager in your local machine. Instructions can be found [here](https://github.com/helm/helm#install).
 
-    2. Install the PyWren environment into the k8s cluster: Istio v1.4.2, Knative v0.13.0 and Tekton v0.10.1:
+    2. Install the PyWren environment into the k8s cluster: Istio v1.4.2, Knative v0.14.0 and Tekton v0.10.1:
         ```
         curl http://cloudlab.urv.cat/josep/knative/install_pywren_env.sh | bash
         ```
