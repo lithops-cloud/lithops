@@ -71,15 +71,19 @@ class KnativeServingBackend:
 
                 self.istio_endpoint = 'http://{}:{}'.format(ip, http_port)
 
-            except Exception as e:
+            except Exception:
                 logger.info("istio-ingressgateway endpoint not found")
 
-        self.serice_host_filename = os.path.join(CACHE_DIR, 'knative', self.cluster, 'service_host')
-        self.service_host_suffix = None
-        if os.path.exists(self.serice_host_filename):
-            serice_host_data = load_yaml_config(self.serice_host_filename)
-            self.service_host_suffix = serice_host_data['service_host_suffix']
-            logger.debug('Loaded service host suffix: {}'.format(self.service_host_suffix))
+        if 'service_host_suffix' not in self.knative_config:
+            self.serice_host_filename = os.path.join(CACHE_DIR, 'knative', self.cluster, 'service_host')
+            self.service_host_suffix = None
+            if os.path.exists(self.serice_host_filename):
+                serice_host_data = load_yaml_config(self.serice_host_filename)
+                self.service_host_suffix = serice_host_data['service_host_suffix']
+                logger.debug('Loaded service host suffix: {}'.format(self.service_host_suffix))
+                self.knative_config['service_host_suffix'] = self.service_host_suffix
+        else:
+            self.service_host_suffix = self.knative_config['service_host_suffix']
 
         if self.istio_endpoint:
             log_msg = 'PyWren v{} init for Knative - Istio Endpoint: {}'.format(__version__, self.istio_endpoint)

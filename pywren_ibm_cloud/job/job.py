@@ -4,7 +4,7 @@ import pickle
 import logging
 from pywren_ibm_cloud import utils
 from pywren_ibm_cloud.job.partitioner import create_partitions
-from pywren_ibm_cloud.utils import is_object_processing_function
+from pywren_ibm_cloud.utils import is_object_processing_function, sizeof_fmt
 from pywren_ibm_cloud.storage.utils import create_func_key, create_agg_data_key
 from pywren_ibm_cloud.job.serialize import SerializeIndependent, create_module_data
 from pywren_ibm_cloud.config import MAX_AGG_DATA_SIZE, JOBS_PREFIX
@@ -173,7 +173,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
 
     if data_size_bytes > MAX_AGG_DATA_SIZE:
         log_msg = ('ExecutorID {} | JobID {} - Total data exceeded maximum size '
-                   'of {} bytes'.format(executor_id, job_id, MAX_AGG_DATA_SIZE))
+                   'of {}'.format(executor_id, job_id, sizeof_fmt(MAX_AGG_DATA_SIZE)))
         raise Exception(log_msg)
 
     log_msg = ('ExecutorID {} | JobID {} - Uploading function and data '
