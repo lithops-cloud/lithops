@@ -1,6 +1,5 @@
 import os
 import json
-import pickle
 import logging
 import importlib
 from pywren_ibm_cloud.version import __version__
@@ -45,7 +44,7 @@ class InternalStorage:
     underlying storage backend without exposing the the implementation details.
     """
 
-    def __init__(self, storage_config, executor_id = None):
+    def __init__(self, storage_config, executor_id=None):
         self.config = storage_config
         self.backend = self.config['backend']
         self.bucket = self.config['bucket']
@@ -202,7 +201,10 @@ class InternalStorage:
             logger.debug("Runtime metadata not found in local cache. Retrieving it from storage")
             try:
                 obj_key = '/'.join(path).replace('\\', '/')
+                logger.debug('Trying to download runtime metadata from: {}://{}/{}'
+                             .format(self.backend, self.bucket, obj_key))
                 json_str = self.storage_handler.get_object(self.bucket, obj_key)
+                logger.debug('Runtime metadata found in storage')
                 runtime_meta = json.loads(json_str.decode("ascii"))
                 # Save runtime meta to cache
                 if not os.path.exists(os.path.dirname(filename_local_path)):
@@ -213,6 +215,7 @@ class InternalStorage:
 
                 return runtime_meta
             except StorageNoSuchKeyError:
+                logger.debug('Runtime metadata not found in storage')
                 raise Exception('The runtime {} is not installed.'.format(obj_key))
 
     def put_runtime_meta(self, key, runtime_meta):
@@ -223,7 +226,8 @@ class InternalStorage:
         """
         path = [RUNTIMES_PREFIX, __version__,  key+".meta.json"]
         obj_key = '/'.join(path).replace('\\', '/')
-        logger.debug("Uploading runtime metadata to: /{}/{}".format(self.bucket, obj_key))
+        logger.debug("Uploading runtime metadata to: {}://{}/{}"
+                     .format(self.backend, self.bucket, obj_key))
         self.storage_handler.put_object(self.bucket, obj_key, json.dumps(runtime_meta))
 
         if not is_pywren_function():

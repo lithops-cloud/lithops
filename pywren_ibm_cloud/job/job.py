@@ -2,11 +2,9 @@ import os
 import time
 import pickle
 import logging
-import inspect
 from pywren_ibm_cloud import utils
-from pywren_ibm_cloud.wait import wait_storage
 from pywren_ibm_cloud.job.partitioner import create_partitions
-from pywren_ibm_cloud.function.utils import is_object_processing_function
+from pywren_ibm_cloud.utils import is_object_processing_function
 from pywren_ibm_cloud.storage.utils import create_func_key, create_agg_data_key
 from pywren_ibm_cloud.job.serialize import SerializeIndependent, create_module_data
 from pywren_ibm_cloud.config import MAX_AGG_DATA_SIZE, JOBS_PREFIX
@@ -16,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def create_map_job(config, internal_storage, executor_id, job_id, map_function, iterdata, runtime_meta,
                    runtime_memory=None, extra_params=None, extra_env=None, obj_chunk_size=None,
-                   obj_chunk_number=None, invoke_pool_threads=128, include_modules=[], exclude_modules=[],
+                   obj_chunk_number=None, invoke_pool_threads=128, include_modules=None, exclude_modules=None,
                    execution_timeout=None):
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
@@ -58,7 +56,7 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
 
 def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, reduce_function,
                       map_job, map_futures, runtime_meta, reducer_one_per_object=False,
-                      runtime_memory=None, extra_env=None, include_modules=[], exclude_modules=[],
+                      runtime_memory=None, extra_env=None, include_modules=None, exclude_modules=None,
                       execution_timeout=None):
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
@@ -73,41 +71,29 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
             iterdata.append([map_futures[prev_total_partitons:prev_total_partitons+total_partitions]])
             prev_total_partitons = prev_total_partitons + total_partitions
 
-    def reduce_function_wrapper(fut_list, internal_storage, ibm_cos):
-        logger.info('Waiting for results')
-        # Wait for all results
-        wait_storage(fut_list, internal_storage, download_results=True)
-        results = [f.result() for f in fut_list if f.done and not f.futures]
-        fut_list.clear()
-        reduce_func_args = {'results': results}
+    reduce_job_env = {'__PW_REDUCE_JOB': True}
+    if extra_env is None:
+        ext_env = reduce_job_env
+    else:
+        ext_env = extra_env.copy()
+        ext_env.update(reduce_job_env)
 
-        # Run reduce function
-        func_sig = inspect.signature(reduce_function)
-        if 'ibm_cos' in func_sig.parameters:
-            reduce_func_args['ibm_cos'] = ibm_cos
-        if 'internal_storage' in func_sig.parameters:
-            reduce_func_args['internal_storage'] = internal_storage
-
-        return reduce_function(**reduce_func_args)
-
-    iterdata = utils.verify_args(reduce_function_wrapper, iterdata, None)
+    iterdata = utils.verify_args(reduce_function, iterdata, None)
 
     return _create_job(config, internal_storage, executor_id,
-                       reduce_job_id, reduce_function_wrapper,
+                       reduce_job_id, reduce_function,
                        iterdata, runtime_meta=runtime_meta,
                        runtime_memory=runtime_memory,
-                       extra_env=extra_env,
+                       extra_env=ext_env,
                        include_modules=include_modules,
                        exclude_modules=exclude_modules,
-                       original_func_name=reduce_function.__name__,
                        execution_timeout=execution_timeout,
                        job_created_timestamp=job_created_timestamp)
 
 
 def _create_job(config, internal_storage, executor_id, job_id, func, data, runtime_meta,
-                runtime_memory=None, extra_env=None, invoke_pool_threads=128, include_modules=[],
-                exclude_modules=[], original_func_name=None, execution_timeout=None,
-                job_created_timestamp=None):
+                runtime_memory=None, extra_env=None, invoke_pool_threads=128, include_modules=None,
+                exclude_modules=None, execution_timeout=None, job_created_timestamp=None):
     """
     :param func: the function to map over the data
     :param iterdata: An iterable of input data
@@ -118,7 +104,6 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     :param data_all_as_one: upload the data as a single object. Default True
     :param overwrite_invoke_args: Overwrite other args. Mainly used for testing.
     :param exclude_modules: Explicitly keep these modules from pickled dependencies.
-    :param original_func_name: Name of the function to invoke.
     :return: A list with size `len(iterdata)` of futures for each job
     :rtype:  list of futures.
     """
@@ -128,15 +113,10 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     if runtime_memory is None:
         runtime_memory = config['pywren']['runtime_memory']
 
-    if original_func_name:
-        func_name = original_func_name
-    else:
-        func_name = func.__name__
-
-    extra_env = {} if extra_env is None else extra_env
-    if extra_env:
-        extra_env = utils.convert_bools_to_string(extra_env)
-        logger.debug("Extra environment vars {}".format(extra_env))
+    ext_env = {} if extra_env is None else extra_env.copy()
+    if ext_env:
+        ext_env = utils.convert_bools_to_string(ext_env)
+        logger.debug("Extra environment vars {}".format(ext_env))
 
     if not data:
         return []
@@ -148,8 +128,8 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     job_description['runtime_name'] = runtime_name
     job_description['runtime_memory'] = int(runtime_memory)
     job_description['execution_timeout'] = execution_timeout
-    job_description['function_name'] = func_name
-    job_description['extra_env'] = extra_env
+    job_description['function_name'] = func.__name__
+    job_description['extra_env'] = ext_env
     job_description['total_calls'] = len(data)
     job_description['invoke_pool_threads'] = invoke_pool_threads
     job_description['executor_id'] = executor_id
@@ -157,6 +137,9 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
 
     exclude_modules_cfg = config['pywren'].get('exclude_modules', [])
     include_modules_cfg = config['pywren'].get('include_modules', [])
+    exclude_modules = [] if exclude_modules is None else exclude_modules
+    include_modules = [] if include_modules is None else include_modules
+
     exc_modules = set()
     inc_modules = set()
     if exclude_modules_cfg:

@@ -131,6 +131,11 @@ def is_pywren_function():
     return False
 
 
+def is_object_processing_function(map_function):
+    func_sig = inspect.signature(map_function)
+    return {'obj', 'url'} & set(func_sig.parameters)
+
+
 def is_notebook():
     try:
         shell = get_ipython().__class__.__name__

@@ -30,9 +30,9 @@ ibm_cos:
     #amqp_url   : <RABBIT_AMQP_URL>  # amqp://
 
 #knative:
-   #endpoint    : <ISTIO_INGRESS_ENDPOINT>
-   #docker_user : <DOCKER_HUB_USERNAME>
-   #docker_token: <DOCKER_HUB_TOKEN>
+   #istio_endpoint  : <ISTIO_INGRESS_ENDPOINT>
+   #docker_user     : <DOCKER_HUB_USERNAME>
+   #docker_token    : <DOCKER_HUB_TOKEN>
 
 #openwhisk:
     #endpoint    : <OW_ENDPOINT>

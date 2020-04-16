@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+import ssl
 import json
 import time
 import yaml
@@ -33,8 +34,7 @@ class KnativeServingBackend:
         self.log_level = os.getenv('PYWREN_LOGLEVEL')
         self.name = 'knative'
         self.knative_config = knative_config
-        self.endpoint = self.knative_config.get('endpoint')
-        self.service_hosts = {}
+        self.istio_endpoint = self.knative_config.get('istio_endpoint')
 
         # k8s config can be incluster, in ~/.kube/config or generate kube-config.yaml file and
         # set env variable KUBECONFIG=<path-to-kube-confg>
@@ -43,17 +43,19 @@ class KnativeServingBackend:
             current_context = config.list_kube_config_contexts()[1].get('context')
             self.namespace = current_context.get('namespace', 'default')
             self.cluster = current_context.get('cluster')
+            self.knative_config['namespace'] = self.namespace
+            self.knative_config['cluster'] = self.cluster
+            self.is_incluster = False
         except Exception:
             config.load_incluster_config()
-            self.namespace = 'default'
-            self.cluster = 'default'
+            self.namespace = self.knative_config.get('namespace', 'default')
+            self.cluster = self.knative_config.get('cluster', 'default')
+            self.is_incluster = True
 
         self.api = client.CustomObjectsApi()
         self.v1 = client.CoreV1Api()
 
-        self.headers = {'content-type': 'application/json'}
-
-        if self.endpoint is None:
+        if self.istio_endpoint is None:
             try:
                 ingress = self.v1.read_namespaced_service('istio-ingressgateway', 'istio-system')
                 http_port = list(filter(lambda port: port.port == 80, ingress.spec.ports))[0].node_port
@@ -67,11 +69,10 @@ class KnativeServingBackend:
                     node = self.v1.list_node()
                     ip = node.items[0].status.addresses[0].address
 
-                self.endpoint = 'http://{}:{}'.format(ip, http_port)
+                self.istio_endpoint = 'http://{}:{}'.format(ip, http_port)
 
             except Exception as e:
-                log_msg = "Something went wrong getting the istio-ingressgateway endpoint: {}".format(e)
-                logger.info(log_msg)
+                logger.info("istio-ingressgateway endpoint not found")
 
         self.serice_host_filename = os.path.join(CACHE_DIR, 'knative', self.cluster, 'service_host')
         self.service_host_suffix = None
@@ -80,7 +81,10 @@ class KnativeServingBackend:
             self.service_host_suffix = serice_host_data['service_host_suffix']
             logger.debug('Loaded service host suffix: {}'.format(self.service_host_suffix))
 
-        log_msg = 'PyWren v{} init for Knative - Endpoint: {}'.format(__version__, self.endpoint)
+        if self.istio_endpoint:
+            log_msg = 'PyWren v{} init for Knative - Istio Endpoint: {}'.format(__version__, self.istio_endpoint)
+        else:
+            log_msg = 'PyWren v{} init for Knative'.format(__version__)
         if not self.log_level:
             print(log_msg)
         logger.info(log_msg)
@@ -134,7 +138,7 @@ class KnativeServingBackend:
         """
         Creates the secret to access to the docker hub and the ServiceAcount
         """
-        logger.debug("Creating Account resources: Secret and ServiceAccount")
+        logger.debug("Creating Tekton account resources: Secret and ServiceAccount")
         string_data = {'username': self.knative_config['docker_user'],
                        'password': self.knative_config['docker_token']}
         secret_res = yaml.safe_load(kconfig.secret_res)
@@ -158,7 +162,7 @@ class KnativeServingBackend:
         self.v1.create_namespaced_service_account(self.namespace, account_res)
 
     def _create_build_resources(self):
-        logger.debug("Creating Build resources: PipelineResource and Task")
+        logger.debug("Creating Tekton build resources: PipelineResource and Task")
         git_res = yaml.safe_load(kconfig.git_res)
         git_res_name = git_res['metadata']['name']
 
@@ -226,11 +230,15 @@ class KnativeServingBackend:
             resp = requests.get('https://index.docker.io/v1/repositories/{}/tags/{}'
                                 .format(docker_image_name, revision))
             if resp.status_code == 200:
-                logger.debug('Docker image docker.io/{}:{} already created in Dockerhub. '
+                logger.debug('Docker image docker.io/{}:{} already exists in Dockerhub. '
                              'Skipping build process.'.format(docker_image_name, revision))
                 return
 
-        logger.debug("Building default docker image from git")
+        logger.debug("Building default PyWren runtime from git with Tekton")
+
+        if not {"docker_user", "docker_token"} <= set(self.knative_config):
+            raise Exception("You must provide 'docker_user' and 'docker_token'"
+                            " to build the default runtime")
 
         task_run = yaml.safe_load(kconfig.task_run)
         image_url = {'name': 'imageUrl', 'value': '/'.join([self.knative_config['docker_repo'], image_name])}
@@ -262,7 +270,7 @@ class KnativeServingBackend:
                     body=task_run
                 )
 
-        logger.debug("Building image...")
+        logger.debug("Building runtime...")
         pod_name = None
         w = watch.Watch()
         for event in w.stream(self.api.list_namespaced_custom_object, namespace=self.namespace,
@@ -282,7 +290,15 @@ class KnativeServingBackend:
                 w.stop()
             if event['object'].status.phase == "Failed":
                 w.stop()
-                raise Exception('Unable to create the Docker image from the git repository')
+                logger.debug('Something went wrong building the default PyWren runtime with Tekton')
+                for container in event['object'].status.container_statuses:
+                    if container.state.terminated.reason == 'Error':
+                        logs = self.v1.read_namespaced_pod_log(name=pod_name,
+                                                               container=container.name,
+                                                               namespace=self.namespace)
+                        logger.debug("Tekton container '{}' failed: {}".format(container.name, logs.strip()))
+
+                raise Exception('Unable to build the default PyWren runtime with Tekton')
 
         self.api.delete_namespaced_custom_object(
                     group="tekton.dev",
@@ -293,18 +309,21 @@ class KnativeServingBackend:
                     body=client.V1DeleteOptions()
                 )
 
-        logger.debug('Docker image created from git and uploaded to Dockerhub')
+        logger.debug('Default PyWren runtime built from git and uploaded to Dockerhub')
 
     def _create_service(self, docker_image_name, runtime_memory, timeout):
         """
         Creates a service in knative based on the docker_image_name and the memory provided
         """
-        logger.debug("Creating PyWren runtime service resource in k8s")
+        logger.debug("Creating PyWren runtime service in Knative")
         svc_res = yaml.safe_load(kconfig.service_res)
 
         service_name = self._format_service_name(docker_image_name, runtime_memory)
         svc_res['metadata']['name'] = service_name
         svc_res['metadata']['namespace'] = self.namespace
+
+        logger.debug("Service name: {}".format(service_name))
+        logger.debug("Namespace: {}".format(self.namespace))
 
         svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
         full_docker_image_name = '/'.join([self.knative_config['docker_repo'], docker_image_name])
@@ -338,20 +357,18 @@ class KnativeServingBackend:
         for event in w.stream(self.api.list_namespaced_custom_object,
                               namespace=self.namespace, group="serving.knative.dev",
                               version="v1alpha1", plural="services",
-                              field_selector="metadata.name={0}".format(service_name)):
-            conditions = None
+                              field_selector="metadata.name={0}".format(service_name),
+                              timeout_seconds=30):
             if event['object'].get('status'):
+                service_url = event['object']['status'].get('url')
                 conditions = event['object']['status']['conditions']
-                if event['object']['status'].get('url') is not None:
-                    service_url = event['object']['status']['url']
-            if conditions and conditions[0]['status'] == 'True' and \
-               conditions[1]['status'] == 'True' and conditions[2]['status'] == 'True':
-                # Workaround to prevent invoking the service immediately after creation.
-                # TODO: Open issue.
-                time.sleep(2)
-                w.stop()
+                if conditions[0]['status'] == 'True' and \
+                   conditions[1]['status'] == 'True' and \
+                   conditions[2]['status'] == 'True':
+                    w.stop()
+                    time.sleep(2)
 
-        log_msg = 'Runtime Service resource created - URL: {}'.format(service_url)
+        log_msg = 'Runtime Service created - URL: {}'.format(service_url)
         logger.debug(log_msg)
 
         self.service_host_suffix = service_url[7:].replace(service_name, '')
@@ -513,26 +530,39 @@ class KnativeServingBackend:
         else:
             service_host = self._get_service_host(service_name)
 
-        self.headers['Host'] = service_host
-        if self.endpoint is None:
-            self.endpoint = 'http://{}'.format(service_host)
+        headers = {}
 
-        exec_id = payload.get('executor_id', '')
-        call_id = payload.get('call_id', '')
-        job_id = payload.get('job_id', '')
+        if self.istio_endpoint:
+            headers['Host'] = service_host
+            endpoint = self.istio_endpoint
+        else:
+            endpoint = 'http://{}'.format(service_host)
+
+        exec_id = payload.get('executor_id')
+        call_id = payload.get('call_id')
+        job_id = payload.get('job_id')
         route = payload.get("service_route", '/')
 
         try:
-            logger.debug('ExecutorID {} | JobID {} - Starting function call {}'
-                         .format(exec_id, job_id, call_id))
+            parsed_url = urlparse(endpoint)
 
-            parsed_url = urlparse(self.endpoint)
-            conn = http.client.HTTPConnection(parsed_url.netloc, timeout=600)
-            conn.request("POST", route,
-                         body=json.dumps(payload),
-                         headers=self.headers)
-            logger.debug('ExecutorID {} | JobID {} - Function call {} done. Waiting '
-                         'for a response'.format(exec_id, job_id, call_id))
+            if endpoint.startswith('https'):
+                ctx = ssl._create_unverified_context()
+                conn = http.client.HTTPSConnection(parsed_url.netloc, context=ctx)
+            else:
+                conn = http.client.HTTPConnection(parsed_url.netloc)
+
+            conn.request("POST", route, body=json.dumps(payload), headers=headers)
+
+            if exec_id and job_id and call_id:
+                logger.debug('ExecutorID {} | JobID {} - Function call {} invoked'
+                             .format(exec_id, job_id, call_id))
+            elif exec_id and job_id:
+                logger.debug('ExecutorID {} | JobID {} - Function invoked'
+                             .format(exec_id, job_id))
+            else:
+                logger.debug('Function invoked')
+
             resp = conn.getresponse()
             resp_status = resp.status
             resp_data = resp.read().decode("utf-8")
@@ -548,7 +578,8 @@ class KnativeServingBackend:
         elif resp_status == 404:
             raise Exception("PyWren runtime is not deployed in your k8s cluster")
         else:
-            raise Exception(resp_status, resp_data)
+            logger.error('ExecutorID {} | JobID {} - Function call {} failed ({}). Retrying request'
+                         .format(exec_id, job_id, call_id, resp_data.replace('.', '')))
 
     def get_runtime_key(self, docker_image_name, runtime_memory):
         """

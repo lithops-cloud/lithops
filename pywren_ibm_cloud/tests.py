@@ -101,7 +101,7 @@ class TestMethods:
         def _func(x):
             return x + 1
 
-        pw = pywren.ibm_cf_executor()
+        pw = pywren.function_executor()
         return pw.map(_func, range(x))
 
     @staticmethod
@@ -109,7 +109,7 @@ class TestMethods:
         def _func(x):
             return x + 1
 
-        pw = pywren.ibm_cf_executor()
+        pw = pywren.function_executor()
         return pw.call_async(_func, x + 5)
 
     @staticmethod
@@ -117,7 +117,7 @@ class TestMethods:
         def _func(x):
             return x + 1
 
-        pw = pywren.ibm_cf_executor()
+        pw = pywren.function_executor()
         fut1 = pw.map(_func, range(x))
         fut2 = pw.map(_func, range(x))
         return fut1 + fut2
@@ -396,7 +396,7 @@ class TestPywren(unittest.TestCase):
 
 
 def print_help():
-    print("available test functions:")
+    print("Available test functions:")
     func_names = filter(lambda s: s[:4] == 'test',
                         map(lambda t: t[0], inspect.getmembers(TestPywren(), inspect.ismethod)))
     for func_name in func_names:

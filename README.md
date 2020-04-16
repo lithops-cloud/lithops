@@ -91,7 +91,7 @@ $ pywren-ibm-cloud verify
 or
 
 ```bash
-$ python -m pywren_ibm_cloud.tests`
+$ python -m pywren_ibm_cloud.tests
 ```
 
 Notice that if you didn't set a local PyWren's config file, you need to provide it as a json file path by `-c <CONFIG>` flag.

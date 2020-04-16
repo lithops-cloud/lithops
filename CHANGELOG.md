@@ -2,16 +2,23 @@
 
 ## [v1.5.2--snapshot]
 
-### Added
-- 
-
 ### Changed
-- 
+- Reducer logic moved to jobrunner
+- Set default Knative runtime timeout to 10 minutes
+- Added more debug logs in Knative
 
 ### Fixed
 - Fixed issue in map_reduce() method
-- Fixed issue in plot() method
-- Fixed issue in knative
+- Fixed issue in plot() method when using numpy 1.18.1
+- Fixed issue in Knative when the default runtime is built
+- Fixed issue with extra_env vars passed to functions
+- Fixed issue when pywren version mismatch in Knative
+- Fixed include_modules and exclude_modules vars
+- Fixed issue in pywren-ibm-cloud cli
+- Fixed minor issue with ps_mem module in windows hosts
+- Fixed knative to pass all tests
+- Fixed remote_invoker in knative
+
 
 ## [v1.5.1]
 

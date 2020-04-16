@@ -27,10 +27,10 @@ import traceback
 import numpy as np
 from distutils.util import strtobool
 from pywren_ibm_cloud.storage import Storage
+from pywren_ibm_cloud.wait import wait_storage
 from pywren_ibm_cloud.future import ResponseFuture
 from pywren_ibm_cloud.libs.tblib import pickling_support
-from pywren_ibm_cloud.utils import sizeof_fmt, b64str_to_bytes
-from pywren_ibm_cloud.function.utils import is_object_processing_function
+from pywren_ibm_cloud.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_function
 from pywren_ibm_cloud.utils import WrappedStreamingBodyPartition
 from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config
 
@@ -185,6 +185,14 @@ class JobRunner:
         if 'id' in func_sig.parameters:
             data['id'] = int(self.call_id)
 
+    def _wait_futures(self, data):
+        logger.info('Reduce function: waiting for map results')
+        fut_list = data['results']
+        wait_storage(fut_list, self.internal_storage, download_results=True)
+        results = [f.result() for f in fut_list if f.done and not f.futures]
+        fut_list.clear()
+        data['results'] = results
+
     def _load_object(self, data):
         """
         Loads the object in /tmp in case of object processing
@@ -237,7 +245,9 @@ class JobRunner:
             function = self._unpickle_function(loaded_func_all['func'])
             data = self._load_data()
 
-            if is_object_processing_function(function):
+            if strtobool(os.environ.get('__PW_REDUCE_JOB', 'False')):
+                self._wait_futures(data)
+            elif is_object_processing_function(function):
                 self._load_object(data)
 
             self._fill_optional_args(function, data)

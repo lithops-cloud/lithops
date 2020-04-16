@@ -1,5 +1,4 @@
 import os
-import inspect
 import subprocess
 from pywren_ibm_cloud.libs import ps_mem
 from pywren_ibm_cloud.utils import sizeof_fmt
@@ -62,8 +61,3 @@ def get_server_info():
                             '/proc/cgroups': open("/proc/cgroups", 'r').read()})
     """
     return server_info
-
-
-def is_object_processing_function(map_function):
-    func_sig = inspect.signature(map_function)
-    return {'obj', 'url'} & set(func_sig.parameters)
