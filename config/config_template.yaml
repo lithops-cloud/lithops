@@ -6,9 +6,10 @@ pywren:
     #remote_invoker: <True/False>
     #data_cleaner: <True/False>
     #runtime : <RUNTIME_NAME>
-    #runtime_timeout: 600000
+    #runtime_timeout: 600
     #runtime_memory: 256
     #workers: <MAX_NUM_OF_WORKERS>
+    #data_limit: 4  # in MiB
 
 #ibm:
    #iam_api_key: <IAM KEY>

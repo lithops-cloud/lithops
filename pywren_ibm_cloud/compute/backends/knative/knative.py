@@ -80,10 +80,11 @@ class KnativeServingBackend:
             if os.path.exists(self.serice_host_filename):
                 serice_host_data = load_yaml_config(self.serice_host_filename)
                 self.service_host_suffix = serice_host_data['service_host_suffix']
-                logger.debug('Loaded service host suffix: {}'.format(self.service_host_suffix))
                 self.knative_config['service_host_suffix'] = self.service_host_suffix
         else:
             self.service_host_suffix = self.knative_config['service_host_suffix']
+
+        logger.debug('Loaded service host suffix: {}'.format(self.service_host_suffix))
 
         if self.istio_endpoint:
             log_msg = 'PyWren v{} init for Knative - Istio Endpoint: {}'.format(__version__, self.istio_endpoint)
@@ -362,7 +363,7 @@ class KnativeServingBackend:
                               namespace=self.namespace, group="serving.knative.dev",
                               version="v1alpha1", plural="services",
                               field_selector="metadata.name={0}".format(service_name),
-                              timeout_seconds=120):
+                              timeout_seconds=300):
             if event['object'].get('status'):
                 service_url = event['object']['status'].get('url')
                 conditions = event['object']['status']['conditions']
@@ -380,6 +381,7 @@ class KnativeServingBackend:
         serice_host_data = {}
         serice_host_data['service_host_suffix'] = self.service_host_suffix
         dump_yaml_config(self.serice_host_filename, serice_host_data)
+        self.knative_config['service_host_suffix'] = self.service_host_suffix
 
         return service_url
 

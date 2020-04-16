@@ -301,13 +301,11 @@ class FunctionInvoker:
                 call_futures = []
 
                 with ThreadPoolExecutor(max_workers=job.invoke_pool_threads) as executor:
+                    # Blocks until all direct invocations have finished
                     for i in callids_to_invoke_direct:
                         call_id = "{:05d}".format(i)
                         future = executor.submit(self._invoke, job, call_id)
                         call_futures.append(future)
-
-                # Block until all direct invocations have finished
-                callids_invoked = [ft.result() for ft in call_futures]
 
                 # Put into the queue the rest of the callids to invoke within the process
                 if callids_to_invoke_nondirect:

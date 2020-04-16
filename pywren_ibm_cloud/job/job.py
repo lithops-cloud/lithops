@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def create_map_job(config, internal_storage, executor_id, job_id, map_function, iterdata, runtime_meta,
                    runtime_memory=None, extra_params=None, extra_env=None, obj_chunk_size=None,
-                   obj_chunk_number=None, invoke_pool_threads=128, include_modules=None, exclude_modules=None,
+                   obj_chunk_number=None, invoke_pool_threads=128, include_modules=[], exclude_modules=[],
                    execution_timeout=None):
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
@@ -56,7 +56,7 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
 
 def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, reduce_function,
                       map_job, map_futures, runtime_meta, reducer_one_per_object=False,
-                      runtime_memory=None, extra_env=None, include_modules=None, exclude_modules=None,
+                      runtime_memory=None, extra_env=None, include_modules=[], exclude_modules=[],
                       execution_timeout=None):
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
@@ -92,8 +92,8 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
 
 
 def _create_job(config, internal_storage, executor_id, job_id, func, data, runtime_meta,
-                runtime_memory=None, extra_env=None, invoke_pool_threads=128, include_modules=None,
-                exclude_modules=None, execution_timeout=None, job_created_timestamp=None):
+                runtime_memory=None, extra_env=None, invoke_pool_threads=128, include_modules=[],
+                exclude_modules=[], execution_timeout=None, job_created_timestamp=None):
     """
     :param func: the function to map over the data
     :param iterdata: An iterable of input data
@@ -137,8 +137,6 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
 
     exclude_modules_cfg = config['pywren'].get('exclude_modules', [])
     include_modules_cfg = config['pywren'].get('include_modules', [])
-    exclude_modules = [] if exclude_modules is None else exclude_modules
-    include_modules = [] if include_modules is None else include_modules
 
     exc_modules = set()
     inc_modules = set()
@@ -171,9 +169,14 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     host_job_meta['data_size_bytes'] = data_size_bytes
     host_job_meta['func_module_size_bytes'] = func_module_size_bytes
 
-    if data_size_bytes > MAX_AGG_DATA_SIZE:
+    if 'data_limit' in config['pywren']:
+        data_limit = config['pywren']['data_limit']
+    else:
+        data_limit = MAX_AGG_DATA_SIZE
+
+    if data_limit and data_size_bytes > data_limit*1024**2:
         log_msg = ('ExecutorID {} | JobID {} - Total data exceeded maximum size '
-                   'of {}'.format(executor_id, job_id, sizeof_fmt(MAX_AGG_DATA_SIZE)))
+                   'of {}'.format(executor_id, job_id, sizeof_fmt(data_limit*1024**2)))
         raise Exception(log_msg)
 
     log_msg = ('ExecutorID {} | JobID {} - Uploading function and data '

@@ -2,6 +2,9 @@
 
 ## [v1.5.2--snapshot]
 
+### Added
+- Added 'data_limit' config param in pywren section
+
 ### Changed
 - Reducer logic moved to jobrunner
 - Set default Knative runtime timeout to 10 minutes
@@ -13,7 +16,6 @@
 - Fixed issue in Knative when the default runtime is built
 - Fixed issue with extra_env vars passed to functions
 - Fixed issue when pywren version mismatch in Knative
-- Fixed include_modules and exclude_modules vars
 - Fixed issue in pywren-ibm-cloud cli
 - Fixed minor issue with ps_mem module in windows hosts
 - Fixed knative to pass all tests
