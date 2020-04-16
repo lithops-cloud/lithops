@@ -358,7 +358,7 @@ class KnativeServingBackend:
                               namespace=self.namespace, group="serving.knative.dev",
                               version="v1alpha1", plural="services",
                               field_selector="metadata.name={0}".format(service_name),
-                              timeout_seconds=30):
+                              timeout_seconds=120):
             if event['object'].get('status'):
                 service_url = event['object']['status'].get('url')
                 conditions = event['object']['status']['conditions']
