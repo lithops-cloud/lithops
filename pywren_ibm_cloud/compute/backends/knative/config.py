@@ -99,7 +99,11 @@ spec:
           name: pywren-git
     params:
       - name: pathToDockerFile
-        value: pywren_ibm_cloud/compute/backends/knative/Dockerfile
+        value: pywren_ibm_cloud/compute/backends/knative/tekton/Dockerfile.python36
+      - name: imageUrl
+        value: docker.io/jsampe/pywren-knative-v36
+      - name: imageTag
+        value: latest
 """
 
 

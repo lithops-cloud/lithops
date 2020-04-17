@@ -226,10 +226,9 @@ class KnativeServingBackend:
 
     def _build_default_runtime_from_git(self, docker_image_name):
         """
-        Builds the default docker image and pushes it to the docker container registry
+        Builds the default runtime and pushes it to the docker container registry
         """
-        image_name = docker_image_name.split(':')[0]
-        revision = docker_image_name.split(':')[1] if ':' in docker_image_name else 'latest'
+        image_name, revision = docker_image_name.split(':')
 
         if self.knative_config['docker_repo'] == 'docker.io' and revision != 'latest':
             resp = requests.get('https://index.docker.io/v1/repositories/{}/tags/{}'
@@ -246,9 +245,16 @@ class KnativeServingBackend:
                             " to build the default runtime")
 
         task_run = yaml.safe_load(kconfig.task_run)
-        image_url = {'name': 'imageUrl', 'value': '/'.join([self.knative_config['docker_repo'], image_name])}
+        task_run['spec']['inputs']['params'] = []
+        python_version = version_str(sys.version_info).replace('.', '')
+        path_to_dockerfile = {'name': 'pathToDockerFile',
+                              'value': 'pywren_ibm_cloud/compute/backends/knative/tekton/Dockerfile.python{}'.format(python_version)}
+        task_run['spec']['inputs']['params'].append(path_to_dockerfile)
+        image_url = {'name': 'imageUrl',
+                     'value': '/'.join([self.knative_config['docker_repo'], image_name])}
         task_run['spec']['inputs']['params'].append(image_url)
-        image_tag = {'name': 'imageTag', 'value':  revision}
+        image_tag = {'name': 'imageTag',
+                     'value':  revision}
         task_run['spec']['inputs']['params'].append(image_tag)
 
         self._create_account_resources()
@@ -315,6 +321,22 @@ class KnativeServingBackend:
                 )
 
         logger.debug('Default PyWren runtime built from git and uploaded to Dockerhub')
+
+    def _build_default_runtime(self, default_runtime_img_name):
+        """
+        Builds the default runtime
+        """
+        if os.system('dockera --version >/dev/null 2>&1') == 0:
+            python_version = version_str(sys.version_info).replace('.', '')
+            location = 'https://raw.githubusercontent.com/pywren/pywren-ibm-cloud/master/runtime/knative'
+            file = requests.get('{}/Dockerfile.python{}'.format(location, python_version))
+            dockerfile = "Dockefile.default-kantive-runtime"
+            with open(dockerfile, 'w') as f:
+                f.write(file.text)
+            self.build_runtime(default_runtime_img_name, dockerfile)
+            os.remove(dockerfile)
+        else:
+            self._build_default_runtime_from_git(default_runtime_img_name)
 
     def _create_service(self, docker_image_name, runtime_memory, timeout):
         """
@@ -415,7 +437,7 @@ class KnativeServingBackend:
             # We only build the default image. rest of images must already exist
             # in the docker registry.
             docker_image_name = default_runtime_img_name
-            self._build_default_runtime_from_git(default_runtime_img_name)
+            self._build_default_runtime(default_runtime_img_name)
 
         self._create_service(docker_image_name, memory, timeout)
         runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
@@ -466,15 +488,22 @@ class KnativeServingBackend:
         else:
             cmd = 'docker build -t {} .'.format(docker_image_name)
 
+        if not self.log_level:
+            cmd = cmd + " >/dev/null 2>&1"
+
         res = os.system(cmd)
         if res != 0:
+            logger.error('There was an error building the runtime')
             exit()
 
         self._delete_function_handler_zip()
 
         cmd = 'docker push {}'.format(docker_image_name)
+        if not self.log_level:
+            cmd = cmd + " >/dev/null 2>&1"
         res = os.system(cmd)
         if res != 0:
+            logger.error('There was an pushing the runtime to the docker registry')
             exit()
 
     def delete_runtime(self, docker_image_name, memory):

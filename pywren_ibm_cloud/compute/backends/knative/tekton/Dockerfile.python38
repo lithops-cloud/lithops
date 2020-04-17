@@ -1,0 +1,38 @@
+FROM python:3.8-slim-buster
+
+RUN apt-get update \
+    # add some packages required for the pip install
+    && apt-get install -y \
+        gcc \
+        zlib1g-dev \
+        libxslt-dev \
+        libxml2-dev \
+        zip \
+        unzip \
+    # cleanup package lists, they are not used anymore in this image
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-cache search linux-headers-generic
+
+RUN pip install --upgrade pip setuptools six \
+    && pip install --no-cache-dir \
+        simplejson==3.16.0 \
+        httplib2==0.13.0 \
+        kafka_python==1.4.6 \
+        lxml==4.3.1 \
+        python-dateutil==2.8.0 \
+        pika==0.13.1 \
+        flask==1.1.1 \
+        gevent==1.4.0 \
+        ibm-cos-sdk==2.6.0 \
+        redis==3.3.8 \
+        requests==2.22.0 \
+        numpy==1.17.2
+
+# Copy PyWren proxy and lib to the container image.
+ENV APP_HOME /pywren
+WORKDIR $APP_HOME
+
+COPY pywren_ibm_cloud ./pywren_ibm_cloud
+COPY pywren_ibm_cloud/compute/backends/knative/entry_point.py pywrenproxy.py
+
+CMD exec gunicorn --bind :$PORT --workers 1 --timeout 600 pywrenproxy:proxy
