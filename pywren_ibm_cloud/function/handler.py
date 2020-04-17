@@ -157,6 +157,7 @@ def function_handler(event):
             mm_handler_conn.send('STOP')
             memory_monitor.join()
             peak_memory_usage = int(mm_handler_conn.recv())
+            logger.info("Peak memory usage: {}".format(sizeof_fmt(peak_memory_usage)))
             call_status.response['peak_memory_usage'] = peak_memory_usage
 
         try:
@@ -280,8 +281,10 @@ class CallStatus:
 def memory_monitor_worker(mm_conn, delay=0.01):
     peak = 0
 
+    logger.debug("Starting memory monitor thread")
+
     def make_measurement(peak):
-        mem = get_memory_usage(format=False) + 5*1024**2
+        mem = get_memory_usage(formatted=False) + 5*1024**2
         if mem > peak:
             peak = mem
         return peak
@@ -292,6 +295,8 @@ def memory_monitor_worker(mm_conn, delay=0.01):
         except Exception:
             break
 
-    peak = make_measurement(peak)
+    try:
+        peak = make_measurement(peak)
+    except Exception as e:
+        logger.error('Memory monitor: {}'.format(e))
     mm_conn.send(peak)
-    logger.info("Peak memory usage: {}".format(sizeof_fmt(peak)))

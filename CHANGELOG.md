@@ -20,6 +20,7 @@
 - Fixed minor issue with ps_mem module in windows hosts
 - Fixed knative to pass all tests
 - Fixed remote_invoker in knative
+- Fixed issue in memory monitor
 
 
 ## [v1.5.1]
