@@ -62,14 +62,8 @@ class OpenWhiskBackend:
         return image_name, int(memory.replace('MB', ''))
 
     def _get_default_runtime_image_name(self):
-        this_version_str = version_str(sys.version_info)
-        if this_version_str == '3.5':
-            image_name = openwhisk_config.RUNTIME_DEFAULT_35
-        elif this_version_str == '3.6':
-            image_name = openwhisk_config.RUNTIME_DEFAULT_36
-        elif this_version_str == '3.7':
-            image_name = openwhisk_config.RUNTIME_DEFAULT_37
-        return image_name
+        python_version = version_str(sys.version_info)
+        return openwhisk_config.RUNTIME_DEFAULT[python_version]
 
     def _create_function_handler_zip(self):
         logger.debug("Creating function handler zip in {}".format(openwhisk_config.FH_ZIP_LOCATION))

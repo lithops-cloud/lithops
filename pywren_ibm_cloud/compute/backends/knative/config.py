@@ -160,7 +160,7 @@ def load_config(config_data):
     if 'runtime' not in config_data['pywren']:
         docker_user = config_data['knative']['docker_user']
         python_version = version_str(sys.version_info).replace('.', '')
-        revision = 'latest' if 'SNAPSHOT' in __version__ else __version__
+        revision = 'latest' if 'SNAPSHOT' in __version__ else __version__.replace('.', '')
         runtime_name = '{}/{}-v{}:{}'.format(docker_user, RUNTIME_NAME_DEFAULT, python_version, revision)
         config_data['pywren']['runtime'] = runtime_name
 

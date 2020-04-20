@@ -107,7 +107,7 @@ class KnativeServingBackend:
     def _get_default_runtime_image_name(self):
         docker_user = self.knative_config['docker_user']
         python_version = version_str(sys.version_info).replace('.', '')
-        revision = 'latest' if 'SNAPSHOT' in __version__ else __version__
+        revision = 'latest' if 'SNAPSHOT' in __version__ else __version__.replace('.', '')
         return '{}/{}-v{}:{}'.format(docker_user, kconfig.RUNTIME_NAME_DEFAULT, python_version, revision)
 
     def _get_service_host(self, service_name):
@@ -326,16 +326,23 @@ class KnativeServingBackend:
         """
         Builds the default runtime
         """
-        if os.system('dockera --version >/dev/null 2>&1') == 0:
+        if os.system('docker --version >/dev/null 2>&1') == 0:
+            # Build default runtime using local dokcer
             python_version = version_str(sys.version_info).replace('.', '')
             location = 'https://raw.githubusercontent.com/pywren/pywren-ibm-cloud/master/runtime/knative'
-            file = requests.get('{}/Dockerfile.python{}'.format(location, python_version))
+            resp = requests.get('{}/Dockerfile.python{}'.format(location, python_version))
             dockerfile = "Dockefile.default-kantive-runtime"
-            with open(dockerfile, 'w') as f:
-                f.write(file.text)
-            self.build_runtime(default_runtime_img_name, dockerfile)
-            os.remove(dockerfile)
+            if resp.status_code == 200:
+                with open(dockerfile, 'w') as f:
+                    f.write(resp.text)
+                self.build_runtime(default_runtime_img_name, dockerfile)
+                os.remove(dockerfile)
+            else:
+                msg = 'There was an error fetching the default runitme Dockerfile: {}'.format(resp.text)
+                logger.error(msg)
+                exit()
         else:
+            # Build default runtime using Tekton
             self._build_default_runtime_from_git(default_runtime_img_name)
 
     def _create_service(self, docker_image_name, runtime_memory, timeout):
@@ -503,7 +510,7 @@ class KnativeServingBackend:
             cmd = cmd + " >/dev/null 2>&1"
         res = os.system(cmd)
         if res != 0:
-            logger.error('There was an pushing the runtime to the docker registry')
+            logger.error('There was an error pushing the runtime to the container registry')
             exit()
 
     def delete_runtime(self, docker_image_name, memory):

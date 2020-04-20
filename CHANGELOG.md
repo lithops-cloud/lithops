@@ -9,6 +9,7 @@
 - Reducer logic moved to jobrunner
 - Set default Knative runtime timeout to 10 minutes
 - Added more debug logs in Knative
+- Enabled building default knative runtime locally
 
 ### Fixed
 - Fixed issue in map_reduce() method
@@ -21,6 +22,8 @@
 - Fixed knative to pass all tests
 - Fixed remote_invoker in knative
 - Fixed issue in memory monitor
+- Fixed building default runtime based on current python version
+- OOM exceptions from knative are now correctly raised
 
 
 ## [v1.5.1]
