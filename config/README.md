@@ -100,6 +100,7 @@ pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
 |pywren | workers | Depends of the ComputeBackend | no | Max number of concurrent workers |
 |pywren| runtime_timeout | 600 |no |  Default runtime timeout (in seconds) |
 |pywren| runtime_memory | 256 | no | Default runtime memory (in MB) |
+|pywren| data_limit | 4 | no | Max (iter)data size (in MB). Set to False for unlimited size |
 
 
 ### Summary of configuration keys for IBM Cloud:

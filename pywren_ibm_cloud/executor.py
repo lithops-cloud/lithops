@@ -108,7 +108,7 @@ class FunctionExecutor:
         return '{}{}'.format(call_type, job_id)
 
     def call_async(self, func, data, extra_env=None, runtime_memory=None,
-                   timeout=None, include_modules=None, exclude_modules=None):
+                   timeout=None, include_modules=[], exclude_modules=[]):
         """
         For running one function execution asynchronously
 
@@ -147,7 +147,7 @@ class FunctionExecutor:
 
     def map(self, map_function, map_iterdata, extra_params=None, extra_env=None, runtime_memory=None,
             chunk_size=None, chunk_n=None, timeout=None, invoke_pool_threads=500,
-            include_modules=None, exclude_modules=None):
+            include_modules=[], exclude_modules=[]):
         """
         :param map_function: the function to map over the data
         :param map_iterdata: An iterable of input data
@@ -195,7 +195,7 @@ class FunctionExecutor:
     def map_reduce(self, map_function, map_iterdata, reduce_function, extra_params=None, extra_env=None,
                    map_runtime_memory=None, reduce_runtime_memory=None, chunk_size=None, chunk_n=None,
                    timeout=None, invoke_pool_threads=500, reducer_one_per_object=False,
-                   reducer_wait_local=False, include_modules=None, exclude_modules=None):
+                   reducer_wait_local=False, include_modules=[], exclude_modules=[]):
         """
         Map the map_function over the data and apply the reduce_function across all futures.
         This method is executed all within CF.

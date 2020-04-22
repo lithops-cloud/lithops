@@ -2,10 +2,14 @@
 
 ## [v1.5.2--snapshot]
 
+### Added
+- Added 'data_limit' config param in pywren section
+
 ### Changed
 - Reducer logic moved to jobrunner
 - Set default Knative runtime timeout to 10 minutes
 - Added more debug logs in Knative
+- Enabled building default knative runtime locally
 
 ### Fixed
 - Fixed issue in map_reduce() method
@@ -13,11 +17,13 @@
 - Fixed issue in Knative when the default runtime is built
 - Fixed issue with extra_env vars passed to functions
 - Fixed issue when pywren version mismatch in Knative
-- Fixed include_modules and exclude_modules vars
 - Fixed issue in pywren-ibm-cloud cli
 - Fixed minor issue with ps_mem module in windows hosts
 - Fixed knative to pass all tests
 - Fixed remote_invoker in knative
+- Fixed issue in memory monitor
+- Fixed building default runtime based on current python version
+- OOM exceptions from knative are now correctly raised
 
 
 ## [v1.5.1]

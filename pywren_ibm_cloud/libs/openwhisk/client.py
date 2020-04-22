@@ -216,7 +216,7 @@ class OpenWhiskClient:
                 resp_status = resp.status
                 data = json.loads(resp.read().decode("utf-8"))
                 conn.close()
-        except Exception as e:
+        except Exception:
             if not is_ow_action:
                 conn.close()
             if self_invoked:

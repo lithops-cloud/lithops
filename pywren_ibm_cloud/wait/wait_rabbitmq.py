@@ -134,9 +134,6 @@ def wait_rabbitmq(fs, internal_storage, rabbit_amqp_url, download_results=False,
                 gr_ft = thread_pool.submit(get_result, fut)
                 get_result_futures.append(gr_ft)
 
-    if pbar:
-        pbar.close()
-
     wait(get_result_futures)
 
     return fs, []

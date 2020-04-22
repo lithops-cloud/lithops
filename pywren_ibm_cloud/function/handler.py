@@ -126,17 +126,17 @@ def function_handler(event):
         setup_time = time.time()
         call_status.response['setup_time'] = round(setup_time - start_time, 8)
 
-        handler_conn, jobrunner_conn = Pipe()
-        jobrunner = JobRunner(jobrunner_config, jobrunner_conn, internal_storage)
-        logger.debug('Starting JobRunner process')
-        local_execution = strtobool(os.environ.get('LOCAL_EXECUTION', 'False'))
-        jrp = Thread(target=jobrunner.run) if local_execution else Process(target=jobrunner.run)
-        jrp.start()
-
         if show_memory_peak:
             mm_handler_conn, mm_conn = Pipe()
             memory_monitor = Thread(target=memory_monitor_worker, args=(mm_conn, ))
             memory_monitor.start()
+
+        handler_conn, jobrunner_conn = Pipe()
+        jobrunner = JobRunner(jobrunner_config, jobrunner_conn, internal_storage)
+        logger.debug('Starting JobRunner process')
+        local_execution = strtobool(os.environ.get('__PW_LOCAL_EXECUTION', 'False'))
+        jrp = Thread(target=jobrunner.run) if local_execution else Process(target=jobrunner.run)
+        jrp.start()
 
         jrp.join(execution_timeout)
         logger.debug('JobRunner process finished')
@@ -157,11 +157,10 @@ def function_handler(event):
             mm_handler_conn.send('STOP')
             memory_monitor.join()
             peak_memory_usage = int(mm_handler_conn.recv())
+            logger.info("Peak memory usage: {}".format(sizeof_fmt(peak_memory_usage)))
             call_status.response['peak_memory_usage'] = peak_memory_usage
 
-        try:
-            handler_conn.recv()
-        except EOFError:
+        if not handler_conn.poll():
             logger.error('No completion message received from JobRunner process')
             logger.debug('Assuming memory overflow...')
             # Only 1 message is returned by jobrunner when it finishes.
@@ -169,9 +168,6 @@ def function_handler(event):
             # 99% of times the jobrunner is killed due an OOM, so we assume here an OOM.
             msg = 'Function exceeded maximum memory and was killed'
             raise MemoryError('HANDLER', msg)
-
-        # print(subprocess.check_output("find {}".format(PYTHON_MODULE_PATH), shell=True))
-        # print(subprocess.check_output("find {}".format(os.getcwd()), shell=True))
 
         if os.path.exists(jobrunner_stats_filename):
             with open(jobrunner_stats_filename, 'r') as fid:
@@ -280,8 +276,10 @@ class CallStatus:
 def memory_monitor_worker(mm_conn, delay=0.01):
     peak = 0
 
+    logger.debug("Starting memory monitor")
+
     def make_measurement(peak):
-        mem = get_memory_usage(format=False) + 5*1024**2
+        mem = get_memory_usage(formatted=False) + 5*1024**2
         if mem > peak:
             peak = mem
         return peak
@@ -292,6 +290,8 @@ def memory_monitor_worker(mm_conn, delay=0.01):
         except Exception:
             break
 
-    peak = make_measurement(peak)
+    try:
+        peak = make_measurement(peak)
+    except Exception as e:
+        logger.error('Memory monitor: {}'.format(e))
     mm_conn.send(peak)
-    logger.info("Peak memory usage: {}".format(sizeof_fmt(peak)))

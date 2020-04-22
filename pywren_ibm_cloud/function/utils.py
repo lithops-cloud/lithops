@@ -4,7 +4,7 @@ from pywren_ibm_cloud.libs import ps_mem
 from pywren_ibm_cloud.utils import sizeof_fmt
 
 
-def get_memory_usage(formated=True):
+def get_memory_usage(formatted=True):
     """
     Gets the current memory usage of the runtime.
     To be used only in the action code.
@@ -17,7 +17,7 @@ def get_memory_usage(formated=True):
     sorted_cmds, shareds, count, total, swaps, total_swap = \
         ps_mem.get_memory_usage(pids_to_show, split_args, discriminate_by_pid,
                                 include_self=True, only_self=False)
-    if formated:
+    if formatted:
         return sizeof_fmt(int(ps_mem.human(total, units=1)))
     else:
         return int(ps_mem.human(total, units=1))

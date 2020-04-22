@@ -2,11 +2,14 @@
 
 ## Executor
 
-The primary object in PyWren is the executor. The standard way to get everything set up is to import pywren_ibm_cloud, and call on of the available methods to get a ready-to-use executor. The available executors are: `ibm_cf_executor()`, `knative_executor()`, `function_executor()`, `local_executor()` and `docker_executor()`
+The primary object in PyWren is the executor. The standard way to get everything set up is to import pywren_ibm_cloud, and call on of the available functions to get a ready-to-use executor. 
+
+By default the executor loads the configuration from the config file. Alternatively you can pass the configuration with a python dictionary. In any case, note that all the parameters set in the executor will overwrite those set in the configuration.
+
 
 **ibm_cf_executor(\*\*kwargs)**
 
-Initialize and return an IBM Cloud Functions executor object. All the parameters set in the executor will overwrite those set in the configuration.
+Initialize and return an IBM Cloud Functions executor object.
 
 |Parameter | Default | Description|
 |---|---|---|
@@ -27,7 +30,7 @@ pw = pywren.ibm_cf_executor()
 
 **knative_executor(\*\*kwargs)**
 
-Initialize and return a Knative executor object. All the parameters set in the executor will overwrite those set in the configuration.
+Initialize and return a Knative executor object. See [additional information](knative.md).
 
 |Parameter | Default | Description|
 |---|---|---|
@@ -48,7 +51,7 @@ pw = pywren.knative_executor()
 
 **openwhisk_executor(\*\*kwargs)**
 
-Initialize and return an OpenWhisk executor object. All the parameters set in the executor will overwrite those set in the configuration.
+Initialize and return an OpenWhisk executor object. See [additional information](openwhisk.md).
 
 |Parameter | Default | Description|
 |---|---|---|
@@ -91,7 +94,7 @@ pw = pywren.function_executor()
 
 **local_executor(\*\*kwargs)**
 
-Initialize and return a Localhost executor object. This executor runs the functions in local processes. All the parameters set in the executor will overwrite those set in the configuration.
+Initialize and return a Localhost executor object. This executor runs the functions in local processes.
 
 |Parameter | Default | Description|
 |---|---|---|
@@ -109,7 +112,7 @@ pw = pywren.local_executor()
 
 **docker_executor(\*\*kwargs)**
 
-Initialize and return a Docker executor object. This executor runs the functions in local Dockers. All the parameters set in the executor will overwrite those set in the configuration.
+Initialize and return a Docker executor object. This executor runs the functions in local Dockers.
 
 
 |Parameter | Default | Description|
