@@ -59,7 +59,7 @@ class KnativeServingBackend:
             try:
                 ingress = self.v1.read_namespaced_service('istio-ingressgateway', 'istio-system')
                 http_port = list(filter(lambda port: port.port == 80, ingress.spec.ports))[0].node_port
-                https_port = list(filter(lambda port: port.port == 443, ingress.spec.ports))[0].node_port
+                # https_port = list(filter(lambda port: port.port == 443, ingress.spec.ports))[0].node_port
 
                 if ingress.status.load_balancer.ingress is not None:
                     # get loadbalancer ip
@@ -70,7 +70,7 @@ class KnativeServingBackend:
                     ip = node.items[0].status.addresses[0].address
 
                 self.istio_endpoint = 'http://{}:{}'.format(ip, http_port)
-
+                self.knative_config['istio_endpoint'] = self.istio_endpoint
             except Exception:
                 logger.info("istio-ingressgateway endpoint not found")
 
@@ -500,8 +500,7 @@ class KnativeServingBackend:
 
         res = os.system(cmd)
         if res != 0:
-            logger.error('There was an error building the runtime')
-            exit()
+            raise Exception('There was an error building the runtime')
 
         self._delete_function_handler_zip()
 
@@ -510,8 +509,7 @@ class KnativeServingBackend:
             cmd = cmd + " >/dev/null 2>&1"
         res = os.system(cmd)
         if res != 0:
-            logger.error('There was an error pushing the runtime to the container registry')
-            exit()
+            raise Exception('There was an error pushing the runtime to the container registry')
 
     def delete_runtime(self, docker_image_name, memory):
         service_name = self._format_service_name(docker_image_name, memory)
@@ -620,7 +618,7 @@ class KnativeServingBackend:
         elif resp_status == 404:
             raise Exception("PyWren runtime is not deployed in your k8s cluster")
         else:
-            logger.error('ExecutorID {} | JobID {} - Function call {} failed ({}). Retrying request'
+            logger.debug('ExecutorID {} | JobID {} - Function call {} failed ({}). Retrying request'
                          .format(exec_id, job_id, call_id, resp_data.replace('.', '')))
 
     def get_runtime_key(self, docker_image_name, runtime_memory):
