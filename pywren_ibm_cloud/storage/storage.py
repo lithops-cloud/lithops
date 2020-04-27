@@ -49,7 +49,7 @@ class InternalStorage:
         self.backend = self.config['backend']
         self.bucket = self.config['bucket']
         self.executor_id = executor_id
-        self.tmp_obj_count = 0
+        self.cloudobject_count = 0
 
         try:
             module_location = 'pywren_ibm_cloud.storage.backends.{}'.format(self.backend)
@@ -101,19 +101,19 @@ class InternalStorage:
         """
         return self.storage_handler.get_object(self.bucket, key)
 
-    def put_object(self, content, bucket=None, key=None):
+    def put_object(self, body, bucket=None, key=None):
         """
         Put temporal data object into storage.
         :param key: data key
         :param data: data content
         :return: CloudObject instance
         """
-        prefix = self.tmp_obj_prefix or 'tmp'
-        key = key or 'cloudobject_{}'.format(self.tmp_obj_count)
-        key = '/'.join([prefix, key])
+        prefix = os.environ.get('PYWREN_EXECUTION_ID', '')
+        name = '{}/cloudobject_{}'.format(prefix, self.cloudobject_count)
+        key = key or '/'.join([JOBS_PREFIX, 'cloudobjects', name])
         bucket = bucket or self.bucket
-        self.storage_handler.put_object(bucket, key, content)
-        self.tmp_obj_count += 1
+        self.storage_handler.put_object(bucket, key, body)
+        self.cloudobject_count += 1
 
         return CloudObject(self.backend, bucket, key)
 
