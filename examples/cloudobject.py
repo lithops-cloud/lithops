@@ -6,14 +6,14 @@ knowing they exact location (bucket, key)
 import pywren_ibm_cloud as pywren
 
 
-def my_function_put(text, internal_storage):
-    co1 = internal_storage.put_object('Temp object test 1: {}'.format(text, ))
-    co2 = internal_storage.put_object('Temp object test 2: {}'.format(text, ))
+def my_function_put(text, ibm_cos):
+    co1 = ibm_cos.put_cobject('Cloudobject Test 1: {}'.format(text, ))
+    co2 = ibm_cos.put_cobject('Cloudobject test 2: {}'.format(text, ))
     return [co1, co2]
 
 
-def my_function_get(co, internal_storage):
-    data = internal_storage.get_object(co)
+def my_function_get(co, ibm_cos):
+    data = ibm_cos.get_cobject(co)
     return data
 
 

@@ -26,6 +26,7 @@ COMPUTE_BACKEND_DEFAULT = 'ibm_cf'
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
 JOBS_PREFIX = "pywren.jobs"
 LOGS_PREFIX = "pywren.logs"
+TMP_PREFIX = "pywren.tmp"
 RUNTIMES_PREFIX = "pywren.runtimes"
 MAX_AGG_DATA_SIZE = 4  # 4MiB
 

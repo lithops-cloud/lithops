@@ -173,14 +173,14 @@ class TestMethods:
         return final_result
 
     @staticmethod
-    def my_cloudobject_put(obj, internal_storage):
+    def my_cloudobject_put(obj, storage):
         counter = TestMethods.my_map_function_obj(obj, 0)
-        cloudobject = internal_storage.put_object(pickle.dumps(counter))
+        cloudobject = storage.put_cobject(pickle.dumps(counter))
         return cloudobject
 
     @staticmethod
-    def my_cloudobject_get(results, internal_storage):
-        data = [pickle.loads(internal_storage.get_object(cloudobject)) for cloudobject in results]
+    def my_cloudobject_get(results, storage):
+        data = [pickle.loads(storage.get_cobject(cloudobject)) for cloudobject in results]
         return TestMethods.my_reduce_function(data)
 
 
@@ -353,7 +353,8 @@ class TestPywren(unittest.TestCase):
 
     def test_chunks_bucket(self):
         print('Testing chunks on a bucket...')
-        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
+        sb = STORAGE_CONFIG['backend']
+        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
 
         pw = pywren.function_executor(config=CONFIG)
         futures = pw.map_reduce(TestMethods.my_map_function_obj, data_prefix, TestMethods.my_reduce_function,
@@ -370,7 +371,8 @@ class TestPywren(unittest.TestCase):
 
     def test_chunks_bucket_one_reducer_per_object(self):
         print('Testing chunks on a bucket with one reducer per object...')
-        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
+        sb = STORAGE_CONFIG['backend']
+        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
 
         pw = pywren.function_executor(config=CONFIG)
         futures = pw.map_reduce(TestMethods.my_map_function_obj, data_prefix, TestMethods.my_reduce_function,
@@ -388,7 +390,8 @@ class TestPywren(unittest.TestCase):
 
     def test_cloudobject(self):
         print('Testing cloudobjects...')
-        data_prefix = STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
+        sb = STORAGE_CONFIG['backend']
+        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
         pw = pywren.function_executor(config=CONFIG)
         pw.map_reduce(TestMethods.my_cloudobject_put, data_prefix, TestMethods.my_cloudobject_get)
         result = pw.get_result()

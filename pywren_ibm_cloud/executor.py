@@ -18,13 +18,6 @@ logger = logging.getLogger(__name__)
 
 class FunctionExecutor:
 
-    class State:
-        New = 'New'
-        Running = 'Running'
-        Ready = 'Ready'
-        Done = 'Done'
-        Error = 'Error'
-
     def __init__(self, config=None, runtime=None, runtime_memory=None, compute_backend=None,
                  compute_backend_region=None, storage_backend=None, storage_backend_region=None,
                  workers=None, rabbitmq_monitor=None, remote_invoker=None, log_level=None):
@@ -44,7 +37,6 @@ class FunctionExecutor:
 
         :return `FunctionExecutor` object.
         """
-        self._state = FunctionExecutor.State.New
         self.is_pywren_function = is_pywren_function()
 
         # Log level Configuration
@@ -102,6 +94,9 @@ class FunctionExecutor:
         self.cleaned_jobs = set()
         self.last_call = None
 
+    def __enter__(self):
+        return self
+
     def _create_job_id(self, call_type):
         job_id = str(self.total_jobs).zfill(3)
         self.total_jobs += 1
@@ -141,7 +136,6 @@ class FunctionExecutor:
 
         futures = self.invoker.run(job)
         self.futures.extend(futures)
-        self._state = FunctionExecutor.State.Running
 
         return futures[0]
 
@@ -188,7 +182,6 @@ class FunctionExecutor:
 
         futures = self.invoker.run(job)
         self.futures.extend(futures)
-        self._state = FunctionExecutor.State.Running
 
         return futures
 
@@ -268,8 +261,6 @@ class FunctionExecutor:
         for f in map_futures:
             f._produce_output = False
 
-        self._state = FunctionExecutor.State.Running
-
         return map_futures + reduce_futures
 
     def wait(self, fs=None, throw_except=True, return_when=ALL_COMPLETED, download_results=False,
@@ -319,6 +310,7 @@ class FunctionExecutor:
             signal.alarm(timeout)
 
         pbar = None
+        error = False
         if not self.is_pywren_function and not self.log_level:
             from tqdm.auto import tqdm
 
@@ -350,10 +342,10 @@ class FunctionExecutor:
                 pbar.close()
                 print()
             print(msg) if not self.log_level else logger.info(msg)
-            self._state = FunctionExecutor.State.Error
+            error = True
 
         except Exception as e:
-            self._state = FunctionExecutor.State.Error
+            error = True
             raise e
 
         finally:
@@ -366,17 +358,15 @@ class FunctionExecutor:
                     print()
             if self.data_cleaner and not self.is_pywren_function:
                 self.clean()
-            if not fs and self._state == FunctionExecutor.State.Error and is_notebook():
+            if not fs and error and is_notebook():
                 del self.futures[len(self.futures)-len(futures):]
 
         if download_results:
             fs_done = [f for f in futures if f.done]
             fs_notdone = [f for f in futures if not f.done]
-            self._state = FunctionExecutor.State.Done
         else:
             fs_done = [f for f in futures if f.ready or f.done]
             fs_notdone = [f for f in futures if not f.ready and not f.done]
-            self._state = FunctionExecutor.State.Ready
 
         return fs_done, fs_notdone
 
@@ -398,11 +388,12 @@ class FunctionExecutor:
                                                THREADPOOL_SIZE=THREADPOOL_SIZE,
                                                WAIT_DUR_SEC=WAIT_DUR_SEC)
         result = []
+        fs_done = [f for f in fs_done if not f.futures and f._produce_output]
         for f in fs_done:
-            if fs and not f.futures and f._produce_output:
+            if fs:
                 # Process futures provided by the user
                 result.append(f.result(throw_except=throw_except, internal_storage=self.internal_storage))
-            elif not fs and not f.futures and f._produce_output and not f._read:
+            elif not fs and not f._read:
                 # Process internally stored futures
                 result.append(f.result(throw_except=throw_except, internal_storage=self.internal_storage))
                 f._read = True
@@ -442,7 +433,7 @@ class FunctionExecutor:
         create_timeline(ftrs_to_plot, dst)
         create_histogram(ftrs_to_plot, dst)
 
-    def clean(self, fs=None, local_execution=True):
+    def clean(self, fs=None, cs=None, local_execution=True, force=False):
         """
         Deletes all the files from COS. These files include the function,
         the data serialization and the function invocation results.
@@ -450,17 +441,17 @@ class FunctionExecutor:
         futures = self.futures if not fs else fs
         if type(futures) != list:
             futures = [futures]
+
         if not futures:
             logger.debug('ExecutorID {} - No jobs to clean'.format(self.executor_id))
             return
 
-        if not fs:
-            present_jobs = {(f.executor_id, f.job_id) for f in futures
-                            if (f.done or not f._produce_output)
-                            and f.executor_id.count('/') == 1}
-        else:
+        if fs or force:
             present_jobs = {(f.executor_id, f.job_id) for f in futures
                             if f.executor_id.count('/') == 1}
+        else:
+            present_jobs = {(f.executor_id, f.job_id) for f in futures
+                            if f.done and f.executor_id.count('/') == 1}
 
         jobs_to_clean = present_jobs - self.cleaned_jobs
 
@@ -496,3 +487,7 @@ class FunctionExecutor:
                 sys.stdout = old_stdout
 
         self.cleaned_jobs.update(jobs_to_clean)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.invoker.stop()
+        self.clean(force=True)

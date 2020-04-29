@@ -1,5 +1,6 @@
 import os
 import json
+import types
 import logging
 import importlib
 from pywren_ibm_cloud.version import __version__
@@ -67,6 +68,51 @@ class InternalStorage:
         """
         return self.config
 
+    def get_client(self):
+        client = self.storage_handler.get_client()
+        client.cloudobject_count = 0
+        client.put_cobject = self.put_cobject
+        client.get_cobject = self.get_cobject
+
+        return client
+
+    def put_cobject(self, body, bucket=None, key=None):
+        """
+        Put CloudObject into storage.
+        :param key: data key
+        :param data: data content
+        :return: CloudObject instance
+        """
+        prefix = os.environ.get('PYWREN_EXECUTION_ID', '')
+        name = '{}/cloudobject_{}'.format(prefix, self.cloudobject_count)
+        key = key or '/'.join([JOBS_PREFIX, 'cloudobjects', name])
+        bucket = bucket or self.bucket
+        self.storage_handler.put_object(bucket, key, body)
+        self.cloudobject_count += 1
+
+        return CloudObject(self.backend, bucket, key)
+
+    def get_cobject(self, cloudobject: CloudObject=None, bucket: str=None, key: str=None):
+        """
+        get temporal data object from storage.
+        :param cloudobject: CloudObject instance
+        :param key: data bucket
+        :param key: data key
+        :return: body text
+        """
+        if cloudobject:
+            if cloudobject.storage_backend == self.backend:
+                bucket = cloudobject.bucket
+                key = cloudobject.key
+                return self.storage_handler.get_object(bucket, key)
+            else:
+                raise Exception("CloudObject: Invalid Storage backend")
+        elif (bucket and key) or key:
+            bucket = bucket or self.bucket
+            return self.storage_handler.get_object(bucket, key)
+        else:
+            return None
+
     def put_data(self, key, data):
         """
         Put data object into storage.
@@ -100,43 +146,6 @@ class InternalStorage:
         :return: serialized function
         """
         return self.storage_handler.get_object(self.bucket, key)
-
-    def put_object(self, body, bucket=None, key=None):
-        """
-        Put temporal data object into storage.
-        :param key: data key
-        :param data: data content
-        :return: CloudObject instance
-        """
-        prefix = os.environ.get('PYWREN_EXECUTION_ID', '')
-        name = '{}/cloudobject_{}'.format(prefix, self.cloudobject_count)
-        key = key or '/'.join([JOBS_PREFIX, 'cloudobjects', name])
-        bucket = bucket or self.bucket
-        self.storage_handler.put_object(bucket, key, body)
-        self.cloudobject_count += 1
-
-        return CloudObject(self.backend, bucket, key)
-
-    def get_object(self, cloudobject: CloudObject=None, bucket: str=None, key: str=None):
-        """
-        get temporal data object from storage.
-        :param cloudobject: CloudObject instance
-        :param key: data bucket
-        :param key: data key
-        :return: body text
-        """
-        if cloudobject:
-            if cloudobject.storage_backend == self.backend:
-                bucket = cloudobject.bucket
-                key = cloudobject.key
-                return self.storage_handler.get_object(bucket, key)
-            else:
-                raise Exception("CloudObject: Invalid Storage backend")
-        elif (bucket and key) or key:
-            bucket = bucket or self.bucket
-            return self.storage_handler.get_object(bucket, key)
-        else:
-            return None
 
     def get_job_status(self, executor_id, job_id):
         """
