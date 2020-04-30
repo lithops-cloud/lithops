@@ -1,5 +1,5 @@
 import os
-
+import time
 import copy
 import signal
 import logging
@@ -355,7 +355,7 @@ class FunctionExecutor:
                 if not is_notebook():
                     print()
             if self.data_cleaner and not self.is_pywren_function:
-                self.clean()
+                self.clean(cloudobjects=False, force=False)
             if not fs and error and is_notebook():
                 del self.futures[len(self.futures)-len(futures):]
 
@@ -431,7 +431,7 @@ class FunctionExecutor:
         create_timeline(ftrs_to_plot, dst)
         create_histogram(ftrs_to_plot, dst)
 
-    def clean(self, fs=None, cs=None, force=False):
+    def clean(self, fs=None, cloudobjects=True, force=True):
         """
         Deletes all the files from COS. These files include the function,
         the data serialization and the function invocation results.
@@ -451,17 +451,18 @@ class FunctionExecutor:
             present_jobs = {(f.executor_id, f.job_id) for f in futures
                             if f.done and f.executor_id.count('/') == 1}
 
-        jobs_to_clean = present_jobs - self.cleaned_jobs
+        if force:
+            jobs_to_clean = present_jobs
+        else:
+            jobs_to_clean = present_jobs - self.cleaned_jobs
 
         if jobs_to_clean:
             msg = "ExecutorID {} - Cleaning temporary data".format(self.executor_id)
             print(msg) if not self.log_level else logger.info(msg)
-            clean_job(jobs_to_clean, self.internal_storage)
+            clean_job(jobs_to_clean, self.internal_storage, clean_cloudobjects=cloudobjects)
             self.cleaned_jobs.update(jobs_to_clean)
-
-        if cs or force:
-            present_cs_jobs = {}
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.invoker.stop()
-        self.clean(force=True)
+        if self.data_cleaner:
+            self.clean()

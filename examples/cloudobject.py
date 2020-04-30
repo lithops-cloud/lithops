@@ -23,4 +23,3 @@ if __name__ == "__main__":
     cloudobjects = pw.get_result()
     pw.map(my_function_get, cloudobjects)
     print(pw.get_result())
-    pw.clean()
