@@ -18,8 +18,8 @@ def my_function_get(co, ibm_cos):
 
 
 if __name__ == "__main__":
-    pw = pywren.ibm_cf_executor()
-    pw.call_async(my_function_put, 'Hello World')
-    cloudobjects = pw.get_result()
-    pw.map(my_function_get, cloudobjects)
-    print(pw.get_result())
+    with pywren.ibm_cf_executor() as pw:
+        pw.call_async(my_function_put, 'Hello World')
+        cloudobjects = pw.get_result()
+        pw.map(my_function_get, cloudobjects)
+        print(pw.get_result())

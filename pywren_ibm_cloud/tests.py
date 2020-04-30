@@ -152,10 +152,10 @@ class TestMethods:
         return counter
 
     @staticmethod
-    def my_map_function_ibm_cos(key_i, bucket_name, ibm_cos):
+    def my_map_function_storage(key_i, bucket_name, storage):
         print('I am processing the object /{}/{}'.format(bucket_name, key_i))
         counter = {}
-        data = ibm_cos.get_object(Bucket=bucket_name, Key=key_i)['Body'].read()
+        data = storage.get_object(Bucket=bucket_name, Key=key_i)['Body'].read()
         for line in data.splitlines():
             for word in line.decode('utf-8').split():
                 if word not in counter:
@@ -344,10 +344,10 @@ class TestPywren(unittest.TestCase):
         self.assertEqual(result, self.__class__.cos_result_to_compare)
 
     def test_storage_handler(self):
-        print('Testing ibm_cos function arg...')
+        print('Testing "storage" function arg...')
         iterdata = [[key, STORAGE_CONFIG['bucket']] for key in TestUtils.list_test_keys()]
         pw = pywren.function_executor(config=CONFIG)
-        pw.map_reduce(TestMethods.my_map_function_ibm_cos, iterdata, TestMethods.my_reduce_function)
+        pw.map_reduce(TestMethods.my_map_function_storage, iterdata, TestMethods.my_reduce_function)
         result = pw.get_result()
         self.assertEqual(result, self.__class__.cos_result_to_compare)
 
@@ -392,10 +392,10 @@ class TestPywren(unittest.TestCase):
         print('Testing cloudobjects...')
         sb = STORAGE_CONFIG['backend']
         data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
-        pw = pywren.function_executor(config=CONFIG)
-        pw.map_reduce(TestMethods.my_cloudobject_put, data_prefix, TestMethods.my_cloudobject_get)
-        result = pw.get_result()
-        self.assertEqual(result, self.__class__.cos_result_to_compare)
+        with pywren.ibm_cf_executor(config=CONFIG) as pw:
+            pw.map_reduce(TestMethods.my_cloudobject_put, data_prefix, TestMethods.my_cloudobject_get)
+            result = pw.get_result()
+            self.assertEqual(result, self.__class__.cos_result_to_compare)
 
 
 def print_help():
