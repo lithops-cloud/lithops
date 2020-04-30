@@ -1,16 +1,14 @@
 import os
-import sys
+
 import copy
-import json
 import signal
 import logging
 from functools import partial
 from pywren_ibm_cloud.invoker import FunctionInvoker
 from pywren_ibm_cloud.storage import InternalStorage
-from pywren_ibm_cloud.storage.utils import clean_os_bucket
 from pywren_ibm_cloud.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
-from pywren_ibm_cloud.job import create_map_job, create_reduce_job
-from pywren_ibm_cloud.config import default_config, extract_storage_config, JOBS_PREFIX, default_logging_config
+from pywren_ibm_cloud.job import create_map_job, create_reduce_job, clean_job
+from pywren_ibm_cloud.config import default_config, extract_storage_config, default_logging_config
 from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_pywren_function, create_executor_id
 
 logger = logging.getLogger(__name__)
@@ -433,7 +431,7 @@ class FunctionExecutor:
         create_timeline(ftrs_to_plot, dst)
         create_histogram(ftrs_to_plot, dst)
 
-    def clean(self, fs=None, cs=None, local_execution=True, force=False):
+    def clean(self, fs=None, cs=None, force=False):
         """
         Deletes all the files from COS. These files include the function,
         the data serialization and the function invocation results.
@@ -458,35 +456,11 @@ class FunctionExecutor:
         if jobs_to_clean:
             msg = "ExecutorID {} - Cleaning temporary data".format(self.executor_id)
             print(msg) if not self.log_level else logger.info(msg)
+            clean_job(jobs_to_clean, self.internal_storage)
+            self.cleaned_jobs.update(jobs_to_clean)
 
-        for executor_id, job_id in jobs_to_clean:
-            storage_bucket = self.config['pywren']['storage_bucket']
-            storage_prerix = '/'.join([JOBS_PREFIX, executor_id, job_id])
-
-            if local_execution:
-                # 1st case: Not background. The main code waits until the cleaner finishes its execution.
-                # It is not ideal for performance tests, since it can take long time to complete.
-                # clean_os_bucket(storage_bucket, storage_prerix, self.internal_storage)
-
-                # 2nd case: Execute in Background as a subprocess. The main program does not wait for its completion.
-                storage_config = json.dumps(self.internal_storage.get_storage_config())
-                storage_config = storage_config.replace('"', '\\"')
-
-                cmdstr = ('{} -c "from pywren_ibm_cloud.storage.utils import clean_bucket; \
-                                  clean_bucket(\'{}\', \'{}\', \'{}\')"'.format(sys.executable,
-                                                                                storage_bucket,
-                                                                                storage_prerix,
-                                                                                storage_config))
-                os.popen(cmdstr)
-            else:
-                extra_env = {'__PW_STORE_STATUS': False,
-                             '__PW_STORE_RESULT': False}
-                old_stdout = sys.stdout
-                sys.stdout = open(os.devnull, 'w')
-                self.call_async(clean_os_bucket, [storage_bucket, storage_prerix], extra_env=extra_env)
-                sys.stdout = old_stdout
-
-        self.cleaned_jobs.update(jobs_to_clean)
+        if cs or force:
+            present_cs_jobs = {}
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.invoker.stop()

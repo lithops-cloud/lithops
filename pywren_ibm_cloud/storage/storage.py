@@ -1,10 +1,9 @@
 import os
 import json
-import types
 import logging
 import importlib
 from pywren_ibm_cloud.version import __version__
-from pywren_ibm_cloud.config import CACHE_DIR, RUNTIMES_PREFIX, JOBS_PREFIX
+from pywren_ibm_cloud.config import CACHE_DIR, RUNTIMES_PREFIX, JOBS_PREFIX, TMP_PREFIX
 from pywren_ibm_cloud.utils import is_pywren_function
 from pywren_ibm_cloud.storage.utils import create_status_key, create_output_key, \
     status_key_suffix, init_key_suffix, CloudObject, StorageNoSuchKeyError
@@ -70,7 +69,6 @@ class InternalStorage:
 
     def get_client(self):
         client = self.storage_handler.get_client()
-        client.cloudobject_count = 0
         client.put_cobject = self.put_cobject
         client.get_cobject = self.get_cobject
 
@@ -85,7 +83,7 @@ class InternalStorage:
         """
         prefix = os.environ.get('PYWREN_EXECUTION_ID', '')
         name = '{}/cloudobject_{}'.format(prefix, self.cloudobject_count)
-        key = key or '/'.join([JOBS_PREFIX, 'cloudobjects', name])
+        key = key or '/'.join([TMP_PREFIX, name])
         bucket = bucket or self.bucket
         self.storage_handler.put_object(bucket, key, body)
         self.cloudobject_count += 1

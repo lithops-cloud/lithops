@@ -14,12 +14,11 @@
 # limitations under the License.
 #
 
-import os
 import logging
-from pywren_ibm_cloud.config import CACHE_DIR, RUNTIMES_PREFIX, \
-    JOBS_PREFIX, default_config, extract_storage_config, extract_compute_config
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.compute import Compute
+from pywren_ibm_cloud.config import default_config, extract_storage_config, extract_compute_config
+
 
 logger = logging.getLogger(__name__)
 

@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 import logging
-import json
 import time
 
 logger = logging.getLogger(__name__)
@@ -53,19 +52,7 @@ class CloudObjectUrl:
         self.path = url_path
 
 
-def clean_bucket(bucket, prefix, storage_config, sleep=5, log=False):
-    """
-    Wrapper of clean_os_bucket(). Use this method only when storage_config is
-    in JSON format. In any other case, call directly clean_os_bucket() method.
-    """
-    from pywren_ibm_cloud.storage import InternalStorage
-    internal_storage = InternalStorage(json.loads(storage_config))
-    # sys.stdout = open(os.devnull, 'w')
-    clean_os_bucket(bucket, prefix, internal_storage, sleep, log)
-    # sys.stdout = sys.__stdout__
-
-
-def clean_os_bucket(bucket, prefix, internal_storage, sleep=5, log=True):
+def clean_bucket(bucket, prefix, internal_storage, sleep=5, log=True):
     """
     Deletes all the files from COS. These files include the function,
     the data serialization and the function invocation results.
