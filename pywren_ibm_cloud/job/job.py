@@ -207,17 +207,14 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     return job_description
 
 
-def clean_job(jobs_to_clean, internal_storage, clean_cloudobjects):
+def clean_job(jobs_to_clean, storage_config, clean_cloudobjects):
     """
     Clean the jobs in a separate process
     """
-    storage_config = internal_storage.get_storage_config()
-
     script = """
     from pywren_ibm_cloud.storage import InternalStorage
     from pywren_ibm_cloud.storage.utils import clean_bucket
     from pywren_ibm_cloud.config import JOBS_PREFIX, TEMP_PREFIX
-    import json
 
     storage_config = {}
     jobs_to_clean = {}

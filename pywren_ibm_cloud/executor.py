@@ -1,11 +1,11 @@
 import os
-import time
 import copy
 import signal
 import logging
 from functools import partial
 from pywren_ibm_cloud.invoker import FunctionInvoker
 from pywren_ibm_cloud.storage import InternalStorage
+from pywren_ibm_cloud.storage.utils import delete_cloudobject
 from pywren_ibm_cloud.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from pywren_ibm_cloud.job import create_map_job, create_reduce_job, clean_job
 from pywren_ibm_cloud.config import default_config, extract_storage_config, default_logging_config
@@ -431,11 +431,17 @@ class FunctionExecutor:
         create_timeline(ftrs_to_plot, dst)
         create_histogram(ftrs_to_plot, dst)
 
-    def clean(self, fs=None, cloudobjects=True, force=True, log=True):
+    def clean(self, fs=None, cs=None, cloudobjects=True, force=True, log=True):
         """
         Deletes all the files from COS. These files include the function,
         the data serialization and the function invocation results.
         """
+        if cs:
+            storage_config = self.internal_storage.get_storage_config()
+            delete_cloudobject(list(cs), storage_config)
+            if not fs:
+                return
+
         futures = self.futures if not fs else fs
         if type(futures) != list:
             futures = [futures]
@@ -447,19 +453,17 @@ class FunctionExecutor:
         if fs or force:
             present_jobs = {(f.executor_id, f.job_id) for f in futures
                             if f.executor_id.count('/') == 1}
+            jobs_to_clean = present_jobs
         else:
             present_jobs = {(f.executor_id, f.job_id) for f in futures
                             if f.done and f.executor_id.count('/') == 1}
-
-        if force:
-            jobs_to_clean = present_jobs
-        else:
             jobs_to_clean = present_jobs - self.cleaned_jobs
 
         if jobs_to_clean:
             msg = "ExecutorID {} - Cleaning temporary data".format(self.executor_id)
             print(msg) if not self.log_level and log else logger.info(msg)
-            clean_job(jobs_to_clean, self.internal_storage, clean_cloudobjects=cloudobjects)
+            storage_config = self.internal_storage.get_storage_config()
+            clean_job(jobs_to_clean, storage_config, clean_cloudobjects=cloudobjects)
             self.cleaned_jobs.update(jobs_to_clean)
 
     def __exit__(self, exc_type, exc_value, traceback):

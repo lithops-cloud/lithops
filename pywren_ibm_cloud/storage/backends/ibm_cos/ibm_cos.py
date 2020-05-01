@@ -19,7 +19,6 @@ import logging
 import ibm_boto3
 import ibm_botocore
 from datetime import datetime, timezone
-from ibm_boto3.s3.transfer import TransferConfig
 from ibm_botocore.credentials import DefaultTokenManager
 from pywren_ibm_cloud.storage.utils import StorageNoSuchKeyError
 from pywren_ibm_cloud.utils import sizeof_fmt, is_pywren_function
