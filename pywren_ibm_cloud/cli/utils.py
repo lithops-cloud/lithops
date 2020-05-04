@@ -22,7 +22,7 @@ from pywren_ibm_cloud.config import CACHE_DIR, RUNTIMES_PREFIX, \
     JOBS_PREFIX, default_config, extract_storage_config, extract_compute_config
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.compute import Compute
-from pywren_ibm_cloud.storage.utils import clean_os_bucket
+from pywren_ibm_cloud.storage.utils import clean_bucket
 
 TEMP = tempfile.gettempdir()
 logger = logging.getLogger(__name__)
@@ -42,7 +42,7 @@ def clean_all(config=None):
     if runtimes:
         sh.delete_objects(storage_config['bucket'], runtimes)
     compute_handler.delete_all_runtimes()
-    clean_os_bucket(storage_config['bucket'], JOBS_PREFIX, internal_storage, sleep=1)
+    clean_bucket(storage_config['bucket'], JOBS_PREFIX, internal_storage, sleep=1)
 
     # Clean local runtime_meta cache
     if os.path.exists(CACHE_DIR):

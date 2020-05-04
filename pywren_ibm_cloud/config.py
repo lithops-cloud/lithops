@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 COMPUTE_BACKEND_DEFAULT = 'ibm_cf'
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
 JOBS_PREFIX = "pywren.jobs"
+TEMP_PREFIX = "pywren.jobs/tmp"
 LOGS_PREFIX = "pywren.logs"
 RUNTIMES_PREFIX = "pywren.runtimes"
 MAX_AGG_DATA_SIZE = 4  # 4MiB

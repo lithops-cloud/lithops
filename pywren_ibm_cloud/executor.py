@@ -1,29 +1,20 @@
 import os
-import sys
 import copy
-import json
 import signal
 import logging
 from functools import partial
 from pywren_ibm_cloud.invoker import FunctionInvoker
 from pywren_ibm_cloud.storage import InternalStorage
-from pywren_ibm_cloud.storage.utils import clean_os_bucket
+from pywren_ibm_cloud.storage.utils import delete_cloudobject
 from pywren_ibm_cloud.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
-from pywren_ibm_cloud.job import create_map_job, create_reduce_job
-from pywren_ibm_cloud.config import default_config, extract_storage_config, JOBS_PREFIX, default_logging_config
+from pywren_ibm_cloud.job import create_map_job, create_reduce_job, clean_job
+from pywren_ibm_cloud.config import default_config, extract_storage_config, default_logging_config
 from pywren_ibm_cloud.utils import timeout_handler, is_notebook, is_unix_system, is_pywren_function, create_executor_id
 
 logger = logging.getLogger(__name__)
 
 
 class FunctionExecutor:
-
-    class State:
-        New = 'New'
-        Running = 'Running'
-        Ready = 'Ready'
-        Done = 'Done'
-        Error = 'Error'
 
     def __init__(self, config=None, runtime=None, runtime_memory=None, compute_backend=None,
                  compute_backend_region=None, storage_backend=None, storage_backend_region=None,
@@ -44,7 +35,6 @@ class FunctionExecutor:
 
         :return `FunctionExecutor` object.
         """
-        self._state = FunctionExecutor.State.New
         self.is_pywren_function = is_pywren_function()
 
         # Log level Configuration
@@ -102,6 +92,9 @@ class FunctionExecutor:
         self.cleaned_jobs = set()
         self.last_call = None
 
+    def __enter__(self):
+        return self
+
     def _create_job_id(self, call_type):
         job_id = str(self.total_jobs).zfill(3)
         self.total_jobs += 1
@@ -141,7 +134,6 @@ class FunctionExecutor:
 
         futures = self.invoker.run(job)
         self.futures.extend(futures)
-        self._state = FunctionExecutor.State.Running
 
         return futures[0]
 
@@ -188,7 +180,6 @@ class FunctionExecutor:
 
         futures = self.invoker.run(job)
         self.futures.extend(futures)
-        self._state = FunctionExecutor.State.Running
 
         return futures
 
@@ -268,8 +259,6 @@ class FunctionExecutor:
         for f in map_futures:
             f._produce_output = False
 
-        self._state = FunctionExecutor.State.Running
-
         return map_futures + reduce_futures
 
     def wait(self, fs=None, throw_except=True, return_when=ALL_COMPLETED, download_results=False,
@@ -319,6 +308,7 @@ class FunctionExecutor:
             signal.alarm(timeout)
 
         pbar = None
+        error = False
         if not self.is_pywren_function and not self.log_level:
             from tqdm.auto import tqdm
 
@@ -350,10 +340,10 @@ class FunctionExecutor:
                 pbar.close()
                 print()
             print(msg) if not self.log_level else logger.info(msg)
-            self._state = FunctionExecutor.State.Error
+            error = True
 
         except Exception as e:
-            self._state = FunctionExecutor.State.Error
+            error = True
             raise e
 
         finally:
@@ -365,18 +355,16 @@ class FunctionExecutor:
                 if not is_notebook():
                     print()
             if self.data_cleaner and not self.is_pywren_function:
-                self.clean()
-            if not fs and self._state == FunctionExecutor.State.Error and is_notebook():
+                self.clean(cloudobjects=False, force=False, log=False)
+            if not fs and error and is_notebook():
                 del self.futures[len(self.futures)-len(futures):]
 
         if download_results:
             fs_done = [f for f in futures if f.done]
             fs_notdone = [f for f in futures if not f.done]
-            self._state = FunctionExecutor.State.Done
         else:
             fs_done = [f for f in futures if f.ready or f.done]
             fs_notdone = [f for f in futures if not f.ready and not f.done]
-            self._state = FunctionExecutor.State.Ready
 
         return fs_done, fs_notdone
 
@@ -398,11 +386,12 @@ class FunctionExecutor:
                                                THREADPOOL_SIZE=THREADPOOL_SIZE,
                                                WAIT_DUR_SEC=WAIT_DUR_SEC)
         result = []
+        fs_done = [f for f in fs_done if not f.futures and f._produce_output]
         for f in fs_done:
-            if fs and not f.futures and f._produce_output:
+            if fs:
                 # Process futures provided by the user
                 result.append(f.result(throw_except=throw_except, internal_storage=self.internal_storage))
-            elif not fs and not f.futures and f._produce_output and not f._read:
+            elif not fs and not f._read:
                 # Process internally stored futures
                 result.append(f.result(throw_except=throw_except, internal_storage=self.internal_storage))
                 f._read = True
@@ -442,57 +431,42 @@ class FunctionExecutor:
         create_timeline(ftrs_to_plot, dst)
         create_histogram(ftrs_to_plot, dst)
 
-    def clean(self, fs=None, local_execution=True):
+    def clean(self, fs=None, cs=None, cloudobjects=True, force=True, log=True):
         """
         Deletes all the files from COS. These files include the function,
         the data serialization and the function invocation results.
         """
+        if cs:
+            storage_config = self.internal_storage.get_storage_config()
+            delete_cloudobject(list(cs), storage_config)
+            if not fs:
+                return
+
         futures = self.futures if not fs else fs
         if type(futures) != list:
             futures = [futures]
+
         if not futures:
             logger.debug('ExecutorID {} - No jobs to clean'.format(self.executor_id))
             return
 
-        if not fs:
-            present_jobs = {(f.executor_id, f.job_id) for f in futures
-                            if (f.done or not f._produce_output)
-                            and f.executor_id.count('/') == 1}
-        else:
+        if fs or force:
             present_jobs = {(f.executor_id, f.job_id) for f in futures
                             if f.executor_id.count('/') == 1}
-
-        jobs_to_clean = present_jobs - self.cleaned_jobs
+            jobs_to_clean = present_jobs
+        else:
+            present_jobs = {(f.executor_id, f.job_id) for f in futures
+                            if f.done and f.executor_id.count('/') == 1}
+            jobs_to_clean = present_jobs - self.cleaned_jobs
 
         if jobs_to_clean:
             msg = "ExecutorID {} - Cleaning temporary data".format(self.executor_id)
-            print(msg) if not self.log_level else logger.info(msg)
+            print(msg) if not self.log_level and log else logger.info(msg)
+            storage_config = self.internal_storage.get_storage_config()
+            clean_job(jobs_to_clean, storage_config, clean_cloudobjects=cloudobjects)
+            self.cleaned_jobs.update(jobs_to_clean)
 
-        for executor_id, job_id in jobs_to_clean:
-            storage_bucket = self.config['pywren']['storage_bucket']
-            storage_prerix = '/'.join([JOBS_PREFIX, executor_id, job_id])
-
-            if local_execution:
-                # 1st case: Not background. The main code waits until the cleaner finishes its execution.
-                # It is not ideal for performance tests, since it can take long time to complete.
-                # clean_os_bucket(storage_bucket, storage_prerix, self.internal_storage)
-
-                # 2nd case: Execute in Background as a subprocess. The main program does not wait for its completion.
-                storage_config = json.dumps(self.internal_storage.get_storage_config())
-                storage_config = storage_config.replace('"', '\\"')
-
-                cmdstr = ('{} -c "from pywren_ibm_cloud.storage.utils import clean_bucket; \
-                                  clean_bucket(\'{}\', \'{}\', \'{}\')"'.format(sys.executable,
-                                                                                storage_bucket,
-                                                                                storage_prerix,
-                                                                                storage_config))
-                os.popen(cmdstr)
-            else:
-                extra_env = {'__PW_STORE_STATUS': False,
-                             '__PW_STORE_RESULT': False}
-                old_stdout = sys.stdout
-                sys.stdout = open(os.devnull, 'w')
-                self.call_async(clean_os_bucket, [storage_bucket, storage_prerix], extra_env=extra_env)
-                sys.stdout = old_stdout
-
-        self.cleaned_jobs.update(jobs_to_clean)
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.invoker.stop()
+        if self.data_cleaner:
+            self.clean(log=False)

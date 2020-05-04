@@ -13,9 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import logging
-import json
+import os
+import sys
 import time
+import logging
+import textwrap
+
 
 logger = logging.getLogger(__name__)
 
@@ -53,19 +56,7 @@ class CloudObjectUrl:
         self.path = url_path
 
 
-def clean_bucket(bucket, prefix, storage_config, sleep=5, log=False):
-    """
-    Wrapper of clean_os_bucket(). Use this method only when storage_config is
-    in JSON format. In any other case, call directly clean_os_bucket() method.
-    """
-    from pywren_ibm_cloud.storage import InternalStorage
-    internal_storage = InternalStorage(json.loads(storage_config))
-    # sys.stdout = open(os.devnull, 'w')
-    clean_os_bucket(bucket, prefix, internal_storage, sleep, log)
-    # sys.stdout = sys.__stdout__
-
-
-def clean_os_bucket(bucket, prefix, internal_storage, sleep=5, log=True):
+def clean_bucket(bucket, prefix, internal_storage, sleep=5, log=True):
     """
     Deletes all the files from COS. These files include the function,
     the data serialization and the function invocation results.
@@ -83,6 +74,31 @@ def clean_os_bucket(bucket, prefix, internal_storage, sleep=5, log=True):
         objects_to_delete = internal_storage.list_tmp_data(prefix)
     if log:
         logger.debug('Finished deleting objects, total found: {}'.format(total_objects))
+
+
+def delete_cloudobject(co_to_clean, storage_config):
+    """
+    Deletes cloudobjects from storage
+    """
+    co_to_delete = []
+    for co in co_to_clean:
+        co_to_delete.append((co.storage_backend, co.bucket, co.key))
+
+    script = """
+    from pywren_ibm_cloud.storage import InternalStorage
+
+    storage_config = {}
+    co_to_delete = {}
+
+    internal_storage = InternalStorage(storage_config)
+
+    for backend, bucket, key in co_to_delete:
+        if backend == internal_storage.backend:
+            internal_storage.storage_handler.delete_object(bucket, key)
+    """.format(storage_config, co_to_delete)
+
+    cmdstr = '{} -c "{}"'.format(sys.executable, textwrap.dedent(script))
+    os.popen(cmdstr)
 
 
 def create_func_key(prefix, executor_id, job_id):

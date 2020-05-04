@@ -4,12 +4,18 @@
 
 ### Added
 - Added 'data_limit' config param in pywren section
+- Added context-manager-like executor and example
 
 ### Changed
 - Reducer logic moved to jobrunner
 - Set default Knative runtime timeout to 10 minutes
 - Added more debug logs in Knative
 - Enabled building default knative runtime locally
+- cloudobject methods moved from internal_storage to ibm_cos
+- renamed cloudobject put method from 'put_object' to 'put_cobject'
+- renamed cloudobject get method from 'get_object' to 'get_cobject'
+- 'internal_storage' func param renamed to 'storage'
+- pw.clean method can now clean cloudobjects
 
 ### Fixed
 - Fixed issue in map_reduce() method

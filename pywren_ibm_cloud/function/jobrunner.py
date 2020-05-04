@@ -32,7 +32,7 @@ from pywren_ibm_cloud.future import ResponseFuture
 from pywren_ibm_cloud.libs.tblib import pickling_support
 from pywren_ibm_cloud.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_function
 from pywren_ibm_cloud.utils import WrappedStreamingBodyPartition
-from pywren_ibm_cloud.config import extract_storage_config, cloud_logging_config
+from pywren_ibm_cloud.config import cloud_logging_config
 
 pickling_support.install()
 logger = logging.getLogger('JobRunner')
@@ -65,8 +65,6 @@ class JobRunner:
         log_level = self.jr_config['log_level']
         cloud_logging_config(log_level)
         self.pywren_config = self.jr_config['pywren_config']
-        self.storage_config = extract_storage_config(self.pywren_config)
-
         self.call_id = self.jr_config['call_id']
         self.job_id = self.jr_config['job_id']
         self.executor_id = self.jr_config['executor_id']
@@ -163,15 +161,15 @@ class JobRunner:
         if 'ibm_cos' in func_sig.parameters:
             if 'ibm_cos' in self.pywren_config:
                 if self.internal_storage.backend == 'ibm_cos':
-                    ibm_boto3_client = self.internal_storage.storage_handler.get_client()
+                    ibm_boto3_client = self.internal_storage.get_client()
                 else:
                     ibm_boto3_client = Storage(self.pywren_config, 'ibm_cos').get_client()
                 data['ibm_cos'] = ibm_boto3_client
             else:
                 raise Exception('Cannot create the ibm_cos client: missing configuration')
 
-        if 'internal_storage' in func_sig.parameters:
-            data['internal_storage'] = self.internal_storage
+        if 'storage' in func_sig.parameters:
+            data['storage'] = self.internal_storage.get_client()
 
         if 'rabbitmq' in func_sig.parameters:
             if 'rabbitmq' in self.pywren_config:
