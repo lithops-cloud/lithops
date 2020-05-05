@@ -299,6 +299,9 @@ class FunctionExecutor:
             msg = 'ExecutorID {} - Waiting for functions to complete...'.format(self.executor_id)
             futures = [f for f in futures if not f.ready and not f.done]
 
+        if not futures:
+            return
+
         print(msg) if not self.log_level else logger.info(msg)
 
         if is_unix_system() and timeout is not None:
