@@ -392,7 +392,7 @@ class TestPywren(unittest.TestCase):
         print('Testing cloudobjects...')
         sb = STORAGE_CONFIG['backend']
         data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
-        with pywren.ibm_cf_executor(config=CONFIG) as pw:
+        with pywren.function_executor(config=CONFIG) as pw:
             pw.map_reduce(TestMethods.my_cloudobject_put, data_prefix, TestMethods.my_cloudobject_get)
             result = pw.get_result()
             self.assertEqual(result, self.__class__.cos_result_to_compare)

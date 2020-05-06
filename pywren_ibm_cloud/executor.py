@@ -295,9 +295,14 @@ class FunctionExecutor:
         if download_results:
             msg = 'ExecutorID {} - Getting results...'.format(self.executor_id)
             futures = [f for f in futures if not f.done]
+            fs_done = [f for f in futures if f.done]
         else:
             msg = 'ExecutorID {} - Waiting for functions to complete...'.format(self.executor_id)
             futures = [f for f in futures if not f.ready and not f.done]
+            fs_done = [f for f in futures if f.ready or f.done]
+
+        if not futures:
+            return fs_done, []
 
         print(msg) if not self.log_level else logger.info(msg)
 
