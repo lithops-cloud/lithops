@@ -5,6 +5,7 @@
 ### Added
 - Added 'data_limit' config param in pywren section
 - Added context-manager-like executor and example
+- Added debug mode in tests with '-d' flag
 
 ### Changed
 - Reducer logic moved to jobrunner
@@ -24,6 +25,7 @@
 - Fixed issue with extra_env vars passed to functions
 - Fixed issue when pywren version mismatch in Knative
 - Fixed issue in pywren-ibm-cloud cli
+- Fixed issue when wait()/get_result() methods are called multiple times
 - Fixed minor issue with ps_mem module in windows hosts
 - Fixed knative to pass all tests
 - Fixed remote_invoker in knative

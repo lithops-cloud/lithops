@@ -284,7 +284,7 @@ class FunctionExecutor:
             and `fs_notdone` is a list of futures that have not completed.
         :rtype: 2-tuple of list
         """
-        futures = self.futures if not fs else fs
+        futures = fs or self.futures
         if type(futures) != list:
             futures = [futures]
 
@@ -294,15 +294,16 @@ class FunctionExecutor:
 
         if download_results:
             msg = 'ExecutorID {} - Getting results...'.format(self.executor_id)
-            futures = [f for f in futures if not f.done]
             fs_done = [f for f in futures if f.done]
+            fs_not_done = [f for f in futures if not f.done]
+
         else:
             msg = 'ExecutorID {} - Waiting for functions to complete...'.format(self.executor_id)
-            futures = [f for f in futures if not f.ready and not f.done]
             fs_done = [f for f in futures if f.ready or f.done]
+            fs_not_done = [f for f in futures if not f.ready and not f.done]
 
-        if not futures:
-            return fs_done, []
+        if not fs_not_done:
+            return fs_done, fs_not_done
 
         print(msg) if not self.log_level else logger.info(msg)
 
@@ -318,10 +319,10 @@ class FunctionExecutor:
             from tqdm.auto import tqdm
 
             if is_notebook():
-                pbar = tqdm(bar_format='{n}/|/ {n_fmt}/{total_fmt}', total=len(futures))  # ncols=800
+                pbar = tqdm(bar_format='{n}/|/ {n_fmt}/{total_fmt}', total=len(fs_not_done))  # ncols=800
             else:
                 print()
-                pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(futures), disable=False)
+                pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(fs_not_done), disable=False)
 
         try:
             if self.rabbitmq_monitor:

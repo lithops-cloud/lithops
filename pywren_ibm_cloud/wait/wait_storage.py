@@ -230,10 +230,6 @@ def _wait_storage(fs, running_futures, internal_storage, download_results, throw
             else:
                 fs_notdones.append(f)
 
-#     if still_not_done_futures and len(still_not_done_futures) < max(1, int(len(fs)*0.015)):
-#         f_to_wait_on.extend(still_not_done_futures)
-#         fs_dones.extend(still_not_done_futures)
-
     def get_result(f):
         if f.running:
             f._call_status = None

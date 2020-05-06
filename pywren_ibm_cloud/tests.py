@@ -27,8 +27,6 @@ from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.config import default_config, extract_storage_config
 from concurrent.futures import ThreadPoolExecutor
 
-# logging.basicConfig(level=logging.DEBUG)
-
 CONFIG = None
 STORAGE_CONFIG = None
 STORAGE = None
@@ -294,6 +292,7 @@ class TestPywren(unittest.TestCase):
 
         pw = pywren.function_executor(config=CONFIG)
         pw.call_async(TestMethods.pywren_return_futures_map_function3, 3)
+        pw.wait()
         pw.get_result()
 
     def test_map_reduce_cos_bucket(self):
@@ -434,7 +433,12 @@ if __name__ == '__main__':
                         help="use json config file")
     parser.add_argument('-t', '--test', metavar='', default='all',
                         help='run a specific test, type "-t help" for tests list')
+    parser.add_argument('-d', '--debug', action='store_true', default=False,
+                        help='activate debug logging')
     args = parser.parse_args()
+
+    if args.debug:
+        logging.basicConfig(level=logging.DEBUG)
 
     if args.test == 'help':
         print_help()
