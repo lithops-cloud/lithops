@@ -221,13 +221,11 @@ def split_path(path):
     return bucket_name, key
 
 
-def format_data(iterdata, extra_params):
+def format_data(iterdata, extra_args):
     """
-    Converts iteradata to a list with extra_params
+    Converts iteradata to a list with extra_args
     """
-    if extra_params and type(extra_params) not in [list, dict]:
-        raise Exception('extra_params must be a list or a dict')
-
+    # Format iterdata in a proper way
     if type(iterdata) in [range, set]:
         data = list(iterdata)
     elif type(iterdata) != list:
@@ -235,32 +233,32 @@ def format_data(iterdata, extra_params):
     else:
         data = iterdata
 
-    if extra_params:
+    if extra_args:
         new_iterdata = []
         for data_i in data:
-            if type(data_i) in [list, dict] and type(data_i) != type(extra_params):
-                raise Exception('Input iterdata and extra_params must be of '
-                                'the same type (dict or list)')
-            else:
-                if type(data_i) == dict:
-                    data_i.update(extra_params)
-                elif type(data_i) == list:
-                    data_i.extend(extra_params)
-                elif type(extra_params) == list:
-                    new_iterdata.append([data_i, *extra_params])
-                else:
-                    raise Exception('extra_params cannot be a dict if '
-                                    'iteradata is not a dict')
 
-        if new_iterdata:
-            data = new_iterdata
+            if type(data_i) is tuple:
+                # multiple args
+                if type(extra_args) is not tuple:
+                    raise Exception('extra_args must contain args in a tuple')
+                new_iterdata.append(data_i + extra_args)
+
+            elif type(data_i) is dict:
+                # kwargs
+                if type(extra_args) is not dict:
+                    raise Exception('extra_args must contain kwargs in a dictionary')
+                new_iterdata.append(data_i.extend(extra_args))
+
+            else:
+                new_iterdata.append((data_i, *extra_args))
+        data = new_iterdata
 
     return data
 
 
-def verify_args(func, iterdata, extra_params):
+def verify_args(func, iterdata, extra_args):
 
-    data = format_data(iterdata, extra_params)
+    data = format_data(iterdata, extra_args)
 
     # Verify parameters
     non_verify_args = ['ibm_cos', 'swift', 'storage', 'id', 'rabbitmq']

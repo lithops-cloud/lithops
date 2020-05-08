@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def create_map_job(config, internal_storage, executor_id, job_id, map_function, iterdata, runtime_meta,
-                   runtime_memory=None, extra_params=None, extra_env=None, obj_chunk_size=None,
+                   runtime_memory=None, extra_args=None, extra_env=None, obj_chunk_size=None,
                    obj_chunk_number=None, invoke_pool_threads=128, include_modules=[], exclude_modules=[],
                    execution_timeout=None):
     """
@@ -23,7 +23,7 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
     """
     job_created_timestamp = time.time()
     map_func = map_function
-    map_iterdata = utils.verify_args(map_function, iterdata, extra_params)
+    map_iterdata = utils.verify_args(map_function, iterdata, extra_args)
     new_invoke_pool_threads = invoke_pool_threads
     new_runtime_memory = runtime_memory
 

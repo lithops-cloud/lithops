@@ -11,9 +11,6 @@ take the value 6.
 import pywren_ibm_cloud as pywren
 
 
-params = [3, 6]
-
-
 def my_function(x, y):
     return x + y
 
@@ -33,8 +30,9 @@ def sum_list_mult(list_of_numbers, x):
 
 
 if __name__ == "__main__":
+    args = (3, 6)
     pw = pywren.ibm_cf_executor()
-    pw.call_async(my_function, params)
+    pw.call_async(my_function, args)
     print(pw.get_result())
 
     """
@@ -42,10 +40,10 @@ if __name__ == "__main__":
     case you have to map them to the correct parameter of the
     function as in the next example.
     """
-    params = {'x': 2, 'y': 8}
+    kwargs = {'x': 2, 'y': 8}
 
     pw = pywren.ibm_cf_executor()
-    pw.call_async(my_function, params)
+    pw.call_async(my_function, kwargs)
     print(pw.get_result())
 
     """
@@ -53,26 +51,26 @@ if __name__ == "__main__":
     function, you must enclose them with [] as in the next
     example.
     """
-    params = [[1, 2, 3, 4, 5]]
+    args = ([1, 2, 3, 4, 5], )
 
     pw = pywren.ibm_cf_executor()
-    pw.call_async(sum_list, params)
+    pw.call_async(sum_list, args)
     print(pw.get_result())
 
     """
     You can also send multiple parameters which include a list
     """
-    params = [[1, 2, 3, 4, 5], 5]
+    args = ([1, 2, 3, 4, 5], 5)
 
     pw = pywren.ibm_cf_executor()
-    pw.call_async(sum_list_mult, params)
+    pw.call_async(sum_list_mult, args)
     print(pw.get_result())
 
     """
     Or alternatively
     """
-    params = {'list_of_numbers': [1, 2, 3, 4, 5], 'x': 3}
+    kwargs = {'list_of_numbers': [1, 2, 3, 4, 5], 'x': 3}
 
     pw = pywren.ibm_cf_executor()
-    pw.call_async(sum_list_mult, params)
+    pw.call_async(sum_list_mult, kwargs)
     print(pw.get_result())
