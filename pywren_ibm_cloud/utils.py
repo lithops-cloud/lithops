@@ -186,11 +186,12 @@ def b64str_to_bytes(str_data):
 
 
 def split_object_url(obj_url):
-    if '://' not in obj_url:
-        raise Exception('Object url must contain the storage backend prefix, '
-                        'for example: cos://')
+    if '://' in obj_url:
+        sb, path = obj_url.split('://')
+    else:
+        sb = None
+        path = obj_url
 
-    sb, path = obj_url.split('://')
     sb = 'ibm_cos' if sb == 'cos' else sb
 
     bucket, full_key = path.split('/', 1) if '/' in path else (path, '')
@@ -266,7 +267,7 @@ def verify_args(func, iterdata, extra_args):
 
     new_parameters = list()
     for param in func_sig.parameters:
-        if func_sig.parameters[param].default is not None and param not in non_verify_args:
+        if param not in non_verify_args:
             new_parameters.append(func_sig.parameters[param])
 
     new_func_sig = func_sig.replace(parameters=new_parameters)

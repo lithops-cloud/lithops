@@ -27,7 +27,7 @@ CHUNK_SIZE_MIN = 0*1024  # 0MB
 CHUNK_THRESHOLD = 128*1024  # 128KB
 
 
-def create_partitions(pywren_config, map_iterdata, chunk_size, chunk_number):
+def create_partitions(pywren_config, internal_storage, map_iterdata, chunk_size, chunk_number):
     """
     Method that returns the function that will create the partitions of the objects in the Cloud
     """
@@ -46,7 +46,12 @@ def create_partitions(pywren_config, map_iterdata, chunk_size, chunk_number):
         if 'url' in elem:
             urls.add(elem['url'])
         elif 'obj' in elem:
+            if type(elem['obj']) == CloudObject:
+                elem['obj'] = '{}://{}/{}'.format(elem['obj'].backend, elem['obj'].bucket, elem['obj'].key)
             sb, bucket, prefix, obj_name = utils.split_object_url(elem['obj'])
+            if sb is None:
+                sb = internal_storage.backend
+                elem['obj'] = '{}://{}'.format(sb, elem['obj'])
             if obj_name:
                 obj_names.add((bucket, prefix))
             elif prefix:
@@ -67,7 +72,10 @@ def create_partitions(pywren_config, map_iterdata, chunk_size, chunk_number):
     if not urls:
         # process objects from an object store. No url
         sb = sbs.pop()
-        storage_handler = Storage(pywren_config, sb).get_storage_handler()
+        if sb == internal_storage.backend:
+            storage_handler = internal_storage.storage_handler
+        else:
+            storage_handler = Storage(pywren_config, sb).get_storage_handler()
         objects = {}
         if obj_names:
             for bucket, prefix in obj_names:

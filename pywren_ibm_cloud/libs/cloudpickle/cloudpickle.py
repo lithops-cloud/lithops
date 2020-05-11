@@ -881,6 +881,12 @@ class CloudPickler(Pickler):
         The name of this method is somewhat misleading: all types get
         dispatched here.
         """
+        name = getattr(obj, '__name__', None)
+        module_name = _whichmodule(obj, name)
+        module = sys.modules.get(module_name, None)
+        if module and 'cloudpickle' not in module.__name__:
+            self.modules.add(module)
+
         if obj is type(None):
             return self.save_reduce(type, (None,), obj=obj)
         elif obj is type(Ellipsis):

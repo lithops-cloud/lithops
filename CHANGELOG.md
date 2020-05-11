@@ -6,6 +6,7 @@
 - Added 'data_limit' config param in pywren section
 - Added context-manager-like executor and example
 - Added debug mode in tests with '-d' flag
+- Added delete_cobject() and delete_cobjects() storage methods
 
 ### Changed
 - Reducer logic moved to jobrunner
@@ -31,7 +32,8 @@
 - Fixed remote_invoker in knative
 - Fixed issue in memory monitor
 - Fixed building default runtime based on current python version
-- OOM exceptions from knative are now correctly raised
+- Fixed OOM exceptions from knative to be correctly raised
+- Fixed issue in cloudpickle when iterdata contains complex objects
 
 
 ## [v1.5.1]

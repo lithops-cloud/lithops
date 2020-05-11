@@ -224,7 +224,7 @@ Sometimes, functions have common parameters for all the invocations. In this cas
     print(pw.get_result())
     ```
     
-    `extra_args` must be always a list or a dict, depending if iterdata contains args or kwargs. The previous example is equivalent to this:
+    `extra_args` must be always a list or a dict, depending whether iteradata contains *args* or *kwargs*. The previous example is equivalent to the next:
     
     ```python
     import pywren_ibm_cloud as pywren
@@ -234,8 +234,8 @@ Sometimes, functions have common parameters for all the invocations. In this cas
 
     args = [  # Init list of parameters for PyWren
             (0, 10),  # Args for function1
-            (1, 10),  # Parameters for function2
-            (2, 10),  # Parameters for function3
+            (1, 10),  # Args for function2
+            (2, 10),  # Args for function3
            ]  # End list of parameters for PyWren
     pw = pywren.ibm_cf_executor()
     pw.map(sum_x_y, args)

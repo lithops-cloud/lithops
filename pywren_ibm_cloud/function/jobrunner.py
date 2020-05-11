@@ -84,7 +84,7 @@ class JobRunner:
         func_obj = self.internal_storage.get_func(self.func_key)
         loaded_func_all = pickle.loads(func_obj)
         func_download_time_t2 = time.time()
-        self.stats.write('func_download_time', round(func_download_time_t2-func_download_time_t1, 8))
+        self.stats.write('function_elapsed_download_time', round(func_download_time_t2-func_download_time_t1, 8))
         logger.debug("Finished getting Function and modules")
 
         return loaded_func_all
@@ -119,9 +119,6 @@ class JobRunner:
                 with open(full_filename, 'wb') as fid:
                     fid.write(b64str_to_bytes(m_data))
 
-            #logger.info("Finished writing {} module files".format(len(module_data)))
-            #logger.debug(subprocess.check_output("find {}".format(module_path), shell=True))
-            #logger.debug(subprocess.check_output("find {}".format(os.getcwd()), shell=True))
             logger.debug("Finished writing Function dependencies")
 
     def _unpickle_function(self, pickled_func):
@@ -148,7 +145,7 @@ class JobRunner:
         loaded_data = pickle.loads(data_obj)
         logger.debug("Finished unpickle Function data")
         data_download_time_t2 = time.time()
-        self.stats.write('data_download_time', round(data_download_time_t2-data_download_time_t1, 8))
+        self.stats.write('data_elapsed_download_time', round(data_download_time_t2-data_download_time_t1, 8))
 
         return loaded_data
 
@@ -209,12 +206,12 @@ class JobRunner:
 
         if 'obj' in data:
             obj = data['obj']
-            logger.info('Getting dataset from {}://{}/{}'.format(obj.storage_backend, obj.bucket, obj.key))
+            logger.info('Getting dataset from {}://{}/{}'.format(obj.backend, obj.bucket, obj.key))
 
-            if obj.storage_backend == self.internal_storage.backend:
+            if obj.backend == self.internal_storage.backend:
                 storage_handler = self.internal_storage.storage_handler
             else:
-                storage_handler = Storage(self.pywren_config, obj.storage_backend).get_storage_handler()
+                storage_handler = Storage(self.pywren_config, obj.backend).get_storage_handler()
 
             if obj.data_byte_range is not None:
                 extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
@@ -251,13 +248,15 @@ class JobRunner:
 
             logger.info("Going to execute '{}()'".format(str(function.__name__)))
             print('---------------------- FUNCTION LOG ----------------------', flush=True)
-            func_exec_time_t1 = time.time()
+            function_start_time = time.time()
             result = function(**data)
-            func_exec_time_t2 = time.time()
+            function_end_time = time.time()
             print('----------------------------------------------------------', flush=True)
             logger.info("Success function execution")
 
-            self.stats.write('function_exec_time', round(func_exec_time_t2-func_exec_time_t1, 8))
+            self.stats.write('function_start_time', function_start_time)
+            self.stats.write('function_end_time', function_end_time)
+            self.stats.write('function_elapsed_exec_time', round(function_end_time-function_start_time, 8))
 
             # Check for new futures
             if result is not None:
@@ -308,6 +307,6 @@ class JobRunner:
                 logger.info("Storing function result - Size: {}".format(sizeof_fmt(len(pickled_output))))
                 self.internal_storage.put_data(self.output_key, pickled_output)
                 output_upload_timestamp_t2 = time.time()
-                self.stats.write("output_upload_time", round(output_upload_timestamp_t2 - output_upload_timestamp_t1, 8))
+                self.stats.write("output_elapsed_upload_time", round(output_upload_timestamp_t2 - output_upload_timestamp_t1, 8))
             self.jobrunner_conn.send("Finished")
             logger.info("Finished")

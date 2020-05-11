@@ -91,7 +91,6 @@ def function_handler(event):
     call_status.response.update(context_dict)
 
     show_memory_peak = strtobool(os.environ.get('SHOW_MEMORY_PEAK', 'False'))
-    call_status.response['peak_memory_usage'] = 0
 
     try:
         if version.__version__ != event['pywren_version']:
@@ -123,9 +122,6 @@ def function_handler(event):
                             'output_key': create_output_key(JOBS_PREFIX, executor_id, job_id, call_id),
                             'stats_filename': jobrunner_stats_filename}
 
-        setup_time = time.time()
-        call_status.response['setup_time'] = round(setup_time - start_time, 8)
-
         if show_memory_peak:
             mm_handler_conn, mm_conn = Pipe()
             memory_monitor = Thread(target=memory_monitor_worker, args=(mm_conn, ))
@@ -140,7 +136,6 @@ def function_handler(event):
 
         jrp.join(execution_timeout)
         logger.debug('JobRunner process finished')
-        call_status.response['exec_time'] = round(time.time() - setup_time, 8)
 
         if jrp.is_alive():
             # If process is still alive after jr.join(job_max_runtime), kill it

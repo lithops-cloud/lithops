@@ -166,7 +166,7 @@ Spawn multiple function activations based on the items of an input list.
 |---|---|---|
 |map_function | |The function to map over the data |
 |map_iterdata |  |An iterable of input data (e.g python list) |
-|extra_params|  None | Additional parameters to pass to each map_function activation |
+|extra_args|  None | Additional arguments to pass to each map_function activation |
 |extra_env| None |Additional environment variables for CF environment |
 |runtime_memory| 256 |Memory (in MB) to use to run the functions |
 |timeout| 600 |Max time per function activation (seconds) |
@@ -197,7 +197,7 @@ Spawn multiple *map_function* activations,  based on the items of an input list,
 |---|---|---|
 |map_function| |The function to map over the data |
 |map_iterdata |  |An iterable of input data (e.g python list)|
-|extra_params|  None | Additional parameters to pass to each map_function activation |
+|extra_args|  None | Additional arguments to pass to each map_function activation |
 |reduce_function|  |The function to map over the results of map_func |
 |reducer_wait_local| False |Wait locally for map results |
 |extra_env| None | Additional environment variables for CF environment|
@@ -304,7 +304,10 @@ Creates 2 detailed execution plots: A timeline plot and a histogram plot.
 
 * **Example**:
 
-![Execution Timeline](images/timeline.png?raw=true "Execution Timeline") ![Execution Histogram](images/histogram.png?raw=true "Execution Histogram")
+<p align="center">
+  <img width="48%" src="images/timeline.png"></img>
+  <img width="48%" src="images/histogram.png"></img>
+</p>
 
 ## Executor.clean()
 

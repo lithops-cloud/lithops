@@ -4,7 +4,7 @@ import logging
 import importlib
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.config import CACHE_DIR, RUNTIMES_PREFIX, JOBS_PREFIX, TEMP_PREFIX
-from pywren_ibm_cloud.utils import is_pywren_function
+from pywren_ibm_cloud.utils import is_pywren_function, uuid_str
 from pywren_ibm_cloud.storage.utils import create_status_key, create_output_key, \
     status_key_suffix, init_key_suffix, CloudObject, StorageNoSuchKeyError
 
@@ -19,7 +19,6 @@ class Storage:
     def __init__(self, pywren_config, storage_backend):
         self.pywren_config = pywren_config
         self.backend = storage_backend
-        self.cloudobject_count = 0
 
         try:
             module_location = 'pywren_ibm_cloud.storage.backends.{}'.format(self.backend)
@@ -39,6 +38,8 @@ class Storage:
         client = self.storage_handler.get_client()
         client.put_cobject = self.put_cobject
         client.get_cobject = self.get_cobject
+        client.delete_cobject = self.delete_cobject
+        client.delete_cobjects = self.delete_cobjects
 
         return client
 
@@ -51,15 +52,15 @@ class Storage:
         :return: CloudObject instance
         """
         prefix = os.environ.get('PYWREN_EXECUTION_ID', '')
-        name = '{}/cloudobject_{}'.format(prefix, self.cloudobject_count)
+        coid = uuid_str().replace('/', '')[:4]
+        name = '{}/cloudobject_{}'.format(prefix, coid)
         key = key or '/'.join([TEMP_PREFIX, name])
         bucket = bucket or self.bucket
         self.storage_handler.put_object(bucket, key, body)
-        self.cloudobject_count += 1
 
         return CloudObject(self.backend, bucket, key)
 
-    def get_cobject(self, cloudobject: CloudObject=None, bucket: str=None, key: str=None):
+    def get_cobject(self, cloudobject=None, bucket=None, key=None, stream=False):
         """
         Get CloudObject from storage.
         :param cloudobject: CloudObject instance
@@ -68,7 +69,7 @@ class Storage:
         :return: body text
         """
         if cloudobject:
-            if cloudobject.storage_backend == self.backend:
+            if cloudobject.backend == self.backend:
                 bucket = cloudobject.bucket
                 key = cloudobject.key
                 return self.storage_handler.get_object(bucket, key)
@@ -76,9 +77,53 @@ class Storage:
                 raise Exception("CloudObject: Invalid Storage backend")
         elif (bucket and key) or key:
             bucket = bucket or self.bucket
-            return self.storage_handler.get_object(bucket, key)
+            return self.storage_handler.get_object(bucket, key, stream=stream)
         else:
             return None
+
+    def delete_cobject(self, cloudobject=None, bucket=None, key=None):
+        """
+        Get CloudObject from storage.
+        :param cloudobject: CloudObject instance
+        :param bucket: destination bucket
+        :param key: destination key
+        :return: body text
+        """
+        if cloudobject:
+            if cloudobject.backend == self.backend:
+                bucket = cloudobject.bucket
+                key = cloudobject.key
+                return self.storage_handler.delete_object(bucket, key)
+            else:
+                raise Exception("CloudObject: Invalid Storage backend")
+        elif (bucket and key) or key:
+            bucket = bucket or self.bucket
+            return self.storage_handler.delete_object(bucket, key)
+        else:
+            return None
+
+    def delete_cobjects(self, cloudobjects):
+        """
+        Get CloudObject from storage.
+        :param cloudobject: CloudObject instance
+        :param bucket: destination bucket
+        :param key: destination key
+        :return: body text
+        """
+        cobjs = {}
+        for co in cloudobjects:
+            if co.backend not in cobjs:
+                cobjs[co.backend] = {}
+            if co.bucket not in cobjs[co.backend]:
+                cobjs[co.backend][co.bucket] = []
+            cobjs[co.backend][co.bucket].append(co.key)
+
+        for backend in cobjs:
+            if backend == self.backend:
+                for bucket in cobjs[backend]:
+                    self.storage_handler.delete_objects(bucket, cobjs[backend][co.bucket])
+            else:
+                raise Exception("CloudObject: Invalid Storage backend")
 
 
 class InternalStorage:
@@ -92,7 +137,6 @@ class InternalStorage:
         self.backend = self.config['backend']
         self.bucket = self.config['bucket']
         self.executor_id = executor_id
-        self.cloudobject_count = 0
 
         try:
             module_location = 'pywren_ibm_cloud.storage.backends.{}'.format(self.backend)
@@ -114,6 +158,8 @@ class InternalStorage:
         client = self.storage_handler.get_client()
         client.put_cobject = self.put_cobject
         client.get_cobject = self.get_cobject
+        client.delete_cobject = self.delete_cobject
+        client.delete_cobjects = self.delete_cobjects
 
         return client
 
@@ -126,15 +172,15 @@ class InternalStorage:
         :return: CloudObject instance
         """
         prefix = os.environ.get('PYWREN_EXECUTION_ID', '')
-        name = '{}/cloudobject_{}'.format(prefix, self.cloudobject_count)
+        coid = uuid_str().replace('/', '')[:4]
+        name = '{}/cloudobject_{}'.format(prefix, coid)
         key = key or '/'.join([TEMP_PREFIX, name])
         bucket = bucket or self.bucket
         self.storage_handler.put_object(bucket, key, body)
-        self.cloudobject_count += 1
 
         return CloudObject(self.backend, bucket, key)
 
-    def get_cobject(self, cloudobject: CloudObject=None, bucket: str=None, key: str=None):
+    def get_cobject(self, cloudobject=None, bucket=None, key=None, stream=False):
         """
         Get CloudObject from storage.
         :param cloudobject: CloudObject instance
@@ -143,7 +189,7 @@ class InternalStorage:
         :return: body text
         """
         if cloudobject:
-            if cloudobject.storage_backend == self.backend:
+            if cloudobject.backend == self.backend:
                 bucket = cloudobject.bucket
                 key = cloudobject.key
                 return self.storage_handler.get_object(bucket, key)
@@ -151,9 +197,53 @@ class InternalStorage:
                 raise Exception("CloudObject: Invalid Storage backend")
         elif (bucket and key) or key:
             bucket = bucket or self.bucket
-            return self.storage_handler.get_object(bucket, key)
+            return self.storage_handler.get_object(bucket, key, stream=stream)
         else:
             return None
+
+    def delete_cobject(self, cloudobject=None, bucket=None, key=None):
+        """
+        Get CloudObject from storage.
+        :param cloudobject: CloudObject instance
+        :param bucket: destination bucket
+        :param key: destination key
+        :return: body text
+        """
+        if cloudobject:
+            if cloudobject.backend == self.backend:
+                bucket = cloudobject.bucket
+                key = cloudobject.key
+                return self.storage_handler.delete_object(bucket, key)
+            else:
+                raise Exception("CloudObject: Invalid Storage backend")
+        elif (bucket and key) or key:
+            bucket = bucket or self.bucket
+            return self.storage_handler.delete_object(bucket, key)
+        else:
+            return None
+
+    def delete_cobjects(self, cloudobjects):
+        """
+        Get CloudObject from storage.
+        :param cloudobject: CloudObject instance
+        :param bucket: destination bucket
+        :param key: destination key
+        :return: body text
+        """
+        cobjs = {}
+        for co in cloudobjects:
+            if co.backend not in cobjs:
+                cobjs[co.backend] = {}
+            if co.bucket not in cobjs[co.backend]:
+                cobjs[co.backend][co.bucket] = []
+            cobjs[co.backend][co.bucket].append(co.key)
+
+        for backend in cobjs:
+            if backend == self.backend:
+                for bucket in cobjs[backend]:
+                    self.storage_handler.delete_objects(bucket, cobjs[backend][co.bucket])
+            else:
+                raise Exception("CloudObject: Invalid Storage backend")
 
     def put_data(self, key, data):
         """

@@ -34,9 +34,12 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
     # Object processing functionality
     parts_per_object = None
     if is_object_processing_function(map_function):
-        # If it is object processing function, create partitions according chunk_size or chunk_number
-        logger.debug('ExecutorID {} | JobID {} - Calling map on partitions from object storage flow'.format(executor_id, job_id))
-        map_iterdata, parts_per_object = create_partitions(config, map_iterdata, obj_chunk_size, obj_chunk_number)
+        # Create partitions according chunk_size or chunk_number
+        logger.debug('ExecutorID {} | JobID {} - Calling map on partitions '
+                     'from object storage flow'.format(executor_id, job_id))
+        map_iterdata, parts_per_object = create_partitions(config, internal_storage,
+                                                           map_iterdata, obj_chunk_size,
+                                                           obj_chunk_number)
     # ########
 
     job_description = _create_job(config, internal_storage, executor_id,

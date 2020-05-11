@@ -45,8 +45,8 @@ class StorageConfigMismatchError(Exception):
 
 
 class CloudObject:
-    def __init__(self, storage_backend, bucket, key):
-        self.storage_backend = storage_backend
+    def __init__(self, backend, bucket, key):
+        self.backend = backend
         self.bucket = bucket
         self.key = key
 

@@ -205,6 +205,7 @@ class ResponseFuture:
         self._call_metadata['status_query_count'] = self._status_query_count
 
         total_time = format(round(self._call_status['end_time'] - self._call_status['start_time'], 2), '.2f')
+
         log_msg = ('ExecutorID {} | JobID {} - Got status from call {} - Activation '
                    'ID: {} - Time: {} seconds'.format(self.executor_id,
                                                       self.job_id,

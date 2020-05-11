@@ -24,7 +24,7 @@ if __name__ == "__main__":
     cloudobjects are automatically deleted.
     """
     with pywren.ibm_cf_executor() as pw:
-        pw.call_async(my_function_put, 'Hello Earth')
+        pw.call_async(my_function_put, 'Hello World')
         cloudobjects = pw.get_result()
         pw.map(my_function_get, cloudobjects)
         print(pw.get_result())
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     the cloudobjects in a custom location.
     """
     pw = pywren.ibm_cf_executor()
-    pw.call_async(my_function_put, 'Hello Moon')
+    pw.call_async(my_function_put, 'Hello World')
     cloudobjects = pw.get_result()
     pw.map(my_function_get, cloudobjects)
     result = pw.get_result()
