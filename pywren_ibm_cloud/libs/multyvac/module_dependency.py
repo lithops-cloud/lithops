@@ -66,10 +66,10 @@ class ModuleDependencyAnalyzer:
         self._logger.debug('Queuing module %r', module_name)
         root_module_name = self._extract_root_module(module_name)
         self._modules_to_inspect.add(root_module_name)
-        
+
         while self._modules_to_inspect:
             self._inspect(self._modules_to_inspect.pop())
-        
+
     def ignore(self, module_name):
         """
         Ignores modules in dependency analysis so that they are neither

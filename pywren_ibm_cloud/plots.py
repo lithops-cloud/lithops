@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 def create_timeline(fs, dst):
     call_status = [f._call_status for f in fs]
     call_metadata = [f._call_metadata for f in fs]
-    fs_start_time = min([cm['job_created_timestamp'] for cm in call_metadata])
+    fs_start_time = min([cm['job_created_time'] for cm in call_metadata])
 
     status_df = pd.DataFrame(call_status)
     metadata_df = pd.DataFrame(call_metadata)
@@ -49,13 +49,12 @@ def create_timeline(fs, dst):
 
     fields = [('host submit', results_df.host_submit_time - fs_start_time),
               ('action start', results_df.start_time - fs_start_time),
-              # ('jobrunner start', results_df.jobrunner_start - pw_start_time),
               ('action done', results_df.end_time - fs_start_time)]
 
-    fields.append(('status fetched', results_df.status_done_timestamp - fs_start_time))
+    fields.append(('status fetched', results_df.status_done_time - fs_start_time))
 
     if 'download_output_timestamp' in results_df:
-        fields.append(('results fetched', results_df.download_output_timestamp - fs_start_time))
+        fields.append(('results fetched', results_df.output_done_time - fs_start_time))
 
     patches = []
     for f_i, (field_name, val) in enumerate(fields):
@@ -75,10 +74,10 @@ def create_timeline(fs, dst):
     for y in y_ticks:
         ax.axhline(y, c='k', alpha=0.1, linewidth=1)
 
-    if 'download_output_timestamp' in results_df:
-        max_seconds = np.max(results_df.download_output_timestamp - fs_start_time)*1.25
-    elif 'status_done_timestamp' in results_df:
-        max_seconds = np.max(results_df.status_done_timestamp - fs_start_time)*1.25
+    if 'output_done_time' in results_df:
+        max_seconds = np.max(results_df.output_done_time - fs_start_time)*1.25
+    elif 'status_done_time' in results_df:
+        max_seconds = np.max(results_df.status_done_time - fs_start_time)*1.25
     else:
         max_seconds = np.max(results_df.end_time - fs_start_time)*1.25
     xplot_step = max(int(max_seconds/8), 1)
@@ -105,7 +104,7 @@ def create_timeline(fs, dst):
 def create_histogram(fs, dst):
     call_status = [f._call_status for f in fs]
     call_metadata = [f._call_metadata for f in fs]
-    fs_start_time = min([cm['job_created_timestamp'] for cm in call_metadata])
+    fs_start_time = min([cm['job_created_time'] for cm in call_metadata])
 
     total_calls = len(call_status)
     max_seconds = int(max([cs['end_time']-fs_start_time for cs in call_status])*2.5)

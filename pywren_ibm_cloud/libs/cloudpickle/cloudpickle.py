@@ -881,8 +881,10 @@ class CloudPickler(Pickler):
         The name of this method is somewhat misleading: all types get
         dispatched here.
         """
-        name = getattr(obj, '__name__', None)
-        module_name = _whichmodule(obj, name)
+        try:
+            module_name = _whichmodule(obj, obj.__name__)
+        except Exception:
+            module_name = _whichmodule(obj, None)
         module = sys.modules.get(module_name, None)
         if module and 'cloudpickle' not in module.__name__:
             self.modules.add(module)

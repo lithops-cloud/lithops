@@ -152,7 +152,7 @@ class ResponseFuture:
                 self._call_status = internal_storage.get_call_status(self.executor_id, self.job_id, self.call_id)
                 self._status_query_count += 1
 
-        self.activation_id = self._call_status.get('activation_id', None)
+        self.activation_id = self._call_status.pop('activation_id', None)
 
         if self._call_status['type'] == '__init__':
             self._set_state(ResponseFuture.State.Running)
@@ -201,7 +201,7 @@ class ResponseFuture:
                 return None
 
         self._call_metadata['host_submit_time'] = self._call_status.pop('host_submit_time')
-        self._call_metadata['status_done_timestamp'] = time.time()
+        self._call_metadata['status_done_time'] = time.time()
         self._call_metadata['status_query_count'] = self._status_query_count
 
         total_time = format(round(self._call_status['end_time'] - self._call_status['start_time'], 2), '.2f')
@@ -258,7 +258,6 @@ class ResponseFuture:
         if self._state == ResponseFuture.State.Futures:
             return self._new_futures
 
-        call_output_time = time.time()
         call_output = internal_storage.get_call_output(self.executor_id, self.job_id, self.call_id)
         self._output_query_count += 1
 
@@ -275,26 +274,23 @@ class ResponseFuture:
                 self._set_state(ResponseFuture.State.Error)
                 return None
 
-        call_output = pickle.loads(call_output)
-        call_output_time_done = time.time()
-        self._call_output = call_output
+        self._call_output = pickle.loads(call_output)
 
-        self._call_metadata['download_output_time'] = call_output_time_done - call_output_time
+        self._call_metadata['output_done_time'] = time.time()
         self._call_metadata['output_query_count'] = self._output_query_count
-        self._call_metadata['download_output_timestamp'] = call_output_time_done
 
         log_msg = ('ExecutorID {} | JobID {} - Got output from call {} - Activation '
                    'ID: {}'.format(self.executor_id, self.job_id, self.call_id, self.activation_id))
         logger.info(log_msg)
 
-        function_result = call_output['result']
+        function_result = self._call_output['result']
 
         if isinstance(function_result, ResponseFuture) or \
            (type(function_result) == list and len(function_result) > 0 and isinstance(function_result[0], ResponseFuture)):
             self._new_futures = [function_result] if type(function_result) == ResponseFuture else function_result
             self._set_state(ResponseFuture.State.Futures)
-            self._call_metadata['status_done_timestamp'] = self._call_metadata['download_output_timestamp']
-            del self._call_metadata['download_output_timestamp']
+            self._call_metadata['status_done_time'] = self._call_metadata['output_done_time']
+            del self._call_metadata['output_done_time']
             return self._new_futures
 
         else:
