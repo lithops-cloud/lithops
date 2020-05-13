@@ -26,9 +26,6 @@ def load_config(config_data):
     if 'workers' in config_data['pywren']:
         config_data['localhost']['workers'] = config_data['pywren']['workers']
     else:
-        if 'workers' not in config_data['localhost']:
-            total_cores = multiprocessing.cpu_count()
-            config_data['pywren']['workers'] = total_cores
-            config_data['localhost']['workers'] = total_cores
-        else:
-            config_data['pywren']['workers'] = config_data['localhost']['workers']
+        total_cores = multiprocessing.cpu_count()
+        config_data['pywren']['workers'] = total_cores
+        config_data['localhost']['workers'] = total_cores

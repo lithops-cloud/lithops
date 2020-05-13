@@ -12,12 +12,13 @@ import json
 temp_dir = '/tmp'
 iterdata = [1]
 
+
 def sh_cmd_executor(x, param1, ibm_cos):
     pywren_config = json.loads(os.environ['PYWREN_CONFIG'])
     bucket = pywren_config['pywren']['storage_bucket']
     print (bucket)
     print (param1)
-    filename='benchMEM.zip'
+    filename = 'benchMEM.zip'
     outfile = os.path.join(temp_dir, filename)
 
     if not os.path.isfile(filename):
@@ -34,18 +35,20 @@ def sh_cmd_executor(x, param1, ibm_cos):
 
     st = time.time()
     import subprocess
-    subprocess.call(cmd, shell = True)
+    subprocess.call(cmd, shell=True)
     run_time = time.time() - st
 
-    #upload results to IBM COS
+    # upload results to IBM COS
     res = ['confout.gro', 'ener.edr', 'md.log',  'state.cpt']
     for name in res:
         f = open(os.path.join(temp_dir, name), "rb")
-        ibm_cos.put_object(Bucket = bucket, Key = os.path.join('gmx-mem',name), Body = f)
+        ibm_cos.put_object(Bucket=bucket, Key=os.path.join('gmx-mem', name), Body=f)
 
     with open('md.log', 'r') as file:
         data = file.read()
-    return {'run_time': run_time, 'md_log' : data}
+
+    return {'run_time': run_time, 'md_log': data}
+
 
 if __name__ == '__main__':
     # Example of using bechMEM from https://www.mpibpc.mpg.de/grubmueller/bench
@@ -53,11 +56,11 @@ if __name__ == '__main__':
     param1 = 'param1 example'
 
     total_start = time.time()
-    pw = pywren.ibm_cf_executor(runtime = 'cactusone/pywren-gromacs:1.0.2', runtime_memory = 2048)
-    pw.map(sh_cmd_executor, iterdata, extra_params=[param1])
+    pw = pywren.ibm_cf_executor(runtime='cactusone/pywren-gromacs:1.0.2', runtime_memory=2048)
+    pw.map(sh_cmd_executor, iterdata, extra_args=(param1,))
     res = pw.get_result()
+    pw.clean()
 
     print ("GROMACS execution time {}".format(res[0]['run_time']))
     print ("Total execution time {}".format(time.time()-total_start))
     print (res[0]['md_log'])
-    pw.clean()

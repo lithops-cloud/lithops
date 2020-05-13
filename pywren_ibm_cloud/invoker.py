@@ -274,55 +274,59 @@ class FunctionInvoker:
             th = Thread(target=self._invoke_remote, args=(job_description,))
             th.daemon = True
             th.start()
-            time.sleep(1)
+            time.sleep(0.1)
 
         else:
+            try:
+                if self.running_flag.value == 0:
+                    self.ongoing_activations = 0
+                    self.running_flag.value = 1
+                    self._start_invoker_process()
 
-            if self.running_flag.value == 0:
-                self.ongoing_activations = 0
-                self.running_flag.value = 1
-                self._start_invoker_process()
+                log_msg = ('ExecutorID {} | JobID {} - Starting function invocation: {}()  - Total: {} '
+                           'activations'.format(job.executor_id, job.job_id, job.function_name, job.total_calls))
+                print(log_msg) if not self.log_level else logger.info(log_msg)
 
-            log_msg = ('ExecutorID {} | JobID {} - Starting function invocation: {}()  - Total: {} '
-                       'activations'.format(job.executor_id, job.job_id, job.function_name, job.total_calls))
-            print(log_msg) if not self.log_level else logger.info(log_msg)
+                if self.ongoing_activations < self.workers:
+                    callids = range(job.total_calls)
+                    total_direct = self.workers-self.ongoing_activations
+                    callids_to_invoke_direct = callids[:total_direct]
+                    callids_to_invoke_nondirect = callids[total_direct:]
 
-            if self.ongoing_activations < self.workers:
-                callids = range(job.total_calls)
-                total_direct = self.workers-self.ongoing_activations
-                callids_to_invoke_direct = callids[:total_direct]
-                callids_to_invoke_nondirect = callids[total_direct:]
+                    self.ongoing_activations += len(callids_to_invoke_direct)
 
-                self.ongoing_activations += len(callids_to_invoke_direct)
+                    logger.debug('ExecutorID {} | JobID {} - Free workers: {} - Going to invoke {} function activations'
+                                 .format(job.executor_id,  job.job_id, total_direct, len(callids_to_invoke_direct)))
 
-                logger.debug('ExecutorID {} | JobID {} - Free workers: {} - Going to invoke {} function activations'
-                             .format(job.executor_id,  job.job_id, total_direct, len(callids_to_invoke_direct)))
+                    call_futures = []
 
-                call_futures = []
+                    executor = ThreadPoolExecutor(max_workers=job.invoke_pool_threads)
+                    for i in callids_to_invoke_direct:
+                        call_id = "{:05d}".format(i)
+                        future = executor.submit(self._invoke, job, call_id)
+                        call_futures.append(future)
+                    time.sleep(0.1)
 
-                executor = ThreadPoolExecutor(max_workers=job.invoke_pool_threads)
-                for i in callids_to_invoke_direct:
-                    call_id = "{:05d}".format(i)
-                    future = executor.submit(self._invoke, job, call_id)
-                    call_futures.append(future)
-                time.sleep(1)
-
-                # Put into the queue the rest of the callids to invoke within the process
-                if callids_to_invoke_nondirect:
-                    logger.debug('ExecutorID {} | JobID {} - Putting remaining {} function invocations into pending queue'
-                                 .format(job.executor_id, job.job_id, len(callids_to_invoke_nondirect)))
-                    for i in callids_to_invoke_nondirect:
+                    # Put into the queue the rest of the callids to invoke within the process
+                    if callids_to_invoke_nondirect:
+                        logger.debug('ExecutorID {} | JobID {} - Putting remaining {} function invocations into pending queue'
+                                     .format(job.executor_id, job.job_id, len(callids_to_invoke_nondirect)))
+                        for i in callids_to_invoke_nondirect:
+                            call_id = "{:05d}".format(i)
+                            self.pending_calls_q.put((job, call_id))
+                else:
+                    logger.debug('ExecutorID {} | JobID {} - Ongoing activations reached {} workers, '
+                                 'putting {} function invocations into pending queue'
+                                 .format(job.executor_id, job.job_id, self.workers, job.total_calls))
+                    for i in range(job.total_calls):
                         call_id = "{:05d}".format(i)
                         self.pending_calls_q.put((job, call_id))
-            else:
-                logger.debug('ExecutorID {} | JobID {} - Ongoing activations reached {} workers, '
-                             'putting {} function invocations into pending queue'
-                             .format(job.executor_id, job.job_id, self.workers, job.total_calls))
-                for i in range(job.total_calls):
-                    call_id = "{:05d}".format(i)
-                    self.pending_calls_q.put((job, call_id))
 
-            self.job_monitor.start_job_monitoring(job)
+                self.job_monitor.start_job_monitoring(job)
+
+            except (KeyboardInterrupt, Exception) as e:
+                self.stop()
+                raise e
 
         # Create all futures
         futures = []

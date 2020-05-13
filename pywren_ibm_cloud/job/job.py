@@ -1,7 +1,6 @@
 import os
 import sys
 import time
-import json
 import textwrap
 import pickle
 import logging
@@ -16,15 +15,15 @@ logger = logging.getLogger(__name__)
 
 
 def create_map_job(config, internal_storage, executor_id, job_id, map_function, iterdata, runtime_meta,
-                   runtime_memory=None, extra_params=None, extra_env=None, obj_chunk_size=None,
+                   runtime_memory=None, extra_args=None, extra_env=None, obj_chunk_size=None,
                    obj_chunk_number=None, invoke_pool_threads=128, include_modules=[], exclude_modules=[],
                    execution_timeout=None):
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
     """
-    job_created_timestamp = time.time()
+    job_created_time = time.time()
     map_func = map_function
-    map_iterdata = utils.verify_args(map_function, iterdata, extra_params)
+    map_iterdata = utils.verify_args(map_function, iterdata, extra_args)
     new_invoke_pool_threads = invoke_pool_threads
     new_runtime_memory = runtime_memory
 
@@ -35,9 +34,12 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
     # Object processing functionality
     parts_per_object = None
     if is_object_processing_function(map_function):
-        # If it is object processing function, create partitions according chunk_size or chunk_number
-        logger.debug('ExecutorID {} | JobID {} - Calling map on partitions from object storage flow'.format(executor_id, job_id))
-        map_iterdata, parts_per_object = create_partitions(config, map_iterdata, obj_chunk_size, obj_chunk_number)
+        # Create partitions according chunk_size or chunk_number
+        logger.debug('ExecutorID {} | JobID {} - Calling map on partitions '
+                     'from object storage flow'.format(executor_id, job_id))
+        map_iterdata, parts_per_object = create_partitions(config, internal_storage,
+                                                           map_iterdata, obj_chunk_size,
+                                                           obj_chunk_number)
     # ########
 
     job_description = _create_job(config, internal_storage, executor_id,
@@ -49,7 +51,7 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
                                   include_modules=include_modules,
                                   exclude_modules=exclude_modules,
                                   execution_timeout=execution_timeout,
-                                  job_created_timestamp=job_created_timestamp)
+                                  job_created_time=job_created_time)
 
     if parts_per_object:
         job_description['parts_per_object'] = parts_per_object
@@ -64,7 +66,7 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
     """
-    job_created_timestamp = time.time()
+    job_created_time = time.time()
     iterdata = [[map_futures, ]]
 
     if 'parts_per_object' in map_job and reducer_one_per_object:
@@ -91,12 +93,12 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
                        include_modules=include_modules,
                        exclude_modules=exclude_modules,
                        execution_timeout=execution_timeout,
-                       job_created_timestamp=job_created_timestamp)
+                       job_created_time=job_created_time)
 
 
 def _create_job(config, internal_storage, executor_id, job_id, func, data, runtime_meta,
                 runtime_memory=None, extra_env=None, invoke_pool_threads=128, include_modules=[],
-                exclude_modules=[], execution_timeout=None, job_created_timestamp=None):
+                exclude_modules=[], execution_timeout=None, job_created_time=None):
     """
     :param func: the function to map over the data
     :param iterdata: An iterable of input data
@@ -156,7 +158,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     if include_modules is None:
         inc_modules = None
 
-    host_job_meta = {'job_created_timestamp': job_created_timestamp}
+    host_job_meta = {'job_created_time': job_created_time}
 
     logger.debug('ExecutorID {} | JobID {} - Serializing function and data'.format(executor_id, job_id))
     serializer = SerializeIndependent(runtime_meta['preinstalls'])

@@ -18,7 +18,7 @@ from where you can access to the partial results.
 import pywren_ibm_cloud as pywren
 
 # Bucket with prefix
-bucketname = 'cos://pw-sample-data/test/'  # Change-me
+data_location = 'cos://pw-sample-data/test/'  # Change-me
 
 
 def my_map_function(obj):
@@ -41,5 +41,5 @@ def my_map_function(obj):
 
 if __name__ == "__main__":
     pw = pywren.ibm_cf_executor()
-    pw.map(my_map_function, bucketname)
+    pw.map(my_map_function, data_location)
     print(pw.get_result())

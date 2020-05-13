@@ -1,6 +1,6 @@
 # PyWren Functions and Parameters
 
-PyWren for IBM Cloud allows to send multiple parameters in the function invocation.
+This document describes how to invoke functions based on the *iterdata* variable. In this sense, PyWren for IBM Cloud allows to send either *args* or *kwargs* in the function invocation.
 
 ## Single function invocation using the call_async() method.
 You can send multiple parameters to a single call function writing them into a list. The parameters will be mapped in
@@ -10,13 +10,13 @@ take the value 6.
 ```python
 import pywren_ibm_cloud as pywren
 
-params = [3, 6]
+args = (3, 6)
 
 def my_function(x, y):
     return x + y
 
 pw = pywren.ibm_cf_executor()
-pw.call_async(my_function, params)
+pw.call_async(my_function, args)
 print (pw.get_result())
 ```
 
@@ -26,13 +26,13 @@ function as in the next example.
 ```python
 import pywren_ibm_cloud as pywren
 
-params = {'x': 2, 'y': 8}
+kwargs = {'x': 2, 'y': 8}
 
 def my_function(x, y):
     return x + y
 
 pw = pywren.ibm_cf_executor()
-pw.call_async(my_function, params)
+pw.call_async(my_function, kwargs)
 print (pw.get_result())
 ```
 
@@ -42,7 +42,7 @@ example.
 ```python
 import pywren_ibm_cloud as pywren
 
-params = [[1, 2, 3, 4, 5]]
+args = ([1, 2, 3, 4, 5],)
 
 def sum_list(list_of_numbers):
     total = 0
@@ -51,7 +51,7 @@ def sum_list(list_of_numbers):
     return total
 
 pw = pywren.ibm_cf_executor()
-pw.call_async(sum_list, params)
+pw.call_async(sum_list, args)
 print (pw.get_result())
 ```
 
@@ -60,7 +60,7 @@ You can also send multiple parameters which include a list.
 ```python
 import pywren_ibm_cloud as pywren
 
-params = [[1, 2, 3, 4, 5], 5]
+args = ([1, 2, 3, 4, 5], 5)
 
 def sum_list_mult(list_of_numbers, x):
     total = 0
@@ -69,7 +69,7 @@ def sum_list_mult(list_of_numbers, x):
     return total*x
 
 pw = pywren.ibm_cf_executor()
-pw.call_async(sum_list_mult, params)
+pw.call_async(sum_list_mult, args)
 print (pw.get_result())
 ```
 
@@ -78,10 +78,10 @@ Or alternatively using a dict.
 ```python
 import pywren_ibm_cloud as pywren
 
-params = {'list_of_numbers': [1, 2, 3, 4, 5], 'x': 3}
+kwargs = {'list_of_numbers': [1, 2, 3, 4, 5], 'x': 3}
 
 pw = pywren.ibm_cf_executor()
-pw.call_async(sum_list_mult, params)
+pw.call_async(sum_list_mult, kwargs)
 print (pw.get_result())
 ```
 
@@ -95,17 +95,17 @@ them.
 ```python
 import pywren_ibm_cloud as pywren
 
-iterdata = [  # Init list of parameters for PyWren
-           [1, 2],  # Parameters for function1
-           [3, 4],  # Parameters for function2
-           [5, 6],  # Parameters for function3
-           ]  # End list of parameters for PyWren
+args = [  # Init list of parameters for PyWren
+        (1, 2),  # Args for function1
+        (3, 4),  # Args for function2
+        (5, 6),  # Args for function3
+       ]  # End list of parameters for PyWren
 
 def my_function(x, y):
     return x + y
 
 pw = pywren.ibm_cf_executor()
-pw.map(my_function, iterdata)
+pw.map(my_function, args)
 print (pw.get_result())
 ```
 
@@ -115,17 +115,17 @@ function as in the next example.
 ```python
 import pywren_ibm_cloud as pywren
 
-iterdata = [  # Init list of parameters for PyWren
-           {'x': 1, 'y': 2},  # Parameters for function1
-           {'x': 3, 'y': 4},  # Parameters for function2
-           {'x': 5, 'y': 6},  # Parameters for function3
-           ]  # End list of parameters for PyWren
+kwargs = [  # Init list of parameters for PyWren
+          {'x': 1, 'y': 2},  # Kwargs for function1
+          {'x': 3, 'y': 4},  # Kwargs for function2
+          {'x': 5, 'y': 6},  # Kwargs for function3
+         ]  # End list of parameters for PyWren
 
 def my_function(x, y):
     return x + y
 
 pw = pywren.ibm_cf_executor()
-pw.map(my_function, iterdata)
+pw.map(my_function, kwargs)
 print (pw.get_result())
 ```
 
@@ -135,11 +135,11 @@ example.
 ```python
 import pywren_ibm_cloud as pywren
 
-iterdata = [  # Init list of parameters for PyWren
-           [[1, 2]],  # Parameters for function1
-           [[3, 4]],  # Parameters for function2
-           [[5, 6]],  # Parameters for function3
-           ]  # End list of parameters for PyWren
+args = [  # Init list of parameters for PyWren
+         ([1, 2],),  # Args for function1
+         ([3, 4],),  # Args for function2
+         ([5, 6],),  # Args for function3
+       ]  # End list of parameters for PyWren
 
 def sum_list(list_of_numbers):
     total = 0
@@ -148,7 +148,7 @@ def sum_list(list_of_numbers):
     return total
 
 pw = pywren.ibm_cf_executor()
-pw.map(sum_list, iterdata)
+pw.map(sum_list, args)
 print (pw.get_result())
 ```
 
@@ -157,11 +157,11 @@ You can also send multiple parameters which include a list.
 ```python
 import pywren_ibm_cloud as pywren
 
-iterdata = [  # Init list of parameters for PyWren
-           [[1, 2, 3, 4, 5], 2],  # Parameters for function1
-           [[6, 7, 8, 9, 10], 3],  # Parameters for function2
-           [[11, 12, 13, 14, 15], 4],  # Parameters for function3
-           ]  # End list of parameters for PyWren
+args = [  # Init list of parameters for PyWren
+        ([1, 2, 3, 4, 5], 2),  # Args for function1
+        ([6, 7, 8, 9, 10], 3),  # Args for function2
+        ([11, 12, 13, 14, 15], 4),  # Args for function3
+       ]  # End list of parameters for PyWren
 
 def sum_list_mult(list_of_numbers, x):
     total = 0
@@ -170,7 +170,7 @@ def sum_list_mult(list_of_numbers, x):
     return total*x
 
 pw = pywren.ibm_cf_executor()
-pw.map(sum_list_mult, iterdata)
+pw.map(sum_list_mult, args)
 print (pw.get_result())
 ```
 
@@ -179,14 +179,14 @@ Or alternatively using a dict.
 ```python
 import pywren_ibm_cloud as pywren
 
-iterdata = [  # Init list of parameters for PyWren
-           {'list_of_numbers': [1, 2, 3, 4, 5], 'x': 2},  # Parameters for function1
-           {'list_of_numbers': [6, 7, 8, 9, 10], 'x': 3},  # Parameters for function2
-           {'list_of_numbers': [11, 12, 13, 14, 15], 'x': 4},  # Parameters for function3
-           ]  # End list of parameters for PyWren
+kwargs = [  # Init list of parameters for PyWren
+           {'list_of_numbers': [1, 2, 3, 4, 5], 'x': 2},  # Kwargs for function1
+           {'list_of_numbers': [6, 7, 8, 9, 10], 'x': 3},  # Kwargs for function2
+           {'list_of_numbers': [11, 12, 13, 14, 15], 'x': 4},  # Kwargs for function3
+         ]  # End list of parameters for PyWren
 
 pw = pywren.ibm_cf_executor()
-pw.map(sum_list_mult, iterdata)
+pw.map(sum_list_mult, kwargs)
 print(pw.get_result())
 ```
 
@@ -218,13 +218,13 @@ Sometimes, functions have common parameters for all the invocations. In this cas
     def sum_x_y(x, y):
         return x+y
     
-    iterdata = [0, 1, 2]
+    args = [0, 1, 2]
     pw = pywren.ibm_cf_executor()
-    pw.map(sum_x_y, iterdata, extra_params=[10])
+    pw.map(sum_x_y, args, extra_args=(10,))
     print(pw.get_result())
     ```
     
-    `extra_params` must be always a list or a dict, depending of iterdata. The previous example is equivalent to this:
+    `extra_args` must be always a list or a dict, depending whether iteradata contains *args* or *kwargs*. The previous example is equivalent to the next:
     
     ```python
     import pywren_ibm_cloud as pywren
@@ -232,13 +232,13 @@ Sometimes, functions have common parameters for all the invocations. In this cas
     def sum_x_y(x, y):
         return x+y
 
-    iterdata = [  # Init list of parameters for PyWren
-                [0, 10],  # Parameters for function1
-                [1, 10],  # Parameters for function2
-                [2, 10],  # Parameters for function3
-               ]  # End list of parameters for PyWren
+    args = [  # Init list of parameters for PyWren
+            (0, 10),  # Args for function1
+            (1, 10),  # Args for function2
+            (2, 10),  # Args for function3
+           ]  # End list of parameters for PyWren
     pw = pywren.ibm_cf_executor()
-    pw.map(sum_x_y, iterdata)
+    pw.map(sum_x_y, args)
     print(pw.get_result())
     ```
 
