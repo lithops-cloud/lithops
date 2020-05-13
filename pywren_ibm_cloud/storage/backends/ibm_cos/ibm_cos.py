@@ -115,8 +115,10 @@ class IBMCloudObjectStorageBackend:
                 token_data['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
                 dump_yaml_config(token_filename, token_data)
 
-            self.ibm_cos_config['token'] = token_manager._token
-            self.ibm_cos_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
+            if token_manager._token:
+                self.ibm_cos_config['token'] = token_manager._token
+            if token_manager._expiry_time:
+                self.ibm_cos_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
 
             self.cos_client = ibm_boto3.client('s3', token_manager=token_manager,
                                                config=client_config,

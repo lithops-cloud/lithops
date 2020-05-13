@@ -274,7 +274,7 @@ class FunctionInvoker:
             th = Thread(target=self._invoke_remote, args=(job_description,))
             th.daemon = True
             th.start()
-            time.sleep(1)
+            time.sleep(0.1)
 
         else:
             try:
@@ -305,7 +305,7 @@ class FunctionInvoker:
                         call_id = "{:05d}".format(i)
                         future = executor.submit(self._invoke, job, call_id)
                         call_futures.append(future)
-                    time.sleep(1)
+                    time.sleep(0.1)
 
                     # Put into the queue the rest of the callids to invoke within the process
                     if callids_to_invoke_nondirect:

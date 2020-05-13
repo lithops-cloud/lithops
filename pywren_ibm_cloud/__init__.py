@@ -139,5 +139,6 @@ def docker_executor(config=None, runtime=None, workers=None,
         storage_backend=storage_backend,
         storage_backend_region=storage_backend_region,
         rabbitmq_monitor=rabbitmq_monitor,
+        remote_invoker=True,
         log_level=log_level
     )
