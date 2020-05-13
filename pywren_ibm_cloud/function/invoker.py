@@ -30,6 +30,8 @@ from pywren_ibm_cloud.config import cloud_logging_config, extract_compute_config
 logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('invoker')
 
+CBH = {}
+
 
 def function_invoker(event):
     if __version__ != event['pywren_version']:
@@ -37,14 +39,15 @@ def function_invoker(event):
                         __version__, event['pywren_version'])
 
     log_level = event['log_level']
-    cloud_logging_config(log_level)
+    #cloud_logging_config(log_level)
     log_level = logging.getLevelName(logger.getEffectiveLevel())
     custom_env = {'PYWREN_FUNCTION': 'True',
                   'PYTHONUNBUFFERED': 'True',
                   'PYWREN_LOGLEVEL': log_level}
     os.environ.update(custom_env)
     config = event['config']
-    invoker = FunctionInvoker(config, log_level)
+    num_invokers = event['invokers']
+    invoker = FunctionInvoker(config, num_invokers, log_level)
     invoker.run(event['job_description'])
 
 
@@ -53,8 +56,9 @@ class FunctionInvoker:
     Module responsible to perform the invocations against the compute backend
     """
 
-    def __init__(self, config, log_level):
+    def __init__(self, config, num_invokers, log_level):
         self.config = config
+        self.num_invokers = num_invokers
         self.log_level = log_level
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
@@ -65,19 +69,40 @@ class FunctionInvoker:
         if self.rabbitmq_monitor:
             self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
 
-        self.workers = self.config['pywren'].get('workers')
-        logger.debug('Total workers: {}'.format(self.workers))
+        self.num_workers = self.config['pywren'].get('workers')
+        logger.debug('Total workers: {}'.format(self.num_workers))
 
+        global CBH
         self.compute_handlers = []
         cb = compute_config['backend']
         regions = compute_config[cb].get('region')
         if regions and type(regions) == list:
             for region in regions:
-                new_compute_config = compute_config.copy()
-                new_compute_config[cb]['region'] = region
-                self.compute_handlers.append(Compute(new_compute_config))
+                cbh_name = '{}-{}'.format(cb, region)
+                if cbh_name in CBH:
+                    logger.info('{} compute handler already started'.format(cbh_name))
+                    compute_handler = CBH[cbh_name]
+                    self.compute_handlers.append(compute_handler)
+                else:
+                    logger.info('Starting {} Compute handler'.format(cbh_name))
+                    new_compute_config = compute_config.copy()
+                    new_compute_config[cb]['region'] = region
+                    compute_handler = Compute(new_compute_config)
+                    CBH[cbh_name] = compute_handler
+                    self.compute_handlers.append(compute_handler)
         else:
-            self.compute_handlers.append(Compute(compute_config))
+            if cb == 'localhost' and cb in CBH:
+                if CBH[cb].compute_handler.num_workers != self.num_workers:
+                    del CBH[cb]
+            if cb in CBH:
+                logger.info('{} compute handler already started'.format(cb))
+                compute_handler = CBH[cb]
+                self.compute_handlers.append(compute_handler)
+            else:
+                logger.info('Starting {} compute handler'.format(cb))
+                compute_handler = Compute(compute_config)
+                CBH[cb] = compute_handler
+                self.compute_handlers.append(compute_handler)
 
         self.token_bucket_q = Queue()
         self.pending_calls_q = Queue()
@@ -131,24 +156,30 @@ class FunctionInvoker:
 
         self.total_calls = job.total_calls
 
-        for i in range(self.workers):
-            self.token_bucket_q.put('#')
+        if self.num_invokers == 0:
+            # Localhost execution using processes
+            for i in range(job.total_calls):
+                call_id = "{:05d}".format(i)
+                self._invoke(job, call_id)
+        else:
+            for i in range(self.num_workers):
+                self.token_bucket_q.put('#')
 
-        for i in range(job.total_calls):
-            call_id = "{:05d}".format(i)
-            self.pending_calls_q.put((job, call_id))
+            for i in range(job.total_calls):
+                call_id = "{:05d}".format(i)
+                self.pending_calls_q.put((job, call_id))
 
-        self.job_monitor.start_job_monitoring(job)
+            self.job_monitor.start_job_monitoring(job)
 
-        invokers = []
-        for inv_id in range(4):
-            p = Process(target=self._run_process, args=(inv_id, ))
-            invokers.append(p)
-            p.daemon = True
-            p.start()
+            invokers = []
+            for inv_id in range(self.num_invokers):
+                p = Process(target=self._run_process, args=(inv_id, ))
+                p.daemon = True
+                p.start()
+                invokers.append(p)
 
-        for p in invokers:
-            p.join()
+            for p in invokers:
+                p.join()
 
     def _run_process(self, inv_id):
         """

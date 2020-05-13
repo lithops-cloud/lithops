@@ -90,10 +90,15 @@ class FunctionInvoker:
         runtime_name = self.config['pywren']['runtime']
         if runtime_memory is None:
             runtime_memory = self.config['pywren']['runtime_memory']
-        runtime_memory = int(runtime_memory)
 
-        log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} - {}MB'
-                   .format(self.executor_id, job_id, runtime_name, runtime_memory))
+        if runtime_memory:
+            runtime_memory = int(runtime_memory)
+            log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} - {}MB'
+                       .format(self.executor_id, job_id, runtime_name, runtime_memory))
+        else:
+            log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {}'
+                       .format(self.executor_id, job_id, runtime_name))
+
         print(log_msg, end=' ') if not self.log_level else logger.info(log_msg)
 
         installing = False
@@ -236,6 +241,7 @@ class FunctionInvoker:
                    'job_id': job.job_id,
                    'job_description': job_description,
                    'remote_invoker': True,
+                   'invokers': 4,
                    'pywren_version': __version__}
 
         activation_id = compute_handler.invoke(job.runtime_name, REMOTE_INVOKER_MEMORY, payload)

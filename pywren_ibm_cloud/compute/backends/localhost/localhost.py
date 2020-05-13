@@ -23,14 +23,16 @@ class LocalhostBackend:
         self.name = 'local'
         self.queue = multiprocessing.Queue()
         self.logs_dir = LOCAL_LOGS_DIR
-        self.workers = self.config['workers']
+        self.num_workers = self.config['workers']
 
-        for worker_id in range(self.workers):
+        self.workers = []
+        for worker_id in range(self.num_workers):
             p = multiprocessing.Process(target=self._process_runner, args=(worker_id,))
             p.daemon = True
             p.start()
+            self.workers.append(p)
 
-        log_msg = 'PyWren v{} init for Localhost - Total workers: {}'.format(__version__, self.workers)
+        log_msg = 'PyWren v{} init for Localhost - Total workers: {}'.format(__version__, self.num_workers)
         logger.info(log_msg)
         if not self.log_level:
             print(log_msg)
@@ -61,6 +63,7 @@ class LocalhostBackend:
                 self._local_handler(event, os.getcwd())
             except KeyboardInterrupt:
                 break
+        logger.debug('Worker process {} stopped'.format(worker_id))
 
     def _generate_python_meta(self):
         """
@@ -132,3 +135,7 @@ class LocalhostBackend:
         runtime_key = os.path.join(self.name, runtime_key)
 
         return runtime_key
+
+    def __del__(self):
+        for worker in self.workers:
+            worker.terminate()

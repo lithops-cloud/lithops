@@ -131,7 +131,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
 
     job_description = {}
     job_description['runtime_name'] = runtime_name
-    job_description['runtime_memory'] = int(runtime_memory)
+    job_description['runtime_memory'] = runtime_memory
     job_description['execution_timeout'] = execution_timeout
     job_description['function_name'] = func.__name__
     job_description['extra_env'] = ext_env

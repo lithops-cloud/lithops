@@ -1,7 +1,6 @@
 import os
 import tempfile
 import multiprocessing
-from psutil import virtual_memory
 from pywren_ibm_cloud.config import LOGS_PREFIX
 
 
@@ -15,8 +14,7 @@ LOCAL_LOGS_DIR = os.path.join(STORAGE_BASE_DIR, LOGS_PREFIX)
 
 def load_config(config_data):
     config_data['pywren']['runtime'] = RUNTIME_NAME_DEFAULT
-    mem = virtual_memory()
-    config_data['pywren']['runtime_memory'] = round(mem.total/1024/1024, 2)
+    config_data['pywren']['runtime_memory'] = None
     if 'runtime_timeout' not in config_data['pywren']:
         config_data['pywren']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
 
