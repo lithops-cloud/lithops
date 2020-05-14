@@ -206,7 +206,7 @@ class FunctionInvoker:
                    'executor_id': job.executor_id,
                    'job_id': job.job_id,
                    'call_id': call_id,
-                   'host_submit_time': time.time(),
+                   'host_submit_tstamp': time.time(),
                    'pywren_version': __version__,
                    'runtime_name': job.runtime_name,
                    'runtime_memory': job.runtime_memory}
@@ -267,7 +267,7 @@ class FunctionInvoker:
         except Exception:
             pass
 
-        if self.remote_invoker and job.total_calls > 1:
+        if self.remote_invoker:
             old_stdout = sys.stdout
             sys.stdout = open(os.devnull, 'w')
             self.select_runtime(job.job_id, REMOTE_INVOKER_MEMORY)
@@ -338,7 +338,7 @@ class FunctionInvoker:
         futures = []
         for i in range(job.total_calls):
             call_id = "{:05d}".format(i)
-            fut = ResponseFuture(call_id, job_description, job.metadata, self.storage_config)
+            fut = ResponseFuture(call_id, job_description, job.metadata.copy(), self.storage_config)
             fut._set_state(ResponseFuture.State.Invoked)
             futures.append(fut)
 

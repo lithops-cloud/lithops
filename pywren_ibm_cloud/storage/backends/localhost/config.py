@@ -1,8 +1,7 @@
-import os
 import tempfile
 
 TEMP = tempfile.gettempdir()
-STORAGE_BASE_DIR = os.path.join(TEMP)
+STORAGE_BASE_DIR = TEMP
 
 
 def load_config(config_data):

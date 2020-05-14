@@ -80,11 +80,11 @@ class JobRunner:
         Gets and unpickles function and modules from storage
         """
         logger.debug("Getting function and modules")
-        func_download_time_t1 = time.time()
+        func_download_start_tstamp = time.time()
         func_obj = self.internal_storage.get_func(self.func_key)
         loaded_func_all = pickle.loads(func_obj)
-        func_download_time_t2 = time.time()
-        self.stats.write('function_elapsed_download_time', round(func_download_time_t2-func_download_time_t1, 8))
+        func_download_end_tstamp = time.time()
+        self.stats.write('function_download_time', round(func_download_end_tstamp-func_download_start_tstamp, 8))
         logger.debug("Finished getting Function and modules")
 
         return loaded_func_all
@@ -138,14 +138,14 @@ class JobRunner:
             extra_get_args['Range'] = range_str
 
         logger.debug("Getting function data")
-        data_download_time_t1 = time.time()
+        data_download_start_tstamp = time.time()
         data_obj = self.internal_storage.get_data(self.data_key, extra_get_args=extra_get_args)
         logger.debug("Finished getting Function data")
         logger.debug("Unpickle Function data")
         loaded_data = pickle.loads(data_obj)
         logger.debug("Finished unpickle Function data")
-        data_download_time_t2 = time.time()
-        self.stats.write('data_elapsed_download_time', round(data_download_time_t2-data_download_time_t1, 8))
+        data_download_end_tstamp = time.time()
+        self.stats.write('data_download_time', round(data_download_end_tstamp-data_download_start_tstamp, 8))
 
         return loaded_data
 
@@ -248,15 +248,15 @@ class JobRunner:
 
             logger.info("Going to execute '{}()'".format(str(function.__name__)))
             print('---------------------- FUNCTION LOG ----------------------', flush=True)
-            function_start_time = time.time()
+            function_start_tstamp = time.time()
             result = function(**data)
-            function_end_time = time.time()
+            function_end_tstamp= time.time()
             print('----------------------------------------------------------', flush=True)
             logger.info("Success function execution")
 
-            self.stats.write('function_start_time', function_start_time)
-            self.stats.write('function_end_time', function_end_time)
-            self.stats.write('function_elapsed_exec_time', round(function_end_time-function_start_time, 8))
+            self.stats.write('function_start_tstamp', function_start_tstamp)
+            self.stats.write('function_end_tstamp', function_end_tstamp)
+            self.stats.write('function_exec_time', round(function_end_tstamp-function_start_tstamp, 8))
 
             # Check for new futures
             if result is not None:
@@ -303,10 +303,10 @@ class JobRunner:
         finally:
             store_result = strtobool(os.environ.get('STORE_RESULT', 'True'))
             if result is not None and store_result and not exception:
-                output_upload_timestamp_t1 = time.time()
+                output_upload_start_tstamp = time.time()
                 logger.info("Storing function result - Size: {}".format(sizeof_fmt(len(pickled_output))))
                 self.internal_storage.put_data(self.output_key, pickled_output)
-                output_upload_timestamp_t2 = time.time()
-                self.stats.write("output_elapsed_upload_time", round(output_upload_timestamp_t2 - output_upload_timestamp_t1, 8))
+                output_upload_end_tstamp = time.time()
+                self.stats.write("output_upload_time", round(output_upload_end_tstamp - output_upload_start_tstamp, 8))
             self.jobrunner_conn.send("Finished")
             logger.info("Finished")

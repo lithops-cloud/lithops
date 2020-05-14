@@ -30,6 +30,8 @@ def load_config(config_data):
         except KeyError:
             raise Exception('Unsupported Python version: {}'.format(python_version))
 
+    config_data['pywren']['remote_invoker'] = True
+
     if 'storage_backend' not in config_data['pywren']:
         config_data['pywren']['storage_backend'] = 'localhost'
 

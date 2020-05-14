@@ -45,7 +45,7 @@ PYWREN_LIBS_PATH = '/action/pywren_ibm_cloud/libs'
 
 
 def function_handler(event):
-    start_time = time.time()
+    start_tstamp = time.time()
 
     log_level = event['log_level']
     cloud_logging_config(log_level)
@@ -79,8 +79,8 @@ def function_handler(event):
     internal_storage = InternalStorage(storage_config)
 
     call_status = CallStatus(config, internal_storage)
-    call_status.response['host_submit_time'] = event['host_submit_time']
-    call_status.response['start_time'] = start_time
+    call_status.response['host_submit_tstamp'] = event['host_submit_tstamp']
+    call_status.response['start_tstamp'] = start_tstamp
     context_dict = {
         'python_version': os.environ.get("PYTHON_VERSION"),
         'call_id': call_id,
@@ -175,15 +175,11 @@ def function_handler(event):
                     if key in ['exception', 'exc_pickle_fail', 'result', 'new_futures']:
                         call_status.response[key] = eval(value)
 
-        # call_status.response['server_info'] = get_server_info()
-        call_status.response['end_time'] = time.time()
-
     except Exception:
         # internal runtime exceptions
         print('----------------------- EXCEPTION !-----------------------', flush=True)
         traceback.print_exc(file=sys.stdout)
         print('----------------------------------------------------------', flush=True)
-        call_status.response['end_time'] = time.time()
         call_status.response['exception'] = True
 
         pickled_exc = pickle.dumps(sys.exc_info())
@@ -191,6 +187,7 @@ def function_handler(event):
         call_status.response['exc_info'] = str(pickled_exc)
 
     finally:
+        call_status.response['end_tstamp'] = time.time()
         call_status.send('__end__')
         for key in extra_env:
             del os.environ[key]

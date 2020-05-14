@@ -72,7 +72,7 @@ class Storage:
             if cloudobject.backend == self.backend:
                 bucket = cloudobject.bucket
                 key = cloudobject.key
-                return self.storage_handler.get_object(bucket, key)
+                return self.storage_handler.get_object(bucket, key, stream=stream)
             else:
                 raise Exception("CloudObject: Invalid Storage backend")
         elif (bucket and key) or key:
@@ -192,7 +192,7 @@ class InternalStorage:
             if cloudobject.backend == self.backend:
                 bucket = cloudobject.bucket
                 key = cloudobject.key
-                return self.storage_handler.get_object(bucket, key)
+                return self.storage_handler.get_object(bucket, key, stream=stream)
             else:
                 raise Exception("CloudObject: Invalid Storage backend")
         elif (bucket and key) or key:

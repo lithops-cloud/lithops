@@ -78,8 +78,12 @@ class LocalhostStorageBackend:
         :param key: data key
         """
         file_path = os.path.join(STORAGE_BASE_DIR, key)
+
         if os.path.exists(file_path):
-            os.remove(file_path)
+            try:
+                os.remove(file_path)
+            except Exception:
+                pass
 
     def delete_objects(self, bucket_name, key_list):
         """
@@ -95,9 +99,7 @@ class LocalhostStorageBackend:
             self.delete_object(bucket_name, key)
 
         for file_dir in dirs:
-            files = self.list_keys(bucket_name, file_dir)
-            if not files:
-                shutil.rmtree(os.path.join(STORAGE_BASE_DIR, file_dir), True)
+            shutil.rmtree(os.path.join(STORAGE_BASE_DIR, file_dir), ignore_errors=True)
 
     def bucket_exists(self, bucket_name):
         """

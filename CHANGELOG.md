@@ -8,11 +8,11 @@
 
 
 ### Changed
-- [PyWren] 
+- [PyWren] Moved all stats from 'f._call_status' to a new 'f.stats' variable
 
 
 ### Fixed
-- [PyWren] 
+- [PyWren] Fixd issue in pw.clean(cs=cobjs) when passing a large list of cobjs
 
 
 ## [v1.5.2]

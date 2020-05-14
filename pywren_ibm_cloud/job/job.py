@@ -21,7 +21,7 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
     """
-    job_created_time = time.time()
+    job_created_tstamp = time.time()
     map_func = map_function
     map_iterdata = utils.verify_args(map_function, iterdata, extra_args)
     new_invoke_pool_threads = invoke_pool_threads
@@ -51,7 +51,7 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
                                   include_modules=include_modules,
                                   exclude_modules=exclude_modules,
                                   execution_timeout=execution_timeout,
-                                  job_created_time=job_created_time)
+                                  job_created_tstamp=job_created_tstamp)
 
     if parts_per_object:
         job_description['parts_per_object'] = parts_per_object
@@ -66,7 +66,7 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
     """
-    job_created_time = time.time()
+    job_created_tstamp = time.time()
     iterdata = [[map_futures, ]]
 
     if 'parts_per_object' in map_job and reducer_one_per_object:
@@ -93,12 +93,12 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
                        include_modules=include_modules,
                        exclude_modules=exclude_modules,
                        execution_timeout=execution_timeout,
-                       job_created_time=job_created_time)
+                       job_created_tstamp=job_created_tstamp)
 
 
 def _create_job(config, internal_storage, executor_id, job_id, func, data, runtime_meta,
                 runtime_memory=None, extra_env=None, invoke_pool_threads=128, include_modules=[],
-                exclude_modules=[], execution_timeout=None, job_created_time=None):
+                exclude_modules=[], execution_timeout=None, job_created_tstamp=None):
     """
     :param func: the function to map over the data
     :param iterdata: An iterable of input data
@@ -158,7 +158,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     if include_modules is None:
         inc_modules = None
 
-    host_job_meta = {'job_created_time': job_created_time}
+    host_job_meta = {'job_created_tstamp': job_created_tstamp}
 
     logger.debug('ExecutorID {} | JobID {} - Serializing function and data'.format(executor_id, job_id))
     serializer = SerializeIndependent(runtime_meta['preinstalls'])
@@ -187,22 +187,26 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     log_msg = ('ExecutorID {} | JobID {} - Uploading function and data '
                '- Total: {}'.format(executor_id, job_id, total_size))
     print(log_msg) if not log_level else logger.info(log_msg)
+
     # Upload data
     data_key = create_agg_data_key(JOBS_PREFIX, executor_id, job_id)
     job_description['data_key'] = data_key
     data_bytes, data_ranges = utils.agg_data(data_strs)
     job_description['data_ranges'] = data_ranges
-    data_upload_time = time.time()
+    data_upload_start = time.time()
     internal_storage.put_data(data_key, data_bytes)
-    host_job_meta['data_upload_time'] = time.time() - data_upload_time
-    host_job_meta['data_upload_timestamp'] = time.time()
+    data_upload_end = time.time()
+
+    host_job_meta['data_upload_time'] = round(data_upload_end-data_upload_start, 6)
+
     # Upload function and modules
-    func_upload_time = time.time()
+    func_upload_start = time.time()
     func_key = create_func_key(JOBS_PREFIX, executor_id, job_id)
     job_description['func_key'] = func_key
     internal_storage.put_func(func_key, func_module_str)
-    host_job_meta['func_upload_time'] = time.time() - func_upload_time
-    host_job_meta['func_upload_timestamp'] = time.time()
+    func_upload_end = time.time()
+
+    host_job_meta['func_upload_time'] = round(func_upload_end - func_upload_start, 6)
 
     job_description['metadata'] = host_job_meta
 
