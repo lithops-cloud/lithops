@@ -58,8 +58,9 @@ The available executors are:
 * `ibm_cf_executor()`: IBM Cloud Functions executor.
 * `knative_executor()`: Knative executor. See [additional information](docs/knative.md).
 * `openwhisk_executor()`: Vanilla OpenWhisk executor. See [additional information](docs/openwhisk.md).
-* `function_executor()`: Generic executor based on the compute backend specified in configuration.
 * `local_executor()`: Localhost executor to run functions by using local processes.
+* `docker_executor()`: Docker executor to run functions by using processes within a local or remote Docker container.
+* `function_executor()`: Generic executor based on the compute backend specified in configuration.
 
 The available calls within an executor are:
 

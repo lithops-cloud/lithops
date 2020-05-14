@@ -30,8 +30,18 @@ def load_config(config_data):
         except KeyError:
             raise Exception('Unsupported Python version: {}'.format(python_version))
 
+    if 'storage_backend' not in config_data['pywren']:
+        config_data['pywren']['storage_backend'] = 'localhost'
+
     if 'docker' not in config_data:
-        config_data['docker'] = {'host': '127.0.0.1'}
+        config_data['docker'] = {'host': 'localhost'}
+
+    if config_data['docker']['host'] not in ['127.0.0.1', 'localhost']:
+        if 'ssh_user' not in config_data['docker'] or 'ssh_password' not in config_data['docker']:
+            raise Exception('You must provide ssh credentials to access to the remote host')
+
+        if config_data['pywren']['storage_backend'] == 'localhost':
+            raise Exception('Localhost storage backend is not supported for Docker remote host')
 
     if 'workers' not in config_data['pywren']:
         config_data['pywren']['workers'] = None

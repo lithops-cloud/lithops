@@ -18,8 +18,9 @@ import os
 import shutil
 import tempfile
 import logging
-from pywren_ibm_cloud.config import CACHE_DIR, RUNTIMES_PREFIX, \
-    JOBS_PREFIX, default_config, extract_storage_config, extract_compute_config
+from pywren_ibm_cloud.config import CACHE_DIR, RUNTIMES_PREFIX, LOGS_PREFIX, \
+    JOBS_PREFIX, DOCKER_PREFIX, default_config, extract_storage_config, \
+    extract_compute_config
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.compute import Compute
 from pywren_ibm_cloud.storage.utils import clean_bucket
@@ -36,22 +37,17 @@ def clean_all(config=None):
     compute_config = extract_compute_config(config)
     compute_handler = Compute(compute_config)
 
+    # Clean localhost executor temp dirs
+    shutil.rmtree(os.path.join(TEMP, JOBS_PREFIX), ignore_errors=True)
+    shutil.rmtree(os.path.join(TEMP, RUNTIMES_PREFIX), ignore_errors=True)
+    shutil.rmtree(os.path.join(TEMP, LOGS_PREFIX), ignore_errors=True)
+    shutil.rmtree(os.path.join(TEMP, DOCKER_PREFIX), ignore_errors=True)
+
     # Clean object storage temp dirs
-    sh = internal_storage.storage_handler
-    runtimes = sh.list_keys(storage_config['bucket'], RUNTIMES_PREFIX)
-    if runtimes:
-        sh.delete_objects(storage_config['bucket'], runtimes)
     compute_handler.delete_all_runtimes()
-    clean_bucket(storage_config['bucket'], JOBS_PREFIX, internal_storage, sleep=1)
+    sh = internal_storage.storage_handler
+    clean_bucket(sh, storage_config['bucket'], RUNTIMES_PREFIX, sleep=1)
+    clean_bucket(sh, storage_config['bucket'], JOBS_PREFIX, sleep=1)
 
-    # Clean local runtime_meta cache
-    if os.path.exists(CACHE_DIR):
-        shutil.rmtree(CACHE_DIR)
-
-    # Clean localhost temp dirs
-    localhost_jobs_path = os.path.join(TEMP, JOBS_PREFIX)
-    if os.path.exists(localhost_jobs_path):
-        shutil.rmtree(localhost_jobs_path)
-    localhost_runtimes_path = os.path.join(TEMP, RUNTIMES_PREFIX)
-    if os.path.exists(localhost_runtimes_path):
-        shutil.rmtree(localhost_runtimes_path)
+    # Clean local pywren cache
+    shutil.rmtree(CACHE_DIR, ignore_errors=True)

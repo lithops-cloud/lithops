@@ -224,13 +224,14 @@ def clean_job(jobs_to_clean, storage_config, clean_cloudobjects):
     bucket = storage_config['bucket']
 
     internal_storage = InternalStorage(storage_config)
+    sh = internal_storage.storage_handler
 
     for executor_id, job_id in jobs_to_clean:
         prefix = '/'.join([JOBS_PREFIX, executor_id, job_id])
-        clean_bucket(bucket, prefix, internal_storage, log=False)
+        clean_bucket(sh, bucket, prefix, log=False)
         if clean_cloudobjects:
             prefix = '/'.join([TEMP_PREFIX, executor_id, job_id])
-            clean_bucket(bucket, prefix, internal_storage, log=False)
+            clean_bucket(sh, bucket, prefix, log=False)
     """.format(storage_config, jobs_to_clean, clean_cloudobjects)
 
     cmdstr = '{} -c "{}"'.format(sys.executable, textwrap.dedent(script))

@@ -393,20 +393,3 @@ class InternalStorage:
         if os.path.exists(filename_local_path):
             os.remove(filename_local_path)
         self.storage_handler.delete_object(self.bucket, obj_key)
-
-    def list_tmp_data(self, prefix):
-        """
-        List the temporal data used by PyWren.
-        :param bucket: bucket key
-        :param prefix: prefix to search for
-        :return: list of objects
-        """
-        return self.storage_handler.list_keys(self.bucket, prefix)
-
-    def delete_temporal_data(self, key_list):
-        """
-        Delete temporal data from PyWren.
-        :param bucket: bucket name
-        :param key: data key
-        """
-        return self.storage_handler.delete_objects(self.bucket, key_list)

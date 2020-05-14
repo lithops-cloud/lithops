@@ -18,6 +18,9 @@ def load_config(config_data):
     if 'runtime_timeout' not in config_data['pywren']:
         config_data['pywren']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
 
+    if 'storage_backend' not in config_data['pywren']:
+        config_data['pywren']['storage_backend'] = 'localhost'
+
     if 'localhost' not in config_data:
         config_data['localhost'] = {}
 

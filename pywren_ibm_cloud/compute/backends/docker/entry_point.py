@@ -5,12 +5,8 @@ import flask
 import logging
 import pkgutil
 import multiprocessing
-
 from pywren_ibm_cloud.version import __version__
-from pywren_ibm_cloud.config import default_logging_config
 from pywren_ibm_cloud.function import function_invoker
-
-#default_logging_config(logging.INFO)
 
 logging.basicConfig(filename='/tmp/pywren.logs/docker/proxy.log', level=logging.DEBUG)
 logger = logging.getLogger('__main__')
@@ -34,16 +30,26 @@ def run():
     os.environ['__PW_ACTIVATION_ID'] = act_id
 
     if 'remote_invoker' in message:
-        logger.info("PyWren v{} - Starting Docker invoker".format(__version__))
-        message['config']['pywren']['compute_backend'] = 'localhost'
-        if message['config']['pywren']['workers'] is None:
-            total_cpus = multiprocessing.cpu_count()
-            message['config']['pywren']['workers'] = total_cpus
-            message['config']['localhost']['workers'] = total_cpus
-        else:
-            message['config']['localhost']['workers'] = message['config']['pywren']['workers']
-        message['invokers'] = 0
-        function_invoker(message)
+        try:
+            logger.info("PyWren v{} - Starting Docker invoker".format(__version__))
+            message['config']['pywren']['compute_backend'] = 'localhost'
+
+            if 'localhost' not in message['config']:
+                message['config']['localhost'] = {}
+
+            if message['config']['pywren']['workers'] is None:
+                total_cpus = multiprocessing.cpu_count()
+                message['config']['pywren']['workers'] = total_cpus
+                message['config']['localhost']['workers'] = total_cpus
+            else:
+                message['config']['localhost']['workers'] = message['config']['pywren']['workers']
+
+            message['invokers'] = 0
+            message['log_level'] = None
+
+            function_invoker(message)
+        except Exception as e:
+            logger.info(e)
 
     response = flask.jsonify({"activationId": act_id})
     response.status_code = 202

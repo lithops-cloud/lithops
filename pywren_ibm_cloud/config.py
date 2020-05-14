@@ -28,6 +28,7 @@ JOBS_PREFIX = "pywren.jobs"
 TEMP_PREFIX = "pywren.jobs/tmp"
 LOGS_PREFIX = "pywren.logs"
 RUNTIMES_PREFIX = "pywren.runtimes"
+DOCKER_PREFIX = "pywren.docker"
 MAX_AGG_DATA_SIZE = 4  # 4MiB
 
 HOME_DIR = os.path.expanduser('~')

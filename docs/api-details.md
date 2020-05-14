@@ -112,13 +112,13 @@ pw = pywren.local_executor()
 
 **docker_executor(\*\*kwargs)**
 
-Initialize and return a Docker executor object. This executor runs the functions in local Dockers.
+Initialize and return a Docker executor object. This executor runs the functions by using processes within a single, local or remote, Docker container. The IBM CF and Knative runtimes are compatible to run functions with this executor.
 
 
 |Parameter | Default | Description|
 |---|---|---|
 |config | None | Settings passed in here will override those in pywren_config|
-|runtime |  None | Name of the docker image to run the functions |
+|runtime |  None | Name of the docker image to run the functions. By default it uses the IBM CF default runtimes |
 |storage_backend | localhost | Storage backend to store temp data |
 |rabbitmq_monitor | False | Activate RabbitMQ monitoring |
 |log_level | None | Log level printing (INFO, DEBUG, ...) |

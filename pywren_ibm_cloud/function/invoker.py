@@ -38,8 +38,8 @@ def function_invoker(event):
         raise Exception("WRONGVERSION", "PyWren version mismatch",
                         __version__, event['pywren_version'])
 
-    log_level = event['log_level']
-    #cloud_logging_config(log_level)
+    if event['log_level']:
+        cloud_logging_config(event['log_level'])
     log_level = logging.getLevelName(logger.getEffectiveLevel())
     custom_env = {'PYWREN_FUNCTION': 'True',
                   'PYTHONUNBUFFERED': 'True',
@@ -72,36 +72,31 @@ class FunctionInvoker:
         self.num_workers = self.config['pywren'].get('workers')
         logger.debug('Total workers: {}'.format(self.num_workers))
 
-        global CBH
         self.compute_handlers = []
         cb = compute_config['backend']
         regions = compute_config[cb].get('region')
         if regions and type(regions) == list:
             for region in regions:
-                cbh_name = '{}-{}'.format(cb, region)
-                if cbh_name in CBH:
-                    logger.info('{} compute handler already started'.format(cbh_name))
-                    compute_handler = CBH[cbh_name]
+                new_compute_config = compute_config.copy()
+                new_compute_config[cb]['region'] = region
+                compute_handler = Compute(new_compute_config)
+                self.compute_handlers.append(compute_handler)
+        else:
+            if cb == 'localhost':
+                global CBH
+                if cb in CBH and CBH[cb].compute_handler.num_workers != self.num_workers:
+                    del CBH[cb]
+                if cb in CBH:
+                    logger.info('{} compute handler already started'.format(cb))
+                    compute_handler = CBH[cb]
                     self.compute_handlers.append(compute_handler)
                 else:
-                    logger.info('Starting {} Compute handler'.format(cbh_name))
-                    new_compute_config = compute_config.copy()
-                    new_compute_config[cb]['region'] = region
-                    compute_handler = Compute(new_compute_config)
-                    CBH[cbh_name] = compute_handler
+                    logger.info('Starting {} compute handler'.format(cb))
+                    compute_handler = Compute(compute_config)
+                    CBH[cb] = compute_handler
                     self.compute_handlers.append(compute_handler)
-        else:
-            if cb == 'localhost' and cb in CBH:
-                if CBH[cb].compute_handler.num_workers != self.num_workers:
-                    del CBH[cb]
-            if cb in CBH:
-                logger.info('{} compute handler already started'.format(cb))
-                compute_handler = CBH[cb]
-                self.compute_handlers.append(compute_handler)
             else:
-                logger.info('Starting {} compute handler'.format(cb))
                 compute_handler = Compute(compute_config)
-                CBH[cb] = compute_handler
                 self.compute_handlers.append(compute_handler)
 
         self.token_bucket_q = Queue()

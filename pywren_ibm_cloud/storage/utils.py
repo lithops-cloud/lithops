@@ -16,6 +16,8 @@
 import os
 import sys
 import time
+import tempfile
+import pickle
 import logging
 import textwrap
 
@@ -56,22 +58,23 @@ class CloudObjectUrl:
         self.path = url_path
 
 
-def clean_bucket(bucket, prefix, internal_storage, sleep=5, log=True):
+def clean_bucket(sh, bucket, prefix, sleep=5, log=True):
     """
     Deletes all the files from COS. These files include the function,
     the data serialization and the function invocation results.
     """
-    msg = "Going to delete all objects from bucket '{}' and prefix '{}'".format(bucket, prefix)
+    msg = "Going to delete all objects from bucket '{}'".format(bucket)
+    msg = msg + " and prefix '{}'".format(prefix) if prefix else msg
     if log:
         logger.debug(msg)
     total_objects = 0
-    objects_to_delete = internal_storage.list_tmp_data(prefix)
+    objects_to_delete = sh.list_keys(bucket, prefix)
 
     while objects_to_delete:
         total_objects = total_objects + len(objects_to_delete)
-        internal_storage.delete_temporal_data(objects_to_delete)
+        sh.delete_objects(bucket, objects_to_delete)
         time.sleep(sleep)
-        objects_to_delete = internal_storage.list_tmp_data(prefix)
+        objects_to_delete = sh.list_keys(bucket, prefix)
     if log:
         logger.debug('Finished deleting objects, total found: {}'.format(total_objects))
 
@@ -82,20 +85,27 @@ def delete_cloudobject(co_to_clean, storage_config):
     """
     co_to_delete = []
     for co in co_to_clean:
-        co_to_delete.append((co.storage_backend, co.bucket, co.key))
+        co_to_delete.append((co.backend, co.bucket, co.key))
+
+    cobjs_path = os.path.join(tempfile.gettempdir(), 'pywren_cobjs_to_delete')
+
+    with open(cobjs_path, 'wb') as pk:
+        pickle.dump(co_to_delete, pk)
 
     script = """
     from pywren_ibm_cloud.storage import InternalStorage
+    import pickle
 
     storage_config = {}
-    co_to_delete = {}
+    with open('{}', 'rb') as pk:
+        co_to_delete = pickle.load(pk)
 
     internal_storage = InternalStorage(storage_config)
 
     for backend, bucket, key in co_to_delete:
         if backend == internal_storage.backend:
             internal_storage.storage_handler.delete_object(bucket, key)
-    """.format(storage_config, co_to_delete)
+    """.format(storage_config, cobjs_path)
 
     cmdstr = '{} -c "{}"'.format(sys.executable, textwrap.dedent(script))
     os.popen(cmdstr)

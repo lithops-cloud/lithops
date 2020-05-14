@@ -1,6 +1,21 @@
 # Changelog
 
-## [v1.5.2--snapshot]
+
+## [v1.5.3--snapshot]
+
+### Added
+- [PyWren] New docker_executor()
+
+
+### Changed
+- [PyWren] 
+
+
+### Fixed
+- [PyWren] 
+
+
+## [v1.5.2]
 
 ### Added
 - [PyWren] Added 'data_limit' config param in pywren section
