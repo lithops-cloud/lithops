@@ -30,25 +30,25 @@ class InfinispanBackend:
     Infinispan backend
     """
 
-    def __init__(self, infinispan_config, bucket = None, executor_id = None):
+    def __init__(self, infinispan_config, **kwargs):
         logger.debug("Creating Infinispan client")
         self.infinispan_config = infinispan_config
         self.is_pywren_function = is_pywren_function()
-        self.basicAuth=HTTPBasicAuth(infinispan_config.get('username'), 
-                                infinispan_config.get('password'))
+        self.basicAuth = HTTPBasicAuth(infinispan_config.get('username'),
+                                       infinispan_config.get('password'))
         self.endpoint = infinispan_config.get('endpoint')
-        self.cache_manager = infinispan_config.get('cache_manager','default')
-        self.cache_name = self.__generate_cache_name(bucket, executor_id)
+        self.cache_manager = infinispan_config.get('cache_manager', 'default')
+        self.cache_name = self.__generate_cache_name(kwargs['bucket'], kwargs['executor_id'])
         self.infinispan_client = requests.session()
 
         self.__is_server_version_supported()
 
         res = self.infinispan_client.head(self.endpoint + '/rest/v2/caches/' + self.cache_name,
-                                   auth=self.basicAuth)
+                                          auth=self.basicAuth)
         if res.status_code == 404:
-            logger.debug ('going to create new Infinispan cache {}'.format(self.cache_name))
+            logger.debug('going to create new Infinispan cache {}'.format(self.cache_name))
             res = self.infinispan_client.post(self.endpoint + '/rest/v2/caches/' + self.cache_name + '?template=org.infinispan.DIST_SYNC')
-            logger.debug ('New Infinispan cache {} created with status {}'.format(self.cache_name, res.status_code))
+            logger.debug('New Infinispan cache {} created with status {}'.format(self.cache_name, res.status_code))
 
         logger.debug("Infinispan client created successfully")
 

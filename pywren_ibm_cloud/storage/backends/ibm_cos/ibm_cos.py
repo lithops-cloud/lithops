@@ -39,7 +39,7 @@ class IBMCloudObjectStorageBackend:
     A wrap-up around IBM COS ibm_boto3 APIs.
     """
 
-    def __init__(self, ibm_cos_config, bucket=None, executor_id=None):
+    def __init__(self, ibm_cos_config, **kwargs):
         logger.debug("Creating IBM COS client")
         self.ibm_cos_config = ibm_cos_config
         self.is_pywren_function = is_pywren_function()

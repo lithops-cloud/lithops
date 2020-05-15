@@ -18,9 +18,9 @@ import os
 import shutil
 import tempfile
 import logging
-from pywren_ibm_cloud.config import CACHE_DIR, RUNTIMES_PREFIX, LOGS_PREFIX, \
-    JOBS_PREFIX, DOCKER_PREFIX, default_config, extract_storage_config, \
-    extract_compute_config
+from pywren_ibm_cloud.config import CACHE_DIR, STORAGE_FOLDER, \
+    default_config, extract_storage_config, extract_compute_config, \
+    RUNTIMES_PREFIX, JOBS_PREFIX
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.compute import Compute
 from pywren_ibm_cloud.storage.utils import clean_bucket
@@ -38,10 +38,7 @@ def clean_all(config=None):
     compute_handler = Compute(compute_config)
 
     # Clean localhost executor temp dirs
-    shutil.rmtree(os.path.join(TEMP, JOBS_PREFIX), ignore_errors=True)
-    shutil.rmtree(os.path.join(TEMP, RUNTIMES_PREFIX), ignore_errors=True)
-    shutil.rmtree(os.path.join(TEMP, LOGS_PREFIX), ignore_errors=True)
-    shutil.rmtree(os.path.join(TEMP, DOCKER_PREFIX), ignore_errors=True)
+    shutil.rmtree(os.path.join(TEMP, STORAGE_FOLDER), ignore_errors=True)
 
     # Clean object storage temp dirs
     compute_handler.delete_all_runtimes()

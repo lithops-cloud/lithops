@@ -87,17 +87,19 @@ def delete_cloudobject(co_to_clean, storage_config):
     for co in co_to_clean:
         co_to_delete.append((co.backend, co.bucket, co.key))
 
-    cobjs_path = os.path.join(tempfile.gettempdir(), 'pywren_cobjs_to_delete')
-
-    with open(cobjs_path, 'wb') as pk:
-        pickle.dump(co_to_delete, pk)
+    with tempfile.NamedTemporaryFile(delete=False) as temp:
+        pickle.dump(co_to_delete, temp)
+        cobjs_path = temp.name
 
     script = """
     from pywren_ibm_cloud.storage import InternalStorage
     import pickle
+    import os
 
     storage_config = {}
-    with open('{}', 'rb') as pk:
+    cobjs_path = '{}'
+
+    with open(cobjs_path, 'rb') as pk:
         co_to_delete = pickle.load(pk)
 
     internal_storage = InternalStorage(storage_config)
@@ -105,6 +107,9 @@ def delete_cloudobject(co_to_clean, storage_config):
     for backend, bucket, key in co_to_delete:
         if backend == internal_storage.backend:
             internal_storage.storage_handler.delete_object(bucket, key)
+
+    if os.path.exists(cobjs_path):
+        os.remove(cobjs_path)
     """.format(storage_config, cobjs_path)
 
     cmdstr = '{} -c "{}"'.format(sys.executable, textwrap.dedent(script))

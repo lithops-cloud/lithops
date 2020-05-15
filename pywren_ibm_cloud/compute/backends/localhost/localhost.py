@@ -7,7 +7,9 @@ import multiprocessing
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.function import function_handler
-from .config import LOCAL_LOGS_DIR
+from pywren_ibm_cloud.config import LOGS_PREFIX
+from .config import STORAGE_BASE_DIR
+
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +24,7 @@ class LocalhostBackend:
         self.config = local_config
         self.name = 'local'
         self.queue = multiprocessing.Queue()
-        self.logs_dir = LOCAL_LOGS_DIR
+        self.logs_dir = os.path.join(STORAGE_BASE_DIR, LOGS_PREFIX)
         self.num_workers = self.config['workers']
 
         self.workers = []

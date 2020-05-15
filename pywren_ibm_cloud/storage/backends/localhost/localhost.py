@@ -1,4 +1,5 @@
 import os
+import io
 import shutil
 import logging
 from pywren_ibm_cloud.storage.utils import StorageNoSuchKeyError
@@ -13,10 +14,13 @@ class LocalhostStorageBackend:
     A wrap-up around Localhost filesystem APIs.
     """
 
-    def __init__(self, config,  bucket = None, executor_id = None):
+    def __init__(self, config, **kwargs):
         logger.debug("Creating Localhost storage client")
         self.config = config
         logger.debug("Localhost storage client created successfully")
+
+    def get_client(self):
+        return self
 
     def put_object(self, bucket_name, key, data):
         """
@@ -29,7 +33,7 @@ class LocalhostStorageBackend:
         """
         try:
             data_type = type(data)
-            file_path = os.path.join(STORAGE_BASE_DIR, key)
+            file_path = os.path.join(STORAGE_BASE_DIR, bucket_name, key)
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             if data_type == bytes:
                 with open(file_path, "wb") as f:
@@ -48,18 +52,23 @@ class LocalhostStorageBackend:
         :return: Data of the object
         :rtype: str/bytes
         """
+        buffer = None
         try:
-            file_path = os.path.join(STORAGE_BASE_DIR, key)
+            file_path = os.path.join(STORAGE_BASE_DIR, bucket_name, key)
             with open(file_path, "rb") as f:
                 if 'Range' in extra_get_args:
                     byte_range = extra_get_args['Range'].replace('bytes=', '')
                     first_byte, last_byte = map(int, byte_range.split('-'))
                     f.seek(first_byte)
-                    return f.read(last_byte-first_byte+1)
+                    buffer = io.BytesIO(f.read(last_byte-first_byte+1))
                 else:
-                    return f.read()
+                    buffer = io.BytesIO(f.read())
+            if stream:
+                return buffer
+            else:
+                return buffer.read()
         except Exception:
-            raise StorageNoSuchKeyError(STORAGE_BASE_DIR, key)
+            raise StorageNoSuchKeyError(os.path.join(STORAGE_BASE_DIR, bucket_name), key)
 
     def head_object(self, bucket_name, key):
         """
@@ -77,13 +86,12 @@ class LocalhostStorageBackend:
         :param bucket: bucket name
         :param key: data key
         """
-        file_path = os.path.join(STORAGE_BASE_DIR, key)
-
-        if os.path.exists(file_path):
-            try:
+        file_path = os.path.join(STORAGE_BASE_DIR, bucket_name, key)
+        try:
+            if os.path.exists(file_path):
                 os.remove(file_path)
-            except Exception:
-                pass
+        except Exception:
+            pass
 
     def delete_objects(self, bucket_name, key_list):
         """
@@ -95,7 +103,7 @@ class LocalhostStorageBackend:
         for key in key_list:
             file_dir = os.path.dirname(key)
             dirs.add(file_dir)
-            dirs.add("/".join(file_dir.split("/", 2)[:2]))
+            # dirs.add("/".join(file_dir.split("/", 2)[:2]))
             self.delete_object(bucket_name, key)
 
         for file_dir in dirs:
@@ -127,7 +135,15 @@ class LocalhostStorageBackend:
         :return: List of objects in bucket that match the given prefix.
         :rtype: list of str
         """
-        raise NotImplementedError
+        key_list = []
+        root = os.path.join(STORAGE_BASE_DIR, bucket_name, prefix)
+
+        for path, subdirs, files in os.walk(root):
+            for name in files:
+                size = os.stat(os.path.join(path, name)).st_size
+                key_list.append({'Key': os.path.join(prefix, path.replace(root+'/', ''), name), 'Size': size})
+
+        return key_list
 
     def list_keys(self, bucket_name, prefix=None):
         """
@@ -138,8 +154,9 @@ class LocalhostStorageBackend:
         :rtype: list of str
         """
         key_list = []
-        root = os.path.join(STORAGE_BASE_DIR, prefix)
+        root = os.path.join(STORAGE_BASE_DIR, bucket_name, prefix)
         for path, subdirs, files in os.walk(root):
             for name in files:
-                key_list.append(os.path.join(path, name).replace(STORAGE_BASE_DIR+'/', ''))
+                key_list.append(os.path.join(prefix, path.replace(root+'/', ''), name))
+
         return key_list

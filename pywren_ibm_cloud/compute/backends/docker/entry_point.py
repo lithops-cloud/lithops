@@ -5,10 +5,11 @@ import flask
 import logging
 import pkgutil
 import multiprocessing
+
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.function import function_invoker
 
-logging.basicConfig(filename='/tmp/pywren.logs/docker/proxy.log', level=logging.DEBUG)
+logging.basicConfig(filename='/tmp/pywren.docker/proxy.log', level=logging.DEBUG)
 logger = logging.getLogger('__main__')
 
 
@@ -21,6 +22,8 @@ def run():
         response = flask.jsonify({'error': 'The action did not receive a dictionary as an argument.'})
         response.status_code = 404
         return complete(response)
+
+    sys.stdout = open('/tmp/pywren.docker/proxy.log', 'w')
 
     message = flask.request.get_json(force=True, silent=True)
     if message and not isinstance(message, dict):

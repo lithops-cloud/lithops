@@ -295,8 +295,8 @@ class TestPywren(unittest.TestCase):
         pw.wait()
         pw.get_result()
 
-    def test_map_reduce_cos_bucket(self):
-        print('Testing map_reduce() over a COS bucket...')
+    def test_map_reduce_obj_bucket(self):
+        print('Testing map_reduce() over a bucket...')
         sb = STORAGE_CONFIG['backend']
         data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
         pw = pywren.function_executor(config=CONFIG)
@@ -304,8 +304,8 @@ class TestPywren(unittest.TestCase):
         result = pw.get_result()
         self.assertEqual(result, self.__class__.cos_result_to_compare)
 
-    def test_map_reduce_cos_bucket_one_reducer_per_object(self):
-        print('Testing map_reduce() over a COS bucket with one reducer per object...')
+    def test_map_reduce_obj_bucket_one_reducer_per_object(self):
+        print('Testing map_reduce() over a bucket with one reducer per object...')
         sb = STORAGE_CONFIG['backend']
         data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
         pw = pywren.function_executor(config=CONFIG)
@@ -314,8 +314,8 @@ class TestPywren(unittest.TestCase):
         result = pw.get_result()
         self.assertEqual(sum(result), self.__class__.cos_result_to_compare)
 
-    def test_map_reduce_cos_key(self):
-        print('Testing map_reduce() over COS keys...')
+    def test_map_reduce_obj_key(self):
+        print('Testing map_reduce() over object keys...')
         sb = STORAGE_CONFIG['backend']
         bucket_name = STORAGE_CONFIG['bucket']
         iterdata = [sb + '://' + bucket_name + '/' + key for key in TestUtils.list_test_keys()]
@@ -324,8 +324,8 @@ class TestPywren(unittest.TestCase):
         result = pw.get_result()
         self.assertEqual(result, self.__class__.cos_result_to_compare)
 
-    def test_map_reduce_cos_key_one_reducer_per_object(self):
-        print('Testing map_reduce() over COS keys with one reducer per object...')
+    def test_map_reduce_obj_key_one_reducer_per_object(self):
+        print('Testing map_reduce() over object keys with one reducer per object...')
         sb = STORAGE_CONFIG['backend']
         bucket_name = STORAGE_CONFIG['bucket']
         iterdata = [sb + '://' + bucket_name + '/' + key for key in TestUtils.list_test_keys()]

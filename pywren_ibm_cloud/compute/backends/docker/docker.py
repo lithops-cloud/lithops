@@ -135,8 +135,6 @@ class DockerBackend:
         self._create_function_handler_zip()
 
         if self._is_localhost:
-            logs_path = os.path.join(TEMP, 'pywren.logs/docker')
-            os.makedirs(logs_path, exist_ok=True)
             df_path = os.path.join(TEMP, 'pywren.docker')
             os.makedirs(df_path, exist_ok=True)
 

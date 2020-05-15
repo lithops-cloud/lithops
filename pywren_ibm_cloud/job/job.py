@@ -4,6 +4,7 @@ import time
 import textwrap
 import pickle
 import logging
+import tempfile
 from pywren_ibm_cloud import utils
 from pywren_ibm_cloud.job.partitioner import create_partitions
 from pywren_ibm_cloud.utils import is_object_processing_function, sizeof_fmt
@@ -217,15 +218,24 @@ def clean_job(jobs_to_clean, storage_config, clean_cloudobjects):
     """
     Clean the jobs in a separate process
     """
+    with tempfile.NamedTemporaryFile(delete=False) as temp:
+        pickle.dump(jobs_to_clean, temp)
+        jobs_path = temp.name
+
     script = """
     from pywren_ibm_cloud.storage import InternalStorage
     from pywren_ibm_cloud.storage.utils import clean_bucket
     from pywren_ibm_cloud.config import JOBS_PREFIX, TEMP_PREFIX
+    import pickle
+    import os
 
     storage_config = {}
-    jobs_to_clean = {}
     clean_cloudobjects = {}
+    jobs_path = '{}'
     bucket = storage_config['bucket']
+
+    with open(jobs_path, 'rb') as pk:
+        jobs_to_clean = pickle.load(pk)
 
     internal_storage = InternalStorage(storage_config)
     sh = internal_storage.storage_handler
@@ -236,7 +246,10 @@ def clean_job(jobs_to_clean, storage_config, clean_cloudobjects):
         if clean_cloudobjects:
             prefix = '/'.join([TEMP_PREFIX, executor_id, job_id])
             clean_bucket(sh, bucket, prefix, log=False)
-    """.format(storage_config, jobs_to_clean, clean_cloudobjects)
+
+    if os.path.exists(jobs_path):
+        os.remove(jobs_path)
+    """.format(storage_config, clean_cloudobjects, jobs_path)
 
     cmdstr = '{} -c "{}"'.format(sys.executable, textwrap.dedent(script))
     os.popen(cmdstr)
