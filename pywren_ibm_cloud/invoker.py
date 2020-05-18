@@ -90,10 +90,15 @@ class FunctionInvoker:
         runtime_name = self.config['pywren']['runtime']
         if runtime_memory is None:
             runtime_memory = self.config['pywren']['runtime_memory']
-        runtime_memory = int(runtime_memory)
 
-        log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} - {}MB'
-                   .format(self.executor_id, job_id, runtime_name, runtime_memory))
+        if runtime_memory:
+            runtime_memory = int(runtime_memory)
+            log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} - {}MB'
+                       .format(self.executor_id, job_id, runtime_name, runtime_memory))
+        else:
+            log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {}'
+                       .format(self.executor_id, job_id, runtime_name))
+
         print(log_msg, end=' ') if not self.log_level else logger.info(log_msg)
 
         installing = False
@@ -179,6 +184,7 @@ class FunctionInvoker:
             for invoker in self.invokers:
                 self.token_bucket_q.put('#')
                 self.pending_calls_q.put((None, None))
+                # invoker.terminate()
 
             while not self.pending_calls_q.empty():
                 try:
@@ -201,7 +207,7 @@ class FunctionInvoker:
                    'executor_id': job.executor_id,
                    'job_id': job.job_id,
                    'call_id': call_id,
-                   'host_submit_time': time.time(),
+                   'host_submit_tstamp': time.time(),
                    'pywren_version': __version__,
                    'runtime_name': job.runtime_name,
                    'runtime_memory': job.runtime_memory}
@@ -236,6 +242,7 @@ class FunctionInvoker:
                    'job_id': job.job_id,
                    'job_description': job_description,
                    'remote_invoker': True,
+                   'invokers': 4,
                    'pywren_version': __version__}
 
         activation_id = compute_handler.invoke(job.runtime_name, REMOTE_INVOKER_MEMORY, payload)
@@ -261,7 +268,7 @@ class FunctionInvoker:
         except Exception:
             pass
 
-        if self.remote_invoker and job.total_calls > 1:
+        if self.remote_invoker:
             old_stdout = sys.stdout
             sys.stdout = open(os.devnull, 'w')
             self.select_runtime(job.job_id, REMOTE_INVOKER_MEMORY)
@@ -332,7 +339,7 @@ class FunctionInvoker:
         futures = []
         for i in range(job.total_calls):
             call_id = "{:05d}".format(i)
-            fut = ResponseFuture(call_id, job_description, job.metadata, self.storage_config)
+            fut = ResponseFuture(call_id, job_description, job.metadata.copy(), self.storage_config)
             fut._set_state(ResponseFuture.State.Invoked)
             futures.append(fut)
 

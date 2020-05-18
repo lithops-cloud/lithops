@@ -1,70 +1,85 @@
 # Changelog
 
-## [v1.5.2--snapshot]
+
+## [v1.5.3--snapshot]
 
 ### Added
-- Added 'data_limit' config param in pywren section
-- Added context-manager-like executor and example
-- Added debug mode in tests with '-d' flag
-- Added delete_cobject() and delete_cobjects() storage methods
+- [PyWren] New docker_executor()
+
 
 ### Changed
-- Reducer logic moved to jobrunner
-- Set default Knative runtime timeout to 10 minutes
-- Added more debug logs in Knative
-- Enabled building default knative runtime locally
-- cloudobject methods moved from internal_storage to ibm_cos
-- renamed cloudobject put method from 'put_object' to 'put_cobject'
-- renamed cloudobject get method from 'get_object' to 'get_cobject'
-- 'internal_storage' func param renamed to 'storage'
-- pw.clean method can now clean cloudobjects
+- [PyWren] Moved all stats from 'f._call_status' to a new 'f.stats' variable
+
 
 ### Fixed
-- Fixed issue in map_reduce() method
-- Fixed issue in plot() method when using numpy 1.18.1
-- Fixed issue in Knative when the default runtime is built
-- Fixed issue with extra_env vars passed to functions
-- Fixed issue when pywren version mismatch in Knative
-- Fixed issue in pywren-ibm-cloud cli
-- Fixed issue when wait()/get_result() methods are called multiple times
-- Fixed minor issue with ps_mem module in windows hosts
-- Fixed knative to pass all tests
-- Fixed remote_invoker in knative
-- Fixed issue in memory monitor
-- Fixed building default runtime based on current python version
-- Fixed OOM exceptions from knative to be correctly raised
-- Fixed issue in cloudpickle when iterdata contains complex objects
+- [PyWren] Fixd issue in pw.clean(cs=cobjs) when passing a large list of cobjs
+
+
+## [v1.5.2]
+
+### Added
+- [PyWren] Added 'data_limit' config param in pywren section
+- [PyWren] Added context-manager-like executor and example
+- [PyWren] Added debug mode in tests with '-d' flag
+- [PyWren] Added delete_cobject() and delete_cobjects() storage methods
+
+### Changed
+- [PyWren] Reducer logic moved to jobrunner
+- [PyWren] cloudobject methods moved from internal_storage to ibm_cos
+- [PyWren] renamed cloudobject put method from 'put_object' to 'put_cobject'
+- [PyWren] renamed cloudobject get method from 'get_object' to 'get_cobject'
+- [PyWren] 'internal_storage' func param renamed to 'storage'
+- [PyWren] pw.clean method can now clean cloudobjects
+- [Knative] Set default Knative runtime timeout to 10 minutes
+- [Knative] Added more debug logs in Knative
+- [Knative] Enabled building default knative runtime locally
+
+### Fixed
+- [PyWren] Fixed issue in map_reduce() method
+- [PyWren] Fixed issue in plot() method when using numpy 1.18.1
+- [PyWren] Fixed issue in cloudpickle when iterdata contains complex objects
+- [PyWren] Fixed issue with extra_env vars passed to functions
+- [PyWren] Fixed issue in memory monitor
+- [PyWren] Fixed issue in pywren-ibm-cloud cli
+- [PyWren] Fixed issue when wait()/get_result() methods are called multiple times
+- [PyWren] Fixed minor issue with ps_mem module in windows hosts
+- [Knative] Fixed knative to pass all tests
+- [Knative] Fixed remote_invoker in knative
+- [Knative] Fixed issue when pywren version mismatch in Knative
+- [Knative] Fixed issue in Knative when the default runtime is built
+- [knative] Fixed building default runtime based on current python version
+- [knative] Fixed OOM exceptions from knative to be correctly raised
+- [IBM COS] Fixed issue when using local_executor with IBM COS authorized by an api_key
 
 
 ## [v1.5.1]
 
 ### Changed
-- pw.create execution_plots() renamed to pw.plot()
-- Docs updated
+- [PyWren] pw.create execution_plots() renamed to pw.plot()
+- [PyWren] Docs updated
 
 ### Fixed
-- Fixed minor issue in knative
-- Fixed internal issues
+- [PyWren] Fixed internal issues
+- [knative] Fixed minor issue in knative
 
 
 ## [v1.5.0]
 
 ### Added
-- Added support for Python 3.8
-- Added memory monitor
+- [PyWren] Added support for Python 3.8
+- [PyWren] Added memory monitor
 
 ### Changed
-- Updated knative to work for new releases
-- Updated tblib from 1.4.0 to 1.6.0
-- Changed get_current_memory_usage() to get_memory_usage()
-- Docs updated
-- pywren-runtime client is now called pywren-ibm-cloud
+- [PyWren] Updated knative to work for new releases
+- [PyWren] Updated tblib from 1.4.0 to 1.6.0
+- [PyWren] Changed get_current_memory_usage() to get_memory_usage()
+- [PyWren] pywren-runtime client is now called pywren-ibm-cloud
 
 ### Fixed
-- Fixed issue with internal partitioner
-- Fixed issue with get_result()
-- Fixed issue with windows hosts
-- Some other Internal fixes
+- [PyWren] Fixed issue with internal partitioner
+- [PyWren] Fixed issue with get_result()
+- [PyWren] Fixed issue with windows hosts
+- [PyWren] Some other Internal fixes
 
 ## [v1.4.2]
 

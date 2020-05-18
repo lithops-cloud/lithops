@@ -4,6 +4,7 @@ import time
 import textwrap
 import pickle
 import logging
+import tempfile
 from pywren_ibm_cloud import utils
 from pywren_ibm_cloud.job.partitioner import create_partitions
 from pywren_ibm_cloud.utils import is_object_processing_function, sizeof_fmt
@@ -21,7 +22,7 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
     """
-    job_created_time = time.time()
+    job_created_tstamp = time.time()
     map_func = map_function
     map_iterdata = utils.verify_args(map_function, iterdata, extra_args)
     new_invoke_pool_threads = invoke_pool_threads
@@ -51,7 +52,7 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
                                   include_modules=include_modules,
                                   exclude_modules=exclude_modules,
                                   execution_timeout=execution_timeout,
-                                  job_created_time=job_created_time)
+                                  job_created_tstamp=job_created_tstamp)
 
     if parts_per_object:
         job_description['parts_per_object'] = parts_per_object
@@ -66,7 +67,7 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
     """
-    job_created_time = time.time()
+    job_created_tstamp = time.time()
     iterdata = [[map_futures, ]]
 
     if 'parts_per_object' in map_job and reducer_one_per_object:
@@ -93,12 +94,12 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
                        include_modules=include_modules,
                        exclude_modules=exclude_modules,
                        execution_timeout=execution_timeout,
-                       job_created_time=job_created_time)
+                       job_created_tstamp=job_created_tstamp)
 
 
 def _create_job(config, internal_storage, executor_id, job_id, func, data, runtime_meta,
                 runtime_memory=None, extra_env=None, invoke_pool_threads=128, include_modules=[],
-                exclude_modules=[], execution_timeout=None, job_created_time=None):
+                exclude_modules=[], execution_timeout=None, job_created_tstamp=None):
     """
     :param func: the function to map over the data
     :param iterdata: An iterable of input data
@@ -131,7 +132,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
 
     job_description = {}
     job_description['runtime_name'] = runtime_name
-    job_description['runtime_memory'] = int(runtime_memory)
+    job_description['runtime_memory'] = runtime_memory
     job_description['execution_timeout'] = execution_timeout
     job_description['function_name'] = func.__name__
     job_description['extra_env'] = ext_env
@@ -158,7 +159,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     if include_modules is None:
         inc_modules = None
 
-    host_job_meta = {'job_created_time': job_created_time}
+    host_job_meta = {'job_created_tstamp': job_created_tstamp}
 
     logger.debug('ExecutorID {} | JobID {} - Serializing function and data'.format(executor_id, job_id))
     serializer = SerializeIndependent(runtime_meta['preinstalls'])
@@ -187,22 +188,26 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     log_msg = ('ExecutorID {} | JobID {} - Uploading function and data '
                '- Total: {}'.format(executor_id, job_id, total_size))
     print(log_msg) if not log_level else logger.info(log_msg)
+
     # Upload data
     data_key = create_agg_data_key(JOBS_PREFIX, executor_id, job_id)
     job_description['data_key'] = data_key
     data_bytes, data_ranges = utils.agg_data(data_strs)
     job_description['data_ranges'] = data_ranges
-    data_upload_time = time.time()
+    data_upload_start = time.time()
     internal_storage.put_data(data_key, data_bytes)
-    host_job_meta['data_upload_time'] = time.time() - data_upload_time
-    host_job_meta['data_upload_timestamp'] = time.time()
+    data_upload_end = time.time()
+
+    host_job_meta['data_upload_time'] = round(data_upload_end-data_upload_start, 6)
+
     # Upload function and modules
-    func_upload_time = time.time()
+    func_upload_start = time.time()
     func_key = create_func_key(JOBS_PREFIX, executor_id, job_id)
     job_description['func_key'] = func_key
     internal_storage.put_func(func_key, func_module_str)
-    host_job_meta['func_upload_time'] = time.time() - func_upload_time
-    host_job_meta['func_upload_timestamp'] = time.time()
+    func_upload_end = time.time()
+
+    host_job_meta['func_upload_time'] = round(func_upload_end - func_upload_start, 6)
 
     job_description['metadata'] = host_job_meta
 
@@ -213,25 +218,38 @@ def clean_job(jobs_to_clean, storage_config, clean_cloudobjects):
     """
     Clean the jobs in a separate process
     """
+    with tempfile.NamedTemporaryFile(delete=False) as temp:
+        pickle.dump(jobs_to_clean, temp)
+        jobs_path = temp.name
+
     script = """
     from pywren_ibm_cloud.storage import InternalStorage
     from pywren_ibm_cloud.storage.utils import clean_bucket
     from pywren_ibm_cloud.config import JOBS_PREFIX, TEMP_PREFIX
+    import pickle
+    import os
 
     storage_config = {}
-    jobs_to_clean = {}
     clean_cloudobjects = {}
+    jobs_path = '{}'
     bucket = storage_config['bucket']
 
+    with open(jobs_path, 'rb') as pk:
+        jobs_to_clean = pickle.load(pk)
+
     internal_storage = InternalStorage(storage_config)
+    sh = internal_storage.storage_handler
 
     for executor_id, job_id in jobs_to_clean:
         prefix = '/'.join([JOBS_PREFIX, executor_id, job_id])
-        clean_bucket(bucket, prefix, internal_storage, log=False)
+        clean_bucket(sh, bucket, prefix, log=False)
         if clean_cloudobjects:
             prefix = '/'.join([TEMP_PREFIX, executor_id, job_id])
-            clean_bucket(bucket, prefix, internal_storage, log=False)
-    """.format(storage_config, jobs_to_clean, clean_cloudobjects)
+            clean_bucket(sh, bucket, prefix, log=False)
+
+    if os.path.exists(jobs_path):
+        os.remove(jobs_path)
+    """.format(storage_config, clean_cloudobjects, jobs_path)
 
     cmdstr = '{} -c "{}"'.format(sys.executable, textwrap.dedent(script))
     os.popen(cmdstr)

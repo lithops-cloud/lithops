@@ -72,7 +72,7 @@ class Storage:
             if cloudobject.backend == self.backend:
                 bucket = cloudobject.bucket
                 key = cloudobject.key
-                return self.storage_handler.get_object(bucket, key)
+                return self.storage_handler.get_object(bucket, key, stream=stream)
             else:
                 raise Exception("CloudObject: Invalid Storage backend")
         elif (bucket and key) or key:
@@ -142,7 +142,9 @@ class InternalStorage:
             module_location = 'pywren_ibm_cloud.storage.backends.{}'.format(self.backend)
             sb_module = importlib.import_module(module_location)
             StorageBackend = getattr(sb_module, 'StorageBackend')
-            self.storage_handler = StorageBackend(self.config[self.backend], self.bucket, self.executor_id)
+            self.storage_handler = StorageBackend(self.config[self.backend],
+                                                  bucket=self.bucket,
+                                                  executor_id=self.executor_id)
         except Exception as e:
             raise NotImplementedError("An exception was produced trying to create the "
                                       "'{}' storage backend: {}".format(self.backend, e))
@@ -192,7 +194,7 @@ class InternalStorage:
             if cloudobject.backend == self.backend:
                 bucket = cloudobject.bucket
                 key = cloudobject.key
-                return self.storage_handler.get_object(bucket, key)
+                return self.storage_handler.get_object(bucket, key, stream=stream)
             else:
                 raise Exception("CloudObject: Invalid Storage backend")
         elif (bucket and key) or key:
@@ -393,20 +395,3 @@ class InternalStorage:
         if os.path.exists(filename_local_path):
             os.remove(filename_local_path)
         self.storage_handler.delete_object(self.bucket, obj_key)
-
-    def list_tmp_data(self, prefix):
-        """
-        List the temporal data used by PyWren.
-        :param bucket: bucket key
-        :param prefix: prefix to search for
-        :return: list of objects
-        """
-        return self.storage_handler.list_keys(self.bucket, prefix)
-
-    def delete_temporal_data(self, key_list):
-        """
-        Delete temporal data from PyWren.
-        :param bucket: bucket name
-        :param key: data key
-        """
-        return self.storage_handler.delete_objects(self.bucket, key_list)

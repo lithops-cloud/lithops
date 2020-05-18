@@ -32,7 +32,7 @@ from pywren_ibm_cloud.config import extract_storage_config
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.function.jobrunner import JobRunner
 from pywren_ibm_cloud.function.utils import get_memory_usage
-from pywren_ibm_cloud.config import cloud_logging_config, JOBS_PREFIX
+from pywren_ibm_cloud.config import cloud_logging_config, JOBS_PREFIX, STORAGE_FOLDER
 from pywren_ibm_cloud.storage.utils import create_output_key, create_status_key, create_init_key
 
 
@@ -40,12 +40,12 @@ logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('handler')
 
 TEMP = tempfile.gettempdir()
-STORAGE_BASE_DIR = os.path.join(TEMP, JOBS_PREFIX)
+STORAGE_BASE_DIR = os.path.join(TEMP, STORAGE_FOLDER)
 PYWREN_LIBS_PATH = '/action/pywren_ibm_cloud/libs'
 
 
 def function_handler(event):
-    start_time = time.time()
+    start_tstamp = time.time()
 
     log_level = event['log_level']
     cloud_logging_config(log_level)
@@ -79,8 +79,8 @@ def function_handler(event):
     internal_storage = InternalStorage(storage_config)
 
     call_status = CallStatus(config, internal_storage)
-    call_status.response['host_submit_time'] = event['host_submit_time']
-    call_status.response['start_time'] = start_time
+    call_status.response['host_submit_tstamp'] = event['host_submit_tstamp']
+    call_status.response['start_tstamp'] = start_tstamp
     context_dict = {
         'python_version': os.environ.get("PYTHON_VERSION"),
         'call_id': call_id,
@@ -107,7 +107,10 @@ def function_handler(event):
                       'PYTHONPATH': "{}:{}".format(os.getcwd(), PYWREN_LIBS_PATH)}
         os.environ.update(custom_env)
 
-        jobrunner_stats_dir = os.path.join(STORAGE_BASE_DIR, executor_id, job_id, call_id)
+        jobrunner_stats_dir = os.path.join(STORAGE_BASE_DIR,
+                                           storage_config['bucket'],
+                                           JOBS_PREFIX, executor_id,
+                                           job_id, call_id)
         os.makedirs(jobrunner_stats_dir, exist_ok=True)
         jobrunner_stats_filename = os.path.join(jobrunner_stats_dir, 'jobrunner.stats.txt')
 
@@ -175,15 +178,11 @@ def function_handler(event):
                     if key in ['exception', 'exc_pickle_fail', 'result', 'new_futures']:
                         call_status.response[key] = eval(value)
 
-        # call_status.response['server_info'] = get_server_info()
-        call_status.response['end_time'] = time.time()
-
     except Exception:
         # internal runtime exceptions
         print('----------------------- EXCEPTION !-----------------------', flush=True)
         traceback.print_exc(file=sys.stdout)
         print('----------------------------------------------------------', flush=True)
-        call_status.response['end_time'] = time.time()
         call_status.response['exception'] = True
 
         pickled_exc = pickle.dumps(sys.exc_info())
@@ -191,6 +190,7 @@ def function_handler(event):
         call_status.response['exc_info'] = str(pickled_exc)
 
     finally:
+        call_status.response['end_tstamp'] = time.time()
         call_status.send('__end__')
         for key in extra_env:
             del os.environ[key]

@@ -30,14 +30,11 @@ logger = logging.getLogger(__name__)
 
 
 def create_timeline(fs, dst):
-    call_status = [f._call_status for f in fs]
-    call_metadata = [f._call_metadata for f in fs]
-    fs_start_time = min([cm['job_created_time'] for cm in call_metadata])
+    stats = [f.stats for f in fs]
+    job_created_tstamp = min([cm['job_created_tstamp'] for cm in stats])
 
-    status_df = pd.DataFrame(call_status)
-    metadata_df = pd.DataFrame(call_metadata)
-    results_df = pd.concat([status_df, metadata_df], axis=1).T.drop_duplicates().T
-    total_calls = len(results_df)
+    stats_df = pd.DataFrame(stats)
+    total_calls = len(stats_df)
 
     palette = sns.color_palette("deep", 6)
 
@@ -47,14 +44,14 @@ def create_timeline(fs, dst):
     y = np.arange(total_calls)
     point_size = 10
 
-    fields = [('host submit', results_df.host_submit_time - fs_start_time),
-              ('action start', results_df.start_time - fs_start_time),
-              ('action done', results_df.end_time - fs_start_time)]
+    fields = [('host submit', stats_df.host_submit_tstamp - job_created_tstamp),
+              ('action start', stats_df.start_tstamp - job_created_tstamp),
+              ('action done', stats_df.end_tstamp - job_created_tstamp)]
 
-    fields.append(('status fetched', results_df.status_done_time - fs_start_time))
+    fields.append(('status fetched', stats_df.status_done_tstamp - job_created_tstamp))
 
-    if 'download_output_timestamp' in results_df:
-        fields.append(('results fetched', results_df.output_done_time - fs_start_time))
+    if 'output_done_tstamp' in stats_df:
+        fields.append(('results fetched', stats_df.output_done_tstamp - job_created_tstamp))
 
     patches = []
     for f_i, (field_name, val) in enumerate(fields):
@@ -74,12 +71,12 @@ def create_timeline(fs, dst):
     for y in y_ticks:
         ax.axhline(y, c='k', alpha=0.1, linewidth=1)
 
-    if 'output_done_time' in results_df:
-        max_seconds = np.max(results_df.output_done_time - fs_start_time)*1.25
-    elif 'status_done_time' in results_df:
-        max_seconds = np.max(results_df.status_done_time - fs_start_time)*1.25
+    if 'output_done_tstamp' in stats_df:
+        max_seconds = np.max(stats_df.output_done_tstamp - job_created_tstamp)*1.25
+    elif 'status_done_tstamp' in stats_df:
+        max_seconds = np.max(stats_df.status_done_tstamp - job_created_tstamp)*1.25
     else:
-        max_seconds = np.max(results_df.end_time - fs_start_time)*1.25
+        max_seconds = np.max(stats_df.end_tstamp - job_created_tstamp)*1.25
     xplot_step = max(int(max_seconds/8), 1)
     x_ticks = np.arange(max_seconds//xplot_step + 2) * xplot_step
     ax.set_xlim(0, max_seconds)
@@ -102,18 +99,17 @@ def create_timeline(fs, dst):
 
 
 def create_histogram(fs, dst):
-    call_status = [f._call_status for f in fs]
-    call_metadata = [f._call_metadata for f in fs]
-    fs_start_time = min([cm['job_created_time'] for cm in call_metadata])
+    stats = [f.stats for f in fs]
+    job_created_tstamp = min([cm['job_created_tstamp'] for cm in stats])
 
-    total_calls = len(call_status)
-    max_seconds = int(max([cs['end_time']-fs_start_time for cs in call_status])*2.5)
+    total_calls = len(stats)
+    max_seconds = int(max([cs['end_tstamp']-job_created_tstamp for cs in stats])*2.5)
 
     runtime_bins = np.linspace(0, max_seconds, max_seconds)
 
     def compute_times_rates(time_rates):
         x = np.array(time_rates)
-        tzero = fs_start_time
+        tzero = job_created_tstamp
         start_time = x[:, 0] - tzero
         end_time = x[:, 1] - tzero
 
@@ -128,20 +124,20 @@ def create_histogram(fs, dst):
             if b-a > 0:
                 runtime_calls_hist[i, a:b] = 1
 
-        return {'start_time': start_time,
-                'end_time': end_time,
+        return {'start_tstamp': start_time,
+                'end_tstamp': end_time,
                 'runtime_calls_hist': runtime_calls_hist}
 
     fig = pylab.figure(figsize=(10, 6))
     ax = fig.add_subplot(1, 1, 1)
 
-    time_rates = [(cs['start_time'], cs['end_time']) for cs in call_status]
+    time_rates = [(cs['start_tstamp'], cs['end_tstamp']) for cs in stats]
 
     time_hist = compute_times_rates(time_rates)
 
-    N = len(time_hist['start_time'])
-    line_segments = LineCollection([[[time_hist['start_time'][i], i],
-                                     [time_hist['end_time'][i], i]] for i in range(N)],
+    N = len(time_hist['start_tstamp'])
+    line_segments = LineCollection([[[time_hist['start_tstamp'][i], i],
+                                     [time_hist['end_tstamp'][i], i]] for i in range(N)],
                                    linestyles='solid', color='k', alpha=0.6, linewidth=0.4)
 
     ax.add_collection(line_segments)

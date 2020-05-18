@@ -29,7 +29,7 @@ class StorageBackend:
     A wrap-up around OpenStack Swift APIs.
     """
 
-    def __init__(self, swift_config,  bucket = None, executor_id = None):
+    def __init__(self, swift_config, **kwargs):
         self.auth_url = swift_config['swift_auth_url']
         self.user_id = swift_config['swift_user_id']
         self.project_id = swift_config['swift_project_id']
