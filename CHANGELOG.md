@@ -9,6 +9,7 @@
 
 ### Changed
 - [PyWren] Moved all stats from 'f._call_status' to a new 'f.stats' variable
+- [Localhost] Improved localhost storage backend
 
 
 ### Fixed

@@ -30,9 +30,9 @@ class LocalhostBackend:
         self.workers = []
         for worker_id in range(self.num_workers):
             p = multiprocessing.Process(target=self._process_runner, args=(worker_id,))
+            self.workers.append(p)
             p.daemon = True
             p.start()
-            self.workers.append(p)
 
         log_msg = 'PyWren v{} init for Localhost - Total workers: {}'.format(__version__, self.num_workers)
         logger.info(log_msg)
@@ -133,10 +133,7 @@ class LocalhostBackend:
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know what runtimes are installed and what not.
         """
-        runtime_key = '{}_{}MB'.format(runtime_name, str(runtime_memory))
-        runtime_key = os.path.join(self.name, runtime_key)
-
-        return runtime_key
+        return os.path.join(self.name, runtime_name)
 
     def __del__(self):
         for worker in self.workers:

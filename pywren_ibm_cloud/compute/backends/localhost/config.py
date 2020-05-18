@@ -23,6 +23,9 @@ def load_config(config_data):
     if 'localhost' not in config_data:
         config_data['localhost'] = {}
 
+    if 'ibm_cos' in config_data and 'private_endpoint' in config_data['ibm_cos']:
+        del config_data['ibm_cos']['private_endpoint']
+
     if 'workers' in config_data['pywren']:
         config_data['localhost']['workers'] = config_data['pywren']['workers']
     else:
