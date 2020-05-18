@@ -13,7 +13,7 @@
 
 
 ### Fixed
-- [PyWren] Fixd issue in pw.clean(cs=cobjs) when passing a large list of cobjs
+- [PyWren] Fixed issue in pw.clean(cs=cobjs) when passing a large list of cobjs
 
 
 ## [v1.5.2]

@@ -4,10 +4,10 @@ import tempfile
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.config import LOGS_PREFIX
 
-RUNTIME_DEFAULT = {'3.5': 'ibmfunctions/pywren:3.5',
-                   '3.6': 'ibmfunctions/action-python-v3.6',
+RUNTIME_DEFAULT = {'3.5': 'ibmfunctions/pywren:3.5:latest',
+                   '3.6': 'ibmfunctions/action-python-v3.6:latest',
                    '3.7': 'ibmfunctions/action-python-v3.7:1.6.0',
-                   '3.8': 'jsampe/action-python-v3.8'}
+                   '3.8': 'jsampe/action-python-v3.8:latest'}
 RUNTIME_TIMEOUT_DEFAULT = 600  # 10 minutes
 
 PYWREN_SERVER_PORT = 8080
