@@ -22,8 +22,8 @@ class Compute:
             ComputeBackend = getattr(cb_module, 'ComputeBackend')
             self.compute_handler = ComputeBackend(self.config[self.backend])
         except Exception as e:
-            raise Exception("An exception was produced trying to create the "
-                            "'{}' compute backend: {}".format(self.backend, e))
+            logger.error("There was en error trying to create the '{}' compute backend".format(e))
+            raise e
 
     def invoke(self, runtime_name, memory, payload):
         """

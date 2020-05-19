@@ -27,11 +27,16 @@ def load_config(config_data):
         config_data['pywren']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
     if 'runtime_timeout' not in config_data['pywren']:
         config_data['pywren']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+
     if 'runtime' not in config_data['pywren']:
         python_version = version_str(sys.version_info)
         try:
             config_data['pywren']['runtime'] = RUNTIME_DEFAULT[python_version]
         except KeyError:
             raise Exception('Unsupported Python version: {}'.format(python_version))
+
     if 'workers' not in config_data['pywren']:
         config_data['pywren']['workers'] = CONCURRENT_WORKERS_DEFAULT
+
+    if 'ibm_cos' in config_data and 'private_endpoint' in config_data['ibm_cos']:
+        del config_data['ibm_cos']['private_endpoint']

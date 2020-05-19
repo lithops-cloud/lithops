@@ -65,9 +65,11 @@ class FunctionInvoker:
             for region in regions:
                 compute_config = self.compute_config.copy()
                 compute_config[cb]['region'] = region
-                self.compute_handlers.append(Compute(compute_config))
+                compute_handler = Compute(compute_config)
+                self.compute_handlers.append(compute_handler)
         else:
-            self.compute_handlers.append(Compute(self.compute_config))
+            compute_handler = Compute(self.compute_config)
+            self.compute_handlers.append(compute_handler)
 
         logger.debug('ExecutorID {} - Creating function invoker'.format(self.executor_id))
 
@@ -192,6 +194,8 @@ class FunctionInvoker:
                 except Exception:
                     pass
             self.invokers = []
+
+        # self.compute_handlers.clear()
 
     def _invoke(self, job, call_id):
         """

@@ -20,7 +20,25 @@ class LocalhostStorageBackend:
         logger.debug("Localhost storage client created successfully")
 
     def get_client(self):
-        return self
+        # Simulate boto3 client
+        class LocalhostBoto3Client():
+            def __init__(self, backend):
+                self.backend = backend
+
+            def put_object(self, Bucket, Key, Body, **kwargs):
+                self.backend.put_object(Bucket, Key, Body)
+
+            def get_object(self, Bucket, Key, extra_get_args={}):
+                body = self.backend.get_object(Bucket, Key, stream=True, **extra_get_args)
+                return {'Body': body}
+
+            def list_objects(self, Bucket, Prefix=None, **kwargs):
+                return self.backend.list_objects(Bucket, Prefix)
+
+            def list_objects_v2(self, Bucket, Prefix=None, **kwargs):
+                return self.backend.list_objects(Bucket, Prefix)
+
+        return LocalhostBoto3Client(self)
 
     def put_object(self, bucket_name, key, data):
         """
@@ -136,12 +154,19 @@ class LocalhostStorageBackend:
         :rtype: list of str
         """
         key_list = []
-        root = os.path.join(STORAGE_BASE_DIR, bucket_name, prefix)
+
+        if prefix:
+            root = os.path.join(STORAGE_BASE_DIR, bucket_name, prefix)
+        else:
+            root = os.path.join(STORAGE_BASE_DIR, bucket_name)
 
         for path, subdirs, files in os.walk(root):
             for name in files:
                 size = os.stat(os.path.join(path, name)).st_size
-                key_list.append({'Key': os.path.join(prefix, path.replace(root+'/', ''), name), 'Size': size})
+                if prefix:
+                    key_list.append({'Key': os.path.join(prefix, path.replace(root+'/', ''), name), 'Size': size})
+                else:
+                    key_list.append({'Key': os.path.join(path.replace(root+'/', ''), name), 'Size': size})
 
         return key_list
 
@@ -154,9 +179,17 @@ class LocalhostStorageBackend:
         :rtype: list of str
         """
         key_list = []
-        root = os.path.join(STORAGE_BASE_DIR, bucket_name, prefix)
+
+        if prefix:
+            root = os.path.join(STORAGE_BASE_DIR, bucket_name, prefix)
+        else:
+            root = os.path.join(STORAGE_BASE_DIR, bucket_name)
+
         for path, subdirs, files in os.walk(root):
             for name in files:
-                key_list.append(os.path.join(prefix, path.replace(root+'/', ''), name))
+                if prefix:
+                    key_list.append(os.path.join(prefix, path.replace(root+'/', ''), name))
+                else:
+                    key_list.append(os.path.join(path.replace(root+'/', ''), name))
 
         return key_list

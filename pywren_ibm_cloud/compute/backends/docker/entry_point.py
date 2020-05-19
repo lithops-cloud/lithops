@@ -35,6 +35,7 @@ def run():
     if 'remote_invoker' in message:
         try:
             logger.info("PyWren v{} - Starting Docker invoker".format(__version__))
+            message['config']['pywren']['remote_invoker'] = False
             message['config']['pywren']['compute_backend'] = 'localhost'
 
             if 'localhost' not in message['config']:

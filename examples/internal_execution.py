@@ -11,7 +11,7 @@ def my_map_function(id, x):
 
 
 def my_function(x):
-    iterdata = [1, 2, 3, 4]
+    iterdata = range(x)
     pw = pywren.ibm_cf_executor()
     return pw.map(my_map_function, iterdata)
 
