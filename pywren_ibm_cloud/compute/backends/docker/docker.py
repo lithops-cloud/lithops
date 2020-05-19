@@ -6,23 +6,17 @@ import zipfile
 import docker
 import logging
 import requests
-import tempfile
 import subprocess
 import multiprocessing
 import pywren_ibm_cloud
 
 from . import config as docker_config
 from pywren_ibm_cloud.utils import version_str
-from pywren_ibm_cloud.config import JOBS_PREFIX
 from pywren_ibm_cloud.version import __version__
-
-logger = logging.getLogger(__name__)
-
-TEMP = tempfile.gettempdir()
-STORAGE_BASE_DIR = os.path.join(TEMP, JOBS_PREFIX)
-LOCAL_RUN_DIR = os.path.join(os.getcwd(), 'pywren_jobs')
+from pywren_ibm_cloud.config import TEMP, DOCKER_FOLDER
 
 logging.getLogger('urllib3.connectionpool').setLevel(logging.CRITICAL)
+logger = logging.getLogger(__name__)
 
 
 class DockerBackend:
@@ -34,7 +28,6 @@ class DockerBackend:
         self.log_level = os.getenv('PYWREN_LOGLEVEL')
         self.config = docker_config
         self.name = 'docker'
-        self.run_dir = LOCAL_RUN_DIR
         self.host = docker_config['host']
         self.queue = multiprocessing.Queue()
         self._is_localhost = self.host in ['127.0.0.1', 'localhost']
@@ -93,7 +86,7 @@ class DockerBackend:
             uid = subprocess.check_output(uid_cmd, shell=True).decode().strip()
             if name not in running_runtimes:
                 self.docker_client.containers.run(docker_image_name, entrypoint='python',
-                                                  command='/tmp/pywren.docker/__main__.py',
+                                                  command='{}/__main__.py'.format(DOCKER_FOLDER),
                                                   volumes=['{}:/tmp'.format(TEMP)],
                                                   detach=True, auto_remove=True,
                                                   user=uid, name=name,
@@ -147,12 +140,11 @@ class DockerBackend:
         self._create_function_handler_zip()
 
         if self._is_localhost:
-            df_path = os.path.join(TEMP, 'pywren.docker')
-            os.makedirs(df_path, exist_ok=True)
+            os.makedirs(DOCKER_FOLDER, exist_ok=True)
 
             archive = zipfile.ZipFile(docker_config.FH_ZIP_LOCATION)
             for file in archive.namelist():
-                archive.extract(file, df_path)
+                archive.extract(file, DOCKER_FOLDER)
 
             self.docker_client.images.pull(docker_image_name)
 
