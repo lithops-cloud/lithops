@@ -12,7 +12,7 @@ RUNTIME_TIMEOUT_DEFAULT = 600  # 10 minutes
 
 PYWREN_SERVER_PORT = 8080
 
-TEMP = tempfile.gettempdir()
+TEMP = os.path.realpath(tempfile.gettempdir())
 STORAGE_BASE_DIR = os.path.join(TEMP)
 LOCAL_LOGS_DIR = os.path.join(STORAGE_BASE_DIR, LOGS_PREFIX)
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'pywren_docker.zip')

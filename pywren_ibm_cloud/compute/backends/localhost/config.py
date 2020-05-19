@@ -7,7 +7,7 @@ from pywren_ibm_cloud.config import STORAGE_FOLDER
 RUNTIME_NAME_DEFAULT = 'localhost'
 RUNTIME_TIMEOUT_DEFAULT = 600  # 10 minutes
 
-TEMP = tempfile.gettempdir()
+TEMP = os.path.realpath(tempfile.gettempdir())
 STORAGE_BASE_DIR = os.path.join(TEMP, STORAGE_FOLDER)
 
 
