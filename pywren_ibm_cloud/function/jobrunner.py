@@ -34,6 +34,8 @@ from pywren_ibm_cloud.utils import sizeof_fmt, b64str_to_bytes, is_object_proces
 from pywren_ibm_cloud.utils import WrappedStreamingBodyPartition
 from pywren_ibm_cloud.config import cloud_logging_config
 
+from pydoc import locate
+
 pickling_support.install()
 logger = logging.getLogger('JobRunner')
 
@@ -225,6 +227,21 @@ class JobRunner:
                                                 extra_get_args=extra_get_args)
                 obj.data_stream = sb
 
+    # Decorator to execute pre-run and post-run functions provided via environment variables
+    def prepost(func):
+        def call(envVar):
+            if envVar in os.environ:
+                method = locate(os.environ[envVar])
+                method()
+
+        def wrapper_decorator(*args, **kwargs):
+            call('PRE_RUN')
+            value = func(*args, **kwargs)
+            call('POST_RUN')
+            return value
+        return wrapper_decorator
+
+    @prepost
     def run(self):
         """
         Runs the function
