@@ -39,7 +39,7 @@ from pydoc import locate
 pickling_support.install()
 logger = logging.getLogger('JobRunner')
 
-TEMP = tempfile.gettempdir()
+TEMP = os.path.realpath(tempfile.gettempdir())
 PYTHON_MODULE_PATH = os.path.join(TEMP, "pywren.modules")
 
 

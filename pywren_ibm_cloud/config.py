@@ -16,6 +16,7 @@
 
 import os
 import json
+import tempfile
 import importlib
 import logging.config
 from pywren_ibm_cloud.version import __version__
@@ -25,12 +26,15 @@ logger = logging.getLogger(__name__)
 COMPUTE_BACKEND_DEFAULT = 'ibm_cf'
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
 
-STORAGE_FOLDER = "pywren-data"
+TEMP = os.path.realpath(tempfile.gettempdir())
+STORAGE_FOLDER = os.path.join(TEMP, "pywren-data")
+DOCKER_FOLDER = os.path.join(TEMP, "pywren-docker")
+
 JOBS_PREFIX = "pywren.jobs"
 TEMP_PREFIX = "pywren.jobs/tmp"
 LOGS_PREFIX = "pywren.logs"
 RUNTIMES_PREFIX = "pywren.runtimes"
-DOCKER_PREFIX = "pywren.docker"
+
 
 MAX_AGG_DATA_SIZE = 4  # 4MiB
 

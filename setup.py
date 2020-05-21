@@ -31,8 +31,8 @@ setup(
     install_requires=[
         'Click', 'pandas', 'PyYAML', 'python-dateutil',
         'pika==0.13.1', 'enum34', 'glob2', 'tqdm', 'lxml',
-        'tblib', 'docker', 'requests==2.22.0', 'seaborn',
-        'matplotlib', 'kubernetes', 'ibm-cos-sdk==2.6.0'
+        'tblib', 'docker', 'requests', 'seaborn',
+        'matplotlib', 'kubernetes', 'ibm-cos-sdk'
     ],
     include_package_data=True,
     entry_points='''
@@ -40,9 +40,17 @@ setup(
         pywren-ibm-cloud=pywren_ibm_cloud.cli.cli:cli
     ''',
     classifiers=[
-        "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: Apache Software License",
-        "Operating System :: OS Independent",
+        'Development Status :: 5 - Production/Stable',
+        'Intended Audience :: Developers',
+        'Operating System :: OS Independent',
+        'Natural Language :: English',
+        'License :: OSI Approved :: Apache Software License',
+        'Programming Language :: Python',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
     ],
     python_requires='>=3.5',
 )

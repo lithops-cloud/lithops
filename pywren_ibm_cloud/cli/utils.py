@@ -14,18 +14,15 @@
 # limitations under the License.
 #
 
-import os
 import shutil
-import tempfile
 import logging
 from pywren_ibm_cloud.config import CACHE_DIR, STORAGE_FOLDER, \
     default_config, extract_storage_config, extract_compute_config, \
-    RUNTIMES_PREFIX, JOBS_PREFIX
+    RUNTIMES_PREFIX, JOBS_PREFIX, DOCKER_FOLDER
 from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.compute import Compute
 from pywren_ibm_cloud.storage.utils import clean_bucket
 
-TEMP = tempfile.gettempdir()
 logger = logging.getLogger(__name__)
 
 
@@ -38,7 +35,8 @@ def clean_all(config=None):
     compute_handler = Compute(compute_config)
 
     # Clean localhost executor temp dirs
-    shutil.rmtree(os.path.join(TEMP, STORAGE_FOLDER), ignore_errors=True)
+    shutil.rmtree(STORAGE_FOLDER, ignore_errors=True)
+    shutil.rmtree(DOCKER_FOLDER, ignore_errors=True)
 
     # Clean object storage temp dirs
     compute_handler.delete_all_runtimes()

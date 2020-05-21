@@ -7,8 +7,7 @@ import multiprocessing
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.function import function_handler
-from pywren_ibm_cloud.config import LOGS_PREFIX
-from .config import STORAGE_BASE_DIR
+from pywren_ibm_cloud.config import STORAGE_FOLDER, LOGS_PREFIX
 
 
 logger = logging.getLogger(__name__)
@@ -24,7 +23,7 @@ class LocalhostBackend:
         self.config = local_config
         self.name = 'local'
         self.queue = multiprocessing.Queue()
-        self.logs_dir = os.path.join(STORAGE_BASE_DIR, LOGS_PREFIX)
+        self.logs_dir = os.path.join(STORAGE_FOLDER, LOGS_PREFIX)
         self.num_workers = self.config['workers']
 
         self.workers = []
@@ -43,19 +42,17 @@ class LocalhostBackend:
         """
         Handler to run local functions.
         """
-        current_run_dir = os.path.join(self.logs_dir, event['executor_id'], event['job_id'])
-        os.makedirs(current_run_dir, exist_ok=True)
-        os.chdir(current_run_dir)
-        old_stdout = sys.stdout
-        sys.stdout = open('{}.log'.format(event['call_id']), 'w')
+        if not self.log_level:
+            old_stdout = sys.stdout
+            sys.stdout = open(os.devnull, 'w')
 
         event['extra_env']['__PW_LOCAL_EXECUTION'] = 'True'
         act_id = str(uuid.uuid4()).replace('-', '')[:12]
         os.environ['__PW_ACTIVATION_ID'] = act_id
         function_handler(event)
 
-        os.chdir(original_dir)
-        sys.stdout = old_stdout
+        if not self.log_level:
+            sys.stdout = old_stdout
 
     def _process_runner(self, worker_id):
         logger.debug('Localhost worker process {} started'.format(worker_id))
