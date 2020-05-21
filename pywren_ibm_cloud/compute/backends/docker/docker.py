@@ -8,12 +8,12 @@ import logging
 import requests
 import subprocess
 import multiprocessing
-import pywren_ibm_cloud
 
 from . import config as docker_config
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.config import TEMP, DOCKER_FOLDER
+from pywren_ibm_cloud.compute.backends.common.common_utils import create_function_handler_zip
 
 logging.getLogger('urllib3.connectionpool').setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
@@ -51,27 +51,6 @@ class DockerBackend:
     def _get_default_runtime_image_name(self):
         python_version = version_str(sys.version_info)
         return docker_config.RUNTIME_DEFAULT[python_version]
-
-    def _create_function_handler_zip(self):
-        logger.debug("Creating function handler zip in {}".format(docker_config.FH_ZIP_LOCATION))
-
-        def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
-            for file in os.listdir(full_dir_path):
-                full_path = os.path.join(full_dir_path, file)
-                if os.path.isfile(full_path):
-                    zip_file.write(full_path, os.path.join('pywren_ibm_cloud', sub_dir, file))
-                elif os.path.isdir(full_path) and '__pycache__' not in full_path:
-                    add_folder_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
-
-        try:
-            with zipfile.ZipFile(docker_config.FH_ZIP_LOCATION, 'w', zipfile.ZIP_DEFLATED) as docker_pywren_zip:
-                current_location = os.path.dirname(os.path.abspath(__file__))
-                module_location = os.path.dirname(os.path.abspath(pywren_ibm_cloud.__file__))
-                main_file = os.path.join(current_location, 'entry_point.py')
-                docker_pywren_zip.write(main_file, '__main__.py')
-                add_folder_to_zip(docker_pywren_zip, module_location)
-        except Exception as e:
-            raise Exception('Unable to create the {} package: {}'.format(docker_config.FH_ZIP_LOCATION, e))
 
     def _delete_function_handler_zip(self):
         os.remove(docker_config.FH_ZIP_LOCATION)
@@ -137,7 +116,7 @@ class DockerBackend:
         if docker_image_name == 'default':
             docker_image_name = self._get_default_runtime_image_name()
 
-        self._create_function_handler_zip()
+        create_function_handler_zip(docker_config, '__main__.py', __file__)
 
         if self._is_localhost:
             os.makedirs(DOCKER_FOLDER, exist_ok=True)
