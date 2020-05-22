@@ -155,3 +155,11 @@ pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
 |docker | host | |no | Host IP |
 |docker | ssh_user | |no | ssh username |
 |docker | ssh_password | |no | ssh password|
+
+### Summary of configuration keys for Ceph:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|ceph | endpoint | |yes | Endpoint (host:port) to your Ceph installation account.
+|ceph | access_key | |yes | HMAC Credentials |
+|ceph | secret_key | |yes | HMAC Credentials |

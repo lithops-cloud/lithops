@@ -53,3 +53,9 @@ ibm_cos:
     #password   : <PASSWORD>
     #endpoint   : <INFINISPAN_SERVER_URL:PORT>
     #cache_manager : <CACHE MANAGER> # Optional. 'default' in default value
+  
+#ceph:
+    #endpoint: <ENDPOINT_URL>
+    #access_key: <ACCESS_KEY>
+    #secret_key: <ACCESS_KEY>
+    
