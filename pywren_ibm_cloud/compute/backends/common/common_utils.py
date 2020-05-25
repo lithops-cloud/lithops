@@ -32,6 +32,6 @@ def create_function_handler_zip(config, main_exec_file = '__main__.py',
     except Exception as e:
         raise Exception('Unable to create the {} package: {}'.format(config.FH_ZIP_LOCATION, e))
     
-def format_action_name(self, runtime_name, runtime_memory):
+def format_action_name(runtime_name, runtime_memory):
     runtime_name = runtime_name.replace('/', '_').replace(':', '_')
     return '{}_{}MB'.format(runtime_name, runtime_memory)
