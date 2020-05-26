@@ -2,9 +2,7 @@ import os
 import sys
 import base64
 import logging
-import zipfile
 import textwrap
-import pywren_ibm_cloud
 from . import config as ibmcf_config
 from datetime import datetime, timezone
 from ibm_botocore.credentials import DefaultTokenManager
@@ -13,6 +11,7 @@ from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import is_pywren_function
 from pywren_ibm_cloud.config import CACHE_DIR, load_yaml_config, dump_yaml_config
 from pywren_ibm_cloud.libs.openwhisk.client import OpenWhiskClient
+from pywren_ibm_cloud.compute.backends.common.common_utils import create_function_handler_zip, format_action_name
 
 logger = logging.getLogger(__name__)
 
@@ -99,10 +98,6 @@ class IBMCloudFunctionsBackend:
             print(log_msg)
         logger.info("IBM CF client created successfully")
 
-    def _format_action_name(self, runtime_name, runtime_memory):
-        runtime_name = runtime_name.replace('/', '_').replace(':', '_')
-        return '{}_{}MB'.format(runtime_name, runtime_memory)
-
     def _unformat_action_name(self, action_name):
         runtime_name, memory = action_name.rsplit('_', 1)
         image_name = runtime_name.replace('_', '/', 1)
@@ -112,27 +107,6 @@ class IBMCloudFunctionsBackend:
     def _get_default_runtime_image_name(self):
         python_version = version_str(sys.version_info)
         return ibmcf_config.RUNTIME_DEFAULT[python_version]
-
-    def _create_function_handler_zip(self):
-        logger.debug("Creating function handler zip in {}".format(ibmcf_config.FH_ZIP_LOCATION))
-
-        def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
-            for file in os.listdir(full_dir_path):
-                full_path = os.path.join(full_dir_path, file)
-                if os.path.isfile(full_path):
-                    zip_file.write(full_path, os.path.join('pywren_ibm_cloud', sub_dir, file))
-                elif os.path.isdir(full_path) and '__pycache__' not in full_path:
-                    add_folder_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
-
-        try:
-            with zipfile.ZipFile(ibmcf_config.FH_ZIP_LOCATION, 'w', zipfile.ZIP_DEFLATED) as ibmcf_pywren_zip:
-                current_location = os.path.dirname(os.path.abspath(__file__))
-                module_location = os.path.dirname(os.path.abspath(pywren_ibm_cloud.__file__))
-                main_file = os.path.join(current_location, 'entry_point.py')
-                ibmcf_pywren_zip.write(main_file, '__main__.py')
-                add_folder_to_zip(ibmcf_pywren_zip, module_location)
-        except Exception as e:
-            raise Exception('Unable to create the {} package: {}'.format(ibmcf_config.FH_ZIP_LOCATION, e))
 
     def _delete_function_handler_zip(self):
         os.remove(ibmcf_config.FH_ZIP_LOCATION)
@@ -170,9 +144,9 @@ class IBMCloudFunctionsBackend:
         logger.info('Creating new PyWren runtime based on Docker image {}'.format(docker_image_name))
 
         self.cf_client.create_package(self.package)
-        action_name = self._format_action_name(docker_image_name, memory)
-
-        self._create_function_handler_zip()
+        action_name = format_action_name(docker_image_name, memory)
+        
+        create_function_handler_zip(ibmcf_config,'__main__.py', __file__)
 
         with open(ibmcf_config.FH_ZIP_LOCATION, "rb") as action_zip:
             action_bin = action_zip.read()
@@ -187,7 +161,7 @@ class IBMCloudFunctionsBackend:
         """
         if docker_image_name == 'default':
             docker_image_name = self._get_default_runtime_image_name()
-        action_name = self._format_action_name(docker_image_name, memory)
+        action_name = format_action_name(docker_image_name, memory)
         self.cf_client.delete_action(self.package, action_name)
 
     def delete_all_runtimes(self):
@@ -225,7 +199,7 @@ class IBMCloudFunctionsBackend:
         """
         Invoke -- return information about this invocation
         """
-        action_name = self._format_action_name(docker_image_name, runtime_memory)
+        action_name = format_action_name(docker_image_name, runtime_memory)
 
         activation_id = self.cf_client.invoke(package=self.package,
                                               action_name=action_name,
@@ -240,7 +214,7 @@ class IBMCloudFunctionsBackend:
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        action_name = self._format_action_name(docker_image_name, runtime_memory)
+        action_name = format_action_name(docker_image_name, runtime_memory)
         runtime_key = os.path.join(self.name, self.region, self.namespace, action_name)
 
         return runtime_key
@@ -267,7 +241,7 @@ class IBMCloudFunctionsBackend:
         runtime_memory = 128
         # old_stdout = sys.stdout
         # sys.stdout = open(os.devnull, 'w')
-        action_name = self._format_action_name(docker_image_name, runtime_memory)
+        action_name = format_action_name(docker_image_name, runtime_memory)
         self.cf_client.create_package(self.package)
         self.cf_client.create_action(self.package, action_name, docker_image_name,
                                      is_binary=False, code=textwrap.dedent(action_code),
