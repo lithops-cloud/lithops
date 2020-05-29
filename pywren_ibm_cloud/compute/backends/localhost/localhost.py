@@ -6,7 +6,7 @@ import logging
 from multiprocessing import Process, Queue
 from threading import Thread
 from pywren_ibm_cloud.version import __version__
-from pywren_ibm_cloud.utils import version_str, is_pywren_function, is_unix_system
+from pywren_ibm_cloud.utils import version_str, is_unix_system
 from pywren_ibm_cloud.function import function_handler
 from pywren_ibm_cloud.config import STORAGE_FOLDER, LOGS_PREFIX
 
@@ -30,7 +30,7 @@ class LocalhostBackend:
 
         self.workers = []
 
-        if is_pywren_function() or not is_unix_system():
+        if not is_unix_system():
             for worker_id in range(self.num_workers):
                 p = Thread(target=self._process_runner, args=(worker_id,))
                 self.workers.append(p)
@@ -74,7 +74,7 @@ class LocalhostBackend:
                 self._local_handler(event)
             except KeyboardInterrupt:
                 break
-        logger.debug('Worker process {} stopped'.format(worker_id))
+        logger.debug('Localhost worker process {} stopped'.format(worker_id))
 
     def _generate_python_meta(self):
         """
@@ -149,7 +149,3 @@ class LocalhostBackend:
             self.alive = False
             for worker in self.workers:
                 self.queue.put(None)
-            for worker in self.workers:
-                if hasattr(worker, 'terminate'):
-                    worker.terminate()
-            self.workers = []

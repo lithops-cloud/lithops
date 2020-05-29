@@ -37,7 +37,6 @@ def create_function_handler_zip(zip_location, main_exec_file, backend_location):
     try:
         with zipfile.ZipFile(zip_location, 'w', zipfile.ZIP_DEFLATED) as pywren_zip:
             current_location = os.path.dirname(os.path.abspath(backend_location))
-            print(current_location)
             module_location = os.path.dirname(os.path.abspath(pywren_ibm_cloud.__file__))
             main_file = os.path.join(current_location, 'entry_point.py')
             pywren_zip.write(main_file, main_exec_file)
