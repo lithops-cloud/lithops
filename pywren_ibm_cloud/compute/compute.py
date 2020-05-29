@@ -70,3 +70,7 @@ class Compute:
         into the storage
         """
         return self.compute_handler.get_runtime_key(runtime_name, memory)
+
+    def __del__(self):
+        if hasattr(self.compute_handler, '__del__'):
+            self.compute_handler.__del__()

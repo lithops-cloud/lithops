@@ -349,6 +349,9 @@ class FunctionInvoker:
 
         return futures
 
+    def __del__(self):
+        print('+++++--')
+
 
 class JobMonitor:
 
