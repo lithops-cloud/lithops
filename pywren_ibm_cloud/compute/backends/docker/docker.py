@@ -13,7 +13,7 @@ from . import config as docker_config
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.config import TEMP, DOCKER_FOLDER
-from pywren_ibm_cloud.compute.backends.common.common_utils import create_function_handler_zip
+from pywren_ibm_cloud.compute.utils import create_function_handler_zip
 
 logging.getLogger('urllib3.connectionpool').setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
@@ -116,7 +116,7 @@ class DockerBackend:
         if docker_image_name == 'default':
             docker_image_name = self._get_default_runtime_image_name()
 
-        create_function_handler_zip(docker_config, '__main__.py', __file__)
+        create_function_handler_zip(docker_config.FH_ZIP_LOCATION, '__main__.py', __file__)
 
         if self._is_localhost:
             os.makedirs(DOCKER_FOLDER, exist_ok=True)

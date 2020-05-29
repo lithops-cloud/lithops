@@ -14,7 +14,7 @@ from kubernetes import client, config, watch
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.config import CACHE_DIR, load_yaml_config, dump_yaml_config
-from pywren_ibm_cloud.compute.backends.common.common_utils import create_function_handler_zip
+from pywren_ibm_cloud.compute.utils import create_function_handler_zip
 from . import config as kconfig
 
 urllib3.disable_warnings()
@@ -466,7 +466,7 @@ class KnativeServingBackend:
         if not result or result.group() != docker_image_name:
             raise Exception("Invalid docker image name: '.' or '_' characters are not allowed")
 
-        create_function_handler_zip(kconfig, 'pywrenproxy.py', __file__)
+        create_function_handler_zip(kconfig.FH_ZIP_LOCATION, 'pywrenproxy.py', __file__)
 
         if dockerfile:
             cmd = 'docker build -t {} -f {} .'.format(docker_image_name, dockerfile)
