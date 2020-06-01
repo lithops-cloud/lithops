@@ -325,7 +325,7 @@ class KnativeServingBackend:
         """
         Builds the default runtime
         """
-        if os.system('docker --version >/dev/null 2>&1') == 0:
+        if os.system('docker --version >{} 2>&1'.format(os.devnull)) == 0:
             # Build default runtime using local dokcer
             python_version = version_str(sys.version_info).replace('.', '')
             location = 'https://raw.githubusercontent.com/pywren/pywren-ibm-cloud/master/runtime/knative'
@@ -474,7 +474,7 @@ class KnativeServingBackend:
             cmd = 'docker build -t {} .'.format(docker_image_name)
 
         if not self.log_level:
-            cmd = cmd + " >/dev/null 2>&1"
+            cmd = cmd + " >{} 2>&1".format(os.devnull)
 
         res = os.system(cmd)
         if res != 0:
@@ -484,7 +484,7 @@ class KnativeServingBackend:
 
         cmd = 'docker push {}'.format(docker_image_name)
         if not self.log_level:
-            cmd = cmd + " >/dev/null 2>&1"
+            cmd = cmd + " >{} 2>&1".format(os.devnull)
         res = os.system(cmd)
         if res != 0:
             raise Exception('There was an error pushing the runtime to the container registry')
