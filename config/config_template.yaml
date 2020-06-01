@@ -35,6 +35,11 @@ ibm_cos:
    #docker_user     : <DOCKER_HUB_USERNAME>
    #docker_token    : <DOCKER_HUB_TOKEN>
 
+#docker:
+    #host: <HOST_IP>
+    #ssh_user: <SSH_USER>
+    #ssh_password: <SSH_PASSWORD>
+
 #openwhisk:
     #endpoint    : <OW_ENDPOINT>
     #namespace   : <NAMESPACE>

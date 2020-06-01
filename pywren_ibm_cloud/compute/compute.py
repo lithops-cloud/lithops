@@ -15,6 +15,7 @@ class Compute:
         self.log_level = os.getenv('PYWREN_LOGLEVEL')
         self.config = compute_config
         self.backend = self.config['backend']
+        self.compute_handler = None
 
         try:
             module_location = 'pywren_ibm_cloud.compute.backends.{}'.format(self.backend)
@@ -72,5 +73,5 @@ class Compute:
         return self.compute_handler.get_runtime_key(runtime_name, memory)
 
     def __del__(self):
-        if hasattr(self.compute_handler, '__del__'):
+        if self.compute_handler and hasattr(self.compute_handler, '__del__'):
             self.compute_handler.__del__()

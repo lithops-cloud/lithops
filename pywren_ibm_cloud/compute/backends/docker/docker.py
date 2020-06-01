@@ -5,14 +5,15 @@ import time
 import zipfile
 import docker
 import logging
+import paramiko
 import requests
 import subprocess
 import multiprocessing
 
 from . import config as docker_config
-from pywren_ibm_cloud.utils import version_str
+from pywren_ibm_cloud.utils import version_str, is_unix_system
 from pywren_ibm_cloud.version import __version__
-from pywren_ibm_cloud.config import TEMP, DOCKER_FOLDER
+from pywren_ibm_cloud.config import TEMP, DOCKER_BASE_FOLDER, DOCKER_FOLDER
 from pywren_ibm_cloud.compute.utils import create_function_handler_zip
 
 logging.getLogger('urllib3.connectionpool').setLevel(logging.CRITICAL)
@@ -30,8 +31,14 @@ class DockerBackend:
         self.name = 'docker'
         self.host = docker_config['host']
         self.queue = multiprocessing.Queue()
+        self.docker_client = None
         self._is_localhost = self.host in ['127.0.0.1', 'localhost']
-        self.docker_client = docker.from_env()
+
+        if self._is_localhost:
+            try:
+                self.docker_client = docker.from_env()
+            except Exception:
+                pass
 
         log_msg = 'PyWren v{} init for Docker - Host: {}'.format(__version__, self.host)
         logger.info(log_msg)
@@ -55,34 +62,87 @@ class DockerBackend:
     def _delete_function_handler_zip(self):
         os.remove(docker_config.FH_ZIP_LOCATION)
 
+    def _ssh_run_remote_command(self, cmd):
+        ssh_client = paramiko.SSHClient()
+        ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh_client.connect(hostname=self.host,
+                           username=self.config['ssh_user'],
+                           password=self.config['ssh_password'])
+        stdin, stdout, stderr = ssh_client.exec_command(cmd)
+
+        out = stdout.read().decode().strip()
+        error = stderr.read().decode().strip()
+        if self.log_level:
+            logger.info(out)
+        if error:
+            raise Exception('There was an error pulling the runtime: {}'.format(error))
+        ssh_client.close()
+
+        return out
+
+    def _ssh_upload_file(self, src, dst):
+        ssh_client = paramiko.SSHClient()
+        ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh_client.connect(hostname=self.host,
+                           username=self.config['ssh_user'],
+                           password=self.config['ssh_password'])
+        ftp_client = ssh_client.open_sftp()
+        ftp_client.put(src, dst)
+        ftp_client.close()
+        ssh_client.close()
+
     def _init_runtime(self, docker_image_name):
         name = self._format_runtime_name(docker_image_name)
-        uid_cmd = "id -u $USER"
 
         if self._is_localhost:
-            running_containers = self.docker_client.containers.list(filters={'name': 'pywren'})
-            running_runtimes = [c.name for c in running_containers]
-            uid = subprocess.check_output(uid_cmd, shell=True).decode().strip()
-            if name not in running_runtimes:
-                self.docker_client.containers.run(docker_image_name, entrypoint='python',
-                                                  command='{}/__main__.py'.format(DOCKER_FOLDER),
-                                                  volumes=['{}:/tmp'.format(TEMP)],
-                                                  detach=True, auto_remove=True,
-                                                  user=uid, name=name,
-                                                  ports={'8080/tcp': docker_config.PYWREN_SERVER_PORT})
-                time.sleep(5)
+            if is_unix_system():
+                uid_cmd = "id -u $USER"
+                uid = subprocess.check_output(uid_cmd, shell=True).decode().strip()
+
+            if self.docker_client:
+                running_containers = self.docker_client.containers.list(filters={'name': 'pywren'})
+                running_runtimes = [c.name for c in running_containers]
+
+                if name not in running_runtimes:
+                    self.docker_client.containers.run(docker_image_name, entrypoint='python',
+                                                      command='/tmp/{}/__main__.py'.format(DOCKER_BASE_FOLDER),
+                                                      volumes=['{}:/tmp'.format(TEMP)],
+                                                      detach=True, auto_remove=True,
+                                                      user=uid, name=name,
+                                                      ports={'8080/tcp': docker_config.PYWREN_SERVER_PORT})
+                    time.sleep(5)
+            else:
+                running_runtimes_cmd = "docker ps --format '{{.Names}}' -f name=pywren"
+                running_runtimes = subprocess.run(running_runtimes_cmd, shell=True, stdout=subprocess.PIPE).stdout.decode()
+                if name not in running_runtimes:
+                    if is_unix_system():
+                        cmd = ('docker run -d --name {} --user {} -v {}:/tmp -p 8080:{}'
+                               ' --entrypoint "python" {} /tmp/{}/__main__.py'
+                               .format(name, uid, TEMP, docker_config.PYWREN_SERVER_PORT,
+                                       docker_image_name, DOCKER_BASE_FOLDER))
+                    else:
+                        cmd = ('docker run -d --name {}  -v {}:/tmp -p 8080:{}'
+                               ' --entrypoint "python" {} /tmp/{}/__main__.py'
+                               .format(name,  TEMP, docker_config.PYWREN_SERVER_PORT,
+                                       docker_image_name, DOCKER_BASE_FOLDER))
+
+                    if not self.log_level:
+                        cmd = cmd + " >{} 2>&1".format(os.devnull)
+                    res = os.system(cmd)
+                    if res != 0:
+                        raise Exception('There was an error starting the runtime')
+                    time.sleep(5)
 
         else:
             running_runtimes_cmd = "docker ps --format '{{.Names}}' -f name=pywren"
-            running_runtimes = subprocess.run(running_runtimes_cmd, shell=True, stdout=subprocess.PIPE).stdout.decode()
-            cmd = ('docker run -d --name pywren_{} --user {} -v /tmp:/tmp -p 8080:8080'
-                   ' --entrypoint "python" {} /tmp/pywren.docker/__main__.py >/dev/null 2>&1'
-                   .format(name, uid, docker_image_name))
-            res = os.system(cmd)
-            if res != 0:
-                raise Exception('There was an error starting the runtime')
-            time.sleep(5)
-            pass
+            running_runtimes = self._ssh_run_remote_command(running_runtimes_cmd)
+            cmd = ('docker run -d --name {} -v /tmp:/tmp -p 8080:{}'
+                   ' --entrypoint "python" {} /tmp/{}/__main__.py'
+                   .format(name, docker_config.PYWREN_SERVER_PORT,
+                           docker_image_name, DOCKER_BASE_FOLDER))
+            if name not in running_runtimes:
+                self._ssh_run_remote_command(cmd)
+                time.sleep(5)
 
     def _generate_runtime_meta(self, docker_image_name):
         """
@@ -120,18 +180,29 @@ class DockerBackend:
 
         if self._is_localhost:
             os.makedirs(DOCKER_FOLDER, exist_ok=True)
-
             archive = zipfile.ZipFile(docker_config.FH_ZIP_LOCATION)
             for file in archive.namelist():
                 archive.extract(file, DOCKER_FOLDER)
+            archive.close()
 
-            self.docker_client.images.pull(docker_image_name)
-
+            if self.docker_client:
+                self.docker_client.images.pull(docker_image_name)
+            else:
+                cmd = 'docker pull {}'.format(docker_image_name)
+                if not self.log_level:
+                    cmd = cmd + " >{} 2>&1".format(os.devnull)
+                res = os.system(cmd)
+                if res != 0:
+                    raise Exception('There was an error pulling the runtime')
         else:
-            cmd = 'docker pull {} >/dev/null 2>&1'.format(docker_image_name)
-            res = os.system(cmd)
-            if res != 0:
-                raise Exception('There was an error pulling the runtime')
+            self._ssh_upload_file(docker_config.FH_ZIP_LOCATION, '/tmp/pywren_docker.zip')
+            cmd = 'rm -R -f /tmp/{} '.format(DOCKER_BASE_FOLDER)
+            cmd += '&& mkdir -p /tmp/{} '.format(DOCKER_BASE_FOLDER)
+            cmd += '&& unzip /tmp/pywren_docker.zip -d /tmp/{} '.format(DOCKER_BASE_FOLDER)
+            cmd += '&& rm /tmp/pywren_docker.zip'
+            self._ssh_run_remote_command(cmd)
+            cmd = 'docker pull {}'.format(docker_image_name)
+            self._ssh_run_remote_command(cmd)
 
         self._delete_function_handler_zip()
         runtime_meta = self._generate_runtime_meta(docker_image_name)
@@ -154,26 +225,41 @@ class DockerBackend:
         logger.debug('Deleting {} runtime'.format(docker_image_name))
         name = self._format_runtime_name(docker_image_name)
         if self._is_localhost:
-            self.docker_client.containers.stop(name, force=True)
+            if self.docker_client:
+                self.docker_client.containers.stop(name, force=True)
+            else:
+                cmd = 'docker rm -f {}'.format(name)
+                if not self.log_level:
+                    cmd = cmd + " >{} 2>&1".format(os.devnull)
+                os.system(cmd)
         else:
-            cmd = 'docker rm -f {} >/dev/null 2>&1'.format(name)
-            os.system(cmd)
+            cmd = 'docker rm -f {}'.format(name)
+            self._ssh_run_remote_command(cmd)
 
     def delete_all_runtimes(self):
         """
         Delete all created runtimes
         """
         if self._is_localhost:
-            running_containers = self.docker_client.containers.list(filters={'name': 'pywren'})
-            for runtime in running_containers:
-                logger.debug('Deleting {} runtime'.format(runtime.name))
-                runtime.stop()
+            if self.docker_client:
+                running_containers = self.docker_client.containers.list(filters={'name': 'pywren'})
+                for runtime in running_containers:
+                    logger.debug('Deleting {} runtime'.format(runtime.name))
+                    runtime.stop()
+            else:
+                list_runtimes_cmd = "docker ps -a -f name=pywren | awk '{print $NF}' | tail -n +2"
+                running_containers = subprocess.check_output(list_runtimes_cmd, shell=True).decode().strip()
+                for name in running_containers.splitlines():
+                    cmd = 'docker rm -f {}'.format(name)
+                    if not self.log_level:
+                        cmd = cmd + " >{} 2>&1".format(os.devnull)
+                    os.system(cmd)
         else:
             list_runtimes_cmd = "docker ps -a -f name=pywren | awk '{print $NF}' | tail -n +2"
-            running_containers = subprocess.check_output(list_runtimes_cmd, shell=True).decode().strip()
+            running_containers = self._ssh_run_remote_command(list_runtimes_cmd)
             for name in running_containers.splitlines():
-                cmd = 'docker rm -f {} >/dev/null 2>&1'.format(name)
-                os.system(cmd)
+                cmd = 'docker rm -f {}'.format(name)
+                self._ssh_run_remote_command(cmd)
 
     def list_runtimes(self, docker_image_name='all'):
         """
@@ -186,11 +272,16 @@ class DockerBackend:
         runtimes = []
 
         if self._is_localhost:
-            running_containers = self.docker_client.containers.list(filters={'name': 'pywren'})
-            running_runtimes = [c.name for c in running_containers]
+            if self.docker_client:
+                running_containers = self.docker_client.containers.list(filters={'name': 'pywren'})
+                running_runtimes = [c.name for c in running_containers]
+            else:
+                list_runtimes_cmd = "docker ps -a -f name=pywren | awk '{print $NF}' | tail -n +2"
+                running_containers = subprocess.check_output(list_runtimes_cmd, shell=True).decode().strip()
+                running_runtimes = running_containers.splitlines()
         else:
             list_runtimes_cmd = "docker ps -a -f name=pywren | awk '{print $NF}' | tail -n +2"
-            running_containers = subprocess.check_output(list_runtimes_cmd, shell=True).decode().strip()
+            running_containers = self._ssh_run_remote_command(list_runtimes_cmd)
             running_runtimes = running_containers.splitlines()
 
         for runtime in running_runtimes:
