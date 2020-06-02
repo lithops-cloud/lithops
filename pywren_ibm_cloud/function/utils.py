@@ -1,7 +1,10 @@
 import os
 import subprocess
-from pywren_ibm_cloud.libs import ps_mem
-from pywren_ibm_cloud.utils import sizeof_fmt
+from pywren_ibm_cloud.utils import sizeof_fmt, is_unix_system
+try:
+    from pywren_ibm_cloud.libs import ps_mem
+except Exception:
+    pass
 
 
 def get_memory_usage(formatted=True):
@@ -9,6 +12,8 @@ def get_memory_usage(formatted=True):
     Gets the current memory usage of the runtime.
     To be used only in the action code.
     """
+    if not is_unix_system():
+        return
     split_args = False
     pids_to_show = None
     discriminate_by_pid = False

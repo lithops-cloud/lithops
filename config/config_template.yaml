@@ -35,6 +35,11 @@ ibm_cos:
    #docker_user     : <DOCKER_HUB_USERNAME>
    #docker_token    : <DOCKER_HUB_TOKEN>
 
+#docker:
+    #host: <HOST_IP>
+    #ssh_user: <SSH_USER>
+    #ssh_password: <SSH_PASSWORD>
+
 #openwhisk:
     #endpoint    : <OW_ENDPOINT>
     #namespace   : <NAMESPACE>
@@ -53,3 +58,9 @@ ibm_cos:
     #password   : <PASSWORD>
     #endpoint   : <INFINISPAN_SERVER_URL:PORT>
     #cache_manager : <CACHE MANAGER> # Optional. 'default' in default value
+  
+#ceph:
+    #endpoint: <ENDPOINT_URL>
+    #access_key: <ACCESS_KEY>
+    #secret_key: <ACCESS_KEY>
+    

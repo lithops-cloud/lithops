@@ -3,9 +3,10 @@ import sys
 import uuid
 import pkgutil
 import logging
-import multiprocessing
+from multiprocessing import Process, Queue
+from threading import Thread
 from pywren_ibm_cloud.version import __version__
-from pywren_ibm_cloud.utils import version_str
+from pywren_ibm_cloud.utils import version_str, is_unix_system
 from pywren_ibm_cloud.function import function_handler
 from pywren_ibm_cloud.config import STORAGE_FOLDER, LOGS_PREFIX
 
@@ -22,23 +23,32 @@ class LocalhostBackend:
         self.log_level = os.getenv('PYWREN_LOGLEVEL')
         self.config = local_config
         self.name = 'local'
-        self.queue = multiprocessing.Queue()
+        self.alive = True
+        self.queue = Queue()
         self.logs_dir = os.path.join(STORAGE_FOLDER, LOGS_PREFIX)
         self.num_workers = self.config['workers']
 
         self.workers = []
-        for worker_id in range(self.num_workers):
-            p = multiprocessing.Process(target=self._process_runner, args=(worker_id,))
-            self.workers.append(p)
-            p.daemon = True
-            p.start()
+
+        if not is_unix_system():
+            for worker_id in range(self.num_workers):
+                p = Thread(target=self._process_runner, args=(worker_id,))
+                self.workers.append(p)
+                p.daemon = True
+                p.start()
+        else:
+            for worker_id in range(self.num_workers):
+                p = Process(target=self._process_runner, args=(worker_id,))
+                self.workers.append(p)
+                p.daemon = True
+                p.start()
 
         log_msg = 'PyWren v{} init for Localhost - Total workers: {}'.format(__version__, self.num_workers)
         logger.info(log_msg)
         if not self.log_level:
             print(log_msg)
 
-    def _local_handler(self, event, original_dir):
+    def _local_handler(self, event):
         """
         Handler to run local functions.
         """
@@ -56,13 +66,15 @@ class LocalhostBackend:
 
     def _process_runner(self, worker_id):
         logger.debug('Localhost worker process {} started'.format(worker_id))
-        while True:
+        while self.alive:
             try:
                 event = self.queue.get(block=True)
-                self._local_handler(event, os.getcwd())
+                if event is None:
+                    break
+                self._local_handler(event)
             except KeyboardInterrupt:
                 break
-        logger.debug('Worker process {} stopped'.format(worker_id))
+        logger.debug('Localhost worker process {} stopped'.format(worker_id))
 
     def _generate_python_meta(self):
         """
@@ -133,5 +145,7 @@ class LocalhostBackend:
         return os.path.join(self.name, runtime_name)
 
     def __del__(self):
-        for worker in self.workers:
-            worker.terminate()
+        if self.alive:
+            self.alive = False
+            for worker in self.workers:
+                self.queue.put(None)

@@ -102,13 +102,11 @@ pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
 |pywren| runtime_memory | 256 | no | Default runtime memory (in MB) |
 |pywren| data_limit | 4 | no | Max (iter)data size (in MB). Set to False for unlimited size |
 
-
 ### Summary of configuration keys for IBM Cloud:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |ibm | iam_api_key | |no | IBM Cloud IAM API key to authenticate against IBM COS and IBM Cloud Functions. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
-
 
 ### Summary of configuration keys for IBM Cloud Functions:
 
@@ -118,7 +116,6 @@ pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
 |ibm_cf| namespace | |yes | Value of CURRENT NAMESPACE from [here](https://cloud.ibm.com/functions/namespace-settings) |
 |ibm_cf| api_key |  | no | **Mandatory** if using Cloud Foundry-based namespace. Value of 'KEY' from [here](https://cloud.ibm.com/functions/namespace-settings)|
 |ibm_cf| namespace_id |  |no | **Mandatory** if using IAM-based namespace with IAM API Key. Value of 'GUID' from [here](https://cloud.ibm.com/functions/namespace-settings)|
-
 
 ### Summary of configuration keys for IBM Cloud Object Storage:
 
@@ -137,7 +134,6 @@ pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
 |---|---|---|---|---|
 | rabbitmq |amqp_url | |no | AMQP URL from RabbitMQ service. Make sure to use amqp:// prefix |
 
-
 ### Summary of configuration keys for Knative:
 
 |Group|Key|Default|Mandatory|Additional info|
@@ -155,3 +151,11 @@ pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
 |docker | host | |no | Host IP |
 |docker | ssh_user | |no | ssh username |
 |docker | ssh_password | |no | ssh password|
+
+### Summary of configuration keys for Ceph:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|ceph | endpoint | |yes | Endpoint (host:port) to your Ceph installation account.
+|ceph | access_key | |yes | HMAC Credentials |
+|ceph | secret_key | |yes | HMAC Credentials |

@@ -189,8 +189,10 @@ def function_handler(event):
     finally:
         call_status.response['end_tstamp'] = time.time()
         call_status.send('__end__')
+
         for key in extra_env:
-            del os.environ[key]
+            os.environ.pop(key)
+
         logger.info("Finished")
 
 

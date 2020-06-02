@@ -14,7 +14,7 @@ from kubernetes import client, config, watch
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.config import CACHE_DIR, load_yaml_config, dump_yaml_config
-from pywren_ibm_cloud.compute.backends.common.common_utils import create_function_handler_zip
+from pywren_ibm_cloud.compute.utils import create_function_handler_zip
 from . import config as kconfig
 
 urllib3.disable_warnings()
@@ -325,7 +325,7 @@ class KnativeServingBackend:
         """
         Builds the default runtime
         """
-        if os.system('docker --version >/dev/null 2>&1') == 0:
+        if os.system('docker --version >{} 2>&1'.format(os.devnull)) == 0:
             # Build default runtime using local dokcer
             python_version = version_str(sys.version_info).replace('.', '')
             location = 'https://raw.githubusercontent.com/pywren/pywren-ibm-cloud/master/runtime/knative'
@@ -466,7 +466,7 @@ class KnativeServingBackend:
         if not result or result.group() != docker_image_name:
             raise Exception("Invalid docker image name: '.' or '_' characters are not allowed")
 
-        create_function_handler_zip(kconfig, 'pywrenproxy.py', __file__)
+        create_function_handler_zip(kconfig.FH_ZIP_LOCATION, 'pywrenproxy.py', __file__)
 
         if dockerfile:
             cmd = 'docker build -t {} -f {} .'.format(docker_image_name, dockerfile)
@@ -474,7 +474,7 @@ class KnativeServingBackend:
             cmd = 'docker build -t {} .'.format(docker_image_name)
 
         if not self.log_level:
-            cmd = cmd + " >/dev/null 2>&1"
+            cmd = cmd + " >{} 2>&1".format(os.devnull)
 
         res = os.system(cmd)
         if res != 0:
@@ -484,7 +484,7 @@ class KnativeServingBackend:
 
         cmd = 'docker push {}'.format(docker_image_name)
         if not self.log_level:
-            cmd = cmd + " >/dev/null 2>&1"
+            cmd = cmd + " >{} 2>&1".format(os.devnull)
         res = os.system(cmd)
         if res != 0:
             raise Exception('There was an error pushing the runtime to the container registry')

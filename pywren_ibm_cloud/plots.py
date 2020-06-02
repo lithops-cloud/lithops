@@ -93,7 +93,7 @@ def create_timeline(fs, dst):
         dst = os.path.join(os.getcwd(), 'plots', '{}_{}'.format(int(time.time()), 'timeline.png'))
     else:
         dst = os.path.expanduser(dst) if '~' in dst else dst
-        dst = '{}_{}'.format(dst, 'timeline.png')
+        dst = '{}_{}'.format(os.path.realpath(dst), 'timeline.png')
 
     fig.savefig(dst)
 
@@ -168,7 +168,7 @@ def create_histogram(fs, dst):
         dst = os.path.join(os.getcwd(), 'plots', '{}_{}'.format(int(time.time()), 'histogram.png'))
     else:
         dst = os.path.expanduser(dst) if '~' in dst else dst
-        dst = '{}_{}'.format(dst, 'histogram.png')
+        dst = '{}_{}'.format(os.path.realpath(dst), 'histogram.png')
 
     fig.savefig(dst)
     pylab.close(fig)
