@@ -406,7 +406,6 @@ class FunctionExecutor:
 
         if len(result) == 1 and self.last_call != 'map':
             return result[0]
-
         return result
 
     def plot(self, fs=None, dst=None):
@@ -442,6 +441,7 @@ class FunctionExecutor:
         Deletes all the files from COS. These files include the function,
         the data serialization and the function invocation results.
         """
+
         if cs:
             storage_config = self.internal_storage.get_storage_config()
             delete_cloudobject(list(cs), storage_config)
@@ -457,19 +457,19 @@ class FunctionExecutor:
             return
 
         if fs or force:
-            present_jobs = {(f.executor_id, f.job_id) for f in futures
+            present_jobs = {(f.executor_id, f.job_id, f.activation_id) for f in futures
                             if f.executor_id.count('/') == 1}
             jobs_to_clean = present_jobs
         else:
-            present_jobs = {(f.executor_id, f.job_id) for f in futures
+            present_jobs = {(f.executor_id, f.job_id, f.activation_id) for f in futures
                             if f.done and f.executor_id.count('/') == 1}
             jobs_to_clean = present_jobs - self.cleaned_jobs
 
         if jobs_to_clean:
-            msg = "ExecutorID {} - Cleaning temporary data".format(self.executor_id)
+            msg = "ExecutorID {} - Clean temporary data".format(self.executor_id)
             print(msg) if not self.log_level and log else logger.info(msg)
             storage_config = self.internal_storage.get_storage_config()
-            clean_job(jobs_to_clean, storage_config, clean_cloudobjects=cloudobjects)
+            clean_job(jobs_to_clean, storage_config, self.config, clean_cloudobjects=cloudobjects)
             self.cleaned_jobs.update(jobs_to_clean)
 
     def __exit__(self, exc_type, exc_value, traceback):

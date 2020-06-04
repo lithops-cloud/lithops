@@ -14,6 +14,10 @@ pywren:
 #ibm:
    #iam_api_key: <IAM KEY>
 
+betabs:
+    kubectl_config: <Location for kubectl yaml file>
+
+
 ibm_cf:
     endpoint    : <REGION_ENDPOINT>
     namespace   : <NAMESPACE>

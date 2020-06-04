@@ -25,7 +25,7 @@ class DockerBackend:
     A wrap-up around Docker APIs.
     """
 
-    def __init__(self, docker_config):
+    def __init__(self, docker_config, storage_config):
         self.log_level = os.getenv('PYWREN_LOGLEVEL')
         self.config = docker_config
         self.name = 'docker'
@@ -302,3 +302,6 @@ class DockerBackend:
         runtime_key = os.path.join(self.name, self.host, runtime_name)
 
         return runtime_key
+
+    def cleanup(self, activation_id):
+        pass;

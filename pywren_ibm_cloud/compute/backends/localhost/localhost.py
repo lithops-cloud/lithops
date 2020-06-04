@@ -19,7 +19,7 @@ class LocalhostBackend:
     A wrap-up around Localhost multiprocessing APIs.
     """
 
-    def __init__(self, local_config):
+    def __init__(self, local_config, storage_config):
         self.log_level = os.getenv('PYWREN_LOGLEVEL')
         self.config = local_config
         self.name = 'local'
@@ -143,6 +143,9 @@ class LocalhostBackend:
         in order to know what runtimes are installed and what not.
         """
         return os.path.join(self.name, runtime_name)
+
+    def cleanup(self, activation_id):
+        pass;
 
     def __del__(self):
         if self.alive:

@@ -29,7 +29,7 @@ class KnativeServingBackend:
     A wrap-up around Knative Serving APIs.
     """
 
-    def __init__(self, knative_config):
+    def __init__(self, knative_config, storage_config):
         self.log_level = os.getenv('PYWREN_LOGLEVEL')
         self.name = 'knative'
         self.knative_config = knative_config
@@ -609,3 +609,6 @@ class KnativeServingBackend:
         runtime_key = os.path.join(self.cluster, self.namespace, service_name)
 
         return runtime_key
+
+    def cleanup(self, activation_id):
+        pass;

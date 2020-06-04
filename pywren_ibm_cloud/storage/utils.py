@@ -115,6 +115,16 @@ def delete_cloudobject(co_to_clean, storage_config):
     cmdstr = '{} -c "{}"'.format(sys.executable, textwrap.dedent(script))
     os.popen(cmdstr)
 
+def create_runtime_meta_key(prefix, activation_id):
+    """
+    Create function key
+    :param prefix: prefix
+    :param executor_id: callset's ID
+    :return: function key
+    """
+    func_key = '/'.join([prefix, activation_id, 'runtime_metadata'])
+    return func_key
+
 
 def create_func_key(prefix, executor_id, job_id):
     """

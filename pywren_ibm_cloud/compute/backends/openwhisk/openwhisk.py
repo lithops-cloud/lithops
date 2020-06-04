@@ -17,7 +17,7 @@ class OpenWhiskBackend:
     A wrap-up around OpenWhisk Functions backend.
     """
 
-    def __init__(self, ow_config):
+    def __init__(self, ow_config, storage_config):
         logger.debug("Creating OpenWhisk client")
         self.log_level = os.getenv('PYWREN_LOGLEVEL')
         self.name = 'openwhisk'
@@ -171,6 +171,9 @@ class OpenWhiskBackend:
         runtime_key = os.path.join(self.name, self.namespace, action_name)
 
         return runtime_key
+
+    def cleanup(self, activation_id):
+        pass;
 
     def _generate_runtime_meta(self, docker_image_name):
         """

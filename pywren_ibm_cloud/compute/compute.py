@@ -11,7 +11,7 @@ class Compute:
     underlying compute backend without exposing the implementation details.
     """
 
-    def __init__(self, compute_config):
+    def __init__(self, compute_config, storage_config):
         self.log_level = os.getenv('PYWREN_LOGLEVEL')
         self.config = compute_config
         self.backend = self.config['backend']
@@ -21,7 +21,7 @@ class Compute:
             module_location = 'pywren_ibm_cloud.compute.backends.{}'.format(self.backend)
             cb_module = importlib.import_module(module_location)
             ComputeBackend = getattr(cb_module, 'ComputeBackend')
-            self.compute_handler = ComputeBackend(self.config[self.backend])
+            self.compute_handler = ComputeBackend(self.config[self.backend], storage_config)
         except Exception as e:
             logger.error("There was en error trying to create the '{}' compute backend".format(e))
             raise e
@@ -71,6 +71,12 @@ class Compute:
         into the storage
         """
         return self.compute_handler.get_runtime_key(runtime_name, memory)
+
+        """
+        Compute engine may need to perform cleanup for completed invocations
+        """
+    def cleanup(self, activation_id):
+        return self.compute_handler.cleanup(activation_id)
 
     def __del__(self):
         if self.compute_handler and hasattr(self.compute_handler, '__del__'):

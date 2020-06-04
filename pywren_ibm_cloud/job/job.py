@@ -1,5 +1,6 @@
 import os
 import sys
+import subprocess
 import time
 import textwrap
 import pickle
@@ -214,7 +215,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     return job_description
 
 
-def clean_job(jobs_to_clean, storage_config, clean_cloudobjects):
+def clean_job(jobs_to_clean, storage_config, config, clean_cloudobjects):
     """
     Clean the jobs in a separate process
     """
@@ -224,6 +225,7 @@ def clean_job(jobs_to_clean, storage_config, clean_cloudobjects):
 
     script = """
     from pywren_ibm_cloud.storage import InternalStorage
+    from pywren_ibm_cloud.invoker import FunctionInvoker
     from pywren_ibm_cloud.storage.utils import clean_bucket
     from pywren_ibm_cloud.config import JOBS_PREFIX, TEMP_PREFIX
     import pickle
@@ -232,6 +234,7 @@ def clean_job(jobs_to_clean, storage_config, clean_cloudobjects):
     storage_config = {}
     clean_cloudobjects = {}
     jobs_path = '{}'
+    config = {}
     bucket = storage_config['bucket']
 
     with open(jobs_path, 'rb') as pk:
@@ -240,16 +243,18 @@ def clean_job(jobs_to_clean, storage_config, clean_cloudobjects):
     internal_storage = InternalStorage(storage_config)
     sh = internal_storage.storage_handler
 
-    for executor_id, job_id in jobs_to_clean:
+    for executor_id, job_id, activation_id in jobs_to_clean:
         prefix = '/'.join([JOBS_PREFIX, executor_id, job_id])
         clean_bucket(sh, bucket, prefix, log=False)
         if clean_cloudobjects:
             prefix = '/'.join([TEMP_PREFIX, executor_id, job_id])
             clean_bucket(sh, bucket, prefix, log=False)
+        invoker = FunctionInvoker(config, executor_id, internal_storage)
+        invoker.cleanup(activation_id)
 
     if os.path.exists(jobs_path):
         os.remove(jobs_path)
-    """.format(storage_config, clean_cloudobjects, jobs_path)
+    """.format(storage_config, clean_cloudobjects, jobs_path, config)
 
     cmdstr = '{} -c "{}"'.format(sys.executable, textwrap.dedent(script))
-    os.popen(cmdstr)
+    subprocess.Popen(cmdstr, shell=True)

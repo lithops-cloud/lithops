@@ -60,8 +60,8 @@ class FunctionInvoker:
         self.config = config
         self.num_invokers = num_invokers
         self.log_level = log_level
-        storage_config = extract_storage_config(self.config)
-        self.internal_storage = InternalStorage(storage_config)
+        self.storage_config = extract_storage_config(self.config)
+        self.internal_storage = InternalStorage(self.storage_config)
         compute_config = extract_compute_config(self.config)
 
         self.remote_invoker = self.config['pywren'].get('remote_invoker', False)
@@ -79,7 +79,7 @@ class FunctionInvoker:
             for region in regions:
                 new_compute_config = compute_config.copy()
                 new_compute_config[cb]['region'] = region
-                compute_handler = Compute(new_compute_config)
+                compute_handler = Compute(new_compute_config, self.internal_storage)
                 self.compute_handlers.append(compute_handler)
         else:
             if cb == 'localhost':
@@ -92,11 +92,11 @@ class FunctionInvoker:
                     self.compute_handlers.append(compute_handler)
                 else:
                     logger.info('Starting {} compute handler'.format(cb))
-                    compute_handler = Compute(compute_config)
+                    compute_handler = Compute(compute_config, self.internal_storage)
                     CBH[cb] = compute_handler
                     self.compute_handlers.append(compute_handler)
             else:
-                compute_handler = Compute(compute_config)
+                compute_handler = Compute(compute_config, self.internal_storage)
                 self.compute_handlers.append(compute_handler)
 
         self.token_bucket_q = Queue()
