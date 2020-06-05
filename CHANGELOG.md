@@ -14,7 +14,7 @@
 
 ### Changed
 - [PyWren] Moved all stats from 'f._call_status' to a new 'f.stats' variable
-- [PyWren] Bump httplib2 from 0.13.0 to 0.18.0 in /runtime/ibm_cf …
+- [PyWren] Bump httplib2 from 0.13.0 to 0.18.0
 - [Localhost] Improved localhost storage backend
 
 ### Fixed
