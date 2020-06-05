@@ -248,8 +248,8 @@ def format_data(iterdata, extra_args):
                 # kwargs
                 if type(extra_args) is not dict:
                     raise Exception('extra_args must contain kwargs in a dictionary')
-                new_iterdata.append(data_i.extend(extra_args))
-
+                data_i.update(extra_args)
+                new_iterdata.append(data_i)
             else:
                 new_iterdata.append((data_i, *extra_args))
         data = new_iterdata

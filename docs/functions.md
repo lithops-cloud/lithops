@@ -210,7 +210,9 @@ Sometimes, functions have common parameters for all the invocations. In this cas
     print(pw.get_result())
     ```
 
-- Using `extra_params` parameter in the `map()` or `map_reduce()` calls:
+- Using `extra_args` parameter in the `map()` or `map_reduce()` calls. `extra_args` must be always a list or a dict, depending whether `iteradata` contains *args* or *kwargs*. 
+
+    If `iterdata` is a list:
 
     ```python
     import pywren_ibm_cloud as pywren
@@ -224,7 +226,7 @@ Sometimes, functions have common parameters for all the invocations. In this cas
     print(pw.get_result())
     ```
     
-    `extra_args` must be always a list or a dict, depending whether iteradata contains *args* or *kwargs*. The previous example is equivalent to the next:
+    The previous example is equivalent to the next:
     
     ```python
     import pywren_ibm_cloud as pywren
@@ -239,6 +241,44 @@ Sometimes, functions have common parameters for all the invocations. In this cas
            ]  # End list of parameters for PyWren
     pw = pywren.ibm_cf_executor()
     pw.map(sum_x_y, args)
+    print(pw.get_result())
+    ```
+    
+    If `iterdata` is a dict:
+
+    ```python
+    import pywren_ibm_cloud as pywren
+    
+    kwargs = [  # Init list of parameters for PyWren
+              {'x': 1},  # Kwargs for function1
+              {'x': 3},  # Kwargs for function2
+              {'x': 5},  # Kwargs for function3
+             ]  # End list of parameters for PyWren
+    
+    def my_function(x, y):
+        return x + y
+    
+    pw = pywren.ibm_cf_executor()
+    pw.map(my_function, kwargs, extra_args={'y': 3})
+    print(pw.get_result())
+    ```
+    
+    The previous example is equivalent to the next:
+    
+    ```python
+    import pywren_ibm_cloud as pywren
+    
+    kwargs = [  # Init list of parameters for PyWren
+              {'x': 1, 'y': 3},  # Kwargs for function1
+              {'x': 3, 'y': 3},  # Kwargs for function2
+              {'x': 5, 'y': 3},  # Kwargs for function3
+             ]  # End list of parameters for PyWren
+    
+    def my_function(x, y):
+        return x + y
+    
+    pw = pywren.ibm_cf_executor()
+    pw.map(my_function, kwargs)
     print(pw.get_result())
     ```
 
