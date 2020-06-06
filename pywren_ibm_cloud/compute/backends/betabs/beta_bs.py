@@ -141,7 +141,7 @@ class BetaBSBackend:
         """
         
         activation_id = str(uuid.uuid4()).replace('-', '')[:12]
-        payload['activation_id'] = 'pywren-' + activation_id + "-" + payload['call_id']
+        payload['activation_id'] = activation_id + payload['call_id']
 
         job_desc = betabs_config.JOB_RUN_RESOURCE
         job_desc['apiVersion'] = self.beta_bs_config['api_version']
