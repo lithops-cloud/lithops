@@ -7,6 +7,7 @@ import urllib3
 import copy
 from . import config as betabs_config
 from kubernetes import client, config
+from kubernetes.client.rest import ApiException
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import is_pywren_function
@@ -190,14 +191,19 @@ class BetaBSBackend:
 
     def cleanup(self, activation_id):
         logger.debug("Cleanup for activation_id {}".format(activation_id))
-        res = self.capi.delete_namespaced_custom_object(
-            group=self.beta_bs_config['group'],
-            version=self.beta_bs_config['version'],
-            name=activation_id,
-            namespace=self.namespace,
-            plural="jobruns",
-            body=client.V1DeleteOptions(),
-        )
+        try:
+            res = self.capi.delete_namespaced_custom_object(
+                group=self.beta_bs_config['group'],
+                version=self.beta_bs_config['version'],
+                name=activation_id,
+                namespace=self.namespace,
+                plural="jobruns",
+                body=client.V1DeleteOptions(),
+            )
+        except ApiException as e:
+            # swallow error
+            if (e.status == 404):
+                logger.info("Cleanup - job name {} was not found (404)".format(activation_id))
 
     
     def _format_service_name(self, runtime_name, runtime_memory):
