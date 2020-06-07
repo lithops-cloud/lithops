@@ -3,6 +3,7 @@ import sys
 import json
 import logging
 import uuid
+import urllib3
 from . import config as betabs_config
 from kubernetes import client, config
 from pywren_ibm_cloud.utils import version_str
@@ -12,6 +13,11 @@ from pywren_ibm_cloud.compute.utils import create_function_handler_zip
 from pywren_ibm_cloud.storage.utils import create_runtime_meta_key
 from pywren_ibm_cloud.config import JOBS_PREFIX
 from pywren_ibm_cloud.storage import InternalStorage
+
+urllib3.disable_warnings()
+logging.getLogger('kubernetes').setLevel(logging.CRITICAL)
+logging.getLogger('urllib3.connectionpool').setLevel(logging.CRITICAL)
+logging.getLogger('requests_oauthlib').setLevel(logging.CRITICAL)
 
 logger = logging.getLogger(__name__)
 
@@ -152,8 +158,7 @@ class BetaBSBackend:
         job_desc['spec']['jobDefinitionSpec']['containers'][0]['resources']['requests']['cpu'] = self.beta_bs_config['runtime_cpu']
         job_desc['metadata']['name'] = payload['activation_id']
 
-        logger.info("About to invoke beta job ")
-        logger.info(job_desc)
+        logger.info("About to invoke beta job for activation id {}".format(job_desc['metadata']['name']))
         res = self.capi.create_namespaced_custom_object(
             group=self.beta_bs_config['group'],
             version=self.beta_bs_config['version'],
@@ -161,7 +166,11 @@ class BetaBSBackend:
             plural="jobruns",
             body=job_desc,
         )
-        logger.debug(res)
+        if (logging.getLogger().level == logging.DEBUG):
+            debug_res = dict(res)
+            debug_res['spec']['jobDefinitionSpec']['containers'][0]['env'][1]['value'] = ''
+            logger.debug(debug_res)
+            del debug_res
 
         return res['metadata']['name']
 
