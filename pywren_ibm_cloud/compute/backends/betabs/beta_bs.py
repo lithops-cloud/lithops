@@ -4,6 +4,7 @@ import json
 import logging
 import uuid
 import urllib3
+import copy
 from . import config as betabs_config
 from kubernetes import client, config
 from pywren_ibm_cloud.utils import version_str
@@ -149,7 +150,7 @@ class BetaBSBackend:
         activation_id = str(uuid.uuid4()).replace('-', '')[:12]
         payload['activation_id'] = activation_id + payload['call_id']
 
-        job_desc = betabs_config.JOB_RUN_RESOURCE
+        job_desc = copy.deepcopy(betabs_config.JOB_RUN_RESOURCE)
         job_desc['apiVersion'] = self.beta_bs_config['api_version']
         job_desc['spec']['jobDefinitionSpec']['containers'][0]['image'] = docker_image_name
         job_desc['spec']['jobDefinitionSpec']['containers'][0]['env'][0]['value'] = 'payload'
@@ -158,7 +159,7 @@ class BetaBSBackend:
         job_desc['spec']['jobDefinitionSpec']['containers'][0]['resources']['requests']['cpu'] = self.beta_bs_config['runtime_cpu']
         job_desc['metadata']['name'] = payload['activation_id']
 
-        logger.info("About to invoke beta job for activation id {}".format(job_desc['metadata']['name']))
+        logger.info("Before invoke job name {}".format(job_desc['metadata']['name']))
         res = self.capi.create_namespaced_custom_object(
             group=self.beta_bs_config['group'],
             version=self.beta_bs_config['version'],
@@ -166,10 +167,12 @@ class BetaBSBackend:
             plural="jobruns",
             body=job_desc,
         )
+        logger.info("After invoke job name {}".format(job_desc['metadata']['name']))
+
         if (logging.getLogger().level == logging.DEBUG):
-            debug_res = dict(res)
+            debug_res = copy.deepcopy(res)
             debug_res['spec']['jobDefinitionSpec']['containers'][0]['env'][1]['value'] = ''
-            logger.debug(debug_res)
+            logger.debug("response - {}".format(debug_res))
             del debug_res
 
         return res['metadata']['name']
@@ -205,7 +208,7 @@ class BetaBSBackend:
         try:
             activation_id = str(uuid.uuid4()).replace('-', '')[:12]
             self.storage_config['activation_id'] = 'pywren-' + activation_id
-            job_desc = betabs_config.JOB_RUN_RESOURCE
+            job_desc = copy.deepcopy(betabs_config.JOB_RUN_RESOURCE)
             job_desc['apiVersion'] = self.beta_bs_config['api_version']
             job_desc['spec']['jobDefinitionSpec']['containers'][0]['image'] = docker_image_name
             job_desc['spec']['jobDefinitionSpec']['containers'][0]['env'][0]['value'] = 'preinstals'
