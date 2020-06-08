@@ -1,16 +1,21 @@
 # Changelog
 
+## [v1.6.1--snapshot]
 
-## [v1.5.3--snapshot]
+### Fixed
+- [PyWren] Fixed issue in extra_args when iterdata is a dict
+
+
+## [v1.6.0]
 
 ### Added
 - [PyWren] New docker_executor()
-
+- [Ceph] New Ceph Storage backend
 
 ### Changed
 - [PyWren] Moved all stats from 'f._call_status' to a new 'f.stats' variable
+- [PyWren] Bump httplib2 from 0.13.0 to 0.18.0
 - [Localhost] Improved localhost storage backend
-
 
 ### Fixed
 - [PyWren] Fixed issue in pw.clean(cs=cobjs) when passing a large list of cobjs
