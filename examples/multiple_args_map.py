@@ -107,3 +107,13 @@ if __name__ == "__main__":
     pw = pywren.ibm_cf_executor()
     pw.map(my_map_function, args, extra_args=(10,))
     print(pw.get_result())
+
+    kwargs = [  # Init list of parameters for PyWren
+              {'x': 1},  # Kwargs for function1
+              {'x': 3},  # Kwargs for function2
+              {'x': 5},  # Kwargs for function3
+             ]  # End list of parameters for PyWren
+
+    pw = pywren.ibm_cf_executor()
+    pw.map(my_map_function, kwargs, extra_args={'y': 3})
+    print(pw.get_result())
