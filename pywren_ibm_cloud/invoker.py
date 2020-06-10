@@ -118,7 +118,7 @@ class FunctionInvoker:
                              'installed'.format(self.executor_id, job_id, runtime_name, runtime_memory))
                 if not log_level and not installing:
                     installing = True
-                    print('(Installing...)')
+                    print('(Installing runtime {}...)'.format(runtime_key))
 
                 timeout = self.config['pywren']['runtime_timeout']
                 logger.debug('Creating runtime: {}, memory: {}MB'.format(runtime_name, runtime_memory))

@@ -74,7 +74,9 @@ class BetaBSBackend:
         return betabs_config.RUNTIME_DEFAULT[python_version]
 
     def _delete_function_handler_zip(self):
-        os.remove(betabs_config.FH_ZIP_LOCATION)
+        logger.debug("About to delete {}".format(betabs_config.FH_ZIP_LOCATION))
+        res = os.remove(betabs_config.FH_ZIP_LOCATION)
+        logger.debug(res)
     
     def _dict_to_binary(self, the_dict):
         str = json.dumps(the_dict)
@@ -184,8 +186,8 @@ class BetaBSBackend:
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        service_name = self._format_service_name(docker_image_name, runtime_memory)
-        runtime_key = os.path.join(self.cluster, self.namespace, service_name)
+        service_name = self._format_service_name(docker_image_name)
+        runtime_key = os.path.join(self.namespace, service_name)
 
         return runtime_key
 
@@ -206,9 +208,11 @@ class BetaBSBackend:
                 logger.info("Cleanup - job name {} was not found (404)".format(activation_id))
 
     
-    def _format_service_name(self, runtime_name, runtime_memory):
+    def _format_service_name(self, runtime_name, runtime_memory = None):
         runtime_name = runtime_name.replace('/', '--').replace(':', '--')
-        return '{}--{}mb'.format(runtime_name, runtime_memory)
+        if (runtime_memory is not None):
+            return '{}--{}mb'.format(runtime_name, runtime_memory)
+        return runtime_name
 
     def _generate_runtime_meta(self, docker_image_name):
         try:
