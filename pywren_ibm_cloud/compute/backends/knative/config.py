@@ -10,6 +10,7 @@ BUILD_GIT_URL_DEFAULT = 'https://github.com/pywren/pywren-ibm-cloud'
 
 RUNTIME_TIMEOUT_DEFAULT = 600  # 10 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # 256Mi
+RUNTIME_CPU_DEFAULT = 1000  # 1 vCPU
 CONCURRENT_WORKERS_DEFAULT = 100
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'pywren_knative.zip')
@@ -148,6 +149,9 @@ def load_config(config_data):
     if 'git_rev' not in config_data['knative']:
         revision = 'master' if 'SNAPSHOT' in __version__ else __version__
         config_data['knative']['git_rev'] = revision
+
+    if 'cpu' not in config_data['knative']:
+        config_data['knative']['cpu'] = RUNTIME_CPU_DEFAULT
 
     if 'runtime_memory' not in config_data['pywren']:
         config_data['pywren']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
