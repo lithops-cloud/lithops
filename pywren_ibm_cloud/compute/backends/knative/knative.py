@@ -378,6 +378,7 @@ class KnativeServingBackend:
         full_docker_image_name = '/'.join([self.knative_config['docker_repo'], docker_image_name])
         svc_res['spec']['template']['spec']['containers'][0]['image'] = full_docker_image_name
         svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['memory'] = '{}Mi'.format(runtime_memory)
+        svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['cpu'] = '{}m'.format(self.knative_config['cpu'])
 
         try:
             # delete the service resource if exists
