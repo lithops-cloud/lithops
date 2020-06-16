@@ -261,7 +261,7 @@ class BetaBSBackend:
             import time
             retry = int(1)
             found = False
-            while (retry < 3 and not found):
+            while (retry < 5 and not found):
                 try:
                     logger.debug("Retry attempt {} to read {}".format(retry, status_key))
                     json_str = self.internal_storage.get_cobject(key = status_key)
@@ -269,9 +269,9 @@ class BetaBSBackend:
                     runtime_meta = json.loads(json_str.decode("ascii"))
                     found = True
                 except StorageNoSuchKeyError as e:
-                    logger.debug("{} not found in attempt {}".format(status_key, retry))
+                    logger.debug("{} not found in attempt {}. Sleep before retry".format(status_key, retry))
                     retry = retry + 1
-                    time.sleep(10)
+                    time.sleep(30)
 
             json_str = self.internal_storage.get_cobject(key = status_key)
             runtime_meta = json.loads(json_str.decode("ascii"))
