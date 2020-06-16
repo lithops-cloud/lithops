@@ -31,6 +31,7 @@ from pywren_ibm_cloud.compute.utils import create_function_handler_zip
 from pywren_ibm_cloud.storage.utils import create_runtime_meta_key
 from pywren_ibm_cloud.config import JOBS_PREFIX
 from pywren_ibm_cloud.storage import InternalStorage
+from pywren_ibm_cloud.storage.utils import StorageNoSuchKeyError
 
 urllib3.disable_warnings()
 logging.getLogger('kubernetes').setLevel(logging.CRITICAL)
@@ -242,7 +243,6 @@ class BetaBSBackend:
             job_desc['metadata']['name'] ='pywren-' + activation_id
     
             logger.info("About to invoke beta_bs job to get runtime metadata")
-            logger.info(job_desc)
             res = self.capi.create_namespaced_custom_object(
                 group=self.beta_bs_config['group'],
                 version=self.beta_bs_config['version'],
@@ -250,12 +250,29 @@ class BetaBSBackend:
                 plural="jobruns",
                 body=job_desc,
             )
-            logger.debug(res)
+            if (logging.getLogger().level == logging.DEBUG):
+                debug_res = copy.deepcopy(res)
+                debug_res['spec']['jobDefinitionSpec']['containers'][0]['env'][1]['value'] = ''
+                logger.debug("response - {}".format(debug_res))
+                del debug_res
     
             # we need to read runtime metadata from COS in retry
-            import time
-            time.sleep(10)
             status_key = create_runtime_meta_key(JOBS_PREFIX, self.storage_config['activation_id'])
+            import time
+            retry = int(1)
+            found = False
+            while (retry < 3 and not found):
+                try:
+                    logger.debug("Retry attempt {} to read {}".format(retry, status_key))
+                    json_str = self.internal_storage.get_cobject(key = status_key)
+                    logger.debug("Found in attempt () to read {}".format(retry, status_key))
+                    runtime_meta = json.loads(json_str.decode("ascii"))
+                    found = True
+                except StorageNoSuchKeyError as e:
+                    logger.debug("{} not found in attempt {}".format(status_key, retry))
+                    retry = retry + 1
+                    time.sleep(10)
+
             json_str = self.internal_storage.get_cobject(key = status_key)
             runtime_meta = json.loads(json_str.decode("ascii"))
 
