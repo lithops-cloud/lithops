@@ -50,7 +50,7 @@ pw = pywren.ibm_cf_executor(runtime_memory=512)
 
     * [Dockerfile](ibm_cf/Dockerfile) - The image is based on `python:3.6-slim-jessie`. 
 
-    To build your own runtime, first install the Docker CE version in your client machine. You can find the instructions [here](https://docs.docker.com/install/). If you already have Docker installed omit this step.
+    To build your own runtime, first install the Docker CE version in your client machine. You can find the instructions [here](https://docs.docker.com/get-docker/). If you already have Docker installed omit this step.
 
     Login to your Docker hub account by running in a terminal the next command.
 
