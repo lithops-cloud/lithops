@@ -110,3 +110,9 @@ Alternatively, for debugging purposes, you can run specific tests by `-t <TESTNA
 * [PyWren for IBM Cloud on CODAIT](https://developer.ibm.com/code/open/centers/codait/projects/pywren/)
 * [Industrial project in Technion on PyWren-IBM](http://www.cs.technion.ac.il/~cs234313/projects_sites/W19/04/site/)
 * [Serverless data analytics in the IBM Cloud](https://dl.acm.org/citation.cfm?id=3284029) - Proceedings of the 19th International Middleware Conference (Industry)
+
+# Acknowledgements
+
+![image](https://user-images.githubusercontent.com/26366936/61350554-d62acf00-a85f-11e9-84b2-36312a35398e.png)
+
+This project has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreement No 825184.
