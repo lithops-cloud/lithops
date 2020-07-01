@@ -17,6 +17,7 @@
 import os
 import json
 import logging
+import itertools
 import importlib
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.config import CACHE_DIR, RUNTIMES_PREFIX, JOBS_PREFIX, TEMP_PREFIX
@@ -35,6 +36,8 @@ class Storage:
     def __init__(self, pywren_config, storage_backend):
         self.pywren_config = pywren_config
         self.backend = storage_backend
+
+        self._created_cobjects_n = itertools.count()
 
         try:
             module_location = 'pywren_ibm_cloud.storage.backends.{}'.format(self.backend)
@@ -68,7 +71,7 @@ class Storage:
         :return: CloudObject instance
         """
         prefix = os.environ.get('PYWREN_EXECUTION_ID', '')
-        coid = uuid_str().replace('/', '')[:4]
+        coid = hex(next(self._created_cobjects_n))[2:]
         name = '{}/cloudobject_{}'.format(prefix, coid)
         key = key or '/'.join([TEMP_PREFIX, name])
         bucket = bucket or self.bucket
@@ -154,6 +157,8 @@ class InternalStorage:
         self.bucket = self.config['bucket']
         self.executor_id = executor_id
 
+        self._created_cobjects_n = itertools.count()
+
         try:
             module_location = 'pywren_ibm_cloud.storage.backends.{}'.format(self.backend)
             sb_module = importlib.import_module(module_location)
@@ -190,7 +195,7 @@ class InternalStorage:
         :return: CloudObject instance
         """
         prefix = os.environ.get('PYWREN_EXECUTION_ID', '')
-        coid = uuid_str().replace('/', '')[:4]
+        coid = hex(next(self._created_cobjects_n))[2:]
         name = '{}/cloudobject_{}'.format(prefix, coid)
         key = key or '/'.join([TEMP_PREFIX, name])
         bucket = bucket or self.bucket
