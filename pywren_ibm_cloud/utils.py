@@ -283,7 +283,7 @@ def verify_args(func, iterdata, extra_args):
                                  "You provided these args: {}, and "
                                  "the args must be: {}".format(list(elem.keys()),
                                                                list(new_func_sig.parameters.keys())))
-        elif type(elem) in (list, tuple):
+        elif type(elem) in (list, tuple) and len(elem) == len(new_func_sig.parameters):
             new_elem = dict(new_func_sig.bind(*list(elem)).arguments)
             new_data.append(new_elem)
         else:
