@@ -75,6 +75,10 @@ class TestMethods:
         return "Hello World!"
 
     @staticmethod
+    def concat(lst):
+        return " ".join(lst)
+
+    @staticmethod
     def simple_map_function(x, y):
         return x + y
 
@@ -203,6 +207,11 @@ class TestPywren(unittest.TestCase):
         self.assertEqual(result, "Hello World!")
 
         pw = pywren.function_executor(config=CONFIG)
+        pw.call_async(TestMethods.concat, ["a", "b"])
+        result = pw.get_result()
+        self.assertEqual(result, "a b")
+
+        pw = pywren.function_executor(config=CONFIG)
         pw.call_async(TestMethods.simple_map_function, [4, 6])
         result = pw.get_result()
         self.assertEqual(result, 10)
@@ -242,6 +251,12 @@ class TestPywren(unittest.TestCase):
         pw.map(TestMethods.simple_map_function, listDicts_iterdata)
         result = pw.get_result()
         self.assertEqual(result, [10, 10])
+
+        pw = pywren.function_executor(config=CONFIG)
+        set_iterdata = [["a", "b"], ["c", "d"]]
+        pw.map(TestMethods.concat, set_iterdata)
+        result = pw.get_result()
+        self.assertEqual(result, ["a b", "c d"])
 
     def test_map_reduce(self):
         print('Testing map_reduce()...')

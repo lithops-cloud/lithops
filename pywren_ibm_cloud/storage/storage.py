@@ -1,4 +1,4 @@
-#
+
 # (C) Copyright IBM Corp. 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,10 +17,11 @@
 import os
 import json
 import logging
+import itertools
 import importlib
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.config import CACHE_DIR, RUNTIMES_PREFIX, JOBS_PREFIX, TEMP_PREFIX
-from pywren_ibm_cloud.utils import is_pywren_function, uuid_str
+from pywren_ibm_cloud.utils import is_pywren_function
 from pywren_ibm_cloud.storage.utils import create_status_key, create_output_key, \
     status_key_suffix, init_key_suffix, CloudObject, StorageNoSuchKeyError
 
@@ -33,6 +34,8 @@ class Storage:
     underlying storage backend without exposing the the implementation details.
     """
     def __init__(self, storage_config=None, pywren_config=None, storage_backend=None, executor_id=None):
+
+        self._created_cobjects_n = itertools.count()
 
         if storage_config:
             self.storage_config = storage_config
@@ -105,7 +108,7 @@ class Storage:
         :return: CloudObject instance
         """
         prefix = os.environ.get('PYWREN_EXECUTION_ID', '')
-        coid = uuid_str().replace('/', '')[:4]
+        coid = hex(next(self._created_cobjects_n))[2:]
         name = '{}/cloudobject_{}'.format(prefix, coid)
         key = key or '/'.join([TEMP_PREFIX, name])
         bucket = bucket or self.bucket
