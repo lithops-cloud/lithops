@@ -102,6 +102,7 @@ class FunctionExecutor:
 
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
+        self.storage = self.internal_storage.storage
         self.invoker = FunctionInvoker(self.config, self.executor_id, self.internal_storage)
 
         self.futures = []

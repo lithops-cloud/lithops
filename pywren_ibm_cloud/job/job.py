@@ -255,14 +255,14 @@ def clean_job(jobs_to_clean, storage_config, clean_cloudobjects):
         jobs_to_clean = pickle.load(pk)
 
     internal_storage = InternalStorage(storage_config)
-    sh = internal_storage.storage_handler
+    storage = internal_storage.storage
 
     for executor_id, job_id in jobs_to_clean:
         prefix = '/'.join([JOBS_PREFIX, executor_id, job_id])
-        clean_bucket(sh, bucket, prefix, log=False)
+        clean_bucket(storage, bucket, prefix, log=False)
         if clean_cloudobjects:
             prefix = '/'.join([TEMP_PREFIX, executor_id, job_id])
-            clean_bucket(sh, bucket, prefix, log=False)
+            clean_bucket(storage, bucket, prefix, log=False)
 
     if os.path.exists(jobs_path):
         os.remove(jobs_path)

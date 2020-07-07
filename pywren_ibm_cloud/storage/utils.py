@@ -59,7 +59,7 @@ class CloudObjectUrl:
         self.path = url_path
 
 
-def clean_bucket(sh, bucket, prefix, sleep=5, log=True):
+def clean_bucket(storage, bucket, prefix, sleep=5, log=True):
     """
     Deletes all the files from COS. These files include the function,
     the data serialization and the function invocation results.
@@ -69,13 +69,13 @@ def clean_bucket(sh, bucket, prefix, sleep=5, log=True):
     if log:
         logger.debug(msg)
     total_objects = 0
-    objects_to_delete = sh.list_keys(bucket, prefix)
+    objects_to_delete = storage.list_keys(bucket, prefix)
 
     while objects_to_delete:
         total_objects = total_objects + len(objects_to_delete)
-        sh.delete_objects(bucket, objects_to_delete)
+        storage.delete_objects(bucket, objects_to_delete)
         time.sleep(sleep)
-        objects_to_delete = sh.list_keys(bucket, prefix)
+        objects_to_delete = storage.list_keys(bucket, prefix)
     if log:
         logger.debug('Finished deleting objects, total found: {}'.format(total_objects))
 

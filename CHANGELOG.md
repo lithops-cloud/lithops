@@ -1,9 +1,25 @@
 # Changelog
 
-## [v1.6.1--snapshot]
+## [v1.7.1--snapshot]
+
+### Fixed
+- [PyWren] Fixed invoker token bucket when quota limit is reached
+
+### Changed
+- [PyWren] Improved Storage abstraction
+- [PyWren] InternalStorage uses storage abstraction
+
+
+## [v1.7.0]
+
+### Added
+- [GCS] Added Google Cloud Storage Backend
+- [Knative] Configurable CPU parameter
 
 ### Fixed
 - [PyWren] Fixed issue in extra_args when iterdata is a dict
+- [PyWren] Fixed CloudObjects keys collisions
+- [PyWren] Fixed case where function argument is a list or tuple
 
 
 ## [v1.6.0]

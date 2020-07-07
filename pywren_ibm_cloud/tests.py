@@ -153,7 +153,7 @@ class TestMethods:
     def my_map_function_storage(key_i, bucket_name, storage):
         print('I am processing the object /{}/{}'.format(bucket_name, key_i))
         counter = {}
-        data = storage.get_object(Bucket=bucket_name, Key=key_i)['Body'].read()
+        data = storage.get_object(bucket_name, key_i)
         for line in data.splitlines():
             for word in line.decode('utf-8').split():
                 if word not in counter:
@@ -410,7 +410,7 @@ def run_tests(test_to_run, config=None):
 
     CONFIG = json.load(args.config) if config else default_config()
     STORAGE_CONFIG = extract_storage_config(CONFIG)
-    STORAGE = InternalStorage(STORAGE_CONFIG).storage_handler
+    STORAGE = InternalStorage(STORAGE_CONFIG).storage
 
     suite = unittest.TestSuite()
     if test_to_run == 'all':
