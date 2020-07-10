@@ -206,6 +206,9 @@ def cloud_logging_config(log_level='INFO'):
         logging.getLogger('ibm_boto3').setLevel(logging.DEBUG)
         logging.getLogger('ibm_botocore').setLevel(logging.DEBUG)
 
+    if log_level == 'WARNING':
+        log_level = 'INFO'
+
     logging.config.dictConfig({
         'version': 1,
         'disable_existing_loggers': False,

@@ -26,7 +26,7 @@ class DockerBackend:
     """
 
     def __init__(self, docker_config):
-        self.log_level = os.getenv('PYWREN_LOGLEVEL')
+        self.log_level = logger.getEffectiveLevel() != logging.WARNING
         self.config = docker_config
         self.name = 'docker'
         self.host = docker_config['host']

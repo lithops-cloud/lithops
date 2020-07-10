@@ -1,4 +1,3 @@
-import os
 import click
 import logging
 import pywren_ibm_cloud as pywren
@@ -10,7 +9,6 @@ from pywren_ibm_cloud.tests import print_help, run_tests
 def set_debug(debug):
     if debug:
         logging.basicConfig(level=logging.DEBUG)
-        os.environ["PYWREN_LOGLEVEL"] = 'DEBUG'
 
 
 @click.group()

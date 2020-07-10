@@ -44,7 +44,7 @@ class FunctionInvoker:
     """
 
     def __init__(self, config, executor_id, internal_storage):
-        self.log_level = os.getenv('PYWREN_LOGLEVEL')
+        self.log_level = logger.getEffectiveLevel() != logging.WARNING
         self.config = config
         self.executor_id = executor_id
         self.storage_config = extract_storage_config(self.config)
@@ -88,7 +88,6 @@ class FunctionInvoker:
         file does not exists in the storage, this means that the runtime is not
         installed, so this method will proceed to install it.
         """
-        log_level = os.getenv('PYWREN_LOGLEVEL')
         runtime_name = self.config['pywren']['runtime']
         if runtime_memory is None:
             runtime_memory = self.config['pywren']['runtime_memory']
@@ -100,8 +99,9 @@ class FunctionInvoker:
         else:
             log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {}'
                        .format(self.executor_id, job_id, runtime_name))
-
-        print(log_msg, end=' ') if not self.log_level else logger.info(log_msg)
+        logger.info(log_msg)
+        if not self.log_level:
+            print(log_msg, end=' ')
 
         installing = False
 
@@ -116,7 +116,7 @@ class FunctionInvoker:
             if not runtime_deployed:
                 logger.debug('ExecutorID {} | JobID {} - Runtime {} with {}MB is not yet '
                              'installed'.format(self.executor_id, job_id, runtime_name, runtime_memory))
-                if not log_level and not installing:
+                if not self.log_level and not installing:
                     installing = True
                     print('(Installing...)')
 
@@ -133,7 +133,7 @@ class FunctionInvoker:
                                  "is not compatible with the local Python version {}")
                                 .format(runtime_name, py_remote_version, py_local_version))
 
-        if not log_level and runtime_deployed:
+        if not self.log_level and runtime_deployed:
             print()
 
         return runtime_meta
@@ -202,7 +202,7 @@ class FunctionInvoker:
         Method used to perform the actual invocation against the Compute Backend
         """
         payload = {'config': self.config,
-                   'log_level': self.log_level,
+                   'log_level': logging.getLevelName(logger.getEffectiveLevel()),
                    'func_key': job.func_key,
                    'data_key': job.data_key,
                    'extra_env': job.extra_env,
@@ -224,7 +224,12 @@ class FunctionInvoker:
         resp_time = format(round(roundtrip, 3), '.3f')
 
         if not activation_id:
+            # reached quota limit
+            logger.info('ExecutorID {} | JobID {} - Function call {} Error! Quota limit reached.'
+                        ' Requeuing request'.format(job.executor_id, job.job_id, call_id))
+            time.sleep(random.randint(0, 5))
             self.pending_calls_q.put((job, call_id))
+            self.token_bucket_q.put('#')
             return
 
         logger.info('ExecutorID {} | JobID {} - Function call {} done! ({}s) - Activation'
@@ -241,7 +246,7 @@ class FunctionInvoker:
         job = SimpleNamespace(**job_description)
 
         payload = {'config': self.config,
-                   'log_level': self.log_level,
+                   'log_level': logging.getLevelName(logger.getEffectiveLevel()),
                    'executor_id': job.executor_id,
                    'job_id': job.job_id,
                    'job_description': job_description,
@@ -280,7 +285,9 @@ class FunctionInvoker:
             log_msg = ('ExecutorID {} | JobID {} - Starting remote function invocation: {}() '
                        '- Total: {} activations'.format(job.executor_id, job.job_id,
                                                         job.function_name, job.total_calls))
-            print(log_msg) if not self.log_level else logger.info(log_msg)
+            logger.info(log_msg)
+            if not self.log_level:
+                print(log_msg)
 
             th = Thread(target=self._invoke_remote, args=(job_description,))
             th.daemon = True
@@ -296,7 +303,9 @@ class FunctionInvoker:
 
                 log_msg = ('ExecutorID {} | JobID {} - Starting function invocation: {}()  - Total: {} '
                            'activations'.format(job.executor_id, job.job_id, job.function_name, job.total_calls))
-                print(log_msg) if not self.log_level else logger.info(log_msg)
+                logger.info(log_msg)
+                if not self.log_level:
+                    print(log_msg)
 
                 if self.ongoing_activations < self.workers:
                     callids = range(job.total_calls)
