@@ -4,6 +4,8 @@
 
 ### Fixed
 - [PyWren] Fixed invoker token bucket when quota limit is reached
+- [PyWren] Fixed logging
+- [PyWren] Foxed invoker when it reaches quota limit
 
 ### Changed
 - [PyWren] Improved Storage abstraction
