@@ -20,7 +20,7 @@ class LocalhostBackend:
     """
 
     def __init__(self, local_config):
-        self.log_level = os.getenv('PYWREN_LOGLEVEL')
+        self.log_level = logger.getEffectiveLevel() != logging.WARNING
         self.config = local_config
         self.name = 'local'
         self.alive = True

@@ -40,9 +40,9 @@ def clean_all(config=None):
 
     # Clean object storage temp dirs
     compute_handler.delete_all_runtimes()
-    sh = internal_storage.storage_handler
-    clean_bucket(sh, storage_config['bucket'], RUNTIMES_PREFIX, sleep=1)
-    clean_bucket(sh, storage_config['bucket'], JOBS_PREFIX, sleep=1)
+    storage = internal_storage.storage
+    clean_bucket(storage, storage_config['bucket'], RUNTIMES_PREFIX, sleep=1)
+    clean_bucket(storage, storage_config['bucket'], JOBS_PREFIX, sleep=1)
 
     # Clean local pywren cache
     shutil.rmtree(CACHE_DIR, ignore_errors=True)

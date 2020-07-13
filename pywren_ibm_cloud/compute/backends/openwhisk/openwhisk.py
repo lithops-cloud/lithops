@@ -35,7 +35,7 @@ class OpenWhiskBackend:
 
     def __init__(self, ow_config):
         logger.debug("Creating OpenWhisk client")
-        self.log_level = os.getenv('PYWREN_LOGLEVEL')
+        self.log_level = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'openwhisk'
         self.ow_config = ow_config
         self.is_pywren_function = is_pywren_function()

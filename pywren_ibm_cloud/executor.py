@@ -15,7 +15,6 @@
 # limitations under the License.
 #
 
-import os
 import copy
 import signal
 import logging
@@ -54,15 +53,10 @@ class FunctionExecutor:
         """
         self.is_pywren_function = is_pywren_function()
 
-        # Log level Configuration
-        self.log_level = log_level
-        if not self.log_level:
-            if(logger.getEffectiveLevel() != logging.WARNING):
-                self.log_level = logging.getLevelName(logger.getEffectiveLevel())
-        if self.log_level:
-            os.environ["PYWREN_LOGLEVEL"] = self.log_level
-            if not self.is_pywren_function:
-                default_logging_config(self.log_level)
+        if log_level:
+            default_logging_config(log_level)
+
+        self.log_level = logger.getEffectiveLevel() != logging.WARNING
 
         # Overwrite pywren config parameters
         pw_config_ow = {}
@@ -102,6 +96,7 @@ class FunctionExecutor:
 
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
+        self.storage = self.internal_storage.storage
         self.invoker = FunctionInvoker(self.config, self.executor_id, self.internal_storage)
 
         self.futures = []
@@ -322,7 +317,9 @@ class FunctionExecutor:
         if not fs_not_done:
             return fs_done, fs_not_done
 
-        print(msg) if not self.log_level else logger.info(msg)
+        logger.info(msg)
+        if not self.log_level:
+            print(msg)
 
         if is_unix_system() and timeout is not None:
             logger.debug('Setting waiting timeout to {} seconds'.format(timeout))
@@ -362,7 +359,9 @@ class FunctionExecutor:
             if pbar:
                 pbar.close()
                 print()
-            print(msg) if not self.log_level else logger.info(msg)
+            logger.info(msg)
+            if not self.log_level:
+                print(msg) 
             error = True
 
         except Exception as e:
@@ -449,7 +448,10 @@ class FunctionExecutor:
         from pywren_ibm_cloud.plots import create_timeline, create_histogram
 
         msg = 'ExecutorID {} - Creating execution plots'.format(self.executor_id)
-        print(msg) if not self.log_level else logger.info(msg)
+
+        logger.info(msg)
+        if not self.log_level:
+            print(msg)
 
         create_timeline(ftrs_to_plot, dst)
         create_histogram(ftrs_to_plot, dst)
@@ -484,7 +486,9 @@ class FunctionExecutor:
 
         if jobs_to_clean:
             msg = "ExecutorID {} - Cleaning temporary data".format(self.executor_id)
-            print(msg) if not self.log_level and log else logger.info(msg)
+            logger.info(msg)
+            if not self.log_level:
+                print(msg)
             storage_config = self.internal_storage.get_storage_config()
             clean_job(jobs_to_clean, storage_config, clean_cloudobjects=cloudobjects)
             self.cleaned_jobs.update(jobs_to_clean)
