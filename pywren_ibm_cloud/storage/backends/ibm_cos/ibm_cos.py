@@ -242,7 +242,7 @@ class IBMCloudObjectStorageBackend:
         :param bucket_name: name of the bucket
         """
         try:
-            self.cos_client.head_bucket(Bucket=bucket_name)
+            return self.cos_client.head_bucket(Bucket=bucket_name)
         except ibm_botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == '404':
                 raise StorageNoSuchKeyError(bucket_name, '')

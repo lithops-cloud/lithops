@@ -1,4 +1,4 @@
-#
+
 # (C) Copyright IBM Corp. 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,7 +21,7 @@ import itertools
 import importlib
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.config import CACHE_DIR, RUNTIMES_PREFIX, JOBS_PREFIX, TEMP_PREFIX
-from pywren_ibm_cloud.utils import is_pywren_function, uuid_str
+from pywren_ibm_cloud.utils import is_pywren_function
 from pywren_ibm_cloud.storage.utils import create_status_key, create_output_key, \
     status_key_suffix, init_key_suffix, CloudObject, StorageNoSuchKeyError
 
@@ -33,34 +33,71 @@ class Storage:
     An Storage object is used by partitioner and other components to access
     underlying storage backend without exposing the the implementation details.
     """
-    def __init__(self, pywren_config, storage_backend):
-        self.pywren_config = pywren_config
-        self.backend = storage_backend
+    def __init__(self, storage_config=None, pywren_config=None, storage_backend=None, executor_id=None):
 
         self._created_cobjects_n = itertools.count()
 
-        try:
-            module_location = 'pywren_ibm_cloud.storage.backends.{}'.format(self.backend)
-            sb_module = importlib.import_module(module_location)
-            storage_config = self.pywren_config[self.backend]
-            storage_config['user_agent'] = 'pywren-ibm-cloud/{}'.format(__version__)
-            StorageBackend = getattr(sb_module, 'StorageBackend')
-            self.storage_handler = StorageBackend(storage_config)
-        except Exception as e:
-            raise NotImplementedError("An exception was produced trying to create the "
-                                      "'{}' storage backend: {}".format(self.backend, e))
+        if storage_config:
+            self.storage_config = storage_config
+            self.backend = self.storage_config['backend']
+            self.bucket = self.storage_config['bucket']
 
-    def get_storage_handler(self):
-        return self.storage_handler
+            try:
+                module_location = 'pywren_ibm_cloud.storage.backends.{}'.format(self.backend)
+                sb_module = importlib.import_module(module_location)
+                StorageBackend = getattr(sb_module, 'StorageBackend')
+                self.storage_handler = StorageBackend(self.storage_config[self.backend],
+                                                      bucket=self.bucket,
+                                                      executor_id=executor_id)
+            except Exception as e:
+                raise NotImplementedError("An exception was produced trying to create the "
+                                          "'{}' storage backend: {}".format(self.backend, e))
+
+        else:
+            self.pywren_config = pywren_config
+            self.backend = storage_backend
+            self.bucket = pywren_config['pywren']['storage_bucket']
+
+            try:
+                module_location = 'pywren_ibm_cloud.storage.backends.{}'.format(self.backend)
+                sb_module = importlib.import_module(module_location)
+                storage_config = self.pywren_config[self.backend]
+                storage_config['user_agent'] = 'pywren-ibm-cloud/{}'.format(__version__)
+                StorageBackend = getattr(sb_module, 'StorageBackend')
+                self.storage_handler = StorageBackend(storage_config)
+            except Exception as e:
+                raise NotImplementedError("An exception was produced trying to create the "
+                                          "'{}' storage backend: {}".format(self.backend, e))
 
     def get_client(self):
-        client = self.storage_handler.get_client()
-        client.put_cobject = self.put_cobject
-        client.get_cobject = self.get_cobject
-        client.delete_cobject = self.delete_cobject
-        client.delete_cobjects = self.delete_cobjects
+        return self.storage_handler.get_client()
 
-        return client
+    def put_object(self, bucket_name, key, data):
+        return self.storage_handler.put_object(bucket_name, key, data)
+
+    def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
+        return self.storage_handler.get_object(bucket_name, key, stream, extra_get_args)
+
+    def head_object(self, bucket_name, key):
+        return self.storage_handler.head_object(bucket_name, key)
+
+    def delete_object(self, bucket_name, key):
+        return self.storage_handler.delete_object(bucket_name, key)
+
+    def delete_objects(self, bucket_name, key_list):
+        return self.storage_handler.delete_objects(bucket_name, key_list)
+
+    def bucket_exists(self, bucket_name):
+        return self.storage_handler.bucket_exists(bucket_name)
+
+    def head_bucket(self, bucket_name):
+        return self.storage_handler.head_bucket(bucket_name)
+
+    def list_objects(self, bucket_name, prefix=None):
+        return self.storage_handler.list_objects(bucket_name, prefix)
+
+    def list_keys(self, bucket_name, prefix=None):
+        return self.storage_handler.list_keys(bucket_name, prefix)
 
     def put_cobject(self, body, bucket=None, key=None):
         """
@@ -152,121 +189,20 @@ class InternalStorage:
     """
 
     def __init__(self, storage_config, executor_id=None):
-        self.config = storage_config
-        self.backend = self.config['backend']
-        self.bucket = self.config['bucket']
-        self.executor_id = executor_id
+        self.storage_config = storage_config
+        self.backend = self.storage_config['backend']
+        self.bucket = self.storage_config['bucket']
+        self.storage = Storage(storage_config=storage_config, executor_id=executor_id)
 
-        self._created_cobjects_n = itertools.count()
-
-        try:
-            module_location = 'pywren_ibm_cloud.storage.backends.{}'.format(self.backend)
-            sb_module = importlib.import_module(module_location)
-            StorageBackend = getattr(sb_module, 'StorageBackend')
-            self.storage_handler = StorageBackend(self.config[self.backend],
-                                                  bucket=self.bucket,
-                                                  executor_id=self.executor_id)
-        except Exception as e:
-            raise NotImplementedError("An exception was produced trying to create the "
-                                      "'{}' storage backend: {}".format(self.backend, e))
+    def get_client(self):
+        return self.storage.get_client()
 
     def get_storage_config(self):
         """
         Retrieves the configuration of this storage handler.
         :return: storage configuration
         """
-        return self.config
-
-    def get_client(self):
-        client = self.storage_handler.get_client()
-        client.put_cobject = self.put_cobject
-        client.get_cobject = self.get_cobject
-        client.delete_cobject = self.delete_cobject
-        client.delete_cobjects = self.delete_cobjects
-
-        return client
-
-    def put_cobject(self, body, bucket=None, key=None):
-        """
-        Put CloudObject into storage.
-        :param body: data content
-        :param bucket: destination bucket
-        :param key: destination key
-        :return: CloudObject instance
-        """
-        prefix = os.environ.get('PYWREN_EXECUTION_ID', '')
-        coid = hex(next(self._created_cobjects_n))[2:]
-        name = '{}/cloudobject_{}'.format(prefix, coid)
-        key = key or '/'.join([TEMP_PREFIX, name])
-        bucket = bucket or self.bucket
-        self.storage_handler.put_object(bucket, key, body)
-
-        return CloudObject(self.backend, bucket, key)
-
-    def get_cobject(self, cloudobject=None, bucket=None, key=None, stream=False):
-        """
-        Get CloudObject from storage.
-        :param cloudobject: CloudObject instance
-        :param bucket: destination bucket
-        :param key: destination key
-        :return: body text
-        """
-        if cloudobject:
-            if cloudobject.backend == self.backend:
-                bucket = cloudobject.bucket
-                key = cloudobject.key
-                return self.storage_handler.get_object(bucket, key, stream=stream)
-            else:
-                raise Exception("CloudObject: Invalid Storage backend")
-        elif (bucket and key) or key:
-            bucket = bucket or self.bucket
-            return self.storage_handler.get_object(bucket, key, stream=stream)
-        else:
-            return None
-
-    def delete_cobject(self, cloudobject=None, bucket=None, key=None):
-        """
-        Get CloudObject from storage.
-        :param cloudobject: CloudObject instance
-        :param bucket: destination bucket
-        :param key: destination key
-        :return: body text
-        """
-        if cloudobject:
-            if cloudobject.backend == self.backend:
-                bucket = cloudobject.bucket
-                key = cloudobject.key
-                return self.storage_handler.delete_object(bucket, key)
-            else:
-                raise Exception("CloudObject: Invalid Storage backend")
-        elif (bucket and key) or key:
-            bucket = bucket or self.bucket
-            return self.storage_handler.delete_object(bucket, key)
-        else:
-            return None
-
-    def delete_cobjects(self, cloudobjects):
-        """
-        Get CloudObject from storage.
-        :param cloudobject: CloudObject instance
-        :param bucket: destination bucket
-        :param key: destination key
-        :return: body text
-        """
-        cobjs = {}
-        for co in cloudobjects:
-            if co.backend not in cobjs:
-                cobjs[co.backend] = {}
-            if co.bucket not in cobjs[co.backend]:
-                cobjs[co.backend][co.bucket] = []
-            cobjs[co.backend][co.bucket].append(co.key)
-
-        for backend in cobjs:
-            if backend == self.backend:
-                for bucket in cobjs[backend]:
-                    self.storage_handler.delete_objects(bucket, cobjs[backend][co.bucket])
-            else:
-                raise Exception("CloudObject: Invalid Storage backend")
+        return self.storage_config
 
     def put_data(self, key, data):
         """
@@ -275,7 +211,7 @@ class InternalStorage:
         :param data: data content
         :return: None
         """
-        return self.storage_handler.put_object(self.bucket, key, data)
+        return self.storage.put_object(self.bucket, key, data)
 
     def put_func(self, key, func):
         """
@@ -284,7 +220,7 @@ class InternalStorage:
         :param func: serialized function
         :return: None
         """
-        return self.storage_handler.put_object(self.bucket, key, func)
+        return self.storage.put_object(self.bucket, key, func)
 
     def get_data(self, key, stream=False, extra_get_args={}):
         """
@@ -292,7 +228,7 @@ class InternalStorage:
         :param key: data key
         :return: data content
         """
-        return self.storage_handler.get_object(self.bucket, key, stream, extra_get_args)
+        return self.storage.get_object(self.bucket, key, stream, extra_get_args)
 
     def get_func(self, key):
         """
@@ -300,7 +236,7 @@ class InternalStorage:
         :param key: function key
         :return: serialized function
         """
-        return self.storage_handler.get_object(self.bucket, key)
+        return self.storage.get_object(self.bucket, key)
 
     def get_job_status(self, executor_id, job_id):
         """
@@ -309,7 +245,7 @@ class InternalStorage:
         :return: A list of call IDs that have updated status.
         """
         callset_prefix = '/'.join([JOBS_PREFIX, executor_id, job_id])
-        keys = self.storage_handler.list_keys(self.bucket, callset_prefix)
+        keys = self.storage.list_keys(self.bucket, callset_prefix)
 
         running_keys = [k[len(JOBS_PREFIX)+1:-len(init_key_suffix)].rsplit("/", 3)
                         for k in keys if init_key_suffix in k]
@@ -329,7 +265,7 @@ class InternalStorage:
         """
         status_key = create_status_key(JOBS_PREFIX, executor_id, job_id, call_id)
         try:
-            data = self.storage_handler.get_object(self.bucket, status_key)
+            data = self.storage.get_object(self.bucket, status_key)
             return json.loads(data.decode('ascii'))
         except StorageNoSuchKeyError:
             return None
@@ -343,7 +279,7 @@ class InternalStorage:
         """
         output_key = create_output_key(JOBS_PREFIX, executor_id, job_id, call_id)
         try:
-            return self.storage_handler.get_object(self.bucket, output_key)
+            return self.storage.get_object(self.bucket, output_key)
         except StorageNoSuchKeyError:
             return None
 
@@ -367,7 +303,7 @@ class InternalStorage:
                 obj_key = '/'.join(path).replace('\\', '/')
                 logger.debug('Trying to download runtime metadata from: {}://{}/{}'
                              .format(self.backend, self.bucket, obj_key))
-                json_str = self.storage_handler.get_object(self.bucket, obj_key)
+                json_str = self.storage.get_object(self.bucket, obj_key)
                 logger.debug('Runtime metadata found in storage')
                 runtime_meta = json.loads(json_str.decode("ascii"))
                 # Save runtime meta to cache
@@ -392,7 +328,7 @@ class InternalStorage:
         obj_key = '/'.join(path).replace('\\', '/')
         logger.debug("Uploading runtime metadata to: {}://{}/{}"
                      .format(self.backend, self.bucket, obj_key))
-        self.storage_handler.put_object(self.bucket, obj_key, json.dumps(runtime_meta))
+        self.storage.put_object(self.bucket, obj_key, json.dumps(runtime_meta))
 
         if not is_pywren_function():
             filename_local_path = os.path.join(CACHE_DIR, *path)
@@ -415,4 +351,4 @@ class InternalStorage:
         filename_local_path = os.path.join(CACHE_DIR, *path)
         if os.path.exists(filename_local_path):
             os.remove(filename_local_path)
-        self.storage_handler.delete_object(self.bucket, obj_key)
+        self.storage.delete_object(self.bucket, obj_key)

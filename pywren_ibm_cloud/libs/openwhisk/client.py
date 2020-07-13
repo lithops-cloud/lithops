@@ -70,7 +70,7 @@ class OpenWhiskClient:
         adapter = requests.adapters.HTTPAdapter()
         self.session.mount('https://', adapter)
 
-    def create_action(self, package, action_name, image_name, code=None, memory=None,
+    def create_action(self, package, action_name, image_name=None, code=None, memory=None,
                       timeout=30000, kind='blackbox', is_binary=True, overwrite=True):
         """
         Create an IBM Cloud Functions action

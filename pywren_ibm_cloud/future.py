@@ -47,7 +47,7 @@ class ResponseFuture:
     GET_RESULT_MAX_RETRIES = 10
 
     def __init__(self, call_id, job_description, job_metadata, storage_config):
-        self.log_level = os.getenv('PYWREN_LOGLEVEL')
+        self.log_level = logger.getEffectiveLevel() != logging.WARNING
 
         self.call_id = call_id
         self.job_id = job_description['job_id']

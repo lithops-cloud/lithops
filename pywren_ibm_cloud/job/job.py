@@ -130,7 +130,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     :return: A list with size `len(iterdata)` of futures for each job
     :rtype:  list of futures.
     """
-    log_level = os.getenv('PYWREN_LOGLEVEL')
+    log_level = logger.getEffectiveLevel() != logging.WARNING
 
     runtime_name = config['pywren']['runtime']
     if runtime_memory is None:
@@ -204,7 +204,9 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
 
     log_msg = ('ExecutorID {} | JobID {} - Uploading function and data '
                '- Total: {}'.format(executor_id, job_id, total_size))
-    print(log_msg) if not log_level else logger.info(log_msg)
+    logger.info(log_msg)
+    if not log_level:
+        print(log_msg)
 
     # Upload data
     data_key = create_agg_data_key(JOBS_PREFIX, executor_id, job_id)
@@ -255,14 +257,14 @@ def clean_job(jobs_to_clean, storage_config, clean_cloudobjects):
         jobs_to_clean = pickle.load(pk)
 
     internal_storage = InternalStorage(storage_config)
-    sh = internal_storage.storage_handler
+    storage = internal_storage.storage
 
     for executor_id, job_id in jobs_to_clean:
         prefix = '/'.join([JOBS_PREFIX, executor_id, job_id])
-        clean_bucket(sh, bucket, prefix, log=False)
+        clean_bucket(storage, bucket, prefix, log=False)
         if clean_cloudobjects:
             prefix = '/'.join([TEMP_PREFIX, executor_id, job_id])
-            clean_bucket(sh, bucket, prefix, log=False)
+            clean_bucket(storage, bucket, prefix, log=False)
 
     if os.path.exists(jobs_path):
         os.remove(jobs_path)

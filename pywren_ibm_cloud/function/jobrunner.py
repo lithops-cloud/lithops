@@ -163,13 +163,13 @@ class JobRunner:
                 if self.internal_storage.backend == 'ibm_cos':
                     ibm_boto3_client = self.internal_storage.get_client()
                 else:
-                    ibm_boto3_client = Storage(self.pywren_config, 'ibm_cos').get_client()
+                    ibm_boto3_client = Storage(pywren_config=self.pywren_config, storage_backend='ibm_cos').get_client()
                 data['ibm_cos'] = ibm_boto3_client
             else:
                 raise Exception('Cannot create the ibm_cos client: missing configuration')
 
         if 'storage' in func_sig.parameters:
-            data['storage'] = self.internal_storage.get_client()
+            data['storage'] = self.internal_storage.storage
 
         if 'rabbitmq' in func_sig.parameters:
             if 'rabbitmq' in self.pywren_config:
@@ -212,20 +212,20 @@ class JobRunner:
             logger.info('Getting dataset from {}://{}/{}'.format(obj.backend, obj.bucket, obj.key))
 
             if obj.backend == self.internal_storage.backend:
-                storage_handler = self.internal_storage.storage_handler
+                storage = self.internal_storage.storage
             else:
-                storage_handler = Storage(self.pywren_config, obj.backend).get_storage_handler()
+                storage = Storage(pywren_config=self.pywren_config, storage_backend=obj.backend)
 
             if obj.data_byte_range is not None:
                 extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
                 logger.info('Chunk: {} - Range: {}'.format(obj.part, extra_get_args['Range']))
-                sb = storage_handler.get_object(obj.bucket, obj.key, stream=True,
-                                                extra_get_args=extra_get_args)
+                sb = storage.get_object(obj.bucket, obj.key, stream=True,
+                                        extra_get_args=extra_get_args)
                 wsb = WrappedStreamingBodyPartition(sb, obj.chunk_size, obj.data_byte_range)
                 obj.data_stream = wsb
             else:
-                sb = storage_handler.get_object(obj.bucket, obj.key, stream=True,
-                                                extra_get_args=extra_get_args)
+                sb = storage.get_object(obj.bucket, obj.key, stream=True,
+                                        extra_get_args=extra_get_args)
                 obj.data_stream = sb
 
     # Decorator to execute pre-run and post-run functions provided via environment variables
