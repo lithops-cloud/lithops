@@ -56,7 +56,7 @@ class FunctionExecutor:
         if log_level:
             default_logging_config(log_level)
 
-        self.log_level = logger.getEffectiveLevel() != logging.WARNING
+        self.log_active = logger.getEffectiveLevel() != logging.WARNING
 
         # Overwrite pywren config parameters
         pw_config_ow = {}
@@ -318,7 +318,7 @@ class FunctionExecutor:
             return fs_done, fs_not_done
 
         logger.info(msg)
-        if not self.log_level:
+        if not self.log_active:
             print(msg)
 
         if is_unix_system() and timeout is not None:
@@ -329,7 +329,7 @@ class FunctionExecutor:
 
         pbar = None
         error = False
-        if not self.is_pywren_function and not self.log_level:
+        if not self.is_pywren_function and not self.log_active:
             from tqdm.auto import tqdm
 
             if is_notebook():
@@ -360,7 +360,7 @@ class FunctionExecutor:
                 pbar.close()
                 print()
             logger.info(msg)
-            if not self.log_level:
+            if not self.log_active:
                 print(msg) 
             error = True
 
@@ -450,7 +450,7 @@ class FunctionExecutor:
         msg = 'ExecutorID {} - Creating execution plots'.format(self.executor_id)
 
         logger.info(msg)
-        if not self.log_level:
+        if not self.log_active:
             print(msg)
 
         create_timeline(ftrs_to_plot, dst)
@@ -487,7 +487,7 @@ class FunctionExecutor:
         if jobs_to_clean:
             msg = "ExecutorID {} - Cleaning temporary data".format(self.executor_id)
             logger.info(msg)
-            if not self.log_level:
+            if not self.log_active:
                 print(msg)
             storage_config = self.internal_storage.get_storage_config()
             clean_job(jobs_to_clean, storage_config, clean_cloudobjects=cloudobjects)

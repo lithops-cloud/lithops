@@ -39,7 +39,7 @@ class IBMCloudFunctionsBackend:
 
     def __init__(self, ibm_cf_config):
         logger.debug("Creating IBM Cloud Functions client")
-        self.log_level = logger.getEffectiveLevel() != logging.WARNING
+        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'ibm_cf'
         self.ibm_cf_config = ibm_cf_config
         self.is_pywren_function = is_pywren_function()
@@ -110,7 +110,7 @@ class IBMCloudFunctionsBackend:
 
         log_msg = ('PyWren v{} init for IBM Cloud Functions - Namespace: {} - '
                    'Region: {}'.format(__version__, self.namespace, self.region))
-        if not self.log_level:
+        if not self.log_active:
             print(log_msg)
         logger.info("IBM CF client created successfully")
 

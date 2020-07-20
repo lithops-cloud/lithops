@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 
-import os
 import logging
 import importlib
 
@@ -28,7 +27,6 @@ class Compute:
     """
 
     def __init__(self, compute_config):
-        self.log_level = os.getenv('PYWREN_LOGLEVEL')
         self.config = compute_config
         self.backend = self.config['backend']
         self.compute_handler = None

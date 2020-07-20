@@ -46,7 +46,7 @@ class KnativeServingBackend:
     """
 
     def __init__(self, knative_config):
-        self.log_level = logger.getEffectiveLevel() != logging.WARNING
+        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'knative'
         self.knative_config = knative_config
         self.istio_endpoint = self.knative_config.get('istio_endpoint')
@@ -105,7 +105,7 @@ class KnativeServingBackend:
             log_msg = 'PyWren v{} init for Knative - Istio Endpoint: {}'.format(__version__, self.istio_endpoint)
         else:
             log_msg = 'PyWren v{} init for Knative'.format(__version__)
-        if not self.log_level:
+        if not self.log_active:
             print(log_msg)
         logger.info(log_msg)
 
@@ -490,7 +490,7 @@ class KnativeServingBackend:
         else:
             cmd = 'docker build -t {} .'.format(docker_image_name)
 
-        if not self.log_level:
+        if not self.log_active:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
 
         res = os.system(cmd)
@@ -500,7 +500,7 @@ class KnativeServingBackend:
         self._delete_function_handler_zip()
 
         cmd = 'docker push {}'.format(docker_image_name)
-        if not self.log_level:
+        if not self.log_active:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
         res = os.system(cmd)
         if res != 0:

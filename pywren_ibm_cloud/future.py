@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import os
 import sys
 import time
 import pickle
@@ -47,7 +46,7 @@ class ResponseFuture:
     GET_RESULT_MAX_RETRIES = 10
 
     def __init__(self, call_id, job_description, job_metadata, storage_config):
-        self.log_level = logger.getEffectiveLevel() != logging.WARNING
+        self.log_active = logger.getEffectiveLevel() != logging.WARNING
 
         self.call_id = call_id
         self.job_id = job_description['job_id']
@@ -189,9 +188,14 @@ class ResponseFuture:
             def exception_hook(exctype, exc, trcbck):
                 if exctype == fn_exctype and str(exc) == str(fn_exc):
                     msg2 = '--> Exception: {} - {}'.format(fn_exctype.__name__, fn_exc)
-                    print(msg1) if not self.log_level else logger.info(msg1)
+                    logger.info(msg1)
+                    if not self.log_active:
+                        print(msg1)
+
                     if self._handler_exception:
-                        print(msg2+'\n') if not self.log_level else logger.info(msg2)
+                        logger.info(msg2)
+                        if not self.log_active:
+                            print(msg2+'\n')
                     else:
                         traceback.print_exception(*self._exception)
                 else:

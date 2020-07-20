@@ -44,7 +44,7 @@ class FunctionInvoker:
     """
 
     def __init__(self, config, executor_id, internal_storage):
-        self.log_level = logger.getEffectiveLevel() != logging.WARNING
+        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.config = config
         self.executor_id = executor_id
         self.storage_config = extract_storage_config(self.config)
@@ -100,7 +100,7 @@ class FunctionInvoker:
             log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {}'
                        .format(self.executor_id, job_id, runtime_name))
         logger.info(log_msg)
-        if not self.log_level:
+        if not self.log_active:
             print(log_msg, end=' ')
 
         installing = False
@@ -116,7 +116,7 @@ class FunctionInvoker:
             if not runtime_deployed:
                 logger.debug('ExecutorID {} | JobID {} - Runtime {} with {}MB is not yet '
                              'installed'.format(self.executor_id, job_id, runtime_name, runtime_memory))
-                if not self.log_level and not installing:
+                if not self.log_active and not installing:
                     installing = True
                     print('(Installing...)')
 
@@ -133,7 +133,7 @@ class FunctionInvoker:
                                  "is not compatible with the local Python version {}")
                                 .format(runtime_name, py_remote_version, py_local_version))
 
-        if not self.log_level and runtime_deployed:
+        if not self.log_active and runtime_deployed:
             print()
 
         return runtime_meta
@@ -225,8 +225,6 @@ class FunctionInvoker:
 
         if not activation_id:
             # reached quota limit
-            logger.info('ExecutorID {} | JobID {} - Function call {} Error! Quota limit reached.'
-                        ' Requeuing request'.format(job.executor_id, job.job_id, call_id))
             time.sleep(random.randint(0, 5))
             self.pending_calls_q.put((job, call_id))
             self.token_bucket_q.put('#')
@@ -286,7 +284,7 @@ class FunctionInvoker:
                        '- Total: {} activations'.format(job.executor_id, job.job_id,
                                                         job.function_name, job.total_calls))
             logger.info(log_msg)
-            if not self.log_level:
+            if not self.log_active:
                 print(log_msg)
 
             th = Thread(target=self._invoke_remote, args=(job_description,))
@@ -304,7 +302,7 @@ class FunctionInvoker:
                 log_msg = ('ExecutorID {} | JobID {} - Starting function invocation: {}()  - Total: {} '
                            'activations'.format(job.executor_id, job.job_id, job.function_name, job.total_calls))
                 logger.info(log_msg)
-                if not self.log_level:
+                if not self.log_active:
                     print(log_msg)
 
                 if self.ongoing_activations < self.workers:
