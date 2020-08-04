@@ -1,0 +1,55 @@
+# Based on: https://github.com/ibm-functions/runtime-python/tree/master/python3.7
+FROM python:3.7-slim-buster
+
+ENV FLASK_PROXY_PORT 8080
+
+RUN apt-get update \
+    # add some packages required for the pip install
+    && apt-get install -y \
+        gcc \
+        zlib1g-dev \
+        libxslt-dev \
+        libxml2-dev \
+        zip \
+        unzip \
+    # cleanup package lists, they are not used anymore in this image
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-cache search linux-headers-generic
+
+RUN pip install --upgrade pip setuptools six \
+    && pip install --no-cache-dir \
+        simplejson==3.16.0 \
+        httplib2==0.13.0 \
+        kafka_python==1.4.6 \
+        lxml==4.3.1 \
+        python-dateutil==2.8.0 \
+        pika==0.13.1 \
+        flask==1.1.1 \
+        gevent==1.4.0 \
+        ibm-cos-sdk==2.6.0 \
+        redis==3.3.8 \
+        requests==2.22.0 \
+        numpy==1.17.2
+
+# create action working directory
+RUN mkdir -p /action \
+    && mkdir -p /actionProxy \
+    && mkdir -p /pythonAction
+
+ADD https://raw.githubusercontent.com/apache/openwhisk-runtime-docker/dockerskeleton%401.14.0/core/actionProxy/actionproxy.py /actionProxy/actionproxy.py
+ADD https://raw.githubusercontent.com/apache/openwhisk-runtime-python/3%401.14.0/core/pythonAction/pythonrunner.py /pythonAction/pythonrunner.py
+
+ADD runtime/ibm_cf/codelessrunner.py /pythonAction/codelessrunner.py
+
+# download the latest pywren code and add it to the docker image
+RUN apt update \
+    && apt install -y wget \
+    && wget -O tmp.zip https://github.com/pywren/pywren-ibm-cloud/archive/master.zip \
+    && unzip tmp.zip pywren-ibm-cloud-master/pywren_ibm_cloud/* \
+    && cp pywren-ibm-cloud-master/pywren_ibm_cloud/compute/backends/ibm_cf/entry_point.py /action/__main__.py \
+    && mv pywren-ibm-cloud-master/pywren_ibm_cloud /action/ \
+    && rm tmp.zip \
+    && rm -r pywren-ibm-cloud-master
+
+# run codelessrunner.py
+CMD ["/bin/bash", "-c", "cd /pythonAction && python -u codelessrunner.py"]

@@ -86,7 +86,8 @@ class OpenWhiskClient:
         if kind == 'blackbox':
             cfexec['image'] = image_name
         cfexec['binary'] = is_binary
-        cfexec['code'] = base64.b64encode(code).decode("utf-8") if is_binary else code
+        if code:
+            cfexec['code'] = base64.b64encode(code).decode("utf-8") if is_binary else code
         data['exec'] = cfexec
 
         logger.debug('I am about to create a new cloud function action: {}'.format(action_name))

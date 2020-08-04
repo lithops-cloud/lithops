@@ -80,6 +80,13 @@ pw = pywren.ibm_cf_executor(runtime_memory=512)
 
     *NOTE: In this previous example we built a Docker image based on Python 3.7, this means that now we also need Python 3.7 in the client machine.*
 
+    Using [Dockerfile.codeless](ibm_cf/Dockerfile.codeless) for the runtime may improve overall calculation times. The runtime already contains pywren preinstalled to optimise initialization times which may be valuable in some use-cases.
+
+        $ docker build -f runtime/ibm_cf/Dockerfile.codeless -t kpavel/pywren-codeless-runtime-3.7:0.1
+        $ pywren-ibm-cloud runtime build kpavel/pywren-codeless-runtime-3.7:0.1
+
+    Currently this runtime supported for ibm-cf and openwhisk only.
+
 2. **Use an already built runtime from a public repository**
 
     Maybe someone already built a Docker image with all the packages you need, and put it in a public repository.
@@ -152,3 +159,4 @@ pw = pywren.ibm_cf_executor(runtime_memory=512)
      You can clean everything related to PyWren, such as all deployed runtimes and cache information, and start from scratch by simply running the next command (Configuration is not deleted):
 
         $ pywren-ibm-cloud clean
+
