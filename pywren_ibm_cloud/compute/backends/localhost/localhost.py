@@ -20,7 +20,7 @@ class LocalhostBackend:
     """
 
     def __init__(self, local_config):
-        self.log_level = logger.getEffectiveLevel() != logging.WARNING
+        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.config = local_config
         self.name = 'local'
         self.alive = True
@@ -45,14 +45,14 @@ class LocalhostBackend:
 
         log_msg = 'PyWren v{} init for Localhost - Total workers: {}'.format(__version__, self.num_workers)
         logger.info(log_msg)
-        if not self.log_level:
+        if not self.log_active:
             print(log_msg)
 
     def _local_handler(self, event):
         """
         Handler to run local functions.
         """
-        if not self.log_level:
+        if not self.log_active:
             old_stdout = sys.stdout
             sys.stdout = open(os.devnull, 'w')
 
@@ -61,7 +61,7 @@ class LocalhostBackend:
         os.environ['__PW_ACTIVATION_ID'] = act_id
         function_handler(event)
 
-        if not self.log_level:
+        if not self.log_active:
             sys.stdout = old_stdout
 
     def _process_runner(self, worker_id):

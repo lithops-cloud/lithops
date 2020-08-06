@@ -54,6 +54,7 @@ def function_handler(event):
 
     os.environ.update({'PYWREN_FUNCTION': 'True',
                        'PYTHONUNBUFFERED': 'True'})
+    os.environ.pop('PYWREN_TOTAL_EXECUTORS', None)
 
     config = event['config']
     call_id = event['call_id']
