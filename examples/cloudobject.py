@@ -4,16 +4,17 @@ objects stored in the storage backend between functions without
 knowing they exact location (bucket, key)
 """
 import pywren_ibm_cloud as pywren
+import os
 
 
-def my_function_put(text, ibm_cos):
-    co1 = ibm_cos.put_cobject('Cloudobject test 1: {}'.format(text, ))
-    co2 = ibm_cos.put_cobject('Cloudobject test 2: {}'.format(text, ))
+def my_function_put(text, storage):
+    co1 = storage.put_cobject('Cloudobject test 1: {}'.format(text, ))
+    co2 = storage.put_cobject('Cloudobject test 2: {}'.format(text, ))
     return [co1, co2]
 
 
-def my_function_get(co, ibm_cos):
-    data = ibm_cos.get_cobject(co)
+def my_function_get(co, storage):
+    data = storage.get_cobject(co)
     return data
 
 
