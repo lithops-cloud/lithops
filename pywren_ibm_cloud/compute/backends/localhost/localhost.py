@@ -1,3 +1,4 @@
+import atexit
 import os
 import sys
 import uuid
@@ -27,10 +28,13 @@ class LocalhostBackend:
         self.queue = Queue()
         self.logs_dir = os.path.join(STORAGE_FOLDER, LOGS_PREFIX)
         self.num_workers = self.config['workers']
+        self.use_threads = not is_unix_system()
 
         self.workers = []
 
-        if not is_unix_system():
+        atexit.register(self.close)
+
+        if self.use_threads:
             for worker_id in range(self.num_workers):
                 p = Thread(target=self._process_runner, args=(worker_id,))
                 self.workers.append(p)
@@ -143,8 +147,19 @@ class LocalhostBackend:
         """
         return os.path.join(self.name, runtime_name)
 
-    def __del__(self):
+    def close(self):
         if self.alive:
             self.alive = False
             for worker in self.workers:
                 self.queue.put(None)
+
+            # Clean up process-based workers in case any are stuck
+            if not self.use_threads:
+                for worker_id, worker in enumerate(self.workers):
+                    if worker.is_alive():
+                        logger.debug('Terminating worker process {}'.format(worker_id))
+                        worker.terminate()
+
+    def __del__(self):
+        atexit.unregister(self.close)
+        self.close()
