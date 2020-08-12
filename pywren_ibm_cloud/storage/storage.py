@@ -41,6 +41,8 @@ class Storage:
             self.storage_config = storage_config
             self.backend = self.storage_config['backend']
             self.bucket = self.storage_config['bucket']
+            if 'user_agent' not in self.storage_config[self.backend]:
+                self.storage_config[self.backend]['user_agent'] = 'pywren-ibm-cloud/{}'.format(__version__)
 
             try:
                 module_location = 'pywren_ibm_cloud.storage.backends.{}'.format(self.backend)
