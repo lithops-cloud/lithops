@@ -40,7 +40,6 @@ class LocalhostBackend:
             for worker_id in range(self.num_workers):
                 p = Process(target=self._process_runner, args=(worker_id,))
                 self.workers.append(p)
-                p.daemon = True
                 p.start()
 
         log_msg = 'PyWren v{} init for Localhost - Total workers: {}'.format(__version__, self.num_workers)
