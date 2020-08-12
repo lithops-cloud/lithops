@@ -143,7 +143,7 @@ class DockerBackend:
                 cmd = 'docker rm -f {}'.format(name)
                 self._ssh_run_remote_command(cmd)
 
-            cmd = ('docker run -d --name {} -v /tmp:/tmp -p 8080:{}'
+            cmd = ('docker run -d --name {} --user $(id -u):$(id -g) -v /tmp:/tmp -p 8080:{}'
                    ' --entrypoint "python" {} /tmp/{}/__main__.py'
                    .format(name, docker_config.PYWREN_SERVER_PORT,
                            docker_image_name, DOCKER_BASE_FOLDER))
