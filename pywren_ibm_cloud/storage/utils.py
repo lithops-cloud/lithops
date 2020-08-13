@@ -107,7 +107,7 @@ def delete_cloudobject(co_to_clean, storage_config):
 
     for backend, bucket, key in co_to_delete:
         if backend == internal_storage.backend:
-            internal_storage.storage_handler.delete_object(bucket, key)
+            internal_storage.storage.delete_object(bucket, key)
 
     if os.path.exists(cobjs_path):
         os.remove(cobjs_path)
