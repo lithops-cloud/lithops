@@ -15,6 +15,7 @@ from pywren_ibm_cloud.utils import version_str, is_unix_system
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.config import TEMP, DOCKER_BASE_FOLDER, DOCKER_FOLDER
 from pywren_ibm_cloud.compute.utils import create_function_handler_zip
+import pywren_ibm_cloud.libs.docker.clients as available_remote_clients
 
 logging.getLogger('urllib3.connectionpool').setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
@@ -32,7 +33,9 @@ class DockerBackend:
         self.host = docker_config['host']
         self.queue = multiprocessing.Queue()
         self.docker_client = None
+
         self._is_localhost = self.host in ['127.0.0.1', 'localhost']
+        self._has_remote_client = 'remote_client' in self.config
 
         if self._is_localhost:
             try:
@@ -40,7 +43,21 @@ class DockerBackend:
             except Exception:
                 pass
 
+        if self._has_remote_client:
+
+            if self.config['remote_client'] == 'gen2':
+                remote_client_backend = 'IBMVPCInstanceClient'
+            else:
+                msg = 'There was an error recognizing remote client {}'.format(self.config['client'])
+                raise Exception(msg)
+
+            InstanceClient = getattr(available_remote_clients, remote_client_backend)
+            self.remote_client = InstanceClient(self.config[self.config['remote_client']],
+                                                user_agent=self.config['user_agent'])
+
         log_msg = 'PyWren v{} init for Docker - Host: {}'.format(__version__, self.host)
+        if self._has_remote_client:
+            log_msg += ' remote_client: {}'.format(self.config['remote_client'])
         logger.info(log_msg)
         if not self.log_active:
             print(log_msg)
@@ -113,7 +130,8 @@ class DockerBackend:
                     time.sleep(5)
             else:
                 running_runtimes_cmd = "docker ps --format '{{.Names}}' -f name=pywren"
-                running_runtimes = subprocess.run(running_runtimes_cmd, shell=True, stdout=subprocess.PIPE).stdout.decode()
+                running_runtimes = subprocess.run(running_runtimes_cmd, shell=True,
+                                                  stdout=subprocess.PIPE).stdout.decode()
                 if name not in running_runtimes:
                     if is_unix_system():
                         cmd = ('docker run -d --name {} --user {} -v {}:/tmp -p 8080:{}'
@@ -123,7 +141,7 @@ class DockerBackend:
                     else:
                         cmd = ('docker run -d --name {}  -v {}:/tmp -p 8080:{}'
                                ' --entrypoint "python" {} /tmp/{}/__main__.py'
-                               .format(name,  TEMP, docker_config.PYWREN_SERVER_PORT,
+                               .format(name, TEMP, docker_config.PYWREN_SERVER_PORT,
                                        docker_image_name, DOCKER_BASE_FOLDER))
 
                     if not self.log_active:
@@ -170,8 +188,16 @@ class DockerBackend:
         Invoke the function with the payload. runtime_name and memory
         are not used since it runs in the local machine.
         """
+
+        if self._has_remote_client:
+            self.remote_client.create_instance_action('start')
+
         self._init_runtime(docker_image_name)
         r = requests.post("http://{}:{}/".format(self.host, docker_config.PYWREN_SERVER_PORT), data=json.dumps(payload))
+
+        if self._has_remote_client:
+            self.remote_client.create_instance_action('stop')
+
         response = r.json()
         return response['activationId']
 

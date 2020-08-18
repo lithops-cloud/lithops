@@ -45,3 +45,13 @@ def load_config(config_data):
 
     if 'ibm_cos' in config_data and 'private_endpoint' in config_data['ibm_cos']:
         del config_data['ibm_cos']['private_endpoint']
+
+    if 'remote_client' in config_data['docker']:
+        remote_client_backend = config_data['docker']['remote_client']
+
+        if remote_client_backend == 'gen2':
+            if 'ibm' in config_data and config_data['ibm'] is not None:
+                config_data[remote_client_backend].update(config_data['ibm'])
+
+        remote_client_config = config_data.pop(remote_client_backend)
+        config_data['docker'][remote_client_backend] = remote_client_config
