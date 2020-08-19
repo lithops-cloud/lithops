@@ -1,11 +1,7 @@
-import os
 import logging
 import requests
-from datetime import datetime, timezone
-from ibm_botocore.credentials import DefaultTokenManager
 
-from pywren_ibm_cloud.utils import is_pywren_function
-from pywren_ibm_cloud.config import CACHE_DIR, load_yaml_config, dump_yaml_config
+from pywren_ibm_cloud.libs.ibm_utils import IBMIAMAPIKeyManager
 
 logger = logging.getLogger(__name__)
 
@@ -19,68 +15,32 @@ class IBMVPCInstanceClient:
         if insecure:
             self.session.verify = False
 
-        self._token_manager = DefaultTokenManager(api_key_id=self.config['iam_api_key'])
-        self._token_filename = os.path.join(CACHE_DIR, 'docker', 'iam_token')
+        iam_api_key = self.config.get('iam_api_key')
+        token = self.config.get('token', None)
+        token_expiry_time = self.config.get('token_expiry_time', None)
+        self.ibm_iam_api_key_manager = IBMIAMAPIKeyManager('docker', iam_api_key, token, token_expiry_time)
 
-        if 'token' in self.config:
-            logger.debug("Using IBM IAM API Key - Reusing Token from config")
-            self._token_manager._token = self.config['token']
-            self._token_manager._expiry_time = datetime.strptime(self.config['token_expiry_time'], '%Y-%m-%d %H:%M:%S.%f%z')
-            token_minutes_diff = int((self._token_manager._expiry_time - datetime.now(timezone.utc)).total_seconds() / 60.0)
-            logger.debug("Token expiry time: {} - Minutes left: {}".format(self._token_manager._expiry_time, token_minutes_diff))
-
-        elif os.path.exists(self._token_filename):
-            logger.debug("Using IBM IAM API Key - Reusing Token from local cache")
-            token_data = load_yaml_config(self._token_filename)
-            self._token_manager._token = token_data['token']
-            self._token_manager._expiry_time = datetime.strptime(token_data['token_expiry_time'], '%Y-%m-%d %H:%M:%S.%f%z')
-            token_minutes_diff = int((self._token_manager._expiry_time - datetime.now(timezone.utc)).total_seconds() / 60.0)
-            logger.debug("Token expiry time: {} - Minutes left: {}".format(self._token_manager._expiry_time, token_minutes_diff))
-
-        if self._iam_token_expired(): self._generate_new_iam_token()
-        self.config['token'] = self._token_manager._token
-        self.config['token_expiry_time'] = self._token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
-
-        auth_token = self._token_manager._token
-        auth = 'Bearer ' + auth_token
-
-        self.headers = {
-            'content-type': 'application/json',
-            'Authorization': auth,
-        }
-
+        headers = {'content-type': 'application/json'}
         if user_agent:
             default_user_agent = self.session.headers['User-Agent']
-            self.headers['User-Agent'] = default_user_agent + ' {}'.format(user_agent)
+            headers['User-Agent'] = default_user_agent + ' {}'.format(user_agent)
+        self.session.headers.update(headers)
 
-        self.session.headers.update(self.headers)
         adapter = requests.adapters.HTTPAdapter()
         self.session.mount('https://', adapter)
 
-    def _iam_token_expired(self):
-        token_minutes_diff = int((self._token_manager._expiry_time - datetime.now(timezone.utc)).total_seconds() / 60.0)
-        return (self._token_manager._is_expired() or token_minutes_diff < 11) and not is_pywren_function()
-
-    def _generate_new_iam_token(self):
-        logger.debug("Using IBM IAM API Key - Token expired. Requesting new token")
-        self._token_manager._token = None
-        self._token_manager.get_token()
-        token_data = {}
-        token_data['token'] = self._token_manager._token
-        token_data['token_expiry_time'] = self._token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
-        dump_yaml_config(self._token_filename, token_data)
+    def _authorize_session(self):
+        self.config['token'], self.config['token_expiry_time'] = self.ibm_iam_api_key_manager.get_token()
+        self.session.headers['Authorization'] = 'Bearer ' + self.config['token']
 
     def get_instance(self):
-        if self._iam_token_expired(): self._generate_new_iam_token()
-
         url = '/'.join([self.config['endpoint'], 'v1', 'instances', self.config['instance_id']
                         + f'?version={self.config["version"]}&generation={self.config["generation"]}'])
+        self._authorize_session()
         res = self.session.get(url)
         return res.json()
 
     def create_instance_action(self, type):
-        if self._iam_token_expired(): self._generate_new_iam_token()
-
         if type == 'start':
             expected_status = 'starting'
         elif type == 'stop':
@@ -94,6 +54,7 @@ class IBMVPCInstanceClient:
         url = '/'.join([self.config['endpoint'], 'v1', 'instances', self.config['instance_id'],
                         f'actions?version={self.config["version"]}&generation={self.config["generation"]}'])
         data = {'type': type, 'force': True}
+        self._authorize_session()
         res = self.session.put(url, json=data)
         resp_text = res.json()
 
