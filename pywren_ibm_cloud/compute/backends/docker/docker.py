@@ -7,6 +7,7 @@ import docker
 import logging
 import paramiko
 import requests
+import importlib
 import subprocess
 import multiprocessing
 
@@ -15,7 +16,6 @@ from pywren_ibm_cloud.utils import version_str, is_unix_system
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.config import TEMP, DOCKER_BASE_FOLDER, DOCKER_FOLDER
 from pywren_ibm_cloud.compute.utils import create_function_handler_zip
-import pywren_ibm_cloud.libs.docker.clients as available_remote_clients
 
 logging.getLogger('urllib3.connectionpool').setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
@@ -44,16 +44,12 @@ class DockerBackend:
                 pass
 
         if self._has_remote_client:
-
-            if self.config['remote_client'] == 'gen2':
-                remote_client_backend = 'IBMVPCInstanceClient'
-            else:
-                msg = 'There was an error recognizing remote client {}'.format(self.config['client'])
-                raise Exception(msg)
-
-            InstanceClient = getattr(available_remote_clients, remote_client_backend)
-            self.remote_client = InstanceClient(self.config[self.config['remote_client']],
-                                                user_agent=self.config['user_agent'])
+            remote_client_backend = self.config['remote_client']
+            client_location = 'pywren_ibm_cloud.libs.docker.clients.{}'.format(remote_client_backend)
+            client = importlib.import_module(client_location)
+            RemoteInstanceDockerClient = getattr(client, 'RemoteInstanceDockerClient')
+            self.remote_client = RemoteInstanceDockerClient(self.config[remote_client_backend],
+                                                            user_agent=self.config['user_agent'])
 
         log_msg = 'PyWren v{} init for Docker - Host: {}'.format(__version__, self.host)
         if self._has_remote_client:

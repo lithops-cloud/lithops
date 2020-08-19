@@ -12,23 +12,20 @@ logger = logging.getLogger(__name__)
 
 class IBMVPCInstanceClient:
 
-    def __init__(self, gen2_config, insecure=False, user_agent=None):
-        self.gen2_config = gen2_config
-        self.gen2_config['version'] = '2020-08-17'
-        self.gen2_config['generation'] = 2
+    def __init__(self, ibm_vpc_config, insecure=False, user_agent=None):
+        self.config = ibm_vpc_config
 
         self.session = requests.session()
-
         if insecure:
             self.session.verify = False
 
-        token_manager = DefaultTokenManager(api_key_id=self.gen2_config['iam_api_key'])
+        token_manager = DefaultTokenManager(api_key_id=self.config['iam_api_key'])
         token_filename = os.path.join(CACHE_DIR, 'docker', 'iam_token')
 
-        if 'token' in self.gen2_config:
+        if 'token' in self.config:
             logger.debug("Using IBM IAM API Key - Reusing Token from config")
-            token_manager._token = self.gen2_config['token']
-            token_manager._expiry_time = datetime.strptime(self.gen2_config['token_expiry_time'],
+            token_manager._token = self.config['token']
+            token_manager._expiry_time = datetime.strptime(self.config['token_expiry_time'],
                                                            '%Y-%m-%d %H:%M:%S.%f%z')
             token_minutes_diff = int((token_manager._expiry_time - datetime.now(timezone.utc)).total_seconds() / 60.0)
             logger.debug(
@@ -53,8 +50,8 @@ class IBMVPCInstanceClient:
             token_data['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
             dump_yaml_config(token_filename, token_data)
 
-        gen2_config['token'] = token_manager._token
-        gen2_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
+        self.config['token'] = token_manager._token
+        self.config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
 
         auth_token = token_manager._token
         auth = 'Bearer ' + auth_token
@@ -73,8 +70,8 @@ class IBMVPCInstanceClient:
         self.session.mount('https://', adapter)
 
     def get_instance(self):
-        url = '/'.join([self.gen2_config['endpoint'], 'v1', 'instances', self.gen2_config['gen2_config']
-                        + f'?version={self.gen2_config["version"]}&generation={self.gen2_config["generation"]}'])
+        url = '/'.join([self.config['endpoint'], 'v1', 'instances', self.config['instance_id']
+                        + f'?version={self.config["version"]}&generation={self.config["generation"]}'])
         res = self.session.get(url)
         return res.json()
 
@@ -89,8 +86,8 @@ class IBMVPCInstanceClient:
             msg = 'An error occurred cant create instance action \"{}\"'.format(type)
             raise Exception(msg)
 
-        url = '/'.join([self.gen2_config['endpoint'], 'v1', 'instances', self.gen2_config['instance_id'],
-                        f'actions?version={self.gen2_config["version"]}&generation={self.gen2_config["generation"]}'])
+        url = '/'.join([self.config['endpoint'], 'v1', 'instances', self.config['instance_id'],
+                        f'actions?version={self.config["version"]}&generation={self.config["generation"]}'])
         data = {'type': type, 'force': True}
         res = self.session.put(url, json=data)
         resp_text = res.json()

@@ -1,5 +1,7 @@
 import os
 import sys
+import importlib
+
 from pywren_ibm_cloud.utils import version_str
 
 RUNTIME_DEFAULT = {'3.5': 'ibmfunctions/pywren:3.5:latest',
@@ -49,9 +51,9 @@ def load_config(config_data):
     if 'remote_client' in config_data['docker']:
         remote_client_backend = config_data['docker']['remote_client']
 
-        if remote_client_backend == 'gen2':
-            if 'ibm' in config_data and config_data['ibm'] is not None:
-                config_data[remote_client_backend].update(config_data['ibm'])
+        remote_client_config = importlib.import_module('pywren_ibm_cloud.libs.docker.clients.{}.config'
+                                                       .format(remote_client_backend))
+        remote_client_config.load_config(config_data)
 
         remote_client_config = config_data.pop(remote_client_backend)
         config_data['docker'][remote_client_backend] = remote_client_config
