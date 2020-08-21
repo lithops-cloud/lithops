@@ -1,5 +1,6 @@
 import logging
 import requests
+import time
 
 from pywren_ibm_cloud.libs.ibm_utils import IBMIAMAPIKeyManager
 
@@ -41,31 +42,25 @@ class IBMVPCInstanceClient:
         return res.json()
 
     def create_instance_action(self, type):
-        if type == 'start':
-            expected_status = 'starting'
+        if type in ['start', 'reboot']:
+            expected_status = 'running'
         elif type == 'stop':
-            expected_status = 'stopping'
-        elif type == 'reboot':
-            expected_status = 'restarting'
+            expected_status = 'stopped'
         else:
             msg = 'An error occurred cant create instance action \"{}\"'.format(type)
             raise Exception(msg)
 
         url = '/'.join([self.config['endpoint'], 'v1', 'instances', self.config['instance_id'],
                         f'actions?version={self.config["version"]}&generation={self.config["generation"]}'])
-        data = {'type': type, 'force': True}
         self._authorize_session()
-        res = self.session.put(url, json=data)
+        res = self.session.post(url, json={'type': type})
         resp_text = res.json()
 
-        if res.status_code != 200:
+        if res.status_code != 201:
             msg = 'An error occurred creating instance action {}: {}'.format(type, resp_text['error'])
             raise Exception(msg)
 
-        instance = self.get_instance()
-        if instance['status'] != expected_status:
-            msg = 'An error occurred instance status \"{}\" does not match with expected status \"{}\"'.format(
-                instance['status'], expected_status)
-            raise Exception(msg)
+        while self.get_instance()['status'] != expected_status:
+            time.sleep(1)
 
         logger.debug("Created instance action {} successfully".format(type))
