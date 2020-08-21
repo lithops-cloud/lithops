@@ -18,7 +18,21 @@ from pywren_ibm_cloud.config import TEMP, DOCKER_BASE_FOLDER, DOCKER_FOLDER
 from pywren_ibm_cloud.compute.utils import create_function_handler_zip
 
 logging.getLogger('urllib3.connectionpool').setLevel(logging.CRITICAL)
+logging.getLogger('paramiko.transport').setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
+
+
+class RemoteClientStartStopContextManager:
+    def __init__(self, remote_client=None):
+        self.remote_client = remote_client
+
+    def __enter__(self):
+        if self.remote_client:
+            self.remote_client.create_instance_action('start')
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.remote_client:
+            self.remote_client.create_instance_action('stop')
 
 
 class DockerBackend:
@@ -33,27 +47,37 @@ class DockerBackend:
         self.host = docker_config['host']
         self.queue = multiprocessing.Queue()
         self.docker_client = None
+        self.ssh_credentials = None
 
         self._is_localhost = self.host in ['127.0.0.1', 'localhost']
-        self._has_remote_client = 'remote_client' in self.config
 
         if self._is_localhost:
             try:
                 self.docker_client = docker.from_env()
             except Exception:
                 pass
+        else:
+            if 'ssh_key_filename' in self.config:
+                self.ssh_credentials = {'username': self.config['ssh_user'],
+                                        'key_filename': self.config['ssh_key_filename'],
+                                        'passphrase': self.config['ssh_passphrase']}
+            elif 'ssh_password' in self.config:
+                self.ssh_credentials = {'username': self.config['ssh_user'],
+                                        'password': self.config['ssh_password']}
 
-        if self._has_remote_client:
+        remote_client = None
+        if 'remote_client' in self.config:
             remote_client_backend = self.config['remote_client']
             client_location = 'pywren_ibm_cloud.libs.docker.clients.{}'.format(remote_client_backend)
             client = importlib.import_module(client_location)
             RemoteInstanceDockerClient = getattr(client, 'RemoteInstanceDockerClient')
-            self.remote_client = RemoteInstanceDockerClient(self.config[remote_client_backend],
-                                                            user_agent=self.config['user_agent'])
+            remote_client = RemoteInstanceDockerClient(self.config[remote_client_backend],
+                                                       user_agent=self.config['user_agent'])
+            log_msg = 'Using RemoteClient: {}'.format(remote_client_backend)
+            logger.info(log_msg)
+        self.remote_client_start_stop = RemoteClientStartStopContextManager(remote_client)
 
         log_msg = 'PyWren v{} init for Docker - Host: {}'.format(__version__, self.host)
-        if self._has_remote_client:
-            log_msg += ' remote_client: {}'.format(self.config['remote_client'])
         logger.info(log_msg)
         if not self.log_active:
             print(log_msg)
@@ -78,9 +102,7 @@ class DockerBackend:
     def _ssh_run_remote_command(self, cmd):
         ssh_client = paramiko.SSHClient()
         ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh_client.connect(hostname=self.host,
-                           username=self.config['ssh_user'],
-                           password=self.config['ssh_password'])
+        ssh_client.connect(self.host, **self.ssh_credentials)
         stdin, stdout, stderr = ssh_client.exec_command(cmd)
 
         out = stdout.read().decode().strip()
@@ -96,9 +118,7 @@ class DockerBackend:
     def _ssh_upload_file(self, src, dst):
         ssh_client = paramiko.SSHClient()
         ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh_client.connect(hostname=self.host,
-                           username=self.config['ssh_user'],
-                           password=self.config['ssh_password'])
+        ssh_client.connect(self.host, **self.ssh_credentials)
         ftp_client = ssh_client.open_sftp()
         ftp_client.put(src, dst)
         ftp_client.close()
@@ -184,17 +204,13 @@ class DockerBackend:
         Invoke the function with the payload. runtime_name and memory
         are not used since it runs in the local machine.
         """
+        with self.remote_client_start_stop:
 
-        if self._has_remote_client:
-            self.remote_client.create_instance_action('start')
+            self._init_runtime(docker_image_name)
 
-        self._init_runtime(docker_image_name)
-        r = requests.post("http://{}:{}/".format(self.host, docker_config.PYWREN_SERVER_PORT), data=json.dumps(payload))
+            r = requests.post("http://{}:{}/".format(self.host, docker_config.PYWREN_SERVER_PORT), data=json.dumps(payload))
+            response = r.json()
 
-        if self._has_remote_client:
-            self.remote_client.create_instance_action('stop')
-
-        response = r.json()
         return response['activationId']
 
     def create_runtime(self, docker_image_name, memory, timeout):
@@ -223,19 +239,20 @@ class DockerBackend:
                 res = os.system(cmd)
                 if res != 0:
                     raise Exception('There was an error pulling the runtime')
+            runtime_meta = self._generate_runtime_meta(docker_image_name)
         else:
-            self._ssh_upload_file(docker_config.FH_ZIP_LOCATION, '/tmp/pywren_docker.zip')
-            cmd = 'rm -R -f /tmp/{} '.format(DOCKER_BASE_FOLDER)
-            cmd += '&& mkdir -p /tmp/{} '.format(DOCKER_BASE_FOLDER)
-            cmd += '&& unzip /tmp/pywren_docker.zip -d /tmp/{} '.format(DOCKER_BASE_FOLDER)
-            cmd += '&& rm /tmp/pywren_docker.zip'
-            self._ssh_run_remote_command(cmd)
-            cmd = 'docker pull {}'.format(docker_image_name)
-            self._ssh_run_remote_command(cmd)
+            with self.remote_client_start_stop:
+                self._ssh_upload_file(docker_config.FH_ZIP_LOCATION, '/tmp/pywren_docker.zip')
+                cmd = 'rm -R -f /tmp/{} '.format(DOCKER_BASE_FOLDER)
+                cmd += '&& mkdir -p /tmp/{} '.format(DOCKER_BASE_FOLDER)
+                cmd += '&& unzip /tmp/pywren_docker.zip -d /tmp/{} '.format(DOCKER_BASE_FOLDER)
+                cmd += '&& rm /tmp/pywren_docker.zip'
+                self._ssh_run_remote_command(cmd)
+                cmd = 'docker pull {}'.format(docker_image_name)
+                self._ssh_run_remote_command(cmd)
+                runtime_meta = self._generate_runtime_meta(docker_image_name)
 
         self._delete_function_handler_zip()
-        runtime_meta = self._generate_runtime_meta(docker_image_name)
-
         return runtime_meta
 
     def build_runtime(self, docker_image_name, dockerfile):
@@ -262,8 +279,9 @@ class DockerBackend:
                     cmd = cmd + " >{} 2>&1".format(os.devnull)
                 os.system(cmd)
         else:
-            cmd = 'docker rm -f {}'.format(name)
-            self._ssh_run_remote_command(cmd)
+            with self.remote_client_start_stop:
+                cmd = 'docker rm -f {}'.format(name)
+                self._ssh_run_remote_command(cmd)
 
     def delete_all_runtimes(self):
         """
@@ -284,11 +302,12 @@ class DockerBackend:
                         cmd = cmd + " >{} 2>&1".format(os.devnull)
                     os.system(cmd)
         else:
-            list_runtimes_cmd = "docker ps -a -f name=pywren | awk '{print $NF}' | tail -n +2"
-            running_containers = self._ssh_run_remote_command(list_runtimes_cmd)
-            for name in running_containers.splitlines():
-                cmd = 'docker rm -f {}'.format(name)
-                self._ssh_run_remote_command(cmd)
+            with self.remote_client_start_stop:
+                list_runtimes_cmd = "docker ps -a -f name=pywren | awk '{print $NF}' | tail -n +2"
+                running_containers = self._ssh_run_remote_command(list_runtimes_cmd)
+                for name in running_containers.splitlines():
+                    cmd = 'docker rm -f {}'.format(name)
+                    self._ssh_run_remote_command(cmd)
 
     def list_runtimes(self, docker_image_name='all'):
         """
@@ -309,9 +328,10 @@ class DockerBackend:
                 running_containers = subprocess.check_output(list_runtimes_cmd, shell=True).decode().strip()
                 running_runtimes = running_containers.splitlines()
         else:
-            list_runtimes_cmd = "docker ps -a -f name=pywren | awk '{print $NF}' | tail -n +2"
-            running_containers = self._ssh_run_remote_command(list_runtimes_cmd)
-            running_runtimes = running_containers.splitlines()
+            with self.remote_client_start_stop:
+                list_runtimes_cmd = "docker ps -a -f name=pywren | awk '{print $NF}' | tail -n +2"
+                running_containers = self._ssh_run_remote_command(list_runtimes_cmd)
+                running_runtimes = running_containers.splitlines()
 
         for runtime in running_runtimes:
             name = self._format_runtime_name(docker_image_name)
