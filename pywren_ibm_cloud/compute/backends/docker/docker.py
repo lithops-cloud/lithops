@@ -29,6 +29,7 @@ class RemoteClientStartStopContextManager:
     def __enter__(self):
         if self.remote_client:
             self.remote_client.create_instance_action('start')
+            time.sleep(5)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.remote_client:
@@ -57,13 +58,10 @@ class DockerBackend:
             except Exception:
                 pass
         else:
-            if 'ssh_key_filename' in self.config:
-                self.ssh_credentials = {'username': self.config['ssh_user'],
-                                        'key_filename': self.config['ssh_key_filename'],
-                                        'passphrase': self.config['ssh_passphrase']}
-            elif 'ssh_password' in self.config:
-                self.ssh_credentials = {'username': self.config['ssh_user'],
-                                        'password': self.config['ssh_password']}
+            ssh_key_filename = self.config.get('ssh_key_filename', None)
+            self.ssh_credentials = {'username': self.config['ssh_user'],
+                                    'password': self.config['ssh_password'],
+                                    'key_filename': ssh_key_filename}
 
         remote_client = None
         if 'remote_client' in self.config:

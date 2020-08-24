@@ -37,16 +37,13 @@ def load_config(config_data):
 
     if config_data['docker']['host'] not in ['127.0.0.1', 'localhost']:
 
-        required_credentials_0 = ('ssh_user', 'ssh_password')
-        required_credentials_1 = ('ssh_user', 'ssh_key_filename', 'ssh_passphrase')
-
-        if (not set(required_credentials_0) < set(config_data['docker'])) and (not set(required_credentials_1) < set(config_data['docker'])):
+        if 'ssh_user' not in config_data['docker']:
             raise Exception('You must provide ssh credentials to access to the remote host')
 
-        if 'ssh_password' in config_data['docker']:
+        if 'ssh_password' not in config_data['docker']:
+            config_data['docker']['ssh_password'] = ''
+        else:
             config_data['docker']['ssh_password'] = str(config_data['docker']['ssh_password'])
-        elif 'ssh_passphrase' in config_data['docker']:
-            config_data['docker']['ssh_passphrase'] = str(config_data['docker']['ssh_passphrase'])
 
         if config_data['pywren']['storage_backend'] == 'localhost':
             raise Exception('Localhost storage backend is not supported for Docker remote host')
