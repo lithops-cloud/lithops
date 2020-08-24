@@ -30,7 +30,7 @@ The IBM VPC client is a component for PyWren's docker executor using a remote ho
        storage_backend: ibm_cos
    
    ibm:
-       IAM_api_key: <iam-api-key>
+       iam_api_key: <iam-api-key>
    
    docker:
        host: <floating-ip-address>
