@@ -37,6 +37,7 @@ The IBM VPC client is a component for PyWren's docker executor using a remote ho
        ssh_user: root
        ssh_password: <passphrase> # OPTIONAL, will use '' if not provided
        ssh_key_filename: <private-ssh-key-path> # OPTIONAL, will use the default path if not provided
+       remote_client: ibm_vpc
    
    ibm_vpc:
        endpoint: <endpoint>
