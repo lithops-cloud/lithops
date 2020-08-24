@@ -1,5 +1,7 @@
 import os
 import sys
+import importlib
+
 from pywren_ibm_cloud.utils import version_str
 
 RUNTIME_DEFAULT = {'3.5': 'ibmfunctions/pywren:3.5:latest',
@@ -34,8 +36,14 @@ def load_config(config_data):
         config_data['docker'] = {'host': 'localhost'}
 
     if config_data['docker']['host'] not in ['127.0.0.1', 'localhost']:
-        if 'ssh_user' not in config_data['docker'] or 'ssh_password' not in config_data['docker']:
+
+        if 'ssh_user' not in config_data['docker']:
             raise Exception('You must provide ssh credentials to access to the remote host')
+
+        if 'ssh_password' not in config_data['docker']:
+            config_data['docker']['ssh_password'] = ''
+        else:
+            config_data['docker']['ssh_password'] = str(config_data['docker']['ssh_password'])
 
         if config_data['pywren']['storage_backend'] == 'localhost':
             raise Exception('Localhost storage backend is not supported for Docker remote host')
@@ -45,3 +53,13 @@ def load_config(config_data):
 
     if 'ibm_cos' in config_data and 'private_endpoint' in config_data['ibm_cos']:
         del config_data['ibm_cos']['private_endpoint']
+
+    if 'remote_client' in config_data['docker']:
+        remote_client_backend = config_data['docker']['remote_client']
+
+        remote_client_config = importlib.import_module('pywren_ibm_cloud.libs.docker.clients.{}.config'
+                                                       .format(remote_client_backend))
+        remote_client_config.load_config(config_data)
+
+        remote_client_config = config_data.pop(remote_client_backend)
+        config_data['docker'][remote_client_backend] = remote_client_config
