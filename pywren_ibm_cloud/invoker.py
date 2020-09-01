@@ -186,7 +186,6 @@ class FunctionInvoker:
             for invoker in self.invokers:
                 self.token_bucket_q.put('#')
                 self.pending_calls_q.put((None, None))
-                # invoker.terminate()
 
             while not self.pending_calls_q.empty():
                 try:
@@ -194,8 +193,6 @@ class FunctionInvoker:
                 except Exception:
                     pass
             self.invokers = []
-
-        # self.compute_handlers.clear()
 
     def _invoke(self, job, call_id):
         """

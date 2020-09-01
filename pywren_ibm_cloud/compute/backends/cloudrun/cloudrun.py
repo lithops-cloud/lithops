@@ -4,20 +4,14 @@ import sys
 import ssl
 import json
 import shutil
-import time
-import yaml
-import zipfile
 import urllib3
 import logging
 import requests
 import subprocess
 import http.client
-import pywren_ibm_cloud
 from urllib.parse import urlparse
-from kubernetes import client, config, watch
 from pywren_ibm_cloud.utils import version_str
 from pywren_ibm_cloud.version import __version__
-from pywren_ibm_cloud.config import CACHE_DIR, load_yaml_config, dump_yaml_config
 from pywren_ibm_cloud.compute.utils import create_function_handler_zip
 from . import config as cr_config
 
@@ -34,13 +28,19 @@ class CloudRunServingBackend:
     """
 
     def __init__(self, cloudrun_config):
-        self.log_level = os.getenv('PYWREN_LOGLEVEL')
+        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'cloudrun'
         self.cloudrun_config = cloudrun_config
         self.region = self.cloudrun_config.get('region')
         self.namespace = self.cloudrun_config.get('namespace', 'default')
         self.cluster = self.cloudrun_config.get('cluster', 'default')
         self.workers = self.cloudrun_config.get('workers')
+
+        log_msg = ('PyWren v{} init for Google Cloud Run - Namespace: {} - '
+                   'Region: {}'.format(__version__, self.namespace, self.region))
+        if not self.log_active:
+            print(log_msg)
+        logger.info("Google Cloud Run client created successfully")
 
     def _format_service_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '--').replace(':', '--')
@@ -92,13 +92,13 @@ class CloudRunServingBackend:
     def _create_service(self, docker_image_name, runtime_memory, timeout):
 
         service_name = self._format_service_name(docker_image_name, runtime_memory)
-        
+
         cmd = 'gcloud run deploy --allow-unauthenticated --platform=managed --region={} --image gcr.io/{} --max-instances={} --memory={} --timeout={} --concurrency=1 {}'.format(
             self.region, docker_image_name, self.workers, '{}Mi'.format(runtime_memory), timeout, service_name
         )
 
-        if not self.log_level:
-            cmd = cmd + " >/dev/null 2>&1"
+        if not self.log_active:
+            cmd = cmd + " >{} 2>&1".format(os.devnull)
 
         res = os.system(cmd)
         if res != 0:
@@ -158,7 +158,7 @@ class CloudRunServingBackend:
             shutil.copyfile(dockerfile, "Dockerfile")
         cmd = 'gcloud builds submit -t gcr.io/{}'.format(docker_image_name)
 
-        if not self.log_level:
+        if not self.log_active:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
 
         res = os.system(cmd)
@@ -173,7 +173,7 @@ class CloudRunServingBackend:
 
         cmd = 'gcloud run services delete {} --platform=managed --region={} --quiet'.format(service_name, self.region)
 
-        if not self.log_level:
+        if not self.log_active:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
 
         res = os.system(cmd)

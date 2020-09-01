@@ -69,6 +69,7 @@ class LocalhostBackend:
 
     def _process_runner(self, worker_id):
         logger.debug('Localhost worker process {} started'.format(worker_id))
+
         while self.alive:
             try:
                 event = self.queue.get(block=True)
@@ -77,7 +78,6 @@ class LocalhostBackend:
                 self._local_handler(event)
             except KeyboardInterrupt:
                 break
-        logger.debug('Localhost worker process {} stopped'.format(worker_id))
 
     def _generate_python_meta(self):
         """
