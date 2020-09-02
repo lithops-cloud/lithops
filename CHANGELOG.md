@@ -1,12 +1,29 @@
 # Changelog
 
-## [v1.7.1--snapshot]
+## [v1.7.3--snapshot]
+
+### Added
+ - [Docker] Added IBM VPC service client
+
+### Fixed
+- 
+
+### Changed
+-  [Docker] Improved Docker executor
+
+
+## [v1.7.2]
+
+### Added
+- [GCR] Added Google Cloud Run Backend
 
 ### Fixed
 - [PyWren] Fixed invoker token bucket when quota limit is reached
 - [PyWren] Fixed logging
-- [PyWren] Foxed invoker when it reaches quota limit
+- [PyWren] Fixed invoker when it reaches quota limit
+- [PyWren] Fixed delete cloudobject
 - [Localhost] Fixed invocations ability to launch subprocesses
+- [Docker] Fixed docker running as user and not root
 
 ### Changed
 - [PyWren] Improved Storage abstraction
