@@ -50,8 +50,8 @@ def create_timeline(fs, dst):
 
     fields.append(('status fetched', stats_df.host_status_done_tstamp - host_job_create_tstamp))
 
-    if 'host_output_done_tstamp' in stats_df:
-        fields.append(('results fetched', stats_df.host_output_done_tstamp - host_job_create_tstamp))
+    if 'host_result_done_tstamp' in stats_df:
+        fields.append(('results fetched', stats_df.host_result_done_tstamp - host_job_create_tstamp))
 
     patches = []
     for f_i, (field_name, val) in enumerate(fields):
@@ -71,8 +71,8 @@ def create_timeline(fs, dst):
     for y in y_ticks:
         ax.axhline(y, c='k', alpha=0.1, linewidth=1)
 
-    if 'host_output_done_tstamp' in stats_df:
-        max_seconds = np.max(stats_df.host_output_done_tstamp - host_job_create_tstamp)*1.25
+    if 'host_result_done_tstamp' in stats_df:
+        max_seconds = np.max(stats_df.host_result_done_tstamp - host_job_create_tstamp)*1.25
     elif 'host_status_done_tstamp' in stats_df:
         max_seconds = np.max(stats_df.host_status_done_tstamp - host_job_create_tstamp)*1.25
     else:

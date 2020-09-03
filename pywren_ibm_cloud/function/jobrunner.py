@@ -325,6 +325,6 @@ class JobRunner:
                 logger.info("Storing function result - Size: {}".format(sizeof_fmt(len(pickled_output))))
                 self.internal_storage.put_data(self.output_key, pickled_output)
                 output_upload_end_tstamp = time.time()
-                self.stats.write("output_upload_time", round(output_upload_end_tstamp - output_upload_start_tstamp, 8))
+                self.stats.write("cloud_result_upload_time", round(output_upload_end_tstamp - output_upload_start_tstamp, 8))
             self.jobrunner_conn.send("Finished")
             logger.info("Finished")
