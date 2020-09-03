@@ -87,7 +87,7 @@ class JobRunner:
         func_obj = self.internal_storage.get_func(self.func_key)
         loaded_func_all = pickle.loads(func_obj)
         func_download_end_tstamp = time.time()
-        self.stats.write('function_download_time', round(func_download_end_tstamp-func_download_start_tstamp, 8))
+        self.stats.write('cloud_func_download_time', round(func_download_end_tstamp-func_download_start_tstamp, 8))
         logger.debug("Finished getting Function and modules")
 
         return loaded_func_all
@@ -148,7 +148,7 @@ class JobRunner:
         loaded_data = pickle.loads(data_obj)
         logger.debug("Finished unpickle Function data")
         data_download_end_tstamp = time.time()
-        self.stats.write('data_download_time', round(data_download_end_tstamp-data_download_start_tstamp, 8))
+        self.stats.write('cloud_data_download_time', round(data_download_end_tstamp-data_download_start_tstamp, 8))
 
         return loaded_data
 
@@ -272,9 +272,9 @@ class JobRunner:
             print('----------------------------------------------------------', flush=True)
             logger.info("Success function execution")
 
-            self.stats.write('function_start_tstamp', function_start_tstamp)
-            self.stats.write('function_end_tstamp', function_end_tstamp)
-            self.stats.write('function_exec_time', round(function_end_tstamp-function_start_tstamp, 8))
+            self.stats.write('cloud_func_start_tstamp', function_start_tstamp)
+            self.stats.write('cloud_func_end_tstamp', function_end_tstamp)
+            self.stats.write('cloud_func_exec_time', round(function_end_tstamp-function_start_tstamp, 8))
 
             # Check for new futures
             if result is not None:
