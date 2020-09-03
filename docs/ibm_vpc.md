@@ -65,4 +65,5 @@ The IBM VPC client is a component for PyWren's docker executor using a remote ho
        exec = pywren.docker_executor()
        exec.call_async(hello_world, 'World')
        print("Response from function: ", exec.get_result())
+       exec.dismantle() # explicitly stops started vpc instances
    ```
