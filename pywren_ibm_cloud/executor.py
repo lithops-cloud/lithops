@@ -98,7 +98,6 @@ class FunctionExecutor:
         self.internal_storage = InternalStorage(storage_config)
         self.storage = self.internal_storage.storage
         self.invoker = FunctionInvoker(self.config, self.executor_id, self.internal_storage)
-
         self.futures = []
         self.total_jobs = 0
         self.cleaned_jobs = set()
@@ -461,6 +460,8 @@ class FunctionExecutor:
         Deletes all the files from COS. These files include the function,
         the data serialization and the function invocation results.
         """
+        self.invoker.cleanup() 
+
         if cs:
             storage_config = self.internal_storage.get_storage_config()
             delete_cloudobject(list(cs), storage_config)
