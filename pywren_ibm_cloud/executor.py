@@ -85,6 +85,7 @@ class FunctionExecutor:
         logger.debug('FunctionExecutor created with ID: {}'.format(self.executor_id))
 
         self.data_cleaner = self.config['pywren'].get('data_cleaner', True)
+        self.auto_dismantle = self.config['pywren'].get('auto_dismantle', False)
         self.rabbitmq_monitor = self.config['pywren'].get('rabbitmq_monitor', False)
 
         if self.rabbitmq_monitor:
@@ -377,6 +378,8 @@ class FunctionExecutor:
                     print()
             if self.data_cleaner and not self.is_pywren_function:
                 self.clean(cloudobjects=False, force=False, log=False)
+            if self.auto_dismantle:
+                self.dismantle()
             if not fs and error and is_notebook():
                 del self.futures[len(self.futures)-len(futures):]
 
@@ -460,8 +463,6 @@ class FunctionExecutor:
         Deletes all the files from COS. These files include the function,
         the data serialization and the function invocation results.
         """
-        self.invoker.cleanup() 
-
         if cs:
             storage_config = self.internal_storage.get_storage_config()
             delete_cloudobject(list(cs), storage_config)
@@ -498,3 +499,8 @@ class FunctionExecutor:
         self.invoker.stop()
         if self.data_cleaner:
             self.clean(log=False)
+        if self.auto_dismantle:
+            self.dismantle()
+
+    def dismantle(self):
+        self.invoker.dismantle()

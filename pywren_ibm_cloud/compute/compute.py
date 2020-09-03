@@ -110,8 +110,9 @@ class Compute:
         """
         return self.compute_handler.get_runtime_key(runtime_name, memory)
 
-    def cleanup(self):
+    def dismantle(self):
         if self.remote_client:
+            logger.info("Dismantling setup")
             self.remote_client.create_instance_action('stop')
 
     def __del__(self):

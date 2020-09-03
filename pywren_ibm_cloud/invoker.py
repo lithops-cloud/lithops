@@ -80,9 +80,9 @@ class FunctionInvoker:
 
         self.job_monitor = JobMonitor(self.config, self.internal_storage, self.token_bucket_q)
 
-    def cleanup(self):
+    def dismantle(self):
         for compute_handler in self.compute_handlers:
-            compute_handler.cleanup()
+            compute_handler.dismantle()
 
     def select_runtime(self, job_id, runtime_memory):
         """
