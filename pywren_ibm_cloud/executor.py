@@ -85,7 +85,7 @@ class FunctionExecutor:
         logger.debug('FunctionExecutor created with ID: {}'.format(self.executor_id))
 
         self.data_cleaner = self.config['pywren'].get('data_cleaner', True)
-        self.auto_dismantle = self.config['pywren'].get('auto_dismantle', False)
+        self.auto_dismantle = self.config['pywren'].get('auto_dismantle', True)
         self.rabbitmq_monitor = self.config['pywren'].get('rabbitmq_monitor', False)
 
         if self.rabbitmq_monitor:
@@ -500,6 +500,11 @@ class FunctionExecutor:
         if self.data_cleaner:
             self.clean(log=False)
         if self.auto_dismantle:
+            self.dismantle()
+
+    def __del__(self):
+        if self.auto_dismantle:
+            print("Auto dismantle enabled")
             self.dismantle()
 
     def dismantle(self):

@@ -28,7 +28,7 @@ The IBM VPC client is a component for PyWren's docker executor using a remote ho
    pywren:
        compute_backend: docker
        storage_backend: ibm_cos
-       auto_dismantle: False
+       auto_dismantle: True
    
    ibm:
        iam_api_key: <iam-api-key>
@@ -49,7 +49,7 @@ The IBM VPC client is a component for PyWren's docker executor using a remote ho
 
    - **version**: use for specifying IBM VPC production application version date, it is recommended to configure it statically
    - **generation**: use for specifying IBM VPC environment compute generation, see [Comparing compute generations in VPC](https://cloud.ibm.com/docs/cloud-infrastructure?topic=cloud-infrastructure-compare-vpc-vpcoc) for additional information
-   - **pywren.auto_dismantle**:  if True then VM stoped after execution and not possible to run additional subsequet execution unless new executor instance created
+   - **pywren.auto_dismantle**:  if False then VM not stopped automatically after execution. run **exec.dismantle()** expicitly to stop VM.
 
 ### Verify
 
