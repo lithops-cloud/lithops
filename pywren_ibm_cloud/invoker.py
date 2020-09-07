@@ -80,6 +80,10 @@ class FunctionInvoker:
 
         self.job_monitor = JobMonitor(self.config, self.internal_storage, self.token_bucket_q)
 
+    def dismantle(self):
+        for compute_handler in self.compute_handlers:
+            compute_handler.dismantle()
+
     def select_runtime(self, job_id, runtime_memory):
         """
         Auxiliary method that selects the runtime to use. To do so it gets the
