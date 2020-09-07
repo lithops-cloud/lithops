@@ -79,7 +79,7 @@ def function_handler(event):
 
     call_status = CallStatus(config, internal_storage)
     call_status.response['host_submit_tstamp'] = event['host_submit_tstamp']
-    call_status.response['cloud_agent_start_tstamp'] = start_tstamp
+    call_status.response['worker_start_tstamp'] = start_tstamp
     context_dict = {
         'python_version': os.environ.get("PYTHON_VERSION"),
         'call_id': call_id,
@@ -155,7 +155,7 @@ def function_handler(event):
             memory_monitor.join()
             peak_memory_usage = int(mm_handler_conn.recv())
             logger.info("Peak memory usage: {}".format(sizeof_fmt(peak_memory_usage)))
-            call_status.response['cloud_peak_memory_usage'] = peak_memory_usage
+            call_status.response['peak_memory_usage'] = peak_memory_usage
 
         if not handler_conn.poll():
             logger.error('No completion message received from JobRunner process')
@@ -189,7 +189,7 @@ def function_handler(event):
         call_status.response['exc_info'] = str(pickled_exc)
 
     finally:
-        call_status.response['cloud_agent_end_tstamp'] = time.time()
+        call_status.response['worker_end_tstamp'] = time.time()
         call_status.send('__end__')
 
         for key in extra_env:

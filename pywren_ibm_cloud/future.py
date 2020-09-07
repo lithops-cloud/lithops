@@ -214,8 +214,8 @@ class ResponseFuture:
             if any(ss in key for ss in ['time', 'tstamp', 'count', 'size']):
                 self.stats[key] = self._call_status[key]
 
-        self.stats['exec_time'] = round(self.stats['cloud_agent_end_tstamp'] - self.stats['cloud_agent_start_tstamp'], 8)
-        total_time = format(round(self.stats['exec_time'], 2), '.2f')
+        self.stats['worker_exec_time'] = round(self.stats['worker_end_tstamp'] - self.stats['worker_start_tstamp'], 8)
+        total_time = format(round(self.stats['worker_exec_time'], 2), '.2f')
 
         log_msg = ('ExecutorID {} | JobID {} - Got status from call {} - Activation '
                    'ID: {} - Time: {} seconds'.format(self.executor_id,

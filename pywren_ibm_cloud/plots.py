@@ -45,8 +45,8 @@ def create_timeline(fs, dst):
     point_size = 10
 
     fields = [('host submit', stats_df.host_submit_tstamp - host_job_create_tstamp),
-              ('action start', stats_df.cloud_agent_start_tstamp - host_job_create_tstamp),
-              ('action done', stats_df.cloud_agent_end_tstamp - host_job_create_tstamp)]
+              ('action start', stats_df.worker_start_tstamp - host_job_create_tstamp),
+              ('action done', stats_df.worker_end_tstamp - host_job_create_tstamp)]
 
     fields.append(('status fetched', stats_df.host_status_done_tstamp - host_job_create_tstamp))
 
@@ -103,7 +103,7 @@ def create_histogram(fs, dst):
     host_job_create_tstamp = min([cm['host_job_create_tstamp'] for cm in stats])
 
     total_calls = len(stats)
-    max_seconds = int(max([cs['cloud_agent_end_tstamp']-host_job_create_tstamp for cs in stats])*2.5)
+    max_seconds = int(max([cs['worker_end_tstamp']-host_job_create_tstamp for cs in stats])*2.5)
 
     runtime_bins = np.linspace(0, max_seconds, max_seconds)
 
@@ -131,7 +131,7 @@ def create_histogram(fs, dst):
     fig = pylab.figure(figsize=(10, 6))
     ax = fig.add_subplot(1, 1, 1)
 
-    time_rates = [(cs['cloud_agent_start_tstamp'], cs['cloud_agent_end_tstamp']) for cs in stats]
+    time_rates = [(cs['worker_start_tstamp'], cs['worker_end_tstamp']) for cs in stats]
 
     time_hist = compute_times_rates(time_rates)
 
