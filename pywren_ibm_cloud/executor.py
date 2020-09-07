@@ -85,6 +85,7 @@ class FunctionExecutor:
         logger.debug('FunctionExecutor created with ID: {}'.format(self.executor_id))
 
         self.data_cleaner = self.config['pywren'].get('data_cleaner', True)
+        self.auto_dismantle = self.config['pywren'].get('auto_dismantle', True)
         self.rabbitmq_monitor = self.config['pywren'].get('rabbitmq_monitor', False)
 
         if self.rabbitmq_monitor:
@@ -98,7 +99,6 @@ class FunctionExecutor:
         self.internal_storage = InternalStorage(storage_config)
         self.storage = self.internal_storage.storage
         self.invoker = FunctionInvoker(self.config, self.executor_id, self.internal_storage)
-
         self.futures = []
         self.total_jobs = 0
         self.cleaned_jobs = set()
@@ -378,6 +378,8 @@ class FunctionExecutor:
                     print()
             if self.data_cleaner and not self.is_pywren_function:
                 self.clean(cloudobjects=False, force=False, log=False)
+            if self.auto_dismantle:
+                self.dismantle()
             if not fs and error and is_notebook():
                 del self.futures[len(self.futures)-len(futures):]
 
@@ -497,3 +499,13 @@ class FunctionExecutor:
         self.invoker.stop()
         if self.data_cleaner:
             self.clean(log=False)
+        if self.auto_dismantle:
+            self.dismantle()
+
+    def __del__(self):
+        if self.auto_dismantle:
+            print("Auto dismantle enabled")
+            self.dismantle()
+
+    def dismantle(self):
+        self.invoker.dismantle()

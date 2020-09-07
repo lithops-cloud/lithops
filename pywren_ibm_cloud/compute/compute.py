@@ -36,9 +36,33 @@ class Compute:
             cb_module = importlib.import_module(module_location)
             ComputeBackend = getattr(cb_module, 'ComputeBackend')
             self.compute_handler = ComputeBackend(self.config[self.backend])
+            self.remote_client = self._get_remote_client(self.config[self.backend])
+
+            # if backend supports, check if ready. run client to setup in case not ready
+            if hasattr(self.compute_handler, 'ready') and not self.compute_handler.ready():
+                self._setup_compute()
+                self.remote_client.create_instance_action('start')
+
         except Exception as e:
             logger.error("There was en error trying to create the '{}' compute backend".format(e))
             raise e
+
+    def _setup_compute(self):
+        logger.info("Starting setup of compute backend")
+        self.remote_client.create_instance_action('start')
+        logger.info("Waiting for compute to become ready")
+        if not self.compute_handler.ready(retries=10, timeout=20):
+            raise Exception("The remote compute is not ready")
+
+    def _get_remote_client(self, backend_config):
+        if 'remote_client' in backend_config:
+            remote_client_backend = backend_config['remote_client']
+            client_location = 'pywren_ibm_cloud.libs.clients.{}'.format(remote_client_backend)
+            client = importlib.import_module(client_location)
+            RemoteInstanceClient = getattr(client, 'RemoteInstanceClient')
+            return RemoteInstanceClient(backend_config[remote_client_backend],
+                                                       user_agent=backend_config['user_agent'])
+        return None
 
     def invoke(self, runtime_name, memory, payload):
         """
@@ -85,6 +109,11 @@ class Compute:
         into the storage
         """
         return self.compute_handler.get_runtime_key(runtime_name, memory)
+
+    def dismantle(self):
+        if self.remote_client:
+            logger.info("Dismantling setup")
+            self.remote_client.create_instance_action('stop')
 
     def __del__(self):
         if self.compute_handler and hasattr(self.compute_handler, '__del__'):
