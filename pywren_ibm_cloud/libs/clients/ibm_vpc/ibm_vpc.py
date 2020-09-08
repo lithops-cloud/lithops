@@ -30,6 +30,8 @@ class IBMVPCInstanceClient:
         adapter = requests.adapters.HTTPAdapter()
         self.session.mount('https://', adapter)
 
+        self.dismantle_timeout = self.config.get('dismantle_timeout', 300) # if not specified, 5 minutes to dismantle after last used
+
     def _authorize_session(self):
         self.config['token'], self.config['token_expiry_time'] = self.ibm_iam_api_key_manager.get_token()
         self.session.headers['Authorization'] = 'Bearer ' + self.config['token']
@@ -57,10 +59,23 @@ class IBMVPCInstanceClient:
         resp_text = res.json()
 
         if res.status_code != 201:
-            msg = 'An error occurred creating instance action {}: {}'.format(type, resp_text['error'])
+            msg = 'An error occurred creating instance action {}: {}'.format(type, resp_text['errors'])
             raise Exception(msg)
 
         while self.get_instance()['status'] != expected_status:
             time.sleep(1)
 
         logger.debug("Created instance action {} successfully".format(type))
+
+    def setup(self, readiness_probe=None):
+        if readiness_probe():
+            return
+        else:
+            self.create_instance_action('start')
+            start_timeout = self.config.get('start_timeout', 300)
+            logger.info("Waiting for compute backend to become ready")
+            if not readiness_probe(timeout=start_timeout):
+                raise Exception("Failed to make the compute ready")
+
+    def dismantle(self):
+        self.create_instance_action('stop')

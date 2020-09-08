@@ -166,6 +166,15 @@ def extract_compute_config(config):
     compute_config[cb]['user_agent'] = 'pywren-ibm-cloud/{}'.format(__version__)
     if 'compute_backend_region' in config['pywren']:
         compute_config[cb]['region'] = config['pywren']['compute_backend_region']
+    if 'remote_client' in config['pywren']:
+        remote_client_backend = config['pywren']['remote_client']
+        remote_client_config = importlib.import_module('pywren_ibm_cloud.libs.clients.{}.config'
+                                                       .format(remote_client_backend))
+        remote_client_config.load_config(config)
+
+        remote_client_config = config[remote_client_backend]
+        compute_config[remote_client_backend] = remote_client_config
+        compute_config['remote_client'] = config['pywren']['remote_client']
 
     return compute_config
 

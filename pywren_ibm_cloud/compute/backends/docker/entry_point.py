@@ -5,11 +5,15 @@ import flask
 import logging
 import pkgutil
 import multiprocessing
+import time
+import threading
+import importlib
 
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.function import function_invoker
 from pywren_ibm_cloud.config import DOCKER_FOLDER
-
+from pywren_ibm_cloud.config import extract_compute_config
+from pywren_ibm_cloud.compute.utils import get_remote_client
 
 log_file = os.path.join(DOCKER_FOLDER, 'proxy.log')
 logging.basicConfig(filename=log_file, level=logging.DEBUG)
@@ -18,6 +22,32 @@ logger = logging.getLogger('__main__')
 
 proxy = flask.Flask(__name__)
 
+last_usage_time = time.time()
+keeper = None
+
+
+def budget_keeper(client):
+    global last_usage_time
+
+    logger.info("BudgetKeeper started")
+    while True:
+        time_since_last_usage = time.time() - last_usage_time
+        time_to_dismantle = client.dismantle_timeout - time_since_last_usage
+        logger.info("Time to dismantle: {}".format(time_to_dismantle))
+        if time_to_dismantle < 0:
+            # unset 'PYWREN_FUNCTION' environment variable that prevents token manager generate new token
+            del os.environ['PYWREN_FUNCTION']
+            logger.info("Dismantling setup")
+            client.dismantle()
+
+        time.sleep(5)
+
+def _init_keeper(config):
+    global keeper
+    compute_config = extract_compute_config(config)
+    client = get_remote_client(compute_config)
+    keeper = threading.Thread(target=budget_keeper, args=(client,))
+    keeper.start()
 
 @proxy.route('/', methods=['POST'])
 def run():
@@ -28,6 +58,11 @@ def run():
 
     sys.stdout = open(log_file, 'w')
 
+    global last_usage_time
+    global keeper
+
+    last_usage_time = time.time()
+
     message = flask.request.get_json(force=True, silent=True)
     if message and not isinstance(message, dict):
         return error()
@@ -37,6 +72,14 @@ def run():
 
     if 'remote_invoker' in message:
         try:
+            # init keeper only when auto_dismantle: True and remote_client configuration provided
+            auto_dismantle = message['config']['pywren'].get('auto_dismantle', True)
+            if auto_dismantle and 'remote_client' in message['config']['pywren'] and not keeper:
+                _init_keeper(message['config'])
+
+            # remove 'remote_client' configuration
+            message['config']['pywren'].pop('remote_client', None)
+
             logger.info("PyWren v{} - Starting Docker invoker".format(__version__))
             message['config']['pywren']['remote_invoker'] = False
             message['config']['pywren']['compute_backend'] = 'localhost'

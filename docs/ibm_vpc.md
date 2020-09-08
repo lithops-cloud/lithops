@@ -29,6 +29,7 @@ The IBM VPC client is a component for PyWren's docker executor using a remote ho
        compute_backend: docker
        storage_backend: ibm_cos
        auto_dismantle: True
+       remote_client: ibm_vpc
    
    ibm:
        iam_api_key: <iam-api-key>
@@ -38,18 +39,21 @@ The IBM VPC client is a component for PyWren's docker executor using a remote ho
        ssh_user: root
        ssh_password: <passphrase> # OPTIONAL, will use '' if not provided
        ssh_key_filename: <private-ssh-key-path> # OPTIONAL, will use the default path if not provided
-       remote_client: ibm_vpc
    
    ibm_vpc:
        endpoint: <endpoint>
        instance_id: <instance-id>
        version: dd-mm-yyyy # OPTIONAL, will use today's date if not provided
        generation: 1/2 # OPTIONAL, will use 2 if not provided
+       dismantle_timeout: 300 # if auto_dismantle=True, after this timeout (seconds), the VPC instance sygnaled to stop from inside runtime
+       start_timeout: 300
    ```
 
    - **version**: use for specifying IBM VPC production application version date, it is recommended to configure it statically
    - **generation**: use for specifying IBM VPC environment compute generation, see [Comparing compute generations in VPC](https://cloud.ibm.com/docs/cloud-infrastructure?topic=cloud-infrastructure-compare-vpc-vpcoc) for additional information
-   - **pywren.auto_dismantle**:  if False then VM not stopped automatically after execution. run **exec.dismantle()** expicitly to stop VM.
+   - **pywren.auto_dismantle**:  if False then VM not stopped automatically after execution. run **exec.dismantle()** expicitly to stop VM
+   - **dismantle_timeout**: in some cases, e.g. loss of network communication with VPC, the auto_dismantle may fail. in such case, after specified **dismantle_timeout** timeout dismantle procedure will be initiated from inside runtime container
+   - **start_timeout**: time in seconds to wait untill the VPC instance start
 
 ### Verify
 
