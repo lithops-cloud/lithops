@@ -3,10 +3,13 @@
 ## [v1.7.3--snapshot]
 
 ### Added
- - [Docker] Added IBM VPC service client
+- [Pywren] Generic compute client logic
+- [Pywren] IBM IAM service client lib
+- [Pywren] IBM VPC service client lib
+- [Docker] Docker backend compatible with IBM VPC VM 
 
 ### Fixed
-- 
+-  [Ceph] Fix in ceph endpoint
 
 ### Changed
 -  [Docker] Improved Docker executor
