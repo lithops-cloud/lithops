@@ -8,7 +8,7 @@ from multiprocessing import Process, Queue
 from threading import Thread
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import version_str, is_unix_system
-from pywren_ibm_cloud.function import function_handler
+from pywren_ibm_cloud.worker import function_handler
 from pywren_ibm_cloud.config import STORAGE_FOLDER, LOGS_PREFIX
 
 

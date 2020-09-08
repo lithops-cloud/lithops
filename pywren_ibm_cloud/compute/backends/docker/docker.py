@@ -7,7 +7,6 @@ import docker
 import logging
 import paramiko
 import requests
-import importlib
 import subprocess
 import multiprocessing
 
@@ -321,7 +320,11 @@ class DockerBackend:
     def ready(self, retries=1, timeout=5):
         for i in range(retries):
             try:
-                self._ssh_run_remote_command('docker ps', timeout=timeout)
+                if self._is_localhost:
+                    list_runtimes_cmd = "docker ps"
+                    subprocess.check_output(list_runtimes_cmd, shell=True).decode().strip()
+                else:
+                    self._ssh_run_remote_command('docker ps', timeout=timeout)
                 return True
             except Exception:
                 continue

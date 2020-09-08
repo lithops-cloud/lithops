@@ -30,8 +30,8 @@ from pywren_ibm_cloud import version
 from pywren_ibm_cloud.utils import sizeof_fmt
 from pywren_ibm_cloud.config import extract_storage_config
 from pywren_ibm_cloud.storage import InternalStorage
-from pywren_ibm_cloud.function.jobrunner import JobRunner
-from pywren_ibm_cloud.function.utils import get_memory_usage
+from pywren_ibm_cloud.worker.jobrunner import JobRunner
+from pywren_ibm_cloud.worker.utils import get_memory_usage
 from pywren_ibm_cloud.config import cloud_logging_config, JOBS_PREFIX, STORAGE_FOLDER
 from pywren_ibm_cloud.storage.utils import create_output_key, create_status_key, create_init_key
 

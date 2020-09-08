@@ -17,6 +17,7 @@
 
 import copy
 import signal
+import atexit
 import logging
 from functools import partial
 from pywren_ibm_cloud.invoker import FunctionInvoker
@@ -87,6 +88,9 @@ class FunctionExecutor:
         self.data_cleaner = self.config['pywren'].get('data_cleaner', True)
         self.auto_dismantle = self.config['pywren'].get('auto_dismantle', True)
         self.rabbitmq_monitor = self.config['pywren'].get('rabbitmq_monitor', False)
+
+        if self.auto_dismantle:
+            atexit.register(self.dismantle)
 
         if self.rabbitmq_monitor:
             if 'rabbitmq' in self.config and 'amqp_url' in self.config['rabbitmq']:
@@ -378,8 +382,6 @@ class FunctionExecutor:
                     print()
             if self.data_cleaner and not self.is_pywren_function:
                 self.clean(cloudobjects=False, force=False, log=False)
-            if self.auto_dismantle:
-                self.dismantle()
             if not fs and error and is_notebook():
                 del self.futures[len(self.futures)-len(futures):]
 
@@ -495,17 +497,12 @@ class FunctionExecutor:
             clean_job(jobs_to_clean, storage_config, clean_cloudobjects=cloudobjects)
             self.cleaned_jobs.update(jobs_to_clean)
 
+    def dismantle(self):
+        self.invoker.dismantle()
+
     def __exit__(self, exc_type, exc_value, traceback):
         self.invoker.stop()
         if self.data_cleaner:
             self.clean(log=False)
         if self.auto_dismantle:
             self.dismantle()
-
-    def __del__(self):
-        if self.auto_dismantle:
-            print("Auto dismantle enabled")
-            self.dismantle()
-
-    def dismantle(self):
-        self.invoker.dismantle()

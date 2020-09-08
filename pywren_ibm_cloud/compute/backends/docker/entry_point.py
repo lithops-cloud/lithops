@@ -7,7 +7,7 @@ import pkgutil
 import multiprocessing
 
 from pywren_ibm_cloud.version import __version__
-from pywren_ibm_cloud.function import function_invoker
+from pywren_ibm_cloud.worker import function_invoker
 from pywren_ibm_cloud.config import DOCKER_FOLDER
 
 

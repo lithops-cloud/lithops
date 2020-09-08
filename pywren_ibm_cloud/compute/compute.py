@@ -39,7 +39,9 @@ class Compute:
             self.remote_client = self._get_remote_client(self.config[self.backend])
 
             # if backend supports, check if ready. run client to setup in case not ready
-            if hasattr(self.compute_handler, 'ready') and not self.compute_handler.ready():
+            if self.remote_client and \
+               hasattr(self.compute_handler, 'ready') and \
+               not self.compute_handler.ready():
                 self._setup_compute()
                 self.remote_client.create_instance_action('start')
 
@@ -112,7 +114,7 @@ class Compute:
 
     def dismantle(self):
         if self.remote_client:
-            logger.info("Dismantling setup")
+            logger.debug("Dismantling setup")
             self.remote_client.create_instance_action('stop')
 
     def __del__(self):
