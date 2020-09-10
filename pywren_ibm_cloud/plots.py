@@ -45,8 +45,8 @@ def create_timeline(fs, dst):
     point_size = 10
 
     fields = [('host submit', stats_df.host_submit_tstamp - host_job_create_tstamp),
-              ('action start', stats_df.worker_start_tstamp - host_job_create_tstamp),
-              ('action done', stats_df.worker_end_tstamp - host_job_create_tstamp)]
+              ('worker start', stats_df.worker_start_tstamp - host_job_create_tstamp),
+              ('worker done', stats_df.worker_end_tstamp - host_job_create_tstamp)]
 
     fields.append(('status fetched', stats_df.host_status_done_tstamp - host_job_create_tstamp))
 
