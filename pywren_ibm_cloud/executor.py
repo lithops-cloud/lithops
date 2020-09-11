@@ -89,9 +89,6 @@ class FunctionExecutor:
         self.auto_dismantle = self.config['pywren'].get('auto_dismantle', True)
         self.rabbitmq_monitor = self.config['pywren'].get('rabbitmq_monitor', False)
 
-        if self.auto_dismantle:
-            atexit.register(self.dismantle)
-
         if self.rabbitmq_monitor:
             if 'rabbitmq' in self.config and 'amqp_url' in self.config['rabbitmq']:
                 self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
@@ -107,6 +104,9 @@ class FunctionExecutor:
         self.total_jobs = 0
         self.cleaned_jobs = set()
         self.last_call = None
+
+        if self.auto_dismantle:
+            atexit.register(self.dismantle)
 
     def __enter__(self):
         return self
