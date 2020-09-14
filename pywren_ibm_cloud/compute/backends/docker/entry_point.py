@@ -32,28 +32,29 @@ def budget_keeper(client, internal_storage):
     global last_usage_time
     global last_job
 
-    if client.soft_dismantle_timeout < 0 and client.hard_dismantle_timeout < 0:
-        logger.info("soft_dismantle_timeout and hard_dismantle_timeout are negative, BudgetKeeper not started")
-        return
-
     logger.info("BudgetKeeper started")
 
     while True:
-        time.sleep(5)
-
         # time since last invocation start or complete
         time_since_last_usage = time.time() - last_usage_time
+
+        minimal_sleep_time = client.soft_dismantle_timeout / 10
+        if time_since_last_usage < minimal_sleep_time:
+            logger.debug("Time since last usage: {}, going to sleep for {}".format(time_since_last_usage, minimal_sleep_time))
+            time.sleep(minimal_sleep_time)
+            continue
 
         # if there is incompleted invocation, wait for completion or for hard_dismantle_timeout
         if last_job:
             callids_running_in_job, callids_done_in_job = internal_storage.get_job_status(last_job['executor_id'], last_job['job_id'])
 
-            logger.debug(">> callids_running_in_job {}".format(len(callids_running_in_job)))
+            logger.debug("callids_running_in_job {}".format(len(callids_running_in_job)))
             if len(callids_running_in_job) > 0:
                 time_to_dismantle = client.hard_dismantle_timeout - time_since_last_usage
             else:
                 last_job = None
                 last_usage_time = time.time()
+                continue
         else:
             time_to_dismantle = client.soft_dismantle_timeout - time_since_last_usage
 
@@ -66,6 +67,8 @@ def budget_keeper(client, internal_storage):
                 client.dismantle()
             except Exception as e:
                 logger.info("Dismantle error {}".format(e))
+        else:
+            time.sleep(minimal_sleep_time)
 
 def _init_keeper(config):
     global keeper
