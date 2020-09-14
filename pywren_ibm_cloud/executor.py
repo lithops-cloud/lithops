@@ -502,10 +502,5 @@ class FunctionExecutor:
         if self.auto_dismantle:
             self.dismantle()
 
-    def __del__(self):
-        if self.auto_dismantle:
-            print("Auto dismantle enabled")
-            self.dismantle()
-
     def dismantle(self):
         self.invoker.dismantle()

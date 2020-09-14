@@ -30,7 +30,8 @@ class IBMVPCInstanceClient:
         adapter = requests.adapters.HTTPAdapter()
         self.session.mount('https://', adapter)
 
-        self.dismantle_timeout = self.config.get('dismantle_timeout', 300) # if not specified, 5 minutes to dismantle after last used
+        self.soft_dismantle_timeout = self.config.get('soft_dismantle_timeout', 300) # if not specified, 5 minutes to dismantle after last completed
+        self.hard_dismantle_timeout = self.config.get('hard_dismantle_timeout', 10800) # if not specified, 3 hours to dismantle after last invoked
 
     def _authorize_session(self):
         self.config['token'], self.config['token_expiry_time'] = self.ibm_iam_api_key_manager.get_token()

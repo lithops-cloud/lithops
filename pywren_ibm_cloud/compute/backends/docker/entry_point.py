@@ -12,7 +12,8 @@ import importlib
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.function import function_invoker
 from pywren_ibm_cloud.config import DOCKER_FOLDER
-from pywren_ibm_cloud.config import extract_compute_config
+from pywren_ibm_cloud.config import extract_compute_config, extract_storage_config
+from pywren_ibm_cloud.storage import InternalStorage
 from pywren_ibm_cloud.compute.utils import get_remote_client
 
 log_file = os.path.join(DOCKER_FOLDER, 'proxy.log')
@@ -23,30 +24,57 @@ logger = logging.getLogger('__main__')
 proxy = flask.Flask(__name__)
 
 last_usage_time = time.time()
+last_job = None
 keeper = None
 
 
-def budget_keeper(client):
+def budget_keeper(client, internal_storage):
     global last_usage_time
+    global last_job
+
+    if client.soft_dismantle_timeout < 0 and client.hard_dismantle_timeout < 0:
+        logger.info("soft_dismantle_timeout and hard_dismantle_timeout are negative, BudgetKeeper not started")
+        return
 
     logger.info("BudgetKeeper started")
+
     while True:
+        time.sleep(5)
+
+        # time since last invocation start or complete
         time_since_last_usage = time.time() - last_usage_time
-        time_to_dismantle = client.dismantle_timeout - time_since_last_usage
+
+        # if there is incompleted invocation, wait for completion or for hard_dismantle_timeout
+        if last_job:
+            callids_running_in_job, callids_done_in_job = internal_storage.get_job_status(last_job['executor_id'], last_job['job_id'])
+
+            logger.debug(">> callids_running_in_job {}".format(len(callids_running_in_job)))
+            if len(callids_running_in_job) > 0:
+                time_to_dismantle = client.hard_dismantle_timeout - time_since_last_usage
+            else:
+                last_job = None
+                last_usage_time = time.time()
+        else:
+            time_to_dismantle = client.soft_dismantle_timeout - time_since_last_usage
+
         logger.info("Time to dismantle: {}".format(time_to_dismantle))
         if time_to_dismantle < 0:
             # unset 'PYWREN_FUNCTION' environment variable that prevents token manager generate new token
             del os.environ['PYWREN_FUNCTION']
             logger.info("Dismantling setup")
-            client.dismantle()
-
-        time.sleep(5)
+            try:
+                client.dismantle()
+            except Exception as e:
+                logger.info("Dismantle error {}".format(e))
 
 def _init_keeper(config):
     global keeper
     compute_config = extract_compute_config(config)
     client = get_remote_client(compute_config)
-    keeper = threading.Thread(target=budget_keeper, args=(client,))
+    storage_config = extract_storage_config(config)
+    internal_storage = InternalStorage(storage_config)
+
+    keeper = threading.Thread(target=budget_keeper, args=(client, internal_storage, ))
     keeper.start()
 
 @proxy.route('/', methods=['POST'])
@@ -60,8 +88,7 @@ def run():
 
     global last_usage_time
     global keeper
-
-    last_usage_time = time.time()
+    global last_job
 
     message = flask.request.get_json(force=True, silent=True)
     if message and not isinstance(message, dict):
@@ -70,11 +97,13 @@ def run():
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     os.environ['__PW_ACTIVATION_ID'] = act_id
 
+    last_usage_time = time.time()
+    last_job = message['job_description']
+
     if 'remote_invoker' in message:
         try:
-            # init keeper only when auto_dismantle: True and remote_client configuration provided
-            auto_dismantle = message['config']['pywren'].get('auto_dismantle', True)
-            if auto_dismantle and 'remote_client' in message['config']['pywren'] and not keeper:
+            # init keeper only when remote_client configuration provided
+            if 'remote_client' in message['config']['pywren'] and not keeper:
                 _init_keeper(message['config'])
 
             # remove 'remote_client' configuration
