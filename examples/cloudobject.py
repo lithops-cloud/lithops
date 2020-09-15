@@ -3,7 +3,7 @@ Simple PyWren example using cloudobjects to transparently pass
 objects stored in the storage backend between functions without
 knowing they exact location (bucket, key)
 """
-import pywren_ibm_cloud as pywren
+import lithops
 import os
 
 
@@ -24,7 +24,7 @@ if __name__ == "__main__":
     At the end of the with statement all
     cloudobjects are automatically deleted.
     """
-    with pywren.ibm_cf_executor() as pw:
+    with lithops.ibm_cf_executor() as pw:
         pw.call_async(my_function_put, 'Hello World')
         cloudobjects = pw.get_result()
         pw.map(my_function_get, cloudobjects)
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     pw.clean(cs=cloudobjects) is mandatory if you created
     the cloudobjects in a custom location.
     """
-    pw = pywren.ibm_cf_executor()
+    pw = lithops.ibm_cf_executor()
     pw.call_async(my_function_put, 'Hello World')
     cloudobjects = pw.get_result()
     pw.map(my_function_get, cloudobjects)

@@ -2,7 +2,7 @@
 Example of running GROMACS with PyWren-IBM-Cloud
 """
 
-import pywren_ibm_cloud as pywren
+import lithops
 import os
 import zipfile
 import time
@@ -14,8 +14,8 @@ iterdata = [1]
 
 
 def sh_cmd_executor(x, param1, ibm_cos):
-    pywren_config = json.loads(os.environ['PYWREN_CONFIG'])
-    bucket = pywren_config['pywren']['storage_bucket']
+    lithops_config = json.loads(os.environ['LITHOPS_CONFIG'])
+    bucket = lithops_config['lithops']['storage_bucket']
     print (bucket)
     print (param1)
     filename = 'benchMEM.zip'
@@ -56,7 +56,7 @@ if __name__ == '__main__':
     param1 = 'param1 example'
 
     total_start = time.time()
-    pw = pywren.ibm_cf_executor(runtime='cactusone/pywren-gromacs:1.0.2', runtime_memory=2048)
+    pw = lithops.ibm_cf_executor(runtime='cactusone/lithops-gromacs:1.0.2', runtime_memory=2048)
     pw.map(sh_cmd_executor, iterdata, extra_args=(param1,))
     res = pw.get_result()
     pw.clean()

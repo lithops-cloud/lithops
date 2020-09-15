@@ -29,7 +29,7 @@ RUN pip install --upgrade pip setuptools six \
         numpy==1.17.2
 
 # Copy PyWren proxy and lib to the container image.
-ENV APP_HOME /pywren
+ENV APP_HOME /lithops
 WORKDIR $APP_HOME
 
 COPY pywren_knative.zip .

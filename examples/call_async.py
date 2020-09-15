@@ -1,7 +1,7 @@
 """
 Simple PyWren example using one single function invocation
 """
-import pywren_ibm_cloud as pywren
+import lithops
 
 
 def my_function(x):
@@ -9,6 +9,6 @@ def my_function(x):
 
 
 if __name__ == '__main__':
-    pw = pywren.ibm_cf_executor()
+    pw = lithops.ibm_cf_executor()
     pw.call_async(my_function, 3)
     print(pw.get_result())

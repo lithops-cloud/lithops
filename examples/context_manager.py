@@ -5,7 +5,7 @@ method will launch one map function for each entry
 in 'iterdata'. Finally it will print the results
 for each invocation with pw.get_result()
 """
-import pywren_ibm_cloud as pywren
+import lithops
 
 
 def my_map_function(id, x):
@@ -15,6 +15,6 @@ def my_map_function(id, x):
 
 if __name__ == "__main__":
     iterdata = [1, 2, 3, 4]
-    with pywren.ibm_cf_executor() as pw:
+    with lithops.ibm_cf_executor() as pw:
         pw.map(my_map_function, iterdata)
         print(pw.get_result())

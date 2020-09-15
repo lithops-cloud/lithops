@@ -6,7 +6,7 @@ map function for each entry in 'iterdata', and then it will
 wait locally for the results. Once the results be ready, it
 will launch the reduce function.
 """
-import pywren_ibm_cloud as pywren
+import lithops
 
 iterdata = [1, 2, 3, 4]
 
@@ -27,14 +27,14 @@ if __name__ == "__main__":
     By default the reducer will be launched within a Cloud Function
     when the local PyWren have all the results from the mappers.
     """
-    pw = pywren.ibm_cf_executor()
+    pw = lithops.ibm_cf_executor()
     pw.map_reduce(my_map_function, iterdata, my_reduce_function)
     print(pw.get_result())
 
     """
     Set 'reducer_wait_local=True' to wait for the results locally.
     """
-    pw = pywren.ibm_cf_executor()
+    pw = lithops.ibm_cf_executor()
     pw.map_reduce(my_map_function, iterdata, my_reduce_function,
                   reducer_wait_local=True)
     print(pw.get_result())

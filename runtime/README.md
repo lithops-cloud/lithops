@@ -27,7 +27,7 @@ import pywren_ibm_cloud as pywren
 def my_function(x):
     return x + 7
 
-pw = pywren.ibm_cf_executor()
+pw = lithops.ibm_cf_executor()
 pw.call_async(my_function, 3)
 result = pw.get_result()
 ```

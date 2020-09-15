@@ -15,7 +15,7 @@ In the reduce function there will be always one parameter
 from where you can access to the partial results.
 """
 
-import pywren_ibm_cloud as pywren
+import lithops
 
 # Bucket with prefix
 data_location = 'cos://pw-sample-data/test/'  # Change-me
@@ -40,6 +40,6 @@ def my_map_function(obj):
 
 
 if __name__ == "__main__":
-    pw = pywren.ibm_cf_executor()
+    pw = lithops.ibm_cf_executor()
     pw.map(my_map_function, data_location)
     print(pw.get_result())
