@@ -442,7 +442,7 @@ def run_tests(test_to_run, config=None):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="test all PyWren's functionality",
+    parser = argparse.ArgumentParser(description="test all Lithops's functionality",
                                      usage='python -m lithops.tests [-c CONFIG] [-t TESTNAME]')
     parser.add_argument('-c', '--config', type=argparse.FileType('r'), metavar='', default=None,
                         help="use json config file")

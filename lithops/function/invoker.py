@@ -35,7 +35,7 @@ CBH = {}
 
 def function_invoker(event):
     if __version__ != event['pywren_version']:
-        raise Exception("WRONGVERSION", "PyWren version mismatch",
+        raise Exception("WRONGVERSION", "Lithops version mismatch",
                         __version__, event['pywren_version'])
 
     if event['log_level']:

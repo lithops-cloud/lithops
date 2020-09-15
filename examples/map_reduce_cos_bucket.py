@@ -1,5 +1,5 @@
 """
-Simple PyWren example using the map_reduce method which
+Simple Lithops example using the map_reduce method which
 runs a wordcount over all the objects inside the 'bucketname'
 COS bucket.
 

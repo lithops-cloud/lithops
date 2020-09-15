@@ -1,5 +1,5 @@
 """
-Simple PyWren example using the 'ibm_cos' parameter, which is
+Simple Lithops example using the 'ibm_cos' parameter, which is
 a ready-to-use ibm_boto3.CLient() instance.
 """
 import lithops

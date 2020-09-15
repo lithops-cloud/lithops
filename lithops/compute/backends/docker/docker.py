@@ -49,7 +49,7 @@ class DockerBackend:
                                     'password': self.config['ssh_password'],
                                     'key_filename': ssh_key_filename}
 
-        log_msg = 'PyWren v{} init for Docker - Host: {}'.format(__version__, self.host)
+        log_msg = 'Lithops v{} init for Docker - Host: {}'.format(__version__, self.host)
         logger.info(log_msg)
         if not self.log_active:
             print(log_msg)

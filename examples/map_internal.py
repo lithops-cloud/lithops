@@ -1,5 +1,5 @@
 """
-Simple PyWren example using the call_async method.
+Simple Lithops example using the call_async method.
 to spawn an internal map execution.
 """
 import lithops

@@ -29,7 +29,7 @@ RUN pip install --upgrade setuptools six pip \
 # ones in terms of image size.
 RUN conda install -c conda-forge zarr && conda clean --all
 
-# Copy PyWren proxy and lib to the container image.
+# Copy Lithops proxy and lib to the container image.
 ENV APP_HOME /lithops
 WORKDIR $APP_HOME
 

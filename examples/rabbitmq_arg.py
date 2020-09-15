@@ -1,5 +1,5 @@
 """
-Simple PyWren example using 2 function invocations (writer, reader) with
+Simple Lithops example using 2 function invocations (writer, reader) with
 the 'rabbitmq' parameter, which is a pika.BlockingConnection() instance.
 RabbitMQ amqp_url must be in configuration to make it working.
 """

@@ -1,5 +1,5 @@
 """
-Simple PyWren example using the map() or the map_reduce() methods
+Simple Lithops example using the map() or the map_reduce() methods
 with multiple parameters in the map function.
 
 In this example the map() method will launch one map function
@@ -34,11 +34,11 @@ def sum_list_mult(list_of_numbers, x):
 
 
 if __name__ == "__main__":
-    args = [  # Init list of parameters for PyWren
+    args = [  # Init list of parameters for Lithops
             (1, 2),  # Args for function1
             (3, 4),  # Args for function2
             (5, 6),  # Args for function3
-           ]  # End list of parameters for PyWren
+           ]  # End list of parameters for Lithops
 
     pw = lithops.ibm_cf_executor()
     pw.map(my_map_function, args)
@@ -49,11 +49,11 @@ if __name__ == "__main__":
     case you have to map them to the correct parameter of the
     function as in the next example.
     """
-    kwargs = [  # Init list of parameters for PyWren
+    kwargs = [  # Init list of parameters for Lithops
               {'x': 1, 'y': 2},  # Kwargs for function1
               {'x': 3, 'y': 4},  # Kwargs for function2
               {'x': 5, 'y': 6},  # Kwargs for function3
-             ]  # End list of parameters for PyWren
+             ]  # End list of parameters for Lithops
 
     pw = lithops.ibm_cf_executor()
     pw.map(my_map_function, kwargs)
@@ -64,11 +64,11 @@ if __name__ == "__main__":
     function, you must enclose them with [] as in the next
     example.
     """
-    args = [  # Init list of parameters for PyWren
+    args = [  # Init list of parameters for Lithops
             ([1, 2],),  # Args for function1
             ([3, 4],),  # Args for function2
             ([5, 6],),  # Args for function3
-           ]  # End list of parameters for PyWren
+           ]  # End list of parameters for Lithops
 
     pw = lithops.ibm_cf_executor()
     pw.map(sum_list, args)
@@ -77,11 +77,11 @@ if __name__ == "__main__":
     """
     You can also send multiple parameters which include a list
     """
-    args = [  # Init list of args for PyWren
+    args = [  # Init list of args for Lithops
             ([1, 2, 3, 4, 5], 2),  # Args for function1
             ([6, 7, 8, 9, 10], 3),  # Args for function2
             ([11, 12, 13, 14, 15], 4)  # Args for function3
-           ]  # End list of parameters for PyWren
+           ]  # End list of parameters for Lithops
 
     pw = lithops.ibm_cf_executor()
     pw.map(sum_list_mult, args)
@@ -90,11 +90,11 @@ if __name__ == "__main__":
     """
     Or alternatively
     """
-    kwargs = [  # Init list of parameters for PyWren
+    kwargs = [  # Init list of parameters for Lithops
                {'list_of_numbers': [1, 2, 3, 4, 5], 'x': 2},  # Kwargs for function1
                {'list_of_numbers': [6, 7, 8, 9, 10], 'x': 3},  # Kwargs for function2
                {'list_of_numbers': [11, 12, 13, 14, 15], 'x': 4},  # Kwargs for function3
-             ]  # End list of parameters for PyWren
+             ]  # End list of parameters for Lithops
 
     pw = lithops.ibm_cf_executor()
     pw.map(sum_list_mult, kwargs)
@@ -108,11 +108,11 @@ if __name__ == "__main__":
     pw.map(my_map_function, args, extra_args=(10,))
     print(pw.get_result())
 
-    kwargs = [  # Init list of parameters for PyWren
+    kwargs = [  # Init list of parameters for Lithops
               {'x': 1},  # Kwargs for function1
               {'x': 3},  # Kwargs for function2
               {'x': 5},  # Kwargs for function3
-             ]  # End list of parameters for PyWren
+             ]  # End list of parameters for Lithops
 
     pw = lithops.ibm_cf_executor()
     pw.map(my_map_function, kwargs, extra_args={'y': 3})

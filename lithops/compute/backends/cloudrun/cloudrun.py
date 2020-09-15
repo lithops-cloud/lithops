@@ -75,7 +75,7 @@ class CloudRunServingBackend:
         """
         Builds the default runtime
         """
-        location = 'https://raw.githubusercontent.com/tomwhite/pywren-ibm-cloud/master/runtime/cloudrun'
+        location = 'https://raw.githubusercontent.com/tomwhite/lithops/master/runtime/cloudrun'
         python_version = version_str(sys.version_info).replace('.', '')
         resp = requests.get('{}/Dockerfile.python{}'.format(location, python_version))
         dockerfile = "Dockerfile"

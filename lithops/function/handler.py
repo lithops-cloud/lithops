@@ -93,7 +93,7 @@ def function_handler(event):
 
     try:
         if version.__version__ != event['pywren_version']:
-            msg = ("PyWren version mismatch. Host version: {} - Runtime version: {}"
+            msg = ("Lithops version mismatch. Host version: {} - Runtime version: {}"
                    .format(event['pywren_version'], version.__version__))
             raise RuntimeError('HANDLER', msg)
 

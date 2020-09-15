@@ -1,5 +1,5 @@
 """
-Simple PyWren example using cloudobjects to transparently pass
+Simple Lithops example using cloudobjects to transparently pass
 objects stored in the storage backend between functions without
 knowing they exact location (bucket, key)
 """

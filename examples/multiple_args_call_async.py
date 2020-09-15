@@ -1,5 +1,5 @@
 """
-Simple PyWren examples using one single function invocation
+Simple Lithops examples using one single function invocation
 with multiple parameters.
 
 You can send multiple parameters to a single call function

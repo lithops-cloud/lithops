@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 class ResponseFuture:
     """
-    Object representing the result of a PyWren invocation. Returns the status of the
+    Object representing the result of a Lithops invocation. Returns the status of the
     execution and the result when available.
     """
     class State():

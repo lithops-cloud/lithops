@@ -1,5 +1,5 @@
 """
-Simple PyWren example using rabbitmq to wait map function invocations
+Simple Lithops example using rabbitmq to wait map function invocations
 RabbitMQ amqp_url must be in configuration to make it working.
 """
 import lithops

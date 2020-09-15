@@ -1,6 +1,6 @@
-# PyWren on IBM Virtual Private Cloud service (VPC)
+# Lithops on IBM Virtual Private Cloud service (VPC)
 
-The IBM VPC client is a component for PyWren's docker executor using a remote host. It is used for start and stop VM instances over an IBM VPC automatically.
+The IBM VPC client is a component for Lithops's docker executor using a remote host. It is used for start and stop VM instances over an IBM VPC automatically.
 
 ### Setup
 
@@ -22,10 +22,10 @@ The IBM VPC client is a component for PyWren's docker executor using a remote ho
 
 4. Get the virtual server instance ID by selecting on your instance in [IBM VPC virtual server instances UI](https://cloud.ibm.com/vpc-ext/compute/vs) and then extracting from the instance's details
 
-5. Edit your pywren config file and add the relevant keys:
+5. Edit your lithops config file and add the relevant keys:
 
    ```yaml
-   pywren:
+   lithops:
        compute_backend: docker
        storage_backend: ibm_cos
        auto_dismantle: True
@@ -49,20 +49,20 @@ The IBM VPC client is a component for PyWren's docker executor using a remote ho
 
    - **version**: use for specifying IBM VPC production application version date, it is recommended to configure it statically
    - **generation**: use for specifying IBM VPC environment compute generation, see [Comparing compute generations in VPC](https://cloud.ibm.com/docs/cloud-infrastructure?topic=cloud-infrastructure-compare-vpc-vpcoc) for additional information
-   - **pywren.auto_dismantle**:  if False then VM not stopped automatically after execution. run **exec.dismantle()** expicitly to stop VM.
+   - **lithops.auto_dismantle**:  if False then VM not stopped automatically after execution. run **exec.dismantle()** expicitly to stop VM.
 
 ### Verify
 
-1. Run the following script to test if PyWren on IBM VPC is working properly:
+1. Run the following script to test if Lithops on IBM VPC is working properly:
 
    ```python
-   import pywren_ibm_cloud as pywren
+   import lithops
 
    def hello_world(name):
        return 'Hello {}!'.format(name)
 
    if __name__ == '__main__':
-       exec = pywren.docker_executor()
+       exec = lithops.docker_executor()
        exec.call_async(hello_world, 'World')
        print("Response from function: ", exec.get_result())
        exec.dismantle() # explicitly stops started vpc instances

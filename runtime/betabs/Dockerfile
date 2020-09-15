@@ -31,7 +31,7 @@ RUN apt-get update \
 COPY requirements.txt requirements.txt
 RUN pip install --upgrade pip setuptools six && pip install --no-cache-dir -r requirements.txt
         
-# Copy PyWren proxy and lib to the container image.
+# Copy Lithops proxy and lib to the container image.
 ENV APP_HOME /lithops
 WORKDIR $APP_HOME
 

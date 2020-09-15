@@ -6,7 +6,7 @@
 * Qifan Pu <qifan@cs.berkeley.edu>
 * Allan Peng <allan.p@berkeley.edu>
 
-### PyWren-IBM-Cloud additions
+### Lithops additions
 
 * Josep Sampé <josep.sampe@gmail.com>
 * Gil Vernik <gilv@il.ibm.com>

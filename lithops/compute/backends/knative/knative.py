@@ -101,9 +101,9 @@ class KnativeServingBackend:
         logger.debug('Loaded service host suffix: {}'.format(self.service_host_suffix))
 
         if self.istio_endpoint:
-            log_msg = 'PyWren v{} init for Knative - Istio Endpoint: {}'.format(__version__, self.istio_endpoint)
+            log_msg = 'Lithops v{} init for Knative - Istio Endpoint: {}'.format(__version__, self.istio_endpoint)
         else:
-            log_msg = 'PyWren v{} init for Knative'.format(__version__)
+            log_msg = 'Lithops v{} init for Knative'.format(__version__)
         if not self.log_active:
             print(log_msg)
         logger.info(log_msg)
@@ -252,7 +252,7 @@ class KnativeServingBackend:
                              'Skipping build process.'.format(docker_image_name, revision))
                 return
 
-        logger.debug("Building default PyWren runtime from git with Tekton")
+        logger.debug("Building default Lithops runtime from git with Tekton")
 
         if not {"docker_user", "docker_token"} <= set(self.knative_config):
             raise Exception("You must provide 'docker_user' and 'docker_token'"
@@ -315,7 +315,7 @@ class KnativeServingBackend:
                 w.stop()
             if event['object'].status.phase == "Failed":
                 w.stop()
-                logger.debug('Something went wrong building the default PyWren runtime with Tekton')
+                logger.debug('Something went wrong building the default Lithops runtime with Tekton')
                 for container in event['object'].status.container_statuses:
                     if container.state.terminated.reason == 'Error':
                         logs = self.v1.read_namespaced_pod_log(name=pod_name,
@@ -323,7 +323,7 @@ class KnativeServingBackend:
                                                                namespace=self.namespace)
                         logger.debug("Tekton container '{}' failed: {}".format(container.name, logs.strip()))
 
-                raise Exception('Unable to build the default PyWren runtime with Tekton')
+                raise Exception('Unable to build the default Lithops runtime with Tekton')
 
         self.api.delete_namespaced_custom_object(
                     group="tekton.dev",
@@ -334,7 +334,7 @@ class KnativeServingBackend:
                     body=client.V1DeleteOptions()
                 )
 
-        logger.debug('Default PyWren runtime built from git and uploaded to Dockerhub')
+        logger.debug('Default Lithops runtime built from git and uploaded to Dockerhub')
 
     def _build_default_runtime(self, default_runtime_img_name):
         """
@@ -363,7 +363,7 @@ class KnativeServingBackend:
         """
         Creates a service in knative based on the docker_image_name and the memory provided
         """
-        logger.debug("Creating PyWren runtime service in Knative")
+        logger.debug("Creating Lithops runtime service in Knative")
         svc_res = yaml.safe_load(kconfig.service_res)
 
         service_name = self._format_service_name(docker_image_name, runtime_memory)
@@ -482,7 +482,7 @@ class KnativeServingBackend:
         if not result or result.group() != docker_image_name:
             raise Exception("Invalid docker image name: '.' or '_' characters are not allowed")
 
-        create_function_handler_zip(kconfig.FH_ZIP_LOCATION, 'pywrenproxy.py', __file__)
+        create_function_handler_zip(kconfig.FH_ZIP_LOCATION, 'lithopsproxy.py', __file__)
 
         if dockerfile:
             cmd = 'docker build -t {} -f {} .'.format(docker_image_name, dockerfile)
@@ -610,7 +610,7 @@ class KnativeServingBackend:
                 return data
             return data["activationId"]
         elif resp_status == 404:
-            raise Exception("PyWren runtime is not deployed in your k8s cluster")
+            raise Exception("Lithops runtime is not deployed in your k8s cluster")
         else:
             logger.debug('ExecutorID {} | JobID {} - Function call {} failed ({}). Retrying request'
                          .format(exec_id, job_id, call_id, resp_data.replace('.', '')))

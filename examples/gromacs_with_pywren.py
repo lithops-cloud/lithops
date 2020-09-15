@@ -1,5 +1,5 @@
 """
-Example of running GROMACS with PyWren-IBM-Cloud
+Example of running GROMACS with lithops
 """
 
 import lithops

@@ -28,7 +28,7 @@ RUN pip install --upgrade pip setuptools six \
         requests==2.22.0 \
         numpy==1.17.2
 
-# Copy PyWren proxy and lib to the container image.
+# Copy Lithops proxy and lib to the container image.
 ENV APP_HOME /lithops
 WORKDIR $APP_HOME
 

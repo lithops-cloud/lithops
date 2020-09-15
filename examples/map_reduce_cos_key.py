@@ -1,5 +1,5 @@
 """
-Simple PyWren example using the map_reduce method which
+Simple Lithops example using the map_reduce method which
 counts the number of words inside each object specified
 in 'iterdata' variable.
 

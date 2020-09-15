@@ -127,7 +127,7 @@ class GcsfsStorageBackend:
         :rtype: list of str
         """
         root = "{}/{}".format(bucket_name, prefix)
-        # Important not to cache dir listings, since PyWren polls for changes
+        # Important not to cache dir listings, since Lithops polls for changes
         self.fs.invalidate_cache(root) 
         try:
             return [key.replace("{}/".format(bucket_name), "") for key in self.fs.ls(root)]

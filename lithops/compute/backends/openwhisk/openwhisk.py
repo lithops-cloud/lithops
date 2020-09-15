@@ -59,7 +59,7 @@ class OpenWhiskBackend:
                                          insecure=self.insecure,
                                          user_agent=self.user_agent)
 
-        log_msg = ('PyWren v{} init for OpenWhisk - Namespace: {}'
+        log_msg = ('Lithops v{} init for OpenWhisk - Namespace: {}'
                    .format(__version__, self.namespace))
         if not self.log_active:
             print(log_msg)
@@ -112,7 +112,7 @@ class OpenWhiskBackend:
 
         runtime_meta = self._generate_runtime_meta(docker_image_name)
 
-        logger.info('Creating new PyWren runtime based on Docker image {}'.format(docker_image_name))
+        logger.info('Creating new Lithops runtime based on Docker image {}'.format(docker_image_name))
 
         self.cf_client.create_package(self.package)
         action_name = self._format_action_name(docker_image_name, memory)

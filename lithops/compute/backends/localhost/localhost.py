@@ -46,7 +46,7 @@ class LocalhostBackend:
                 self.workers.append(p)
                 p.start()
 
-        log_msg = 'PyWren v{} init for Localhost - Total workers: {}'.format(__version__, self.num_workers)
+        log_msg = 'Lithops v{} init for Localhost - Total workers: {}'.format(__version__, self.num_workers)
         logger.info(log_msg)
         if not self.log_active:
             print(log_msg)

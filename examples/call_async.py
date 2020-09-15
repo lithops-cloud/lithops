@@ -1,5 +1,5 @@
 """
-Simple PyWren example using one single function invocation
+Simple Lithops example using one single function invocation
 """
 import lithops
 
