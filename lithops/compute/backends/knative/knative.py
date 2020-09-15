@@ -30,7 +30,8 @@ from kubernetes import client, config, watch
 from lithops.utils import version_str
 from lithops.version import __version__
 from lithops.config import CACHE_DIR, load_yaml_config, dump_yaml_config
-from lithops.compute.utils import create_function_handler_ziplithopsfrom . import config as kconfig
+from lithops.compute.utils import create_function_handler_zip
+from . import config as kconfig
 
 urllib3.disable_warnings()
 logging.getLogger('kubernetes').setLevel(logging.CRITICAL)

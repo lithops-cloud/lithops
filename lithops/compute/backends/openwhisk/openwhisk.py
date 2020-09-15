@@ -17,7 +17,8 @@
 import os
 import sys
 import logging
-import textwraplithopsfrom . import config as openwhisk_config
+import textwrap
+from . import config as openwhisk_config
 from lithops.utils import version_str
 from lithops.version import __version__
 from lithops.utils import is_lithops_function
