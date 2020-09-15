@@ -26,7 +26,7 @@ import traceback
 from threading import Thread
 from multiprocessing import Process, Pipe
 from distutils.util import strtobool
-from pywren_ibm_cloud import version
+from lithops import version
 from lithops.utils import sizeof_fmt
 from lithops.config import extract_storage_config
 from lithops.storage import InternalStorage
@@ -92,9 +92,9 @@ def function_handler(event):
     show_memory_peak = strtobool(os.environ.get('SHOW_MEMORY_PEAK', 'False'))
 
     try:
-        if version.__version__ != event['pywren_version']:
+        if version.__version__ != event['lithops_version']:
             msg = ("Lithops version mismatch. Host version: {} - Runtime version: {}"
-                   .format(event['pywren_version'], version.__version__))
+                   .format(event['lithops_version'], version.__version__))
             raise RuntimeError('HANDLER', msg)
 
         # send init status event

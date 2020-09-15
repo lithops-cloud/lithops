@@ -123,7 +123,7 @@ def is_unix_system():
     return curret_system != 'Windows'
 
 
-def is_pywren_function():
+def is_lithops_function():
     """
     Checks if the current execution is within a lithops fn
     """

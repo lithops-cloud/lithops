@@ -9,7 +9,7 @@ RUNTIME_TIMEOUT_DEFAULT = 600  # 10 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # 256Mi
 CONCURRENT_WORKERS_DEFAULT = 100
 
-FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'pywren_cloudrun.zip')
+FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_cloudrun.zip')
 
 def load_config(config_data):
     if 'cloudrun' not in config_data:

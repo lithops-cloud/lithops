@@ -28,7 +28,7 @@ RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
 CONCURRENT_WORKERS_DEFAULT = 100
 
 
-FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'pywren_openwhisk.zip')
+FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_openwhisk.zip')
 
 
 def load_config(config_data):

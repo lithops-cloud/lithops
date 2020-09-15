@@ -35,6 +35,6 @@ RUN pip install --upgrade pip setuptools six && pip install --no-cache-dir -r re
 ENV APP_HOME /lithops
 WORKDIR $APP_HOME
 
-COPY pywren_betabs.zip .
-RUN unzip pywren_betabs.zip
-RUN rm pywren_betabs.zip
+COPY lithops_betabs.zip .
+RUN unzip lithops_betabs.zip
+RUN rm lithops_betabs.zip

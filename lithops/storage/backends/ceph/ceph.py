@@ -18,7 +18,7 @@ import logging
 import ibm_boto3
 import ibm_botocore
 from lithops.storage.utils import StorageNoSuchKeyError
-from lithops.utils import sizeof_fmt, is_pywren_function
+from lithops.utils import sizeof_fmt, is_lithops_function
 
 logging.getLogger('ibm_boto3').setLevel(logging.CRITICAL)
 logging.getLogger('ibm_botocore').setLevel(logging.CRITICAL)
@@ -37,7 +37,7 @@ class CephStorageBackend:
     def __init__(self, ceph_config, **kwargs):
         logger.debug("Creating Ceph client")
         self.ceph_config = ceph_config
-        self.is_pywren_function = is_pywren_function()
+        self.is_lithops_function = is_lithops_function()
         user_agent = ceph_config['user_agent']
 
         service_endpoint = ceph_config.get('endpoint').replace('http:', 'https:')

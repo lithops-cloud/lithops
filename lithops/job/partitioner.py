@@ -16,7 +16,7 @@
 
 import logging
 import requests
-from pywren_ibm_cloud import utils
+from lithops import utils
 from multiprocessing.pool import ThreadPool
 from lithops.storage import Storage
 from lithops.storage.utils import CloudObject, CloudObjectUrl

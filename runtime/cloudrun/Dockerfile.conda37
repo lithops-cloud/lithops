@@ -33,7 +33,7 @@ RUN conda install -c conda-forge zarr && conda clean --all
 ENV APP_HOME /lithops
 WORKDIR $APP_HOME
 
-COPY pywren_cloudrun.zip .
-RUN unzip pywren_cloudrun.zip && rm pywren_cloudrun.zip
+COPY lithops_cloudrun.zip .
+RUN unzip lithops_cloudrun.zip && rm lithops_cloudrun.zip
 
-CMD exec gunicorn --bind :$PORT --workers 1 --timeout 600 pywrenproxy:proxy
+CMD exec gunicorn --bind :$PORT --workers 1 --timeout 600 lithopsproxy:proxy

@@ -37,7 +37,7 @@ RUN pip install --upgrade setuptools six pip \
 ENV APP_HOME /lithops
 WORKDIR $APP_HOME
 
-COPY pywren_knative.zip .
-RUN unzip pywren_knative.zip && rm pywren_knative.zip
+COPY lithops_knative.zip .
+RUN unzip lithops_knative.zip && rm lithops_knative.zip
 
-CMD exec gunicorn --bind :$PORT --workers 1 pywrenproxy:proxy
+CMD exec gunicorn --bind :$PORT --workers 1 lithopsproxy:proxy

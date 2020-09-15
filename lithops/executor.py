@@ -25,7 +25,7 @@ from lithops.storage.utils import delete_cloudobject
 from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from lithops.job import create_map_job, create_reduce_job, clean_job
 from lithops.config import default_config, extract_storage_config, default_logging_config
-from lithops.utils import timeout_handler, is_notebook, is_unix_system, is_pywren_function, create_executor_id
+from lithops.utils import timeout_handler, is_notebook, is_unix_system, is_lithops_function, create_executor_id
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class FunctionExecutor:
 
         :return `FunctionExecutor` object.
         """
-        self.is_pywren_function = is_pywren_function()
+        self.is_lithops_function = is_lithops_function()
 
         if log_level:
             default_logging_config(log_level)
@@ -329,7 +329,7 @@ class FunctionExecutor:
 
         pbar = None
         error = False
-        if not self.is_pywren_function and not self.log_active:
+        if not self.is_lithops_function and not self.log_active:
             from tqdm.auto import tqdm
 
             if is_notebook():
@@ -376,7 +376,7 @@ class FunctionExecutor:
                 pbar.close()
                 if not is_notebook():
                     print()
-            if self.data_cleaner and not self.is_pywren_function:
+            if self.data_cleaner and not self.is_lithops_function:
                 self.clean(cloudobjects=False, force=False, log=False)
             if self.auto_dismantle:
                 self.dismantle()

@@ -20,7 +20,7 @@ Once the cluster is running, follow the instructions of the "Access" tab to conf
 
     2. Install the Lithops environment into the k8s cluster: Istio v1.4.6, Knative v0.14.0 and Tekton v0.11.1:
         ```
-        curl http://cloudlab.urv.cat/josep/knative/install_pywren_env.sh | bash
+        curl http://cloudlab.urv.cat/josep/knative/install_lithops_env.sh | bash
         ```
 
 **Before running** any lithops operation, **first** get or create k8s config file and set it in KUBECONFIG environment variable. For example in ~/.kube/config, or if you are using IKS cluster, download the kubeconfig files by (follow instructions in the access dashboard):

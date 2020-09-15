@@ -186,7 +186,7 @@ class TestMethods:
         return TestMethods.my_reduce_function(data)
 
 
-class TestPywren(unittest.TestCase):
+class TestLithops(unittest.TestCase):
     cos_result_to_compare = None
 
     @classmethod
@@ -415,7 +415,7 @@ class TestPywren(unittest.TestCase):
 def print_help():
     print("Available test functions:")
     func_names = filter(lambda s: s[:4] == 'test',
-                        map(lambda t: t[0], inspect.getmembers(TestPywren(), inspect.ismethod)))
+                        map(lambda t: t[0], inspect.getmembers(TestLithops(), inspect.ismethod)))
     for func_name in func_names:
         print(f'-> {func_name}')
 
@@ -429,10 +429,10 @@ def run_tests(test_to_run, config=None):
 
     suite = unittest.TestSuite()
     if test_to_run == 'all':
-        suite.addTest(unittest.makeSuite(TestPywren))
+        suite.addTest(unittest.makeSuite(TestLithops))
     else:
         try:
-            suite.addTest(TestPywren(test_to_run))
+            suite.addTest(TestLithops(test_to_run))
         except ValueError:
             print("unknown test, use: --help")
             sys.exit()

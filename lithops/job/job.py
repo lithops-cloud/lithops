@@ -22,7 +22,7 @@ import textwrap
 import pickle
 import logging
 import tempfile
-from pywren_ibm_cloud import utils
+from lithops import utils
 from lithops.job.partitioner import create_partitions
 from lithops.utils import is_object_processing_function, sizeof_fmt
 from lithops.storage.utils import create_func_key, create_agg_data_key

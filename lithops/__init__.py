@@ -18,7 +18,7 @@ import tempfile
 from lithops.executor import FunctionExecutor
 from lithops.version import __version__
 
-name = "pywren_ibm_cloud"
+name = "lithops"
 
 
 def ibm_cf_executor(config=None, runtime=None, runtime_memory=None,

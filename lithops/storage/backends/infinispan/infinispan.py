@@ -20,7 +20,7 @@ import json
 import base64
 from requests.auth import HTTPBasicAuth
 
-from lithops.utils import is_pywren_function
+from lithops.utils import is_lithops_function
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ class InfinispanBackend:
     def __init__(self, infinispan_config, **kwargs):
         logger.debug("Creating Infinispan client")
         self.infinispan_config = infinispan_config
-        self.is_pywren_function = is_pywren_function()
+        self.is_lithops_function = is_lithops_function()
         self.basicAuth = HTTPBasicAuth(infinispan_config.get('username'),
                                        infinispan_config.get('password'))
         self.endpoint = infinispan_config.get('endpoint')

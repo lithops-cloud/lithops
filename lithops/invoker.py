@@ -29,7 +29,7 @@ from lithops.compute import Compute
 from lithops.version import __version__
 from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config, extract_compute_config
-from lithops.utils import version_str, is_pywren_function, is_unix_system
+from lithops.utils import version_str, is_lithops_function, is_unix_system
 
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ class FunctionInvoker:
         self.storage_config = extract_storage_config(self.config)
         self.internal_storage = internal_storage
         self.compute_config = extract_compute_config(self.config)
-        self.is_pywren_function = is_pywren_function()
+        self.is_lithops_function = is_lithops_function()
         self.invokers = []
 
         self.remote_invoker = self.config['lithops'].get('remote_invoker', False)
@@ -146,7 +146,7 @@ class FunctionInvoker:
         """
         Starts the invoker process responsible to spawn pending calls in background
         """
-        if self.is_pywren_function or not is_unix_system():
+        if self.is_lithops_function or not is_unix_system():
             for inv_id in range(INVOKER_PROCESSES):
                 p = Thread(target=self._run_invoker_process, args=(inv_id, ))
                 self.invokers.append(p)
@@ -216,7 +216,7 @@ class FunctionInvoker:
                    'job_id': job.job_id,
                    'call_id': call_id,
                    'host_submit_tstamp': time.time(),
-                   'pywren_version': __version__,
+                   'lithops_version': __version__,
                    'runtime_name': job.runtime_name,
                    'runtime_memory': job.runtime_memory}
 
@@ -254,7 +254,7 @@ class FunctionInvoker:
                    'job_description': job_description,
                    'remote_invoker': True,
                    'invokers': 4,
-                   'pywren_version': __version__}
+                   'lithops_version': __version__}
 
         activation_id = compute_handler.invoke(job.runtime_name, REMOTE_INVOKER_MEMORY, payload)
         roundtrip = time.time() - start
@@ -367,7 +367,7 @@ class JobMonitor:
         self.config = lithops_config
         self.internal_storage = internal_storage
         self.token_bucket_q = token_bucket_q
-        self.is_pywren_function = is_pywren_function()
+        self.is_lithops_function = is_lithops_function()
         self.monitors = []
 
         self.rabbitmq_monitor = self.config['lithops'].get('rabbitmq_monitor', False)
@@ -387,7 +387,7 @@ class JobMonitor:
             th = Thread(target=self._job_monitoring_rabbitmq, args=(job,))
         else:
             th = Thread(target=self._job_monitoring_os, args=(job,))
-        if not self.is_pywren_function:
+        if not self.is_lithops_function:
             th.daemon = True
         th.start()
 

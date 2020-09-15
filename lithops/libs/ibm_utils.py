@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timezone
 from ibm_botocore.credentials import DefaultTokenManager
 
-from lithops.utils import is_pywren_function
+from lithops.utils import is_lithops_function
 from lithops.config import CACHE_DIR, load_yaml_config, dump_yaml_config
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ class IBMIAMAPIKeyManager:
         dump_yaml_config(self._token_filename, token_data)
 
     def get_token(self):
-        if (self._token_manager._is_expired() or self._get_token_minutes_diff() < 11) and not is_pywren_function():
+        if (self._token_manager._is_expired() or self._get_token_minutes_diff() < 11) and not is_lithops_function():
             logger.debug("Using IBM IAM API Key - Token expired. Requesting new token")
             self._generate_new_token()
 

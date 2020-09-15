@@ -12,7 +12,7 @@ RUNTIME_TIMEOUT_DEFAULT = 600  # 10 minutes
 
 LITHOPS_SERVER_PORT = 8080
 
-FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'pywren_docker.zip')
+FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_docker.zip')
 
 
 def load_config(config_data):
@@ -57,7 +57,7 @@ def load_config(config_data):
     if 'remote_client' in config_data['docker']:
         remote_client_backend = config_data['docker']['remote_client']
 
-        remote_client_config = importlib.import_module('pywren_ibm_cloud.libs.clients.{}.config'
+        remote_client_config = importlib.import_module('lithops.libs.clients.{}.config'
                                                        .format(remote_client_backend))
         remote_client_config.load_config(config_data)
 
