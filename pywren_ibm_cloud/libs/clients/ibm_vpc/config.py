@@ -1,4 +1,6 @@
-from datetime import datetime
+import datetime
+
+from pywren_ibm_cloud.version import __version__
 
 
 def load_config(config_data):
@@ -18,6 +20,10 @@ def load_config(config_data):
         raise Exception(msg)
 
     if 'version' not in config_data:
-        config_data[section]['version'] = datetime.today().strftime('%Y-%m-%d')
+        # it is not safe to use version as today() due to timezone differences. may fail at midnight. better use yesterday
+        yesterday = datetime.date.today() - datetime.timedelta(days=1)
+        config_data[section]['version'] = yesterday.strftime('%Y-%m-%d')
     if 'generation' not in config_data:
         config_data[section]['generation'] = 2
+
+    config_data[section]['user_agent'] = 'pywren-ibm-cloud/{}'.format(__version__)

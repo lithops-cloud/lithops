@@ -82,6 +82,7 @@ class DockerBackend:
         if self.log_active:
             logger.info(out)
         if error:
+            ssh_client.close()
             raise Exception('There was an error running remote ssh command: {}'.format(error))
         ssh_client.close()
 
@@ -156,6 +157,15 @@ class DockerBackend:
             if name not in running_runtimes:
                 self._ssh_run_remote_command(cmd)
                 time.sleep(5)
+                # install missing dependency
+                cmd = ('docker exec {} pip install pyyaml'.format(name))
+                try:
+                    self._ssh_run_remote_command(cmd)
+                except Exception as e:
+                    if 'upgrade pip' in str(e):
+                        pass
+                    else:
+                        raise e
 
     def _generate_runtime_meta(self, docker_image_name):
         """
@@ -318,11 +328,13 @@ class DockerBackend:
 
         return runtime_key
 
-    def ready(self, retries=1, timeout=5):
-        for i in range(retries):
+    def ready(self, timeout=5):
+        start  = time.time()
+        while(time.time() - start < timeout):
             try:
                 self._ssh_run_remote_command('docker ps', timeout=timeout)
                 return True
             except Exception:
+                logger.info("not ready yet, waiting")
                 continue
         return False

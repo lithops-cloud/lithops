@@ -18,6 +18,7 @@ import os
 import zipfile
 import logging
 import pywren_ibm_cloud
+import importlib
 
 logger = logging.getLogger(__name__)
 
@@ -44,3 +45,15 @@ def create_function_handler_zip(zip_location, main_exec_file, backend_location):
 
     except Exception:
         raise Exception('Unable to create the {} package: {}'.format(zip_location))
+
+def get_remote_client(config):
+    if 'remote_client' in config:
+        remote_client_backend = config['remote_client']
+        remote_client_config = config[remote_client_backend]
+
+        client_location = 'pywren_ibm_cloud.libs.clients.{}'.format(remote_client_backend)
+        client = importlib.import_module(client_location)
+        RemoteInstanceClient = getattr(client, 'RemoteInstanceClient')
+        return RemoteInstanceClient(remote_client_config,
+                                    user_agent=remote_client_config['user_agent'])
+    return None

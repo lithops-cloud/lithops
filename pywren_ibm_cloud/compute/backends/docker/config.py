@@ -53,13 +53,3 @@ def load_config(config_data):
 
     if 'ibm_cos' in config_data and 'private_endpoint' in config_data['ibm_cos']:
         del config_data['ibm_cos']['private_endpoint']
-
-    if 'remote_client' in config_data['docker']:
-        remote_client_backend = config_data['docker']['remote_client']
-
-        remote_client_config = importlib.import_module('pywren_ibm_cloud.libs.clients.{}.config'
-                                                       .format(remote_client_backend))
-        remote_client_config.load_config(config_data)
-
-        remote_client_config = config_data.pop(remote_client_backend)
-        config_data['docker'][remote_client_backend] = remote_client_config
