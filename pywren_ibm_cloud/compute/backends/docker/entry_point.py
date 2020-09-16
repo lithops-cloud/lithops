@@ -10,7 +10,7 @@ import threading
 import importlib
 
 from pywren_ibm_cloud.version import __version__
-from pywren_ibm_cloud.function import function_invoker
+from pywren_ibm_cloud.worker import function_invoker
 from pywren_ibm_cloud.config import DOCKER_FOLDER
 from pywren_ibm_cloud.config import extract_compute_config, extract_storage_config
 from pywren_ibm_cloud.storage import InternalStorage

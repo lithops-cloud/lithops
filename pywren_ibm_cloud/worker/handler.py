@@ -30,8 +30,8 @@ from pywren_ibm_cloud import version
 from pywren_ibm_cloud.utils import sizeof_fmt
 from pywren_ibm_cloud.config import extract_storage_config
 from pywren_ibm_cloud.storage import InternalStorage
-from pywren_ibm_cloud.function.jobrunner import JobRunner
-from pywren_ibm_cloud.function.utils import get_memory_usage
+from pywren_ibm_cloud.worker.jobrunner import JobRunner
+from pywren_ibm_cloud.worker.utils import get_memory_usage
 from pywren_ibm_cloud.config import cloud_logging_config, JOBS_PREFIX, STORAGE_FOLDER
 from pywren_ibm_cloud.storage.utils import create_output_key, create_status_key, create_init_key
 
@@ -79,7 +79,7 @@ def function_handler(event):
 
     call_status = CallStatus(config, internal_storage)
     call_status.response['host_submit_tstamp'] = event['host_submit_tstamp']
-    call_status.response['start_tstamp'] = start_tstamp
+    call_status.response['worker_start_tstamp'] = start_tstamp
     context_dict = {
         'python_version': os.environ.get("PYTHON_VERSION"),
         'call_id': call_id,
@@ -189,7 +189,7 @@ def function_handler(event):
         call_status.response['exc_info'] = str(pickled_exc)
 
     finally:
-        call_status.response['end_tstamp'] = time.time()
+        call_status.response['worker_end_tstamp'] = time.time()
         call_status.send('__end__')
 
         for key in extra_env:

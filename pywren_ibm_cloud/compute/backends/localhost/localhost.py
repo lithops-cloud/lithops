@@ -8,7 +8,7 @@ from multiprocessing import Process, Queue
 from threading import Thread
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.utils import version_str, is_unix_system
-from pywren_ibm_cloud.function import function_handler
+from pywren_ibm_cloud.worker import function_handler
 from pywren_ibm_cloud.config import STORAGE_FOLDER, LOGS_PREFIX
 
 
@@ -69,6 +69,7 @@ class LocalhostBackend:
 
     def _process_runner(self, worker_id):
         logger.debug('Localhost worker process {} started'.format(worker_id))
+
         while self.alive:
             try:
                 event = self.queue.get(block=True)
@@ -77,7 +78,6 @@ class LocalhostBackend:
                 self._local_handler(event)
             except KeyboardInterrupt:
                 break
-        logger.debug('Localhost worker process {} stopped'.format(worker_id))
 
     def _generate_python_meta(self):
         """

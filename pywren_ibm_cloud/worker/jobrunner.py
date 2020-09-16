@@ -87,7 +87,7 @@ class JobRunner:
         func_obj = self.internal_storage.get_func(self.func_key)
         loaded_func_all = pickle.loads(func_obj)
         func_download_end_tstamp = time.time()
-        self.stats.write('function_download_time', round(func_download_end_tstamp-func_download_start_tstamp, 8))
+        self.stats.write('worker_func_download_time', round(func_download_end_tstamp-func_download_start_tstamp, 8))
         logger.debug("Finished getting Function and modules")
 
         return loaded_func_all
@@ -148,7 +148,7 @@ class JobRunner:
         loaded_data = pickle.loads(data_obj)
         logger.debug("Finished unpickle Function data")
         data_download_end_tstamp = time.time()
-        self.stats.write('data_download_time', round(data_download_end_tstamp-data_download_start_tstamp, 8))
+        self.stats.write('worker_data_download_time', round(data_download_end_tstamp-data_download_start_tstamp, 8))
 
         return loaded_data
 
@@ -247,7 +247,7 @@ class JobRunner:
         """
         Runs the function
         """
-        # self.stats.write('jobrunner_start', time.time())
+        # self.stats.write('worker_jobrunner_start_tstamp', time.time())
         logger.info("Started")
         result = None
         exception = False
@@ -272,9 +272,9 @@ class JobRunner:
             print('----------------------------------------------------------', flush=True)
             logger.info("Success function execution")
 
-            self.stats.write('function_start_tstamp', function_start_tstamp)
-            self.stats.write('function_end_tstamp', function_end_tstamp)
-            self.stats.write('function_exec_time', round(function_end_tstamp-function_start_tstamp, 8))
+            self.stats.write('worker_func_start_tstamp', function_start_tstamp)
+            self.stats.write('worker_func_end_tstamp', function_end_tstamp)
+            self.stats.write('worker_func_exec_time', round(function_end_tstamp-function_start_tstamp, 8))
 
             # Check for new futures
             if result is not None:
@@ -290,6 +290,8 @@ class JobRunner:
             else:
                 logger.debug("No result to store")
                 self.stats.write("result", False)
+
+            # self.stats.write('worker_jobrunner_end_tstamp', time.time())
 
         except Exception:
             exception = True
@@ -325,6 +327,6 @@ class JobRunner:
                 logger.info("Storing function result - Size: {}".format(sizeof_fmt(len(pickled_output))))
                 self.internal_storage.put_data(self.output_key, pickled_output)
                 output_upload_end_tstamp = time.time()
-                self.stats.write("output_upload_time", round(output_upload_end_tstamp - output_upload_start_tstamp, 8))
+                self.stats.write("worker_result_upload_time", round(output_upload_end_tstamp - output_upload_start_tstamp, 8))
             self.jobrunner_conn.send("Finished")
             logger.info("Finished")
