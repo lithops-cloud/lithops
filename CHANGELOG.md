@@ -1,11 +1,17 @@
 # Changelog
 
-## [v1.7.3--snapshot]
+## [v2.0.0]
+
+### Changed
+- [Core] Rebranding to LITHOPS
+
+
+## [v1.7.3]
 
 ### Added
-- [Pywren] Generic compute client logic
-- [Pywren] IBM IAM service client lib
-- [Pywren] IBM VPC service client lib
+- [Core] Generic compute client logic
+- [Core] IBM IAM service client lib
+- [Core] IBM VPC service client lib
 - [Docker] Docker backend compatible with IBM VPC VM 
 
 ### Fixed
@@ -21,16 +27,16 @@
 - [GCR] Added Google Cloud Run Backend
 
 ### Fixed
-- [PyWren] Fixed invoker token bucket when quota limit is reached
-- [PyWren] Fixed logging
-- [PyWren] Fixed invoker when it reaches quota limit
-- [PyWren] Fixed delete cloudobject
+- [Core] Fixed invoker token bucket when quota limit is reached
+- [Core] Fixed logging
+- [Core] Fixed invoker when it reaches quota limit
+- [Core] Fixed delete cloudobject
 - [Localhost] Fixed invocations ability to launch subprocesses
 - [Docker] Fixed docker running as user and not root
 
 ### Changed
-- [PyWren] Improved Storage abstraction
-- [PyWren] InternalStorage uses storage abstraction
+- [Core] Improved Storage abstraction
+- [Core] InternalStorage uses storage abstraction
 
 
 ## [v1.7.0]
@@ -40,54 +46,54 @@
 - [Knative] Configurable CPU parameter
 
 ### Fixed
-- [PyWren] Fixed issue in extra_args when iterdata is a dict
-- [PyWren] Fixed CloudObjects keys collisions
-- [PyWren] Fixed case where function argument is a list or tuple
+- [Core] Fixed issue in extra_args when iterdata is a dict
+- [Core] Fixed CloudObjects keys collisions
+- [Core] Fixed case where function argument is a list or tuple
 
 
 ## [v1.6.0]
 
 ### Added
-- [PyWren] New docker_executor()
+- [Core] New docker_executor()
 - [Ceph] New Ceph Storage backend
 
 ### Changed
-- [PyWren] Moved all stats from 'f._call_status' to a new 'f.stats' variable
-- [PyWren] Bump httplib2 from 0.13.0 to 0.18.0
+- [Core] Moved all stats from 'f._call_status' to a new 'f.stats' variable
+- [Core] Bump httplib2 from 0.13.0 to 0.18.0
 - [Localhost] Improved localhost storage backend
 
 ### Fixed
-- [PyWren] Fixed issue in pw.clean(cs=cobjs) when passing a large list of cobjs
+- [Core] Fixed issue in pw.clean(cs=cobjs) when passing a large list of cobjs
 
 
 ## [v1.5.2]
 
 ### Added
-- [PyWren] Added 'data_limit' config param in pywren section
-- [PyWren] Added context-manager-like executor and example
-- [PyWren] Added debug mode in tests with '-d' flag
-- [PyWren] Added delete_cobject() and delete_cobjects() storage methods
+- [Core] Added 'data_limit' config param in pywren section
+- [Core] Added context-manager-like executor and example
+- [Core] Added debug mode in tests with '-d' flag
+- [Core] Added delete_cobject() and delete_cobjects() storage methods
 
 ### Changed
-- [PyWren] Reducer logic moved to jobrunner
-- [PyWren] cloudobject methods moved from internal_storage to ibm_cos
-- [PyWren] renamed cloudobject put method from 'put_object' to 'put_cobject'
-- [PyWren] renamed cloudobject get method from 'get_object' to 'get_cobject'
-- [PyWren] 'internal_storage' func param renamed to 'storage'
-- [PyWren] pw.clean method can now clean cloudobjects
+- [Core] Reducer logic moved to jobrunner
+- [Core] cloudobject methods moved from internal_storage to ibm_cos
+- [Core] renamed cloudobject put method from 'put_object' to 'put_cobject'
+- [Core] renamed cloudobject get method from 'get_object' to 'get_cobject'
+- [Core] 'internal_storage' func param renamed to 'storage'
+- [Core] pw.clean method can now clean cloudobjects
 - [Knative] Set default Knative runtime timeout to 10 minutes
 - [Knative] Added more debug logs in Knative
 - [Knative] Enabled building default knative runtime locally
 
 ### Fixed
-- [PyWren] Fixed issue in map_reduce() method
-- [PyWren] Fixed issue in plot() method when using numpy 1.18.1
-- [PyWren] Fixed issue in cloudpickle when iterdata contains complex objects
-- [PyWren] Fixed issue with extra_env vars passed to functions
-- [PyWren] Fixed issue in memory monitor
-- [PyWren] Fixed issue in pywren-ibm-cloud cli
-- [PyWren] Fixed issue when wait()/get_result() methods are called multiple times
-- [PyWren] Fixed minor issue with ps_mem module in windows hosts
+- [Core] Fixed issue in map_reduce() method
+- [Core] Fixed issue in plot() method when using numpy 1.18.1
+- [Core] Fixed issue in cloudpickle when iterdata contains complex objects
+- [Core] Fixed issue with extra_env vars passed to functions
+- [Core] Fixed issue in memory monitor
+- [Core] Fixed issue in pywren-ibm-cloud cli
+- [Core] Fixed issue when wait()/get_result() methods are called multiple times
+- [Core] Fixed minor issue with ps_mem module in windows hosts
 - [Knative] Fixed knative to pass all tests
 - [Knative] Fixed remote_invoker in knative
 - [Knative] Fixed issue when pywren version mismatch in Knative
@@ -100,78 +106,78 @@
 ## [v1.5.1]
 
 ### Changed
-- [PyWren] pw.create execution_plots() renamed to pw.plot()
-- [PyWren] Docs updated
+- [Core] pw.create execution_plots() renamed to pw.plot()
+- [Core] Docs updated
 
 ### Fixed
-- [PyWren] Fixed internal issues
+- [Core] Fixed internal issues
 - [knative] Fixed minor issue in knative
 
 
 ## [v1.5.0]
 
 ### Added
-- [PyWren] Added support for Python 3.8
-- [PyWren] Added memory monitor
+- [Core] Added support for Python 3.8
+- [Core] Added memory monitor
 
 ### Changed
-- [PyWren] Updated knative to work for new releases
-- [PyWren] Updated tblib from 1.4.0 to 1.6.0
-- [PyWren] Changed get_current_memory_usage() to get_memory_usage()
-- [PyWren] pywren-runtime client is now called pywren-ibm-cloud
+- [Core] Updated knative to work for new releases
+- [Core] Updated tblib from 1.4.0 to 1.6.0
+- [Core] Changed get_current_memory_usage() to get_memory_usage()
+- [Core] pywren-runtime client is now called pywren-ibm-cloud
 
 ### Fixed
-- [PyWren] Fixed issue with internal partitioner
-- [PyWren] Fixed issue with get_result()
-- [PyWren] Fixed issue with windows hosts
-- [PyWren] Some other Internal fixes
+- [Core] Fixed issue with internal partitioner
+- [Core] Fixed issue with get_result()
+- [Core] Fixed issue with windows hosts
+- [Core] Some other Internal fixes
 
 ## [v1.4.2]
 
 ### Added
-- Prevent get_result() to wait forever when using COS
-- Added more debug logs
-- Infinispan storage backend
+- [Core] Prevent get_result() to wait forever when using COS
+- [Core] Added more debug logs
+- [Infinispan] Infinispan storage backend
 
 ### Changed
-- Reduced the number of COS clients created in each function activation
+- [Core] Reduced the number of COS clients created in each function activation
 
 ### Fixed
-- Fixed internal issue with storage
-- Fixed future exception handling
-- Some other Internal fixes
+- [Core] Fixed internal issue with storage
+- [Core] Fixed future exception handling
+- [Core] Some other Internal fixes
 
 
 ## [v1.4.1]
 
 ### Added
-- Prevent get_result() to wait forever when using RabbitMQ
-- Added new Dockerflies for knative
+- [Core] Prevent get_result() to wait forever when using RabbitMQ
+- [knative] Added new Dockerflies for knative
 
 ### Changed
-- Changed way to raise function exceptions
-- Changed way to build custom runtimes for knative
-- COS private_endpoint is now mandatory if using IBM CF
+- [Core] Changed way to raise function exceptions
+- [Knative] Changed way to build custom runtimes for knative
+- [IBM CF] COS private_endpoint is now mandatory if using IBM CF
 
 ### Fixed
-- Fixed knative when it creates a runtime based on an already built image
-- Fixed throw_except parameter on wait() and get_result()
-- Some other Internal fixes
+- [Knative] Fixed knative when it creates a runtime based on an already built image
+- [Core] Fixed throw_except parameter on wait() and get_result()
+- [Core] Some other Internal fixes
 
 
 ## [v1.4.0]
 
 ### Added
-- New way to create RabbitMQ resources
+- [Core] New way to create RabbitMQ resources
 
 ### Changed
-- Default invoker background processes set to 2
-- Code refactoring
+- [Core] Default invoker background processes set to 2
+- [Core] Code refactoring
 
 ### Fixed
-- Fixed issue when config in runtime is used multiple times
-- Fixed invoker stop() method
-- Some other Internal fixes
+- [Core] Fixed issue when config in runtime is used multiple times
+- [Core] Fixed invoker stop() method
+- [Core] Some other Internal fixes
 
 
 ## [v1.3.1]
