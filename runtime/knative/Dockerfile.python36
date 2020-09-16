@@ -18,11 +18,11 @@ RUN pip install --upgrade setuptools six pip \
         kubernetes \
         numpy
 
-# Copy PyWren proxy and lib to the container image.
-ENV APP_HOME /pywren
+# Copy Lithops proxy and lib to the container image.
+ENV APP_HOME /lithops
 WORKDIR $APP_HOME
 
-COPY pywren_knative.zip .
-RUN unzip pywren_knative.zip && rm pywren_knative.zip
+COPY lithops_knative.zip .
+RUN unzip lithops_knative.zip && rm lithops_knative.zip
 
-CMD exec gunicorn --bind :$PORT --workers 1 --timeout 600 pywrenproxy:proxy
+CMD exec gunicorn --bind :$PORT --workers 1 --timeout 600 lithopsproxy:proxy

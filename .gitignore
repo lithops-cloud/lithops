@@ -5,7 +5,7 @@ build/
 dist/
 plots/
 *.egg-info
-pywren_*.zip
+lithops_*.zip
 
 # Linux
 *~

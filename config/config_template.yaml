@@ -1,4 +1,4 @@
-pywren: 
+lithops: 
     storage_bucket: <BUCKET_NAME>
     #storage_backend: ibm_cos
     #compute_backend: ibm_cf

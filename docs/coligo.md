@@ -1,4 +1,4 @@
-# PyWren on IBM Coligo (Experimental)
+# Lithops on IBM Coligo (Experimental)
 
 **Notice that IBM Coligo is still in beta. Use this only for testing**
 
@@ -41,7 +41,7 @@ IBM Coligo is based on Knative, so the only requirement to make it working is to
    export KUBECONFIG=/home/myuser/.bluemix/plugins/coligo/myproject-b59a1c9f-5ds6-j1sm5.yaml
    ```
 
-7. [Install the Docker CE version](https://docs.docker.com/get-docker/) (PyWren needs to built the default runtime the first time you run a script)
+7. [Install the Docker CE version](https://docs.docker.com/get-docker/) (Lithops needs to built the default runtime the first time you run a script)
 
 8. Login to your docker account:
    ```bash
@@ -50,10 +50,10 @@ IBM Coligo is based on Knative, so the only requirement to make it working is to
 
 ### Configuration
 
-6. Edit your pywren config file and add the following keys:
+6. Edit your lithops config file and add the following keys:
 
    ```yaml
-   pywren:
+   lithops:
        compute_backend: knative
 
    knative:
@@ -78,24 +78,24 @@ IBM Coligo is based on Knative, so the only requirement to make it working is to
 
 ### Verify
 
-7. Test if PyWren on Coligo is working properly:
+7. Test if Lithops on Coligo is working properly:
 
    Run the next command:
 
    ```bash
-   $ pywren-ibm-cloud test
+   $ lithops test
    ```
 
    or run the next Python code:
 
    ```python
-   import pywren_ibm_cloud as pywren
+   import lithops
 
    def hello_world(name):
        return 'Hello {}!'.format(name)
 
    if __name__ == '__main__':
-       kn = pywren.knative_executor()
+       kn = lithops.knative_executor()
        kn.call_async(hello_world, 'World')
        print("Response from function: ", kn.get_result())
    ```
