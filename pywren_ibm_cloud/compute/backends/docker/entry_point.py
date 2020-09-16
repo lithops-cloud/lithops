@@ -5,11 +5,16 @@ import flask
 import logging
 import pkgutil
 import multiprocessing
+import time
+import threading
+import importlib
 
 from pywren_ibm_cloud.version import __version__
 from pywren_ibm_cloud.worker import function_invoker
 from pywren_ibm_cloud.config import DOCKER_FOLDER
-
+from pywren_ibm_cloud.config import extract_compute_config, extract_storage_config
+from pywren_ibm_cloud.storage import InternalStorage
+from pywren_ibm_cloud.compute.utils import get_remote_client
 
 log_file = os.path.join(DOCKER_FOLDER, 'proxy.log')
 logging.basicConfig(filename=log_file, level=logging.DEBUG)
@@ -18,6 +23,62 @@ logger = logging.getLogger('__main__')
 
 proxy = flask.Flask(__name__)
 
+last_usage_time = time.time()
+last_job = None
+keeper = None
+
+
+def budget_keeper(client, internal_storage):
+    global last_usage_time
+    global last_job
+
+    logger.info("BudgetKeeper started")
+
+    while True:
+        # time since last invocation start or complete
+        time_since_last_usage = time.time() - last_usage_time
+
+        minimal_sleep_time = client.soft_dismantle_timeout / 10
+        if time_since_last_usage < minimal_sleep_time:
+            logger.debug("Time since last usage: {}, going to sleep for {}".format(time_since_last_usage, minimal_sleep_time))
+            time.sleep(minimal_sleep_time)
+            continue
+
+        # if there is incompleted invocation, wait for completion or for hard_dismantle_timeout
+        if last_job:
+            callids_running_in_job, callids_done_in_job = internal_storage.get_job_status(last_job['executor_id'], last_job['job_id'])
+
+            logger.debug("callids_running_in_job {}".format(len(callids_running_in_job)))
+            if len(callids_running_in_job) > 0:
+                time_to_dismantle = client.hard_dismantle_timeout - time_since_last_usage
+            else:
+                last_job = None
+                last_usage_time = time.time()
+                continue
+        else:
+            time_to_dismantle = client.soft_dismantle_timeout - time_since_last_usage
+
+        logger.info("Time to dismantle: {}".format(time_to_dismantle))
+        if time_to_dismantle < 0:
+            # unset 'PYWREN_FUNCTION' environment variable that prevents token manager generate new token
+            del os.environ['PYWREN_FUNCTION']
+            logger.info("Dismantling setup")
+            try:
+                client.dismantle()
+            except Exception as e:
+                logger.info("Dismantle error {}".format(e))
+        else:
+            time.sleep(minimal_sleep_time)
+
+def _init_keeper(config):
+    global keeper
+    compute_config = extract_compute_config(config)
+    client = get_remote_client(compute_config)
+    storage_config = extract_storage_config(config)
+    internal_storage = InternalStorage(storage_config)
+
+    keeper = threading.Thread(target=budget_keeper, args=(client, internal_storage, ))
+    keeper.start()
 
 @proxy.route('/', methods=['POST'])
 def run():
@@ -28,6 +89,10 @@ def run():
 
     sys.stdout = open(log_file, 'w')
 
+    global last_usage_time
+    global keeper
+    global last_job
+
     message = flask.request.get_json(force=True, silent=True)
     if message and not isinstance(message, dict):
         return error()
@@ -35,8 +100,18 @@ def run():
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     os.environ['__PW_ACTIVATION_ID'] = act_id
 
+    last_usage_time = time.time()
+    last_job = message['job_description']
+
     if 'remote_invoker' in message:
         try:
+            # init keeper only when remote_client configuration provided
+            if 'remote_client' in message['config']['pywren'] and not keeper:
+                _init_keeper(message['config'])
+
+            # remove 'remote_client' configuration
+            message['config']['pywren'].pop('remote_client', None)
+
             logger.info("PyWren v{} - Starting Docker invoker".format(__version__))
             message['config']['pywren']['remote_invoker'] = False
             message['config']['pywren']['compute_backend'] = 'localhost'

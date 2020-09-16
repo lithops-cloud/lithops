@@ -17,7 +17,6 @@
 
 import copy
 import signal
-import atexit
 import logging
 from functools import partial
 from pywren_ibm_cloud.invoker import FunctionInvoker
@@ -104,9 +103,6 @@ class FunctionExecutor:
         self.total_jobs = 0
         self.cleaned_jobs = set()
         self.last_call = None
-
-        if self.auto_dismantle:
-            atexit.register(self.dismantle)
 
     def __enter__(self):
         return self
@@ -382,6 +378,8 @@ class FunctionExecutor:
                     print()
             if self.data_cleaner and not self.is_pywren_function:
                 self.clean(cloudobjects=False, force=False, log=False)
+            if self.auto_dismantle:
+                self.dismantle()
             if not fs and error and is_notebook():
                 del self.futures[len(self.futures)-len(futures):]
 
@@ -497,12 +495,12 @@ class FunctionExecutor:
             clean_job(jobs_to_clean, storage_config, clean_cloudobjects=cloudobjects)
             self.cleaned_jobs.update(jobs_to_clean)
 
-    def dismantle(self):
-        self.invoker.dismantle()
-
     def __exit__(self, exc_type, exc_value, traceback):
         self.invoker.stop()
         if self.data_cleaner:
             self.clean(log=False)
         if self.auto_dismantle:
             self.dismantle()
+
+    def dismantle(self):
+        self.invoker.dismantle()
