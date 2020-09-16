@@ -155,8 +155,8 @@ class ResponseFuture:
                 self._call_status = internal_storage.get_call_status(self.executor_id, self.job_id, self.call_id)
                 self._status_query_count += 1
 
-        self.stats['status_done_tstamp'] = time.time()
-        self.stats['status_query_count'] = self._status_query_count
+        self.stats['host_status_done_tstamp'] = time.time()
+        self.stats['host_status_query_count'] = self._status_query_count
         self.activation_id = self._call_status.pop('activation_id', None)
 
         if self._call_status['type'] == '__init__':
@@ -214,8 +214,8 @@ class ResponseFuture:
             if any(ss in key for ss in ['time', 'tstamp', 'count', 'size']):
                 self.stats[key] = self._call_status[key]
 
-        self.stats['exec_time'] = round(self.stats['end_tstamp'] - self.stats['start_tstamp'], 8)
-        total_time = format(round(self.stats['exec_time'], 2), '.2f')
+        self.stats['worker_exec_time'] = round(self.stats['worker_end_tstamp'] - self.stats['worker_start_tstamp'], 8)
+        total_time = format(round(self.stats['worker_exec_time'], 2), '.2f')
 
         log_msg = ('ExecutorID {} | JobID {} - Got status from call {} - Activation '
                    'ID: {} - Time: {} seconds'.format(self.executor_id,
@@ -279,7 +279,7 @@ class ResponseFuture:
 
         if call_output is None:
             if throw_except:
-                raise Exception('Unable to get the output from call {} - '
+                raise Exception('Unable to get the result from call {} - '
                                 'Activation ID: {}'.format(self.call_id, self.activation_id))
             else:
                 self._set_state(ResponseFuture.State.Error)
@@ -288,8 +288,8 @@ class ResponseFuture:
         self._call_output = pickle.loads(call_output)
         function_result = self._call_output['result']
 
-        self.stats['output_done_tstamp'] = time.time()
-        self.stats['output_query_count'] = self._output_query_count
+        self.stats['host_result_done_tstamp'] = time.time()
+        self.stats['host_result_query_count'] = self._output_query_count
 
         log_msg = ('ExecutorID {} | JobID {} - Got output from call {} - Activation '
                    'ID: {}'.format(self.executor_id, self.job_id, self.call_id, self.activation_id))
@@ -299,7 +299,7 @@ class ResponseFuture:
            (type(function_result) == list and len(function_result) > 0 and isinstance(function_result[0], ResponseFuture)):
             self._new_futures = [function_result] if type(function_result) == ResponseFuture else function_result
             self._set_state(ResponseFuture.State.Futures)
-            self.stats['status_done_tstamp'] = self.stats.pop('output_done_tstamp')
+            self.stats['host_status_done_tstamp'] = self.stats.pop('host_result_done_tstamp')
             return self._new_futures
 
         else:

@@ -171,7 +171,7 @@ def _future_timeout_checker_thread(running_futures, job_monitor_q, throw_except)
                 current_time = time.time()
                 for fut in running_futures:
                     if fut.running:
-                        fut_timeout = fut._call_status['start_time'] + fut.execution_timeout + 5
+                        fut_timeout = fut._call_status['worker_start_tstamp'] + fut.execution_timeout + 5
                         if current_time > fut_timeout:
                             msg = 'The function did not run as expected.'
                             raise TimeoutError('HANDLER', msg)

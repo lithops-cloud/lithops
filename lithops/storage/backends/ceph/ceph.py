@@ -40,7 +40,7 @@ class CephStorageBackend:
         self.is_lithops_function = is_lithops_function()
         user_agent = ceph_config['user_agent']
 
-        service_endpoint = ceph_config.get('endpoint').replace('http:', 'https:')
+        service_endpoint = ceph_config.get('endpoint')
 
         logger.debug("Seting Ceph endpoint to {}".format(service_endpoint))
         logger.debug("Using access_key and secret_key")

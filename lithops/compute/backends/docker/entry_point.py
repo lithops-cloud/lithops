@@ -10,7 +10,7 @@ import threading
 import importlib
 
 from lithops.version import __version__
-from lithops.function import function_invoker
+from lithops.worker import function_invoker
 from lithops.config import DOCKER_FOLDER
 from lithops.config import extract_compute_config, extract_storage_config
 from lithops.storage import InternalStorage

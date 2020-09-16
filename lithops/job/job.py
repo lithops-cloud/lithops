@@ -39,7 +39,8 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
     """
-    job_created_tstamp = time.time()
+    host_job_meta = {'host_job_create_tstamp': time.time()}
+
     map_func = map_function
     map_iterdata = utils.verify_args(map_function, iterdata, extra_args)
     new_invoke_pool_threads = invoke_pool_threads
@@ -52,12 +53,14 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
     # Object processing functionality
     parts_per_object = None
     if is_object_processing_function(map_function):
+        create_partitions_start = time.time()
         # Create partitions according chunk_size or chunk_number
         logger.debug('ExecutorID {} | JobID {} - Calling map on partitions '
                      'from object storage flow'.format(executor_id, job_id))
         map_iterdata, parts_per_object = create_partitions(config, internal_storage,
                                                            map_iterdata, obj_chunk_size,
                                                            obj_chunk_number)
+        host_job_meta['host_job_create_partitions_time'] = round(time.time()-create_partitions_start, 6)
     # ########
 
     job_description = _create_job(config, internal_storage, executor_id,
@@ -69,7 +72,7 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
                                   include_modules=include_modules,
                                   exclude_modules=exclude_modules,
                                   execution_timeout=execution_timeout,
-                                  job_created_tstamp=job_created_tstamp)
+                                  host_job_meta=host_job_meta)
 
     if parts_per_object:
         job_description['parts_per_object'] = parts_per_object
@@ -84,7 +87,8 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
     """
-    job_created_tstamp = time.time()
+    host_job_meta = {'host_job_create_tstamp': time.time()}
+
     iterdata = [[map_futures, ]]
 
     if 'parts_per_object' in map_job and reducer_one_per_object:
@@ -111,12 +115,12 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
                        include_modules=include_modules,
                        exclude_modules=exclude_modules,
                        execution_timeout=execution_timeout,
-                       job_created_tstamp=job_created_tstamp)
+                       host_job_meta=host_job_meta)
 
 
 def _create_job(config, internal_storage, executor_id, job_id, func, data, runtime_meta,
                 runtime_memory=None, extra_env=None, invoke_pool_threads=128, include_modules=[],
-                exclude_modules=[], execution_timeout=None, job_created_tstamp=None):
+                exclude_modules=[], execution_timeout=None, host_job_meta=None):
     """
     :param func: the function to map over the data
     :param iterdata: An iterable of input data
@@ -176,9 +180,8 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     if include_modules is None:
         inc_modules = None
 
-    host_job_meta = {'job_created_tstamp': job_created_tstamp}
-
     logger.debug('ExecutorID {} | JobID {} - Serializing function and data'.format(executor_id, job_id))
+    job_serialize_start = time.time()
     serializer = SerializeIndependent(runtime_meta['preinstalls'])
     func_and_data_ser, mod_paths = serializer([func] + data, inc_modules, exc_modules)
     data_strs = func_and_data_ser[1:]
@@ -188,6 +191,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     func_module_str = pickle.dumps({'func': func_str, 'module_data': module_data}, -1)
     func_module_size_bytes = len(func_module_str)
     total_size = utils.sizeof_fmt(data_size_bytes+func_module_size_bytes)
+    host_job_meta['host_job_serialize_time'] = round(time.time()-job_serialize_start, 6)
 
     host_job_meta['data_size_bytes'] = data_size_bytes
     host_job_meta['func_module_size_bytes'] = func_module_size_bytes
@@ -217,7 +221,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     internal_storage.put_data(data_key, data_bytes)
     data_upload_end = time.time()
 
-    host_job_meta['data_upload_time'] = round(data_upload_end-data_upload_start, 6)
+    host_job_meta['host_data_upload_time'] = round(data_upload_end-data_upload_start, 6)
 
     # Upload function and modules
     func_upload_start = time.time()
@@ -226,7 +230,9 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     internal_storage.put_func(func_key, func_module_str)
     func_upload_end = time.time()
 
-    host_job_meta['func_upload_time'] = round(func_upload_end - func_upload_start, 6)
+    host_job_meta['host_func_upload_time'] = round(func_upload_end - func_upload_start, 6)
+
+    host_job_meta['host_job_created_time'] = round(time.time() - host_job_meta['host_job_create_tstamp'], 6)
 
     job_description['metadata'] = host_job_meta
 

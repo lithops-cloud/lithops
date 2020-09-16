@@ -1,16 +1,36 @@
 # Changelog
 
-## [v1.7.1--snapshot]
+## [v1.7.3--snapshot]
+
+### Added
+- [Pywren] Generic compute client logic
+- [Pywren] IBM IAM service client lib
+- [Pywren] IBM VPC service client lib
+- [Docker] Docker backend compatible with IBM VPC VM 
 
 ### Fixed
-- [PyWren-IBM] Fixed invoker token bucket when quota limit is reached
-- [PyWren-IBM] Fixed logging
-- [PyWren-IBM] Foxed invoker when it reaches quota limit
-- [Localhost] Fixed invocations ability to launch subprocesses
+-  [Ceph] Fix in ceph endpoint
 
 ### Changed
-- [PyWren-IBM] Improved Storage abstraction
-- [PyWren-IBM] InternalStorage uses storage abstraction
+-  [Docker] Improved Docker executor
+
+
+## [v1.7.2]
+
+### Added
+- [GCR] Added Google Cloud Run Backend
+
+### Fixed
+- [PyWren] Fixed invoker token bucket when quota limit is reached
+- [PyWren] Fixed logging
+- [PyWren] Fixed invoker when it reaches quota limit
+- [PyWren] Fixed delete cloudobject
+- [Localhost] Fixed invocations ability to launch subprocesses
+- [Docker] Fixed docker running as user and not root
+
+### Changed
+- [PyWren] Improved Storage abstraction
+- [PyWren] InternalStorage uses storage abstraction
 
 
 ## [v1.7.0]
@@ -20,57 +40,57 @@
 - [Knative] Configurable CPU parameter
 
 ### Fixed
-- [PyWren-IBM] Fixed issue in extra_args when iterdata is a dict
-- [PyWren-IBM] Fixed CloudObjects keys collisions
-- [PyWren-IBM] Fixed case where function argument is a list or tuple
+- [PyWren] Fixed issue in extra_args when iterdata is a dict
+- [PyWren] Fixed CloudObjects keys collisions
+- [PyWren] Fixed case where function argument is a list or tuple
 
 
 ## [v1.6.0]
 
 ### Added
-- [PyWren-IBM] New docker_executor()
+- [PyWren] New docker_executor()
 - [Ceph] New Ceph Storage backend
 
 ### Changed
-- [PyWren-IBM] Moved all stats from 'f._call_status' to a new 'f.stats' variable
-- [PyWren-IBM] Bump httplib2 from 0.13.0 to 0.18.0
+- [PyWren] Moved all stats from 'f._call_status' to a new 'f.stats' variable
+- [PyWren] Bump httplib2 from 0.13.0 to 0.18.0
 - [Localhost] Improved localhost storage backend
 
 ### Fixed
-- [PyWren-IBM] Fixed issue in pw.clean(cs=cobjs) when passing a large list of cobjs
+- [PyWren] Fixed issue in pw.clean(cs=cobjs) when passing a large list of cobjs
 
 
 ## [v1.5.2]
 
 ### Added
-- [PyWren-IBM] Added 'data_limit' config param in PyWren-IBM section
-- [PyWren-IBM] Added context-manager-like executor and example
-- [PyWren-IBM] Added debug mode in tests with '-d' flag
-- [PyWren-IBM] Added delete_cobject() and delete_cobjects() storage methods
+- [PyWren] Added 'data_limit' config param in pywren section
+- [PyWren] Added context-manager-like executor and example
+- [PyWren] Added debug mode in tests with '-d' flag
+- [PyWren] Added delete_cobject() and delete_cobjects() storage methods
 
 ### Changed
-- [PyWren-IBM] Reducer logic moved to jobrunner
-- [PyWren-IBM] cloudobject methods moved from internal_storage to ibm_cos
-- [PyWren-IBM] renamed cloudobject put method from 'put_object' to 'put_cobject'
-- [PyWren-IBM] renamed cloudobject get method from 'get_object' to 'get_cobject'
-- [PyWren-IBM] 'internal_storage' func param renamed to 'storage'
-- [PyWren-IBM] pw.clean method can now clean cloudobjects
+- [PyWren] Reducer logic moved to jobrunner
+- [PyWren] cloudobject methods moved from internal_storage to ibm_cos
+- [PyWren] renamed cloudobject put method from 'put_object' to 'put_cobject'
+- [PyWren] renamed cloudobject get method from 'get_object' to 'get_cobject'
+- [PyWren] 'internal_storage' func param renamed to 'storage'
+- [PyWren] pw.clean method can now clean cloudobjects
 - [Knative] Set default Knative runtime timeout to 10 minutes
 - [Knative] Added more debug logs in Knative
 - [Knative] Enabled building default knative runtime locally
 
 ### Fixed
-- [PyWren-IBM] Fixed issue in map_reduce() method
-- [PyWren-IBM] Fixed issue in plot() method when using numpy 1.18.1
-- [PyWren-IBM] Fixed issue in cloudpickle when iterdata contains complex objects
-- [PyWren-IBM] Fixed issue with extra_env vars passed to functions
-- [PyWren-IBM] Fixed issue in memory monitor
-- [PyWren-IBM] Fixed issue in PyWren-IBM cli
-- [PyWren-IBM] Fixed issue when wait()/get_result() methods are called multiple times
-- [PyWren-IBM] Fixed minor issue with ps_mem module in windows hosts
+- [PyWren] Fixed issue in map_reduce() method
+- [PyWren] Fixed issue in plot() method when using numpy 1.18.1
+- [PyWren] Fixed issue in cloudpickle when iterdata contains complex objects
+- [PyWren] Fixed issue with extra_env vars passed to functions
+- [PyWren] Fixed issue in memory monitor
+- [PyWren] Fixed issue in pywren-ibm-cloud cli
+- [PyWren] Fixed issue when wait()/get_result() methods are called multiple times
+- [PyWren] Fixed minor issue with ps_mem module in windows hosts
 - [Knative] Fixed knative to pass all tests
 - [Knative] Fixed remote_invoker in knative
-- [Knative] Fixed issue when PyWren-IBM version mismatch in Knative
+- [Knative] Fixed issue when pywren version mismatch in Knative
 - [Knative] Fixed issue in Knative when the default runtime is built
 - [knative] Fixed building default runtime based on current python version
 - [knative] Fixed OOM exceptions from knative to be correctly raised
@@ -80,31 +100,31 @@
 ## [v1.5.1]
 
 ### Changed
-- [PyWren-IBM] pw.create execution_plots() renamed to pw.plot()
-- [PyWren-IBM] Docs updated
+- [PyWren] pw.create execution_plots() renamed to pw.plot()
+- [PyWren] Docs updated
 
 ### Fixed
-- [PyWren-IBM] Fixed internal issues
+- [PyWren] Fixed internal issues
 - [knative] Fixed minor issue in knative
 
 
 ## [v1.5.0]
 
 ### Added
-- [PyWren-IBM] Added support for Python 3.8
-- [PyWren-IBM] Added memory monitor
+- [PyWren] Added support for Python 3.8
+- [PyWren] Added memory monitor
 
 ### Changed
-- [PyWren-IBM] Updated knative to work for new releases
-- [PyWren-IBM] Updated tblib from 1.4.0 to 1.6.0
-- [PyWren-IBM] Changed get_current_memory_usage() to get_memory_usage()
-- [PyWren-IBM] PyWren-IBM-runtime client is now called PyWren-IBM
+- [PyWren] Updated knative to work for new releases
+- [PyWren] Updated tblib from 1.4.0 to 1.6.0
+- [PyWren] Changed get_current_memory_usage() to get_memory_usage()
+- [PyWren] pywren-runtime client is now called pywren-ibm-cloud
 
 ### Fixed
-- [PyWren-IBM] Fixed issue with internal partitioner
-- [PyWren-IBM] Fixed issue with get_result()
-- [PyWren-IBM] Fixed issue with windows hosts
-- [PyWren-IBM] Some other Internal fixes
+- [PyWren] Fixed issue with internal partitioner
+- [PyWren] Fixed issue with get_result()
+- [PyWren] Fixed issue with windows hosts
+- [PyWren] Some other Internal fixes
 
 ## [v1.4.2]
 
@@ -182,7 +202,7 @@
 ### Added
 - New invoker mechanism
 - New native remote invoker for ibm_cf
-- PyWren-IBM-runtime clean command to delete all tmp data
+- pywren-runtime clean command to delete all tmp data
 - capacity to limit the number of concurrent workers
 - architecture documentation
 
@@ -197,16 +217,16 @@
 ### Fixed
 - Internal fixes
 - Fixed tests
-- Fixed PyWren-IBM inside PyWren-IBM function executions
+- Fixed pywren inside pywren function executions
 
 
 ## [v1.2.0]
 
 ### Added
-- New local_executor() to run PyWren-IBM jobs in the local machine
+- New local_executor() to run pywren jobs in the local machine
 - New localhost compute backend
 - New localhost storage backend
-- New docker_executor() to run PyWren-IBM jobs in the local machine by using docker
+- New docker_executor() to run pywren jobs in the local machine by using docker
 - New docker compute backend
 
 ### Changed
@@ -236,7 +256,7 @@
 ### Added
 - Added knative-serving compute backend
 - Added Dockerfile skeleton for slim Python3.6 runtime (only 307MB)
-- Added CACHE_DIR in ~/.PyWren-IBM/cache
+- Added CACHE_DIR in ~/.pywren/cache
 - knative_executor() and function_executor()
 - support to work on multiple regions at a time
 
@@ -313,7 +333,7 @@
 
 ### Fixed
 - Fixed minor issue listing CF actions
-- Fixed issue when executing PyWren-IBM inside PyWren-IBM
+- Fixed issue when executing pywren inside pywren
 - Fixed possible issue with invalid config parameters
 - Fixed wrong method name: build_runtime()
 - Fixed internal_storage parameter in partitioner
@@ -441,7 +461,7 @@
 ## [v1.0.10]
 
 ### Added
-- Add support to create PyWren-IBM's plots in cos
+- Add support to create pywren's plots in cos
 
 ### Fixed
 - Fixed future status
@@ -602,7 +622,7 @@
 - Added retry logic
 - Invoker logic
 - Added missing init file
-- Added user agent to identify PyWren-IBM
+- Added user agent to identify pywren
 - Added missing dependencies
 
 ### Changed
@@ -652,7 +672,7 @@
 
 
 ## [v1.0.0]
-PyWren-IBM First release.
+First release.
 
 - New runtime based on Docker images.
 - Added IBM Cloud Functions API connector for function invocations.
@@ -672,7 +692,7 @@ PyWren-IBM First release.
 - When a new *executor class* is instantiated, it is created a *storage_handler* used in the all PyWren execution.
 - Now it is possible to specify the **runtime** when the user instantiates the *executor class* instead of changing the config file every time (In the config file is specified the default runtime).
 - The **logging level** is now specified when the user instantiates the *executor class* instead of put it in the first line of the code within an env variable.
-- The PyWren code which is executed remotely as a wrapper of the function now uses the main storage handler as the rest of the PyWren-IBM code. In previous versions, PyWren-IBM creates a new storage client directly with *boto3* library instead of using pywren/storage/storage.py wrapper. 
+- The PyWren code which is executed remotely as a wrapper of the function now uses the main storage handler as the rest of the PyWren code. In previous versions, PyWren creates a new storage client directly with *boto3* library instead of using pywren/storage/storage.py wrapper. 
 - Added support for multiple parameters in the functions which are executed remotely as a cloud functions. Previous versions just allows one parameter.
 - Eased the usage of the storage backend within a function. By simply specifying *storage_handler* as a parameter of the function, the user will get access to the storage backend.
 - Added a new method for retrieving the results of an execution called **fetch_all_resuslts()**. Previous PyWren versions already includes a method called *get_all_results()*, but this is a sequential method and it takes long time to retrieve all the results. It was also included a *wait()* class which is more similar to *get_all_results()* method, the main difference is that the new method is all based on *list the available objects in a bucket*, and it returns when all the tasks are finished. The new method also has the possibility to activate a progress bar in order to track the current status of the execution (really useful for larger executions).

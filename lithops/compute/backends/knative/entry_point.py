@@ -22,8 +22,8 @@ import logging
 import pkgutil
 from lithops.version import __version__
 from lithops.config import cloud_logging_config
-from lithops.function import function_handler
-from lithops.function import function_invoker
+from lithops.worker import function_handler
+from lithops.worker import function_invoker
 
 cloud_logging_config(logging.INFO)
 logger = logging.getLogger('__main__')

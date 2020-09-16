@@ -11,6 +11,7 @@ CONCURRENT_WORKERS_DEFAULT = 100
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_cloudrun.zip')
 
+
 def load_config(config_data):
     if 'cloudrun' not in config_data:
         raise Exception("cloudrun section is mandatory in configuration")

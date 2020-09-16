@@ -8,9 +8,8 @@ from multiprocessing import Process, Queue
 from threading import Thread
 from lithops.version import __version__
 from lithops.utils import version_str, is_unix_system
-from lithops.function import function_handler
+from lithops.worker import function_handler
 from lithops.config import STORAGE_FOLDER, LOGS_PREFIX
-
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +68,7 @@ class LocalhostBackend:
 
     def _process_runner(self, worker_id):
         logger.debug('Localhost worker process {} started'.format(worker_id))
+
         while self.alive:
             try:
                 event = self.queue.get(block=True)
@@ -77,7 +77,6 @@ class LocalhostBackend:
                 self._local_handler(event)
             except KeyboardInterrupt:
                 break
-        logger.debug('Localhost worker process {} stopped'.format(worker_id))
 
     def _generate_python_meta(self):
         """
