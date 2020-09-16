@@ -16,6 +16,7 @@
 
 import logging
 import importlib
+from lithops.compute.utils import get_remote_client
 
 logger = logging.getLogger(__name__)
 
@@ -36,12 +37,10 @@ class Compute:
             cb_module = importlib.import_module(module_location)
             ComputeBackend = getattr(cb_module, 'ComputeBackend')
             self.compute_handler = ComputeBackend(self.config[self.backend])
-            self.remote_client = self._get_remote_client(self.config[self.backend])
+            self.remote_client = get_remote_client(self.config)
 
             # if backend supports, check if ready. run client to setup in case not ready
-            if hasattr(self.compute_handler, 'ready') and not self.compute_handler.ready():
-                self._setup_compute()
-                self.remote_client.create_instance_action('start')
+            self._setup_compute()
 
         except Exception as e:
             logger.error("There was en error trying to create the '{}' compute backend".format(e))
@@ -49,20 +48,12 @@ class Compute:
 
     def _setup_compute(self):
         logger.info("Starting setup of compute backend")
-        self.remote_client.create_instance_action('start')
-        logger.info("Waiting for compute to become ready")
-        if not self.compute_handler.ready(retries=10, timeout=20):
-            raise Exception("The remote compute is not ready")
+        readiness_probe = None
+        if hasattr(self.compute_handler, 'ready'):
+            readiness_probe = self.compute_handler.ready
 
-    def _get_remote_client(self, backend_config):
-        if 'remote_client' in backend_config:
-            remote_client_backend = backend_config['remote_client']
-            client_location = 'lithops.libs.clients.{}'.format(remote_client_backend)
-            client = importlib.import_module(client_location)
-            RemoteInstanceClient = getattr(client, 'RemoteInstanceClient')
-            return RemoteInstanceClient(backend_config[remote_client_backend],
-                                                       user_agent=backend_config['user_agent'])
-        return None
+        if self.remote_client:
+            self.remote_client.setup(readiness_probe=readiness_probe)
 
     def invoke(self, runtime_name, memory, payload):
         """
@@ -113,7 +104,7 @@ class Compute:
     def dismantle(self):
         if self.remote_client:
             logger.info("Dismantling setup")
-            self.remote_client.create_instance_action('stop')
+            self.remote_client.dismantle()
 
     def __del__(self):
         if self.compute_handler and hasattr(self.compute_handler, '__del__'):

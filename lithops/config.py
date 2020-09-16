@@ -166,6 +166,15 @@ def extract_compute_config(config):
     compute_config[cb]['user_agent'] = 'lithops/{}'.format(__version__)
     if 'compute_backend_region' in config['lithops']:
         compute_config[cb]['region'] = config['lithops']['compute_backend_region']
+    if 'remote_client' in config['lithops']:
+        remote_client_backend = config['lithops']['remote_client']
+        remote_client_config = importlib.import_module('lithops.libs.clients.{}.config'
+                                                       .format(remote_client_backend))
+        remote_client_config.load_config(config)
+
+        remote_client_config = config[remote_client_backend]
+        compute_config[remote_client_backend] = remote_client_config
+        compute_config['remote_client'] = config['lithops']['remote_client']
 
     return compute_config
 
