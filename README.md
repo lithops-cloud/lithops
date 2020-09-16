@@ -1,12 +1,15 @@
-<h1><p align="center"> Lithops - Lightweight Operational Scale for IBM Cloud </p></h1>
+<h1><p align="center"> Lithops - Lightweight Operational Scale </p></h1>
 
 ### What is Lithops
 
-Lithops is based on [PyWren](https://github.com/pywren/pywren) is an open source project whose goals are massively scaling the execution of Python code and its dependencies on serverless computing platforms and monitoring the results. PyWren delivers the user’s code into the serverless platform without requiring knowledge of how functions are invoked and run.
+Lithops framework is a rebranded [PyWren-IBM](https://dl.acm.org/citation.cfm?id=3284029) framework.  Lithops  goals are massively scaling the execution of Python code and its dependencies on serverless computing platforms and monitoring the results. Lithops delivers the user’s code into the serverless platform without requiring knowledge of how functions are invoked and run.
 
 ### Lithops and IBM Cloud
 
 Lithops for IBM Cloud provides great value for the variety of uses cases, like processing data in object storage, running embarrassingly parallel compute jobs (e.g. Monte-Carlo simulations), enriching data with additional attributes and many more. In extending Lithops to work with IBM Cloud Object Storage, we also added a partition discovery component that allows Lithops to process large amounts of data stored in the IBM Cloud Object Storage. See [changelog](CHANGELOG.md) for more details.
+
+### Lithops for broad scope
+Although Lithops can work with any cloud provider, only IBM Cloud and OpenShift are officially supported. All the rest supported on the best community effort. Information on how to configure Lithops to work with other cloud providers can be found [here]()
 
 ### IBM Cloud for Academic institutions
 
