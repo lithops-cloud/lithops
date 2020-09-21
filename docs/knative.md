@@ -72,15 +72,15 @@ Lithops with *Knative* as compute backend. Lithops also supports vanilla Knative
 
    
    ```python
-   from cloudbutton.engine.executor import FunctionExecutor
+   lithops
    
    def hello_world(name):
        return 'Hello {}!'.format(name)
     
    if __name__ == '__main__':
-        cb_exec = FunctionExecutor()
-        cb_exec.call_async(hello_world, 'World')
-        print("Response from function: ", cb_exec.get_result())
+        exec = lithops.function_executor()
+        exec.call_async(hello_world, 'World')
+        print("Response from function: ", exec.get_result())
    ```
 
 8. Monitor how pods and other resources are created:
