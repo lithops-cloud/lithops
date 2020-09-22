@@ -81,13 +81,7 @@ class FunctionExecutor:
 
         self.config = default_config(copy.deepcopy(config), pw_config_ow)
 
-        if executor_id is None:
-            self.recover_session = False
-            self.executor_id = create_executor_id()
-        else:
-            self.recover_session = True
-            self.executor_id = executor_id
-
+        self.executor_id = create_executor_id()
         logger.debug('FunctionExecutor created with ID: {}'.format(self.executor_id))
 
         self.data_cleaner = self.config['lithops'].get('data_cleaner', True)
@@ -148,8 +142,7 @@ class FunctionExecutor:
                              extra_env=extra_env,
                              include_modules=include_modules,
                              exclude_modules=exclude_modules,
-                             execution_timeout=timeout,
-                             recover_session=self.recover_session)
+                             execution_timeout=timeout)
 
         futures = self.invoker.run(job)
         self.futures.extend(futures)
@@ -269,8 +262,7 @@ class FunctionExecutor:
                                        runtime_memory=reduce_runtime_memory,
                                        extra_env=extra_env,
                                        include_modules=include_modules,
-                                       exclude_modules=exclude_modules,
-                                       recover_session=self.recover_session)
+                                       exclude_modules=exclude_modules)
 
         reduce_futures = self.invoker.run(reduce_job)
 
