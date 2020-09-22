@@ -156,7 +156,7 @@ def load_config(config_data):
     if 'knative' not in config_data:
         raise Exception("knative section is mandatory in configuration")
 
-    required_keys = ('docker_user', 'docker_token')
+    required_keys = ('docker_user')
     if not set(required_keys) <= set(config_data['knative']):
         raise Exception('You must provide {} to access to Knative'.format(required_keys))
 

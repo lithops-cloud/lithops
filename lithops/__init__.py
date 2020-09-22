@@ -80,7 +80,7 @@ def openwhisk_executor(config=None, runtime=None, runtime_memory=None,
 
 
 def function_executor(config=None, runtime=None, runtime_memory=None,
-                      workers=None, backend=None, region=None,
+                      workers=None, compute_backend=None, region=None,
                       storage_backend=None, storage_backend_region=None,
                       rabbitmq_monitor=None, remote_invoker=None, log_level=None):
     """
@@ -90,7 +90,7 @@ def function_executor(config=None, runtime=None, runtime_memory=None,
         config=config, runtime=runtime,
         runtime_memory=runtime_memory,
         workers=workers,
-        compute_backend=backend,
+        compute_backend=compute_backend,
         compute_backend_region=region,
         storage_backend=storage_backend,
         storage_backend_region=storage_backend_region,

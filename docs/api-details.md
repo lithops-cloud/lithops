@@ -79,7 +79,7 @@ Initialize and return a generic executor object. All the parameters set in the e
 |config | None | Settings passed in here will override those in lithops_config|
 |runtime |  None | Name of the docker image to run the functions |
 |runtime_memory | 256 | Memory (in MB) to use to run the functions |
-|backend | ibm_cf | name of the compute backend to run the functions |
+|compute_backend | ibm_cf | name of the compute backend to run the functions |
 |storage_backend | ibm_cos | Storage backend to store temp data|
 |rabbitmq_monitor | False | Activate RabbitMQ monitoring |
 |log_level | None | Log level printing (INFO, DEBUG, ...) |
