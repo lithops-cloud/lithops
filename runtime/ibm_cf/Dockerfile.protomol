@@ -5,10 +5,13 @@ FROM ibmfunctions/action-python-v3.6:master
 RUN apt-get update && apt-get install -y \
         wget build-essential cmake pkg-config \
         && rm -rf /var/lib/apt/lists/*
+        && apt-cache search linux-headers-generic
 
-RUN apt-cache search linux-headers-generic
+COPY requirements.txt requirements.txt
 
-RUN pip install opencv-contrib-python-headless opencv-python-headless dlib
-RUN wget https://sourceforge.net/projects/protomol/files/ProtoMol/Protomol%203.3/ProtoMol-3.3.0-Linux-64bit.tar.gz && tar -zxvf ProtoMol-3.3.0-Linux-64bit.tar.gz
-RUN cp /ProtoMol-3.3.0-Linux-64bit/ProtoMol /tmp/ProtoMol
-RUN chmod +x /tmp/ProtoMol
+RUN pip install --upgrade pip setuptools six && pip install --no-cache-dir -r requirements.txt \
+    && pip install opencv-contrib-python-headless opencv-python-headless dlib \
+    && wget https://sourceforge.net/projects/protomol/files/ProtoMol/Protomol%203.3/ProtoMol-3.3.0-Linux-64bit.tar.gz \
+    && tar -zxvf ProtoMol-3.3.0-Linux-64bit.tar.gz \
+    && cp /ProtoMol-3.3.0-Linux-64bit/ProtoMol /tmp/ProtoMol \
+    && chmod +x /tmp/ProtoMol

@@ -3,8 +3,9 @@
 __pycache__/
 build/
 dist/
-pywren_ibm_cloud.egg-info
-pywren_*.zip
+plots/
+*.egg-info
+lithops_*.zip
 
 # Linux
 *~

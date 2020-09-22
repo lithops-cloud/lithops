@@ -1,44 +1,73 @@
-# PyWren API Details
+# Lithops API Details
 
 ## Executor
-The primary object in PyWren is the executor. The standard way to get everything set up is to import pywren_ibm_cloud, and call on of the available methods to get a ready-to-use executor. The available executors are: `ibm_cf_executor()`, `knative_executor()`, `function_executor()`, `local_executor()` and `docker_executor()`
+
+The primary object in Lithops is the executor. The standard way to get everything set up is to import lithops, and call on of the available functions to get a ready-to-use executor. 
+
+By default the executor loads the configuration from the config file. Alternatively you can pass the configuration with a python dictionary. In any case, note that all the parameters set in the executor will overwrite those set in the configuration.
+
 
 **ibm_cf_executor(\*\*kwargs)**
 
-Initialize and return an IBM Cloud Functions executor object. All the parameters set in the executor will overwrite those set in the configuration.
+Initialize and return an IBM Cloud Functions executor object.
 
 |Parameter | Default | Description|
 |---|---|---|
-|config | None | Settings passed in here will override those in pywren_config|
+|config | None | Settings passed in here will override those in lithops_config|
 |runtime |  None | Name of the docker image to run the functions |
 |runtime_memory | 256 | Memory (in MB) to use to run the functions |
 |storage_backend | ibm_cos | Storage backend to store temp data|
 |rabbitmq_monitor | False | Activate RabbitMQ monitoring |
 |log_level | None | Log level printing (INFO, DEBUG, ...) |
+|remote_invoker | False | Spawn a function that will perform the actual job invocation (True/False) |
 
 Usage:
+
 ```python
-import pywren_ibm_cloud as pywren
-pw = pywren.ibm_cf_executor()
+import lithops
+pw = lithops.ibm_cf_executor()
 ```
 
 **knative_executor(\*\*kwargs)**
 
-Initialize and return a Knative executor object. All the parameters set in the executor will overwrite those set in the configuration.
+Initialize and return a Knative executor object. See [additional information](knative.md).
 
 |Parameter | Default | Description|
 |---|---|---|
-|config | None | Settings passed in here will override those in pywren_config|
+|config | None | Settings passed in here will override those in lithops_config|
 |runtime |  None | Name of the docker image to run the functions |
 |runtime_memory | 256 | Memory (in MB) to use to run the functions |
 |storage_backend | ibm_cos | Storage backend to store temp data|
 |rabbitmq_monitor | False | Activate RabbitMQ monitoring |
 |log_level | None | Log level printing (INFO, DEBUG, ...) |
+|remote_invoker | False | Spawn a function that will perform the actual job invocation (True/False) |
 
 Usage:
+
 ```python
-import pywren_ibm_cloud as pywren
-pw = pywren.knative_executor()
+import lithops
+pw = lithops.knative_executor()
+```
+
+**openwhisk_executor(\*\*kwargs)**
+
+Initialize and return an OpenWhisk executor object. See [additional information](openwhisk.md).
+
+|Parameter | Default | Description|
+|---|---|---|
+|config | None | Settings passed in here will override those in lithops_config|
+|runtime |  None | Name of the docker image to run the functions |
+|runtime_memory | 256 | Memory (in MB) to use to run the functions |
+|storage_backend | ibm_cos | Storage backend to store temp data|
+|rabbitmq_monitor | False | Activate RabbitMQ monitoring |
+|log_level | None | Log level printing (INFO, DEBUG, ...) |
+|remote_invoker | False | Spawn a function that will perform the actual job invocation (True/False) |
+
+Usage:
+
+```python
+import lithops
+pw = lithops.openwhisk_executor()
 ```
 
 **function_executor(\*\*kwargs)**
@@ -47,58 +76,62 @@ Initialize and return a generic executor object. All the parameters set in the e
 
 |Parameter | Default | Description|
 |---|---|---|
-|config | None | Settings passed in here will override those in pywren_config|
+|config | None | Settings passed in here will override those in lithops_config|
 |runtime |  None | Name of the docker image to run the functions |
 |runtime_memory | 256 | Memory (in MB) to use to run the functions |
 |backend | ibm_cf | name of the compute backend to run the functions |
 |storage_backend | ibm_cos | Storage backend to store temp data|
 |rabbitmq_monitor | False | Activate RabbitMQ monitoring |
 |log_level | None | Log level printing (INFO, DEBUG, ...) |
+|remote_invoker | False | Spawn a function that will perform the actual job invocation (True/False) |
 
 Usage:
+
 ```python
-import pywren_ibm_cloud as pywren
-pw = pywren.function_executor()
+import lithops
+pw = lithops.function_executor()
 ```
 
 **local_executor(\*\*kwargs)**
 
-Initialize and return a Localhost executor object. This executor runs the functions in local processes. All the parameters set in the executor will overwrite those set in the configuration.
-
+Initialize and return a Localhost executor object. This executor runs the functions in local processes.
 
 |Parameter | Default | Description|
 |---|---|---|
-|config | None | Settings passed in here will override those in pywren_config|
+|config | None | Settings passed in here will override those in lithops_config|
 |storage_backend | localhost | Storage backend to store temp data |
 |rabbitmq_monitor | False | Activate RabbitMQ monitoring |
 |log_level | None | Log level printing (INFO, DEBUG, ...) |
 
 Usage:
+
 ```python
-import pywren_ibm_cloud as pywren
-pw = pywren.local_executor()
+import lithops
+pw = lithops.local_executor()
 ```
 
 **docker_executor(\*\*kwargs)**
 
-Initialize and return a Docker executor object. This executor runs the functions in local Dockers. All the parameters set in the executor will overwrite those set in the configuration.
+Initialize and return a Docker executor object. This executor runs the functions by using processes within a single, local or remote, Docker container. The IBM CF and Knative runtimes are compatible to run functions with this executor.
 
 
 |Parameter | Default | Description|
 |---|---|---|
-|config | None | Settings passed in here will override those in pywren_config|
-|runtime |  None | Name of the docker image to run the functions |
+|config | None | Settings passed in here will override those in lithops_config|
+|runtime |  None | Name of the docker image to run the functions. By default it uses the IBM CF default runtimes |
 |storage_backend | localhost | Storage backend to store temp data |
 |rabbitmq_monitor | False | Activate RabbitMQ monitoring |
 |log_level | None | Log level printing (INFO, DEBUG, ...) |
 
 Usage:
+
 ```python
-import pywren_ibm_cloud as pywren
-pw = pywren.docker_executor()
+import lithops
+pw = lithops.docker_executor()
 ```
 
 ## Executor.call_async()
+
 Spawn only one function activation.
 
 **call_async**(func, data, \*\*kwargs)
@@ -113,15 +146,18 @@ Spawn only one function activation.
 |include_modules| [] |Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None |
 |exclude_modules| [] |Explicitly keep these modules from pickled dependencies. It is not taken into account if you set include_modules |
 
-* **Returns**: One future for each job (Futures are also internally stored by PyWren).
+* **Returns**: One future for each job (Futures are also internally stored by Lithops).
 
 * **Usage**:
+
     ```python
     futures = pw.call_async(foo, data)
     ```
+
 * **Code example**: [call_async.py](../examples/call_async.py)
 
 ## Executor.map()
+
 Spawn multiple function activations based on the items of an input list.
 
 **map**(func, iterdata, \*\*kwargs)
@@ -130,7 +166,7 @@ Spawn multiple function activations based on the items of an input list.
 |---|---|---|
 |map_function | |The function to map over the data |
 |map_iterdata |  |An iterable of input data (e.g python list) |
-|extra_params|  None | Additional parameters to pass to each map_function activation |
+|extra_args|  None | Additional arguments to pass to each map_function activation |
 |extra_env| None |Additional environment variables for CF environment |
 |runtime_memory| 256 |Memory (in MB) to use to run the functions |
 |timeout| 600 |Max time per function activation (seconds) |
@@ -140,18 +176,19 @@ Spawn multiple function activations based on the items of an input list.
 |chunk_n| None | Used for data_processing. Number of chunks to split each object. 'None' for processing the whole file in one function activation. chunk_n has prevalence over chunk_size if both parameters are set|
 |invoke_pool_threads| 500 | Number of threads to use to invoke the functions |
 
-
-
-* **Returns**: A list with size  len(iterdata) of futures for each job (Futures are also internally stored by PyWren).
+* **Returns**: A list with size  len(iterdata) of futures for each job (Futures are also internally stored by Lithops).
 
 * **Usage**:
+
     ```python
     iterdata = [1, 2, 3, 4]
     futures = pw.map(foo, iterdata)
     ```
+
 * **Code example**: [map.py](../examples/map.py)
 
 ## Executor.map_reduce()
+
 Spawn multiple *map_function* activations,  based on the items of an input list,  eventually spawning one (or multiple) *reduce_function* activations over the results of the map phase.
 
 **map_reduce**(map_func, iterdata, reduce_func, \*\*kwargs)
@@ -160,7 +197,7 @@ Spawn multiple *map_function* activations,  based on the items of an input list,
 |---|---|---|
 |map_function| |The function to map over the data |
 |map_iterdata |  |An iterable of input data (e.g python list)|
-|extra_params|  None | Additional parameters to pass to each map_function activation |
+|extra_args|  None | Additional arguments to pass to each map_function activation |
 |reduce_function|  |The function to map over the results of map_func |
 |reducer_wait_local| False |Wait locally for map results |
 |extra_env| None | Additional environment variables for CF environment|
@@ -174,114 +211,124 @@ Spawn multiple *map_function* activations,  based on the items of an input list,
 |reducer_one_per_object| False| Used for data_processing. Set one reducer per object after running the partitioner (reduce-by-key) |
 |invoke_pool_threads| 500 | Number of threads to use to invoke the functions |
 
-
-* **Returns**: A list with size  len(iterdata)  of futures for each job (Futures are also internally stored by PyWren).
+* **Returns**: A list with size  len(iterdata)  of futures for each job (Futures are also internally stored by Lithops).
 
 * **Usage**:
+
     ```python
     iterdata = [1, 2, 3, 4]
     futures = pw.map_reduce(foo, iterdata, bar)
     ```
+
 * **Code example**: [map_reduce.py](../examples/map_reduce.py)
 
 By default, the *reduce_function* is immediately spawned, and then it waits remotely to get all the results from the map phase. It should be note that, although faster, this approach consumes CPU time in Cloud Functions. You can change this behavior and make *reduce_function* to wait locally for the results by setting the `reducer_wait_local` parameter to `True`. However, it has the tradeoff of greater data transfers, because it has to download all the results to the local machine and then upload them again to the cloud for processing with the *reduce_function*.
 
 ## Executor.wait()
+
 Waits for the function activations to finish.
 
 **wait**(\*\*kwargs)
 
 |Parameter| Default |Description|
 |---|---|---|
-|fs| None | List of futures to monitor. If None, PyWren uses the internally stored futures |
+|fs| None | List of futures to wait. If None, Lithops uses the internally stored futures |
 |throw_except | True | Re-raise exception if call raised|
 |return_when| 'ALL_COMPLETED' | One of 'ALL_COMPLETED', 'ANY_COMPLETED', 'ALWAYS' |
 |download_results| False | Whether or not download the results results while monitoring activations |
-|timeout| 600 | Timeout of waiting for results|
+|timeout| None | Timeout of waiting for results (in seconds)|
 |THREADPOOL_SIZE|  128 | Number of threads to use waiting for results|
-|WAIT_DUR_SEC| 1 |  Time interval between each check (seconds)|
+|WAIT_DUR_SEC| 1 |  Time interval between each check (seconds) if no rabbitmq_monitor activated |
 
 
 * **Returns**: `(fs_done, fs_notdone)` where `fs_done` is a list of futures that have completed and `fs_notdone` is a list of futures that have not completed.
 
 * **Usage**:
+
     ```python
     iterdata = [1, 2, 3, 4]
     futures = pw.map(foo, iterdata)
     pw.wait()
     ```
+
 * **Code example**: [wait.py](../examples/wait.py)
 
 ## Executor.get_result()
-Gets the results from all the function activations. It internally makes use of the `Executor.monitor()` method.
+
+Gets the results from all the function activations. It internally makes use of the `Executor.wait()` method.
 
 **get_result**(\*\*kwargs)
 
 |Parameter| Default |Description|
 |---|---|---|
-|fs| None | List of futures to get the results. If None, PyWren uses the internally stored futures |
+|fs| None | List of futures to get the results. If None, Lithops uses the internally stored futures |
 |throw_except | True | Re-raise exception if call raised|
-|timeout| 600 | Timeout of waiting for results|
+|timeout| None | Timeout of waiting for results (in seconds)|
 |THREADPOOL_SIZE|  128 | Number of threads to use waiting for results|
-|WAIT_DUR_SEC| 1 |  Time interval between each check (seconds)|
+|WAIT_DUR_SEC| 1 |  Time interval between each check (seconds) if no rabbitmq_monitor activated |
 
-
-* **Returns**: If `Executor.call_async()` is called, it returns one result.  If `Executor.map()` is called, it returns a list of results from all the `map_func` calls. The results are returned within an ordered list, where each element of the list is the result of one activation. If `Executor.map_reduce()` is called, it only returns the result of the `reduce_func`.
+* **Returns**: The results are returned within an ordered list, where each element of the list is the result of one activation. 
 
 * **Usage**:
+
     ```python
     iterdata = [1, 2, 3, 4]
     futures = pw.map(foo, iterdata)
     results = pw.get_result()
     ```
+
 * **Code example**: [call_async.py](../examples/call_async.py), [map.py](../examples/map.py), [map_reduce.py](../examples/map_reduce.py)
 
-## Executor.create_execution_plots()
+## Executor.plot()
+
 Creates 2 detailed execution plots: A timeline plot and a histogram plot.
 
-**create_execution_plots**(dst_dir, dst_name, \*\*kwargs)
+**plot**(\*\*kwargs)
 
 |Parameter| Default |Description|
 |---|---|---|
-|dst_dir|   | Destination directory to store the plots |
-|dst_name |   | name-prefix of the plots|
-|futures| None | List of futures to plot. If None, PyWren uses the internally stored futures|
+|fs| None | List of futures to plot. If None, Lithops uses the internally stored futures|
+|dst| None  | Path to destination file, either absolute or relative. If set, you must specify the path + the file prefix (see example below), then lithops will generate the *prefix*_histogram.png and *prefix*_timeline.png files. If None, Lithops will create a new folder called *plots* in the current directory and use the current timestamp as file *prefix* |
 
-
-* **Returns**: *Nothing*. It stores 2 different plots in the selected `dst_dir` location.
-
+* **Returns**: *Nothing*. It stores 2 different plots in the selected `dst` path.
 
 * **Usage**:
+
     ```python
     iterdata = [1, 2, 3, 4]
-    futures = pw.map(foo, iterdata)
-    results = pw.get_result()  # or pw.monitor()
-    pw.create_execution_plots('/home/user/pywren_plots', 'test')
+    pw.map(foo, iterdata)
+    results = pw.get_result()  # or pw.wait()
+    # The next command will generate test_timeline.png and test_histogram.png in ~/lithops_plots
+    pw.plot(dst='~/lithops_plots/test') 
     ```
+
 * **Example**:
 
-![Execution Histogram](images/histogram.png?raw=true "Execution Histogram") ![Execution Timeline](images/timeline.png?raw=true "Execution Timeline")
-
+<p align="center">
+  <img width="48%" src="images/timeline.png"></img>
+  <img width="48%" src="images/histogram.png"></img>
+</p>
 
 ## Executor.clean()
-Cleans the temporary data generated by PyWren in IBM COS. This process runs asynchronously to the main execution since PyWren starts another process to do the task. If `data_cleaner=True` in configuration, this method is executed automatically after calling `get_result()`.
+
+Cleans the temporary data generated by Lithops in IBM COS. This process runs asynchronously to the main execution since Lithops starts another process to do the task. If `data_cleaner=True` (default), this method is executed automatically after calling `get_result()`.
 
 **clean**(\*\*kwargs)
 
 |Parameter| Default |Description|
 |---|---|---|
+|fs| None | List of futures to clean temp data. If None, Lithops uses the internally stored futures |
 |local_execution| True | If False, it spawns a function to the cloud to do the clean process |
-|delete_all | False | Deletes temporary data from all the executor (Completely cleans the bucket)|
-
 
 * **Returns**: *Nothing*.
 
 * **Usage**:
+
     ```python
     iterdata = [1, 2, 3, 4]
-    futures = pw.map(foo, iterdata)
-    results = pw.get_result()
-    pw.clean()
+    futures = lithops.map(foo, iterdata)
+    results = lithops.get_result()
+    lithops.clean()
     ```
-* **Code example**: [map.py](../examples/map.py)
 
+* **Code example**: [map.py](../examples/map.py)

@@ -1,27 +1,28 @@
-pywren: 
+lithops: 
     storage_bucket: <BUCKET_NAME>
-    #storage_prefix: pywren.jobs
     #storage_backend: ibm_cos
     #compute_backend: ibm_cf
     #rabbitmq_monitor: <True/False>
+    #remote_invoker: <True/False>
     #data_cleaner: <True/False>
-    #runtime :
-    #runtime_timeout: 600000     # Default timeout
-    #runtime_memory: 256         # Default memory
-    #invocation_retry: <True/False>
-    #retry_sleeps: [1, 5, 10, 20, 30]
-    #retries: 5
+    #runtime : <RUNTIME_NAME>
+    #runtime_timeout: 600
+    #runtime_memory: 256
+    #workers: <MAX_NUM_OF_WORKERS>
+    #data_limit: 4  # in MiB
 
 #ibm:
-#    iam_api_key: <IAM KEY>
+   #iam_api_key: <IAM KEY>
 
 ibm_cf:
     endpoint    : <REGION_ENDPOINT>
     namespace   : <NAMESPACE>
     api_key     : <API_KEY>
+    #namespace_id : <NAMESPACE_ID> # Only for IAM auth
 
 ibm_cos:
     endpoint    : <REGION_ENDPOINT>
+    private_endpoint: <PRIVATE_REGION_ENDPOINT>
     api_key     : <API_KEY>
     #access_key : <ACCESS_KEY>  # Optional
     #secret_key : <SECRET_KEY>  # Optional
@@ -30,9 +31,20 @@ ibm_cos:
     #amqp_url   : <RABBIT_AMQP_URL>  # amqp://
 
 #knative:
-#   endpoint    : <ISTIO_INGRESS_ENDPOINT>
-#   docker_user : <DOCKER_HUB_USERNAME>
-#   docker_token: <DOCKER_HUB_TOKEN>
+   #istio_endpoint  : <ISTIO_INGRESS_ENDPOINT>
+   #docker_user     : <DOCKER_HUB_USERNAME>
+   #docker_token    : <DOCKER_HUB_TOKEN>
+
+#docker:
+    #host: <HOST_IP>
+    #ssh_user: <SSH_USER>
+    #ssh_password: <SSH_PASSWORD>
+
+#openwhisk:
+    #endpoint    : <OW_ENDPOINT>
+    #namespace   : <NAMESPACE>
+    #api_key     : <AUTH_KEY>
+    #insecure    : <True/False>
 
 #swift:
     #auth_url   : <SWIFT_AUTH_URL>
@@ -40,3 +52,15 @@ ibm_cos:
     #user_id    : <SWIFT_USER_ID>
     #project_id : <SWIFT_PROJECT_ID>
     #password   : <SWIFT_PASSWORD>
+
+#infinispan:
+    #username   : <USER_NAME>
+    #password   : <PASSWORD>
+    #endpoint   : <INFINISPAN_SERVER_URL:PORT>
+    #cache_manager : <CACHE MANAGER> # Optional. 'default' in default value
+  
+#ceph:
+    #endpoint: <ENDPOINT_URL>
+    #access_key: <ACCESS_KEY>
+    #secret_key: <ACCESS_KEY>
+    

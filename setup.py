@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 #
-# (C) Copyright IBM Corp. 2018
+# (C) Copyright IBM Corp. 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,39 +15,42 @@
 # limitations under the License.
 #
 
-import sys
 from setuptools import setup, find_packages
 
-if sys.version_info < (3,):
-    sys.exit('Sorry, Python 2.x is not supported')
-
-if sys.version_info > (3,) and sys.version_info < (3, 4):
-    sys.exit('Sorry, Python3 version < 3.4 is not supported')
-
-# http://stackoverflow.com/questions/6344076/differences-between-distribute-distutils-setuptools-and-distutils2
-
 # how to get version info into the project
-exec(open('pywren_ibm_cloud/version.py').read())
-
+exec(open('lithops/version.py').read())
 setup(
-    name='pywren_ibm_cloud',
+    name='lithops',
     version=__version__,
-    url='https://github.com/pywren/pywren-ibm-cloud',
+    url='https://github.com/lithops-cloud/lithops',
     author='Gil Vernik',
-    description='Run many jobs over IBM Cloud Functions',
-    long_description="PyWren lets you transparently run your Python functions"
-    "on IBM Cloud Functions",
+    description='Run many jobs over IBM Cloud',
+    long_description="Lithops lets you transparently run your Python functions on IBM Cloud",
     author_email='gilv@il.ibm.com',
     packages=find_packages(),
     install_requires=[
-        'Click', 'ibm-cos-sdk', 'PyYAML', 'pika==0.13.1',
-        'enum34', 'glob2', 'tqdm', 'tblib', 'docker',
-        'requests', 'python-dateutil', 'lxml',
-        'pandas', 'seaborn', 'matplotlib', 'kubernetes'
+        'Click', 'pandas', 'PyYAML', 'python-dateutil',
+        'pika==0.13.1', 'enum34', 'glob2', 'tqdm', 'lxml',
+        'tblib', 'docker', 'requests', 'seaborn', 'paramiko',
+        'matplotlib', 'kubernetes', 'ibm-cos-sdk', 'gcsfs'
     ],
     include_package_data=True,
     entry_points='''
         [console_scripts]
-        pywren-runtime=pywren_ibm_cloud.runtime.cli:cli
+        lithops=lithops.cli.cli:cli
     ''',
+    classifiers=[
+        'Development Status :: 5 - Production/Stable',
+        'Intended Audience :: Developers',
+        'Operating System :: OS Independent',
+        'Natural Language :: English',
+        'License :: OSI Approved :: Apache Software License',
+        'Programming Language :: Python',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+    ],
+    python_requires='>=3.5',
 )

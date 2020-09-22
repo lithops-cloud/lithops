@@ -1,5 +1,5 @@
 """
-Simple PyWren example using the map method which runs a wordcount
+Simple Lithops example using the map method which runs a wordcount
 over all the objects inside the 'bucketname' COS bucket independently.
 
 This example processes some objects from COS. Be sure you have
@@ -11,18 +11,14 @@ will first discover objects inside the buckets. Then, it will launch
 one map function for each object. So In this case you will get one
 result from the each object in the bucket.
 
-Note that when you want to process objects stored in COS by
-using a 'bucketname', the 'bucket', 'key' and 'data_stream'
-parameters are mandatory in the parameters of the map function.
-
 In the reduce function there will be always one parameter
 from where you can access to the partial results.
 """
 
-import pywren_ibm_cloud as pywren
+import lithops
 
 # Bucket with prefix
-bucketname = 'cos://pw-sample-data/test/'  # Change-me
+data_location = 'cos://pw-sample-data/test/'  # Change-me
 
 
 def my_map_function(obj):
@@ -44,6 +40,6 @@ def my_map_function(obj):
 
 
 if __name__ == "__main__":
-    pw = pywren.ibm_cf_executor()
-    pw.map(my_map_function, bucketname)
+    pw = lithops.ibm_cf_executor()
+    pw.map(my_map_function, data_location)
     print(pw.get_result())

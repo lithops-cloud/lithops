@@ -1,115 +1,112 @@
 # Configuration
 
-To make PyWren running, you need to configure the access to the IBM Cloud Functions and IBM Cloud Object Storage services.
+To make Lithops running, you need to configure the access to the IBM Cloud Functions and IBM Cloud Object Storage services.
 
 * Access details to IBM Cloud Functions can be obtained [here](https://cloud.ibm.com/openwhisk/namespace-settings). 
 * Follow [these](cos-credentials.md) instructions to obtain the IBM Cloud Object Storage credentials.
 
 Alternatively, instead of creating one different `api_key` for each service, you can use the IBM IAM service to authenticate yourself against both services. In this case, setup an IAM API Key [here](https://cloud.ibm.com/iam/apikeys).
 
-Once you have the credentials, there are two options to configure PyWren: Using a configuration file or using a Python dictionary in the runtime:
+Once you have the credentials, there are two options to configure Lithops: Using a configuration file or using a Python dictionary in the runtime:
 
+### Using a configuration file
 
-### Using configuration file
-Copy the `config_template.yaml.` into `~/.pywren_config`
+To configure Lithops through a config file you have multiple options:
 
-Edit `~/.pywren_config` and configure the following entries:
+1. Create e new file called `config` in the `~/.lithops` folder.
+
+2. Create a new file called `.lithops_config` in the root directory of your project from where you will execute your Lithops scripts.
+
+3. Create the config file in any other location and configure the `LITHOPS_CONFIG_FILE` system environment variable:
+
+    LITHOPS_CONFIG_FILE=<CONFIG_FILE_LOCATION>
+
+Once the configuration file is created, configure the following entries:
 
 ```yaml
-pywren: 
+lithops:
     storage_bucket: <BUCKET_NAME>
 
-#ibm:
-    #iam_api_key: <IAM_API_KEY>
-
 ibm_cf:
-    # Region endpoint example: https://us-east.functions.cloud.ibm.com
-    endpoint    : <REGION_ENDPOINT>  # make sure to use https:// as prefix
+    endpoint    : <REGION_ENDPOINT>
     namespace   : <NAMESPACE>
-    api_key     : <API_KEY>  # Not needed if using IAM API Key
-    # namespace_id : <NAMESPACE_ID>  # Mandatory if using IAM API Key
-   
+    api_key     : <API_KEY>
+
 ibm_cos:
-    # Region endpoint example: https://s3.us-east.cloud-object-storage.appdomain.cloud
-    endpoint   : <REGION_ENDPOINT>  # make sure to use https:// as prefix
-    api_key    : <API_KEY>  # Not needed if using IAM API Key
-    # alternatively you can use HMAC authentication method
-    # access_key : <ACCESS_KEY>
-    # secret_key : <SECRET_KEY>
+    endpoint   : <REGION_ENDPOINT>  
+    private_endpoint : <PRIVATE_REGION_ENDPOINT>
+    api_key    : <API_KEY>
 ```
 
-You can choose different name for the config file or keep it into different folder. If this is the case make sure you configure system variable 
-	
-	PYWREN_CONFIG_FILE=<LOCATION OF THE CONFIG FILE>
-
-Once the configuration file is created, you can obtain an IBM-PyWren executor by:
+Now, you can obtain an IBM Cloud Functions executor by:
 
 ```python
-import pywren_ibm_cloud as pywren
-pw = pywren.ibm_cf_executor()
+import lithops
+pw = lithops.ibm_cf_executor()
 ```
 
 ### Configuration in the runtime
-This option allows you pass all the configuration details as part of the PyWren invocation in runtime. All you need is to configure a Python dictionary with keys and values, for example:
+
+This option allows to pass all the configuration details as part of the Lithops invocation in runtime. 
+All you need is to configure a Python dictionary with keys and values, for example:
 
 ```python
-config = {'pywren' : {'storage_bucket' : 'BUCKET_NAME'},
+config = {'lithops' : {'storage_bucket' : 'BUCKET_NAME'},
 
-          'ibm_cf':  {'endpoint': 'HOST', 
-                      'namespace': 'NAMESPACE', 
-                      'api_key': 'API_KEY'}, 
+          'ibm_cf':  {'endpoint': 'HOST',
+                      'namespace': 'NAMESPACE',
+                      'api_key': 'API_KEY'},
 
-          'ibm_cos': {'endpoint': 'REGION_ENDPOINT', 
+          'ibm_cos': {'endpoint': 'ENDPOINT',
+                      'private_endpoint': 'PRIVATE_ENDPOINT',
                       'api_key': 'API_KEY'}}
 ```
 
-Once created, you can obtain an IBM-PyWren executor by:
+Once created, you can obtain an Lithops executor by:
 
 ```python
-import pywren_ibm_cloud as pywren
-pw = pywren.ibm_cf_executor(config=config)
+import lithops
+pw = lithops.ibm_cf_executor(config=config)
 ```
 
 ## Using RabbitMQ to monitor function activations
-By default, IBM-PyWren uses the IBM Cloud Object Storage service to monitor function activations: Each function activation stores a file named *{id}/status.json* to the Object Storage when it finishes its execution. This file contains some statistics about the execution, including if the function activation ran ok or not. Having these files, the default monitoring approach is based on polling the Object Store each X seconds to know which function activations have finished and which not.
 
-As this default approach can slow-down the total application execution time, due to the number of requests it has to make against the object store, in IBM-PyWren we integrated a RabitMQ service to monitor function activations in real-time. With RabitMQ, the content of the *{id}/status.json* file is sent trough a queue. This speeds-up total application execution time, since PyWren only needs one connection to the messaging service to monitor all function activations. We currently support the AMQP protocol. To enable PyWren to use this service, add the *AMQP_URL* key into the *rabbitmq* section in the configuration, for example:
+By default, Lithops uses the IBM Cloud Object Storage service to monitor function activations: Each function activation stores a file named *{id}/status.json* to the Object Storage when it finishes its execution. This file contains some statistics about the execution, including if the function activation ran successfully or not. Having these files, the default monitoring approach is based on polling the Object Store each X seconds to know which function activations have finished and which not.
+
+As this default approach can slow-down the total application execution time, due to the number of requests it has to make against the object store, in Lithops we integrated a RabitMQ service to monitor function activations in real-time. With RabitMQ, the content of the *{id}/status.json* file is sent trough a queue. This speeds-up total application execution time, since Lithops only needs one connection to the messaging service to monitor all function activations. We currently support the AMQP protocol. To enable Lithops to use this service, add the *AMQP_URL* key into the *rabbitmq* section in the configuration, for example:
 
 ```yaml
-rabbitmq: 
+rabbitmq:
     amqp_url: <AMQP_URL>  # amqp://
 ```
 
-In addition, activate the monitoring service by writing *rabbitmq_monitor : True* in the configuration (pywren section), or in the executor by:
+In addition, activate the monitoring service by writing *rabbitmq_monitor : True* in the configuration (Lithops section), or in the executor by:
 
 ```python
-pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
+pw = lithops.ibm_cf_executor(rabbitmq_monitor=True)
 ```
 
 ## Configuration keys
 
-### Summary of configuration keys for PyWren:
+### Summary of configuration keys for Lithops:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|pywren|storage_bucket| |yes | Any bucket that exists in your COS account. This will be used by PyWren for intermediate data |
-|pywren|data_cleaner|False|no|If set to True, then cleaner will automatically delete temporary data that was written into `storage_bucket/storage_prefix`|
-|pywren | storage_backend| ibm_cos | no | Storage backend implementation. IBM Cloud Object Storage is the default |
-|pywren | compute_backend| ibm_cf | no | Compute backend implementation. IBM Cloud Functions is the default |
-|pywren | rabbitmq_monitor| False | no | Activate the rabbitmq monitoring feature |
-|pywren | invocation_retry| True | no | Retry invocation in case of failure |
-|pywren | retry_sleeps | [1, 5, 10, 15, 20] | no | Number of seconds to wait before retry |
-|pywren| retries | 5 | no | Number of retries |
-|pywren| runtime_timeout | 600000 |no |  Default runtime timeout (in milliseconds) |
-|pywren| runtime_memory | 256 | no | Default runtime memory (in MB) |
-
+|lithops|storage_bucket | |yes | Any bucket that exists in your COS account. This will be used by Lithops for intermediate data |
+|lithops|data_cleaner |True|no|If set to True, then cleaner will automatically delete temporary data that was written into `storage_bucket/lithops.jobs`|
+|lithops | storage_backend | ibm_cos | no | Storage backend implementation. IBM Cloud Object Storage is the default |
+|lithops | compute_backend | ibm_cf | no | Compute backend implementation. IBM Cloud Functions is the default |
+|lithops | rabbitmq_monitor | False | no | Activate the rabbitmq monitoring feature |
+|lithops | workers | Depends of the ComputeBackend | no | Max number of concurrent workers |
+|lithops| runtime_timeout | 600 |no |  Default runtime timeout (in seconds) |
+|lithops| runtime_memory | 256 | no | Default runtime memory (in MB) |
+|lithops| data_limit | 4 | no | Max (iter)data size (in MB). Set to False for unlimited size |
 
 ### Summary of configuration keys for IBM Cloud:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |ibm | iam_api_key | |no | IBM Cloud IAM API key to authenticate against IBM COS and IBM Cloud Functions. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
-
 
 ### Summary of configuration keys for IBM Cloud Functions:
 
@@ -119,7 +116,6 @@ pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
 |ibm_cf| namespace | |yes | Value of CURRENT NAMESPACE from [here](https://cloud.ibm.com/functions/namespace-settings) |
 |ibm_cf| api_key |  | no | **Mandatory** if using Cloud Foundry-based namespace. Value of 'KEY' from [here](https://cloud.ibm.com/functions/namespace-settings)|
 |ibm_cf| namespace_id |  |no | **Mandatory** if using IAM-based namespace with IAM API Key. Value of 'GUID' from [here](https://cloud.ibm.com/functions/namespace-settings)|
-
 
 ### Summary of configuration keys for IBM Cloud Object Storage:
 
@@ -138,11 +134,29 @@ pw = pywren.ibm_cf_executor(rabbitmq_monitor=True)
 |---|---|---|---|---|
 | rabbitmq |amqp_url | |no | AMQP URL from RabbitMQ service. Make sure to use amqp:// prefix |
 
-
 ### Summary of configuration keys for Knative:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|knative | endpoint | |no | Istio IngressGateway Endpoint. Make sure to use http:// prefix |
+|knative | istio_endpoint | |no | Istio IngressGateway Endpoint. Make sure to use http:// prefix |
 |knative | docker_user | |yes | Docker hub username |
 |knative | docker_token | |yes | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
+|knative | git_url | |no | Git repository to build the image |
+|knative | git_rev | |no | Git revision to build the image |
+|knative | cpu | 1000 |no | CPU limit in millicpu. Default 1vCPU (1000m) |
+
+### Summary of configuration keys for Docker:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|docker | host | |no | Host IP |
+|docker | ssh_user | |no | ssh username |
+|docker | ssh_password | |no | ssh password|
+
+### Summary of configuration keys for Ceph:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|ceph | endpoint | |yes | Endpoint (host:port) to your Ceph installation account.
+|ceph | access_key | |yes | HMAC Credentials |
+|ceph | secret_key | |yes | HMAC Credentials |
