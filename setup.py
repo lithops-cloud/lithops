@@ -32,7 +32,8 @@ setup(
         'Click', 'pandas', 'PyYAML', 'python-dateutil',
         'pika==0.13.1', 'enum34', 'glob2', 'tqdm', 'lxml',
         'tblib', 'docker', 'requests', 'seaborn', 'paramiko',
-        'matplotlib', 'kubernetes', 'ibm-cos-sdk', 'gcsfs'
+        'matplotlib', 'kubernetes', 'ibm-cos-sdk', 'gcsfs',
+        'aliyun-fc2', 'oss2',
     ],
     include_package_data=True,
     entry_points='''
