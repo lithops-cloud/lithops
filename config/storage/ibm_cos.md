@@ -65,7 +65,7 @@ Lithops with IBM COS as storage backend.
 
 #### Option 3 (IBM IAM API Key):
 
-6. Navigate to the [IBM IAM dashboard](https://cloud.ibm.com/iam/apikeys)
+6. If you don't have an IAM API key created, navigate to the [IBM IAM dashboard](https://cloud.ibm.com/iam/apikeys)
 
 7. Click `Create an IBM Cloud API Key` and provide the necessary information.
 

@@ -1,8 +1,8 @@
 # Configuration
 
-## Using a configuration file
+## Create a configuration file
 
-To configure Lithops through a config file you have multiple options:
+To configure Lithops through a [config file](config_template.yaml) you have multiple options:
 
 1. Create e new file called `config` in the `~/.lithops` folder.
 
@@ -12,36 +12,13 @@ To configure Lithops through a config file you have multiple options:
 
     LITHOPS_CONFIG_FILE=<CONFIG_FILE_LOCATION>
     
-You can use the [config_template.yaml](config_template.yaml) to start with the config file. Once creted you can obtain an executor by:
 
-```python
-import lithops
-fexec = lithops.function_executor()
-```
-
-## Configuration in the runtime
-
-This option allows to pass all the configuration details as part of the Lithops invocation in runtime. 
-All you need is to configure a Python dictionary with keys and values, for example:
-
-```python
-config = {'lithops' : {'storage_bucket' : 'BUCKET_NAME'}, ...}
-```
-
-Once created, you can obtain an Lithops executor by:
-
-```python
-import lithops
-fexec = lithops.function_executor(config=config)
-```
-
-
-## Choose and configure your desired Compute and Storage backends:
+## Configure your Compute and Storage backends:
 
 Compute backends:
 
 - [IBM Cloud Functions](compute/ibm_cf.md)
-- [IBM Code Engine](compute/ibm_cf.md)
+- [IBM Code Engine](compute/code_engine.md)
 - [Knative](compute/knative.md)
 - [OpenWhisk](compute/openwhisk.md)
 - [Loclahost](compute/localhost.md)
@@ -72,24 +49,48 @@ Test if Lithops is working properly:
         print("Response from function: ", fexec.get_result())
    ```
 
+
+## Configuration in the runtime
+
+An alternative mode of configuration is to use a python dictionary. This option allows to pass all the configuration details as part of the Lithops invocation in runtime. All you need is to configure a Python dictionary with keys and values, for example:
+
+```python
+config = {'lithops' : {'storage_bucket' : 'BUCKET_NAME'},
+
+          'ibm_cf':  {'endpoint': 'HOST',
+                      'namespace': 'NAMESPACE',
+                      'api_key': 'API_KEY'},
+
+          'ibm_cos': {'endpoint': 'ENDPOINT',
+                      'private_endpoint': 'PRIVATE_ENDPOINT',
+                      'api_key': 'API_KEY'}}
+```
+
+Once created, you can obtain an Lithops executor by:
+
+```python
+import lithops
+fexec = lithops.function_executor(config=config)
+```
+
 ## Configure multiple bakckends.
 
 Lithops configuration allows to provide the access credentials to multiple compute and storage backends. by default it will choose those backends set in the  *compute_backend* and *storage_backend* parameters in the lithops section. To switch between backends you simply need to change the *compute_backend* and *storage_backend* parameters and point to the backends you pretend to use:
     
-    ```yaml
-    lithops:
-       compute_backend: your_compute_backend
-       storage_backend: your_storage_backend
-    ```
+```yaml
+lithops:
+   compute_backend: localhost
+   storage_backend: ibm_cos
+```
     
-Alternatively, regardless of what you have wrote in the configuration file, you can chose your desired compute and storage backends in runtime when you create an executor. These parameters will overwrite the configuration, for example:
+Alternatively, regardless of what you set in the configuration file, you can chose your desired compute and storage backends in runtime, when you create an executor. These parameters will overwrite the configuration, for example:
 
-    ```python
-    fexec = lithops.function_executor(compute_backend='ibm_cf', storage_backned='ibm_cos')
-    ...
-    fexec = lithops.function_executor(compute_backend='knative', storage_bakcned='ceph')
-    ...
-    ```
+```python
+fexec = lithops.function_executor(compute_backend='ibm_cf', storage_backned='ibm_cos')
+...
+fexec = lithops.function_executor(compute_backend='knative', storage_bakcned='ceph')
+...
+```
 
 
 ## Using RabbitMQ to monitor function activations

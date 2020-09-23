@@ -46,20 +46,3 @@ Cloudbutton toolkit with *Docker* as compute backend. Cloudbutton can run functi
 |docker | ssh_user | |no | SSH username (mandatory for remote host)|
 |docker | ssh_password | |no | SSH password (mandatory for remote host and no key file)|
 |docker | ssh_key_filename | |no | Private SSH key filename. Will use the default path if not provided|
-
-
-### Verify
-
-3. Test if lithops on Docker is working properly:
-
-   ```python
-   import lithops
-   
-   def hello_world(name):
-       return 'Hello {}!'.format(name)
-    
-   if __name__ == '__main__':
-        exec = lithops.docker_executor()
-        exec.call_async(hello_world, 'World')
-        print("Response from function: ", exec.get_result())
-   ```
