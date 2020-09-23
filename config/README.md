@@ -107,7 +107,7 @@ rabbitmq:
 In addition, activate the monitoring service by writing *rabbitmq_monitor : True* in the configuration (Lithops section), or in the executor by:
 
 ```python
-pw = lithops.ibm_cf_executor(rabbitmq_monitor=True)
+pw = lithops.function_executor(rabbitmq_monitor=True)
 ```
 
 
