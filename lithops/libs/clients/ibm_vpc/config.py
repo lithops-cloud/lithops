@@ -1,6 +1,6 @@
 import datetime
 
-from pywren_ibm_cloud.version import __version__
+from lithops.version import __version__
 
 
 def load_config(config_data):
