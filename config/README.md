@@ -21,8 +21,8 @@ Compute backends:
 - [IBM Code Engine](compute/code_engine.md)
 - [Knative](compute/knative.md)
 - [OpenWhisk](compute/openwhisk.md)
-- [Loclahost](compute/localhost.md)
 - [Docker](compute/docker.md)
+- [Loclahost](compute/localhost.md)
 
 Storage backends:
 
@@ -30,31 +30,33 @@ Storage backends:
 - [Infinispan](storage/infinispan.md)
 - [Ceph](storage/ceph.md)
 - [Redis](storage/redis.md)
-- [Swift](storage/swift.md)
+- [OpenStack Swift](storage/swift.md)
+- [Loclahost](storage/localhost.md)
 
 
 ## Verify
 
 Test if Lithops is working properly:
 
-   ```python
-   import lithops
+```python
+import lithops
    
-   def hello_world(name):
-       return 'Hello {}!'.format(name)
+def hello_world(name):
+    return 'Hello {}!'.format(name)
     
-   if __name__ == '__main__':
-        fexec = lithops.function_executor()
-        fexec.call_async(hello_world, 'World')
-        print("Response from function: ", fexec.get_result())
+if __name__ == '__main__':
+    fexec = lithops.function_executor()
+    exec.call_async(hello_world, 'World')
+    print("Response from function: ", fexec.get_result())
    ```
-
 
 ## Configuration in the runtime
 
-An alternative mode of configuration is to use a python dictionary. This option allows to pass all the configuration details as part of the Lithops invocation in runtime. All you need is to configure a Python dictionary with keys and values, for example:
+An alternative mode of configuration is to use a python dictionary. This option allows to pass all the configuration details as part of the Lithops invocation in runtime, for example:
 
 ```python
+import lithops
+
 config = {'lithops' : {'storage_bucket' : 'BUCKET_NAME'},
 
           'ibm_cf':  {'endpoint': 'HOST',
@@ -64,16 +66,17 @@ config = {'lithops' : {'storage_bucket' : 'BUCKET_NAME'},
           'ibm_cos': {'endpoint': 'ENDPOINT',
                       'private_endpoint': 'PRIVATE_ENDPOINT',
                       'api_key': 'API_KEY'}}
+
+def hello_world(name):
+    return 'Hello {}!'.format(name)
+
+if __name__ == '__main__':
+    fexec = lithops.function_executor(config=config)
+    fexec.call_async(hello, 'World')
+    print(fexec.get_result())
 ```
 
-Once created, you can obtain an Lithops executor by:
-
-```python
-import lithops
-fexec = lithops.function_executor(config=config)
-```
-
-## Configure multiple bakckends.
+## Configure multiple backends.
 
 Lithops configuration allows to provide the access credentials to multiple compute and storage backends. by default it will choose those backends set in the  *compute_backend* and *storage_backend* parameters in the lithops section. To switch between backends you simply need to change the *compute_backend* and *storage_backend* parameters and point to the backends you pretend to use:
     
@@ -104,10 +107,17 @@ rabbitmq:
     amqp_url: <AMQP_URL>  # amqp://
 ```
 
-In addition, activate the monitoring service by writing *rabbitmq_monitor : True* in the configuration (Lithops section), or in the executor by:
+In addition, activate the monitoring service by setting *rabbitmq_monitor : True* in the configuration (Lithops section):
+
+```yaml
+lithops:
+   rabbitmq_monitor: True
+```
+
+or in the executor by:
 
 ```python
-pw = lithops.function_executor(rabbitmq_monitor=True)
+fexec = lithops.function_executor(rabbitmq_monitor=True)
 ```
 
 

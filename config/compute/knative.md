@@ -13,7 +13,7 @@ Note that Lithops automatically builds the default runtime the first time you ru
    docker login
    ```
 
-3. Choose one of these 3 options:
+3. Choose one of these 2 installation options:
 
 #### Option 1 (IBM IKS):
 

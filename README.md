@@ -15,13 +15,7 @@ Although Lithops can work with any cloud provider, only IBM Cloud and OpenShift 
 
 [IBM Academic Initiative](https://ibm.biz/academic) is a special program that allows free trial of IBM Cloud for Academic institutions. This program is provided for students and faculty staff members, and allow up to 12 months of free usage. You can register your university email and get a free of charge account.
 
-## Initial Requirements
-
-* [IBM Cloud Functions account](https://cloud.ibm.com/functions)
-* [IBM Cloud Object Storage account](https://www.ibm.com/cloud/object-storage)
-* Python >=3.5, <=3.8
-
-## Lithops Setup
+## Quick Start
 
 1. Install Lithops from the PyPi repository:
 
@@ -45,9 +39,9 @@ Although Lithops can work with any cloud provider, only IBM Cloud and OpenShift 
    def hello(name):
        return 'Hello {}!'.format(name)
 
-   pw = lithops.ibm_cf_executor()
-   pw.call_async(hello, 'World')
-   print(pw.get_result())
+   fexec = lithops.function_executor()
+   fexec.call_async(hello, 'World')
+   print(fexec.get_result())
    ```
 
 ## How to use Lithops for IBM Cloud

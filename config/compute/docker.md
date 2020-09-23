@@ -1,6 +1,6 @@
 # Lithops on Docker
 
-Cloudbutton toolkit with *Docker* as compute backend. Cloudbutton can run functions inside a dokcer container either in the localhost or in a remote host. Currently, IBM Cloud Functions and Knative containers are compatible with this mode of execution.
+Lithops with *Docker* as compute backend. Lithops can run functions inside a dokcer container either in the localhost or in a remote host. Currently, IBM Cloud Functions and Knative containers are compatible with this mode of execution.
 
 
 ### Installation
@@ -12,7 +12,7 @@ Cloudbutton toolkit with *Docker* as compute backend. Cloudbutton can run functi
 
 #### Option 1 (Localhost):
 
-2. Edit your cloudbutton config file and add the following keys:
+2. Edit your lithops config file and add the following keys:
 
    ```yaml
    lithops:
@@ -25,7 +25,7 @@ Cloudbutton toolkit with *Docker* as compute backend. Cloudbutton can run functi
 
 #### Option 2 (Remote host):
 
-2. Edit your cloudbutton config file and add the following keys:
+2. Edit your lithops config file and add the following keys:
 
    ```yaml
    lithops:

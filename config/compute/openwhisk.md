@@ -36,6 +36,9 @@ Lithops with *OpenWhisk* as compute backend. Lithops can also run functions on v
 
 3. Edit your Lithops config file and add the following keys:
    ```yaml
+    lithops:
+        compute_backend: openwhisk
+
     openwhisk:
         endpoint    : <OW_ENDPOINT>
         namespace   : <NAMESPACE>
@@ -52,12 +55,9 @@ Lithops with *OpenWhisk* as compute backend. Lithops can also run functions on v
         NAMESPACE=guest
         ```
         
-        Copy all the values into the cloudbutton config file as:
+        Copy all the values into the lithops config file as:
         
         ```yaml
-        lithops:
-            compute_backend: openwhisk
-        
         openwhisk:
             endpoint    : https://192.168.1.30
             namespace   : guest

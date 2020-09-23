@@ -9,7 +9,7 @@ Lithops with *IBM Cloud Functions* as compute backend.
  
 #### Option 1 (CloudFoundy-based namespace):
 
-By default, the IBM Cloud account provides an automatically created CloudFoundry namespace for your functions. Namespaces are only valid for the regions where they created. If you don't plan to create a new namespace to execute functions in another region, you can skip to step 8.
+By default, the IBM Cloud account provides an automatically created CloudFoundry namespace for your functions. Namespaces are only valid for the regions where they were created. If you don't plan to create a new namespace to execute functions in another region, you can skip to step 8.
 
 2. Navigate to your [CloudFoundry account settings](https://cloud.ibm.com/account/cloud-foundry).
 
