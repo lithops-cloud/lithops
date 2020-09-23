@@ -50,11 +50,11 @@ The primary object in Lithops is the executor. The standard way to get everythin
 
 The available executors are:
 
-* `ibm_cf_executor()`: IBM Cloud Functions executor. See [additional information](docs/executors/ibm_cf.md).
-* `knative_executor()`: Knative executor. See [additional information](docs/executors/knative.md).
-* `openwhisk_executor()`: Vanilla OpenWhisk executor. See [additional information](docs/executors/openwhisk.md).
-* `local_executor()`: Run functions by using local processes. See [additional information](docs/executors/localhost.md).
-* `docker_executor()`: Run functions by using processes within a local or remote Docker container. See [additional information](docs/executors/docker.md).
+* `ibm_cf_executor()`: IBM Cloud Functions executor.
+* `knative_executor()`: Knative executor.
+* `openwhisk_executor()`: Vanilla OpenWhisk executor.
+* `local_executor()`: Run functions by using local processes.
+* `docker_executor()`: Run functions by using processes within a local or remote Docker container
 * `function_executor()`: Generic executor based on the compute backend set in configuration.
 
 The available calls within an executor are:

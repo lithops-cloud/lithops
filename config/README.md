@@ -50,7 +50,7 @@ if __name__ == '__main__':
     print("Response from function: ", fexec.get_result())
    ```
 
-## Configuration in the runtime
+## Configuration in runtime
 
 An alternative mode of configuration is to use a python dictionary. This option allows to pass all the configuration details as part of the Lithops invocation in runtime, for example:
 

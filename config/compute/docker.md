@@ -1,6 +1,6 @@
 # Lithops on Docker
 
-Lithops with *Docker* as compute backend. Lithops can run functions inside a dokcer container either in the localhost or in a remote host. Currently, IBM Cloud Functions and Knative containers are compatible with this mode of execution.
+Lithops with *Docker* as compute backend. Lithops can run functions inside a dokcer container either in the localhost or in a remote host. Currently, IBM Cloud Functions and Knative docker images are compatible with this mode of execution.
 
 
 ### Installation
