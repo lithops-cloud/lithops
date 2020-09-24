@@ -57,24 +57,8 @@ Lithops can work with any cloud provider, however only IBM Cloud or Red Hat is o
 * **Data processing**: [Using Lithops to process data from IBM Cloud Object Storage and public URLs](docs/data-processing.md)
 * **Notebooks**: [Lithops on IBM Watson Studio and Jupyter notebooks](examples/hello_world.ipynb)
 
-## Verify - Unit Testing
-
-To test that all is working, use the command:
-
-```bash
-$ lithops verify
-```
-
-or
-
-```bash
-$ python -m lithops.tests
-```
-
-Notice that if you didn't set a local Lithops's config file, you need to provide it as a json file path by `-c <CONFIG>` flag.
-
-Alternatively, for debugging purposes, you can run specific tests by `-t <TESTNAME>`. use `--help` flag to get more information about the test script.
-
+## How to contribute code
+Follow guidance [how to contribute](docs/how-to-contribute.md) to contribute code to the project
 ## Additional resources
 
 * [Decoding dark molecular matter in spatial metabolomics with IBM Cloud Functions](https://www.ibm.com/cloud/blog/decoding-dark-molecular-matter-in-spatial-metabolomics-with-ibm-cloud-functions)
