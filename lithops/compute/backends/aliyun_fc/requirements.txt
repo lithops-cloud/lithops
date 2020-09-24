@@ -24,7 +24,7 @@ MarkupSafe==1.1.1
 # numpy==1.18.3 # its already in Aliyun's python runtime
 pandas==0.24.2
 pika==0.13.1
-Pillow==6.2.1
+Pillow >= 6.2.2
 protobuf==3.11.3
 psycopg2-binary==2.8.2
 PyHamcrest==2.0.2

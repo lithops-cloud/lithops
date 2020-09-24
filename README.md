@@ -15,13 +15,7 @@ Although Lithops can work with any cloud provider, only IBM Cloud and OpenShift 
 
 [IBM Academic Initiative](https://ibm.biz/academic) is a special program that allows free trial of IBM Cloud for Academic institutions. This program is provided for students and faculty staff members, and allow up to 12 months of free usage. You can register your university email and get a free of charge account.
 
-## Initial Requirements
-
-* [IBM Cloud Functions account](https://cloud.ibm.com/functions)
-* [IBM Cloud Object Storage account](https://www.ibm.com/cloud/object-storage)
-* Python >=3.5, <=3.8
-
-## Lithops Setup
+## Quick Start
 
 1. Install Lithops from the PyPi repository:
 
@@ -45,9 +39,9 @@ Although Lithops can work with any cloud provider, only IBM Cloud and OpenShift 
    def hello(name):
        return 'Hello {}!'.format(name)
 
-   pw = lithops.ibm_cf_executor()
-   pw.call_async(hello, 'World')
-   print(pw.get_result())
+   fexec = lithops.function_executor()
+   fexec.call_async(hello, 'World')
+   print(fexec.get_result())
    ```
 
 ## How to use Lithops for IBM Cloud
@@ -56,11 +50,11 @@ The primary object in Lithops is the executor. The standard way to get everythin
 
 The available executors are:
 
-* `ibm_cf_executor()`: IBM Cloud Functions executor. See [additional information](docs/executors/ibm_cf.md).
-* `knative_executor()`: Knative executor. See [additional information](docs/executors/knative.md).
-* `openwhisk_executor()`: Vanilla OpenWhisk executor. See [additional information](docs/executors/openwhisk.md).
-* `local_executor()`: Run functions by using local processes. See [additional information](docs/executors/localhost.md).
-* `docker_executor()`: Run functions by using processes within a local or remote Docker container. See [additional information](docs/executors/docker.md).
+* `ibm_cf_executor()`: IBM Cloud Functions executor.
+* `knative_executor()`: Knative executor.
+* `openwhisk_executor()`: Vanilla OpenWhisk executor.
+* `local_executor()`: Run functions by using local processes.
+* `docker_executor()`: Run functions by using processes within a local or remote Docker container
 * `function_executor()`: Generic executor based on the compute backend set in configuration.
 
 The available calls within an executor are:

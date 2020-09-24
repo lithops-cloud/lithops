@@ -1,17 +1,8 @@
 # Configuration
 
-To make Lithops running, you need to configure the access to the IBM Cloud Functions and IBM Cloud Object Storage services.
+## Create a configuration file
 
-* Access details to IBM Cloud Functions can be obtained [here](https://cloud.ibm.com/openwhisk/namespace-settings). 
-* Follow [these](cos-credentials.md) instructions to obtain the IBM Cloud Object Storage credentials.
-
-Alternatively, instead of creating one different `api_key` for each service, you can use the IBM IAM service to authenticate yourself against both services. In this case, setup an IAM API Key [here](https://cloud.ibm.com/iam/apikeys).
-
-Once you have the credentials, there are two options to configure Lithops: Using a configuration file or using a Python dictionary in the runtime:
-
-### Using a configuration file
-
-To configure Lithops through a config file you have multiple options:
+To configure Lithops through a [config file](config_template.yaml) you have multiple options:
 
 1. Create e new file called `config` in the `~/.lithops` folder.
 
@@ -20,37 +11,52 @@ To configure Lithops through a config file you have multiple options:
 3. Create the config file in any other location and configure the `LITHOPS_CONFIG_FILE` system environment variable:
 
     LITHOPS_CONFIG_FILE=<CONFIG_FILE_LOCATION>
+    
 
-Once the configuration file is created, configure the following entries:
+## Configure your Compute and Storage backends:
 
-```yaml
-lithops:
-    storage_bucket: <BUCKET_NAME>
+Compute backends:
 
-ibm_cf:
-    endpoint    : <REGION_ENDPOINT>
-    namespace   : <NAMESPACE>
-    api_key     : <API_KEY>
+- [IBM Cloud Functions](compute/ibm_cf.md)
+- [IBM Code Engine](compute/code_engine.md)
+- [Knative](compute/knative.md)
+- [OpenWhisk](compute/openwhisk.md)
+- [Docker](compute/docker.md)
+- [Loclahost](compute/localhost.md)
 
-ibm_cos:
-    endpoint   : <REGION_ENDPOINT>  
-    private_endpoint : <PRIVATE_REGION_ENDPOINT>
-    api_key    : <API_KEY>
-```
+Storage backends:
 
-Now, you can obtain an IBM Cloud Functions executor by:
+- [IBM Cloud Object Storage](storage/ibm_cos.md)
+- [Infinispan](storage/infinispan.md)
+- [Ceph](storage/ceph.md)
+- [Redis](storage/redis.md)
+- [OpenStack Swift](storage/swift.md)
+- [Loclahost](storage/localhost.md)
+
+
+## Verify
+
+Test if Lithops is working properly:
 
 ```python
 import lithops
-pw = lithops.ibm_cf_executor()
-```
+   
+def hello_world(name):
+    return 'Hello {}!'.format(name)
+    
+if __name__ == '__main__':
+    fexec = lithops.function_executor()
+    exec.call_async(hello_world, 'World')
+    print("Response from function: ", fexec.get_result())
+   ```
 
-### Configuration in the runtime
+## Configuration in runtime
 
-This option allows to pass all the configuration details as part of the Lithops invocation in runtime. 
-All you need is to configure a Python dictionary with keys and values, for example:
+An alternative mode of configuration is to use a python dictionary. This option allows to pass all the configuration details as part of the Lithops invocation in runtime, for example:
 
 ```python
+import lithops
+
 config = {'lithops' : {'storage_bucket' : 'BUCKET_NAME'},
 
           'ibm_cf':  {'endpoint': 'HOST',
@@ -60,18 +66,39 @@ config = {'lithops' : {'storage_bucket' : 'BUCKET_NAME'},
           'ibm_cos': {'endpoint': 'ENDPOINT',
                       'private_endpoint': 'PRIVATE_ENDPOINT',
                       'api_key': 'API_KEY'}}
+
+def hello_world(name):
+    return 'Hello {}!'.format(name)
+
+if __name__ == '__main__':
+    fexec = lithops.function_executor(config=config)
+    fexec.call_async(hello, 'World')
+    print(fexec.get_result())
 ```
 
-Once created, you can obtain an Lithops executor by:
+## Configure multiple backends.
+
+Lithops configuration allows to provide the access credentials to multiple compute and storage backends. by default it will choose those backends set in the  *compute_backend* and *storage_backend* parameters in the lithops section. To switch between backends you simply need to change the *compute_backend* and *storage_backend* parameters and point to the backends you pretend to use:
+    
+```yaml
+lithops:
+   compute_backend: localhost
+   storage_backend: ibm_cos
+```
+    
+Alternatively, regardless of what you set in the configuration file, you can chose your desired compute and storage backends in runtime, when you create an executor. These parameters will overwrite the configuration, for example:
 
 ```python
-import lithops
-pw = lithops.ibm_cf_executor(config=config)
+fexec = lithops.function_executor(compute_backend='ibm_cf', storage_backned='ibm_cos')
+...
+fexec = lithops.function_executor(compute_backend='knative', storage_bakcned='ceph')
+...
 ```
+
 
 ## Using RabbitMQ to monitor function activations
 
-By default, Lithops uses the IBM Cloud Object Storage service to monitor function activations: Each function activation stores a file named *{id}/status.json* to the Object Storage when it finishes its execution. This file contains some statistics about the execution, including if the function activation ran successfully or not. Having these files, the default monitoring approach is based on polling the Object Store each X seconds to know which function activations have finished and which not.
+By default, Lithops uses the storage backend to monitor function activations: Each function activation stores a file named *{id}/status.json* to the Object Storage when it finishes its execution. This file contains some statistics about the execution, including if the function activation ran successfully or not. Having these files, the default monitoring approach is based on polling the Object Store each X seconds to know which function activations have finished and which not.
 
 As this default approach can slow-down the total application execution time, due to the number of requests it has to make against the object store, in Lithops we integrated a RabitMQ service to monitor function activations in real-time. With RabitMQ, the content of the *{id}/status.json* file is sent trough a queue. This speeds-up total application execution time, since Lithops only needs one connection to the messaging service to monitor all function activations. We currently support the AMQP protocol. To enable Lithops to use this service, add the *AMQP_URL* key into the *rabbitmq* section in the configuration, for example:
 
@@ -80,15 +107,21 @@ rabbitmq:
     amqp_url: <AMQP_URL>  # amqp://
 ```
 
-In addition, activate the monitoring service by writing *rabbitmq_monitor : True* in the configuration (Lithops section), or in the executor by:
+In addition, activate the monitoring service by setting *rabbitmq_monitor : True* in the configuration (Lithops section):
 
-```python
-pw = lithops.ibm_cf_executor(rabbitmq_monitor=True)
+```yaml
+lithops:
+   rabbitmq_monitor: True
 ```
 
-## Configuration keys
+or in the executor by:
 
-### Summary of configuration keys for Lithops:
+```python
+fexec = lithops.function_executor(rabbitmq_monitor=True)
+```
+
+
+## Summary of configuration keys for Lithops:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
@@ -101,62 +134,3 @@ pw = lithops.ibm_cf_executor(rabbitmq_monitor=True)
 |lithops| runtime_timeout | 600 |no |  Default runtime timeout (in seconds) |
 |lithops| runtime_memory | 256 | no | Default runtime memory (in MB) |
 |lithops| data_limit | 4 | no | Max (iter)data size (in MB). Set to False for unlimited size |
-
-### Summary of configuration keys for IBM Cloud:
-
-|Group|Key|Default|Mandatory|Additional info|
-|---|---|---|---|---|
-|ibm | iam_api_key | |no | IBM Cloud IAM API key to authenticate against IBM COS and IBM Cloud Functions. Obtain the key [here](https://cloud.ibm.com/iam/apikeys) |
-
-### Summary of configuration keys for IBM Cloud Functions:
-
-|Group|Key|Default|Mandatory|Additional info|
-|---|---|---|---|---|
-|ibm_cf| endpoint | |yes | IBM Cloud Functions endpoint from [here](https://cloud.ibm.com/docs/openwhisk?topic=cloud-functions-cloudfunctions_regions#cloud-functions-endpoints). Make sure to use https:// prefix, for example: https://us-east.functions.cloud.ibm.com |
-|ibm_cf| namespace | |yes | Value of CURRENT NAMESPACE from [here](https://cloud.ibm.com/functions/namespace-settings) |
-|ibm_cf| api_key |  | no | **Mandatory** if using Cloud Foundry-based namespace. Value of 'KEY' from [here](https://cloud.ibm.com/functions/namespace-settings)|
-|ibm_cf| namespace_id |  |no | **Mandatory** if using IAM-based namespace with IAM API Key. Value of 'GUID' from [here](https://cloud.ibm.com/functions/namespace-settings)|
-
-### Summary of configuration keys for IBM Cloud Object Storage:
-
-|Group|Key|Default|Mandatory|Additional info|
-|---|---|---|---|---|
-|ibm_cos | endpoint | |yes | Regional endpoint to your COS account. Make sure to use full path with 'https://' as prefix. For example https://s3.us-east.cloud-object-storage.appdomain.cloud |
-|ibm_cos | private_endpoint | |no | Private regional endpoint to your COS account. Make sure to use full path. For example: https://s3.private.us-east.cloud-object-storage.appdomain.cloud |
-|ibm_cos | api_key | |no | API Key to your COS account. **Mandatory** if no access_key and secret_key. Not needed if using IAM API Key|
-|ibm_cos | access_key | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key|
-|ibm_cos | secret_key | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key|
-
-
-### Summary of configuration keys for RabbitMQ
-
-|Group|Key|Default|Mandatory|Additional info|
-|---|---|---|---|---|
-| rabbitmq |amqp_url | |no | AMQP URL from RabbitMQ service. Make sure to use amqp:// prefix |
-
-### Summary of configuration keys for Knative:
-
-|Group|Key|Default|Mandatory|Additional info|
-|---|---|---|---|---|
-|knative | istio_endpoint | |no | Istio IngressGateway Endpoint. Make sure to use http:// prefix |
-|knative | docker_user | |yes | Docker hub username |
-|knative | docker_token | |yes | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
-|knative | git_url | |no | Git repository to build the image |
-|knative | git_rev | |no | Git revision to build the image |
-|knative | cpu | 1000 |no | CPU limit in millicpu. Default 1vCPU (1000m) |
-
-### Summary of configuration keys for Docker:
-
-|Group|Key|Default|Mandatory|Additional info|
-|---|---|---|---|---|
-|docker | host | |no | Host IP |
-|docker | ssh_user | |no | ssh username |
-|docker | ssh_password | |no | ssh password|
-
-### Summary of configuration keys for Ceph:
-
-|Group|Key|Default|Mandatory|Additional info|
-|---|---|---|---|---|
-|ceph | endpoint | |yes | Endpoint (host:port) to your Ceph installation account.
-|ceph | access_key | |yes | HMAC Credentials |
-|ceph | secret_key | |yes | HMAC Credentials |
