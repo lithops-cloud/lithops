@@ -1,4 +1,3 @@
-<h1><p align="center"> Lithops - Lightweight Optimised Processing </p></h1>
 
 <img src="/docs/images/lithops_logo.png" alt="Lithops"
 	title="Lightweigt Optimised Processing"/>
