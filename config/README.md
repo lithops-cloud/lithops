@@ -110,7 +110,7 @@ fexec = lithops.function_executor(compute_backend='knative', storage_bakcned='ce
 ```
 
 
-## Using RabbitMQ to monitor function activations
+## Using RabbitMQ to monitor function activations (optional)
 
 By default, Lithops uses the storage backend to monitor function activations: Each function activation stores a file named *{id}/status.json* to the Object Storage when it finishes its execution. This file contains some statistics about the execution, including if the function activation ran successfully or not. Having these files, the default monitoring approach is based on polling the Object Store each X seconds to know which function activations have finished and which not.
 
