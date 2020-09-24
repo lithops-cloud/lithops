@@ -1,6 +1,6 @@
 
 <img src="/docs/images/lithops_logo.png" alt="Lithops"
-	title="Lightweigt Optimised Processing"/>
+	title="Lightweigt Optimised Processing" width="500"/>
 
 ### What is Lithops
 
