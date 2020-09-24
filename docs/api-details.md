@@ -1,7 +1,7 @@
 # Lithops API Details
 
 ## Executor
-The primary object in Lithops is the executor. The standard way to get everything set up is to import `lithops`, and call one of the available functions to get a [ready-to-use executor](docs/api-details.md#executor).
+The primary object in Lithops is the executor. The standard way to get everything set up is to import `lithops`, and call one of the available functions to get a [ready-to-use executor](api-details.md#executor).
 
 By default the executor loads the configuration from the config file. Alternatively you can pass the configuration with a python dictionary. In any case, note that all the parameters set in the executor will overwrite those set in the configuration.
 
