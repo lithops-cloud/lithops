@@ -1,5 +1,8 @@
 <h1><p align="center"> Lithops - Lightweight Optimised Processing </p></h1>
 
+<img src="/docs/images/lithops_logo.png" alt="Lithops"
+	title="Lightweigt Optimised Processing"/>
+
 ### What is Lithops
 
 Lithops framework is a rebranded [PyWren-IBM](https://dl.acm.org/citation.cfm?id=3284029) framework.  Lithops  goals are massively scaling the execution of Python code and its dependencies on serverless computing platforms and monitoring the results. Lithops delivers the user’s code into the serverless platform without requiring knowledge of how functions are invoked and run.
