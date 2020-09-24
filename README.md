@@ -45,10 +45,10 @@ Lithops can work with any cloud provider, however only IBM Cloud or Red Hat is o
    print(fexec.get_result())
    ```
 
-## How to use Lithops for IBM Cloud
+## Additional information and examples
 
-Additional information and examples:
 
+* **Examples**: You can find various examples in [examples](/examples) folder
 * **Lithops API and Exectors**: [Lithops API and Executors](docs/api-details.md)
 * **Functions**: [Lithops functions and parameters](docs/functions.md)
 * **Runtimes**: [Building and managing Lithops runtimes to run the functions](runtime/)
