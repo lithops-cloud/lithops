@@ -90,7 +90,7 @@ if __name__ == '__main__':
     print("Response from function: ", fexec.get_result())
    ```
 
-## Configure multiple backends.
+## Configure multiple backends
 
 Lithops configuration allows to provide the access credentials to multiple compute and storage backends. by default it will choose those backends set in the  *compute_backend* and *storage_backend* parameters in the lithops section. To switch between backends you simply need to change the *compute_backend* and *storage_backend* parameters and point to the backends you pretend to use:
     
