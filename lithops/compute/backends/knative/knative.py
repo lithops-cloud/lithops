@@ -441,7 +441,7 @@ class KnativeServingBackend:
         try:
             runtime_meta = self.invoke(docker_image_name, memory, payload, return_result=True)
         except Exception as e:
-            raise Exception("Unable to invoke 'modules' action: {}".format(e))
+            raise Exception("Unable to extract the preinstalled modules from the runtime: {}".format(e))
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
             raise Exception('Failed getting runtime metadata: {}'.format(runtime_meta))
