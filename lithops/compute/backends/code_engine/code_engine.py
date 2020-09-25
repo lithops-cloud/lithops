@@ -20,7 +20,7 @@ import json
 import logging
 import uuid
 import urllib3
-import lithops.compute.backends.code_engine
+import copy
 from . import config as betabs_config
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
