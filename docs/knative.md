@@ -1,4 +1,4 @@
-# PyWren on Knative
+# Lithops on Knative
 
 The easiest way to make it working is to create an IBM Kubernetes (IKS) cluster trough the [IBM dashboard](https://cloud.ibm.com/kubernetes/landing). For testing purposes, it is preferable to use this setup:
 - Install Kubernetes >= v1.15
@@ -7,7 +7,7 @@ The easiest way to make it working is to create an IBM Kubernetes (IKS) cluster 
 - Your cluster must have 3 or more worker nodes with at least 4 cores and 16GB RAM.
 - No need to encrypt local disk
 
-Once the cluster is running, follow the instructions of the "Access" tab to configure the *kubectl* client in your local machine. Then, follow one of this two options to install the PyWren environment:
+Once the cluster is running, follow the instructions of the "Access" tab to configure the *kubectl* client in your local machine. Then, follow one of this two options to install the Lithops environment:
 
   - Option 1 (IBM IKS):
 
@@ -18,12 +18,12 @@ Once the cluster is running, follow the instructions of the "Access" tab to conf
 
     1. Install the **helm** Kubernetes package manager in your local machine. Instructions can be found [here](https://github.com/helm/helm#install).
 
-    2. Install the PyWren environment into the k8s cluster: Istio v1.4.6, Knative v0.14.0 and Tekton v0.11.1:
+    2. Install the Lithops environment into the k8s cluster: Istio v1.4.6, Knative v0.14.0 and Tekton v0.11.1:
         ```
-        curl http://cloudlab.urv.cat/josep/knative/install_pywren_env.sh | bash
+        curl http://cloudlab.urv.cat/josep/knative/install_lithops_env.sh | bash
         ```
 
-**Before running** any pywren operation, **first** get or create k8s config file and set it in KUBECONFIG environment variable. For example in ~/.kube/config, or if you are using IKS cluster, download the kubeconfig files by (follow instructions in the access dashboard):
+**Before running** any lithops operation, **first** get or create k8s config file and set it in KUBECONFIG environment variable. For example in ~/.kube/config, or if you are using IKS cluster, download the kubeconfig files by (follow instructions in the access dashboard):
 		
 	ibmcloud ks cluster config --cluster <ID from IKS access dashboard>
 
@@ -40,10 +40,10 @@ kubectl get pods --namespace tekton-pipelines
 ```
 
 
-#### Edit your pywren config file and add the next section:
+#### Edit your lithops config file and add the next section:
 
 ```yaml
-pywren:
+lithops:
     compute_backend: knative
     
 knative:
@@ -54,24 +54,24 @@ knative:
 
 
 
-#### Test if PyWren on Knative is working properly:
+#### Test if Lithops on Knative is working properly:
 
 Run the next command:
 
 ```bash
-$ pywren-ibm-cloud test
+$ lithops test
 ```
 
 or run the next Python code:
 
 ```python
-import pywren_ibm_cloud as pywren
+import lithops
 
 def hello_world(name):
     return 'Hello {}!'.format(name)
 
 if __name__ == '__main__':
-    kn = pywren.knative_executor()
+    kn = lithops.knative_executor()
     kn.call_async(hello_world, 'World')
     print("Response from function: ", kn.get_result())
 ```

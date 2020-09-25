@@ -1,5 +1,5 @@
 """
-Simple PyWren example using the map_reduce method which
+Simple Lithops example using the map_reduce method which
 counts the number of words inside each object specified
 in 'iterdata' variable.
 
@@ -23,7 +23,7 @@ In the reduce function there will be always one parameter
 from where you can access to the partial results.
 """
 
-import pywren_ibm_cloud as pywren
+import lithops
 
 # Dataset from: https://archive.ics.uci.edu/ml/datasets/bag+of+words
 iterdata = ['https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.enron.txt',
@@ -62,7 +62,7 @@ def my_reduce_function(results):
 
 
 if __name__ == "__main__":
-    pw = pywren.ibm_cf_executor()
+    pw = lithops.ibm_cf_executor()
     pw.map_reduce(my_map_function, iterdata, my_reduce_function)
     result = pw.get_result()
     print("Done!")

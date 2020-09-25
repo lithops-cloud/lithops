@@ -18,26 +18,27 @@
 from setuptools import setup, find_packages
 
 # how to get version info into the project
-exec(open('pywren_ibm_cloud/version.py').read())
+exec(open('lithops/version.py').read())
 setup(
-    name='pywren_ibm_cloud',
+    name='lithops',
     version=__version__,
-    url='https://github.com/pywren/pywren-ibm-cloud',
+    url='https://github.com/lithops-cloud/lithops',
     author='Gil Vernik',
     description='Run many jobs over IBM Cloud',
-    long_description="PyWren lets you transparently run your Python functions on IBM Cloud",
+    long_description="Lithops lets you transparently run your Python functions on IBM Cloud",
     author_email='gilv@il.ibm.com',
     packages=find_packages(),
     install_requires=[
         'Click', 'pandas', 'PyYAML', 'python-dateutil',
         'pika==0.13.1', 'enum34', 'glob2', 'tqdm', 'lxml',
         'tblib', 'docker', 'requests', 'seaborn', 'paramiko',
-        'matplotlib', 'kubernetes', 'ibm-cos-sdk'
+        'matplotlib', 'kubernetes', 'ibm-cos-sdk', 'gcsfs',
+        'aliyun-fc2', 'oss2',
     ],
     include_package_data=True,
     entry_points='''
         [console_scripts]
-        pywren-ibm-cloud=pywren_ibm_cloud.cli.cli:cli
+        lithops=lithops.cli.cli:cli
     ''',
     classifiers=[
         'Development Status :: 5 - Production/Stable',

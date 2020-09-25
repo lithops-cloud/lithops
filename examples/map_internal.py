@@ -1,8 +1,8 @@
 """
-Simple PyWren example using the call_async method.
+Simple Lithops example using the call_async method.
 to spawn an internal map execution.
 """
-import pywren_ibm_cloud as pywren
+import lithops
 
 
 def my_map_function(x):
@@ -12,12 +12,12 @@ def my_map_function(x):
 
 def scheduler(total):
     iterdata = range(total)
-    pw = pywren.ibm_cf_executor()
+    pw = lithops.ibm_cf_executor()
     return pw.map(my_map_function, iterdata)
 
 
 if __name__ == "__main__":
-    pw = pywren.ibm_cf_executor()
+    pw = lithops.ibm_cf_executor()
     pw.call_async(scheduler, 5)
     print(pw.get_result())
     pw.clean()

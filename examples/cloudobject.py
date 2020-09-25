@@ -1,19 +1,20 @@
 """
-Simple PyWren example using cloudobjects to transparently pass
+Simple Lithops example using cloudobjects to transparently pass
 objects stored in the storage backend between functions without
 knowing they exact location (bucket, key)
 """
-import pywren_ibm_cloud as pywren
+import lithops
+import os
 
 
-def my_function_put(text, ibm_cos):
-    co1 = ibm_cos.put_cobject('Cloudobject test 1: {}'.format(text, ))
-    co2 = ibm_cos.put_cobject('Cloudobject test 2: {}'.format(text, ))
+def my_function_put(text, storage):
+    co1 = storage.put_cobject('Cloudobject test 1: {}'.format(text, ))
+    co2 = storage.put_cobject('Cloudobject test 2: {}'.format(text, ))
     return [co1, co2]
 
 
-def my_function_get(co, ibm_cos):
-    data = ibm_cos.get_cobject(co)
+def my_function_get(co, storage):
+    data = storage.get_cobject(co)
     return data
 
 
@@ -23,7 +24,7 @@ if __name__ == "__main__":
     At the end of the with statement all
     cloudobjects are automatically deleted.
     """
-    with pywren.ibm_cf_executor() as pw:
+    with lithops.ibm_cf_executor() as pw:
         pw.call_async(my_function_put, 'Hello World')
         cloudobjects = pw.get_result()
         pw.map(my_function_get, cloudobjects)
@@ -39,7 +40,7 @@ if __name__ == "__main__":
     pw.clean(cs=cloudobjects) is mandatory if you created
     the cloudobjects in a custom location.
     """
-    pw = pywren.ibm_cf_executor()
+    pw = lithops.ibm_cf_executor()
     pw.call_async(my_function_put, 'Hello World')
     cloudobjects = pw.get_result()
     pw.map(my_function_get, cloudobjects)
