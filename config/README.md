@@ -53,7 +53,7 @@ if __name__ == '__main__':
     print(fexec.get_result())
 ```
 
-## Configure your Compute and Storage backends:
+## Configure your Compute and Storage backends
 
 Compute backends:
 
@@ -135,7 +135,7 @@ fexec = lithops.function_executor(rabbitmq_monitor=True)
 ```
 
 
-## Summary of configuration keys for Lithops:
+## Summary of configuration keys for Lithops
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
