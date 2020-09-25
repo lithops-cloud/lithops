@@ -1,8 +1,9 @@
 # Configuration
 
+You can either configure Lithops with configuration file or provide configuration keys in runtime
 ## Create a configuration file
 
-To configure Lithops through a [config file](config_template.yaml) you have multiple options:
+To configure Lithops through a [configuration template file](config_template.yaml) you have multiple options:
 
 1. Create e new file called `config` in the `~/.lithops` folder.
 
@@ -10,10 +11,49 @@ To configure Lithops through a [config file](config_template.yaml) you have mult
 
 3. Create the config file in any other location and configure the `LITHOPS_CONFIG_FILE` system environment variable:
 
-    LITHOPS_CONFIG_FILE=<CONFIG_FILE_LOCATION>
-    
 
-## Configure your Compute and Storage backends:
+	 	LITHOPS_CONFIG_FILE=<CONFIG_FILE_LOCATION>
+
+```python
+import lithops
+
+def hello_world(name):
+    return 'Hello {}!'.format(name)
+
+if __name__ == '__main__':
+    fexec = lithops.function_executor()
+    fexec.call_async(hello, 'World')
+    print(fexec.get_result())
+```
+
+    
+## Configuration in runtime
+
+An alternative mode of configuration is to use a python dictionary. This option allows to pass all the configuration details as part of the Lithops invocation in runtime, for example:
+
+```python
+import lithops
+
+config = {'lithops' : {'storage_bucket' : 'BUCKET_NAME'},
+
+          'ibm_cf':  {'endpoint': 'HOST',
+                      'namespace': 'NAMESPACE',
+                      'api_key': 'API_KEY'},
+
+          'ibm_cos': {'endpoint': 'ENDPOINT',
+                      'private_endpoint': 'PRIVATE_ENDPOINT',
+                      'api_key': 'API_KEY'}}
+
+def hello_world(name):
+    return 'Hello {}!'.format(name)
+
+if __name__ == '__main__':
+    fexec = lithops.function_executor(config=config)
+    fexec.call_async(hello, 'World')
+    print(fexec.get_result())
+```
+
+## Configure your Compute and Storage backends
 
 Compute backends:
 
@@ -50,33 +90,7 @@ if __name__ == '__main__':
     print("Response from function: ", fexec.get_result())
    ```
 
-## Configuration in runtime
-
-An alternative mode of configuration is to use a python dictionary. This option allows to pass all the configuration details as part of the Lithops invocation in runtime, for example:
-
-```python
-import lithops
-
-config = {'lithops' : {'storage_bucket' : 'BUCKET_NAME'},
-
-          'ibm_cf':  {'endpoint': 'HOST',
-                      'namespace': 'NAMESPACE',
-                      'api_key': 'API_KEY'},
-
-          'ibm_cos': {'endpoint': 'ENDPOINT',
-                      'private_endpoint': 'PRIVATE_ENDPOINT',
-                      'api_key': 'API_KEY'}}
-
-def hello_world(name):
-    return 'Hello {}!'.format(name)
-
-if __name__ == '__main__':
-    fexec = lithops.function_executor(config=config)
-    fexec.call_async(hello, 'World')
-    print(fexec.get_result())
-```
-
-## Configure multiple backends.
+## Configure multiple backends
 
 Lithops configuration allows to provide the access credentials to multiple compute and storage backends. by default it will choose those backends set in the  *compute_backend* and *storage_backend* parameters in the lithops section. To switch between backends you simply need to change the *compute_backend* and *storage_backend* parameters and point to the backends you pretend to use:
     
@@ -96,7 +110,7 @@ fexec = lithops.function_executor(compute_backend='knative', storage_bakcned='ce
 ```
 
 
-## Using RabbitMQ to monitor function activations
+## Using RabbitMQ to monitor function activations (optional)
 
 By default, Lithops uses the storage backend to monitor function activations: Each function activation stores a file named *{id}/status.json* to the Object Storage when it finishes its execution. This file contains some statistics about the execution, including if the function activation ran successfully or not. Having these files, the default monitoring approach is based on polling the Object Store each X seconds to know which function activations have finished and which not.
 
@@ -121,7 +135,7 @@ fexec = lithops.function_executor(rabbitmq_monitor=True)
 ```
 
 
-## Summary of configuration keys for Lithops:
+## Summary of configuration keys for Lithops
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
