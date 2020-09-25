@@ -1,27 +1,24 @@
-<h1><p align="center"> Lithops - Lightweight Operational Scale </p></h1>
+
+<p align="center"> <img src="/docs/images/lithops_logo.png" alt="Lithops"
+      width='500' title="Lightweigt Optimised Processing"/></p>
 
 ### What is Lithops
 
 Lithops framework is a rebranded [PyWren-IBM](https://dl.acm.org/citation.cfm?id=3284029) framework.  Lithops  goals are massively scaling the execution of Python code and its dependencies on serverless computing platforms and monitoring the results. Lithops delivers the user’s code into the serverless platform without requiring knowledge of how functions are invoked and run.
 
-### Lithops and IBM Cloud
+### Why Lithops
 
-Lithops for IBM Cloud provides great value for the variety of uses cases, like processing data in object storage, running embarrassingly parallel compute jobs (e.g. Monte-Carlo simulations), enriching data with additional attributes and many more. In extending Lithops to work with IBM Cloud Object Storage, we also added a partition discovery component that allows Lithops to process large amounts of data stored in the IBM Cloud Object Storage. See [changelog](CHANGELOG.md) for more details.
+Lithops provides great value for the variety of uses cases, like processing data in object storage, running embarrassingly parallel compute jobs (e.g. Monte-Carlo simulations), enriching data with additional attributes and many more. In extending Lithops to work with object storage, we also added a partition discovery component that allows Lithops to process large amounts of data stored in the object storage. See [changelog](CHANGELOG.md) for more details.
+
+### Lithops and IBM Cloud 
+Lithops is officially supported for IBM Cloud or Red Hat OpenShift. Students or academic stuff are welcome to follow [IBM Academic Initiative](https://ibm.biz/academic), a special program that allows free trial of IBM Cloud for Academic institutions. This program is provided for students and faculty staff members, and allow up to 12 months of free usage. You can register your university email and get a free of charge account.
 
 ### Lithops for broad scope
-Although Lithops can work with any cloud provider, only IBM Cloud and OpenShift are officially supported. All the rest supported on the best community effort. Information on how to configure Lithops to work with other cloud providers will appear later.
+Lithops can work with any cloud provider, however only IBM Cloud or Red Hat is officially supported. The support of other clouds is on the best community effort. Information on how to configure Lithops to work with other cloud providers will appear later.
 
-### IBM Cloud for Academic institutions
 
-[IBM Academic Initiative](https://ibm.biz/academic) is a special program that allows free trial of IBM Cloud for Academic institutions. This program is provided for students and faculty staff members, and allow up to 12 months of free usage. You can register your university email and get a free of charge account.
 
-## Initial Requirements
-
-* [IBM Cloud Functions account](https://cloud.ibm.com/functions)
-* [IBM Cloud Object Storage account](https://www.ibm.com/cloud/object-storage)
-* Python >=3.5, <=3.8
-
-## Lithops Setup
+## Quick Start
 
 1. Install Lithops from the PyPi repository:
 
@@ -29,7 +26,7 @@ Although Lithops can work with any cloud provider, only IBM Cloud and OpenShift 
     $ pip install lithops
     ```
 
-2. Navigate into [config/](config/) and follow the instructions to configure Lithops.
+2. Follow [choose compute backend and storage](config/) to configure Lithops.
 
 3. Test Lithops by simply running the next command:
   
@@ -45,61 +42,23 @@ Although Lithops can work with any cloud provider, only IBM Cloud and OpenShift 
    def hello(name):
        return 'Hello {}!'.format(name)
 
-   pw = lithops.ibm_cf_executor()
-   pw.call_async(hello, 'World')
-   print(pw.get_result())
+   fexec = lithops.function_executor()
+   fexec.call_async(hello, 'World')
+   print(fexec.get_result())
    ```
 
-## How to use Lithops for IBM Cloud
+## Additional information and examples
 
-The primary object in Lithops is the executor. The standard way to get everything set up is to import `lithops`, and call one of the available functions to get a [ready-to-use executor](docs/api-details.md#executor).
 
-The available executors are:
-
-* `ibm_cf_executor()`: IBM Cloud Functions executor. See [additional information](docs/executors/ibm_cf.md).
-* `knative_executor()`: Knative executor. See [additional information](docs/executors/knative.md).
-* `openwhisk_executor()`: Vanilla OpenWhisk executor. See [additional information](docs/executors/openwhisk.md).
-* `local_executor()`: Run functions by using local processes. See [additional information](docs/executors/localhost.md).
-* `docker_executor()`: Run functions by using processes within a local or remote Docker container. See [additional information](docs/executors/docker.md).
-* `function_executor()`: Generic executor based on the compute backend set in configuration.
-
-The available calls within an executor are:
-
-|API Call| Type | Description|
-|---|---|---|
-|[call_async()](docs/api-details.md#executorcall_async) | Async. | Method used to spawn one function activation |
-|[map()](docs/api-details.md#executormap) | Async. | Method used to spawn multiple function activations |
-|[map_reduce()](docs/api-details.md#executormap_reduce) | Async. | Method used to spawn multiple function activations with one (or multiple) reducers|
-|[wait()](docs/api-details.md#executorwait) | Sync. | Wait for the function activations to complete. It blocks the local execution until all the function activations finished their execution (configurable)|
-|[get_result()](docs/api-details.md#executorget_result) | Sync. | Method used to retrieve the results of all function activations. The results are returned within an ordered list, where each element of the list is the result of one activation|
-|[plot()](docs/api-details.md#executorplot) | Sync. | Method used to create execution plots |
-|[clean()](docs/api-details.md#executorclean) | Async. | Method used to clean the temporary data generated by Lithops|
-
-Additional information and examples:
-
+* **Examples**: You can find various examples in [examples](/examples) folder
+* **Lithops API and Exectors**: [Lithops API and Executors](docs/api-details.md)
 * **Functions**: [Lithops functions and parameters](docs/functions.md)
 * **Runtimes**: [Building and managing Lithops runtimes to run the functions](runtime/)
 * **Data processing**: [Using Lithops to process data from IBM Cloud Object Storage and public URLs](docs/data-processing.md)
 * **Notebooks**: [Lithops on IBM Watson Studio and Jupyter notebooks](examples/hello_world.ipynb)
 
-## Verify - Unit Testing
-
-To test that all is working, use the command:
-
-```bash
-$ lithops verify
-```
-
-or
-
-```bash
-$ python -m lithops.tests
-```
-
-Notice that if you didn't set a local Lithops's config file, you need to provide it as a json file path by `-c <CONFIG>` flag.
-
-Alternatively, for debugging purposes, you can run specific tests by `-t <TESTNAME>`. use `--help` flag to get more information about the test script.
-
+## How to contribute code
+Follow guidance [how to contribute](docs/how-to-contribute.md) code to the project
 ## Additional resources
 
 * [Decoding dark molecular matter in spatial metabolomics with IBM Cloud Functions](https://www.ibm.com/cloud/blog/decoding-dark-molecular-matter-in-spatial-metabolomics-with-ibm-cloud-functions)
