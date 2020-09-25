@@ -58,7 +58,7 @@ Lithops can work with any cloud provider, however only IBM Cloud or Red Hat is o
 * **Notebooks**: [Lithops on IBM Watson Studio and Jupyter notebooks](examples/hello_world.ipynb)
 
 ## How to contribute code
-Follow guidance [how to contribute](docs/how-to-contribute.md) to contribute code to the project
+Follow guidance [how to contribute](docs/how-to-contribute.md) code to the project
 ## Additional resources
 
 * [Decoding dark molecular matter in spatial metabolomics with IBM Cloud Functions](https://www.ibm.com/cloud/blog/decoding-dark-molecular-matter-in-spatial-metabolomics-with-ibm-cloud-functions)
