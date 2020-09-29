@@ -21,7 +21,7 @@ import logging
 import uuid
 import urllib3
 import copy
-from . import config as betabs_config
+from . import config as codeengine_config
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 from lithops.utils import version_str
@@ -41,25 +41,25 @@ logging.getLogger('requests_oauthlib').setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
-class BetaBSBackend:
+class CodeEngineBackend:
     """
-    A wrap-up around Beta BS backend.
+    A wrap-up around Code Engine backend.
     """
 
-    def __init__(self, beta_bs_config, storage_config):
-        logger.debug("Creating Beta BS client")
+    def __init__(self, code_engine_config, storage_config):
+        logger.debug("Creating Code Engine client")
         self.log_level = os.getenv('LITHOPS_LOGLEVEL')
-        self.name = 'betabs'
-        self.beta_bs_config = beta_bs_config
+        self.name = 'code_engine'
+        self.code_engine_config = code_engine_config
         self.is_lithops_function = is_lithops_function()
         self.storage_config = storage_config
         self.internal_storage = InternalStorage(storage_config)
         
-        config.load_kube_config(config_file = beta_bs_config.get('kubectl_config'))
+        config.load_kube_config(config_file = code_engine_config.get('kubectl_config'))
         self.capi = client.CustomObjectsApi()
 
-        self.user_agent = beta_bs_config['user_agent']
-        contexts = config.list_kube_config_contexts(config_file = beta_bs_config.get('kubectl_config'))
+        self.user_agent = code_engine_config['user_agent']
+        contexts = config.list_kube_config_contexts(config_file = code_engine_config.get('kubectl_config'))
         
         current_context = contexts[1].get('context')
         self.user = current_context.get('user')
@@ -88,11 +88,11 @@ class BetaBSBackend:
 
     def _get_default_runtime_image_name(self):
         python_version = version_str(sys.version_info)
-        return betabs_config.RUNTIME_DEFAULT[python_version]
+        return codeengine_config.RUNTIME_DEFAULT[python_version]
 
     def _delete_function_handler_zip(self):
-        logger.debug("About to delete {}".format(betabs_config.FH_ZIP_LOCATION))
-        res = os.remove(betabs_config.FH_ZIP_LOCATION)
+        logger.debug("About to delete {}".format(codeengine_config.FH_ZIP_LOCATION))
+        res = os.remove(codeengine_config.FH_ZIP_LOCATION)
         logger.debug(res)
     
     def _dict_to_binary(self, the_dict):
@@ -108,7 +108,7 @@ class BetaBSBackend:
         logger.info('Building a new docker image from Dockerfile')
         logger.info('Docker image name: {}'.format(docker_image_name))
 
-        create_function_handler_zip(betabs_config.FH_ZIP_LOCATION, 'lithopsentry.py', __file__)
+        create_function_handler_zip(codeengine_config.FH_ZIP_LOCATION, 'lithopsentry.py', __file__)
 
         if dockerfile:
             cmd = 'docker build -t {} -f {} .'.format(docker_image_name, dockerfile)
@@ -170,19 +170,19 @@ class BetaBSBackend:
         activation_id = str(uuid.uuid4()).replace('-', '')[:12]
         payload['activation_id'] = activation_id + payload['call_id']
 
-        job_desc = copy.deepcopy(betabs_config.JOB_RUN_RESOURCE)
-        job_desc['apiVersion'] = self.beta_bs_config['api_version']
+        job_desc = copy.deepcopy(codeengine_config.JOB_RUN_RESOURCE)
+        job_desc['apiVersion'] = self.code_engine_config['api_version']
         job_desc['spec']['jobDefinitionSpec']['containers'][0]['image'] = docker_image_name
         job_desc['spec']['jobDefinitionSpec']['containers'][0]['env'][0]['value'] = 'payload'
         job_desc['spec']['jobDefinitionSpec']['containers'][0]['env'][1]['value'] = self._dict_to_binary(payload)
         job_desc['spec']['jobDefinitionSpec']['containers'][0]['resources']['requests']['memory'] = str(runtime_memory) +'Mi'
-        job_desc['spec']['jobDefinitionSpec']['containers'][0]['resources']['requests']['cpu'] = self.beta_bs_config['runtime_cpu']
+        job_desc['spec']['jobDefinitionSpec']['containers'][0]['resources']['requests']['cpu'] = self.code_engine_config['runtime_cpu']
         job_desc['metadata']['name'] = payload['activation_id']
 
         logger.info("Before invoke job name {}".format(job_desc['metadata']['name']))
         res = self.capi.create_namespaced_custom_object(
-            group=self.beta_bs_config['group'],
-            version=self.beta_bs_config['version'],
+            group=self.code_engine_config['group'],
+            version=self.code_engine_config['version'],
             namespace=self.namespace,
             plural="jobruns",
             body=job_desc,
@@ -212,8 +212,8 @@ class BetaBSBackend:
         logger.debug("Cleanup for activation_id {}".format(activation_id))
         try:
             res = self.capi.delete_namespaced_custom_object(
-                group=self.beta_bs_config['group'],
-                version=self.beta_bs_config['version'],
+                group=self.code_engine_config['group'],
+                version=self.code_engine_config['version'],
                 name=activation_id,
                 namespace=self.namespace,
                 plural="jobruns",
@@ -235,8 +235,8 @@ class BetaBSBackend:
         try:
             activation_id = str(uuid.uuid4()).replace('-', '')[:12]
             self.storage_config['activation_id'] = 'lithops-' + activation_id
-            job_desc = copy.deepcopy(betabs_config.JOB_RUN_RESOURCE)
-            job_desc['apiVersion'] = self.beta_bs_config['api_version']
+            job_desc = copy.deepcopy(codeengine_config.JOB_RUN_RESOURCE)
+            job_desc['apiVersion'] = self.code_engine_config['api_version']
             job_desc['spec']['jobDefinitionSpec']['containers'][0]['image'] = docker_image_name
             job_desc['spec']['jobDefinitionSpec']['containers'][0]['env'][0]['value'] = 'preinstals'
             job_desc['spec']['jobDefinitionSpec']['containers'][0]['env'][1]['value'] = self._dict_to_binary(self.storage_config)
@@ -244,8 +244,8 @@ class BetaBSBackend:
     
             logger.info("About to invoke beta_bs job to get runtime metadata")
             res = self.capi.create_namespaced_custom_object(
-                group=self.beta_bs_config['group'],
-                version=self.beta_bs_config['version'],
+                group=self.code_engine_config['group'],
+                version=self.code_engine_config['version'],
                 namespace=self.namespace,
                 plural="jobruns",
                 body=job_desc,
