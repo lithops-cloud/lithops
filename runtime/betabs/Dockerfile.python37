@@ -22,6 +22,6 @@ RUN pip install --upgrade setuptools six pip \
 ENV APP_HOME /pywren
 WORKDIR $APP_HOME
 
-COPY pywren_betabs.zip .
-RUN unzip pywren_betabs.zip
-RUN rm pywren_betabs.zip
+COPY pywren_codeengine.zip .
+RUN unzip pywren_codeengine.zip
+RUN rm pywren_codeengine.zip

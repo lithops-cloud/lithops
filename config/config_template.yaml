@@ -14,7 +14,7 @@ lithops:
 #ibm:
    #iam_api_key: <IAM KEY>
 
-betabs:
+code_engine:
     kubectl_config: <Location for kubectl yaml file>
 
 

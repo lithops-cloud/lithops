@@ -150,7 +150,7 @@ def beta_bs_executor(config=None, runtime=None, runtime_memory=None,
     """
     Function executor for Beta BS
     """
-    compute_backend = 'betabs'
+    compute_backend = 'code_engine'
 def cloudrun_executor(config=None, runtime=None, runtime_memory=None, workers=None,
                       region=None, storage_backend=None, storage_backend_region=None,
                       rabbitmq_monitor=None, remote_invoker=None, log_level=None):
