@@ -48,7 +48,7 @@ class CodeEngineBackend:
 
     def __init__(self, code_engine_config, storage_config):
         logger.debug("Creating Code Engine client")
-        self.log_level = os.getenv('LITHOPS_LOGLEVEL')
+        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'code_engine'
         self.code_engine_config = code_engine_config
         self.is_lithops_function = is_lithops_function()
@@ -71,7 +71,7 @@ class CodeEngineBackend:
 
         log_msg = ('Lithops v{} init for Beta BS - Namespace: {} - '
                    'Cluster: {} - User {}'.format(__version__, self.namespace, self.cluster, self.user))
-        if not self.log_level:
+        if not self.log_active:
             print(log_msg)
         logger.info("Beta BS client created successfully")
 
@@ -115,9 +115,9 @@ class CodeEngineBackend:
         else:
             cmd = 'docker build -t {} .'.format(docker_image_name)
 
-        if not self.log_level:
-            cmd = cmd + " >/dev/null 2>&1"
-
+        if not self.log_active:
+            cmd = cmd + " >{} 2>&1".format(os.devnull)
+        print(cmd)
         res = os.system(cmd)
         if res != 0:
             raise Exception('There was an error building the runtime')
@@ -125,8 +125,8 @@ class CodeEngineBackend:
         self._delete_function_handler_zip()
 
         cmd = 'docker push {}'.format(docker_image_name)
-        if not self.log_level:
-            cmd = cmd + " >/dev/null 2>&1"
+        if not self.log_active:
+            cmd = cmd + " >{} 2>&1".format(os.devnull)
         res = os.system(cmd)
         if res != 0:
             raise Exception('There was an error pushing the runtime to the container registry')
@@ -242,7 +242,8 @@ class CodeEngineBackend:
             job_desc['spec']['jobDefinitionSpec']['containers'][0]['env'][1]['value'] = self._dict_to_binary(self.storage_config)
             job_desc['metadata']['name'] ='lithops-' + activation_id
     
-            logger.info("About to invoke beta_bs job to get runtime metadata")
+            logger.info("About to invoke code engine job to get runtime metadata")
+            logger.info(job_desc)
             res = self.capi.create_namespaced_custom_object(
                 group=self.code_engine_config['group'],
                 version=self.code_engine_config['version'],

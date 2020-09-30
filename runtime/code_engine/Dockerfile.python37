@@ -22,6 +22,6 @@ RUN pip install --upgrade setuptools six pip \
 ENV APP_HOME /lithops
 WORKDIR $APP_HOME
 
-COPY pywren_codeengine.zip .
-RUN unzip pywren_codeengine.zip
-RUN rm pywren_codeengine.zip
+COPY lithops_codeengine.zip .
+RUN unzip lithops_codeengine.zip
+RUN rm lithops_codeengine.zip
