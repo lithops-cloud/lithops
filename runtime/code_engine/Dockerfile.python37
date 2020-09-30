@@ -18,8 +18,8 @@ RUN pip install --upgrade setuptools six pip \
         kubernetes \
         numpy
 
-# Copy PyWren proxy and lib to the container image.
-ENV APP_HOME /pywren
+# Copy Lithops proxy and lib to the container image.
+ENV APP_HOME /lithops
 WORKDIR $APP_HOME
 
 COPY pywren_codeengine.zip .
