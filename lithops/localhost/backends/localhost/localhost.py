@@ -58,7 +58,7 @@ class LocalhostBackend:
             old_stdout = sys.stdout
             sys.stdout = open(os.devnull, 'w')
 
-        event['extra_env']['__PW_LOCAL_EXECUTION'] = 'True'
+        event['extra_env']['__LITHOPS_LOCAL_EXECUTION'] = 'True'
         act_id = str(uuid.uuid4()).replace('-', '')[:12]
         os.environ['__PW_ACTIVATION_ID'] = act_id
         function_handler(event)

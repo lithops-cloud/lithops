@@ -20,7 +20,7 @@ import copy
 import signal
 import logging
 from functools import partial
-from lithops.invokers import ServerlessInvoker
+from lithops.invokers import ServerlessInvoker, LocalhostInvoker
 from lithops.storage import InternalStorage
 from lithops.storage.utils import delete_cloudobject
 from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
@@ -455,6 +455,52 @@ class Executor:
         self.invoker.stop()
         if self.data_cleaner:
             self.clean(log=False)
+
+
+class LocalhostExecutor(Executor):
+
+    def __init__(self, config=None, docker_image=None, virtualenv=None,
+                 workers=None, storage=None, storage_region=None,
+                 rabbitmq_monitor=None, log_level=None):
+        """
+        Initialize a LocalhostExecutor class.
+
+        :param config: Settings passed in here will override those in config file. Default None.
+        :param docker_image: Docker image name to use as runtime. Default None.
+        :param virtualenv: Virtualenv to us as runtime. Default None.
+        :param storage: Name of the storage backend to use. Default None.
+        :param storage_region: Name of the storage backend region to use. Default None.
+        :param workers: Max number of concurrent workers.
+        :param rabbitmq_monitor: use rabbitmq as the monitoring system. Default None.
+        :param log_level: log level to use during the execution. Default None.
+
+        :return `LocalhostExecutor` object.
+        """
+        if log_level:
+            default_logging_config(log_level)
+
+        # Overwrite lithops config parameters
+        config_ow = {'lithops': {'executor': 'localhost'}, 'localhost': {}}
+        if docker_image is not None:
+            config_ow['localhost']['docker_image'] = docker_image
+        if virtualenv is not None:
+            config_ow['localhost']['virtualenv'] = virtualenv
+        if storage is not None:
+            config_ow['lithops']['storage'] = storage
+        if storage_region is not None:
+            config_ow['lithops']['storage_region'] = storage_region
+        if workers is not None:
+            config_ow['lithops']['workers'] = workers
+        if rabbitmq_monitor is not None:
+            config_ow['lithops']['rabbitmq_monitor'] = rabbitmq_monitor
+
+        self.config = default_config(copy.deepcopy(config), config_ow)
+
+        Executor.__init__(self)
+
+        self.invoker = LocalhostInvoker(self.config, self.executor_id, self.internal_storage)
+
+        logger.debug('Serverless Executor created with ID: {}'.format(self.executor_id))
 
 
 class ServerlessExecutor(Executor):

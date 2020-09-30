@@ -28,8 +28,10 @@ from concurrent.futures import ThreadPoolExecutor
 from lithops.serverless import ServerlesHandler
 from lithops.version import __version__
 from lithops.future import ResponseFuture
-from lithops.config import extract_storage_config, extract_serverless_config
+from lithops.config import extract_storage_config, extract_serverless_config,\
+    extract_localhost_config
 from lithops.utils import version_str, is_lithops_function, is_unix_system
+from lithops.localhost.localhost import LocalhostHandler
 
 
 logger = logging.getLogger(__name__)
@@ -43,6 +45,72 @@ class LocalhostInvoker:
     Module responsible to perform the invocations against the Localhost backend
     """
     def __init__(self, config, executor_id, internal_storage):
+        self.log_active = logger.getEffectiveLevel() != logging.WARNING
+        self.config = config
+        self.executor_id = executor_id
+        self.storage_config = extract_storage_config(self.config)
+        self.internal_storage = internal_storage
+
+        localhost_config = extract_localhost_config(self.config)
+        self.localhost_handler = LocalhostHandler(localhost_config)
+        self.runtime_name = self.localhost_handler.env.runtime
+
+    def select_runtime(self, job_id, runtime_memory):
+        log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {}'
+                   .format(self.executor_id, job_id, self.runtime_name))
+        logger.info(log_msg)
+        if not self.log_active:
+            print(log_msg, end=' ')
+
+        runtime_key = self.localhost_handler.get_runtime_key(self.runtime_name)
+        runtime_deployed = True
+        try:
+            runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
+        except Exception:
+            runtime_deployed = False
+
+        if not runtime_deployed:
+            logger.debug('ExecutorID {} | JobID {} - Runtime {} is not yet '
+                         'installed'.format(self.executor_id, job_id, self.runtime_name))
+            if not self.log_active:
+                print('(Installing...)')
+
+            logger.debug('Creating runtime: {}'.format(self.runtime_name))
+            runtime_meta = self.localhost_handler.create_runtime(self.runtime_name)
+            self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
+
+        py_local_version = version_str(sys.version_info)
+        py_remote_version = runtime_meta['python_ver']
+
+        if py_local_version != py_remote_version:
+            raise Exception(("The indicated runtime '{}' is running Python {} and it "
+                             "is not compatible with the local Python version {}")
+                            .format(self.runtime_name, py_remote_version, py_local_version))
+
+        if not self.log_active and runtime_deployed:
+            print()
+
+        return runtime_meta
+
+    def run(self, job_description):
+        """
+        Run a job
+        """
+        job = SimpleNamespace(**job_description)
+
+        payload = {'config': self.config,
+                   'log_level': logging.getLevelName(logger.getEffectiveLevel()),
+                   'executor_id': job.executor_id,
+                   'job_id': job.job_id,
+                   'job_description': job_description,
+                   'lithops_version': __version__}
+
+        self.localhost_handler.run_job(payload)
+
+    def stop(self):
+        """
+        Stop the invoker process
+        """
         pass
 
 
@@ -57,21 +125,21 @@ class ServerlessInvoker:
         self.executor_id = executor_id
         self.storage_config = extract_storage_config(self.config)
         self.internal_storage = internal_storage
-        self.compute_config = extract_serverless_config(self.config)
         self.is_lithops_function = is_lithops_function()
         self.invokers = []
 
         self.serverless_handlers = []
-        cb = self.compute_config['backend']
-        regions = self.compute_config[cb].get('region')
+        serverless_config = extract_serverless_config(self.config)
+        sb = serverless_config['backend']
+        regions = serverless_config[sb].get('region')
         if regions and type(regions) == list:
             for region in regions:
-                compute_config = self.compute_config.copy()
-                compute_config[cb]['region'] = region
-                serverless_handler = ServerlesHandler(compute_config)
+                serverless_config_r = serverless_config.copy()
+                serverless_config_r[sb]['region'] = region
+                serverless_handler = ServerlesHandler(serverless_config_r)
                 self.serverless_handlers.append(serverless_handler)
         else:
-            serverless_handler = ServerlesHandler(self.compute_config)
+            serverless_handler = ServerlesHandler(serverless_config)
             self.serverless_handlers.append(serverless_handler)
 
         self.remote_invoker = self.config['lithops'].get('remote_invoker', False)
@@ -100,9 +168,9 @@ class ServerlessInvoker:
         file does not exists in the storage, this means that the runtime is not
         installed, so this method will proceed to install it.
         """
-        runtime_name = self.config['lithops']['runtime']
+        runtime_name = self.config['serverless']['runtime']
         if runtime_memory is None:
-            runtime_memory = self.config['lithops']['runtime_memory']
+            runtime_memory = self.config['serverless']['runtime_memory']
 
         if runtime_memory:
             runtime_memory = int(runtime_memory)
@@ -132,7 +200,7 @@ class ServerlessInvoker:
                     installing = True
                     print('(Installing...)')
 
-                timeout = self.config['lithops']['runtime_timeout']
+                timeout = self.config['serverless']['runtime_timeout']
                 logger.debug('Creating runtime: {}, memory: {}MB'.format(runtime_name, runtime_memory))
                 runtime_meta = compute_handler.create_runtime(runtime_name, runtime_memory, timeout=timeout)
                 self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
@@ -223,12 +291,13 @@ class ServerlessInvoker:
                    'host_submit_tstamp': time.time(),
                    'lithops_version': __version__,
                    'runtime_name': job.runtime_name,
-                   'runtime_memory': job.runtime_memory}
+                   'runtime_memory': job.runtime_memory,
+                   'runtime_timeout': job.runtime_timeout}
 
         # do the invocation
         start = time.time()
-        compute_handler = random.choice(self.serverless_handlers)
-        activation_id = compute_handler.invoke(job.runtime_name, job.runtime_memory, payload)
+        serverless_handler = random.choice(self.serverless_handlers)
+        activation_id = serverless_handler.invoke(job.runtime_name, job.runtime_memory, payload)
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 
@@ -275,6 +344,10 @@ class ServerlessInvoker:
         """
         Run a job described in job_description
         """
+        job_description['runtime_name'] = self.config['serverless']['runtime']
+        job_description['runtime_memory'] = self.config['serverless']['runtime_memory']
+        job_description['runtime_timeout'] = self.config['serverless']['runtime_timeout']
+
         job = SimpleNamespace(**job_description)
 
         try:

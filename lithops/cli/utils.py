@@ -20,7 +20,7 @@ from lithops.config import CACHE_DIR, STORAGE_FOLDER, \
     default_config, extract_storage_config, extract_serverless_config, \
     RUNTIMES_PREFIX, JOBS_PREFIX, DOCKER_FOLDER
 from lithops.storage import InternalStorage
-from lithops.compute import Compute
+from lithops.serverless import ServerlesHandler
 from lithops.storage.utils import clean_bucket
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ def clean_all(config=None):
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
     compute_config = extract_serverless_config(config)
-    compute_handler = Compute(compute_config)
+    compute_handler = ServerlesHandler(compute_config)
 
     # Clean localhost executor temp dirs
     shutil.rmtree(STORAGE_FOLDER, ignore_errors=True)

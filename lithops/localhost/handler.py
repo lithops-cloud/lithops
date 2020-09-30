@@ -1,130 +1,85 @@
-#
-# Copyright Cloudlab URV 2020
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-
+import os
+import sys
+import json
 import logging
-import importlib
+import uuid
+from threading import Thread
+from types import SimpleNamespace
+from multiprocessing import Process, Queue
+from lithops.utils import version_str, is_unix_system
+from lithops.worker import function_handler
+from lithops.config import TEMP_STORAGE_DIR, LOGS_PREFIX
 
-logger = logging.getLogger(__name__)
+
+log_file = os.path.join(TEMP_STORAGE_DIR, 'handler.log')
+logging.basicConfig(filename=log_file, level=logging.DEBUG)
+logger = logging.getLogger('handler')
 
 
-class localhostHandler:
+class LocalhostHandler:
     """
-    A localhostHandler object is used by invokers and other components to access
-    underlying localhost backend without exposing the implementation details.
+    A wrap-up around Localhost multiprocessing APIs.
     """
 
-    def __init__(self, localhost_config):
-        self.config = localhost_config
-        self.backend = self.config['backend']
-        self.compute_handler = None
+    def __init__(self, local_config):
+        self.log_active = logger.getEffectiveLevel() != logging.WARNING
+        self.config = local_config
+        self.name = 'local'
+        self.alive = True
+        self.queue = Queue()
+        self.logs_dir = os.path.join(TEMP_STORAGE_DIR, LOGS_PREFIX)
+        self.num_workers = self.config['workers']
+        self.use_threads = not is_unix_system()
 
-        try:
-            module_location = 'lithops.localhost.backends.{}'.format(self.backend)
-            sb_module = importlib.import_module(module_location)
-            LocalhostBackend = getattr(sb_module, 'LocalhostBackend')
-            self.localhost_backend = LocalhostBackend(self.config[self.backend])
+        self.workers = []
 
-        except Exception as e:
-            logger.error("There was en error trying to create the {} backend".format(self.backend))
-            raise e
+        if self.use_threads:
+            for worker_id in range(self.num_workers):
+                p = Thread(target=self._process_runner, args=(worker_id,))
+                self.workers.append(p)
+                p.daemon = True
+                p.start()
+        else:
+            for worker_id in range(self.num_workers):
+                p = Process(target=self._process_runner, args=(worker_id,))
+                self.workers.append(p)
+                p.start()
 
-    def create_instance(self):
-        pass
+        log_msg = 'Lithops v{} init for Localhost - Total workers: {}'.format(__version__, self.num_workers)
+        logger.info(log_msg)
+        if not self.log_active:
+            print(log_msg)
 
-    def start_instance(self):
-        pass
-
-    def stop_instance(self):
-        pass
-
-    def setup_env(self):
-        pass
-
-    def run_job(self):
-        pass
-
-    def delete_instance(self):
-        pass
-
-    def delete_all_instances(self):
-        pass
-
-    def list_instances(self):
-        pass
-
-    def _setup_compute(self):
-        logger.info("Starting setup of compute backend")
-        readiness_probe = None
-        if hasattr(self.compute_handler, 'ready'):
-            readiness_probe = self.compute_handler.ready
-
-        if self.remote_client:
-            self.remote_client.setup(readiness_probe=readiness_probe)
-
-    def invoke(self, runtime_name, memory, payload):
+    def _local_handler(self, event):
         """
-        Invoke -- return information about this invocation
+        Handler to run local functions.
         """
-        return self.compute_handler.invoke(runtime_name, memory, payload)
+        if not self.log_active:
+            old_stdout = sys.stdout
+            sys.stdout = open(os.devnull, 'w')
 
-    def build_runtime(self, runtime_name, file):
-        """
-        Wrapper method to build a new runtime for the compute backend.
-        return: the name of the runtime
-        """
-        self.compute_handler.build_runtime(runtime_name, file)
+        event['extra_env']['__LITHOPS_LOCAL_EXECUTION'] = 'True'
+        act_id = str(uuid.uuid4()).replace('-', '')[:12]
+        os.environ['__PW_ACTIVATION_ID'] = act_id
+        function_handler(event)
 
-    def create_runtime(self, runtime_name, memory, timeout):
-        """
-        Wrapper method to create a runtime in the compute backend.
-        return: the name of the runtime
-        """
-        return self.compute_handler.create_runtime(runtime_name, memory, timeout=timeout)
+        if not self.log_active:
+            sys.stdout = old_stdout
 
-    def delete_runtime(self, runtime_name, memory):
-        """
-        Wrapper method to create a runtime in the compute backend
-        """
-        self.compute_handler.delete_runtime(runtime_name, memory)
+    def _process_runner(self, worker_id):
+        logger.debug('Localhost worker process {} started'.format(worker_id))
 
-    def delete_all_runtimes(self):
-        """
-        Wrapper method to create a runtime in the compute backend
-        """
-        self.compute_handler.delete_all_runtimes()
+        while True:
+            event = self.queue.get(block=True)
+            if event is None:
+                break
+            self._local_handler(event)
 
-    def list_runtimes(self, runtime_name='all'):
-        """
-        Wrapper method to list deployed runtime in the compute backend
-        """
-        return self.compute_handler.list_runtimes(runtime_name)
 
-    def get_runtime_key(self, runtime_name, memory):
-        """
-        Wrapper method that returns a formated string that represents the runtime key.
-        Each backend has its own runtime key format. Used to store modules preinstalls
-        into the storage
-        """
-        return self.compute_handler.get_runtime_key(runtime_name, memory)
+if __name__ == "__main__":
+    logger.info('Starting Localhost job handler')
+    job_filename = sys.argv[1]
+    logger.info('Got {} job file'.format(job_filename))
 
-    def dismantle(self):
-        if self.remote_client:
-            logger.info("Dismantling setup")
-            self.remote_client.dismantle()
-
-    def __del__(self):
-        if self.compute_handler and hasattr(self.compute_handler, '__del__'):
-            self.compute_handler.__del__()
+    with open(job_filename, 'rb') as jf:
+        job = SimpleNamespace(**json.load(jf))

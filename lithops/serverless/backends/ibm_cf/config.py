@@ -33,13 +33,13 @@ FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_ibmcf.zip')
 
 def load_config(config_data):
     if 'runtime_memory' not in config_data['lithops']:
-        config_data['lithops']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
+        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
     if 'runtime_timeout' not in config_data['lithops']:
-        config_data['lithops']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
-    if 'runtime' not in config_data['lithops']:
+        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+    if 'runtime' not in config_data['serverless']:
         python_version = version_str(sys.version_info)
         try:
-            config_data['lithops']['runtime'] = RUNTIME_DEFAULT[python_version]
+            config_data['serverless']['runtime'] = RUNTIME_DEFAULT[python_version]
         except KeyError:
             raise Exception('Unsupported Python version: {}'.format(python_version))
     if 'workers' not in config_data['lithops'] or \

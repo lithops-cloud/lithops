@@ -1,1 +1,1 @@
-from .handler import StandaloneHandler
+from .standalone import StandaloneHandler

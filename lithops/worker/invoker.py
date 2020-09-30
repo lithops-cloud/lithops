@@ -47,11 +47,11 @@ def function_invoker(event):
     os.environ.update(custom_env)
     config = event['config']
     num_invokers = event['invokers']
-    invoker = FunctionInvoker(config, num_invokers, log_level)
+    invoker = ServerlessInvoker(config, num_invokers, log_level)
     invoker.run(event['job_description'])
 
 
-class FunctionInvoker:
+class ServerlessInvoker:
     """
     Module responsible to perform the invocations against the compute backend
     """
@@ -72,32 +72,18 @@ class FunctionInvoker:
         self.num_workers = self.config['lithops'].get('workers')
         logger.debug('Total workers: {}'.format(self.num_workers))
 
-        self.compute_handlers = []
+        self.serverless_handlers = []
         cb = compute_config['backend']
         regions = compute_config[cb].get('region')
         if regions and type(regions) == list:
             for region in regions:
                 new_compute_config = compute_config.copy()
                 new_compute_config[cb]['region'] = region
-                compute_handler = ServerlesHandler(new_compute_config)
-                self.compute_handlers.append(compute_handler)
+                serverless_handler = ServerlesHandler(new_compute_config)
+                self.serverless_handlers.append(serverless_handler)
         else:
-            if cb == 'localhost':
-                global CBH
-                if cb in CBH and CBH[cb].compute_handler.num_workers != self.num_workers:
-                    del CBH[cb]
-                if cb in CBH:
-                    logger.info('{} compute handler already started'.format(cb))
-                    compute_handler = CBH[cb]
-                    self.compute_handlers.append(compute_handler)
-                else:
-                    logger.info('Starting {} compute handler'.format(cb))
-                    compute_handler = ServerlesHandler(compute_config)
-                    CBH[cb] = compute_handler
-                    self.compute_handlers.append(compute_handler)
-            else:
-                compute_handler = ServerlesHandler(compute_config)
-                self.compute_handlers.append(compute_handler)
+            serverless_handler = ServerlesHandler(compute_config)
+            self.serverless_handlers.append(serverless_handler)
 
         self.token_bucket_q = Queue()
         self.pending_calls_q = Queue()
@@ -121,12 +107,13 @@ class FunctionInvoker:
                    'host_submit_tstamp': time.time(),
                    'lithops_version': __version__,
                    'runtime_name': job.runtime_name,
-                   'runtime_memory': job.runtime_memory}
+                   'runtime_memory': job.runtime_memory,
+                   'runtime_timeout': job.runtime_timeout}
 
         # do the invocation
         start = time.time()
-        compute_handler = random.choice(self.compute_handlers)
-        activation_id = compute_handler.invoke(job.runtime_name, job.runtime_memory, payload)
+        serverless_handler = random.choice(self.serverless_handlers)
+        activation_id = serverless_handler.invoke(job.runtime_name, job.runtime_memory, payload)
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 

@@ -16,7 +16,6 @@
 
 import os
 import json
-import tempfile
 import importlib
 import logging.config
 from lithops.version import __version__
@@ -29,13 +28,6 @@ SERVERLESS_BACKEND_DEFAULT = 'ibm_cf'
 STANDALONE_BACKEND_DEFAULT = 'ibm_vpc'
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
 
-STORAGE_BASE_FOLDER = "lithops-data"
-DOCKER_BASE_FOLDER = "lithops-docker"
-TEMP = os.path.realpath(tempfile.gettempdir())
-LITHOPS_TEMP = "~/lithops-temp"
-STORAGE_FOLDER = os.path.join(TEMP, STORAGE_BASE_FOLDER)
-DOCKER_FOLDER = os.path.join(TEMP, DOCKER_BASE_FOLDER)
-
 JOBS_PREFIX = "lithops.jobs"
 TEMP_PREFIX = "lithops.jobs/tmp"
 LOGS_PREFIX = "lithops.logs"
@@ -46,8 +38,9 @@ MAX_AGG_DATA_SIZE = 4  # 4MiB
 
 HOME_DIR = os.path.expanduser('~')
 CONFIG_DIR = os.path.join(HOME_DIR, '.lithops')
-CONFIG_FILE = os.path.join(CONFIG_DIR, 'config')
+TEMP_STORAGE_DIR = os.path.join(CONFIG_DIR, 'temp')
 CACHE_DIR = os.path.join(CONFIG_DIR, 'cache')
+CONFIG_FILE = os.path.join(CONFIG_DIR, 'config')
 
 
 def load_yaml_config(config_filename):
@@ -122,10 +115,16 @@ def default_config(config_data=None, config_overwrite={}):
     if 'lithops' in config_overwrite:
         config_data['lithops'].update(config_overwrite['lithops'])
     if 'localhost' in config_overwrite:
+        if 'localhost' not in config_data:
+            config_data['localhost'] = {}
         config_data['localhost'].update(config_overwrite['localhost'])
     if 'serverless' in config_overwrite:
+        if 'serverless' not in config_data:
+            config_data['serverless'] = {}
         config_data['serverless'].update(config_overwrite['serverless'])
     if 'standalone' in config_overwrite:
+        if 'standalone' not in config_data:
+            config_data['standalone'] = {}
         config_data['standalone'].update(config_overwrite['standalone'])
 
     if 'executor' not in config_data['lithops']:
@@ -136,6 +135,7 @@ def default_config(config_data=None, config_overwrite={}):
             config_data['serverless'] = {}
         if 'backend' not in config_data['serverless']:
             config_data['serverless']['backend'] = SERVERLESS_BACKEND_DEFAULT
+
         sb = config_data['serverless']['backend']
         logger.debug("Loading Serverless backend module: {}".format(sb))
         cb_config = importlib.import_module('lithops.serverless.backends.{}.config'.format(sb))
@@ -151,9 +151,13 @@ def default_config(config_data=None, config_overwrite={}):
         sb_config = importlib.import_module('lithops.standalone.backends.{}.config'.format(sb))
         sb_config.load_config(config_data)
 
-    if 'storage_backend' not in config_data['lithops']:
-        config_data['lithops']['storage_backend'] = STORAGE_BACKEND_DEFAULT
-    sb = config_data['lithops']['storage_backend']
+    elif config_data['lithops']['executor'] == 'localhost':
+        if 'runtime' not in config_data['localhost']:
+            config_data['localhost']['runtime'] = None
+
+    if 'storage' not in config_data['lithops']:
+        config_data['lithops']['storage'] = STORAGE_BACKEND_DEFAULT
+    sb = config_data['lithops']['storage']
     logger.debug("Loading Storage backend module: {}".format(sb))
     sb_config = importlib.import_module('lithops.storage.backends.{}.config'.format(sb))
     sb_config.load_config(config_data)
@@ -163,7 +167,7 @@ def default_config(config_data=None, config_overwrite={}):
 
 def extract_storage_config(config):
     storage_config = {}
-    sb = config['lithops']['storage_backend']
+    sb = config['lithops']['storage']
     storage_config['backend'] = sb
     storage_config['bucket'] = config['lithops']['storage_bucket']
     storage_config[sb] = config[sb]
@@ -173,6 +177,12 @@ def extract_storage_config(config):
         storage_config[sb]['region'] = config['lithops']['storage_region']
 
     return storage_config
+
+
+def extract_localhost_config(config):
+    localhost_config = config['localhost'].copy()
+
+    return localhost_config
 
 
 def extract_serverless_config(config):

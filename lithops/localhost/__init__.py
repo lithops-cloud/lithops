@@ -1,1 +1,1 @@
-from .handler import StandaloneHandler
+from .localhost import LocalhostHandler

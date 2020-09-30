@@ -15,10 +15,27 @@
 #
 
 import tempfile
-from lithops.executors import ServerlessExecutor
+from lithops.executors import ServerlessExecutor, LocalhostExecutor
 from lithops.version import __version__
 
 name = "lithops"
+
+
+def local_executor(config=None, docker_image=None, virtualenv=None,
+                   workers=None, storage=None, storage_region=None,
+                   rabbitmq_monitor=None, log_level=None):
+
+    if storage is None:
+        storage = 'localhost'
+
+    return LocalhostExecutor(
+        config=config, docker_image=docker_image,
+        virtualenv=virtualenv,
+        workers=workers, storage=storage,
+        storage_region=storage_region,
+        rabbitmq_monitor=rabbitmq_monitor,
+        log_level=log_level
+    )
 
 
 def serverless_executor(config=None, backend=None, runtime=None,

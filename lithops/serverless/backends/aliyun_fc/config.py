@@ -38,20 +38,20 @@ def load_config(config_data=None):
                         ' only supports Python version 3.6.X and the local Python'
                         'version is {}'.format(this_version_str))
 
-    if 'runtime' not in config_data['lithops']:
-        config_data['lithops']['runtime'] = 'default'
+    if 'runtime' not in config_data['serverless']:
+        config_data['serverless']['runtime'] = 'default'
 
-    if 'runtime_memory' in config_data['lithops']:
-        if config_data['lithops']['runtime_memory'] > RUNTIME_MEMORY_MAX:
-            config_data['lithops']['runtime_memory'] = RUNTIME_MEMORY_MAX
+    if 'runtime_memory' in config_data['serverless']:
+        if config_data['serverless']['runtime_memory'] > RUNTIME_MEMORY_MAX:
+            config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_MAX
     else:
-        config_data['lithops']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
+        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
 
-    if 'runtime_timeout' in config_data['lithops']:
-        if config_data['lithops']['runtime_timeout'] > RUNTIME_TIMEOUT_MAX:
-            config_data['lithops']['runtime_timeout'] = RUNTIME_TIMEOUT_MAX
+    if 'runtime_timeout' in config_data['serverless']:
+        if config_data['serverless']['runtime_timeout'] > RUNTIME_TIMEOUT_MAX:
+            config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_MAX
     else:
-        config_data['lithops']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
 
     if 'workers' in config_data['lithops']:
         if config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
@@ -59,12 +59,11 @@ def load_config(config_data=None):
     else:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
 
-
     if 'aliyun_fc' not in config_data:
         raise Exception("aliyun_fc section is mandatory in the configuration")
 
     required_parameters = ('public_endpoint', 'access_key_id', 'access_key_secret')
 
     if set(required_parameters) > set(config_data['aliyun_fc']):
-        raise Exception('You must provide {} to access to Aliyun Function Compute '\
+        raise Exception('You must provide {} to access to Aliyun Function Compute '
                         .format(required_parameters))

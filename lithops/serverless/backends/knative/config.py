@@ -169,23 +169,20 @@ def load_config(config_data):
     if 'cpu' not in config_data['knative']:
         config_data['knative']['cpu'] = RUNTIME_CPU_DEFAULT
 
-    if 'runtime_memory' not in config_data['lithops']:
-        config_data['lithops']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
-    if 'runtime_timeout' not in config_data['lithops']:
-        config_data['lithops']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+    if 'runtime_memory' not in config_data['serverless']:
+        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
+    if 'runtime_timeout' not in config_data['serverless']:
+        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
 
     if 'docker_repo' not in config_data['knative']:
         config_data['knative']['docker_repo'] = DOCKER_REPO_DEFAULT
 
-    if 'runtime' not in config_data['lithops']:
+    if 'runtime' not in config_data['serverless']:
         docker_user = config_data['knative']['docker_user']
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'SNAPSHOT' in __version__ else __version__.replace('.', '')
         runtime_name = '{}/{}-v{}:{}'.format(docker_user, RUNTIME_NAME_DEFAULT, python_version, revision)
-        config_data['lithops']['runtime'] = runtime_name
+        config_data['serverless']['runtime'] = runtime_name
 
     if 'workers' not in config_data['lithops']:
         config_data['lithops']['workers'] = CONCURRENT_WORKERS_DEFAULT
-
-    if 'ibm_cos' in config_data and 'private_endpoint' in config_data['ibm_cos']:
-        del config_data['ibm_cos']['private_endpoint']
