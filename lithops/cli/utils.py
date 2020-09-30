@@ -17,7 +17,7 @@
 import shutil
 import logging
 from lithops.config import CACHE_DIR, STORAGE_FOLDER, \
-    default_config, extract_storage_config, extract_compute_config, \
+    default_config, extract_storage_config, extract_serverless_config, \
     RUNTIMES_PREFIX, JOBS_PREFIX, DOCKER_FOLDER
 from lithops.storage import InternalStorage
 from lithops.compute import Compute
@@ -31,7 +31,7 @@ def clean_all(config=None):
     config = default_config(config)
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
-    compute_config = extract_compute_config(config)
+    compute_config = extract_serverless_config(config)
     compute_handler = Compute(compute_config)
 
     # Clean localhost executor temp dirs

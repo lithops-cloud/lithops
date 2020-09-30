@@ -23,7 +23,10 @@ from lithops.version import __version__
 
 logger = logging.getLogger(__name__)
 
-COMPUTE_BACKEND_DEFAULT = 'ibm_cf'
+
+EXECUTOR_DEFAULT = 'serverless'
+SERVERLESS_BACKEND_DEFAULT = 'ibm_cf'
+STANDALONE_BACKEND_DEFAULT = 'ibm_vpc'
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
 
 STORAGE_BASE_FOLDER = "lithops-data"
@@ -112,29 +115,44 @@ def default_config(config_data=None, config_overwrite={}):
 
     if 'lithops' not in config_data:
         raise Exception("lithops section is mandatory in configuration")
-
-    # overwrite values provided by the user
-    config_data['lithops'].update(config_overwrite)
-
     if 'storage_bucket' not in config_data['lithops']:
         raise Exception("storage_bucket is mandatory in lithops section of the configuration")
 
-    if 'compute_backend' not in config_data['lithops']:
-        config_data['lithops']['compute_backend'] = COMPUTE_BACKEND_DEFAULT
+    # overwrite values provided by the user
+    if 'lithops' in config_overwrite:
+        config_data['lithops'].update(config_overwrite['lithops'])
+    if 'localhost' in config_overwrite:
+        config_data['localhost'].update(config_overwrite['localhost'])
+    if 'serverless' in config_overwrite:
+        config_data['serverless'].update(config_overwrite['serverless'])
+    if 'standalone' in config_overwrite:
+        config_data['standalone'].update(config_overwrite['standalone'])
+
+    if 'executor' not in config_data['lithops']:
+        config_data['lithops']['executor'] = EXECUTOR_DEFAULT
+
+    if config_data['lithops']['executor'] == 'serverless':
+        if 'serverless' not in config_data:
+            config_data['serverless'] = {}
+        if 'backend' not in config_data['serverless']:
+            config_data['serverless']['backend'] = SERVERLESS_BACKEND_DEFAULT
+        sb = config_data['serverless']['backend']
+        logger.debug("Loading Serverless backend module: {}".format(sb))
+        cb_config = importlib.import_module('lithops.serverless.backends.{}.config'.format(sb))
+        cb_config.load_config(config_data)
+
+    elif config_data['lithops']['executor'] == 'standalone':
+        if 'standalone' not in config_data:
+            config_data['standalone'] = {}
+        if 'backend' not in config_data['standalone']:
+            config_data['standalone']['backend'] = STANDALONE_BACKEND_DEFAULT
+        sb = config_data['standalone']['backend']
+        logger.debug("Loading Standalone backend module: {}".format(sb))
+        sb_config = importlib.import_module('lithops.standalone.backends.{}.config'.format(sb))
+        sb_config.load_config(config_data)
+
     if 'storage_backend' not in config_data['lithops']:
         config_data['lithops']['storage_backend'] = STORAGE_BACKEND_DEFAULT
-
-    if 'rabbitmq' in config_data:
-        if config_data['rabbitmq'] is None \
-           or 'amqp_url' not in config_data['rabbitmq'] \
-           or config_data['rabbitmq']['amqp_url'] is None:
-            del config_data['rabbitmq']
-
-    cb = config_data['lithops']['compute_backend']
-    logger.debug("Loading Compute backend module: {}".format(cb))
-    cb_config = importlib.import_module('lithops.compute.backends.{}.config'.format(cb))
-    cb_config.load_config(config_data)
-
     sb = config_data['lithops']['storage_backend']
     logger.debug("Loading Storage backend module: {}".format(sb))
     sb_config = importlib.import_module('lithops.storage.backends.{}.config'.format(sb))
@@ -144,39 +162,41 @@ def default_config(config_data=None, config_overwrite={}):
 
 
 def extract_storage_config(config):
-    storage_config = dict()
+    storage_config = {}
     sb = config['lithops']['storage_backend']
     storage_config['backend'] = sb
     storage_config['bucket'] = config['lithops']['storage_bucket']
-
     storage_config[sb] = config[sb]
     storage_config[sb]['user_agent'] = 'lithops/{}'.format(__version__)
-    if 'storage_backend_region' in config['lithops']:
-        storage_config[sb]['region'] = config['lithops']['storage_backend_region']
+
+    if 'storage_region' in config['lithops']:
+        storage_config[sb]['region'] = config['lithops']['storage_region']
 
     return storage_config
 
 
-def extract_compute_config(config):
-    compute_config = dict()
-    cb = config['lithops']['compute_backend']
-    compute_config['backend'] = cb
+def extract_serverless_config(config):
+    serverless_config = config['serverless'].copy()
+    sb = config['serverless']['backend']
+    serverless_config[sb] = config[sb]
+    serverless_config[sb]['user_agent'] = 'lithops/{}'.format(__version__)
 
-    compute_config[cb] = config[cb]
-    compute_config[cb]['user_agent'] = 'lithops/{}'.format(__version__)
-    if 'compute_backend_region' in config['lithops']:
-        compute_config[cb]['region'] = config['lithops']['compute_backend_region']
-    if 'remote_client' in config['lithops']:
-        remote_client_backend = config['lithops']['remote_client']
-        remote_client_config = importlib.import_module('lithops.libs.clients.{}.config'
-                                                       .format(remote_client_backend))
-        remote_client_config.load_config(config)
+    if 'region' in config['serverless']:
+        serverless_config[sb]['region'] = config['serverless']['region']
 
-        remote_client_config = config[remote_client_backend]
-        compute_config[remote_client_backend] = remote_client_config
-        compute_config['remote_client'] = config['lithops']['remote_client']
+    return serverless_config
 
-    return compute_config
+
+def extract_standalone_config(config):
+    standalone_config = config['standalone'].copy()
+    sb = config['standalone']['backend']
+    standalone_config[sb] = config[sb]
+    standalone_config[sb]['user_agent'] = 'lithops/{}'.format(__version__)
+
+    if 'region' in config['standalone']:
+        standalone_config[sb]['region'] = config['standalone']['region']
+
+    return standalone_config
 
 
 def default_logging_config(log_level='INFO'):

@@ -20,12 +20,12 @@ import logging
 import random
 from types import SimpleNamespace
 from multiprocessing import Process, Queue
-from lithops.compute import Compute
-from lithops.invoker import JobMonitor
+from lithops.serverless import ServerlesHandler
+from lithops.invokers import JobMonitor
 from lithops.storage import InternalStorage
 from lithops.version import __version__
 from concurrent.futures import ThreadPoolExecutor
-from lithops.config import cloud_logging_config, extract_compute_config, extract_storage_config
+from lithops.config import cloud_logging_config, extract_serverless_config, extract_storage_config
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('invoker')
@@ -62,7 +62,7 @@ class FunctionInvoker:
         self.log_level = log_level
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
-        compute_config = extract_compute_config(self.config)
+        compute_config = extract_serverless_config(self.config)
 
         self.remote_invoker = self.config['lithops'].get('remote_invoker', False)
         self.rabbitmq_monitor = self.config['lithops'].get('rabbitmq_monitor', False)
@@ -79,7 +79,7 @@ class FunctionInvoker:
             for region in regions:
                 new_compute_config = compute_config.copy()
                 new_compute_config[cb]['region'] = region
-                compute_handler = Compute(new_compute_config)
+                compute_handler = ServerlesHandler(new_compute_config)
                 self.compute_handlers.append(compute_handler)
         else:
             if cb == 'localhost':
@@ -92,11 +92,11 @@ class FunctionInvoker:
                     self.compute_handlers.append(compute_handler)
                 else:
                     logger.info('Starting {} compute handler'.format(cb))
-                    compute_handler = Compute(compute_config)
+                    compute_handler = ServerlesHandler(compute_config)
                     CBH[cb] = compute_handler
                     self.compute_handlers.append(compute_handler)
             else:
-                compute_handler = Compute(compute_config)
+                compute_handler = ServerlesHandler(compute_config)
                 self.compute_handlers.append(compute_handler)
 
         self.token_bucket_q = Queue()
