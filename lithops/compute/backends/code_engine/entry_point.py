@@ -68,8 +68,10 @@ def main(action, payload_decoded):
     if (action == 'preinstals'):
         runtime_packages(payload)
         return {"Execution": "Finished"}
-    
+    job_index = os.environ['JOB_INDEX']
+    logger.info (" Action {}. Job Index {}".format(action, job_index))
     os.environ['__PW_ACTIVATION_ID'] = payload['activation_id']
+    payload['JOB_INDEX'] = job_index
     if 'remote_invoker' in payload:
         logger.info("Lithops v{} - Starting invoker".format(__version__))
         function_invoker(payload)

@@ -28,9 +28,9 @@ RUNTIME_MEMORY_DEFAULT = 128  # Default memory: 256 MB
 MAX_CONCURRENT_WORKERS = 1200
 CPU_DEFAULT = 1 # default number of CPU
 
-DEFAULT_API_VERSION = 'codeengine.cloud.ibm.com/v1alpha1'
+DEFAULT_API_VERSION = 'codeengine.cloud.ibm.com/v1beta1'
 DEFAULT_GROUP = "codeengine.cloud.ibm.com"
-DEFAULT_VERSION = "v1alpha1"
+DEFAULT_VERSION = "v1beta1"
 
 
 JOB_RUN_RESOURCE = {
@@ -41,29 +41,32 @@ JOB_RUN_RESOURCE = {
             },
     'spec': {
         'jobDefinitionSpec': {
-            'containers': [{
-                'name': 'run', 
-                'image': '',
-                'command' : ['/usr/local/bin/python'],
-                'args' : [
-                '/lithops/lithopsentry.py',
-                '$(ACTION)',
-                '$(PAYLOAD)'],
-                'env': [{
-                    'name' :'ACTION',
-                    'value' : ''
-                    },{
-                    'name' :'PAYLOAD',
-                    'value' : ''
-                    }],
-                'resources': {
-                    'requests': {
-                        'memory': '128Mi',
-                        'cpu': '1'
+            'arraySpec' : 0-1,
+            'template' : {
+                'containers': [{
+                    'name': 'run', 
+                    'image': '',
+                    'command' : ['/usr/local/bin/python'],
+                    'args' : [
+                    '/lithops/lithopsentry.py',
+                    '$(ACTION)',
+                    '$(PAYLOAD)'],
+                    'env': [{
+                        'name' :'ACTION',
+                        'value' : ''
+                        },{
+                        'name' :'PAYLOAD',
+                        'value' : ''
+                        }],
+                    'resources': {
+                        'requests': {
+                            'memory': '128Mi',
+                            'cpu': '1'
+                            }
                         }
                     }
-                }
-            ]}
+                ]}
+            }
         }
     }
 

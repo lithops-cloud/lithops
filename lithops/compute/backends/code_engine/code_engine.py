@@ -69,11 +69,11 @@ class CodeEngineBackend:
         self.namespace = current_context.get('namespace', 'default')
         self.cluster = current_context.get('cluster')
 
-        log_msg = ('Lithops v{} init for Beta BS - Namespace: {} - '
+        log_msg = ('Lithops v{} init for Code Engine - Namespace: {} - '
                    'Cluster: {} - User {}'.format(__version__, self.namespace, self.cluster, self.user))
         if not self.log_active:
             print(log_msg)
-        logger.info("Beta BS client created successfully")
+        logger.info("Code Engine client created successfully")
 
     def _format_action_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '_').replace(':', '_')
@@ -172,11 +172,11 @@ class CodeEngineBackend:
 
         job_desc = copy.deepcopy(codeengine_config.JOB_RUN_RESOURCE)
         job_desc['apiVersion'] = self.code_engine_config['api_version']
-        job_desc['spec']['jobDefinitionSpec']['containers'][0]['image'] = docker_image_name
-        job_desc['spec']['jobDefinitionSpec']['containers'][0]['env'][0]['value'] = 'payload'
-        job_desc['spec']['jobDefinitionSpec']['containers'][0]['env'][1]['value'] = self._dict_to_binary(payload)
-        job_desc['spec']['jobDefinitionSpec']['containers'][0]['resources']['requests']['memory'] = str(runtime_memory) +'Mi'
-        job_desc['spec']['jobDefinitionSpec']['containers'][0]['resources']['requests']['cpu'] = self.code_engine_config['runtime_cpu']
+        job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['image'] = docker_image_name
+        job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][0]['value'] = 'payload'
+        job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = self._dict_to_binary(payload)
+        job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['resources']['requests']['memory'] = str(runtime_memory) +'Mi'
+        job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['resources']['requests']['cpu'] = self.code_engine_config['runtime_cpu']
         job_desc['metadata']['name'] = payload['activation_id']
 
         logger.info("Before invoke job name {}".format(job_desc['metadata']['name']))
@@ -191,7 +191,7 @@ class CodeEngineBackend:
 
         if (logging.getLogger().level == logging.DEBUG):
             debug_res = copy.deepcopy(res)
-            debug_res['spec']['jobDefinitionSpec']['containers'][0]['env'][1]['value'] = ''
+            debug_res['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = ''
             logger.debug("response - {}".format(debug_res))
             del debug_res
 
@@ -237,9 +237,9 @@ class CodeEngineBackend:
             self.storage_config['activation_id'] = 'lithops-' + activation_id
             job_desc = copy.deepcopy(codeengine_config.JOB_RUN_RESOURCE)
             job_desc['apiVersion'] = self.code_engine_config['api_version']
-            job_desc['spec']['jobDefinitionSpec']['containers'][0]['image'] = docker_image_name
-            job_desc['spec']['jobDefinitionSpec']['containers'][0]['env'][0]['value'] = 'preinstals'
-            job_desc['spec']['jobDefinitionSpec']['containers'][0]['env'][1]['value'] = self._dict_to_binary(self.storage_config)
+            job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['image'] = docker_image_name
+            job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][0]['value'] = 'preinstals'
+            job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = self._dict_to_binary(self.storage_config)
             job_desc['metadata']['name'] ='lithops-' + activation_id
     
             logger.info("About to invoke code engine job to get runtime metadata")
@@ -253,7 +253,7 @@ class CodeEngineBackend:
             )
             if (logging.getLogger().level == logging.DEBUG):
                 debug_res = copy.deepcopy(res)
-                debug_res['spec']['jobDefinitionSpec']['containers'][0]['env'][1]['value'] = ''
+                debug_res['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = ''
                 logger.debug("response - {}".format(debug_res))
                 del debug_res
     
@@ -265,7 +265,7 @@ class CodeEngineBackend:
             while (retry < 5 and not found):
                 try:
                     logger.debug("Retry attempt {} to read {}".format(retry, status_key))
-                    json_str = self.internal_storage.get_cobject(key = status_key)
+                    json_str = self.internal_storage.storage.get_cobject(key = status_key)
                     logger.debug("Found in attempt () to read {}".format(retry, status_key))
                     runtime_meta = json.loads(json_str.decode("ascii"))
                     found = True
@@ -274,7 +274,7 @@ class CodeEngineBackend:
                     retry = retry + 1
                     time.sleep(30)
 
-            json_str = self.internal_storage.get_cobject(key = status_key)
+            json_str = self.internal_storage.storage.get_cobject(key = status_key)
             runtime_meta = json.loads(json_str.decode("ascii"))
 
         except Exception:
