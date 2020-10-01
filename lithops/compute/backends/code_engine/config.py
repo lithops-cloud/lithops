@@ -41,7 +41,6 @@ JOB_RUN_RESOURCE = {
             },
     'spec': {
         'jobDefinitionSpec': {
-            'arraySpec' : 0-1,
             'template' : {
                 'containers': [{
                     'name': 'run', 
@@ -70,6 +69,52 @@ JOB_RUN_RESOURCE = {
         }
     }
 
+JOB_RUN_SHORT_RESOURCE = {
+    'apiVersion': '', 
+    'kind': 'JobRun', 
+    'metadata': {
+            'name': ''
+            },
+    'spec': {
+        ' jobDefinitionRef: basic-jobdef'
+        }
+    }
+
+JOB_DEF_RESOURCE = {
+    'apiVersion': '', 
+    'kind': 'JobDefinition', 
+    'metadata': {
+            'name': ''
+            },
+    'spec': {
+        'jobDefinitionSpec': {
+            'template' : {
+                'containers': [{
+                    'name': 'run', 
+                    'image': '',
+                    'command' : ['/usr/local/bin/python'],
+                    'args' : [
+                    '/lithops/lithopsentry.py',
+                    '$(ACTION)',
+                    '$(PAYLOAD)'],
+                    'env': [{
+                        'name' :'ACTION',
+                        'value' : ''
+                        },{
+                        'name' :'PAYLOAD',
+                        'value' : ''
+                        }],
+                    'resources': {
+                        'requests': {
+                            'memory': '128Mi',
+                            'cpu': '1'
+                            }
+                        }
+                    }
+                ]}
+            }
+        }
+    }
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_codeengine.zip')
 
