@@ -15,18 +15,22 @@
 #
 
 import os
+import sys
 import json
 import lithops
 import logging
+import shutil
 import subprocess
 from shutil import copyfile
 
 from lithops.localhost.environments import DefaultEnv, VirtualEnv, DockerEnv
-from lithops.config import STORAGE_DIR, JOBS_PREFIX
+from lithops.config import TEMP, STORAGE_DIR, JOBS_PREFIX
 
 
 logger = logging.getLogger(__name__)
 LOCAL_HANDLER_NAME = 'local_handler.py'
+HANDLER_FILE = os.path.join(STORAGE_DIR, LOCAL_HANDLER_NAME)
+LITHOPS_LOCATION = os.path.dirname(os.path.abspath(lithops.__file__))
 
 
 class LocalhostHandler:
@@ -42,25 +46,16 @@ class LocalhostHandler:
         if self.runtime is None:
             self.env = DefaultEnv()
             self.env_type = 'default'
-        elif '.zip' in self.runtime:
-            self.env = VirtualEnv(self.runtime)
-            self.env_type = 'virtualenv'
         else:
             self.env = DockerEnv(self.runtime)
             self.env_type = 'docker'
-
-    def _create_local_handler(self):
-        current_location = os.path.dirname(os.path.abspath(lithops.localhost.__file__))
-        src_handler = os.path.join(current_location, LOCAL_HANDLER_NAME)
-        dst_handler = os.path.join(STORAGE_DIR, LOCAL_HANDLER_NAME)
-        copyfile(src_handler, dst_handler)
 
     def run_job(self, job_payload):
         """
         Run the job description agains the selected environemnt
         """
-        self._create_local_handler()
-        exec_command = self.env.get_execution_cmd()
+        runtime = job_payload['job_description']['runtime_name']
+        exec_command = self.env.get_execution_cmd(runtime)
 
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
@@ -74,20 +69,17 @@ class LocalhostHandler:
         with open(jobr_filename, 'w') as jl:
             json.dump(job_payload, jl)
 
-        handler_file = os.path.join(STORAGE_DIR, LOCAL_HANDLER_NAME)
         log_file = open(os.path.join(STORAGE_DIR, 'local_handler.log'), 'a')
-        subprocess.Popen([exec_command, handler_file, 'run', jobr_filename],
+        subprocess.Popen(exec_command+' run '+jobr_filename, shell=True,
                          stdout=log_file, universal_newlines=True)
 
-    def create_runtime(self, runtime_name):
+    def create_runtime(self, runtime):
         """
         Extract the runtime metadata and preinstalled modules
         """
-        self._create_local_handler()
-        exec_command = self.env.get_execution_cmd()
-        current_location = os.path.dirname(os.path.abspath(lithops.localhost.__file__))
-        handler_file = os.path.join(STORAGE_DIR, LOCAL_HANDLER_NAME)
-        process = subprocess.run([exec_command, handler_file, 'modules'], check=True,
+        self.env.setup()
+        exec_command = self.env.get_execution_cmd(runtime)
+        process = subprocess.run(exec_command+' modules', shell=True, check=True,
                                  stdout=subprocess.PIPE, universal_newlines=True)
         runtime_meta = json.loads(process.stdout.strip())
 
@@ -95,8 +87,43 @@ class LocalhostHandler:
 
     def get_runtime_key(self, runtime_name):
         """
-        Genereate the runtime key that identifies the runtime
+        Generate the runtime key that identifies the runtime
         """
         runtime_key = os.path.join('localhost', self.env_type, runtime_name.strip("/"))
 
         return runtime_key
+
+
+class DockerEnv:
+    def __init__(self, docker_image):
+        self.runtime = docker_image
+
+    def setup(self):
+        os.makedirs(STORAGE_DIR, exist_ok=True)
+        shutil.copytree(LITHOPS_LOCATION, os.path.join(STORAGE_DIR, 'lithops'))
+        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', LOCAL_HANDLER_NAME)
+        copyfile(src_handler, HANDLER_FILE)
+
+    def get_execution_cmd(self, docker_image_name):
+        p = subprocess.run("id -u $USER", shell=True,
+                           check=True, stdout=subprocess.PIPE)
+        uid = int(p.stdout.strip())
+
+        cmd = ('docker run --user {} --rm -v {}:/tmp --entrypoint "python" {} {}'
+               .format(uid, TEMP, docker_image_name, HANDLER_FILE))
+
+        return cmd
+
+
+class DefaultEnv:
+    def __init__(self):
+        self.runtime = sys.executable
+
+    def setup(self):
+        os.makedirs(STORAGE_DIR, exist_ok=True)
+        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', LOCAL_HANDLER_NAME)
+        copyfile(src_handler, HANDLER_FILE)
+
+    def get_execution_cmd(self, runtime):
+        cmd = '{} {}'.format(self.runtime, HANDLER_FILE)
+        return cmd

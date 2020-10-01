@@ -21,7 +21,7 @@ import ibm_botocore
 from datetime import datetime, timezone
 from ibm_botocore.credentials import DefaultTokenManager
 from lithops.storage.utils import StorageNoSuchKeyError
-from lithops.utils import sizeof_fmt, is_lithops_function
+from lithops.utils import sizeof_fmt, is_lithops_worker
 from lithops.config import CACHE_DIR, load_yaml_config, dump_yaml_config
 
 
@@ -42,11 +42,11 @@ class IBMCloudObjectStorageBackend:
     def __init__(self, ibm_cos_config, **kwargs):
         logger.debug("Creating IBM COS client")
         self.ibm_cos_config = ibm_cos_config
-        self.is_lithops_function = is_lithops_function()
+        self.is_lithops_worker = is_lithops_worker()
         user_agent = ibm_cos_config['user_agent']
 
         service_endpoint = ibm_cos_config.get('endpoint').replace('http:', 'https:')
-        if self.is_lithops_function and 'private_endpoint' in ibm_cos_config:
+        if self.is_lithops_worker and 'private_endpoint' in ibm_cos_config:
             service_endpoint = ibm_cos_config.get('private_endpoint')
             if 'api_key' in ibm_cos_config:
                 service_endpoint = service_endpoint.replace('http:', 'https:')
@@ -106,7 +106,7 @@ class IBMCloudObjectStorageBackend:
                 token_minutes_diff = int((token_manager._expiry_time - datetime.now(timezone.utc)).total_seconds() / 60.0)
                 logger.debug("Token expiry time: {} - Minutes left: {}".format(token_manager._expiry_time, token_minutes_diff))
 
-            if (token_manager._is_expired() or token_minutes_diff < 11) and not is_lithops_function():
+            if (token_manager._is_expired() or token_minutes_diff < 11) and not is_lithops_worker():
                 logger.debug("Using IBM {} API Key - Token expired. Requesting new token".format(api_key_type))
                 token_manager._token = None
                 token_manager.get_token()

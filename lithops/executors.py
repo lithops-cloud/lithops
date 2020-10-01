@@ -459,8 +459,8 @@ class Executor:
 
 class LocalhostExecutor(Executor):
 
-    def __init__(self, config=None, docker_image=None, virtualenv=None,
-                 workers=None, storage=None, storage_region=None,
+    def __init__(self, config=None, runtime=None,workers=None,
+                 storage=None, storage_region=None,
                  rabbitmq_monitor=None, log_level=None):
         """
         Initialize a LocalhostExecutor class.
@@ -481,10 +481,8 @@ class LocalhostExecutor(Executor):
 
         # Overwrite lithops config parameters
         config_ow = {'lithops': {'executor': 'localhost'}, 'localhost': {}}
-        if docker_image is not None:
-            config_ow['localhost']['docker_image'] = docker_image
-        if virtualenv is not None:
-            config_ow['localhost']['virtualenv'] = virtualenv
+        if runtime is not None:
+            config_ow['localhost']['runtime'] = runtime
         if storage is not None:
             config_ow['lithops']['storage'] = storage
         if storage_region is not None:

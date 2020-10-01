@@ -21,7 +21,7 @@ import textwrap
 from . import config as openwhisk_config
 from lithops.utils import version_str
 from lithops.version import __version__
-from lithops.utils import is_lithops_function
+from lithops.utils import is_lithops_worker
 from lithops.libs.openwhisk.client import OpenWhiskClient
 from lithops.serverless.utils import create_function_handler_zip
 
@@ -38,7 +38,7 @@ class OpenWhiskBackend:
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'openwhisk'
         self.ow_config = ow_config
-        self.is_lithops_function = is_lithops_function()
+        self.is_lithops_worker = is_lithops_worker()
 
         self.user_agent = ow_config['user_agent']
 
@@ -173,7 +173,7 @@ class OpenWhiskBackend:
         action_name = self._format_action_name(docker_image_name, runtime_memory)
 
         activation_id = self.cf_client.invoke(self.package, action_name,
-                                              payload, self.is_lithops_function)
+                                              payload, self.is_lithops_worker)
 
         return activation_id
 

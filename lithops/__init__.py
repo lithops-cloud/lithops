@@ -21,16 +21,14 @@ from lithops.version import __version__
 name = "lithops"
 
 
-def local_executor(config=None, docker_image=None, virtualenv=None,
-                   workers=None, storage=None, storage_region=None,
-                   rabbitmq_monitor=None, log_level=None):
+def local_executor(config=None, runtime=None, workers=None, storage=None,
+                   storage_region=None, rabbitmq_monitor=None, log_level=None):
 
     if storage is None:
         storage = 'localhost'
 
     return LocalhostExecutor(
-        config=config, docker_image=docker_image,
-        virtualenv=virtualenv,
+        config=config, runtime=runtime,
         workers=workers, storage=storage,
         storage_region=storage_region,
         rabbitmq_monitor=rabbitmq_monitor,

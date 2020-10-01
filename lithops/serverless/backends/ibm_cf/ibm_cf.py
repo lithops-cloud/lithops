@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from ibm_botocore.credentials import DefaultTokenManager
 from lithops.utils import version_str
 from lithops.version import __version__
-from lithops.utils import is_lithops_function
+from lithops.utils import is_lithops_worker
 from lithops.config import CACHE_DIR, load_yaml_config, dump_yaml_config
 from lithops.libs.openwhisk.client import OpenWhiskClient
 from lithops.serverless.utils import create_function_handler_zip
@@ -42,7 +42,7 @@ class IBMCloudFunctionsBackend:
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'ibm_cf'
         self.ibm_cf_config = ibm_cf_config
-        self.is_lithops_function = is_lithops_function()
+        self.is_lithops_worker = is_lithops_worker()
 
         self.user_agent = ibm_cf_config['user_agent']
         self.region = ibm_cf_config['region']
@@ -88,7 +88,7 @@ class IBMCloudFunctionsBackend:
                 token_minutes_diff = int((token_manager._expiry_time - datetime.now(timezone.utc)).total_seconds() / 60.0)
                 logger.debug("Token expiry time: {} - Minutes left: {}".format(token_manager._expiry_time, token_minutes_diff))
 
-            if (token_manager._is_expired() or token_minutes_diff < 11) and not is_lithops_function():
+            if (token_manager._is_expired() or token_minutes_diff < 11) and not is_lithops_worker():
                 logger.debug("Using IBM IAM API Key - Token expired. Requesting new token")
                 token_manager._token = None
                 token_manager.get_token()
@@ -224,7 +224,7 @@ class IBMCloudFunctionsBackend:
         activation_id = self.cf_client.invoke(package=self.package,
                                               action_name=action_name,
                                               payload=payload,
-                                              is_ow_action=self.is_lithops_function)
+                                              is_ow_action=self.is_lithops_worker)
 
         return activation_id
 

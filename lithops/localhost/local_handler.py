@@ -25,10 +25,15 @@ CPU_COUNT = multiprocessing.cpu_count()
 def extract_runtime_meta():
     runtime_meta = dict()
     mods = list(pkgutil.iter_modules())
-    runtime_meta["preinstalls"] = [entry for entry in sorted([[mod, is_pkg] for _, mod, is_pkg in mods])]
+    runtime_meta["preinstalls"] = [entry for entry in sorted([[mod, is_pkg]for _, mod, is_pkg in mods])]
     runtime_meta["python_ver"] = version_str(sys.version_info)
 
     print(json.dumps(runtime_meta))
+
+
+class ShutdownSentinel():
+    """Put an instance of this class on the queue to shut it down"""
+    pass
 
 
 class LocalhostExecutor:
@@ -67,7 +72,7 @@ class LocalhostExecutor:
         while True:
             event = self.queue.get(block=True)
 
-            if event is None:
+            if isinstance(event, ShutdownSentinel):
                 break
 
             act_id = str(uuid.uuid4()).replace('-', '')[:12]
@@ -101,7 +106,7 @@ class LocalhostExecutor:
             self._invoke(job, call_id)
 
         for i in self.workers:
-            self.queue.put(None)
+            self.queue.put(ShutdownSentinel())
 
     def wait(self):
         for worker in self.workers:
@@ -122,8 +127,11 @@ if __name__ == "__main__":
         with open(job_filename, 'rb') as jf:
             job = SimpleNamespace(**json.load(jf))
 
-        logger.info('ExecutorID {} | JobID {} - Starting execution'.format(job.executor_id, job.job_id))
-        localhost_execuor = LocalhostExecutor(job.config, job.executor_id, job.job_id, job.log_level)
+        logger.info('ExecutorID {} | JobID {} - Starting execution'
+                    .format(job.executor_id, job.job_id))
+        localhost_execuor = LocalhostExecutor(job.config, job.executor_id,
+                                              job.job_id, job.log_level)
         localhost_execuor.run(job.job_description)
         localhost_execuor.wait()
-        logger.info('ExecutorID {} | JobID {} - Execution Finished'.format(job.executor_id, job.job_id))
+        logger.info('ExecutorID {} | JobID {} - Execution Finished'
+                    .format(job.executor_id, job.job_id))

@@ -15,6 +15,8 @@
 #
 
 import sys
+import subprocess
+from lithops.config import TEMP
 
 
 class VirtualEnv:
@@ -23,7 +25,7 @@ class VirtualEnv:
 
         # unpakage virtual env
 
-    def get_execution_cmd(self):
+    def get_execution_cmd(self, runtime):
         return self.runtime
 
 
@@ -31,13 +33,21 @@ class DockerEnv:
     def __init__(self, docker_image):
         self.runtime = docker_image
 
-    def get_execution_cmd(self):
-        pass
+    def get_execution_cmd(self, docker_image_name):
+        p = subprocess.run("id -u $USER", shell=True,
+                           check=True, stdout=subprocess.PIPE)
+        uid = p.stdout.strip()
 
+        name = self._format_runtime_name(docker_image_name)
+
+        cmd = cmd = ('docker run -d --name {} --user {} -v {}:/tmp'
+                     ' --entrypoint "python" {} /tmp/local_handler.py'
+                     .format(name, uid, TEMP, 
+                             docker_image_name, DOCKER_BASE_FOLDER))
 
 class DefaultEnv:
     def __init__(self):
         self.runtime = sys.executable
 
-    def get_execution_cmd(self):
+    def get_execution_cmd(self, runtime):
         return self.runtime
