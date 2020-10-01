@@ -26,5 +26,3 @@ COPY lithops_codeengine.zip .
 RUN unzip lithops_codeengine.zip
 RUN rm lithops_codeengine.zip
 
-CMD exec gunicorn --bind :$PORT --workers 1 --timeout 600 lithopsproxy:proxy
-
