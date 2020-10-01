@@ -30,7 +30,7 @@ from lithops.version import __version__
 from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config, extract_serverless_config,\
     extract_localhost_config
-from lithops.utils import version_str, is_lithops_function, is_unix_system
+from lithops.utils import version_str, is_lithops_worker, is_unix_system
 from lithops.localhost.localhost import LocalhostHandler
 
 
@@ -96,6 +96,10 @@ class LocalhostInvoker:
         """
         Run a job
         """
+        job_description['runtime_name'] = self.config['localhost']['runtime']
+        job_description['runtime_memory'] = None
+        job_description['runtime_timeout'] = None
+
         job = SimpleNamespace(**job_description)
 
         payload = {'config': self.config,
@@ -106,6 +110,15 @@ class LocalhostInvoker:
                    'lithops_version': __version__}
 
         self.localhost_handler.run_job(payload)
+
+        futures = []
+        for i in range(job.total_calls):
+            call_id = "{:05d}".format(i)
+            fut = ResponseFuture(call_id, job_description, job.metadata.copy(), self.storage_config)
+            fut._set_state(ResponseFuture.State.Invoked)
+            futures.append(fut)
+
+        return futures
 
     def stop(self):
         """
@@ -125,7 +138,7 @@ class ServerlessInvoker:
         self.executor_id = executor_id
         self.storage_config = extract_storage_config(self.config)
         self.internal_storage = internal_storage
-        self.is_lithops_function = is_lithops_function()
+        self.is_lithops_worker = is_lithops_worker()
         self.invokers = []
 
         self.serverless_handlers = []
@@ -222,7 +235,7 @@ class ServerlessInvoker:
         """
         Starts the invoker process responsible to spawn pending calls in background
         """
-        if self.is_lithops_function or not is_unix_system():
+        if self.is_lithops_worker or not is_unix_system():
             for inv_id in range(INVOKER_PROCESSES):
                 p = Thread(target=self._run_invoker_process, args=(inv_id, ))
                 self.invokers.append(p)
@@ -445,7 +458,7 @@ class JobMonitor:
         self.config = lithops_config
         self.internal_storage = internal_storage
         self.token_bucket_q = token_bucket_q
-        self.is_lithops_function = is_lithops_function()
+        self.is_lithops_worker = is_lithops_worker()
         self.monitors = []
 
         self.rabbitmq_monitor = self.config['lithops'].get('rabbitmq_monitor', False)
@@ -465,7 +478,7 @@ class JobMonitor:
             th = Thread(target=self._job_monitoring_rabbitmq, args=(job,))
         else:
             th = Thread(target=self._job_monitoring_os, args=(job,))
-        if not self.is_lithops_function:
+        if not self.is_lithops_worker:
             th.daemon = True
         th.start()
 

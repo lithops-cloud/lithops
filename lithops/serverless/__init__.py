@@ -1,1 +1,1 @@
-from .handler import ServerlesHandler
+from .serverless import ServerlesHandler

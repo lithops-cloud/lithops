@@ -17,6 +17,7 @@
 import os
 import json
 import importlib
+import tempfile
 import logging.config
 from lithops.version import __version__
 
@@ -36,9 +37,12 @@ RUNTIMES_PREFIX = "lithops.runtimes"
 
 MAX_AGG_DATA_SIZE = 4  # 4MiB
 
+TEMP = os.path.realpath(tempfile.gettempdir())
+STORAGE_DIR = os.path.join(TEMP, 'lithops-data')
+
 HOME_DIR = os.path.expanduser('~')
 CONFIG_DIR = os.path.join(HOME_DIR, '.lithops')
-TEMP_STORAGE_DIR = os.path.join(CONFIG_DIR, 'temp')
+TEMP_DIR = os.path.join(CONFIG_DIR, 'temp')
 CACHE_DIR = os.path.join(CONFIG_DIR, 'cache')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config')
 

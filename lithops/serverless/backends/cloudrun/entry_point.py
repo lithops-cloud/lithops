@@ -28,7 +28,7 @@ def run():
         return error()
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
-    os.environ['__PW_ACTIVATION_ID'] = act_id
+    os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
 
     if 'remote_invoker' in message:
         logger.info("Lithops v{} - Starting Cloud Run invoker".format(__version__))

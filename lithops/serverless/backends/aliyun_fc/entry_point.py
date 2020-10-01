@@ -28,7 +28,7 @@ logger = logging.getLogger('__main__')
 
 def main(event, context):
     args = json.loads(event)
-    os.environ['__PW_ACTIVATION_ID'] = context.request_id
+    os.environ['__LITHOPS_ACTIVATION_ID'] = context.request_id
     if 'remote_invoker' in args:
         logger.info("Lithops v{} - Starting invoker".format(__version__))
         function_invoker(args)

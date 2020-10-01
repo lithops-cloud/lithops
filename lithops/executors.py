@@ -26,7 +26,7 @@ from lithops.storage.utils import delete_cloudobject
 from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from lithops.job import create_map_job, create_reduce_job, clean_job
 from lithops.config import default_config, extract_storage_config, default_logging_config
-from lithops.utils import timeout_handler, is_notebook, is_unix_system, is_lithops_function, create_executor_id
+from lithops.utils import timeout_handler, is_notebook, is_unix_system, is_lithops_worker, create_executor_id
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +38,9 @@ class Executor:
     """
 
     def __init__(self):
-        self.is_lithops_worker = is_lithops_function()
+        self.is_lithops_worker = is_lithops_worker()
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
-        self.is_lithops_worker = is_lithops_function()
+        self.is_lithops_worker = is_lithops_worker()
         self.executor_id = create_executor_id()
 
         self.data_cleaner = self.config['lithops'].get('data_cleaner', True)
