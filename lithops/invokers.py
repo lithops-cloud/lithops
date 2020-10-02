@@ -25,13 +25,14 @@ from threading import Thread
 from types import SimpleNamespace
 from multiprocessing import Process, Queue, Value
 from concurrent.futures import ThreadPoolExecutor
+from lithops.localhost import LocalhostHandler
 from lithops.serverless import ServerlesHandler
+from lithops.standalone import StandaloneHandler
 from lithops.version import __version__
 from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config, extract_serverless_config,\
-    extract_localhost_config
+    extract_localhost_config, extract_standalone_config
 from lithops.utils import version_str, is_lithops_worker, is_unix_system
-from lithops.localhost.localhost import LocalhostHandler
 
 
 logger = logging.getLogger(__name__)
@@ -110,6 +111,93 @@ class LocalhostInvoker:
                    'lithops_version': __version__}
 
         self.localhost_handler.run_job(payload)
+
+        futures = []
+        for i in range(job.total_calls):
+            call_id = "{:05d}".format(i)
+            fut = ResponseFuture(call_id, job_description, job.metadata.copy(), self.storage_config)
+            fut._set_state(ResponseFuture.State.Invoked)
+            futures.append(fut)
+
+        return futures
+
+    def stop(self):
+        """
+        Stop the invoker process
+        """
+        pass
+
+
+class StandaloneInvoker:
+    """
+    Module responsible to perform the invocations against the Standalone backend
+    """
+    def __init__(self, config, executor_id, internal_storage):
+        self.log_active = logger.getEffectiveLevel() != logging.WARNING
+        self.config = config
+        self.executor_id = executor_id
+        self.storage_config = extract_storage_config(self.config)
+        self.internal_storage = internal_storage
+
+        standalone_config = extract_standalone_config(self.config)
+        self.standalone_handler = StandaloneHandler(standalone_config)
+        self.runtime_name = self.standalone_handler.env.runtime
+
+    def select_runtime(self, job_id, runtime_memory):
+        log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {}'
+                   .format(self.executor_id, job_id, self.runtime_name))
+        logger.info(log_msg)
+        if not self.log_active:
+            print(log_msg, end=' ')
+
+        runtime_key = self.standalone_handler.get_runtime_key(self.runtime_name)
+        runtime_deployed = True
+        try:
+            runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
+        except Exception:
+            runtime_deployed = False
+
+        if not runtime_deployed:
+            logger.debug('ExecutorID {} | JobID {} - Runtime {} is not yet '
+                         'installed'.format(self.executor_id, job_id, self.runtime_name))
+            if not self.log_active:
+                print('(Installing...)')
+
+            logger.debug('Creating runtime: {}'.format(self.runtime_name))
+            runtime_meta = self.standalone_handler.create_runtime(self.runtime_name)
+            self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
+
+        py_local_version = version_str(sys.version_info)
+        py_remote_version = runtime_meta['python_ver']
+
+        if py_local_version != py_remote_version:
+            raise Exception(("The indicated runtime '{}' is running Python {} and it "
+                             "is not compatible with the local Python version {}")
+                            .format(self.runtime_name, py_remote_version, py_local_version))
+
+        if not self.log_active and runtime_deployed:
+            print()
+
+        return runtime_meta
+
+    def run(self, job_description):
+        """
+        Run a job
+        """
+        job_description['runtime_name'] = self.config['standalone']['runtime']
+        job_description['runtime_memory'] = None
+        job_description['runtime_timeout'] = None
+
+        job = SimpleNamespace(**job_description)
+
+        payload = {'config': self.config,
+                   'log_level': logging.getLevelName(logger.getEffectiveLevel()),
+                   'executor_id': job.executor_id,
+                   'job_id': job.job_id,
+                   'job_description': job_description,
+                   'lithops_version': __version__}
+
+        self.standalone_handler.run_job(payload)
 
         futures = []
         for i in range(job.total_calls):

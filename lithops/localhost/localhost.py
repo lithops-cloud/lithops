@@ -23,13 +23,12 @@ import shutil
 import subprocess
 from shutil import copyfile
 
-from lithops.localhost.environments import DefaultEnv, VirtualEnv, DockerEnv
 from lithops.config import TEMP, STORAGE_DIR, JOBS_PREFIX
 
 
 logger = logging.getLogger(__name__)
-LOCAL_HANDLER_NAME = 'local_handler.py'
-HANDLER_FILE = os.path.join(STORAGE_DIR, LOCAL_HANDLER_NAME)
+
+HANDLER_FILE = os.path.join(STORAGE_DIR, 'local_handler.py')
 LITHOPS_LOCATION = os.path.dirname(os.path.abspath(lithops.__file__))
 
 
@@ -52,7 +51,7 @@ class LocalhostHandler:
 
     def run_job(self, job_payload):
         """
-        Run the job description agains the selected environemnt
+        Run the job description against the selected environment
         """
         runtime = job_payload['job_description']['runtime_name']
         exec_command = self.env.get_execution_cmd(runtime)
@@ -100,18 +99,14 @@ class DockerEnv:
 
     def setup(self):
         os.makedirs(STORAGE_DIR, exist_ok=True)
+        shutil.rmtree(os.path.join(STORAGE_DIR, 'lithops'))
         shutil.copytree(LITHOPS_LOCATION, os.path.join(STORAGE_DIR, 'lithops'))
-        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', LOCAL_HANDLER_NAME)
+        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'entry_point.py')
         copyfile(src_handler, HANDLER_FILE)
 
     def get_execution_cmd(self, docker_image_name):
-        p = subprocess.run("id -u $USER", shell=True,
-                           check=True, stdout=subprocess.PIPE)
-        uid = int(p.stdout.strip())
-
-        cmd = ('docker run --user {} --rm -v {}:/tmp --entrypoint "python" {} {}'
-               .format(uid, TEMP, docker_image_name, HANDLER_FILE))
-
+        cmd = ('docker run --user $(id -u):$(id -g) --rm -v {}:/tmp --entrypoint "python"'
+               ' {} {}'.format(TEMP, docker_image_name, HANDLER_FILE))
         return cmd
 
 
@@ -121,7 +116,7 @@ class DefaultEnv:
 
     def setup(self):
         os.makedirs(STORAGE_DIR, exist_ok=True)
-        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', LOCAL_HANDLER_NAME)
+        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'entry_point.py')
         copyfile(src_handler, HANDLER_FILE)
 
     def get_execution_cmd(self, runtime):

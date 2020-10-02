@@ -28,56 +28,56 @@ class ServerlesHandler:
 
     def __init__(self, servereless_config):
         self.config = servereless_config
-        self.backend = self.config['backend']
-        self.serverless_backend = None
+        self.backend_name = self.config['backend']
+        self.backend = None
 
         try:
-            module_location = 'lithops.serverless.backends.{}'.format(self.backend)
+            module_location = 'lithops.serverless.backends.{}'.format(self.backend_name)
             sb_module = importlib.import_module(module_location)
             ServerlessBackend = getattr(sb_module, 'ServerlessBackend')
-            self.serverless_backend = ServerlessBackend(self.config[self.backend])
+            self.backend = ServerlessBackend(self.config[self.backend_name])
 
         except Exception as e:
-            logger.error("There was an error trying to create the {} serverless backend".format(self.backend))
+            logger.error("There was an error trying to create the {} serverless backend".format(self.backend_name))
             raise e
 
     def invoke(self, runtime_name, memory, payload):
         """
         Invoke -- return information about this invocation
         """
-        return self.serverless_backend.invoke(runtime_name, memory, payload)
+        return self.backend.invoke(runtime_name, memory, payload)
 
     def build_runtime(self, runtime_name, file):
         """
         Wrapper method to build a new runtime for the compute backend.
         return: the name of the runtime
         """
-        self.serverless_backend.build_runtime(runtime_name, file)
+        self.backend.build_runtime(runtime_name, file)
 
     def create_runtime(self, runtime_name, memory, timeout):
         """
         Wrapper method to create a runtime in the compute backend.
         return: the name of the runtime
         """
-        return self.serverless_backend.create_runtime(runtime_name, memory, timeout=timeout)
+        return self.backend.create_runtime(runtime_name, memory, timeout=timeout)
 
     def delete_runtime(self, runtime_name, memory):
         """
         Wrapper method to create a runtime in the compute backend
         """
-        self.serverless_backend.delete_runtime(runtime_name, memory)
+        self.backend.delete_runtime(runtime_name, memory)
 
     def delete_all_runtimes(self):
         """
         Wrapper method to create a runtime in the compute backend
         """
-        self.serverless_backend.delete_all_runtimes()
+        self.backend.delete_all_runtimes()
 
     def list_runtimes(self, runtime_name='all'):
         """
         Wrapper method to list deployed runtime in the compute backend
         """
-        return self.serverless_backend.list_runtimes(runtime_name)
+        return self.backend.list_runtimes(runtime_name)
 
     def get_runtime_key(self, runtime_name, memory):
         """
@@ -85,4 +85,4 @@ class ServerlesHandler:
         Each backend has its own runtime key format. Used to store modules preinstalls
         into the storage
         """
-        return self.serverless_backend.get_runtime_key(runtime_name, memory)
+        return self.backend.get_runtime_key(runtime_name, memory)

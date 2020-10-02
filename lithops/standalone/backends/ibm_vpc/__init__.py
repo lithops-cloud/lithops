@@ -1,1 +1,1 @@
-from .ibm_vpc import IBMVPCInstanceClient as RemoteInstanceClient
+from .ibm_vpc import IBMVPCInstanceClient as StandaloneBackend

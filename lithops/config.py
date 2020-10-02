@@ -150,6 +150,8 @@ def default_config(config_data=None, config_overwrite={}):
             config_data['standalone'] = {}
         if 'backend' not in config_data['standalone']:
             config_data['standalone']['backend'] = STANDALONE_BACKEND_DEFAULT
+        if 'runtime' not in config_data['standalone']:
+            config_data['standalone']['runtime'] = None
         sb = config_data['standalone']['backend']
         logger.debug("Loading Standalone backend module: {}".format(sb))
         sb_config = importlib.import_module('lithops.standalone.backends.{}.config'.format(sb))

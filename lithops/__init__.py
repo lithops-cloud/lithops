@@ -15,7 +15,7 @@
 #
 
 import tempfile
-from lithops.executors import ServerlessExecutor, LocalhostExecutor
+from lithops.executors import ServerlessExecutor, StandaloneExecutor, LocalhostExecutor
 from lithops.version import __version__
 
 name = "lithops"
@@ -49,6 +49,22 @@ def serverless_executor(config=None, backend=None, runtime=None,
         storage_region=storage_region,
         rabbitmq_monitor=rabbitmq_monitor,
         remote_invoker=remote_invoker,
+        log_level=log_level
+    )
+
+
+def standalone_executor(config=None, backend=None, region=None,
+                        runtime=None, cpu=None, memory=None, instances=None,
+                        storage=None, storage_region=None, workers=None,
+                        rabbitmq_monitor=None, log_level=None):
+
+    return StandaloneExecutor(
+        config=config, runtime=runtime,
+        backend=backend, region=region,
+        workers=workers, cpu=cpu, memory=memory,
+        instances=instances, storage=storage,
+        storage_region=storage_region,
+        rabbitmq_monitor=rabbitmq_monitor,
         log_level=log_level
     )
 

@@ -25,6 +25,7 @@ import platform
 import logging
 import threading
 import io
+import paramiko
 
 
 logger = logging.getLogger(__name__)
@@ -95,6 +96,57 @@ def delete_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id):
     channel.queue_delete(queue=queue_1)
     channel.exchange_delete(exchange=exchange)
     connection.close()
+
+
+ssh_clients = {}
+
+
+def ssh_run_remote_command(ip_address, ssh_credentials, cmd, timeout=None):
+    global ssh_clients
+    if ip_address not in ssh_clients:
+        ssh_clients[ip_address] = paramiko.SSHClient()
+        ssh_clients[ip_address].set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh_clients[ip_address].connect(ip_address, **ssh_credentials, timeout=timeout)
+
+    try:
+        stdin, stdout, stderr = ssh_clients[ip_address].exec_command(cmd)
+    except Exception:
+        # Connection expired
+        ssh_clients[ip_address].connect(ip_address, **ssh_credentials, timeout=timeout)
+        stdin, stdout, stderr = ssh_clients[ip_address].exec_command(cmd)
+
+    out = stdout.read().decode().strip()
+    error = stderr.read().decode().strip()
+
+    if error:
+        raise Exception('There was an error running remote ssh command: {}'.format(error))
+
+    return out
+
+
+def ssh_upload_local_file(ip_address, ssh_credentials, local_src, remote_dst):
+    global ssh_clients
+    if ip_address not in ssh_clients:
+        ssh_clients[ip_address] = paramiko.SSHClient()
+        ssh_clients[ip_address].set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh_clients[ip_address].connect(ip_address, **ssh_credentials)
+    ftp_client = ssh_clients[ip_address].open_sftp()
+    ftp_client.put(local_src, remote_dst)
+    ftp_client.close()
+
+
+def ssh_upload_data_to_file(ip_address, ssh_credentials, data, remote_dst):
+    global ssh_clients
+    if ip_address not in ssh_clients:
+        ssh_clients[ip_address] = paramiko.SSHClient()
+        ssh_clients[ip_address].set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh_clients[ip_address].connect(ip_address, **ssh_credentials)
+    ftp_client = ssh_clients[ip_address].open_sftp()
+
+    with ftp_client.open(remote_dst, 'w') as f:
+        f.write(data)
+
+    ftp_client.close()
 
 
 def agg_data(data_strs):

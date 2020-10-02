@@ -20,7 +20,7 @@ import copy
 import signal
 import logging
 from functools import partial
-from lithops.invokers import ServerlessInvoker, LocalhostInvoker
+from lithops.invokers import ServerlessInvoker, LocalhostInvoker, StandaloneInvoker
 from lithops.storage import InternalStorage
 from lithops.storage.utils import delete_cloudobject
 from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
@@ -576,9 +576,8 @@ class StandaloneExecutor(Executor):
         :param rabbitmq_monitor: use rabbitmq as the monitoring system. Default None.
         :param log_level: log level to use during the execution. Default None.
 
-        :return `ServerlessExecutor` object.
+        :return `StandaloneExecutor` object.
         """
-
         if log_level:
             default_logging_config(log_level)
 
@@ -605,9 +604,9 @@ class StandaloneExecutor(Executor):
         if rabbitmq_monitor is not None:
             config_ow['lithops']['rabbitmq_monitor'] = rabbitmq_monitor
 
-        loaded_config = default_config(copy.deepcopy(config), config_ow)
+        self.config = default_config(copy.deepcopy(config), config_ow)
 
-        Executor.__init__(self, loaded_config, log_level)
+        Executor.__init__(self)
 
         self.invoker = StandaloneInvoker(self.config, self.executor_id, self.internal_storage)
 
