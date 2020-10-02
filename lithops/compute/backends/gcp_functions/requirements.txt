@@ -10,7 +10,7 @@ google-auth==1.22.0
 certifi==2019.6.16
 chardet==3.0.4
 docutils==0.14
-httplib2==0.12.1
+httplib2==0.18.0
 idna==2.8
 jmespath==0.9.4
 kafka-python==1.4.4
