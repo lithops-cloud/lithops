@@ -55,7 +55,7 @@ AUDIENCE = "https://pubsub.googleapis.com/google.pubsub.v1.Publisher"
 
 
 class GCPFunctionsBackend:
-    def __init__(self, gcp_functions_config):
+    def __init__(self, gcp_functions_config, storage_config):
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'gcp_functions'
         self.gcp_functions_config = gcp_functions_config
