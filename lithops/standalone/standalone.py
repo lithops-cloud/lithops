@@ -20,13 +20,10 @@ import json
 import lithops
 import time
 import logging
-import shutil
 import importlib
-import subprocess
-from shutil import copyfile
 
 from lithops.config import TEMP, STORAGE_DIR, JOBS_PREFIX
-from lithops.utils import ssh_run_remote_command, ssh_upload_local_file, ssh_upload_data_to_file
+from lithops.utils import SSHClient
 from lithops.serverless.utils import create_function_handler_zip
 
 logger = logging.getLogger(__name__)
@@ -71,30 +68,21 @@ class StandaloneHandler:
         self.ssh_credentials = self.backend.get_ssh_credentials()
         self.ip_address = self.backend.get_ip_address()
 
+        self.ssh_client = SSHClient(self.ssh_credentials)
+
         if self.runtime is None:
-            self.env = DefaultEnv(self.ssh_credentials)
+            self.env = DefaultEnv(self.ssh_client)
             self.env_type = 'default'
         else:
-            self.env = DockerEnv(self.ssh_credentials, self.runtime)
+            self.env = DockerEnv(self.ssh_client, self.runtime)
             self.env_type = 'docker'
 
     def _is_backend_ready(self):
         """
         Checks if the VM instance is ready to receive ssh connections
         """
-        #try:
-        #    cmd = 'nc -vzw 2 {} 22'.format(self.ip_address)
-        #    subprocess.run(cmd, shell=True, check=True,
-        #                   stdout=subprocess.DEVNULL,
-        #                   stderr=subprocess.DEVNULL)
-        #    return True
-        #except Exception:
-        #    False
-
         try:
-            ssh_run_remote_command(self.ip_address,
-                                   self.ssh_credentials,
-                                   'id', timeout=2)
+            self.ssh_client.ssh_run_remote_command(self.ip_address, 'id', timeout=2)
         except Exception:
             return False
         return True
@@ -104,8 +92,7 @@ class StandaloneHandler:
         Waits until the VM instance is ready to receive ssh connections
         """
         logger.info('Waiting VM instance to become ready')
-        # cmd = 'until nc -vzw 2 {} 22; do sleep 1; done;'.format(self.ip_address)
-        # subprocess.run(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
         start = time.time()
         while(time.time() - start < self.self_start_timeout):
             if self._is_backend_ready():
@@ -139,70 +126,148 @@ class StandaloneHandler:
         cmd = 'rm -r {} > /dev/null 2>&1; '.format(STORAGE_DIR)
         cmd += 'ln -s {} {} > /dev/null 2>&1 '.format(REMOTE_TMP_DIR, STORAGE_DIR)
         cmd += '&& mkdir -p {}'.format(job_dir)
-        ssh_run_remote_command(self.ip_address, self.ssh_credentials, cmd)
+        self.ssh_client.ssh_run_remote_command(self.ip_address, cmd)
 
-        ssh_upload_data_to_file(self.ip_address, self.ssh_credentials,
-                                json.dumps(job_payload), dst_job)
+        self.ssh_client.ssh_upload_data_to_file(self.ip_address, json.dumps(job_payload), dst_job)
+
         cmd = exec_command+' run '+dst_job+' >> {} &'.format(LOG_FILE)
-        ssh_run_remote_command(self.ip_address, self.ssh_credentials, cmd)
+        self.ssh_client.ssh_run_remote_command(self.ip_address, cmd, background=True)
 
     def create_runtime(self, runtime):
         """
         Extract the runtime metadata and preinstalled modules
         """
-        ip_address = self.backend.start()
-        self._wait_backend_ready(ip_address)
+        self.backend.start()
+        self._wait_backend_ready()
 
-        self.env.setup(ip_address)
-        exec_command = self.env.get_execution_cmd(runtime)
-        runtime_meta = ssh_run_remote_command(ip_address, self.ssh_credentials,
-                                              exec_command+' modules')
+        self.env.setup(self.ip_address)
+
+        cmd = 'rm -r {} > /dev/null 2>&1; '.format(STORAGE_DIR)
+        cmd += 'ln -s {} {} > /dev/null 2>&1 &&'.format(REMOTE_TMP_DIR, STORAGE_DIR)
+        cmd += self.env.get_execution_cmd(runtime)
+        runtime_meta = self.ssh_client.ssh_run_remote_command(self.ip_address, cmd+' modules')
+
         return json.loads(runtime_meta)
 
     def get_runtime_key(self, runtime_name):
         """
         Generate the runtime key that identifies the runtime
         """
-        runtime_key = os.path.join('standalone', self.backend_name,
+        runtime_key = os.path.join('standalone', self.backend_name, self.ip_address,
                                    self.env_type, runtime_name.strip("/"))
 
         return runtime_key
 
 
 class DockerEnv:
-    def __init__(self, ssh_credentials, docker_image):
-        self.ssh_credentials = ssh_credentials
+
+    def __init__(self, ssh_client, docker_image):
+        self.ssh_client = ssh_client
         self.runtime = docker_image
 
-    def setup(self, public_ip):
-        os.makedirs(STORAGE_DIR, exist_ok=True)
-        shutil.copytree(LITHOPS_LOCATION, os.path.join(STORAGE_DIR, 'lithops'))
-        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', LOCAL_HANDLER_NAME)
-        copyfile(src_handler, HANDLER_FILE)
+    def _is_env_ready(self, ip_address):
+        """
+        Checks if VM instance is ready to use the docker execution env
+        """
+        try:
+            cmd = 'ls {}/docker_ready_sentinel'.format(STORAGE_DIR)
+            self.ssh_client.ssh_run_remote_command(ip_address, cmd, timeout=2)
+            return True
+        except Exception:
+            return False
+
+    def _wait_env_ready(self, ip_address):
+        """
+        Waits until the env is docker ready to run jobs
+        """
+        while not self._is_env_ready(ip_address):
+            time.sleep(1)
+
+    def setup(self, ip_address):
+        """
+        Installs the lithops lib and all the dependencies in the VM instance
+        """
+        if not self._is_env_ready(ip_address):
+            logger.info('Installing Docker environment in VM instance')
+
+            create_function_handler_zip(FH_ZIP_LOCATION, 'local_handler.py', __file__)
+            self.ssh_client.ssh_upload_local_file(ip_address, FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip')
+
+            cmd = 'apt-get remove docker docker-engine docker.io containerd runc -y '
+            cmd += '&& apt-get update '
+            cmd += '&& apt-get install unzip apt-transport-https ca-certificates curl gnupg-agent software-properties-common -y '
+            cmd += '&& curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - > /dev/null 2>&1 '
+            cmd += '&& add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" '
+            cmd += '&& apt-get update '
+            cmd += '&& apt-get install docker-ce docker-ce-cli containerd.io -y '
+
+            cmd += '&& rm -R -f {}; '.format(REMOTE_TMP_DIR)
+            cmd += 'mkdir -p {} '.format(REMOTE_TMP_DIR)
+            cmd += '&& unzip /tmp/lithops_standalone.zip -d {} > /dev/null 2>&1 '.format(REMOTE_TMP_DIR)
+            cmd += '&& rm /tmp/lithops_standalone.zip; '
+
+            cmd += 'rm -r {} > /dev/null 2>&1; '.format(STORAGE_DIR)
+            cmd += 'ln -s {} {} > /dev/null 2>&1 '.format(REMOTE_TMP_DIR, STORAGE_DIR)
+            cmd += '&& touch {}/docker_ready_sentinel &'.format(REMOTE_TMP_DIR)
+            self.ssh_client.ssh_run_remote_command(ip_address, cmd, background=True)
+            self._wait_env_ready(ip_address)
+
+        logger.info('Docker environment installed in VM instance')
 
     def get_execution_cmd(self, docker_image_name):
-        cmd = ('docker run --user $(id -u):$(id -g) --rm -v {}:/tmp --entrypoint "python"'
-               ' {} {}'.format(TEMP, docker_image_name, HANDLER_FILE))
+        cmd = ('docker run --user $(id -u):$(id -g) --rm -v {}/../:/tmp --entrypoint "python"'
+               ' {} {}'.format(REMOTE_TMP_DIR, docker_image_name, HANDLER_FILE))
         return cmd
 
 
 class DefaultEnv:
-    def __init__(self, ssh_credentials):
-        self.ssh_credentials = ssh_credentials
+    def __init__(self, ssh_client):
+        self.ssh_client = ssh_client
         self.runtime = sys.executable
 
-    def setup(self, ip_address):
-        create_function_handler_zip(FH_ZIP_LOCATION, 'local_handler.py', __file__)
-        ssh_upload_local_file(ip_address, self.ssh_credentials,
-                              FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip')
+    def _is_env_ready(self, ip_address):
+        """
+        Checks if VM instance is ready to use the default execution env
+        """
+        try:
+            cmd = 'ls {}/default_ready_sentinel'.format(STORAGE_DIR)
+            self.ssh_client.ssh_run_remote_command(ip_address, cmd, timeout=2)
+            return True
+        except Exception:
+            return False
 
-        cmd = 'apt-get update && apt-get install unzip python3-pip -y '
-        cmd += '&& pip3 install -U lithops '
-        cmd += '&& rm -R -f {} '.format(REMOTE_TMP_DIR)
-        cmd += '&& mkdir -p {} '.format(REMOTE_TMP_DIR)
-        cmd += '&& unzip /tmp/lithops_standalone.zip -d {} '.format(REMOTE_TMP_DIR)
-        cmd += '&& rm /tmp/lithops_standalone.zip'
-        ssh_run_remote_command(ip_address, self.ssh_credentials, cmd)
+    def _wait_env_ready(self, ip_address):
+        """
+        Waits until the default env is ready to run jobs
+        """
+        while not self._is_env_ready(ip_address):
+            time.sleep(1)
+
+    def setup(self, ip_address):
+        """
+        Installs the lithops lib and all the dependencies in the VM instance
+        """
+        if not self._is_env_ready(ip_address):
+            logger.info('Installing default environment in VM instance')
+
+            create_function_handler_zip(FH_ZIP_LOCATION, 'local_handler.py', __file__)
+            self.ssh_client.ssh_upload_local_file(ip_address, FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip')
+
+            cmd = 'apt-get update '
+            cmd += '&& apt-get install unzip python3-pip -y '
+
+            cmd += '&& rm -R -f {};'.format(REMOTE_TMP_DIR)
+            cmd += 'mkdir -p {} '.format(REMOTE_TMP_DIR)
+            cmd += '&& unzip /tmp/lithops_standalone.zip -d {} > /dev/null 2>&1 '.format(REMOTE_TMP_DIR)
+            cmd += '&& rm /tmp/lithops_standalone.zip; '
+
+            cmd += 'rm -r {} > /dev/null 2>&1; '.format(STORAGE_DIR)
+            cmd += 'ln -s {} {} > /dev/null 2>&1 '.format(REMOTE_TMP_DIR, STORAGE_DIR)
+            cmd += '&& touch {}/default_ready_sentinel &'.format(REMOTE_TMP_DIR)
+            self.ssh_client.ssh_run_remote_command(ip_address, cmd, background=True)
+            self._wait_env_ready(ip_address)
+
+        logger.info('Default environment installed in VM instance')
 
     def get_execution_cmd(self, runtime):
         cmd = '{} {}'.format('python3', HANDLER_FILE)
