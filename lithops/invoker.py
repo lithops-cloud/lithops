@@ -21,9 +21,10 @@ import pika
 import time
 import logging
 import random
+import multiprocessing
+import queue
 from threading import Thread
 from types import SimpleNamespace
-from multiprocessing import Process, Queue, Value
 from concurrent.futures import ThreadPoolExecutor
 from lithops.compute import Compute
 from lithops.version import __version__
@@ -73,12 +74,21 @@ class FunctionInvoker:
 
         logger.debug('ExecutorID {} - Creating function invoker'.format(self.executor_id))
 
-        self.token_bucket_q = Queue()
-        self.pending_calls_q = Queue()
-        self.running_flag = Value('i', 0)
+        if self.use_multiprocessing:
+            self.token_bucket_q = multiprocessing.Queue()
+            self.pending_calls_q = multiprocessing.Queue()
+            self.running_flag = multiprocessing.Value('i', 0)
+        else:
+            self.token_bucket_q = queue.Queue()
+            self.pending_calls_q = queue.Queue()
+            self.running_flag = SimpleNamespace(value=0)
         self.ongoing_activations = 0
 
         self.job_monitor = JobMonitor(self.config, self.internal_storage, self.token_bucket_q)
+
+    @property
+    def use_multiprocessing(self):
+        return not self.is_lithops_function and is_unix_system()
 
     def dismantle(self):
         for compute_handler in self.compute_handlers:
@@ -146,15 +156,15 @@ class FunctionInvoker:
         """
         Starts the invoker process responsible to spawn pending calls in background
         """
-        if self.is_lithops_function or not is_unix_system():
+        if self.use_multiprocessing:
             for inv_id in range(INVOKER_PROCESSES):
-                p = Thread(target=self._run_invoker_process, args=(inv_id, ))
+                p = multiprocessing.Process(target=self._run_invoker_process, args=(inv_id, ))
                 self.invokers.append(p)
                 p.daemon = True
                 p.start()
         else:
             for inv_id in range(INVOKER_PROCESSES):
-                p = Process(target=self._run_invoker_process, args=(inv_id, ))
+                p = Thread(target=self._run_invoker_process, args=(inv_id, ))
                 self.invokers.append(p)
                 p.daemon = True
                 p.start()
