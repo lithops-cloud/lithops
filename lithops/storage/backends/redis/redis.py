@@ -5,8 +5,8 @@ from lithops.storage.utils import StorageNoSuchKeyError
 
 logger = logging.getLogger(__name__)
 
-class RedisBackend:
 
+class RedisBackend:
     def __init__(self, config, bucket=None, executor_id=None):
         config.pop('user_agent', None)
         self._client = redis.StrictRedis(**config)
@@ -36,8 +36,8 @@ class RedisBackend:
         pipeline = self._client.pipeline(False)
 
         # create parent dirs
-        for i in range(1, len(components)-1):
-            dir = '/'.join(components[:i]) + '/' 
+        for i in range(1, len(components) - 1):
+            dir = '/'.join(components[:i]) + '/'
             pipeline.sadd(dir, components[i] + '/')
 
         # add file to lowest dir
@@ -47,7 +47,6 @@ class RedisBackend:
         # set actual key
         pipeline.set(redis_key, data)
         pipeline.execute()
-
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
         """
@@ -61,7 +60,7 @@ class RedisBackend:
 
         redis_key = self._format_key(bucket_name, key)
         try:
-            if 'Range' in extra_get_args:   # expected format: Range='bytes=L-H'
+            if 'Range' in extra_get_args:  # expected format: Range='bytes=L-H'
                 bytes_range = extra_get_args.pop('Range')[6:]
                 start, end = self._parse_range(bytes_range)
                 data = self._client.getrange(redis_key, start, end)
@@ -73,7 +72,7 @@ class RedisBackend:
 
         if data is None:
             raise StorageNoSuchKeyError(bucket_name, key)
-        
+
         if stream:
             return io.BytesIO(data)
         else:
@@ -180,7 +179,6 @@ class RedisBackend:
         offset = len(bucket_name) + 1
         return [key[offset:] for key in key_list]
 
-        
     def _walk(self, bucket_name, dir_key):
         dir_keys = [key.decode() for key in self._client.smembers(dir_key)]
         key_list = []
@@ -193,7 +191,6 @@ class RedisBackend:
                 key_list.append(full_key)
 
         return key_list
-
 
     def _format_key(self, bucket, key):
         return '/'.join([bucket, key])

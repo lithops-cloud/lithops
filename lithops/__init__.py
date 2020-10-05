@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 
-import tempfile
 from lithops.executor import FunctionExecutor
 from lithops.version import __version__
 
