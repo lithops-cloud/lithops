@@ -21,6 +21,7 @@ import time
 import pickle
 import random
 import logging
+import concurrent.futures
 from threading import Thread
 from multiprocessing.pool import ThreadPool
 from lithops.storage.utils import create_status_key
@@ -189,7 +190,8 @@ def _wait_storage(fs, running_futures, internal_storage, download_results, throw
     def fetch_future_status(f):
         return internal_storage.get_call_status(f.executor_id, f.job_id, f.call_id)
 
-    pool = ThreadPool(THREADPOOL_SIZE)
+    # pool = ThreadPool(THREADPOOL_SIZE)
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=THREADPOOL_SIZE)
 
     # now try up to max_direct_query_n direct status queries, quitting once
     # we have return_n done.
@@ -205,7 +207,12 @@ def _wait_storage(fs, running_futures, internal_storage, download_results, throw
         num_to_query_at_once = THREADPOOL_SIZE
         fs_to_query = still_not_done_futures[query_count:query_count + num_to_query_at_once]
 
-        fs_statuses = pool.map(fetch_future_status, fs_to_query)
+        # fs_statuses = pool.map(fetch_future_status, fs_to_query)
+        map_fut = []
+        for f_to_query in fs_to_query:
+            fut = pool.submit(fetch_future_status, f_to_query)
+            map_fut.append(fut)
+        fs_statuses = [f.result() for f in map_fut]
 
         callids_found = [(fs_to_query[i].executor_id, fs_to_query[i].job_id, fs_to_query[i].call_id)
                          for i in range(len(fs_to_query)) if fs_statuses[i] is not None]
@@ -219,14 +226,14 @@ def _wait_storage(fs, running_futures, internal_storage, download_results, throw
     # the ones that are actually done.
     fs_dones = []
     fs_notdones = []
-    f_to_wait_on = []
+    fs_to_wait_on = []
     for f in fs:
         if (download_results and f.done) or (not download_results and (f.ready or f.done)):
             # done, don't need to do anything
             fs_dones.append(f)
         else:
             if (f.executor_id, f.job_id, f.call_id) in done_call_ids:
-                f_to_wait_on.append(f)
+                fs_to_wait_on.append(f)
                 fs_dones.append(f)
             else:
                 fs_notdones.append(f)
@@ -247,21 +254,30 @@ def _wait_storage(fs, running_futures, internal_storage, download_results, throw
 #         else:
 #             executor.map(get_status, f_to_wait_on)
 
-    if download_results:
-        pool.map(get_result, f_to_wait_on)
-    else:
-        pool.map(get_status, f_to_wait_on)
+    # if download_results:
+    #     pool.map(get_result, f_to_wait_on)
+    # else:
+    #     pool.map(get_status, f_to_wait_on)
+    map_fut = []
+    for f_to_wait_on in fs_to_wait_on:
+        if download_results:
+            fut = pool.submit(get_result, f_to_wait_on)
+        else:
+            fut = pool.submit(get_status, f_to_wait_on)
+        map_fut.append(fut)
+    [f.result() for f in map_fut]
 
     if pbar:
-        for f in f_to_wait_on:
+        for f in fs_to_wait_on:
             if (download_results and f.done) or (not download_results and (f.ready or f.done)):
                 pbar.update(1)
         pbar.refresh()
-    pool.close()
-    pool.join()
+    # pool.close()
+    # pool.join()
+    pool.shutdown()
 
     # Check for new futures
-    new_futures = [f.result() for f in f_to_wait_on if f.futures]
+    new_futures = [f.result() for f in fs_to_wait_on if f.futures]
     for futures in new_futures:
         fs.extend(futures)
         if pbar:
