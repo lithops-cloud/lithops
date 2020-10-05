@@ -19,13 +19,13 @@ import logging
 import json
 import base64
 import httplib2
-import urllib
 import sys
 import zipfile
 import time
 import random
 import tempfile
 import textwrap
+import lithops
 from google.cloud import pubsub_v1
 from google.oauth2 import service_account
 from google_auth_httplib2 import AuthorizedHttp
@@ -34,10 +34,8 @@ from googleapiclient.errors import HttpError
 from google.auth import jwt
 import google.api_core.exceptions
 
-import lithops
 from lithops.version import __version__
 from lithops.utils import version_str
-from lithops import config
 from lithops.storage import InternalStorage
 
 logger = logging.getLogger(__name__)
@@ -59,7 +57,7 @@ class GCPFunctionsBackend:
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'gcp_functions'
         self.gcp_functions_config = gcp_functions_config
-        self.package = 'lithops_v'+__version__
+        self.package = 'lithops_v' + __version__
 
         self.region = gcp_functions_config['region']
         self.service_account = gcp_functions_config['service_account']
@@ -68,32 +66,33 @@ class GCPFunctionsBackend:
         self.num_retries = gcp_functions_config['retries']
         self.retry_sleeps = gcp_functions_config['retry_sleeps']
 
-        # Instantiate storage client (to upload function bin)
+        # Instantiate storage client (used to upload function bin)
         self.internal_storage = InternalStorage(gcp_functions_config['storage'])
 
-        # Setup pubsub client
-        try:  # Get credenitals from JSON file
+        # Setup Pub/Sub client
+        try:  # Get credentials from JSON file
             service_account_info = json.load(open(self.credentials_path))
             credentials = jwt.Credentials.from_service_account_info(service_account_info,
                                                                     audience=AUDIENCE)
             credentials_pub = credentials.with_claims(audience=AUDIENCE)
-        except Exception:  # Get credentials from gcp function environment
+        except:  # Get credentials from gcp function environment
             credentials_pub = None
         self.publisher_client = pubsub_v1.PublisherClient(credentials=credentials_pub)
 
-        log_msg = 'lithops v{} init for GCP Functions - Project: {} - Region: {}'.format(
-            __version__, self.project, self.region)
+        log_msg = 'lithops v{} init for GCP Functions - Project: {} - Region: {}'.format(__version__,
+                                                                                         self.project,
+                                                                                         self.region)
         logger.info(log_msg)
 
         if not self.log_active:
             print(log_msg)
 
     def _format_action_name(self, runtime_name, runtime_memory):
-        runtime_name = (self.package+'_'+runtime_name).replace('.', '-')
+        runtime_name = (self.package + '_' + runtime_name).replace('.', '-')
         return '{}_{}MB'.format(runtime_name, runtime_memory)
 
     def _format_topic_name(self, runtime_name, runtime_memory):
-        return self._format_action_name(runtime_name, runtime_memory)+'_topic'
+        return self._format_action_name(runtime_name, runtime_memory) + '_topic'
 
     def _unformat_action_name(self, action_name):
         split = action_name.split('_')
@@ -124,11 +123,10 @@ class GCPFunctionsBackend:
         return build('cloudfunctions', FUNCTIONS_API_VERSION, http=http, cache_discovery=False)
 
     def _get_default_runtime_image_name(self):
-        return 'python'+version_str(sys.version_info)
+        return 'python' + version_str(sys.version_info)
 
     def _create_handler_zip(self):
-        logger.debug("Creating function \
-            handler zip in {}".format(ZIP_LOCATION))
+        logger.debug("Creating function handler zip in {}".format(ZIP_LOCATION))
 
         def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
             for file in os.listdir(full_dir_path):
@@ -137,8 +135,7 @@ class GCPFunctionsBackend:
                     zip_file.write(full_path, os.path.join(
                         'lithops', sub_dir, file), zipfile.ZIP_DEFLATED)
                 elif os.path.isdir(full_path) and '__pycache__' not in full_path:
-                    add_folder_to_zip(zip_file, full_path,
-                                      os.path.join(sub_dir, file))
+                    add_folder_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
 
         try:
             with zipfile.ZipFile(ZIP_LOCATION, 'w') as lithops_zip:
@@ -147,20 +144,18 @@ class GCPFunctionsBackend:
                 main_file = os.path.join(current_location, 'entry_point.py')
                 lithops_zip.write(main_file, 'main.py', zipfile.ZIP_DEFLATED)
                 req_file = os.path.join(current_location, 'requirements.txt')
-                lithops_zip.write(req_file, 'requirements.txt',
-                                 zipfile.ZIP_DEFLATED)
+                lithops_zip.write(req_file, 'requirements.txt', zipfile.ZIP_DEFLATED)
                 add_folder_to_zip(lithops_zip, module_location)
         except Exception as e:
-            raise Exception(
-                'Unable to create the {} package: {}'.format(ZIP_LOCATION, e))
+            raise Exception('Unable to create the {} package: {}'.format(ZIP_LOCATION, e))
 
     def _create_function(self, runtime_name, memory, code, timeout=60, trigger='HTTP'):
-        logger.debug("Creating function {} - Memory: {} Timeout: {} Trigger: {}".format(
-            runtime_name, memory, timeout, trigger))
+        logger.debug("Creating function {} - Memory: {} Timeout: {} Trigger: {}".format(runtime_name,
+                                                                                        memory, timeout, trigger))
         default_location = self._full_default_location()
         function_location = self._full_function_location(
             self._format_action_name(runtime_name, memory))
-        bin_name = self._format_action_name(runtime_name, memory)+'_bin.zip'
+        bin_name = self._format_action_name(runtime_name, memory) + '_bin.zip'
         self.internal_storage.put_data(bin_name, code)
 
         cloud_function = {
@@ -168,7 +163,7 @@ class GCPFunctionsBackend:
             'description': self.package,
             'entryPoint': 'main',
             'runtime': runtime_name.lower().replace('.', ''),
-            'timeout': str(timeout)+'s',
+            'timeout': str(timeout) + 's',
             'availableMemoryMb': memory,
             'serviceAccountEmail': self.service_account,
             'maxInstances': 0,
@@ -186,14 +181,14 @@ class GCPFunctionsBackend:
                 'failurePolicy': {}
             }
 
-        response = self._get_funct_conn().projects().locations().functions().create(  # pylint: disable=no-member
+        response = self._get_funct_conn().projects().locations().functions().create(
             location=default_location,
             body=cloud_function
         ).execute(num_retries=self.num_retries)
 
         # Wait until function is completely deployed
         while True:
-            response = self._get_funct_conn().projects().locations().functions().get(  # pylint: disable=no-member
+            response = self._get_funct_conn().projects().locations().functions().get(
                 name=function_location
             ).execute(num_retries=self.num_retries)
             if response['status'] == 'ACTIVE':
@@ -218,16 +213,15 @@ class GCPFunctionsBackend:
         topic_name = self._format_topic_name(runtime_name, memory)
         topic_location = self._full_topic_location(topic_name)
         try:
-            # Try getting topic config # pylint: disable=no-member
-            self.publisher_client.get_topic(topic_location)
+            # Try getting topic config
+            self.publisher_client.get_topic(topic=topic_location)
             # If no exception is raised, then the topic exists
-            logger.info(
-                "Topic {} already exists - Restarting queue...".format(topic_location))
-            self.publisher_client.delete_topic(topic_location)
+            logger.info("Topic {} already exists - Restarting queue...".format(topic_location))
+            self.publisher_client.delete_topic(topic=topic_location)
         except google.api_core.exceptions.GoogleAPICallError:
             pass
         logger.debug("Creating topic {}...".format(topic_location))
-        self.publisher_client.create_topic(topic_location)
+        self.publisher_client.create_topic(name=topic_location)
 
         # Create function
         self._create_handler_zip()
@@ -243,14 +237,14 @@ class GCPFunctionsBackend:
         function_location = self._full_function_location(
             self._format_action_name(runtime_name, runtime_memory))
 
-        self._get_funct_conn().projects().locations().functions().delete(  # pylint: disable=no-member
+        self._get_funct_conn().projects().locations().functions().delete(
             name=function_location,
         ).execute(num_retries=self.num_retries)
 
         # Wait until function is completely deleted
         while True:
             try:
-                response = self._get_funct_conn().projects().locations().functions().get(  # pylint: disable=no-member
+                response = self._get_funct_conn().projects().locations().functions().get(
                     name=function_location
                 ).execute(num_retries=self.num_retries)
             except HttpError:
@@ -268,7 +262,7 @@ class GCPFunctionsBackend:
 
     def list_runtimes(self, docker_image_name='all'):
         default_location = self._full_default_location()
-        response = self._get_funct_conn().projects().locations().functions().list(  # pylint: disable=no-member
+        response = self._get_funct_conn().projects().locations().functions().list(
             location=default_location,
             body={}
         ).execute(num_retries=self.num_retries)
@@ -287,7 +281,7 @@ class GCPFunctionsBackend:
             # Publish message
             fut = self.publisher_client.publish(
                 topic_location, bytes(json.dumps(payload).encode('utf-8')))
-            invokation_id = fut.result()
+            invocation_id = fut.result()
         except Exception as e:
             logger.debug(
                 'ExecutorID {} - Function {} invocation failed: {}'.format(exec_id, call_id, str(e)))
@@ -296,16 +290,17 @@ class GCPFunctionsBackend:
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 
-        logger.debug('ExecutorID {} - Function {} invocation done! ({}s) - Activation ID: {}'.format(
-            exec_id, call_id, resp_time, invokation_id))
+        logger.debug('ExecutorID {} - Function {} invocation done! ({}s) - Activation ID: {}'.format(exec_id,
+                                                                                                     call_id, resp_time,
+                                                                                                     invocation_id))
 
-        return(invokation_id)
+        return invocation_id
 
     def invoke_with_result(self, runtime_name, runtime_memory, payload={}):
         action_name = self._format_action_name(runtime_name, runtime_memory)
         function_location = self._full_function_location(action_name)
 
-        response = self._get_funct_conn().projects().locations().functions().call(  # pylint: disable=no-member
+        response = self._get_funct_conn().projects().locations().functions().call(
             name=function_location,
             body={'data': json.dumps({'data': self._encode_payload(payload)})}
         ).execute(num_retries=self.num_retries)
@@ -352,11 +347,11 @@ class GCPFunctionsBackend:
         try:
             runtime_meta = self.invoke_with_result(runtime_name, 128)
         except Exception:
-            raise("Unable to invoke 'modules' action")
+            raise ("Unable to invoke 'modules' action")
         try:
             self.delete_runtime(runtime_name, 128)
         except Exception:
-            raise("Unable to delete 'modules' action")
+            raise ("Unable to delete 'modules' action")
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
             raise Exception(runtime_meta)
