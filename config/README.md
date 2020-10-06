@@ -55,7 +55,7 @@ if __name__ == '__main__':
 
 ## Configure your Compute and Storage backends
 
-Serverless backends:
+Serverless compute backends:
 
 - [IBM Cloud Functions](compute/ibm_cf.md)
 - [IBM Code Engine](compute/code_engine.md)
@@ -75,10 +75,10 @@ Storage backends:
 - [Ceph](storage/ceph.md)
 - [Redis](storage/redis.md)
 - [OpenStack Swift](storage/swift.md)
-- [AWS S3](compute/aws_s3.md)
-- [Google Cloud Storage](compute/gcp_storage.md)
-- [Azure Blob Storage](compute/azure_blob.md)
-- [Aliyun Object Storage Service](compute/aliyun_oss.md)
+- [AWS S3](storage/aws_s3.md)
+- [Google Cloud Storage](storage/gcp_storage.md)
+- [Azure Blob Storage](storage/azure_blob.md)
+- [Aliyun Object Storage Service](storage/aliyun_oss.md)
 
 ## Verify
 
