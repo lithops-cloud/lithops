@@ -63,6 +63,10 @@ Compute backends:
 - [OpenWhisk](compute/openwhisk.md)
 - [Docker](compute/docker.md)
 - [Loclahost](compute/localhost.md)
+- [AWS Lambda](compute/aws_lambda.md)
+- [Google Cloud Functions](compute/gcp_functions.md)
+- [Azure Functions](compute/azure_fa.md)
+- [Aliyun functions](compute/aliyun_fc.md)
 
 Storage backends:
 
