@@ -1,5 +1,14 @@
 # Changelog
 
+## [v2.0.1-SNAPSHOT]
+
+### Added
+- [Core] Google Cloud Functions & Storage backends
+- [Core] Azure Functions & Blob Storage backends
+- [Core] AWS Lambda & AWS S3 backends
+- [Core] Alibaba Aliyun Functions & Object Storage backends
+
+
 ## [v2.0.0]
 
 ### Changed
