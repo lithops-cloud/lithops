@@ -118,7 +118,8 @@ class OpenWhiskBackend:
         self.cf_client.create_package(self.package)
         action_name = self._format_action_name(docker_image_name, memory)
 
-        create_function_handler_zip(openwhisk_config.FH_ZIP_LOCATION, '__main__.py', __file__)
+        entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
+        create_function_handler_zip(openwhisk_config.FH_ZIP_LOCATION, entry_point, '__main__.py')
 
         with open(openwhisk_config.FH_ZIP_LOCATION, "rb") as action_zip:
             action_bin = action_zip.read()

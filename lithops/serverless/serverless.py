@@ -20,9 +20,9 @@ import importlib
 logger = logging.getLogger(__name__)
 
 
-class ServerlesHandler:
+class ServerlessHandler:
     """
-    A ServerlesHandler object is used by invokers and other components to access
+    A ServerlessHandler object is used by invokers and other components to access
     underlying serverless backend without exposing the implementation details.
     """
 

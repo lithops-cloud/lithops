@@ -20,13 +20,19 @@ import copy
 import signal
 import logging
 from functools import partial
-from lithops.invokers import ServerlessInvoker, LocalhostInvoker, StandaloneInvoker
+from lithops.invokers import ServerlessInvoker, StandaloneInvoker
 from lithops.storage import InternalStorage
 from lithops.storage.utils import delete_cloudobject
 from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from lithops.job import create_map_job, create_reduce_job, clean_job
-from lithops.config import default_config, extract_storage_config, default_logging_config
-from lithops.utils import timeout_handler, is_notebook, is_unix_system, is_lithops_worker, create_executor_id
+from lithops.config import default_config, extract_storage_config, \
+    default_logging_config, extract_localhost_config, \
+    extract_standalone_config, extract_serverless_config
+from lithops.utils import timeout_handler, is_notebook, \
+    is_unix_system, is_lithops_worker, create_executor_id
+from lithops.localhost.localhost import LocalhostHandler
+from lithops.standalone.standalone import StandaloneHandler
+from lithops.serverless.serverless import ServerlessHandler
 
 logger = logging.getLogger(__name__)
 
@@ -459,7 +465,7 @@ class Executor:
 
 class LocalhostExecutor(Executor):
 
-    def __init__(self, config=None, runtime=None,workers=None,
+    def __init__(self, config=None, runtime=None, workers=None,
                  storage=None, storage_region=None,
                  rabbitmq_monitor=None, log_level=None):
         """
@@ -496,7 +502,13 @@ class LocalhostExecutor(Executor):
 
         Executor.__init__(self)
 
-        self.invoker = LocalhostInvoker(self.config, self.executor_id, self.internal_storage)
+        localhost_config = extract_localhost_config(self.config)
+        self.backend_handler = LocalhostHandler(localhost_config)
+
+        self.invoker = StandaloneInvoker(self.config,
+                                         self.executor_id,
+                                         self.internal_storage,
+                                         self.backend_handler)
 
         logger.debug('Serverless Executor created with ID: {}'.format(self.executor_id))
 
@@ -550,7 +562,13 @@ class ServerlessExecutor(Executor):
 
         Executor.__init__(self)
 
-        self.invoker = ServerlessInvoker(self.config, self.executor_id, self.internal_storage)
+        serverless_config = extract_serverless_config(self.config)
+        self.backend_handler = ServerlessHandler(serverless_config)
+
+        self.invoker = ServerlessInvoker(self.config,
+                                         self.executor_id,
+                                         self.internal_storage,
+                                         self.backend_handler)
 
         logger.debug('Serverless Executor created with ID: {}'.format(self.executor_id))
 
@@ -608,9 +626,15 @@ class StandaloneExecutor(Executor):
 
         Executor.__init__(self)
 
-        self.invoker = StandaloneInvoker(self.config, self.executor_id, self.internal_storage)
+        standalone_config = extract_standalone_config(self.config)
+        self.backend_handler = StandaloneHandler(standalone_config)
+
+        self.invoker = StandaloneInvoker(self.config,
+                                         self.executor_id,
+                                         self.internal_storage,
+                                         self.backend_handler)
 
         logger.debug('Standalone Executor created with ID: {}'.format(self.executor_id))
 
     def dismantle(self):
-        self.invoker.stop_backend_servers()
+        self.backend_handler.stop_vm_instances()

@@ -99,9 +99,12 @@ class DockerEnv:
 
     def setup(self):
         os.makedirs(STORAGE_DIR, exist_ok=True)
-        shutil.rmtree(os.path.join(STORAGE_DIR, 'lithops'))
+        try:
+            shutil.rmtree(os.path.join(STORAGE_DIR, 'lithops'))
+        except FileNotFoundError:
+            pass
         shutil.copytree(LITHOPS_LOCATION, os.path.join(STORAGE_DIR, 'lithops'))
-        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'entry_point.py')
+        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'local_handler.py')
         copyfile(src_handler, HANDLER_FILE)
 
     def get_execution_cmd(self, docker_image_name):
@@ -116,7 +119,7 @@ class DefaultEnv:
 
     def setup(self):
         os.makedirs(STORAGE_DIR, exist_ok=True)
-        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'entry_point.py')
+        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'local_handler.py')
         copyfile(src_handler, HANDLER_FILE)
 
     def get_execution_cmd(self, runtime):

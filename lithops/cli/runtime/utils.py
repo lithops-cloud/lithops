@@ -16,7 +16,7 @@
 
 import logging
 from lithops.storage import InternalStorage
-from lithops.serverless import ServerlesHandler
+from lithops.serverless import ServerlessHandler
 from lithops.config import default_config, extract_storage_config, extract_serverless_config
 
 
@@ -28,7 +28,7 @@ def create_runtime(name, memory=None, config=None):
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
     compute_config = extract_serverless_config(config)
-    compute_handler = ServerlesHandler(compute_config)
+    compute_handler = ServerlessHandler(compute_config)
 
     memory = config['lithops']['runtime_memory'] if not memory else memory
     timeout = config['lithops']['runtime_timeout']
@@ -49,7 +49,7 @@ def update_runtime(name, config=None):
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
     compute_config = extract_serverless_config(config)
-    compute_handler = ServerlesHandler(compute_config)
+    compute_handler = ServerlessHandler(compute_config)
 
     timeout = config['lithops']['runtime_timeout']
     logger.info('Updating runtime: {}'.format(name))
@@ -69,7 +69,7 @@ def update_runtime(name, config=None):
 def build_runtime(name, file, config=None):
     config = default_config(config)
     compute_config = extract_serverless_config(config)
-    compute_handler = ServerlesHandler(compute_config)
+    compute_handler = ServerlessHandler(compute_config)
     compute_handler.build_runtime(name, file)
 
 
@@ -78,7 +78,7 @@ def delete_runtime(name, config=None):
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
     compute_config = extract_serverless_config(config)
-    compute_handler = ServerlesHandler(compute_config)
+    compute_handler = ServerlessHandler(compute_config)
 
     runtimes = compute_handler.list_runtimes(name)
     for runtime in runtimes:

@@ -118,7 +118,7 @@ if __name__ == "__main__":
     command = sys.argv[1]
     logger.info('Received command: {}'.format(command))
 
-    if command == 'modules':
+    if command == 'preinstalls':
         extract_runtime_meta()
     elif command == 'run':
         job_filename = sys.argv[2]

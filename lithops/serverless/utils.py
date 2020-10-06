@@ -22,7 +22,7 @@ import lithops
 logger = logging.getLogger(__name__)
 
 
-def create_function_handler_zip(dst_zip_location, main_exec_file, backend_location):
+def create_function_handler_zip(dst_zip_location, entry_point_file, entry_point_name=None):
 
     logger.debug("Creating function handler zip in {}".format(dst_zip_location))
 
@@ -36,10 +36,9 @@ def create_function_handler_zip(dst_zip_location, main_exec_file, backend_locati
 
     try:
         with zipfile.ZipFile(dst_zip_location, 'w', zipfile.ZIP_DEFLATED) as lithops_zip:
-            current_location = os.path.dirname(os.path.abspath(backend_location))
             module_location = os.path.dirname(os.path.abspath(lithops.__file__))
-            main_file = os.path.join(current_location, 'entry_point.py')
-            lithops_zip.write(main_file, main_exec_file)
+            entry_point_name = os.path.basename(entry_point_file) or entry_point_name
+            lithops_zip.write(entry_point_file, entry_point_name)
             add_folder_to_zip(lithops_zip, module_location)
 
     except Exception:

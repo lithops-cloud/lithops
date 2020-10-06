@@ -145,7 +145,7 @@ class StandaloneHandler:
         cmd = 'rm -r {} > /dev/null 2>&1; '.format(STORAGE_DIR)
         cmd += 'ln -s {} {} > /dev/null 2>&1 &&'.format(REMOTE_TMP_DIR, STORAGE_DIR)
         cmd += self.env.get_execution_cmd(runtime)
-        runtime_meta = self.ssh_client.ssh_run_remote_command(self.ip_address, cmd+' modules')
+        runtime_meta = self.ssh_client.ssh_run_remote_command(self.ip_address, cmd+' preinstalls')
 
         return json.loads(runtime_meta)
 
@@ -189,9 +189,8 @@ class DockerEnv:
         """
         if not self._is_env_ready(ip_address):
             logger.info('Installing Docker environment in VM instance')
-
-            src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'entry_point.py')
-            create_function_handler_zip(FH_ZIP_LOCATION, 'local_handler.py', src_handler)
+            src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'local_handler.py')
+            create_function_handler_zip(FH_ZIP_LOCATION, src_handler)
             self.ssh_client.ssh_upload_local_file(ip_address, FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip')
 
             cmd = 'apt-get remove docker docker-engine docker.io containerd runc -y '
@@ -251,8 +250,8 @@ class DefaultEnv:
         if not self._is_env_ready(ip_address):
             logger.info('Installing default environment in VM instance')
 
-            src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'entry_point.py')
-            create_function_handler_zip(FH_ZIP_LOCATION, 'local_handler.py', src_handler)
+            src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'local_handler.py')
+            create_function_handler_zip(FH_ZIP_LOCATION, src_handler)
             self.ssh_client.ssh_upload_local_file(ip_address, FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip')
 
             cmd = 'apt-get update '

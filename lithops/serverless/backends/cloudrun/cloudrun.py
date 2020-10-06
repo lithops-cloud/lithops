@@ -151,7 +151,8 @@ class CloudRunServingBackend:
         if not result or result.group() != docker_image_name:
             raise Exception("Invalid docker image name: '.' or '_' characters are not allowed")
 
-        create_function_handler_zip(cr_config.FH_ZIP_LOCATION, 'lithopsproxy.py', __file__)
+        entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
+        create_function_handler_zip(cr_config.FH_ZIP_LOCATION, entry_point, 'lithopsproxy.py')
 
         # Dockerfile has to be called "Dockerfile" (and in cwd) for 'gcloud builds submit' to work
         if dockerfile != "Dockerfile":
