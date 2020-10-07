@@ -2,20 +2,16 @@
 <p align="center"> <img src="/docs/images/lithops_logo.png" alt="Lithops"
       width='500' title="Lightweigt Optimised Processing"/></p>
 
-### What is Lithops
 
-Lithops framework is a rebranded [PyWren-IBM](https://dl.acm.org/citation.cfm?id=3284029) framework.  Lithops  goals are massively scaling the execution of Python code and its dependencies on serverless computing platforms and monitoring the results. Lithops delivers the user’s code into the serverless platform without requiring knowledge of how functions are invoked and run.
-
-### Why Lithops
+Lithops framework is a rebranded [PyWren-IBM](https://dl.acm.org/citation.cfm?id=3284029) framework. Lithops goals are massively scaling the execution of Python code and its dependencies on serverless computing platforms and monitoring the results. Lithops delivers the user’s code into the serverless platform without requiring knowledge of how functions are invoked and run.
 
 Lithops provides great value for the variety of uses cases, like processing data in object storage, running embarrassingly parallel compute jobs (e.g. Monte-Carlo simulations), enriching data with additional attributes and many more. In extending Lithops to work with object storage, we also added a partition discovery component that allows Lithops to process large amounts of data stored in the object storage. See [changelog](CHANGELOG.md) for more details.
 
 ### Lithops and IBM Cloud 
-Lithops is officially supported for IBM Cloud or Red Hat OpenShift. Students or academic stuff are welcome to follow [IBM Academic Initiative](https://ibm.biz/academic), a special program that allows free trial of IBM Cloud for Academic institutions. This program is provided for students and faculty staff members, and allow up to 12 months of free usage. You can register your university email and get a free of charge account.
+Lithops is officially supported for IBM Cloud and Red Hat OpenShift. Students or academic stuff are welcome to follow [IBM Academic Initiative](https://ibm.biz/academic), a special program that allows free trial of IBM Cloud for Academic institutions. This program is provided for students and faculty staff members, and allow up to 12 months of free usage. You can register your university email and get a free of charge account.
 
 ### Lithops for broad scope
-Lithops can work with any cloud provider, however only IBM Cloud or Red Hat is officially supported. The support of other clouds is on the best community effort. Information on how to configure Lithops to work with other cloud providers will appear later.
-
+Lithops provides an extensible backend architecture (compute, storage) that is designed to work with different Cloud providers and on-premise backends (Knative, OpenShift). You can code in Lithops and run it unmodified in IBM Cloud, AWS, Azure, Google or Alibaba. Technical support for clouds different than IBM are delegated to best efforts from the open source community.
 
 
 ## Quick Start
@@ -26,7 +22,7 @@ Lithops can work with any cloud provider, however only IBM Cloud or Red Hat is o
     $ pip install lithops
     ```
 
-2. Follow [choose compute backend and storage](config/) to configure Lithops.
+2. [Follow these instructions to configure your compute and storage backends](config/)
 
 3. Test Lithops by simply running the next command:
   
@@ -59,6 +55,7 @@ Lithops can work with any cloud provider, however only IBM Cloud or Red Hat is o
 
 ## How to contribute code
 Follow guidance [how to contribute](docs/how-to-contribute.md) code to the project
+
 ## Additional resources
 
 * [Decoding dark molecular matter in spatial metabolomics with IBM Cloud Functions](https://www.ibm.com/cloud/blog/decoding-dark-molecular-matter-in-spatial-metabolomics-with-ibm-cloud-functions)
