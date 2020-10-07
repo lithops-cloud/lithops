@@ -22,7 +22,7 @@ Lithops provides an extensible backend architecture (compute, storage) that is d
     $ pip install lithops
     ```
 
-2. [Follow these instructions to configure your desired compute and storage backends](config/)
+2. [Follow these instructions to configure your compute and storage backends](config/)
 
 3. Test Lithops by simply running the next command:
   
