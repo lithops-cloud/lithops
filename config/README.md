@@ -75,6 +75,7 @@ Storage backends:
 - [Ceph](storage/ceph.md)
 - [Redis](storage/redis.md)
 - [OpenStack Swift](storage/swift.md)
+- [OpenStack Swift](storage/localhost.md)
 - [AWS S3](storage/aws_s3.md)
 - [Google Cloud Storage](storage/gcp_storage.md)
 - [Azure Blob Storage](storage/azure_blob.md)
