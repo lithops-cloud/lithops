@@ -167,6 +167,9 @@ class CodeEngineBackend:
         """
         Invoke -- return information about this invocation
         """
+        activation_id = str(uuid.uuid4()).replace('-', '')[:12]
+        payload['activation_id'] = activation_id + payload['call_id']
+
         jobdef_id = self._create_job_definition(docker_image_name, runtime_memory, payload)
         current_location = os.path.dirname(os.path.abspath(__file__))
         job_run_file = os.path.join(current_location, 'job_run.json')
@@ -210,18 +213,18 @@ class CodeEngineBackend:
     
             return res['metadata']['name']
 
-    def _create_job_definition(self, docker_image_name, runtime_memory, payload):
+    def _create_job_definition(self, docker_image_name, runtime_memory, activation_id):
         """
         Invoke -- return information about this invocation
         """
         current_location = os.path.dirname(os.path.abspath(__file__))
         job_def_file = os.path.join(current_location, 'job_def.json')
-        
+
         with open(job_def_file) as json_file:
             job_desc = json.load(json_file)
             activation_id = str(uuid.uuid4()).replace('-', '')[:12]
             payload['activation_id'] = activation_id + payload['call_id']
-    
+
             job_desc['apiVersion'] = self.code_engine_config['api_version']
             job_desc['spec']['template']['containers'][0]['image'] = docker_image_name
             job_desc['spec']['template']['containers'][0]['name'] = payload['activation_id']
@@ -230,7 +233,7 @@ class CodeEngineBackend:
             job_desc['spec']['template']['containers'][0]['resources']['requests']['memory'] = str(runtime_memory) +'Mi'
             job_desc['spec']['template']['containers'][0]['resources']['requests']['cpu'] = str(self.code_engine_config['runtime_cpu'])
             job_desc['metadata']['name'] = payload['activation_id']
-    
+
             logger.info("Before invoke job name {}".format(job_desc['metadata']['name']))
             try:
                 res = self.capi.create_namespaced_custom_object(
@@ -243,7 +246,7 @@ class CodeEngineBackend:
             except Exception as e:
                 print(e)
             logger.info("After invoke job name {}".format(job_desc['metadata']['name']))
-    
+
             if (logging.getLogger().level == logging.DEBUG):
                 debug_res = copy.deepcopy(res)
                 debug_res['spec']['template']['containers'][0]['env'][1]['value'] = ''
@@ -296,7 +299,29 @@ class CodeEngineBackend:
             job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][0]['value'] = 'preinstals'
             job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = self._dict_to_binary(self.storage_config)
             job_desc['metadata']['name'] ='lithops-' + activation_id
-    
+
+            jobdef_id = self._create_job_definition(docker_image_name, runtime_memory, payload)
+            current_location = os.path.dirname(os.path.abspath(__file__))
+            job_run_file = os.path.join(current_location, 'job_run.json')
+
+            with open(job_run_file) as json_file:
+                job_desc = json.load(json_file)
+
+                activation_id = str(uuid.uuid4()).replace('-', '')[:12]
+                self.storage_config['activation_id'] = 'lithops-' + activation_id
+                payload['activation_id'] = activation_id + payload['call_id']
+
+                job_desc['metadata']['name'] = payload['activation_id']
+                job_desc['metadata']['namespace'] = self.namespace
+                job_desc['apiVersion'] = self.code_engine_config['api_version']
+                job_desc['spec']['jobDefinitionRef'] = str(jobdef_id)
+                #job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['image'] = docker_image_name
+                job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['name'] = str(jobdef_id)
+                job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][0]['value'] = 'payload'
+                job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = self._dict_to_binary(payload)
+                job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['resources']['requests']['memory'] = str(runtime_memory) +'Mi'
+                job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['resources']['requests']['cpu'] = str(self.code_engine_config['runtime_cpu'])
+
             logger.info("About to invoke code engine job to get runtime metadata")
             logger.info(job_desc)
             res = self.capi.create_namespaced_custom_object(
