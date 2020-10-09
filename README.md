@@ -1,5 +1,5 @@
 
-<p align="center"> <img src="/docs/images/lithops_logo.png" alt="Lithops"
+<p align="center"> <img src="docs/images/lithops_flat_cloud_2.png" alt="Lithops"
       width='500' title="Lightweigt Optimised Processing"/></p>
 
 
