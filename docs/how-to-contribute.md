@@ -1,7 +1,8 @@
 # How to contribute
 
 ## Contribute code
-To appear
+
+Please contribute using [Github Flow](https://guides.github.com/introduction/flow/). Create a branch, add commits, and [open a pull request](https://github.com/lithops-cloud/lithops/compare/).
 
 ## Verify - Unit Testing
 
