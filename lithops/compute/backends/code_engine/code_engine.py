@@ -144,12 +144,15 @@ class CodeEngineBackend:
         activation_id = str(uuid.uuid4()).replace('-', '')[:12] + 'lithops'
         self.jobdef_id = self._create_job_definition(docker_image_name, memory, activation_id)
 
-        runtime_meta = self._generate_runtime_meta(docker_image_name)        
+        runtime_meta = self._generate_runtime_meta(docker_image_name)
+        runtime_meta['compute_backend_extra_env'] = {}
+        runtime_meta['compute_backend_extra_env']['jobdef_id'] = self.jobdef_id
         return runtime_meta
 
     def delete_runtime(self, docker_image_name, memory):
         """
         Deletes a runtime
+        We need to delete job definition
         """
         pass;
 
@@ -173,6 +176,9 @@ class CodeEngineBackend:
         #activation_id = str(uuid.uuid4()).replace('-', '')[:12] + payload['call_id']
 
         #jobdef_id = self._create_job_definition(docker_image_name, runtime_memory, activation_id)
+        if 'compute_backend_extra_env' in payload:
+            self.jobdef_id = payload['compute_backend_extra_env']['jobdef_id']
+
         current_location = os.path.dirname(os.path.abspath(__file__))
         job_run_file = os.path.join(current_location, 'job_run.json')
 

@@ -146,6 +146,8 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
         ext_env = utils.convert_bools_to_string(ext_env)
         logger.debug("Extra environment vars {}".format(ext_env))
 
+    compute_backend_extra_env = {} if 'compute_backend_extra_env' not in runtime_meta else runtime_meta['compute_backend_extra_env'].copy()
+
     if not data:
         return []
 
@@ -162,6 +164,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     job_description['invoke_pool_threads'] = invoke_pool_threads
     job_description['executor_id'] = executor_id
     job_description['job_id'] = job_id
+    job_description['compute_backend_extra_env'] = compute_backend_extra_env
 
     exclude_modules_cfg = config['lithops'].get('exclude_modules', [])
     include_modules_cfg = config['lithops'].get('include_modules', [])
