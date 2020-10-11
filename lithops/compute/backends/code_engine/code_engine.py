@@ -139,9 +139,12 @@ class CodeEngineBackend:
         if docker_image_name == 'default':
             docker_image_name = self._get_default_runtime_image_name()
 
-        runtime_meta = self._generate_runtime_meta(docker_image_name)
-
         logger.info('Creating new Lithops runtime based on Docker image {}'.format(docker_image_name))
+        
+        activation_id = str(uuid.uuid4()).replace('-', '')[:12] + 'lithops'
+        self.jobdef_id = self._create_job_definition(docker_image_name, memory, activation_id)
+
+        runtime_meta = self._generate_runtime_meta(docker_image_name)        
         return runtime_meta
 
     def delete_runtime(self, docker_image_name, memory):
@@ -167,25 +170,23 @@ class CodeEngineBackend:
         """
         Invoke -- return information about this invocation
         """
-        activation_id = str(uuid.uuid4()).replace('-', '')[:12]
-        payload['activation_id'] = activation_id + payload['call_id']
+        #activation_id = str(uuid.uuid4()).replace('-', '')[:12] + payload['call_id']
 
-        jobdef_id = self._create_job_definition(docker_image_name, runtime_memory, payload)
+        #jobdef_id = self._create_job_definition(docker_image_name, runtime_memory, activation_id)
         current_location = os.path.dirname(os.path.abspath(__file__))
         job_run_file = os.path.join(current_location, 'job_run.json')
 
         with open(job_run_file) as json_file:
             job_desc = json.load(json_file)
        
-            activation_id = str(uuid.uuid4()).replace('-', '')[:12]
-            payload['activation_id'] = activation_id + payload['call_id']
+            activation_id = str(uuid.uuid4()).replace('-', '')[:12] + payload['call_id']
+            payload['activation_id'] = activation_id
             
             job_desc['metadata']['name'] = payload['activation_id']
             job_desc['metadata']['namespace'] = self.namespace
             job_desc['apiVersion'] = self.code_engine_config['api_version']
-            job_desc['spec']['jobDefinitionRef'] = str(jobdef_id)
-            #job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['image'] = docker_image_name
-            job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['name'] = str(jobdef_id)
+            job_desc['spec']['jobDefinitionRef'] = str(self.jobdef_id)
+            job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['name'] = str(self.jobdef_id)
             job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][0]['value'] = 'payload'
             job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = self._dict_to_binary(payload)
             job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['resources']['requests']['memory'] = str(runtime_memory) +'Mi'
@@ -222,17 +223,14 @@ class CodeEngineBackend:
 
         with open(job_def_file) as json_file:
             job_desc = json.load(json_file)
-            activation_id = str(uuid.uuid4()).replace('-', '')[:12]
-            payload['activation_id'] = activation_id + payload['call_id']
 
             job_desc['apiVersion'] = self.code_engine_config['api_version']
             job_desc['spec']['template']['containers'][0]['image'] = docker_image_name
-            job_desc['spec']['template']['containers'][0]['name'] = payload['activation_id']
+            job_desc['spec']['template']['containers'][0]['name'] = activation_id
             job_desc['spec']['template']['containers'][0]['env'][0]['value'] = 'payload'
-            #job_desc['spec']['template']['containers'][0]['env'][1]['value'] = self._dict_to_binary(payload)
             job_desc['spec']['template']['containers'][0]['resources']['requests']['memory'] = str(runtime_memory) +'Mi'
             job_desc['spec']['template']['containers'][0]['resources']['requests']['cpu'] = str(self.code_engine_config['runtime_cpu'])
-            job_desc['metadata']['name'] = payload['activation_id']
+            job_desc['metadata']['name'] = activation_id
 
             logger.info("Before invoke job name {}".format(job_desc['metadata']['name']))
             try:
@@ -291,36 +289,22 @@ class CodeEngineBackend:
 
     def _generate_runtime_meta(self, docker_image_name):
         try:
-            activation_id = str(uuid.uuid4()).replace('-', '')[:12]
-            self.storage_config['activation_id'] = 'lithops-' + activation_id
-            job_desc = copy.deepcopy(codeengine_config.JOB_RUN_RESOURCE)
-            job_desc['apiVersion'] = self.code_engine_config['api_version']
-            job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['image'] = docker_image_name
-            job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][0]['value'] = 'preinstals'
-            job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = self._dict_to_binary(self.storage_config)
-            job_desc['metadata']['name'] ='lithops-' + activation_id
-
-            jobdef_id = self._create_job_definition(docker_image_name, runtime_memory, payload)
             current_location = os.path.dirname(os.path.abspath(__file__))
             job_run_file = os.path.join(current_location, 'job_run.json')
 
             with open(job_run_file) as json_file:
                 job_desc = json.load(json_file)
 
-                activation_id = str(uuid.uuid4()).replace('-', '')[:12]
-                self.storage_config['activation_id'] = 'lithops-' + activation_id
-                payload['activation_id'] = activation_id + payload['call_id']
+                activation_id = 'lithops-' + str(uuid.uuid4()).replace('-', '')[:12]
+                self.storage_config['activation_id'] = activation_id
 
-                job_desc['metadata']['name'] = payload['activation_id']
+                job_desc['metadata']['name'] = activation_id
                 job_desc['metadata']['namespace'] = self.namespace
                 job_desc['apiVersion'] = self.code_engine_config['api_version']
-                job_desc['spec']['jobDefinitionRef'] = str(jobdef_id)
-                #job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['image'] = docker_image_name
-                job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['name'] = str(jobdef_id)
-                job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][0]['value'] = 'payload'
-                job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = self._dict_to_binary(payload)
-                job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['resources']['requests']['memory'] = str(runtime_memory) +'Mi'
-                job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['resources']['requests']['cpu'] = str(self.code_engine_config['runtime_cpu'])
+                job_desc['spec']['jobDefinitionRef'] = str(self.jobdef_id)
+                job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['name'] = str(self.jobdef_id)
+                job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][0]['value'] = 'preinstals'
+                job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = self._dict_to_binary(self.storage_config)
 
             logger.info("About to invoke code engine job to get runtime metadata")
             logger.info(job_desc)
