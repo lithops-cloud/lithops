@@ -6,15 +6,18 @@ import logging
 import uuid
 import time
 import multiprocessing
+from pathlib import Path
 from threading import Thread
 from types import SimpleNamespace
 from multiprocessing import Process, Queue
 from lithops.utils import version_str, is_unix_system
 from lithops.worker import function_handler
-from lithops.config import STORAGE_DIR
+from lithops.config import STORAGE_DIR, JOBS_DONE_DIR
 from lithops import __version__
 
 os.makedirs(STORAGE_DIR, exist_ok=True)
+os.makedirs(JOBS_DONE_DIR, exist_ok=True)
+
 log_file = os.path.join(STORAGE_DIR, 'local_handler.log')
 logging.basicConfig(filename=log_file, level=logging.INFO)
 logger = logging.getLogger('handler')
@@ -77,6 +80,7 @@ class LocalhostExecutor:
 
             act_id = str(uuid.uuid4()).replace('-', '')[:12]
             os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
+            event['extra_env']['__LITHOPS_LOCAL_EXECUTION'] = 'True'
             function_handler(event)
 
     def _invoke(self, job, call_id):
@@ -120,6 +124,7 @@ if __name__ == "__main__":
 
     if command == 'preinstalls':
         extract_runtime_meta()
+
     elif command == 'run':
         job_filename = sys.argv[2]
         logger.info('Got {} job file'.format(job_filename))
@@ -133,5 +138,11 @@ if __name__ == "__main__":
                                               job.job_id, job.log_level)
         localhost_execuor.run(job.job_description)
         localhost_execuor.wait()
+
+        sentinel = '{}/{}_{}.done'.format(JOBS_DONE_DIR,
+                                          job.executor_id.replace('/', '-'),
+                                          job.job_id)
+        Path(sentinel).touch()
+
         logger.info('ExecutorID {} | JobID {} - Execution Finished'
                     .format(job.executor_id, job.job_id))

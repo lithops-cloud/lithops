@@ -132,7 +132,8 @@ def function_handler(event):
         handler_conn, jobrunner_conn = Pipe()
         jobrunner = JobRunner(jobrunner_config, jobrunner_conn, internal_storage)
         logger.debug('Starting JobRunner process')
-        jrp = Process(target=jobrunner.run)
+        local_execution = strtobool(os.environ.get('__LITHOPS_LOCAL_EXECUTION', 'False'))
+        jrp = Thread(target=jobrunner.run) if local_execution else Process(target=jobrunner.run)
         jrp.start()
 
         jrp.join(execution_timeout)

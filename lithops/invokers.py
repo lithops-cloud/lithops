@@ -422,7 +422,7 @@ class StandaloneInvoker:
         self.internal_storage = internal_storage
 
         self.backend_handler = backend_handler
-        self.runtime_name = self.backend_handler.env.runtime
+        self.runtime_name = self.backend_handler.runtime
 
     def select_runtime(self, job_id, runtime_memory):
         log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {}'

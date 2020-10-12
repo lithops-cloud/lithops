@@ -15,23 +15,22 @@
 #
 
 import os
-import sys
 import json
-import lithops
+
 import time
 import logging
 import importlib
+import requests
+import textwrap
 
-from lithops.config import STORAGE_DIR, JOBS_PREFIX
 from lithops.serverless.utils import create_function_handler_zip
+from lithops.config import REMOTE_INSTALL_DIR
+
 
 logger = logging.getLogger(__name__)
-LOCAL_HANDLER_NAME = 'local_handler.py'
-HANDLER_FILE = os.path.join(STORAGE_DIR, LOCAL_HANDLER_NAME)
-LITHOPS_LOCATION = os.path.dirname(os.path.abspath(lithops.__file__))
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_standalone.zip')
-REMOTE_TMP_DIR = '~/lithops-data'
-LOG_FILE = os.path.join(STORAGE_DIR, 'local_handler.log')
+PROXY_PORT = 8080
+PROXY_SERVICE_NAME = 'lithopsproxy.service'
 
 
 class StandaloneHandler:
@@ -45,9 +44,9 @@ class StandaloneHandler:
         self.backend_name = self.config['backend']
         self.runtime = self.config['runtime']
 
-        self.cpu = self.config.get('cpu', 2)
-        self.memory = self.config.get('memory', 4)
-        self.instances = self.config.get('instances', 1)
+        # self.cpu = self.config.get('cpu', 2)
+        # self.memory = self.config.get('memory', 4)
+        # self.instances = self.config.get('instances', 1)
         self.self_start_timeout = self.config.get('start_timeout', 300)
 
         self.auto_dismantle = self.config.get('auto_dismantle', True)
@@ -71,10 +70,8 @@ class StandaloneHandler:
         self.ssh_client = SSHClient(self.ssh_credentials)
 
         if self.runtime is None:
-            self.env = DefaultEnv(self.ssh_client)
             self.env_type = 'default'
         else:
-            self.env = DockerEnv(self.ssh_client, self.runtime)
             self.env_type = 'docker'
 
     def _is_backend_ready(self):
@@ -106,32 +103,18 @@ class StandaloneHandler:
         Run the job description against the selected environment
         """
         init_time = time.time()
-        if not self._is_backend_ready():
+        if not self._is_proxy_ready():
+            # The VM instance is stopped
             self.backend.start()
-            self._wait_backend_ready()
+            self._wait_proxy_ready()
             total_start_time = round(time.time()-init_time, 2)
             logger.info('VM instance ready in {} seconds'.format(total_start_time))
 
-        runtime = job_payload['job_description']['runtime_name']
-        exec_command = self.env.get_execution_cmd(runtime)
+        url = "http://{}:{}/run".format(self.ip_address, PROXY_PORT)
+        r = requests.post(url, data=json.dumps(job_payload))
+        response = r.json()
 
-        executor_id = job_payload['executor_id']
-        job_id = job_payload['job_id']
-        storage_bucket = job_payload['config']['lithops']['storage_bucket']
-
-        job_dir = os.path.join(STORAGE_DIR, storage_bucket,
-                               JOBS_PREFIX, executor_id, job_id)
-        dst_job = os.path.join(job_dir, 'job.json')
-
-        cmd = 'rm -r {} > /dev/null 2>&1; '.format(STORAGE_DIR)
-        cmd += 'ln -s {} {} > /dev/null 2>&1 '.format(REMOTE_TMP_DIR, STORAGE_DIR)
-        cmd += '&& mkdir -p {}'.format(job_dir)
-        self.ssh_client.ssh_run_remote_command(self.ip_address, cmd)
-
-        self.ssh_client.ssh_upload_data_to_file(self.ip_address, json.dumps(job_payload), dst_job)
-
-        cmd = exec_command+' run '+dst_job+' >> {} &'.format(LOG_FILE)
-        self.ssh_client.ssh_run_remote_command(self.ip_address, cmd, background=True)
+        return response['activationId']
 
     def create_runtime(self, runtime):
         """
@@ -139,15 +122,16 @@ class StandaloneHandler:
         """
         self.backend.start()
         self._wait_backend_ready()
+        self._setup_proxy()
+        self._wait_proxy_ready()
 
-        self.env.setup(self.ip_address)
+        payload = {'runtime': runtime}
 
-        cmd = 'rm -r {} > /dev/null 2>&1; '.format(STORAGE_DIR)
-        cmd += 'ln -s {} {} > /dev/null 2>&1 &&'.format(REMOTE_TMP_DIR, STORAGE_DIR)
-        cmd += self.env.get_execution_cmd(runtime)
-        runtime_meta = self.ssh_client.ssh_run_remote_command(self.ip_address, cmd+' modules')
+        url = "http://{}:{}/preinstalls".format(self.ip_address, PROXY_PORT)
+        r = requests.get(url, data=json.dumps(payload))
+        runtime_meta = r.json()
 
-        return json.loads(runtime_meta)
+        return runtime_meta
 
     def get_runtime_key(self, runtime_name):
         """
@@ -158,119 +142,68 @@ class StandaloneHandler:
 
         return runtime_key
 
-
-class DockerEnv:
-
-    def __init__(self, ssh_client, docker_image):
-        self.ssh_client = ssh_client
-        self.runtime = docker_image
-
-    def _is_env_ready(self, ip_address):
-        """
-        Checks if VM instance is ready to use the docker execution env
-        """
+    def _is_proxy_ready(self):
         try:
-            cmd = 'ls {}/docker_ready_sentinel'.format(STORAGE_DIR)
-            self.ssh_client.ssh_run_remote_command(ip_address, cmd, timeout=2)
-            return True
+            url = "http://{}:{}/ping".format(self.ip_address, PROXY_PORT)
+            r = requests.get(url, timeout=1)
+            if r.status_code == 200:
+                return True
+            return False
         except Exception:
             return False
 
-    def _wait_env_ready(self, ip_address):
-        """
-        Waits until the env is docker ready to run jobs
-        """
-        while not self._is_env_ready(ip_address):
+    def _wait_proxy_ready(self):
+        logger.info('Waiting Lithops proxy to become ready')
+        while not self._is_proxy_ready():
             time.sleep(1)
 
-    def setup(self, ip_address):
-        """
-        Installs the lithops lib and all the dependencies in the VM instance
-        """
-        if not self._is_env_ready(ip_address):
-            logger.info('Installing Docker environment in VM instance')
+    def _setup_proxy(self):
+        logger.info('Installing Lithops proxy in VM instance')
 
-            src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'entry_point.py')
-            create_function_handler_zip(FH_ZIP_LOCATION, 'local_handler.py', src_handler)
-            self.ssh_client.ssh_upload_local_file(ip_address, FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip')
+        unix_service = """
+        [Unit]
+        Description=Lithops Proxy
+        After=network.target
 
-            cmd = 'apt-get remove docker docker-engine docker.io containerd runc -y '
-            cmd += '&& apt-get update '
-            cmd += '&& apt-get install unzip apt-transport-https ca-certificates curl gnupg-agent software-properties-common -y '
-            cmd += '&& curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - > /dev/null 2>&1 '
-            cmd += '&& add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" '
-            cmd += '&& apt-get update '
-            cmd += '&& apt-get install docker-ce docker-ce-cli containerd.io -y '
+        [Service]
+        ExecStart=/usr/bin/python3 {}/proxy.py
+        Restart=always
 
-            cmd += '&& rm -R -f {}; '.format(REMOTE_TMP_DIR)
-            cmd += 'mkdir -p {} '.format(REMOTE_TMP_DIR)
-            cmd += '&& unzip /tmp/lithops_standalone.zip -d {} > /dev/null 2>&1 '.format(REMOTE_TMP_DIR)
-            cmd += '&& rm /tmp/lithops_standalone.zip; '
+        [Install]
+        WantedBy=multi-user.target
+        """.format(REMOTE_INSTALL_DIR)
+        service_file = '/etc/systemd/system/{}'.format(PROXY_SERVICE_NAME)
+        self.ssh_client.ssh_upload_data_to_file(self.ip_address, textwrap.dedent(unix_service), service_file)
+        config_file = os.path.join(REMOTE_INSTALL_DIR, 'config')
+        self.ssh_client.ssh_upload_data_to_file(self.ip_address, json.dumps(self.config), config_file)
 
-            cmd += 'rm -r {} > /dev/null 2>&1; '.format(STORAGE_DIR)
-            cmd += 'ln -s {} {} > /dev/null 2>&1 '.format(REMOTE_TMP_DIR, STORAGE_DIR)
-            cmd += '&& touch {}/docker_ready_sentinel &'.format(REMOTE_TMP_DIR)
-            self.ssh_client.ssh_run_remote_command(ip_address, cmd, background=True)
-            self._wait_env_ready(ip_address)
+        src_proxy = os.path.join(os.path.dirname(__file__), 'proxy.py')
+        create_function_handler_zip(FH_ZIP_LOCATION, src_proxy)
+        self.ssh_client.ssh_upload_local_file(self.ip_address, FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip')
+        os.remove(FH_ZIP_LOCATION)
 
-        logger.info('Docker environment installed in VM instance')
+        cmd = 'systemctl daemon-reload '
+        cmd += '&& systemctl stop {} > /dev/null 2>&1'.format(PROXY_SERVICE_NAME)
+        self.ssh_client.ssh_run_remote_command(self.ip_address, cmd)
 
-    def get_execution_cmd(self, docker_image_name):
-        cmd = ('docker run --user $(id -u):$(id -g) --rm -v {}/../:/tmp --entrypoint "python"'
-               ' {} {}'.format(REMOTE_TMP_DIR, docker_image_name, HANDLER_FILE))
-        return cmd
+        cmd = 'apt-get remove docker docker-engine docker.io containerd runc -y '
+        cmd += '&& apt-get update '
+        cmd += '&& apt-get install unzip python3-pip apt-transport-https ca-certificates curl gnupg-agent software-properties-common -y '
+        cmd += '&& curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - > /dev/null 2>&1 '
+        cmd += '&& add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" '
+        cmd += '&& apt-get update '
+        cmd += '&& apt-get install docker-ce docker-ce-cli containerd.io -y '
 
+        cmd += '&& pip3 install -U lithops flask '
+        cmd += '&& pip3 uninstall lithops -y '
 
-class DefaultEnv:
-    def __init__(self, ssh_client):
-        self.ssh_client = ssh_client
-        self.runtime = sys.executable
+        cmd += '&& mkdir -p {} '.format(REMOTE_INSTALL_DIR)
+        cmd += '&& unzip -o /tmp/lithops_standalone.zip -d {} > /dev/null 2>&1 '.format(REMOTE_INSTALL_DIR)
+        cmd += '&& rm /tmp/lithops_standalone.zip '
 
-    def _is_env_ready(self, ip_address):
-        """
-        Checks if VM instance is ready to use the default execution env
-        """
-        try:
-            cmd = 'ls {}/default_ready_sentinel'.format(STORAGE_DIR)
-            self.ssh_client.ssh_run_remote_command(ip_address, cmd, timeout=2)
-            return True
-        except Exception:
-            return False
-
-    def _wait_env_ready(self, ip_address):
-        """
-        Waits until the default env is ready to run jobs
-        """
-        while not self._is_env_ready(ip_address):
-            time.sleep(1)
-
-    def setup(self, ip_address):
-        """
-        Installs the lithops lib and all the dependencies in the VM instance
-        """
-        if not self._is_env_ready(ip_address):
-            logger.info('Installing default environment in VM instance')
-
-            src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'entry_point.py')
-            create_function_handler_zip(FH_ZIP_LOCATION, 'local_handler.py', src_handler)
-            self.ssh_client.ssh_upload_local_file(ip_address, FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip')
-
-            cmd = 'apt-get update '
-            cmd += '&& apt-get install unzip python3-pip -y '
-
-            cmd += '&& rm -R -f {};'.format(REMOTE_TMP_DIR)
-            cmd += 'mkdir -p {} '.format(REMOTE_TMP_DIR)
-            cmd += '&& unzip /tmp/lithops_standalone.zip -d {} > /dev/null 2>&1 '.format(REMOTE_TMP_DIR)
-            cmd += '&& rm /tmp/lithops_standalone.zip; '
-
-            cmd += 'rm -r {} > /dev/null 2>&1; '.format(STORAGE_DIR)
-            cmd += 'ln -s {} {} > /dev/null 2>&1 '.format(REMOTE_TMP_DIR, STORAGE_DIR)
-            cmd += '&& touch {}/default_ready_sentinel &'.format(REMOTE_TMP_DIR)
-            self.ssh_client.ssh_run_remote_command(ip_address, cmd, background=True)
-            self._wait_env_ready(ip_address)
-
-        logger.info('Default environment installed in VM instance')
-
-    def get_execution_cmd(self, runtime):
-        cmd = '{} {}'.format('python3', HANDLER_FILE)
-        return cmd
+        cmd += '&& chmod 644 {} '.format(service_file)
+        cmd += '&& systemctl daemon-reload '
+        cmd += '&& systemctl stop {} '.format(PROXY_SERVICE_NAME)
+        cmd += '&& systemctl enable {} '.format(PROXY_SERVICE_NAME)
+        cmd += '&& systemctl start {} '.format(PROXY_SERVICE_NAME)
+        self.ssh_client.ssh_run_remote_command(self.ip_address, cmd, background=True)

@@ -39,11 +39,12 @@ RUNTIMES_PREFIX = "lithops.runtimes"
 MAX_AGG_DATA_SIZE = 4  # 4MiB
 
 TEMP = os.path.realpath(tempfile.gettempdir())
-STORAGE_DIR = os.path.join(TEMP, 'lithops-data')
+STORAGE_DIR = os.path.join(TEMP, 'lithops')
+JOBS_DONE_DIR = os.path.join(STORAGE_DIR, 'jobs')
+REMOTE_INSTALL_DIR = '/opt/lithops'
 
 HOME_DIR = os.path.expanduser('~')
 CONFIG_DIR = os.path.join(HOME_DIR, '.lithops')
-TEMP_DIR = os.path.join(CONFIG_DIR, 'temp')
 CACHE_DIR = os.path.join(CONFIG_DIR, 'cache')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config')
 
@@ -152,7 +153,7 @@ def default_config(config_data=None, config_overwrite={}):
         if 'backend' not in config_data['standalone']:
             config_data['standalone']['backend'] = STANDALONE_BACKEND_DEFAULT
         if 'runtime' not in config_data['standalone']:
-            config_data['standalone']['runtime'] = None
+            config_data['standalone']['runtime'] = 'python3'
         sb = config_data['standalone']['backend']
         logger.debug("Loading Standalone backend module: {}".format(sb))
         sb_config = importlib.import_module('lithops.standalone.backends.{}.config'.format(sb))
@@ -160,7 +161,7 @@ def default_config(config_data=None, config_overwrite={}):
 
     elif config_data['lithops']['executor'] == 'localhost':
         if 'runtime' not in config_data['localhost']:
-            config_data['localhost']['runtime'] = None
+            config_data['localhost']['runtime'] = 'python3'
 
     if 'storage' not in config_data['lithops']:
         config_data['lithops']['storage'] = STORAGE_BACKEND_DEFAULT

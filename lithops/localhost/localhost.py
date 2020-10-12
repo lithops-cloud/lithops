@@ -42,7 +42,7 @@ class LocalhostHandler:
         self.config = localhost_config
         self.runtime = self.config['runtime']
 
-        if self.runtime is None:
+        if self.runtime == 'python3':
             self.env = DefaultEnv()
             self.env_type = 'default'
         else:
@@ -53,6 +53,9 @@ class LocalhostHandler:
         """
         Run the job description against the selected environment
         """
+        if not os.path.isfile(HANDLER_FILE):
+            self.env.setup()
+
         runtime = job_payload['job_description']['runtime_name']
         exec_command = self.env.get_execution_cmd(runtime)
 
@@ -78,7 +81,7 @@ class LocalhostHandler:
         """
         self.env.setup()
         exec_command = self.env.get_execution_cmd(runtime)
-        process = subprocess.run(exec_command+' modules', shell=True, check=True,
+        process = subprocess.run(exec_command+' preinstalls', shell=True, check=True,
                                  stdout=subprocess.PIPE, universal_newlines=True)
         runtime_meta = json.loads(process.stdout.strip())
 
@@ -119,6 +122,11 @@ class DefaultEnv:
 
     def setup(self):
         os.makedirs(STORAGE_DIR, exist_ok=True)
+        try:
+            shutil.rmtree(os.path.join(STORAGE_DIR, 'lithops'))
+        except FileNotFoundError:
+            pass
+        shutil.copytree(LITHOPS_LOCATION, os.path.join(STORAGE_DIR, 'lithops'))
         src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'local_handler.py')
         copyfile(src_handler, HANDLER_FILE)
 
