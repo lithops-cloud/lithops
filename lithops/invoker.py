@@ -215,8 +215,7 @@ class FunctionInvoker:
                    'host_submit_tstamp': time.time(),
                    'lithops_version': __version__,
                    'runtime_name': job.runtime_name,
-                   'runtime_memory': job.runtime_memory,
-                   'compute_backend_extra_env': job.compute_backend_extra_env}
+                   'runtime_memory': job.runtime_memory}
 
         # do the invocation
         start = time.time()

@@ -16,7 +16,6 @@
 
 import os
 import sys
-import json
 import logging
 import uuid
 import urllib3
@@ -55,16 +54,16 @@ class CodeEngineBackend:
         self.is_lithops_function = is_lithops_function()
         self.storage_config = storage_config
         self.internal_storage = InternalStorage(storage_config)
-        
+
         config.load_kube_config(config_file = code_engine_config.get('kubectl_config'))
         self.capi = client.CustomObjectsApi()
 
         self.user_agent = code_engine_config['user_agent']
         contexts = config.list_kube_config_contexts(config_file = code_engine_config.get('kubectl_config'))
-        
+
         current_context = contexts[1].get('context')
         self.user = current_context.get('user')
-        
+
         self.user_key = self.user
         self.package = 'lithops_v{}_{}'.format(__version__, self.user_key)
         self.namespace = current_context.get('namespace', 'default')
@@ -77,8 +76,8 @@ class CodeEngineBackend:
         logger.info("Code Engine client created successfully")
 
     def _format_action_name(self, runtime_name, runtime_memory):
-        runtime_name = runtime_name.replace('/', '_').replace(':', '_')
-        return '{}_{}MB'.format(runtime_name, runtime_memory)
+        runtime_name = runtime_name.replace('/', '-').replace(':', '-').replace('.','-')
+        return '{}-{}mb'.format(runtime_name, runtime_memory)
 
   
     def _unformat_action_name(self, action_name):
@@ -141,12 +140,12 @@ class CodeEngineBackend:
 
         logger.info('Creating new Lithops runtime based on Docker image {}'.format(docker_image_name))
         
-        activation_id = str(uuid.uuid4()).replace('-', '')[:12] + 'lithops'
-        self.jobdef_id = self._create_job_definition(docker_image_name, memory, activation_id)
+        action_name = self._format_action_name(docker_image_name, memory)
+        if self.is_job_def_exists(action_name) == False:
+            logger.debug("No job definition {} exists".format(action_name))
+            action_name = self._create_job_definition(docker_image_name, None, action_name)
 
-        runtime_meta = self._generate_runtime_meta(docker_image_name)
-        runtime_meta['compute_backend_extra_env'] = {}
-        runtime_meta['compute_backend_extra_env']['jobdef_id'] = self.jobdef_id
+        runtime_meta = self._generate_runtime_meta(action_name)
         return runtime_meta
 
     def delete_runtime(self, docker_image_name, memory):
@@ -173,32 +172,39 @@ class CodeEngineBackend:
         """
         Invoke -- return information about this invocation
         """
-        #activation_id = str(uuid.uuid4()).replace('-', '')[:12] + payload['call_id']
 
-        #jobdef_id = self._create_job_definition(docker_image_name, runtime_memory, activation_id)
-        if 'compute_backend_extra_env' in payload:
-            self.jobdef_id = payload['compute_backend_extra_env']['jobdef_id']
-
+        #This is what we need, job def id per map.
+        #This code is wrong, experimental
+        '''
+        if payload['executor_id'] in self.jobdef_id_per_executor:
+            def_id = self.jobdef_id_per_executor[payload['executor_id']]
+            logger.debug("Job definition {} exists per executor {}".format(def_id, payload['executor_id']))
+        else:
+            logger.debug("No job definition per executor {}".format(payload['executor_id']))
+            activation_id = self._format_action_name(docker_image_name, runtime_memory)
+            def_id = self._create_job_definition(docker_image_name, runtime_memory, activation_id)
+            self.jobdef_id_per_executor[payload['executor_id'], def_id]
+        '''
+        def_id = self._format_action_name(docker_image_name, runtime_memory)
         current_location = os.path.dirname(os.path.abspath(__file__))
         job_run_file = os.path.join(current_location, 'job_run.json')
 
         with open(job_run_file) as json_file:
             job_desc = json.load(json_file)
-       
+
             activation_id = str(uuid.uuid4()).replace('-', '')[:12] + payload['call_id']
             payload['activation_id'] = activation_id
-            
+
             job_desc['metadata']['name'] = payload['activation_id']
             job_desc['metadata']['namespace'] = self.namespace
             job_desc['apiVersion'] = self.code_engine_config['api_version']
-            job_desc['spec']['jobDefinitionRef'] = str(self.jobdef_id)
-            job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['name'] = str(self.jobdef_id)
+            job_desc['spec']['jobDefinitionRef'] = str(def_id)
+            job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['name'] = str(def_id)
             job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][0]['value'] = 'payload'
             job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = self._dict_to_binary(payload)
             job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['resources']['requests']['memory'] = str(runtime_memory) +'Mi'
             job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['resources']['requests']['cpu'] = str(self.code_engine_config['runtime_cpu'])
-            
-    
+
             logger.info("Before invoke job name {}".format(job_desc['metadata']['name']))
             try:
                 res = self.capi.create_namespaced_custom_object(
@@ -234,7 +240,8 @@ class CodeEngineBackend:
             job_desc['spec']['template']['containers'][0]['image'] = docker_image_name
             job_desc['spec']['template']['containers'][0]['name'] = activation_id
             job_desc['spec']['template']['containers'][0]['env'][0]['value'] = 'payload'
-            job_desc['spec']['template']['containers'][0]['resources']['requests']['memory'] = str(runtime_memory) +'Mi'
+            if runtime_memory is not None:
+                job_desc['spec']['template']['containers'][0]['resources']['requests']['memory'] = str(runtime_memory) +'Mi'
             job_desc['spec']['template']['containers'][0]['resources']['requests']['cpu'] = str(self.code_engine_config['runtime_cpu'])
             job_desc['metadata']['name'] = activation_id
 
@@ -286,14 +293,46 @@ class CodeEngineBackend:
             if (e.status == 404):
                 logger.info("Cleanup - job name {} was not found (404)".format(activation_id))
 
-    
+    def _job_def_cleanup(self):
+        logger.debug("Cleanup for job_definition {}".format(self.jobdef_id))
+        try:
+            res = self.capi.delete_namespaced_custom_object(
+                group=self.code_engine_config['group'],
+                version=self.code_engine_config['version'],
+                name=self.jobdef_id,
+                namespace=self.namespace,
+                plural="jobdefinitions",
+                body=client.V1DeleteOptions(),
+            )
+        except ApiException as e:
+            # swallow error
+            if (e.status == 404):
+                logger.info("Cleanup - job definition {} was not found (404)".format(self.jobdef_id))
+
+    def is_job_def_exists(self, job_def_name):
+        logger.debug("Check if job_definition {} exists".format(job_def_name))
+        try:
+            res = self.capi.get_namespaced_custom_object(group=self.code_engine_config['group'],
+                                                         version=self.code_engine_config['version'],
+                                                         namespace=self.namespace,
+                                                         plural="jobdefinitions",
+                                                         name=job_def_name)
+
+        except ApiException as e:
+            # swallow error
+            if (e.status == 404):
+                logger.info("Job definition {} was not found (404)".format(job_def_name))
+                return False
+        logger.info("Job definition {} was found".format(job_def_name))
+        return True
+
     def _format_service_name(self, runtime_name, runtime_memory = None):
         runtime_name = runtime_name.replace('/', '--').replace(':', '--')
         if (runtime_memory is not None):
             return '{}--{}mb'.format(runtime_name, runtime_memory)
         return runtime_name
 
-    def _generate_runtime_meta(self, docker_image_name):
+    def _generate_runtime_meta(self, job_def_name):
         try:
             current_location = os.path.dirname(os.path.abspath(__file__))
             job_run_file = os.path.join(current_location, 'job_run.json')
@@ -307,8 +346,8 @@ class CodeEngineBackend:
                 job_desc['metadata']['name'] = activation_id
                 job_desc['metadata']['namespace'] = self.namespace
                 job_desc['apiVersion'] = self.code_engine_config['api_version']
-                job_desc['spec']['jobDefinitionRef'] = str(self.jobdef_id)
-                job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['name'] = str(self.jobdef_id)
+                job_desc['spec']['jobDefinitionRef'] = str(job_def_name)
+                job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['name'] = str(job_def_name)
                 job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][0]['value'] = 'preinstals'
                 job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = self._dict_to_binary(self.storage_config)
 
@@ -343,8 +382,11 @@ class CodeEngineBackend:
                     logger.debug("{} not found in attempt {}. Sleep before retry".format(status_key, retry))
                     retry = retry + 1
                     time.sleep(30)
+            if (retry >=5 and not found):
+                raise("Unable to invoke 'modules' action")
 
             json_str = self.internal_storage.storage.get_cobject(key = status_key)
+            self.cleanup(self.storage_config['activation_id'])
             runtime_meta = json.loads(json_str.decode("ascii"))
 
         except Exception:

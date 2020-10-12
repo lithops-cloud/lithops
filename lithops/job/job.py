@@ -146,8 +146,6 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
         ext_env = utils.convert_bools_to_string(ext_env)
         logger.debug("Extra environment vars {}".format(ext_env))
 
-    compute_backend_extra_env = {} if 'compute_backend_extra_env' not in runtime_meta else runtime_meta['compute_backend_extra_env'].copy()
-
     if not data:
         return []
 
@@ -164,7 +162,6 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     job_description['invoke_pool_threads'] = invoke_pool_threads
     job_description['executor_id'] = executor_id
     job_description['job_id'] = job_id
-    job_description['compute_backend_extra_env'] = compute_backend_extra_env
 
     exclude_modules_cfg = config['lithops'].get('exclude_modules', [])
     include_modules_cfg = config['lithops'].get('include_modules', [])
@@ -287,3 +284,34 @@ def clean_job(jobs_to_clean, storage_config, config, clean_cloudobjects):
 
     cmdstr = '{} -c "{}"'.format(sys.executable, textwrap.dedent(script))
     subprocess.Popen(cmdstr, shell=True)
+
+def clean_job_direct(jobs_to_clean, storage_config, config, clean_cloudobjects):
+    """
+    Clean the jobs in a separate process
+    """
+    with tempfile.NamedTemporaryFile(delete=False) as temp:
+        pickle.dump(jobs_to_clean, temp)
+        jobs_path = temp.name
+
+    from lithops.storage import InternalStorage
+    from lithops.invoker import FunctionInvoker
+    from lithops.storage.utils import clean_bucket
+    from lithops.config import JOBS_PREFIX, TEMP_PREFIX
+
+    bucket = storage_config['bucket']
+
+
+    internal_storage = InternalStorage(storage_config)
+    storage = internal_storage.storage
+
+    for executor_id, job_id, activation_id in jobs_to_clean:
+        prefix = '/'.join([JOBS_PREFIX, executor_id, job_id])
+        clean_bucket(storage, bucket, prefix, log=False)
+        if clean_cloudobjects:
+            prefix = '/'.join([TEMP_PREFIX, executor_id, job_id])
+            clean_bucket(storage, bucket, prefix, log=False)
+        invoker = FunctionInvoker(config, executor_id, internal_storage)
+        invoker.cleanup(activation_id)
+
+    if os.path.exists(jobs_path):
+        os.remove(jobs_path)
