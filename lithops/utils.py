@@ -51,6 +51,15 @@ def create_executor_id(lenght=6):
     return '{}/{}'.format(session_id, exec_num)
 
 
+def create_remote_monitor_id(executor_id, job_id):
+    return '-'.join([executor_id, job_id])
+
+
+def extract_data_from_remote_monitor_id(remote_monitor_id):
+    executor_id, job_id = remote_monitor_id.split('-')
+    return executor_id, job_id
+
+
 def create_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id):
     """
     Creates RabbitMQ queues and exchanges of a given job in a thread.

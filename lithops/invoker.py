@@ -19,6 +19,7 @@ import sys
 import json
 import pika
 import time
+import pickle
 import logging
 import random
 from threading import Thread
@@ -28,8 +29,9 @@ from concurrent.futures import ThreadPoolExecutor
 from lithops.compute import Compute
 from lithops.version import __version__
 from lithops.future import ResponseFuture
-from lithops.config import extract_storage_config, extract_compute_config
-from lithops.utils import version_str, is_lithops_function, is_unix_system
+from lithops.config import JOBS_PREFIX, extract_storage_config, extract_compute_config
+from lithops.utils import version_str, is_lithops_function, is_unix_system, create_remote_monitor_id
+from lithops.storage.utils import create_remote_futures_key
 
 
 logger = logging.getLogger(__name__)
@@ -263,7 +265,7 @@ class FunctionInvoker:
         else:
             raise Exception('Unable to spawn remote invoker')
 
-    def run(self, job_description):
+    def run(self, job_description, remote_monitor_enabled=False):
         """
         Run a job described in job_description
         """
@@ -354,6 +356,18 @@ class FunctionInvoker:
             fut = ResponseFuture(call_id, job_description, job.metadata.copy(), self.storage_config)
             fut._set_state(ResponseFuture.State.Invoked)
             futures.append(fut)
+
+        if remote_monitor_enabled:
+            
+            remote_futures_key = create_remote_futures_key(JOBS_PREFIX, job.executor_id, job.job_id)
+            self.internal_storage.put_data(remote_futures_key, pickle.dumps(futures))
+            
+            remote_monitor_id = create_remote_monitor_id(job.executor_id, job.job_id)
+            log_msg = ('ExecutorID {} | JobID {} - Initialized futures for monitoring in remote - RemoteMonitorID: {}'
+                       .format(job.executor_id, job.job_id, remote_monitor_id))
+            logger.info(log_msg)
+            if not self.log_active:
+                print(log_msg)
 
         return futures
 

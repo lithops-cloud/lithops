@@ -26,6 +26,7 @@ import textwrap
 logger = logging.getLogger(__name__)
 
 
+remote_futures_key_suffix = "remote_futures.pickle"
 func_key_suffix = "func.pickle"
 agg_data_key_suffix = "aggdata.pickle"
 data_key_suffix = "data.pickle"
@@ -115,6 +116,11 @@ def delete_cloudobject(co_to_clean, storage_config):
 
     cmdstr = '{} -c "{}"'.format(sys.executable, textwrap.dedent(script))
     os.popen(cmdstr)
+
+
+def create_remote_futures_key(prefix, executor_id, job_id):
+    remote_futures_key = '/'.join([prefix, executor_id, job_id, remote_futures_key_suffix])
+    return remote_futures_key
 
 
 def create_func_key(prefix, executor_id, job_id):

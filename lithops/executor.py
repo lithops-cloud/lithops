@@ -17,6 +17,7 @@
 
 import copy
 import signal
+import pickle
 import logging
 from functools import partial
 from lithops.invoker import FunctionInvoker
@@ -24,8 +25,10 @@ from lithops.storage import InternalStorage
 from lithops.storage.utils import delete_cloudobject
 from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from lithops.job import create_map_job, create_reduce_job, clean_job
-from lithops.config import default_config, extract_storage_config, default_logging_config
-from lithops.utils import timeout_handler, is_notebook, is_unix_system, is_lithops_function, create_executor_id
+from lithops.config import JOBS_PREFIX, default_config, extract_storage_config, default_logging_config
+from lithops.utils import timeout_handler, is_notebook, is_unix_system, is_lithops_function, create_executor_id, \
+    extract_data_from_remote_monitor_id
+from lithops.storage.utils import create_remote_futures_key
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +116,7 @@ class FunctionExecutor:
         return '{}{}'.format(call_type, job_id)
 
     def call_async(self, func, data, extra_env=None, runtime_memory=None,
-                   timeout=None, include_modules=[], exclude_modules=[]):
+                   timeout=None, remote_monitor=False, include_modules=[], exclude_modules=[]):
         """
         For running one function execution asynchronously
 
@@ -123,6 +126,7 @@ class FunctionExecutor:
         :param extra_env: Additional environment variables for action environment. Default None.
         :param runtime_memory: Memory to use to run the function. Default None (loaded from config).
         :param timeout: Time that the functions have to complete their execution before raising a timeout.
+        :param remote_monitor: enable monitoring results in remote. Default False
         :param include_modules: Explicitly pickle these dependencies.
         :param exclude_modules: Explicitly keep these modules from pickled dependencies.
 
@@ -144,13 +148,13 @@ class FunctionExecutor:
                              exclude_modules=exclude_modules,
                              execution_timeout=timeout)
 
-        futures = self.invoker.run(job)
+        futures = self.invoker.run(job, remote_monitor_enabled=remote_monitor)
         self.futures.extend(futures)
 
         return futures[0]
 
     def map(self, map_function, map_iterdata, extra_args=None, extra_env=None, runtime_memory=None,
-            chunk_size=None, chunk_n=None, timeout=None, invoke_pool_threads=500,
+            chunk_size=None, chunk_n=None, timeout=None, invoke_pool_threads=500, remote_monitor=False,
             include_modules=[], exclude_modules=[]):
         """
         :param map_function: the function to map over the data
@@ -165,6 +169,7 @@ class FunctionExecutor:
         :param remote_invocation: Enable or disable remote_invocation mechanism. Default 'False'
         :param timeout: Time that the functions have to complete their execution before raising a timeout.
         :param invoke_pool_threads: Number of threads to use to invoke.
+        :param remote_monitor: enable monitoring results in remote. Default False
         :param include_modules: Explicitly pickle these dependencies.
         :param exclude_modules: Explicitly keep these modules from pickled dependencies.
 
@@ -190,7 +195,7 @@ class FunctionExecutor:
                              exclude_modules=exclude_modules,
                              execution_timeout=timeout)
 
-        futures = self.invoker.run(job)
+        futures = self.invoker.run(job, remote_monitor_enabled=remote_monitor)
         self.futures.extend(futures)
 
         return futures
@@ -198,7 +203,7 @@ class FunctionExecutor:
     def map_reduce(self, map_function, map_iterdata, reduce_function, extra_args=None, extra_env=None,
                    map_runtime_memory=None, reduce_runtime_memory=None, chunk_size=None, chunk_n=None,
                    timeout=None, invoke_pool_threads=500, reducer_one_per_object=False,
-                   reducer_wait_local=False, include_modules=[], exclude_modules=[]):
+                   reducer_wait_local=False, remote_monitor=False, include_modules=[], exclude_modules=[]):
         """
         Map the map_function over the data and apply the reduce_function across all futures.
         This method is executed all within CF.
@@ -219,6 +224,7 @@ class FunctionExecutor:
         :param reducer_one_per_object: Set one reducer per object after running the partitioner
         :param reducer_wait_local: Wait for results locally
         :param invoke_pool_threads: Number of threads to use to invoke.
+        :param remote_monitor: enable monitoring results in remote. Default False
         :param include_modules: Explicitly pickle these dependencies.
         :param exclude_modules: Explicitly keep these modules from pickled dependencies.
 
@@ -244,7 +250,7 @@ class FunctionExecutor:
                                  exclude_modules=exclude_modules,
                                  execution_timeout=timeout)
 
-        map_futures = self.invoker.run(map_job)
+        map_futures = self.invoker.run(map_job, remote_monitor_enabled=remote_monitor)
         self.futures.extend(map_futures)
 
         if reducer_wait_local:
@@ -264,7 +270,7 @@ class FunctionExecutor:
                                        include_modules=include_modules,
                                        exclude_modules=exclude_modules)
 
-        reduce_futures = self.invoker.run(reduce_job)
+        reduce_futures = self.invoker.run(reduce_job, remote_monitor_enabled=remote_monitor)
 
         self.futures.extend(reduce_futures)
 
@@ -273,8 +279,8 @@ class FunctionExecutor:
 
         return map_futures + reduce_futures
 
-    def wait(self, fs=None, throw_except=True, return_when=ALL_COMPLETED, download_results=False,
-             timeout=None, THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
+    def wait(self, fs=None, remote_monitor_id=None, throw_except=True, return_when=ALL_COMPLETED,
+             download_results=False, timeout=None, THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
         """
         Wait for the Future instances (possibly created by different Executor instances)
         given by fs to complete. Returns a named 2-tuple of sets. The first set, named done,
@@ -284,6 +290,7 @@ class FunctionExecutor:
         seconds to wait before returning.
 
         :param fs: Futures list. Default None
+        :param remote_monitor_id: id produced by the invoker to monitor futures in remote. Default None
         :param throw_except: Re-raise exception if call raised. Default True.
         :param return_when: One of `ALL_COMPLETED`, `ANY_COMPLETED`, `ALWAYS`
         :param download_results: Download results. Default false (Only get statuses)
@@ -296,6 +303,14 @@ class FunctionExecutor:
             and `fs_notdone` is a list of futures that have not completed.
         :rtype: 2-tuple of list
         """
+
+        if remote_monitor_id:
+            remote_executor_id, remote_job_id = extract_data_from_remote_monitor_id(remote_monitor_id)
+            logger.info("ExecutorID {} Monitoring futures in remote - RemoteExecutorID: {} JobID: {}"
+                        .format(self.executor_id, remote_executor_id, remote_job_id))
+            remote_futures_key = create_remote_futures_key(JOBS_PREFIX, remote_executor_id, remote_job_id)
+            fs = pickle.loads(self.internal_storage.get_data(remote_futures_key))
+
         futures = fs or self.futures
         if type(futures) != list:
             futures = [futures]
@@ -392,11 +407,13 @@ class FunctionExecutor:
 
         return fs_done, fs_notdone
 
-    def get_result(self, fs=None, throw_except=True, timeout=None, THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
+    def get_result(self, fs=None, remote_monitor_id=None, throw_except=True, timeout=None,
+                   THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
         """
         For getting the results from all function activations
 
         :param fs: Futures list. Default None
+        :param remote_monitor_id: id produced by the invoker to monitor futures in remote. Default None
         :param throw_except: Reraise exception if call raised. Default True.
         :param verbose: Shows some information prints. Default False
         :param timeout: Timeout for waiting for results.
@@ -405,8 +422,8 @@ class FunctionExecutor:
 
         :return: The result of the future/s
         """
-        fs_done, unused_fs_notdone = self.wait(fs=fs, throw_except=throw_except,
-                                               timeout=timeout, download_results=True,
+        fs_done, unused_fs_notdone = self.wait(fs=fs, remote_monitor_id=remote_monitor_id,
+                                               throw_except=throw_except, timeout=timeout, download_results=True,
                                                THREADPOOL_SIZE=THREADPOOL_SIZE,
                                                WAIT_DUR_SEC=WAIT_DUR_SEC)
         result = []
