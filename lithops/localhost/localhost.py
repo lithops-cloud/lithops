@@ -111,8 +111,10 @@ class DockerEnv:
         copyfile(src_handler, HANDLER_FILE)
 
     def get_execution_cmd(self, docker_image_name):
-        cmd = ('docker run --user $(id -u):$(id -g) --rm -v {}:/tmp --entrypoint "python"'
-               ' {} {}'.format(TEMP, docker_image_name, HANDLER_FILE))
+        cmd = ('docker pull {} > /dev/null 2>&1 && docker run '
+               '--user $(id -u):$(id -g) --rm -v {}:/tmp --entrypoint '
+               '"python" {} {}'.format(docker_image_name, TEMP,
+                                       docker_image_name, HANDLER_FILE))
         return cmd
 
 

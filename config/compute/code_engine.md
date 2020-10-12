@@ -61,8 +61,8 @@ Note that Lithops automatically builds the default runtime the first time you ru
 6. Edit your lithops config file and add the following keys:
 
    ```yaml
-   lithops:
-       compute_backend: knative
+   serverless:
+       backend: knative
 
    knative:
        docker_user: <DOCKER_USERNAME>

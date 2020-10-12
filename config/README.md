@@ -61,6 +61,14 @@ if __name__ == '__main__':
 <img width="441" height="1px">
 <p> 
 <small>
+Standalone Compute Backends
+</small>
+</p>
+</th>
+<th align="center">
+<img width="441" height="1px">
+<p> 
+<small>
 Serverless Compute Backends
 </small>
 </p>
@@ -77,12 +85,16 @@ Storage Backends
 <tr>
 <td>
 
+- [Localhost](compute/localhost.md)
+- [IBM Virtual Private Cloud](compute/ibm_vpc.md)
+  
+</td>
+<td>
+
 - [IBM Cloud Functions](compute/ibm_cf.md)
 - [IBM Code Engine](compute/code_engine.md)
 - [Knative](compute/knative.md)
 - [OpenWhisk](compute/openwhisk.md)
-- [Docker](compute/docker.md)
-- [Loclahost](compute/localhost.md)
 - [AWS Lambda](compute/aws_lambda.md)
 - [Google Cloud Functions](compute/gcp_functions.md)
 - [Azure Functions](compute/azure_fa.md)
@@ -96,7 +108,6 @@ Storage Backends
 - [Ceph](storage/ceph.md)
 - [Redis](storage/redis.md)
 - [OpenStack Swift](storage/swift.md)
-- [Localhost](storage/localhost.md)
 - [AWS S3](storage/aws_s3.md)
 - [Google Cloud Storage](storage/gcp_storage.md)
 - [Azure Blob Storage](storage/azure_blob.md)
@@ -172,11 +183,29 @@ fexec = lithops.function_executor(rabbitmq_monitor=True)
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |lithops|storage_bucket | |yes | Any bucket that exists in your COS account. This will be used by Lithops for intermediate data |
-|lithops|data_cleaner |True|no|If set to True, then cleaner will automatically delete temporary data that was written into `storage_bucket/lithops.jobs`|
-|lithops | storage_backend | ibm_cos | no | Storage backend implementation. IBM Cloud Object Storage is the default |
-|lithops | compute_backend | ibm_cf | no | Compute backend implementation. IBM Cloud Functions is the default |
+|lithops | storage | ibm_cos | no | Storage backend implementation. IBM Cloud Object Storage is the default |
+|lithops| data_cleaner | True | no |If set to True, then the cleaner will automatically delete all the temporary data that was written into `storage_bucket/lithops.jobs`|
+|lithops | executor | serverless | no | Execution mode. One of: **localhost**, **serverless** or **standalone** |
 |lithops | rabbitmq_monitor | False | no | Activate the rabbitmq monitoring feature |
 |lithops | workers | Depends of the ComputeBackend | no | Max number of concurrent workers |
-|lithops| runtime_timeout | 600 |no |  Default runtime timeout (in seconds) |
-|lithops| runtime_memory | 256 | no | Default runtime memory (in MB) |
 |lithops| data_limit | 4 | no | Max (iter)data size (in MB). Set to False for unlimited size |
+
+## Summary of configuration keys for Serverless
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|serverless | backend | ibm_cf |no | Serverless compute backend implementation. IBM Cloud Functions is the default |
+|serverless | runtime | ibmfunctions/action-python-v3.X | no | Runtime name to run the functions |
+|serverless | runtime_memory | 256 | no | Default runtime memory (in MB) |
+|serverless | runtime_timeout | 600 | no |  Default runtime timeout (in seconds) |
+
+
+## Summary of configuration keys for Standalone
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|standalone | backend | ibm_vpc |no | Standalone compute backend implementation. IBM VPC is the default |
+|serverless | runtime | python3 | no | Runtime name to run the functions |
+|standalone | auto_dismantle | True |no | If False then the VM is not stopped automatically. Run **exec.dismantle()** explicitly to stop the VM. |
+|standalone | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
+|standalone | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |

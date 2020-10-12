@@ -1,6 +1,6 @@
 # Lithops on GCP Functions
 
-Lithops with *GCP Functions* as storage backend.
+Lithops with *GCP Functions* as serverless compute backend.
 
 ### Installation
 
@@ -25,8 +25,8 @@ Lithops with *GCP Functions* as storage backend.
 7. Edit your lithops config and add the following keys:
 
 ```yaml
-    lithops:
-        compute_backend: gcp_functions
+    serverless:
+        backend: gcp_functions
 
     gcp:
         project_name : <PROJECT_NAME>

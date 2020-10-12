@@ -1,6 +1,6 @@
 # Lithops on Microsoft Azure
 
-Lithops with Azure Function App as compute backend.
+Lithops with Azure Function App as serverless compute backend.
 
 ### Installation
 
@@ -17,8 +17,8 @@ Lithops with Azure Function App as compute backend.
   3. Edit your lithops config and add the following keys:
 
     ```yaml
-      lithops:
-        compute_backend : azure_fa
+      serverless:
+        backend : azure_fa
     
       azure_fa:
         resource_group : <RESOURCE_GROUP>

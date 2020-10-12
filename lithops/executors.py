@@ -510,7 +510,7 @@ class LocalhostExecutor(Executor):
                                          self.internal_storage,
                                          self.backend_handler)
 
-        logger.debug('Serverless Executor created with ID: {}'.format(self.executor_id))
+        logger.debug('Localhost Executor created with ID: {}'.format(self.executor_id))
 
 
 class ServerlessExecutor(Executor):
