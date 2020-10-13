@@ -26,6 +26,7 @@ from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from lithops.job import create_map_job, create_reduce_job, clean_job
 from lithops.config import default_config, extract_storage_config, default_logging_config
 from lithops.utils import timeout_handler, is_notebook, is_unix_system, is_lithops_function, create_executor_id
+from lithops.job.job import clean_job
 
 logger = logging.getLogger(__name__)
 
@@ -424,7 +425,6 @@ class FunctionExecutor:
 
         if len(result) == 1 and self.last_call != 'map':
             return result[0]
-
         return result
 
     def plot(self, fs=None, dst=None):
@@ -463,6 +463,7 @@ class FunctionExecutor:
         Deletes all the files from COS. These files include the function,
         the data serialization and the function invocation results.
         """
+
         if cs:
             storage_config = self.internal_storage.get_storage_config()
             delete_cloudobject(list(cs), storage_config)
@@ -478,11 +479,11 @@ class FunctionExecutor:
             return
 
         if fs or force:
-            present_jobs = {(f.executor_id, f.job_id) for f in futures
+            present_jobs = {(f.executor_id, f.job_id, f.activation_id) for f in futures
                             if f.executor_id.count('/') == 1}
             jobs_to_clean = present_jobs
         else:
-            present_jobs = {(f.executor_id, f.job_id) for f in futures
+            present_jobs = {(f.executor_id, f.job_id, f.activation_id) for f in futures
                             if f.done and f.executor_id.count('/') == 1}
             jobs_to_clean = present_jobs - self.cleaned_jobs
 
@@ -492,7 +493,7 @@ class FunctionExecutor:
             if not self.log_active:
                 print(msg)
             storage_config = self.internal_storage.get_storage_config()
-            clean_job(jobs_to_clean, storage_config, clean_cloudobjects=cloudobjects)
+            clean_job(jobs_to_clean, storage_config, self.config, clean_cloudobjects=cloudobjects)
             self.cleaned_jobs.update(jobs_to_clean)
 
     def __exit__(self, exc_type, exc_value, traceback):

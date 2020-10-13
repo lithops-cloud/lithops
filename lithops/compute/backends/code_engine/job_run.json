@@ -1,0 +1,36 @@
+{
+    "apiVersion": "codeengine.cloud.ibm.com/v1beta1",
+    "kind": "JobRun",
+    "metadata": {
+        "name": "<INPUT>"
+    },
+    "spec": {
+        "jobDefinitionRef": "<REF>",
+        "jobDefinitionSpec": {
+            "arraySpec": "1",
+            "maxExecutionTime": 7200,
+            "retryLimit": 2,
+            "template": {
+                "containers": [
+                    {
+                        "name": "<INPUT>",
+                        "env": [{
+                            "name" :"ACTION",
+                            "value" : ""
+                            },{
+                            "name" :"PAYLOAD",
+                            "value" : ""
+                            }],
+                        "resources": {
+                            "requests": {
+                                "cpu": "1",
+                                "memory": "128Mi"
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}
+

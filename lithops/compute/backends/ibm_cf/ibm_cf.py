@@ -37,7 +37,7 @@ class IBMCloudFunctionsBackend:
     A wrap-up around IBM Cloud Functions backend.
     """
 
-    def __init__(self, ibm_cf_config):
+    def __init__(self, ibm_cf_config, storage_config):
         logger.debug("Creating IBM Cloud Functions client")
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'ibm_cf'
@@ -238,6 +238,9 @@ class IBMCloudFunctionsBackend:
         runtime_key = os.path.join(self.name, self.region, self.namespace, action_name)
 
         return runtime_key
+
+    def cleanup(self, activation_id):
+        pass;
 
     def _generate_runtime_meta(self, docker_image_name):
         """

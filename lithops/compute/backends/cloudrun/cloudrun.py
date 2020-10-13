@@ -27,7 +27,7 @@ class CloudRunServingBackend:
     A wrap-up around Cloud Run Serving APIs.
     """
 
-    def __init__(self, cloudrun_config):
+    def __init__(self, cloudrun_config, storage_config):
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'cloudrun'
         self.cloudrun_config = cloudrun_config
@@ -272,3 +272,6 @@ class CloudRunServingBackend:
         runtime_key = os.path.join(self.cluster, self.namespace, service_name)
 
         return runtime_key
+
+    def cleanup(self, activation_id):
+        pass;
