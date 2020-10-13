@@ -294,7 +294,7 @@ class InternalStorage:
         path = [RUNTIMES_PREFIX, __version__,  key+".meta.json"]
         filename_local_path = os.path.join(CACHE_DIR, *path)
 
-        if os.path.exists(filename_local_path) and not is_lithops_function():
+        if not is_lithops_function() and os.path.exists(filename_local_path):
             logger.debug("Runtime metadata found in local cache")
             with open(filename_local_path, "r") as f:
                 runtime_meta = json.loads(f.read())
@@ -308,12 +308,16 @@ class InternalStorage:
                 json_str = self.storage.get_object(self.bucket, obj_key)
                 logger.debug('Runtime metadata found in storage')
                 runtime_meta = json.loads(json_str.decode("ascii"))
-                # Save runtime meta to cache
-                if not os.path.exists(os.path.dirname(filename_local_path)):
-                    os.makedirs(os.path.dirname(filename_local_path))
 
-                with open(filename_local_path, "w") as f:
-                    f.write(json.dumps(runtime_meta))
+                # Save runtime meta to cache
+                try:
+                    if not os.path.exists(os.path.dirname(filename_local_path)):
+                        os.makedirs(os.path.dirname(filename_local_path))
+
+                    with open(filename_local_path, "w") as f:
+                        f.write(json.dumps(runtime_meta))
+                except Exception as e:
+                    logger.error("Colud not save runtime meta to local cache: {}".format(e))
 
                 return runtime_meta
             except StorageNoSuchKeyError:

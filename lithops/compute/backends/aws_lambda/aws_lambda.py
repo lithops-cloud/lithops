@@ -30,7 +30,6 @@ import textwrap
 import lithops
 import botocore.exceptions
 from . import config as aws_lambda_config
-from .config import NUMERICS_LAYERS, REQUIREMENTS
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +85,7 @@ class AWSLambdaBackend:
             'aws',
             'lambda',
             self.region_name,
-            NUMERICS_LAYERS[self.region_name],
+            aws_lambda_config.NUMERICS_LAYERS[self.region_name],
             'layer',
             'AWSLambda-{}-SciPy1x'.format(runtime_name),
             '29'
@@ -137,7 +136,7 @@ class AWSLambdaBackend:
 
         # Install modules
         dependencies = [dependency.strip().replace(' ', '')
-                        for dependency in REQUIREMENTS]
+                        for dependency in aws_lambda_config.REQUIREMENTS]
         command = [
             sys.executable,
             '-m', 'pip', 'install', '-t',
