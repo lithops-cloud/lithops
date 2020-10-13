@@ -1,0 +1,38 @@
+{
+    "apiVersion": "codeengine.cloud.ibm.com/v1beta1",
+    "kind": "JobDefinition",
+    "metadata": {
+        "name": "<INPUT>"
+    },
+    "spec": {
+        "arraySpec": "0",
+        "maxExecutionTime": 7200,
+        "retryLimit": 3,
+        "template": {
+            "containers": [
+                {
+                    "image": "<INPUT>",
+                    "name": "<INPUT>",
+                    "command" : ["/usr/local/bin/python"],
+                    "args" : [
+                        "/lithops/lithopsentry.py",
+                        "$(ACTION)",
+                        "$(PAYLOAD)"],
+                        "env": [{
+                            "name" :"ACTION",
+                            "value" : ""
+                            },{
+                            "name" :"PAYLOAD",
+                            "value" : ""
+                            }],
+                    "resources": {
+                        "requests": {
+                            "cpu": "1",
+                            "memory": "128Mi"
+                        }
+                    }
+                }
+            ]
+        }
+    }
+}

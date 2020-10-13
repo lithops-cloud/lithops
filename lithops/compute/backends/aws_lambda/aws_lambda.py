@@ -39,7 +39,7 @@ class AWSLambdaBackend:
     A wrap-up around AWS Boto3 API
     """
 
-    def __init__(self, aws_lambda_config):
+    def __init__(self, aws_lambda_config, storage_config):
         logger.debug('Creating AWS Lambda client')
 
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
@@ -515,3 +515,6 @@ class AWSLambdaBackend:
             raise Exception(runtime_meta)
 
         return runtime_meta
+
+    def cleanup(self, activation_id):
+        pass;

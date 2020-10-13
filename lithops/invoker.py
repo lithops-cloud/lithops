@@ -66,10 +66,10 @@ class FunctionInvoker:
             for region in regions:
                 compute_config = self.compute_config.copy()
                 compute_config[cb]['region'] = region
-                compute_handler = Compute(compute_config)
+                compute_handler = Compute(compute_config, self.storage_config)
                 self.compute_handlers.append(compute_handler)
         else:
-            compute_handler = Compute(self.compute_config)
+            compute_handler = Compute(self.compute_config, self.storage_config)
             self.compute_handlers.append(compute_handler)
 
         logger.debug('ExecutorID {} - Creating function invoker'.format(self.executor_id))
@@ -132,7 +132,7 @@ class FunctionInvoker:
                              'installed'.format(self.executor_id, job_id, runtime_name, runtime_memory))
                 if not self.log_active and not installing:
                     installing = True
-                    print('(Installing...)')
+                    print('(Installing runtime {}...)'.format(runtime_key))
 
                 timeout = self.config['lithops']['runtime_timeout']
                 logger.debug('Creating runtime: {}, memory: {}MB'.format(runtime_name, runtime_memory))
@@ -367,6 +367,9 @@ class FunctionInvoker:
 
         return futures
 
+    def cleanup(self, activation_id):
+        compute_handler = random.choice(self.compute_handlers)
+        compute_handler.cleanup(activation_id)
 
 class JobMonitor:
 
