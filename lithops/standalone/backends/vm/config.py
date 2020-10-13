@@ -9,3 +9,5 @@ def load_config(config_data):
     if 'ssh_user' not in config_data[section]:
         msg = 'ssh_user is mandatory in {} section of the configuration'.format(section)
         raise Exception(msg)
+
+    config_data['standalone']['auto_dismantle'] = False

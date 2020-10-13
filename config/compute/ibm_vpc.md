@@ -4,21 +4,23 @@ The IBM VPC client is a standalone compute backend. It is used for start and sto
 
 ### Setup
 
-1. Follow [IBM VPC setup](https://cloud.ibm.com/docs/vpc?topic=vpc-creating-a-vpc-using-cli) tutorial to create a VPC, create subnets in one or more regions and to attach a public gateway (using the IBM Cloud CLI)
+1. Follow [IBM VPC setup](https://cloud.ibm.com/docs/vpc?topic=vpc-creating-a-vpc-using-cli) tutorial to create a VPC, create subnets in one or more regions and to attach a public gateway (using the IBM Cloud CLI).
 
-2. Create a SSH key in [IBM VPC SSH keys UI](https://cloud.ibm.com/vpc-ext/compute/sshKeys)
+2. Create a SSH key in [IBM VPC SSH keys UI](https://cloud.ibm.com/vpc-ext/compute/sshKeys).
 
-3. Create a virtual server instance (VM) in [IBM VPC virtual server instances UI](https://cloud.ibm.com/vpc-ext/compute/vs) with CPUs and RAM needed for your application
+3. Create an Ubuntu-based virtual server instance (VM) in [IBM VPC virtual server instances UI](https://cloud.ibm.com/vpc-ext/compute/vs) with CPUs and RAM needed for your application.
 
-4. Reserve and associate a floating IP address in [IBM VPC floating IPs UI](https://cloud.ibm.com/vpc-ext/network/floatingIPs) to be used for the virtual server instance
+4. Reserve and associate a floating IP address in [IBM VPC floating IPs UI](https://cloud.ibm.com/vpc-ext/network/floatingIPs) to be used for the virtual server instance.
+
+5. Access to your [security groups](https://cloud.ibm.com/vpc-ext/network/securityGroups) rules and open the port 8080
 
 ### Configuration
 
-1. Get your IBM IAM API key, you can create new keys [here](https://cloud.ibm.com/iam/apikeys)
+1. Get your IBM IAM API key, you can create new keys [here](https://cloud.ibm.com/iam/apikeys).
 
-2. Get the floating IP address of your virtual server instance which can be found [here](https://cloud.ibm.com/vpc-ext/network/floatingIPs)
+2. Get the floating IP address of your virtual server instance which can be found [here](https://cloud.ibm.com/vpc-ext/network/floatingIPs).
 
-3. Get the endpoint of your subnet region, endpoint URLs list can be found [here](https://cloud.ibm.com/apidocs/vpc#endpoint-url)
+3. Get the endpoint of your subnet region, endpoint URLs list can be found [here](https://cloud.ibm.com/apidocs/vpc#endpoint-url).
 
 4. Get the virtual server instance ID by selecting on your instance in [IBM VPC virtual server instances UI](https://cloud.ibm.com/vpc-ext/compute/vs) and then extracting from the instance's details.
 
@@ -37,7 +39,7 @@ The IBM VPC client is a standalone compute backend. It is used for start and sto
        ip_address: <floating-ip-address>
    ```
    
-#### Summary of configuration keys for IBM VPC:
+#### Summary of configuration keys for IBM VPC
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|

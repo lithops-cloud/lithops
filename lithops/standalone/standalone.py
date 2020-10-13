@@ -180,6 +180,12 @@ class StandaloneHandler:
         """.format(REMOTE_INSTALL_DIR)
         service_file = '/etc/systemd/system/{}'.format(PROXY_SERVICE_NAME)
         self.ssh_client.upload_data_to_file(self.ip_address, textwrap.dedent(unix_service), service_file)
+
+        cmd = 'mkdir -p {}; '.format(REMOTE_INSTALL_DIR)
+        cmd += 'systemctl daemon-reload '
+        cmd += '&& systemctl stop {} > /dev/null 2>&1'.format(PROXY_SERVICE_NAME)
+        self.ssh_client.run_remote_command(self.ip_address, cmd)
+
         config_file = os.path.join(REMOTE_INSTALL_DIR, 'config')
         self.ssh_client.upload_data_to_file(self.ip_address, json.dumps(self.config), config_file)
 
@@ -187,10 +193,6 @@ class StandaloneHandler:
         create_function_handler_zip(FH_ZIP_LOCATION, src_proxy)
         self.ssh_client.upload_local_file(self.ip_address, FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip')
         os.remove(FH_ZIP_LOCATION)
-
-        cmd = 'systemctl daemon-reload '
-        cmd += '&& systemctl stop {} > /dev/null 2>&1'.format(PROXY_SERVICE_NAME)
-        self.ssh_client.run_remote_command(self.ip_address, cmd)
 
         cmd = 'apt-get remove docker docker-engine docker.io containerd runc -y '
         cmd += '&& apt-get update '

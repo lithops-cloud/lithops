@@ -5,6 +5,8 @@ Lithops can run functions in a regular remote virtual machine by using processes
 
 ### Configuration
 
+1. Make sure port 8080 is open on your virtual machine.
+
 2. Edit your lithops config and add the following keys:
 
 ```yaml
@@ -15,10 +17,10 @@ Lithops can run functions in a regular remote virtual machine by using processes
         backend: vm
         
     vm:
+        host: <ip>
         ssh_user: <username>
         ssh_password: <password>
 ```
-
 
 ### Execution environments
 

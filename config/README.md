@@ -177,7 +177,7 @@ fexec = lithops.function_executor(rabbitmq_monitor=True)
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |serverless | backend | ibm_cf |no | Serverless compute backend implementation. IBM Cloud Functions is the default |
-|serverless | runtime | iDepends on the backend | no | Runtime name to run the functions. |
+|serverless | runtime | Depends on the backend | no | Runtime name to run the functions. |
 |serverless | runtime_memory | 256 | no | Default runtime memory (in MB) |
 |serverless | runtime_timeout | 600 | no |  Default runtime timeout (in seconds) |
 
