@@ -43,41 +43,24 @@ class FunctionExecutor:
     for the Localhost, Serverless and Standalone executors
     """
 
-    def __init__(self, type='serverless', config=None, runtime=None,
-                 runtime_memory=None, backend=None, storage=None,
-                 memory=None, cpu=None, instances=None, workers=None,
-                 rabbitmq_monitor=None, remote_invoker=None, log_level=None):
+    def __init__(self, type=None, config=None, backend=None, storage=None,
+                 runtime=None, runtime_memory=None, rabbitmq_monitor=None,
+                 workers=None, remote_invoker=None, log_level=None):
+
+        if type is None:
+            config = default_config(copy.deepcopy(config))
+            type = config['lithops']['executor']
 
         if log_level:
             default_logging_config(log_level)
 
-        if type == 'localhost':
-            config_ow = {'lithops': {'executor': 'localhost'}, 'localhost': {}}
-            if runtime is not None:
-                config_ow['localhost']['runtime'] = runtime
-
-        elif type == 'serverless':
-            config_ow = {'lithops': {'executor': 'serverless'}, 'serverless': {}}
-            if runtime is not None:
-                config_ow['serverless']['runtime'] = runtime
-            if runtime_memory is not None:
-                config_ow['serverless']['runtime_memory'] = int(runtime_memory)
-            if backend is not None:
-                config_ow['serverless']['backend'] = backend
-
-        elif type == 'standalone':
-            config_ow = {'lithops': {'executor': 'standalone'}, 'standalone': {}}
-            if backend is not None:
-                config_ow['standalone']['backend'] = backend
-            if runtime is not None:
-                config_ow['standalone']['runtime'] = runtime
-            if cpu is not None:
-                config_ow['standalone']['cpu'] = int(cpu)
-            if instances is not None:
-                config_ow['standalone']['instances'] = int(instances)
-            if memory is not None:
-                config_ow['standalone']['memory'] = int(memory)
-
+        config_ow = {'lithops': {'executor': type}, type: {}}
+        if runtime is not None:
+            config_ow[type]['runtime'] = runtime
+        if backend is not None:
+            config_ow[type]['backend'] = backend
+        if runtime_memory is not None:
+            config_ow[type]['runtime_memory'] = int(runtime_memory)
         if storage is not None:
             config_ow['lithops']['storage'] = storage
         if workers is not None:
@@ -111,6 +94,33 @@ class FunctionExecutor:
         self.total_jobs = 0
         self.cleaned_jobs = set()
         self.last_call = None
+
+        if type == 'localhost':
+            localhost_config = extract_localhost_config(self.config)
+            self.compute_handler = LocalhostHandler(localhost_config)
+
+            self.invoker = StandaloneInvoker(self.config,
+                                             self.executor_id,
+                                             self.internal_storage,
+                                             self.compute_handler)
+        elif type == 'serverless':
+            serverless_config = extract_serverless_config(self.config)
+            self.compute_handler = ServerlessHandler(serverless_config, self.storage_config)
+
+            self.invoker = ServerlessInvoker(self.config,
+                                             self.executor_id,
+                                             self.internal_storage,
+                                             self.compute_handler)
+        elif type == 'standalone':
+            standalone_config = extract_standalone_config(self.config)
+            self.compute_handler = StandaloneHandler(standalone_config)
+
+            self.invoker = StandaloneInvoker(self.config,
+                                             self.executor_id,
+                                             self.internal_storage,
+                                             self.compute_handler)
+
+        logger.info('{} Executor created with ID: {}'.format(type.capitalize(), self.executor_id))
 
     def __enter__(self):
         return self
@@ -502,6 +512,9 @@ class FunctionExecutor:
             clean_job(jobs_to_clean, storage_config, self.config, clean_cloudobjects=cloudobjects)
             self.cleaned_jobs.update(jobs_to_clean)
 
+    def dismantle(self):
+        self.compute_handler.dismantle()
+
     def __exit__(self, exc_type, exc_value, traceback):
         self.invoker.stop()
         if self.data_cleaner:
@@ -515,30 +528,21 @@ class LocalhostExecutor(FunctionExecutor):
         """
         Initialize a LocalhostExecutor class.
 
-        :param config: Settings passed in here will override those in config file. Default None.
-        :param docker_image: Docker image name to use as runtime. Default None.
-        :param virtualenv: Virtualenv to us as runtime. Default None.
-        :param storage: Name of the storage backend to use. Default None.
-        :param storage_region: Name of the storage backend region to use. Default None.
+        :param config: Settings passed in here will override those in config file.
+        :param runtime: Runtime name to use.
+        :param storage: Name of the storage backend to use.
         :param workers: Max number of concurrent workers.
-        :param rabbitmq_monitor: use rabbitmq as the monitoring system. Default None.
-        :param log_level: log level to use during the execution. Default None.
+        :param rabbitmq_monitor: use rabbitmq as the monitoring system.
+        :param log_level: log level to use during the execution.
 
         :return `LocalhostExecutor` object.
         """
+        if storage is None:
+            storage = 'localhost'
+
         FunctionExecutor.__init__(self, type='localhost', config=config,
-                                  runtime=runtime, storage=storage,
+                                  runtime=runtime, storage=storage, log_level=log_level,
                                   workers=workers, rabbitmq_monitor=rabbitmq_monitor)
-
-        localhost_config = extract_localhost_config(self.config)
-        self.backend_handler = LocalhostHandler(localhost_config)
-
-        self.invoker = StandaloneInvoker(self.config,
-                                         self.executor_id,
-                                         self.internal_storage,
-                                         self.backend_handler)
-
-        logger.info('Localhost Executor created with ID: {}'.format(self.executor_id))
 
 
 class ServerlessExecutor(FunctionExecutor):
@@ -549,16 +553,14 @@ class ServerlessExecutor(FunctionExecutor):
         """
         Initialize a ServerlessExecutor class.
 
-        :param config: Settings passed in here will override those in config file. Default None.
-        :param runtime: Runtime name to use. Default None.
-        :param runtime_memory: memory to use in the runtime. Default None.
-        :param backend: Name of the compute backend to use. Default None.
-        :param region: Name of the compute backend region to use. Default None.
-        :param storage: Name of the storage backend to use. Default None.
-        :param storage_region: Name of the storage backend region to use. Default None.
+        :param config: Settings passed in here will override those in config file.
+        :param runtime: Runtime name to use.
+        :param runtime_memory: memory to use in the runtime.
+        :param backend: Name of the serverless compute backend to use.
+        :param storage: Name of the storage backend to use.
         :param workers: Max number of concurrent workers.
-        :param rabbitmq_monitor: use rabbitmq as the monitoring system. Default None.
-        :param log_level: log level to use during the execution. Default None.
+        :param rabbitmq_monitor: use rabbitmq as the monitoring system.
+        :param log_level: log level to use during the execution.
 
         :return `ServerlessExecutor` object.
         """
@@ -568,55 +570,25 @@ class ServerlessExecutor(FunctionExecutor):
                                   rabbitmq_monitor=rabbitmq_monitor, log_level=log_level,
                                   remote_invoker=remote_invoker)
 
-        serverless_config = extract_serverless_config(self.config)
-        self.backend_handler = ServerlessHandler(serverless_config, self.storage_config)
-
-        self.invoker = ServerlessInvoker(self.config,
-                                         self.executor_id,
-                                         self.internal_storage,
-                                         self.backend_handler)
-
-        logger.info('Serverless Executor created with ID: {}'.format(self.executor_id))
-
 
 class StandaloneExecutor(FunctionExecutor):
 
-    def __init__(self, config=None, backend=None, runtime=None,
-                 cpu=None, memory=None, instances=None, storage=None,
+    def __init__(self, config=None, backend=None, runtime=None, storage=None,
                  workers=None, rabbitmq_monitor=None, log_level=None):
         """
         Initialize a StandaloneExecutor class.
 
-        :param config: Settings passed in here will override those in config file. Default None.
-        :param runtime: Runtime name to use. Default None.
-        :param cpu: CPU cores  to use in the instance. Default None.
-        :param memory: memory in MBto use in the instance. Default None.
-        :param instances: Number of instances to start. Default None.
-        :param backend: Name of the compute backend to use. Default None.
-        :param region: Name of the compute backend region to use. Default None.
-        :param storage: Name of the storage backend to use. Default None.
-        :param storage_region: Name of the storage backend region to use. Default None.
+        :param config: Settings passed in here will override those in config file.
+        :param runtime: Runtime name to use.
+        :param backend: Name of the standalone compute backend to use.
+        :param storage: Name of the storage backend to use.
         :param workers: Max number of concurrent workers.
-        :param rabbitmq_monitor: use rabbitmq as the monitoring system. Default None.
-        :param log_level: log level to use during the execution. Default None.
+        :param rabbitmq_monitor: use rabbitmq as the monitoring system.
+        :param log_level: log level to use during the execution.
 
         :return `StandaloneExecutor` object.
         """
         FunctionExecutor.__init__(self, type='standalone', config=config,
-                                  runtime=runtime, cpu=cpu, instances=instances,
-                                  memory=memory, backend=backend, storage=storage,
+                                  runtime=runtime, backend=backend, storage=storage,
                                   workers=workers, rabbitmq_monitor=rabbitmq_monitor,
                                   log_level=log_level)
-
-        standalone_config = extract_standalone_config(self.config)
-        self.backend_handler = StandaloneHandler(standalone_config)
-
-        self.invoker = StandaloneInvoker(self.config,
-                                         self.executor_id,
-                                         self.internal_storage,
-                                         self.backend_handler)
-
-        logger.info('Standalone Executor created with ID: {}'.format(self.executor_id))
-
-    def dismantle(self):
-        self.backend_handler.dismantle()

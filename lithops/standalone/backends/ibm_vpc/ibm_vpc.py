@@ -1,7 +1,7 @@
 import logging
 import requests
 import time
-
+from lithops.version import __version__
 from lithops.libs.ibm_utils import IBMIAMAPIKeyManager
 
 logger = logging.getLogger(__name__)
@@ -10,9 +10,12 @@ logger = logging.getLogger(__name__)
 class IBMVPCInstanceClient:
 
     def __init__(self, ibm_vpc_config):
+        logger.debug("Creating IBM VPC client")
+        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.config = ibm_vpc_config
 
         self.endpoint = self.config['endpoint']
+        self.region = self.endpoint.split('//')[1].split('.')[0]
         self.instance_id = self.config['instance_id']
         self.ip_address = self.config.get('ip_address', None)
 
@@ -36,6 +39,12 @@ class IBMVPCInstanceClient:
 
         adapter = requests.adapters.HTTPAdapter()
         self.session.mount('https://', adapter)
+
+        log_msg = ('Lithops v{} init for IBM Virtual Private Cloud - Host: {} - Region: {}'
+                   .format(__version__, self.ip_address, self.region))
+        if not self.log_active:
+            print(log_msg)
+        logger.info("IBM VPC client created successfully")
 
     def _authorize_session(self):
         self.config['token'], self.config['token_expiry_time'] = self.ibm_iam_api_key_manager.get_token()

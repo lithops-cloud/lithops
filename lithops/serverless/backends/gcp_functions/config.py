@@ -34,24 +34,25 @@ def load_config(config_data=None):
     if config_data is None:
         config_data = {}
 
-    if 'runtime_memory' not in config_data['lithops']:
-        config_data['lithops']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
-    if 'runtime_timeout' not in config_data['lithops']:
-        config_data['lithops']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
-    if 'runtime' not in config_data['lithops']:
-        config_data['lithops']['runtime'] = 'python' + \
+    if 'runtime_memory' not in config_data['serverless']:
+        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
+    if 'runtime_timeout' not in config_data['serverless']:
+        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+    if 'runtime' not in config_data['serverless']:
+        config_data['serverless']['runtime'] = 'python' + \
             version_str(sys.version_info)
+
     if 'workers' not in config_data['lithops']:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
 
-    if config_data['lithops']['runtime_memory'] not in RUNTIME_MEMORY_OPTIONS:
+    if config_data['serverless']['runtime_memory'] not in RUNTIME_MEMORY_OPTIONS:
         raise Exception('{} MB runtime is not available (Only {} MB)'.format(
-            config_data['lithops']['runtime_memory'], RUNTIME_MEMORY_OPTIONS))
+            config_data['serverless']['runtime_memory'], RUNTIME_MEMORY_OPTIONS))
 
-    if config_data['lithops']['runtime_memory'] > RUNTIME_MEMORY_MAX:
-        config_data['lithops']['runtime_memory'] = RUNTIME_MEMORY_MAX
-    if config_data['lithops']['runtime_timeout'] > RUNTIME_TIMEOUT_DEFAULT:
-        config_data['lithops']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+    if config_data['serverless']['runtime_memory'] > RUNTIME_MEMORY_MAX:
+        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_MAX
+    if config_data['serverless']['runtime_timeout'] > RUNTIME_TIMEOUT_DEFAULT:
+        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
 
     if 'gcp' not in config_data:
         raise Exception("'gcp' section is mandatory in the configuration")

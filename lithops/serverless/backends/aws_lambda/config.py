@@ -60,20 +60,21 @@ ACTION_ZIP_PATH = os.path.join(tempfile.gettempdir(), 'lithops_runtime.zip')
 
 
 def load_config(config_data):
-    if 'runtime_memory' not in config_data['lithops']:
-        config_data['lithops']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
+    if 'runtime_memory' not in config_data['serverless']:
+        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
     # Adjust 64 MB memory increments restriction
-    if config_data['lithops']['runtime_memory'] % 64 != 0:
-        mem = config_data['lithops']['runtime_memory']
-        config_data['lithops']['runtime_memory'] = (mem + (64 - (mem % 64)))
-    if config_data['lithops']['runtime_memory'] > RUNTIME_MEMORY_MAX:
-        config_data['lithops']['runtime_memory'] = RUNTIME_MEMORY_MAX
-    if 'runtime_timeout' not in config_data['lithops'] or \
-            config_data['lithops']['runtime_timeout'] > RUNTIME_TIMEOUT_DEFAULT:
-        config_data['lithops']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
-    if 'runtime' not in config_data['lithops']:
-        config_data['lithops']['runtime'] = 'python' + \
+    if config_data['serverless']['runtime_memory'] % 64 != 0:
+        mem = config_data['serverless']['runtime_memory']
+        config_data['serverless']['runtime_memory'] = (mem + (64 - (mem % 64)))
+    if config_data['serverless']['runtime_memory'] > RUNTIME_MEMORY_MAX:
+        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_MAX
+    if 'runtime_timeout' not in config_data['serverless'] or \
+            config_data['serverless']['runtime_timeout'] > RUNTIME_TIMEOUT_DEFAULT:
+        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+    if 'runtime' not in config_data['serverless']:
+        config_data['serverless']['runtime'] = 'python' + \
             version_str(sys.version_info)
+
     if 'workers' not in config_data['lithops']:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
 

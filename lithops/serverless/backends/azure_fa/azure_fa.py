@@ -40,7 +40,7 @@ class AzureFunctionAppBackend:
     A wrap-up around Azure Function Apps backend.
     """
 
-    def __init__(self, config, stroage_config):
+    def __init__(self, config, storage_config):
         self.log_level = os.getenv('LITHOPS_LOGLEVEL')
         self.name = 'azure_fa'
         self.config = config

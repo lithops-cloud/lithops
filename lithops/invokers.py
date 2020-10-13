@@ -43,13 +43,13 @@ class ServerlessInvoker:
     Module responsible to perform the invocations against the serverless backend
     """
 
-    def __init__(self, config, executor_id, internal_storage, backend_handler):
+    def __init__(self, config, executor_id, internal_storage, compute_handler):
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.config = config
         self.executor_id = executor_id
         self.storage_config = extract_storage_config(self.config)
         self.internal_storage = internal_storage
-        self.backend_handler = backend_handler
+        self.compute_handler = compute_handler
         self.is_lithops_worker = is_lithops_worker()
         self.invokers = []
 
@@ -92,7 +92,7 @@ class ServerlessInvoker:
 
         installing = False
 
-        runtime_key = self.backend_handler.get_runtime_key(runtime_name, runtime_memory)
+        runtime_key = self.compute_handler.get_runtime_key(runtime_name, runtime_memory)
         runtime_deployed = True
         try:
             runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
@@ -108,7 +108,7 @@ class ServerlessInvoker:
 
             timeout = self.config['serverless']['runtime_timeout']
             logger.debug('Creating runtime: {}, memory: {}MB'.format(runtime_name, runtime_memory))
-            runtime_meta = self.backend_handler.create_runtime(runtime_name, runtime_memory, timeout=timeout)
+            runtime_meta = self.compute_handler.create_runtime(runtime_name, runtime_memory, timeout=timeout)
             self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
         py_local_version = version_str(sys.version_info)
@@ -202,7 +202,7 @@ class ServerlessInvoker:
 
         # do the invocation
         start = time.time()
-        activation_id = self.backend_handler.invoke(job.runtime_name, job.runtime_memory, payload)
+        activation_id = self.compute_handler.invoke(job.runtime_name, job.runtime_memory, payload)
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 
@@ -234,7 +234,7 @@ class ServerlessInvoker:
                    'invokers': 4,
                    'lithops_version': __version__}
 
-        activation_id = self.backend_handler.invoke(job.runtime_name, REMOTE_INVOKER_MEMORY, payload)
+        activation_id = self.compute_handler.invoke(job.runtime_name, REMOTE_INVOKER_MEMORY, payload)
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 
@@ -414,15 +414,15 @@ class StandaloneInvoker:
     """
     Module responsible to perform the invocations against the Standalone backend
     """
-    def __init__(self, config, executor_id, internal_storage, backend_handler):
+    def __init__(self, config, executor_id, internal_storage, compute_handler):
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.config = config
         self.executor_id = executor_id
         self.storage_config = extract_storage_config(self.config)
         self.internal_storage = internal_storage
 
-        self.backend_handler = backend_handler
-        self.runtime_name = self.backend_handler.runtime
+        self.compute_handler = compute_handler
+        self.runtime_name = self.compute_handler.runtime
 
     def select_runtime(self, job_id, runtime_memory):
         log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {}'
@@ -431,7 +431,7 @@ class StandaloneInvoker:
         if not self.log_active:
             print(log_msg, end=' ')
 
-        runtime_key = self.backend_handler.get_runtime_key(self.runtime_name)
+        runtime_key = self.compute_handler.get_runtime_key(self.runtime_name)
         runtime_deployed = True
         try:
             runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
@@ -445,7 +445,7 @@ class StandaloneInvoker:
                 print('(Installing...)')
 
             logger.debug('Creating runtime: {}'.format(self.runtime_name))
-            runtime_meta = self.backend_handler.create_runtime(self.runtime_name)
+            runtime_meta = self.compute_handler.create_runtime(self.runtime_name)
             self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
         py_local_version = version_str(sys.version_info)
@@ -478,8 +478,8 @@ class StandaloneInvoker:
                    'job_description': job_description,
                    'lithops_version': __version__}
 
-        self.backend_handler.run_job(payload)
-        
+        self.compute_handler.run_job(payload)
+
         log_msg = ('ExecutorID {} | JobID {} - Invocation done'
                    .format(job.executor_id, job.job_id))
         logger.info(log_msg)

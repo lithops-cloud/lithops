@@ -75,15 +75,17 @@ def openwhisk_executor(config=None, runtime=None, runtime_memory=None,
     )
 
 
-def function_executor(config=None, runtime=None, runtime_memory=None,
+def function_executor(type=None, config=None, runtime=None, runtime_memory=None,
                       workers=None, compute_backend=None,
-                      storage_backend=None,
-                      rabbitmq_monitor=None, remote_invoker=None, log_level=None):
+                      storage_backend=None, rabbitmq_monitor=None,
+                      remote_invoker=None, log_level=None):
     """
     Generic function executor
     """
-    return ServerlessExecutor(
-        config=config, runtime=runtime,
+    return FunctionExecutor(
+        type=type,
+        config=config,
+        runtime=runtime,
         runtime_memory=runtime_memory,
         workers=workers,
         backend=compute_backend,
@@ -101,36 +103,10 @@ def local_executor(config=None, workers=None,
     """
     Localhost function executor
     """
-
-    if storage_backend is None:
-        storage_backend = 'localhost'
-
     return LocalhostExecutor(
         config=config, workers=workers,
         storage=storage_backend,
         rabbitmq_monitor=rabbitmq_monitor,
-        log_level=log_level
-    )
-
-
-def docker_executor(config=None, runtime=None, workers=None,
-                    storage_backend=None,
-                    rabbitmq_monitor=None, log_level=None):
-    """
-    Localhost function executor
-    """
-    compute_backend = 'docker'
-
-    if storage_backend is None:
-        storage_backend = 'localhost'
-
-    return ServerlessExecutor(
-        config=config, runtime=runtime,
-        workers=workers,
-        backend=compute_backend,
-        storage=storage_backend,
-        rabbitmq_monitor=rabbitmq_monitor,
-        remote_invoker=True,
         log_level=log_level
     )
 

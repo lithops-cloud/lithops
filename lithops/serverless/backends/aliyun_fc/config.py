@@ -24,7 +24,7 @@ RUNTIME_TIMEOUT_DEFAULT = 600    # Default: 600 s => 10 minutes
 RUNTIME_TIMEOUT_MAX = 600        # Platform maximum
 RUNTIME_MEMORY_DEFAULT = 256
 RUNTIME_MEMORY_MAX = 3072
-MAX_CONCURRENT_WORKERS = 300     
+MAX_CONCURRENT_WORKERS = 300
 
 SERVICE_NAME = 'lithops-runtime'
 HANDLER_FOLDER_LOCATION = os.path.join(os.getcwd(), 'lithops_handler_aliyun')

@@ -32,9 +32,9 @@ FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_ibmcf.zip')
 
 
 def load_config(config_data):
-    if 'runtime_memory' not in config_data['lithops']:
+    if 'runtime_memory' not in config_data['serverless']:
         config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
-    if 'runtime_timeout' not in config_data['lithops']:
+    if 'runtime_timeout' not in config_data['serverless']:
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
     if 'runtime' not in config_data['serverless']:
         python_version = version_str(sys.version_info)

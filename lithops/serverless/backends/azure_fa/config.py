@@ -36,26 +36,25 @@ def load_config(config_data=None):
                         ' only supports Python version 3.6.X and the local Python'
                         'version is {}'.format(this_version_str))
 
-    if 'runtime' in config_data['lithops']:
+    if 'runtime' in config_data['serverless']:
         print("Ignoring user specified '{}'. The current Azure compute backend"
               " does not support custom runtimes.".format('runtime'))
-    config_data['lithops']['runtime'] = RUNTIME_DEFAULT_36
+    config_data['serverless']['runtime'] = RUNTIME_DEFAULT_36
 
-    if 'runtime_memory' in config_data['lithops']:
+    if 'runtime_memory' in config_data['serverless']:
         print("Ignoring user specified '{}'. The current Azure compute backend"
               " does not support custom runtimes.".format('runtime_memory'))
         print('Default runtime memory: {}MB'.format(RUNTIME_MEMORY_DEFAULT))
-    config_data['lithops']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
+    config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
 
-    if 'runtime_timeout' in config_data['lithops']:
+    if 'runtime_timeout' in config_data['serverless']:
         print("Ignoring user specified '{}'. The current Azure compute backend"
               " does not support custom runtimes.".format('runtime_timeout'))
         print('Default runtime timeout: {}ms'.format(RUNTIME_TIMEOUT_DEFAULT))
-    config_data['lithops']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+    config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
 
     if 'workers' not in config_data['lithops']:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
-
 
     if 'azure_fa' not in config_data:
         raise Exception("azure_fa section is mandatory in the configuration")
