@@ -80,12 +80,6 @@ class CodeEngineBackend:
         return '{}-{}mb'.format(runtime_name, runtime_memory)
 
   
-    def _unformat_action_name(self, action_name):
-        runtime_name, memory = action_name.rsplit('_', 1)
-        image_name = runtime_name.replace('_', '/', 1)
-        image_name = image_name.replace('_', ':', -1)
-        return image_name, int(memory.replace('MB', ''))
-
     def _get_default_runtime_image_name(self):
         python_version = version_str(sys.version_info)
         return codeengine_config.RUNTIME_DEFAULT[python_version]
@@ -173,8 +167,9 @@ class CodeEngineBackend:
         Invoke -- return information about this invocation
         """
 
-        #This is what we need, job def id per map.
-        #This code is wrong, experimental
+        #We need job definition per map and then delete the job definition.
+        #Need to support that job definition deleted by CE
+        #Array jobs not yet supported
         '''
         if payload['executor_id'] in self.jobdef_id_per_executor:
             def_id = self.jobdef_id_per_executor[payload['executor_id']]
