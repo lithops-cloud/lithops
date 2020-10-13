@@ -23,7 +23,6 @@ import random
 import logging
 import concurrent.futures
 from threading import Thread
-from multiprocessing.pool import ThreadPool
 from lithops.storage.utils import create_status_key
 from lithops.config import JOBS_PREFIX
 
@@ -190,7 +189,6 @@ def _wait_storage(fs, running_futures, internal_storage, download_results, throw
     def fetch_future_status(f):
         return internal_storage.get_call_status(f.executor_id, f.job_id, f.call_id)
 
-    # pool = ThreadPool(THREADPOOL_SIZE)
     pool = concurrent.futures.ThreadPoolExecutor(max_workers=THREADPOOL_SIZE)
 
     # now try up to max_direct_query_n direct status queries, quitting once
@@ -207,7 +205,6 @@ def _wait_storage(fs, running_futures, internal_storage, download_results, throw
         num_to_query_at_once = THREADPOOL_SIZE
         fs_to_query = still_not_done_futures[query_count:query_count + num_to_query_at_once]
 
-        # fs_statuses = pool.map(fetch_future_status, fs_to_query)
         map_fut = []
         for f_to_query in fs_to_query:
             fut = pool.submit(fetch_future_status, f_to_query)
@@ -248,16 +245,6 @@ def _wait_storage(fs, running_futures, internal_storage, download_results, throw
             f._call_status = None
         f.status(throw_except=throw_except, internal_storage=internal_storage)
 
-#     with ThreadPoolExecutor(max_workers=THREADPOOL_SIZE) as executor:
-#         if download_results:
-#             executor.map(get_result, f_to_wait_on)
-#         else:
-#             executor.map(get_status, f_to_wait_on)
-
-    # if download_results:
-    #     pool.map(get_result, f_to_wait_on)
-    # else:
-    #     pool.map(get_status, f_to_wait_on)
     map_fut = []
     for f_to_wait_on in fs_to_wait_on:
         if download_results:
@@ -272,8 +259,6 @@ def _wait_storage(fs, running_futures, internal_storage, download_results, throw
             if (download_results and f.done) or (not download_results and (f.ready or f.done)):
                 pbar.update(1)
         pbar.refresh()
-    # pool.close()
-    # pool.join()
     pool.shutdown()
 
     # Check for new futures
