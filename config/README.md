@@ -84,10 +84,14 @@ Storage Backends
 </tr>
 <tr>
 <td>
+
 - [Localhost](compute/localhost.md)
+- [Remote Virtual Machine](compute/remote_vm.md)
 - [IBM Virtual Private Cloud](compute/ibm_vpc.md)
+
 </td>
 <td>
+
 - [IBM Cloud Functions](compute/ibm_cf.md)
 - [IBM Code Engine](compute/code_engine.md)
 - [Knative](compute/knative.md)
@@ -97,8 +101,10 @@ Storage Backends
 - [Google Cloud Run](compute/gcp_run.md)
 - [Azure Functions](compute/azure_fa.md)
 - [Aliyun functions](compute/aliyun_fc.md)
+
 </td>
 <td>
+
 - [IBM Cloud Object Storage](storage/ibm_cos.md)
 - [Infinispan](storage/infinispan.md)
 - [Ceph](storage/ceph.md)
@@ -108,6 +114,7 @@ Storage Backends
 - [Google Cloud Storage](storage/gcp_storage.md)
 - [Azure Blob Storage](storage/azure_blob.md)
 - [Aliyun Object Storage Service](storage/aliyun_oss.md)
+
 </td>
 </tr>
 </table>

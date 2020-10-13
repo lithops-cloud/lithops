@@ -15,7 +15,7 @@ class SSHClient():
 
         return self.ssh_clients[ip_address]
 
-    def ssh_run_remote_command(self, ip_address, cmd, timeout=None, background=False):
+    def run_remote_command(self, ip_address, cmd, timeout=None, background=False):
         ssh_client = self._create_client(ip_address, timeout)
 
         try:
@@ -34,13 +34,13 @@ class SSHClient():
 
         return out
 
-    def ssh_upload_local_file(self, ip_address, local_src, remote_dst, timeout=None):
+    def upload_local_file(self, ip_address, local_src, remote_dst, timeout=None):
         ssh_client = self._create_client(ip_address, timeout)
         ftp_client = ssh_client.open_sftp()
         ftp_client.put(local_src, remote_dst)
         ftp_client.close()
 
-    def ssh_upload_data_to_file(self, ip_address, data, remote_dst, timeout=None):
+    def upload_data_to_file(self, ip_address, data, remote_dst, timeout=None):
         ssh_client = self._create_client(ip_address, timeout)
         ftp_client = ssh_client.open_sftp()
 

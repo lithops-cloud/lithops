@@ -79,7 +79,7 @@ class StandaloneHandler:
         Checks if the VM instance is ready to receive ssh connections
         """
         try:
-            self.ssh_client.ssh_run_remote_command(self.ip_address, 'id', timeout=2)
+            self.ssh_client.run_remote_command(self.ip_address, 'id', timeout=2)
         except Exception:
             return False
         return True
@@ -179,18 +179,18 @@ class StandaloneHandler:
         WantedBy=multi-user.target
         """.format(REMOTE_INSTALL_DIR)
         service_file = '/etc/systemd/system/{}'.format(PROXY_SERVICE_NAME)
-        self.ssh_client.ssh_upload_data_to_file(self.ip_address, textwrap.dedent(unix_service), service_file)
+        self.ssh_client.upload_data_to_file(self.ip_address, textwrap.dedent(unix_service), service_file)
         config_file = os.path.join(REMOTE_INSTALL_DIR, 'config')
-        self.ssh_client.ssh_upload_data_to_file(self.ip_address, json.dumps(self.config), config_file)
+        self.ssh_client.upload_data_to_file(self.ip_address, json.dumps(self.config), config_file)
 
         src_proxy = os.path.join(os.path.dirname(__file__), 'proxy.py')
         create_function_handler_zip(FH_ZIP_LOCATION, src_proxy)
-        self.ssh_client.ssh_upload_local_file(self.ip_address, FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip')
+        self.ssh_client.upload_local_file(self.ip_address, FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip')
         os.remove(FH_ZIP_LOCATION)
 
         cmd = 'systemctl daemon-reload '
         cmd += '&& systemctl stop {} > /dev/null 2>&1'.format(PROXY_SERVICE_NAME)
-        self.ssh_client.ssh_run_remote_command(self.ip_address, cmd)
+        self.ssh_client.run_remote_command(self.ip_address, cmd)
 
         cmd = 'apt-get remove docker docker-engine docker.io containerd runc -y '
         cmd += '&& apt-get update '
@@ -212,4 +212,4 @@ class StandaloneHandler:
         cmd += '&& systemctl stop {} '.format(PROXY_SERVICE_NAME)
         cmd += '&& systemctl enable {} '.format(PROXY_SERVICE_NAME)
         cmd += '&& systemctl start {} '.format(PROXY_SERVICE_NAME)
-        self.ssh_client.ssh_run_remote_command(self.ip_address, cmd, background=True)
+        self.ssh_client.run_remote_command(self.ip_address, cmd, background=True)
