@@ -504,3 +504,6 @@ class AWSLambdaBackend:
             raise Exception(runtime_meta)
 
         return runtime_meta
+
+    def cleanup(self, activation_id):
+        pass;

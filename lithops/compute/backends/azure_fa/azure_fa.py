@@ -300,7 +300,9 @@ class AzureFunctionAppBackend:
         
         return json.loads(result_str)
 
-    
+    def cleanup(self, activation_id):
+        pass;
+
 def get_unique_id():
     return str(uuid.uuid4()).replace('-', '')[:10]
 
