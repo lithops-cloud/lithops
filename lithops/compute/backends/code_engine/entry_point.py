@@ -22,9 +22,8 @@ from lithops.version import __version__
 from lithops.config import cloud_logging_config
 from lithops.function import function_handler
 from lithops.function import function_invoker
-from lithops.config import extract_storage_config
 from lithops.storage import InternalStorage
-from lithops.config import JOBS_PREFIX, STORAGE_FOLDER
+from lithops.config import JOBS_PREFIX
 from lithops.utils import sizeof_fmt
 from lithops.storage.utils import create_runtime_meta_key
 
