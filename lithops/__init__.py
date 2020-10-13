@@ -14,59 +14,137 @@
 # limitations under the License.
 #
 
-import tempfile
-from lithops.executors import ServerlessExecutor, StandaloneExecutor, LocalhostExecutor
+from lithops.executors import FunctionExecutor
+from lithops.executors import LocalhostExecutor
+from lithops.executors import ServerlessExecutor
+from lithops.executors import StandaloneExecutor
 from lithops.version import __version__
 
 name = "lithops"
 
 
-def local_executor(config=None, runtime=None, workers=None, storage=None,
-                   storage_region=None, rabbitmq_monitor=None, log_level=None):
-
-    if storage is None:
-        storage = 'localhost'
-
-    return LocalhostExecutor(
-        config=config, runtime=runtime,
-        workers=workers, storage=storage,
-        storage_region=storage_region,
-        rabbitmq_monitor=rabbitmq_monitor,
-        log_level=log_level
-    )
-
-
-def serverless_executor(config=None, backend=None, runtime=None,
-                        runtime_memory=None, workers=None, region=None,
-                        storage=None, storage_region=None, rabbitmq_monitor=None,
-                        remote_invoker=None, log_level=None):
-
+def ibm_cf_executor(config=None, runtime=None, runtime_memory=None,
+                    workers=None, storage_backend=None,
+                    rabbitmq_monitor=None, remote_invoker=None, log_level=None):
+    """
+    Function executor for IBM Cloud Functions
+    """
+    compute_backend = 'ibm_cf'
     return ServerlessExecutor(
-        config=config, runtime=runtime,
-        runtime_memory=runtime_memory,
-        workers=workers, backend=backend,
-        region=region, storage=storage,
-        storage_region=storage_region,
+        config=config, runtime=runtime, runtime_memory=runtime_memory,
+        workers=workers, backend=compute_backend,
+        storage=storage_backend,
         rabbitmq_monitor=rabbitmq_monitor,
         remote_invoker=remote_invoker,
         log_level=log_level
     )
 
 
-def standalone_executor(config=None, backend=None, region=None,
-                        runtime=None, cpu=None, memory=None, instances=None,
-                        storage=None, storage_region=None, workers=None,
-                        rabbitmq_monitor=None, log_level=None):
+def knative_executor(config=None, runtime=None, runtime_memory=None, workers=None,
+                     storage_backend=None,
+                     rabbitmq_monitor=None, remote_invoker=None, log_level=None):
+    """
+    Function executor for Knative
+    """
+    compute_backend = 'knative'
+    return ServerlessExecutor(
+        config=config, runtime=runtime, runtime_memory=runtime_memory,
+        workers=workers, backend=compute_backend,
+        storage=storage_backend,
+        rabbitmq_monitor=rabbitmq_monitor,
+        remote_invoker=remote_invoker,
+        log_level=log_level
+    )
 
-    return StandaloneExecutor(
+
+def openwhisk_executor(config=None, runtime=None, runtime_memory=None,
+                       workers=None, storage_backend=None,
+                       rabbitmq_monitor=None,
+                       remote_invoker=None, log_level=None):
+    """
+    Function executor for OpenWhisk
+    """
+    compute_backend = 'openwhisk'
+    return ServerlessExecutor(
+        config=config, runtime=runtime, runtime_memory=runtime_memory,
+        workers=workers, backend=compute_backend,
+        storage=storage_backend,
+        rabbitmq_monitor=rabbitmq_monitor,
+        remote_invoker=remote_invoker,
+        log_level=log_level
+    )
+
+
+def function_executor(config=None, runtime=None, runtime_memory=None,
+                      workers=None, compute_backend=None,
+                      storage_backend=None,
+                      rabbitmq_monitor=None, remote_invoker=None, log_level=None):
+    """
+    Generic function executor
+    """
+    return ServerlessExecutor(
         config=config, runtime=runtime,
-        backend=backend, region=region,
-        workers=workers, cpu=cpu, memory=memory,
-        instances=instances, storage=storage,
-        storage_region=storage_region,
+        runtime_memory=runtime_memory,
+        workers=workers,
+        backend=compute_backend,
+        storage=storage_backend,
+        rabbitmq_monitor=rabbitmq_monitor,
+        remote_invoker=remote_invoker,
+        log_level=log_level
+    )
+
+
+def local_executor(config=None, workers=None,
+                   storage_backend=None,
+                   rabbitmq_monitor=None,
+                   log_level=None):
+    """
+    Localhost function executor
+    """
+
+    if storage_backend is None:
+        storage_backend = 'localhost'
+
+    return LocalhostExecutor(
+        config=config, workers=workers,
+        storage=storage_backend,
         rabbitmq_monitor=rabbitmq_monitor,
         log_level=log_level
     )
 
 
-function_executor = serverless_executor
+def docker_executor(config=None, runtime=None, workers=None,
+                    storage_backend=None,
+                    rabbitmq_monitor=None, log_level=None):
+    """
+    Localhost function executor
+    """
+    compute_backend = 'docker'
+
+    if storage_backend is None:
+        storage_backend = 'localhost'
+
+    return ServerlessExecutor(
+        config=config, runtime=runtime,
+        workers=workers,
+        backend=compute_backend,
+        storage=storage_backend,
+        rabbitmq_monitor=rabbitmq_monitor,
+        remote_invoker=True,
+        log_level=log_level
+    )
+
+def cloudrun_executor(config=None, runtime=None, runtime_memory=None, workers=None,
+                      storage_backend=None, rabbitmq_monitor=None, remote_invoker=None, log_level=None):
+    """
+    Function executor for Cloud Run
+    """
+    compute_backend = 'cloudrun'
+    return ServerlessExecutor(
+        config=config, runtime=runtime, runtime_memory=runtime_memory,
+        workers=workers, backend=compute_backend,
+        storage=storage_backend,
+        rabbitmq_monitor=rabbitmq_monitor,
+        remote_invoker=remote_invoker,
+        log_level=log_level
+    )

@@ -479,6 +479,10 @@ class StandaloneInvoker:
                    'lithops_version': __version__}
 
         self.backend_handler.run_job(payload)
+        
+        log_msg = ('ExecutorID {} | JobID {} - Invocation done'
+                   .format(job.executor_id, job.job_id))
+        logger.info(log_msg)
 
         futures = []
         for i in range(job.total_calls):

@@ -37,14 +37,58 @@ from lithops.serverless.serverless import ServerlessHandler
 logger = logging.getLogger(__name__)
 
 
-class Executor:
+class FunctionExecutor:
     """
     Executor asbtract class that contains the common logic
     for the Localhost, Serverless and Standalone executors
     """
 
-    def __init__(self):
-        self.is_lithops_worker = is_lithops_worker()
+    def __init__(self, type='serverless', config=None, runtime=None,
+                 runtime_memory=None, backend=None, storage=None,
+                 memory=None, cpu=None, instances=None, workers=None,
+                 rabbitmq_monitor=None, remote_invoker=None, log_level=None):
+
+        if log_level:
+            default_logging_config(log_level)
+
+        if type == 'localhost':
+            config_ow = {'lithops': {'executor': 'localhost'}, 'localhost': {}}
+            if runtime is not None:
+                config_ow['localhost']['runtime'] = runtime
+
+        elif type == 'serverless':
+            config_ow = {'lithops': {'executor': 'serverless'}, 'serverless': {}}
+            if runtime is not None:
+                config_ow['serverless']['runtime'] = runtime
+            if runtime_memory is not None:
+                config_ow['serverless']['runtime_memory'] = int(runtime_memory)
+            if backend is not None:
+                config_ow['serverless']['backend'] = backend
+
+        elif type == 'standalone':
+            config_ow = {'lithops': {'executor': 'standalone'}, 'standalone': {}}
+            if backend is not None:
+                config_ow['standalone']['backend'] = backend
+            if runtime is not None:
+                config_ow['standalone']['runtime'] = runtime
+            if cpu is not None:
+                config_ow['standalone']['cpu'] = int(cpu)
+            if instances is not None:
+                config_ow['standalone']['instances'] = int(instances)
+            if memory is not None:
+                config_ow['standalone']['memory'] = int(memory)
+
+        if storage is not None:
+            config_ow['lithops']['storage'] = storage
+        if workers is not None:
+            config_ow['lithops']['workers'] = workers
+        if rabbitmq_monitor is not None:
+            config_ow['lithops']['rabbitmq_monitor'] = rabbitmq_monitor
+        if remote_invoker is not None:
+            config_ow['remote_invoker'] = remote_invoker
+
+        self.config = default_config(copy.deepcopy(config), config_ow)
+
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.is_lithops_worker = is_lithops_worker()
         self.executor_id = create_executor_id()
@@ -463,11 +507,10 @@ class Executor:
             self.clean(log=False)
 
 
-class LocalhostExecutor(Executor):
+class LocalhostExecutor(FunctionExecutor):
 
     def __init__(self, config=None, runtime=None, workers=None,
-                 storage=None, storage_region=None,
-                 rabbitmq_monitor=None, log_level=None):
+                 storage=None, rabbitmq_monitor=None, log_level=None):
         """
         Initialize a LocalhostExecutor class.
 
@@ -482,25 +525,9 @@ class LocalhostExecutor(Executor):
 
         :return `LocalhostExecutor` object.
         """
-        if log_level:
-            default_logging_config(log_level)
-
-        # Overwrite lithops config parameters
-        config_ow = {'lithops': {'executor': 'localhost'}, 'localhost': {}}
-        if runtime is not None:
-            config_ow['localhost']['runtime'] = runtime
-        if storage is not None:
-            config_ow['lithops']['storage'] = storage
-        if storage_region is not None:
-            config_ow['lithops']['storage_region'] = storage_region
-        if workers is not None:
-            config_ow['lithops']['workers'] = workers
-        if rabbitmq_monitor is not None:
-            config_ow['lithops']['rabbitmq_monitor'] = rabbitmq_monitor
-
-        self.config = default_config(copy.deepcopy(config), config_ow)
-
-        Executor.__init__(self)
+        FunctionExecutor.__init__(self, type='localhost', config=config,
+                                  runtime=runtime, storage=storage,
+                                  workers=workers, rabbitmq_monitor=rabbitmq_monitor)
 
         localhost_config = extract_localhost_config(self.config)
         self.backend_handler = LocalhostHandler(localhost_config)
@@ -510,14 +537,14 @@ class LocalhostExecutor(Executor):
                                          self.internal_storage,
                                          self.backend_handler)
 
-        logger.debug('Localhost Executor created with ID: {}'.format(self.executor_id))
+        logger.info('Localhost Executor created with ID: {}'.format(self.executor_id))
 
 
-class ServerlessExecutor(Executor):
+class ServerlessExecutor(FunctionExecutor):
 
-    def __init__(self, config=None, runtime=None, runtime_memory=None, backend=None,
-                 region=None, storage=None, storage_region=None, workers=None,
-                 rabbitmq_monitor=None, remote_invoker=None, log_level=None):
+    def __init__(self, config=None, runtime=None, runtime_memory=None,
+                 backend=None, storage=None, workers=None, rabbitmq_monitor=None,
+                 remote_invoker=None, log_level=None):
         """
         Initialize a ServerlessExecutor class.
 
@@ -534,33 +561,11 @@ class ServerlessExecutor(Executor):
 
         :return `ServerlessExecutor` object.
         """
-        if log_level:
-            default_logging_config(log_level)
-
-        # Overwrite lithops config parameters
-        config_ow = {'lithops': {'executor': 'serverless'}, 'serverless': {}}
-        if runtime is not None:
-            config_ow['serverless']['runtime'] = runtime
-        if runtime_memory is not None:
-            config_ow['serverless']['runtime_memory'] = int(runtime_memory)
-        if backend is not None:
-            config_ow['serverless']['backend'] = backend
-        if region is not None:
-            config_ow['serverless']['region'] = region
-        if storage is not None:
-            config_ow['lithops']['storage'] = storage
-        if storage_region is not None:
-            config_ow['lithops']['storage_region'] = storage_region
-        if workers is not None:
-            config_ow['lithops']['workers'] = workers
-        if rabbitmq_monitor is not None:
-            config_ow['lithops']['rabbitmq_monitor'] = rabbitmq_monitor
-        if remote_invoker is not None:
-            config_ow['lithops']['remote_invoker'] = remote_invoker
-
-        self.config = default_config(copy.deepcopy(config), config_ow)
-
-        Executor.__init__(self)
+        FunctionExecutor.__init__(self, type='serverless', config=config,
+                                  runtime=runtime, runtime_memory=runtime_memory,
+                                  backend=backend, storage=storage, workers=workers,
+                                  rabbitmq_monitor=rabbitmq_monitor, log_level=log_level,
+                                  remote_invoker=remote_invoker)
 
         serverless_config = extract_serverless_config(self.config)
         self.backend_handler = ServerlessHandler(serverless_config)
@@ -570,14 +575,14 @@ class ServerlessExecutor(Executor):
                                          self.internal_storage,
                                          self.backend_handler)
 
-        logger.debug('Serverless Executor created with ID: {}'.format(self.executor_id))
+        logger.info('Serverless Executor created with ID: {}'.format(self.executor_id))
 
 
-class StandaloneExecutor(Executor):
+class StandaloneExecutor(FunctionExecutor):
 
-    def __init__(self, config=None, backend=None, region=None, runtime=None,
+    def __init__(self, config=None, backend=None, runtime=None,
                  cpu=None, memory=None, instances=None, storage=None,
-                 storage_region=None, workers=None, rabbitmq_monitor=None, log_level=None):
+                 workers=None, rabbitmq_monitor=None, log_level=None):
         """
         Initialize a StandaloneExecutor class.
 
@@ -596,35 +601,11 @@ class StandaloneExecutor(Executor):
 
         :return `StandaloneExecutor` object.
         """
-        if log_level:
-            default_logging_config(log_level)
-
-        # Overwrite lithops config parameters
-        config_ow = {'lithops': {'executor': 'standalone'}, 'standalone': {}}
-        if runtime is not None:
-            config_ow['standalone']['runtime'] = runtime
-        if cpu is not None:
-            config_ow['standalone']['cpu'] = int(cpu)
-        if instances is not None:
-            config_ow['standalone']['instances'] = int(instances)
-        if memory is not None:
-            config_ow['standalone']['memory'] = int(memory)
-        if backend is not None:
-            config_ow['standalone']['backend'] = backend
-        if region is not None:
-            config_ow['standalone']['region'] = region
-        if storage is not None:
-            config_ow['lithops']['storage'] = storage
-        if storage_region is not None:
-            config_ow['lithops']['storage_region'] = storage_region
-        if workers is not None:
-            config_ow['lithops']['workers'] = workers
-        if rabbitmq_monitor is not None:
-            config_ow['lithops']['rabbitmq_monitor'] = rabbitmq_monitor
-
-        self.config = default_config(copy.deepcopy(config), config_ow)
-
-        Executor.__init__(self)
+        FunctionExecutor.__init__(self, type='standalone', config=config,
+                                  runtime=runtime, cpu=cpu, instances=instances,
+                                  memory=memory, backend=backend, storage=storage,
+                                  workers=workers, rabbitmq_monitor=rabbitmq_monitor,
+                                  log_level=log_level)
 
         standalone_config = extract_standalone_config(self.config)
         self.backend_handler = StandaloneHandler(standalone_config)
@@ -634,7 +615,7 @@ class StandaloneExecutor(Executor):
                                          self.internal_storage,
                                          self.backend_handler)
 
-        logger.debug('Standalone Executor created with ID: {}'.format(self.executor_id))
+        logger.info('Standalone Executor created with ID: {}'.format(self.executor_id))
 
     def dismantle(self):
-        self.backend_handler.stop_vm_instances()
+        self.backend_handler.dismantle()

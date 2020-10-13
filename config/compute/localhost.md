@@ -24,7 +24,7 @@ The localhost executor can run functions in multiple environments. Currently it 
 The default environment runs the functions in the same *python3* interpreter that you ran the lithops script.
 It does not require any extra configuration. You must ensure that all the dependencies of your script are installed in your machine.
 
-### Docker Environment
+#### Docker Environment
 The Docker environment runs the functions within a Docker container. In this case you must [install the Docker CE version](https://docs.docker.com/get-docker/) in your machine. This environment is automatically activated when you provide a docker image as a runtime. For example, by adding the following keys in the config:
 
 ```yaml

@@ -133,6 +133,12 @@ class StandaloneHandler:
 
         return runtime_meta
 
+    def dismantle(self):
+        """
+        Stop VM instance
+        """
+        self.backend.stop()
+
     def get_runtime_key(self, runtime_name):
         """
         Generate the runtime key that identifies the runtime

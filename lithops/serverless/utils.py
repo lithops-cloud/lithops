@@ -37,7 +37,7 @@ def create_function_handler_zip(dst_zip_location, entry_point_file, entry_point_
     try:
         with zipfile.ZipFile(dst_zip_location, 'w', zipfile.ZIP_DEFLATED) as lithops_zip:
             module_location = os.path.dirname(os.path.abspath(lithops.__file__))
-            entry_point_name = os.path.basename(entry_point_file) or entry_point_name
+            entry_point_name = entry_point_name or os.path.basename(entry_point_file)
             lithops_zip.write(entry_point_file, entry_point_name)
             add_folder_to_zip(lithops_zip, module_location)
 
