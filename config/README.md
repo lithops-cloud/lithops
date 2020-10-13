@@ -55,7 +55,27 @@ if __name__ == '__main__':
 
 ## Configure your Compute and Storage backends
 
-Compute backends:
+<table>
+<tr>
+<th align="center">
+<img width="441" height="1px">
+<p> 
+<small>
+Serverless Compute Backends
+</small>
+</p>
+</th>
+<th align="center">
+<img width="441" height="1">
+<p> 
+<small>
+Storage Backends
+</small>
+</p>
+</th>
+</tr>
+<tr>
+<td>
 
 - [IBM Cloud Functions](compute/ibm_cf.md)
 - [IBM Code Engine](compute/code_engine.md)
@@ -63,16 +83,28 @@ Compute backends:
 - [OpenWhisk](compute/openwhisk.md)
 - [Docker](compute/docker.md)
 - [Loclahost](compute/localhost.md)
-
-Storage backends:
-
+- [AWS Lambda](compute/aws_lambda.md)
+- [Google Cloud Functions](compute/gcp_functions.md)
+- [Azure Functions](compute/azure_fa.md)
+- [Aliyun functions](compute/aliyun_fc.md)
+  
+</td>
+<td>
+  
 - [IBM Cloud Object Storage](storage/ibm_cos.md)
 - [Infinispan](storage/infinispan.md)
 - [Ceph](storage/ceph.md)
 - [Redis](storage/redis.md)
 - [OpenStack Swift](storage/swift.md)
-- [Loclahost](storage/localhost.md)
-
+- [Localhost](storage/localhost.md)
+- [AWS S3](storage/aws_s3.md)
+- [Google Cloud Storage](storage/gcp_storage.md)
+- [Azure Blob Storage](storage/azure_blob.md)
+- [Aliyun Object Storage Service](storage/aliyun_oss.md)
+  
+</td>
+</tr>
+</table>
 
 ## Verify
 
