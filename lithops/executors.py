@@ -103,8 +103,8 @@ class FunctionExecutor:
                 raise Exception("You cannot use rabbitmq_mnonitor since 'amqp_url'"
                                 " is not present in configuration")
 
-        storage_config = extract_storage_config(self.config)
-        self.internal_storage = InternalStorage(storage_config)
+        self.storage_config = extract_storage_config(self.config)
+        self.internal_storage = InternalStorage(self.storage_config)
         self.storage = self.internal_storage.storage
 
         self.futures = []
@@ -469,6 +469,7 @@ class FunctionExecutor:
         Deletes all the files from COS. These files include the function,
         the data serialization and the function invocation results.
         """
+
         if cs:
             storage_config = self.internal_storage.get_storage_config()
             delete_cloudobject(list(cs), storage_config)
@@ -484,11 +485,11 @@ class FunctionExecutor:
             return
 
         if fs or force:
-            present_jobs = {(f.executor_id, f.job_id) for f in futures
+            present_jobs = {(f.executor_id, f.job_id, f.activation_id) for f in futures
                             if f.executor_id.count('/') == 1}
             jobs_to_clean = present_jobs
         else:
-            present_jobs = {(f.executor_id, f.job_id) for f in futures
+            present_jobs = {(f.executor_id, f.job_id, f.activation_id) for f in futures
                             if f.done and f.executor_id.count('/') == 1}
             jobs_to_clean = present_jobs - self.cleaned_jobs
 
@@ -498,7 +499,7 @@ class FunctionExecutor:
             if not self.log_active:
                 print(msg)
             storage_config = self.internal_storage.get_storage_config()
-            clean_job(jobs_to_clean, storage_config, clean_cloudobjects=cloudobjects)
+            clean_job(jobs_to_clean, storage_config, self.config, clean_cloudobjects=cloudobjects)
             self.cleaned_jobs.update(jobs_to_clean)
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -568,7 +569,7 @@ class ServerlessExecutor(FunctionExecutor):
                                   remote_invoker=remote_invoker)
 
         serverless_config = extract_serverless_config(self.config)
-        self.backend_handler = ServerlessHandler(serverless_config)
+        self.backend_handler = ServerlessHandler(serverless_config, self.storage_config)
 
         self.invoker = ServerlessInvoker(self.config,
                                          self.executor_id,

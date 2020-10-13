@@ -45,7 +45,7 @@ class KnativeServingBackend:
     A wrap-up around Knative Serving APIs.
     """
 
-    def __init__(self, knative_config):
+    def __init__(self, knative_config, stroage_config):
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'knative'
         self.knative_config = knative_config

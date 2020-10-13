@@ -26,7 +26,7 @@ class ServerlessHandler:
     underlying serverless backend without exposing the implementation details.
     """
 
-    def __init__(self, servereless_config):
+    def __init__(self, servereless_config, storage_config):
         self.config = servereless_config
         self.backend_name = self.config['backend']
         self.backend = None
@@ -35,7 +35,7 @@ class ServerlessHandler:
             module_location = 'lithops.serverless.backends.{}'.format(self.backend_name)
             sb_module = importlib.import_module(module_location)
             ServerlessBackend = getattr(sb_module, 'ServerlessBackend')
-            self.backend = ServerlessBackend(self.config[self.backend_name])
+            self.backend = ServerlessBackend(self.config[self.backend_name], storage_config)
 
         except Exception as e:
             logger.error("There was an error trying to create the {} serverless backend".format(self.backend_name))
@@ -86,3 +86,10 @@ class ServerlessHandler:
         into the storage
         """
         return self.backend.get_runtime_key(runtime_name, memory)
+
+    def cleanup(self, activation_id):
+        """
+        Compute engine may need to perform cleanup for completed invocations
+        """
+        if hasattr(self.backend, 'cleanup'):
+            self.backend.cleanup(activation_id)

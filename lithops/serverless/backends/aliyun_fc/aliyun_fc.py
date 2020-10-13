@@ -33,7 +33,7 @@ class AliyunFunctionComputeBackend:
     A wrap-up around Aliyun Function Compute backend.
     """
 
-    def __init__(self, config):
+    def __init__(self, config, stroage_config):
         self.log_level = os.getenv('LITHOPS_LOGLEVEL')
         self.name = 'aliyun_fc'
         self.config = config

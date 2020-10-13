@@ -32,7 +32,7 @@ def clean_all(config=None):
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
     compute_config = extract_serverless_config(config)
-    compute_handler = ServerlessHandler(compute_config)
+    compute_handler = ServerlessHandler(compute_config, storage_config)
 
     # Clean localhost executor temp dirs
     shutil.rmtree(STORAGE_DIR, ignore_errors=True)

@@ -1,5 +1,5 @@
 #
-# (C) Copyright IBM Corp. 2019
+# (C) Copyright IBM Corp. 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -133,6 +133,25 @@ def docker_executor(config=None, runtime=None, workers=None,
         remote_invoker=True,
         log_level=log_level
     )
+
+
+def code_engine_executor(config=None, runtime=None, runtime_memory=None,
+                         workers=None,  storage_backend=None,
+                         rabbitmq_monitor=None,
+                         remote_invoker=None, log_level=None):
+    """
+    Function executor for Code Engine
+    """
+    compute_backend = 'code_engine'
+    return ServerlessExecutor(
+        config=config, runtime=runtime, runtime_memory=runtime_memory,
+        workers=workers, backend=compute_backend,
+        storage=storage_backend,
+        rabbitmq_monitor=rabbitmq_monitor,
+        remote_invoker=remote_invoker,
+        log_level=log_level
+    )
+
 
 def cloudrun_executor(config=None, runtime=None, runtime_memory=None, workers=None,
                       storage_backend=None, rabbitmq_monitor=None, remote_invoker=None, log_level=None):
