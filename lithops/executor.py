@@ -26,7 +26,7 @@ from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from lithops.job import create_map_job, create_reduce_job, clean_job
 from lithops.config import default_config, extract_storage_config, default_logging_config
 from lithops.utils import timeout_handler, is_notebook, is_unix_system, is_lithops_function, create_executor_id
-from lithops.job.job import clean_job_direct
+from lithops.job.job import clean_job
 
 logger = logging.getLogger(__name__)
 
@@ -493,7 +493,7 @@ class FunctionExecutor:
             if not self.log_active:
                 print(msg)
             storage_config = self.internal_storage.get_storage_config()
-            clean_job_direct(jobs_to_clean, storage_config, self.config, clean_cloudobjects=cloudobjects)
+            clean_job(jobs_to_clean, storage_config, self.config, clean_cloudobjects=cloudobjects)
             self.cleaned_jobs.update(jobs_to_clean)
 
     def __exit__(self, exc_type, exc_value, traceback):
