@@ -32,7 +32,7 @@ def clean_all(config=None):
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
     compute_config = extract_compute_config(config)
-    compute_handler = Compute(compute_config)
+    compute_handler = Compute(compute_config, storage_config)
 
     # Clean localhost executor temp dirs
     shutil.rmtree(STORAGE_FOLDER, ignore_errors=True)

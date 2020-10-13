@@ -26,7 +26,7 @@ class DockerBackend:
     A wrap-up around Docker APIs.
     """
 
-    def __init__(self, docker_config):
+    def __init__(self, docker_config, storage_config):
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.config = docker_config
         self.name = 'docker'
@@ -326,6 +326,9 @@ class DockerBackend:
         runtime_key = os.path.join(self.name, self.host, runtime_name)
 
         return runtime_key
+
+    def cleanup(self, activation_id):
+        pass;
 
     def ready(self, timeout=5):
         start  = time.time()

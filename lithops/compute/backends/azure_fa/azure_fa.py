@@ -40,7 +40,7 @@ class AzureFunctionAppBackend:
     A wrap-up around Azure Function Apps backend.
     """
 
-    def __init__(self, config):
+    def __init__(self, config, storage_config):
         self.log_level = os.getenv('LITHOPS_LOGLEVEL')
         self.name = 'azure_fa'
         self.config = config
@@ -300,7 +300,9 @@ class AzureFunctionAppBackend:
         
         return json.loads(result_str)
 
-    
+    def cleanup(self, activation_id):
+        pass;
+
 def get_unique_id():
     return str(uuid.uuid4()).replace('-', '')[:10]
 

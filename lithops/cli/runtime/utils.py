@@ -28,7 +28,7 @@ def create_runtime(name, memory=None, config=None):
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
     compute_config = extract_compute_config(config)
-    compute_handler = Compute(compute_config)
+    compute_handler = Compute(compute_config, storage_config)
 
     memory = config['lithops']['runtime_memory'] if not memory else memory
     timeout = config['lithops']['runtime_timeout']
@@ -49,7 +49,7 @@ def update_runtime(name, config=None):
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
     compute_config = extract_compute_config(config)
-    compute_handler = Compute(compute_config)
+    compute_handler = Compute(compute_config, storage_config)
 
     timeout = config['lithops']['runtime_timeout']
     logger.info('Updating runtime: {}'.format(name))
@@ -68,8 +68,9 @@ def update_runtime(name, config=None):
 
 def build_runtime(name, file, config=None):
     config = default_config(config)
+    storage_config = extract_storage_config(config)
     compute_config = extract_compute_config(config)
-    compute_handler = Compute(compute_config)
+    compute_handler = Compute(compute_config, storage_config)
     compute_handler.build_runtime(name, file)
 
 
@@ -78,7 +79,7 @@ def delete_runtime(name, config=None):
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
     compute_config = extract_compute_config(config)
-    compute_handler = Compute(compute_config)
+    compute_handler = Compute(compute_config, storage_config)
 
     runtimes = compute_handler.list_runtimes(name)
     for runtime in runtimes:

@@ -33,7 +33,7 @@ class AliyunFunctionComputeBackend:
     A wrap-up around Aliyun Function Compute backend.
     """
 
-    def __init__(self, config):
+    def __init__(self, config, storage_config):
         self.log_level = os.getenv('LITHOPS_LOGLEVEL')
         self.name = 'aliyun_fc'
         self.config = config
@@ -220,6 +220,8 @@ class AliyunFunctionComputeBackend:
         logger.info("Extracted metadata succesfully")
         return runtime_meta
 
+    def cleanup(self, activation_id):
+        pass;
 
 
 
