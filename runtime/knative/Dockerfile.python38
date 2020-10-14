@@ -1,32 +1,22 @@
-FROM python:3.8-slim-buster
+FROM python:3.8.2-slim-buster
 
-RUN apt-get update \
-    # add some packages required for the pip install
-    && apt-get install -y \
-        gcc \
-        zlib1g-dev \
-        libxslt-dev \
-        libxml2-dev \
+RUN apt-get update && apt-get install -y \
         zip \
-        unzip \
-    # cleanup package lists, they are not used anymore in this image
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-cache search linux-headers-generic
+        && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --upgrade pip setuptools six \
+RUN pip install --upgrade setuptools six pip \
     && pip install --no-cache-dir \
-        simplejson==3.16.0 \
-        httplib2==0.13.0 \
-        kafka_python==1.4.6 \
-        lxml==4.3.1 \
-        python-dateutil==2.8.0 \
+        gunicorn==19.9.0 \
         pika==0.13.1 \
-        flask==1.1.1 \
-        gevent==1.4.0 \
-        ibm-cos-sdk==2.6.0 \
-        redis==3.3.8 \
-        requests==2.22.0 \
-        numpy==1.17.2
+        flask \
+        gevent \
+        glob2 \
+        ibm-cos-sdk \
+        redis \
+        requests \
+        PyYAML \
+        kubernetes \
+        numpy
 
 # Copy Lithops proxy and lib to the container image.
 ENV APP_HOME /lithops
