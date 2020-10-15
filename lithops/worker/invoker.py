@@ -79,7 +79,7 @@ class FunctionInvoker:
             for region in regions:
                 new_compute_config = compute_config.copy()
                 new_compute_config[cb]['region'] = region
-                compute_handler = Compute(new_compute_config)
+                compute_handler = Compute(new_compute_config, storage_config)
                 self.compute_handlers.append(compute_handler)
         else:
             if cb == 'localhost':
@@ -96,7 +96,7 @@ class FunctionInvoker:
                     CBH[cb] = compute_handler
                     self.compute_handlers.append(compute_handler)
             else:
-                compute_handler = Compute(compute_config)
+                compute_handler = Compute(compute_config, storage_config)
                 self.compute_handlers.append(compute_handler)
 
         self.token_bucket_q = Queue()
