@@ -173,12 +173,13 @@ class CodeEngineBackend:
         array_size = len(payload['job_description']['data_ranges'])
         runtime_memory_array = payload['job_description']['runtime_memory']
         def_id = self._format_action_name(docker_image_name, runtime_memory)
+        logger.debug("Job definition id {}".format(def_id))
         if self.is_job_def_exists(def_id) == False:
             def_id = self._create_job_definition(docker_image_name, runtime_memory_array, def_id)
 
         current_location = os.path.dirname(os.path.abspath(__file__))
         job_run_file = os.path.join(current_location, 'job_run.json')
-
+        logger.debug("Going to open {} ".format(job_run_file))
         with open(job_run_file) as json_file:
             job_desc = json.load(json_file)
 
