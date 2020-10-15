@@ -493,7 +493,7 @@ class FunctionExecutor:
             if not self.log_active:
                 print(msg)
             storage_config = self.internal_storage.get_storage_config()
-            clean_job(jobs_to_clean, storage_config, self.config, clean_cloudobjects=cloudobjects)
+            clean_job(jobs_to_clean, storage_config, clean_cloudobjects=cloudobjects)
             self.cleaned_jobs.update(jobs_to_clean)
 
     def __exit__(self, exc_type, exc_value, traceback):
