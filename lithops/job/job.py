@@ -264,6 +264,9 @@ def clean_job(jobs_to_clean, storage_config, clean_cloudobjects):
     with open(jobs_path, 'rb') as pk:
         jobs_to_clean = pickle.load(pk)
 
+    internal_storage = InternalStorage(storage_config)
+    storage = internal_storage.storage
+
     for executor_id, job_id in jobs_to_clean:
         prefix = '/'.join([JOBS_PREFIX, executor_id, job_id])
         clean_bucket(storage, bucket, prefix, log=False)

@@ -479,11 +479,11 @@ class FunctionExecutor:
             return
 
         if fs or force:
-            present_jobs = {(f.executor_id, f.job_id, f.activation_id) for f in futures
+            present_jobs = {(f.executor_id, f.job_id) for f in futures
                             if f.executor_id.count('/') == 1}
             jobs_to_clean = present_jobs
         else:
-            present_jobs = {(f.executor_id, f.job_id, f.activation_id) for f in futures
+            present_jobs = {(f.executor_id, f.job_id) for f in futures
                             if f.done and f.executor_id.count('/') == 1}
             jobs_to_clean = present_jobs - self.cleaned_jobs
 
