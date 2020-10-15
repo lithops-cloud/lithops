@@ -73,6 +73,7 @@ class CodeEngineBackend:
                    'Cluster: {} - User {}'.format(__version__, self.namespace, self.cluster, self.user))
         if not self.log_active:
             print(log_msg)
+        self.job_def_ids = set()
         logger.info("Code Engine client created successfully")
 
     def _format_action_name(self, runtime_name, runtime_memory):
@@ -137,7 +138,7 @@ class CodeEngineBackend:
         action_name = self._format_action_name(docker_image_name, memory)
         if self.is_job_def_exists(action_name) == False:
             logger.debug("No job definition {} exists".format(action_name))
-            action_name = self._create_job_definition(docker_image_name, None, action_name)
+            action_name = self._create_job_definition(docker_image_name, memory, action_name)
 
         runtime_meta = self._generate_runtime_meta(action_name)
         return runtime_meta
@@ -147,7 +148,8 @@ class CodeEngineBackend:
         Deletes a runtime
         We need to delete job definition
         """
-        pass;
+        def_id = self._format_action_name(docker_image_name, memory)
+        self._job_def_cleanup(def_id)
 
     def delete_all_runtimes(self):
         """
@@ -172,11 +174,12 @@ class CodeEngineBackend:
             raise ("Code Engine Array jobs - only remote_invoker = True is allowed")
         array_size = len(payload['job_description']['data_ranges'])
         runtime_memory_array = payload['job_description']['runtime_memory']
-        def_id = self._format_action_name(docker_image_name, runtime_memory)
+        def_id = self._format_action_name(docker_image_name, runtime_memory_array)
         logger.debug("Job definition id {}".format(def_id))
         if self.is_job_def_exists(def_id) == False:
             def_id = self._create_job_definition(docker_image_name, runtime_memory_array, def_id)
 
+        self.job_def_ids.add(def_id)
         current_location = os.path.dirname(os.path.abspath(__file__))
         job_run_file = os.path.join(current_location, 'job_run.json')
         logger.debug("Going to open {} ".format(job_run_file))
@@ -275,7 +278,7 @@ class CodeEngineBackend:
 
         return runtime_key
 
-    def cleanup(self, activation_id):
+    def _job_run_cleanup(self, activation_id):
         logger.debug("Cleanup for activation_id {}".format(activation_id))
         try:
             res = self.capi.delete_namespaced_custom_object(
@@ -291,13 +294,13 @@ class CodeEngineBackend:
             if (e.status == 404):
                 logger.info("Cleanup - job name {} was not found (404)".format(activation_id))
 
-    def _job_def_cleanup(self):
-        logger.debug("Cleanup for job_definition {}".format(self.jobdef_id))
+    def _job_def_cleanup(self, jobdef_id):
+        logger.debug("Cleanup for job_definition {}".format(jobdef_id))
         try:
             res = self.capi.delete_namespaced_custom_object(
                 group=self.code_engine_config['group'],
                 version=self.code_engine_config['version'],
-                name=self.jobdef_id,
+                name=jobdef_id,
                 namespace=self.namespace,
                 plural="jobdefinitions",
                 body=client.V1DeleteOptions(),
@@ -384,7 +387,6 @@ class CodeEngineBackend:
                 raise("Unable to invoke 'modules' action")
 
             json_str = self.internal_storage.storage.get_cobject(key = status_key)
-            self.cleanup(self.storage_config['activation_id'])
             runtime_meta = json.loads(json_str.decode("ascii"))
 
         except Exception:
