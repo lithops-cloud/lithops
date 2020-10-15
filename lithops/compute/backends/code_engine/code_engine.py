@@ -162,45 +162,47 @@ class CodeEngineBackend:
         """
         return []
 
-    def invoke(self, docker_image_name, runtime_memory, payload):
+    def invoke(self, docker_image_name, runtime_memory, payload_cp):
         """
         Invoke -- return information about this invocation
+        For array jobs only remote_invocator is allowed
         """
-
-        #We need job definition per map and then delete the job definition.
-        #Need to support that job definition deleted by CE
-        #Array jobs not yet supported
-        '''
-        if payload['executor_id'] in self.jobdef_id_per_executor:
-            def_id = self.jobdef_id_per_executor[payload['executor_id']]
-            logger.debug("Job definition {} exists per executor {}".format(def_id, payload['executor_id']))
-        else:
-            logger.debug("No job definition per executor {}".format(payload['executor_id']))
-            activation_id = self._format_action_name(docker_image_name, runtime_memory)
-            def_id = self._create_job_definition(docker_image_name, runtime_memory, activation_id)
-            self.jobdef_id_per_executor[payload['executor_id'], def_id]
-        '''
+        payload = copy.deepcopy(payload_cp)
+        if payload['remote_invoker'] == False:
+            raise ("Code Engine Array jobs - only remote_invoker = True is allowed")
+        array_size = len(payload['job_description']['data_ranges'])
+        runtime_memory_array = payload['job_description']['runtime_memory']
         def_id = self._format_action_name(docker_image_name, runtime_memory)
+        if self.is_job_def_exists(def_id) == False:
+            def_id = self._create_job_definition(docker_image_name, runtime_memory_array, def_id)
+
         current_location = os.path.dirname(os.path.abspath(__file__))
         job_run_file = os.path.join(current_location, 'job_run.json')
 
         with open(job_run_file) as json_file:
             job_desc = json.load(json_file)
 
-            activation_id = str(uuid.uuid4()).replace('-', '')[:12] + payload['call_id']
+            activation_id = str(uuid.uuid4()).replace('-', '')[:12]
             payload['activation_id'] = activation_id
+            payload['call_id'] = activation_id
 
             job_desc['metadata']['name'] = payload['activation_id']
             job_desc['metadata']['namespace'] = self.namespace
             job_desc['apiVersion'] = self.code_engine_config['api_version']
             job_desc['spec']['jobDefinitionRef'] = str(def_id)
+            job_desc['spec']['jobDefinitionSpec']['arraySpec'] = '0-' + str(array_size - 1)
             job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['name'] = str(def_id)
             job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][0]['value'] = 'payload'
             job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = self._dict_to_binary(payload)
-            job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['resources']['requests']['memory'] = str(runtime_memory) +'Mi'
+            job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['resources']['requests']['memory'] = str(runtime_memory_array) +'Mi'
             job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['resources']['requests']['cpu'] = str(self.code_engine_config['runtime_cpu'])
 
             logger.info("Before invoke job name {}".format(job_desc['metadata']['name']))
+            if (logging.getLogger().level == logging.DEBUG):
+                debug_res = copy.deepcopy(job_desc)
+                debug_res['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = ''
+                logger.debug("request - {}".format(debug_res))
+                del debug_res
             try:
                 res = self.capi.create_namespaced_custom_object(
                     group=self.code_engine_config['group'],

@@ -158,7 +158,7 @@ def code_engine_executor(config=None, runtime=None, runtime_memory=None,
         storage_backend=storage_backend,
         storage_backend_region=storage_backend_region,
         rabbitmq_monitor=rabbitmq_monitor,
-        remote_invoker=remote_invoker,
+        remote_invoker=True,
         log_level=log_level
     )
 
