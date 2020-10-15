@@ -220,8 +220,5 @@ class AliyunFunctionComputeBackend:
         logger.info("Extracted metadata succesfully")
         return runtime_meta
 
-    def cleanup(self, activation_id):
-        pass;
-
 
 

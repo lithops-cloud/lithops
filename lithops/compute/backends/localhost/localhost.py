@@ -146,9 +146,6 @@ class LocalhostBackend:
         """
         return os.path.join(self.name, runtime_name)
 
-    def cleanup(self, activation_id):
-        pass;
-
     def close(self):
         if self.alive:
             self.alive = False

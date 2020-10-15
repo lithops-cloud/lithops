@@ -626,6 +626,3 @@ class KnativeServingBackend:
         runtime_key = os.path.join(self.cluster, self.namespace, service_name)
 
         return runtime_key
-
-    def cleanup(self, activation_id):
-        pass;

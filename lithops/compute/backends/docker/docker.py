@@ -327,9 +327,6 @@ class DockerBackend:
 
         return runtime_key
 
-    def cleanup(self, activation_id):
-        pass;
-
     def ready(self, timeout=5):
         start  = time.time()
         while(time.time() - start < timeout):

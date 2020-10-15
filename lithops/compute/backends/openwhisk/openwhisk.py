@@ -188,9 +188,6 @@ class OpenWhiskBackend:
 
         return runtime_key
 
-    def cleanup(self, activation_id):
-        pass;
-
     def _generate_runtime_meta(self, docker_image_name):
         """
         Extract installed Python modules from docker image

@@ -268,15 +268,13 @@ def clean_job(jobs_to_clean, storage_config, config, clean_cloudobjects):
 
     internal_storage = InternalStorage(storage_config)
     storage = internal_storage.storage
-    invoker = FunctionInvoker(config, None, internal_storage)
 
-    for executor_id, job_id, activation_id in jobs_to_clean:
+    for executor_id, job_id in jobs_to_clean:
         prefix = '/'.join([JOBS_PREFIX, executor_id, job_id])
         clean_bucket(storage, bucket, prefix, log=False)
         if clean_cloudobjects:
             prefix = '/'.join([TEMP_PREFIX, executor_id, job_id])
             clean_bucket(storage, bucket, prefix, log=False)
-        invoker.cleanup(activation_id)
 
     if os.path.exists(jobs_path):
         os.remove(jobs_path)
