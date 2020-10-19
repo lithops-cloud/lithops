@@ -55,20 +55,22 @@ class FunctionExecutor:
             default_logging_config(log_level)
 
         config_ow = {'lithops': {'executor': type}, type: {}}
+
         if runtime is not None:
             config_ow[type]['runtime'] = runtime
         if backend is not None:
             config_ow[type]['backend'] = backend
         if runtime_memory is not None:
             config_ow[type]['runtime_memory'] = int(runtime_memory)
+        if remote_invoker is not None:
+            config_ow[type]['remote_invoker'] = remote_invoker
+
         if storage is not None:
             config_ow['lithops']['storage'] = storage
         if workers is not None:
             config_ow['lithops']['workers'] = workers
         if rabbitmq_monitor is not None:
             config_ow['lithops']['rabbitmq_monitor'] = rabbitmq_monitor
-        if remote_invoker is not None:
-            config_ow['remote_invoker'] = remote_invoker
 
         self.config = default_config(copy.deepcopy(config), config_ow)
 
