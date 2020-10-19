@@ -1,6 +1,6 @@
 # Lithops on AWS Lambda
 
-Lithops with *AWS Lambda* as compute backend.
+Lithops with *AWS Lambda* as serverless compute backend.
 
 ### Installation
 
@@ -19,8 +19,8 @@ Lithops with *AWS Lambda* as compute backend.
 6. Edit your lithops config and add the following keys:
 
 ```yaml
-    lithops:
-        compute_backend: aws_lambda
+    serverless:
+        backend: aws_lambda
 
     aws:
         access_key_id : <ACCESS_KEY_ID>

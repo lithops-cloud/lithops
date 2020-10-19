@@ -31,10 +31,10 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
 
 11. Navigate [here](https://cloud.ibm.com/docs/openwhisk?topic=openwhisk-cloudfunctions_regions#cloud-functions-endpoints) and copy your functions endpoint. It must be in the same region where you created the namespace.
 
-12. Edit your lithops config file and add the following keys:
+12. Edit your lithops config and add the following keys:
     ```yaml
-    lithops:
-        compute_backend: ibm_cf
+    serverless:
+        backend: ibm_cf
        
     ibm_cf:
         endpoint    : <REGION_ENDPOINT>
@@ -65,10 +65,10 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
 
 11. Copy the generated IAM API key (You can only see the key the first time you create it, so make sure to copy it).
 
-12. Edit your lithops config file and add the following keys:
+12. Edit your lithops config and add the following keys:
     ```yaml
-    lithops:
-        storage_backend: ibm_cf
+    serverless:
+        backend: ibm_cf
         
     ibm:
         iam_api_key: <IAM_API_KEY>

@@ -137,10 +137,6 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     """
     log_level = logger.getEffectiveLevel() != logging.WARNING
 
-    runtime_name = config['lithops']['runtime']
-    if runtime_memory is None:
-        runtime_memory = config['lithops']['runtime_memory']
-
     ext_env = {} if extra_env is None else extra_env.copy()
     if ext_env:
         ext_env = utils.convert_bools_to_string(ext_env)
@@ -149,12 +145,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     if not data:
         return []
 
-    if execution_timeout is None:
-        execution_timeout = config['lithops']['runtime_timeout'] - 5
-
     job_description = {}
-    job_description['runtime_name'] = runtime_name
-    job_description['runtime_memory'] = runtime_memory
     job_description['execution_timeout'] = execution_timeout
     job_description['function_name'] = func.__name__
     job_description['extra_env'] = ext_env

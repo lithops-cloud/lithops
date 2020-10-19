@@ -20,12 +20,12 @@ import logging
 import random
 from types import SimpleNamespace
 from multiprocessing import Process, Queue
-from lithops.compute import Compute
-from lithops.invoker import JobMonitor
+from lithops.serverless import ServerlessHandler
+from lithops.invokers import JobMonitor
 from lithops.storage import InternalStorage
 from lithops.version import __version__
 from concurrent.futures import ThreadPoolExecutor
-from lithops.config import cloud_logging_config, extract_compute_config, extract_storage_config
+from lithops.config import cloud_logging_config, extract_serverless_config, extract_storage_config
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('invoker')
@@ -47,11 +47,11 @@ def function_invoker(event):
     os.environ.update(custom_env)
     config = event['config']
     num_invokers = event['invokers']
-    invoker = FunctionInvoker(config, num_invokers, log_level)
+    invoker = ServerlessInvoker(config, num_invokers, log_level)
     invoker.run(event['job_description'])
 
 
-class FunctionInvoker:
+class ServerlessInvoker:
     """
     Module responsible to perform the invocations against the compute backend
     """
@@ -62,7 +62,7 @@ class FunctionInvoker:
         self.log_level = log_level
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
-        compute_config = extract_compute_config(self.config)
+        compute_config = extract_serverless_config(self.config)
 
         self.remote_invoker = self.config['lithops'].get('remote_invoker', False)
         self.rabbitmq_monitor = self.config['lithops'].get('rabbitmq_monitor', False)
@@ -72,32 +72,18 @@ class FunctionInvoker:
         self.num_workers = self.config['lithops'].get('workers')
         logger.debug('Total workers: {}'.format(self.num_workers))
 
-        self.compute_handlers = []
+        self.serverless_handlers = []
         cb = compute_config['backend']
         regions = compute_config[cb].get('region')
         if regions and type(regions) == list:
             for region in regions:
                 new_compute_config = compute_config.copy()
                 new_compute_config[cb]['region'] = region
-                compute_handler = Compute(new_compute_config, storage_config)
-                self.compute_handlers.append(compute_handler)
+                serverless_handler = ServerlessHandler(new_compute_config, storage_config)
+                self.serverless_handlers.append(serverless_handler)
         else:
-            if cb == 'localhost':
-                global CBH
-                if cb in CBH and CBH[cb].compute_handler.num_workers != self.num_workers:
-                    del CBH[cb]
-                if cb in CBH:
-                    logger.info('{} compute handler already started'.format(cb))
-                    compute_handler = CBH[cb]
-                    self.compute_handlers.append(compute_handler)
-                else:
-                    logger.info('Starting {} compute handler'.format(cb))
-                    compute_handler = Compute(compute_config)
-                    CBH[cb] = compute_handler
-                    self.compute_handlers.append(compute_handler)
-            else:
-                compute_handler = Compute(compute_config, storage_config)
-                self.compute_handlers.append(compute_handler)
+            serverless_handler = ServerlessHandler(compute_config, storage_config)
+            self.serverless_handlers.append(serverless_handler)
 
         self.token_bucket_q = Queue()
         self.pending_calls_q = Queue()
@@ -121,12 +107,13 @@ class FunctionInvoker:
                    'host_submit_tstamp': time.time(),
                    'lithops_version': __version__,
                    'runtime_name': job.runtime_name,
-                   'runtime_memory': job.runtime_memory}
+                   'runtime_memory': job.runtime_memory,
+                   'runtime_timeout': job.runtime_timeout}
 
         # do the invocation
         start = time.time()
-        compute_handler = random.choice(self.compute_handlers)
-        activation_id = compute_handler.invoke(job.runtime_name, job.runtime_memory, payload)
+        serverless_handler = random.choice(self.serverless_handlers)
+        activation_id = serverless_handler.invoke(job.runtime_name, job.runtime_memory, payload)
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 
