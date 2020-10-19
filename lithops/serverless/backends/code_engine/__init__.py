@@ -1,1 +1,1 @@
-from .code_engine import CodeEngineBackend as ComputeBackend
+from .code_engine import CodeEngineBackend as ServerlessBackend
