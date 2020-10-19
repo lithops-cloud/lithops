@@ -103,7 +103,8 @@ class CodeEngineBackend:
         logger.info('Building a new docker image from Dockerfile')
         logger.info('Docker image name: {}'.format(docker_image_name))
 
-        create_function_handler_zip(codeengine_config.FH_ZIP_LOCATION, 'lithopsentry.py', __file__)
+        entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
+        create_function_handler_zip(codeengine_config.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')
 
         if dockerfile:
             cmd = 'docker build -t {} -f {} .'.format(docker_image_name, dockerfile)
