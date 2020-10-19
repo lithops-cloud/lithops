@@ -113,8 +113,7 @@ def local_executor(config=None, workers=None,
 
 def code_engine_executor(config=None, runtime=None, runtime_memory=None,
                          workers=None,  storage_backend=None,
-                         rabbitmq_monitor=None,
-                         remote_invoker=None, log_level=None):
+                         rabbitmq_monitor=None, log_level=None):
     """
     Function executor for Code Engine
     """

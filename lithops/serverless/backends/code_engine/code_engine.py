@@ -26,8 +26,8 @@ from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 from lithops.utils import version_str
 from lithops.version import __version__
-from lithops.utils import is_lithops_function
-from lithops.compute.utils import create_function_handler_zip
+from lithops.utils import is_lithops_worker
+from lithops.serverless.utils import create_function_handler_zip
 from lithops.storage.utils import create_runtime_meta_key
 from lithops.config import JOBS_PREFIX
 from lithops.storage import InternalStorage
@@ -51,7 +51,7 @@ class CodeEngineBackend:
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'code_engine'
         self.code_engine_config = code_engine_config
-        self.is_lithops_function = is_lithops_function()
+        self.is_lithops_worker = is_lithops_worker()
         self.storage_config = storage_config
         self.internal_storage = InternalStorage(storage_config)
 
