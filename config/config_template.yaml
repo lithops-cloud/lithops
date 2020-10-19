@@ -45,6 +45,11 @@ lithops:
     #instance_id : <INSTANCE_ID>
     #ip_address  : <FLOATING_IP_ADDRESS>
 
+#vm:
+    #host: <IP_ADDRESS>
+    #ssh_user: <SSH_USERNAME>
+    #ssh_password: <SSH_PASSWORD>
+
 #rabbitmq:
     #amqp_url   : <RABBIT_AMQP_URL>  # amqp://
 
