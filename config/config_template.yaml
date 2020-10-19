@@ -1,35 +1,49 @@
 lithops: 
+    #storage: ibm_cos
     storage_bucket: <BUCKET_NAME>
-    #storage_backend: ibm_cos
-    #compute_backend: ibm_cf
+    #executor: serverless
     #rabbitmq_monitor: <True/False>
-    #remote_invoker: <True/False>
     #data_cleaner: <True/False>
+    #workers: <MAX_NUM_OF_WORKERS>
+    #data_limit: 4  # in MiB
+
+#serverless:
+    #backend: ibm_cf
     #runtime : <RUNTIME_NAME>
     #runtime_timeout: 600
     #runtime_memory: 256
-    #workers: <MAX_NUM_OF_WORKERS>
-    #data_limit: 4  # in MiB
+    #remote_invoker: <True/False>
+
+#standalone:
+    #backend: ibm_vpc
+    #runtime: <RUNTIME_NAME>
+    #auto_dismantle: True
+    #hard_dismantle_timeout: 3600
+    #soft_dismantle_timeout: 300
 
 #ibm:
    #iam_api_key: <IAM KEY>
 
-code_engine:
-    kubectl_config: <Location for kubectl yaml file>
-
-
-ibm_cf:
-    endpoint    : <REGION_ENDPOINT>
-    namespace   : <NAMESPACE>
-    api_key     : <API_KEY>
+#ibm_cf:
+    #endpoint    : <REGION_ENDPOINT>
+    #namespace   : <NAMESPACE>
+    #api_key     : <API_KEY>
     #namespace_id : <NAMESPACE_ID> # Only for IAM auth
 
-ibm_cos:
-    endpoint    : <REGION_ENDPOINT>
-    private_endpoint: <PRIVATE_REGION_ENDPOINT>
-    api_key     : <API_KEY>
+#code_engine:
+    #kubectl_config: <Location for kubectl yaml file>
+
+#ibm_cos:
+    #endpoint    : <REGION_ENDPOINT>
+    #private_endpoint: <PRIVATE_REGION_ENDPOINT>
+    #api_key     : <API_KEY>
     #access_key : <ACCESS_KEY>  # Optional
     #secret_key : <SECRET_KEY>  # Optional
+
+#ibm_vpc:
+    #endpoint    : <REGION_ENDPOINT>
+    #instance_id : <INSTANCE_ID>
+    #ip_address  : <FLOATING_IP_ADDRESS>
 
 #rabbitmq:
     #amqp_url   : <RABBIT_AMQP_URL>  # amqp://

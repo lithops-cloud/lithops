@@ -53,7 +53,7 @@ class ServerlessInvoker:
         self.is_lithops_worker = is_lithops_worker()
         self.invokers = []
 
-        self.remote_invoker = self.config['lithops'].get('remote_invoker', False)
+        self.remote_invoker = self.config['serverless'].get('remote_invoker', False)
         self.workers = self.config['lithops'].get('workers')
         logger.debug('ExecutorID {} - Total available workers: {}'
                      .format(self.executor_id, self.workers))
