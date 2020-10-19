@@ -495,11 +495,11 @@ class FunctionExecutor:
             return
 
         if fs or force:
-            present_jobs = {(f.executor_id, f.job_id, f.activation_id) for f in futures
+            present_jobs = {(f.executor_id, f.job_id) for f in futures
                             if f.executor_id.count('/') == 1}
             jobs_to_clean = present_jobs
         else:
-            present_jobs = {(f.executor_id, f.job_id, f.activation_id) for f in futures
+            present_jobs = {(f.executor_id, f.job_id) for f in futures
                             if f.done and f.executor_id.count('/') == 1}
             jobs_to_clean = present_jobs - self.cleaned_jobs
 
@@ -509,7 +509,7 @@ class FunctionExecutor:
             if not self.log_active:
                 print(msg)
             storage_config = self.internal_storage.get_storage_config()
-            clean_job(jobs_to_clean, storage_config, self.config, clean_cloudobjects=cloudobjects)
+            clean_job(jobs_to_clean, storage_config, clean_cloudobjects=cloudobjects)
             self.cleaned_jobs.update(jobs_to_clean)
 
     def dismantle(self):

@@ -95,6 +95,7 @@ Note that Lithops automatically builds the default runtime the first time you ru
    ```yaml
    lithops:
        compute_backend: code_engine
+       remote_invoker: True
 
    code_engine:
        kubectl_config: <PATH TO CONFIG YAML FIlE>

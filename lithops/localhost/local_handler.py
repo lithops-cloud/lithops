@@ -55,6 +55,9 @@ class LocalhostExecutor:
         self.num_workers = self.config['lithops'].get('workers', CPU_COUNT)
         self.workers = []
 
+        sys.stdout = open(log_file, 'a')
+        sys.stderr = open(log_file, 'a')
+
         if self.use_threads:
             for worker_id in range(self.num_workers):
                 p = Thread(target=self._process_runner, args=(worker_id,))

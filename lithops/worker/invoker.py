@@ -79,10 +79,10 @@ class ServerlessInvoker:
             for region in regions:
                 new_compute_config = compute_config.copy()
                 new_compute_config[cb]['region'] = region
-                serverless_handler = ServerlessHandler(new_compute_config)
+                serverless_handler = ServerlessHandler(new_compute_config, storage_config)
                 self.serverless_handlers.append(serverless_handler)
         else:
-            serverless_handler = ServerlessHandler(compute_config)
+            serverless_handler = ServerlessHandler(compute_config, storage_config)
             self.serverless_handlers.append(serverless_handler)
 
         self.token_bucket_q = Queue()

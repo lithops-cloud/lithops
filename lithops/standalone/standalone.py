@@ -139,6 +139,9 @@ class StandaloneHandler:
         """
         self.backend.stop()
 
+    def delete_all_runtimes(self):
+        pass
+
     def get_runtime_key(self, runtime_name):
         """
         Generate the runtime key that identifies the runtime

@@ -26,8 +26,8 @@ from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 from lithops.utils import version_str
 from lithops.version import __version__
-from lithops.utils import is_lithops_worker
-from lithops.serverless.utils import create_function_handler_zip
+from lithops.utils import is_lithops_function
+from lithops.compute.utils import create_function_handler_zip
 from lithops.storage.utils import create_runtime_meta_key
 from lithops.config import JOBS_PREFIX
 from lithops.storage import InternalStorage
@@ -51,7 +51,7 @@ class CodeEngineBackend:
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'code_engine'
         self.code_engine_config = code_engine_config
-        self.is_lithops_worker = is_lithops_worker()
+        self.is_lithops_function = is_lithops_function()
         self.storage_config = storage_config
         self.internal_storage = InternalStorage(storage_config)
 
@@ -73,6 +73,7 @@ class CodeEngineBackend:
                    'Cluster: {} - User {}'.format(__version__, self.namespace, self.cluster, self.user))
         if not self.log_active:
             print(log_msg)
+        self.job_def_ids = set()
         logger.info("Code Engine client created successfully")
 
     def _format_action_name(self, runtime_name, runtime_memory):
@@ -102,8 +103,7 @@ class CodeEngineBackend:
         logger.info('Building a new docker image from Dockerfile')
         logger.info('Docker image name: {}'.format(docker_image_name))
 
-        entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-        create_function_handler_zip(codeengine_config.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')
+        create_function_handler_zip(codeengine_config.FH_ZIP_LOCATION, 'lithopsentry.py', __file__)
 
         if dockerfile:
             cmd = 'docker build -t {} -f {} .'.format(docker_image_name, dockerfile)
@@ -138,7 +138,7 @@ class CodeEngineBackend:
         action_name = self._format_action_name(docker_image_name, memory)
         if self.is_job_def_exists(action_name) == False:
             logger.debug("No job definition {} exists".format(action_name))
-            action_name = self._create_job_definition(docker_image_name, None, action_name)
+            action_name = self._create_job_definition(docker_image_name, memory, action_name)
 
         runtime_meta = self._generate_runtime_meta(action_name)
         return runtime_meta
@@ -148,7 +148,8 @@ class CodeEngineBackend:
         Deletes a runtime
         We need to delete job definition
         """
-        pass;
+        def_id = self._format_action_name(docker_image_name, memory)
+        self._job_def_cleanup(def_id)
 
     def delete_all_runtimes(self):
         """
@@ -163,45 +164,49 @@ class CodeEngineBackend:
         """
         return []
 
-    def invoke(self, docker_image_name, runtime_memory, payload):
+    def invoke(self, docker_image_name, runtime_memory, payload_cp):
         """
         Invoke -- return information about this invocation
+        For array jobs only remote_invocator is allowed
         """
+        payload = copy.deepcopy(payload_cp)
+        if payload['remote_invoker'] == False:
+            raise ("Code Engine Array jobs - only remote_invoker = True is allowed")
+        array_size = len(payload['job_description']['data_ranges'])
+        runtime_memory_array = payload['job_description']['runtime_memory']
+        def_id = self._format_action_name(docker_image_name, runtime_memory_array)
+        logger.debug("Job definition id {}".format(def_id))
+        if self.is_job_def_exists(def_id) == False:
+            def_id = self._create_job_definition(docker_image_name, runtime_memory_array, def_id)
 
-        #We need job definition per map and then delete the job definition.
-        #Need to support that job definition deleted by CE
-        #Array jobs not yet supported
-        '''
-        if payload['executor_id'] in self.jobdef_id_per_executor:
-            def_id = self.jobdef_id_per_executor[payload['executor_id']]
-            logger.debug("Job definition {} exists per executor {}".format(def_id, payload['executor_id']))
-        else:
-            logger.debug("No job definition per executor {}".format(payload['executor_id']))
-            activation_id = self._format_action_name(docker_image_name, runtime_memory)
-            def_id = self._create_job_definition(docker_image_name, runtime_memory, activation_id)
-            self.jobdef_id_per_executor[payload['executor_id'], def_id]
-        '''
-        def_id = self._format_action_name(docker_image_name, runtime_memory)
+        self.job_def_ids.add(def_id)
         current_location = os.path.dirname(os.path.abspath(__file__))
         job_run_file = os.path.join(current_location, 'job_run.json')
-
+        logger.debug("Going to open {} ".format(job_run_file))
         with open(job_run_file) as json_file:
             job_desc = json.load(json_file)
 
-            activation_id = str(uuid.uuid4()).replace('-', '')[:12] + payload['call_id']
+            activation_id = str(uuid.uuid4()).replace('-', '')[:12]
             payload['activation_id'] = activation_id
+            payload['call_id'] = activation_id
 
             job_desc['metadata']['name'] = payload['activation_id']
             job_desc['metadata']['namespace'] = self.namespace
             job_desc['apiVersion'] = self.code_engine_config['api_version']
             job_desc['spec']['jobDefinitionRef'] = str(def_id)
+            job_desc['spec']['jobDefinitionSpec']['arraySpec'] = '0-' + str(array_size - 1)
             job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['name'] = str(def_id)
             job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][0]['value'] = 'payload'
             job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = self._dict_to_binary(payload)
-            job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['resources']['requests']['memory'] = str(runtime_memory) +'Mi'
+            job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['resources']['requests']['memory'] = str(runtime_memory_array) +'Mi'
             job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['resources']['requests']['cpu'] = str(self.code_engine_config['runtime_cpu'])
 
             logger.info("Before invoke job name {}".format(job_desc['metadata']['name']))
+            if (logging.getLogger().level == logging.DEBUG):
+                debug_res = copy.deepcopy(job_desc)
+                debug_res['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = ''
+                logger.debug("request - {}".format(debug_res))
+                del debug_res
             try:
                 res = self.capi.create_namespaced_custom_object(
                     group=self.code_engine_config['group'],
@@ -273,7 +278,7 @@ class CodeEngineBackend:
 
         return runtime_key
 
-    def cleanup(self, activation_id):
+    def _job_run_cleanup(self, activation_id):
         logger.debug("Cleanup for activation_id {}".format(activation_id))
         try:
             res = self.capi.delete_namespaced_custom_object(
@@ -289,13 +294,13 @@ class CodeEngineBackend:
             if (e.status == 404):
                 logger.info("Cleanup - job name {} was not found (404)".format(activation_id))
 
-    def _job_def_cleanup(self):
-        logger.debug("Cleanup for job_definition {}".format(self.jobdef_id))
+    def _job_def_cleanup(self, jobdef_id):
+        logger.debug("Cleanup for job_definition {}".format(jobdef_id))
         try:
             res = self.capi.delete_namespaced_custom_object(
                 group=self.code_engine_config['group'],
                 version=self.code_engine_config['version'],
-                name=self.jobdef_id,
+                name=jobdef_id,
                 namespace=self.namespace,
                 plural="jobdefinitions",
                 body=client.V1DeleteOptions(),
@@ -382,7 +387,6 @@ class CodeEngineBackend:
                 raise("Unable to invoke 'modules' action")
 
             json_str = self.internal_storage.storage.get_cobject(key = status_key)
-            self.cleanup(self.storage_config['activation_id'])
             runtime_meta = json.loads(json_str.decode("ascii"))
 
         except Exception:

@@ -124,7 +124,7 @@ def code_engine_executor(config=None, runtime=None, runtime_memory=None,
         workers=workers, backend=compute_backend,
         storage=storage_backend,
         rabbitmq_monitor=rabbitmq_monitor,
-        remote_invoker=remote_invoker,
+        remote_invoker=True,
         log_level=log_level
     )
 

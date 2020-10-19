@@ -20,8 +20,8 @@ import pkgutil
 import sys
 from lithops.version import __version__
 from lithops.config import cloud_logging_config
-from lithops.function import function_handler
-from lithops.function import function_invoker
+from lithops.worker import function_handler
+from lithops.worker import function_invoker
 from lithops.storage import InternalStorage
 from lithops.config import JOBS_PREFIX
 from lithops.utils import sizeof_fmt
@@ -72,8 +72,15 @@ def main(action, payload_decoded):
     os.environ['__PW_ACTIVATION_ID'] = payload['activation_id']
     payload['JOB_INDEX'] = job_index
     if 'remote_invoker' in payload:
-        logger.info("Lithops v{} - Starting invoker".format(__version__))
-        function_invoker(payload)
+        logger.info("Lithops v{} - Remote Invoker. Starting execution".format(__version__))
+        #function_invoker(payload)
+        payload['data_byte_range'] = payload['job_description']['data_ranges'][int(job_index)]
+        for key in payload['job_description']:
+            payload[key] = payload['job_description'][key]
+        payload['host_submit_tstamp'] = payload['metadata']['host_job_create_tstamp']
+        payload['call_id'] = "{:05d}".format(int(job_index))
+
+        function_handler(payload)
     else:
         logger.info("Lithops v{} - Starting execution".format(__version__))
         function_handler(payload)

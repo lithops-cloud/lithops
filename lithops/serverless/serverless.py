@@ -86,10 +86,3 @@ class ServerlessHandler:
         into the storage
         """
         return self.backend.get_runtime_key(runtime_name, memory)
-
-    def cleanup(self, activation_id):
-        """
-        Compute engine may need to perform cleanup for completed invocations
-        """
-        if hasattr(self.backend, 'cleanup'):
-            self.backend.cleanup(activation_id)
