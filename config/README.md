@@ -3,7 +3,7 @@
 Lithops can work with almost any compute backend and storage any can be used with almost any cloud provider. You have multiple options to choose compute backend and storage backend based on your needs
 
 
-## Configure your Compute and Storage backends
+## Compute and Storage backends
 After choosing your compute and storage engine you need to configure Lithops so it can use your compute and storage backend. Lithops configuration can be provided either in configuration file or provided in runtime via Python dictionary. Follow [Lithops configuration](lithops_config.md) to setup configuration file
 
 
