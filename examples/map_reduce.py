@@ -27,14 +27,14 @@ if __name__ == "__main__":
     By default the reducer will be launched within a Cloud Function
     when the local Lithops have all the results from the mappers.
     """
-    pw = lithops.ibm_cf_executor()
-    pw.map_reduce(my_map_function, iterdata, my_reduce_function)
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.map_reduce(my_map_function, iterdata, my_reduce_function)
+    print(fexec.get_result())
 
     """
     Set 'reducer_wait_local=True' to wait for the results locally.
     """
-    pw = lithops.ibm_cf_executor()
-    pw.map_reduce(my_map_function, iterdata, my_reduce_function,
+    fexec = lithops.FunctionExecutor()
+    fexec.map_reduce(my_map_function, iterdata, my_reduce_function,
                   reducer_wait_local=True)
-    print(pw.get_result())
+    print(fexec.get_result())

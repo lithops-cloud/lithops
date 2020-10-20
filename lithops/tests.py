@@ -94,34 +94,34 @@ class TestMethods:
         def _func(x):
             return x
 
-        pw = lithops.function_executor()
-        pw.map(_func, range(x))
-        return pw.get_result()
+        fexec = lithops.FunctionExecutor()
+        fexec.map(_func, range(x))
+        return fexec.get_result()
 
     @staticmethod
     def lithops_return_futures_map_function1(x):
         def _func(x):
             return x + 1
 
-        pw = lithops.function_executor()
-        return pw.map(_func, range(x))
+        fexec = lithops.FunctionExecutor()
+        return fexec.map(_func, range(x))
 
     @staticmethod
     def lithops_return_futures_map_function2(x):
         def _func(x):
             return x + 1
 
-        pw = lithops.function_executor()
-        return pw.call_async(_func, x + 5)
+        fexec = lithops.FunctionExecutor()
+        return fexec.call_async(_func, x + 5)
 
     @staticmethod
     def lithops_return_futures_map_function3(x):
         def _func(x):
             return x + 1
 
-        pw = lithops.function_executor()
-        fut1 = pw.map(_func, range(x))
-        fut2 = pw.map(_func, range(x))
+        fexec = lithops.FunctionExecutor()
+        fut1 = fexec.map(_func, range(x))
+        fut2 = fexec.map(_func, range(x))
         return fut1 + fut2
 
     @staticmethod
@@ -201,132 +201,135 @@ class TestLithops(unittest.TestCase):
 
     def test_call_async(self):
         print('Testing call_async()...')
-        pw = lithops.function_executor(config=CONFIG)
-        pw.call_async(TestMethods.hello_world, "")
-        result = pw.get_result()
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        fexec.call_async(TestMethods.hello_world, "")
+        result = fexec.get_result()
         self.assertEqual(result, "Hello World!")
 
-        pw = lithops.function_executor(config=CONFIG)
-        pw.call_async(TestMethods.concat, ["a", "b"])
-        result = pw.get_result()
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        fexec.call_async(TestMethods.concat, ["a", "b"])
+        result = fexec.get_result()
         self.assertEqual(result, "a b")
 
-        pw = lithops.function_executor(config=CONFIG)
-        pw.call_async(TestMethods.simple_map_function, [4, 6])
-        result = pw.get_result()
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        fexec.call_async(TestMethods.simple_map_function, [4, 6])
+        result = fexec.get_result()
         self.assertEqual(result, 10)
 
-        pw = lithops.function_executor(config=CONFIG)
-        pw.call_async(TestMethods.simple_map_function, {'x': 2, 'y': 8})
-        result = pw.get_result()
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        fexec.call_async(TestMethods.simple_map_function, {'x': 2, 'y': 8})
+        result = fexec.get_result()
         self.assertEqual(result, 10)
 
     def test_map(self):
         print('Testing map()...')
         iterdata = [[1, 1], [2, 2], [3, 3], [4, 4]]
-        pw = lithops.function_executor(config=CONFIG)
-        pw.map(TestMethods.simple_map_function, iterdata)
-        result = pw.get_result()
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        fexec.map(TestMethods.simple_map_function, iterdata)
+        result = fexec.get_result()
         self.assertEqual(result, [2, 4, 6, 8])
 
-        pw = lithops.function_executor(config=CONFIG, workers=1)
-        pw.map(TestMethods.simple_map_function, iterdata)
-        result = pw.get_result()
+        fexec = lithops.FunctionExecutor(config=CONFIG, workers=1)
+        fexec.map(TestMethods.simple_map_function, iterdata)
+        result = fexec.get_result()
         self.assertEqual(result, [2, 4, 6, 8])
 
-        pw = lithops.function_executor(config=CONFIG)
+        fexec = lithops.FunctionExecutor(config=CONFIG)
         set_iterdata = set(range(2))
-        pw.map(TestMethods.hello_world, set_iterdata)
-        result = pw.get_result()
+        fexec.map(TestMethods.hello_world, set_iterdata)
+        result = fexec.get_result()
         self.assertEqual(result, ['Hello World!'] * 2)
 
-        pw = lithops.function_executor(config=CONFIG)
+        fexec = lithops.FunctionExecutor(config=CONFIG)
         generator_iterdata = range(2)
-        pw.map(TestMethods.hello_world, generator_iterdata)
-        result = pw.get_result()
+        fexec.map(TestMethods.hello_world, generator_iterdata)
+        result = fexec.get_result()
         self.assertEqual(result, ['Hello World!'] * 2)
 
-        pw = lithops.function_executor(config=CONFIG)
+        fexec = lithops.FunctionExecutor(config=CONFIG)
         listDicts_iterdata = [{'x': 2, 'y': 8}, {'x': 2, 'y': 8}]
-        pw.map(TestMethods.simple_map_function, listDicts_iterdata)
-        result = pw.get_result()
+        fexec.map(TestMethods.simple_map_function, listDicts_iterdata)
+        result = fexec.get_result()
         self.assertEqual(result, [10, 10])
 
-        pw = lithops.function_executor(config=CONFIG)
+        fexec = lithops.FunctionExecutor(config=CONFIG)
         set_iterdata = [["a", "b"], ["c", "d"]]
-        pw.map(TestMethods.concat, set_iterdata)
-        result = pw.get_result()
+        fexec.map(TestMethods.concat, set_iterdata)
+        result = fexec.get_result()
         self.assertEqual(result, ["a b", "c d"])
 
     def test_map_reduce(self):
         print('Testing map_reduce()...')
         iterdata = [[1, 1], [2, 2], [3, 3], [4, 4]]
-        pw = lithops.function_executor(config=CONFIG)
-        pw.map_reduce(TestMethods.simple_map_function, iterdata, TestMethods.simple_reduce_function)
-        result = pw.get_result()
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        fexec.map_reduce(TestMethods.simple_map_function, iterdata,
+                         TestMethods.simple_reduce_function)
+        result = fexec.get_result()
         self.assertEqual(result, 20)
 
     def test_multiple_executions(self):
         print('Testing multiple executions...')
-        pw = lithops.function_executor(config=CONFIG)
+        fexec = lithops.FunctionExecutor(config=CONFIG)
         iterdata = [[1, 1], [2, 2]]
-        pw.map(TestMethods.simple_map_function, iterdata)
+        fexec.map(TestMethods.simple_map_function, iterdata)
         iterdata = [[3, 3], [4, 4]]
-        pw.map(TestMethods.simple_map_function, iterdata)
-        result = pw.get_result()
+        fexec.map(TestMethods.simple_map_function, iterdata)
+        result = fexec.get_result()
         self.assertEqual(result, [2, 4, 6, 8])
 
         iterdata = [[1, 1], [2, 2]]
-        pw.map(TestMethods.simple_map_function, iterdata)
-        result = pw.get_result()
+        fexec.map(TestMethods.simple_map_function, iterdata)
+        result = fexec.get_result()
         self.assertEqual(result, [2, 4])
 
         iterdata = [[1, 1], [2, 2]]
-        futures1 = pw.map(TestMethods.simple_map_function, iterdata)
-        result1 = pw.get_result(fs=futures1)
+        futures1 = fexec.map(TestMethods.simple_map_function, iterdata)
+        result1 = fexec.get_result(fs=futures1)
         iterdata = [[3, 3], [4, 4]]
-        futures2 = pw.map(TestMethods.simple_map_function, iterdata)
-        result2 = pw.get_result(fs=futures2)
+        futures2 = fexec.map(TestMethods.simple_map_function, iterdata)
+        result2 = fexec.get_result(fs=futures2)
         self.assertEqual(result1, [2, 4])
         self.assertEqual(result2, [6, 8])
 
     def test_internal_executions(self):
         print('Testing internal executions...')
-        pw = lithops.function_executor(config=CONFIG)
-        pw.map(TestMethods.lithops_inside_lithops_map_function, range(1, 11))
-        result = pw.get_result()
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        fexec.map(TestMethods.lithops_inside_lithops_map_function, range(1, 11))
+        result = fexec.get_result()
         self.assertEqual(result, [list(range(i)) for i in range(1, 11)])
 
-        pw = lithops.function_executor(config=CONFIG)
-        pw.call_async(TestMethods.lithops_return_futures_map_function1, 3)
-        pw.get_result()
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        fexec.call_async(TestMethods.lithops_return_futures_map_function1, 3)
+        fexec.get_result()
 
-        pw = lithops.function_executor(config=CONFIG)
-        pw.call_async(TestMethods.lithops_return_futures_map_function2, 3)
-        pw.get_result()
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        fexec.call_async(TestMethods.lithops_return_futures_map_function2, 3)
+        fexec.get_result()
 
-        pw = lithops.function_executor(config=CONFIG)
-        pw.call_async(TestMethods.lithops_return_futures_map_function3, 3)
-        pw.wait()
-        pw.get_result()
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        fexec.call_async(TestMethods.lithops_return_futures_map_function3, 3)
+        fexec.wait()
+        fexec.get_result()
 
     def test_map_reduce_obj_bucket(self):
         print('Testing map_reduce() over a bucket...')
         sb = STORAGE_CONFIG['backend']
         data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
-        pw = lithops.function_executor(config=CONFIG)
-        pw.map_reduce(TestMethods.my_map_function_obj, data_prefix, TestMethods.my_reduce_function)
-        result = pw.get_result()
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        fexec.map_reduce(TestMethods.my_map_function_obj, data_prefix,
+                         TestMethods.my_reduce_function)
+        result = fexec.get_result()
         self.assertEqual(result, self.__class__.cos_result_to_compare)
 
     def test_map_reduce_obj_bucket_one_reducer_per_object(self):
         print('Testing map_reduce() over a bucket with one reducer per object...')
         sb = STORAGE_CONFIG['backend']
         data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
-        pw = lithops.function_executor(config=CONFIG)
-        pw.map_reduce(TestMethods.my_map_function_obj, data_prefix, TestMethods.my_reduce_function,
-                      reducer_one_per_object=True)
-        result = pw.get_result()
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        fexec.map_reduce(TestMethods.my_map_function_obj, data_prefix,
+                         TestMethods.my_reduce_function,
+                         reducer_one_per_object=True)
+        result = fexec.get_result()
         self.assertEqual(sum(result), self.__class__.cos_result_to_compare)
 
     def test_map_reduce_obj_key(self):
@@ -334,9 +337,10 @@ class TestLithops(unittest.TestCase):
         sb = STORAGE_CONFIG['backend']
         bucket_name = STORAGE_CONFIG['bucket']
         iterdata = [sb + '://' + bucket_name + '/' + key for key in TestUtils.list_test_keys()]
-        pw = lithops.function_executor(config=CONFIG)
-        pw.map_reduce(TestMethods.my_map_function_obj, iterdata, TestMethods.my_reduce_function)
-        result = pw.get_result()
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        fexec.map_reduce(TestMethods.my_map_function_obj, iterdata,
+                         TestMethods.my_reduce_function)
+        result = fexec.get_result()
         self.assertEqual(result, self.__class__.cos_result_to_compare)
 
     def test_map_reduce_obj_key_one_reducer_per_object(self):
@@ -344,25 +348,28 @@ class TestLithops(unittest.TestCase):
         sb = STORAGE_CONFIG['backend']
         bucket_name = STORAGE_CONFIG['bucket']
         iterdata = [sb + '://' + bucket_name + '/' + key for key in TestUtils.list_test_keys()]
-        pw = lithops.function_executor(config=CONFIG)
-        pw.map_reduce(TestMethods.my_map_function_obj, iterdata, TestMethods.my_reduce_function,
-                      reducer_one_per_object=True)
-        result = pw.get_result()
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        fexec.map_reduce(TestMethods.my_map_function_obj, iterdata,
+                         TestMethods.my_reduce_function,
+                         reducer_one_per_object=True)
+        result = fexec.get_result()
         self.assertEqual(sum(result), self.__class__.cos_result_to_compare)
 
     def test_map_reduce_url(self):
         print('Testing map_reduce() over URLs...')
-        pw = lithops.function_executor(config=CONFIG)
-        pw.map_reduce(TestMethods.my_map_function_url, TEST_FILES_URLS, TestMethods.my_reduce_function)
-        result = pw.get_result()
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        fexec.map_reduce(TestMethods.my_map_function_url, TEST_FILES_URLS,
+                         TestMethods.my_reduce_function)
+        result = fexec.get_result()
         self.assertEqual(result, self.__class__.cos_result_to_compare)
 
     def test_storage_handler(self):
         print('Testing "storage" function arg...')
         iterdata = [[key, STORAGE_CONFIG['bucket']] for key in TestUtils.list_test_keys()]
-        pw = lithops.function_executor(config=CONFIG)
-        pw.map_reduce(TestMethods.my_map_function_storage, iterdata, TestMethods.my_reduce_function)
-        result = pw.get_result()
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        fexec.map_reduce(TestMethods.my_map_function_storage, iterdata,
+                         TestMethods.my_reduce_function)
+        result = fexec.get_result()
         self.assertEqual(result, self.__class__.cos_result_to_compare)
 
     def test_chunks_bucket(self):
@@ -370,16 +377,18 @@ class TestLithops(unittest.TestCase):
         sb = STORAGE_CONFIG['backend']
         data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
 
-        pw = lithops.function_executor(config=CONFIG)
-        futures = pw.map_reduce(TestMethods.my_map_function_obj, data_prefix, TestMethods.my_reduce_function,
-                                chunk_size=1 * 1024 ** 2)
-        result = pw.get_result(futures)
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        futures = fexec.map_reduce(TestMethods.my_map_function_obj, data_prefix,
+                                   TestMethods.my_reduce_function,
+                                   chunk_size=1 * 1024 ** 2)
+        result = fexec.get_result(futures)
         self.assertEqual(result, self.__class__.cos_result_to_compare)
         self.assertEqual(len(futures), 8)
 
-        pw = lithops.function_executor(config=CONFIG)
-        futures = pw.map_reduce(TestMethods.my_map_function_obj, data_prefix, TestMethods.my_reduce_function, chunk_n=2)
-        result = pw.get_result(futures)
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        futures = fexec.map_reduce(TestMethods.my_map_function_obj, data_prefix,
+                                   TestMethods.my_reduce_function, chunk_n=2)
+        result = fexec.get_result(futures)
         self.assertEqual(result, self.__class__.cos_result_to_compare)
         self.assertEqual(len(futures), 11)
 
@@ -388,17 +397,19 @@ class TestLithops(unittest.TestCase):
         sb = STORAGE_CONFIG['backend']
         data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
 
-        pw = lithops.function_executor(config=CONFIG)
-        futures = pw.map_reduce(TestMethods.my_map_function_obj, data_prefix, TestMethods.my_reduce_function,
-                                chunk_size=1 * 1024 ** 2, reducer_one_per_object=True)
-        result = pw.get_result(futures)
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        futures = fexec.map_reduce(TestMethods.my_map_function_obj, data_prefix,
+                                   TestMethods.my_reduce_function,
+                                   chunk_size=1 * 1024 ** 2, reducer_one_per_object=True)
+        result = fexec.get_result(futures)
         self.assertEqual(sum(result), self.__class__.cos_result_to_compare)
         self.assertEqual(len(futures), 12)
 
-        pw = lithops.function_executor(config=CONFIG)
-        futures = pw.map_reduce(TestMethods.my_map_function_obj, data_prefix, TestMethods.my_reduce_function, chunk_n=2,
-                                reducer_one_per_object=True)
-        result = pw.get_result(futures)
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        futures = fexec.map_reduce(TestMethods.my_map_function_obj, data_prefix,
+                                   TestMethods.my_reduce_function, chunk_n=2,
+                                   reducer_one_per_object=True)
+        result = fexec.get_result(futures)
         self.assertEqual(sum(result), self.__class__.cos_result_to_compare)
         self.assertEqual(len(futures), 15)
 
@@ -406,9 +417,9 @@ class TestLithops(unittest.TestCase):
         print('Testing cloudobjects...')
         sb = STORAGE_CONFIG['backend']
         data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
-        with lithops.function_executor(config=CONFIG) as pw:
-            pw.map_reduce(TestMethods.my_cloudobject_put, data_prefix, TestMethods.my_cloudobject_get)
-            result = pw.get_result()
+        with lithops.FunctionExecutor(config=CONFIG) as fexec:
+            fexec.map_reduce(TestMethods.my_cloudobject_put, data_prefix, TestMethods.my_cloudobject_get)
+            result = fexec.get_result()
             self.assertEqual(result, self.__class__.cos_result_to_compare)
 
 

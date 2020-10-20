@@ -3,7 +3,7 @@ Simple Lithops example using the map method.
 In this example the map() method will launch one
 map function for each entry in 'iterdata'. Finally
 it will print the results for each invocation with
-pw.get_result()
+fexec.get_result()
 """
 import lithops
 
@@ -15,7 +15,7 @@ def my_map_function(id, x):
 
 if __name__ == "__main__":
     iterdata = [1, 2, 3, 4]
-    pw = lithops.ibm_cf_executor()
-    pw.map(my_map_function, iterdata)
-    print(pw.get_result())
-    pw.clean()
+    fexec = lithops.FunctionExecutor()
+    fexec.map(my_map_function, iterdata)
+    print(fexec.get_result())
+    fexec.clean()

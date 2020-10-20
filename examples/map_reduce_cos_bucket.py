@@ -23,7 +23,7 @@ from where you can access to the partial results.
 import lithops
 
 
-bucketname = 'cos://pw-sample-data'  # Change-me
+bucketname = 'cos://fexec-sample-data'  # Change-me
 
 
 def my_map_function(obj):
@@ -59,16 +59,16 @@ def my_reduce_function(results):
 if __name__ == "__main__":
     chunk_size = 4*1024**2  # 4MB
 
-    pw = lithops.ibm_cf_executor()
-    pw.map_reduce(my_map_function, bucketname, my_reduce_function, chunk_size=chunk_size)
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.map_reduce(my_map_function, bucketname, my_reduce_function, chunk_size=chunk_size)
+    print(fexec.get_result())
 
     """
     One reducer for each object in the bucket
     """
     print()
     print('One reducer per object:')
-    pw = lithops.ibm_cf_executor()
-    pw.map_reduce(my_map_function, bucketname, my_reduce_function, chunk_size=chunk_size,
+    fexec = lithops.FunctionExecutor()
+    fexec.map_reduce(my_map_function, bucketname, my_reduce_function, chunk_size=chunk_size,
                   reducer_one_per_object=True)
-    print(pw.get_result())
+    print(fexec.get_result())

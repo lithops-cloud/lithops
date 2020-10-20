@@ -21,7 +21,7 @@ def hello_world(name):
     return 'Hello {}!'.format(name)
 
 if __name__ == '__main__':
-    fexec = lithops.function_executor()
+    fexec = lithops.FunctionExecutor()
     fexec.call_async(hello, 'World')
     print(fexec.get_result())
 ```
@@ -48,7 +48,7 @@ def hello_world(name):
     return 'Hello {}!'.format(name)
 
 if __name__ == '__main__':
-    fexec = lithops.function_executor(config=config)
+    fexec = lithops.FunctionExecutor(config=config)
     fexec.call_async(hello, 'World')
     print(fexec.get_result())
 ```
@@ -130,7 +130,7 @@ def hello_world(name):
     return 'Hello {}!'.format(name)
     
 if __name__ == '__main__':
-    fexec = lithops.function_executor()
+    fexec = lithops.FunctionExecutor()
     exec.call_async(hello_world, 'World')
     print("Response from function: ", fexec.get_result())
    ```
@@ -156,7 +156,7 @@ lithops:
 or in the executor by:
 
 ```python
-fexec = lithops.function_executor(rabbitmq_monitor=True)
+fexec = lithops.FunctionExecutor(rabbitmq_monitor=True)
 ```
 
 
@@ -171,6 +171,8 @@ fexec = lithops.function_executor(rabbitmq_monitor=True)
 |lithops | rabbitmq_monitor | False | no | Activate the rabbitmq monitoring feature |
 |lithops | workers | Depends on the compute backend | no | Max number of concurrent workers |
 |lithops| data_limit | 4 | no | Max (iter)data size (in MB). Set to False for unlimited size |
+|lithops| include_modules | [] | no | Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None |
+|lithops| exclude_modules | [] | no | Explicitly keep these modules from pickled dependencies. It is not taken into account if you set include_modules |
 
 ## Summary of configuration keys for Serverless
 
@@ -180,6 +182,7 @@ fexec = lithops.function_executor(rabbitmq_monitor=True)
 |serverless | runtime | Depends on the backend | no | Runtime name to run the functions. |
 |serverless | runtime_memory | 256 | no | Default runtime memory (in MB) |
 |serverless | runtime_timeout | 600 | no |  Default runtime timeout (in seconds) |
+|serverless | remote_invoker | False | no |  Activate the remote invoker feature that uses one cloud function to spawn all the actual `map()` activations |
 
 
 ## Summary of configuration keys for Standalone

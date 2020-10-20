@@ -14,13 +14,13 @@ def my_function(x):
 
 
 if __name__ == "__main__":
-    pw = lithops.ibm_cf_executor(runtime_memory=256)
-    pw.map(my_function, range(total))
-    pw.wait()  # blocks current execution until all function activations finish
-    pw.clean()
+    fexec = lithops.FunctionExecutor(runtime_memory=256)
+    fexec.map(my_function, range(total))
+    fexec.wait()  # blocks current execution until all function activations finish
+    fexec.clean()
 
     # Activate RabbitMQ as a monitoring system
-    pw = lithops.ibm_cf_executor(runtime_memory=256, rabbitmq_monitor=True)
-    pw.map(my_function, range(total))
-    pw.wait()  # blocks current execution until all function activations finish
-    pw.clean()
+    fexec = lithops.FunctionExecutor(runtime_memory=256, rabbitmq_monitor=True)
+    fexec.map(my_function, range(total))
+    fexec.wait()  # blocks current execution until all function activations finish
+    fexec.clean()
