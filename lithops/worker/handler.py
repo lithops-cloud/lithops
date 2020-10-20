@@ -32,7 +32,7 @@ from lithops.config import extract_storage_config
 from lithops.storage import InternalStorage
 from lithops.worker.jobrunner import JobRunner
 from lithops.worker.utils import get_memory_usage
-from lithops.config import cloud_logging_config, JOBS_PREFIX, STORAGE_FOLDER
+from lithops.config import cloud_logging_config, JOBS_PREFIX, STORAGE_DIR
 from lithops.storage.utils import create_output_key, create_status_key, create_init_key
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
@@ -51,9 +51,8 @@ def function_handler(event):
     extra_env = event.get('extra_env', {})
     os.environ.update(extra_env)
 
-    os.environ.update({'LITHOPS_FUNCTION': 'True',
+    os.environ.update({'LITHOPS_WORKER': 'True',
                        'PYTHONUNBUFFERED': 'True'})
-    os.environ.pop('LITHOPS_TOTAL_EXECUTORS', None)
 
     config = event['config']
     call_id = event['call_id']
@@ -64,7 +63,11 @@ def function_handler(event):
 
     runtime_name = event['runtime_name']
     runtime_memory = event['runtime_memory']
+    runtime_timeout = event['runtime_timeout']
     execution_timeout = event['execution_timeout']
+    if execution_timeout is None and runtime_timeout is not None:
+        execution_timeout = runtime_timeout - 5
+
     logger.debug("Runtime name: {}".format(runtime_name))
     logger.debug("Runtime memory: {}MB".format(runtime_memory))
     logger.debug("Function timeout: {}s".format(execution_timeout))
@@ -84,7 +87,7 @@ def function_handler(event):
         'call_id': call_id,
         'job_id': job_id,
         'executor_id': executor_id,
-        'activation_id': os.environ.get('__PW_ACTIVATION_ID')
+        'activation_id': os.environ.get('__LITHOPS_ACTIVATION_ID')
     }
     call_status.response.update(context_dict)
 
@@ -105,10 +108,8 @@ def function_handler(event):
                       'PYTHONPATH': "{}:{}".format(os.getcwd(), LITHOPS_LIBS_PATH)}
         os.environ.update(custom_env)
 
-        jobrunner_stats_dir = os.path.join(STORAGE_FOLDER,
-                                           storage_config['bucket'],
-                                           JOBS_PREFIX, executor_id,
-                                           job_id, call_id)
+        jobrunner_stats_dir = os.path.join(STORAGE_DIR, storage_config['bucket'],
+                                           JOBS_PREFIX, executor_id, job_id, call_id)
         os.makedirs(jobrunner_stats_dir, exist_ok=True)
         jobrunner_stats_filename = os.path.join(jobrunner_stats_dir, 'jobrunner.stats.txt')
 
@@ -131,7 +132,7 @@ def function_handler(event):
         handler_conn, jobrunner_conn = Pipe()
         jobrunner = JobRunner(jobrunner_config, jobrunner_conn, internal_storage)
         logger.debug('Starting JobRunner process')
-        local_execution = strtobool(os.environ.get('__PW_LOCAL_EXECUTION', 'False'))
+        local_execution = strtobool(os.environ.get('__LITHOPS_LOCAL_EXECUTION', 'False'))
         jrp = Thread(target=jobrunner.run) if local_execution else Process(target=jobrunner.run)
         jrp.start()
 
@@ -191,8 +192,10 @@ def function_handler(event):
         call_status.response['worker_end_tstamp'] = time.time()
         call_status.send('__end__')
 
+        # Unset specific env vars
         for key in extra_env:
-            os.environ.pop(key)
+            os.environ.pop(key, None)
+        os.environ.pop('__LITHOPS_TOTAL_EXECUTORS', None)
 
         logger.info("Finished")
 
@@ -202,7 +205,7 @@ class CallStatus:
     def __init__(self, lithops_config, internal_storage):
         self.config = lithops_config
         self.rabbitmq_monitor = self.config['lithops'].get('rabbitmq_monitor', False)
-        self.store_status = strtobool(os.environ.get('__PW_STORE_STATUS', 'True'))
+        self.store_status = strtobool(os.environ.get('__LITHOPS_STORE_STATUS', 'True'))
         self.internal_storage = internal_storage
         self.response = {'exception': False}
 

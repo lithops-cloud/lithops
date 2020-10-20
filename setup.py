@@ -25,7 +25,7 @@ setup(
     url='https://github.com/lithops-cloud/lithops',
     author='Gil Vernik',
     description='Run many jobs over IBM Cloud',
-    long_description="Lithops lets you transparently run your Python functions on IBM Cloud",
+    long_description="Lithops lets you transparently run your Python functions in the Cloud",
     author_email='gilv@il.ibm.com',
     packages=find_packages(),
     install_requires=[

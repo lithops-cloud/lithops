@@ -18,6 +18,10 @@ RUN pip install --upgrade setuptools six pip \
         kubernetes \
         numpy
 
+# install additional python modules
+COPY requirements.txt requirements.txt
+RUN pip install --upgrade pip setuptools six && pip install --no-cache-dir -r requirements.txt
+
 # Copy Lithops proxy and lib to the container image.
 ENV APP_HOME /lithops
 WORKDIR $APP_HOME

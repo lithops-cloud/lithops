@@ -2,7 +2,7 @@
 
 [IBM Code Engine](https://cloud.ibm.com/codeengine/overview) allows you to run your application, job or container on a managed serverless platform. Auto-scale workloads and only pay for the resources you consume.
 
-IBM Code Engine expose both Knative and Kubernetes Job Descriptor API. Lithops support both of them. Follow IBM Code Engine documentation to get more details on the difference between those APIs.
+IBM Code Engine expose both Knative and Kubernetes Job Descriptor API. Lithops supports both of them. Follow IBM Code Engine documentation to get more details on the difference between those APIs.
 
 ###  Initial requirements
 In this step you are required to install IBM Cloud CLI tool, Code Engine plugin and create new Code Engine project
@@ -25,13 +25,13 @@ In this step you are required to install IBM Cloud CLI tool, Code Engine plugin 
    ibmcloud plugin install code-engine
    ```
 
-4. Create a new Code Engine project (you can also do this through the dashboard):
+4. Create a new Code Engine project (you can also do this through the dashboard). If you already have existing project, then proceed to step 5:
 
    ```bash
    ibmcloud ce project create --name myproject
    ```
 
-5. Target to this project:
+5. Target to your project:
 
    ```bash
    ibmcloud ce project select --name myproject
@@ -50,6 +50,7 @@ In this step you are required to install IBM Cloud CLI tool, Code Engine plugin 
    ```
 
 8. [Install the Docker CE version](https://docs.docker.com/get-docker/).
+    Note that Lithops automatically builds the default runtime the first time you run a script. For this task it uses the **docker** command installed locally in your machine.
 
 9. Login to your docker account:
    ```bash
@@ -58,17 +59,14 @@ In this step you are required to install IBM Cloud CLI tool, Code Engine plugin 
 
 ### Lithops using Knative API of Code Engine
 
-The only requirement to make it working is to have the KUBECONFIG file properly configured. To do so, follow the next steps:
+The only requirement to make it working is to have the KUBECONFIG file properly configured.
 
 
-Note that Lithops automatically builds the default runtime the first time you run a script. For this task it uses the **docker** command installed locally in your machine. If for some reason you can't install the Docker CE package locally, you must provide the **docker_token** parameter in the configuration. This way lithops will use Tekton of your k8s cluster to build the default runtime to your docker hub account. In this case, omit the steps 8 and 9.
-
-
-#### Edit your lithops config file and add the following keys:
+#### Edit your lithops config and add the following keys:
 
    ```yaml
-   lithops:
-       compute_backend: knative
+   serverless:
+       backend: knative
 
    knative:
        docker_user: <DOCKER_USERNAME>
@@ -85,16 +83,15 @@ Note that Lithops automatically builds the default runtime the first time you ru
 |knative | git_rev | |no | Git revision to build the image |
 |knative | cpu | 1000 |no | CPU limit in millicpu. Default 1vCPU (1000m) |
 
+
 ### Lithops using Kubernetes Job API of Code Engine
 
-
-Note that Lithops automatically builds the default runtime the first time you run a script. For this task it uses the **docker** command installed locally in your machine. 
-
-#### Edit your lithops config file and add the following keys:
+#### Edit your lithops config and add the following keys:
 
    ```yaml
-   lithops:
-       compute_backend: code_engine
+   serverless:
+       backend: code_engine
+       remote_invoker: True
 
    code_engine:
        kubectl_config: <PATH TO CONFIG YAML FIlE>

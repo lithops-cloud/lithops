@@ -10,9 +10,9 @@ Navigate into `lithops` folder
 
     cd lithops/
 
-If you plan to develop code, stay in the master branch. Otherwise obtain the most recent stable release version from the `release` tab. For example, if release is `v1.0.19` then execute
+If you plan to develop code, stay in the master branch. Otherwise obtain the most recent stable release version from the `release` tab. For example, if release is `v2.2.0` then execute
 
-	git checkout v1.0.19
+	git checkout v2.2.0
 
 Build and install 
 	
@@ -28,13 +28,13 @@ The default runtime is automatically deployed the first time you execute an Lith
 
 To update the default runtime, navigate into `runtime` folder and execute:
 
-	./lithops_runtime update default
+	# lithops update default
 
 To update any other runtime, navigate into `runtime` folder and execute:
 
-	./lithops_runtime update <docker_username/runtimename:tag>
+	# lithops update <docker_username/runtimename:tag>
 
 
 To update all deployed runtimes at a time, navigate into `runtime` folder and execute:
 
-	./lithops_runtime update all
+	# lithops update all

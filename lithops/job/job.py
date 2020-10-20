@@ -15,7 +15,6 @@
 # limitations under the License.
 #
 
-import os
 import sys
 import subprocess
 import time
@@ -137,10 +136,6 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     """
     log_level = logger.getEffectiveLevel() != logging.WARNING
 
-    runtime_name = config['lithops']['runtime']
-    if runtime_memory is None:
-        runtime_memory = config['lithops']['runtime_memory']
-
     ext_env = {} if extra_env is None else extra_env.copy()
     if ext_env:
         ext_env = utils.convert_bools_to_string(ext_env)
@@ -149,12 +144,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     if not data:
         return []
 
-    if execution_timeout is None:
-        execution_timeout = config['lithops']['runtime_timeout'] - 5
-
     job_description = {}
-    job_description['runtime_name'] = runtime_name
-    job_description['runtime_memory'] = runtime_memory
     job_description['execution_timeout'] = execution_timeout
     job_description['function_name'] = func.__name__
     job_description['extra_env'] = ext_env
@@ -240,7 +230,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     return job_description
 
 
-def clean_job(jobs_to_clean, storage_config, config, clean_cloudobjects):
+def clean_job(jobs_to_clean, storage_config, clean_cloudobjects):
     """
     Clean the jobs in a separate process
     """
@@ -250,7 +240,6 @@ def clean_job(jobs_to_clean, storage_config, config, clean_cloudobjects):
 
     script = """
     from lithops.storage import InternalStorage
-    from lithops.invoker import FunctionInvoker
     from lithops.storage.utils import clean_bucket
     from lithops.config import JOBS_PREFIX, TEMP_PREFIX
 
@@ -260,7 +249,6 @@ def clean_job(jobs_to_clean, storage_config, config, clean_cloudobjects):
     storage_config = {}
     clean_cloudobjects = {}
     jobs_path = '{}'
-    config = {}
     bucket = storage_config['bucket']
 
     with open(jobs_path, 'rb') as pk:
@@ -268,19 +256,17 @@ def clean_job(jobs_to_clean, storage_config, config, clean_cloudobjects):
 
     internal_storage = InternalStorage(storage_config)
     storage = internal_storage.storage
-    invoker = FunctionInvoker(config, None, internal_storage)
 
-    for executor_id, job_id, activation_id in jobs_to_clean:
+    for executor_id, job_id in jobs_to_clean:
         prefix = '/'.join([JOBS_PREFIX, executor_id, job_id])
         clean_bucket(storage, bucket, prefix, log=False)
         if clean_cloudobjects:
             prefix = '/'.join([TEMP_PREFIX, executor_id, job_id])
             clean_bucket(storage, bucket, prefix, log=False)
-        invoker.cleanup(activation_id)
 
     if os.path.exists(jobs_path):
         os.remove(jobs_path)
-    """.format(storage_config, clean_cloudobjects, jobs_path, config)
+    """.format(storage_config, clean_cloudobjects, jobs_path)
 
     cmdstr = '{} -c "{}"'.format(sys.executable, textwrap.dedent(script))
     subprocess.Popen(cmdstr, shell=True)

@@ -4,7 +4,7 @@ with multiple parameters in the map function.
 
 In this example the map() method will launch one map function
 for each entry in 'iterdata'. Finally it will print the results
-for each invocation with pw.get_result()
+for each invocation with fexec.get_result()
 
 The 'iterdata' variable must be always a list []. In this case
 to send multiple parameters to the function, the parameters of
@@ -40,9 +40,9 @@ if __name__ == "__main__":
             (5, 6),  # Args for function3
            ]  # End list of parameters for Lithops
 
-    pw = lithops.ibm_cf_executor()
-    pw.map(my_map_function, args)
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.map(my_map_function, args)
+    print(fexec.get_result())
 
     """
     The parameters can also be sent into a dictionary. In this
@@ -55,9 +55,9 @@ if __name__ == "__main__":
               {'x': 5, 'y': 6},  # Kwargs for function3
              ]  # End list of parameters for Lithops
 
-    pw = lithops.ibm_cf_executor()
-    pw.map(my_map_function, kwargs)
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.map(my_map_function, kwargs)
+    print(fexec.get_result())
 
     """
     If you want to send a list or a dict as a parameter of the
@@ -70,9 +70,9 @@ if __name__ == "__main__":
             ([5, 6],),  # Args for function3
            ]  # End list of parameters for Lithops
 
-    pw = lithops.ibm_cf_executor()
-    pw.map(sum_list, args)
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.map(sum_list, args)
+    print(fexec.get_result())
 
     """
     You can also send multiple parameters which include a list
@@ -83,9 +83,9 @@ if __name__ == "__main__":
             ([11, 12, 13, 14, 15], 4)  # Args for function3
            ]  # End list of parameters for Lithops
 
-    pw = lithops.ibm_cf_executor()
-    pw.map(sum_list_mult, args)
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.map(sum_list_mult, args)
+    print(fexec.get_result())
 
     """
     Or alternatively
@@ -96,17 +96,17 @@ if __name__ == "__main__":
                {'list_of_numbers': [11, 12, 13, 14, 15], 'x': 4},  # Kwargs for function3
              ]  # End list of parameters for Lithops
 
-    pw = lithops.ibm_cf_executor()
-    pw.map(sum_list_mult, kwargs)
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.map(sum_list_mult, kwargs)
+    print(fexec.get_result())
 
     """
     extra_args
     """
     args = [0, 1, 2]
-    pw = lithops.ibm_cf_executor()
-    pw.map(my_map_function, args, extra_args=(10,))
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.map(my_map_function, args, extra_args=(10,))
+    print(fexec.get_result())
 
     kwargs = [  # Init list of parameters for Lithops
               {'x': 1},  # Kwargs for function1
@@ -114,6 +114,6 @@ if __name__ == "__main__":
               {'x': 5},  # Kwargs for function3
              ]  # End list of parameters for Lithops
 
-    pw = lithops.ibm_cf_executor()
-    pw.map(my_map_function, kwargs, extra_args={'y': 3})
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.map(my_map_function, kwargs, extra_args={'y': 3})
+    print(fexec.get_result())

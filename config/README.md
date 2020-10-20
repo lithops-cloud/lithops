@@ -21,7 +21,7 @@ def hello_world(name):
     return 'Hello {}!'.format(name)
 
 if __name__ == '__main__':
-    fexec = lithops.function_executor()
+    fexec = lithops.FunctionExecutor()
     fexec.call_async(hello, 'World')
     print(fexec.get_result())
 ```
@@ -48,7 +48,7 @@ def hello_world(name):
     return 'Hello {}!'.format(name)
 
 if __name__ == '__main__':
-    fexec = lithops.function_executor(config=config)
+    fexec = lithops.FunctionExecutor(config=config)
     fexec.call_async(hello, 'World')
     print(fexec.get_result())
 ```
@@ -57,6 +57,14 @@ if __name__ == '__main__':
 
 <table>
 <tr>
+<th align="center">
+<img width="441" height="1px">
+<p> 
+<small>
+Standalone Compute Backends
+</small>
+</p>
+</th>
 <th align="center">
 <img width="441" height="1px">
 <p> 
@@ -77,31 +85,36 @@ Storage Backends
 <tr>
 <td>
 
+- [Localhost](compute/localhost.md)
+- [Remote Virtual Machine](compute/remote_vm.md)
+- [IBM Virtual Private Cloud](compute/ibm_vpc.md)
+
+</td>
+<td>
+
 - [IBM Cloud Functions](compute/ibm_cf.md)
 - [IBM Code Engine](compute/code_engine.md)
 - [Knative](compute/knative.md)
 - [OpenWhisk](compute/openwhisk.md)
-- [Docker](compute/docker.md)
-- [Loclahost](compute/localhost.md)
 - [AWS Lambda](compute/aws_lambda.md)
 - [Google Cloud Functions](compute/gcp_functions.md)
+- [Google Cloud Run](compute/gcp_run.md)
 - [Azure Functions](compute/azure_fa.md)
 - [Aliyun functions](compute/aliyun_fc.md)
-  
+
 </td>
 <td>
-  
+
 - [IBM Cloud Object Storage](storage/ibm_cos.md)
 - [Infinispan](storage/infinispan.md)
 - [Ceph](storage/ceph.md)
 - [Redis](storage/redis.md)
 - [OpenStack Swift](storage/swift.md)
-- [Localhost](storage/localhost.md)
 - [AWS S3](storage/aws_s3.md)
 - [Google Cloud Storage](storage/gcp_storage.md)
 - [Azure Blob Storage](storage/azure_blob.md)
 - [Aliyun Object Storage Service](storage/aliyun_oss.md)
-  
+
 </td>
 </tr>
 </table>
@@ -117,30 +130,10 @@ def hello_world(name):
     return 'Hello {}!'.format(name)
     
 if __name__ == '__main__':
-    fexec = lithops.function_executor()
+    fexec = lithops.FunctionExecutor()
     exec.call_async(hello_world, 'World')
     print("Response from function: ", fexec.get_result())
    ```
-
-## Configure multiple backends
-
-Lithops configuration allows to provide the access credentials to multiple compute and storage backends. by default it will choose those backends set in the  *compute_backend* and *storage_backend* parameters in the lithops section. To switch between backends you simply need to change the *compute_backend* and *storage_backend* parameters and point to the backends you pretend to use:
-    
-```yaml
-lithops:
-   compute_backend: localhost
-   storage_backend: ibm_cos
-```
-    
-Alternatively, regardless of what you set in the configuration file, you can chose your desired compute and storage backends in runtime, when you create an executor. These parameters will overwrite the configuration, for example:
-
-```python
-fexec = lithops.function_executor(compute_backend='ibm_cf', storage_backned='ibm_cos')
-...
-fexec = lithops.function_executor(compute_backend='knative', storage_bakcned='ceph')
-...
-```
-
 
 ## Using RabbitMQ to monitor function activations (optional)
 
@@ -163,7 +156,7 @@ lithops:
 or in the executor by:
 
 ```python
-fexec = lithops.function_executor(rabbitmq_monitor=True)
+fexec = lithops.FunctionExecutor(rabbitmq_monitor=True)
 ```
 
 
@@ -172,11 +165,32 @@ fexec = lithops.function_executor(rabbitmq_monitor=True)
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |lithops|storage_bucket | |yes | Any bucket that exists in your COS account. This will be used by Lithops for intermediate data |
-|lithops|data_cleaner |True|no|If set to True, then cleaner will automatically delete temporary data that was written into `storage_bucket/lithops.jobs`|
-|lithops | storage_backend | ibm_cos | no | Storage backend implementation. IBM Cloud Object Storage is the default |
-|lithops | compute_backend | ibm_cf | no | Compute backend implementation. IBM Cloud Functions is the default |
+|lithops | storage | ibm_cos | no | Storage backend implementation. IBM Cloud Object Storage is the default |
+|lithops| data_cleaner | True | no |If set to True, then the cleaner will automatically delete all the temporary data that was written into `storage_bucket/lithops.jobs`|
+|lithops | executor | serverless | no | Execution mode. One of: **localhost**, **serverless** or **standalone** |
 |lithops | rabbitmq_monitor | False | no | Activate the rabbitmq monitoring feature |
-|lithops | workers | Depends of the ComputeBackend | no | Max number of concurrent workers |
-|lithops| runtime_timeout | 600 |no |  Default runtime timeout (in seconds) |
-|lithops| runtime_memory | 256 | no | Default runtime memory (in MB) |
+|lithops | workers | Depends on the compute backend | no | Max number of concurrent workers |
 |lithops| data_limit | 4 | no | Max (iter)data size (in MB). Set to False for unlimited size |
+|lithops| include_modules | [] | no | Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None |
+|lithops| exclude_modules | [] | no | Explicitly keep these modules from pickled dependencies. It is not taken into account if you set include_modules |
+
+## Summary of configuration keys for Serverless
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|serverless | backend | ibm_cf |no | Serverless compute backend implementation. IBM Cloud Functions is the default |
+|serverless | runtime | Depends on the backend | no | Runtime name to run the functions. |
+|serverless | runtime_memory | 256 | no | Default runtime memory (in MB) |
+|serverless | runtime_timeout | 600 | no |  Default runtime timeout (in seconds) |
+|serverless | remote_invoker | False | no |  Activate the remote invoker feature that uses one cloud function to spawn all the actual `map()` activations |
+
+
+## Summary of configuration keys for Standalone
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|standalone | backend | ibm_vpc |no | Standalone compute backend implementation. IBM VPC is the default |
+|standalone | runtime | python3 | no | Runtime name to run the functions. Can be a Docker image name |
+|standalone | auto_dismantle | True |no | If False then the VM is not stopped automatically. Run **exec.dismantle()** explicitly to stop the VM. |
+|standalone | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
+|standalone | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |

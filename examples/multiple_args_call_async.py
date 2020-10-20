@@ -31,9 +31,9 @@ def sum_list_mult(list_of_numbers, x):
 
 if __name__ == "__main__":
     args = (3, 6)
-    pw = lithops.ibm_cf_executor()
-    pw.call_async(my_function, args)
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.call_async(my_function, args)
+    print(fexec.get_result())
 
     """
     The parameters can also be sent into a dictionary. In this
@@ -42,9 +42,9 @@ if __name__ == "__main__":
     """
     kwargs = {'x': 2, 'y': 8}
 
-    pw = lithops.ibm_cf_executor()
-    pw.call_async(my_function, kwargs)
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.call_async(my_function, kwargs)
+    print(fexec.get_result())
 
     """
     If you want to send a list or a dict as a parameter of the
@@ -53,24 +53,24 @@ if __name__ == "__main__":
     """
     args = ([1, 2, 3, 4, 5], )
 
-    pw = lithops.ibm_cf_executor()
-    pw.call_async(sum_list, args)
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.call_async(sum_list, args)
+    print(fexec.get_result())
 
     """
     You can also send multiple parameters which include a list
     """
     args = ([1, 2, 3, 4, 5], 5)
 
-    pw = lithops.ibm_cf_executor()
-    pw.call_async(sum_list_mult, args)
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.call_async(sum_list_mult, args)
+    print(fexec.get_result())
 
     """
     Or alternatively
     """
     kwargs = {'list_of_numbers': [1, 2, 3, 4, 5], 'x': 3}
 
-    pw = lithops.ibm_cf_executor()
-    pw.call_async(sum_list_mult, kwargs)
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.call_async(sum_list_mult, kwargs)
+    print(fexec.get_result())
