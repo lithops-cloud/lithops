@@ -89,7 +89,7 @@ if __name__ == '__main__':
 
 ```
 ### Providing configuration in runtime
-
+Example of providing configuration keys for IBM Cloud Functions and IBM Cloud Object Storage
 ```
 import lithops
 
