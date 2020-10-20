@@ -1,6 +1,6 @@
 # Lithops on vanilla OpenWhisk
 
-Lithops with *OpenWhisk* as compute backend. Lithops can also run functions on vanilla OpenWhisk installations, for example by deploying OpenWhisk with [openwhisk-devtools](https://github.com/apache/openwhisk-devtools).
+Lithops with *OpenWhisk* as serverless compute backend. Lithops can also run functions on vanilla OpenWhisk installations, for example by deploying OpenWhisk with [openwhisk-devtools](https://github.com/apache/openwhisk-devtools).
 
 
 ### Installation
@@ -34,10 +34,10 @@ Lithops with *OpenWhisk* as compute backend. Lithops can also run functions on v
 
 ### Configuration
 
-3. Edit your Lithops config file and add the following keys:
+3. Edit your Lithops config and add the following keys:
    ```yaml
-    lithops:
-        compute_backend: openwhisk
+    serverless:
+        backend: openwhisk
 
     openwhisk:
         endpoint    : <OW_ENDPOINT>

@@ -1,6 +1,6 @@
 # Lithops on Knative
 
-Lithops with *Knative* as compute backend. Lithops also supports vanilla Knative for running applications. The easiest way to make it working is to create an IBM Kubernetes (IKS) cluster through the [IBM dashboard](https://cloud.ibm.com/kubernetes/landing). Alternatively you can use your own kubernetes cluster or a minikube installation.
+Lithops with *Knative* as serverless compute backend. Lithops also supports vanilla Knative for running applications. The easiest way to make it working is to create an IBM Kubernetes (IKS) cluster through the [IBM dashboard](https://cloud.ibm.com/kubernetes/landing). Alternatively you can use your own kubernetes cluster or a minikube installation.
 
 ### Installation
 
@@ -47,10 +47,10 @@ Note that Lithops automatically builds the default runtime the first time you ru
    export KUBECONFIG=<path-to-kube-config-file>
    ```
 
-8. Edit your lithops config file and add the following keys:
+8. Edit your lithops config and add the following keys:
     ```yaml
-    lithops:
-        compute_backend: knative
+    serverless:
+        backend: knative
         
     knative:
         docker_user: <DOCKER_USERNAME>

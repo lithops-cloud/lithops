@@ -1,12 +1,31 @@
 # Changelog
 
-## [v2.0.1-SNAPSHOT]
+## [v2.2.0-SNAPSHOT]
+
+### Added
+- [Core] New ServerlessExecutor
+- [Core] New StandaloneExecutor
+- [Core] New LocalhostExecutor
+- [Core] New StandaloneExecutor logic
+- [Core] New LocalhostExecutor logic
+- [Core] New Standalone invoker logic
+- [Core] New Localhost invoker logic
+
+
+## [v2.1.1]
+
+### Changed
+- [CodeEngine] Improved Code engine backend
+
+
+## [v2.1.0]
 
 ### Added
 - [Core] Google Cloud Functions & Storage backends
 - [Core] Azure Functions & Blob Storage backends
 - [Core] AWS Lambda & AWS S3 backends
 - [Core] Alibaba Aliyun Functions & Object Storage backends
+- [Core] IBM Code Engine Compute backend
 
 
 ## [v2.0.0]

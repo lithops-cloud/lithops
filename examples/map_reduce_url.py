@@ -62,7 +62,7 @@ def my_reduce_function(results):
 
 
 if __name__ == "__main__":
-    pw = lithops.ibm_cf_executor()
-    pw.map_reduce(my_map_function, iterdata, my_reduce_function)
-    result = pw.get_result()
+    fexec = lithops.FunctionExecutor()
+    fexec.map_reduce(my_map_function, iterdata, my_reduce_function)
+    result = fexec.get_result()
     print("Done!")

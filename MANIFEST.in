@@ -1,0 +1,2 @@
+include lithops/serverless/backends/code_engine/job_run.json
+include lithops/serverless/backends/code_engine/job_def.json

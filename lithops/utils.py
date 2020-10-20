@@ -26,7 +26,6 @@ import logging
 import threading
 import io
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -36,17 +35,17 @@ def uuid_str():
 
 def create_executor_id(lenght=6):
 
-    if 'LITHOPS_EXECUTION_ID' in os.environ:
-        session_id = os.environ['LITHOPS_EXECUTION_ID']
+    if '__LITHOPS_EXECUTION_ID' in os.environ:
+        session_id = os.environ['__LITHOPS_EXECUTION_ID']
     else:
         session_id = uuid_str().replace('/', '')[:lenght]
-        os.environ['LITHOPS_EXECUTION_ID'] = session_id
+        os.environ['__LITHOPS_EXECUTION_ID'] = session_id
 
-    if 'LITHOPS_TOTAL_EXECUTORS' in os.environ:
-        exec_num = int(os.environ['LITHOPS_TOTAL_EXECUTORS']) + 1
+    if '__LITHOPS_TOTAL_EXECUTORS' in os.environ:
+        exec_num = int(os.environ['__LITHOPS_TOTAL_EXECUTORS']) + 1
     else:
         exec_num = 0
-    os.environ['LITHOPS_TOTAL_EXECUTORS'] = str(exec_num)
+    os.environ['__LITHOPS_TOTAL_EXECUTORS'] = str(exec_num)
 
     return '{}/{}'.format(session_id, exec_num)
 
@@ -123,11 +122,11 @@ def is_unix_system():
     return curret_system != 'Windows'
 
 
-def is_lithops_function():
+def is_lithops_worker():
     """
-    Checks if the current execution is within a lithops fn
+    Checks if the current execution is within a lithops worker
     """
-    if 'LITHOPS_FUNCTION' in os.environ:
+    if 'LITHOPS_WORKER' in os.environ:
         return True
     return False
 
