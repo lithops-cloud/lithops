@@ -17,10 +17,9 @@ To configure Lithops through a [configuration template file](config_template.yam
     
 ## Configuration keys in runtime
 
-An alternative mode of configuration is to use a python dictionary. This option allows to pass all the configuration details as part of the Lithops invocation in runtime, for example:
+An alternative mode of configuration is to use a python dictionary. This option allows to pass all the configuration details as part of the Lithops invocation in runtime, for example the following dictionary required to configure IBM Cloud Functions and IBM Cloud Object Storage: 
 
 ```python
-import lithops
 
 config = {'lithops' : {'storage_bucket' : 'BUCKET_NAME'},
 
@@ -32,3 +31,5 @@ config = {'lithops' : {'storage_bucket' : 'BUCKET_NAME'},
                       'private_endpoint': 'PRIVATE_ENDPOINT',
                       'api_key': 'API_KEY'}}
 ```
+
+entire list of sections and keys is [here](config_template.yaml)
