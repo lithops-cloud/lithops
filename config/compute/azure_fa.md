@@ -4,13 +4,19 @@ Lithops with Azure Function App as serverless compute backend.
 
 ### Installation
 
-  1. Install [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest)
-  
-  2. Sign in with the Azure CLI:
-  
-    ```bash
-      $ az login
-    ```
+1. Install Microsoft Azure backend dependencies:
+
+```
+$ pip install lithops[azure]
+```
+
+2. Install [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest)
+
+3. Sign in with the Azure CLI:
+
+```bash
+  $ az login
+```
 
 ### Configuration
 
