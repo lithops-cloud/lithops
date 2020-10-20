@@ -1,1 +1,1 @@
-from .azure_fa import AzureFunctionAppBackend as ComputeBackend
+from .azure_fa import AzureFunctionAppBackend as ServerlessBackend

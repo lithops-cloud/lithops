@@ -1,1 +1,1 @@
-from .gcp_functions import GCPFunctionsBackend as ComputeBackend
+from .gcp_functions import GCPFunctionsBackend as ServerlessBackend
