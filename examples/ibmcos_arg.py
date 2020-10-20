@@ -22,6 +22,6 @@ def my_function(bucket_name, key, ibm_cos):
 
 
 if __name__ == '__main__':
-    pw = lithops.ibm_cf_executor()
-    pw.call_async(my_function, ['pw-sample-data', 'obj1.txt'])
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.call_async(my_function, ['fexec-sample-data', 'obj1.txt'])
+    print(fexec.get_result())

@@ -6,6 +6,8 @@ lithops:
     #data_cleaner: <True/False>
     #workers: <MAX_NUM_OF_WORKERS>
     #data_limit: 4  # in MiB
+    #include_modules: <LIST_OF_MODULES>
+    #exclude_modules: <LIST_OF_MODULES>
 
 #serverless:
     #backend: ibm_cf
@@ -44,6 +46,10 @@ lithops:
     #endpoint    : <REGION_ENDPOINT>
     #instance_id : <INSTANCE_ID>
     #ip_address  : <FLOATING_IP_ADDRESS>
+    #version     : <VPC_VERSION>
+    #generation  : <VPC_GENERATION>
+    #ssh_user    : <SSH_USERNAME>
+    #ssh_key_filename: <SSH_PASSWORD>
 
 #vm:
     #host: <IP_ADDRESS>
@@ -80,7 +86,7 @@ lithops:
     #username   : <USER_NAME>
     #password   : <PASSWORD>
     #endpoint   : <INFINISPAN_SERVER_URL:PORT>
-    #cache_manager : <CACHE MANAGER> # Optional. 'default' in default value
+    #cache_manager : <CACHE MANAGER> # Optional
   
 #ceph:
     #endpoint: <ENDPOINT_URL>

@@ -15,9 +15,9 @@ args = (3, 6)
 def my_function(x, y):
     return x + y
 
-pw = lithops.ibm_cf_executor()
-pw.call_async(my_function, args)
-print (pw.get_result())
+fexec = lithops.FunctionExecutor()
+fexec.call_async(my_function, args)
+print (fexec.get_result())
 ```
 
 The parameters can also be sent into a dictionary. In this case you have to map them to the correct parameter of the
@@ -31,9 +31,9 @@ kwargs = {'x': 2, 'y': 8}
 def my_function(x, y):
     return x + y
 
-pw = lithops.ibm_cf_executor()
-pw.call_async(my_function, kwargs)
-print (pw.get_result())
+fexec = lithops.FunctionExecutor()
+fexec.call_async(my_function, kwargs)
+print (fexec.get_result())
 ```
 
 If you want to send a list or a dict as a parameter of the function, you must enclose them with [] as in the next 
@@ -50,9 +50,9 @@ def sum_list(list_of_numbers):
         total = total+num
     return total
 
-pw = lithops.ibm_cf_executor()
-pw.call_async(sum_list, args)
-print (pw.get_result())
+fexec = lithops.FunctionExecutor()
+fexec.call_async(sum_list, args)
+print (fexec.get_result())
 ```
 
 You can also send multiple parameters which include a list.
@@ -68,9 +68,9 @@ def sum_list_mult(list_of_numbers, x):
         total = total+num
     return total*x
 
-pw = lithops.ibm_cf_executor()
-pw.call_async(sum_list_mult, args)
-print (pw.get_result())
+fexec = lithops.FunctionExecutor()
+fexec.call_async(sum_list_mult, args)
+print (fexec.get_result())
 ```
 
 Or alternatively using a dict.
@@ -80,16 +80,16 @@ import lithops
 
 kwargs = {'list_of_numbers': [1, 2, 3, 4, 5], 'x': 3}
 
-pw = lithops.ibm_cf_executor()
-pw.call_async(sum_list_mult, kwargs)
-print (pw.get_result())
+fexec = lithops.FunctionExecutor()
+fexec.call_async(sum_list_mult, kwargs)
+print (fexec.get_result())
 ```
 
 To test all of the previous examples run the [multiple_parameters_call_async.py](../examples/multiple_parameters_call_async.py) located in the `examples` folder.
 
 ## Multiple function invocation using the map() and map_reduce() methods.
 The 'iterdata' variable must be always a list []. In this case to send multiple parameters to the function, the parameters of
-each function must be enclosed within another list [] as in the next example. The parameters will be mapped in the order you wrote
+each function must be enclosed within a tuple () as in the next example. The parameters will be mapped in the order you wrote
 them.
 
 ```python
@@ -104,9 +104,9 @@ args = [  # Init list of parameters for Lithops
 def my_function(x, y):
     return x + y
 
-pw = lithops.ibm_cf_executor()
-pw.map(my_function, args)
-print (pw.get_result())
+fexec = lithops.FunctionExecutor()
+fexec.map(my_function, args)
+print (fexec.get_result())
 ```
 
 The parameters can also be sent into a dictionary. In this case you have to map them to the correct parameter of the
@@ -124,9 +124,9 @@ kwargs = [  # Init list of parameters for Lithops
 def my_function(x, y):
     return x + y
 
-pw = lithops.ibm_cf_executor()
-pw.map(my_function, kwargs)
-print (pw.get_result())
+fexec = lithops.FunctionExecutor()
+fexec.map(my_function, kwargs)
+print (fexec.get_result())
 ```
 
 If you want to send a list or a dict as a parameter of the function, you must enclose them with [] as in the next 
@@ -147,9 +147,9 @@ def sum_list(list_of_numbers):
         total = total+num
     return total
 
-pw = lithops.ibm_cf_executor()
-pw.map(sum_list, args)
-print (pw.get_result())
+fexec = lithops.FunctionExecutor()
+fexec.map(sum_list, args)
+print (fexec.get_result())
 ```
 
 You can also send multiple parameters which include a list.
@@ -169,9 +169,9 @@ def sum_list_mult(list_of_numbers, x):
         total = total+num
     return total*x
 
-pw = lithops.ibm_cf_executor()
-pw.map(sum_list_mult, args)
-print (pw.get_result())
+fexec = lithops.FunctionExecutor()
+fexec.map(sum_list_mult, args)
+print (fexec.get_result())
 ```
 
 Or alternatively using a dict.
@@ -185,9 +185,9 @@ kwargs = [  # Init list of parameters for Lithops
            {'list_of_numbers': [11, 12, 13, 14, 15], 'x': 4},  # Kwargs for function3
          ]  # End list of parameters for Lithops
 
-pw = lithops.ibm_cf_executor()
-pw.map(sum_list_mult, kwargs)
-print(pw.get_result())
+fexec = lithops.FunctionExecutor()
+fexec.map(sum_list_mult, kwargs)
+print(fexec.get_result())
 ```
 
 
@@ -205,9 +205,9 @@ Sometimes, functions have common parameters for all the invocations. In this cas
         return x+y
     
     iterdata = [0, 1, 2]
-    pw = lithops.ibm_cf_executor()
-    pw.map(sum_list_mult, iterdata)
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.map(sum_list_mult, iterdata)
+    print(fexec.get_result())
     ```
 
 - Using `extra_args` parameter in the `map()` or `map_reduce()` calls. `extra_args` must be always a list or a dict, depending whether `iteradata` contains *args* or *kwargs*. 
@@ -221,9 +221,9 @@ Sometimes, functions have common parameters for all the invocations. In this cas
         return x+y
     
     args = [0, 1, 2]
-    pw = lithops.ibm_cf_executor()
-    pw.map(sum_x_y, args, extra_args=(10,))
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.map(sum_x_y, args, extra_args=(10,))
+    print(fexec.get_result())
     ```
     
     The previous example is equivalent to the next:
@@ -239,9 +239,9 @@ Sometimes, functions have common parameters for all the invocations. In this cas
             (1, 10),  # Args for function2
             (2, 10),  # Args for function3
            ]  # End list of parameters for Lithops
-    pw = lithops.ibm_cf_executor()
-    pw.map(sum_x_y, args)
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.map(sum_x_y, args)
+    print(fexec.get_result())
     ```
     
     If `iterdata` is a dict:
@@ -258,9 +258,9 @@ Sometimes, functions have common parameters for all the invocations. In this cas
     def my_function(x, y):
         return x + y
     
-    pw = lithops.ibm_cf_executor()
-    pw.map(my_function, kwargs, extra_args={'y': 3})
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.map(my_function, kwargs, extra_args={'y': 3})
+    print(fexec.get_result())
     ```
     
     The previous example is equivalent to the next:
@@ -277,9 +277,9 @@ Sometimes, functions have common parameters for all the invocations. In this cas
     def my_function(x, y):
         return x + y
     
-    pw = lithops.ibm_cf_executor()
-    pw.map(my_function, kwargs)
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.map(my_function, kwargs)
+    print(fexec.get_result())
     ```
 
 To test all of the previous examples run the [multiple_parameters_map.py](../examples/multiple_parameters_map.py) located in the `examples/` folder.

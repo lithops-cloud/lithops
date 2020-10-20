@@ -121,6 +121,8 @@ class FunctionExecutor:
                                              self.executor_id,
                                              self.internal_storage,
                                              self.compute_handler)
+        else:
+            raise Exception("Function executor type must be one of 'localhost', 'serverless' or 'standalone'")
 
         logger.info('{} Executor created with ID: {}'.format(type.capitalize(), self.executor_id))
 

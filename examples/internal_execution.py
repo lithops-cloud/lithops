@@ -12,12 +12,12 @@ def my_map_function(id, x):
 
 def my_function(x):
     iterdata = range(x)
-    pw = lithops.ibm_cf_executor()
-    return pw.map(my_map_function, iterdata)
+    fexec = lithops.FunctionExecutor()
+    return fexec.map(my_map_function, iterdata)
 
 
 if __name__ == '__main__':
-    pw = lithops.ibm_cf_executor()
-    pw.call_async(my_function, 3)
-    pw.wait()
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.call_async(my_function, 3)
+    fexec.wait()
+    print(fexec.get_result())

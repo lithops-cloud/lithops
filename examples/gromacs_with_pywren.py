@@ -56,10 +56,10 @@ if __name__ == '__main__':
     param1 = 'param1 example'
 
     total_start = time.time()
-    pw = lithops.ibm_cf_executor(runtime='cactusone/lithops-gromacs:1.0.2', runtime_memory=2048)
-    pw.map(sh_cmd_executor, iterdata, extra_args=(param1,))
-    res = pw.get_result()
-    pw.clean()
+    fexec = lithops.FunctionExecutor(runtime='cactusone/lithops-gromacs:1.0.2', runtime_memory=2048)
+    fexec.map(sh_cmd_executor, iterdata, extra_args=(param1,))
+    res = fexec.get_result()
+    fexec.clean()
 
     print ("GROMACS execution time {}".format(res[0]['run_time']))
     print ("Total execution time {}".format(time.time()-total_start))

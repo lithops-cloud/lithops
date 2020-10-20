@@ -24,26 +24,26 @@ if __name__ == "__main__":
     At the end of the with statement all
     cloudobjects are automatically deleted.
     """
-    with lithops.ibm_cf_executor() as pw:
-        pw.call_async(my_function_put, 'Hello World')
-        cloudobjects = pw.get_result()
-        pw.map(my_function_get, cloudobjects)
-        print(pw.get_result())
+    with lithops.FunctionExecutor() as fexec:
+        fexec.call_async(my_function_put, 'Hello World')
+        cloudobjects = fexec.get_result()
+        fexec.map(my_function_get, cloudobjects)
+        print(fexec.get_result())
 
     """
     Managing cloudobjects without context manager.
-    pw.clean() must be called at the end to delete
+    fexec.clean() must be called at the end to delete
     the cloudobjects created in the same executor as
     long as you used the default location.
-    Alternatively, you can call pw.clean(cs=cloudobjects)
+    Alternatively, you can call fexec.clean(cs=cloudobjects)
     to delete a specific list of cloudobjects.
-    pw.clean(cs=cloudobjects) is mandatory if you created
+    fexec.clean(cs=cloudobjects) is mandatory if you created
     the cloudobjects in a custom location.
     """
-    pw = lithops.ibm_cf_executor()
-    pw.call_async(my_function_put, 'Hello World')
-    cloudobjects = pw.get_result()
-    pw.map(my_function_get, cloudobjects)
-    result = pw.get_result()
-    pw.clean()  # or pw.clean(cs=cloudobjects)
+    fexec = lithops.FunctionExecutor()
+    fexec.call_async(my_function_put, 'Hello World')
+    cloudobjects = fexec.get_result()
+    fexec.map(my_function_get, cloudobjects)
+    result = fexec.get_result()
+    fexec.clean()  # or fexec.clean(cs=cloudobjects)
     print(result)

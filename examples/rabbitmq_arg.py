@@ -33,9 +33,9 @@ def my_function_reader(queue_name, rabbitmq):
 
 if __name__ == '__main__':
     queue_name = 'my_queue'
-    pw = lithops.ibm_cf_executor()
-    pw.call_async(my_function_writer, [queue_name, 'This is a rabbitmq test'])
+    fexec = lithops.FunctionExecutor()
+    fexec.call_async(my_function_writer, [queue_name, 'This is a rabbitmq test'])
 
-    pw = lithops.ibm_cf_executor()
-    pw.call_async(my_function_reader, queue_name)
-    print(pw.get_result())
+    fexec = lithops.FunctionExecutor()
+    fexec.call_async(my_function_reader, queue_name)
+    print(fexec.get_result())

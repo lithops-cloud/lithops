@@ -57,28 +57,9 @@ def knative_executor(config=None, runtime=None, runtime_memory=None, workers=Non
     )
 
 
-def openwhisk_executor(config=None, runtime=None, runtime_memory=None,
-                       workers=None, storage_backend=None,
-                       rabbitmq_monitor=None,
-                       remote_invoker=None, log_level=None):
-    """
-    Function executor for OpenWhisk
-    """
-    compute_backend = 'openwhisk'
-    return ServerlessExecutor(
-        config=config, runtime=runtime, runtime_memory=runtime_memory,
-        workers=workers, backend=compute_backend,
-        storage=storage_backend,
-        rabbitmq_monitor=rabbitmq_monitor,
-        remote_invoker=remote_invoker,
-        log_level=log_level
-    )
-
-
-def function_executor(type=None, config=None, runtime=None, runtime_memory=None,
-                      workers=None, compute_backend=None,
-                      storage_backend=None, rabbitmq_monitor=None,
-                      remote_invoker=None, log_level=None):
+def function_executor(type=None, config=None, backend=None, storage=None,
+                      runtime=None, runtime_memory=None, workers=None,
+                      rabbitmq_monitor=None, remote_invoker=None, log_level=None):
     """
     Generic function executor
     """
@@ -88,8 +69,8 @@ def function_executor(type=None, config=None, runtime=None, runtime_memory=None,
         runtime=runtime,
         runtime_memory=runtime_memory,
         workers=workers,
-        backend=compute_backend,
-        storage=storage_backend,
+        backend=backend,
+        storage=storage,
         rabbitmq_monitor=rabbitmq_monitor,
         remote_invoker=remote_invoker,
         log_level=log_level
@@ -124,21 +105,5 @@ def code_engine_executor(config=None, runtime=None, runtime_memory=None,
         storage=storage_backend,
         rabbitmq_monitor=rabbitmq_monitor,
         remote_invoker=True,
-        log_level=log_level
-    )
-
-
-def cloudrun_executor(config=None, runtime=None, runtime_memory=None, workers=None,
-                      storage_backend=None, rabbitmq_monitor=None, remote_invoker=None, log_level=None):
-    """
-    Function executor for Cloud Run
-    """
-    compute_backend = 'cloudrun'
-    return ServerlessExecutor(
-        config=config, runtime=runtime, runtime_memory=runtime_memory,
-        workers=workers, backend=compute_backend,
-        storage=storage_backend,
-        rabbitmq_monitor=rabbitmq_monitor,
-        remote_invoker=remote_invoker,
         log_level=log_level
     )

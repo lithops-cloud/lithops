@@ -10,8 +10,8 @@ Lithops provides great value for the variety of uses cases, like processing data
 ### Lithops and IBM Cloud 
 Lithops is officially supported for IBM Cloud and Red Hat OpenShift. Students or academic stuff are welcome to follow [IBM Academic Initiative](https://ibm.biz/academic), a special program that allows free trial of IBM Cloud for Academic institutions. This program is provided for students and faculty staff members, and allow up to 12 months of free usage. You can register your university email and get a free of charge account.
 
-### Lithops for broad scope
-Lithops provides an extensible backend architecture (compute, storage) that is designed to work with different Cloud providers and on-premise backends (Knative, OpenShift). You can code in Lithops and run it unmodified in IBM Cloud, AWS, Azure, Google or Alibaba. Technical support for clouds different than IBM are delegated to best efforts from the open source community.
+### Lithops Multi-cloud
+Lithops provides an extensible backend architecture (compute, storage) that is designed to work with different Cloud providers and on-premise backends (Knative, OpenWhisk). You can code in Lithops and run it unmodified in IBM Cloud, AWS, Azure, Google Cloud and Alibaba Aliyun.
 
 
 ## Quick Start
@@ -38,7 +38,7 @@ Lithops provides an extensible backend architecture (compute, storage) that is d
    def hello(name):
        return 'Hello {}!'.format(name)
 
-   fexec = lithops.function_executor()
+   fexec = lithops.FunctionExecutor()
    fexec.call_async(hello, 'World')
    print(fexec.get_result())
    ```
@@ -62,9 +62,9 @@ Follow guidance [how to contribute](docs/how-to-contribute.md) code to the proje
 * [Your easy move to serverless computing and radically simplified data processing](https://conferences.oreilly.com/strata/strata-ny/public/schedule/detail/77226) Strata Data Conference, NY 2019
   * See video of Lithops usage [here](https://www.youtube.com/watch?v=EYa95KyYEtg&list=PLpR7f3Www9KCjYisaG7AMaR0C2GqLUh2G&index=3&t=0s) and the example of Monte Carlo [here](https://www.youtube.com/watch?v=vF5HI2q5VKw&list=PLpR7f3Www9KCjYisaG7AMaR0C2GqLUh2G&index=2&t=0s)
 * [Ants, serverless computing, and simplified data processing](https://developer.ibm.com/blogs/2019/01/31/ants-serverless-computing-and-simplified-data-processing/)
-* [Speed up data pre-processing with PyWren in deep learning](https://developer.ibm.com/patterns/speed-up-data-pre-processing-with-pywren-in-deep-learning/)
+* [Speed up data pre-processing with Lithops in deep learning](https://developer.ibm.com/patterns/speed-up-data-pre-processing-with-pywren-in-deep-learning/)
 * [Predicting the future with Monte Carlo simulations over IBM Cloud Functions](https://www.ibm.com/cloud/blog/monte-carlo-simulations-with-ibm-cloud-functions)
-* [Process large data sets at massive scale with PyWren over IBM Cloud Functions](https://www.ibm.com/cloud/blog/process-large-data-sets-massive-scale-lithops-functions)
+* [Process large data sets at massive scale with Lithops over IBM Cloud Functions](https://www.ibm.com/cloud/blog/process-large-data-sets-massive-scale-pywren-ibm-cloud-functions)
 * [Industrial project in Technion on Lithops](http://www.cs.technion.ac.il/~cs234313/projects_sites/W19/04/site/)
 * [Serverless data analytics in the IBM Cloud](https://dl.acm.org/citation.cfm?id=3284029) - Proceedings of the 19th International Middleware Conference (Industry)
 
