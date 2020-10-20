@@ -24,7 +24,7 @@ import logging
 import random
 import multiprocessing
 import queue
-import threading
+from threading import Thread
 from types import SimpleNamespace
 from concurrent.futures import ThreadPoolExecutor
 from lithops.version import __version__
@@ -136,7 +136,7 @@ class ServerlessInvoker:
         """
         if self.is_lithops_worker or not is_unix_system():
             for inv_id in range(INVOKER_PROCESSES):
-                p = threading.Thread(target=self._run_invoker_process, args=(inv_id, ))
+                p = Thread(target=self._run_invoker_process, args=(inv_id, ))
                 self.invokers.append(p)
                 p.daemon = True
                 p.start()
