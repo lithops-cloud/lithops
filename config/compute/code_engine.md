@@ -2,7 +2,7 @@
 
 [IBM Code Engine](https://cloud.ibm.com/codeengine/overview) allows you to run your application, job or container on a managed serverless platform. Auto-scale workloads and only pay for the resources you consume.
 
-IBM Code Engine expose both Knative and Kubernetes Job Descriptor API. Lithops support both of them. Follow IBM Code Engine documentation to get more details on the difference between those APIs.
+IBM Code Engine expose both Knative and Kubernetes Job Descriptor API. Lithops supports both of them. Follow IBM Code Engine documentation to get more details on the difference between those APIs.
 
 ###  Initial requirements
 In this step you are required to install IBM Cloud CLI tool, Code Engine plugin and create new Code Engine project
@@ -25,13 +25,13 @@ In this step you are required to install IBM Cloud CLI tool, Code Engine plugin 
    ibmcloud plugin install code-engine
    ```
 
-4. Create a new Code Engine project (you can also do this through the dashboard):
+4. Create a new Code Engine project (you can also do this through the dashboard). If you already have existing project, then proceed to step 5:
 
    ```bash
    ibmcloud ce project create --name myproject
    ```
 
-5. Target to this project:
+5. Target to your project:
 
    ```bash
    ibmcloud ce project select --name myproject
@@ -91,6 +91,7 @@ The only requirement to make it working is to have the KUBECONFIG file properly 
    ```yaml
    serverless:
        backend: code_engine
+       remote_invoker: True
 
    code_engine:
        kubectl_config: <PATH TO CONFIG YAML FIlE>
