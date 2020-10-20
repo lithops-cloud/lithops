@@ -86,6 +86,14 @@ The only requirement to make it working is to have the KUBECONFIG file properly 
 
 ### Lithops using Kubernetes Job API of Code Engine
 
+To work with Code Engine there is need to use dedicated runtime. You can either use default runtime that we maintain or alternatively create new runtime with required dependencies.
+
+|Default runtime| Python version | What included | Lithops version |
+|----|-----|----|-----|
+|ibmfunctions/lithops-ce-3.7.5-2.2.0:1.0.0 | 3.7.5 | [included](../../runtime/code_engine/requirements.txt) | 2.2.0 |
+If you need to create new runtime, please follow [Building and managing Lithops runtimes to run the functions](../../runtime/)
+
+
 #### Edit your lithops config and add the following keys:
 
    ```yaml
