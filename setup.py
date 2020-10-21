@@ -29,12 +29,45 @@ setup(
     author_email='gilv@il.ibm.com',
     packages=find_packages(),
     install_requires=[
-        'Click', 'pandas', 'PyYAML', 'python-dateutil',
-        'pika==0.13.1', 'glob2', 'tqdm', 'lxml',
-        'tblib', 'docker', 'requests', 'seaborn', 'paramiko',
-        'matplotlib', 'kubernetes', 'ibm-cos-sdk', 'gcsfs',
-        'aliyun-fc2', 'oss2',
+        'Click',
+        'pandas',
+        'PyYAML',
+        'python-dateutil',
+        'pika==0.13.1',
+        'glob2',
+        'tqdm',
+        'lxml',
+        'tblib',
+        'docker',
+        'requests',
+        'seaborn',
+        'paramiko',
+        'matplotlib',
+        'kubernetes',
+        'ibm-cos-sdk',
+        'redis'
     ],
+    extras_require={
+        'aws': [
+            'boto3'
+        ],
+        'gcp': [
+            'gcsfs',
+            'httplib2',
+            'google-cloud-storage',
+            'google-cloud-pubsub',
+            'google-api-python-client',
+            'google-auth'
+        ],
+        'aliyun': [
+            'aliyun-fc2',
+            'oss2'
+        ],
+        'azure': [
+            'azure-storage-blob==2.1.0',
+            'azure-storage-queue==2.1.0'
+        ]
+    },
     include_package_data=True,
     entry_points='''
         [console_scripts]

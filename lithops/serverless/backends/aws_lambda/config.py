@@ -32,19 +32,19 @@ NUMERICS_LAYERS = {
 }
 
 REQUIREMENTS = [
-    'beautifulsoup4 == 4.8.0',
-    'httplib2 == 0.18.0',
-    'kafka_python == 1.4.6',
-    'lxml == 4.3.1',
-    'python-dateutil == 2.8.0',
-    'requests == 2.22.0',
-    'scrapy == 1.6.0',
-    'simplejson == 3.16.0',
-    'virtualenv == 16.7.1',
-    'Twisted >= 20.3.0',
-    'PyJWT == 1.7.1',
-    'Pillow >= 6.2.2',
-    'redis == 3.3.8',
+    'beautifulsoup4',
+    'httplib2',
+    'kafka_python',
+    'lxml',
+    'python-dateutil',
+    'requests',
+    'scrapy',
+    'simplejson',
+    'virtualenv',
+    'Twisted',
+    'PyJWT',
+    'Pillow',
+    'redis',
     'pika == 0.13.1'
 ]
 

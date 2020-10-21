@@ -5,7 +5,13 @@ Lithops with Azure Blob Storage as storage backend.
 
 ### Configuration
 
-1. Edit your lithops config and add the following keys:
+1. Install Microsoft Azure backend dependencies:
+
+```
+$ pip install lithops[azure]
+```
+
+2. Edit your lithops config and add the following keys:
 
 ```yaml
   lithops:

@@ -14,4 +14,4 @@
 # limitations under the License.
 #
 
-from .aws_lambda import AWSLambdaBackend as ComputeBackend
+from .aws_lambda import AWSLambdaBackend as ServerlessBackend

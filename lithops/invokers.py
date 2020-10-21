@@ -22,9 +22,10 @@ import pika
 import time
 import logging
 import random
+import multiprocessing
+import queue
 from threading import Thread
 from types import SimpleNamespace
-from multiprocessing import Process, Queue, Value
 from concurrent.futures import ThreadPoolExecutor
 from lithops.version import __version__
 from lithops.future import ResponseFuture
@@ -58,11 +59,16 @@ class ServerlessInvoker:
         logger.debug('ExecutorID {} - Total available workers: {}'
                      .format(self.executor_id, self.workers))
 
-        self.token_bucket_q = Queue()
-        self.pending_calls_q = Queue()
-        self.running_flag = Value('i', 0)
-        self.ongoing_activations = 0
+        if not is_lithops_worker() and is_unix_system():
+            self.token_bucket_q = multiprocessing.Queue()
+            self.pending_calls_q = multiprocessing.Queue()
+            self.running_flag = multiprocessing.Value('i', 0)
+        else:
+            self.token_bucket_q = queue.Queue()
+            self.pending_calls_q = queue.Queue()
+            self.running_flag = SimpleNamespace(value=0)
 
+        self.ongoing_activations = 0
         self.job_monitor = JobMonitor(self.config, self.internal_storage, self.token_bucket_q)
 
         logger.debug('ExecutorID {} - Serverless invoker created'.format(self.executor_id))
@@ -136,7 +142,7 @@ class ServerlessInvoker:
                 p.start()
         else:
             for inv_id in range(INVOKER_PROCESSES):
-                p = Process(target=self._run_invoker_process, args=(inv_id, ))
+                p = multiprocessing.Process(target=self._run_invoker_process, args=(inv_id, ))
                 self.invokers.append(p)
                 p.daemon = True
                 p.start()

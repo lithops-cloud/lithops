@@ -7,6 +7,12 @@ plots/
 *.egg-info
 lithops_*.zip
 
+# Virtual environments
+.env
+.venv
+env/
+venv/
+
 # Linux
 *~
 
