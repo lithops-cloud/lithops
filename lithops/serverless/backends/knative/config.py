@@ -54,7 +54,7 @@ secrets:
 """
 
 git_res = """
-apiVersion: tekton.dev/v1alpha1
+apiVersion: tekton.dev/v1beta1
 kind: PipelineResource
 metadata:
   name: lithops-git
@@ -68,7 +68,7 @@ spec:
 """
 
 task_def = """
-apiVersion: tekton.dev/v1alpha1
+apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
   name: git-source-to-image
@@ -101,7 +101,7 @@ spec:
 """
 
 task_run = """
-apiVersion: tekton.dev/v1alpha1
+apiVersion: tekton.dev/v1beta1
 kind: TaskRun
 metadata:
   name: lithops-runtime-from-git
@@ -125,7 +125,7 @@ spec:
 
 
 service_res = """
-apiVersion: serving.knative.dev/v1alpha1
+apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
   name: lithops-runtime
@@ -144,11 +144,14 @@ spec:
       containerConcurrency: 1
       timeoutSeconds: TIMEOUT
       containers:
-        - image: IMAGE
-          resources:
-            limits:
-              memory: MEMORY
-              #cpu: 1000m
+      - image: IMAGE
+        resources:
+          limits:
+            memory: MEMORY
+            #cpu: 1000m
+          requests:
+            memory: MEMORY
+            #cpu: 1000m
 """
 
 

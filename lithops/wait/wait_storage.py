@@ -205,11 +205,7 @@ def _wait_storage(fs, running_futures, internal_storage, download_results, throw
         num_to_query_at_once = THREADPOOL_SIZE
         fs_to_query = still_not_done_futures[query_count:query_count + num_to_query_at_once]
 
-        map_fut = []
-        for f_to_query in fs_to_query:
-            fut = pool.submit(fetch_future_status, f_to_query)
-            map_fut.append(fut)
-        fs_statuses = [f.result() for f in map_fut]
+        fs_statuses = list(pool.map(fetch_future_status, fs_to_query))
 
         callids_found = [(fs_to_query[i].executor_id, fs_to_query[i].job_id, fs_to_query[i].call_id)
                          for i in range(len(fs_to_query)) if fs_statuses[i] is not None]
@@ -245,21 +241,18 @@ def _wait_storage(fs, running_futures, internal_storage, download_results, throw
             f._call_status = None
         f.status(throw_except=throw_except, internal_storage=internal_storage)
 
-    map_fut = []
-    for f_to_wait_on in fs_to_wait_on:
-        if download_results:
-            fut = pool.submit(get_result, f_to_wait_on)
-        else:
-            fut = pool.submit(get_status, f_to_wait_on)
-        map_fut.append(fut)
-    [f.result() for f in map_fut]
+    if download_results:
+        pool.map(get_result, fs_to_wait_on)
+    else:
+        pool.map(get_status, fs_to_wait_on)
+
+    pool.shutdown()
 
     if pbar:
         for f in fs_to_wait_on:
             if (download_results and f.done) or (not download_results and (f.ready or f.done)):
                 pbar.update(1)
         pbar.refresh()
-    pool.shutdown()
 
     # Check for new futures
     new_futures = [f.result() for f in fs_to_wait_on if f.futures]

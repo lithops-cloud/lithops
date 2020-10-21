@@ -379,12 +379,14 @@ class KnativeServingBackend:
         svc_res['spec']['template']['spec']['containers'][0]['image'] = full_docker_image_name
         svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['memory'] = '{}Mi'.format(runtime_memory)
         svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['cpu'] = '{}m'.format(self.knative_config['cpu'])
+        svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory)
+        svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['cpu'] = '{}m'.format(self.knative_config['cpu'])
 
         try:
             # delete the service resource if exists
             self.api.delete_namespaced_custom_object(
                     group="serving.knative.dev",
-                    version="v1alpha1",
+                    version="v1",
                     name=service_name,
                     namespace=self.namespace,
                     plural="services",
@@ -397,7 +399,7 @@ class KnativeServingBackend:
         # create the service resource
         self.api.create_namespaced_custom_object(
                 group="serving.knative.dev",
-                version="v1alpha1",
+                version="v1",
                 namespace=self.namespace,
                 plural="services",
                 body=svc_res
@@ -406,7 +408,7 @@ class KnativeServingBackend:
         w = watch.Watch()
         for event in w.stream(self.api.list_namespaced_custom_object,
                               namespace=self.namespace, group="serving.knative.dev",
-                              version="v1alpha1", plural="services",
+                              version="v1", plural="services",
                               field_selector="metadata.name={0}".format(service_name),
                               timeout_seconds=300):
             if event['object'].get('status'):
@@ -573,6 +575,9 @@ class KnativeServingBackend:
             endpoint = self.istio_endpoint
         else:
             endpoint = 'http://{}'.format(service_host)
+
+        if 'codeengine' in endpoint:
+            endpoint = endpoint.replace('http://', 'https://')
 
         exec_id = payload.get('executor_id')
         call_id = payload.get('call_id')

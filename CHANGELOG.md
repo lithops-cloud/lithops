@@ -1,6 +1,16 @@
 # Changelog
 
-## [v2.2.0-SNAPSHOT]
+## [v2.2.1-SNAPSHOT]
+
+### Changed
+- [Knative] Updated apiVersion to v1
+- [Knative] Updated default python3.8 Dockerfile
+
+### Fixed
+- [AWS Lambda] Fixes in Lambda compute backend
+
+
+## [v2.2.0]
 
 ### Added
 - [Core] New ServerlessExecutor
@@ -10,6 +20,9 @@
 - [Core] New LocalhostExecutor logic
 - [Core] New Standalone invoker logic
 - [Core] New Localhost invoker logic
+
+### Changed
+- [Core] Changed some main keys in configuration
 
 
 ## [v2.1.1]
