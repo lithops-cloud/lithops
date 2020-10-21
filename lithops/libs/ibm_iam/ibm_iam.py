@@ -9,28 +9,36 @@ from lithops.config import CACHE_DIR, load_yaml_config, dump_yaml_config
 logger = logging.getLogger(__name__)
 
 
-class IBMIAMAPIKeyManager:
-    def __init__(self, component_name, iam_api_key, token=None, token_expiry_time=None):
-        self.component_name = component_name
-        self.iam_api_key = iam_api_key
+class IBMIAMTokenManager:
 
-        self._token_manager = DefaultTokenManager(api_key_id=self.iam_api_key)
-        self._token_filename = os.path.join(CACHE_DIR, self.component_name, 'iam_token')
+    def __init__(self, api_key, token=None, token_expiry_time=None):
+        self.api_key = api_key
+
+        self._token_manager = DefaultTokenManager(api_key_id=self.api_key)
+        self._token_filename = os.path.join(CACHE_DIR, 'ibm_iam', 'iam_token')
 
         if token:
             logger.debug("Using IBM IAM API Key - Reusing Token from config")
             self._token_manager._token = token
-            self._token_manager._expiry_time = datetime.strptime(token_expiry_time, '%Y-%m-%d %H:%M:%S.%f%z')
-            logger.debug("Token expiry time: {} - Minutes left: {}".format(self._token_manager._expiry_time, self._get_token_minutes_diff()))
+            self._token_manager._expiry_time = datetime.strptime(token_expiry_time,
+                                                                 '%Y-%m-%d %H:%M:%S.%f%z')
+            logger.debug("Token expiry time: {} - Minutes left: {}"
+                         .format(self._token_manager._expiry_time,
+                                 self._get_token_minutes_diff()))
+
         elif os.path.exists(self._token_filename):
             logger.debug("Using IBM IAM API Key - Reusing Token from local cache")
             token_data = load_yaml_config(self._token_filename)
             self._token_manager._token = token_data['token']
-            self._token_manager._expiry_time = datetime.strptime(token_data['token_expiry_time'], '%Y-%m-%d %H:%M:%S.%f%z')
-            logger.debug("Token expiry time: {} - Minutes left: {}".format(self._token_manager._expiry_time, self._get_token_minutes_diff()))
+            self._token_manager._expiry_time = datetime.strptime(token_data['token_expiry_time'],
+                                                                 '%Y-%m-%d %H:%M:%S.%f%z')
+            logger.debug("Token expiry time: {} - Minutes left: {}".
+                         format(self._token_manager._expiry_time,
+                                self._get_token_minutes_diff()))
 
     def _get_token_minutes_diff(self):
-        return int((self._token_manager._expiry_time - datetime.now(timezone.utc)).total_seconds() / 60.0)
+        expiry_time = self._token_manager._expiry_time
+        return int((expiry_time - datetime.now(timezone.utc)).total_seconds() / 60.0)
 
     def _generate_new_token(self):
         self._token_manager._token = None

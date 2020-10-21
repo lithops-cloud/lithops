@@ -23,6 +23,7 @@ from ibm_botocore.credentials import DefaultTokenManager
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import sizeof_fmt, is_lithops_worker
 from lithops.config import CACHE_DIR, load_yaml_config, dump_yaml_config
+from lithops.libs.ibm_iam.ibm_iam import IBMIAMTokenManager
 
 
 logging.getLogger('ibm_boto3').setLevel(logging.CRITICAL)
@@ -43,28 +44,28 @@ class IBMCloudObjectStorageBackend:
         logger.debug("Creating IBM COS client")
         self.ibm_cos_config = ibm_cos_config
         self.is_lithops_worker = is_lithops_worker()
-        user_agent = ibm_cos_config['user_agent']
+        user_agent = self.ibm_cos_config['user_agent']
 
-        service_endpoint = ibm_cos_config.get('endpoint').replace('http:', 'https:')
-        if self.is_lithops_worker and 'private_endpoint' in ibm_cos_config:
-            service_endpoint = ibm_cos_config.get('private_endpoint')
-            if 'api_key' in ibm_cos_config:
+        api_key = None
+        if 'api_key' in self.ibm_cos_config:
+            api_key = self.ibm_cos_config.get('api_key')
+            api_key_type = 'COS'
+        elif 'iam_api_key' in self.ibm_cos_config:
+            api_key = self.ibm_cos_config.get('iam_api_key')
+            api_key_type = 'IAM'
+
+        service_endpoint = self.ibm_cos_config.get('endpoint').replace('http:', 'https:')
+        if self.is_lithops_worker and 'private_endpoint' in self.ibm_cos_config:
+            service_endpoint = self.ibm_cos_config.get('private_endpoint')
+            if api_key:
                 service_endpoint = service_endpoint.replace('http:', 'https:')
 
         logger.debug("Set IBM COS Endpoint to {}".format(service_endpoint))
 
-        api_key = None
-        if 'api_key' in ibm_cos_config:
-            api_key = ibm_cos_config.get('api_key')
-            api_key_type = 'COS'
-        elif 'iam_api_key' in ibm_cos_config:
-            api_key = ibm_cos_config.get('iam_api_key')
-            api_key_type = 'IAM'
-
-        if {'secret_key', 'access_key'} <= set(ibm_cos_config):
+        if {'secret_key', 'access_key'} <= set(self.ibm_cos_config):
             logger.debug("Using access_key and secret_key")
-            access_key = ibm_cos_config.get('access_key')
-            secret_key = ibm_cos_config.get('secret_key')
+            access_key = self.ibm_cos_config.get('access_key')
+            secret_key = self.ibm_cos_config.get('secret_key')
             client_config = ibm_botocore.client.Config(max_pool_connections=128,
                                                        user_agent_extra=user_agent,
                                                        connect_timeout=CONN_READ_TIMEOUT,
@@ -85,44 +86,20 @@ class IBMCloudObjectStorageBackend:
                                                        read_timeout=CONN_READ_TIMEOUT,
                                                        retries={'max_attempts': OBJ_REQ_RETRIES})
 
-            token_manager = DefaultTokenManager(api_key_id=api_key)
-            token_filename = os.path.join(CACHE_DIR, 'ibm_cos', api_key_type.lower()+'_token')
-            token_minutes_diff = 0
+            iam_api_key = self.ibm_cos_config.get('iam_api_key')
+            token = self.ibm_cos_config.get('token', None)
+            token_expiry_time = self.ibm_cos_config.get('token_expiry_time', None)
 
-            if 'token' in self.ibm_cos_config:
-                logger.debug("Using IBM {} API Key - Reusing Token from config".format(api_key_type))
-                token_manager._token = self.ibm_cos_config['token']
-                token_manager._expiry_time = datetime.strptime(self.ibm_cos_config['token_expiry_time'],
-                                                               '%Y-%m-%d %H:%M:%S.%f%z')
-                token_minutes_diff = int((token_manager._expiry_time - datetime.now(timezone.utc)).total_seconds() / 60.0)
-                logger.debug("Token expiry time: {} - Minutes left: {}".format(token_manager._expiry_time, token_minutes_diff))
+            iam_token_manager = IBMIAMTokenManager(iam_api_key, token, token_expiry_time)
+            token, token_expiry_time = iam_token_manager.get_token()
 
-            elif os.path.exists(token_filename):
-                token_data = load_yaml_config(token_filename)
-                logger.debug("Using IBM {} API Key - Reusing Token from local cache".format(api_key_type))
-                token_manager._token = token_data['token']
-                token_manager._expiry_time = datetime.strptime(token_data['token_expiry_time'],
-                                                               '%Y-%m-%d %H:%M:%S.%f%z')
-                token_minutes_diff = int((token_manager._expiry_time - datetime.now(timezone.utc)).total_seconds() / 60.0)
-                logger.debug("Token expiry time: {} - Minutes left: {}".format(token_manager._expiry_time, token_minutes_diff))
+            self.ibm_cos_config['token'] = token
+            self.ibm_cos_config['token_expiry_time'] = token_expiry_time
 
-            if (token_manager._is_expired() or token_minutes_diff < 11) and not is_lithops_worker():
-                logger.debug("Using IBM {} API Key - Token expired. Requesting new token".format(api_key_type))
-                token_manager._token = None
-                token_manager.get_token()
-                token_data = {}
-                token_data['token'] = token_manager._token
-                token_data['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
-                dump_yaml_config(token_filename, token_data)
-
-            if token_manager._token:
-                self.ibm_cos_config['token'] = token_manager._token
-            if token_manager._expiry_time:
-                self.ibm_cos_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
-
-            self.cos_client = ibm_boto3.client('s3', token_manager=token_manager,
+            self.cos_client = ibm_boto3.client('s3', token_manager=iam_token_manager._token_manager,
                                                config=client_config,
                                                endpoint_url=service_endpoint)
+
         logger.debug("IBM COS client created successfully")
 
     def get_client(self):
