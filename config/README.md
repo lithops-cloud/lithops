@@ -1,10 +1,30 @@
 # Choose your compute and storage backend
 
-Lithops can work with almost any compute backend and storage any can be used with almost any cloud provider. You have multiple options to choose compute backend and storage backend based on your needs
+Lithops can work with almost any compute backend and storage any can be used with almost any cloud provider. You have multiple options to choose compute backend and storage backend based on your needs. 
 
+After you choose your compute and storage engine, you need to configure Lithops so it can use choosen compute and storage. Lithops configuration can be provided either in configuration file or provided in runtime via Python dictionary. 
+
+## Lithops configuration
+
+### Configuration file
+
+To configure Lithops through a [configuration template file](config_template.yaml) you have multiple options:
+
+1. Create e new file called `config` in the `~/.lithops` folder.
+
+2. Create a new file called `.lithops_config` in the root directory of your project from where you will execute your Lithops scripts.
+
+3. Create the config file in any other location and configure the `LITHOPS_CONFIG_FILE` system environment variable:
+
+
+	 	LITHOPS_CONFIG_FILE=<CONFIG_FILE_LOCATION>
+    
+### Configuration keys in runtime
+
+An alternative mode of configuration is to use a python dictionary. This option allows to pass all the configuration details as part of the Lithops invocation in runtime. An entire list of sections and keys is [here](config_template.yaml)
 
 ## Compute and Storage backends
-Choose your compute and storage engine from the table below. Then you need to configure Lithops so it can use choosen compute and storage. Lithops configuration can be provided either in configuration file or provided in runtime via Python dictionary. Follow [Lithops configuration](lithops_config.md) to setup configuration file
+Choose your compute and storage engine from the table below
 
 
 <table>
@@ -76,6 +96,7 @@ Storage Backends
 Test if Lithops is working properly:
 
 ### Using Lithops configuration file
+
 ```python
 import lithops
 
@@ -90,6 +111,7 @@ if __name__ == '__main__':
 
 ### Providing configuration in runtime
 Example of providing configuration keys for IBM Cloud Functions and IBM Cloud Object Storage
+
 ```python
 import lithops
 
