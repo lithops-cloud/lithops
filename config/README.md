@@ -1,7 +1,12 @@
-# Configuration
+# Choose your compute and storage backend
 
-You can either configure Lithops with configuration file or provide configuration keys in runtime
-## Create a configuration file
+Lithops can work with almost any compute backend and storage any can be used with almost any cloud provider. You have multiple options to choose compute backend and storage backend based on your needs. 
+
+After you choose your compute and storage engine, you need to configure Lithops so it can use choosen compute and storage. Lithops configuration can be provided either in configuration file or provided in runtime via Python dictionary. 
+
+## Lithops configuration
+
+### Configuration file
 
 To configure Lithops through a [configuration template file](config_template.yaml) you have multiple options:
 
@@ -13,47 +18,14 @@ To configure Lithops through a [configuration template file](config_template.yam
 
 
 	 	LITHOPS_CONFIG_FILE=<CONFIG_FILE_LOCATION>
-
-```python
-import lithops
-
-def hello_world(name):
-    return 'Hello {}!'.format(name)
-
-if __name__ == '__main__':
-    fexec = lithops.FunctionExecutor()
-    fexec.call_async(hello, 'World')
-    print(fexec.get_result())
-```
-
     
-## Configuration in runtime
+### Configuration keys in runtime
 
-An alternative mode of configuration is to use a python dictionary. This option allows to pass all the configuration details as part of the Lithops invocation in runtime, for example:
+An alternative mode of configuration is to use a python dictionary. This option allows to pass all the configuration details as part of the Lithops invocation in runtime. An entire list of sections and keys is [here](config_template.yaml)
 
-```python
-import lithops
+## Compute and Storage backends
+Choose your compute and storage engine from the table below
 
-config = {'lithops' : {'storage_bucket' : 'BUCKET_NAME'},
-
-          'ibm_cf':  {'endpoint': 'HOST',
-                      'namespace': 'NAMESPACE',
-                      'api_key': 'API_KEY'},
-
-          'ibm_cos': {'endpoint': 'ENDPOINT',
-                      'private_endpoint': 'PRIVATE_ENDPOINT',
-                      'api_key': 'API_KEY'}}
-
-def hello_world(name):
-    return 'Hello {}!'.format(name)
-
-if __name__ == '__main__':
-    fexec = lithops.FunctionExecutor(config=config)
-    fexec.call_async(hello, 'World')
-    print(fexec.get_result())
-```
-
-## Configure your Compute and Storage backends
 
 <table>
 <tr>
@@ -123,17 +95,44 @@ Storage Backends
 
 Test if Lithops is working properly:
 
+### Using Lithops configuration file
+
 ```python
 import lithops
-   
+
 def hello_world(name):
     return 'Hello {}!'.format(name)
-    
+
 if __name__ == '__main__':
     fexec = lithops.FunctionExecutor()
-    exec.call_async(hello_world, 'World')
-    print("Response from function: ", fexec.get_result())
-   ```
+    fexec.call_async(hello, 'World')
+    print(fexec.get_result())
+```
+
+### Providing configuration in runtime
+Example of providing configuration keys for IBM Cloud Functions and IBM Cloud Object Storage
+
+```python
+import lithops
+
+config = {'lithops' : {'storage_bucket' : 'BUCKET_NAME'},
+
+          'ibm_cf':  {'endpoint': 'HOST',
+                      'namespace': 'NAMESPACE',
+                      'api_key': 'API_KEY'},
+
+          'ibm_cos': {'endpoint': 'ENDPOINT',
+                      'private_endpoint': 'PRIVATE_ENDPOINT',
+                      'api_key': 'API_KEY'}}
+
+def hello_world(name):
+    return 'Hello {}!'.format(name)
+
+if __name__ == '__main__':
+    fexec = lithops.FunctionExecutor(config=config)
+    fexec.call_async(hello, 'World')
+    print(fexec.get_result())
+```
 
 ## Using RabbitMQ to monitor function activations (optional)
 
