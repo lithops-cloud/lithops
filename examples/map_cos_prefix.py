@@ -18,7 +18,7 @@ from where you can access to the partial results.
 import lithops
 
 # Bucket with prefix
-data_location = 'cos://fexec-sample-data/test/'  # Change-me
+data_location = 'cos://lithops-sample-data/test/'  # Change-me
 
 
 def my_map_function(obj):

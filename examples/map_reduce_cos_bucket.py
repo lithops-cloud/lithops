@@ -23,7 +23,7 @@ from where you can access to the partial results.
 import lithops
 
 
-bucketname = 'cos://fexec-sample-data'  # Change-me
+bucketname = 'cos://lithops-sample-data'  # Change-me
 
 
 def my_map_function(obj):
@@ -70,5 +70,5 @@ if __name__ == "__main__":
     print('One reducer per object:')
     fexec = lithops.FunctionExecutor()
     fexec.map_reduce(my_map_function, bucketname, my_reduce_function, chunk_size=chunk_size,
-                  reducer_one_per_object=True)
+                     reducer_one_per_object=True)
     print(fexec.get_result())

@@ -2,7 +2,7 @@ import logging
 import requests
 import time
 from lithops.version import __version__
-from lithops.libs.ibm_utils import IBMIAMAPIKeyManager
+from lithops.libs.ibm_iam import IBMIAMTokenManager
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class IBMVPCInstanceClient:
         iam_api_key = self.config.get('iam_api_key')
         token = self.config.get('token', None)
         token_expiry_time = self.config.get('token_expiry_time', None)
-        self.ibm_iam_api_key_manager = IBMIAMAPIKeyManager('docker', iam_api_key, token, token_expiry_time)
+        self.iam_token_manager = IBMIAMTokenManager(iam_api_key, token, token_expiry_time)
 
         headers = {'content-type': 'application/json'}
         default_user_agent = self.session.headers['User-Agent']
@@ -47,7 +47,7 @@ class IBMVPCInstanceClient:
         logger.info("IBM VPC client created successfully")
 
     def _authorize_session(self):
-        self.config['token'], self.config['token_expiry_time'] = self.ibm_iam_api_key_manager.get_token()
+        self.config['token'], self.config['token_expiry_time'] = self.iam_token_manager.get_token()
         self.session.headers['Authorization'] = 'Bearer ' + self.config['token']
 
     def get_ssh_credentials(self):

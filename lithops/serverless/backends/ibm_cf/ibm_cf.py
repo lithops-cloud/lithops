@@ -20,14 +20,12 @@ import base64
 import logging
 import textwrap
 from . import config as ibmcf_config
-from datetime import datetime, timezone
-from ibm_botocore.credentials import DefaultTokenManager
 from lithops.utils import version_str
 from lithops.version import __version__
 from lithops.utils import is_lithops_worker
-from lithops.config import CACHE_DIR, load_yaml_config, dump_yaml_config
 from lithops.libs.openwhisk.client import OpenWhiskClient
 from lithops.serverless.utils import create_function_handler_zip
+from lithops.libs.ibm_iam.ibm_iam import IBMIAMTokenManager
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +39,7 @@ class IBMCloudFunctionsBackend:
         logger.debug("Creating IBM Cloud Functions client")
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'ibm_cf'
-        self.ibm_cf_config = ibm_cf_config
+        self.config = ibm_cf_config
         self.is_lithops_worker = is_lithops_worker()
 
         self.user_agent = ibm_cf_config['user_agent']
@@ -67,41 +65,19 @@ class IBMCloudFunctionsBackend:
                                              namespace=self.namespace,
                                              auth=auth,
                                              user_agent=self.user_agent)
+
         elif self.iam_api_key:
-            token_manager = DefaultTokenManager(api_key_id=self.iam_api_key)
-            token_filename = os.path.join(CACHE_DIR, 'ibm_cf', 'iam_token')
+            iam_api_key = self.config.get('iam_api_key')
+            token = self.config.get('token', None)
+            token_expiry_time = self.config.get('token_expiry_time', None)
 
-            if 'token' in self.ibm_cf_config:
-                logger.debug("Using IBM IAM API Key - Reusing Token from config")
-                token_manager._token = self.ibm_cf_config['token']
-                token_manager._expiry_time = datetime.strptime(self.ibm_cf_config['token_expiry_time'],
-                                                               '%Y-%m-%d %H:%M:%S.%f%z')
-                token_minutes_diff = int((token_manager._expiry_time - datetime.now(timezone.utc)).total_seconds() / 60.0)
-                logger.debug("Token expiry time: {} - Minutes left: {}".format(token_manager._expiry_time, token_minutes_diff))
+            self.ibm_iam_api_key_manager = IBMIAMTokenManager(iam_api_key, token, token_expiry_time)
+            token, token_expiry_time = self.ibm_iam_api_key_manager.get_token()
 
-            elif os.path.exists(token_filename):
-                logger.debug("Using IBM IAM API Key - Reusing Token from local cache")
-                token_data = load_yaml_config(token_filename)
-                token_manager._token = token_data['token']
-                token_manager._expiry_time = datetime.strptime(token_data['token_expiry_time'],
-                                                               '%Y-%m-%d %H:%M:%S.%f%z')
-                token_minutes_diff = int((token_manager._expiry_time - datetime.now(timezone.utc)).total_seconds() / 60.0)
-                logger.debug("Token expiry time: {} - Minutes left: {}".format(token_manager._expiry_time, token_minutes_diff))
+            self.config['token'] = token
+            self.config['token_expiry_time'] = token_expiry_time
 
-            if (token_manager._is_expired() or token_minutes_diff < 11) and not is_lithops_worker():
-                logger.debug("Using IBM IAM API Key - Token expired. Requesting new token")
-                token_manager._token = None
-                token_manager.get_token()
-                token_data = {}
-                token_data['token'] = token_manager._token
-                token_data['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
-                dump_yaml_config(token_filename, token_data)
-
-            ibm_cf_config['token'] = token_manager._token
-            ibm_cf_config['token_expiry_time'] = token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
-
-            auth_token = token_manager._token
-            auth = 'Bearer ' + auth_token
+            auth = 'Bearer ' + token
 
             self.cf_client = OpenWhiskClient(endpoint=self.endpoint,
                                              namespace=self.namespace_id,

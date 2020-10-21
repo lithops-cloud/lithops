@@ -25,9 +25,9 @@ from where you can access to the partial results.
 
 import lithops
 
-iterdata = ['cos://fexec-sample-data/obj1.txt',
-            'cos://fexec-sample-data/obj2.txt',
-            'cos://fexec-sample-data/obj3.txt']   # Change-me
+iterdata = ['cos://lithops-sample-data/obj1.txt',
+            'cos://lithops-sample-data/obj2.txt',
+            'cos://lithops-sample-data/obj3.txt']   # Change-me
 
 
 def my_map_function(obj):
