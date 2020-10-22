@@ -144,8 +144,10 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     if not data:
         return []
 
+    exec_timeout = execution_timeout or config['lithops']['execution_timeout']
+
     job_description = {}
-    job_description['execution_timeout'] = execution_timeout
+    job_description['execution_timeout'] = exec_timeout
     job_description['function_name'] = func.__name__
     job_description['extra_env'] = ext_env
     job_description['total_calls'] = len(data)

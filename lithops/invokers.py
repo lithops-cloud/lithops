@@ -169,8 +169,11 @@ class ServerlessInvoker:
 
     def stop(self):
         """
-        Stop the invoker process
+        Stop the invoker process and JobMonitor
         """
+
+        self.job_monitor.stop()
+
         if self.invokers:
             logger.debug('ExecutorID {} - Stopping invoker'.format(self.executor_id))
             self.running_flag.value = 0
@@ -257,6 +260,12 @@ class ServerlessInvoker:
         job_description['runtime_name'] = self.config['serverless']['runtime']
         job_description['runtime_memory'] = self.config['serverless']['runtime_memory']
         job_description['runtime_timeout'] = self.config['serverless']['runtime_timeout']
+
+        execution_timeout = job_description['execution_timeout']
+        runtime_timeout = self.config['serverless']['runtime_timeout']
+
+        if execution_timeout >= runtime_timeout:
+            job_description['execution_timeout'] = runtime_timeout - 5
 
         job = SimpleNamespace(**job_description)
 
@@ -354,9 +363,14 @@ class JobMonitor:
         self.is_lithops_worker = is_lithops_worker()
         self.monitors = []
 
+        self.should_run = True
+
         self.rabbitmq_monitor = self.config['lithops'].get('rabbitmq_monitor', False)
         if self.rabbitmq_monitor:
             self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
+
+    def stop(self):
+        self.should_run = False
 
     def get_active_jobs(self):
         active_jobs = 0
@@ -366,7 +380,8 @@ class JobMonitor:
         return active_jobs
 
     def start_job_monitoring(self, job):
-        logger.debug('ExecutorID {} | JobID {} - Starting job monitoring'.format(job.executor_id, job.job_id))
+        logger.debug('ExecutorID {} | JobID {} - Starting job monitoring'
+                     .format(job.executor_id, job.job_id))
         if self.rabbitmq_monitor:
             th = Thread(target=self._job_monitoring_rabbitmq, args=(job,))
         else:
@@ -379,15 +394,17 @@ class JobMonitor:
 
     def _job_monitoring_os(self, job):
         total_callids_done_in_job = 0
-        time.sleep(1)
 
-        while total_callids_done_in_job < job.total_calls:
+        while self.should_run and total_callids_done_in_job < job.total_calls:
+            time.sleep(1)
             callids_running_in_job, callids_done_in_job = self.internal_storage.get_job_status(job.executor_id, job.job_id)
             total_new_tokens = len(callids_done_in_job) - total_callids_done_in_job
             total_callids_done_in_job = total_callids_done_in_job + total_new_tokens
             for i in range(total_new_tokens):
                 self.token_bucket_q.put('#')
-            time.sleep(0.3)
+
+        logger.debug('ExecutorID {} - | JobID {} job monitoring finished'
+                     .format(job.executor_id,  job.job_id))
 
     def _job_monitoring_rabbitmq(self, job):
         total_callids_done_in_job = 0

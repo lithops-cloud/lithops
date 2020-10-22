@@ -294,4 +294,4 @@ def _future_timeout_checker_thread(running_futures, internal_storage, throw_exce
             if throw_except:
                 should_run = False
         except Exception:
-            pass
+            time.sleep(5)

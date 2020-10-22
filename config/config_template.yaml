@@ -6,6 +6,7 @@ lithops:
     #data_cleaner: <True/False>
     #workers: <MAX_NUM_OF_WORKERS>
     #data_limit: 4  # in MiB
+    #execution_timeout: 1800
     #include_modules: <LIST_OF_MODULES>
     #exclude_modules: <LIST_OF_MODULES>
 

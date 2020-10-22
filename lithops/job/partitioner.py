@@ -1,5 +1,5 @@
 #
-# (C) Copyright IBM Corp. 2019
+# (C) Copyright IBM Corp. 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -135,35 +135,30 @@ def _split_objects_from_buckets(map_func_args_list, keys_dict, chunk_size, chunk
         for key, obj_size in keys_dict[bucket].items():
             if prefix in key and obj_size > 0:
                 logger.debug('Creating partitions from object {} size {}'.format(key, obj_size))
-                total_partitions = 0
-                size = 0
 
                 if chunk_number:
                     chunk_rest = obj_size % chunk_number
-                    chunk_size = obj_size // chunk_number + chunk_rest
-
-                if chunk_size and chunk_size < CHUNK_SIZE_MIN:
-                    chunk_size = None
-
-                if chunk_size is not None and obj_size > chunk_size:
-                    while size < obj_size:
-                        brange = (size, size+chunk_size+CHUNK_THRESHOLD)
-                        size += chunk_size
-                        partition = entry.copy()
-                        partition['obj'] = CloudObject(sb, bucket, key)
-                        partition['obj'].data_byte_range = brange
-                        partition['obj'].chunk_size = chunk_size
-                        partition['obj'].part = total_partitions
-                        partitions.append(partition)
-                        total_partitions = total_partitions + 1
+                    obj_chunk_size = obj_size // chunk_number + chunk_rest
+                elif chunk_size:
+                    obj_chunk_size = chunk_size
                 else:
+                    obj_chunk_size = obj_size
+
+                size = total_partitions = 0
+
+                while size < obj_size:
+                    brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
+                    brange = None if obj_size == obj_chunk_size else brange
+
                     partition = entry.copy()
                     partition['obj'] = CloudObject(sb, bucket, key)
-                    partition['obj'].data_byte_range = None
-                    partition['obj'].chunk_size = chunk_size
+                    partition['obj'].data_byte_range = brange
+                    partition['obj'].chunk_size = obj_chunk_size
                     partition['obj'].part = total_partitions
                     partitions.append(partition)
-                    total_partitions = 1
+
+                    total_partitions += 1
+                    size += obj_chunk_size
 
                 parts_per_object.append(total_partitions)
 
@@ -176,6 +171,7 @@ def _split_objects_from_keys(map_func_args_list, keys_dict, chunk_size, chunk_nu
     """
     if chunk_size or chunk_number:
         logger.info('Creating chunks from object keys...')
+
     partitions = []
     parts_per_object = []
 
@@ -191,33 +187,27 @@ def _split_objects_from_keys(map_func_args_list, keys_dict, chunk_size, chunk_nu
 
         if chunk_number:
             chunk_rest = obj_size % chunk_number
-            chunk_size = obj_size // chunk_number + chunk_rest
-
-        if chunk_size and chunk_size < CHUNK_SIZE_MIN:
-            chunk_size = None
-
-        total_partitions = 0
-
-        if chunk_size is not None and obj_size > chunk_size:
-            size = 0
-            while size < obj_size:
-                brange = (size, size+chunk_size+CHUNK_THRESHOLD)
-                size += chunk_size
-                partition = entry.copy()
-                partition['obj'] = CloudObject(sb, bucket, key)
-                partition['obj'].data_byte_range = brange
-                partition['obj'].chunk_size = chunk_size
-                partition['obj'].part = total_partitions
-                partitions.append(partition)
-                total_partitions = total_partitions + 1
+            obj_chunk_size = obj_size // chunk_number + chunk_rest
+        elif chunk_size:
+            obj_chunk_size = chunk_size
         else:
-            partition = entry
+            obj_chunk_size = obj_size
+
+        size = total_partitions = 0
+
+        while size < obj_size:
+            brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
+            brange = None if obj_size == obj_chunk_size else brange
+
+            partition = entry.copy()
             partition['obj'] = CloudObject(sb, bucket, key)
-            partition['obj'].data_byte_range = None
-            partition['obj'].chunk_size = chunk_size
+            partition['obj'].data_byte_range = brange
+            partition['obj'].chunk_size = obj_chunk_size
             partition['obj'].part = total_partitions
             partitions.append(partition)
-            total_partitions = 1
+
+            total_partitions += 1
+            size += obj_chunk_size
 
         parts_per_object.append(total_partitions)
 
@@ -235,7 +225,6 @@ def _split_objects_from_urls(map_func_args_list, chunk_size, chunk_number):
 
     def _split(entry):
         obj_size = None
-        total_partitions = 0
         object_url = entry['url']
         metadata = requests.head(object_url)
 
@@ -244,38 +233,34 @@ def _split_objects_from_urls(map_func_args_list, chunk_size, chunk_number):
         if 'content-length' in metadata.headers:
             obj_size = int(metadata.headers['content-length'])
 
-        chunk_size_co = chunk_size
-
-        if chunk_number:
+        if chunk_number and obj_size:
             chunk_rest = obj_size % chunk_number
-            chunk_size_co = chunk_size_co // chunk_number + chunk_rest
-
-        if chunk_size_co and chunk_size_co < CHUNK_SIZE_MIN:
-            chunk_size_co = None
-
-        if 'accept-ranges' in metadata.headers and chunk_size_co is not None \
-           and obj_size is not None and obj_size > chunk_size_co:
-            size = 0
-
-            while size < obj_size:
-                brange = (size, size+chunk_size_co+CHUNK_THRESHOLD)
-                size += chunk_size_co
-                partition = entry.copy()
-                partition['url'] = CloudObjectUrl(object_url)
-                partition['url'].data_byte_range = brange
-                partition['url'].chunk_size = chunk_size_co
-                partition['url'].part = total_partitions
-                partitions.append(partition)
-                total_partitions = total_partitions + 1
+            obj_chunk_size = obj_size // chunk_number + chunk_rest
+        elif chunk_size and obj_size:
+            obj_chunk_size = chunk_size
+        elif obj_size:
+            obj_chunk_size = obj_size
         else:
-            # Only one partition
-            partition = entry
+            obj_chunk_size = obj_size = 1
+
+        if 'accept-ranges' not in metadata.headers:
+            obj_chunk_size = obj_size
+
+        size = total_partitions = 0
+
+        while size < obj_size:
+            brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
+            brange = None if obj_size == obj_chunk_size else brange
+
+            partition = entry.copy()
             partition['url'] = CloudObjectUrl(object_url)
-            partition['url'].data_byte_range = None
-            partition['url'].chunk_size = chunk_size_co
+            partition['url'].data_byte_range = brange
+            partition['url'].chunk_size = obj_chunk_size
             partition['url'].part = total_partitions
             partitions.append(partition)
-            total_partitions = 1
+
+            total_partitions += 1
+            size += obj_chunk_size
 
         parts_per_object.append(total_partitions)
 

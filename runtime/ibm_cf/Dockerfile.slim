@@ -13,18 +13,18 @@ ENV FLASK_PROXY_PORT 8080
 
 RUN pip install --upgrade pip setuptools six \
     && pip install --no-cache-dir \
-        simplejson==3.16.0 \
-        httplib2==0.13.0 \
-        kafka_python==1.4.6 \
+        simplejson= \
+        httplib2 \
+        kafka_python \
         lxml==4.3.1 \
-        python-dateutil==2.8.0 \
+        python-dateutil \
         pika==0.13.1 \
-        flask==1.1.1 \
-        gevent==1.4.0 \
-        ibm-cos-sdk==2.6.0 \
-        redis==3.3.8 \
-        requests==2.22.0 \
-        numpy==1.17.2
+        flask \
+        gevent \
+        ibm-cos-sdk= \
+        redis \
+        requests \
+        numpy
 
 # create action working directory
 RUN mkdir -p /action \

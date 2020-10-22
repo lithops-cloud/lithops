@@ -63,10 +63,7 @@ def function_handler(event):
 
     runtime_name = event['runtime_name']
     runtime_memory = event['runtime_memory']
-    runtime_timeout = event['runtime_timeout']
     execution_timeout = event['execution_timeout']
-    if execution_timeout is None and runtime_timeout is not None:
-        execution_timeout = runtime_timeout - 5
 
     logger.debug("Runtime name: {}".format(runtime_name))
     logger.debug("Runtime memory: {}MB".format(runtime_memory))
