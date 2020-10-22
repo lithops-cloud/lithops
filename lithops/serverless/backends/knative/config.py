@@ -125,7 +125,7 @@ spec:
 
 
 service_res = """
-apiVersion: serving.knative.dev/v1alpha1
+apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
   name: lithops-runtime
@@ -144,11 +144,14 @@ spec:
       containerConcurrency: 1
       timeoutSeconds: TIMEOUT
       containers:
-        - image: IMAGE
-          resources:
-            limits:
-              memory: MEMORY
-              #cpu: 1000m
+      - image: IMAGE
+        resources:
+          limits:
+            memory: MEMORY
+            #cpu: 1000m
+          requests:
+            memory: MEMORY
+            #cpu: 1000m
 """
 
 

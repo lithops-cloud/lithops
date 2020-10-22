@@ -42,6 +42,7 @@ def load_config(config_data):
             config_data['serverless']['runtime'] = RUNTIME_DEFAULT[python_version]
         except KeyError:
             raise Exception('Unsupported Python version: {}'.format(python_version))
+
     if 'workers' not in config_data['lithops'] or \
        config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
@@ -56,6 +57,10 @@ def load_config(config_data):
     # Check old format. Convert to new format
     if set(required_parameters_0) <= set(config_data['ibm_cf']):
         endpoint = config_data['ibm_cf'].pop('endpoint')
+
+        if not endpoint.startswith('https'):
+            raise Exception('IBM CF Endpoint must start with https://')
+
         namespace = config_data['ibm_cf'].pop('namespace')
         api_key = config_data['ibm_cf'].pop('api_key', None)
         namespace_id = config_data['ibm_cf'].pop('namespace_id', None)

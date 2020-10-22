@@ -23,6 +23,6 @@ ENV APP_HOME /lithops
 WORKDIR $APP_HOME
 
 COPY lithops ./lithops
-COPY lithops/compute/backends/knative/entry_point.py lithopsproxy.py
+COPY lithops/serverless/backends/knative/entry_point.py lithopsproxy.py
 
 CMD exec gunicorn --bind :$PORT --workers 1 --timeout 600 lithopsproxy:proxy

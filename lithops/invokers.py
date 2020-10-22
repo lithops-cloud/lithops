@@ -308,14 +308,10 @@ class ServerlessInvoker:
                     logger.debug('ExecutorID {} | JobID {} - Free workers: {} - Going to invoke {} function activations'
                                  .format(job.executor_id,  job.job_id, total_direct, len(callids_to_invoke_direct)))
 
-                    call_futures = []
-
-                    executor = ThreadPoolExecutor(max_workers=job.invoke_pool_threads)
-                    for i in callids_to_invoke_direct:
-                        call_id = "{:05d}".format(i)
-                        future = executor.submit(self._invoke, job, call_id)
-                        call_futures.append(future)
-                    time.sleep(0.1)
+                    with ThreadPoolExecutor(max_workers=job.invoke_pool_threads) as executor:
+                        for i in callids_to_invoke_direct:
+                            call_id = "{:05d}".format(i)
+                            executor.submit(self._invoke, job, call_id)
 
                     # Put into the queue the rest of the callids to invoke within the process
                     if callids_to_invoke_nondirect:
