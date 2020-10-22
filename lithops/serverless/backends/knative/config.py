@@ -54,7 +54,7 @@ secrets:
 """
 
 git_res = """
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1alpha1
 kind: PipelineResource
 metadata:
   name: lithops-git
@@ -68,7 +68,7 @@ spec:
 """
 
 task_def = """
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1alpha1
 kind: Task
 metadata:
   name: git-source-to-image
@@ -101,7 +101,7 @@ spec:
 """
 
 task_run = """
-apiVersion: tekton.dev/v1beta1
+apiVersion: tekton.dev/v1alpha1
 kind: TaskRun
 metadata:
   name: lithops-runtime-from-git

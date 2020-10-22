@@ -134,7 +134,7 @@ class KnativeServingBackend:
             #t0 = time.time()
             svc = self.api.get_namespaced_custom_object(
                         group="serving.knative.dev",
-                        version="v1alpha1",
+                        version="v1",
                         name=service_name,
                         namespace=self.namespace,
                         plural="services"
@@ -515,7 +515,7 @@ class KnativeServingBackend:
         try:
             self.api.delete_namespaced_custom_object(
                     group="serving.knative.dev",
-                    version="v1alpha1",
+                    version="v1",
                     name=service_name,
                     namespace=self.namespace,
                     plural="services",
@@ -539,7 +539,7 @@ class KnativeServingBackend:
         """
         knative_services = self.api.list_namespaced_custom_object(
                                 group="serving.knative.dev",
-                                version="v1alpha1",
+                                version="v1",
                                 namespace=self.namespace,
                                 plural="services"
                             )
