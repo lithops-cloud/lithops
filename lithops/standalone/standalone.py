@@ -210,9 +210,9 @@ class StandaloneHandler:
 
         cmd += '&& mkdir -p {} '.format(REMOTE_INSTALL_DIR)
         cmd += '&& unzip -o /tmp/lithops_standalone.zip -d {} > /dev/null 2>&1 '.format(REMOTE_INSTALL_DIR)
-        cmd += '&& rm /tmp/lithops_standalone.zip '
+        cmd += '&& rm /tmp/lithops_standalone.zip; '
 
-        cmd += '&& chmod 644 {} '.format(service_file)
+        cmd += 'chmod 644 {} '.format(service_file)
         cmd += '&& systemctl daemon-reload '
         cmd += '&& systemctl stop {} '.format(PROXY_SERVICE_NAME)
         cmd += '&& systemctl enable {} '.format(PROXY_SERVICE_NAME)

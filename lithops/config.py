@@ -35,6 +35,7 @@ TEMP_PREFIX = "lithops.jobs/tmp"
 LOGS_PREFIX = "lithops.logs"
 RUNTIMES_PREFIX = "lithops.runtimes"
 
+EXECUTION_TIMEOUT_DEFAULT = 1800
 
 MAX_AGG_DATA_SIZE = 4  # 4MiB
 
@@ -135,6 +136,8 @@ def default_config(config_data=None, config_overwrite={}):
 
     if 'executor' not in config_data['lithops']:
         config_data['lithops']['executor'] = EXECUTOR_DEFAULT
+    if 'execution_timeout' not in config_data['lithops']:
+        config_data['lithops']['execution_timeout'] = EXECUTION_TIMEOUT_DEFAULT
 
     if config_data['lithops']['executor'] == 'serverless':
         if 'serverless' not in config_data:
