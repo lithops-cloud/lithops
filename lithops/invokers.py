@@ -380,12 +380,14 @@ class JobMonitor:
         return active_jobs
 
     def start_job_monitoring(self, job):
-        logger.debug('ExecutorID {} | JobID {} - Starting job monitoring'.format(job.executor_id, job.job_id))
+        logger.debug('ExecutorID {} | JobID {} - Starting job monitoring'
+                     .format(job.executor_id, job.job_id))
         if self.rabbitmq_monitor:
             th = Thread(target=self._job_monitoring_rabbitmq, args=(job,))
         else:
             th = Thread(target=self._job_monitoring_os, args=(job,))
-        th.daemon=True
+        if not self.is_lithops_worker:
+            th.daemon = True
         th.start()
 
         self.monitors.append(th)
@@ -398,9 +400,11 @@ class JobMonitor:
             callids_running_in_job, callids_done_in_job = self.internal_storage.get_job_status(job.executor_id, job.job_id)
             total_new_tokens = len(callids_done_in_job) - total_callids_done_in_job
             total_callids_done_in_job = total_callids_done_in_job + total_new_tokens
-            total_callids_done_in_job= 0
             for i in range(total_new_tokens):
                 self.token_bucket_q.put('#')
+
+        logger.debug('ExecutorID {} - | JobID {} job monitoring finished'
+                     .format(job.executor_id,  job.job_id))
 
     def _job_monitoring_rabbitmq(self, job):
         total_callids_done_in_job = 0

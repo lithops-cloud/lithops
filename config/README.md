@@ -170,7 +170,7 @@ fexec = lithops.FunctionExecutor(rabbitmq_monitor=True)
 |lithops | rabbitmq_monitor | False | no | Activate the rabbitmq monitoring feature |
 |lithops | workers | Depends on the compute backend | no | Max number of concurrent workers |
 |lithops| data_limit | 4 | no | Max (iter)data size (in MB). Set to False for unlimited size |
-|lithops| execution_timeout | 1800 | no | Functions will be automatically killed if they exceed this execution time (in seconds). Alternatively it can be set per `call_async()`, `map()` or `map_reduce()` invocations with the `timeout` parameter.|
+|lithops| execution_timeout | 1800 | no | Functions will be automatically killed if they exceed this execution time (in seconds). Alternatively, it can be set in the `call_async()`, `map()` or `map_reduce()` calls with the `timeout` parameter.|
 |lithops| include_modules | [] | no | Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None |
 |lithops| exclude_modules | [] | no | Explicitly keep these modules from pickled dependencies. It is not taken into account if you set include_modules |
 
