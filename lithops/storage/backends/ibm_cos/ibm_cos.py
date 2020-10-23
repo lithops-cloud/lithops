@@ -1,5 +1,5 @@
 #
-# (C) Copyright IBM Corp. 2019
+# (C) Copyright IBM Corp. 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,15 +14,11 @@
 # limitations under the License.
 #
 
-import os
 import logging
 import ibm_boto3
 import ibm_botocore
-from datetime import datetime, timezone
-from ibm_botocore.credentials import DefaultTokenManager
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import sizeof_fmt, is_lithops_worker
-from lithops.config import CACHE_DIR, load_yaml_config, dump_yaml_config
 from lithops.libs.ibm_iam.ibm_iam import IBMIAMTokenManager
 
 
@@ -86,11 +82,10 @@ class IBMCloudObjectStorageBackend:
                                                        read_timeout=CONN_READ_TIMEOUT,
                                                        retries={'max_attempts': OBJ_REQ_RETRIES})
 
-            iam_api_key = self.ibm_cos_config.get('iam_api_key')
             token = self.ibm_cos_config.get('token', None)
             token_expiry_time = self.ibm_cos_config.get('token_expiry_time', None)
 
-            iam_token_manager = IBMIAMTokenManager(iam_api_key, token, token_expiry_time)
+            iam_token_manager = IBMIAMTokenManager(api_key, api_key_type, token, token_expiry_time)
             token, token_expiry_time = iam_token_manager.get_token()
 
             self.ibm_cos_config['token'] = token
