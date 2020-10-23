@@ -68,10 +68,11 @@ class IBMCloudFunctionsBackend:
 
         elif self.iam_api_key:
             iam_api_key = self.config.get('iam_api_key')
+            api_key_type = 'IAM'
             token = self.config.get('token', None)
             token_expiry_time = self.config.get('token_expiry_time', None)
 
-            self.ibm_iam_api_key_manager = IBMIAMTokenManager(iam_api_key, token, token_expiry_time)
+            self.ibm_iam_api_key_manager = IBMIAMTokenManager(iam_api_key, api_key_type, token, token_expiry_time)
             token, token_expiry_time = self.ibm_iam_api_key_manager.get_token()
 
             self.config['token'] = token

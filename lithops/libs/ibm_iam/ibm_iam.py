@@ -11,14 +11,15 @@ logger = logging.getLogger(__name__)
 
 class IBMIAMTokenManager:
 
-    def __init__(self, api_key, token=None, token_expiry_time=None):
+    def __init__(self, api_key, api_key_type='IAM', token=None, token_expiry_time=None):
         self.api_key = api_key
+        self.api_key_type = api_key_type
 
         self._token_manager = DefaultTokenManager(api_key_id=self.api_key)
-        self._token_filename = os.path.join(CACHE_DIR, 'ibm_iam', 'iam_token')
+        self._token_filename = os.path.join(CACHE_DIR, 'ibm_{}'.format(api_key_type.lower()), 'token')
 
         if token:
-            logger.debug("Using IBM IAM API Key - Reusing Token from config")
+            logger.debug("Using IBM {} API Key - Reusing Token from config".format(self.api_key_type))
             self._token_manager._token = token
             self._token_manager._expiry_time = datetime.strptime(token_expiry_time,
                                                                  '%Y-%m-%d %H:%M:%S.%f%z')
@@ -27,7 +28,7 @@ class IBMIAMTokenManager:
                                  self._get_token_minutes_diff()))
 
         elif os.path.exists(self._token_filename):
-            logger.debug("Using IBM IAM API Key - Reusing Token from local cache")
+            logger.debug("Using IBM {} API Key - Reusing Token from local cache".format(self.api_key_type))
             token_data = load_yaml_config(self._token_filename)
             self._token_manager._token = token_data['token']
             self._token_manager._expiry_time = datetime.strptime(token_data['token_expiry_time'],
@@ -50,7 +51,7 @@ class IBMIAMTokenManager:
 
     def get_token(self):
         if (self._token_manager._is_expired() or self._get_token_minutes_diff() < 11) and not is_lithops_worker():
-            logger.debug("Using IBM IAM API Key - Token expired. Requesting new token")
+            logger.debug("Using IBM {} API Key - Requesting new token".format(self.api_key_type))
             self._generate_new_token()
 
         token = self._token_manager._token
