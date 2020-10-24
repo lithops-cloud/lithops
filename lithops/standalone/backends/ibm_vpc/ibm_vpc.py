@@ -30,7 +30,8 @@ class IBMVPCInstanceClient:
         iam_api_key = self.config.get('iam_api_key')
         token = self.config.get('token', None)
         token_expiry_time = self.config.get('token_expiry_time', None)
-        self.iam_token_manager = IBMIAMTokenManager(iam_api_key, token, token_expiry_time)
+        api_key_type = 'IAM'
+        self.iam_token_manager = IBMIAMTokenManager(iam_api_key, api_key_type, token, token_expiry_time)
 
         headers = {'content-type': 'application/json'}
         default_user_agent = self.session.headers['User-Agent']
