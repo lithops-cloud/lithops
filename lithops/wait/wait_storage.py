@@ -242,9 +242,9 @@ def _wait_storage(fs, running_futures, internal_storage, download_results, throw
         f.status(throw_except=throw_except, internal_storage=internal_storage)
 
     if download_results:
-        pool.map(get_result, fs_to_wait_on)
+        list(pool.map(get_result, fs_to_wait_on))
     else:
-        pool.map(get_status, fs_to_wait_on)
+        list(pool.map(get_status, fs_to_wait_on))
 
     pool.shutdown()
 

@@ -317,12 +317,12 @@ class InternalStorage:
                     with open(filename_local_path, "w") as f:
                         f.write(json.dumps(runtime_meta))
                 except Exception as e:
-                    logger.error("Colud not save runtime meta to local cache: {}".format(e))
+                    logger.error("Could not save runtime meta to local cache: {}".format(e))
 
                 return runtime_meta
             except StorageNoSuchKeyError:
                 logger.debug('Runtime metadata not found in storage')
-                raise Exception('The runtime {} is not installed.'.format(obj_key))
+                return None
 
     def put_runtime_meta(self, key, runtime_meta):
         """

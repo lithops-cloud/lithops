@@ -85,8 +85,8 @@ class FunctionExecutor:
             if 'rabbitmq' in self.config and 'amqp_url' in self.config['rabbitmq']:
                 self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
             else:
-                raise Exception("You cannot use rabbitmq_mnonitor since 'amqp_url'"
-                                " is not present in configuration")
+                raise Exception("You cannot use rabbitmq_mnonitor since "
+                                "'amqp_url' is not present in configuration")
 
         self.storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(self.storage_config)
@@ -107,7 +107,8 @@ class FunctionExecutor:
                                              self.compute_handler)
         elif type == 'serverless':
             serverless_config = extract_serverless_config(self.config)
-            self.compute_handler = ServerlessHandler(serverless_config, self.storage_config)
+            self.compute_handler = ServerlessHandler(serverless_config,
+                                                     self.storage_config)
 
             self.invoker = ServerlessInvoker(self.config,
                                              self.executor_id,
@@ -122,9 +123,11 @@ class FunctionExecutor:
                                              self.internal_storage,
                                              self.compute_handler)
         else:
-            raise Exception("Function executor type must be one of 'localhost', 'serverless' or 'standalone'")
+            raise Exception("Function executor type must be one of "
+                            "'localhost', 'serverless' or 'standalone'")
 
-        logger.info('{} Executor created with ID: {}'.format(type.capitalize(), self.executor_id))
+        logger.info('{} Executor created with ID: {}'.format(type.capitalize(),
+                                                             self.executor_id))
 
     def __enter__(self):
         return self
@@ -160,13 +163,12 @@ class FunctionExecutor:
                              map_function=func,
                              iterdata=[data],
                              runtime_meta=runtime_meta,
-                             runtime_memory=runtime_memory,
                              extra_env=extra_env,
                              include_modules=include_modules,
                              exclude_modules=exclude_modules,
                              execution_timeout=timeout)
 
-        futures = self.invoker.run(job)
+        futures = self.invoker.run(job, runtime_memory)
         self.futures.extend(futures)
 
         return futures[0]
@@ -202,7 +204,6 @@ class FunctionExecutor:
                              map_function=map_function,
                              iterdata=map_iterdata,
                              runtime_meta=runtime_meta,
-                             runtime_memory=runtime_memory,
                              extra_args=extra_args,
                              extra_env=extra_env,
                              obj_chunk_size=chunk_size,
@@ -212,7 +213,7 @@ class FunctionExecutor:
                              exclude_modules=exclude_modules,
                              execution_timeout=timeout)
 
-        futures = self.invoker.run(job)
+        futures = self.invoker.run(job, runtime_memory)
         self.futures.extend(futures)
 
         return futures
@@ -246,8 +247,8 @@ class FunctionExecutor:
 
         :return: A list with size `len(map_iterdata)` of futures.
         """
-        map_job_id = self._create_job_id('M')
         self.last_call = 'map_reduce'
+        map_job_id = self._create_job_id('M')
 
         runtime_meta = self.invoker.select_runtime(map_job_id, map_runtime_memory)
 
@@ -256,7 +257,6 @@ class FunctionExecutor:
                                  map_function=map_function,
                                  iterdata=map_iterdata,
                                  runtime_meta=runtime_meta,
-                                 runtime_memory=map_runtime_memory,
                                  extra_args=extra_args,
                                  extra_env=extra_env,
                                  obj_chunk_size=chunk_size,
@@ -266,7 +266,7 @@ class FunctionExecutor:
                                  exclude_modules=exclude_modules,
                                  execution_timeout=timeout)
 
-        map_futures = self.invoker.run(map_job)
+        map_futures = self.invoker.run(map_job, map_runtime_memory)
         self.futures.extend(map_futures)
 
         if reducer_wait_local:
@@ -281,12 +281,11 @@ class FunctionExecutor:
                                        reduce_function, map_job, map_futures,
                                        runtime_meta=runtime_meta,
                                        reducer_one_per_object=reducer_one_per_object,
-                                       runtime_memory=reduce_runtime_memory,
                                        extra_env=extra_env,
                                        include_modules=include_modules,
                                        exclude_modules=exclude_modules)
 
-        reduce_futures = self.invoker.run(reduce_job)
+        reduce_futures = self.invoker.run(reduce_job, reduce_runtime_memory)
 
         self.futures.extend(reduce_futures)
 
@@ -371,7 +370,7 @@ class FunctionExecutor:
                              throw_except=throw_except, return_when=return_when, pbar=pbar,
                              THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
 
-        except KeyboardInterrupt:
+        except KeyboardInterrupt as e:
             if download_results:
                 not_dones_call_ids = [(f.job_id, f.call_id) for f in futures if not f.done]
             else:
@@ -385,6 +384,7 @@ class FunctionExecutor:
             if not self.log_active:
                 print(msg) 
             error = True
+            raise e
 
         except Exception as e:
             error = True

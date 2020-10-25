@@ -33,9 +33,8 @@ logger = logging.getLogger(__name__)
 
 
 def create_map_job(config, internal_storage, executor_id, job_id, map_function, iterdata, runtime_meta,
-                   runtime_memory=None, extra_args=None, extra_env=None, obj_chunk_size=None,
-                   obj_chunk_number=None, invoke_pool_threads=128, include_modules=[], exclude_modules=[],
-                   execution_timeout=None):
+                   extra_args=None, extra_env=None, obj_chunk_size=None, obj_chunk_number=None,
+                   invoke_pool_threads=128, include_modules=[], exclude_modules=[], execution_timeout=None):
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
     """
@@ -43,8 +42,6 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
 
     map_func = map_function
     map_iterdata = utils.verify_args(map_function, iterdata, extra_args)
-    new_invoke_pool_threads = invoke_pool_threads
-    new_runtime_memory = runtime_memory
 
     if config['lithops'].get('rabbitmq_monitor', False):
         rabbit_amqp_url = config['rabbitmq'].get('amqp_url')
@@ -66,9 +63,8 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
     job_description = _create_job(config, internal_storage, executor_id,
                                   job_id, map_func, map_iterdata,
                                   runtime_meta=runtime_meta,
-                                  runtime_memory=new_runtime_memory,
                                   extra_env=extra_env,
-                                  invoke_pool_threads=new_invoke_pool_threads,
+                                  invoke_pool_threads=invoke_pool_threads,
                                   include_modules=include_modules,
                                   exclude_modules=exclude_modules,
                                   execution_timeout=execution_timeout,
@@ -82,8 +78,7 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
 
 def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, reduce_function,
                       map_job, map_futures, runtime_meta, reducer_one_per_object=False,
-                      runtime_memory=None, extra_env=None, include_modules=[], exclude_modules=[],
-                      execution_timeout=None):
+                      extra_env=None, include_modules=[], exclude_modules=[], execution_timeout=None):
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
     """
@@ -110,7 +105,6 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
     return _create_job(config, internal_storage, executor_id,
                        reduce_job_id, reduce_function,
                        iterdata, runtime_meta=runtime_meta,
-                       runtime_memory=runtime_memory,
                        extra_env=ext_env,
                        include_modules=include_modules,
                        exclude_modules=exclude_modules,
@@ -119,7 +113,7 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
 
 
 def _create_job(config, internal_storage, executor_id, job_id, func, data, runtime_meta,
-                runtime_memory=None, extra_env=None, invoke_pool_threads=128, include_modules=[],
+                extra_env=None, invoke_pool_threads=128, include_modules=[],
                 exclude_modules=[], execution_timeout=None, host_job_meta=None):
     """
     :param func: the function to map over the data

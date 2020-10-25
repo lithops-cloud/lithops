@@ -96,7 +96,7 @@ fexec = lithops.StandaloneExecutor()
 
 **FunctionExecutor(\*\*kwargs)**
 
-Initialize and return an OpenWhisk executor object. See [additional information](openwhisk.md).
+Initialize and return a generic function executor.
 
 |Parameter | Default | Description|
 |---|---|---|
@@ -224,7 +224,7 @@ Waits for the function activations to finish.
 |fs| None | List of futures to wait. If None, Lithops uses the internally stored futures |
 |throw_except | True | Re-raise exception if call raised|
 |return_when| 'ALL_COMPLETED' | One of 'ALL_COMPLETED', 'ANY_COMPLETED', 'ALWAYS' |
-|download_results| False | Whether or not download the results results while monitoring activations |
+|download_results| False | Whether or not download the results while monitoring activations |
 |timeout| None | Timeout of waiting for results (in seconds)|
 |THREADPOOL_SIZE|  128 | Number of threads to use waiting for results|
 |WAIT_DUR_SEC| 1 |  Time interval between each check (seconds) if no rabbitmq_monitor activated |

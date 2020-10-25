@@ -22,7 +22,7 @@ import pika
 import time
 import logging
 import random
-import multiprocessing
+import multiprocessing as mp
 import queue
 from threading import Thread
 from types import SimpleNamespace
@@ -35,15 +35,11 @@ from lithops.utils import version_str, is_lithops_worker, is_unix_system
 
 logger = logging.getLogger(__name__)
 
-REMOTE_INVOKER_MEMORY = 2048
-INVOKER_PROCESSES = 2
 
-
-class ServerlessInvoker:
+class Invoker:
     """
-    Module responsible to perform the invocations against the serverless backend
+    Abstract invoker class
     """
-
     def __init__(self, config, executor_id, internal_storage, compute_handler):
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.config = config
@@ -52,70 +48,61 @@ class ServerlessInvoker:
         self.internal_storage = internal_storage
         self.compute_handler = compute_handler
         self.is_lithops_worker = is_lithops_worker()
-        self.invokers = []
 
-        self.remote_invoker = self.config['serverless'].get('remote_invoker', False)
         self.workers = self.config['lithops'].get('workers')
         logger.debug('ExecutorID {} - Total available workers: {}'
                      .format(self.executor_id, self.workers))
 
-        if not is_lithops_worker() and is_unix_system():
-            self.token_bucket_q = multiprocessing.Queue()
-            self.pending_calls_q = multiprocessing.Queue()
-            self.running_flag = multiprocessing.Value('i', 0)
-        else:
-            self.token_bucket_q = queue.Queue()
-            self.pending_calls_q = queue.Queue()
-            self.running_flag = SimpleNamespace(value=0)
-
-        self.ongoing_activations = 0
-        self.job_monitor = JobMonitor(self.config, self.internal_storage, self.token_bucket_q)
-
-        logger.debug('ExecutorID {} - Serverless invoker created'.format(self.executor_id))
+        self.executor = self.config['lithops']['executor']
+        self.runtime_name = self.config[self.executor]['runtime']
 
     def select_runtime(self, job_id, runtime_memory):
         """
-        Auxiliary method that selects the runtime to use. To do so it gets the
-        runtime metadata from the storage. This metadata contains the preinstalled
-        python modules needed to serialize the local function. If the .metadata
-        file does not exists in the storage, this means that the runtime is not
-        installed, so this method will proceed to install it.
+        Create a runtime and return metadata
         """
-        runtime_name = self.config['serverless']['runtime']
-        if runtime_memory is None:
-            runtime_memory = self.config['serverless']['runtime_memory']
+        raise NotImplementedError
 
-        if runtime_memory:
-            runtime_memory = int(runtime_memory)
-            log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} - {}MB'
-                       .format(self.executor_id, job_id, runtime_name, runtime_memory))
-        else:
-            log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {}'
-                       .format(self.executor_id, job_id, runtime_name))
+    def run(self, job_description, runtime_memory):
+        """
+        Run a job
+        """
+        raise NotImplementedError
+
+    def stop(self):
+        """
+        Stop invoker-related processes
+        """
+        pass
+
+
+class StandaloneInvoker(Invoker):
+    """
+    Module responsible to perform the invocations against the Standalone backend
+    """
+    def __init__(self, config, executor_id, internal_storage, compute_handler):
+        super().__init__(config, executor_id, internal_storage, compute_handler)
+
+    def select_runtime(self, job_id, runtime_memory):
+        """
+        Return the runtime metadata
+        """
+        log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} '
+                   .format(self.executor_id, job_id, self.runtime_name))
         logger.info(log_msg)
         if not self.log_active:
-            print(log_msg, end=' ')
+            print(log_msg, end='')
 
-        installing = False
-
-        runtime_key = self.compute_handler.get_runtime_key(runtime_name, runtime_memory)
-        runtime_deployed = True
-        try:
-            runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
-        except Exception:
-            runtime_deployed = False
-
-        if not runtime_deployed:
-            logger.debug('ExecutorID {} | JobID {} - Runtime {} with {}MB is not yet '
-                         'installed'.format(self.executor_id, job_id, runtime_name, runtime_memory))
-            if not self.log_active and not installing:
-                installing = True
+        runtime_key = self.compute_handler.get_runtime_key(self.runtime_name)
+        runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
+        if not runtime_meta:
+            logger.debug('Runtime {} is not yet installed'.format(self.runtime_name))
+            if not self.log_active:
                 print('(Installing...)')
-
-            timeout = self.config['serverless']['runtime_timeout']
-            logger.debug('Creating runtime: {}, memory: {}MB'.format(runtime_name, runtime_memory))
-            runtime_meta = self.compute_handler.create_runtime(runtime_name, runtime_memory, timeout=timeout)
+            runtime_meta = self.compute_handler.create_runtime(self.runtime_name)
             self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
+        else:
+            if not self.log_active:
+                print()
 
         py_local_version = version_str(sys.version_info)
         py_remote_version = runtime_meta['python_ver']
@@ -123,10 +110,117 @@ class ServerlessInvoker:
         if py_local_version != py_remote_version:
             raise Exception(("The indicated runtime '{}' is running Python {} and it "
                              "is not compatible with the local Python version {}")
-                            .format(runtime_name, py_remote_version, py_local_version))
+                            .format(self.runtime_name, py_remote_version, py_local_version))
 
-        if not self.log_active and runtime_deployed:
-            print()
+        return runtime_meta
+
+    def run(self, job_description, runtime_memory):
+        """
+        Run a job
+        """
+        execution_timeout = job_description['execution_timeout']
+        job_description['runtime_name'] = self.runtime_name
+        job_description['runtime_memory'] = None
+        if self.executor == 'standalone':
+            runtime_timeout = self.config['standalone']['hard_dismantle_timeout']
+            if execution_timeout >= runtime_timeout:
+                job_description['execution_timeout'] = runtime_timeout - 10
+        else:
+            # localhost
+            runtime_timeout = execution_timeout
+        job_description['runtime_timeout'] = runtime_timeout
+
+        job = SimpleNamespace(**job_description)
+
+        payload = {'config': self.config,
+                   'log_level': logging.getLevelName(logger.getEffectiveLevel()),
+                   'executor_id': job.executor_id,
+                   'job_id': job.job_id,
+                   'job_description': job_description,
+                   'lithops_version': __version__}
+
+        self.compute_handler.run_job(payload)
+
+        log_msg = ('ExecutorID {} | JobID {} - Invocation done'
+                   .format(job.executor_id, job.job_id))
+        logger.info(log_msg)
+        if not self.log_active:
+            print(log_msg)
+
+        futures = []
+        for i in range(job.total_calls):
+            call_id = "{:05d}".format(i)
+            fut = ResponseFuture(call_id, job_description,
+                                 job.metadata.copy(),
+                                 self.storage_config)
+            fut._set_state(ResponseFuture.State.Invoked)
+            futures.append(fut)
+
+        return futures
+
+
+class ServerlessInvoker(Invoker):
+    """
+    Module responsible to perform the invocations against the serverless backend
+    """
+
+    REMOTE_INVOKER_MEMORY = 2048
+    INVOKER_PROCESSES = 2
+
+    def __init__(self, config, executor_id, internal_storage, compute_handler):
+        super().__init__(config, executor_id, internal_storage, compute_handler)
+
+        self.remote_invoker = self.config['serverless'].get('remote_invoker', False)
+
+        self.invokers = []
+        self.ongoing_activations = 0
+
+        if not is_lithops_worker() and is_unix_system():
+            self.token_bucket_q = mp.Queue()
+            self.pending_calls_q = mp.Queue()
+            self.running_flag = mp.Value('i', 0)
+        else:
+            self.token_bucket_q = queue.Queue()
+            self.pending_calls_q = queue.Queue()
+            self.running_flag = SimpleNamespace(value=0)
+
+        self.job_monitor = JobMonitor(self.config, self.internal_storage, self.token_bucket_q)
+
+        logger.debug('ExecutorID {} - Serverless invoker created'.format(self.executor_id))
+
+    def select_runtime(self, job_id, runtime_memory):
+        """
+        Return the runtime metadata
+        """
+        if not runtime_memory:
+            runtime_memory = self.config['serverless']['runtime_memory']
+        timeout = self.config['serverless']['runtime_timeout']
+
+        log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} - {}MB '
+                   .format(self.executor_id, job_id, self.runtime_name, runtime_memory))
+        logger.info(log_msg)
+        if not self.log_active:
+            print(log_msg, end='')
+
+        runtime_key = self.compute_handler.get_runtime_key(self.runtime_name, runtime_memory)
+        runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
+        if not runtime_meta:
+            logger.debug('Runtime {} with {}MB is not yet installed'.format(self.runtime_name, runtime_memory))
+            if not self.log_active:
+                print('(Installing...)')
+            runtime_meta = self.compute_handler.create_runtime(self.runtime_name, runtime_memory, timeout)
+            self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
+        else:
+            if not self.log_active:
+                print()
+
+        py_local_version = version_str(sys.version_info)
+        py_remote_version = runtime_meta['python_ver']
+
+        if py_local_version != py_remote_version:
+            raise Exception(("The indicated runtime '{}' is running Python {} and it "
+                             "is not compatible with the local Python version {}")
+                            .format(self.runtime_name, py_remote_version, py_local_version))
 
         return runtime_meta
 
@@ -135,14 +229,14 @@ class ServerlessInvoker:
         Starts the invoker process responsible to spawn pending calls in background
         """
         if self.is_lithops_worker or not is_unix_system():
-            for inv_id in range(INVOKER_PROCESSES):
+            for inv_id in range(self.INVOKER_PROCESSES):
                 p = Thread(target=self._run_invoker_process, args=(inv_id, ))
                 self.invokers.append(p)
                 p.daemon = True
                 p.start()
         else:
-            for inv_id in range(INVOKER_PROCESSES):
-                p = multiprocessing.Process(target=self._run_invoker_process, args=(inv_id, ))
+            for inv_id in range(self.INVOKER_PROCESSES):
+                p = mp.Process(target=self._run_invoker_process, args=(inv_id, ))
                 self.invokers.append(p)
                 p.daemon = True
                 p.start()
@@ -151,7 +245,8 @@ class ServerlessInvoker:
         """
         Run process that implements token bucket scheduling approach
         """
-        logger.debug('ExecutorID {} - Invoker process {} started'.format(self.executor_id, inv_id))
+        logger.debug('ExecutorID {} - Invoker process {} started'
+                     .format(self.executor_id, inv_id))
 
         with ThreadPoolExecutor(max_workers=250) as executor:
             while True:
@@ -165,29 +260,8 @@ class ServerlessInvoker:
                 else:
                     break
 
-        logger.debug('ExecutorID {} - Invoker process {} finished'.format(self.executor_id, inv_id))
-
-    def stop(self):
-        """
-        Stop the invoker process and JobMonitor
-        """
-
-        self.job_monitor.stop()
-
-        if self.invokers:
-            logger.debug('ExecutorID {} - Stopping invoker'.format(self.executor_id))
-            self.running_flag.value = 0
-
-            for invoker in self.invokers:
-                self.token_bucket_q.put('#')
-                self.pending_calls_q.put((None, None))
-
-            while not self.pending_calls_q.empty():
-                try:
-                    self.pending_calls_q.get(False)
-                except Exception:
-                    pass
-            self.invokers = []
+        logger.debug('ExecutorID {} - Invoker process {} finished'
+                     .format(self.executor_id, inv_id))
 
     def _invoke(self, job, call_id):
         """
@@ -225,8 +299,6 @@ class ServerlessInvoker:
         logger.info('ExecutorID {} | JobID {} - Function call {} done! ({}s) - Activation'
                     ' ID: {}'.format(job.executor_id, job.job_id, call_id, resp_time, activation_id))
 
-        return call_id
-
     def _invoke_remote(self, job_description):
         """
         Method used to send a job_description to the remote invoker
@@ -243,7 +315,7 @@ class ServerlessInvoker:
                    'invokers': 4,
                    'lithops_version': __version__}
 
-        activation_id = self.compute_handler.invoke(job.runtime_name, REMOTE_INVOKER_MEMORY, payload)
+        activation_id = self.compute_handler.invoke(job.runtime_name, self.REMOTE_INVOKER_MEMORY, payload)
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 
@@ -253,17 +325,17 @@ class ServerlessInvoker:
         else:
             raise Exception('Unable to spawn remote invoker')
 
-    def run(self, job_description):
+    def run(self, job_description, runtime_memory):
         """
         Run a job described in job_description
         """
-        job_description['runtime_name'] = self.config['serverless']['runtime']
-        job_description['runtime_memory'] = self.config['serverless']['runtime_memory']
-        job_description['runtime_timeout'] = self.config['serverless']['runtime_timeout']
+        job_description['runtime_name'] = self.runtime_name
+        rm = runtime_memory or self.config['serverless']['runtime_memory']
+        job_description['runtime_memory'] = rm
+        runtime_timeout = self.config['serverless']['runtime_timeout']
+        job_description['runtime_timeout'] = runtime_timeout
 
         execution_timeout = job_description['execution_timeout']
-        runtime_timeout = self.config['serverless']['runtime_timeout']
-
         if execution_timeout >= runtime_timeout:
             job_description['execution_timeout'] = runtime_timeout - 5
 
@@ -279,11 +351,12 @@ class ServerlessInvoker:
         if self.remote_invoker:
             old_stdout = sys.stdout
             sys.stdout = open(os.devnull, 'w')
-            self.select_runtime(job.job_id, REMOTE_INVOKER_MEMORY)
+            self.select_runtime(job.job_id, self.REMOTE_INVOKER_MEMORY)
             sys.stdout = old_stdout
-            log_msg = ('ExecutorID {} | JobID {} - Starting remote function invocation: {}() '
-                       '- Total: {} activations'.format(job.executor_id, job.job_id,
-                                                        job.function_name, job.total_calls))
+            log_msg = ('ExecutorID {} | JobID {} - Starting remote function '
+                       'invocation: {}() - Total: {} activations'
+                       .format(job.executor_id, job.job_id,
+                               job.function_name, job.total_calls))
             logger.info(log_msg)
             if not self.log_active:
                 print(log_msg)
@@ -300,8 +373,10 @@ class ServerlessInvoker:
                     self.running_flag.value = 1
                     self._start_invoker_process()
 
-                log_msg = ('ExecutorID {} | JobID {} - Starting function invocation: {}()  - Total: {} '
-                           'activations'.format(job.executor_id, job.job_id, job.function_name, job.total_calls))
+                log_msg = ('ExecutorID {} | JobID {} - Starting function '
+                           'invocation: {}() - Total: {} activations'
+                           .format(job.executor_id, job.job_id,
+                                   job.function_name, job.total_calls))
                 logger.info(log_msg)
                 if not self.log_active:
                     print(log_msg)
@@ -314,25 +389,34 @@ class ServerlessInvoker:
 
                     self.ongoing_activations += len(callids_to_invoke_direct)
 
-                    logger.debug('ExecutorID {} | JobID {} - Free workers: {} - Going to invoke {} function activations'
-                                 .format(job.executor_id,  job.job_id, total_direct, len(callids_to_invoke_direct)))
+                    logger.debug('ExecutorID {} | JobID {} - Free workers: '
+                                 '{} - Going to invoke {} function activations'
+                                 .format(job.executor_id,  job.job_id, total_direct,
+                                         len(callids_to_invoke_direct)))
 
-                    with ThreadPoolExecutor(max_workers=job.invoke_pool_threads) as executor:
+                    def _callback(future):
+                        future.result()
+
+                    with ThreadPoolExecutor(job.invoke_pool_threads) as executor:
                         for i in callids_to_invoke_direct:
                             call_id = "{:05d}".format(i)
-                            executor.submit(self._invoke, job, call_id)
+                            future = executor.submit(self._invoke, job, call_id)
+                            future.add_done_callback(_callback)
 
                     # Put into the queue the rest of the callids to invoke within the process
                     if callids_to_invoke_nondirect:
-                        logger.debug('ExecutorID {} | JobID {} - Putting remaining {} function invocations into pending queue'
-                                     .format(job.executor_id, job.job_id, len(callids_to_invoke_nondirect)))
+                        logger.debug('ExecutorID {} | JobID {} - Putting remaining '
+                                     '{} function invocations into pending queue'
+                                     .format(job.executor_id, job.job_id,
+                                             len(callids_to_invoke_nondirect)))
                         for i in callids_to_invoke_nondirect:
                             call_id = "{:05d}".format(i)
                             self.pending_calls_q.put((job, call_id))
                 else:
-                    logger.debug('ExecutorID {} | JobID {} - Ongoing activations reached {} workers, '
-                                 'putting {} function invocations into pending queue'
-                                 .format(job.executor_id, job.job_id, self.workers, job.total_calls))
+                    logger.debug('ExecutorID {} | JobID {} - Ongoing activations '
+                                 'reached {} workers, queuing {} function invocations'
+                                 .format(job.executor_id, job.job_id, self.workers,
+                                         job.total_calls))
                     for i in range(job.total_calls):
                         call_id = "{:05d}".format(i)
                         self.pending_calls_q.put((job, call_id))
@@ -347,11 +431,36 @@ class ServerlessInvoker:
         futures = []
         for i in range(job.total_calls):
             call_id = "{:05d}".format(i)
-            fut = ResponseFuture(call_id, job_description, job.metadata.copy(), self.storage_config)
+            fut = ResponseFuture(call_id, job_description,
+                                 job.metadata.copy(),
+                                 self.storage_config)
             fut._set_state(ResponseFuture.State.Invoked)
             futures.append(fut)
 
         return futures
+
+    def stop(self):
+        """
+        Stop the invoker process and JobMonitor
+        """
+
+        self.job_monitor.stop()
+
+        if self.invokers:
+            logger.debug('ExecutorID {} - Stopping invoker'
+                         .format(self.executor_id))
+            self.running_flag.value = 0
+
+            for invoker in self.invokers:
+                self.token_bucket_q.put('#')
+                self.pending_calls_q.put((None, None))
+
+            while not self.pending_calls_q.empty():
+                try:
+                    self.pending_calls_q.get(False)
+                except Exception:
+                    pass
+            self.invokers = []
 
 
 class JobMonitor:
@@ -361,21 +470,20 @@ class JobMonitor:
         self.internal_storage = internal_storage
         self.token_bucket_q = token_bucket_q
         self.is_lithops_worker = is_lithops_worker()
-        self.monitors = []
-
-        self.should_run = True
+        self.monitors = {}
 
         self.rabbitmq_monitor = self.config['lithops'].get('rabbitmq_monitor', False)
         if self.rabbitmq_monitor:
             self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
 
     def stop(self):
-        self.should_run = False
+        for exec_id in self.monitors:
+            self.monitors[exec_id]['should_run'] = False
 
     def get_active_jobs(self):
         active_jobs = 0
-        for job_monitor_th in self.monitors:
-            if job_monitor_th.is_alive():
+        for exec_id in self.monitors:
+            if self.monitors[exec_id]['thread'].is_alive():
                 active_jobs += 1
         return active_jobs
 
@@ -386,28 +494,35 @@ class JobMonitor:
             th = Thread(target=self._job_monitoring_rabbitmq, args=(job,))
         else:
             th = Thread(target=self._job_monitoring_os, args=(job,))
+
         if not self.is_lithops_worker:
             th.daemon = True
+
+        exec_id = '{}-{}'.format(job.executor_id, job.job_id)
+        self.monitors[exec_id] = {'thread': th, 'should_run': True}
         th.start()
 
-        self.monitors.append(th)
-
     def _job_monitoring_os(self, job):
-        total_callids_done_in_job = 0
+        total_callids_done = 0
+        exec_id = '{}-{}'.format(job.executor_id, job.job_id)
 
-        while self.should_run and total_callids_done_in_job < job.total_calls:
+        while self.monitors[exec_id]['should_run'] and total_callids_done < job.total_calls:
             time.sleep(1)
-            callids_running_in_job, callids_done_in_job = self.internal_storage.get_job_status(job.executor_id, job.job_id)
-            total_new_tokens = len(callids_done_in_job) - total_callids_done_in_job
-            total_callids_done_in_job = total_callids_done_in_job + total_new_tokens
+            callids_running, callids_done = self.internal_storage.get_job_status(job.executor_id, job.job_id)
+            total_new_tokens = len(callids_done) - total_callids_done
+            total_callids_done = total_callids_done + total_new_tokens
             for i in range(total_new_tokens):
-                self.token_bucket_q.put('#')
+                if self.monitors[exec_id]['should_run']:
+                    self.token_bucket_q.put('#')
+                else:
+                    break
 
-        logger.debug('ExecutorID {} - | JobID {} job monitoring finished'
+        logger.debug('ExecutorID {} - | JobID {} -Job monitoring finished'
                      .format(job.executor_id,  job.job_id))
 
     def _job_monitoring_rabbitmq(self, job):
-        total_callids_done_in_job = 0
+        total_callids_done = 0
+        exec_id = '{}-{}'.format(job.executor_id, job.job_id)
 
         exchange = 'lithops-{}-{}'.format(job.executor_id, job.job_id)
         queue_1 = '{}-1'.format(exchange)
@@ -417,103 +532,15 @@ class JobMonitor:
         channel = connection.channel()
 
         def callback(ch, method, properties, body):
-            nonlocal total_callids_done_in_job
+            nonlocal total_callids_done
             call_status = json.loads(body.decode("utf-8"))
             if call_status['type'] == '__end__':
-                self.token_bucket_q.put('#')
-                total_callids_done_in_job += 1
-            if total_callids_done_in_job == job.total_calls:
+                if self.monitors[exec_id]['should_run']:
+                    self.token_bucket_q.put('#')
+                total_callids_done += 1
+            if total_callids_done == job.total_calls or \
+               not self.monitors[exec_id]['should_run']:
                 ch.stop_consuming()
 
         channel.basic_consume(callback, queue=queue_1, no_ack=True)
         channel.start_consuming()
-
-
-class StandaloneInvoker:
-    """
-    Module responsible to perform the invocations against the Standalone backend
-    """
-    def __init__(self, config, executor_id, internal_storage, compute_handler):
-        self.log_active = logger.getEffectiveLevel() != logging.WARNING
-        self.config = config
-        self.executor_id = executor_id
-        self.storage_config = extract_storage_config(self.config)
-        self.internal_storage = internal_storage
-
-        self.compute_handler = compute_handler
-        self.runtime_name = self.compute_handler.runtime
-
-    def select_runtime(self, job_id, runtime_memory):
-        log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {}'
-                   .format(self.executor_id, job_id, self.runtime_name))
-        logger.info(log_msg)
-        if not self.log_active:
-            print(log_msg, end=' ')
-
-        runtime_key = self.compute_handler.get_runtime_key(self.runtime_name)
-        runtime_deployed = True
-        try:
-            runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
-        except Exception:
-            runtime_deployed = False
-
-        if not runtime_deployed:
-            logger.debug('ExecutorID {} | JobID {} - Runtime {} is not yet '
-                         'installed'.format(self.executor_id, job_id, self.runtime_name))
-            if not self.log_active:
-                print('(Installing...)')
-
-            logger.debug('Creating runtime: {}'.format(self.runtime_name))
-            runtime_meta = self.compute_handler.create_runtime(self.runtime_name)
-            self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
-
-        py_local_version = version_str(sys.version_info)
-        py_remote_version = runtime_meta['python_ver']
-
-        if py_local_version != py_remote_version:
-            raise Exception(("The indicated runtime '{}' is running Python {} and it "
-                             "is not compatible with the local Python version {}")
-                            .format(self.runtime_name, py_remote_version, py_local_version))
-
-        if not self.log_active and runtime_deployed:
-            print()
-
-        return runtime_meta
-
-    def run(self, job_description):
-        """
-        Run a job
-        """
-        job_description['runtime_name'] = self.runtime_name
-        job_description['runtime_memory'] = None
-        job_description['runtime_timeout'] = None
-
-        job = SimpleNamespace(**job_description)
-
-        payload = {'config': self.config,
-                   'log_level': logging.getLevelName(logger.getEffectiveLevel()),
-                   'executor_id': job.executor_id,
-                   'job_id': job.job_id,
-                   'job_description': job_description,
-                   'lithops_version': __version__}
-
-        self.compute_handler.run_job(payload)
-
-        log_msg = ('ExecutorID {} | JobID {} - Invocation done'
-                   .format(job.executor_id, job.job_id))
-        logger.info(log_msg)
-
-        futures = []
-        for i in range(job.total_calls):
-            call_id = "{:05d}".format(i)
-            fut = ResponseFuture(call_id, job_description, job.metadata.copy(), self.storage_config)
-            fut._set_state(ResponseFuture.State.Invoked)
-            futures.append(fut)
-
-        return futures
-
-    def stop(self):
-        """
-        Stop the invoker process
-        """
-        pass

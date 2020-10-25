@@ -24,7 +24,7 @@ import subprocess
 from shutil import copyfile
 
 from lithops.config import TEMP, STORAGE_DIR, JOBS_PREFIX
-
+from lithops.version import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,7 @@ class LocalhostHandler:
     """
 
     def __init__(self, localhost_config):
+        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.config = localhost_config
         self.runtime = self.config['runtime']
 
@@ -48,6 +49,11 @@ class LocalhostHandler:
         else:
             self.env = DockerEnv(self.runtime)
             self.env_type = 'docker'
+
+        log_msg = ('Lithops v{} init for Localhost'.format(__version__))
+        if not self.log_active:
+            print(log_msg)
+        logger.info("Localhost handler created successfully")
 
     def run_job(self, job_payload):
         """
