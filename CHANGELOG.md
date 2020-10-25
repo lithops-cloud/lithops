@@ -3,10 +3,15 @@
 ## [v2.2.1-SNAPSHOT]
 
 ### Changed
+- [Core] Improved standalone executor logic
 - [Knative] Updated apiVersion to v1
 - [Knative] Updated default python3.8 Dockerfile
 
 ### Fixed
+- [Core] Fixed runtime_memory param in API calls
+- [Core] Raise fn exceptions immediately when produced
+- [Core] Raise exceptions during fn invocation
+- [IBM COS] Get tokens for IAM API key and COS API Key
 - [AWS Lambda] Fixes in Lambda compute backend
 
 

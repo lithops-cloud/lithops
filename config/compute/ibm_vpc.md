@@ -8,7 +8,7 @@ The IBM VPC client is a standalone compute backend. It is used for start and sto
 
 2. Create a SSH key in [IBM VPC SSH keys UI](https://cloud.ibm.com/vpc-ext/compute/sshKeys).
 
-3. Create an Ubuntu-based virtual server instance (VM) in [IBM VPC virtual server instances UI](https://cloud.ibm.com/vpc-ext/compute/vs) with CPUs and RAM needed for your application.
+3. Create an Ubuntu 20.04 virtual server instance (VM) in [IBM VPC virtual server instances UI](https://cloud.ibm.com/vpc-ext/compute/vs) with CPUs and RAM needed for your application.
 
 4. Reserve and associate a floating IP address in [IBM VPC floating IPs UI](https://cloud.ibm.com/vpc-ext/network/floatingIPs) to be used for the virtual server instance.
 
@@ -38,7 +38,11 @@ The IBM VPC client is a standalone compute backend. It is used for start and sto
        instance_id: <instance-id>
        ip_address: <floating-ip-address>
    ```
-   
+
+### Usage
+
+Note that the first time you execute a job in a brand new VM instance, the initial installation process can take up to ~3 minutes.
+
 #### Summary of configuration keys for IBM VPC
 
 |Group|Key|Default|Mandatory|Additional info|

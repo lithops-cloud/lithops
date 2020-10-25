@@ -37,6 +37,11 @@ RUNTIMES_PREFIX = "lithops.runtimes"
 
 EXECUTION_TIMEOUT_DEFAULT = 1800
 
+STANDALONE_RUNTIME_DEFAULT = 'python3'
+STANDALONE_AUTO_DISMANTLE_DEFAULT = True
+STANDALONE_SOFT_DISMANTLE_TIMEOUT_DEFAULT = 300
+STANDALONE_HARD_DISMANTLE_TIMEOUT_DEFAULT = 3600
+
 MAX_AGG_DATA_SIZE = 4  # 4MiB
 
 TEMP = os.path.realpath(tempfile.gettempdir())
@@ -153,10 +158,16 @@ def default_config(config_data=None, config_overwrite={}):
     elif config_data['lithops']['executor'] == 'standalone':
         if 'standalone' not in config_data:
             config_data['standalone'] = {}
+        if 'auto_dismantle' not in config_data['standalone']:
+            config_data['standalone']['auto_dismantle'] = STANDALONE_AUTO_DISMANTLE_DEFAULT
+        if 'soft_dismantle_timeout' not in config_data['standalone']:
+            config_data['standalone']['soft_dismantle_timeout'] = STANDALONE_SOFT_DISMANTLE_TIMEOUT_DEFAULT
+        if 'hard_dismantle_timeout' not in config_data['standalone']:
+            config_data['standalone']['hard_dismantle_timeout'] = STANDALONE_HARD_DISMANTLE_TIMEOUT_DEFAULT
         if 'backend' not in config_data['standalone']:
             config_data['standalone']['backend'] = STANDALONE_BACKEND_DEFAULT
         if 'runtime' not in config_data['standalone']:
-            config_data['standalone']['runtime'] = 'python3'
+            config_data['standalone']['runtime'] = STANDALONE_RUNTIME_DEFAULT
 
         sb = config_data['standalone']['backend']
         logger.debug("Loading Standalone backend module: {}".format(sb))
