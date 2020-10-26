@@ -59,10 +59,12 @@ class LocalhostHandler:
         """
         Run the job description against the selected environment
         """
+        runtime = job_payload['job_description']['runtime_name']
+        logger.info("Running job in {}. Check /tmp/lithops/local_handler.log "
+                    "for execution logs".format(runtime))
         if not os.path.isfile(HANDLER_FILE):
             self.env.setup()
 
-        runtime = job_payload['job_description']['runtime_name']
         exec_command = self.env.get_execution_cmd(runtime)
 
         executor_id = job_payload['executor_id']
@@ -85,6 +87,7 @@ class LocalhostHandler:
         """
         Extract the runtime metadata and preinstalled modules
         """
+        logger.info("Extracting preinstalled Python modules from {}".format(runtime))
         self.env.setup()
         exec_command = self.env.get_execution_cmd(runtime)
         process = subprocess.run(exec_command+' preinstalls', shell=True, check=True,

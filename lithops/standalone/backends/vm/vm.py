@@ -1,3 +1,4 @@
+import os
 import logging
 from lithops.version import __version__
 
@@ -33,3 +34,9 @@ class VMClient:
 
     def stop(self):
         pass
+
+    def get_runtime_key(self, runtime_name):
+        runtime_key = os.path.join(self.name, self.host,
+                                   runtime_name.strip("/"))
+
+        return runtime_key

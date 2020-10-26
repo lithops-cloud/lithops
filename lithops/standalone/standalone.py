@@ -138,7 +138,7 @@ class StandaloneHandler:
 
         return response['activationId']
 
-    def create_runtime(self, runtime, **options):
+    def create_runtime(self, runtime):
         """
         Installs the proxy and extracts the runtime metadata and
         preinstalled modules
@@ -162,14 +162,13 @@ class StandaloneHandler:
 
         return runtime_meta
 
-    def get_runtime_key(self, runtime_name, **options):
+    def get_runtime_key(self, runtime_name):
         """
-        Generate the runtime key that identifies the runtime
+        Wrapper method that returns a formated string that represents the runtime key.
+        Each backend has its own runtime key format. Used to store modules preinstalls
+        into the storage
         """
-        runtime_key = os.path.join('standalone', self.backend_name, self.ip_address,
-                                   self.env_type, runtime_name.strip("/"))
-
-        return runtime_key
+        return self.backend.get_runtime_key(runtime_name)
 
     def dismantle(self):
         """
@@ -212,9 +211,8 @@ class StandaloneHandler:
         self.ssh_client.upload_local_file(self.ip_address, FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip')
         os.remove(FH_ZIP_LOCATION)
 
-        cmd += 'apt-get update; apt-get install unzip python3-pip -y; '
+        cmd = 'apt-get update; apt-get install unzip python3-pip -y; '
         cmd += 'pip3 install flask gevent pika==0.13.1; '
-        cmd += 'mkdir -p {}; '.format(REMOTE_INSTALL_DIR)
         cmd += 'unzip -o /tmp/lithops_standalone.zip -d {} > /dev/null 2>&1; '.format(REMOTE_INSTALL_DIR)
         cmd += 'rm /tmp/lithops_standalone.zip; '
         cmd += 'chmod 644 {}; '.format(service_file)
