@@ -1,3 +1,4 @@
+import os
 import logging
 import requests
 import time
@@ -12,6 +13,7 @@ class IBMVPCInstanceClient:
     def __init__(self, ibm_vpc_config):
         logger.debug("Creating IBM VPC client")
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
+        self.name = 'ibm_vpc'
         self.config = ibm_vpc_config
 
         self.endpoint = self.config['endpoint']
@@ -118,3 +120,10 @@ class IBMVPCInstanceClient:
         logger.info("Stopping VM instance")
         self.create_instance_action('stop')
         logger.info("VM instance stopped successfully")
+
+    def get_runtime_key(self, runtime_name):
+        runtime_key = os.path.join(self.name, self.ip_address,
+                                   self.instance_id,
+                                   runtime_name.strip("/"))
+
+        return runtime_key

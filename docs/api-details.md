@@ -149,7 +149,7 @@ Spawn only one function activation.
 
 Spawn multiple function activations based on the items of an input list.
 
-**map**(func, iterdata, \*\*kwargs)
+**map**(map_function, map_iterdata, \*\*kwargs)
 
 |Parameter| Default |Description|
 |---|---|---|
@@ -165,7 +165,7 @@ Spawn multiple function activations based on the items of an input list.
 |chunk_n| None | Used for data_processing. Number of chunks to split each object. 'None' for processing the whole file in one function activation. chunk_n has prevalence over chunk_size if both parameters are set|
 |invoke_pool_threads| 500 | Number of threads to use to invoke the functions |
 
-* **Returns**: A list with size  len(iterdata) of futures for each job (Futures are also internally stored by Lithops).
+* **Returns**: A list with size  len(map_iterdata) of futures for each job (Futures are also internally stored by Lithops).
 
 * **Usage**:
 
@@ -180,18 +180,18 @@ Spawn multiple function activations based on the items of an input list.
 
 Spawn multiple *map_function* activations,  based on the items of an input list,  eventually spawning one (or multiple) *reduce_function* activations over the results of the map phase.
 
-**map_reduce**(map_func, iterdata, reduce_func, \*\*kwargs)
+**map_reduce**(map_function, map_iterdata, reduce_function, \*\*kwargs)
 
 |Parameter| Default |Description|
 |---|---|---|
 |map_function| |The function to map over the data |
 |map_iterdata |  |An iterable of input data (e.g python list)|
 |extra_args|  None | Additional arguments to pass to each map_function activation |
-|reduce_function|  |The function to map over the results of map_func |
+|reduce_function|  |The function to map over the results of map_function |
 |reducer_wait_local| False |Wait locally for map results |
 |extra_env| None | Additional environment variables for CF environment|
-|map_runtime_memory| 256 | Memory (in MB) to use to run the map function|
-|reduce_runtime_memory| 256| Memory (in MB) to use to run the reduce function|
+|map_runtime_memory| 256 | Memory (in MB) to use to run the map_function|
+|reduce_runtime_memory| 256| Memory (in MB) to use to run the reduce_function|
 |timeout| 600 | Max time per function activation (seconds)|
 |include_modules| [] |Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None |
 |exclude_modules| [] |Explicitly keep these modules from pickled dependencies. It is not taken into account if you set include_modules |
@@ -200,7 +200,7 @@ Spawn multiple *map_function* activations,  based on the items of an input list,
 |reducer_one_per_object| False| Used for data_processing. Set one reducer per object after running the partitioner (reduce-by-key) |
 |invoke_pool_threads| 500 | Number of threads to use to invoke the functions |
 
-* **Returns**: A list with size  len(iterdata)  of futures for each job (Futures are also internally stored by Lithops).
+* **Returns**: A list with size  len(map_iterdata)  of futures for each job (Futures are also internally stored by Lithops).
 
 * **Usage**:
 

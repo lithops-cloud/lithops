@@ -1,3 +1,19 @@
+#
+# Copyright Cloudlab URV 2020
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 import os
 import uuid
 import flask
@@ -10,9 +26,7 @@ import subprocess as sp
 from gevent.pywsgi import WSGIServer
 
 from lithops.config import STORAGE_DIR, JOBS_DONE_DIR, \
-    REMOTE_INSTALL_DIR, STANDALONE_AUTO_DISMANTLE_DEFAULT, \
-    STANDALONE_SOFT_DISMANTLE_TIMEOUT_DEFAULT,\
-    STANDALONE_HARD_DISMANTLE_TIMEOUT_DEFAULT
+    REMOTE_INSTALL_DIR
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
 
@@ -25,7 +39,8 @@ sys.stdout = log_file_fd
 sys.stderr = log_file_fd
 
 logging.basicConfig(filename=log_file, level=logging.INFO,
-                    format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s',
+                    format=('%(asctime)s.%(msecs)03d %(levelname)s '
+                            '%(module)s - %(funcName)s: %(message)s'),
                     datefmt='%Y-%m-%d %H:%M:%S')
 logger = logging.getLogger('proxy')
 
@@ -34,47 +49,40 @@ proxy = flask.Flask(__name__)
 last_usage_time = time.time()
 keeper = None
 jobs = {}
-
-auto_dismantle = STANDALONE_AUTO_DISMANTLE_DEFAULT
-soft_dismantle_timeout = STANDALONE_SOFT_DISMANTLE_TIMEOUT_DEFAULT
-hard_dismantle_timeout = STANDALONE_HARD_DISMANTLE_TIMEOUT_DEFAULT
+backend_handler = None
 
 
-def budget_keeper(handler):
+def budget_keeper():
     global last_usage_time
     global jobs
-    global auto_dismantle
-    global soft_dismantle_timeout
-    global hard_dismantle_timeout
-
-    auto_dismantle = handler.auto_dismantle
-    soft_dismantle_timeout = handler.soft_dismantle_timeout
-    hard_dismantle_timeout = handler.hard_dismantle_timeout
+    global backend_handler
 
     logger.info("BudgetKeeper started")
 
-    if auto_dismantle:
+    if backend_handler.auto_dismantle:
         logger.info('Auto dismantle activated - Soft timeout: {}s, Hard Timeout: {}s'
-                    .format(soft_dismantle_timeout, hard_dismantle_timeout))
+                    .format(backend_handler.soft_dismantle_timeout,
+                            backend_handler.hard_dismantle_timeout))
     else:
         # If auto_dismantle is deactivated, the VM will be always automatically
         # stopped after hard_dismantle_timeout. This will prevent the VM
         # being started forever due a wrong configuration
         logger.info('Auto dismantle deactivated - Hard Timeout: {}s'
-                    .format(hard_dismantle_timeout))
+                    .format(backend_handler.hard_dismantle_timeout))
 
     while True:
         time_since_last_usage = time.time() - last_usage_time
-        check_interval = soft_dismantle_timeout / 10
+        check_interval = backend_handler.soft_dismantle_timeout / 10
 
         for job in jobs.keys():
             if os.path.isfile('{}/{}.done'.format(JOBS_DONE_DIR, job)):
                 jobs[job] = 'done'
 
-        if len(jobs) > 0 and all(value == 'done' for value in jobs.values()) and auto_dismantle:
-            time_to_dismantle = int(soft_dismantle_timeout - time_since_last_usage)
+        if len(jobs) > 0 and all(value == 'done' for value in jobs.values()) \
+           and backend_handler.auto_dismantle:
+            time_to_dismantle = int(backend_handler.soft_dismantle_timeout - time_since_last_usage)
         else:
-            time_to_dismantle = int(hard_dismantle_timeout - time_since_last_usage)
+            time_to_dismantle = int(backend_handler.hard_dismantle_timeout - time_since_last_usage)
 
         if time_to_dismantle > 0:
             logger.info("Time to dismantle: {} seconds".format(time_to_dismantle))
@@ -82,20 +90,21 @@ def budget_keeper(handler):
         else:
             logger.info("Dismantling setup")
             try:
-                handler.backend.stop()
+                backend_handler.backend.stop()
             except Exception as e:
                 logger.info("Dismantle error {}".format(e))
 
 
 def init_keeper():
     global keeper
+    global backend_handler
 
     config_file = os.path.join(REMOTE_INSTALL_DIR, 'config')
     with open(config_file, 'r') as cf:
-        serverfull_config = json.load(cf)
+        standalone_config = json.load(cf)
 
-    handler = StandaloneHandler(serverfull_config)
-    keeper = threading.Thread(target=budget_keeper, args=(handler,))
+    backend_handler = StandaloneHandler(standalone_config)
+    keeper = threading.Thread(target=budget_keeper)
     keeper.daemon = True
     keeper.start()
 
@@ -112,10 +121,8 @@ def run():
     Run a job
     """
     global last_usage_time
+    global backend_handler
     global jobs
-    global auto_dismantle
-    global soft_dismantle_timeout
-    global hard_dismantle_timeout
 
     message = flask.request.get_json(force=True, silent=True)
     if message and not isinstance(message, dict):
@@ -124,14 +131,12 @@ def run():
     last_usage_time = time.time()
 
     standalone_config = message['config']['standalone']
-    auto_dismantle = standalone_config['auto_dismantle']
-    soft_dismantle_timeout = standalone_config['soft_dismantle_timeout']
-    hard_dismantle_timeout = standalone_config['hard_dismantle_timeout']
+    backend_handler.auto_dismantle = standalone_config['auto_dismantle']
+    backend_handler.soft_dismantle_timeout = standalone_config['soft_dismantle_timeout']
+    backend_handler.hard_dismantle_timeout = standalone_config['hard_dismantle_timeout']
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     runtime = message['job_description']['runtime_name']
-    logger.info("Running job in {}. Check /tmp/lithops/local_handler.log for execution logs".format(runtime))
-
     executor_id = message['job_description']['executor_id']
     job_id = message['job_description']['job_id']
     jobs['{}_{}'.format(executor_id.replace('/', '-'), job_id)] = 'running'
@@ -161,7 +166,6 @@ def preinstalls():
         return error()
 
     runtime = message['runtime']
-    logger.info("Extracting preinstalled Python modules from {}".format(runtime))
     localhost_handler = LocalhostHandler(message)
     runtime_meta = localhost_handler.create_runtime(runtime)
     response = flask.jsonify(runtime_meta)
@@ -170,9 +174,9 @@ def preinstalls():
     return response
 
 
-def install_evironemnt():
+def install_environment():
     """
-    Install docker command and dependenices in case they are not installed
+    Install docker command and Python deps in case they are not installed.
     Only for Ubuntu-based OS
     """
 
@@ -204,7 +208,7 @@ def install_evironemnt():
             except Exception as e:
                 logger.info("There was an error installing Docker: {}".format(e))
 
-            cmd = 'pip3 install -U lithops flask gevent && pip3 uninstall lithops -y'
+            cmd = 'pip3 install -U lithops'
             try:
                 logger.info("Installing python packages...")
                 with open(log_file, 'a') as lf:
@@ -217,7 +221,7 @@ def install_evironemnt():
 
 
 def main():
-    install_evironemnt()
+    install_environment()
     init_keeper()
     port = int(os.getenv('PORT', 8080))
     server = WSGIServer(('0.0.0.0', port), proxy, log=proxy.logger)
