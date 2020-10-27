@@ -397,11 +397,11 @@ class ServerlessInvoker(Invoker):
                     def _callback(future):
                         future.result()
 
-                    with ThreadPoolExecutor(job.invoke_pool_threads) as executor:
-                        for i in callids_to_invoke_direct:
-                            call_id = "{:05d}".format(i)
-                            future = executor.submit(self._invoke, job, call_id)
-                            future.add_done_callback(_callback)
+                    executor = ThreadPoolExecutor(job.invoke_pool_threads)
+                    for i in callids_to_invoke_direct:
+                        call_id = "{:05d}".format(i)
+                        future = executor.submit(self._invoke, job, call_id)
+                        future.add_done_callback(_callback)
 
                     # Put into the queue the rest of the callids to invoke within the process
                     if callids_to_invoke_nondirect:
