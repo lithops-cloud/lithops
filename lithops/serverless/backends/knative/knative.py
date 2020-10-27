@@ -84,10 +84,11 @@ class KnativeServingBackend:
                     node = self.v1.list_node()
                     ip = node.items[0].status.addresses[0].address
 
-                self.istio_endpoint = 'http://{}:{}'.format(ip, http_port)
-                self.knative_config['istio_endpoint'] = self.istio_endpoint
+                if ip and http_port:
+                    self.istio_endpoint = 'http://{}:{}'.format(ip, http_port)
+                    self.knative_config['istio_endpoint'] = self.istio_endpoint
             except Exception:
-                logger.info("istio-ingressgateway endpoint not found")
+                pass
 
         if 'service_host_suffix' not in self.knative_config:
             self.serice_host_filename = os.path.join(CACHE_DIR, 'knative', self.cluster, 'service_host')
@@ -593,18 +594,19 @@ class KnativeServingBackend:
             else:
                 conn = http.client.HTTPConnection(parsed_url.netloc)
 
-            conn.request("POST", route, body=json.dumps(payload), headers=headers)
-
             if exec_id and job_id and call_id:
-                logger.debug('ExecutorID {} | JobID {} - Function call {} invoked'
+                logger.debug('ExecutorID {} | JobID {} - Invoking function call {}'
                              .format(exec_id, job_id, call_id))
             elif exec_id and job_id:
-                logger.debug('ExecutorID {} | JobID {} - Function invoked'
+                logger.debug('ExecutorID {} | JobID {} - Invoking function'
                              .format(exec_id, job_id))
             else:
-                logger.debug('Function invoked')
+                logger.debug('Invoking function')
+
+            conn.request("POST", route, body=json.dumps(payload), headers=headers)
 
             resp = conn.getresponse()
+            headers = dict(resp.getheaders())
             resp_status = resp.status
             resp_data = resp.read().decode("utf-8")
             conn.close()
@@ -620,7 +622,7 @@ class KnativeServingBackend:
             raise Exception("Lithops runtime is not deployed in your k8s cluster")
         else:
             logger.debug('ExecutorID {} | JobID {} - Function call {} failed ({}). Retrying request'
-                         .format(exec_id, job_id, call_id, resp_data.replace('.', '')))
+                         .format(exec_id, job_id, call_id, resp_status))
 
     def get_runtime_key(self, docker_image_name, runtime_memory):
         """
