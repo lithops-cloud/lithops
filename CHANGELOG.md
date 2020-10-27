@@ -1,6 +1,16 @@
 # Changelog
 
-## [v2.2.1-SNAPSHOT]
+## [v2.2.2-SNAPSHOT]
+
+### Added
+- [Core] Cloudpickle 1.6.0 for python>=3.8
+
+### Fixed
+- [Core] Prevent lithops waiting forever for the proxy ready
+- [Knative] Istio endpoint issue in knative backend
+
+
+## [v2.2.1]
 
 ### Changed
 - [Core] Improved standalone executor logic
