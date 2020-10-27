@@ -32,7 +32,7 @@ from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config
 from lithops.utils import version_str, is_lithops_worker, is_unix_system
 
-
+mp.set_start_method("fork")
 logger = logging.getLogger(__name__)
 
 
