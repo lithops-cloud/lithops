@@ -30,7 +30,7 @@ Pillow >= 6.2.2
 #ibm_db == 3.0.1
 #cloudant == 2.12.0
 watson-developer-cloud == 1.7.1
-ibm-cos-sdk == 2.6.0
+ibm-cos-sdk == 2.7.0
 #ibmcloudsql == 0.2.23
 
 # Compose Libs
