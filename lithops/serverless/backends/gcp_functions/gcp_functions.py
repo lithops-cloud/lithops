@@ -67,7 +67,7 @@ class GCPFunctionsBackend:
         self.retry_sleeps = gcp_functions_config['retry_sleeps']
 
         # Instantiate storage client (used to upload function bin)
-        self.internal_storage = InternalStorage(gcp_functions_config['storage'])
+        self.internal_storage = InternalStorage(storage_config)
 
         # Setup Pub/Sub client
         try:  # Get credentials from JSON file
@@ -261,10 +261,8 @@ class GCPFunctionsBackend:
                 self.delete_runtime(runtime_name, runtime_memory)
 
     def list_runtimes(self, docker_image_name='all'):
-        default_location = self._full_default_location()
         response = self._get_funct_conn().projects().locations().functions().list(
-            location=default_location,
-            body={}
+            parent=self._full_default_location()
         ).execute(num_retries=self.num_retries)
 
         result = response['Functions'] if 'Functions' in response else []
