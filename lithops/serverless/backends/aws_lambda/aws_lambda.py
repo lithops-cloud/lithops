@@ -46,7 +46,8 @@ class AWSLambdaBackend:
         self.name = 'aws_lambda'
         self.aws_lambda_config = aws_lambda_config
 
-        self.package = 'lithops_v' + lithops.__version__
+        self.user_key = aws_lambda_config['access_key_id'][-4:]
+        self.package = 'lithops_v{}_{}'.format(lithops.__version__, self.user_key)
         self.region_name = aws_lambda_config['region_name']
         self.role_arn = aws_lambda_config['execution_role']
         self.layer_key = '_'.join([self.package.replace('.', '-'), '_layer'])
@@ -476,7 +477,7 @@ class AWSLambdaBackend:
 
         memory = 192
         modules_function_name = '_'.join([self.__format_action_name(runtime_name, memory),
-                                          'preinstalls', uuid.uuid4().hex[:8]])
+                                          'preinstalls', uuid.uuid4().hex[:4]])
         try:
             self.lambda_client.create_function(
                 FunctionName=modules_function_name,
