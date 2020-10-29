@@ -4,6 +4,20 @@ FROM python:3.8.5-slim-buster
 
 ENV FLASK_PROXY_PORT 8080
 
+RUN apt-get update \
+    # add some packages required for the pip install
+    && apt-get install -y \
+        gcc \
+        zlib1g-dev \
+        libxslt-dev \
+        libxml2-dev \
+        libgl1-mesa-glx \
+        zip \
+        unzip \
+    # cleanup package lists, they are not used anymore in this image
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-cache search linux-headers-generic
+
 RUN pip install --upgrade pip setuptools six \
     && pip install --no-cache-dir \
         simplejson \
@@ -12,24 +26,14 @@ RUN pip install --upgrade pip setuptools six \
         lxml \
         python-dateutil \
         pika==0.13.1 \
-        flask \
-        gevent \
-        ibm-cos-sdk \
         redis \
-        requests \
-        numpy \
-        # Modules for annotation-pipeline:
-        cpyMSpec==0.3.5 \
-        pyMSpec==0.1.2 \
-        cpyImagingMSpec==0.2.4 \
-        pyImagingMSpec==0.1.4 \
-        pandas==1.1.3 \
-        pyarrow==1.0.1 \
-        scipy==1.5.3 \
-        msgpack==0.6.2 \
-        msgpack-numpy==0.4.4.3 \
-	    pyimzML==1.3.0
-        
+        scikit-image \
+        opencv-contrib-python-headless \
+        opencv-python-headless
+
+# install additional python modules
+COPY requirements385.txt requirements.txt
+RUN pip install --upgrade pip setuptools six && pip install --no-cache-dir -r requirements.txt
 # create action working directory
 RUN mkdir -p /action \
     && mkdir -p /actionProxy \
