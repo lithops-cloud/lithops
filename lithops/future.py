@@ -45,16 +45,16 @@ class ResponseFuture:
     GET_RESULT_SLEEP_SECS = 1
     GET_RESULT_MAX_RETRIES = 10
 
-    def __init__(self, call_id, job_description, job_metadata, storage_config):
+    def __init__(self, call_id, job, job_metadata, storage_config):
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
 
         self.call_id = call_id
-        self.job_id = job_description['job_id']
-        self.executor_id = job_description['executor_id']
-        self.function_name = job_description['function_name']
-        self.execution_timeout = job_description['execution_timeout']
-        self.runtime_name = job_description['runtime_name']
-        self.runtime_memory = job_description['runtime_memory']
+        self.job_id = job.job_id
+        self.executor_id = job.executor_id
+        self.function_name = job.function_name
+        self.execution_timeout = job.execution_timeout
+        self.runtime_name = job.runtime_name
+        self.runtime_memory = job.runtime_memory
         self.activation_id = None
         self.stats = {}
 
