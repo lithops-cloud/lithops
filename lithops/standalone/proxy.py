@@ -137,8 +137,8 @@ def run():
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     runtime = message['job_description']['runtime_name']
-    executor_id = message['job_description']['executor_id']
-    job_id = message['job_description']['job_id']
+    executor_id = message['executor_id']
+    job_id = message['job_id']
     jobs['{}_{}'.format(executor_id.replace('/', '-'), job_id)] = 'running'
 
     localhost_handler = LocalhostHandler({'runtime': runtime})
