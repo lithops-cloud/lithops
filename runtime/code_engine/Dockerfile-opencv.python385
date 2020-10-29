@@ -27,6 +27,7 @@ RUN pip install --upgrade pip setuptools six \
         python-dateutil \
         pika==0.13.1 \
         redis \
+        scikit-image \
         opencv-contrib-python-headless \
         opencv-python-headless
 
@@ -34,11 +35,11 @@ RUN pip install --upgrade pip setuptools six \
 COPY requirements385.txt requirements.txt
 RUN pip install --upgrade pip setuptools six && pip install --no-cache-dir -r requirements.txt
 # create action working directory
-RUN mkdir -p /action \
-    && mkdir -p /actionProxy \
-    && mkdir -p /pythonAction
 
-ADD https://raw.githubusercontent.com/apache/openwhisk-runtime-docker/8b2e205c39d84ed5ede6b1b08cccf314a2b13105/core/actionProxy/actionproxy.py /actionProxy/actionproxy.py
-ADD https://raw.githubusercontent.com/apache/openwhisk-runtime-python/3%401.0.3/core/pythonAction/pythonrunner.py /pythonAction/pythonrunner.py
+# Copy Lithops proxy and lib to the container image.
+ENV APP_HOME /lithops
+WORKDIR $APP_HOME
 
-CMD ["/bin/bash", "-c", "cd /pythonAction && python -u pythonrunner.py"]
+COPY lithops_codeengine.zip .
+RUN unzip lithops_codeengine.zip
+RUN rm lithops_codeengine.zip
