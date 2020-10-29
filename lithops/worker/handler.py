@@ -50,7 +50,6 @@ def function_handler(event):
 
     extra_env = event.get('extra_env', {})
     os.environ.update(extra_env)
-
     os.environ.update({'LITHOPS_WORKER': 'True',
                        'PYTHONUNBUFFERED': 'True'})
 
@@ -66,7 +65,8 @@ def function_handler(event):
     execution_timeout = event['execution_timeout']
 
     logger.debug("Runtime name: {}".format(runtime_name))
-    logger.debug("Runtime memory: {}MB".format(runtime_memory))
+    if runtime_memory:
+        logger.debug("Runtime memory: {}MB".format(runtime_memory))
     logger.debug("Function timeout: {}s".format(execution_timeout))
 
     func_key = event['func_key']

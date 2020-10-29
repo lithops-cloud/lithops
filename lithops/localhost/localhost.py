@@ -104,6 +104,9 @@ class LocalhostHandler:
 
         return runtime_key
 
+    def delete_all_runtimes(self):
+        pass
+
 
 class DockerEnv:
     def __init__(self, docker_image):

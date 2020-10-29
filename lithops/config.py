@@ -175,6 +175,8 @@ def default_config(config_data=None, config_overwrite={}):
         sb_config.load_config(config_data)
 
     elif config_data['lithops']['executor'] == 'localhost':
+        if 'localhost' not in config_data:
+            config_data['localhost'] = {}
         if 'runtime' not in config_data['localhost']:
             config_data['localhost']['runtime'] = 'python3'
 
