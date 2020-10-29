@@ -100,8 +100,7 @@ class LocalhostExecutor:
                    'host_submit_tstamp': time.time(),
                    'lithops_version': __version__,
                    'runtime_name': job.runtime_name,
-                   'runtime_memory': job.runtime_memory,
-                   'runtime_timeout': job.runtime_timeout}
+                   'runtime_memory': job.runtime_memory}
 
         self.queue.put(payload)
 

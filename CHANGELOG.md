@@ -1,12 +1,20 @@
 # Changelog
 
-## [v2.2.2-SNAPSHOT]
+## [v2.2.dev3]
 
 ### Added
 - [Core] Cloudpickle 1.6.0 for python>=3.8
+- [Core] Multiprocessing API
+
+### Fixed
+- [Localhost] Fixed minor localhost executor logic
+
+
+## [v2.2.2]
 
 ### Fixed
 - [Core] Prevent lithops waiting forever for the proxy ready
+- [Core] Multiprocessing invoker in MAC OS
 - [Knative] Istio endpoint issue in knative backend
 
 
