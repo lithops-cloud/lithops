@@ -4,24 +4,27 @@
 #FROM python:3.5-slim-jessie
 
 # Python 3.6
-FROM python:3.6-slim-buster
+#FROM python:3.6-slim-buster
 
 # Python 3.7
 #FROM python:3.7-slim-buster
+
+# Python 3.8
+FROM python:3.8-slim-buster
 
 ENV FLASK_PROXY_PORT 8080
 
 RUN pip install --upgrade pip setuptools six \
     && pip install --no-cache-dir \
-        simplejson= \
+        simplejson \
         httplib2 \
         kafka_python \
-        lxml==4.3.1 \
+        lxml \
         python-dateutil \
         pika==0.13.1 \
         flask \
         gevent \
-        ibm-cos-sdk= \
+        ibm-cos-sdk \
         redis \
         requests \
         numpy

@@ -17,20 +17,18 @@
 import os
 import time
 import logging
-import random
+import multiprocessing as mp
 from types import SimpleNamespace
-from multiprocessing import Process, Queue
 from lithops.serverless import ServerlessHandler
 from lithops.invokers import JobMonitor
 from lithops.storage import InternalStorage
 from lithops.version import __version__
 from concurrent.futures import ThreadPoolExecutor
-from lithops.config import cloud_logging_config, extract_serverless_config, extract_storage_config
+from lithops.config import cloud_logging_config, \
+    extract_serverless_config, extract_storage_config
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('invoker')
-
-CBH = {}
 
 
 def function_invoker(event):
@@ -41,9 +39,8 @@ def function_invoker(event):
     if event['log_level']:
         cloud_logging_config(event['log_level'])
     log_level = logging.getLevelName(logger.getEffectiveLevel())
-    custom_env = {'LITHOPS_FUNCTION': 'True',
-                  'PYTHONUNBUFFERED': 'True',
-                  'LITHOPS_LOGLEVEL': log_level}
+    custom_env = {'LITHOPS_WORKER': 'True',
+                  'PYTHONUNBUFFERED': 'True'}
     os.environ.update(custom_env)
     config = event['config']
     num_invokers = event['invokers']
@@ -53,7 +50,7 @@ def function_invoker(event):
 
 class ServerlessInvoker:
     """
-    Module responsible to perform the invocations against the compute backend
+    Module responsible to perform the invocations against the serverless compute backend
     """
 
     def __init__(self, config, num_invokers, log_level):
@@ -62,7 +59,6 @@ class ServerlessInvoker:
         self.log_level = log_level
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
-        compute_config = extract_serverless_config(self.config)
 
         self.remote_invoker = self.config['lithops'].get('remote_invoker', False)
         self.rabbitmq_monitor = self.config['lithops'].get('rabbitmq_monitor', False)
@@ -70,23 +66,13 @@ class ServerlessInvoker:
             self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
 
         self.num_workers = self.config['lithops'].get('workers')
-        logger.debug('Total workers: {}'.format(self.num_workers))
+        logger.info('Total workers: {}'.format(self.num_workers))
 
-        self.serverless_handlers = []
-        cb = compute_config['backend']
-        regions = compute_config[cb].get('region')
-        if regions and type(regions) == list:
-            for region in regions:
-                new_compute_config = compute_config.copy()
-                new_compute_config[cb]['region'] = region
-                serverless_handler = ServerlessHandler(new_compute_config, storage_config)
-                self.serverless_handlers.append(serverless_handler)
-        else:
-            serverless_handler = ServerlessHandler(compute_config, storage_config)
-            self.serverless_handlers.append(serverless_handler)
+        serverless_config = extract_serverless_config(self.config)
+        self.serverless_handler = ServerlessHandler(serverless_config, storage_config)
 
-        self.token_bucket_q = Queue()
-        self.pending_calls_q = Queue()
+        self.token_bucket_q = mp.Queue()
+        self.pending_calls_q = mp.Queue()
 
         self.job_monitor = JobMonitor(self.config, self.internal_storage, self.token_bucket_q)
 
@@ -107,13 +93,13 @@ class ServerlessInvoker:
                    'host_submit_tstamp': time.time(),
                    'lithops_version': __version__,
                    'runtime_name': job.runtime_name,
-                   'runtime_memory': job.runtime_memory,
-                   'runtime_timeout': job.runtime_timeout}
+                   'runtime_memory': job.runtime_memory}
 
         # do the invocation
         start = time.time()
-        serverless_handler = random.choice(self.serverless_handlers)
-        activation_id = serverless_handler.invoke(job.runtime_name, job.runtime_memory, payload)
+        activation_id = self.serverless_handler.invoke(job.runtime_name,
+                                                       job.runtime_memory,
+                                                       payload)
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 
@@ -121,8 +107,10 @@ class ServerlessInvoker:
             self.pending_calls_q.put((job, call_id))
             return
 
-        logger.info('ExecutorID {} | JobID {} - Function invocation {} done! ({}s) - Activation'
-                    ' ID: {}'.format(job.executor_id, job.job_id, call_id, resp_time, activation_id))
+        logger.info('ExecutorID {} | JobID {} - Function invocation '
+                    '{} done! ({}s) - Activation  ID: {}'.
+                    format(job.executor_id, job.job_id, call_id,
+                           resp_time, activation_id))
 
         return call_id
 
@@ -132,8 +120,10 @@ class ServerlessInvoker:
         """
         job = SimpleNamespace(**job_description)
 
-        log_msg = ('ExecutorID {} | JobID {} - Starting function invocation: {}()  - Total: {} '
-                   'activations'.format(job.executor_id, job.job_id, job.function_name, job.total_calls))
+        log_msg = ('ExecutorID {} | JobID {} - Starting function '
+                   'invocation: {}()  - Total: {} activations'.
+                   format(job.executor_id, job.job_id,
+                          job.function_name, job.total_calls))
         logger.info(log_msg)
 
         self.total_calls = job.total_calls
@@ -155,7 +145,7 @@ class ServerlessInvoker:
 
             invokers = []
             for inv_id in range(self.num_invokers):
-                p = Process(target=self._run_process, args=(inv_id, ))
+                p = mp.Process(target=self._run_process, args=(inv_id, ))
                 p.daemon = True
                 p.start()
                 invokers.append(p)

@@ -20,19 +20,7 @@ from . import context
 # Copy stuff from default context
 #
 
-__all__ = [x for x in dir(context._default_context) if not x.startswith('_')]
-globals().update((name, getattr(context._default_context, name)) for name in __all__)
-
-#
-# XXX These should not really be documented or public.
-#
-
-SUBDEBUG = 5
-SUBWARNING = 25
-
-#
-# Alias for main module -- will be reset by bootstrapping child processes
-#
-
-if '__main__' in sys.modules:
-    sys.modules['__mp_main__'] = sys.modules['__main__']
+_names = [x for x in dir(context._default_context) if x[0] != "_"]
+globals().update((name, getattr(context._default_context, name))
+                 for name in _names)
+__all__ = _names + []

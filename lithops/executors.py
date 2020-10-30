@@ -163,12 +163,13 @@ class FunctionExecutor:
                              map_function=func,
                              iterdata=[data],
                              runtime_meta=runtime_meta,
+                             runtime_memory=runtime_memory,
                              extra_env=extra_env,
                              include_modules=include_modules,
                              exclude_modules=exclude_modules,
                              execution_timeout=timeout)
 
-        futures = self.invoker.run(job, runtime_memory)
+        futures = self.invoker.run(job)
         self.futures.extend(futures)
 
         return futures[0]
@@ -204,16 +205,17 @@ class FunctionExecutor:
                              map_function=map_function,
                              iterdata=map_iterdata,
                              runtime_meta=runtime_meta,
-                             extra_args=extra_args,
+                             runtime_memory=runtime_memory,
                              extra_env=extra_env,
-                             obj_chunk_size=chunk_size,
-                             obj_chunk_number=chunk_n,
-                             invoke_pool_threads=invoke_pool_threads,
                              include_modules=include_modules,
                              exclude_modules=exclude_modules,
-                             execution_timeout=timeout)
+                             execution_timeout=timeout,
+                             extra_args=extra_args,
+                             obj_chunk_size=chunk_size,
+                             obj_chunk_number=chunk_n,
+                             invoke_pool_threads=invoke_pool_threads)
 
-        futures = self.invoker.run(job, runtime_memory)
+        futures = self.invoker.run(job)
         self.futures.extend(futures)
 
         return futures
@@ -257,16 +259,17 @@ class FunctionExecutor:
                                  map_function=map_function,
                                  iterdata=map_iterdata,
                                  runtime_meta=runtime_meta,
+                                 runtime_memory=map_runtime_memory,
                                  extra_args=extra_args,
                                  extra_env=extra_env,
                                  obj_chunk_size=chunk_size,
                                  obj_chunk_number=chunk_n,
-                                 invoke_pool_threads=invoke_pool_threads,
                                  include_modules=include_modules,
                                  exclude_modules=exclude_modules,
-                                 execution_timeout=timeout)
+                                 execution_timeout=timeout,
+                                 invoke_pool_threads=invoke_pool_threads)
 
-        map_futures = self.invoker.run(map_job, map_runtime_memory)
+        map_futures = self.invoker.run(map_job)
         self.futures.extend(map_futures)
 
         if reducer_wait_local:
@@ -280,12 +283,13 @@ class FunctionExecutor:
                                        self.executor_id, reduce_job_id,
                                        reduce_function, map_job, map_futures,
                                        runtime_meta=runtime_meta,
+                                       runtime_memory=reduce_runtime_memory,
                                        reducer_one_per_object=reducer_one_per_object,
                                        extra_env=extra_env,
                                        include_modules=include_modules,
                                        exclude_modules=exclude_modules)
 
-        reduce_futures = self.invoker.run(reduce_job, reduce_runtime_memory)
+        reduce_futures = self.invoker.run(reduce_job)
 
         self.futures.extend(reduce_futures)
 
