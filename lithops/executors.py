@@ -545,12 +545,10 @@ class LocalhostExecutor(FunctionExecutor):
 
         :return `LocalhostExecutor` object.
         """
-        if storage is None:
-            storage = 'localhost'
-
-        FunctionExecutor.__init__(self, type='localhost', config=config,
-                                  runtime=runtime, storage=storage, log_level=log_level,
-                                  workers=workers, rabbitmq_monitor=rabbitmq_monitor)
+        super().__init__(type='localhost', config=config,
+                         runtime=runtime, storage=storage,
+                         log_level=log_level, workers=workers,
+                         rabbitmq_monitor=rabbitmq_monitor)
 
 
 class ServerlessExecutor(FunctionExecutor):
@@ -572,11 +570,11 @@ class ServerlessExecutor(FunctionExecutor):
 
         :return `ServerlessExecutor` object.
         """
-        FunctionExecutor.__init__(self, type='serverless', config=config,
-                                  runtime=runtime, runtime_memory=runtime_memory,
-                                  backend=backend, storage=storage, workers=workers,
-                                  rabbitmq_monitor=rabbitmq_monitor, log_level=log_level,
-                                  remote_invoker=remote_invoker)
+        super().__init__(type='serverless', config=config, runtime=runtime,
+                         runtime_memory=runtime_memory, backend=backend,
+                         storage=storage, workers=workers,
+                         rabbitmq_monitor=rabbitmq_monitor, log_level=log_level,
+                         remote_invoker=remote_invoker)
 
 
 class StandaloneExecutor(FunctionExecutor):
@@ -596,7 +594,6 @@ class StandaloneExecutor(FunctionExecutor):
 
         :return `StandaloneExecutor` object.
         """
-        FunctionExecutor.__init__(self, type='standalone', config=config,
-                                  runtime=runtime, backend=backend, storage=storage,
-                                  workers=workers, rabbitmq_monitor=rabbitmq_monitor,
-                                  log_level=log_level)
+        super().__init__(type='standalone', config=config, runtime=runtime,
+                         backend=backend, storage=storage, workers=workers,
+                         rabbitmq_monitor=rabbitmq_monitor, log_level=log_level)

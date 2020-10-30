@@ -129,8 +129,8 @@ class StandaloneInvoker(Invoker):
 
         self.compute_handler.run_job(payload)
 
-        log_msg = ('ExecutorID {} | JobID {} - {}() Invocation done'
-                   .format(job.executor_id, job.job_id, job.function_name))
+        log_msg = ('ExecutorID {} | JobID {} - {}() Invocation done - Total: {} activations'
+                   .format(job.executor_id, job.job_id, job.function_name, job.total_calls))
         logger.info(log_msg)
         if not self.log_active:
             print(log_msg)
