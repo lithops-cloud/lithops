@@ -15,7 +15,6 @@
 #
 
 import os
-import sys
 import logging
 import shutil
 import tempfile
@@ -26,7 +25,6 @@ import re
 import subprocess as sp
 import uuid
 from . import config as azure_fa_config
-from lithops.utils import version_str
 from lithops.version import __version__
 from .functionapps_client import FunctionAppClient
 from azure.storage.queue import QueueService
@@ -34,6 +32,7 @@ from azure.storage.queue.models import QueueMessageFormat
 import lithops
 
 logger = logging.getLogger(__name__)
+
 
 class AzureFunctionAppBackend:
     """
@@ -51,16 +50,14 @@ class AzureFunctionAppBackend:
         self.queue_service.encode_function = QueueMessageFormat.text_base64encode
         self.queue_service.decode_function = QueueMessageFormat.text_base64decode
 
-
         log_msg = 'Lithops v{} init for Azure Function Apps'.format(__version__)
         logger.info(log_msg)
         if not self.log_level:
             print(log_msg)
 
-
     def create_runtime(self, docker_image_name, memory=None, timeout=azure_fa_config.RUNTIME_TIMEOUT_DEFAULT):
         """
-        Creates a new runtime into Azure Function Apps 
+        Creates a new runtime into Azure Function Apps
         from the provided Linux image for consumption plan
         """
 
@@ -78,7 +75,6 @@ class AzureFunctionAppBackend:
 
         return metadata
 
-
     def delete_runtime(self, docker_image_name, extract_preinstalls=False):
         """
         Deletes a runtime
@@ -92,14 +88,13 @@ class AzureFunctionAppBackend:
         queue_name = self._format_queue_name(docker_image_name, type='trigger')
         self.queue_service.delete_queue(queue_name)
 
-
     def invoke(self, docker_image_name, memory=None, payload={}):
         """
         Invoke function
         """        
         action_name = self._format_action_name(docker_image_name)
         queue_name = self._format_queue_name(action_name, type='trigger')
-        
+
         try:
             msg = self.queue_service.put_message(queue_name, json.dumps(payload))
             activation_id = msg.id
@@ -110,7 +105,6 @@ class AzureFunctionAppBackend:
             return self.invoke(docker_image_name, memory=memory, payload=payload)
 
         return activation_id
-                        
 
     def get_runtime_key(self, docker_image_name, runtime_memory):
         """
@@ -123,6 +117,9 @@ class AzureFunctionAppBackend:
 
         return runtime_key
 
+    def clean(self):
+        # TODO
+        pass
 
     def _format_action_name(self, action_name):
         sha_1 = hashlib.sha1()
@@ -134,18 +131,16 @@ class AzureFunctionAppBackend:
         block = self.config['account_name'].encode('ascii', errors='ignore')
         sha_1.update(block)
         tag = tag + sha_1.hexdigest()[:8]
-        
+
         version = re.sub(r'[/_:.-]', '', __version__)
         action_name = action_name[:16] + '-' + version[:5] + '-' + tag
 
         return action_name
 
-
     def _format_queue_name(self, action_name, type):
         #  Using different queue names because there is a delay between
         #  deleting a queue and creating another one with the same name
         return action_name + '-' + type
-
 
     def _create_runtime(self, action_name, extract_preinstalls=False):
         """
@@ -220,11 +215,11 @@ class AzureFunctionAppBackend:
             project_template = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'action')
             project_dir = os.path.join(initial_dir, temp_folder, action_name)
             shutil.copytree(project_template, project_dir)
-            
+
             os.chdir(project_dir)
             action_dir = os.path.join(project_dir, action_name)
             os.rename('action', action_dir)
-            
+
             # Add the base dependencies and current lithops module
             logger.debug('Adding runtime base modules')
             os.makedirs(azure_fa_config.ACTION_MODULES_DIR, exist_ok=True)
@@ -237,13 +232,13 @@ class AzureFunctionAppBackend:
             else:
                 entry_point_file = 'handler_action.py'
 
-            os.rename(os.path.join(action_dir, entry_point_file), 
-                        os.path.join(action_dir, '__init__.py'))
+            os.rename(os.path.join(action_dir, entry_point_file),
+                      os.path.join(action_dir, '__init__.py'))
 
             # Edit the function's bindings for it to be a queue triggered function
             with open(os.path.join(action_dir, 'function.json'), 'w') as bindings_file:
                 bindings_file.write(get_bindings_str(action_name, extract_preinstalls))
-                
+
             # Create trigger queue, create action
             logger.debug('Creating trigger queue')
             queue_name = self._format_queue_name(action_name, type='trigger')
@@ -254,16 +249,14 @@ class AzureFunctionAppBackend:
         except Exception as e:
             raise Exception("Unable to create the new runtime", e)
 
-        finally: 
+        finally:
             os.chdir(initial_dir)
-            shutil.rmtree(temp_folder, ignore_errors=True) # Remove tmp project folder
-        
+            shutil.rmtree(temp_folder, ignore_errors=True)  # Remove tmp project folder
 
     def _generate_runtime_meta(self):
         """
         Extract installed Python modules from Azure runtime
         """
-        
         action_name = 'lithops-extract-preinstalls-' + get_unique_id()
         self._create_runtime(action_name, extract_preinstalls=True)
 
@@ -283,7 +276,6 @@ class AzureFunctionAppBackend:
         logger.info("Extracted metadata succesfully")
         return runtime_meta
 
-
     def _invoke_with_result(self, action_name):
         result_queue_name = self._format_queue_name(action_name, type='result')
         self.queue_service.create_queue(result_queue_name)
@@ -297,10 +289,8 @@ class AzureFunctionAppBackend:
 
         result_str = msg[0].content
         self.queue_service.delete_queue(result_queue_name)
-        
         return json.loads(result_str)
 
-    
+
 def get_unique_id():
     return str(uuid.uuid4()).replace('-', '')[:10]
-

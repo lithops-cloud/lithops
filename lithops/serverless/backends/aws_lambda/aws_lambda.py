@@ -290,7 +290,7 @@ class AWSLambdaBackend:
             msg = 'An error occurred creating/updating action {}: {}'.format(runtime_name, response)
             raise Exception(msg)
 
-    def delete_all_runtimes(self):
+    def clean(self):
         """
         Deletes all Lithops Lambda runtimes
         """

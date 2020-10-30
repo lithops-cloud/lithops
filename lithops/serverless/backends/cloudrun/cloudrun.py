@@ -181,7 +181,7 @@ class CloudRunServingBackend:
         if res != 0:
             raise Exception('There was an error deleting the runtime')
 
-    def delete_all_runtimes(self):
+    def clean(self):
         """
         Deletes all runtimes deployed
         """

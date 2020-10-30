@@ -1,3 +1,19 @@
+#
+# Copyright Cloudlab URV 2020
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 import click
 import logging
 import lithops
@@ -23,16 +39,17 @@ def clean():
 
 
 @cli.command('test')
+@click.option('--config', '-c', default=None, help='use json config file')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
-def test_function(debug):
+def test_function(config, debug):
     set_debug(debug)
 
     def hello(name):
         return 'Hello {}!'.format(name)
 
-    pw = lithops.function_executor()
-    pw.call_async(hello, 'World')
-    result = pw.get_result()
+    fexec = lithops.FunctionExecutor(config=config)
+    fexec.call_async(hello, 'World')
+    result = fexec.get_result()
     print()
     if result == 'Hello World!':
         print(result, 'Lithops is working as expected :)')
@@ -44,13 +61,14 @@ def test_function(debug):
 @cli.command('verify')
 @click.option('--test', '-t', default='all', help='run a specific test, type "-t help" for tests list')
 @click.option('--config', '-c', default=None, help='use json config file')
+@click.option('--executor', '-e', default=None, help='serverless, standalone or localhost')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
-def verify(test, config, debug):
+def verify(test, config, executor, debug):
     if test == 'help':
         print_help()
     else:
         set_debug(debug)
-        run_tests(test, config)
+        run_tests(test, executor, config)
 
 
 cli.add_command(runtime)

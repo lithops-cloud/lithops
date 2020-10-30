@@ -525,7 +525,7 @@ class KnativeServingBackend:
         except Exception:
             pass
 
-    def delete_all_runtimes(self):
+    def clean(self):
         """
         Deletes all runtimes deployed in knative
         """

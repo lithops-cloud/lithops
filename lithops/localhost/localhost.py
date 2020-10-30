@@ -104,7 +104,7 @@ class LocalhostHandler:
 
         return runtime_key
 
-    def delete_all_runtimes(self):
+    def clean(self):
         pass
 
 
