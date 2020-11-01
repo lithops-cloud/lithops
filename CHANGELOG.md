@@ -5,9 +5,13 @@
 ### Added
 - [Core] Cloudpickle 1.6.0 for python>=3.8
 - [Core] Multiprocessing API
+- [Core] --executor option in tests
+
+### Changed
+- [Core] Improved localhost/standalone logging
 
 ### Fixed
-- [Localhost] Fixed minor localhost executor logic
+- [Core] Fixed some issues in localhost executor logic
 
 
 ## [v2.2.2]

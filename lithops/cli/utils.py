@@ -46,8 +46,6 @@ def clean_all(config=None):
         compute_config = extract_standalone_config(config)
         compute_handler = StandaloneHandler(compute_config)
 
-    # Clean localhost executor temp dirs
-    shutil.rmtree(STORAGE_DIR, ignore_errors=True)
     compute_handler.clean()
 
     # Clean object storage temp dirs
@@ -55,5 +53,7 @@ def clean_all(config=None):
     clean_bucket(storage, storage_config['bucket'], RUNTIMES_PREFIX, sleep=1)
     clean_bucket(storage, storage_config['bucket'], JOBS_PREFIX, sleep=1)
 
+    # Clean localhost executor temp dirs
+    shutil.rmtree(STORAGE_DIR, ignore_errors=True)
     # Clean local lithops cache
     shutil.rmtree(CACHE_DIR, ignore_errors=True)

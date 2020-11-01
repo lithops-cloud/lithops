@@ -54,6 +54,10 @@ CONFIG_DIR = os.path.join(HOME_DIR, '.lithops')
 CACHE_DIR = os.path.join(CONFIG_DIR, 'cache')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config')
 
+FN_LOG_FILE = os.path.join(STORAGE_DIR, 'functions.log')
+LH_LOG_FILE = os.path.join(STORAGE_DIR, 'local_handler.log')
+PX_LOG_FILE = os.path.join(STORAGE_DIR, 'proxy.log')
+
 
 def load_yaml_config(config_filename):
     import yaml
@@ -267,7 +271,7 @@ def default_logging_config(log_level='INFO'):
     })
 
 
-def cloud_logging_config(log_level='INFO'):
+def ow_logging_config(log_level='INFO'):
     if log_level == 'DEBUG_BOTO3':
         log_level = 'DEBUG'
         logging.getLogger('ibm_boto3').setLevel(logging.DEBUG)

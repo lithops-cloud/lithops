@@ -21,11 +21,10 @@ import flask
 import logging
 import pkgutil
 from lithops.version import __version__
-from lithops.config import cloud_logging_config
+from lithops.config import default_logging_config
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
 
-cloud_logging_config(logging.INFO)
 logger = logging.getLogger('__main__')
 
 
@@ -45,6 +44,9 @@ def run():
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
+
+    log_level = message['log_level']
+    default_logging_config(log_level)
 
     if 'remote_invoker' in message:
         logger.info("Lithops v{} - Starting Knative invoker".format(__version__))

@@ -142,16 +142,21 @@ class StandaloneHandler:
         """
         Run the job description against the selected environment
         """
+        executor_id = job_payload['executor_id']
+        job_id = job_payload['job_id']
+
         if not self._is_proxy_ready():
             # The VM instance is stopped
+            if not self.log_active:
+                print('ExecutorID {} - Starting VM instance' .format(executor_id))
             init_time = time.time()
             self.backend.start()
             self._wait_proxy_ready()
             total_start_time = round(time.time()-init_time, 2)
             logger.info('VM instance ready in {} seconds'.format(total_start_time))
 
-        logger.info('ExecutorID: {} | JobID: {} - Running job'.
-                    format(job_payload['executor_id'], job_payload['job_id']))
+        logger.info('ExecutorID {} | JobID {} - Running job'.
+                    format(executor_id, job_id))
         url = "http://{}:{}/run".format(self.ip_address, PROXY_SERVICE_PORT)
         r = requests.post(url, data=json.dumps(job_payload))
         response = r.json()
@@ -184,9 +189,9 @@ class StandaloneHandler:
 
     def get_runtime_key(self, runtime_name):
         """
-        Wrapper method that returns a formated string that represents the runtime key.
-        Each backend has its own runtime key format. Used to store modules preinstalls
-        into the storage
+        Wrapper method that returns a formated string that represents the
+        runtime key. Each backend has its own runtime key format. Used to
+        store modules preinstalls into the storage
         """
         return self.backend.get_runtime_key(runtime_name)
 
@@ -201,8 +206,8 @@ class StandaloneHandler:
 
     def _setup_proxy(self):
         logger.info('Installing Lithops proxy in the VM instance')
-        logger.debug('Be patient, installation process can take up to 3 '
-                     'minutes if this is the first time you use the VM instance')
+        logger.debug('Be patient, installation process can take up to 3 minutes'
+                     'if this is the first time you use the VM instance')
 
         service_file = '/etc/systemd/system/{}'.format(PROXY_SERVICE_NAME)
         self.ssh_client.upload_data_to_file(self.ip_address, PROXY_SERVICE_FILE, service_file)

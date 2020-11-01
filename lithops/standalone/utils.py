@@ -1,4 +1,7 @@
 import paramiko
+import logging
+
+logging.getLogger('paramiko').setLevel(logging.CRITICAL)
 
 
 class SSHClient():
