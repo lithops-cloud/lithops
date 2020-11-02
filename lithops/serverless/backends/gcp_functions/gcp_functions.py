@@ -252,7 +252,7 @@ class GCPFunctionsBackend:
             if response['status'] == 'DELETE_IN_PROGRESS':
                 time.sleep(random.choice(self.retry_sleeps))
 
-    def delete_all_runtimes(self):
+    def clean(self):
         runtimes = self.list_runtimes()
         for runtime in runtimes:
             if 'lithops_v' in runtime:

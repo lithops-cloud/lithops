@@ -48,9 +48,9 @@ def clean_all(config=None):
 
     # Clean localhost executor temp dirs
     shutil.rmtree(STORAGE_DIR, ignore_errors=True)
+    compute_handler.clean()
 
     # Clean object storage temp dirs
-    compute_handler.delete_all_runtimes()
     storage = internal_storage.storage
     clean_bucket(storage, storage_config['bucket'], RUNTIMES_PREFIX, sleep=1)
     clean_bucket(storage, storage_config['bucket'], JOBS_PREFIX, sleep=1)

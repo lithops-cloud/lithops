@@ -28,19 +28,25 @@ from lithops.utils import is_object_processing_function, sizeof_fmt
 from lithops.storage.utils import create_func_key, create_agg_data_key
 from lithops.job.serialize import SerializeIndependent, create_module_data
 from lithops.config import MAX_AGG_DATA_SIZE, JOBS_PREFIX
+from types import SimpleNamespace
 
 logger = logging.getLogger(__name__)
 
+SERVERLESS = 'serverless'
+STANDALONE = 'standalone'
+LOCALHOST = 'localhost'
 
-def create_map_job(config, internal_storage, executor_id, job_id, map_function, iterdata, runtime_meta,
-                   extra_args=None, extra_env=None, obj_chunk_size=None, obj_chunk_number=None,
-                   invoke_pool_threads=128, include_modules=[], exclude_modules=[], execution_timeout=None):
+
+def create_map_job(config, internal_storage, executor_id, job_id, map_function,
+                   iterdata, runtime_meta, runtime_memory, extra_env,
+                   include_modules, exclude_modules, execution_timeout,
+                   extra_args=None,  obj_chunk_size=None, obj_chunk_number=None,
+                   invoke_pool_threads=128):
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
     """
-    host_job_meta = {'host_job_create_tstamp': time.time()}
 
-    map_func = map_function
+    host_job_meta = {'host_job_create_tstamp': time.time()}
     map_iterdata = utils.verify_args(map_function, iterdata, extra_args)
 
     if config['lithops'].get('rabbitmq_monitor', False):
@@ -60,25 +66,31 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function, 
         host_job_meta['host_job_create_partitions_time'] = round(time.time()-create_partitions_start, 6)
     # ########
 
-    job_description = _create_job(config, internal_storage, executor_id,
-                                  job_id, map_func, map_iterdata,
-                                  runtime_meta=runtime_meta,
-                                  extra_env=extra_env,
-                                  invoke_pool_threads=invoke_pool_threads,
-                                  include_modules=include_modules,
-                                  exclude_modules=exclude_modules,
-                                  execution_timeout=execution_timeout,
-                                  host_job_meta=host_job_meta)
+    job = _create_job(config=config,
+                      internal_storage=internal_storage,
+                      executor_id=executor_id,
+                      job_id=job_id,
+                      func=map_function,
+                      iterdata=map_iterdata,
+                      runtime_meta=runtime_meta,
+                      runtime_memory=runtime_memory,
+                      extra_env=extra_env,
+                      include_modules=include_modules,
+                      exclude_modules=exclude_modules,
+                      execution_timeout=execution_timeout,
+                      host_job_meta=host_job_meta,
+                      invoke_pool_threads=invoke_pool_threads)
 
     if parts_per_object:
-        job_description['parts_per_object'] = parts_per_object
+        job.parts_per_object = parts_per_object
 
-    return job_description
+    return job
 
 
-def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, reduce_function,
-                      map_job, map_futures, runtime_meta, reducer_one_per_object=False,
-                      extra_env=None, include_modules=[], exclude_modules=[], execution_timeout=None):
+def create_reduce_job(config, internal_storage, executor_id, reduce_job_id,
+                      reduce_function, map_job, map_futures, runtime_meta,
+                      runtime_memory, reducer_one_per_object, extra_env,
+                      include_modules, exclude_modules, execution_timeout=None):
     """
     Wrapper to create a reduce job. Apply a function across all map futures.
     """
@@ -86,10 +98,10 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
 
     iterdata = [[map_futures, ]]
 
-    if 'parts_per_object' in map_job and reducer_one_per_object:
+    if hasattr(map_job, 'parts_per_object') and reducer_one_per_object:
         prev_total_partitons = 0
         iterdata = []
-        for total_partitions in map_job['parts_per_object']:
+        for total_partitions in map_job.parts_per_object:
             iterdata.append([map_futures[prev_total_partitons:prev_total_partitons+total_partitions]])
             prev_total_partitons = prev_total_partitons + total_partitions
 
@@ -102,9 +114,14 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
 
     iterdata = utils.verify_args(reduce_function, iterdata, None)
 
-    return _create_job(config, internal_storage, executor_id,
-                       reduce_job_id, reduce_function,
-                       iterdata, runtime_meta=runtime_meta,
+    return _create_job(config=config,
+                       internal_storage=internal_storage,
+                       executor_id=executor_id,
+                       job_id=reduce_job_id,
+                       func=reduce_function,
+                       iterdata=iterdata,
+                       runtime_meta=runtime_meta,
+                       runtime_memory=runtime_memory,
                        extra_env=ext_env,
                        include_modules=include_modules,
                        exclude_modules=exclude_modules,
@@ -112,9 +129,10 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id, redu
                        host_job_meta=host_job_meta)
 
 
-def _create_job(config, internal_storage, executor_id, job_id, func, data, runtime_meta,
-                extra_env=None, invoke_pool_threads=128, include_modules=[],
-                exclude_modules=[], execution_timeout=None, host_job_meta=None):
+def _create_job(config, internal_storage, executor_id, job_id, func,
+                iterdata, runtime_meta, runtime_memory, extra_env,
+                include_modules, exclude_modules, execution_timeout,
+                host_job_meta, invoke_pool_threads=128):
     """
     :param func: the function to map over the data
     :param iterdata: An iterable of input data
@@ -135,19 +153,32 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
         ext_env = utils.convert_bools_to_string(ext_env)
         logger.debug("Extra environment vars {}".format(ext_env))
 
-    if not data:
-        return []
+    job = SimpleNamespace()
+    job.executor_id = executor_id
+    job.job_id = job_id
+    job.extra_env = ext_env
+    job.execution_timeout = execution_timeout or config['lithops']['execution_timeout']
+    job.function_name = func.__name__
+    job.total_calls = len(iterdata)
 
-    exec_timeout = execution_timeout or config['lithops']['execution_timeout']
+    executor = config['lithops']['executor']
 
-    job_description = {}
-    job_description['execution_timeout'] = exec_timeout
-    job_description['function_name'] = func.__name__
-    job_description['extra_env'] = ext_env
-    job_description['total_calls'] = len(data)
-    job_description['invoke_pool_threads'] = invoke_pool_threads
-    job_description['executor_id'] = executor_id
-    job_description['job_id'] = job_id
+    if executor == SERVERLESS:
+        job.invoke_pool_threads = invoke_pool_threads
+        job.runtime_memory = runtime_memory or config['serverless']['runtime_memory']
+        job.runtime_timeout = config['serverless']['runtime_timeout']
+        if job.execution_timeout >= job.runtime_timeout:
+            job.execution_timeout = job.runtime_timeout - 5
+
+    if executor == STANDALONE:
+        job.runtime_memory = None
+        runtime_timeout = config['standalone']['hard_dismantle_timeout']
+        if job.execution_timeout >= runtime_timeout:
+            job.execution_timeout = runtime_timeout - 10
+
+    if executor == LOCALHOST:
+        job.runtime_memory = None
+        job.runtime_timeout = execution_timeout
 
     exclude_modules_cfg = config['lithops'].get('exclude_modules', [])
     include_modules_cfg = config['lithops'].get('include_modules', [])
@@ -170,7 +201,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     logger.debug('ExecutorID {} | JobID {} - Serializing function and data'.format(executor_id, job_id))
     job_serialize_start = time.time()
     serializer = SerializeIndependent(runtime_meta['preinstalls'])
-    func_and_data_ser, mod_paths = serializer([func] + data, inc_modules, exc_modules)
+    func_and_data_ser, mod_paths = serializer([func] + iterdata, inc_modules, exc_modules)
     data_strs = func_and_data_ser[1:]
     data_size_bytes = sum(len(x) for x in data_strs)
     module_data = create_module_data(mod_paths)
@@ -201,9 +232,9 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
 
     # Upload data
     data_key = create_agg_data_key(JOBS_PREFIX, executor_id, job_id)
-    job_description['data_key'] = data_key
+    job.data_key = data_key
     data_bytes, data_ranges = utils.agg_data(data_strs)
-    job_description['data_ranges'] = data_ranges
+    job.data_ranges = data_ranges
     data_upload_start = time.time()
     internal_storage.put_data(data_key, data_bytes)
     data_upload_end = time.time()
@@ -213,7 +244,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
     # Upload function and modules
     func_upload_start = time.time()
     func_key = create_func_key(JOBS_PREFIX, executor_id, job_id)
-    job_description['func_key'] = func_key
+    job.func_key = func_key
     internal_storage.put_func(func_key, func_module_str)
     func_upload_end = time.time()
 
@@ -221,9 +252,9 @@ def _create_job(config, internal_storage, executor_id, job_id, func, data, runti
 
     host_job_meta['host_job_created_time'] = round(time.time() - host_job_meta['host_job_create_tstamp'], 6)
 
-    job_description['metadata'] = host_job_meta
+    job.metadata = host_job_meta
 
-    return job_description
+    return job
 
 
 def clean_job(jobs_to_clean, storage_config, clean_cloudobjects):

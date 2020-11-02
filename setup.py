@@ -1,20 +1,4 @@
 #!/usr/bin/env python
-#
-# (C) Copyright IBM Corp. 2020
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-
 from setuptools import setup, find_packages
 
 # how to get version info into the project
@@ -23,10 +7,9 @@ setup(
     name='lithops',
     version=__version__,
     url='https://github.com/lithops-cloud/lithops',
-    author='Gil Vernik',
-    description='Run many jobs over IBM Cloud',
-    long_description="Lithops lets you transparently run your Python functions in the Cloud",
-    author_email='gilv@il.ibm.com',
+    author='Gil Vernik, Josep Sampe',
+    description='Lithops lets you transparently run your Python functions in the Cloud',
+    author_email='gilv@il.ibm.com, josep.sampe@urv.cat',
     packages=find_packages(),
     install_requires=[
         'Click',
@@ -85,6 +68,9 @@ setup(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Topic :: Software Development :: Libraries :: Python Modules',
+        'Topic :: Scientific/Engineering',
+        'Topic :: System :: Distributed Computing',
     ],
     python_requires='>=3.5',
 )
