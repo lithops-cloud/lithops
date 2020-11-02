@@ -137,7 +137,7 @@ class OpenWhiskBackend:
         action_name = self._format_action_name(docker_image_name, memory)
         self.cf_client.delete_action(self.package, action_name)
 
-    def delete_all_runtimes(self):
+    def clean(self):
         """
         Deletes all runtimes from all packages
         """

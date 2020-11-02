@@ -53,8 +53,8 @@ class Invoker:
         logger.debug('ExecutorID {} - Total available workers: {}'
                      .format(self.executor_id, self.workers))
 
-        self.executor = self.config['lithops']['executor']
-        self.runtime_name = self.config[self.executor]['runtime']
+        executor = self.config['lithops']['executor']
+        self.runtime_name = self.config[executor]['runtime']
 
     def select_runtime(self, job_id, runtime_memory):
         """
@@ -62,7 +62,7 @@ class Invoker:
         """
         raise NotImplementedError
 
-    def run(self, job_description, runtime_memory):
+    def run(self, job):
         """
         Run a job
         """
@@ -114,35 +114,23 @@ class StandaloneInvoker(Invoker):
 
         return runtime_meta
 
-    def run(self, job_description, runtime_memory):
+    def run(self, job):
         """
         Run a job
         """
-        execution_timeout = job_description['execution_timeout']
-        job_description['runtime_name'] = self.runtime_name
-        job_description['runtime_memory'] = None
-        if self.executor == 'standalone':
-            runtime_timeout = self.config['standalone']['hard_dismantle_timeout']
-            if execution_timeout >= runtime_timeout:
-                job_description['execution_timeout'] = runtime_timeout - 10
-        else:
-            # localhost
-            runtime_timeout = execution_timeout
-        job_description['runtime_timeout'] = runtime_timeout
-
-        job = SimpleNamespace(**job_description)
+        job.runtime_name = self.runtime_name
 
         payload = {'config': self.config,
                    'log_level': logging.getLevelName(logger.getEffectiveLevel()),
                    'executor_id': job.executor_id,
                    'job_id': job.job_id,
-                   'job_description': job_description,
+                   'job_description': job.__dict__,
                    'lithops_version': __version__}
 
         self.compute_handler.run_job(payload)
 
-        log_msg = ('ExecutorID {} | JobID {} - Invocation done'
-                   .format(job.executor_id, job.job_id))
+        log_msg = ('ExecutorID {} | JobID {} - {}() Invocation done - Total: {} activations'
+                   .format(job.executor_id, job.job_id, job.function_name, job.total_calls))
         logger.info(log_msg)
         if not self.log_active:
             print(log_msg)
@@ -150,7 +138,7 @@ class StandaloneInvoker(Invoker):
         futures = []
         for i in range(job.total_calls):
             call_id = "{:05d}".format(i)
-            fut = ResponseFuture(call_id, job_description,
+            fut = ResponseFuture(call_id, job,
                                  job.metadata.copy(),
                                  self.storage_config)
             fut._set_state(ResponseFuture.State.Invoked)
@@ -280,8 +268,7 @@ class ServerlessInvoker(Invoker):
                    'host_submit_tstamp': time.time(),
                    'lithops_version': __version__,
                    'runtime_name': job.runtime_name,
-                   'runtime_memory': job.runtime_memory,
-                   'runtime_timeout': job.runtime_timeout}
+                   'runtime_memory': job.runtime_memory}
 
         # do the invocation
         start = time.time()
@@ -299,18 +286,17 @@ class ServerlessInvoker(Invoker):
         logger.info('ExecutorID {} | JobID {} - Function call {} done! ({}s) - Activation'
                     ' ID: {}'.format(job.executor_id, job.job_id, call_id, resp_time, activation_id))
 
-    def _invoke_remote(self, job_description):
+    def _invoke_remote(self, job):
         """
         Method used to send a job_description to the remote invoker
         """
         start = time.time()
-        job = SimpleNamespace(**job_description)
 
         payload = {'config': self.config,
                    'log_level': logging.getLevelName(logger.getEffectiveLevel()),
                    'executor_id': job.executor_id,
                    'job_id': job.job_id,
-                   'job_description': job_description,
+                   'job_description': job.__dict__,
                    'remote_invoker': True,
                    'invokers': 4,
                    'lithops_version': __version__}
@@ -325,21 +311,12 @@ class ServerlessInvoker(Invoker):
         else:
             raise Exception('Unable to spawn remote invoker')
 
-    def run(self, job_description, runtime_memory):
+    def run(self, job):
         """
         Run a job described in job_description
         """
-        job_description['runtime_name'] = self.runtime_name
-        rm = runtime_memory or self.config['serverless']['runtime_memory']
-        job_description['runtime_memory'] = rm
-        runtime_timeout = self.config['serverless']['runtime_timeout']
-        job_description['runtime_timeout'] = runtime_timeout
 
-        execution_timeout = job_description['execution_timeout']
-        if execution_timeout >= runtime_timeout:
-            job_description['execution_timeout'] = runtime_timeout - 5
-
-        job = SimpleNamespace(**job_description)
+        job.runtime_name = self.runtime_name
 
         try:
             while True:
@@ -361,7 +338,7 @@ class ServerlessInvoker(Invoker):
             if not self.log_active:
                 print(log_msg)
 
-            th = Thread(target=self._invoke_remote, args=(job_description,))
+            th = Thread(target=self._invoke_remote, args=(job,))
             th.daemon = True
             th.start()
             time.sleep(0.1)
@@ -432,7 +409,7 @@ class ServerlessInvoker(Invoker):
         futures = []
         for i in range(job.total_calls):
             call_id = "{:05d}".format(i)
-            fut = ResponseFuture(call_id, job_description,
+            fut = ResponseFuture(call_id, job,
                                  job.metadata.copy(),
                                  self.storage_config)
             fut._set_state(ResponseFuture.State.Invoked)

@@ -196,7 +196,7 @@ class StandaloneHandler:
         """
         self.backend.stop()
 
-    def delete_all_runtimes(self):
+    def clean(self):
         pass
 
     def _setup_proxy(self):

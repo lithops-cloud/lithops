@@ -5,11 +5,10 @@ import pkgutil
 import logging
 import uuid
 import time
-import multiprocessing
+import multiprocessing as mp
 from pathlib import Path
 from threading import Thread
 from types import SimpleNamespace
-from multiprocessing import Process, Queue
 from lithops.utils import version_str, is_unix_system
 from lithops.worker import function_handler
 from lithops.config import STORAGE_DIR, JOBS_DONE_DIR
@@ -22,7 +21,8 @@ log_file = os.path.join(STORAGE_DIR, 'local_handler.log')
 logging.basicConfig(filename=log_file, level=logging.INFO)
 logger = logging.getLogger('handler')
 
-CPU_COUNT = multiprocessing.cpu_count()
+
+CPU_COUNT = mp.cpu_count()
 
 
 def extract_runtime_meta():
@@ -50,7 +50,7 @@ class LocalhostExecutor:
 
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.config = config
-        self.queue = Queue()
+        self.queue = mp.Queue()
         self.use_threads = not is_unix_system()
         self.num_workers = self.config['lithops'].get('workers', CPU_COUNT)
         self.workers = []
@@ -65,7 +65,7 @@ class LocalhostExecutor:
                 p.start()
         else:
             for worker_id in range(self.num_workers):
-                p = Process(target=self._process_runner, args=(worker_id,))
+                p = mp.Process(target=self._process_runner, args=(worker_id,))
                 self.workers.append(p)
                 p.start()
 
@@ -76,15 +76,19 @@ class LocalhostExecutor:
         logger.debug('Localhost worker process {} started'.format(worker_id))
 
         while True:
-            event = self.queue.get(block=True)
+            try:
+                event = self.queue.get(block=True)
 
-            if isinstance(event, ShutdownSentinel):
+                if isinstance(event, ShutdownSentinel):
+                    break
+
+                act_id = str(uuid.uuid4()).replace('-', '')[:12]
+                os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
+                event['extra_env']['__LITHOPS_LOCAL_EXECUTION'] = 'True'
+                function_handler(event)
+            except KeyboardInterrupt:
                 break
-
-            act_id = str(uuid.uuid4()).replace('-', '')[:12]
-            os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
-            event['extra_env']['__LITHOPS_LOCAL_EXECUTION'] = 'True'
-            function_handler(event)
+        logger.debug('Localhost worker process {} finished'.format(worker_id))
 
     def _invoke(self, job, call_id):
         payload = {'config': self.config,
@@ -100,8 +104,7 @@ class LocalhostExecutor:
                    'host_submit_tstamp': time.time(),
                    'lithops_version': __version__,
                    'runtime_name': job.runtime_name,
-                   'runtime_memory': job.runtime_memory,
-                   'runtime_timeout': job.runtime_timeout}
+                   'runtime_memory': job.runtime_memory}
 
         self.queue.put(payload)
 
