@@ -20,10 +20,10 @@ import json
 import lithops
 import logging
 import shutil
-import subprocess
+import subprocess as sp
 from shutil import copyfile
 
-from lithops.config import TEMP, STORAGE_DIR, JOBS_PREFIX
+from lithops.config import TEMP, STORAGE_DIR, JOBS_PREFIX, FN_LOG_FILE
 from lithops.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -60,8 +60,8 @@ class LocalhostHandler:
         Run the job description against the selected environment
         """
         runtime = job_payload['job_description']['runtime_name']
-        logger.info("Running job in {}. Check /tmp/lithops/local_handler.log "
-                    "for execution logs".format(runtime))
+        logger.info("Running job in {}. Check {} for execution logs"
+                    .format(runtime, FN_LOG_FILE))
         if not os.path.isfile(HANDLER_FILE):
             self.env.setup()
 
@@ -80,8 +80,8 @@ class LocalhostHandler:
             json.dump(job_payload, jl)
 
         log_file = open(os.path.join(STORAGE_DIR, 'local_handler.log'), 'a')
-        subprocess.Popen(exec_command+' run '+jobr_filename, shell=True,
-                         stdout=log_file, universal_newlines=True)
+        sp.Popen(exec_command+' run '+jobr_filename, shell=True,
+                 stdout=log_file, universal_newlines=True)
 
     def create_runtime(self, runtime):
         """
@@ -90,8 +90,8 @@ class LocalhostHandler:
         logger.info("Extracting preinstalled Python modules from {}".format(runtime))
         self.env.setup()
         exec_command = self.env.get_execution_cmd(runtime)
-        process = subprocess.run(exec_command+' preinstalls', shell=True, check=True,
-                                 stdout=subprocess.PIPE, universal_newlines=True)
+        process = sp.run(exec_command+' preinstalls', shell=True, check=True,
+                         stdout=sp.PIPE, universal_newlines=True)
         runtime_meta = json.loads(process.stdout.strip())
 
         return runtime_meta

@@ -32,7 +32,7 @@ from lithops.config import extract_storage_config
 from lithops.storage import InternalStorage
 from lithops.worker.jobrunner import JobRunner
 from lithops.worker.utils import get_memory_usage
-from lithops.config import cloud_logging_config, JOBS_PREFIX, STORAGE_DIR
+from lithops.config import JOBS_PREFIX, STORAGE_DIR
 from lithops.storage.utils import create_output_key, create_status_key, create_init_key
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
@@ -44,8 +44,6 @@ LITHOPS_LIBS_PATH = '/action/lithops/libs'
 def function_handler(event):
     start_tstamp = time.time()
 
-    log_level = event['log_level']
-    cloud_logging_config(log_level)
     logger.debug("Action handler started")
 
     extra_env = event.get('extra_env', {})
@@ -116,7 +114,6 @@ def function_handler(event):
                             'executor_id':  executor_id,
                             'func_key': func_key,
                             'data_key': data_key,
-                            'log_level': log_level,
                             'data_byte_range': data_byte_range,
                             'output_key': create_output_key(JOBS_PREFIX, executor_id, job_id, call_id),
                             'stats_filename': jobrunner_stats_filename}

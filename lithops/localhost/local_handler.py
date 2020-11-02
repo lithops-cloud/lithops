@@ -1,26 +1,31 @@
 import os
+import io
 import sys
 import json
 import pkgutil
 import logging
 import uuid
 import time
+import queue
 import multiprocessing as mp
 from pathlib import Path
 from threading import Thread
 from types import SimpleNamespace
+from contextlib import redirect_stdout, redirect_stderr
+
 from lithops.utils import version_str, is_unix_system
 from lithops.worker import function_handler
-from lithops.config import STORAGE_DIR, JOBS_DONE_DIR
+from lithops.config import STORAGE_DIR, JOBS_DONE_DIR, FN_LOG_FILE,\
+    LH_LOG_FILE, default_logging_config
 from lithops import __version__
 
 os.makedirs(STORAGE_DIR, exist_ok=True)
 os.makedirs(JOBS_DONE_DIR, exist_ok=True)
 
-log_file = os.path.join(STORAGE_DIR, 'local_handler.log')
-logging.basicConfig(filename=log_file, level=logging.INFO)
+logging.basicConfig(filename=LH_LOG_FILE, level=logging.INFO,
+                    format=('%(asctime)s [%(levelname)s] '
+                            '%(module)s: %(message)s'))
 logger = logging.getLogger('handler')
-
 
 CPU_COUNT = mp.cpu_count()
 
@@ -44,26 +49,24 @@ class LocalhostExecutor:
     A wrap-up around Localhost multiprocessing APIs.
     """
 
-    def __init__(self, config, executor_id, job_id, log_level):
-
-        logging.basicConfig(filename=log_file, level=log_level)
-
-        self.log_active = logger.getEffectiveLevel() != logging.WARNING
+    def __init__(self, config):
         self.config = config
-        self.queue = mp.Queue()
         self.use_threads = not is_unix_system()
         self.num_workers = self.config['lithops'].get('workers', CPU_COUNT)
         self.workers = []
 
-        sys.stdout = open(log_file, 'a')
-        sys.stderr = open(log_file, 'a')
+        log_file_stream = open(LH_LOG_FILE, 'a')
+        sys.stdout = log_file_stream
+        sys.stderr = log_file_stream
 
         if self.use_threads:
+            self.queue = queue.Queue()
             for worker_id in range(self.num_workers):
                 p = Thread(target=self._process_runner, args=(worker_id,))
                 self.workers.append(p)
                 p.start()
         else:
+            self.queue = mp.Queue()
             for worker_id in range(self.num_workers):
                 p = mp.Process(target=self._process_runner, args=(worker_id,))
                 self.workers.append(p)
@@ -76,19 +79,30 @@ class LocalhostExecutor:
         logger.debug('Localhost worker process {} started'.format(worker_id))
 
         while True:
-            try:
-                event = self.queue.get(block=True)
+            with io.StringIO() as buf, redirect_stdout(buf), redirect_stderr(buf):
+                try:
+                    act_id = str(uuid.uuid4()).replace('-', '')[:12]
+                    os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
 
-                if isinstance(event, ShutdownSentinel):
+                    event = self.queue.get(block=True)
+                    if isinstance(event, ShutdownSentinel):
+                        break
+
+                    log_level = event['log_level']
+                    default_logging_config(log_level)
+                    logger.info("Lithops v{} - Starting execution".format(__version__))
+                    event['extra_env']['__LITHOPS_LOCAL_EXECUTION'] = 'True'
+                    function_handler(event)
+                except KeyboardInterrupt:
                     break
 
-                act_id = str(uuid.uuid4()).replace('-', '')[:12]
-                os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
-                event['extra_env']['__LITHOPS_LOCAL_EXECUTION'] = 'True'
-                function_handler(event)
-            except KeyboardInterrupt:
-                break
-        logger.debug('Localhost worker process {} finished'.format(worker_id))
+                header = "Activation: '{}' ({})\n[\n".format(event['runtime_name'], act_id)
+                tail = ']\n\n'
+                output = buf.getvalue()
+                output = output.replace('\n', '\n    ', output.count('\n')-1)
+
+            with open(FN_LOG_FILE, 'a') as lf:
+                lf.write(header+'    '+output+tail)
 
     def _invoke(self, job, call_id):
         payload = {'config': self.config,
@@ -140,8 +154,7 @@ if __name__ == "__main__":
 
         logger.info('ExecutorID {} | JobID {} - Starting execution'
                     .format(job.executor_id, job.job_id))
-        localhost_execuor = LocalhostExecutor(job.config, job.executor_id,
-                                              job.job_id, job.log_level)
+        localhost_execuor = LocalhostExecutor(job.config)
         localhost_execuor.run(job.job_description)
         localhost_execuor.wait()
 
