@@ -113,3 +113,21 @@ If you need to create new runtime, please follow [Building and managing Lithops 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |code_engine | cpu | 1000 |no | CPU limit in millicpu. Default 1vCPU (1000m) |
+
+### Usage Example
+
+```
+import lithops
+
+iterdata = ['Gil', 'Dana', 'John', 'Scott']
+
+def add_value(name):
+    return 'Hello ' + name
+
+if __name__ == '__main__':
+	lt = lithops.FunctionExecutor(type="serverless",
+			backend='code_engine',
+			runtime = 'ibmfunctions/lithops-ce-3.8.5-2.2.2:1.0.0')
+	lt.map(add_value,  iterdata)
+	print (lt.get_result())
+```
