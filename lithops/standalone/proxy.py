@@ -57,6 +57,8 @@ def budget_keeper():
     global jobs
     global backend_handler
 
+    jobs_running = False
+
     logger.info("BudgetKeeper started")
 
     if backend_handler.auto_dismantle:
@@ -73,16 +75,23 @@ def budget_keeper():
     while True:
         time_since_last_usage = time.time() - last_usage_time
         check_interval = backend_handler.soft_dismantle_timeout / 10
-
         for job in jobs.keys():
             if os.path.isfile('{}/{}.done'.format(JOBS_DONE_DIR, job)):
                 jobs[job] = 'done'
-
         if len(jobs) > 0 and all(value == 'done' for value in jobs.values()) \
            and backend_handler.auto_dismantle:
+
+            # here we need to catch a moment when number of running jobs become zero.
+            # when it happens we reset countdown back to soft_dismantle_timeout
+            if jobs_running:
+                jobs_running = False
+                last_usage_time = time.time()
+                time_since_last_usage = time.time() - last_usage_time
+
             time_to_dismantle = int(backend_handler.soft_dismantle_timeout - time_since_last_usage)
         else:
             time_to_dismantle = int(backend_handler.hard_dismantle_timeout - time_since_last_usage)
+            jobs_running = True
 
         if time_to_dismantle > 0:
             logger.info("Time to dismantle: {} seconds".format(time_to_dismantle))
