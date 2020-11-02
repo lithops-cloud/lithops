@@ -2,16 +2,10 @@
 
 from __future__ import absolute_import
 
-import sys
 import os
 import re
 from os.path import join
 from . import fnmatch
-
-try:
-    from itertools import imap
-except ImportError:
-    imap = map
 
 
 class Globber(object):
@@ -82,7 +76,7 @@ class Globber(object):
                              norm_paths, case_sensitive, sep)
         if with_matches:
             return result
-        return imap(lambda s: s[0], result)
+        return map(lambda s: s[0], result)
 
     def _iglob(self, pathname, rootcall, include_hidden,
                norm_paths, case_sensitive, sep):
@@ -140,13 +134,8 @@ class Globber(object):
         and faster to filter here than in :meth:`_iglob`.
         """
 
-        if sys.version_info[0] == 3:
-            if isinstance(pattern, bytes):
-                dirname = bytes(os.curdir, 'ASCII')
-        else:
-            if isinstance(pattern, unicode) and not isinstance(dirname, unicode):
-                dirname = unicode(dirname, sys.getfilesystemencoding() or
-                                           sys.getdefaultencoding())
+        if isinstance(pattern, bytes):
+            dirname = bytes(os.curdir, 'ASCII')
 
         # If no magic, short-circuit, only check for existence
         if not has_magic(pattern):
