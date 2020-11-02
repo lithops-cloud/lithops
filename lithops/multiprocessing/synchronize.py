@@ -11,7 +11,7 @@
 __all__ = [
     'Lock', 'RLock', 'Semaphore', 'BoundedSemaphore',
     'Condition', 'Event', 'Barrier'
-    ]
+]
 
 import threading
 import time
@@ -22,14 +22,14 @@ from . import util
 # Constants
 #
 
-SEM_VALUE_MAX = 2**30
+SEM_VALUE_MAX = 2 ** 30
+
 
 #
 # Base class for semaphores and mutexes
 #
 
 class SemLock:
-
     # KEYS[1] - semlock name
     # ARGV[1] - max value
     # return new semlock value
@@ -58,16 +58,16 @@ class SemLock:
 
     def __getstate__(self):
         return (self._name, self._max_value, self._client,
-            self._lua_release, self._ref)
+                self._lua_release, self._ref)
 
     def __setstate__(self, state):
         (self._name, self._max_value, self._client,
-            self._lua_release, self._ref) = state
+         self._lua_release, self._ref) = state
 
     def __enter__(self):
         self.acquire()
         return self
-    
+
     def __exit__(self, *args):
         self.release()
 
@@ -81,7 +81,7 @@ class SemLock:
             return True
         else:
             return self._client.lpop(self._name) is not None
-        
+
     def release(self):
         self._lua_release(keys=[self._name],
                           args=[self._max_value],
@@ -94,6 +94,7 @@ class SemLock:
             value = 'unknown'
         return '<%s(value=%s)>' % (self.__class__.__name__, value)
 
+
 #
 # Semaphore
 #
@@ -103,6 +104,7 @@ class Semaphore(SemLock):
     def __init__(self, value=1):
         super().__init__(value, SEM_VALUE_MAX)
 
+
 #
 # Bounded semaphore
 #
@@ -111,7 +113,7 @@ class BoundedSemaphore(SemLock):
 
     def __init__(self, value=1):
         super().__init__(value, value)
-        
+
 
 #
 # Non-recursive lock
@@ -135,6 +137,7 @@ class Lock(SemLock):
     def release(self):
         super().release()
         self.owned = False
+
 
 #
 # Recursive lock
@@ -160,11 +163,10 @@ class Condition:
             self._lock = Lock()
             # help reducing the amount of open clients
             self._client = self._lock._client
-        
+
         self._notify_handle = 'condition-notify-' + util.get_uuid()
         self._ref = util.RemoteReference(self._notify_handle,
-            client=self._client)
-
+                                         client=self._client)
 
     def acquire(self):
         return self._lock.acquire()
@@ -205,7 +207,6 @@ class Condition:
                 raise Exception('Condition ({}) could not notify \
                     one waiting process'.format(self._notify_handle))
 
-
     def notify_all(self, msg=''):
         assert self._lock.owned
 
@@ -223,7 +224,6 @@ class Condition:
             if not all(results):
                 raise Exception('Condition ({}) could not notify \
                     all waiting processes'.format(self._notify_handle))
-
 
     def wait_for(self, predicate, timeout=None):
         result = predicate()
@@ -245,6 +245,7 @@ class Condition:
 
     # def __repr__(self):
 
+
 #
 # Event
 #
@@ -256,7 +257,7 @@ class Event:
         self._client = self._cond._client
         self._flag_handle = 'event-flag-' + util.get_uuid()
         self._ref = util.RemoteReference(self._flag_handle,
-            client=self._client)
+                                         client=self._client)
 
     def is_set(self):
         return self._client.get(self._flag_handle) == b'1'
@@ -273,6 +274,7 @@ class Event:
     def wait(self, timeout=None):
         with self._cond:
             self._cond.wait_for(self.is_set, timeout)
+
 
 #
 # Barrier
@@ -292,7 +294,7 @@ class Barrier(threading.Barrier):
         self._action = action
         self._timeout = timeout
         self._parties = parties
-        self._state = 0 #0 filling, 1, draining, -1 resetting, -2 broken
+        self._state = 0  # 0 filling, 1, draining, -1 resetting, -2 broken
         self._count = 0
 
     @property

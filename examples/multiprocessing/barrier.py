@@ -16,7 +16,7 @@ if __name__ == "__main__":
     barrier = Barrier(n)
 
     with Pool() as p:
-        p.map_async(f, [[barrier, q]] * (n - 1)) # all - 1
+        p.map_async(f, [[barrier, q]] * (n - 1))  # all - 1
 
         print('Result queue empty:', q.empty())
 

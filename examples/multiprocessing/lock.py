@@ -21,5 +21,3 @@ if __name__ == "__main__":
 
     for _ in range(n):
         print(q.get())
-    
-

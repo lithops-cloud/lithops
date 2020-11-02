@@ -9,7 +9,7 @@
 #
 # Modifications Copyright (c) 2020 Cloudlab URV
 
-__all__ = [ 'BaseManager', 'SyncManager', 'BaseProxy', 'Token' ]
+__all__ = ['BaseManager', 'SyncManager', 'BaseProxy', 'Token']
 
 #
 # Imports
@@ -140,6 +140,7 @@ class BaseManager:
         '''
         Register a typeid with the manager type
         '''
+
         def temp(self, *args, **kwds):
             util.debug('requesting creation of a shared %r object', typeid)
             proxy = proxytype(*args, **kwds)
@@ -147,6 +148,7 @@ class BaseManager:
                 proxy._ref.managed = True
                 self._mrefs.append(proxy._ref)
             return proxy
+
         temp.__name__ = typeid
         setattr(cls, typeid, temp)
 
@@ -211,7 +213,6 @@ class BaseProxy(object):
 #        Current implementation is the same as multiprocessing
 
 class ListProxy(BaseProxy):
-
     # KEYS[1] - key to extend
     # KEYS[2] - key to extend with
     # ARGV[1] - number of repetitions
@@ -245,11 +246,11 @@ class ListProxy(BaseProxy):
                 # raised when index >= len(self)
                 raise IndexError('list assignment index out of range')
 
-        elif isinstance(i, slice):    # TODO: step
+        elif isinstance(i, slice):  # TODO: step
             start, end, step = deslice(i)
             if start is None:
                 return
-                
+
             if end < 0:
                 end = len(self) + end
 
@@ -270,9 +271,9 @@ class ListProxy(BaseProxy):
             except TypeError:
                 raise TypeError('can only assign an iterable')
             pipeline.execute()
-        else:    
+        else:
             raise TypeError('list indices must be integers '
-                'or slices, not {}'.format(type(i)))
+                            'or slices, not {}'.format(type(i)))
 
     def __getitem__(self, i):
         if isinstance(i, int) or hasattr(i, '__index__'):
@@ -282,17 +283,17 @@ class ListProxy(BaseProxy):
                 return self._pickler.loads(serialized)
             raise IndexError('list index out of range')
 
-        elif isinstance(i, slice):    # TODO: step
+        elif isinstance(i, slice):  # TODO: step
             start, end, step = deslice(i)
             if start is None:
                 return []
             serialized = self._client.lrange(self._oid, start, end)
             unserialized = [self._pickler.loads(obj) for obj in serialized]
             return unserialized
-            #return type(self)(unserialized)
+            # return type(self)(unserialized)
         else:
             raise TypeError('list indices must be integers '
-                'or slices, not {}'.format(type(i)))
+                            'or slices, not {}'.format(type(i)))
 
     def extend(self, iterable):
         if isinstance(iterable, type(self)):
@@ -344,12 +345,12 @@ class ListProxy(BaseProxy):
         # FIXME: list only allows concatenation to other list objects
         #        (altough it can now be extended by iterables)
         self.extend(x)
-        return self       
+        return self
 
     def __mul__(self, n):
         if not isinstance(n, int):
             raise TypeError("TypeError: can't multiply sequence"
-                    " by non-int of type {}". format(type(n)))
+                            " by non-int of type {}".format(type(n)))
         if n < 1:
             # return type(self)()
             return []
@@ -365,9 +366,9 @@ class ListProxy(BaseProxy):
     def __imul__(self, n):
         if not isinstance(n, int):
             raise TypeError("TypeError: can't multiply sequence"
-                    " by non-int of type {}". format(type(n)))
+                            " by non-int of type {}".format(type(n)))
         if n > 1:
-            self._extend_same_type(self, repeat=n-1)
+            self._extend_same_type(self, repeat=n - 1)
         return self
 
     def __len__(self):
@@ -434,9 +435,9 @@ class DictProxy(BaseProxy):
 
         unserialized = self._pickler.loads(serialized)
         return unserialized
-        
+
     def __delitem__(self, k):
-        res = self._client.hdel(self._oid, k)   
+        res = self._client.hdel(self._oid, k)
         if res == 0:
             raise KeyError(k)
 
@@ -488,7 +489,7 @@ class DictProxy(BaseProxy):
         if args is not ():
             if len(args) > 1:
                 raise TypeError('update expected at most'
-                    ' 1 arguments, got {}'.format(len(args)))
+                                ' 1 arguments, got {}'.format(len(args)))
             try:
                 for k in args[0].keys():
                     items.extend((k, self._pickler.dumps(args[0][k])))
@@ -502,7 +503,7 @@ class DictProxy(BaseProxy):
 
         for k in kwargs.keys():
             items.extend((k, self._pickler.dumps(kwargs[k])))
-        
+
         if len(items) > 0:
             self._client.execute_command('HMSET', self._oid, *items)
 
@@ -584,14 +585,14 @@ class ValueProxy(BaseProxy):
 class ArrayProxy(ListProxy):
     def __init__(self, typecode, sequence, lock=True):
         super().__init__(sequence)
-        
+
 
 #
 # Definition of SyncManager
 #
 
 class SyncManager(BaseManager):
-    '''
+    """
     Subclass of `BaseManager` which supports a number of shared object types.
 
     The types registered are those intended for the synchronization
@@ -599,7 +600,7 @@ class SyncManager(BaseManager):
 
     The `multiprocessing.Manager()` function creates started instances of
     this class.
-    '''
+    """
 
 
 SyncManager.register('Queue', queues.Queue)

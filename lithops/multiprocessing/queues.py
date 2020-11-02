@@ -26,9 +26,11 @@ from . import connection
 from . import util
 from . import synchronize
 from . import context
+
 _ForkingPickler = context.reduction.ForkingPickler
 
 from .util import debug, info, Finalize, register_after_fork, is_exiting
+
 
 #
 # Queue type using a pipe, buffer and thread
@@ -39,14 +41,14 @@ class Queue:
     def __init__(self):
         self._reader, self._writer = connection.Pipe(duplex=False)
         self._opid = os.getpid()
-        
+
         # For use by concurrent.futures
         self._ignore_epipe = False
 
         self._after_fork()
 
     def __getstate__(self):
-        return (self._ignore_epipe,  self._reader, 
+        return (self._ignore_epipe, self._reader,
                 self._writer, self._opid, self._ref)
 
     def __setstate__(self, state):
@@ -138,7 +140,7 @@ class Queue:
             args=(self._buffer, self._notempty, self._send_bytes,
                   self._writer.close, self._ignore_epipe),
             name='QueueFeederThread'
-            )
+        )
         self._thread.daemon = True
 
         debug('doing self._thread.start()')
@@ -150,14 +152,14 @@ class Queue:
                 self._thread, type(self)._finalize_join,
                 [weakref.ref(self._thread)],
                 exitpriority=-5
-                )
+            )
 
         # Send sentinel to the thread queue object when garbage collected
         self._close = Finalize(
             self, type(self)._finalize_close,
             [self._buffer, self._notempty],
             exitpriority=10
-            )
+        )
 
     @staticmethod
     def _finalize_join(twr):
@@ -220,6 +222,7 @@ class Queue:
                     import traceback
                     traceback.print_exc()
 
+
 _sentinel = object()
 
 
@@ -270,6 +273,7 @@ class SimpleQueue:
 
 
 Queue = SimpleQueue
+
 
 #
 # A queue type which also supports join() and task_done() methods
