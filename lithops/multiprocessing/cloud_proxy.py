@@ -19,8 +19,7 @@ import os as base_os
 from functools import partial
 from lithops.storage import InternalStorage
 from lithops.utils import is_lithops_worker
-from lithops.config import default_config, \
-    load_yaml_config, extract_storage_config
+from lithops.config import default_config, load_yaml_config, extract_storage_config
 
 
 #
@@ -33,7 +32,7 @@ class CloudStorage(InternalStorage):
             config = load_yaml_config(config)
             self._config = extract_storage_config(config)
         elif isinstance(config, dict):
-            if 'cloudbutton' in config:
+            if 'lithops' in config:
                 self._config = extract_storage_config(config)
             else:
                 self._config = config
@@ -48,7 +47,7 @@ class CloudStorage(InternalStorage):
         self.__init__(state)
 
     def list_keys(self, prefix=None):
-        return self.storage_handler.list_keys(self.bucket, prefix)
+        return self.storage.list_keys(self.bucket, prefix)
 
 
 class CloudFileProxy:
