@@ -567,7 +567,7 @@ class LocalhostExecutor(FunctionExecutor):
 
         :return `LocalhostExecutor` object.
         """
-        super().__init__(mode='localhost', config=config,
+        super().__init__(mode=LOCALHOST, config=config,
                          runtime=runtime, storage=storage,
                          log_level=log_level, workers=workers,
                          rabbitmq_monitor=rabbitmq_monitor)
@@ -592,7 +592,7 @@ class ServerlessExecutor(FunctionExecutor):
 
         :return `ServerlessExecutor` object.
         """
-        super().__init__(mode='serverless', config=config, runtime=runtime,
+        super().__init__(mode=SERVERLESS, config=config, runtime=runtime,
                          runtime_memory=runtime_memory, backend=backend,
                          storage=storage, workers=workers,
                          rabbitmq_monitor=rabbitmq_monitor, log_level=log_level,
@@ -616,6 +616,6 @@ class StandaloneExecutor(FunctionExecutor):
 
         :return `StandaloneExecutor` object.
         """
-        super().__init__(mode='standalone', config=config, runtime=runtime,
+        super().__init__(mode=STANDALONE, config=config, runtime=runtime,
                          backend=backend, storage=storage, workers=workers,
                          rabbitmq_monitor=rabbitmq_monitor, log_level=log_level)

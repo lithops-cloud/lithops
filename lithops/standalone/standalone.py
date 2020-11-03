@@ -150,13 +150,13 @@ class StandaloneHandler:
         global LOG_MONITOR
 
         def log_monitor():
-            timeout = 30
+            timeout = 5
             os.makedirs(STORAGE_DIR, exist_ok=True)
             fdout = open(FN_LOG_FILE, 'a')
             ssh_client = self.ssh_client._create_client(self.ip_address)
             cmd = 'tail -n 1 -f /tmp/lithops/functions.log'
 
-            stdin, stdout, stderr = ssh_client.exec_command(cmd) 
+            stdin, stdout, stderr = ssh_client.exec_command(cmd)
             channel = stdout.channel
             stdin.close()
             channel.shutdown_write()

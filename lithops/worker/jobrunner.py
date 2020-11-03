@@ -266,7 +266,7 @@ class JobRunner:
             print('---------------------- FUNCTION LOG ----------------------', flush=True)
             function_start_tstamp = time.time()
             result = function(**data)
-            function_end_tstamp= time.time()
+            function_end_tstamp = time.time()
             print('----------------------------------------------------------', flush=True)
             logger.info("Success function execution")
 

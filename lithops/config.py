@@ -134,18 +134,21 @@ def default_config(config_data=None, config_overwrite={}):
     # overwrite values provided by the user
     if 'lithops' in config_overwrite:
         config_data['lithops'].update(config_overwrite['lithops'])
-    if 'localhost' in config_overwrite:
-        if 'localhost' not in config_data:
-            config_data['localhost'] = {}
-        config_data['localhost'].update(config_overwrite['localhost'])
-    if 'serverless' in config_overwrite:
-        if 'serverless' not in config_data:
-            config_data['serverless'] = {}
-        config_data['serverless'].update(config_overwrite['serverless'])
-    if 'standalone' in config_overwrite:
-        if 'standalone' not in config_data:
-            config_data['standalone'] = {}
-        config_data['standalone'].update(config_overwrite['standalone'])
+
+    if LOCALHOST in config_overwrite:
+        if LOCALHOST not in config_data:
+            config_data[LOCALHOST] = {}
+        config_data[LOCALHOST].update(config_overwrite[LOCALHOST])
+
+    if SERVERLESS in config_overwrite:
+        if SERVERLESS not in config_data:
+            config_data[SERVERLESS] = {}
+        config_data[SERVERLESS].update(config_overwrite[SERVERLESS])
+
+    if STANDALONE in config_overwrite:
+        if STANDALONE not in config_data:
+            config_data[STANDALONE] = {}
+        config_data[STANDALONE].update(config_overwrite[STANDALONE])
 
     if 'executor' in config_data['lithops']:
         logging.warning("'executor' key in lithopos section is deprecated, use 'mode' key instead")
@@ -160,12 +163,12 @@ def default_config(config_data=None, config_overwrite={}):
         if 'storage_bucket' not in config_data['lithops']:
             raise Exception("storage_bucket is mandatory in "
                             "lithops section of the configuration")
-        if 'serverless' not in config_data:
-            config_data['serverless'] = {}
-        if 'backend' not in config_data['serverless']:
-            config_data['serverless']['backend'] = SERVERLESS_BACKEND_DEFAULT
+        if SERVERLESS not in config_data:
+            config_data[SERVERLESS] = {}
+        if 'backend' not in config_data[SERVERLESS]:
+            config_data[SERVERLESS]['backend'] = SERVERLESS_BACKEND_DEFAULT
 
-        sb = config_data['serverless']['backend']
+        sb = config_data[SERVERLESS]['backend']
         logger.debug("Loading Serverless backend module: {}".format(sb))
         cb_config = importlib.import_module('lithops.serverless.backends.{}.config'.format(sb))
         cb_config.load_config(config_data)
@@ -174,18 +177,18 @@ def default_config(config_data=None, config_overwrite={}):
         if 'storage_bucket' not in config_data['lithops']:
             raise Exception("storage_bucket is mandatory in "
                             "lithops section of the configuration")
-        if 'standalone' not in config_data:
-            config_data['standalone'] = {}
-        if 'auto_dismantle' not in config_data['standalone']:
-            config_data['standalone']['auto_dismantle'] = STANDALONE_AUTO_DISMANTLE_DEFAULT
-        if 'soft_dismantle_timeout' not in config_data['standalone']:
-            config_data['standalone']['soft_dismantle_timeout'] = STANDALONE_SOFT_DISMANTLE_TIMEOUT_DEFAULT
-        if 'hard_dismantle_timeout' not in config_data['standalone']:
-            config_data['standalone']['hard_dismantle_timeout'] = STANDALONE_HARD_DISMANTLE_TIMEOUT_DEFAULT
-        if 'backend' not in config_data['standalone']:
-            config_data['standalone']['backend'] = STANDALONE_BACKEND_DEFAULT
-        if 'runtime' not in config_data['standalone']:
-            config_data['standalone']['runtime'] = STANDALONE_RUNTIME_DEFAULT
+        if STANDALONE not in config_data:
+            config_data[STANDALONE] = {}
+        if 'auto_dismantle' not in config_data[STANDALONE]:
+            config_data[STANDALONE]['auto_dismantle'] = STANDALONE_AUTO_DISMANTLE_DEFAULT
+        if 'soft_dismantle_timeout' not in config_data[STANDALONE]:
+            config_data[STANDALONE]['soft_dismantle_timeout'] = STANDALONE_SOFT_DISMANTLE_TIMEOUT_DEFAULT
+        if 'hard_dismantle_timeout' not in config_data[STANDALONE]:
+            config_data[STANDALONE]['hard_dismantle_timeout'] = STANDALONE_HARD_DISMANTLE_TIMEOUT_DEFAULT
+        if 'backend' not in config_data[STANDALONE]:
+            config_data[STANDALONE]['backend'] = STANDALONE_BACKEND_DEFAULT
+        if 'runtime' not in config_data[STANDALONE]:
+            config_data[STANDALONE]['runtime'] = STANDALONE_RUNTIME_DEFAULT
 
         sb = config_data['standalone']['backend']
         logger.debug("Loading Standalone backend module: {}".format(sb))
@@ -196,10 +199,10 @@ def default_config(config_data=None, config_overwrite={}):
         config_data['lithops']['storage_bucket'] = 'storage'
         if 'storage' not in config_data['lithops']:
             config_data['lithops']['storage'] = 'localhost'
-        if 'localhost' not in config_data:
-            config_data['localhost'] = {}
-        if 'runtime' not in config_data['localhost']:
-            config_data['localhost']['runtime'] = 'python3'
+        if LOCALHOST not in config_data:
+            config_data[LOCALHOST] = {}
+        if 'runtime' not in config_data[LOCALHOST]:
+            config_data[LOCALHOST]['runtime'] = 'python3'
 
     if 'storage' not in config_data['lithops']:
         config_data['lithops']['storage'] = STORAGE_BACKEND_DEFAULT
@@ -226,31 +229,31 @@ def extract_storage_config(config):
 
 
 def extract_localhost_config(config):
-    localhost_config = config['localhost'].copy()
+    localhost_config = config[LOCALHOST].copy()
 
     return localhost_config
 
 
 def extract_serverless_config(config):
-    serverless_config = config['serverless'].copy()
-    sb = config['serverless']['backend']
+    serverless_config = config[SERVERLESS].copy()
+    sb = config[SERVERLESS]['backend']
     serverless_config[sb] = config[sb]
     serverless_config[sb]['user_agent'] = 'lithops/{}'.format(__version__)
 
-    if 'region' in config['serverless']:
-        serverless_config[sb]['region'] = config['serverless']['region']
+    if 'region' in config[SERVERLESS]:
+        serverless_config[sb]['region'] = config[SERVERLESS]['region']
 
     return serverless_config
 
 
 def extract_standalone_config(config):
-    standalone_config = config['standalone'].copy()
-    sb = config['standalone']['backend']
+    standalone_config = config[STANDALONE].copy()
+    sb = config[STANDALONE]['backend']
     standalone_config[sb] = config[sb]
     standalone_config[sb]['user_agent'] = 'lithops/{}'.format(__version__)
 
-    if 'region' in config['standalone']:
-        standalone_config[sb]['region'] = config['standalone']['region']
+    if 'region' in config[STANDALONE]:
+        standalone_config[sb]['region'] = config[STANDALONE]['region']
 
     return standalone_config
 
