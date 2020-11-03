@@ -10,13 +10,13 @@ val = man.Value('i', 0)
 lock = man.Lock()
 
 
-def incr(i, val, lock):
+def incr(val, lock):
     with lock:
         val.value += 1
 
 
 with Pool() as p:
-    p.starmap(incr, [(i, val, lock) for i in range(10)])
+    p.starmap(incr, [(val, lock) for _ in range(10)])
     p.close()
     p.join()
 

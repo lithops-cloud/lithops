@@ -58,7 +58,7 @@ class CloudFileProxy:
     def __getattr__(self, name):
         # we only reach here if the attr is not defined
         return getattr(base_os, name)
-    
+
     def open(self, filename, mode='r'):
         return cloud_open(filename, mode=mode, cloud_storage=self._storage)
 
@@ -95,7 +95,7 @@ class CloudFileProxy:
             for dir in dirs:
                 for result in self.walk('/'.join([top, dir]), topdown, onerror, followlinks):
                     yield result
-        
+
         else:
             for dir in dirs:
                 for result in self.walk('/'.join([top, dir]), topdown, onerror, followlinks):
@@ -136,7 +136,7 @@ class _path:
             if key.startswith(dirpath) or key == path:
                 return True
         return False
-        
+
 
 class DelayedBytesBuffer(io.BytesIO):
     def __init__(self, action, initial_bytes=None):
@@ -152,10 +152,11 @@ class DelayedStringBuffer(io.StringIO):
     def __init__(self, action, initial_value=None):
         super().__init__(initial_value)
         self._action = action
-        
+
     def close(self):
         self._action(self.getvalue())
         io.StringIO.close(self)
+
 
 def cloud_open(filename, mode='r', cloud_storage=None):
     storage = cloud_storage or CloudStorage()

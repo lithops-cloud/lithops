@@ -20,7 +20,7 @@ import os
 from . import process
 from . import reduction
 
-__all__ = []            # things are copied from here to __init__.py
+__all__ = []  # things are copied from here to __init__.py
 
 
 #
@@ -47,8 +47,7 @@ class AuthenticationError(ProcessError):
 # Base type for contexts
 #
 
-class BaseContext(object):
-
+class BaseContext:
     ProcessError = ProcessError
     BufferTooShort = BufferTooShort
     TimeoutError = TimeoutError
@@ -57,84 +56,80 @@ class BaseContext(object):
     current_process = staticmethod(process.current_process)
     active_children = staticmethod(process.active_children)
 
-    """
     def cpu_count(self):
-        '''Returns the number of CPUs in the system'''
-        num = os.cpu_count()
-        if num is None:
-            raise NotImplementedError('cannot determine number of cpus')
-        else:
-            return num
-    """
+        raise NotImplementedError()
+
     def Manager(self):
-        '''Returns a manager associated with a running server process
+        """
+        Returns a manager associated with a running server process
         The managers methods such as `Lock()`, `Condition()` and `Queue()`
         can be used to create shared objects.
-        '''
+        """
         from .managers import SyncManager
         return SyncManager()
 
     def Pipe(self, duplex=True):
-        '''Returns two connection object connected by a pipe'''
+        """Returns two connection object connected by a pipe"""
         from .connection import Pipe
         return Pipe(duplex)
 
     def Lock(self):
-        '''Returns a non-recursive lock object'''
+        """Returns a non-recursive lock object"""
         from .synchronize import Lock
         return Lock()
 
     def RLock(self):
-        '''Returns a recursive lock object'''
+        """Returns a recursive lock object"""
         from .synchronize import RLock
         return RLock()
 
     def Condition(self, lock=None):
-        '''Returns a condition object'''
+        """Returns a condition object"""
         from .synchronize import Condition
         return Condition(lock)
 
     def Semaphore(self, value=1):
-        '''Returns a semaphore object'''
+        """Returns a semaphore object"""
         from .synchronize import Semaphore
         return Semaphore(value)
 
     def BoundedSemaphore(self, value=1):
-        '''Returns a bounded semaphore object'''
+        """Returns a bounded semaphore object"""
         from .synchronize import BoundedSemaphore
         return BoundedSemaphore(value)
 
     def Event(self):
-        '''Returns an event object'''
+        """Returns an event object"""
         from .synchronize import Event
         return Event()
 
     def Barrier(self, parties, action=None, timeout=None):
-        '''Returns a barrier object'''
+        """Returns a barrier object"""
         from .synchronize import Barrier
         return Barrier(parties, action, timeout)
 
     def Queue(self, maxsize=0):
-        '''Returns a queue object'''
+        """Returns a queue object"""
         from .queues import Queue
         return Queue()
 
     def JoinableQueue(self, maxsize=0):
-        '''Returns a queue object'''
+        """Returns a queue object"""
         from .queues import JoinableQueue
         return JoinableQueue()
 
     def SimpleQueue(self):
-        '''Returns a queue object'''
+        """Returns a queue object"""
         from .queues import SimpleQueue
         return SimpleQueue()
 
     def Pool(self, processes=None, initializer=None, initargs={},
              maxtasksperchild=None):
-        '''Returns a process pool object'''
+        """Returns a process pool object"""
         from .pool import Pool
         return Pool(processes, initializer, initargs, maxtasksperchild,
                     context=self.get_context())
+
     """
     def RawValue(self, typecode_or_type, *args):
         '''Returns a shared object'''
@@ -229,8 +224,8 @@ class BaseContext(object):
 
     @property
     def reducer(self):
-        '''Controls how objects will be reduced to a form that can be
-        shared with other processes.'''
+        """Controls how objects will be reduced to a form that can be
+        shared with other processes."""
         return globals().get('reduction')
 
     @reducer.setter
@@ -241,7 +236,7 @@ class BaseContext(object):
         pass
 
     def getpid(self):
-        executor_id, job_id, call_id = os.environ.get('CLOUDBUTTON_EXECUTION_ID').rsplit('/', 2)
+        executor_id, job_id, call_id = os.environ.get('LITHOPS_EXECUTION_ID').rsplit('/', 2)
         return call_id
 
 
@@ -310,8 +305,8 @@ class SpawnCloudProcess(process.BaseProcess):
 
     @staticmethod
     def _Popen(process_obj):
-        from .popen_cloud import Popen
-        return Popen(process_obj)
+        from .popen_cloud import PopenCloud
+        return PopenCloud(process_obj)
 
 
 class SpawnCloudContext(BaseContext):
@@ -326,8 +321,11 @@ _concrete_contexts = {
     'cloud': SpawnCloudContext()
 }
 
-
 _default_context = DefaultContext(_concrete_contexts['cloud'])
+
+
+def get_context():
+    return _default_context
 
 
 #

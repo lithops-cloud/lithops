@@ -19,6 +19,7 @@ import threading  # we want threading to install it's cleanup function before mu
 from . import process
 import logging
 import lithops
+from lithops.config import default_config
 
 __all__ = [
     'sub_debug', 'debug', 'info', 'sub_warning', 'get_logger',
@@ -59,6 +60,14 @@ def info(msg, *args):
 def sub_warning(msg, *args):
     if _logger:
         _logger.log(SUBWARNING, msg, *args)
+
+
+def get_logger():
+    return _logger
+
+
+def log_to_stderr():
+    raise NotImplementedError()
 
 
 #
@@ -108,9 +117,9 @@ _finalizer_counter = itertools.count()
 
 
 class Finalize(object):
-    '''
+    """
     Class which supports object finalization using weakrefs
-    '''
+    """
 
     def __init__(self, obj, callback, args=(), kwargs=None, exitpriority=None):
         assert exitpriority is None or type(exitpriority) is int
@@ -133,9 +142,9 @@ class Finalize(object):
                  # been cleared at shutdown
                  _finalizer_registry=_finalizer_registry,
                  sub_debug=sub_debug, getpid=os.getpid):
-        '''
+        """
         Run the callback unless it has already been called or cancelled
-        '''
+        """
         try:
             del _finalizer_registry[self._key]
         except KeyError:
@@ -153,9 +162,9 @@ class Finalize(object):
             return res
 
     def cancel(self):
-        '''
+        """
         Cancel finalization of the object
-        '''
+        """
         try:
             del _finalizer_registry[self._key]
         except KeyError:
@@ -406,13 +415,10 @@ class PicklableRedis(redis.StrictRedis):
         super().__init__(*self._args, **self._kwargs)
 
     def __getstate__(self):
-        return (self._args, self._kwargs)
+        return self._args, self._kwargs
 
     def __setstate__(self, state):
         self.__init__(*state[0], **state[1])
-
-
-from lithops.config import default_config
 
 
 def get_redis_client(**overwrites):

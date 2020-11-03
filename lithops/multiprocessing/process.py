@@ -35,16 +35,16 @@ except OSError:
 #
 
 def current_process():
-    '''
+    """
     Return process object representing the current process
-    '''
+    """
     return _current_process
 
 
 def active_children():
-    '''
+    """
     Return list of process objects corresponding to live child processes
-    '''
+    """
     _cleanup()
     return list(_children)
 
@@ -65,10 +65,11 @@ def _cleanup():
 #
 
 class BaseProcess(object):
-    '''
+    """
     Process objects represent activity that is run in a separate process
     The class is analogous to `threading.Thread`
-    '''
+    """
+
     def _Popen(self):
         raise NotImplementedError
 
@@ -89,21 +90,21 @@ class BaseProcess(object):
         _dangling.add(self)
 
     def run(self):
-        '''
+        """
         Method to be run in sub-process; can be overridden in sub-class
-        '''
+        """
         if self._target:
             self._target(*self._args, **self._kwargs)
 
     def start(self):
-        '''
+        """
         Start child process
-        '''
+        """
         assert self._popen is None, 'cannot start a process twice'
         assert self._parent_pid == os.getpid(), \
-               'can only start a process object created by current process'
+            'can only start a process object created by current process'
         assert not _current_process._config.get('daemon'), \
-               'daemonic processes are not allowed to have children'
+            'daemonic processes are not allowed to have children'
         _cleanup()
         self._popen = self._Popen(self)
         self._sentinel = self._popen.sentinel
@@ -113,15 +114,15 @@ class BaseProcess(object):
         _children.add(self)
 
     def terminate(self):
-        '''
+        """
         Terminate process; sends SIGTERM signal or uses TerminateProcess()
-        '''
+        """
         self._popen.terminate()
 
     def join(self, timeout=None):
-        '''
+        """
         Wait until child process terminates
-        '''
+        """
         assert self._parent_pid == os.getpid(), 'can only join a child process'
         assert self._popen is not None, 'can only join a started process'
         res = self._popen.wait(timeout)
@@ -129,9 +130,9 @@ class BaseProcess(object):
             _children.discard(self)
 
     def is_alive(self):
-        '''
+        """
         Return whether process is alive
-        '''
+        """
         if self is _current_process:
             return True
         assert self._parent_pid == os.getpid(), 'can only test a child process'
@@ -157,16 +158,16 @@ class BaseProcess(object):
 
     @property
     def daemon(self):
-        '''
+        """
         Return whether process is a daemon
-        '''
+        """
         return self._config.get('daemon', False)
 
     @daemon.setter
     def daemon(self, daemonic):
-        '''
+        """
         Set whether process is a daemon
-        '''
+        """
         assert self._popen is None, 'process has already started'
         self._config['daemon'] = daemonic
 
@@ -176,25 +177,25 @@ class BaseProcess(object):
 
     @authkey.setter
     def authkey(self, authkey):
-        '''
+        """
         Set authorization key of process
-        '''
+        """
         self._config['authkey'] = AuthenticationString(authkey)
 
     @property
     def exitcode(self):
-        '''
+        """
         Return exit code of process or `None` if it has yet to stop
-        '''
+        """
         if self._popen is None:
             return self._popen
         return self._popen.poll()
 
     @property
     def ident(self):
-        '''
+        """
         Return identifier (PID) of process or `None` if it has yet to start
-        '''
+        """
         if self is _current_process:
             return os.getpid()
         else:
@@ -204,10 +205,10 @@ class BaseProcess(object):
 
     @property
     def sentinel(self):
-        '''
+        """
         Return a file descriptor (Unix) or handle (Windows) suitable for
         waiting for process termination.
-        '''
+        """
         try:
             return self._sentinel
         except AttributeError:
@@ -281,7 +282,7 @@ del _MainProcess
 _exitcode_to_name = {}
 
 for name, signum in list(signal.__dict__.items()):
-    if name[:3]=='SIG' and '_' not in name:
+    if name[:3] == 'SIG' and '_' not in name:
         _exitcode_to_name[-signum] = name
 
 # For debug and leak testing

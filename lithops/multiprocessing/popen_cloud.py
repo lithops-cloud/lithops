@@ -19,14 +19,14 @@ from lithops.wait import ALL_COMPLETED, ALWAYS
 
 from . import util
 
-__all__ = ['Popen']
+__all__ = ['PopenCloud']
 
 
 #
 # Start child process using cloud
 #
 
-class Popen(object):
+class PopenCloud(object):
     method = 'cloud'
 
     def __init__(self, process_obj):

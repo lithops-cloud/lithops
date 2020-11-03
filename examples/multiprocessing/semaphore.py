@@ -20,5 +20,5 @@ if __name__ == "__main__":
     with Pool() as p:
         p.map_async(f, [[sem, q]] * n)
 
-    for _ in range(n):
-        print(q.get())
+        for _ in range(n):
+            print(q.get())

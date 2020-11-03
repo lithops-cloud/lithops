@@ -21,7 +21,6 @@ from . import queues
 from . import util
 from .reduction import DefaultPickler
 import redis
-from copy import deepcopy
 
 
 #
@@ -50,23 +49,22 @@ def deslice(slic: slice):
 #
 
 class Token(object):
-    '''
-    Type to uniquely indentify a shared object
-    '''
+    """
+    Type to uniquely identify a shared object
+    """
     __slots__ = ('typeid', 'address', 'id')
 
     def __init__(self, typeid, address, id):
         (self.typeid, self.address, self.id) = (typeid, address, id)
 
     def __getstate__(self):
-        return (self.typeid, self.address, self.id)
+        return self.typeid, self.address, self.id
 
     def __setstate__(self, state):
         (self.typeid, self.address, self.id) = state
 
     def __repr__(self):
-        return '%s(typeid=%r, address=%r, id=%r)' % \
-               (self.__class__.__name__, self.typeid, self.address, self.id)
+        return '{}(typeid={}, address={}, id={})'.format(self.__class__.__name__, self.typeid, self.address, self.id)
 
     @classmethod
     def create(cls, proxy_obj):
@@ -85,9 +83,9 @@ class Token(object):
 #
 
 class BaseManager:
-    '''
+    """
     Base class for managers
-    '''
+    """
     _registry = {}
 
     def __init__(self, address=None, authkey=None, serializer='pickle',
@@ -106,18 +104,18 @@ class BaseManager:
         self._managing = True
 
     def _create(self, typeid, *args, **kwds):
-        '''
+        """
         Create a new shared object; return the token and exposed tuple
-        '''
+        """
         pass
 
     def join(self, timeout=None):
         pass
 
     def _number_of_objects(self):
-        '''
+        """
         Return the number of shared objects
-        '''
+        """
         return len(self._mrefs)
 
     def __enter__(self):
@@ -137,9 +135,9 @@ class BaseManager:
     @classmethod
     def register(cls, typeid, proxytype=None, callable=None, exposed=None,
                  method_to_typeid=None, create_method=True, can_manage=True):
-        '''
+        """
         Register a typeid with the manager type
-        '''
+        """
 
         def temp(self, *args, **kwds):
             util.debug('requesting creation of a shared %r object', typeid)
@@ -158,9 +156,9 @@ class BaseManager:
 #
 
 class BaseProxy(object):
-    '''
+    """
     A base for proxies of shared objects
-    '''
+    """
 
     def __init__(self, typeid, serializer=None):
         self._typeid = typeid
@@ -172,9 +170,9 @@ class BaseProxy(object):
         self._ref = util.RemoteReference(self._oid, client=self._client)
 
     def _getvalue(self):
-        '''
+        """
         Get a copy of the value of the referent
-        '''
+        """
         pass
 
     def __repr__(self):
@@ -603,19 +601,19 @@ class SyncManager(BaseManager):
     """
 
 
-SyncManager.register('Queue', queues.Queue)
-SyncManager.register('JoinableQueue', queues.JoinableQueue)
-SyncManager.register('SimpleQueue', queues.SimpleQueue)
-SyncManager.register('Event', synchronize.Event)
+SyncManager.register('list', ListProxy)
+SyncManager.register('dict', DictProxy)
+SyncManager.register('Namespace', NamespaceProxy)
 SyncManager.register('Lock', synchronize.Lock)
 SyncManager.register('RLock', synchronize.RLock)
 SyncManager.register('Semaphore', synchronize.Semaphore)
 SyncManager.register('BoundedSemaphore', synchronize.BoundedSemaphore)
 SyncManager.register('Condition', synchronize.Condition)
+SyncManager.register('Event', synchronize.Event)
 SyncManager.register('Barrier', synchronize.Barrier)
-SyncManager.register('Pool', pool.Pool, can_manage=False)
-SyncManager.register('list', ListProxy)
-SyncManager.register('dict', DictProxy)
+SyncManager.register('Queue', queues.Queue)
 SyncManager.register('Value', ValueProxy)
-SyncManager.register('Namespace', NamespaceProxy)
 SyncManager.register('Array', ArrayProxy)
+SyncManager.register('JoinableQueue', queues.JoinableQueue)
+SyncManager.register('SimpleQueue', queues.SimpleQueue)
+SyncManager.register('Pool', pool.Pool, can_manage=False)
