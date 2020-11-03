@@ -485,7 +485,7 @@ class DictProxy(BaseProxy):
 
     def update(self, *args, **kwargs):
         items = []
-        if args is not ():
+        if args != ():
             if len(args) > 1:
                 raise TypeError('update expected at most'
                     ' 1 arguments, got {}'.format(len(args)))
