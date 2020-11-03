@@ -115,6 +115,15 @@ class StandaloneHandler:
         self.dismantle()
         raise Exception('VM readiness probe expired. Check your VM')
 
+    def _start_backend(self):
+        if not self._is_backend_ready():
+            # The VM instance is stopped
+            init_time = time.time()
+            self.backend.start()
+            self._wait_backend_ready()
+            total_start_time = round(time.time()-init_time, 2)
+            logger.info('VM instance ready in {} seconds'.format(total_start_time))
+
     def _is_proxy_ready(self):
         """
         Checks if the proxy is ready to receive http connections
@@ -211,14 +220,7 @@ class StandaloneHandler:
         Installs the proxy and extracts the runtime metadata and
         preinstalled modules
         """
-        if not self._is_backend_ready():
-            # The VM instance is stopped
-            init_time = time.time()
-            self.backend.start()
-            self._wait_backend_ready()
-            total_start_time = round(time.time()-init_time, 2)
-            logger.info('VM instance ready in {} seconds'.format(total_start_time))
-
+        self._start_backend()
         self._setup_proxy()
         self._wait_proxy_ready()
 
@@ -243,6 +245,21 @@ class StandaloneHandler:
         Stop VM instance
         """
         self.backend.stop()
+
+    def init(self):
+        """
+        Start the VM instance and initialize runtime
+        """
+        self._start_backend()
+
+        # Not sure if mandatory, but sleep several seconds to let proxy server start
+        time.sleep(2)
+
+        # if proxy not started, install it
+        if not self._is_proxy_ready():
+            self._setup_proxy()
+
+        self._wait_proxy_ready()
 
     def clean(self):
         pass
