@@ -28,7 +28,7 @@ The IBM VPC client is a standalone compute backend. It is used for start and sto
 
    ```yaml
    lithops:
-       executor: standalone
+       mode: standalone
 
    ibm:
        iam_api_key: <iam-api-key>

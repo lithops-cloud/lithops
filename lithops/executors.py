@@ -1,5 +1,4 @@
 #
-# Copyright 2018 PyWren Team
 # (C) Copyright IBM Corp. 2020
 # (C) Copyright Cloudlab URV 2020
 #
@@ -52,7 +51,7 @@ class FunctionExecutor:
 
         if mode is None:
             config = default_config(copy.deepcopy(config))
-            mode = config['lithops']['executor']
+            mode = config['lithops']['mode']
 
         if mode not in [LOCALHOST, SERVERLESS, STANDALONE]:
             raise Exception("Function executor mode must be one of '{}', '{}' "
@@ -62,10 +61,10 @@ class FunctionExecutor:
             default_logging_config(log_level)
 
         if type is not None:
-            logger.warning("'type' parameter will be deprecated in future "
-                           "releases. Use 'mode' parameter instead")
+            logger.warning("'type' parameter is deprecated and it will be removed"
+                           "in future releases. Use 'mode' parameter instead")
 
-        config_ow = {'lithops': {'executor': mode}, mode: {}}
+        config_ow = {'lithops': {'mode': mode}, mode: {}}
 
         if runtime is not None:
             config_ow[mode]['runtime'] = runtime
@@ -152,12 +151,13 @@ class FunctionExecutor:
 
         :param func: the function to map over the data
         :param data: input data
-        :param extra_data: Additional data to pass to action. Default None.
-        :param extra_env: Additional environment variables for action environment. Default None.
-        :param runtime_memory: Memory to use to run the function. Default None (loaded from config).
-        :param timeout: Time that the functions have to complete their execution before raising a timeout.
-        :param include_modules: Explicitly pickle these dependencies.
-        :param exclude_modules: Explicitly keep these modules from pickled dependencies.
+        :param extra_env: Additional env variables for action environment
+        :param runtime_memory: Memory to use to run the function
+        :param timeout: Time that the functions have to complete their
+                        execution before raising a timeout
+        :param include_modules: Explicitly pickle these dependencies
+        :param exclude_modules: Explicitly keep these modules from pickled
+                                dependencies
 
         :return: future object.
         """
@@ -182,24 +182,29 @@ class FunctionExecutor:
 
         return futures[0]
 
-    def map(self, map_function, map_iterdata, extra_args=None, extra_env=None, runtime_memory=None,
-            chunk_size=None, chunk_n=None, timeout=None, invoke_pool_threads=500,
-            include_modules=[], exclude_modules=[]):
+    def map(self, map_function, map_iterdata, extra_args=None, extra_env=None,
+            runtime_memory=None, chunk_size=None, chunk_n=None, timeout=None,
+            invoke_pool_threads=500, include_modules=[], exclude_modules=[]):
         """
+        For running multiple function executions asynchronously
+
         :param map_function: the function to map over the data
         :param map_iterdata: An iterable of input data
-        :param extra_args: Additional arguments to pass to the function activation. Default None.
-        :param extra_env: Additional environment variables for action environment. Default None.
-        :param runtime_memory: Memory to use to run the function. Default None (loaded from config).
-        :param chunk_size: the size of the data chunks to split each object. 'None' for processing
-                           the whole file in one function activation.
-        :param chunk_n: Number of chunks to split each object. 'None' for processing the whole
-                        file in one function activation.
-        :param remote_invocation: Enable or disable remote_invocation mechanism. Default 'False'
-        :param timeout: Time that the functions have to complete their execution before raising a timeout.
-        :param invoke_pool_threads: Number of threads to use to invoke.
-        :param include_modules: Explicitly pickle these dependencies.
-        :param exclude_modules: Explicitly keep these modules from pickled dependencies.
+        :param extra_args: Additional args to pass to the function activations
+        :param extra_env: Additional env variables for action environment
+        :param runtime_memory: Memory to use to run the function
+        :param chunk_size: the size of the data chunks to split each object.
+                           'None' for processing the whole file in one function
+                           activation.
+        :param chunk_n: Number of chunks to split each object. 'None' for
+                        processing the whole file in one function activation
+        :param remote_invocation: Enable or disable remote_invocation mechanism
+        :param timeout: Time that the functions have to complete their execution
+                        before raising a timeout
+        :param invoke_pool_threads: Number of threads to use to invoke
+        :param include_modules: Explicitly pickle these dependencies
+        :param exclude_modules: Explicitly keep these modules from pickled
+                                dependencies
 
         :return: A list with size `len(iterdata)` of futures.
         """
@@ -228,8 +233,9 @@ class FunctionExecutor:
 
         return futures
 
-    def map_reduce(self, map_function, map_iterdata, reduce_function, extra_args=None, extra_env=None,
-                   map_runtime_memory=None, reduce_runtime_memory=None, chunk_size=None, chunk_n=None,
+    def map_reduce(self, map_function, map_iterdata, reduce_function,
+                   extra_args=None, extra_env=None, map_runtime_memory=None,
+                   reduce_runtime_memory=None, chunk_size=None, chunk_n=None,
                    timeout=None, invoke_pool_threads=500, reducer_one_per_object=False,
                    reducer_wait_local=False, include_modules=[], exclude_modules=[]):
         """
@@ -306,8 +312,9 @@ class FunctionExecutor:
 
         return map_futures + reduce_futures
 
-    def wait(self, fs=None, throw_except=True, return_when=ALL_COMPLETED, download_results=False,
-             timeout=None, THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
+    def wait(self, fs=None, throw_except=True, return_when=ALL_COMPLETED,
+             download_results=False, timeout=None, THREADPOOL_SIZE=128,
+             WAIT_DUR_SEC=1):
         """
         Wait for the Future instances (possibly created by different Executor instances)
         given by fs to complete. Returns a named 2-tuple of sets. The first set, named done,
@@ -424,7 +431,8 @@ class FunctionExecutor:
 
         return fs_done, fs_notdone
 
-    def get_result(self, fs=None, throw_except=True, timeout=None, THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
+    def get_result(self, fs=None, throw_except=True, timeout=None,
+                   THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
         """
         For getting the results from all function activations
 
@@ -437,22 +445,25 @@ class FunctionExecutor:
 
         :return: The result of the future/s
         """
-        fs_done, unused_fs_notdone = self.wait(fs=fs, throw_except=throw_except,
-                                               timeout=timeout, download_results=True,
-                                               THREADPOOL_SIZE=THREADPOOL_SIZE,
-                                               WAIT_DUR_SEC=WAIT_DUR_SEC)
+        fs_done, _ = self.wait(fs=fs, throw_except=throw_except,
+                               timeout=timeout, download_results=True,
+                               THREADPOOL_SIZE=THREADPOOL_SIZE,
+                               WAIT_DUR_SEC=WAIT_DUR_SEC)
         result = []
         fs_done = [f for f in fs_done if not f.futures and f._produce_output]
         for f in fs_done:
             if fs:
                 # Process futures provided by the user
-                result.append(f.result(throw_except=throw_except, internal_storage=self.internal_storage))
+                result.append(f.result(throw_except=throw_except,
+                                       internal_storage=self.internal_storage))
             elif not fs and not f._read:
                 # Process internally stored futures
-                result.append(f.result(throw_except=throw_except, internal_storage=self.internal_storage))
+                result.append(f.result(throw_except=throw_except,
+                                       internal_storage=self.internal_storage))
                 f._read = True
 
-        logger.debug("ExecutorID {} Finished getting results".format(self.executor_id))
+        logger.debug("ExecutorID {} Finished getting results"
+                     .format(self.executor_id))
 
         if len(result) == 1 and self.last_call != 'map':
             return result[0]
@@ -475,7 +486,8 @@ class FunctionExecutor:
         ftrs_to_plot = [f for f in ftrs if (f.ready or f.done) and not f.error]
 
         if not ftrs_to_plot:
-            logger.debug('ExecutorID {} - No futures ready to plot'.format(self.executor_id))
+            logger.debug('ExecutorID {} - No futures ready to plot'
+                         .format(self.executor_id))
             return
 
         logging.getLogger('matplotlib').setLevel(logging.WARNING)
@@ -507,7 +519,8 @@ class FunctionExecutor:
             futures = [futures]
 
         if not futures:
-            logger.debug('ExecutorID {} - No jobs to clean'.format(self.executor_id))
+            logger.debug('ExecutorID {} - No jobs to clean'
+                         .format(self.executor_id))
             return
 
         if fs or force:
@@ -525,7 +538,8 @@ class FunctionExecutor:
             if not self.log_active:
                 print(msg)
             storage_config = self.internal_storage.get_storage_config()
-            clean_job(jobs_to_clean, storage_config, clean_cloudobjects=cloudobjects)
+            clean_job(jobs_to_clean, storage_config,
+                      clean_cloudobjects=cloudobjects)
             self.cleaned_jobs.update(jobs_to_clean)
 
     def dismantle(self):

@@ -52,8 +52,8 @@ class Invoker:
         logger.debug('ExecutorID {} - Total available workers: {}'
                      .format(self.executor_id, self.workers))
 
-        executor = self.config['lithops']['executor']
-        self.runtime_name = self.config[executor]['runtime']
+        mode = self.config['lithops']['mode']
+        self.runtime_name = self.config[mode]['runtime']
 
     def select_runtime(self, job_id, runtime_memory):
         """

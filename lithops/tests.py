@@ -431,12 +431,10 @@ def print_help():
         print(f'-> {func_name}')
 
 
-def run_tests(test_to_run, executor, config=None):
+def run_tests(test_to_run, mode, config=None):
     global CONFIG, STORAGE_CONFIG, STORAGE
 
-    config_ow = {}
-    if executor:
-        config_ow['lithops'] = {'executor': executor}
+    config_ow = {'lithops': {'mode': mode}} if mode else {}
 
     CONFIG = json.load(config) if config else default_config(config_overwrite=config_ow)
     STORAGE_CONFIG = extract_storage_config(CONFIG)
@@ -463,7 +461,7 @@ if __name__ == '__main__':
                         help="use json config file")
     parser.add_argument('-t', '--test', metavar='', default='all',
                         help='run a specific test, type "-t help" for tests list')
-    parser.add_argument('-e', '--executor', metavar='', default=None,
+    parser.add_argument('-m', '--mode', metavar='', default=None,
                         help='serverless, standalone or localhost')
     parser.add_argument('-d', '--debug', action='store_true', default=False,
                         help='activate debug logging')
