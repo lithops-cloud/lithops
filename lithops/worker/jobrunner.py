@@ -35,7 +35,7 @@ from lithops.future import ResponseFuture
 from lithops.libs.tblib import pickling_support
 from lithops.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_function
 from lithops.utils import WrappedStreamingBodyPartition
-
+from lithops.config import STORAGE_DIR, REALTIME
 
 pickling_support.install()
 logger = logging.getLogger('JobRunner')
@@ -75,6 +75,7 @@ class JobRunner:
         self.output_key = self.jr_config['output_key']
 
         self.stats = stats(self.jr_config['stats_filename'])
+        self.mode = self.jr_config['mode']
 
     def _get_function_and_modules(self):
         """
@@ -82,13 +83,22 @@ class JobRunner:
         """
         logger.debug("Getting function and modules")
         func_download_start_tstamp = time.time()
-        func_obj = self.internal_storage.get_func(self.func_key)
+        func_obj = None
+        if self.mode == REALTIME:
+            func_obj = self._get_func()
+        else:
+            func_obj = self.internal_storage.get_func(self.func_key)
         loaded_func_all = pickle.loads(func_obj)
         func_download_end_tstamp = time.time()
         self.stats.write('worker_func_download_time', round(func_download_end_tstamp-func_download_start_tstamp, 8))
         logger.debug("Finished getting Function and modules")
 
         return loaded_func_all
+
+    def _get_func(self):
+        func_path = '/'.join([STORAGE_DIR, self.func_key])
+        with open(func_path, "rb") as f:
+            return f.read()
 
     def _save_modules(self, module_data):
         """
@@ -250,9 +260,16 @@ class JobRunner:
         result = None
         exception = False
         try:
-            loaded_func_all = self._get_function_and_modules()
-            self._save_modules(loaded_func_all['module_data'])
-            function = self._unpickle_function(loaded_func_all['func'])
+            function = None
+            logger.info("Before self._get_function_and_modules")
+
+            if self.mode == REALTIME:
+                function = self._get_function_and_modules()
+            else:
+                loaded_func_all = self._get_function_and_modules()
+                self._save_modules(loaded_func_all['module_data'])
+                function = self._unpickle_function(loaded_func_all['func'])
+            logger.info("After self._unpickle_function")
             data = self._load_data()
 
             if strtobool(os.environ.get('__PW_REDUCE_JOB', 'False')):

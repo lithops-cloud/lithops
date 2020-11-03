@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 LOCALHOST = 'localhost'
 SERVERLESS = 'serverless'
 STANDALONE = 'standalone'
+REALTIME = 'realtime'
 
 MODE_DEFAULT = SERVERLESS
 SERVERLESS_BACKEND_DEFAULT = 'ibm_cf'

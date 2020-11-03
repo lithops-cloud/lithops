@@ -19,7 +19,7 @@ import copy
 import signal
 import logging
 from functools import partial
-from lithops.invokers import ServerlessInvoker, StandaloneInvoker
+from lithops.invokers import ServerlessInvoker, StandaloneInvoker, RealTimeInvoker
 from lithops.storage import InternalStorage
 from lithops.storage.utils import delete_cloudobject
 from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
@@ -27,7 +27,7 @@ from lithops.job import create_map_job, create_reduce_job, clean_job
 from lithops.config import default_config, extract_storage_config, \
     default_logging_config, extract_localhost_config, \
     extract_standalone_config, extract_serverless_config, LOCALHOST,\
-    SERVERLESS, STANDALONE
+    SERVERLESS, STANDALONE, REALTIME
 from lithops.utils import timeout_handler, is_notebook, \
     is_unix_system, is_lithops_worker, create_executor_id
 from lithops.localhost.localhost import LocalhostHandler
@@ -53,9 +53,9 @@ class FunctionExecutor:
             config = default_config(copy.deepcopy(config))
             mode = config['lithops']['mode']
 
-        if mode not in [LOCALHOST, SERVERLESS, STANDALONE]:
+        if mode not in [LOCALHOST, SERVERLESS, STANDALONE, REALTIME]:
             raise Exception("Function executor mode must be one of '{}', '{}' "
-                            "or '{}'".format(LOCALHOST, SERVERLESS, STANDALONE))
+                            "or '{}'".format(LOCALHOST, SERVERLESS, STANDALONE, REALTIME))
 
         if log_level:
             default_logging_config(log_level)
@@ -89,7 +89,8 @@ class FunctionExecutor:
         self.executor_id = create_executor_id()
 
         self.data_cleaner = self.config['lithops'].get('data_cleaner', True)
-        self.rabbitmq_monitor = self.config['lithops'].get('rabbitmq_monitor', False)
+        self.rabbitmq_monitor = self.config['lithops'].get(
+            'rabbitmq_monitor', False)
 
         if self.rabbitmq_monitor:
             if 'rabbitmq' in self.config and 'amqp_url' in self.config['rabbitmq']:
@@ -132,6 +133,15 @@ class FunctionExecutor:
                                              self.executor_id,
                                              self.internal_storage,
                                              self.compute_handler)
+        elif mode == REALTIME:
+            serverless_config = extract_serverless_config(self.config)
+            self.compute_handler = ServerlessHandler(serverless_config,
+                                                     storage_config)
+
+            self.invoker = RealTimeInvoker(self.config,
+                                           self.executor_id,
+                                           self.internal_storage,
+                                           self.compute_handler)
 
         logger.info('{} Executor created with ID: {}'
                     .format(mode.capitalize(), self.executor_id))
@@ -266,7 +276,8 @@ class FunctionExecutor:
         self.last_call = 'map_reduce'
         map_job_id = self._create_job_id('M')
 
-        runtime_meta = self.invoker.select_runtime(map_job_id, map_runtime_memory)
+        runtime_meta = self.invoker.select_runtime(
+            map_job_id, map_runtime_memory)
 
         map_job = create_map_job(self.config, self.internal_storage,
                                  self.executor_id, map_job_id,
@@ -291,7 +302,8 @@ class FunctionExecutor:
 
         reduce_job_id = map_job_id.replace('M', 'R')
 
-        runtime_meta = self.invoker.select_runtime(reduce_job_id, reduce_runtime_memory)
+        runtime_meta = self.invoker.select_runtime(
+            reduce_job_id, reduce_runtime_memory)
 
         reduce_job = create_reduce_job(self.config, self.internal_storage,
                                        self.executor_id, reduce_job_id,
@@ -350,7 +362,8 @@ class FunctionExecutor:
             fs_not_done = [f for f in futures if not f.done]
 
         else:
-            msg = 'ExecutorID {} - Waiting for functions to complete...'.format(self.executor_id)
+            msg = 'ExecutorID {} - Waiting for functions to complete...'.format(
+                self.executor_id)
             fs_done = [f for f in futures if f.ready or f.done]
             fs_not_done = [f for f in futures if not f.ready and not f.done]
 
@@ -362,8 +375,10 @@ class FunctionExecutor:
             print(msg)
 
         if is_unix_system() and timeout is not None:
-            logger.debug('Setting waiting timeout to {} seconds'.format(timeout))
-            error_msg = 'Timeout of {} seconds exceeded waiting for function activations to finish'.format(timeout)
+            logger.debug(
+                'Setting waiting timeout to {} seconds'.format(timeout))
+            error_msg = 'Timeout of {} seconds exceeded waiting for function activations to finish'.format(
+                timeout)
             signal.signal(signal.SIGALRM, partial(timeout_handler, error_msg))
             signal.alarm(timeout)
 
@@ -373,10 +388,13 @@ class FunctionExecutor:
             from tqdm.auto import tqdm
 
             if is_notebook():
-                pbar = tqdm(bar_format='{n}/|/ {n_fmt}/{total_fmt}', total=len(fs_not_done))  # ncols=800
+                # ncols=800
+                pbar = tqdm(
+                    bar_format='{n}/|/ {n_fmt}/{total_fmt}', total=len(fs_not_done))
             else:
                 print()
-                pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(fs_not_done), disable=False)
+                pbar = tqdm(
+                    bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(fs_not_done), disable=False)
 
         try:
             if self.rabbitmq_monitor:
@@ -391,9 +409,11 @@ class FunctionExecutor:
 
         except KeyboardInterrupt as e:
             if download_results:
-                not_dones_call_ids = [(f.job_id, f.call_id) for f in futures if not f.done]
+                not_dones_call_ids = [(f.job_id, f.call_id)
+                                      for f in futures if not f.done]
             else:
-                not_dones_call_ids = [(f.job_id, f.call_id) for f in futures if not f.ready and not f.done]
+                not_dones_call_ids = [(f.job_id, f.call_id)
+                                      for f in futures if not f.ready and not f.done]
             msg = ('ExecutorID {} - Cancelled - Total Activations not done: {}'
                    .format(self.executor_id, len(not_dones_call_ids)))
             if pbar:
@@ -493,7 +513,8 @@ class FunctionExecutor:
         logging.getLogger('matplotlib').setLevel(logging.WARNING)
         from lithops.plots import create_timeline, create_histogram
 
-        msg = 'ExecutorID {} - Creating execution plots'.format(self.executor_id)
+        msg = 'ExecutorID {} - Creating execution plots'.format(
+            self.executor_id)
 
         logger.info(msg)
         if not self.log_active:
@@ -533,7 +554,8 @@ class FunctionExecutor:
             jobs_to_clean = present_jobs - self.cleaned_jobs
 
         if jobs_to_clean:
-            msg = "ExecutorID {} - Cleaning temporary data".format(self.executor_id)
+            msg = "ExecutorID {} - Cleaning temporary data".format(
+                self.executor_id)
             logger.info(msg)
             if not self.log_active:
                 print(msg)
@@ -619,3 +641,81 @@ class StandaloneExecutor(FunctionExecutor):
         super().__init__(mode='standalone', config=config, runtime=runtime,
                          backend=backend, storage=storage, workers=workers,
                          rabbitmq_monitor=rabbitmq_monitor, log_level=log_level)
+
+
+class RealTimeExecutor(FunctionExecutor):
+    def __init__(self, config=None, runtime=None, runtime_memory=None,
+                 backend=None, storage=None, workers=None, rabbitmq_monitor=None,
+                 remote_invoker=None, log_level=None):
+        """
+        Initialize a ServerlessExecutor class.
+
+        :param config: Settings passed in here will override those in config file.
+        :param runtime: Runtime name to use.
+        :param runtime_memory: memory to use in the runtime.
+        :param backend: Name of the serverless compute backend to use.
+        :param storage: Name of the storage backend to use.
+        :param workers: Max number of concurrent workers.
+        :param rabbitmq_monitor: use rabbitmq as the monitoring system.
+        :param log_level: log level to use during the execution.
+
+        :return `ServerlessExecutor` object.
+        """
+        super().__init__(mode='realtime', config=config, runtime=runtime,
+                         runtime_memory=runtime_memory, backend=backend,
+                         storage=storage, workers=workers,
+                         rabbitmq_monitor=rabbitmq_monitor, log_level=log_level,
+                         remote_invoker=remote_invoker)
+
+    def map(self, map_function, map_iterdata, extra_args=None, extra_env=None,
+            runtime_memory=None, chunk_size=None, chunk_n=None, timeout=None,
+            invoke_pool_threads=500, include_modules=[], exclude_modules=[]):
+        """
+        For running multiple function executions asynchronously
+
+        :param map_function: the function to map over the data
+        :param map_iterdata: An iterable of input data
+        :param extra_args: Additional args to pass to the function activations
+        :param extra_env: Additional env variables for action environment
+        :param runtime_memory: Memory to use to run the function
+        :param chunk_size: the size of the data chunks to split each object.
+                           'None' for processing the whole file in one function
+                           activation.
+        :param chunk_n: Number of chunks to split each object. 'None' for
+                        processing the whole file in one function activation
+        :param remote_invocation: Enable or disable remote_invocation mechanism
+        :param timeout: Time that the functions have to complete their execution
+                        before raising a timeout
+        :param invoke_pool_threads: Number of threads to use to invoke
+        :param include_modules: Explicitly pickle these dependencies
+        :param exclude_modules: Explicitly keep these modules from pickled
+                                dependencies
+
+        :return: A list with size `len(iterdata)` of futures.
+        """
+        job_id = self._create_job_id('M')
+        self.last_call = 'map'
+
+        runtime_meta = self.invoker.select_runtime(job_id, runtime_memory)
+
+        job = create_map_job(self.config, self.internal_storage,
+                             self.executor_id, job_id,
+                             map_function=map_function,
+                             iterdata=map_iterdata,
+                             runtime_meta=runtime_meta,
+                             runtime_memory=runtime_memory,
+                             extra_env=extra_env,
+                             include_modules=include_modules,
+                             exclude_modules=exclude_modules,
+                             execution_timeout=timeout,
+                             extra_args=extra_args,
+                             obj_chunk_size=chunk_size,
+                             obj_chunk_number=chunk_n,
+                             invoke_pool_threads=invoke_pool_threads)
+
+        self.invoker.extend_runtime(job, runtime_memory)
+
+        futures = self.invoker.run(job)
+        self.futures.extend(futures)
+
+        return futures

@@ -31,6 +31,7 @@ from lithops.version import __version__
 from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config
 from lithops.utils import version_str, is_lithops_worker, is_unix_system
+from lithops.config import STORAGE_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -441,6 +442,71 @@ class ServerlessInvoker(Invoker):
                 except Exception:
                     pass
             self.invokers = []
+
+
+class RealTimeInvoker(ServerlessInvoker):
+    """
+    Module responsible to perform the invocations against the serverless backend in realtime environments
+    
+    currently differs from ServerlessInvoker only by having one method that provides extension of specified environment with
+    map function and modules to optimize performance in real time use cases by avoiding repeated data transfers from storage to
+    action containers on each execution
+    """
+
+    # If runtime not exists yet, build unique docker image and register runtime
+    def extend_runtime(self, job, runtime_memory):
+        if not runtime_memory:
+            runtime_memory = self.config['serverless']['runtime_memory']
+        timeout = self.config['serverless']['runtime_timeout']
+
+        base_docker_image = self.runtime_name
+        uuid = job['ext_runtime_uuid']
+        ext_runtime_name = "{}:{}".format(base_docker_image.split(":")[0], uuid)
+
+        # update job with new extended runtime name
+        self.runtime_name = ext_runtime_name
+
+        runtime_key = self.compute_handler.get_runtime_key(self.runtime_name, runtime_memory)
+        runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
+        
+        if not runtime_meta:
+            timeout = self.config['pywren']['runtime_timeout']
+            logger.debug('Creating runtime: {}, memory: {}MB'.format(ext_runtime_name, runtime_memory))
+
+            runtime_temorary_directory = '/'.join([STORAGE_DIR, os.path.dirname(job['func_key'])])
+            modules_path = '/'.join([runtime_temorary_directory, 'modules'])
+
+            ext_docker_file = '/'.join([runtime_temorary_directory, "Dockerfile"])
+
+            # Generate Dockerfile extended with function dependencies and function
+            with open(ext_docker_file, 'w') as df:
+                df.write('\n'.join([
+                    'FROM {}'.format(base_docker_image),
+                    'ENV PYTHONPATH={}:${}'.format(modules_path,'PYTHONPATH'), # set python path to point to dependencies folder
+                    'COPY . {}'.format(runtime_temorary_directory)
+                ]))
+
+            # Build new extended runtime tagged by function hash
+            cwd = os.getcwd()
+            os.chdir(runtime_temorary_directory)
+            self.compute_handler.build_runtime(ext_runtime_name, ext_docker_file)
+            os.chdir(cwd)
+
+            runtime_meta = self.compute_handler.create_runtime(ext_runtime_name, runtime_memory, timeout=timeout)
+            self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
+        else:
+            if not self.log_active:
+                print()
+
+        py_local_version = version_str(sys.version_info)
+        py_remote_version = runtime_meta['python_ver']
+
+        if py_local_version != py_remote_version:
+            raise Exception(("The indicated runtime '{}' is running Python {} and it "
+                             "is not compatible with the local Python version {}")
+                            .format(self.runtime_name, py_remote_version, py_local_version))
+
+        return runtime_meta
 
 
 class JobMonitor:
