@@ -545,6 +545,9 @@ class FunctionExecutor:
     def dismantle(self):
         self.compute_handler.dismantle()
 
+    def init(self):
+        self.compute_handler.init()
+
     def __exit__(self, exc_type, exc_value, traceback):
         self.invoker.stop()
         if self.data_cleaner:
