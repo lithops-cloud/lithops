@@ -1,6 +1,6 @@
 #
-# (C) Copyright IBM Corp. 2019
-# Copyright Cloudlab URV 2020
+# (C) Copyright IBM Corp. 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -52,8 +52,8 @@ class Invoker:
         logger.debug('ExecutorID {} - Total available workers: {}'
                      .format(self.executor_id, self.workers))
 
-        executor = self.config['lithops']['executor']
-        self.runtime_name = self.config[executor]['runtime']
+        mode = self.config['lithops']['mode']
+        self.runtime_name = self.config[mode]['runtime']
 
     def select_runtime(self, job_id, runtime_memory):
         """

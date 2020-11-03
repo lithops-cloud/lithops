@@ -1,24 +1,10 @@
 # Lithops on localhost
 
-Lithops can run functions in the localhost by using processes, either in the default interpreter or within a Docker container.
-
-
-### Configuration
-
-2. Edit your lithops config and add the following keys:
-
-```yaml
-    lithops:
-        storage: localhost
-        executor: localhost
-```
-
-- Note that in the *storage* key you can set any publicly accessible storage backend implementation, such as IBM Cloud Object Storage, although using the localhost implementation is much faster for running local jobs.
-
+Lithops uses local processes to run functions by default. In this mode of execution it is not necessary to provide any kind of configuration or create a configuration file.
 
 ### Execution environments
 
-The localhost executor can run functions in multiple environments. Currently it supports the *default python3* and the *Docker* environments. The environment is automatically chosen depending on if you provided a Docker image as a runtime or not. In both cases, you can see the executions logs at */tmp/lithops/local_handler.log*.
+The localhost executor can run functions in multiple environments. Currently it supports the *default python3* and the *Docker* environments. The environment is automatically chosen depending on if you provided a Docker image as a runtime or not. In both cases, you can view the executions logs at */tmp/lithops/functions.log* (Or equivalent in Windows, Mac OS).
 
 #### Default Environment
 The default environment runs the functions in the same *python3* interpreter that you ran the lithops script.
@@ -31,5 +17,12 @@ The Docker environment runs the functions within a Docker container. In this cas
     localhost:
         runtime: ibmfunctions/action-python-v3.6
 ```
+
+of by using the *runtime* param in a function executor:
+
+```python
+    fexec = lithops.FunctionExecutor(runtime='jsampe/action-python-v3.8')
+```
+
 
 In this mode of execution, you can use any docker image that contains all the required dependencies. For example, the IBM Cloud Functions and Knative runtimes are compatible with it.

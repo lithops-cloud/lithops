@@ -17,7 +17,7 @@
 import io
 import os as base_os
 from functools import partial
-from lithops.storage import InternalStorage
+from lithops.storage import Storage
 from lithops.utils import is_lithops_worker
 from lithops.config import default_config, \
     load_yaml_config, extract_storage_config
@@ -27,13 +27,13 @@ from lithops.config import default_config, \
 # Picklable cloud object storage client
 #
 
-class CloudStorage(InternalStorage):
+class CloudStorage(Storage):
     def __init__(self, config=None):
         if isinstance(config, str):
             config = load_yaml_config(config)
             self._config = extract_storage_config(config)
         elif isinstance(config, dict):
-            if 'cloudbutton' in config:
+            if 'lithops' in config:
                 self._config = extract_storage_config(config)
             else:
                 self._config = config
@@ -48,7 +48,13 @@ class CloudStorage(InternalStorage):
         self.__init__(state)
 
     def list_keys(self, prefix=None):
-        return self.storage_handler.list_keys(self.bucket, prefix)
+        return self.storage.list_keys(self.bucket, prefix)
+
+    def put_data(self, key, data):
+        return self.storage.put_object(self.bucket, key, data)
+
+    def get_data(self, key, stream=False, extra_get_args={}):
+        return self.storage.get_object(self.bucket, key, stream, extra_get_args)
 
 
 class CloudFileProxy:
@@ -59,7 +65,7 @@ class CloudFileProxy:
     def __getattr__(self, name):
         # we only reach here if the attr is not defined
         return getattr(base_os, name)
-    
+
     def open(self, filename, mode='r'):
         return cloud_open(filename, mode=mode, cloud_storage=self._storage)
 
@@ -96,7 +102,7 @@ class CloudFileProxy:
             for dir in dirs:
                 for result in self.walk('/'.join([top, dir]), topdown, onerror, followlinks):
                     yield result
-        
+
         else:
             for dir in dirs:
                 for result in self.walk('/'.join([top, dir]), topdown, onerror, followlinks):
@@ -137,7 +143,7 @@ class _path:
             if key.startswith(dirpath) or key == path:
                 return True
         return False
-        
+
 
 class DelayedBytesBuffer(io.BytesIO):
     def __init__(self, action, initial_bytes=None):
@@ -153,10 +159,11 @@ class DelayedStringBuffer(io.StringIO):
     def __init__(self, action, initial_value=None):
         super().__init__(initial_value)
         self._action = action
-        
+
     def close(self):
         self._action(self.getvalue())
         io.StringIO.close(self)
+
 
 def cloud_open(filename, mode='r', cloud_storage=None):
     storage = cloud_storage or CloudStorage()
