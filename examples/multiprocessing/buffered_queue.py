@@ -5,7 +5,9 @@ import time
 def f(q):
     print("I'm process", getpid())
     q.put([42, None, 'hello'])
-    time.sleep(5)
+    for i in range(3):
+        q.put('Message no. {} ({})'.format(i, time.time()))
+        time.sleep(1)
 
 
 if __name__ == '__main__':
@@ -14,3 +16,5 @@ if __name__ == '__main__':
     p.start()
     print(q.get())  # prints "[42, None, 'hello']"
     p.join()
+    for _ in range(3):
+        print(q.get())

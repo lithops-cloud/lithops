@@ -1,7 +1,7 @@
 from lithops.config import default_logging_config
 default_logging_config('DEBUG')
 
-# from multiprocessing import Pool, Manager
+# from multiprocessizzng import Pool, Manager
 from lithops.multiprocessing import Pool, Manager
 
 
