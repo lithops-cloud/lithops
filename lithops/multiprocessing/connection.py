@@ -8,7 +8,6 @@
 #
 # Modifications Copyright (c) 2020 Cloudlab URV
 
-
 __all__ = [ 'Client', 'Listener', 'Pipe', 'wait' ]
 
 import io
