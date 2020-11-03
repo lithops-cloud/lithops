@@ -27,14 +27,11 @@ from lithops.job.partitioner import create_partitions
 from lithops.utils import is_object_processing_function, sizeof_fmt
 from lithops.storage.utils import create_func_key, create_agg_data_key
 from lithops.job.serialize import SerializeIndependent, create_module_data
-from lithops.config import MAX_AGG_DATA_SIZE, JOBS_PREFIX
+from lithops.config import MAX_AGG_DATA_SIZE, JOBS_PREFIX, LOCALHOST,\
+    SERVERLESS, STANDALONE
 from types import SimpleNamespace
 
 logger = logging.getLogger(__name__)
-
-SERVERLESS = 'serverless'
-STANDALONE = 'standalone'
-LOCALHOST = 'localhost'
 
 
 def create_map_job(config, internal_storage, executor_id, job_id, map_function,

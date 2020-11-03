@@ -11,7 +11,7 @@ Lithops is shipped with 3 modes of execution: Localhost, Serverless and Standalo
 
 Additionally, Lithops includes a top-level function executor, which encompasses all three previous executors:
 
-* `lithops.FunctionExecutor()`: Generic executor that will use the configuration to determine its type, i.e., based on the configuration it will be localhost, serverless or standalone.
+* `lithops.FunctionExecutor()`: Generic executor that will use the configuration to determine its type, i.e., based on the configuration it will be **localhost**, **serverless** or **standalone**.
 
 
 By default, the executors load the configuration from the config file. Alternatively you can pass the configuration with a python dictionary. In any case, note that all the parameters set in the executor will overwrite those set in the configuration.
@@ -100,8 +100,8 @@ Initialize and return a generic function executor.
 
 |Parameter | Default | Description|
 |---|---|---|
+|mode | serverless | Execution mode. One of: localhost, serverless or standalone|
 |config | None | Settings passed in here will override those in lithops_config|
-|type | serverles | Type of the executor. One of: localhost, serverless or standalone|
 |backend | None | Compute backend to run the functions|
 |runtime |  None | Name of the runtime to run the functions. |
 |runtime_memory | None | Memory (in MB) to use to run the functions |

@@ -1,6 +1,7 @@
 #
 # Copyright 2018 PyWren Team
-# Copyright Cloudlab URV 2020
+# (C) Copyright IBM Corp. 2019
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,8 +25,11 @@ from lithops.version import __version__
 
 logger = logging.getLogger(__name__)
 
+LOCALHOST = 'localhost'
+SERVERLESS = 'serverless'
+STANDALONE = 'standalone'
 
-EXECUTOR_DEFAULT = 'serverless'
+EXECUTOR_DEFAULT = SERVERLESS
 SERVERLESS_BACKEND_DEFAULT = 'ibm_cf'
 STANDALONE_BACKEND_DEFAULT = 'ibm_vpc'
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
@@ -55,7 +59,7 @@ CACHE_DIR = os.path.join(CONFIG_DIR, 'cache')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config')
 
 FN_LOG_FILE = os.path.join(STORAGE_DIR, 'functions.log')
-LH_LOG_FILE = os.path.join(STORAGE_DIR, 'local_handler.log')
+RN_LOG_FILE = os.path.join(STORAGE_DIR, 'runner.log')
 PX_LOG_FILE = os.path.join(STORAGE_DIR, 'proxy.log')
 
 
@@ -149,6 +153,9 @@ def default_config(config_data=None, config_overwrite={}):
         config_data['lithops']['execution_timeout'] = EXECUTION_TIMEOUT_DEFAULT
 
     if config_data['lithops']['executor'] == 'serverless':
+        if 'storage_bucket' not in config_data['lithops']:
+            raise Exception("storage_bucket is mandatory in "
+                            "lithops section of the configuration")
         if 'serverless' not in config_data:
             config_data['serverless'] = {}
         if 'backend' not in config_data['serverless']:
@@ -160,6 +167,9 @@ def default_config(config_data=None, config_overwrite={}):
         cb_config.load_config(config_data)
 
     elif config_data['lithops']['executor'] == 'standalone':
+        if 'storage_bucket' not in config_data['lithops']:
+            raise Exception("storage_bucket is mandatory in "
+                            "lithops section of the configuration")
         if 'standalone' not in config_data:
             config_data['standalone'] = {}
         if 'auto_dismantle' not in config_data['standalone']:
@@ -179,6 +189,7 @@ def default_config(config_data=None, config_overwrite={}):
         sb_config.load_config(config_data)
 
     elif config_data['lithops']['executor'] == 'localhost':
+        config_data['lithops']['storage_bucket'] = 'storage'
         if 'storage' not in config_data['lithops']:
             config_data['lithops']['storage'] = 'localhost'
         if 'localhost' not in config_data:

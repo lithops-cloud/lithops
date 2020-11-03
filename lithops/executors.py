@@ -1,7 +1,7 @@
 #
 # Copyright 2018 PyWren Team
-# Copyright IBM Corp. 2020
-# Copyright Cloudlab URV 2020
+# (C) Copyright IBM Corp. 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,7 +27,8 @@ from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from lithops.job import create_map_job, create_reduce_job, clean_job
 from lithops.config import default_config, extract_storage_config, \
     default_logging_config, extract_localhost_config, \
-    extract_standalone_config, extract_serverless_config
+    extract_standalone_config, extract_serverless_config, LOCALHOST,\
+    SERVERLESS, STANDALONE
 from lithops.utils import timeout_handler, is_notebook, \
     is_unix_system, is_lithops_worker, create_executor_id
 from lithops.localhost.localhost import LocalhostHandler
@@ -39,31 +40,41 @@ logger = logging.getLogger(__name__)
 
 class FunctionExecutor:
     """
-    Executor asbtract class that contains the common logic
+    Executor abstract class that contains the common logic
     for the Localhost, Serverless and Standalone executors
     """
 
-    def __init__(self, type=None, config=None, backend=None, storage=None,
+    def __init__(self, type=None, mode=None, config=None, backend=None, storage=None,
                  runtime=None, runtime_memory=None, rabbitmq_monitor=None,
                  workers=None, remote_invoker=None, log_level=None):
 
-        if type is None:
+        mode = mode or type
+
+        if mode is None:
             config = default_config(copy.deepcopy(config))
-            type = config['lithops']['executor']
+            mode = config['lithops']['executor']
+
+        if mode not in [LOCALHOST, SERVERLESS, STANDALONE]:
+            raise Exception("Function executor mode must be one of '{}', '{}' "
+                            "or '{}'".format(LOCALHOST, SERVERLESS, STANDALONE))
 
         if log_level:
             default_logging_config(log_level)
 
-        config_ow = {'lithops': {'executor': type}, type: {}}
+        if type is not None:
+            logger.warning("'type' parameter will be deprecated in future "
+                           "releases. Use 'mode' parameter instead")
+
+        config_ow = {'lithops': {'executor': mode}, mode: {}}
 
         if runtime is not None:
-            config_ow[type]['runtime'] = runtime
+            config_ow[mode]['runtime'] = runtime
         if backend is not None:
-            config_ow[type]['backend'] = backend
+            config_ow[mode]['backend'] = backend
         if runtime_memory is not None:
-            config_ow[type]['runtime_memory'] = int(runtime_memory)
+            config_ow[mode]['runtime_memory'] = int(runtime_memory)
         if remote_invoker is not None:
-            config_ow[type]['remote_invoker'] = remote_invoker
+            config_ow[mode]['remote_invoker'] = remote_invoker
 
         if storage is not None:
             config_ow['lithops']['storage'] = storage
@@ -88,8 +99,8 @@ class FunctionExecutor:
                 raise Exception("You cannot use rabbitmq_mnonitor since "
                                 "'amqp_url' is not present in configuration")
 
-        self.storage_config = extract_storage_config(self.config)
-        self.internal_storage = InternalStorage(self.storage_config)
+        storage_config = extract_storage_config(self.config)
+        self.internal_storage = InternalStorage(storage_config)
         self.storage = self.internal_storage.storage
 
         self.futures = []
@@ -97,7 +108,7 @@ class FunctionExecutor:
         self.cleaned_jobs = set()
         self.last_call = None
 
-        if type == 'localhost':
+        if mode == LOCALHOST:
             localhost_config = extract_localhost_config(self.config)
             self.compute_handler = LocalhostHandler(localhost_config)
 
@@ -105,16 +116,16 @@ class FunctionExecutor:
                                              self.executor_id,
                                              self.internal_storage,
                                              self.compute_handler)
-        elif type == 'serverless':
+        elif mode == SERVERLESS:
             serverless_config = extract_serverless_config(self.config)
             self.compute_handler = ServerlessHandler(serverless_config,
-                                                     self.storage_config)
+                                                     storage_config)
 
             self.invoker = ServerlessInvoker(self.config,
                                              self.executor_id,
                                              self.internal_storage,
                                              self.compute_handler)
-        elif type == 'standalone':
+        elif mode == STANDALONE:
             standalone_config = extract_standalone_config(self.config)
             self.compute_handler = StandaloneHandler(standalone_config)
 
@@ -122,12 +133,9 @@ class FunctionExecutor:
                                              self.executor_id,
                                              self.internal_storage,
                                              self.compute_handler)
-        else:
-            raise Exception("Function executor type must be one of "
-                            "'localhost', 'serverless' or 'standalone'")
 
-        logger.info('{} Executor created with ID: {}'.format(type.capitalize(),
-                                                             self.executor_id))
+        logger.info('{} Executor created with ID: {}'
+                    .format(mode.capitalize(), self.executor_id))
 
     def __enter__(self):
         return self
@@ -386,7 +394,7 @@ class FunctionExecutor:
                 print()
             logger.info(msg)
             if not self.log_active:
-                print(msg) 
+                print(msg)
             error = True
             raise e
 
@@ -545,7 +553,7 @@ class LocalhostExecutor(FunctionExecutor):
 
         :return `LocalhostExecutor` object.
         """
-        super().__init__(type='localhost', config=config,
+        super().__init__(mode='localhost', config=config,
                          runtime=runtime, storage=storage,
                          log_level=log_level, workers=workers,
                          rabbitmq_monitor=rabbitmq_monitor)
@@ -570,7 +578,7 @@ class ServerlessExecutor(FunctionExecutor):
 
         :return `ServerlessExecutor` object.
         """
-        super().__init__(type='serverless', config=config, runtime=runtime,
+        super().__init__(mode='serverless', config=config, runtime=runtime,
                          runtime_memory=runtime_memory, backend=backend,
                          storage=storage, workers=workers,
                          rabbitmq_monitor=rabbitmq_monitor, log_level=log_level,
@@ -594,6 +602,6 @@ class StandaloneExecutor(FunctionExecutor):
 
         :return `StandaloneExecutor` object.
         """
-        super().__init__(type='standalone', config=config, runtime=runtime,
+        super().__init__(mode='standalone', config=config, runtime=runtime,
                          backend=backend, storage=storage, workers=workers,
                          rabbitmq_monitor=rabbitmq_monitor, log_level=log_level)
