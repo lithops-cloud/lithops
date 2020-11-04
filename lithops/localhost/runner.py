@@ -15,12 +15,13 @@ from contextlib import redirect_stdout, redirect_stderr
 
 from lithops.utils import version_str, is_unix_system
 from lithops.worker import function_handler
-from lithops.config import STORAGE_DIR, JOBS_DONE_DIR, FN_LOG_FILE,\
+from lithops.config import LITHOPS_TEMP_DIR, JOBS_DONE_DIR, LOGS_DIR,\
     RN_LOG_FILE, default_logging_config
 from lithops import __version__
 
-os.makedirs(STORAGE_DIR, exist_ok=True)
+os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
 os.makedirs(JOBS_DONE_DIR, exist_ok=True)
+os.makedirs(LOGS_DIR, exist_ok=True)
 
 logging.basicConfig(filename=RN_LOG_FILE, level=logging.INFO,
                     format=('%(asctime)s [%(levelname)s] '
@@ -77,7 +78,8 @@ class Runner:
                     event = self.queue.get(block=True)
                     if isinstance(event, ShutdownSentinel):
                         break
-
+                    executor_id = event['executor_id']
+                    job_id = event['job_id']
                     log_level = event['log_level']
                     default_logging_config(log_level)
                     logger.info("Lithops v{} - Starting execution".format(__version__))
@@ -91,7 +93,9 @@ class Runner:
                 output = buf.getvalue()
                 output = output.replace('\n', '\n    ', output.count('\n')-1)
 
-            with open(FN_LOG_FILE, 'a') as lf:
+            exec_id = '-'.join([executor_id, job_id])
+            log_file = os.path.join(LOGS_DIR, exec_id+'.log')
+            with open(log_file, 'a') as lf:
                 lf.write(header+'    '+output+tail)
 
     def _invoke(self, job, call_id):

@@ -478,13 +478,13 @@ class JobMonitor:
         if not self.is_lithops_worker:
             th.daemon = True
 
-        exec_id = '{}-{}'.format(job.executor_id, job.job_id)
+        exec_id = '-'.join([job.executor_id, job.job_id])
         self.monitors[exec_id] = {'thread': th, 'should_run': True}
         th.start()
 
     def _job_monitoring_os(self, job):
         total_callids_done = 0
-        exec_id = '{}-{}'.format(job.executor_id, job.job_id)
+        exec_id = '-'.join([job.executor_id, job.job_id])
 
         while self.monitors[exec_id]['should_run'] and total_callids_done < job.total_calls:
             time.sleep(1)
@@ -502,7 +502,7 @@ class JobMonitor:
 
     def _job_monitoring_rabbitmq(self, job):
         total_callids_done = 0
-        exec_id = '{}-{}'.format(job.executor_id, job.job_id)
+        exec_id = '-'.join([job.executor_id, job.job_id])
 
         exchange = 'lithops-{}-{}'.format(job.executor_id, job.job_id)
         queue_1 = '{}-1'.format(exchange)

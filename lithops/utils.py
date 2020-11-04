@@ -47,7 +47,7 @@ def create_executor_id(lenght=6):
         exec_num = 0
     os.environ['__LITHOPS_TOTAL_EXECUTORS'] = str(exec_num)
 
-    return '{}/{}'.format(session_id, exec_num)
+    return '{}-{}'.format(session_id, exec_num)
 
 
 def create_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id):

@@ -49,18 +49,18 @@ STANDALONE_HARD_DISMANTLE_TIMEOUT_DEFAULT = 3600
 MAX_AGG_DATA_SIZE = 4  # 4MiB
 
 TEMP = os.path.realpath(tempfile.gettempdir())
-STORAGE_DIR = os.path.join(TEMP, 'lithops')
-JOBS_DONE_DIR = os.path.join(STORAGE_DIR, 'jobs')
+LITHOPS_TEMP_DIR = os.path.join(TEMP, 'lithops')
+JOBS_DONE_DIR = os.path.join(LITHOPS_TEMP_DIR, 'jobs')
+LOGS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'logs')
+RN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'runner.log')
+PX_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'proxy.log')
+
 REMOTE_INSTALL_DIR = '/opt/lithops'
 
 HOME_DIR = os.path.expanduser('~')
 CONFIG_DIR = os.path.join(HOME_DIR, '.lithops')
 CACHE_DIR = os.path.join(CONFIG_DIR, 'cache')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config')
-
-FN_LOG_FILE = os.path.join(STORAGE_DIR, 'functions.log')
-RN_LOG_FILE = os.path.join(STORAGE_DIR, 'runner.log')
-PX_LOG_FILE = os.path.join(STORAGE_DIR, 'proxy.log')
 
 
 def load_yaml_config(config_filename):

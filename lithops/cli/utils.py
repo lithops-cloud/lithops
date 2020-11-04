@@ -16,7 +16,7 @@
 
 import shutil
 import logging
-from lithops.config import CACHE_DIR, STORAGE_DIR, \
+from lithops.config import CACHE_DIR, LITHOPS_TEMP_DIR, \
     default_config, extract_storage_config, extract_serverless_config, \
     RUNTIMES_PREFIX, JOBS_PREFIX, extract_standalone_config,\
     extract_localhost_config, LOCALHOST, SERVERLESS, STANDALONE
@@ -54,6 +54,6 @@ def clean_all(config=None):
     clean_bucket(storage, storage_config['bucket'], JOBS_PREFIX, sleep=1)
 
     # Clean localhost executor temp dirs
-    shutil.rmtree(STORAGE_DIR, ignore_errors=True)
+    shutil.rmtree(LITHOPS_TEMP_DIR, ignore_errors=True)
     # Clean local lithops cache
     shutil.rmtree(CACHE_DIR, ignore_errors=True)
