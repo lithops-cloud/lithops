@@ -16,7 +16,7 @@ from contextlib import redirect_stdout, redirect_stderr
 from lithops.utils import version_str, is_unix_system
 from lithops.worker import function_handler
 from lithops.config import LITHOPS_TEMP_DIR, JOBS_DONE_DIR, LOGS_DIR,\
-    RN_LOG_FILE, default_logging_config
+    RN_LOG_FILE, default_logging_config, FN_LOG_FILE
 from lithops import __version__
 
 os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
@@ -53,6 +53,8 @@ class Runner:
             self.queue = queue.Queue()
             WORKER = Thread
         else:
+            if 'fork' in mp.get_all_start_methods():
+                mp.set_start_method('fork')
             self.queue = mp.Queue()
             WORKER = mp.Process
 
@@ -96,6 +98,8 @@ class Runner:
             exec_id = '-'.join([executor_id, job_id])
             log_file = os.path.join(LOGS_DIR, exec_id+'.log')
             with open(log_file, 'a') as lf:
+                lf.write(header+'    '+output+tail)
+            with open(FN_LOG_FILE, 'a') as lf:
                 lf.write(header+'    '+output+tail)
 
     def _invoke(self, job, call_id):
@@ -158,10 +162,8 @@ def run():
     runner.run(job.job_description)
     runner.wait()
 
-    sentinel = '{}/{}_{}.done'.format(JOBS_DONE_DIR,
-                                      job.executor_id.replace('/', '-'),
-                                      job.job_id)
-    Path(sentinel).touch()
+    done = '{}/{}-{}.done'.format(JOBS_DONE_DIR, job.executor_id, job.job_id)
+    Path(done).touch()
 
     logger.info('ExecutorID {} | JobID {} - Execution Finished'
                 .format(job.executor_id, job.job_id))

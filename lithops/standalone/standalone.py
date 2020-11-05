@@ -25,7 +25,7 @@ from threading import Thread
 
 from lithops.utils import is_lithops_worker
 from lithops.serverless.utils import create_function_handler_zip
-from lithops.config import LOGS_DIR, REMOTE_INSTALL_DIR
+from lithops.config import LOGS_DIR, REMOTE_INSTALL_DIR, FN_LOG_FILE
 
 logger = logging.getLogger(__name__)
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_standalone.zip')
@@ -160,35 +160,36 @@ class StandaloneHandler:
         exec_id = '-'.join([executor_id, job_id])
 
         def log_monitor():
-            timeout = 5
             os.makedirs(LOGS_DIR, exist_ok=True)
             log_file = os.path.join(LOGS_DIR, exec_id+'.log')
-            fdout = open(log_file, 'w')
-            ssh_client = self.ssh_client._create_client(self.ip_address)
-            cmd = 'tail -n +1 -F /tmp/lithops/logs/{}.log'.format(exec_id)
+            fdout_0 = open(log_file, 'w')
+            fdout_1 = open(FN_LOG_FILE, 'a')
 
+            ssh_client = self.ssh_client.create_client(self.ip_address)
+            cmd = 'tail -n +1 -F /tmp/lithops/logs/{}.log'.format(exec_id)
             stdin, stdout, stderr = ssh_client.exec_command(cmd)
             channel = stdout.channel
             stdin.close()
             channel.shutdown_write()
 
             while not channel.closed:
-                readq, _, _ = select.select([channel], [], [], timeout)
-                for c in readq:
-                    if c.recv_ready():
-                        data = channel.recv(len(c.in_buffer)).decode()
-                        fdout.write(data)
-                        fdout.flush()
-                    if c.recv_stderr_ready():
-                        data = channel.recv(len(c.in_buffer)).decode()
-                        fdout.write(data)
-                        fdout.flush()
+                readq, _, _ = select.select([channel], [], [], 10)
+                if readq and readq[0].recv_ready():
+                    data = channel.recv(len(readq[0].in_buffer)).decode()
+                    fdout_0.write(data)
+                    fdout_0.flush()
+                    fdout_1.write(data)
+                    fdout_1.flush()
+                else:
+                    cmd = 'ls /tmp/lithops/jobs/{}.done'.format(exec_id)
+                    _, out, _ = ssh_client.exec_command(cmd)
+                    if out.read().decode().strip():
+                        break
 
         if not self.is_lithops_worker:
-            self.log_monitors[exec_id] = Thread(target=log_monitor, daemon=True)
-            self.log_monitors[exec_id].start()
-            logger.debug('ExecutorID {} | JobID {} - Remote log monitor started'
-                         .format(executor_id, job_id))
+            Thread(target=log_monitor, daemon=True).start()
+            logger.debug('ExecutorID {} | JobID {} - Remote log monitor '
+                         'started'.format(executor_id, job_id))
 
     def run_job(self, job_payload):
         """

@@ -54,6 +54,7 @@ JOBS_DONE_DIR = os.path.join(LITHOPS_TEMP_DIR, 'jobs')
 LOGS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'logs')
 RN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'runner.log')
 PX_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'proxy.log')
+FN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'functions.log')
 
 REMOTE_INSTALL_DIR = '/opt/lithops'
 
@@ -131,6 +132,10 @@ def default_config(config_data=None, config_overwrite={}):
     if 'lithops' not in config_data:
         config_data['lithops'] = {}
 
+    if 'executor' in config_data['lithops']:
+        logging.warning("'executor' key in lithopos section is deprecated, use 'mode' key instead")
+        config_data['lithops']['mode'] = config_data['lithops']['executor']
+
     # overwrite values provided by the user
     if 'lithops' in config_overwrite:
         config_data['lithops'].update(config_overwrite['lithops'])
@@ -149,10 +154,6 @@ def default_config(config_data=None, config_overwrite={}):
         if STANDALONE not in config_data:
             config_data[STANDALONE] = {}
         config_data[STANDALONE].update(config_overwrite[STANDALONE])
-
-    if 'executor' in config_data['lithops']:
-        logging.warning("'executor' key in lithopos section is deprecated, use 'mode' key instead")
-        config_data['lithops']['mode'] = config_data['lithops']['executor']
 
     if 'mode' not in config_data['lithops']:
         config_data['lithops']['mode'] = MODE_DEFAULT
