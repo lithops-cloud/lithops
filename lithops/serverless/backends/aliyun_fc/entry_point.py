@@ -18,17 +18,17 @@ import os
 import json
 import logging
 from lithops.version import __version__
-from lithops.config import cloud_logging_config
+from lithops.config import default_logging_config
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
 
-cloud_logging_config(logging.INFO)
 logger = logging.getLogger('__main__')
 
 
 def main(event, context):
     args = json.loads(event)
     os.environ['__LITHOPS_ACTIVATION_ID'] = context.request_id
+    default_logging_config(args['log_level'])
     if 'remote_invoker' in args:
         logger.info("Lithops v{} - Starting invoker".format(__version__))
         function_invoker(args)
@@ -42,12 +42,12 @@ def main(event, context):
 def extract_preinstalls(event, context):
     import sys
     import pkgutil
-    
+
     print("Extracting preinstalled Python modules...")
     runtime_meta = dict()
     mods = list(pkgutil.iter_modules())
     runtime_meta["preinstalls"] = [entry for entry in sorted([[mod, is_pkg] for _, mod, is_pkg in mods])]
     python_version = sys.version_info
-    runtime_meta["python_ver"] = str(python_version[0])+"."+str(python_version[1])
+    runtime_meta["python_ver"] = str(python_version[0]) + "." + str(python_version[1])
     print("Done!")
     return runtime_meta
