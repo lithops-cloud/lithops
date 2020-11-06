@@ -26,6 +26,8 @@ import logging
 import threading
 import io
 
+from lithops.storage.utils import create_job_key
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,11 +37,11 @@ def uuid_str():
 
 def create_executor_id(lenght=6):
 
-    if '__LITHOPS_EXECUTION_ID' in os.environ:
-        session_id = os.environ['__LITHOPS_EXECUTION_ID']
+    if '__LITHOPS_SESSION_ID' in os.environ:
+        session_id = os.environ['__LITHOPS_SESSION_ID']
     else:
         session_id = uuid_str().replace('/', '')[:lenght]
-        os.environ['__LITHOPS_EXECUTION_ID'] = session_id
+        os.environ['__LITHOPS_SESSION_ID'] = session_id
 
     if '__LITHOPS_TOTAL_EXECUTORS' in os.environ:
         exec_num = int(os.environ['__LITHOPS_TOTAL_EXECUTORS']) + 1
@@ -58,7 +60,8 @@ def create_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id):
     logger.debug('ExecutorID {} | JobID {} - Creating RabbitMQ resources'.format(executor_id, job_id))
 
     def create_resources(rabbit_amqp_url, executor_id, job_id):
-        exchange = 'lithops-{}-{}'.format(executor_id, job_id)
+        job_key = create_job_key(executor_id, job_id)
+        exchange = 'lithops-{}'.format(job_key)
         queue_0 = '{}-0'.format(exchange)  # For waiting
         queue_1 = '{}-1'.format(exchange)  # For invoker
 
@@ -83,7 +86,8 @@ def delete_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id):
     Only called when an exception is produced, otherwise resources are
     automatically deleted.
     """
-    exchange = 'lithops-{}-{}'.format(executor_id, job_id)
+    job_key = create_job_key(executor_id, job_id)
+    exchange = 'lithops-{}'.format(job_key)
     queue_0 = '{}-0'.format(exchange)  # For waiting
     queue_1 = '{}-1'.format(exchange)  # For invoker
 

@@ -1,6 +1,19 @@
 # Changelog
 
-## [v2.2.3.dev0]
+## [v2.2.4.dev0]
+
+### Added
+- [Core] New lithops logs command
+- [Core] New job cleaner process
+
+### Changed
+- [Core] localhost/standalone logging per job-id
+
+### Fixed
+- [Core] Fixed issue in localhost executor and Mac OS
+
+
+## [v2.2.3]
 
 ### Added
 - [Core] Cloudpickle 1.6.0 for python>=3.8

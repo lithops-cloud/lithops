@@ -35,12 +35,13 @@ from lithops.future import ResponseFuture
 from lithops.libs.tblib import pickling_support
 from lithops.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_function
 from lithops.utils import WrappedStreamingBodyPartition
+from lithops.config import TEMP
 
 
 pickling_support.install()
 logger = logging.getLogger('JobRunner')
 
-TEMP = os.path.realpath(tempfile.gettempdir())
+
 PYTHON_MODULE_PATH = os.path.join(TEMP, "lithops.modules")
 
 
