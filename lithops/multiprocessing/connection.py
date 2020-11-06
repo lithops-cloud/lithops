@@ -11,13 +11,16 @@
 
 __all__ = ['Client', 'Listener', 'Pipe', 'wait']
 
+import asyncio
 import io
+import logging
 import os
 import sys
 import socket
 import time
 import tempfile
 import itertools
+import pynng
 from multiprocessing.context import BufferTooShort
 
 from . import util
@@ -25,21 +28,12 @@ from .context import reduction, AuthenticationError
 
 _ForkingPickler = reduction.ForkingPickler
 
-try:
-    import _winapi
-    from _winapi import WAIT_OBJECT_0, WAIT_ABANDONED_0, WAIT_TIMEOUT, INFINITE
-except ImportError:
-    if sys.platform == 'win32':
-        raise
-    _winapi = None
-
 #
 # Constants
 #
 
-#           Handle prefixes
-# Separated keys/channels so that a given
-# connection cannot read its own messages
+# Handle prefixes
+# (Separated keys/channels so that a given connection cannot read its own messages)
 REDIS_LIST_CONN = 'listconn'  # uses lists
 REDIS_LIST_CONN_A = REDIS_LIST_CONN + '-a-'
 REDIS_LIST_CONN_B = REDIS_LIST_CONN + '-b-'
@@ -53,37 +47,38 @@ CONNECTION_TIMEOUT = 20.
 
 _mmap_counter = itertools.count()
 
-default_family = 'AF_INET'
-families = ['AF_INET']
 
-if hasattr(socket, 'AF_UNIX'):
-    default_family = 'AF_UNIX'
-    families += ['AF_UNIX']
+# default_family = 'AF_INET'
+# families = ['AF_INET']
 
-if sys.platform == 'win32':
-    default_family = 'AF_PIPE'
-    families += ['AF_PIPE']
-
-
-def _init_timeout(timeout=CONNECTION_TIMEOUT):
-    return time.monotonic() + timeout
+# if hasattr(socket, 'AF_UNIX'):
+#     default_family = 'AF_UNIX'
+#     families += ['AF_UNIX']
+#
+# if sys.platform == 'win32':
+#     default_family = 'AF_PIPE'
+#     families += ['AF_PIPE']
 
 
-def _check_timeout(t):
-    return time.monotonic() > t
+# def _init_timeout(timeout=CONNECTION_TIMEOUT):
+#     return time.monotonic() + timeout
+
+
+# def _check_timeout(t):
+#     return time.monotonic() > t
 
 
 def get_handle_pair(conn_type=REDIS_LIST_CONN, from_id=None):
     if from_id is None:
-        id = util.get_uuid()
+        conn_id = util.get_uuid()
     else:
-        id = from_id
+        conn_id = from_id
     if conn_type == REDIS_LIST_CONN:
-        return (REDIS_LIST_CONN_A + id,
-                REDIS_LIST_CONN_B + id)
+        return (REDIS_LIST_CONN_A + conn_id,
+                REDIS_LIST_CONN_B + conn_id)
     elif conn_type == REDIS_PUBSUB_CONN:
-        return (REDIS_PUBSUB_CONN_A + id,
-                REDIS_PUBSUB_CONN_B + id)
+        return (REDIS_PUBSUB_CONN_A + conn_id,
+                REDIS_PUBSUB_CONN_B + conn_id)
 
 
 def get_subhandle(handle):
@@ -115,46 +110,47 @@ def arbitrary_address(family):
     """
     Return an arbitrary free address for the given family
     """
-    if family == 'AF_INET':
-        return ('localhost', 0)
-    elif family == 'AF_UNIX':
-        return tempfile.mktemp(prefix='listener-', dir=util.get_temp_dir())
-    elif family == 'AF_PIPE':
-        return tempfile.mktemp(prefix=r'\\.\pipe\pyc-%d-%d-' %
-                                      (os.getpid(), next(_mmap_counter)), dir="")
-    elif family == 'AF_REDIS':
+    # if family == 'AF_INET':
+    #     return ('localhost', 0)
+    # elif family == 'AF_UNIX':
+    #     return tempfile.mktemp(prefix='listener-', dir=util.get_temp_dir())
+    # elif family == 'AF_PIPE':
+    #     return tempfile.mktemp(prefix=r'\\.\pipe\pyc-%d-%d-' %
+    #                                   (os.getpid(), next(_mmap_counter)), dir="")
+    # elif family == 'AF_REDIS':
+    if family == 'AF_REDIS':
         return 'listener-' + util.get_uuid()
     else:
         raise ValueError('unrecognized family')
 
 
-def _validate_family(family):
-    """
-    Checks if the family is valid for the current environment.
-    """
-    if sys.platform != 'win32' and family == 'AF_PIPE':
-        raise ValueError('Family %s is not recognized.' % family)
+# def _validate_family(family):
+#     """
+#     Checks if the family is valid for the current environment.
+#     """
+#     if sys.platform != 'win32' and family == 'AF_PIPE':
+#         raise ValueError('Family %s is not recognized.' % family)
+#
+#     if sys.platform == 'win32' and family == 'AF_UNIX':
+#         # double check
+#         if not hasattr(socket, family):
+#             raise ValueError('Family %s is not recognized.' % family)
 
-    if sys.platform == 'win32' and family == 'AF_UNIX':
-        # double check
-        if not hasattr(socket, family):
-            raise ValueError('Family %s is not recognized.' % family)
 
-
-def address_type(address):
-    """
-    Return the types of the address
-
-    This can be 'AF_INET', 'AF_UNIX', or 'AF_PIPE'
-    """
-    if type(address) == tuple:
-        return 'AF_INET'
-    elif type(address) is str and address.startswith('\\\\'):
-        return 'AF_PIPE'
-    elif type(address) is str:
-        return 'AF_UNIX'
-    else:
-        raise ValueError('address type of %r unrecognized' % address)
+# def address_type(address):
+#     """
+#     Return the types of the address
+#
+#     This can be 'AF_INET', 'AF_UNIX', or 'AF_PIPE'
+#     """
+#     if type(address) == tuple:
+#         return 'AF_INET'
+#     elif type(address) is str and address.startswith('\\\\'):
+#         return 'AF_PIPE'
+#     elif type(address) is str:
+#         return 'AF_UNIX'
+#     else:
+#         raise ValueError('address type of %r unrecognized' % address)
 
 
 #
@@ -166,14 +162,10 @@ class _ConnectionBase:
 
     def __init__(self, handle, readable=True, writable=True):
         if not readable and not writable:
-            raise ValueError(
-                "at least one of `readable` and `writable` must be True")
-        self._client = util.get_redis_client()
+            raise ValueError("at least one of `readable` and `writable` must be True")
         self._handle = handle
         self._readable = readable
         self._writable = writable
-
-    # XXX should we use util.Finalize instead of a __del__?
 
     def __del__(self):
         if self._handle is not None:
@@ -226,6 +218,16 @@ class _ConnectionBase:
             finally:
                 self._handle = None
 
+    def _close(self):
+        raise NotImplementedError()
+
+    def send(self, obj):
+        """Send a (picklable) object"""
+        self._check_closed()
+        self._check_writable()
+        self._send_bytes(_ForkingPickler.dumps(obj))
+        raise NotImplementedError()
+
     def send_bytes(self, buf, offset=0, size=None):
         """Send the bytes data from a bytes-like object"""
         self._check_closed()
@@ -247,11 +249,8 @@ class _ConnectionBase:
             raise ValueError("buffer length < offset + size")
         self._send_bytes(m[offset:offset + size])
 
-    def send(self, obj):
-        """Send a (picklable) object"""
-        self._check_closed()
-        self._check_writable()
-        self._send_bytes(_ForkingPickler.dumps(obj))
+    def _send_bytes(self, param):
+        raise NotImplementedError()
 
     def recv_bytes(self, maxlength=None):
         """
@@ -265,6 +264,9 @@ class _ConnectionBase:
         if buf is None:
             self._bad_message_length()
         return buf.getvalue()
+
+    def _recv_bytes(self, maxlength=None):
+        raise NotImplementedError()
 
     def recv_bytes_into(self, buf, offset=0):
         """
@@ -311,7 +313,7 @@ class _ConnectionBase:
         self.close()
 
 
-class Connection(_ConnectionBase):
+class RedisConnection(_ConnectionBase):
     """
     Connection class for Redis.
     """
@@ -320,6 +322,7 @@ class Connection(_ConnectionBase):
 
     def __init__(self, handle, readable=True, writable=True):
         super().__init__(handle, readable, writable)
+        self._client = util.get_redis_client()
         self._subhandle = get_subhandle(handle)
         self._connect()
 
@@ -391,7 +394,7 @@ class Connection(_ConnectionBase):
         return bool(r)
 
 
-PipeConnection = Connection
+PipeConnection = RedisConnection
 
 
 #
@@ -405,7 +408,6 @@ class Listener(object):
     This is a wrapper for a bound socket which is 'listening' for
     connections, or for a Windows named pipe.
     """
-
     def __init__(self, address=None, family=None, backlog=1, authkey=None):
         family = 'AF_REDIS'
         address = address or arbitrary_address(family)
@@ -473,11 +475,11 @@ def Pipe(duplex=True):
     h1, h2 = get_handle_pair(conn_type=REDIS_LIST_CONN)
 
     if duplex:
-        c1 = Connection(h1)
-        c2 = Connection(h2)
+        c1 = RedisConnection(h1)
+        c2 = RedisConnection(h2)
     else:
-        c1 = Connection(h1, writable=False)
-        c2 = Connection(h2, readable=False)
+        c1 = RedisConnection(h1, writable=False)
+        c2 = RedisConnection(h2, readable=False)
 
     return c1, c2
 
@@ -519,7 +521,7 @@ class SocketListener(object):
     def accept(self):
         msg = next(self._gen)
         client_subhandle = msg['data'].decode('utf-8')
-        c = Connection(client_subhandle)
+        c = RedisConnection(client_subhandle)
         c.send('OK')
         self._last_accepted = client_subhandle
         return c
@@ -539,23 +541,23 @@ class SocketListener(object):
                 unlink()
 
 
-def SocketClient(address):
-    """
-    Return a connection object connected to the socket given by `address`
-    """
-    h1, _ = get_handle_pair(conn_type=REDIS_PUBSUB_CONN)
-    c = Connection(h1)
-    c._channelwrite(address, c._subhandle.encode('utf-8'))
-
-    if c._poll(CONNECTION_TIMEOUT):
-        c.recv()
-        return c
-    else:
-        raise ConnectionRefusedError(address)
-
-
-PipeListener = SocketListener
-PipeClient = SocketClient
+# def SocketClient(address):
+#     """
+#     Return a connection object connected to the socket given by `address`
+#     """
+#     h1, _ = get_handle_pair(conn_type=REDIS_PUBSUB_CONN)
+#     c = RedisConnection(h1)
+#     c._channelwrite(address, c._subhandle.encode('utf-8'))
+#
+#     if c._poll(CONNECTION_TIMEOUT):
+#         c.recv()
+#         return c
+#     else:
+#         raise ConnectionRefusedError(address)
+#
+#
+# PipeListener = SocketListener
+# PipeClient = SocketClient
 
 #
 # Authentication stuff
@@ -599,45 +601,45 @@ def answer_challenge(connection, authkey):
 # Support for using xmlrpclib for serialization
 #
 
-class ConnectionWrapper(object):
-    def __init__(self, conn, dumps, loads):
-        self._conn = conn
-        self._dumps = dumps
-        self._loads = loads
-        for attr in ('fileno', 'close', 'poll', 'recv_bytes', 'send_bytes'):
-            obj = getattr(conn, attr)
-            setattr(self, attr, obj)
-
-    def send(self, obj):
-        s = self._dumps(obj)
-        self._conn.send_bytes(s)
-
-    def recv(self):
-        s = self._conn.recv_bytes()
-        return self._loads(s)
-
-
-def _xml_dumps(obj):
-    return xmlrpclib.dumps((obj,), None, None, None, 1).encode('utf-8')
-
-
-def _xml_loads(s):
-    (obj,), method = xmlrpclib.loads(s.decode('utf-8'))
-    return obj
-
-
-class XmlListener(Listener):
-    def accept(self):
-        global xmlrpclib
-        import xmlrpc.client as xmlrpclib
-        obj = Listener.accept(self)
-        return ConnectionWrapper(obj, _xml_dumps, _xml_loads)
-
-
-def XmlClient(*args, **kwds):
-    global xmlrpclib
-    import xmlrpc.client as xmlrpclib
-    return ConnectionWrapper(Client(*args, **kwds), _xml_dumps, _xml_loads)
+# class ConnectionWrapper(object):
+#     def __init__(self, conn, dumps, loads):
+#         self._conn = conn
+#         self._dumps = dumps
+#         self._loads = loads
+#         for attr in ('fileno', 'close', 'poll', 'recv_bytes', 'send_bytes'):
+#             obj = getattr(conn, attr)
+#             setattr(self, attr, obj)
+#
+#     def send(self, obj):
+#         s = self._dumps(obj)
+#         self._conn.send_bytes(s)
+#
+#     def recv(self):
+#         s = self._conn.recv_bytes()
+#         return self._loads(s)
+#
+#
+# def _xml_dumps(obj):
+#     return xmlrpclib.dumps((obj,), None, None, None, 1).encode('utf-8')
+#
+#
+# def _xml_loads(s):
+#     (obj,), method = xmlrpclib.loads(s.decode('utf-8'))
+#     return obj
+#
+#
+# class XmlListener(Listener):
+#     def accept(self):
+#         global xmlrpclib
+#         import xmlrpc.client as xmlrpclib
+#         obj = Listener.accept(self)
+#         return ConnectionWrapper(obj, _xml_dumps, _xml_loads)
+#
+#
+# def XmlClient(*args, **kwds):
+#     global xmlrpclib
+#     import xmlrpc.client as xmlrpclib
+#     return ConnectionWrapper(Client(*args, **kwds), _xml_dumps, _xml_loads)
 
 
 #
@@ -671,8 +673,7 @@ def wait(object_list, timeout=None):
                 l = client.llen(handle)
                 if l > 0:
                     ready.append((client, handle))
-            elif handle.startswith(REDIS_PUBSUB_CONN) \
-                    and client.connection.can_read():
+            elif handle.startswith(REDIS_PUBSUB_CONN) and client.connection.can_read():
                 ready.append((client, handle))
 
         if any(ready):
@@ -696,7 +697,29 @@ def reduce_connection(conn):
 
 def rebuild_connection(df, readable, writable):
     fd = df.detach()
-    return Connection(fd, readable, writable)
+    return RedisConnection(fd, readable, writable)
 
 
-reduction.register(Connection, reduce_connection)
+reduction.register(RedisConnection, reduce_connection)
+
+
+async def process_request(ctx: pynng.Context, data: bytes):
+    logging.debug('Processing request')
+    client_id = int.from_bytes(data, byteorder='big', signed=False)
+    logging.debug(f"<Worker {client_id}>: doing some IO")
+    await asyncio.sleep(1)
+
+    logging.debug(f"<Worker {client_id}>: sending the result")
+    await ctx.asend(f"result data for client {client_id}".encode())
+
+
+ENDPOINT = 'tcp://127.0.0.1:50000'
+
+
+async def serve():
+    with pynng.Rep0(listen=ENDPOINT) as sock:
+        while await asyncio.sleep(0, result=True):
+            ctx = sock.new_context()
+            logging.debug('Waiting for client connection...')
+            payload = await ctx.arecv()
+            asyncio.create_task(process_request(ctx, payload))

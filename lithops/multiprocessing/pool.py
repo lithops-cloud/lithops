@@ -285,6 +285,8 @@ class Pool(object):
         Equivalent of `func(*args, **kwds)`.
         """
         assert self._state == RUN
+        if kwds and not args:
+            args = {}
         return self.apply_async(func, args, kwds).get()
 
     def map(self, func, iterable, chunksize=None):
@@ -385,7 +387,7 @@ class Pool(object):
         if self._state != RUN:
             raise ValueError("Pool not running")
 
-        futures = self._executor.call_async(func, [*args, *kwds])
+        futures = self._executor.call_async(func, data=args, extra_data=kwds)
 
         result = ApplyResult(self._executor, [futures], callback, error_callback)
 
@@ -649,11 +651,12 @@ class ApplyResult(object):
         return self._futures[0].ready
 
     def successful(self):
-        assert self.ready()
+        if not self.ready():
+            raise ValueError('{} not ready'.format(repr(self)))
         return self._success
 
     def wait(self, timeout=None):
-        self._executor.wait(self._futures, download_results=True, timeout=timeout)
+        self._executor.wait(self._futures, download_results=False, timeout=timeout, throw_except=False)
 
     def get(self, timeout=None):
         self.wait(timeout)
