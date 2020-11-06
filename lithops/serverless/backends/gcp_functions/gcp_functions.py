@@ -37,6 +37,7 @@ import google.api_core.exceptions
 from lithops.version import __version__
 from lithops.utils import version_str
 from lithops.storage import InternalStorage
+from . import config as gcp_config
 
 logger = logging.getLogger(__name__)
 logging.getLogger('googleapiclient').setLevel(logging.CRITICAL)
@@ -64,10 +65,10 @@ class GCPFunctionsBackend:
         self.project = gcp_functions_config['project_name']
         self.credentials_path = gcp_functions_config['credentials_path']
         self.num_retries = gcp_functions_config['retries']
-        self.retry_sleeps = gcp_functions_config['retry_sleeps']
+        self.retry_sleep = gcp_functions_config['retry_sleep']
 
         # Instantiate storage client (used to upload function bin)
-        self.internal_storage = InternalStorage(gcp_functions_config['storage'])
+        self.internal_storage = InternalStorage(storage_config)
 
         # Setup Pub/Sub client
         try:  # Get credentials from JSON file
@@ -132,8 +133,7 @@ class GCPFunctionsBackend:
             for file in os.listdir(full_dir_path):
                 full_path = os.path.join(full_dir_path, file)
                 if os.path.isfile(full_path):
-                    zip_file.write(full_path, os.path.join(
-                        'lithops', sub_dir, file), zipfile.ZIP_DEFLATED)
+                    zip_file.write(full_path, os.path.join('lithops', sub_dir, file), zipfile.ZIP_DEFLATED)
                 elif os.path.isdir(full_path) and '__pycache__' not in full_path:
                     add_folder_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
 
@@ -143,11 +143,14 @@ class GCPFunctionsBackend:
                 module_location = os.path.dirname(os.path.abspath(lithops.__file__))
                 main_file = os.path.join(current_location, 'entry_point.py')
                 lithops_zip.write(main_file, 'main.py', zipfile.ZIP_DEFLATED)
-                req_file = os.path.join(current_location, 'requirements.txt')
-                lithops_zip.write(req_file, 'requirements.txt', zipfile.ZIP_DEFLATED)
+                requirements_file_loc = os.path.join(tempfile.gettempdir(), 'requirements.txt')
+                with open(requirements_file_loc, 'w') as req_file:
+                    for req in gcp_config.REQUIREMENTS:
+                        req_file.write('{}\n'.format(req))
+                lithops_zip.write(requirements_file_loc, 'requirements.txt', zipfile.ZIP_DEFLATED)
                 add_folder_to_zip(lithops_zip, module_location)
         except Exception as e:
-            raise Exception('Unable to create the {} package: {}'.format(ZIP_LOCATION, e))
+            raise Exception('Unable to create Lithops package: {}'.format(e))
 
     def _create_function(self, runtime_name, memory, code, timeout=60, trigger='HTTP'):
         logger.debug("Creating function {} - Memory: {} Timeout: {} Trigger: {}".format(runtime_name,
@@ -193,8 +196,13 @@ class GCPFunctionsBackend:
             ).execute(num_retries=self.num_retries)
             if response['status'] == 'ACTIVE':
                 break
+            elif response['status'] == 'OFFLINE':
+                raise Exception('Error while deploying Cloud Function')
+            elif response['status'] == 'DEPLOY_IN_PROGRESS':
+                time.sleep(self.retry_sleep)
+                print('Still installing...')
             else:
-                time.sleep(random.choice(self.retry_sleeps))
+                raise Exception('Unknown status {}'.format(response['status']))
 
     def build_runtime(self):
         pass
@@ -203,8 +211,7 @@ class GCPFunctionsBackend:
         pass
 
     def create_runtime(self, runtime_name, memory, timeout=60):
-        logger.debug("Creating runtime {} - \
-            Memory: {} Timeout: {}".format(runtime_name, memory, timeout))
+        logger.debug("Creating runtime {} - Memory: {} Timeout: {}".format(runtime_name, memory, timeout))
 
         # Get runtime preinstalls
         runtime_meta = self._generate_runtime_meta(runtime_name)
@@ -250,21 +257,18 @@ class GCPFunctionsBackend:
             except HttpError:
                 break
             if response['status'] == 'DELETE_IN_PROGRESS':
-                time.sleep(random.choice(self.retry_sleeps))
+                time.sleep(self.retry_sleep)
 
     def clean(self):
         runtimes = self.list_runtimes()
         for runtime in runtimes:
             if 'lithops_v' in runtime:
-                runtime_name, runtime_memory = self._unformat_action_name(
-                    runtime)
+                runtime_name, runtime_memory = self._unformat_action_name(runtime)
                 self.delete_runtime(runtime_name, runtime_memory)
 
     def list_runtimes(self, docker_image_name='all'):
-        default_location = self._full_default_location()
         response = self._get_funct_conn().projects().locations().functions().list(
-            location=default_location,
-            body={}
+            parent=self._full_default_location()
         ).execute(num_retries=self.num_retries)
 
         result = response['Functions'] if 'Functions' in response else []
