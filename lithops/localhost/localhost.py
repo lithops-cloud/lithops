@@ -20,15 +20,15 @@ import json
 import lithops
 import logging
 import shutil
-import subprocess
+import subprocess as sp
 from shutil import copyfile
 
-from lithops.config import TEMP, STORAGE_DIR, JOBS_PREFIX
+from lithops.config import TEMP, STORAGE_DIR, JOBS_PREFIX, FN_LOG_FILE
 from lithops.version import __version__
 
 logger = logging.getLogger(__name__)
 
-HANDLER_FILE = os.path.join(STORAGE_DIR, 'local_handler.py')
+RUNNER = os.path.join(STORAGE_DIR, 'runner.py')
 LITHOPS_LOCATION = os.path.dirname(os.path.abspath(lithops.__file__))
 
 
@@ -60,9 +60,9 @@ class LocalhostHandler:
         Run the job description against the selected environment
         """
         runtime = job_payload['job_description']['runtime_name']
-        logger.info("Running job in {}. Check /tmp/lithops/local_handler.log "
-                    "for execution logs".format(runtime))
-        if not os.path.isfile(HANDLER_FILE):
+        logger.info("Running job in {}. View execution logs at {}"
+                    .format(runtime, FN_LOG_FILE))
+        if not os.path.isfile(RUNNER):
             self.env.setup()
 
         exec_command = self.env.get_execution_cmd(runtime)
@@ -80,8 +80,8 @@ class LocalhostHandler:
             json.dump(job_payload, jl)
 
         log_file = open(os.path.join(STORAGE_DIR, 'local_handler.log'), 'a')
-        subprocess.Popen(exec_command+' run '+jobr_filename, shell=True,
-                         stdout=log_file, universal_newlines=True)
+        sp.Popen(exec_command+' run '+jobr_filename, shell=True,
+                 stdout=log_file, universal_newlines=True)
 
     def create_runtime(self, runtime):
         """
@@ -90,8 +90,8 @@ class LocalhostHandler:
         logger.info("Extracting preinstalled Python modules from {}".format(runtime))
         self.env.setup()
         exec_command = self.env.get_execution_cmd(runtime)
-        process = subprocess.run(exec_command+' preinstalls', shell=True, check=True,
-                                 stdout=subprocess.PIPE, universal_newlines=True)
+        process = sp.run(exec_command+' preinstalls', shell=True, check=True,
+                         stdout=sp.PIPE, universal_newlines=True)
         runtime_meta = json.loads(process.stdout.strip())
 
         return runtime_meta
@@ -119,14 +119,14 @@ class DockerEnv:
         except FileNotFoundError:
             pass
         shutil.copytree(LITHOPS_LOCATION, os.path.join(STORAGE_DIR, 'lithops'))
-        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'local_handler.py')
-        copyfile(src_handler, HANDLER_FILE)
+        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'runner.py')
+        copyfile(src_handler, RUNNER)
 
     def get_execution_cmd(self, docker_image_name):
         cmd = ('docker pull {} > /dev/null 2>&1; docker run '
                '--user $(id -u):$(id -g) --rm -v {}:/tmp --entrypoint '
                '"python" {} {}'.format(docker_image_name, TEMP,
-                                       docker_image_name, HANDLER_FILE))
+                                       docker_image_name, RUNNER))
         return cmd
 
 
@@ -141,9 +141,9 @@ class DefaultEnv:
         except FileNotFoundError:
             pass
         shutil.copytree(LITHOPS_LOCATION, os.path.join(STORAGE_DIR, 'lithops'))
-        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'local_handler.py')
-        copyfile(src_handler, HANDLER_FILE)
+        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'runner.py')
+        copyfile(src_handler, RUNNER)
 
     def get_execution_cmd(self, runtime):
-        cmd = '{} {}'.format(self.runtime, HANDLER_FILE)
+        cmd = '{} {}'.format(self.runtime, RUNNER)
         return cmd

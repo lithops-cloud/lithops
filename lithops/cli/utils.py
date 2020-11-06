@@ -19,7 +19,7 @@ import logging
 from lithops.config import CACHE_DIR, STORAGE_DIR, \
     default_config, extract_storage_config, extract_serverless_config, \
     RUNTIMES_PREFIX, JOBS_PREFIX, extract_standalone_config,\
-    extract_localhost_config
+    extract_localhost_config, LOCALHOST, SERVERLESS, STANDALONE
 from lithops.storage import InternalStorage
 from lithops.serverless import ServerlessHandler
 from lithops.storage.utils import clean_bucket
@@ -35,19 +35,17 @@ def clean_all(config=None):
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
 
-    default_executor = config['lithops']['executor']
-    if default_executor == 'localhost':
+    mode = config['lithops']['mode']
+    if mode == LOCALHOST:
         compute_config = extract_localhost_config(config)
         compute_handler = LocalhostHandler(compute_config)
-    elif default_executor == 'serverless':
+    elif mode == SERVERLESS:
         compute_config = extract_serverless_config(config)
         compute_handler = ServerlessHandler(compute_config, storage_config)
-    elif default_executor == 'standalone':
+    elif mode == STANDALONE:
         compute_config = extract_standalone_config(config)
         compute_handler = StandaloneHandler(compute_config)
 
-    # Clean localhost executor temp dirs
-    shutil.rmtree(STORAGE_DIR, ignore_errors=True)
     compute_handler.clean()
 
     # Clean object storage temp dirs
@@ -55,5 +53,7 @@ def clean_all(config=None):
     clean_bucket(storage, storage_config['bucket'], RUNTIMES_PREFIX, sleep=1)
     clean_bucket(storage, storage_config['bucket'], JOBS_PREFIX, sleep=1)
 
+    # Clean localhost executor temp dirs
+    shutil.rmtree(STORAGE_DIR, ignore_errors=True)
     # Clean local lithops cache
     shutil.rmtree(CACHE_DIR, ignore_errors=True)

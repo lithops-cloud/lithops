@@ -17,17 +17,19 @@
 import os
 import logging
 from lithops.version import __version__
-from lithops.config import cloud_logging_config
+from lithops.config import default_logging_config
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
 
-cloud_logging_config(logging.INFO)
 logger = logging.getLogger('__main__')
 
 
 def lambda_handler(event, context):
     os.environ['__PW_ACTIVATION_ID'] = context.aws_request_id
     os.environ['__OW_ACTIVATION_ID'] = context.aws_request_id
+
+    log_level = event['log_level']
+    default_logging_config(log_level)
 
     if 'remote_invoker' in event:
         logger.info("Lithops v{} - Starting invoker".format(__version__))

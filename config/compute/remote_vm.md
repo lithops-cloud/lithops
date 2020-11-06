@@ -11,7 +11,7 @@ Lithops can run functions in a regular remote virtual machine by using processes
 
 ```yaml
     lithops:
-        executor: standalone
+        mode: standalone
     
     standalone:
         backend: vm
@@ -24,7 +24,7 @@ Lithops can run functions in a regular remote virtual machine by using processes
 
 ### Execution environments
 
-The remote virtual machine executor can run functions in multiple environments. Currently it supports the *default python3* and the *Docker* environments. The environment is automatically chosen depending on if you provided a Docker image as a runtime or not. In both cases, you can see the executions logs at */tmp/lithops/local_handler.log*.
+The remote virtual machine executor can run functions in multiple environments. Currently it supports the *default python3* and the *Docker* environments. The environment is automatically chosen depending on if you provided a Docker image as a runtime or not. In both cases, you can view the executions logs at */tmp/lithops/functions.log* (Or equivalent in Windows, Mac OS).
 
 #### Default Environment
 The default environment runs the functions in the same *python3* interpreter that you ran the lithops script.

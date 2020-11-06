@@ -1,6 +1,6 @@
 #
-# (C) Copyright IBM Corp. 2019
-# Copyright Cloudlab URV 2020
+# (C) Copyright IBM Corp. 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,10 +20,10 @@ import sys
 import json
 import pika
 import time
-import logging
 import random
-import multiprocessing as mp
 import queue
+import logging
+import multiprocessing as mp
 from threading import Thread
 from types import SimpleNamespace
 from concurrent.futures import ThreadPoolExecutor
@@ -32,7 +32,6 @@ from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config
 from lithops.utils import version_str, is_lithops_worker, is_unix_system
 
-mp.set_start_method("fork")
 logger = logging.getLogger(__name__)
 
 
@@ -53,8 +52,8 @@ class Invoker:
         logger.debug('ExecutorID {} - Total available workers: {}'
                      .format(self.executor_id, self.workers))
 
-        executor = self.config['lithops']['executor']
-        self.runtime_name = self.config[executor]['runtime']
+        mode = self.config['lithops']['mode']
+        self.runtime_name = self.config[mode]['runtime']
 
     def select_runtime(self, job_id, runtime_memory):
         """
@@ -159,18 +158,22 @@ class ServerlessInvoker(Invoker):
         super().__init__(config, executor_id, internal_storage, compute_handler)
 
         self.remote_invoker = self.config['serverless'].get('remote_invoker', False)
-
+        self.use_threads = (self.is_lithops_worker
+                            or not is_unix_system()
+                            or mp.get_start_method() != 'fork')
         self.invokers = []
         self.ongoing_activations = 0
 
-        if not is_lithops_worker() and is_unix_system():
-            self.token_bucket_q = mp.Queue()
-            self.pending_calls_q = mp.Queue()
-            self.running_flag = mp.Value('i', 0)
-        else:
+        if self.use_threads:
             self.token_bucket_q = queue.Queue()
             self.pending_calls_q = queue.Queue()
             self.running_flag = SimpleNamespace(value=0)
+            self.INVOKER = Thread
+        else:
+            self.token_bucket_q = mp.Queue()
+            self.pending_calls_q = mp.Queue()
+            self.running_flag = mp.Value('i', 0)
+            self.INVOKER = mp.Process
 
         self.job_monitor = JobMonitor(self.config, self.internal_storage, self.token_bucket_q)
 
@@ -216,18 +219,11 @@ class ServerlessInvoker(Invoker):
         """
         Starts the invoker process responsible to spawn pending calls in background
         """
-        if self.is_lithops_worker or not is_unix_system():
-            for inv_id in range(self.INVOKER_PROCESSES):
-                p = Thread(target=self._run_invoker_process, args=(inv_id, ))
-                self.invokers.append(p)
-                p.daemon = True
-                p.start()
-        else:
-            for inv_id in range(self.INVOKER_PROCESSES):
-                p = mp.Process(target=self._run_invoker_process, args=(inv_id, ))
-                self.invokers.append(p)
-                p.daemon = True
-                p.start()
+        for inv_id in range(self.INVOKER_PROCESSES):
+            p = self.INVOKER(target=self._run_invoker_process, args=(inv_id, ))
+            self.invokers.append(p)
+            p.daemon = True
+            p.start()
 
     def _run_invoker_process(self, inv_id):
         """
@@ -326,6 +322,10 @@ class ServerlessInvoker(Invoker):
             pass
 
         if self.remote_invoker:
+            """
+            Remote Invocation
+            Use a single cloud function to perform all the function invocations
+            """
             old_stdout = sys.stdout
             sys.stdout = open(os.devnull, 'w')
             self.select_runtime(job.job_id, self.REMOTE_INVOKER_MEMORY)
@@ -338,12 +338,14 @@ class ServerlessInvoker(Invoker):
             if not self.log_active:
                 print(log_msg)
 
-            th = Thread(target=self._invoke_remote, args=(job,))
-            th.daemon = True
+            th = Thread(target=self._invoke_remote, args=(job,), daemon=True)
             th.start()
             time.sleep(0.1)
-
         else:
+            """
+            Normal Invocation
+            Use local threads to perform all the function invocations
+            """
             try:
                 if self.running_flag.value == 0:
                     self.ongoing_activations = 0

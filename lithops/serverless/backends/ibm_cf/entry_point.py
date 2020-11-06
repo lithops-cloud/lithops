@@ -17,16 +17,19 @@
 import os
 import logging
 from lithops.version import __version__
-from lithops.config import cloud_logging_config
+from lithops.config import ow_logging_config
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
 
-cloud_logging_config(logging.INFO)
 logger = logging.getLogger('__main__')
 
 
 def main(args):
     os.environ['__LITHOPS_ACTIVATION_ID'] = os.environ['__OW_ACTIVATION_ID']
+
+    log_level = args['log_level']
+    ow_logging_config(log_level)
+
     if 'remote_invoker' in args:
         logger.info("Lithops v{} - Starting invoker".format(__version__))
         function_invoker(args)

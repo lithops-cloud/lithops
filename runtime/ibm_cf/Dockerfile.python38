@@ -26,7 +26,7 @@ RUN pip install --upgrade pip setuptools six \
         python-dateutil==2.8.0 \
         pika==0.13.1 \
         flask==1.1.1 \
-        gevent==1.4.0 \
+        gevent==20.9.0 \
         ibm-cos-sdk==2.6.0 \
         redis==3.3.8 \
         requests==2.22.0 \

@@ -27,14 +27,11 @@ from lithops.job.partitioner import create_partitions
 from lithops.utils import is_object_processing_function, sizeof_fmt
 from lithops.storage.utils import create_func_key, create_agg_data_key
 from lithops.job.serialize import SerializeIndependent, create_module_data
-from lithops.config import MAX_AGG_DATA_SIZE, JOBS_PREFIX
+from lithops.config import MAX_AGG_DATA_SIZE, JOBS_PREFIX, LOCALHOST,\
+    SERVERLESS, STANDALONE
 from types import SimpleNamespace
 
 logger = logging.getLogger(__name__)
-
-SERVERLESS = 'serverless'
-STANDALONE = 'standalone'
-LOCALHOST = 'localhost'
 
 
 def create_map_job(config, internal_storage, executor_id, job_id, map_function,
@@ -161,22 +158,22 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     job.function_name = func.__name__
     job.total_calls = len(iterdata)
 
-    executor = config['lithops']['executor']
+    mode = config['lithops']['mode']
 
-    if executor == SERVERLESS:
+    if mode == SERVERLESS:
         job.invoke_pool_threads = invoke_pool_threads
         job.runtime_memory = runtime_memory or config['serverless']['runtime_memory']
         job.runtime_timeout = config['serverless']['runtime_timeout']
         if job.execution_timeout >= job.runtime_timeout:
             job.execution_timeout = job.runtime_timeout - 5
 
-    if executor == STANDALONE:
+    elif mode == STANDALONE:
         job.runtime_memory = None
         runtime_timeout = config['standalone']['hard_dismantle_timeout']
         if job.execution_timeout >= runtime_timeout:
             job.execution_timeout = runtime_timeout - 10
 
-    if executor == LOCALHOST:
+    elif mode == LOCALHOST:
         job.runtime_memory = None
         job.runtime_timeout = execution_timeout
 

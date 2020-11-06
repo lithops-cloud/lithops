@@ -17,13 +17,15 @@
 import os
 import json
 import time
+import select
 import logging
 import importlib
 import requests
+from threading import Thread
 
+from lithops.utils import is_lithops_worker
 from lithops.serverless.utils import create_function_handler_zip
-from lithops.config import REMOTE_INSTALL_DIR
-
+from lithops.config import STORAGE_DIR, FN_LOG_FILE, REMOTE_INSTALL_DIR
 
 logger = logging.getLogger(__name__)
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_standalone.zip')
@@ -43,6 +45,8 @@ Restart=always
 WantedBy=multi-user.target
 """.format(REMOTE_INSTALL_DIR)
 
+LOG_MONITOR = None
+
 
 class StandaloneHandler:
     """
@@ -55,6 +59,7 @@ class StandaloneHandler:
         self.config = standalone_config
         self.backend_name = self.config['backend']
         self.runtime = self.config['runtime']
+        self.is_lithops_worker = is_lithops_worker()
 
         self.start_timeout = self.config.get('start_timeout', 300)
 
@@ -110,6 +115,15 @@ class StandaloneHandler:
         self.dismantle()
         raise Exception('VM readiness probe expired. Check your VM')
 
+    def _start_backend(self):
+        if not self._is_backend_ready():
+            # The VM instance is stopped
+            init_time = time.time()
+            self.backend.start()
+            self._wait_backend_ready()
+            total_start_time = round(time.time()-init_time, 2)
+            logger.info('VM instance ready in {} seconds'.format(total_start_time))
+
     def _is_proxy_ready(self):
         """
         Checks if the proxy is ready to receive http connections
@@ -138,20 +152,63 @@ class StandaloneHandler:
         self.dismantle()
         raise Exception('Proxy readiness probe expired. Check your VM')
 
+    def _start_log_monitor(self):
+        """
+        Starts a process that polls the remote log into a local file
+        """
+        global LOG_MONITOR
+
+        def log_monitor():
+            timeout = 5
+            os.makedirs(STORAGE_DIR, exist_ok=True)
+            fdout = open(FN_LOG_FILE, 'a')
+            ssh_client = self.ssh_client._create_client(self.ip_address)
+            cmd = 'tail -n 1 -f /tmp/lithops/functions.log'
+
+            stdin, stdout, stderr = ssh_client.exec_command(cmd)
+            channel = stdout.channel
+            stdin.close()
+            channel.shutdown_write()
+
+            while not channel.closed:
+                readq, _, _ = select.select([channel], [], [], timeout)
+                for c in readq:
+                    if c.recv_ready():
+                        data = channel.recv(len(c.in_buffer)).decode()
+                        fdout.write(data)
+                        fdout.flush()
+                    if c.recv_stderr_ready():
+                        data = channel.recv(len(c.in_buffer)).decode()
+                        fdout.write(data)
+                        fdout.flush()
+
+        if not self.is_lithops_worker and (not LOG_MONITOR or not LOG_MONITOR.is_alive()):
+            LOG_MONITOR = Thread(target=log_monitor, daemon=True)
+            LOG_MONITOR.start()
+            logger.debug('Remote log monitor started')
+
     def run_job(self, job_payload):
         """
         Run the job description against the selected environment
         """
+        executor_id = job_payload['executor_id']
+        job_id = job_payload['job_id']
+
         if not self._is_proxy_ready():
             # The VM instance is stopped
+            if not self.log_active:
+                print('ExecutorID {} - Starting VM instance' .format(executor_id))
             init_time = time.time()
             self.backend.start()
             self._wait_proxy_ready()
             total_start_time = round(time.time()-init_time, 2)
             logger.info('VM instance ready in {} seconds'.format(total_start_time))
 
-        logger.info('ExecutorID: {} | JobID: {} - Running job'.
-                    format(job_payload['executor_id'], job_payload['job_id']))
+        self._start_log_monitor()
+
+        logger.info('ExecutorID {} | JobID {} - Running job'.
+                    format(executor_id, job_id))
+        logger.info("View execution logs at {}".format(FN_LOG_FILE))
         url = "http://{}:{}/run".format(self.ip_address, PROXY_SERVICE_PORT)
         r = requests.post(url, data=json.dumps(job_payload))
         response = r.json()
@@ -163,14 +220,7 @@ class StandaloneHandler:
         Installs the proxy and extracts the runtime metadata and
         preinstalled modules
         """
-        if not self._is_backend_ready():
-            # The VM instance is stopped
-            init_time = time.time()
-            self.backend.start()
-            self._wait_backend_ready()
-            total_start_time = round(time.time()-init_time, 2)
-            logger.info('VM instance ready in {} seconds'.format(total_start_time))
-
+        self._start_backend()
         self._setup_proxy()
         self._wait_proxy_ready()
 
@@ -184,9 +234,9 @@ class StandaloneHandler:
 
     def get_runtime_key(self, runtime_name):
         """
-        Wrapper method that returns a formated string that represents the runtime key.
-        Each backend has its own runtime key format. Used to store modules preinstalls
-        into the storage
+        Wrapper method that returns a formated string that represents the
+        runtime key. Each backend has its own runtime key format. Used to
+        store modules preinstalls into the storage
         """
         return self.backend.get_runtime_key(runtime_name)
 
@@ -196,13 +246,28 @@ class StandaloneHandler:
         """
         self.backend.stop()
 
+    def init(self):
+        """
+        Start the VM instance and initialize runtime
+        """
+        self._start_backend()
+
+        # Not sure if mandatory, but sleep several seconds to let proxy server start
+        time.sleep(2)
+
+        # if proxy not started, install it
+        if not self._is_proxy_ready():
+            self._setup_proxy()
+
+        self._wait_proxy_ready()
+
     def clean(self):
         pass
 
     def _setup_proxy(self):
         logger.info('Installing Lithops proxy in the VM instance')
-        logger.debug('Be patient, installation process can take up to 3 '
-                     'minutes if this is the first time you use the VM instance')
+        logger.debug('Be patient, installation process can take up to 3 minutes'
+                     'if this is the first time you use the VM instance')
 
         service_file = '/etc/systemd/system/{}'.format(PROXY_SERVICE_NAME)
         self.ssh_client.upload_data_to_file(self.ip_address, PROXY_SERVICE_FILE, service_file)
