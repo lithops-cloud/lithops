@@ -3,7 +3,7 @@ import io
 import shutil
 import logging
 from lithops.storage.utils import StorageNoSuchKeyError
-from lithops.config import STORAGE_DIR
+from lithops.config import LITHOPS_TEMP_DIR
 
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,7 @@ class LocalhostStorageBackend:
         """
         try:
             data_type = type(data)
-            file_path = os.path.join(STORAGE_DIR, bucket_name, key)
+            file_path = os.path.join(LITHOPS_TEMP_DIR, bucket_name, key)
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             if data_type == bytes:
                 with open(file_path, "wb") as f:
@@ -72,7 +72,7 @@ class LocalhostStorageBackend:
         """
         buffer = None
         try:
-            file_path = os.path.join(STORAGE_DIR, bucket_name, key)
+            file_path = os.path.join(LITHOPS_TEMP_DIR, bucket_name, key)
             with open(file_path, "rb") as f:
                 if 'Range' in extra_get_args:
                     byte_range = extra_get_args['Range'].replace('bytes=', '')
@@ -86,7 +86,7 @@ class LocalhostStorageBackend:
             else:
                 return buffer.read()
         except Exception:
-            raise StorageNoSuchKeyError(os.path.join(STORAGE_DIR, bucket_name), key)
+            raise StorageNoSuchKeyError(os.path.join(LITHOPS_TEMP_DIR, bucket_name), key)
 
     def head_object(self, bucket_name, key):
         """
@@ -104,7 +104,7 @@ class LocalhostStorageBackend:
         :param bucket: bucket name
         :param key: data key
         """
-        file_path = os.path.join(STORAGE_DIR, bucket_name, key)
+        file_path = os.path.join(LITHOPS_TEMP_DIR, bucket_name, key)
         try:
             if os.path.exists(file_path):
                 os.remove(file_path)
@@ -125,7 +125,7 @@ class LocalhostStorageBackend:
             self.delete_object(bucket_name, key)
 
         for file_dir in dirs:
-            shutil.rmtree(os.path.join(STORAGE_DIR, file_dir), ignore_errors=True)
+            shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, file_dir), ignore_errors=True)
 
     def bucket_exists(self, bucket_name):
         """
@@ -156,9 +156,9 @@ class LocalhostStorageBackend:
         key_list = []
 
         if prefix:
-            root = os.path.join(STORAGE_DIR, bucket_name, prefix)
+            root = os.path.join(LITHOPS_TEMP_DIR, bucket_name, prefix)
         else:
-            root = os.path.join(STORAGE_DIR, bucket_name)
+            root = os.path.join(LITHOPS_TEMP_DIR, bucket_name)
 
         for path, subdirs, files in os.walk(root):
             for name in files:
@@ -181,9 +181,9 @@ class LocalhostStorageBackend:
         key_list = []
 
         if prefix:
-            root = os.path.join(STORAGE_DIR, bucket_name, prefix)
+            root = os.path.join(LITHOPS_TEMP_DIR, bucket_name, prefix)
         else:
-            root = os.path.join(STORAGE_DIR, bucket_name)
+            root = os.path.join(LITHOPS_TEMP_DIR, bucket_name)
 
         for path, subdirs, files in os.walk(root):
             for name in files:

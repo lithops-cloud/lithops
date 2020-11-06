@@ -109,7 +109,7 @@ class Storage:
         :param key: destination key
         :return: CloudObject instance
         """
-        prefix = os.environ.get('LITHOPS_EXECUTION_ID', '')
+        prefix = os.environ.get('__LITHOPS_EXECUTION_ID', '')
         coid = hex(next(self._created_cobjects_n))[2:]
         name = '{}/cloudobject_{}'.format(prefix, coid)
         key = key or '/'.join([TEMP_PREFIX, name])

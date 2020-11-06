@@ -1,6 +1,22 @@
 # Lithops Functions and Parameters
 
-This document describes how to invoke functions based on the *iterdata* variable. In this sense, Lithops for IBM Cloud allows to send either *args* or *kwargs* in the function invocation.
+This document describes how to invoke functions based on the *iterdata* variable. In this sense, Lithops allows to send either *args* or *kwargs* in the function invocation.
+
+
+## Reserved parameters
+
+Take into account that there are some reserved parameter names that activate internal logic. These reserved parameters are:
+
+- **id**: To get the call id. For instance, if you spawn 10 activations of a function, you will get here a number from 0 to 9, for example: [map.py](../examples/map.py)
+
+- **storage**: To get a ready-to use lithops.storage.Storage() instance. This allows you to access your storage backend defined in configuration from any function in an easy way, for example: [storage_arg.py](../examples/storage_arg.py)
+
+- **ibm_cos**: To get a ready-to use [ibm_boto3.Client()](https://ibm.github.io/ibm-cos-sdk-python/reference/services/s3.html#client) instance. This allows you to access your IBM COS account from any function in an easy way, for example: [ibmcos_arg.py](../examples/ibmcos_arg.py)
+
+- **rabbitmq**: To get a ready-to use [pika.BlockingConnection()](https://pika.readthedocs.io/en/0.13.1/modules/adapters/blocking.html) instance (AMQP URL must be set in the [configuration](config/) to make it working). This allows you to access the RabbitMQ service from any function in an easy way, for example: [rabbitmq_arg.py](../examples/rabbitmq_arg.py)
+
+- **obj** & **url**: These two parameter activate internal logic that allows to process data objects stored in the object store or public URLs in a transparent way. See [data-processing](../docs/data-processing.md) documentation for more details and instructions on how to use this built-in data-processing logic.
+
 
 ## Single function invocation using the call_async() method.
 You can send multiple parameters to a single call function writing them into a list. The parameters will be mapped in
@@ -283,16 +299,3 @@ Sometimes, functions have common parameters for all the invocations. In this cas
     ```
 
 To test all of the previous examples run the [multiple_parameters_map.py](../examples/multiple_parameters_map.py) located in the `examples/` folder.
-
-
-## Reserved parameters
-
-Take into account that there are some reserved parameter names that activate internal logic. These reserved parameters are:
-
-- **id**: To get the call id. For instance, if you spawn 10 activations of a function, you will get here a number from 0 to 9, for example: [map.py](../examples/map.py)
-
-- **ibm_cos**: To get a ready-to use [ibm_boto3.Client()](https://ibm.github.io/ibm-cos-sdk-python/reference/services/s3.html#client) instance. This allows you to access your IBM COS account from any function in an easy way, for example: [ibmcos_arg.py](../examples/ibmcos_arg.py)
-
-- **rabbitmq**: To get a ready-to use [pika.BlockingConnection()](https://pika.readthedocs.io/en/0.13.1/modules/adapters/blocking.html) instance (AMQP URL must be set in the [configuration](config/) to make it working). This allows you to access the RabbitMQ service from any function in an easy way, for example: [rabbitmq_arg.py](../examples/rabbitmq_arg.py)
-
-- **obj** & **url**: These two parameter activate internal logic that allows to process data objects stored in the IBM Cloud Object Storage service or public URLs in transparent way. See [data-processing](../docs/data-processing.md) documentation for more details and instructions on how to use this built-in data-processing logic.
