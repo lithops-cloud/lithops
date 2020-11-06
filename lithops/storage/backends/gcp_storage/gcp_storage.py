@@ -17,17 +17,21 @@
 import re
 import io
 import time
+import logging
 from requests.exceptions import SSLError as TooManyConnectionsError
 from io import BytesIO
 from urllib.parse import urlparse
 from google.api_core import exceptions as google_exceptions
 from google.cloud import storage
 from google.cloud.exceptions import NotFound
+
 from google.api_core.exceptions import GoogleAPICallError, AlreadyExists, RetryError
 from ...utils import StorageNoSuchKeyError
 
+logging.getLogger('urllib3').setLevel(logging.CRITICAL)
 
-class GCPStorageBackend():
+
+class GCPStorageBackend:
     def __init__(self, gcp_storage_config, bucket=None, executor_id=None):
         self.credentials_path = gcp_storage_config['credentials_path']
         try:  # Get credenitals from JSON file
