@@ -26,12 +26,13 @@ from google.cloud.exceptions import NotFound
 from google.api_core.exceptions import GoogleAPICallError, AlreadyExists, RetryError
 from ...utils import StorageNoSuchKeyError
 
+
 class GCPStorageBackend():
     def __init__(self, gcp_storage_config, bucket=None, executor_id=None):
         self.credentials_path = gcp_storage_config['credentials_path']
-        try: # Get credenitals from JSON file
+        try:  # Get credenitals from JSON file
             self.client = storage.Client.from_service_account_json(self.credentials_path)
-        except Exception: # Get credentials from gcp function environment
+        except Exception:  # Get credentials from gcp function environment
             self.client = storage.Client()
 
     def get_client(self):
@@ -73,26 +74,26 @@ class GCPStorageBackend():
             blob = bucket.blob(blob_name=key)
         except google_exceptions.NotFound:
             raise StorageNoSuchKeyError(bucket_name, key)
-        
+
         if not blob.exists():
             raise StorageNoSuchKeyError(bucket_name, key)
-        
+
         if extra_get_args and 'Range' in extra_get_args:
             start, end = re.findall(r'\d+', extra_get_args['Range'])
             start = int(start)
             end = int(end)
         else:
             start, end = None, None
-        
+
         if stream:
             stream = BytesIO()
             # Download object to bytes buffer
             blob.download_to_file(stream, start=start, end=end)
-            stream.seek(0) # Retrun to the initial buffer position
+            stream.seek(0)  # Retrun to the initial buffer position
             return stream
         else:
             return blob.download_as_string(start=start, end=end)
-        
+
     def head_object(self, bucket_name, key):
         """
         Head object from COS with a key. Throws StorageNoSuchKeyError if the given key does not exist.
@@ -105,15 +106,15 @@ class GCPStorageBackend():
             blob = bucket.get_blob(blob_name=key)
         except google_exceptions.NotFound:
             raise StorageNoSuchKeyError(bucket_name, key)
-        
+
         if blob is None:
             raise StorageNoSuchKeyError(bucket_name, key)
 
         response = {
-            'LastModified' : blob.updated,
-            'ETag' : blob.etag, 
-            'content-type' : blob.content_type,
-            'content-length' : blob.size  
+            'LastModified': blob.updated,
+            'ETag': blob.etag,
+            'content-type': blob.content_type,
+            'content-length': blob.size
         }
         return response
 
@@ -123,7 +124,7 @@ class GCPStorageBackend():
         :param bucket: bucket name
         :param key: data key
         """
-        
+
         try:
             bucket = self.client.get_bucket(bucket_name)
         except google_exceptions.NotFound:
@@ -150,7 +151,7 @@ class GCPStorageBackend():
             self.client.get_bucket(bucket_name)
         except google_exceptions.NotFound:
             raise StorageNoSuchKeyError(bucket_name, '')
-    
+
     def head_bucket(self, bucket_name):
         pass
 
@@ -166,8 +167,8 @@ class GCPStorageBackend():
             page = self.client.get_bucket(bucket_name).list_blobs(prefix=prefix)
         except google_exceptions.ClientError:
             raise StorageNoSuchKeyError(bucket_name, '')
-        return [{'Key' : blob.name, 'Size' : blob.size} for blob in page]
-    
+        return [{'Key': blob.name, 'Size': blob.size} for blob in page]
+
     def list_keys(self, bucket_name, prefix=None):
         """
         Return a list of keys for the given prefix.
