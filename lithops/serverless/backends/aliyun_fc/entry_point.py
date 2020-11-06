@@ -28,10 +28,7 @@ logger = logging.getLogger('__main__')
 def main(event, context):
     args = json.loads(event)
     os.environ['__LITHOPS_ACTIVATION_ID'] = context.request_id
-
-    log_level = args['log_level']
-    default_logging_config(log_level)
-
+    default_logging_config(args['log_level'])
     if 'remote_invoker' in args:
         logger.info("Lithops v{} - Starting invoker".format(__version__))
         function_invoker(args)
@@ -45,12 +42,12 @@ def main(event, context):
 def extract_preinstalls(event, context):
     import sys
     import pkgutil
-    
+
     print("Extracting preinstalled Python modules...")
     runtime_meta = dict()
     mods = list(pkgutil.iter_modules())
     runtime_meta["preinstalls"] = [entry for entry in sorted([[mod, is_pkg] for _, mod, is_pkg in mods])]
     python_version = sys.version_info
-    runtime_meta["python_ver"] = str(python_version[0])+"."+str(python_version[1])
+    runtime_meta["python_ver"] = str(python_version[0]) + "." + str(python_version[1])
     print("Done!")
     return runtime_meta

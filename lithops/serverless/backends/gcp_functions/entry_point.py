@@ -30,11 +30,8 @@ logger = logging.getLogger('__main__')
 def main(event, context):
     logger.info("Starting GCP Functions function execution")
     args = json.loads(base64.b64decode(event['data']).decode('utf-8'))
-    os.environ['__LITHOPS_ACTIVATION_ID'] = uuid.uuid4().hex
-
-    log_level = args['log_level']
-    default_logging_config(log_level)
-
+    os.environ['__PW_ACTIVATION_ID'] = uuid.uuid4().hex
+    default_logging_config(args['log_level'])
     if 'remote_invoker' in args:
         logger.info("Lithops v{} - Starting invoker".format(__version__))
         function_invoker(args)
