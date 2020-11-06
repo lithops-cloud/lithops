@@ -79,10 +79,9 @@ class LocalhostHandler:
         job_id = job_payload['job_id']
         storage_bucket = job_payload['config']['lithops']['storage_bucket']
 
-        job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket,
-                               JOBS_PREFIX, executor_id, job_id)
+        job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket, JOBS_PREFIX)
         os.makedirs(job_dir, exist_ok=True)
-        jobr_filename = os.path.join(job_dir, 'job.json')
+        jobr_filename = os.path.join(job_dir, '{}-job.json'.format(job_key))
 
         with open(jobr_filename, 'w') as jl:
             json.dump(job_payload, jl)

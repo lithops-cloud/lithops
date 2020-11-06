@@ -50,6 +50,9 @@ def clean():
 
             for co in cos_to_clean:
                 if co.backend == storage.backend:
+                    logging.info('Cleaning {}://{}/{}'.format(co.backend,
+                                                              co.bucket,
+                                                              co.key))
                     storage.delete_object(co.bucket, co.key)
 
         if os.path.exists(file_location):
@@ -57,11 +60,11 @@ def clean():
 
     while True:
         files_to_clean = os.listdir(CLEANER_DIR)
-        if len(files_to_clean) == 2:
+        if len(files_to_clean) <= 2:
             break
         with ThreadPoolExecutor(max_workers=32) as ex:
             ex.map(clean_file, files_to_clean)
-        time.sleep(10)
+        time.sleep(5)
 
 
 if __name__ == '__main__':

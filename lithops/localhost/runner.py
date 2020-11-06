@@ -167,6 +167,9 @@ def run():
     done = os.path.join(JOBS_DONE_DIR, job_key+'.done')
     Path(done).touch()
 
+    if os.path.exists(job_filename):
+        os.remove(job_filename)
+
     logger.info('ExecutorID {} | JobID {} - Execution Finished'
                 .format(job.executor_id, job.job_id))
 

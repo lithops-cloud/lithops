@@ -252,12 +252,12 @@ class InternalStorage:
         keys = self.storage.list_keys(self.bucket, callset_prefix)
 
         running_keys = [k.split('/') for k in keys if init_key_suffix in k]
-        running_callids = [tuple(k[1].rsplit("-", 2)
-                                 + [k[2].replace(init_key_suffix, '')])
+        running_callids = [tuple(k[1].rsplit("-", 1) + [k[2]]
+                                 + [k[3].replace(init_key_suffix, '')])
                            for k in running_keys]
 
-        done_keys = [k.split('/')[1] for k in keys if status_key_suffix in k]
-        done_callids = [tuple(k.rsplit("-", 2)) for k in done_keys]
+        done_keys = [k.split('/')[1:] for k in keys if status_key_suffix in k]
+        done_callids = [tuple(k[0].rsplit("-", 1) + [k[1]]) for k in done_keys]
 
         return set(running_callids), set(done_callids)
 
