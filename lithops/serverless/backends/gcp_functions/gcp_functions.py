@@ -97,8 +97,8 @@ class GCPFunctionsBackend:
 
     def _unformat_action_name(self, action_name):
         split = action_name.split('_')
-        runtime_name = split[1].replace('-', '.')
-        runtime_memory = int(split[2].replace('MB', ''))
+        runtime_name = split[2].replace('-', '.')
+        runtime_memory = int(split[3].replace('MB', ''))
         return runtime_name, runtime_memory
 
     def _full_function_location(self, function_name):
@@ -194,15 +194,20 @@ class GCPFunctionsBackend:
             response = self._get_funct_conn().projects().locations().functions().get(
                 name=function_location
             ).execute(num_retries=self.num_retries)
+            logger.debug('Function status is {}'.format(response['status']))
             if response['status'] == 'ACTIVE':
                 break
             elif response['status'] == 'OFFLINE':
                 raise Exception('Error while deploying Cloud Function')
             elif response['status'] == 'DEPLOY_IN_PROGRESS':
                 time.sleep(self.retry_sleep)
-                print('Still installing...')
+                if not self.log_active:
+                    print('Still installing...')
             else:
                 raise Exception('Unknown status {}'.format(response['status']))
+
+        # Delete runtime bin archive from storage
+        self.internal_storage.storage.delete_object(self.internal_storage.bucket, bin_name)
 
     def build_runtime(self):
         pass
@@ -235,18 +240,19 @@ class GCPFunctionsBackend:
         with open(ZIP_LOCATION, "rb") as action_zip:
             action_bin = action_zip.read()
 
-        self._create_function(runtime_name, memory,
-                              action_bin, timeout=timeout, trigger='Pub/Sub')
+        self._create_function(runtime_name, memory, action_bin, timeout=timeout, trigger='Pub/Sub')
 
         return runtime_meta
 
     def delete_runtime(self, runtime_name, runtime_memory):
-        function_location = self._full_function_location(
-            self._format_action_name(runtime_name, runtime_memory))
+        action_name = self._format_action_name(runtime_name, runtime_memory)
+        function_location = self._full_function_location(action_name)
+        logger.debug('Going to delete runtime {}'.format(action_name))
 
         self._get_funct_conn().projects().locations().functions().delete(
             name=function_location,
         ).execute(num_retries=self.num_retries)
+        logger.debug('Request Ok - Waiting until function is completely deleted')
 
         # Wait until function is completely deleted
         while True:
@@ -254,12 +260,28 @@ class GCPFunctionsBackend:
                 response = self._get_funct_conn().projects().locations().functions().get(
                     name=function_location
                 ).execute(num_retries=self.num_retries)
-            except HttpError:
+                logger.debug('Function status is {}'.format(response['status']))
+                if response['status'] == 'DELETE_IN_PROGRESS':
+                    time.sleep(self.retry_sleep)
+                else:
+                    raise Exception('Unknown status: {}'.format(response['status']))
+            except HttpError as e:
+                logger.debug('Ok - {}'.format(e))
                 break
-            if response['status'] == 'DELETE_IN_PROGRESS':
-                time.sleep(self.retry_sleep)
+
+        logger.debug('Listing Pub/Sub topics...')
+        topic_name = self._format_topic_name(runtime_name, runtime_memory)
+        topic_location = self._full_topic_location(topic_name)
+        topic_list_request = self.publisher_client.list_topics(request={'project': 'projects/{}'.format(self.project)})
+        topics = [topic.name for topic in topic_list_request]
+        logger.debug('Topics: {}'.format(topics))
+        if topic_location in topics:
+            logger.debug('Going to delete topic {}'.format(topic_name))
+            self.publisher_client.delete_topic(topic=topic_location)
+            logger.debug('Ok - topic {} deleted'.format(topic_name))
 
     def clean(self):
+        logger.debug('Going to delete all deployed runtimes...')
         runtimes = self.list_runtimes()
         for runtime in runtimes:
             if 'lithops_v' in runtime:
@@ -267,12 +289,14 @@ class GCPFunctionsBackend:
                 self.delete_runtime(runtime_name, runtime_memory)
 
     def list_runtimes(self, docker_image_name='all'):
+        logger.debug('Listing deployed runtimes...')
         response = self._get_funct_conn().projects().locations().functions().list(
             parent=self._full_default_location()
         ).execute(num_retries=self.num_retries)
 
-        result = response['Functions'] if 'Functions' in response else []
-        return result
+        runtimes = [function['name'].split('/')[-1] for function in response.get('functions', [])]
+        logger.debug('Deployed runtimes: {}'.format(runtimes))
+        return runtimes
 
     def invoke(self, runtime_name, runtime_memory, payload={}):
         exec_id = payload['executor_id']
@@ -287,8 +311,7 @@ class GCPFunctionsBackend:
                 topic_location, bytes(json.dumps(payload).encode('utf-8')))
             invocation_id = fut.result()
         except Exception as e:
-            logger.debug(
-                'ExecutorID {} - Function {} invocation failed: {}'.format(exec_id, call_id, str(e)))
+            logger.debug('ExecutorID {} - Function {} invocation failed: {}'.format(exec_id, call_id, str(e)))
             return None
 
         roundtrip = time.time() - start
@@ -303,18 +326,20 @@ class GCPFunctionsBackend:
     def invoke_with_result(self, runtime_name, runtime_memory, payload={}):
         action_name = self._format_action_name(runtime_name, runtime_memory)
         function_location = self._full_function_location(action_name)
+        logger.debug('Going to synchronously invoke {} through developer API'.format(action_name))
 
         response = self._get_funct_conn().projects().locations().functions().call(
             name=function_location,
             body={'data': json.dumps({'data': self._encode_payload(payload)})}
         ).execute(num_retries=self.num_retries)
 
+        logger.debug('Invocation {} success'.format(action_name))
         return json.loads(response['result'])
 
     def get_runtime_key(self, runtime_name, runtime_memory):
         action_name = self._format_action_name(runtime_name, runtime_memory)
         runtime_key = os.path.join(self.name, self.region, action_name)
-
+        logger.debug('Runtime key: {}'.format(runtime_key))
         return runtime_key
 
     def _generate_runtime_meta(self, runtime_name):
@@ -331,13 +356,12 @@ class GCPFunctionsBackend:
                 runtime_meta['python_ver'] = str(python_version[0])+"."+str(python_version[1])
                 return json.dumps(runtime_meta)
         """
-        action_location = os.path.join(
-            tempfile.gettempdir(), 'extract_preinstalls_gcp.py')
+        logger.debug('Generating runtime meta for {}...'.format(runtime_name))
+        action_location = os.path.join(tempfile.gettempdir(), 'extract_preinstalls_gcp.py')
         with open(action_location, 'w') as f:
             f.write(textwrap.dedent(action_code))
 
-        modules_zip_action = os.path.join(
-            tempfile.gettempdir(), 'extract_preinstalls_gcp.zip')
+        modules_zip_action = os.path.join(tempfile.gettempdir(), 'extract_preinstalls_gcp.zip')
         with zipfile.ZipFile(modules_zip_action, 'w') as extract_modules_zip:
             extract_modules_zip.write(action_location, 'main.py')
             extract_modules_zip.close()
@@ -346,16 +370,15 @@ class GCPFunctionsBackend:
 
         self._create_function(runtime_name, 128, action_code, trigger='HTTP')
 
-        logger.debug(
-            "Extracting Python modules list from: {}".format(runtime_name))
+        logger.debug("Extracting Python modules list from: {}".format(runtime_name))
         try:
             runtime_meta = self.invoke_with_result(runtime_name, 128)
-        except Exception:
-            raise ("Unable to invoke 'modules' action")
+        except Exception as e:
+            raise Exception("Unable to invoke 'modules' action: {}".format(e))
         try:
             self.delete_runtime(runtime_name, 128)
-        except Exception:
-            raise ("Unable to delete 'modules' action")
+        except Exception as e:
+            raise Exception("Unable to delete 'modules' action: {}".format(e))
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
             raise Exception(runtime_meta)
