@@ -181,8 +181,8 @@ class TestMethods:
         return cloudobject
 
     @staticmethod
-    def my_cloudobject_get(results, storage):
-        data = [pickle.loads(storage.get_cobject(cloudobject)) for cloudobject in results]
+    def my_cloudobject_get(cloudobjects, storage):
+        data = [pickle.loads(storage.get_cobject(co)) for co in cloudobjects]
         return TestMethods.my_reduce_function(data)
 
 
@@ -418,9 +418,12 @@ class TestLithops(unittest.TestCase):
         sb = STORAGE_CONFIG['backend']
         data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
         with lithops.FunctionExecutor(config=CONFIG) as fexec:
-            fexec.map_reduce(TestMethods.my_cloudobject_put, data_prefix, TestMethods.my_cloudobject_get)
+            fexec.map(TestMethods.my_cloudobject_put, data_prefix)
+            cloudobjects = fexec.get_result()
+            fexec.call_async(TestMethods.my_cloudobject_get, cloudobjects)
             result = fexec.get_result()
             self.assertEqual(result, self.__class__.cos_result_to_compare)
+            fexec.clean(cs=cloudobjects)
 
 
 def print_help():

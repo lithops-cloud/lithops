@@ -14,6 +14,7 @@ from types import SimpleNamespace
 from contextlib import redirect_stdout, redirect_stderr
 
 from lithops.utils import version_str, is_unix_system
+from lithops.storage.utils import create_job_key
 from lithops.worker import function_handler
 from lithops.config import LITHOPS_TEMP_DIR, JOBS_DONE_DIR, LOGS_DIR,\
     RN_LOG_FILE, default_logging_config, FN_LOG_FILE
@@ -95,8 +96,8 @@ class Runner:
                 output = buf.getvalue()
                 output = output.replace('\n', '\n    ', output.count('\n')-1)
 
-            exec_id = '-'.join([executor_id, job_id])
-            log_file = os.path.join(LOGS_DIR, exec_id+'.log')
+            job_key = create_job_key(executor_id, job_id)
+            log_file = os.path.join(LOGS_DIR, job_key+'.log')
             with open(log_file, 'a') as lf:
                 lf.write(header+'    '+output+tail)
             with open(FN_LOG_FILE, 'a') as lf:
@@ -162,7 +163,8 @@ def run():
     runner.run(job.job_description)
     runner.wait()
 
-    done = '{}/{}-{}.done'.format(JOBS_DONE_DIR, job.executor_id, job.job_id)
+    job_key = create_job_key(job.executor_id, job.job_id)
+    done = os.path.join(JOBS_DONE_DIR, job_key+'.done')
     Path(done).touch()
 
     logger.info('ExecutorID {} | JobID {} - Execution Finished'

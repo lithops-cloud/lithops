@@ -33,7 +33,8 @@ from lithops.storage import InternalStorage
 from lithops.worker.jobrunner import JobRunner
 from lithops.worker.utils import get_memory_usage
 from lithops.config import JOBS_PREFIX, LITHOPS_TEMP_DIR
-from lithops.storage.utils import create_output_key, create_status_key, create_init_key
+from lithops.storage.utils import create_output_key, create_status_key,\
+    create_init_key, create_call_key
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('handler')
@@ -55,8 +56,8 @@ def function_handler(event):
     call_id = event['call_id']
     job_id = event['job_id']
     executor_id = event['executor_id']
-    exec_id = "-".join([executor_id, job_id, call_id])
-    logger.info("Execution-ID: {}".format(exec_id))
+    call_key = create_call_key(executor_id, job_id, call_id)
+    logger.info("Execution Key: {}".format(call_key))
 
     runtime_name = event['runtime_name']
     runtime_memory = event['runtime_memory']
@@ -99,7 +100,7 @@ def function_handler(event):
 
         # call_status.response['free_disk_bytes'] = free_disk_space("/tmp")
         custom_env = {'LITHOPS_CONFIG': json.dumps(config),
-                      '__LITHOPS_EXECUTION_ID': exec_id,
+                      '__LITHOPS_SESSION_ID': call_key,
                       'PYTHONPATH': "{}:{}".format(os.getcwd(), LITHOPS_LIBS_PATH)}
         os.environ.update(custom_env)
 

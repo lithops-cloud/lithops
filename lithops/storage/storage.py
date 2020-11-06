@@ -23,7 +23,8 @@ from lithops.version import __version__
 from lithops.config import CACHE_DIR, RUNTIMES_PREFIX, JOBS_PREFIX, TEMP_PREFIX
 from lithops.utils import is_lithops_worker
 from lithops.storage.utils import create_status_key, create_output_key, \
-    status_key_suffix, init_key_suffix, CloudObject, StorageNoSuchKeyError
+    status_key_suffix, init_key_suffix, CloudObject, StorageNoSuchKeyError,\
+    create_job_key
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +110,7 @@ class Storage:
         :param key: destination key
         :return: CloudObject instance
         """
-        prefix = os.environ.get('__LITHOPS_EXECUTION_ID', '')
+        prefix = os.environ.get('__LITHOPS_SESSION_ID', '')
         coid = hex(next(self._created_cobjects_n))[2:]
         name = '{}/cloudobject_{}'.format(prefix, coid)
         key = key or '/'.join([TEMP_PREFIX, name])
@@ -246,15 +247,17 @@ class InternalStorage:
         :param executor_id: executor's ID
         :return: A list of call IDs that have updated status.
         """
-        callset_prefix = '/'.join([JOBS_PREFIX, executor_id, job_id])
+        job_key = create_job_key(executor_id, job_id)
+        callset_prefix = '/'.join([JOBS_PREFIX, job_key])
         keys = self.storage.list_keys(self.bucket, callset_prefix)
 
-        running_keys = [k[len(JOBS_PREFIX)+1:-len(init_key_suffix)].rsplit("/", 3)
-                        for k in keys if init_key_suffix in k]
-        running_callids = [((k[0], k[1], k[2]), k[3]) for k in running_keys]
+        running_keys = [k.split('/') for k in keys if init_key_suffix in k]
+        running_callids = [tuple(k[1].rsplit("-", 2)
+                                 + [k[2].replace(init_key_suffix, '')])
+                           for k in running_keys]
 
-        done_keys = [k for k in keys if status_key_suffix in k]
-        done_callids = [tuple(k[len(JOBS_PREFIX)+1:].rsplit("/", 3)[:3]) for k in done_keys]
+        done_keys = [k.split('/')[1] for k in keys if status_key_suffix in k]
+        done_callids = [tuple(k.rsplit("-", 2)) for k in done_keys]
 
         return set(running_callids), set(done_callids)
 
