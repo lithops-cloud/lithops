@@ -33,7 +33,8 @@ from lithops.storage import InternalStorage
 from lithops.worker.jobrunner import JobRunner
 from lithops.worker.utils import get_memory_usage
 from lithops.config import JOBS_PREFIX, LITHOPS_TEMP_DIR
-from lithops.storage.utils import create_output_key, create_status_key, create_init_key
+from lithops.storage.utils import create_output_key, create_status_key,\
+    create_init_key, create_job_key
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('handler')
@@ -55,8 +56,8 @@ def function_handler(event):
     call_id = event['call_id']
     job_id = event['job_id']
     executor_id = event['executor_id']
-    exec_id = "-".join([executor_id, job_id, call_id])
-    logger.info("Execution-ID: {}".format(exec_id))
+    job_key = create_job_key(executor_id, job_id)
+    logger.info("Execution ID: {}/{}".format(job_key, call_id))
 
     runtime_name = event['runtime_name']
     runtime_memory = event['runtime_memory']
@@ -99,12 +100,12 @@ def function_handler(event):
 
         # call_status.response['free_disk_bytes'] = free_disk_space("/tmp")
         custom_env = {'LITHOPS_CONFIG': json.dumps(config),
-                      '__LITHOPS_EXECUTION_ID': exec_id,
+                      '__LITHOPS_SESSION_ID': '-'.join([job_key, call_id]),
                       'PYTHONPATH': "{}:{}".format(os.getcwd(), LITHOPS_LIBS_PATH)}
         os.environ.update(custom_env)
 
         jobrunner_stats_dir = os.path.join(LITHOPS_TEMP_DIR, storage_config['bucket'],
-                                           JOBS_PREFIX, executor_id, job_id, call_id)
+                                           JOBS_PREFIX, job_key, call_id)
         os.makedirs(jobrunner_stats_dir, exist_ok=True)
         jobrunner_stats_filename = os.path.join(jobrunner_stats_dir, 'jobrunner.stats.txt')
 
@@ -245,7 +246,8 @@ class CallStatus:
         status_sent = False
         output_query_count = 0
         params = pika.URLParameters(rabbit_amqp_url)
-        exchange = 'lithops-{}-{}'.format(executor_id, job_id)
+        job_key = create_job_key(executor_id, job_id)
+        exchange = 'lithops-{}'.format(job_key)
 
         while not status_sent and output_query_count < 5:
             output_query_count = output_query_count + 1

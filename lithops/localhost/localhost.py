@@ -25,6 +25,7 @@ from shutil import copyfile
 
 from lithops.config import TEMP, LITHOPS_TEMP_DIR, JOBS_PREFIX,\
     RN_LOG_FILE, LOGS_DIR
+from lithops.storage.utils import create_job_key
 from lithops.version import __version__
 
 logger = logging.getLogger(__name__)
@@ -64,8 +65,8 @@ class LocalhostHandler:
         job_id = job_payload['job_id']
         runtime = job_payload['job_description']['runtime_name']
 
-        exec_id = '-'.join([executor_id, job_id])
-        log_file = os.path.join(LOGS_DIR, exec_id+'.log')
+        job_key = create_job_key(executor_id, job_id)
+        log_file = os.path.join(LOGS_DIR, job_key+'.log')
         logger.info("Running job in {}. View execution logs at {}"
                     .format(runtime, log_file))
 
@@ -78,17 +79,16 @@ class LocalhostHandler:
         job_id = job_payload['job_id']
         storage_bucket = job_payload['config']['lithops']['storage_bucket']
 
-        job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket,
-                               JOBS_PREFIX, executor_id, job_id)
+        job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket, JOBS_PREFIX)
         os.makedirs(job_dir, exist_ok=True)
-        jobr_filename = os.path.join(job_dir, 'job.json')
+        jobr_filename = os.path.join(job_dir, '{}-job.json'.format(job_key))
 
         with open(jobr_filename, 'w') as jl:
             json.dump(job_payload, jl)
 
         log_file = open(RN_LOG_FILE, 'a')
         sp.Popen(exec_command+' run '+jobr_filename, shell=True,
-                 stdout=log_file, universal_newlines=True)
+                 stdout=log_file, stderr=log_file, universal_newlines=True)
 
     def create_runtime(self, runtime):
         """
