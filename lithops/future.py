@@ -205,6 +205,7 @@ class ResponseFuture:
 
             if throw_except:
                 sys.excepthook = exception_hook
+                time.sleep(1)
                 reraise(*self._exception)
             else:
                 logger.info(msg1)

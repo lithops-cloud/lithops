@@ -23,17 +23,16 @@ import time
 import threading
 import json
 import subprocess as sp
-from pathlib import Path
 from gevent.pywsgi import WSGIServer
 
-from lithops.config import STORAGE_DIR, JOBS_DONE_DIR, \
-    REMOTE_INSTALL_DIR, FN_LOG_FILE, PX_LOG_FILE
+from lithops.config import LITHOPS_TEMP_DIR, JOBS_DONE_DIR, \
+    REMOTE_INSTALL_DIR, PX_LOG_FILE, LOGS_DIR
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
 
 
-os.makedirs(STORAGE_DIR, exist_ok=True)
-Path(FN_LOG_FILE).touch(exist_ok=True)
+os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
+os.makedirs(LOGS_DIR, exist_ok=True)
 
 log_file_fd = open(PX_LOG_FILE, 'a')
 sys.stdout = log_file_fd
