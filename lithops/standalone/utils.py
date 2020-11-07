@@ -1,4 +1,7 @@
 import paramiko
+import logging
+
+logging.getLogger('paramiko').setLevel(logging.CRITICAL)
 
 
 class SSHClient():
@@ -7,16 +10,18 @@ class SSHClient():
         self.ssh_clients = {}
         self.ssh_credentials = ssh_credentials
 
-    def _create_client(self, ip_address, timeout=None, force=False):
-        if ip_address not in self.ssh_clients or force:
-            self.ssh_clients[ip_address] = paramiko.SSHClient()
-            self.ssh_clients[ip_address].set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            self.ssh_clients[ip_address].connect(ip_address, **self.ssh_credentials, timeout=timeout)
+    def create_client(self, ip_address, timeout=None):
+        ssh_client = paramiko.SSHClient()
+        ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh_client.connect(ip_address, **self.ssh_credentials, timeout=timeout)
 
-        return self.ssh_clients[ip_address]
+        return ssh_client
 
     def run_remote_command(self, ip_address, cmd, timeout=None, background=False):
-        ssh_client = self._create_client(ip_address, timeout)
+        if ip_address not in self.ssh_clients:
+            ssh_client = self.create_client(ip_address, timeout)
+        else:
+            ssh_client = self.ssh_clients[ip_address]
 
         try:
             stdin, stdout, stderr = ssh_client.exec_command(cmd)
@@ -35,13 +40,19 @@ class SSHClient():
         return out
 
     def upload_local_file(self, ip_address, local_src, remote_dst, timeout=None):
-        ssh_client = self._create_client(ip_address, timeout)
+        if ip_address not in self.ssh_clients:
+            ssh_client = self.create_client(ip_address, timeout)
+        else:
+            ssh_client = self.ssh_clients[ip_address]
         ftp_client = ssh_client.open_sftp()
         ftp_client.put(local_src, remote_dst)
         ftp_client.close()
 
     def upload_data_to_file(self, ip_address, data, remote_dst, timeout=None):
-        ssh_client = self._create_client(ip_address, timeout)
+        if ip_address not in self.ssh_clients:
+            ssh_client = self.create_client(ip_address, timeout)
+        else:
+            ssh_client = self.ssh_clients[ip_address]
         ftp_client = ssh_client.open_sftp()
 
         with ftp_client.open(remote_dst, 'w') as f:

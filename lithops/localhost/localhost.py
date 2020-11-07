@@ -20,15 +20,17 @@ import json
 import lithops
 import logging
 import shutil
-import subprocess
+import subprocess as sp
 from shutil import copyfile
 
-from lithops.config import TEMP, STORAGE_DIR, JOBS_PREFIX
+from lithops.config import TEMP, LITHOPS_TEMP_DIR, JOBS_PREFIX,\
+    RN_LOG_FILE, LOGS_DIR
+from lithops.storage.utils import create_job_key
 from lithops.version import __version__
 
 logger = logging.getLogger(__name__)
 
-HANDLER_FILE = os.path.join(STORAGE_DIR, 'local_handler.py')
+RUNNER = os.path.join(LITHOPS_TEMP_DIR, 'runner.py')
 LITHOPS_LOCATION = os.path.dirname(os.path.abspath(lithops.__file__))
 
 
@@ -59,10 +61,16 @@ class LocalhostHandler:
         """
         Run the job description against the selected environment
         """
+        executor_id = job_payload['executor_id']
+        job_id = job_payload['job_id']
         runtime = job_payload['job_description']['runtime_name']
-        logger.info("Running job in {}. Check /tmp/lithops/local_handler.log "
-                    "for execution logs".format(runtime))
-        if not os.path.isfile(HANDLER_FILE):
+
+        job_key = create_job_key(executor_id, job_id)
+        log_file = os.path.join(LOGS_DIR, job_key+'.log')
+        logger.info("Running job in {}. View execution logs at {}"
+                    .format(runtime, log_file))
+
+        if not os.path.isfile(RUNNER):
             self.env.setup()
 
         exec_command = self.env.get_execution_cmd(runtime)
@@ -71,17 +79,16 @@ class LocalhostHandler:
         job_id = job_payload['job_id']
         storage_bucket = job_payload['config']['lithops']['storage_bucket']
 
-        job_dir = os.path.join(STORAGE_DIR, storage_bucket,
-                               JOBS_PREFIX, executor_id, job_id)
+        job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket, JOBS_PREFIX)
         os.makedirs(job_dir, exist_ok=True)
-        jobr_filename = os.path.join(job_dir, 'job.json')
+        jobr_filename = os.path.join(job_dir, '{}-job.json'.format(job_key))
 
         with open(jobr_filename, 'w') as jl:
             json.dump(job_payload, jl)
 
-        log_file = open(os.path.join(STORAGE_DIR, 'local_handler.log'), 'a')
-        subprocess.Popen(exec_command+' run '+jobr_filename, shell=True,
-                         stdout=log_file, universal_newlines=True)
+        log_file = open(RN_LOG_FILE, 'a')
+        sp.Popen(exec_command+' run '+jobr_filename, shell=True,
+                 stdout=log_file, stderr=log_file, universal_newlines=True)
 
     def create_runtime(self, runtime):
         """
@@ -90,8 +97,8 @@ class LocalhostHandler:
         logger.info("Extracting preinstalled Python modules from {}".format(runtime))
         self.env.setup()
         exec_command = self.env.get_execution_cmd(runtime)
-        process = subprocess.run(exec_command+' preinstalls', shell=True, check=True,
-                                 stdout=subprocess.PIPE, universal_newlines=True)
+        process = sp.run(exec_command+' preinstalls', shell=True, check=True,
+                         stdout=sp.PIPE, universal_newlines=True)
         runtime_meta = json.loads(process.stdout.strip())
 
         return runtime_meta
@@ -113,20 +120,20 @@ class DockerEnv:
         self.runtime = docker_image
 
     def setup(self):
-        os.makedirs(STORAGE_DIR, exist_ok=True)
+        os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
         try:
-            shutil.rmtree(os.path.join(STORAGE_DIR, 'lithops'))
+            shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
         except FileNotFoundError:
             pass
-        shutil.copytree(LITHOPS_LOCATION, os.path.join(STORAGE_DIR, 'lithops'))
-        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'local_handler.py')
-        copyfile(src_handler, HANDLER_FILE)
+        shutil.copytree(LITHOPS_LOCATION, os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
+        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'runner.py')
+        copyfile(src_handler, RUNNER)
 
     def get_execution_cmd(self, docker_image_name):
         cmd = ('docker pull {} > /dev/null 2>&1; docker run '
                '--user $(id -u):$(id -g) --rm -v {}:/tmp --entrypoint '
                '"python" {} {}'.format(docker_image_name, TEMP,
-                                       docker_image_name, HANDLER_FILE))
+                                       docker_image_name, RUNNER))
         return cmd
 
 
@@ -135,15 +142,15 @@ class DefaultEnv:
         self.runtime = sys.executable
 
     def setup(self):
-        os.makedirs(STORAGE_DIR, exist_ok=True)
+        os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
         try:
-            shutil.rmtree(os.path.join(STORAGE_DIR, 'lithops'))
+            shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
         except FileNotFoundError:
             pass
-        shutil.copytree(LITHOPS_LOCATION, os.path.join(STORAGE_DIR, 'lithops'))
-        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'local_handler.py')
-        copyfile(src_handler, HANDLER_FILE)
+        shutil.copytree(LITHOPS_LOCATION, os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
+        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'runner.py')
+        copyfile(src_handler, RUNNER)
 
     def get_execution_cmd(self, runtime):
-        cmd = '{} {}'.format(self.runtime, HANDLER_FILE)
+        cmd = '{} {}'.format(self.runtime, RUNNER)
         return cmd

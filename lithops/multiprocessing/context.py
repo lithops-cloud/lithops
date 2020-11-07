@@ -97,12 +97,12 @@ class BaseContext:
         """Returns a bounded semaphore object"""
         from .synchronize import BoundedSemaphore
         return BoundedSemaphore(value)
-
+        
     def Event(self):
         """Returns an event object"""
         from .synchronize import Event
         return Event()
-
+        
     def Barrier(self, parties, action=None, timeout=None):
         """Returns a barrier object"""
         from .synchronize import Barrier

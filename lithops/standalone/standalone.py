@@ -17,13 +17,16 @@
 import os
 import json
 import time
+import select
 import logging
 import importlib
 import requests
+from threading import Thread
 
+from lithops.utils import is_lithops_worker
 from lithops.serverless.utils import create_function_handler_zip
-from lithops.config import REMOTE_INSTALL_DIR
-
+from lithops.config import LOGS_DIR, REMOTE_INSTALL_DIR, FN_LOG_FILE
+from lithops.storage.utils import create_job_key
 
 logger = logging.getLogger(__name__)
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_standalone.zip')
@@ -55,6 +58,7 @@ class StandaloneHandler:
         self.config = standalone_config
         self.backend_name = self.config['backend']
         self.runtime = self.config['runtime']
+        self.is_lithops_worker = is_lithops_worker()
 
         self.start_timeout = self.config.get('start_timeout', 300)
 
@@ -76,6 +80,8 @@ class StandaloneHandler:
             logger.error("There was an error trying to create the "
                          "{} standalone backend".format(self.backend_name))
             raise e
+
+        self.log_monitors = {}
 
         self.ssh_credentials = self.backend.get_ssh_credentials()
         self.ip_address = self.backend.get_ip_address()
@@ -110,6 +116,15 @@ class StandaloneHandler:
         self.dismantle()
         raise Exception('VM readiness probe expired. Check your VM')
 
+    def _start_backend(self):
+        if not self._is_backend_ready():
+            # The VM instance is stopped
+            init_time = time.time()
+            self.backend.start()
+            self._wait_backend_ready()
+            total_start_time = round(time.time()-init_time, 2)
+            logger.info('VM instance ready in {} seconds'.format(total_start_time))
+
     def _is_proxy_ready(self):
         """
         Checks if the proxy is ready to receive http connections
@@ -138,20 +153,76 @@ class StandaloneHandler:
         self.dismantle()
         raise Exception('Proxy readiness probe expired. Check your VM')
 
+    def _start_log_monitor(self, executor_id, job_id):
+        """
+        Starts a process that polls the remote log into a local file
+        """
+
+        job_key = create_job_key(executor_id, job_id)
+
+        def log_monitor():
+            os.makedirs(LOGS_DIR, exist_ok=True)
+            log_file = os.path.join(LOGS_DIR, job_key+'.log')
+            fdout_0 = open(log_file, 'wb')
+            fdout_1 = open(FN_LOG_FILE, 'ab')
+
+            ssh_client = self.ssh_client.create_client(self.ip_address)
+            cmd = 'tail -n +1 -F /tmp/lithops/logs/{}.log'.format(job_key)
+            stdin, stdout, stderr = ssh_client.exec_command(cmd)
+            channel = stdout.channel
+            stdin.close()
+            channel.shutdown_write()
+
+            data = None
+            while not channel.closed:
+                try:
+                    readq, _, _ = select.select([channel], [], [], 10)
+                    if readq and readq[0].recv_ready():
+                        data = channel.recv(len(readq[0].in_buffer))
+                        fdout_0.write(data)
+                        fdout_0.flush()
+                        fdout_1.write(data)
+                        fdout_1.flush()
+                    else:
+                        if data:
+                            cmd = 'ls /tmp/lithops/jobs/{}.done'.format(job_key)
+                            _, out, _ = ssh_client.exec_command(cmd)
+                            if out.read().decode().strip():
+                                break
+                        time.sleep(0.5)
+                except Exception:
+                    pass
+
+        if not self.is_lithops_worker:
+            Thread(target=log_monitor, daemon=True).start()
+            logger.debug('ExecutorID {} | JobID {} - Remote log monitor '
+                         'started'.format(executor_id, job_id))
+
     def run_job(self, job_payload):
         """
         Run the job description against the selected environment
         """
+        executor_id = job_payload['executor_id']
+        job_id = job_payload['job_id']
+        job_key = create_job_key(executor_id, job_id)
+        log_file = os.path.join(LOGS_DIR, job_key+'.log')
+
         if not self._is_proxy_ready():
             # The VM instance is stopped
+            if not self.log_active:
+                print('ExecutorID {} - Starting VM instance' .format(executor_id))
             init_time = time.time()
             self.backend.start()
             self._wait_proxy_ready()
             total_start_time = round(time.time()-init_time, 2)
             logger.info('VM instance ready in {} seconds'.format(total_start_time))
 
-        logger.info('ExecutorID: {} | JobID: {} - Running job'.
-                    format(job_payload['executor_id'], job_payload['job_id']))
+        self._start_log_monitor(executor_id, job_id)
+
+        logger.info('ExecutorID {} | JobID {} - Running job'
+                    .format(executor_id, job_id))
+        logger.info("View execution logs at {}".format(log_file))
+
         url = "http://{}:{}/run".format(self.ip_address, PROXY_SERVICE_PORT)
         r = requests.post(url, data=json.dumps(job_payload))
         response = r.json()
@@ -163,14 +234,7 @@ class StandaloneHandler:
         Installs the proxy and extracts the runtime metadata and
         preinstalled modules
         """
-        if not self._is_backend_ready():
-            # The VM instance is stopped
-            init_time = time.time()
-            self.backend.start()
-            self._wait_backend_ready()
-            total_start_time = round(time.time()-init_time, 2)
-            logger.info('VM instance ready in {} seconds'.format(total_start_time))
-
+        self._start_backend()
         self._setup_proxy()
         self._wait_proxy_ready()
 
@@ -184,9 +248,9 @@ class StandaloneHandler:
 
     def get_runtime_key(self, runtime_name):
         """
-        Wrapper method that returns a formated string that represents the runtime key.
-        Each backend has its own runtime key format. Used to store modules preinstalls
-        into the storage
+        Wrapper method that returns a formated string that represents the
+        runtime key. Each backend has its own runtime key format. Used to
+        store modules preinstalls into the storage
         """
         return self.backend.get_runtime_key(runtime_name)
 
@@ -196,13 +260,28 @@ class StandaloneHandler:
         """
         self.backend.stop()
 
+    def init(self):
+        """
+        Start the VM instance and initialize runtime
+        """
+        self._start_backend()
+
+        # Not sure if mandatory, but sleep several seconds to let proxy server start
+        time.sleep(2)
+
+        # if proxy not started, install it
+        if not self._is_proxy_ready():
+            self._setup_proxy()
+
+        self._wait_proxy_ready()
+
     def clean(self):
         pass
 
     def _setup_proxy(self):
         logger.info('Installing Lithops proxy in the VM instance')
-        logger.debug('Be patient, installation process can take up to 3 '
-                     'minutes if this is the first time you use the VM instance')
+        logger.debug('Be patient, installation process can take up to 3 minutes'
+                     'if this is the first time you use the VM instance')
 
         service_file = '/etc/systemd/system/{}'.format(PROXY_SERVICE_NAME)
         self.ssh_client.upload_data_to_file(self.ip_address, PROXY_SERVICE_FILE, service_file)

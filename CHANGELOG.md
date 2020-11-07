@@ -1,13 +1,32 @@
 # Changelog
 
-## [v2.2.dev3]
+## [v2.2.4.dev0]
+
+### Added
+- [Core] New lithops logs command
+- [Core] New job cleaner process
+
+### Changed
+- [Core] localhost/standalone logging per job-id
+
+### Fixed
+- [Core] Fixed issue in localhost executor and Mac OS
+
+
+## [v2.2.3]
 
 ### Added
 - [Core] Cloudpickle 1.6.0 for python>=3.8
 - [Core] Multiprocessing API
+- [Core] Added "--mode" option in tests
+- [Core] Sync standalone function logs into a local file
+
+### Changed
+- [Core] Improved localhost/standalone logging
+- [Core] Allowed to run lithops without configuration
 
 ### Fixed
-- [Localhost] Fixed minor localhost executor logic
+- [Core] Fixed some issues in localhost executor logic
 
 
 ## [v2.2.2]

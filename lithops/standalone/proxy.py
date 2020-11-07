@@ -25,23 +25,23 @@ import json
 import subprocess as sp
 from gevent.pywsgi import WSGIServer
 
-from lithops.config import STORAGE_DIR, JOBS_DONE_DIR, \
-    REMOTE_INSTALL_DIR
+from lithops.config import LITHOPS_TEMP_DIR, JOBS_DONE_DIR, \
+    REMOTE_INSTALL_DIR, PX_LOG_FILE, LOGS_DIR
+from lithops.storage.utils import create_job_key
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
 
 
-os.makedirs(STORAGE_DIR, exist_ok=True)
-log_file = os.path.join(STORAGE_DIR, 'proxy.log')
+os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
+os.makedirs(LOGS_DIR, exist_ok=True)
 
-log_file_fd = open(log_file, 'a')
+log_file_fd = open(PX_LOG_FILE, 'a')
 sys.stdout = log_file_fd
 sys.stderr = log_file_fd
 
-logging.basicConfig(filename=log_file, level=logging.INFO,
-                    format=('%(asctime)s.%(msecs)03d %(levelname)s '
-                            '%(module)s - %(funcName)s: %(message)s'),
-                    datefmt='%Y-%m-%d %H:%M:%S')
+logging.basicConfig(filename=PX_LOG_FILE, level=logging.INFO,
+                    format=('%(asctime)s [%(levelname)s] %(module)s'
+                            ' - %(funcName)s: %(message)s'))
 logger = logging.getLogger('proxy')
 
 proxy = flask.Flask(__name__)
@@ -56,6 +56,8 @@ def budget_keeper():
     global last_usage_time
     global jobs
     global backend_handler
+
+    jobs_running = False
 
     logger.info("BudgetKeeper started")
 
@@ -73,16 +75,24 @@ def budget_keeper():
     while True:
         time_since_last_usage = time.time() - last_usage_time
         check_interval = backend_handler.soft_dismantle_timeout / 10
-
-        for job in jobs.keys():
-            if os.path.isfile('{}/{}.done'.format(JOBS_DONE_DIR, job)):
-                jobs[job] = 'done'
-
+        for job_key in jobs.keys():
+            done = os.path.join(JOBS_DONE_DIR, job_key+'.done')
+            if os.path.isfile(done):
+                jobs[job_key] = 'done'
         if len(jobs) > 0 and all(value == 'done' for value in jobs.values()) \
            and backend_handler.auto_dismantle:
+
+            # here we need to catch a moment when number of running jobs become zero.
+            # when it happens we reset countdown back to soft_dismantle_timeout
+            if jobs_running:
+                jobs_running = False
+                last_usage_time = time.time()
+                time_since_last_usage = time.time() - last_usage_time
+
             time_to_dismantle = int(backend_handler.soft_dismantle_timeout - time_since_last_usage)
         else:
             time_to_dismantle = int(backend_handler.hard_dismantle_timeout - time_since_last_usage)
+            jobs_running = True
 
         if time_to_dismantle > 0:
             logger.info("Time to dismantle: {} seconds".format(time_to_dismantle))
@@ -139,7 +149,9 @@ def run():
     runtime = message['job_description']['runtime_name']
     executor_id = message['executor_id']
     job_id = message['job_id']
-    jobs['{}_{}'.format(executor_id.replace('/', '-'), job_id)] = 'running'
+
+    job_key = create_job_key(executor_id, job_id)
+    jobs[job_key] = 'running'
 
     localhost_handler = LocalhostHandler({'runtime': runtime})
     localhost_handler.run_job(message)
@@ -202,7 +214,7 @@ def install_environment():
             cmd += '&& apt-get install docker-ce docker-ce-cli containerd.io -y '
             try:
                 logger.info("Installing Docker...")
-                with open(log_file, 'a') as lf:
+                with open(PX_LOG_FILE, 'a') as lf:
                     sp.run(cmd, shell=True, stdout=lf, stderr=lf, universal_newlines=True)
                 logger.info("Docker installed successfully")
             except Exception as e:
@@ -211,7 +223,7 @@ def install_environment():
             cmd = 'pip3 install -U lithops'
             try:
                 logger.info("Installing python packages...")
-                with open(log_file, 'a') as lf:
+                with open(PX_LOG_FILE, 'a') as lf:
                     sp.run(cmd, shell=True, stdout=lf, stderr=lf, universal_newlines=True)
                 logger.info("Python packages installed successfully")
             except Exception as e:

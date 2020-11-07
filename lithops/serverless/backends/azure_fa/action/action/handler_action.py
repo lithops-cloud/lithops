@@ -20,11 +20,10 @@ import json
 import logging
 import azure.functions as func
 from lithops.version import __version__
-from lithops.config import cloud_logging_config
+from lithops.config import default_logging_config
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
 
-cloud_logging_config(logging.INFO)
 logger = logging.getLogger('__main__')
 
 
@@ -35,6 +34,7 @@ def main(msgIn: func.QueueMessage):
         args = msgIn.get_json()
 
     os.environ['__PW_ACTIVATION_ID'] = str(msgIn.id)
+    default_logging_config(args['log_level'])
     if 'remote_invoker' in args:
         logger.info("Lithops v{} - Starting invoker".format(__version__))
         function_invoker(args)

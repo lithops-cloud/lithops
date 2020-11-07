@@ -18,6 +18,7 @@ import click
 import logging
 import lithops
 from lithops.cli.runtime.cli import runtime
+from lithops.cli.logs.cli import logs
 from lithops.cli import clean_all
 from lithops.tests import print_help, run_tests
 
@@ -61,17 +62,19 @@ def test_function(config, debug):
 @cli.command('verify')
 @click.option('--test', '-t', default='all', help='run a specific test, type "-t help" for tests list')
 @click.option('--config', '-c', default=None, help='use json config file')
-@click.option('--executor', '-e', default=None, help='serverless, standalone or localhost')
+@click.option('--mode', '-m', default=None, help='serverless, standalone or localhost')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
-def verify(test, config, executor, debug):
+def verify(test, config, mode, debug):
     if test == 'help':
         print_help()
     else:
         set_debug(debug)
-        run_tests(test, executor, config)
+        run_tests(test, mode, config)
 
 
 cli.add_command(runtime)
+cli.add_command(logs)
+
 
 if __name__ == '__main__':
     cli()

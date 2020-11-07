@@ -26,21 +26,22 @@ import inspect
 import requests
 import traceback
 import numpy as np
+from pydoc import locate
 from distutils.util import strtobool
+
 from lithops.storage import Storage
 from lithops.wait import wait_storage
 from lithops.future import ResponseFuture
 from lithops.libs.tblib import pickling_support
 from lithops.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_function
 from lithops.utils import WrappedStreamingBodyPartition
-from lithops.config import cloud_logging_config
+from lithops.config import TEMP
 
-from pydoc import locate
 
 pickling_support.install()
 logger = logging.getLogger('JobRunner')
 
-TEMP = os.path.realpath(tempfile.gettempdir())
+
 PYTHON_MODULE_PATH = os.path.join(TEMP, "lithops.modules")
 
 
@@ -65,8 +66,6 @@ class JobRunner:
         self.jobrunner_conn = jobrunner_conn
         self.internal_storage = internal_storage
 
-        log_level = self.jr_config['log_level']
-        cloud_logging_config(log_level)
         self.lithops_config = self.jr_config['lithops_config']
         self.call_id = self.jr_config['call_id']
         self.job_id = self.jr_config['job_id']
@@ -268,7 +267,7 @@ class JobRunner:
             print('---------------------- FUNCTION LOG ----------------------', flush=True)
             function_start_tstamp = time.time()
             result = function(**data)
-            function_end_tstamp= time.time()
+            function_end_tstamp = time.time()
             print('----------------------------------------------------------', flush=True)
             logger.info("Success function execution")
 
