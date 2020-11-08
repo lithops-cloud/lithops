@@ -116,6 +116,7 @@ class FunctionExecutor:
         self.storage = self.internal_storage.storage
 
         self.futures = []
+        self.cleaned_jobs = set()
         self.total_jobs = 0
         self.last_call = None
 
@@ -525,6 +526,7 @@ class FunctionExecutor:
         :param clean_cloudobjects: true/false
         :param spawn_cleaner true/false
         """
+
         os.makedirs(CLEANER_DIR, exist_ok=True)
 
         def save_data_to_clean(data):
@@ -540,18 +542,20 @@ class FunctionExecutor:
 
         futures = fs or self.futures
         futures = [futures] if type(futures) != list else futures
+        present_jobs = {create_job_key(f.executor_id, f.job_id) for f in futures
+                        if f.done and f.executor_id.count('-') == 1}
+        jobs_to_clean = present_jobs - self.cleaned_jobs
 
-        if futures:
+        if jobs_to_clean:
             logger.info("ExecutorID {} - Cleaning temporary data"
                         .format(self.executor_id))
-            jobs_to_clean = {create_job_key(f.executor_id, f.job_id) for f in futures
-                             if f.done and f.executor_id.count('-') == 1}
             data = {'jobs_to_clean': jobs_to_clean,
                     'clean_cloudobjects': clean_cloudobjects,
                     'storage_config': self.internal_storage.get_storage_config()}
             save_data_to_clean(data)
+            self.cleaned_jobs.update(jobs_to_clean)
 
-        if (futures or cs) and spawn_cleaner:
+        if (jobs_to_clean or cs) and spawn_cleaner:
             log_file = open(CLEANER_LOG_FILE, 'a')
             cmdstr = '{} -m lithops.util.cleaner'.format(sys.executable)
             sp.Popen(cmdstr, shell=True, stdout=log_file, stderr=log_file)

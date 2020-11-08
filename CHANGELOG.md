@@ -8,9 +8,12 @@
 
 ### Changed
 - [Core] localhost/standalone logging per job-id
+- [Core] Updated tblib to 1.7.0
+- [Core] Updated ps_mem lib
 
 ### Fixed
 - [Core] Fixed issue in localhost executor and Mac OS
+- [Core] Fixed issue in localhost storage backend
 
 
 ## [v2.2.3]
