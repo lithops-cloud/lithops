@@ -28,9 +28,10 @@ MAX_CONCURRENT_WORKERS = 1000
 RETRIES = 15
 RETRY_SLEEP = 30
 
-AVAILABLE_RUNTIMES = {'python3.7', 'python3.8'}
+DEFAULT_RUNTIMES = {'python3.7', 'python3.8'}
+USER_RUNTIMES_PREFIX = 'lithops.user_runtimes'
 
-REQUIREMENTS = [
+DEFAULT_REQUIREMENTS = [
     'numpy',
     'scikit-learn',
     'scipy',
@@ -69,11 +70,6 @@ def load_config(config_data=None):
     if 'runtime' not in config_data['serverless']:
         config_data['serverless']['runtime'] = 'python' + \
                                                version_str(sys.version_info)
-
-    if config_data['serverless']['runtime'] not in AVAILABLE_RUNTIMES:
-        raise Exception('Runtime {} is not available for GCP Functions, please use one of {}'.format(
-            config_data['serverless']['runtime'],
-            AVAILABLE_RUNTIMES))
 
     if 'workers' not in config_data['lithops']:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
