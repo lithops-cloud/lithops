@@ -117,7 +117,7 @@ def test():
     import matplotlib
     return repr(matplotlib)
 
-lith = lithops.FunctionExecutor(runtime='matplotlib')
+lith = lithops.FunctionExecutor(runtime='my_matplotlib_runtime')
 lith.call_async(test, data=())
 res = lith.get_result()
 print(res)  # Prints <module 'matplotlib' from '/layers/google.python.pip/pip/lib/python3.8/site-packages/matplotlib/__init__.py'>
