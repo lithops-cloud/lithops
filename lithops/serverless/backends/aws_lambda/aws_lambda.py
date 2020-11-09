@@ -30,6 +30,7 @@ import textwrap
 import lithops
 import botocore.exceptions
 from . import config as aws_lambda_config
+from ....utils import version_str
 
 logger = logging.getLogger(__name__)
 
@@ -56,11 +57,9 @@ class AWSLambdaBackend:
         self.aws_session = boto3.Session(aws_access_key_id=aws_lambda_config['access_key_id'],
                                          aws_secret_access_key=aws_lambda_config['secret_access_key'],
                                          region_name=self.region_name)
-        self.lambda_client = self.aws_session.client(
-            'lambda', region_name=self.region_name)
+        self.lambda_client = self.aws_session.client('lambda', region_name=self.region_name)
 
-        log_msg = 'Lithops v{} init for AWS Lambda - Region: {}' \
-            .format(lithops.__version__, self.region_name)
+        log_msg = 'Lithops v{} init for AWS Lambda - Region: {}'.format(lithops.__version__, self.region_name)
         logger.info(log_msg)
         if not self.log_active:
             print(log_msg)
@@ -141,7 +140,8 @@ class AWSLambdaBackend:
         command = [
             sys.executable,
             '-m', 'pip', 'install', '-t',
-            aws_lambda_config.LAYER_DIR_PATH]
+            aws_lambda_config.LAYER_DIR_PATH
+        ]
         command.extend(dependencies)
         subprocess.check_call(command)
 
@@ -297,22 +297,25 @@ class AWSLambdaBackend:
         """
         logger.debug('Deleting all runtimes')
 
-        response = self.lambda_client.list_functions(
-            MasterRegion=self.region_name
-        )
+        runtimes = self.list_runtimes()
 
-        for runtime in response['Functions']:
-            if 'lithops' in runtime['FunctionName']:
-                runtime_name, runtime_memory = self.__unformat_action_name(runtime['FunctionName'])
-                self.delete_runtime(runtime_name, runtime_memory)
+        for runtime in runtimes:
+            runtime_name, runtime_memory = runtime
+            self.delete_runtime(runtime_name, runtime_memory)
+
+        layers = self.list_layers()
+        for layer in layers:
+            self.delete_layer(layer)
 
     def list_runtimes(self, docker_image_name='all'):
         """
         List all the lambda runtimes deployed.
         return: Array of tuples (function_name, memory)
         """
+        logger.debug('Listing all functions deployed...')
+
         functions = []
-        response = self.lambda_client.list_functions()
+        response = self.lambda_client.list_functions(FunctionVersion='ALL')
         for function in response['Functions']:
             if 'lithops' in function['FunctionName']:
                 functions.append((function['FunctionName'], function['MemorySize']))
@@ -323,6 +326,7 @@ class AWSLambdaBackend:
                 if 'lithops' in function['FunctionName']:
                     functions.append((function['FunctionName'], function['MemorySize']))
 
+        logger.debug('Listed {} functions'.format(len(functions)))
         return functions
 
     def create_layer(self, layer_name, runtime_name, zipfile):
@@ -346,39 +350,41 @@ class AWSLambdaBackend:
             msg = 'An error occurred creating layer {}: {}'.format(layer_name, response)
             raise Exception(msg)
 
-    def delete_layer(self, layer_arn, version_number=None):
+    def delete_layer(self, layer_name):
         """
         Deletes lambda layer from its arn
         """
-        logger.debug('Deleting lambda layer: {}'.format(layer_arn))
+        logger.debug('Deleting lambda layer {}'.format(layer_name))
 
-        if version_number is None:
-            version_number = layer_arn.split(':')[-1]
+        layer_versions = []
+        res = self.lambda_client.list_layer_versions(LayerName=layer_name)
+        layer_versions.extend(res['LayerVersions'])
 
-        response = self.lambda_client.delete_layer_version(
-            LayerName=layer_arn,
-            VersionNumber=version_number
-        )
+        while 'NextMarker' in res:
+            res = self.lambda_client.list_layer_versions(LayerName=layer_name, Marker=res['NextMarker'])
+            layer_versions.extend(res['LayerVersions'])
 
-        if response['ResponseMetadata']['HTTPStatusCode'] == 200:
-            logger.debug('OK --> Layer {} deleted'.format(layer_arn))
-            return response['LayerVersionArn']
-        else:
-            msg = 'An error occurred deleting layer {}: {}'.format(
-                layer_arn, response)
-            raise Exception(msg)
+        print(layer_versions)
 
-    def list_layers(self, runtime_name=None):
+        for layer_version in layer_versions:
+            res = self.lambda_client.delete_layer_version(LayerName=layer_name, VersionNumber=layer_version['Version'])
+            if res['ResponseMetadata']['HTTPStatusCode'] == 204:
+                logger.debug('OK --> Layer {} deleted'.format(layer_version['LayerVersionArn']))
+            else:
+                raise Exception('Could not delete layer {}: {}'.format(layer_version['LayerVersionArn'], res))
+
+    def list_layers(self):
         """
         Gets all Lambda Layers available for the Python runtime selected
         """
-        logger.debug('Listing lambda layers: {}'.format(runtime_name))
-        response = self.lambda_client.list_layers(
-            CompatibleRuntime=runtime_name
-        )
+        logger.debug('Listing lambda layers...')
+        response = self.lambda_client.list_layers()
 
-        layers = response['Layers'] if 'Layers' in response else []
-        logger.debug('Layers: {}'.format(layers))
+        if 'Layers' in response:
+            layers = [layer['LayerName'] for layer in response['Layers'] if 'lithops' in layer['LayerName']]
+        else:
+            layers = []
+        logger.debug('Listed {} layers'.format(len(layers)))
         return layers
 
     def invoke(self, runtime_name, runtime_memory, payload, self_invoked=False):
