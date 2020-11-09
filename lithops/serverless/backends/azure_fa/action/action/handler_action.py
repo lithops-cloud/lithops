@@ -1,5 +1,5 @@
 #
-# (C) Copyright IBM Corp. 2018
+# Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,27 +14,26 @@
 # limitations under the License.
 #
 
-
 import os
 import json
 import logging
 import azure.functions as func
 from lithops.version import __version__
-from lithops.config import default_logging_config
+from lithops.utils import setup_logger
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
 
-logger = logging.getLogger('__main__')
+logger = logging.getLogger('lithops.worker')
 
 
 def main(msgIn: func.QueueMessage):
     try:
         args = json.loads(msgIn.get_body())
-    except:        
+    except Exception:
         args = msgIn.get_json()
 
     os.environ['__PW_ACTIVATION_ID'] = str(msgIn.id)
-    default_logging_config(args['log_level'])
+    setup_logger(args['log_level'])
     if 'remote_invoker' in args:
         logger.info("Lithops v{} - Starting invoker".format(__version__))
         function_invoker(args)

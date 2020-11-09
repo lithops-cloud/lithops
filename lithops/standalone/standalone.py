@@ -25,7 +25,7 @@ from threading import Thread
 
 from lithops.utils import is_lithops_worker
 from lithops.serverless.utils import create_function_handler_zip
-from lithops.config import LOGS_DIR, REMOTE_INSTALL_DIR, FN_LOG_FILE
+from lithops.constants import LOGS_DIR, REMOTE_INSTALL_DIR, FN_LOG_FILE
 from lithops.storage.utils import create_job_key
 
 logger = logging.getLogger(__name__)
@@ -280,7 +280,7 @@ class StandaloneHandler:
 
     def _setup_proxy(self):
         logger.info('Installing Lithops proxy in the VM instance')
-        logger.debug('Be patient, installation process can take up to 3 minutes'
+        logger.debug('Be patient, installation process can take up to 3 minutes '
                      'if this is the first time you use the VM instance')
 
         service_file = '/etc/systemd/system/{}'.format(PROXY_SERVICE_NAME)
@@ -303,6 +303,7 @@ class StandaloneHandler:
         cmd += 'unzip -o /tmp/lithops_standalone.zip -d {} > /dev/null 2>&1; '.format(REMOTE_INSTALL_DIR)
         cmd += 'rm /tmp/lithops_standalone.zip; '
         cmd += 'chmod 644 {}; '.format(service_file)
+        cmd += 'openssl req -x509 -newkey rsa:4096 -nodes -out /opt/lithops/cert.pem -keyout /opt/lithops/key.pem -days 7400 -subj "/C=US/ST=Denial/L=NY/O=Lithops/CN=lithops.cloud"; '
         cmd += 'systemctl daemon-reload; '
         cmd += 'systemctl stop {}; '.format(PROXY_SERVICE_NAME)
         cmd += 'systemctl enable {}; '.format(PROXY_SERVICE_NAME)

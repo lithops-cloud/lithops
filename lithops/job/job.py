@@ -15,19 +15,16 @@
 # limitations under the License.
 #
 
-import sys
-import subprocess
+
 import time
-import textwrap
 import pickle
 import logging
-import tempfile
 from lithops import utils
 from lithops.job.partitioner import create_partitions
 from lithops.utils import is_object_processing_function, sizeof_fmt
 from lithops.storage.utils import create_func_key, create_agg_data_key
 from lithops.job.serialize import SerializeIndependent, create_module_data
-from lithops.config import MAX_AGG_DATA_SIZE, JOBS_PREFIX, LOCALHOST,\
+from lithops.constants import MAX_AGG_DATA_SIZE, JOBS_PREFIX, LOCALHOST,\
     SERVERLESS, STANDALONE
 from types import SimpleNamespace
 

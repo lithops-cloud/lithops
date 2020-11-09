@@ -1,5 +1,6 @@
 #
 # (C) Copyright IBM Corp. 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,11 +19,8 @@ import logging
 import ibm_boto3
 import ibm_botocore
 from lithops.storage.utils import StorageNoSuchKeyError
-from lithops.utils import sizeof_fmt, is_lithops_function
+from lithops.utils import sizeof_fmt
 
-logging.getLogger('ibm_boto3').setLevel(logging.CRITICAL)
-logging.getLogger('ibm_botocore').setLevel(logging.CRITICAL)
-logging.getLogger('urllib3').setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 OBJ_REQ_RETRIES = 5
@@ -37,7 +35,6 @@ class CephStorageBackend:
     def __init__(self, ceph_config, **kwargs):
         logger.debug("Creating Ceph client")
         self.ceph_config = ceph_config
-        self.is_lithops_function = is_lithops_function()
         user_agent = ceph_config['user_agent']
 
         service_endpoint = ceph_config.get('endpoint')

@@ -31,10 +31,11 @@ from lithops.storage import InternalStorage
 from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from lithops.job import create_map_job, create_reduce_job
 from lithops.config import default_config, extract_storage_config, \
-    default_logging_config, extract_localhost_config, \
-    extract_standalone_config, extract_serverless_config, LOCALHOST,\
-    SERVERLESS, STANDALONE, CLEANER_DIR, CLEANER_LOG_FILE
-from lithops.utils import timeout_handler, is_notebook, \
+    extract_localhost_config, extract_standalone_config, \
+    extract_serverless_config
+from lithops.constants import LOCALHOST, SERVERLESS, STANDALONE, CLEANER_DIR,\
+    CLEANER_LOG_FILE
+from lithops.utils import timeout_handler, is_notebook, setup_logger, \
     is_unix_system, is_lithops_worker, create_executor_id
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
@@ -66,7 +67,7 @@ class FunctionExecutor:
                             "or '{}'".format(LOCALHOST, SERVERLESS, STANDALONE))
 
         if log_level:
-            default_logging_config(log_level)
+            setup_logger(log_level)
 
         if type is not None:
             logger.warning("'type' parameter is deprecated and it will be removed"
@@ -543,7 +544,7 @@ class FunctionExecutor:
         futures = fs or self.futures
         futures = [futures] if type(futures) != list else futures
         present_jobs = {create_job_key(f.executor_id, f.job_id) for f in futures
-                        if f.done and f.executor_id.count('-') == 1}
+                        if f.executor_id.count('-') == 1}
         jobs_to_clean = present_jobs - self.cleaned_jobs
 
         if jobs_to_clean:
@@ -557,7 +558,7 @@ class FunctionExecutor:
 
         if (jobs_to_clean or cs) and spawn_cleaner:
             log_file = open(CLEANER_LOG_FILE, 'a')
-            cmdstr = '{} -m lithops.util.cleaner'.format(sys.executable)
+            cmdstr = '{} -m lithops.scripts.cleaner'.format(sys.executable)
             sp.Popen(cmdstr, shell=True, stdout=log_file, stderr=log_file)
 
     def dismantle(self):

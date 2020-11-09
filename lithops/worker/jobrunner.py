@@ -33,10 +33,10 @@ from lithops.wait import wait_storage
 from lithops.future import ResponseFuture
 from lithops.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_function
 from lithops.utils import WrappedStreamingBodyPartition
-from lithops.config import TEMP
+from lithops.constants import TEMP
 
 
-logger = logging.getLogger('JobRunner')
+logger = logging.getLogger(__name__)
 
 
 PYTHON_MODULE_PATH = os.path.join(TEMP, "lithops.modules")
@@ -244,7 +244,7 @@ class JobRunner:
         Runs the function
         """
         # self.stats.write('worker_jobrunner_start_tstamp', time.time())
-        logger.info("Started")
+        logger.info("Process started")
         result = None
         exception = False
         try:
@@ -325,4 +325,4 @@ class JobRunner:
                 output_upload_end_tstamp = time.time()
                 self.stats.write("worker_result_upload_time", round(output_upload_end_tstamp - output_upload_start_tstamp, 8))
             self.jobrunner_conn.send("Finished")
-            logger.info("Finished")
+            logger.info("Process finished")

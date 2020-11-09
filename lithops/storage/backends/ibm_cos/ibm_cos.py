@@ -21,10 +21,6 @@ from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import sizeof_fmt, is_lithops_worker
 from lithops.util import IBMTokenManager
 
-
-logging.getLogger('ibm_boto3').setLevel(logging.CRITICAL)
-logging.getLogger('ibm_botocore').setLevel(logging.CRITICAL)
-logging.getLogger('urllib3').setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 OBJ_REQ_RETRIES = 5
@@ -95,7 +91,7 @@ class IBMCloudObjectStorageBackend:
                                                config=client_config,
                                                endpoint_url=service_endpoint)
 
-        logger.debug("IBM COS client created successfully")
+        logger.info("IBM COS client created successfully")
 
     def get_client(self):
         """

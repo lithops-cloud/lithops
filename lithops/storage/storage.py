@@ -20,7 +20,7 @@ import logging
 import itertools
 import importlib
 from lithops.version import __version__
-from lithops.config import CACHE_DIR, RUNTIMES_PREFIX, JOBS_PREFIX, TEMP_PREFIX
+from lithops.constants import CACHE_DIR, RUNTIMES_PREFIX, JOBS_PREFIX, TEMP_PREFIX
 from lithops.utils import is_lithops_worker
 from lithops.storage.utils import create_status_key, create_output_key, \
     status_key_suffix, init_key_suffix, CloudObject, StorageNoSuchKeyError,\
@@ -252,8 +252,8 @@ class InternalStorage:
         keys = self.storage.list_keys(self.bucket, callset_prefix)
 
         running_keys = [k.split('/') for k in keys if init_key_suffix in k]
-        running_callids = [tuple(k[1].rsplit("-", 1) + [k[2]]
-                                 + [k[3].replace(init_key_suffix, '')])
+        running_callids = [(tuple(k[1].rsplit("-", 1)+[k[2]]),
+                            k[3].replace(init_key_suffix, ''))
                            for k in running_keys]
 
         done_keys = [k.split('/')[1:] for k in keys if status_key_suffix in k]

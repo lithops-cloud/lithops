@@ -50,8 +50,8 @@ class IBMCloudFunctionsBackend:
         self.api_key = ibm_cf_config['regions'][self.region].get('api_key', None)
         self.iam_api_key = ibm_cf_config.get('iam_api_key', None)
 
-        logger.info("Set IBM CF Namespace to {}".format(self.namespace))
-        logger.info("Set IBM CF Endpoint to {}".format(self.endpoint))
+        logger.debug("Set IBM CF Namespace to {}".format(self.namespace))
+        logger.debug("Set IBM CF Endpoint to {}".format(self.endpoint))
 
         self.user_key = self.api_key[:5] if self.api_key else self.iam_api_key[:5]
         self.package = 'lithops_v{}_{}'.format(__version__, self.user_key)
