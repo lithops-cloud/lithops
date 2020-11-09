@@ -22,14 +22,13 @@ import logging
 import shutil
 
 import lithops
-import lithops.constants as constants
 from lithops.tests import print_help, run_tests
 from lithops.utils import setup_logger
 from lithops.config import default_config, extract_storage_config,\
     extract_serverless_config, extract_standalone_config,\
     extract_localhost_config
-from lithops.config import CACHE_DIR, LITHOPS_TEMP_DIR, RUNTIMES_PREFIX,\
-    JOBS_PREFIX, LOCALHOST, SERVERLESS, STANDALONE
+from lithops.constants import CACHE_DIR, LITHOPS_TEMP_DIR, RUNTIMES_PREFIX,\
+    JOBS_PREFIX, LOCALHOST, SERVERLESS, STANDALONE, FN_LOG_FILE, LOGS_DIR
 from lithops.storage import InternalStorage
 from lithops.serverless import ServerlessHandler
 from lithops.storage.utils import clean_bucket
@@ -50,7 +49,7 @@ def lithops_cli():
 @click.option('--config', '-c', default=None, help='use json config file')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 def clean(config, debug):
-    log_level = constants.LOGGER_LEVEL if not debug else 'DEBUG'
+    log_level = 'INFO' if not debug else 'DEBUG'
     setup_logger(log_level)
     logger.info('Cleaning all Lithops information')
     config = default_config(config)
@@ -140,14 +139,14 @@ def poll():
             else:
                 time.sleep(1)
 
-    for line in follow(open(constants.FN_LOG_FILE, 'r')):
+    for line in follow(open(FN_LOG_FILE, 'r')):
         print(line, end='')
 
 
 @logs.command('get')
 @click.argument('execution_id')
 def get(execution_id):
-    log_file = os.path.join(constants.LOGS_DIR, execution_id+'.log')
+    log_file = os.path.join(LOGS_DIR, execution_id+'.log')
 
     if not os.path.isfile(log_file):
         print('The execution id: {} does not exists in logs'.format(execution_id))

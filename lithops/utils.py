@@ -1,6 +1,6 @@
 #
 # Copyright 2018 PyWren Team
-# Copyright IBM Corp. 2020
+# (C) Copyright IBM Corp. 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,18 +15,21 @@
 # limitations under the License.
 #
 
-import base64
+
+import io
 import os
+import sys
 import pika
 import uuid
+import base64
 import inspect
 import struct
 import platform
-import logging
+import logging.config
 import threading
-import io
 
 from lithops.storage.utils import create_job_key
+from lithops.constants import LOGGER_FORMAT, LOGGER_LEVEL
 
 logger = logging.getLogger(__name__)
 
@@ -101,8 +104,8 @@ def delete_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id):
 
 
 def agg_data(data_strs):
-    """
-    Auxiliary function that aggregates data of a job to a single byte string
+    """Auxiliary function that aggregates data of a job to a single
+    byte string.
     """
     ranges = []
     pos = 0
@@ -111,6 +114,42 @@ def agg_data(data_strs):
         ranges.append((pos, pos+datum_len-1))
         pos += datum_len
     return b"".join(data_strs), ranges
+
+
+def setup_logger(logging_level=LOGGER_LEVEL,
+                 stream=None,
+                 logging_format=LOGGER_FORMAT):
+    """Setup default logging for lithops."""
+    if stream is None:
+        stream = sys.stderr
+
+    if type(logging_level) is str:
+        logging_level = logging.getLevelName(logging_level.upper())
+
+    logging.config.dictConfig({
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'standard': {
+                'format': logging_format
+            },
+        },
+        'handlers': {
+            'default': {
+                'level': logging_level,
+                'class': 'logging.StreamHandler',
+                'formatter': 'standard',
+                'stream': stream
+            },
+        },
+        'loggers': {
+            'lithops': {
+                'handlers': ['default'],
+                'level': logging_level,
+                'propagate': False
+            },
+        }
+    })
 
 
 def timeout_handler(error_msg, signum, frame):

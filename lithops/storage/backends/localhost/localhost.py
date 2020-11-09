@@ -4,7 +4,7 @@ import glob
 import shutil
 import logging
 from lithops.storage.utils import StorageNoSuchKeyError
-from lithops.config import LITHOPS_TEMP_DIR
+from lithops.constants import LITHOPS_TEMP_DIR
 
 
 logger = logging.getLogger(__name__)
@@ -156,25 +156,29 @@ class LocalhostStorageBackend:
         :return: List of objects in bucket that match the given prefix.
         :rtype: list of str
         """
-        key_list = []
+        obj_list = []
+
         if prefix:
             if prefix.endswith('/'):
                 root = os.path.join(LITHOPS_TEMP_DIR,
                                     bucket_name,
-                                    prefix, '*')
+                                    prefix, '**')
             else:
                 root = os.path.join(LITHOPS_TEMP_DIR,
                                     bucket_name,
-                                    prefix+'*', '*')
+                                    prefix+'*', '**')
         else:
             root = os.path.join(LITHOPS_TEMP_DIR,
-                                bucket_name, '*')
+                                bucket_name, '**')
 
-        for file_name in glob.iglob(root):
+        for file_name in glob.glob(root, recursive=True):
+            if file_name.endswith(prefix):
+                continue
             size = os.stat(file_name).st_size
-            key_list.append({'Key': file_name, 'Size': size})
+            base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
+            obj_list.append({'Key': file_name.replace(base_dir, ''), 'Size': size})
 
-        return key_list
+        return obj_list
 
     def list_keys(self, bucket_name, prefix=None):
         """
@@ -190,16 +194,19 @@ class LocalhostStorageBackend:
             if prefix.endswith('/'):
                 root = os.path.join(LITHOPS_TEMP_DIR,
                                     bucket_name,
-                                    prefix, '*')
+                                    prefix, '**')
             else:
                 root = os.path.join(LITHOPS_TEMP_DIR,
                                     bucket_name,
-                                    prefix+'*', '*')
+                                    prefix+'*', '**')
         else:
             root = os.path.join(LITHOPS_TEMP_DIR,
-                                bucket_name, '*')
+                                bucket_name, '**')
 
-        for file_name in glob.iglob(root):
-            key_list.append(file_name)
+        for file_name in glob.iglob(root, recursive=True):
+            if file_name.endswith(prefix):
+                continue
+            base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
+            key_list.append(file_name.replace(base_dir, ''))
 
         return key_list

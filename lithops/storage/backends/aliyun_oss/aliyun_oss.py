@@ -16,11 +16,11 @@
 
 import logging
 from lithops.storage.utils import StorageNoSuchKeyError
-from lithops.utils import is_lithops_function
+from lithops.utils import is_lithops_worker
 import oss2
 
 logger = logging.getLogger(__name__)
-logging.getLogger('urllib3').setLevel(logging.CRITICAL)
+
 
 class AliyunObjectStorageServiceBackend:
 
@@ -29,7 +29,7 @@ class AliyunObjectStorageServiceBackend:
         self.config = config
         self.auth = oss2.Auth(self.config['access_key_id'], self.config['access_key_secret'])
 
-        if is_lithops_function():
+        if is_lithops_worker():
             self.endpoint = self.config['internal_endpoint']
         else:
             self.endpoint = self.config['public_endpoint']

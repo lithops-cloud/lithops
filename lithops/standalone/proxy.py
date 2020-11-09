@@ -25,11 +25,12 @@ import json
 import subprocess as sp
 from gevent.pywsgi import WSGIServer
 
-from lithops.config import LITHOPS_TEMP_DIR, JOBS_DONE_DIR, \
+from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DONE_DIR, \
     REMOTE_INSTALL_DIR, PX_LOG_FILE, LOGS_DIR
 from lithops.storage.utils import create_job_key
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
+from lithops import constants
 
 
 os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
@@ -40,8 +41,7 @@ sys.stdout = log_file_fd
 sys.stderr = log_file_fd
 
 logging.basicConfig(filename=PX_LOG_FILE, level=logging.INFO,
-                    format=('%(asctime)s [%(levelname)s] %(module)s'
-                            ' - %(funcName)s: %(message)s'))
+                    format=constants.LOGGER_FORMAT)
 logger = logging.getLogger('proxy')
 
 proxy = flask.Flask(__name__)
