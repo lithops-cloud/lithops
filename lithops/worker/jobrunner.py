@@ -20,7 +20,6 @@ import sys
 import pika
 import time
 import pickle
-import tempfile
 import logging
 import inspect
 import requests
@@ -32,13 +31,11 @@ from distutils.util import strtobool
 from lithops.storage import Storage
 from lithops.wait import wait_storage
 from lithops.future import ResponseFuture
-from lithops.libs.tblib import pickling_support
 from lithops.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_function
 from lithops.utils import WrappedStreamingBodyPartition
 from lithops.config import TEMP
 
 
-pickling_support.install()
 logger = logging.getLogger('JobRunner')
 
 

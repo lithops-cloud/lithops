@@ -23,9 +23,8 @@ import traceback
 from six import reraise
 from lithops.storage import InternalStorage
 from lithops.storage.utils import check_storage_path, get_storage_path
-from lithops.libs.tblib import pickling_support
 
-pickling_support.install()
+
 logger = logging.getLogger(__name__)
 
 

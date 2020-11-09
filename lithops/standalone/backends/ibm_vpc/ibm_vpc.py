@@ -3,7 +3,7 @@ import logging
 import requests
 import time
 from lithops.version import __version__
-from lithops.libs.ibm_iam import IBMIAMTokenManager
+from lithops.util import IBMTokenManager
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ class IBMVPCInstanceClient:
         token = self.config.get('token', None)
         token_expiry_time = self.config.get('token_expiry_time', None)
         api_key_type = 'IAM'
-        self.iam_token_manager = IBMIAMTokenManager(iam_api_key, api_key_type, token, token_expiry_time)
+        self.iam_token_manager = IBMTokenManager(iam_api_key, api_key_type, token, token_expiry_time)
 
         headers = {'content-type': 'application/json'}
         default_user_agent = self.session.headers['User-Agent']
