@@ -28,7 +28,10 @@ MAX_CONCURRENT_WORKERS = 1000
 RETRIES = 15
 RETRY_SLEEP = 30
 
-REQUIREMENTS = [
+DEFAULT_RUNTIMES = {'python3.7', 'python3.8'}
+USER_RUNTIMES_PREFIX = 'lithops.user_runtimes'
+
+DEFAULT_REQUIREMENTS = [
     'numpy',
     'scikit-learn',
     'scipy',
