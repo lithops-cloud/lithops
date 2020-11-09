@@ -64,7 +64,7 @@ setup(
     include_package_data=True,
     entry_points='''
         [console_scripts]
-        lithops=lithops.cli.cli:cli
+        lithops=lithops.scripts.cli:lithops_cli
     ''',
     classifiers=[
         'Development Status :: 5 - Production/Stable',
