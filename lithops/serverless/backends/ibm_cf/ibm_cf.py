@@ -25,7 +25,7 @@ from lithops.version import __version__
 from lithops.utils import is_lithops_worker
 from lithops.libs.openwhisk.client import OpenWhiskClient
 from lithops.serverless.utils import create_function_handler_zip
-from lithops.libs.ibm_iam.ibm_iam import IBMIAMTokenManager
+from lithops.util import IBMTokenManager
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ class IBMCloudFunctionsBackend:
             token = self.config.get('token', None)
             token_expiry_time = self.config.get('token_expiry_time', None)
 
-            self.ibm_iam_api_key_manager = IBMIAMTokenManager(iam_api_key, api_key_type, token, token_expiry_time)
+            self.ibm_iam_api_key_manager = IBMTokenManager(iam_api_key, api_key_type, token, token_expiry_time)
             token, token_expiry_time = self.ibm_iam_api_key_manager.get_token()
 
             self.config['token'] = token

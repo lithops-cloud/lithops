@@ -9,7 +9,7 @@ from lithops.config import CACHE_DIR, load_yaml_config, dump_yaml_config
 logger = logging.getLogger(__name__)
 
 
-class IBMIAMTokenManager:
+class IBMTokenManager:
 
     def __init__(self, api_key, api_key_type='IAM', token=None, token_expiry_time=None):
         self.api_key = api_key
