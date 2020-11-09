@@ -132,8 +132,8 @@ class DockerEnv:
     def get_execution_cmd(self, docker_image_name):
         cmd = ('docker pull {} > /dev/null 2>&1; docker run '
                '--user $(id -u):$(id -g) --rm -v {}:/tmp --entrypoint '
-               '"python" {} {}'.format(docker_image_name, TEMP,
-                                       docker_image_name, RUNNER))
+               '"python" {} /tmp/lithops/runner.py'
+               .format(docker_image_name, TEMP, docker_image_name))
         return cmd
 
 
