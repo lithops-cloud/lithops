@@ -15,8 +15,6 @@
 #
 
 import sys
-import tempfile
-import os
 from lithops.utils import version_str
 
 NUMERICS_LAYERS = {
@@ -34,7 +32,7 @@ NUMERICS_LAYERS = {
 DEFAULT_REQUIREMENTS = [
     'beautifulsoup4',
     'httplib2',
-    'kafka_python',
+    'kafka-python',
     'lxml',
     'python-dateutil',
     'requests',
@@ -45,7 +43,7 @@ DEFAULT_REQUIREMENTS = [
     'PyJWT',
     'Pillow',
     'redis',
-    'pika == 0.13.1'
+    'pika==0.13.1'
 ]
 
 DEFAULT_RUNTIMES = {'python3.6', 'python3.7', 'python3.8'}
