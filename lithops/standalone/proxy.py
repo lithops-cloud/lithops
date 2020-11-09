@@ -236,7 +236,9 @@ def main():
     install_environment()
     init_keeper()
     port = int(os.getenv('PORT', 8080))
-    server = WSGIServer(('0.0.0.0', port), proxy, log=proxy.logger)
+    server = WSGIServer(('0.0.0.0', port), proxy, log=proxy.logger,
+                        keyfile=os.path.join(REMOTE_INSTALL_DIR, 'server.key'),
+                        certfile=os.path.join(REMOTE_INSTALL_DIR, 'server.pem'))
     server.serve_forever()
 
 
