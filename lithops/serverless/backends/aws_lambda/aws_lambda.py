@@ -193,11 +193,12 @@ class AWSLambdaBackend:
             layer_bytes = layer_zip.read()
 
         layer_name = self._format_layer_name(runtime_name)
+        self.internal_storage.put_data(layer_name, layer_bytes)
         response = self.lambda_client.publish_layer_version(
             LayerName=layer_name,
             Description=self.package,
             Content={
-                'ZipFile': layer_bytes
+                'S3Key': 's3://{}/{}'.format(self.internal_storage.bucket, layer_name)
             },
             CompatibleRuntimes=[self._python_runtime_name]
         )
