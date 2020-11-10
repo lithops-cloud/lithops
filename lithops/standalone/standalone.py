@@ -24,8 +24,7 @@ import importlib
 import requests
 from threading import Thread
 
-from lithops.utils import is_lithops_worker
-from lithops.serverless.utils import create_function_handler_zip
+from lithops.utils import is_lithops_worker, create_handler_zip
 from lithops.constants import LOGS_DIR, REMOTE_INSTALL_DIR, FN_LOG_FILE
 from lithops.storage.utils import create_job_key
 
@@ -89,7 +88,7 @@ class StandaloneHandler:
         self.ssh_credentials = self.backend.get_ssh_credentials()
         self.ip_address = self.backend.get_ip_address()
 
-        from lithops.standalone.utils import SSHClient
+        from lithops.util.ssh_client import SSHClient
         self.ssh_client = SSHClient(self.ssh_credentials)
 
         logger.debug("Standalone handler created successfully")
@@ -133,11 +132,18 @@ class StandaloneHandler:
         Checks if the proxy is ready to receive http connections
         """
         try:
-            url = "https://{}:{}/ping".format(self.ip_address, PROXY_SERVICE_PORT)
-            r = requests.get(url, timeout=1, verify=False)
-            if r.status_code == 200:
-                return True
-            return False
+            if self.is_lithops_worker:
+                url = "http://{}:{}/ping".format('127.0.0.1', PROXY_SERVICE_PORT)
+                r = requests.get(url, timeout=1, verify=True)
+                if r.status_code == 200:
+                    return True
+                return False
+            else:
+                cmd = 'curl -X GET http://127.0.0.1:8080/ping'
+                out = self.ssh_client.run_remote_command(self.ip_address, cmd, timeout=2)
+                data = json.loads(out)
+                if data['response'] == 'pong':
+                    return True
         except Exception:
             return False
 
@@ -226,9 +232,15 @@ class StandaloneHandler:
                     .format(executor_id, job_id))
         logger.info("View execution logs at {}".format(log_file))
 
-        url = "https://{}:{}/run".format(self.ip_address, PROXY_SERVICE_PORT)
-        r = requests.post(url, data=json.dumps(job_payload), verify=False)
-        response = r.json()
+        if self.is_lithops_worker:
+            url = "http://{}:{}/run".format('127.0.0.1', PROXY_SERVICE_PORT)
+            r = requests.post(url, data=json.dumps(job_payload), verify=True)
+            response = r.json()
+        else:
+            cmd = ('curl -X POST http://127.0.0.1:8080/run -d \'{}\' '
+                   '-H \'Content-Type: application/json\''.format(json.dumps(job_payload)))
+            out = self.ssh_client.run_remote_command(self.ip_address, cmd)
+            response = json.loads(out)
 
         return response['activationId']
 
@@ -243,10 +255,16 @@ class StandaloneHandler:
 
         logger.info('Extracting runtime metadata information')
         payload = {'runtime': runtime}
-        url = "https://{}:{}/preinstalls".format(self.ip_address, PROXY_SERVICE_PORT)
 
-        r = requests.get(url, data=json.dumps(payload), verify=False)
-        runtime_meta = r.json()
+        if self.is_lithops_worker:
+            url = "http://{}:{}/preinstalls".format('127.0.0.1', PROXY_SERVICE_PORT)
+            r = requests.get(url, data=json.dumps(payload), verify=True)
+            runtime_meta = r.json()
+        else:
+            cmd = ('curl -X GET http://127.0.0.1:8080/preinstalls -d \'{}\' '
+                   '-H \'Content-Type: application/json\''.format(json.dumps(payload)))
+            out = self.ssh_client.run_remote_command(self.ip_address, cmd)
+            runtime_meta = json.loads(out)
 
         return runtime_meta
 
@@ -298,7 +316,7 @@ class StandaloneHandler:
         self.ssh_client.upload_data_to_file(self.ip_address, json.dumps(self.config), config_file)
 
         src_proxy = os.path.join(os.path.dirname(__file__), 'proxy.py')
-        create_function_handler_zip(FH_ZIP_LOCATION, src_proxy)
+        create_handler_zip(FH_ZIP_LOCATION, src_proxy)
         self.ssh_client.upload_local_file(self.ip_address, FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip')
         os.remove(FH_ZIP_LOCATION)
 
@@ -308,20 +326,6 @@ class StandaloneHandler:
         cmd += 'unzip -o /tmp/lithops_standalone.zip -d {} > /dev/null 2>&1; '.format(REMOTE_INSTALL_DIR)
         cmd += 'rm /tmp/lithops_standalone.zip; '
         cmd += 'chmod 644 {}; '.format(service_file)
-        # Create secure keys
-        cmd += 'cd {}; '.format(REMOTE_INSTALL_DIR)
-        cmd += 'mkdir demoCA/newcerts demoCA/private -p; '
-        cmd += 'touch demoCA/index.txt; '
-        cmd += 'echo "1234" > demoCA/serial; '
-        cmd += 'openssl rand -base64 48 > demoCA/ca_pass.txt; '
-        cmd += 'openssl genrsa -aes256 -out demoCA/private/cakey.pem -passout file:demoCA/ca_pass.txt 4096; '
-        cmd += 'openssl req -new -x509 -key demoCA/private/cakey.pem -out demoCA/cacert.pem -days 365 -passin file:demoCA/ca_pass.txt -set_serial 0 -subj "/C=US/ST=Denial/O=Lithops/CN=lithops.cloud"; '
-        cmd += 'openssl rand -base64 48 > server_pass.txt; '
-        cmd += 'openssl genrsa -aes256 -out server.key -passout file:server_pass.txt 2048; '
-        cmd += 'openssl req -new -key server.key -out server.csr -passin file:server_pass.txt -subj "/C=US/ST=Denial/O=Lithops/CN=lithops.cloud"; '
-        cmd += 'cp server.key server.key.org; '
-        cmd += 'openssl rsa -in server.key.org -passin file:server_pass.txt -out server.key; '
-        cmd += 'openssl ca -in server.csr -out server.pem -passin file:demoCA/ca_pass.txt -batch; '
         # Start proxy service
         cmd += 'systemctl daemon-reload; '
         cmd += 'systemctl stop {}; '.format(PROXY_SERVICE_NAME)

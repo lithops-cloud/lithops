@@ -21,6 +21,7 @@ import importlib
 import logging
 import lithops.constants as constants
 from lithops.version import __version__
+from lithops.utils import verify_runtime_name
 
 logger = logging.getLogger(__name__)
 
@@ -102,17 +103,20 @@ def default_config(config_data=None, config_overwrite={}):
         config_data['lithops'].update(config_overwrite['lithops'])
 
     if constants.LOCALHOST in config_overwrite:
-        if constants.LOCALHOST not in config_data:
+        if constants.LOCALHOST not in config_data or \
+           config_data[constants.LOCALHOST] is None:
             config_data[constants.LOCALHOST] = {}
         config_data[constants.LOCALHOST].update(config_overwrite[constants.LOCALHOST])
 
     if constants.SERVERLESS in config_overwrite:
-        if constants.SERVERLESS not in config_data:
+        if constants.SERVERLESS not in config_data or \
+           config_data[constants.SERVERLESS] is None:
             config_data[constants.SERVERLESS] = {}
         config_data[constants.SERVERLESS].update(config_overwrite[constants.SERVERLESS])
 
     if constants.STANDALONE in config_overwrite:
-        if constants.STANDALONE not in config_data:
+        if constants.STANDALONE not in config_data or \
+           config_data[constants.STANDALONE] is None:
             config_data[constants.STANDALONE] = {}
         config_data[constants.STANDALONE].update(config_overwrite[constants.STANDALONE])
 
@@ -125,22 +129,29 @@ def default_config(config_data=None, config_overwrite={}):
         if 'storage_bucket' not in config_data['lithops']:
             raise Exception("storage_bucket is mandatory in "
                             "lithops section of the configuration")
-        if constants.SERVERLESS not in config_data:
-            config_data[constants.SERVERLESS] = {}
         if 'backend' not in config_data[constants.SERVERLESS]:
             config_data[constants.SERVERLESS]['backend'] = constants.SERVERLESS_BACKEND_DEFAULT
+
+        if constants.SERVERLESS not in config_data or \
+           config_data[constants.SERVERLESS] is None:
+            config_data[constants.SERVERLESS] = {}
 
         sb = config_data[constants.SERVERLESS]['backend']
         logger.debug("Loading Serverless backend module: {}".format(sb))
         cb_config = importlib.import_module('lithops.serverless.backends.{}.config'.format(sb))
         cb_config.load_config(config_data)
 
+        verify_runtime_name(config_data[constants.SERVERLESS]['runtime'])
+
     elif config_data['lithops']['mode'] == constants.STANDALONE:
         if 'storage_bucket' not in config_data['lithops']:
             raise Exception("storage_bucket is mandatory in "
                             "lithops section of the configuration")
-        if constants.STANDALONE not in config_data:
+
+        if constants.STANDALONE not in config_data or \
+           config_data[constants.STANDALONE] is None:
             config_data[constants.STANDALONE] = {}
+
         if 'auto_dismantle' not in config_data[constants.STANDALONE]:
             config_data[constants.STANDALONE]['auto_dismantle'] = constants.STANDALONE_AUTO_DISMANTLE_DEFAULT
         if 'soft_dismantle_timeout' not in config_data[constants.STANDALONE]:
@@ -157,14 +168,21 @@ def default_config(config_data=None, config_overwrite={}):
         sb_config = importlib.import_module('lithops.standalone.backends.{}.config'.format(sb))
         sb_config.load_config(config_data)
 
+        verify_runtime_name(config_data[constants.STANDALONE]['runtime'])
+
     elif config_data['lithops']['mode'] == constants.LOCALHOST:
-        config_data['lithops']['storage_bucket'] = 'storage'
         if 'storage' not in config_data['lithops']:
             config_data['lithops']['storage'] = 'localhost'
-        if constants.LOCALHOST not in config_data:
+            config_data['lithops']['storage_bucket'] = 'storage'
+
+        if constants.LOCALHOST not in config_data or \
+           config_data[constants.LOCALHOST] is None:
             config_data[constants.LOCALHOST] = {}
+
         if 'runtime' not in config_data[constants.LOCALHOST]:
             config_data[constants.LOCALHOST]['runtime'] = 'python3'
+
+        verify_runtime_name(config_data[constants.LOCALHOST]['runtime'])
 
     if 'storage' not in config_data['lithops']:
         config_data['lithops']['storage'] = constants.STORAGE_BACKEND_DEFAULT

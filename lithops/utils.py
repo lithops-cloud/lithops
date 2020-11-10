@@ -17,6 +17,7 @@
 
 
 import io
+import re
 import os
 import sys
 import pika
@@ -24,6 +25,8 @@ import uuid
 import base64
 import inspect
 import struct
+import lithops
+import zipfile
 import platform
 import logging.config
 import threading
@@ -152,15 +155,47 @@ def setup_logger(logging_level=LOGGER_LEVEL,
     })
 
 
+def create_handler_zip(dst_zip_location, entry_point_file, entry_point_name=None):
+    """Create the zip package that is uploaded as a function"""
+
+    logger.debug("Creating function handler zip in {}".format(dst_zip_location))
+
+    def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
+        for file in os.listdir(full_dir_path):
+            full_path = os.path.join(full_dir_path, file)
+            if os.path.isfile(full_path):
+                zip_file.write(full_path, os.path.join('lithops', sub_dir, file))
+            elif os.path.isdir(full_path) and '__pycache__' not in full_path:
+                add_folder_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
+
+    try:
+        with zipfile.ZipFile(dst_zip_location, 'w', zipfile.ZIP_DEFLATED) as lithops_zip:
+            module_location = os.path.dirname(os.path.abspath(lithops.__file__))
+            entry_point_name = entry_point_name or os.path.basename(entry_point_file)
+            lithops_zip.write(entry_point_file, entry_point_name)
+            add_folder_to_zip(lithops_zip, module_location)
+
+    except Exception:
+        raise Exception('Unable to create the {} package: {}'.format(dst_zip_location))
+
+
+def verify_runtime_name(runtime_name):
+    """Check if the runtime name has a correct formating"""
+    assert re.match("^[A-Za-z0-9_/.:-]*$", runtime_name),\
+        'Runtime name "{}" not valid'.format(runtime_name)
+
+
 def timeout_handler(error_msg, signum, frame):
     raise TimeoutError(error_msg)
 
 
 def version_str(version_info):
+    """Format the python version information"""
     return "{}.{}".format(version_info[0], version_info[1])
 
 
 def is_unix_system():
+    """Check if the current OS is UNIX"""
     curret_system = platform.system()
     return curret_system != 'Windows'
 
