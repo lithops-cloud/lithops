@@ -30,13 +30,12 @@ from google_auth_httplib2 import AuthorizedHttp
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.auth import jwt
-import google.api_core.exceptions
 
 from . import config as gcp_config
 from ....version import __version__
 from ....utils import version_str
 from ....storage import InternalStorage
-from .... import config
+from ....constants import TEMP as TEMP_PATH
 
 logger = logging.getLogger(__name__)
 logging.getLogger('googleapiclient').setLevel(logging.CRITICAL)
@@ -44,7 +43,7 @@ logging.getLogger('google_auth_httplib2').setLevel(logging.CRITICAL)
 logging.getLogger('google.auth.transport.requests').setLevel(logging.CRITICAL)
 logging.getLogger('google.cloud.pubsub_v1.publisher').setLevel(logging.CRITICAL)
 
-ZIP_LOCATION = os.path.join(config.TEMP, 'lithops_gcp.zip')
+ZIP_LOCATION = os.path.join(TEMP_PATH, 'lithops_gcp.zip')
 SCOPES = ('https://www.googleapis.com/auth/cloud-platform',
           'https://www.googleapis.com/auth/pubsub')
 FUNCTIONS_API_VERSION = 'v1'
@@ -129,15 +128,26 @@ class GCPFunctionsBackend:
         if runtime_name in gcp_config.DEFAULT_RUNTIMES:
             return gcp_config.DEFAULT_REQUIREMENTS
         else:
-            user_runtimes = self.internal_storage.storage.list_keys(self.internal_storage.bucket,
-                                                                    prefix=gcp_config.USER_RUNTIMES_PREFIX)
-            user_runtimes_keys = {runtime.split('/', 1)[1]: runtime for runtime in user_runtimes}
-            if runtime_name in user_runtimes_keys:
-                reqs = self.internal_storage.get_data(key=user_runtimes_keys[runtime_name]).decode('utf-8')
+            user_runtimes = self._list_runtimes(default_runtimes=False)
+            if runtime_name in user_runtimes:
+                raw_reqs = self.internal_storage.get_data(key='/'.join([gcp_config.USER_RUNTIMES_PREFIX, runtime_name]))
+                reqs = raw_reqs.decode('utf-8')
                 return reqs.splitlines()
             else:
                 raise Exception('Runtime {} does not exist. '
-                                'Available runtimes: {}'.format(runtime_name, gcp_config.DEFAULT_RUNTIMES + user_runtimes))
+                                'Available runtimes: {}'.format(runtime_name,
+                                                                gcp_config.DEFAULT_RUNTIMES + user_runtimes))
+
+    def _list_runtimes(self, default_runtimes=True):
+        runtimes = []
+
+        if default_runtimes:
+            runtimes.extend(gcp_config.DEFAULT_RUNTIMES)
+
+        user_runtimes_keys = self.internal_storage.storage.list_keys(self.internal_storage.bucket,
+                                                                     prefix=gcp_config.USER_RUNTIMES_PREFIX)
+        runtimes.extend([runtime.split('/', 1)[-1] for runtime in user_runtimes_keys])
+        return runtimes
 
     def _create_handler_zip(self, runtime_name):
         logger.debug("Creating function handler zip in {}".format(ZIP_LOCATION))
@@ -152,7 +162,7 @@ class GCPFunctionsBackend:
 
         # Get runtime requirements
         runtime_requirements = self._get_runtime_requirements(runtime_name)
-        requirements_file_path = os.path.join(config.TEMP, '{}_requirements.txt'.format(runtime_name))
+        requirements_file_path = os.path.join(TEMP_PATH, '{}_requirements.txt'.format(runtime_name))
         with open(requirements_file_path, 'w') as reqs_file:
             for req in runtime_requirements:
                 reqs_file.write('{}\n'.format(req))
@@ -198,8 +208,7 @@ class GCPFunctionsBackend:
         if trigger == 'HTTP':
             cloud_function['httpsTrigger'] = {}
         elif trigger == 'Pub/Sub':
-            topic_location = self._full_topic_location(
-                self._format_topic_name(runtime_name, memory))
+            topic_location = self._full_topic_location(self._format_topic_name(runtime_name, memory))
             cloud_function['eventTrigger'] = {
                 'eventType': 'providers/cloud.pubsub/eventTypes/topic.publish',
                 'resource': topic_location,
@@ -242,9 +251,6 @@ class GCPFunctionsBackend:
 
         self.internal_storage.put_data('/'.join([gcp_config.USER_RUNTIMES_PREFIX, runtime_name]), requirements)
 
-    def update_runtime(self, runtime_name, code, memory=3008, timeout=900):
-        raise NotImplementedError()
-
     def create_runtime(self, runtime_name, memory, timeout=60):
         logger.debug("Creating runtime {} - Memory: {} Timeout: {}".format(runtime_name, memory, timeout))
 
@@ -271,11 +277,12 @@ class GCPFunctionsBackend:
 
         return runtime_meta
 
-    def delete_runtime(self, runtime_name, runtime_memory):
+    def delete_runtime(self, runtime_name, runtime_memory, delete_runtime_storage=True):
         action_name = self._format_action_name(runtime_name, runtime_memory)
         function_location = self._full_function_location(action_name)
         logger.debug('Going to delete runtime {}'.format(action_name))
 
+        # Delete function
         self._get_funct_conn().projects().locations().functions().delete(
             name=function_location,
         ).execute(num_retries=self.num_retries)
@@ -296,6 +303,7 @@ class GCPFunctionsBackend:
                 logger.debug('Ok - {}'.format(e))
                 break
 
+        # Delete Pub/Sub topic attached as trigger for the cloud function
         logger.debug('Listing Pub/Sub topics...')
         topic_name = self._format_topic_name(runtime_name, runtime_memory)
         topic_location = self._full_topic_location(topic_name)
@@ -306,6 +314,12 @@ class GCPFunctionsBackend:
             logger.debug('Going to delete topic {}'.format(topic_name))
             self.publisher_client.delete_topic(topic=topic_location)
             logger.debug('Ok - topic {} deleted'.format(topic_name))
+
+        # Delete user runtime from storage
+        user_runtimes = self._list_runtimes(default_runtimes=False)
+        if runtime_name in user_runtimes and delete_runtime_storage:
+            self.internal_storage.storage.delete_object(self.internal_storage.bucket,
+                                                        '/'.join([gcp_config.USER_RUNTIMES_PREFIX, runtime_name]))
 
     def clean(self):
         logger.debug('Going to delete all deployed runtimes...')
@@ -387,17 +401,17 @@ class GCPFunctionsBackend:
 
         # Get runtime requirements
         runtime_requirements = self._get_runtime_requirements(runtime_name)
-        requirements_file_path = os.path.join(config.TEMP, '{}_requirements.txt'.format(runtime_name))
+        requirements_file_path = os.path.join(TEMP_PATH, '{}_requirements.txt'.format(runtime_name))
         with open(requirements_file_path, 'w') as reqs_file:
             for req in runtime_requirements:
                 reqs_file.write('{}\n'.format(req))
 
-        extract_modules_zip_path = os.path.join(config.TEMP, 'extract_modules_gcp.zip')
+        extract_modules_zip_path = os.path.join(TEMP_PATH, 'extract_modules_gcp.zip')
         try:
             with zipfile.ZipFile(extract_modules_zip_path, 'w') as extract_modules_zip:
 
                 # Add action_code entrypoint as main.py to zip archive
-                extract_modules_entrypoint_filename = os.path.join(config.TEMP, 'extract_modules_entrypoint.py')
+                extract_modules_entrypoint_filename = os.path.join(TEMP_PATH, 'extract_modules_entrypoint.py')
                 with open(extract_modules_entrypoint_filename, 'w') as extract_mods_entrypoint_f:
                     extract_mods_entrypoint_f.write(textwrap.dedent(action_code))
                 extract_modules_zip.write(extract_modules_entrypoint_filename, 'main.py', zipfile.ZIP_DEFLATED)
@@ -419,7 +433,7 @@ class GCPFunctionsBackend:
         except Exception as e:
             raise Exception("Unable to invoke 'modules' action: {}".format(e))
         try:
-            self.delete_runtime(runtime_name, 128)
+            self.delete_runtime(runtime_name, 128, delete_runtime_storage=False)
         except Exception as e:
             raise Exception("Unable to delete 'modules' action: {}".format(e))
 
