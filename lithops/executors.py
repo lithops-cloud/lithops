@@ -257,7 +257,7 @@ class FunctionExecutor:
         This method is executed all within CF.
 
         :param map_function: the function to map over the data
-        :param map_iterdata:  the function to reduce over the futures
+        :param map_iterdata:  An iterable of input data
         :param reduce_function:  the function to reduce over the futures
         :param extra_env: Additional environment variables for action environment. Default None.
         :param extra_args: Additional arguments to pass to function activation. Default None.
