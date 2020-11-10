@@ -198,10 +198,12 @@ class AWSLambdaBackend:
             LayerName=layer_name,
             Description=self.package,
             Content={
-                'S3Key': 's3://{}/{}'.format(self.internal_storage.bucket, layer_name)
+                'S3Bucket': self.internal_storage.bucket,
+                'S3Key': layer_name
             },
             CompatibleRuntimes=[self._python_runtime_name]
         )
+        self.internal_storage.storage.delete_object(self.internal_storage.bucket, layer_name)
 
         if response['ResponseMetadata']['HTTPStatusCode'] == 201:
             logger.debug('OK --> Layer {} created'.format(layer_name))
@@ -209,6 +211,7 @@ class AWSLambdaBackend:
         else:
             msg = 'An error occurred creating layer {}: {}'.format(layer_name, response)
             raise Exception(msg)
+
 
     def _delete_layer(self, layer_name):
         """
@@ -282,9 +285,10 @@ class AWSLambdaBackend:
             runtime_layer_arn = self._create_layer(runtime_name)
 
         code = self._create_handler_bin()
+        python_runtime_ver = 'python{}'.format(version_str(sys.version_info))
         response = self.lambda_client.create_function(
             FunctionName=function_name,
-            Runtime=runtime_name,
+            Runtime=python_runtime_ver,
             Role=self.role_arn,
             Handler='__main__.lambda_handler',
             Code={
@@ -304,7 +308,7 @@ class AWSLambdaBackend:
 
         return runtime_meta
 
-    def delete_runtime(self, runtime_name, memory):
+    def delete_runtime(self, runtime_name, runtime_memory, delete_runtime_storage=True):
         """
         Deletes lambda runtime from its runtime name and memory
         """
@@ -324,6 +328,10 @@ class AWSLambdaBackend:
         else:
             msg = 'An error occurred creating/updating action {}: {}'.format(runtime_name, response)
             raise Exception(msg)
+
+        if runtime_name not in lambda_config.DEFAULT_RUNTIMES:
+            self.internal_storage.storage.delete_object(self.internal_storage.bucket,
+                                                        '/'.join([lambda_config.USER_RUNTIME_PREFIX, runtime_name]))
 
     def clean(self):
         """
@@ -464,10 +472,12 @@ class AWSLambdaBackend:
         memory = 192
         modules_function_name = '_'.join([self._format_action_name(runtime_name, memory),
                                           'preinstalls', uuid.uuid4().hex[:4]])
+        python_runtime_ver = 'python{}'.format(version_str(sys.version_info))
+
         try:
             self.lambda_client.create_function(
                 FunctionName=modules_function_name,
-                Runtime=runtime_name,
+                Runtime=python_runtime_ver,
                 Role=self.role_arn,
                 Handler='__main__.lambda_handler',
                 Code={
