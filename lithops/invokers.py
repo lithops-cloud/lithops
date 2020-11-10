@@ -32,6 +32,7 @@ from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config
 from lithops.utils import version_str, is_lithops_worker, is_unix_system
 from lithops.storage.utils import create_job_key
+from lithops.constants import LOGGER_LEVEL
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,11 @@ class Invoker:
     Abstract invoker class
     """
     def __init__(self, config, executor_id, internal_storage, compute_handler):
-        self.log_active = logger.getEffectiveLevel() != logging.WARNING
+
+        log_level = logger.getEffectiveLevel()
+        self.log_active = log_level != logging.WARNING
+        self.log_level = LOGGER_LEVEL if not self.log_active else log_level
+
         self.config = config
         self.executor_id = executor_id
         self.storage_config = extract_storage_config(self.config)
@@ -121,7 +126,7 @@ class StandaloneInvoker(Invoker):
         job.runtime_name = self.runtime_name
 
         payload = {'config': self.config,
-                   'log_level': logging.getLevelName(logger.getEffectiveLevel()),
+                   'log_level': self.log_level,
                    'executor_id': job.executor_id,
                    'job_id': job.job_id,
                    'job_description': job.__dict__,
@@ -217,8 +222,8 @@ class ServerlessInvoker(Invoker):
         return runtime_meta
 
     def _start_invoker_process(self):
-        """
-        Starts the invoker process responsible to spawn pending calls in background
+        """Starts the invoker process responsible to spawn pending calls
+        in background.
         """
         for inv_id in range(self.INVOKER_PROCESSES):
             p = self.INVOKER(target=self._run_invoker_process, args=(inv_id, ))
@@ -227,9 +232,7 @@ class ServerlessInvoker(Invoker):
             p.start()
 
     def _run_invoker_process(self, inv_id):
-        """
-        Run process that implements token bucket scheduling approach
-        """
+        """Run process that implements token bucket scheduling approach"""
         logger.debug('ExecutorID {} - Invoker process {} started'
                      .format(self.executor_id, inv_id))
 
@@ -249,11 +252,11 @@ class ServerlessInvoker(Invoker):
                      .format(self.executor_id, inv_id))
 
     def _invoke(self, job, call_id):
-        """
-        Method used to perform the actual invocation against the Compute Backend
+        """Method used to perform the actual invocation against the
+        compute backend.
         """
         payload = {'config': self.config,
-                   'log_level': logging.getLevelName(logger.getEffectiveLevel()),
+                   'log_level': self.log_level,
                    'func_key': job.func_key,
                    'data_key': job.data_key,
                    'extra_env': job.extra_env,
@@ -284,13 +287,11 @@ class ServerlessInvoker(Invoker):
                     ' ID: {}'.format(job.executor_id, job.job_id, call_id, resp_time, activation_id))
 
     def _invoke_remote(self, job):
-        """
-        Method used to send a job_description to the remote invoker
-        """
+        """Method used to send a job_description to the remote invoker."""
         start = time.time()
 
         payload = {'config': self.config,
-                   'log_level': logging.getLevelName(logger.getEffectiveLevel()),
+                   'log_level': self.log_level,
                    'executor_id': job.executor_id,
                    'job_id': job.job_id,
                    'job_description': job.__dict__,

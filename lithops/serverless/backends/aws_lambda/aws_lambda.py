@@ -354,8 +354,10 @@ class AWSLambdaBackend:
         List all the lambda runtimes deployed.
         return: Array of tuples (function_name, memory)
         """
+        logger.debug('Listing all functions deployed...')
+
         functions = []
-        response = self.lambda_client.list_functions()
+        response = self.lambda_client.list_functions(FunctionVersion='ALL')
         for function in response['Functions']:
             if 'lithops' in function['FunctionName']:
                 functions.append((function['FunctionName'], function['MemorySize']))
@@ -366,6 +368,7 @@ class AWSLambdaBackend:
                 if 'lithops' in function['FunctionName']:
                     functions.append((function['FunctionName'], function['MemorySize']))
 
+        logger.debug('Listed {} functions'.format(len(functions)))
         return functions
 
     def invoke(self, runtime_name, runtime_memory, payload, self_invoked=False):

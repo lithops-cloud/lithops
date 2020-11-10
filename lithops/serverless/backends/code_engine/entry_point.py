@@ -20,7 +20,7 @@ import json
 import logging
 import pkgutil
 from lithops.version import __version__
-from lithops.config import default_logging_config
+from lithops.utils import  setup_logger
 from lithops.worker import function_handler
 from lithops.storage import InternalStorage
 from lithops.config import JOBS_PREFIX
@@ -28,7 +28,7 @@ from lithops.utils import sizeof_fmt
 from lithops.storage.utils import create_runtime_meta_key
 
 
-logger = logging.getLogger('__main__')
+logger = logging.getLogger('lithops.worker')
 
 
 def binary_to_dict(the_binary):
@@ -62,8 +62,7 @@ def main(action, payload_decoded):
 
     payload = binary_to_dict(payload_decoded)
 
-    log_level = payload['log_level']
-    default_logging_config(log_level)
+    setup_logger(payload['log_level'])
 
     logger.info(payload)
     if (action == 'preinstals'):

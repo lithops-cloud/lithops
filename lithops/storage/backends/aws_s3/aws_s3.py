@@ -17,12 +17,9 @@
 import logging
 import boto3
 import botocore
-from datetime import datetime
 from ...utils import StorageNoSuchKeyError
 
-logging.getLogger('boto3').setLevel(logging.CRITICAL)
-logging.getLogger('botocore').setLevel(logging.CRITICAL)
-logging.getLogger('urllib3').setLevel(logging.CRITICAL)
+
 logger = logging.getLogger(__name__)
 
 

@@ -15,20 +15,21 @@
 #
 
 import os
+import sys
 import logging
 from lithops.version import __version__
-from lithops.config import ow_logging_config
+from lithops.utils import setup_logger
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
+from lithops.constants import LOGGER_FORMAT_SHORT
 
-logger = logging.getLogger('__main__')
+logger = logging.getLogger('lithops.worker')
 
 
 def main(args):
     os.environ['__LITHOPS_ACTIVATION_ID'] = os.environ['__OW_ACTIVATION_ID']
 
-    log_level = args['log_level']
-    ow_logging_config(log_level)
+    setup_logger(args['log_level'], sys.stdout, LOGGER_FORMAT_SHORT)
 
     if 'remote_invoker' in args:
         logger.info("Lithops v{} - Starting invoker".format(__version__))

@@ -23,7 +23,7 @@ import shutil
 import subprocess as sp
 from shutil import copyfile
 
-from lithops.config import TEMP, LITHOPS_TEMP_DIR, JOBS_PREFIX,\
+from lithops.constants import TEMP, LITHOPS_TEMP_DIR, JOBS_PREFIX,\
     RN_LOG_FILE, LOGS_DIR
 from lithops.storage.utils import create_job_key
 from lithops.version import __version__

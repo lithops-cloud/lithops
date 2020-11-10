@@ -79,8 +79,7 @@ def load_config(config_data):
         raise Exception("'aws' and 'aws_lambda' sections are mandatory in the configuration")
 
     # Put credential keys to 'aws_lambda' dict entry
-    config_data['aws_lambda'] = {
-        **config_data['aws_lambda'], **config_data['aws']}
+    config_data['aws_lambda'] = {**config_data['aws_lambda'], **config_data['aws']}
 
     if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
         raise Exception(
