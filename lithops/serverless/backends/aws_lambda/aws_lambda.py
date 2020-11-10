@@ -112,8 +112,8 @@ class AWSLambdaBackend:
 
     def _unformat_action_name(self, action_name):
         split = action_name.split('_')
-        runtime_name = split[1].replace('-', '.')
-        runtime_memory = int(split[2].replace('MB', ''))
+        runtime_name = '_'.join(split[3:-1])
+        runtime_memory = int(split[-1].replace('MB', ''))
         return runtime_name, runtime_memory
 
     def _format_layer_name(self, runtime_name):
@@ -330,8 +330,9 @@ class AWSLambdaBackend:
             raise Exception(msg)
 
         if runtime_name not in lambda_config.DEFAULT_RUNTIMES:
+            build_name, _ = self._unformat_action_name(runtime_name)
             self.internal_storage.storage.delete_object(self.internal_storage.bucket,
-                                                        '/'.join([lambda_config.USER_RUNTIME_PREFIX, runtime_name]))
+                                                        '/'.join([lambda_config.USER_RUNTIME_PREFIX, build_name]))
 
     def clean(self):
         """
