@@ -23,7 +23,7 @@ import shutil
 
 import lithops
 from lithops.tests import print_help, run_tests
-from lithops.utils import setup_logger
+from lithops.utils import setup_logger, verify_runtime_name
 from lithops.config import default_config, extract_storage_config,\
     extract_serverless_config, extract_standalone_config,\
     extract_localhost_config
@@ -167,6 +167,7 @@ def runtime(ctx):
 @click.option('--memory', default=None, help='memory used by the runtime', type=int)
 @click.option('--config', '-c', default=None, help='use json config file')
 def create(name, memory, config):
+    verify_runtime_name(name)
     setup_logger(logging.DEBUG)
     config = default_config(config)
     storage_config = extract_storage_config(config)
@@ -193,6 +194,7 @@ def create(name, memory, config):
 @click.option('--file', '-f', default=None, help='file needed to build the runtime')
 @click.option('--config', '-c', default=None, help='use json config file')
 def build(name, file, config):
+    verify_runtime_name(name)
     setup_logger(logging.DEBUG)
     config = default_config(config)
     storage_config = extract_storage_config(config)
@@ -205,6 +207,7 @@ def build(name, file, config):
 @click.argument('name')
 @click.option('--config', '-c', default=None, help='use json config file')
 def update(name, config):
+    verify_runtime_name(name)
     setup_logger(logging.DEBUG)
     config = default_config(config)
     storage_config = extract_storage_config(config)
@@ -231,6 +234,7 @@ def update(name, config):
 @click.argument('name')
 @click.option('--config', '-c', default=None, help='use json config file')
 def delete(name, config):
+    verify_runtime_name(name)
     setup_logger(logging.DEBUG)
     config = default_config(config)
     storage_config = extract_storage_config(config)

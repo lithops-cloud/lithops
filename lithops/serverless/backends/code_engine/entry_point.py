@@ -20,12 +20,11 @@ import json
 import logging
 import pkgutil
 from lithops.version import __version__
-from lithops.utils import  setup_logger
+from lithops.utils import setup_logger
 from lithops.worker import function_handler
 from lithops.storage import InternalStorage
-from lithops.config import JOBS_PREFIX
+from lithops.constants import JOBS_PREFIX
 from lithops.utils import sizeof_fmt
-from lithops.storage.utils import create_runtime_meta_key
 
 
 logger = logging.getLogger('lithops.worker')
@@ -49,7 +48,7 @@ def runtime_packages(storage_config):
 
     activation_id = storage_config['activation_id']
 
-    status_key = create_runtime_meta_key(JOBS_PREFIX, activation_id)
+    status_key = '/'.join([JOBS_PREFIX, activation_id, 'runtime_metadata'])
     logger.debug("Runtime metadata key {}".format(status_key))
     dmpd_response_status = json.dumps(runtime_meta)
     drs = sizeof_fmt(len(dmpd_response_status))
