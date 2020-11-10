@@ -15,8 +15,6 @@
 #
 
 import sys
-import tempfile
-import os
 from lithops.utils import version_str
 
 NUMERICS_LAYERS = {
@@ -31,10 +29,10 @@ NUMERICS_LAYERS = {
     'eu-north-1': '642425348156'
 }
 
-REQUIREMENTS = [
+DEFAULT_REQUIREMENTS = [
     'beautifulsoup4',
     'httplib2',
-    'kafka_python',
+    'kafka-python',
     'lxml',
     'python-dateutil',
     'requests',
@@ -45,18 +43,18 @@ REQUIREMENTS = [
     'PyJWT',
     'Pillow',
     'redis',
-    'pika == 0.13.1'
+    'pika==0.13.1'
 ]
+
+DEFAULT_RUNTIMES = ['python3.6', 'python3.7', 'python3.8']
+
+USER_RUNTIME_PREFIX = 'lithops.user_runtimes'
 
 RUNTIME_TIMEOUT_DEFAULT = 900  # Default timeout: 900 s == 15 min
 RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
 RUNTIME_MEMORY_MAX = 3008  # Max. memory: 3008 MB
 
 MAX_CONCURRENT_WORKERS = 1000
-
-LAYER_DIR_PATH = os.path.join(tempfile.gettempdir(), 'modules', 'python')
-LAYER_ZIP_PATH = os.path.join(tempfile.gettempdir(), 'lithops_layer.zip')
-ACTION_ZIP_PATH = os.path.join(tempfile.gettempdir(), 'lithops_runtime.zip')
 
 
 def load_config(config_data):
@@ -72,19 +70,16 @@ def load_config(config_data):
             config_data['serverless']['runtime_timeout'] > RUNTIME_TIMEOUT_DEFAULT:
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
     if 'runtime' not in config_data['serverless']:
-        config_data['serverless']['runtime'] = 'python' + \
-            version_str(sys.version_info)
+        config_data['serverless']['runtime'] = 'python{}'.format(version_str(sys.version_info))
 
     if 'workers' not in config_data['lithops']:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
 
     if 'aws' not in config_data and 'aws_lambda' not in config_data:
-        raise Exception(
-            "'aws' and 'aws_lambda' sections are mandatory in the configuration")
+        raise Exception("'aws' and 'aws_lambda' sections are mandatory in the configuration")
 
     # Put credential keys to 'aws_lambda' dict entry
-    config_data['aws_lambda'] = {
-        **config_data['aws_lambda'], **config_data['aws']}
+    config_data['aws_lambda'] = {**config_data['aws_lambda'], **config_data['aws']}
 
     if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
         raise Exception(
