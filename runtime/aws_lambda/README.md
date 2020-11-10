@@ -101,7 +101,7 @@ def test():
 lith = lithops.FunctionExecutor(runtime='my_matplotlib_runtime')
 lith.call_async(test, data=())
 res = lith.get_result()
-print(res)  # Prints <module 'matplotlib' from '/layers/google.python.pip/pip/lib/python3.8/site-packages/matplotlib/__init__.py'>
+print(res)  # Prints <module 'matplotlib' from '/opt/python/matplotlib/__init__.py'>
 ```
 
 If we are running Lithops, for example, with Python 3.8, `my_matplotlib_runtime` will be a Python 3.8 runtime with the extra modules specified installed.
