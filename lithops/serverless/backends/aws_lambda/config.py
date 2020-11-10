@@ -48,6 +48,12 @@ REQUIREMENTS = [
     'pika == 0.13.1'
 ]
 
+AVAILABLE_RUNTIMES = {
+    'python3.6',
+    'python3.7',
+    'python3.8'
+}
+
 RUNTIME_TIMEOUT_DEFAULT = 900  # Default timeout: 900 s == 15 min
 RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
 RUNTIME_MEMORY_MAX = 3008  # Max. memory: 3008 MB
@@ -72,8 +78,12 @@ def load_config(config_data):
             config_data['serverless']['runtime_timeout'] > RUNTIME_TIMEOUT_DEFAULT:
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
     if 'runtime' not in config_data['serverless']:
-        config_data['serverless']['runtime'] = 'python' + \
-            version_str(sys.version_info)
+        config_data['serverless']['runtime'] = 'python' + version_str(sys.version_info)
+
+    if config_data['serverless']['runtime'] not in AVAILABLE_RUNTIMES:
+        raise Exception('Runtime {} is not available for AWS Lambda, please use one of {}'.format(
+            config_data['serverless']['runtime'],
+            AVAILABLE_RUNTIMES))
 
     if 'workers' not in config_data['lithops']:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
@@ -83,8 +93,7 @@ def load_config(config_data):
             "'aws' and 'aws_lambda' sections are mandatory in the configuration")
 
     # Put credential keys to 'aws_lambda' dict entry
-    config_data['aws_lambda'] = {
-        **config_data['aws_lambda'], **config_data['aws']}
+    config_data['aws_lambda'] = {**config_data['aws_lambda'], **config_data['aws']}
 
     if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
         raise Exception(
