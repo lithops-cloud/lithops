@@ -31,13 +31,13 @@ import botocore.exceptions
 from . import config as lambda_config
 from ....storage import InternalStorage
 from ....utils import version_str
-from ....config import TEMP
+from ....constants import TEMP as TEMP_PATH
 
 logger = logging.getLogger(__name__)
 
-LAYER_DIR_PATH = os.path.join(TEMP, 'modules', 'python')
-LAYER_ZIP_PATH = os.path.join(TEMP, 'lithops_layer.zip')
-ACTION_ZIP_PATH = os.path.join(TEMP, 'lithops_runtime.zip')
+LAYER_DIR_PATH = os.path.join(TEMP_PATH, 'modules', 'python')
+LAYER_ZIP_PATH = os.path.join(TEMP_PATH, 'lithops_layer.zip')
+ACTION_ZIP_PATH = os.path.join(TEMP_PATH, 'lithops_runtime.zip')
 
 
 # Auxiliary function to recursively add a directory to a zip archive
@@ -122,10 +122,10 @@ class AWSLambdaBackend:
     def _check_runtime_layer(self, runtime_name):
         # Check if Lithops dependencies layer for this runtime is already deployed
         layers = self._list_layers(runtime_name)
-        dep_layer = [layer for layer in layers if layer['LayerName'] == self._format_layer_name(runtime_name)]
+        dep_layer = [layer for layer in layers if layer[0] == self._format_layer_name(runtime_name)]
         if len(dep_layer) == 1:
-            layer = dep_layer.pop()
-            return layer['LatestMatchingVersion']['LayerVersionArn']
+            _, layer_arn = dep_layer.pop()
+            return layer_arn
         else:
             return None
 
@@ -186,7 +186,7 @@ class AWSLambdaBackend:
 
         # Compress modules
         with zipfile.ZipFile(LAYER_ZIP_PATH, 'w') as layer_zip:
-            add_directory_to_zip(layer_zip, os.path.join(TEMP, 'modules'))
+            add_directory_to_zip(layer_zip, os.path.join(TEMP_PATH, 'modules'))
 
         # Read zip as bytes
         with open(LAYER_ZIP_PATH, 'rb') as layer_zip:
@@ -209,40 +209,39 @@ class AWSLambdaBackend:
             msg = 'An error occurred creating layer {}: {}'.format(layer_name, response)
             raise Exception(msg)
 
-    def _delete_layer(self, layer_arn, version_number=None):
+    def _delete_layer(self, layer_name):
         """
         Deletes lambda layer from its arn
         """
-        logger.debug('Deleting lambda layer: {}'.format(layer_arn))
+        logger.debug('Deleting lambda layer: {}'.format(layer_name))
 
-        if version_number is None:
-            version_number = layer_arn.split(':')[-1]
+        versions = []
+        response = self.lambda_client.list_layer_versions(LayerName=layer_name)
+        versions.extend([layer['Version'] for layer in response['LayerVersions']])
 
-        response = self.lambda_client.delete_layer_version(
-            LayerName=layer_arn,
-            VersionNumber=version_number
-        )
+        while 'NextMarker' in response:
+            response = self.lambda_client.list_layer_versions(Marker=response['NextMarker'])
+            versions.extend([layer['Version'] for layer in response['LayerVersions']])
 
-        if response['ResponseMetadata']['HTTPStatusCode'] == 200:
-            logger.debug('OK --> Layer {} deleted'.format(layer_arn))
-            return response['LayerVersionArn']
-        else:
-            msg = 'An error occurred deleting layer {}: {}'.format(
-                layer_arn, response)
-            raise Exception(msg)
+        for version in versions:
+            response = self.lambda_client.delete_layer_version(
+                LayerName=layer_name,
+                VersionNumber=version
+            )
+            if response['ResponseMetadata']['HTTPStatusCode'] == 204:
+                logger.debug('OK --> Layer {} version {} deleted'.format(layer_name, version))
 
     def _list_layers(self, runtime_name=None):
-        """
-        Gets all Lambda Layers available for the Python runtime selected
-        """
         logger.debug('Listing lambda layers: {}'.format(runtime_name))
-        response = self.lambda_client.list_layers(
-            CompatibleRuntime=runtime_name
-        )
+        response = self.lambda_client.list_layers()
 
         layers = response['Layers'] if 'Layers' in response else []
-        logger.debug('Layers: {}'.format(layers))
-        return layers
+        logger.debug('Listed {} layers'.format(len(layers)))
+        lithops_layers = []
+        for layer in layers:
+            if 'lithops' in layer['LayerName']:
+                lithops_layers.append((layer['LayerName'], layer['LatestMatchingVersion']['LayerVersionArn']))
+        return lithops_layers
 
     def _get_runtime_modules(self, runtime_name):
         if runtime_name in lambda_config.DEFAULT_RUNTIMES:
@@ -331,14 +330,15 @@ class AWSLambdaBackend:
         """
         logger.debug('Deleting all runtimes')
 
-        response = self.lambda_client.list_functions(
-            MasterRegion=self.region_name
-        )
+        runtimes = self.list_runtimes()
 
-        for runtime in response['Functions']:
-            if 'lithops' in runtime['FunctionName']:
-                runtime_name, runtime_memory = self._unformat_action_name(runtime['FunctionName'])
-                self.delete_runtime(runtime_name, runtime_memory)
+        for runtime in runtimes:
+            runtime_name, runtime_memory = runtime
+            self.delete_runtime(runtime_name, runtime_memory)
+
+        layers = self._list_layers()
+        for layer_name, _ in layers:
+            self._delete_layer(layer_name)
 
     def list_runtimes(self, docker_image_name='all'):
         """
@@ -444,11 +444,11 @@ class AWSLambdaBackend:
             return runtime_meta
         '''
         # Create function zip archive
-        action_location = os.path.join(TEMP, 'extract_preinstalls_aws.py')
+        action_location = os.path.join(TEMP_PATH, 'extract_preinstalls_aws.py')
         with open(action_location, 'w') as f:
             f.write(textwrap.dedent(action_code))
 
-        modules_zip_action = os.path.join(TEMP, 'extract_preinstalls_aws.zip')
+        modules_zip_action = os.path.join(TEMP_PATH, 'extract_preinstalls_aws.zip')
         with zipfile.ZipFile(modules_zip_action, 'w') as extract_modules_zip:
             extract_modules_zip.write(action_location, '__main__.py')
 

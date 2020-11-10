@@ -46,7 +46,7 @@ DEFAULT_REQUIREMENTS = [
     'pika==0.13.1'
 ]
 
-DEFAULT_RUNTIMES = {'python3.6', 'python3.7', 'python3.8'}
+DEFAULT_RUNTIMES = ['python3.6', 'python3.7', 'python3.8']
 
 USER_RUNTIME_PREFIX = 'lithops.user_runtimes'
 
