@@ -27,16 +27,12 @@ from kubernetes.client.rest import ApiException
 from lithops.utils import version_str
 from lithops.version import __version__
 from lithops.utils import is_lithops_worker
-from lithops.serverless.utils import create_function_handler_zip
-from lithops.storage.utils import create_runtime_meta_key
-from lithops.config import JOBS_PREFIX
+from lithops.utils import create_handler_zip
+from lithops.constants import JOBS_PREFIX
 from lithops.storage import InternalStorage
 from lithops.storage.utils import StorageNoSuchKeyError
 
 urllib3.disable_warnings()
-logging.getLogger('kubernetes').setLevel(logging.CRITICAL)
-logging.getLogger('urllib3.connectionpool').setLevel(logging.CRITICAL)
-logging.getLogger('requests_oauthlib').setLevel(logging.CRITICAL)
 
 logger = logging.getLogger(__name__)
 
@@ -102,7 +98,7 @@ class CodeEngineBackend:
         logger.info('Docker image name: {}'.format(docker_image_name))
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-        create_function_handler_zip(codeengine_config.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')
+        create_handler_zip(codeengine_config.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')
 
         if dockerfile:
             cmd = 'docker build -t {} -f {} .'.format(docker_image_name, dockerfile)
@@ -368,7 +364,7 @@ class CodeEngineBackend:
                 del debug_res
 
             # we need to read runtime metadata from COS in retry
-            status_key = create_runtime_meta_key(JOBS_PREFIX, self.storage_config['activation_id'])
+            status_key = '/'.join([JOBS_PREFIX, self.storage_config['activation_id'], 'runtime_metadata'])
             import time
             retry = int(1)
             found = False

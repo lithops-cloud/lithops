@@ -19,7 +19,6 @@ import json
 import time
 import select
 import logging
-import urllib3
 import importlib
 import requests
 from threading import Thread
@@ -27,8 +26,6 @@ from threading import Thread
 from lithops.utils import is_lithops_worker, create_handler_zip
 from lithops.constants import LOGS_DIR, REMOTE_INSTALL_DIR, FN_LOG_FILE
 from lithops.storage.utils import create_job_key
-
-urllib3.disable_warnings()
 
 logger = logging.getLogger(__name__)
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_standalone.zip')

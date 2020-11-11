@@ -180,7 +180,7 @@ def preinstalls():
 
     message = flask.request.get_json(force=True, silent=True)
     if message and not isinstance(message, dict):
-        return error()
+        return error('The action did not receive a dictionary as an argument.')
 
     try:
         runtime = message['runtime']
