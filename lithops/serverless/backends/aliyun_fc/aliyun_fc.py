@@ -43,7 +43,7 @@ class AliyunFunctionComputeBackend:
         self.fc_client = fc2.Client(endpoint=self.config['public_endpoint'],
                                     accessKeyID=self.config['access_key_id'],
                                     accessKeySecret=self.config['access_key_secret'])
-                                    
+
         log_msg = 'Lithops v{} init for Aliyun Function Compute'.format(__version__)
         logger.info(log_msg)
         if not self.log_level:
@@ -59,25 +59,43 @@ class AliyunFunctionComputeBackend:
         logger.info('Creating new lithops runtime for Aliyun Function Compute')
 
         res = self.fc_client.list_services(prefix=self.service_name).data
+        print(res)
+
         if len(res['services']) == 0:
+            logger.info("creating service {}".format(self.service_name))
             self.fc_client.create_service(self.service_name)
         
         if docker_image_name == 'default':
+            print("default docker")
             handler_path = backend_config.HANDLER_FOLDER_LOCATION
+            print(handler_path)
             is_custom = False
 
         elif os.path.isdir(docker_image_name):
+            print("isdir")
             handler_path = docker_image_name
             is_custom = True
         else:
+            print("exception")
             raise Exception('The path you provided for the custom runtime'
                         'does not exist: {}'.format(docker_image_name))
-                            
+
+
+        print("hello")
+        print(handler_path)
+        print("hello")
         try:
+            print("creating folder")
+            logging.basicConfig(level=logging.DEBUG)
             self._create_function_handler_folder(handler_path, is_custom=is_custom)
+            print("created folder")
             metadata = self._generate_runtime_meta(handler_path)
-            
+            print(metadata)
+
             function_name = self._format_function_name(self.version, docker_image_name, memory)
+            print(function_name)
+            import sys
+            sys.exit()
 
             self.fc_client.create_function(serviceName=self.service_name, 
                                            functionName=function_name, 
@@ -87,6 +105,7 @@ class AliyunFunctionComputeBackend:
                                            memorySize=memory,
                                            timeout=timeout)
         finally:
+            print("finally")
             if not is_custom:
                 self._delete_function_handler_folder(handler_path)
 
@@ -139,7 +158,8 @@ class AliyunFunctionComputeBackend:
 
 
     def _create_function_handler_folder(self, handler_path, is_custom):
-        logger.debug("Creating function handler folder in {}".format(handler_path))
+        # logger.debug("Creating function handler folder in {}".format(handler_path))
+        print("Creating function handler folder in {}".format(handler_path))
 
         if not is_custom:
             os.mkdir(handler_path)
@@ -156,6 +176,7 @@ class AliyunFunctionComputeBackend:
             logger.debug(child.stderr.read().decode())
 
             if child.returncode != 0:
+                print("repeating because of error")
                 cmd = 'pip install -t {} -r {} --no-deps'.format(handler_path, requirements_file)
                 child = sp.Popen(cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE) # silent
                 child.wait()
@@ -176,7 +197,7 @@ class AliyunFunctionComputeBackend:
         dst_location = os.path.join(handler_path, 'lithops')
 
         if os.path.isdir(dst_location):
-            logger.warn("Using user specified 'lithops' module from the custom runtime folder. "
+            logger.warning("Using user specified 'lithops' module from the custom runtime folder. "
             "Please refrain from including it as it will be automatically installed anyway.")
         else:
             shutil.copytree(module_location, dst_location)
