@@ -129,12 +129,13 @@ def default_config(config_data=None, config_overwrite={}):
         if 'storage_bucket' not in config_data['lithops']:
             raise Exception("storage_bucket is mandatory in "
                             "lithops section of the configuration")
-        if 'backend' not in config_data[constants.SERVERLESS]:
-            config_data[constants.SERVERLESS]['backend'] = constants.SERVERLESS_BACKEND_DEFAULT
 
         if constants.SERVERLESS not in config_data or \
            config_data[constants.SERVERLESS] is None:
             config_data[constants.SERVERLESS] = {}
+
+        if 'backend' not in config_data[constants.SERVERLESS]:
+            config_data[constants.SERVERLESS]['backend'] = constants.SERVERLESS_BACKEND_DEFAULT
 
         sb = config_data[constants.SERVERLESS]['backend']
         logger.debug("Loading Serverless backend module: {}".format(sb))

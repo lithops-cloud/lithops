@@ -3,13 +3,14 @@
 ## [v2.2.4.dev0]
 
 ### Added
-- [Core] New lithops logs command
+- [Core] New 'lithops logs' command
 - [Core] New job cleaner process
 
 ### Changed
 - [Core] localhost/standalone logging per job-id
 - [Core] Updated tblib to 1.7.0
 - [Core] Updated ps_mem lib
+- [Core] Standalone logic to ssh
 
 ### Fixed
 - [Core] Fixed issue in localhost executor and Mac OS
