@@ -15,6 +15,7 @@
 #
 
 import os
+import shlex
 import json
 import time
 import select
@@ -234,8 +235,9 @@ class StandaloneHandler:
             r = requests.post(url, data=json.dumps(job_payload), verify=True)
             response = r.json()
         else:
-            cmd = ('curl -X POST http://127.0.0.1:8080/run -d \'{}\' '
-                   '-H \'Content-Type: application/json\''.format(json.dumps(job_payload)))
+            cmd = ('curl -X POST http://127.0.0.1:8080/run -d {} '
+                   '-H \'Content-Type: application/json\''
+                   .format(shlex.quote(json.dumps(job_payload))))
             out = self.ssh_client.run_remote_command(self.ip_address, cmd)
             response = json.loads(out)
 
@@ -258,8 +260,10 @@ class StandaloneHandler:
             r = requests.get(url, data=json.dumps(payload), verify=True)
             runtime_meta = r.json()
         else:
-            cmd = ('curl -X GET http://127.0.0.1:8080/preinstalls -d \'{}\' '
-                   '-H \'Content-Type: application/json\''.format(json.dumps(payload)))
+            cmd = ('curl http://127.0.0.1:8080/preinstalls -d {} '
+                   '-H \'Content-Type: application/json\' -X GET'
+                   .format(shlex.quote(json.dumps(payload))))
+            print(cmd)
             out = self.ssh_client.run_remote_command(self.ip_address, cmd)
             runtime_meta = json.loads(out)
 

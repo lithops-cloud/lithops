@@ -1,6 +1,14 @@
 # Changelog
 
-## [v2.2.4.dev0]
+## [v2.2.5.dev0]
+
+### Fixed
+- [Core] Fixed issue in serverless config
+- [Core] Fixed issue in localhost storage backend
+- [Code Engine] Fixed issue in code engine backend
+
+
+## [v2.2.4]
 
 ### Added
 - [Core] New 'lithops logs' command
