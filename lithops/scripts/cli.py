@@ -130,6 +130,8 @@ def poll():
     def follow(file):
         line = ''
         while True:
+            if not os.path.isfile(FN_LOG_FILE):
+                break
             tmp = file.readline()
             if tmp:
                 line += tmp
@@ -139,17 +141,21 @@ def poll():
             else:
                 time.sleep(1)
 
-    for line in follow(open(FN_LOG_FILE, 'r')):
-        print(line, end='')
+    while True:
+        if os.path.isfile(FN_LOG_FILE):
+            for line in follow(open(FN_LOG_FILE, 'r')):
+                print(line, end='')
+        else:
+            time.sleep(1)
 
 
 @logs.command('get')
-@click.argument('execution_id')
-def get(execution_id):
-    log_file = os.path.join(LOGS_DIR, execution_id+'.log')
+@click.argument('job_key')
+def get(job_key):
+    log_file = os.path.join(LOGS_DIR, job_key+'.log')
 
     if not os.path.isfile(log_file):
-        print('The execution id: {} does not exists in logs'.format(execution_id))
+        print('The execution id: {} does not exists in logs'.format(job_key))
         return
 
     with open(log_file, 'r') as content_file:

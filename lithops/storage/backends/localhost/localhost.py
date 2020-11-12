@@ -172,11 +172,12 @@ class LocalhostStorageBackend:
                                 bucket_name, '**')
 
         for file_name in glob.glob(root, recursive=True):
-            if file_name.endswith(prefix):
-                continue
-            size = os.stat(file_name).st_size
-            base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
-            obj_list.append({'Key': file_name.replace(base_dir, ''), 'Size': size})
+            if os.path.isfile(file_name):
+                if file_name.endswith(prefix):
+                    continue
+                size = os.stat(file_name).st_size
+                base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
+                obj_list.append({'Key': file_name.replace(base_dir, ''), 'Size': size})
 
         return obj_list
 
@@ -204,9 +205,10 @@ class LocalhostStorageBackend:
                                 bucket_name, '**')
 
         for file_name in glob.iglob(root, recursive=True):
-            if file_name.endswith(prefix):
-                continue
-            base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
-            key_list.append(file_name.replace(base_dir, ''))
+            if os.path.isfile(file_name):
+                if file_name.endswith(prefix):
+                    continue
+                base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
+                key_list.append(file_name.replace(base_dir, ''))
 
         return key_list
