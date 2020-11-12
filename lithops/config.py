@@ -19,6 +19,7 @@ import os
 import json
 import importlib
 import logging
+import multiprocessing as mp
 import lithops.constants as constants
 from lithops.version import __version__
 from lithops.utils import verify_runtime_name
@@ -175,6 +176,9 @@ def default_config(config_data=None, config_overwrite={}):
         if 'storage' not in config_data['lithops']:
             config_data['lithops']['storage'] = 'localhost'
             config_data['lithops']['storage_bucket'] = 'storage'
+
+        if 'workers' not in config_data['lithops']:
+            config_data['lithops']['workers'] = mp.cpu_count()
 
         if constants.LOCALHOST not in config_data or \
            config_data[constants.LOCALHOST] is None:

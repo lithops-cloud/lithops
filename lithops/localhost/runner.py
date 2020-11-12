@@ -52,14 +52,16 @@ class Runner:
         if self.use_threads:
             self.queue = queue.Queue()
             WORKER = Thread
+            WOREKR_PROCESS = self._thread_runner
         else:
             if 'fork' in mp.get_all_start_methods():
                 mp.set_start_method('fork')
             self.queue = mp.Queue()
             WORKER = mp.Process
+            WOREKR_PROCESS = self._process_runner
 
         for worker_id in range(self.num_workers):
-            p = WORKER(target=self._process_runner, args=(worker_id,))
+            p = WORKER(target=WOREKR_PROCESS, args=(worker_id,))
             self.workers.append(p)
             p.start()
 
@@ -67,6 +69,22 @@ class Runner:
                     '- {} workers'.format(self.executor_id,
                                           self.job_id,
                                           self.num_workers))
+
+    def _thread_runner(self, worker_id):
+        logger.debug('Localhost worker process {} started'.format(worker_id))
+
+        while True:
+            try:
+                event = self.queue.get(block=True)
+                if isinstance(event, ShutdownSentinel):
+                    break
+                act_id = str(uuid.uuid4()).replace('-', '')[:12]
+                os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
+                logger.info("Lithops v{} - Starting execution".format(__version__))
+                event['extra_env']['__LITHOPS_LOCAL_EXECUTION'] = 'True'
+                function_handler(event)
+            except KeyboardInterrupt:
+                break
 
     def _process_runner(self, worker_id):
         logger.debug('Localhost worker process {} started'.format(worker_id))
