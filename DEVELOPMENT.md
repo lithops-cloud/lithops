@@ -1,4 +1,6 @@
-# Installation for Developers
+# Development
+
+This doc explains how to set up a development environment so you can get started contributing to Lithops
 
 Clone the repository and run the setup script:
 
@@ -10,9 +12,9 @@ Navigate into `lithops` folder
 
     cd lithops/
 
-If you plan to develop code, stay in the master branch. Otherwise obtain the most recent stable release version from the `release` tab. For example, if release is `v2.2.0` then execute
+If you plan to develop code, stay in the master branch. Otherwise obtain the most recent stable release version from the `release` tab. For example, if release is `v2.2.5` then execute
 
-	git checkout v2.2.0
+	git checkout v2.2.5
 
 Build and install 
 	

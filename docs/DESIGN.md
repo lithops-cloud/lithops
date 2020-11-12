@@ -1,7 +1,7 @@
-# Lithops for IBM Cloud - Architecture
+# Lithops Design
 
 ## Overview
-The chart below presents the main components of the architecture of Lithops for IBM Cloud. The components are largely divided into three sets: 
+The chart below presents the main components of the architecture of Lithops. The components are largely divided into three sets: 
 * Components inside the dashed purple frame comprise the client code (running e.g., on your laptop). 
 * Components inside the dashed orange frame comprise a Lithops worker. Each worker executes a "call", one unit of computation (e.g., processing one dataset record, or one object) within a larger map or reduce job of Lithops. Workers execute in the compute backend of choice, such as IBM Cloud Functions, Knative Serving or even your local laptop. 
 * Outside both frames are various external facilities or services with which Lithops components interact. These external components are marked in ellipses, each one with its name and logo.
