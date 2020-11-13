@@ -271,11 +271,12 @@ def split_object_url(obj_url):
         path = obj_url
 
     sb = 'ibm_cos' if sb == 'cos' else sb
+    sb = 'aws_s3' if sb == 's3' else sb
 
     bucket, full_key = path.split('/', 1) if '/' in path else (path, '')
 
     if full_key.endswith('/'):
-        prefix = full_key
+        prefix = full_key.replace('/', '')
         obj_name = ''
     elif full_key:
         prefix, obj_name = full_key.rsplit('/', 1) if '/' in full_key else ('', full_key)

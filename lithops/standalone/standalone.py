@@ -263,7 +263,6 @@ class StandaloneHandler:
             cmd = ('curl http://127.0.0.1:8080/preinstalls -d {} '
                    '-H \'Content-Type: application/json\' -X GET'
                    .format(shlex.quote(json.dumps(payload))))
-            print(cmd)
             out = self.ssh_client.run_remote_command(self.ip_address, cmd)
             runtime_meta = json.loads(out)
 

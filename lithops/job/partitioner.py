@@ -79,16 +79,18 @@ def create_partitions(lithops_config, internal_storage, map_iterdata, chunk_size
         objects = {}
         if obj_names:
             for bucket, prefix in obj_names:
-                logger.debug("Listing objects in '{}://{}'".format(sb, '/'.join([bucket, prefix])))
+                logger.debug("Listing objects in '{}://{}/'"
+                             .format(sb, '/'.join([bucket, prefix])))
                 if bucket not in objects:
                     objects[bucket] = []
-                objects[bucket].extend(storage.list_objects(bucket, prefix))
+                objects[bucket].extend(storage.list_objects(bucket, prefix+'/'))
         elif prefixes:
             for bucket, prefix in prefixes:
-                logger.debug("Listing objects in '{}://{}'".format(sb, '/'.join([bucket, prefix])))
+                logger.debug("Listing objects in '{}://{}/'"
+                             .format(sb, '/'.join([bucket, prefix])))
                 if bucket not in objects:
                     objects[bucket] = []
-                objects[bucket].extend(storage.list_objects(bucket, prefix))
+                objects[bucket].extend(storage.list_objects(bucket, prefix+'/'))
         elif buckets:
             for bucket in buckets:
                 logger.debug("Listing objects in '{}://{}'".format(sb, bucket))
