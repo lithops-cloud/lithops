@@ -20,7 +20,7 @@ from lithops.utils import is_lithops_worker
 import oss2
 
 logger = logging.getLogger(__name__)
-logging.getLogger('urllib3').setLevel(logging.CRITICAL)
+
 
 class AliyunObjectStorageServiceBackend:
 

@@ -24,8 +24,7 @@ from lithops.invokers import JobMonitor
 from lithops.storage import InternalStorage
 from lithops.version import __version__
 from concurrent.futures import ThreadPoolExecutor
-from lithops.config import cloud_logging_config, \
-    extract_serverless_config, extract_storage_config
+from lithops.config import extract_serverless_config, extract_storage_config
 
 logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger('invoker')
@@ -36,8 +35,6 @@ def function_invoker(event):
         raise Exception("WRONGVERSION", "Lithops version mismatch",
                         __version__, event['lithops_version'])
 
-    if event['log_level']:
-        cloud_logging_config(event['log_level'])
     log_level = logging.getLevelName(logger.getEffectiveLevel())
     custom_env = {'LITHOPS_WORKER': 'True',
                   'PYTHONUNBUFFERED': 'True'}

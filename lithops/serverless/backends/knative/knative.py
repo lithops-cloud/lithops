@@ -29,8 +29,9 @@ from urllib.parse import urlparse
 from kubernetes import client, config, watch
 from lithops.utils import version_str
 from lithops.version import __version__
-from lithops.config import CACHE_DIR, load_yaml_config, dump_yaml_config
-from lithops.serverless.utils import create_function_handler_zip
+from lithops.config import load_yaml_config, dump_yaml_config
+from lithops.constants import CACHE_DIR
+from lithops.utils import create_handler_zip
 from . import config as kconfig
 
 urllib3.disable_warnings()
@@ -487,7 +488,7 @@ class KnativeServingBackend:
             raise Exception("Invalid docker image name: '.' or '_' characters are not allowed")
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-        create_function_handler_zip(kconfig.FH_ZIP_LOCATION, entry_point, 'lithopsproxy.py')
+        create_handler_zip(kconfig.FH_ZIP_LOCATION, entry_point, 'lithopsproxy.py')
 
         if dockerfile:
             cmd = 'docker build -t {} -f {} .'.format(docker_image_name, dockerfile)
@@ -525,7 +526,7 @@ class KnativeServingBackend:
         except Exception:
             pass
 
-    def delete_all_runtimes(self):
+    def clean(self):
         """
         Deletes all runtimes deployed in knative
         """

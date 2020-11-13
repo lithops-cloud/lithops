@@ -7,6 +7,7 @@ import pickle
 import logging
 from threading import Thread
 from concurrent.futures import ThreadPoolExecutor, wait
+from lithops.storage.utils import create_job_key
 
 logger = logging.getLogger(__name__)
 logging.getLogger('pika').setLevel(logging.WARNING)
@@ -44,7 +45,7 @@ def wait_rabbitmq(fs, internal_storage, rabbit_amqp_url, download_results=False,
 
     for f in fs:
         if (download_results and not f.done) or (not download_results and not (f.ready or f.done)):
-            job_key = '{}-{}'.format(f.executor_id, f.job_id)
+            job_key = create_job_key(f.executor_id, f.job_id)
             if job_key not in present_jobs:
                 present_jobs[job_key] = {}
             present_jobs[job_key][f.call_id] = f
@@ -92,7 +93,7 @@ def wait_rabbitmq(fs, internal_storage, rabbit_amqp_url, download_results=False,
         rcvd_executor_id = call_status['executor_id']
         rcvd_job_id = call_status['job_id']
         rcvd_call_id = call_status['call_id']
-        job_key = '{}-{}'.format(rcvd_executor_id, rcvd_job_id)
+        job_key = create_job_key(rcvd_executor_id, rcvd_job_id)
         fut = present_jobs[job_key][rcvd_call_id]
         fut._call_status = call_status
         fut.status(throw_except=throw_except, internal_storage=internal_storage)
@@ -115,10 +116,10 @@ def wait_rabbitmq(fs, internal_storage, rabbit_amqp_url, download_results=False,
                     pbar.total = pbar.total + len(new_futures)
                     pbar.refresh()
 
-                present_jobs_new_futures = {'{}-{}'.format(f.executor_id, f.job_id) for f in new_futures}
+                present_jobs_new_futures = {create_job_key(f.executor_id, f.job_id) for f in new_futures}
 
                 for f in new_futures:
-                    job_key_new_futures = '{}-{}'.format(f.executor_id, f.job_id)
+                    job_key_new_futures = create_job_key(f.executor_id, f.job_id)
                     if job_key_new_futures not in present_jobs:
                         present_jobs[job_key_new_futures] = {}
                     present_jobs[job_key_new_futures][f.call_id] = f
@@ -140,8 +141,7 @@ def wait_rabbitmq(fs, internal_storage, rabbit_amqp_url, download_results=False,
 
 
 def _job_monitor_thread(job_key, total_calls, rabbit_amqp_url, job_monitor_q):
-    executor_id, job_id = job_key.rsplit('-', 1)
-    exchange = 'lithops-{}-{}'.format(executor_id, job_id)
+    exchange = 'lithops-{}'.format(job_key)
     queue_0 = '{}-0'.format(exchange)
     total_calls_rcvd = 0
 
@@ -154,6 +154,7 @@ def _job_monitor_thread(job_key, total_calls, rabbit_amqp_url, job_monitor_q):
         if total_calls_rcvd == total_calls:
             ch.stop_consuming()
 
+    executor_id, job_id = job_key.rsplit('-', 1)
     logger.debug('ExecutorID {} | JobID {} - Consuming from RabbitMQ '
                  'queue'.format(executor_id, job_id))
     params = pika.URLParameters(rabbit_amqp_url)

@@ -1,6 +1,7 @@
 #
 # Copyright 2018 PyWren Team
 # Copyright IBM Corp. 2020
+# Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,9 +23,8 @@ import traceback
 from six import reraise
 from lithops.storage import InternalStorage
 from lithops.storage.utils import check_storage_path, get_storage_path
-from lithops.libs.tblib import pickling_support
 
-pickling_support.install()
+
 logger = logging.getLogger(__name__)
 
 
@@ -204,6 +204,7 @@ class ResponseFuture:
 
             if throw_except:
                 sys.excepthook = exception_hook
+                time.sleep(1)
                 reraise(*self._exception)
             else:
                 logger.info(msg1)

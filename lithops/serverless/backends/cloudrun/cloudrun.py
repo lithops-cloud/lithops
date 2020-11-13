@@ -12,7 +12,7 @@ import http.client
 from urllib.parse import urlparse
 from lithops.utils import version_str
 from lithops.version import __version__
-from lithops.serverless.utils import create_function_handler_zip
+from lithops.utils import create_handler_zip
 from . import config as cr_config
 
 urllib3.disable_warnings()
@@ -152,7 +152,7 @@ class CloudRunServingBackend:
             raise Exception("Invalid docker image name: '.' or '_' characters are not allowed")
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-        create_function_handler_zip(cr_config.FH_ZIP_LOCATION, entry_point, 'lithopsproxy.py')
+        create_handler_zip(cr_config.FH_ZIP_LOCATION, entry_point, 'lithopsproxy.py')
 
         # Dockerfile has to be called "Dockerfile" (and in cwd) for 'gcloud builds submit' to work
         if dockerfile != "Dockerfile":
@@ -181,7 +181,7 @@ class CloudRunServingBackend:
         if res != 0:
             raise Exception('There was an error deleting the runtime')
 
-    def delete_all_runtimes(self):
+    def clean(self):
         """
         Deletes all runtimes deployed
         """

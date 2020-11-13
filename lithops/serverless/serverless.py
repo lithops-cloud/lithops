@@ -67,11 +67,11 @@ class ServerlessHandler:
         """
         self.backend.delete_runtime(runtime_name, memory)
 
-    def delete_all_runtimes(self):
+    def clean(self):
         """
         Wrapper method to create a runtime in the compute backend
         """
-        self.backend.delete_all_runtimes()
+        self.backend.clean()
 
     def list_runtimes(self, runtime_name='all'):
         """

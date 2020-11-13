@@ -1,6 +1,6 @@
 #
-# (C) Copyright IBM Corp. 2019
-# Copyright Cloudlab URV 2020
+# (C) Copyright IBM Corp. 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,10 +20,10 @@ import sys
 import json
 import pika
 import time
-import logging
 import random
-import multiprocessing as mp
 import queue
+import logging
+import multiprocessing as mp
 from threading import Thread
 from types import SimpleNamespace
 from concurrent.futures import ThreadPoolExecutor
@@ -31,8 +31,9 @@ from lithops.version import __version__
 from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config
 from lithops.utils import version_str, is_lithops_worker, is_unix_system
+from lithops.storage.utils import create_job_key
+from lithops.constants import LOGGER_LEVEL
 
-mp.set_start_method("fork")
 logger = logging.getLogger(__name__)
 
 
@@ -41,7 +42,11 @@ class Invoker:
     Abstract invoker class
     """
     def __init__(self, config, executor_id, internal_storage, compute_handler):
-        self.log_active = logger.getEffectiveLevel() != logging.WARNING
+
+        log_level = logger.getEffectiveLevel()
+        self.log_active = log_level != logging.WARNING
+        self.log_level = LOGGER_LEVEL if not self.log_active else log_level
+
         self.config = config
         self.executor_id = executor_id
         self.storage_config = extract_storage_config(self.config)
@@ -53,8 +58,8 @@ class Invoker:
         logger.debug('ExecutorID {} - Total available workers: {}'
                      .format(self.executor_id, self.workers))
 
-        executor = self.config['lithops']['executor']
-        self.runtime_name = self.config[executor]['runtime']
+        mode = self.config['lithops']['mode']
+        self.runtime_name = self.config[mode]['runtime']
 
     def select_runtime(self, job_id, runtime_memory):
         """
@@ -121,7 +126,7 @@ class StandaloneInvoker(Invoker):
         job.runtime_name = self.runtime_name
 
         payload = {'config': self.config,
-                   'log_level': logging.getLevelName(logger.getEffectiveLevel()),
+                   'log_level': self.log_level,
                    'executor_id': job.executor_id,
                    'job_id': job.job_id,
                    'job_description': job.__dict__,
@@ -129,8 +134,8 @@ class StandaloneInvoker(Invoker):
 
         self.compute_handler.run_job(payload)
 
-        log_msg = ('ExecutorID {} | JobID {} - {}() Invocation done'
-                   .format(job.executor_id, job.job_id, job.function_name))
+        log_msg = ('ExecutorID {} | JobID {} - {}() Invocation done - Total: {} activations'
+                   .format(job.executor_id, job.job_id, job.function_name, job.total_calls))
         logger.info(log_msg)
         if not self.log_active:
             print(log_msg)
@@ -159,18 +164,22 @@ class ServerlessInvoker(Invoker):
         super().__init__(config, executor_id, internal_storage, compute_handler)
 
         self.remote_invoker = self.config['serverless'].get('remote_invoker', False)
-
+        self.use_threads = (self.is_lithops_worker
+                            or not is_unix_system()
+                            or mp.get_start_method() != 'fork')
         self.invokers = []
         self.ongoing_activations = 0
 
-        if not is_lithops_worker() and is_unix_system():
-            self.token_bucket_q = mp.Queue()
-            self.pending_calls_q = mp.Queue()
-            self.running_flag = mp.Value('i', 0)
-        else:
+        if self.use_threads:
             self.token_bucket_q = queue.Queue()
             self.pending_calls_q = queue.Queue()
             self.running_flag = SimpleNamespace(value=0)
+            self.INVOKER = Thread
+        else:
+            self.token_bucket_q = mp.Queue()
+            self.pending_calls_q = mp.Queue()
+            self.running_flag = mp.Value('i', 0)
+            self.INVOKER = mp.Process
 
         self.job_monitor = JobMonitor(self.config, self.internal_storage, self.token_bucket_q)
 
@@ -213,26 +222,17 @@ class ServerlessInvoker(Invoker):
         return runtime_meta
 
     def _start_invoker_process(self):
+        """Starts the invoker process responsible to spawn pending calls
+        in background.
         """
-        Starts the invoker process responsible to spawn pending calls in background
-        """
-        if self.is_lithops_worker or not is_unix_system():
-            for inv_id in range(self.INVOKER_PROCESSES):
-                p = Thread(target=self._run_invoker_process, args=(inv_id, ))
-                self.invokers.append(p)
-                p.daemon = True
-                p.start()
-        else:
-            for inv_id in range(self.INVOKER_PROCESSES):
-                p = mp.Process(target=self._run_invoker_process, args=(inv_id, ))
-                self.invokers.append(p)
-                p.daemon = True
-                p.start()
+        for inv_id in range(self.INVOKER_PROCESSES):
+            p = self.INVOKER(target=self._run_invoker_process, args=(inv_id, ))
+            self.invokers.append(p)
+            p.daemon = True
+            p.start()
 
     def _run_invoker_process(self, inv_id):
-        """
-        Run process that implements token bucket scheduling approach
-        """
+        """Run process that implements token bucket scheduling approach"""
         logger.debug('ExecutorID {} - Invoker process {} started'
                      .format(self.executor_id, inv_id))
 
@@ -252,11 +252,11 @@ class ServerlessInvoker(Invoker):
                      .format(self.executor_id, inv_id))
 
     def _invoke(self, job, call_id):
-        """
-        Method used to perform the actual invocation against the Compute Backend
+        """Method used to perform the actual invocation against the
+        compute backend.
         """
         payload = {'config': self.config,
-                   'log_level': logging.getLevelName(logger.getEffectiveLevel()),
+                   'log_level': self.log_level,
                    'func_key': job.func_key,
                    'data_key': job.data_key,
                    'extra_env': job.extra_env,
@@ -287,13 +287,11 @@ class ServerlessInvoker(Invoker):
                     ' ID: {}'.format(job.executor_id, job.job_id, call_id, resp_time, activation_id))
 
     def _invoke_remote(self, job):
-        """
-        Method used to send a job_description to the remote invoker
-        """
+        """Method used to send a job_description to the remote invoker."""
         start = time.time()
 
         payload = {'config': self.config,
-                   'log_level': logging.getLevelName(logger.getEffectiveLevel()),
+                   'log_level': self.log_level,
                    'executor_id': job.executor_id,
                    'job_id': job.job_id,
                    'job_description': job.__dict__,
@@ -326,6 +324,10 @@ class ServerlessInvoker(Invoker):
             pass
 
         if self.remote_invoker:
+            """
+            Remote Invocation
+            Use a single cloud function to perform all the function invocations
+            """
             old_stdout = sys.stdout
             sys.stdout = open(os.devnull, 'w')
             self.select_runtime(job.job_id, self.REMOTE_INVOKER_MEMORY)
@@ -338,12 +340,14 @@ class ServerlessInvoker(Invoker):
             if not self.log_active:
                 print(log_msg)
 
-            th = Thread(target=self._invoke_remote, args=(job,))
-            th.daemon = True
+            th = Thread(target=self._invoke_remote, args=(job,), daemon=True)
             th.start()
             time.sleep(0.1)
-
         else:
+            """
+            Normal Invocation
+            Use local threads to perform all the function invocations
+            """
             try:
                 if self.running_flag.value == 0:
                     self.ongoing_activations = 0
@@ -455,13 +459,13 @@ class JobMonitor:
             self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
 
     def stop(self):
-        for exec_id in self.monitors:
-            self.monitors[exec_id]['should_run'] = False
+        for job_key in self.monitors:
+            self.monitors[job_key]['should_run'] = False
 
     def get_active_jobs(self):
         active_jobs = 0
-        for exec_id in self.monitors:
-            if self.monitors[exec_id]['thread'].is_alive():
+        for job_key in self.monitors:
+            if self.monitors[job_key]['thread'].is_alive():
                 active_jobs += 1
         return active_jobs
 
@@ -476,21 +480,21 @@ class JobMonitor:
         if not self.is_lithops_worker:
             th.daemon = True
 
-        exec_id = '{}-{}'.format(job.executor_id, job.job_id)
-        self.monitors[exec_id] = {'thread': th, 'should_run': True}
+        job_key = create_job_key(job.executor_id, job.job_id)
+        self.monitors[job_key] = {'thread': th, 'should_run': True}
         th.start()
 
     def _job_monitoring_os(self, job):
         total_callids_done = 0
-        exec_id = '{}-{}'.format(job.executor_id, job.job_id)
+        job_key = create_job_key(job.executor_id, job.job_id)
 
-        while self.monitors[exec_id]['should_run'] and total_callids_done < job.total_calls:
+        while self.monitors[job_key]['should_run'] and total_callids_done < job.total_calls:
             time.sleep(1)
             callids_running, callids_done = self.internal_storage.get_job_status(job.executor_id, job.job_id)
             total_new_tokens = len(callids_done) - total_callids_done
             total_callids_done = total_callids_done + total_new_tokens
             for i in range(total_new_tokens):
-                if self.monitors[exec_id]['should_run']:
+                if self.monitors[job_key]['should_run']:
                     self.token_bucket_q.put('#')
                 else:
                     break
@@ -500,9 +504,9 @@ class JobMonitor:
 
     def _job_monitoring_rabbitmq(self, job):
         total_callids_done = 0
-        exec_id = '{}-{}'.format(job.executor_id, job.job_id)
+        job_key = create_job_key(job.executor_id, job.job_id)
 
-        exchange = 'lithops-{}-{}'.format(job.executor_id, job.job_id)
+        exchange = 'lithops-{}'.format(job_key)
         queue_1 = '{}-1'.format(exchange)
 
         params = pika.URLParameters(self.rabbit_amqp_url)
@@ -513,11 +517,11 @@ class JobMonitor:
             nonlocal total_callids_done
             call_status = json.loads(body.decode("utf-8"))
             if call_status['type'] == '__end__':
-                if self.monitors[exec_id]['should_run']:
+                if self.monitors[job_key]['should_run']:
                     self.token_bucket_q.put('#')
                 total_callids_done += 1
             if total_callids_done == job.total_calls or \
-               not self.monitors[exec_id]['should_run']:
+               not self.monitors[job_key]['should_run']:
                 ch.stop_consuming()
 
         channel.basic_consume(callback, queue=queue_1, no_ack=True)

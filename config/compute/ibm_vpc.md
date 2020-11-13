@@ -28,7 +28,7 @@ The IBM VPC client is a standalone compute backend. It is used for start and sto
 
    ```yaml
    lithops:
-       executor: standalone
+       mode: standalone
 
    ibm:
        iam_api_key: <iam-api-key>
@@ -41,7 +41,9 @@ The IBM VPC client is a standalone compute backend. It is used for start and sto
 
 ### Usage
 
-Note that the first time you execute a job in a brand new VM instance, the initial installation process can take up to ~3 minutes.
+Note that the first time you execute a job in a brand new VM instance, the initial installation process can take up to ~3 minutes. 
+
+You can view the executions logs in your local machine at */tmp/lithops/functions.log* (Or equivalent in Windows, Mac OS).
 
 #### Summary of configuration keys for IBM VPC
 

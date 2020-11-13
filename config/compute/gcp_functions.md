@@ -26,6 +26,8 @@ $ pip install lithops[gcp]
 
 7. Click on *Continue*. Then, click on *Create key*. Select *JSON* and then *Create*. Download the JSON file to a secure location in you computer. Click *Done*.
 
+8. Enable **Google Cloud Build** API: Navigate to *APIs & services* tab on the menu. Click *ENABLE APIS AND SERVICES*. Look for "Cloud Build API" at the search bar. Click *Enable*.
+
 ### Configuration
 
 1. Edit your lithops config and add the following keys:

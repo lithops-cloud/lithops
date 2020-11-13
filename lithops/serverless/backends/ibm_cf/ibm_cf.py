@@ -24,8 +24,8 @@ from lithops.utils import version_str
 from lithops.version import __version__
 from lithops.utils import is_lithops_worker
 from lithops.libs.openwhisk.client import OpenWhiskClient
-from lithops.serverless.utils import create_function_handler_zip
-from lithops.libs.ibm_iam.ibm_iam import IBMIAMTokenManager
+from lithops.utils import create_handler_zip
+from lithops.util import IBMTokenManager
 
 logger = logging.getLogger(__name__)
 
@@ -50,8 +50,8 @@ class IBMCloudFunctionsBackend:
         self.api_key = ibm_cf_config['regions'][self.region].get('api_key', None)
         self.iam_api_key = ibm_cf_config.get('iam_api_key', None)
 
-        logger.info("Set IBM CF Namespace to {}".format(self.namespace))
-        logger.info("Set IBM CF Endpoint to {}".format(self.endpoint))
+        logger.debug("Set IBM CF Namespace to {}".format(self.namespace))
+        logger.debug("Set IBM CF Endpoint to {}".format(self.endpoint))
 
         self.user_key = self.api_key[:5] if self.api_key else self.iam_api_key[:5]
         self.package = 'lithops_v{}_{}'.format(__version__, self.user_key)
@@ -72,7 +72,7 @@ class IBMCloudFunctionsBackend:
             token = self.config.get('token', None)
             token_expiry_time = self.config.get('token_expiry_time', None)
 
-            self.ibm_iam_api_key_manager = IBMIAMTokenManager(iam_api_key, api_key_type, token, token_expiry_time)
+            self.ibm_iam_api_key_manager = IBMTokenManager(iam_api_key, api_key_type, token, token_expiry_time)
             token, token_expiry_time = self.ibm_iam_api_key_manager.get_token()
 
             self.config['token'] = token
@@ -144,7 +144,7 @@ class IBMCloudFunctionsBackend:
         action_name = self._format_action_name(docker_image_name, memory)
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-        create_function_handler_zip(ibmcf_config.FH_ZIP_LOCATION, entry_point, '__main__.py')
+        create_handler_zip(ibmcf_config.FH_ZIP_LOCATION, entry_point, '__main__.py')
 
         with open(ibmcf_config.FH_ZIP_LOCATION, "rb") as action_zip:
             action_bin = action_zip.read()
@@ -162,7 +162,7 @@ class IBMCloudFunctionsBackend:
         action_name = self._format_action_name(docker_image_name, memory)
         self.cf_client.delete_action(self.package, action_name)
 
-    def delete_all_runtimes(self):
+    def clean(self):
         """
         Deletes all runtimes from all packages
         """

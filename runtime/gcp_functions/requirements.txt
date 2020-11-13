@@ -2,10 +2,9 @@ numpy
 scikit-learn
 scipy
 pandas
-
+google-cloud
 google-cloud-storage
 google-cloud-pubsub
-
 certifi
 chardet
 docutils

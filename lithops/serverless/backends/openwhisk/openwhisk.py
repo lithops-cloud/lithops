@@ -23,7 +23,7 @@ from lithops.utils import version_str
 from lithops.version import __version__
 from lithops.utils import is_lithops_worker
 from lithops.libs.openwhisk.client import OpenWhiskClient
-from lithops.serverless.utils import create_function_handler_zip
+from lithops.utils import create_handler_zip
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +119,7 @@ class OpenWhiskBackend:
         action_name = self._format_action_name(docker_image_name, memory)
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-        create_function_handler_zip(openwhisk_config.FH_ZIP_LOCATION, entry_point, '__main__.py')
+        create_handler_zip(openwhisk_config.FH_ZIP_LOCATION, entry_point, '__main__.py')
 
         with open(openwhisk_config.FH_ZIP_LOCATION, "rb") as action_zip:
             action_bin = action_zip.read()
@@ -137,7 +137,7 @@ class OpenWhiskBackend:
         action_name = self._format_action_name(docker_image_name, memory)
         self.cf_client.delete_action(self.package, action_name)
 
-    def delete_all_runtimes(self):
+    def clean(self):
         """
         Deletes all runtimes from all packages
         """

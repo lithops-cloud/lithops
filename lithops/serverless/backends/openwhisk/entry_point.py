@@ -15,18 +15,22 @@
 #
 
 import os
+import sys
 import logging
 from lithops.version import __version__
-from lithops.config import cloud_logging_config
+from lithops.utils import setup_logger
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
+from lithops.constants import LOGGER_FORMAT_SHORT
 
-cloud_logging_config(logging.INFO)
-logger = logging.getLogger('__main__')
+logger = logging.getLogger('lithops.worker')
 
 
 def main(args):
     os.environ['__LITHOPS_ACTIVATION_ID'] = os.environ['__OW_ACTIVATION_ID']
+
+    setup_logger(args['log_level'], sys.stdout, LOGGER_FORMAT_SHORT)
+
     if 'remote_invoker' in args:
         logger.info("Lithops v{} - Starting OpenWhisk Functions invoker".format(__version__))
         function_invoker(args)
