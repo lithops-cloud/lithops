@@ -177,7 +177,7 @@ class LocalhostStorageBackend:
                     continue
                 size = os.stat(file_name).st_size
                 base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
-                obj_list.append({'Key': file_name.replace(base_dir, ''), 'Size': size})
+                obj_list.append({'Key': file_name.replace(base_dir, '').replace('\\', '/'), 'Size': size})
 
         return obj_list
 
@@ -209,6 +209,6 @@ class LocalhostStorageBackend:
                 if file_name.endswith(prefix):
                     continue
                 base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
-                key_list.append(file_name.replace(base_dir, ''))
+                key_list.append(file_name.replace(base_dir, '').replace('\\', '/'))
 
         return key_list

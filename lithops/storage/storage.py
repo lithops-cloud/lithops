@@ -241,21 +241,6 @@ class InternalStorage:
         """
         return self.storage.get_object(self.bucket, key)
 
-    def split_all_path(self, path):
-        allparts = []
-        while 1:
-            parts = os.path.split(path)
-            if parts[0] == path:  # sentinel for absolute paths
-                allparts.insert(0, parts[0])
-                break
-            elif parts[1] == path: # sentinel for relative paths
-                allparts.insert(0, parts[1])
-                break
-            else:
-                path = parts[0]
-                allparts.insert(0, parts[1])
-        return allparts
-
     def get_job_status(self, executor_id, job_id):
         """
         Get the status of a callset.
@@ -266,12 +251,12 @@ class InternalStorage:
         callset_prefix = '/'.join([JOBS_PREFIX, job_key])
         keys = self.storage.list_keys(self.bucket, callset_prefix)
 
-        running_keys = [self.split_all_path(k) for k in keys if init_key_suffix in k]
+        running_keys = [k.split('/') for k in keys if init_key_suffix in k]
         running_callids = [(tuple(k[1].rsplit("-", 1)+[k[2]]),
                             k[3].replace(init_key_suffix, ''))
                            for k in running_keys]
 
-        done_keys = [self.split_all_path(k)[1:] for k in keys if status_key_suffix in k]
+        done_keys = [k.split('/')[1:] for k in keys if status_key_suffix in k]
         done_callids = [tuple(k[0].rsplit("-", 1) + [k[1]]) for k in done_keys]
 
         return set(running_callids), set(done_callids)
