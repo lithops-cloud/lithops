@@ -6,8 +6,8 @@ Reporting bugs and asking questions
 
 You can post questions or issues or feedback through the following channels:
 
-1. `Github Discussions`_: For discussions about development, questions about usage, and feature requests.
-2. `GitHub Issues`_: For bug reports and feature requests.
+1. [Github Discussions](https://github.com/lithops-cloud/lithops/discussions): For discussions about development, questions about usage, and feature requests.
+2. [GitHub Issues](https://github.com/lithops-cloud/lithops/issues): For bug reports and feature requests.
 
 
 To contribute a patch:
@@ -20,14 +20,9 @@ To contribute a patch:
 4. Make sure that your code passes the linter. 
 5. Add new unit tests for your code.
 
-.. _`Github Discussions`: https://github.com/lithops-cloud/lithops/discussions
-.. _`GitHub Issues`: https://github.com/lithops-cloud/lithops/issues
 
 PR Review Process
 -----------------
-
-For contributors who are in the lithops-cloud organization:
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 - When you first create a PR, add an reviewer to the `assignee` section.
 - Assignees will review your PR and add `@author-action-required` label if further actions are required.

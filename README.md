@@ -2,7 +2,7 @@
 <p align="center"> <img src="docs/images/lithops_flat_cloud_1.png" alt="Lithops"
       width='500' title="Lightweight Optimized Processing"/></p>
 
-Lithops is a multi-cloud distributed computing framework that allows to run unmodified local python code at massive scale on the major of the publicly-available serverless computing platforms. Lithops delivers the user’s code into the cloud without requiring knowledge of how it is deployed and run. Moreover, its multicloud-agnostic architecture ensures portability across cloud providers, overcoming vendor lock-in.
+Lithops is a multi-cloud distributed computing framework. It allows to run unmodified local python code at massive scale on the major of the publicly-available serverless computing platforms. Lithops delivers the user’s code into the cloud without requiring knowledge of how it is deployed and run. Moreover, its multicloud-agnostic architecture ensures portability across cloud providers, overcoming vendor lock-in.
 
 Lithops provides value for a great variety of uses cases: from big data analytics and embarrassingly parallel jobs, that is, highly-parallel programs with little or no need for communication between processes, up to parallel applications that need to share state among processes. Examples of applications that run with Lithops include Monte Carlo simulations, deep learning and machine learning processes, metabolomics computations, and geospatial analytics.
 
@@ -22,9 +22,9 @@ Lithops provides value for a great variety of uses cases: from big data analytic
    ```
 
 ## Move to the Cloud
-Once you have Lithops working in your local machine, you are ready to scale your python code to the cloud. Lithops provides an extensible backend architecture (compute, storage) that is designed to work with different Cloud providers and on-premise backends. Iin this sense, you can code in python and run it unmodified in IBM Cloud, AWS, Azure, Google Cloud and Alibaba Aliyun. Moreover, it also provides support for some kubernetes serverless frameworks such as Knative.
+Lithops provides an extensible backend architecture (compute, storage) that is designed to work with different Cloud providers and on-premise backends. In this sense, you can code in python and run it unmodified in IBM Cloud, AWS, Azure, Google Cloud and Alibaba Aliyun. Moreover, it provides support for some kubernetes serverless frameworks such as Knative.
 
-3. [Follow these instructions to configure your compute and storage backends](config/)
+- [Follow these instructions to configure your compute and storage backends](config/)
 
 
 <p align="center"> <img src="docs/images/multicloud.png" alt="Lithops"
@@ -33,7 +33,7 @@ Once you have Lithops working in your local machine, you are ready to scale your
 
 ## High-level API
 
-Lithops is shipped with two different high-level APIs.
+Lithops is shipped with 2 different high-level APIs.
 
 
 <table>
@@ -90,11 +90,11 @@ with Pool() as pool:
 
 </table>
 
-You can find more Lithops usage code examples in the [examples](/examples) folder.
+You can find more usage examples in the [examples](/examples) folder.
 
 ## Execution Modes
 
-Lithops is shipped with 3 different execution modes. The execution mode allows you to decide where the functions are executed.
+Lithops is shipped with 3 different modes of execution. The execution mode allows you to decide where and how the functions are executed.
 
 <table>
 <tr>
@@ -143,19 +143,46 @@ This mode allows to run functions by using a cluster of Virtual machines (VM). I
 </tr>
 </table>
 
-## How to use Lithops
+## User Manual
 
-### Functions
-[Lithops functions and parameters](docs/functions.md)
+1. [Lithops design overview](docs/design.md)
 
-### Big Data processing
-[Using Lithops to process data from an object store and public URLs](docs/data-processing.md)
+2. [Supported Clouds](docs/supported_clouds.md)
+   - [IBM Cloud](docs/supported_clouds.md#ibm-cloud)
+   - [AWS](docs/supported_clouds.md#aws)
+   - [Microsoft Azure](docs/supported_clouds.md#microsoft-azure)
+   - [Google Cloud](docs/supported_clouds.md#google-cloud)
+   - [Alibaba Aliyun](docs/supported_clouds.md#alibaba-aliyun)
+   - [Kubernetes](docs/supported_clouds.md#kubernetes)
+   - [On-premise](docs/supported_clouds.md#on-premise)
 
-### Runtimes 
-[Building and managing Lithops runtimes to run the functions](runtime/)
+3. High-level API
+   - [Futures API](docs/api_futures.md)
+   - [Multiprocessing API](docs/api_multiprocessing.md)
 
-### Notebooks
-[Running lithops on Jupyter notebooks](examples/hello_world.ipynb)
+4. [Execution Modes](docs/execution_modes.md)
+   - [Localhost mode](docs/execution_modes.md#localhost-mode)
+   - [Serverless mode](docs/execution_modes.md#serverless-mode)
+   - [Standalone mode](docs/execution_modes.md#standalone-mode)
+
+5. [Functions design and parameters](docs/functions.md)
+   - [Reserved parameters](docs/functions.md#reserved-parameters)
+   - [Parameters format for a *single* call](docs/functions.md#parameters-in-the-call_async-method)
+   - [Parameters format for a *map* call](docs/functions.md#parameters-in-the-map-and-map_reduce-methods)
+   - [Common parameters across functions](docs/functions.md#common-parameters-across-functions-invocations)
+  
+6. [Lithops for big data analytics](docs/data_processing.md)
+   - [Processing data from a cloud object store](docs/data_processing.md#processing-data-from-a-cloud-object-storage-service)
+   - [Processing data from public URLs](docs/data_processing.md#processing-data-from-public-urls)
+
+7. [Run Lithops on Jupyter notebooks](examples/hello_world.ipynb)
+
+8. [Execute Airflow workflows using Lithops](https://github.com/lithops-cloud/airflow-plugin)
+
+9. [Lithops end-to-end Applications](https://github.com/lithops-cloud/applications)
+
+10. [Build and manage custom Lithops runtimes to run the functions](runtime/)
+
 
 ## Additional resources
 
@@ -176,6 +203,17 @@ This mode allows to run functions by using a cluster of Virtual machines (VM). I
 
 # Acknowledgements
 
+<table>
+<tr>
+<td>
+
 ![image](https://user-images.githubusercontent.com/26366936/61350554-d62acf00-a85f-11e9-84b2-36312a35398e.png)
 
+</td>
+<td>
+
 This project has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreement No 825184.
+
+</td>
+</tr>
+</table>

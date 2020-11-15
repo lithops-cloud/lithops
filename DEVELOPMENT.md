@@ -22,21 +22,21 @@ Build and install
 
 ## Configuration
 
-Once installed, follow [configuration](../config/) instructions to make Lithops running.
+Once installed, follow [configuration](config/) instructions to make Lithops running.
 
 
 ## Runtime
-The default runtime is automatically deployed the first time you execute an Lithops job (for more information about runtimes navigate to [runtime/](../runtime/) folder). Then, every time you want to test your changes, you need to update the already deployed runtime(s). To do so, you have multiple options.
+The default runtime is automatically deployed the first time you execute an Lithops job (for more information about runtimes navigate to [runtime/](runtime/) folder). Then, every time you want to test your changes, you need to update the already deployed runtime(s). To do so, you have multiple options.
 
 To update the default runtime, navigate into `runtime` folder and execute:
 
-	# lithops update default
+	# lithops runtime update default
 
 To update any other runtime, navigate into `runtime` folder and execute:
 
-	# lithops update <docker_username/runtimename:tag>
+	# lithops runtime update <docker_username/runtimename:tag>
 
 
 To update all deployed runtimes at a time, navigate into `runtime` folder and execute:
 
-	# lithops update all
+	# lithops runtime update all
