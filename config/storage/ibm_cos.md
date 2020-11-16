@@ -34,8 +34,7 @@ Lithops with IBM COS as storage backend.
         storage_backend: ibm_cos
        
     ibm_cos:
-       endpoint   : <REGION_ENDPOINT>  
-       private_endpoint : <PRIVATE_REGION_ENDPOINT>
+       region   : <REGION>
        api_key    : <API_KEY>
     ```
 
@@ -57,8 +56,7 @@ Lithops with IBM COS as storage backend.
         storage_backend: ibm_cos
        
     ibm_cos:
-       endpoint   : <REGION_ENDPOINT>  
-       private_endpoint : <PRIVATE_REGION_ENDPOINT>
+       region   : <REGION>  
        access_key    : <ACCESS_KEY_ID>
        secret_key    : <SECRET_KEY_ID>
     ```
@@ -80,8 +78,7 @@ Lithops with IBM COS as storage backend.
         iam_api_key: <IAM_API_KEY>
        
     ibm_cos:
-        endpoint   : <REGION_ENDPOINT>  
-        private_endpoint : <PRIVATE_REGION_ENDPOINT>
+        region   : <REGION>
     ```
 
 ### Summary of configuration keys for IBM Cloud:
@@ -97,8 +94,7 @@ Lithops with IBM COS as storage backend.
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ibm_cos | endpoint | |yes | Regional endpoint to your COS account. Make sure to use full path with 'https://' as prefix. For example https://s3.us-east.cloud-object-storage.appdomain.cloud |
-|ibm_cos | private_endpoint | |no | Private regional endpoint to your COS account. Make sure to use full path. For example: https://s3.private.us-east.cloud-object-storage.appdomain.cloud |
+|ibm_cos | region | |yes | Region of your buckets. For example: us-east, us-south, eu-gb, eu-de, etc..|
 |ibm_cos | api_key | |no | API Key to your COS account. **Mandatory** if no access_key and secret_key. Not needed if using IAM API Key|
 |ibm_cos | access_key | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key|
 |ibm_cos | secret_key | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key|
