@@ -102,7 +102,7 @@ Lithops is shipped with 3 different modes of execution. The execution mode allow
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="docs/mode_localhost.md">Localhost Mode</a>
+<a href="docs/execution_modes.md#localhost-mode">Localhost Mode</a>
 </small>
 </p>
 </th>
@@ -110,7 +110,7 @@ Lithops is shipped with 3 different modes of execution. The execution mode allow
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="docs/mode_serverless.md">Serverless Mode</a>
+<a href="docs/execution_modes.md#serverless-mode">Serverless Mode</a>
 </small>
 </p>
 </th>
@@ -118,7 +118,7 @@ Lithops is shipped with 3 different modes of execution. The execution mode allow
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="docs/mode_standalone.md">Standalone Mode</a>
+<a href="docs/execution_modes.md#standalone-mode">Standalone Mode</a>
 </small>
 </p>
 </th>
@@ -148,13 +148,6 @@ This mode allows to run functions by using a cluster of Virtual machines (VM). I
 1. [Lithops design overview](docs/design.md)
 
 2. [Supported Clouds](docs/supported_clouds.md)
-   - [IBM Cloud](docs/supported_clouds.md#ibm-cloud)
-   - [AWS](docs/supported_clouds.md#aws)
-   - [Microsoft Azure](docs/supported_clouds.md#microsoft-azure)
-   - [Google Cloud](docs/supported_clouds.md#google-cloud)
-   - [Alibaba Aliyun](docs/supported_clouds.md#alibaba-aliyun)
-   - [Kubernetes](docs/supported_clouds.md#kubernetes)
-   - [On-premise](docs/supported_clouds.md#on-premise)
 
 3. High-level API
    - [Futures API](docs/api_futures.md)
@@ -181,7 +174,7 @@ This mode allows to run functions by using a cluster of Virtual machines (VM). I
 
 9. [Lithops end-to-end Applications](https://github.com/lithops-cloud/applications)
 
-10. [Build and manage custom Lithops runtimes to run the functions](runtime/)
+10. [Build and manage custom runtimes to run the functions](runtime/)
 
 
 ## Additional resources
@@ -203,17 +196,7 @@ This mode allows to run functions by using a cluster of Virtual machines (VM). I
 
 # Acknowledgements
 
-<table>
-<tr>
-<td>
-
 ![image](https://user-images.githubusercontent.com/26366936/61350554-d62acf00-a85f-11e9-84b2-36312a35398e.png)
-
-</td>
-<td>
 
 This project has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreement No 825184.
 
-</td>
-</tr>
-</table>
