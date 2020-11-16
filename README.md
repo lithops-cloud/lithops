@@ -102,7 +102,7 @@ Lithops is shipped with 3 different modes of execution. The execution mode allow
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="docs/execution_modes.md#localhost-mode">Localhost Mode</a>
+<a href="docs/mode_localhost.md>Localhost Mode</a>
 </small>
 </p>
 </th>
@@ -110,7 +110,7 @@ Lithops is shipped with 3 different modes of execution. The execution mode allow
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="docs/execution_modes.md#serverless-mode">Serverless Mode</a>
+<a href="docs/mode_serverless.md>Serverless Mode</a>
 </small>
 </p>
 </th>
@@ -118,7 +118,7 @@ Lithops is shipped with 3 different modes of execution. The execution mode allow
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="docs/execution_modes.md#standalone-mode">Standalone Mode</a>
+<a href="docs/mode_standalone.md>Standalone Mode</a>
 </small>
 </p>
 </th>
@@ -153,10 +153,10 @@ This mode allows to run functions by using a cluster of Virtual machines (VM). I
    - [Futures API](docs/api_futures.md)
    - [Multiprocessing API](docs/api_multiprocessing.md)
 
-4. [Execution Modes](docs/execution_modes.md)
-   - [Localhost mode](docs/execution_modes.md#localhost-mode)
-   - [Serverless mode](docs/execution_modes.md#serverless-mode)
-   - [Standalone mode](docs/execution_modes.md#standalone-mode)
+4. Execution Modes
+   - [Localhost mode](docs/mode_localhost.md)
+   - [Serverless mode](docs/mode_serverless.md)
+   - [Standalone mode](docs/mode_standalone.md)
 
 5. [Functions design and parameters](docs/functions.md)
    - [Reserved parameters](docs/functions.md#reserved-parameters)
