@@ -17,8 +17,11 @@ class PrometheusExporter():
 
         if self.active and self.apigateway:
             dim = 'job/lithops/instance/{}'.format(job_key)
-            for label in labels:
-                dim += '/%s/%s' % (label, labels[label])
+            for key, val in labels.items():
+                dim += '/%s/%s' % (key, val)
             url = '/'.join([self.apigateway, 'metrics', dim])
-            logger.info('Sending metric "{} {}" to {}'.format(name, value, url))
-            requests.post(url, data='%s %s\n' % (name, value))
+            logger.debug('Sending metric "{} {}" to {}'.format(name, value, url))
+            try:
+                requests.post(url, data='%s %s\n' % (name, value))
+            except Exception:
+                pass

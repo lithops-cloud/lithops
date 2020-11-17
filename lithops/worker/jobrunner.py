@@ -34,7 +34,8 @@ from lithops.future import ResponseFuture
 from lithops.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_function
 from lithops.utils import WrappedStreamingBodyPartition
 from lithops.constants import TEMP
-
+from lithops.util import PrometheusExporter
+from lithops.storage.utils import create_job_key
 
 logger = logging.getLogger(__name__)
 
@@ -67,12 +68,17 @@ class JobRunner:
         self.call_id = self.jr_config['call_id']
         self.job_id = self.jr_config['job_id']
         self.executor_id = self.jr_config['executor_id']
+        self.job_key = create_job_key(self.executor_id, self.job_id)
         self.func_key = self.jr_config['func_key']
         self.data_key = self.jr_config['data_key']
         self.data_byte_range = self.jr_config['data_byte_range']
         self.output_key = self.jr_config['output_key']
 
         self.stats = stats(self.jr_config['stats_filename'])
+
+        monitoring = self.lithops_config['lithops'].get('monitoring')
+        prom_config = self.lithops_config.get('prometheus', {})
+        self.prometheus = PrometheusExporter(monitoring, prom_config)
 
     def _get_function_and_modules(self):
         """
@@ -260,6 +266,12 @@ class JobRunner:
 
             self._fill_optional_args(function, data)
 
+            self.prometheus.send_metric('function_start',
+                                        time.time(),
+                                        self.job_key,
+                                        function_name=function.__name__,
+                                        call_id=self.call_id)
+
             logger.info("Going to execute '{}()'".format(str(function.__name__)))
             print('---------------------- FUNCTION LOG ----------------------', flush=True)
             function_start_tstamp = time.time()
@@ -267,6 +279,12 @@ class JobRunner:
             function_end_tstamp = time.time()
             print('----------------------------------------------------------', flush=True)
             logger.info("Success function execution")
+
+            self.prometheus.send_metric('function_end',
+                                        time.time(),
+                                        self.job_key,
+                                        function_name=function.__name__,
+                                        call_id=self.call_id)
 
             self.stats.write('worker_func_start_tstamp', function_start_tstamp)
             self.stats.write('worker_func_end_tstamp', function_end_tstamp)

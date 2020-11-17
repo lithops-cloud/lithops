@@ -55,12 +55,13 @@ class Invoker:
         self.compute_handler = compute_handler
         self.is_lithops_worker = is_lithops_worker()
 
-        self.workers = config['lithops'].get('workers')
+        self.workers = self.config['lithops'].get('workers')
         logger.debug('ExecutorID {} - Total available workers: {}'
                      .format(self.executor_id, self.workers))
 
-        self.prometheus = PrometheusExporter(config['lithops'].get('monitoring'),
-                                             config.get('prometheus', {}))
+        monitoring = self.config['lithops'].get('monitoring', False)
+        prom_config = self.config.get('prometheus', {})
+        self.prometheus = PrometheusExporter(monitoring, prom_config)
 
         mode = self.config['lithops']['mode']
         self.runtime_name = self.config[mode]['runtime']
