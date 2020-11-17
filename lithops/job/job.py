@@ -22,7 +22,8 @@ import logging
 from lithops import utils
 from lithops.job.partitioner import create_partitions
 from lithops.utils import is_object_processing_function, sizeof_fmt
-from lithops.storage.utils import create_func_key, create_agg_data_key
+from lithops.storage.utils import create_func_key, create_agg_data_key,\
+    create_job_key
 from lithops.job.serialize import SerializeIndependent, create_module_data
 from lithops.constants import MAX_AGG_DATA_SIZE, JOBS_PREFIX, LOCALHOST,\
     SERVERLESS, STANDALONE
@@ -150,6 +151,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     job = SimpleNamespace()
     job.executor_id = executor_id
     job.job_id = job_id
+    job.job_key = create_job_key(executor_id, job_id)
     job.extra_env = ext_env
     job.execution_timeout = execution_timeout or config['lithops']['execution_timeout']
     job.function_name = func.__name__
