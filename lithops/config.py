@@ -16,6 +16,7 @@
 #
 
 import os
+import sys
 import json
 import importlib
 import logging
@@ -185,7 +186,7 @@ def default_config(config_data=None, config_overwrite={}):
             config_data[constants.LOCALHOST] = {}
 
         if 'runtime' not in config_data[constants.LOCALHOST]:
-            config_data[constants.LOCALHOST]['runtime'] = 'python3'
+            config_data[constants.LOCALHOST]['runtime'] = constants.LOCALHOST_RUNTIME_DEFAULT
 
         verify_runtime_name(config_data[constants.LOCALHOST]['runtime'])
 

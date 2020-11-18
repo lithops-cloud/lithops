@@ -1,23 +1,26 @@
 import requests
 import logging
-
+import os
 
 logger = logging.getLogger(__name__)
 
 
 class PrometheusExporter():
 
-    def __init__(self, active, prometheus_config):
+    def __init__(self, enabled, config):
         """ Prometheus exporter for sending metrics to an API Gateway"""
-        self.active = active
-        self.apigateway = prometheus_config.get('apigateway')
+        self.enabled = enabled
+        self.apigateway = config.get('apigateway') if config else None
 
-    def send_metric(self, name, value, job_key, **labels):
+        self.job = 'lithops'
+        self.instance = os.environ['__LITHOPS_SESSION_ID']
+
+    def send_metric(self, name, value, labels):
         """Send a metric to prometheus"""
 
-        if self.active and self.apigateway:
-            dim = 'job/lithops/instance/{}'.format(job_key)
-            for key, val in labels.items():
+        if self.enabled and self.apigateway:
+            dim = 'job/{}/instance/{}'.format(self.job, self.instance)
+            for key, val in labels:
                 dim += '/%s/%s' % (key, val)
             url = '/'.join([self.apigateway, 'metrics', dim])
             logger.debug('Sending metric "{} {}" to {}'.format(name, value, url))

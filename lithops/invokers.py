@@ -59,9 +59,9 @@ class Invoker:
         logger.debug('ExecutorID {} - Total available workers: {}'
                      .format(self.executor_id, self.workers))
 
-        monitoring = self.config['lithops'].get('monitoring', False)
+        prom_enabled = self.config['lithops'].get('monitoring', False)
         prom_config = self.config.get('prometheus', {})
-        self.prometheus = PrometheusExporter(monitoring, prom_config)
+        self.prometheus = PrometheusExporter(prom_enabled, prom_config)
 
         mode = self.config['lithops']['mode']
         self.runtime_name = self.config[mode]['runtime']
@@ -130,10 +130,12 @@ class StandaloneInvoker(Invoker):
         """
         job.runtime_name = self.runtime_name
 
-        self.prometheus.send_metric('job_total_calls',
-                                    job.total_calls,
-                                    job.job_key,
-                                    function_name=job.function_name)
+        self.prometheus.send_metric(name='job_total_calls',
+                                    value=job.total_calls,
+                                    labels=(
+                                        ('job_id', job.job_id),
+                                        ('function_name', job.function_name)
+                                    ))
 
         payload = {'config': self.config,
                    'log_level': self.log_level,
@@ -333,10 +335,12 @@ class ServerlessInvoker(Invoker):
         except Exception:
             pass
 
-        self.prometheus.send_metric('job_total_calls',
-                                    job.total_calls,
-                                    job.job_key,
-                                    function_name=job.function_name)
+        self.prometheus.send_metric(name='job_total_calls',
+                                    value=job.total_calls,
+                                    labels=(
+                                        ('job_id', job.job_id),
+                                        ('function_name', job.function_name)
+                                    ))
 
         if self.remote_invoker:
             """
