@@ -99,7 +99,7 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id,
             iterdata.append([map_futures[prev_total_partitons:prev_total_partitons+total_partitions]])
             prev_total_partitons = prev_total_partitons + total_partitions
 
-    reduce_job_env = {'__PW_REDUCE_JOB': True}
+    reduce_job_env = {'__LITHOPS_REDUCE_JOB': True}
     if extra_env is None:
         ext_env = reduce_job_env
     else:

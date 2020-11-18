@@ -66,10 +66,6 @@ class StandaloneHandler:
         self.hard_dismantle_timeout = self.config.get('hard_dismantle_timeout')
         self.soft_dismantle_timeout = self.config.get('soft_dismantle_timeout')
 
-        # self.cpu = self.config.get('cpu', 2)
-        # self.memory = self.config.get('memory', 4)
-        # self.instances = self.config.get('instances', 1)
-
         try:
             module_location = 'lithops.standalone.backends.{}'.format(self.backend_name)
             sb_module = importlib.import_module(module_location)

@@ -33,6 +33,7 @@ from lithops.config import extract_storage_config
 from lithops.utils import version_str, is_lithops_worker, is_unix_system
 from lithops.storage.utils import create_job_key
 from lithops.constants import LOGGER_LEVEL
+from lithops.util import PrometheusExporter
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,10 @@ class Invoker:
         self.workers = self.config['lithops'].get('workers')
         logger.debug('ExecutorID {} - Total available workers: {}'
                      .format(self.executor_id, self.workers))
+
+        prom_enabled = self.config['lithops'].get('monitoring', False)
+        prom_config = self.config.get('prometheus', {})
+        self.prometheus = PrometheusExporter(prom_enabled, prom_config)
 
         mode = self.config['lithops']['mode']
         self.runtime_name = self.config[mode]['runtime']
@@ -124,6 +129,13 @@ class StandaloneInvoker(Invoker):
         Run a job
         """
         job.runtime_name = self.runtime_name
+
+        self.prometheus.send_metric(name='job_total_calls',
+                                    value=job.total_calls,
+                                    labels=(
+                                        ('job_id', job.job_id),
+                                        ('function_name', job.function_name)
+                                    ))
 
         payload = {'config': self.config,
                    'log_level': self.log_level,
@@ -322,6 +334,13 @@ class ServerlessInvoker(Invoker):
                 self.ongoing_activations -= 1
         except Exception:
             pass
+
+        self.prometheus.send_metric(name='job_total_calls',
+                                    value=job.total_calls,
+                                    labels=(
+                                        ('job_id', job.job_id),
+                                        ('function_name', job.function_name)
+                                    ))
 
         if self.remote_invoker:
             """

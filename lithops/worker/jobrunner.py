@@ -34,7 +34,7 @@ from lithops.future import ResponseFuture
 from lithops.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_function
 from lithops.utils import WrappedStreamingBodyPartition
 from lithops.constants import TEMP
-
+from lithops.util import PrometheusExporter
 
 logger = logging.getLogger(__name__)
 
@@ -66,13 +66,16 @@ class JobRunner:
         self.lithops_config = self.jr_config['lithops_config']
         self.call_id = self.jr_config['call_id']
         self.job_id = self.jr_config['job_id']
-        self.executor_id = self.jr_config['executor_id']
         self.func_key = self.jr_config['func_key']
         self.data_key = self.jr_config['data_key']
         self.data_byte_range = self.jr_config['data_byte_range']
         self.output_key = self.jr_config['output_key']
 
         self.stats = stats(self.jr_config['stats_filename'])
+
+        prom_enabled = self.lithops_config['lithops'].get('monitoring')
+        prom_config = self.lithops_config.get('prometheus', {})
+        self.prometheus = PrometheusExporter(prom_enabled, prom_config)
 
     def _get_function_and_modules(self):
         """
@@ -253,12 +256,19 @@ class JobRunner:
             function = self._unpickle_function(loaded_func_all['func'])
             data = self._load_data()
 
-            if strtobool(os.environ.get('__PW_REDUCE_JOB', 'False')):
+            if strtobool(os.environ.get('__LITHOPS_REDUCE_JOB', 'False')):
                 self._wait_futures(data)
             elif is_object_processing_function(function):
                 self._load_object(data)
 
             self._fill_optional_args(function, data)
+
+            self.prometheus.send_metric(name='function_start',
+                                        value=time.time(),
+                                        labels=(
+                                            ('job_id', self.job_id),
+                                            ('function_name', function.__name__)
+                                        ))
 
             logger.info("Going to execute '{}()'".format(str(function.__name__)))
             print('---------------------- FUNCTION LOG ----------------------', flush=True)
@@ -267,6 +277,13 @@ class JobRunner:
             function_end_tstamp = time.time()
             print('----------------------------------------------------------', flush=True)
             logger.info("Success function execution")
+
+            self.prometheus.send_metric(name='function_end',
+                                        value=time.time(),
+                                        labels=(
+                                            ('job_id', self.job_id),
+                                            ('function_name', function.__name__)
+                                        ))
 
             self.stats.write('worker_func_start_tstamp', function_start_tstamp)
             self.stats.write('worker_func_end_tstamp', function_end_tstamp)
