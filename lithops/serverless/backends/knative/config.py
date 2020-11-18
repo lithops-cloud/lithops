@@ -166,7 +166,7 @@ def load_config(config_data):
     if 'git_url' not in config_data['knative']:
         config_data['knative']['git_url'] = BUILD_GIT_URL_DEFAULT
     if 'git_rev' not in config_data['knative']:
-        revision = 'master' if 'SNAPSHOT' in __version__ else __version__
+        revision = 'master' if 'dev' in __version__ else __version__
         config_data['knative']['git_rev'] = revision
 
     if 'cpu' not in config_data['knative']:
@@ -183,7 +183,7 @@ def load_config(config_data):
     if 'runtime' not in config_data['serverless']:
         docker_user = config_data['knative']['docker_user']
         python_version = version_str(sys.version_info).replace('.', '')
-        revision = 'latest' if 'SNAPSHOT' in __version__ else __version__.replace('.', '')
+        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         runtime_name = '{}/{}-v{}:{}'.format(docker_user, RUNTIME_NAME_DEFAULT, python_version, revision)
         config_data['serverless']['runtime'] = runtime_name
 

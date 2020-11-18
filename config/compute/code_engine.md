@@ -16,7 +16,7 @@ In this step you are required to install IBM Cloud CLI tool, Code Engine plugin 
 2. Login to your account (IBM Code Engine is currently present on us_south region, so login to this region)
 
    ```bash
-   ibmcloud login -r us_south
+   ibmcloud login -r us-south
    ```
 
 3. Install the IBM Code Engine plugin:

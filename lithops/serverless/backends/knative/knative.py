@@ -133,7 +133,6 @@ class KnativeServingBackend:
         """
         logger.debug('Getting service host for: {}'.format(service_name))
         try:
-            #t0 = time.time()
             svc = self.api.get_namespaced_custom_object(
                         group="serving.knative.dev",
                         version="v1",
@@ -145,7 +144,6 @@ class KnativeServingBackend:
                 service_host = svc['status']['url'][7:]
             else:
                 raise Exception('Unable to get service details from {}'.format(service_name))
-            #print(time.time()-t0)
         except Exception as e:
             if json.loads(e.body)['code'] == 404:
                 log_msg = 'Knative service: resource "{}" Not Found'.format(service_name)
@@ -632,6 +630,7 @@ class KnativeServingBackend:
         in order to know which runtimes are installed and which not.
         """
         service_name = self._format_service_name(docker_image_name, runtime_memory)
-        runtime_key = os.path.join(self.cluster, self.namespace, service_name)
+        cluster = self.cluster.replace('https://', '').replace('http://', '')
+        runtime_key = os.path.join(cluster, self.namespace, service_name)
 
         return runtime_key

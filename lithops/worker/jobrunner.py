@@ -267,6 +267,7 @@ class JobRunner:
                                         value=time.time(),
                                         labels=(
                                             ('job_id', self.job_id),
+                                            ('call_id', self.call_id),
                                             ('function_name', function.__name__)
                                         ))
 
@@ -282,6 +283,7 @@ class JobRunner:
                                         value=time.time(),
                                         labels=(
                                             ('job_id', self.job_id),
+                                            ('call_id', self.call_id),
                                             ('function_name', function.__name__)
                                         ))
 
