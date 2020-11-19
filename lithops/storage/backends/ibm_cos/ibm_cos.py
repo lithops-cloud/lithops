@@ -19,7 +19,7 @@ import ibm_boto3
 import ibm_botocore
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import sizeof_fmt, is_lithops_worker
-from lithops.util import IBMTokenManager
+from lithops.util.ibm_token_manager import IBMTokenManager
 
 logger = logging.getLogger(__name__)
 
