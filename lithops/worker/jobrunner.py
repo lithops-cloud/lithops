@@ -24,7 +24,6 @@ import logging
 import inspect
 import requests
 import traceback
-import numpy as np
 from pydoc import locate
 from distutils.util import strtobool
 
@@ -34,7 +33,7 @@ from lithops.future import ResponseFuture
 from lithops.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_function
 from lithops.utils import WrappedStreamingBodyPartition
 from lithops.constants import TEMP
-from lithops.util import PrometheusExporter
+from lithops.util.metrics import PrometheusExporter
 
 logger = logging.getLogger(__name__)
 

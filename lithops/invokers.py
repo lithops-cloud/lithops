@@ -33,7 +33,7 @@ from lithops.config import extract_storage_config
 from lithops.utils import version_str, is_lithops_worker, is_unix_system
 from lithops.storage.utils import create_job_key
 from lithops.constants import LOGGER_LEVEL
-from lithops.util import PrometheusExporter
+from lithops.util.metrics import PrometheusExporter
 
 logger = logging.getLogger(__name__)
 

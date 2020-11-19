@@ -3,7 +3,7 @@ import logging
 import requests
 import time
 from lithops.version import __version__
-from lithops.util import IBMTokenManager
+from lithops.util.ibm_token_manager import IBMTokenManager
 
 logger = logging.getLogger(__name__)
 

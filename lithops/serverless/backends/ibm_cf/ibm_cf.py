@@ -25,7 +25,7 @@ from lithops.version import __version__
 from lithops.utils import is_lithops_worker
 from lithops.libs.openwhisk.client import OpenWhiskClient
 from lithops.utils import create_handler_zip
-from lithops.util import IBMTokenManager
+from lithops.util.ibm_token_manager import IBMTokenManager
 
 logger = logging.getLogger(__name__)
 
