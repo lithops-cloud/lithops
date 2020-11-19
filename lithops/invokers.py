@@ -518,7 +518,7 @@ class JobMonitor:
                 else:
                     break
 
-        logger.debug('ExecutorID {} - | JobID {} -Job monitoring finished'
+        logger.debug('ExecutorID {} | JobID {} - Job monitoring finished'
                      .format(job.executor_id,  job.job_id))
 
     def _job_monitoring_rabbitmq(self, job):
