@@ -46,9 +46,11 @@ def lithops_cli():
 
 
 @lithops_cli.command('clean')
+@click.option('--mode', default=None, type=click.Choice([SERVERLESS, LOCALHOST, STANDALONE], case_sensitive=True),
+              help='execution mode')
 @click.option('--config', '-c', default=None, help='use json config file')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
-def clean(config, debug):
+def clean(mode, config, debug):
     log_level = 'INFO' if not debug else 'DEBUG'
     setup_logger(log_level)
     logger.info('Cleaning all Lithops information')
@@ -56,7 +58,7 @@ def clean(config, debug):
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
 
-    mode = config['lithops']['mode']
+    mode = config['lithops']['mode'] if not mode else mode
     if mode == LOCALHOST:
         compute_config = extract_localhost_config(config)
         compute_handler = LocalhostHandler(compute_config)
@@ -105,7 +107,8 @@ def test_function(config, debug):
 @lithops_cli.command('verify')
 @click.option('--test', '-t', default='all', help='run a specific test, type "-t help" for tests list')
 @click.option('--config', '-c', default=None, help='use json config file')
-@click.option('--mode', '-m', default=None, help='serverless, standalone or localhost')
+@click.option('--mode', default=None, type=click.Choice([SERVERLESS, LOCALHOST, STANDALONE], case_sensitive=True),
+              help='execution mode')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 def verify(test, config, mode, debug):
     if debug:
@@ -169,25 +172,38 @@ def runtime(ctx):
 
 
 @runtime.command('create')
-@click.argument('image_name')
+@click.argument('name')
+@click.option('--mode', default=None, type=click.Choice([SERVERLESS, LOCALHOST, STANDALONE], case_sensitive=True),
+              help='execution mode')
 @click.option('--memory', default=None, help='memory used by the runtime', type=int)
+@click.option('--timeout', default=None, help='runtime timeout', type=int)
 @click.option('--config', '-c', default=None, help='use json config file')
-def create(name, memory, config):
-    verify_runtime_name(name)
+def create(name, mode, memory, timeout, config):
     setup_logger(logging.DEBUG)
     config = default_config(config)
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
-    compute_config = extract_serverless_config(config)
-    compute_handler = ServerlessHandler(compute_config, storage_config)
 
-    memory = config['lithops']['runtime_memory'] if not memory else memory
-    timeout = config['lithops']['runtime_timeout']
-
-    logger.info('Creating runtime: {}, memory: {}'.format(name, memory))
-
-    runtime_key = compute_handler.get_runtime_key(name, memory)
-    runtime_meta = compute_handler.create_runtime(name, memory, timeout=timeout)
+    mode = config['lithops']['mode'] if not mode else mode
+    if mode == SERVERLESS:
+        compute_config = extract_serverless_config(config)
+        compute_handler = ServerlessHandler(compute_config, storage_config)
+        mem = memory if memory else compute_config['runtime_memory']
+        to = timeout if timeout else compute_config['runtime_timeout']
+        runtime_key = compute_handler.get_runtime_key(name, mem)
+        runtime_meta = compute_handler.create_runtime(name, mem, timeout=to)
+    elif mode == STANDALONE:
+        compute_config = extract_standalone_config(config)
+        compute_handler = StandaloneHandler(compute_config)
+        runtime_key = compute_handler.get_runtime_key(name)
+        runtime_meta = compute_handler.create_runtime(name)
+    elif mode == LOCALHOST:
+        compute_config = extract_localhost_config(config)
+        compute_handler = LocalhostHandler(compute_config)
+        runtime_key = compute_handler.get_runtime_key(name)
+        runtime_meta = compute_handler.create_runtime(name)
+    else:
+        raise Exception('Unknown execution mode {}'.format(mode))
 
     try:
         internal_storage.put_runtime_meta(runtime_key, runtime_meta)
