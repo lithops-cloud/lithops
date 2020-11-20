@@ -29,7 +29,7 @@ Lithops provides an extensible backend architecture (compute, storage) that is d
 
 
 <p align="center"> <img src="docs/images/multicloud.png" alt="Lithops"
-      width='600' title="Supported Clouds"/></p>
+      width='670' title="Supported Clouds"/></p>
 
 
 ## High-level API
@@ -138,45 +138,17 @@ This mode allows to run functions by using one or multiple function-as-a-service
 
 <td>
 
-This mode allows to run functions by using a cluster of Virtual machines (VM). In the VMs that conform the cluster, functions run using parallel processes.
+This mode allows to run functions by using a Virtual machines (VM). In the VM, functions run using parallel processes like in the Localhost mode.
 
 </td>
 </tr>
 </table>
 
-## User Manual
+## Documentation
 
-1. [Lithops design overview](docs/design.md)
+For documentation on using Lithops, see the [User guide](docs/user_guide.md).
 
-2. [Supported Clouds](docs/supported_clouds.md)
-
-3. High-level API
-   - [Futures API](docs/api_futures.md)
-   - [Multiprocessing API](docs/api_multiprocessing.md)
-
-4. Execution Modes
-   - [Localhost mode](docs/mode_localhost.md)
-   - [Serverless mode](docs/mode_serverless.md)
-   - [Standalone mode](docs/mode_standalone.md)
-
-5. [Functions design and parameters](docs/functions.md)
-   - [Reserved parameters](docs/functions.md#reserved-parameters)
-   - [Parameters format for a *single* call](docs/functions.md#parameters-in-the-call_async-method)
-   - [Parameters format for a *map* call](docs/functions.md#parameters-in-the-map-and-map_reduce-methods)
-   - [Common parameters across functions](docs/functions.md#common-parameters-across-functions-invocations)
-  
-6. [Lithops for big data analytics](docs/data_processing.md)
-   - [Processing data from a cloud object store](docs/data_processing.md#processing-data-from-a-cloud-object-storage-service)
-   - [Processing data from public URLs](docs/data_processing.md#processing-data-from-public-urls)
-
-7. [Run Lithops on Jupyter notebooks](examples/hello_world.ipynb)
-
-8. [Execute Airflow workflows using Lithops](https://github.com/lithops-cloud/airflow-plugin)
-
-9. [Lithops end-to-end Applications](https://github.com/lithops-cloud/applications)
-
-10. [Build and manage custom runtimes to run the functions](runtime/)
-
+If you are interested in contributing, see [CONTRIBUTING.md](./CONTRIBUTING.md) and [DEVELOPMENT.md](./DEVELOPMENT.md).
 
 ## Additional resources
 
