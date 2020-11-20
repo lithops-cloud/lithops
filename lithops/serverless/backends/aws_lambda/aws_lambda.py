@@ -262,14 +262,18 @@ class AWSLambdaBackend:
                     runtime_name, lambda_config.DEFAULT_RUNTIMES + user_runtimes))
 
     def build_runtime(self, runtime_name, requirements_file):
+        if requirements_file is None:
+            raise Exception('Please provide a `requirements.txt` file with the necessary modules')
         if self._python_runtime_name not in lambda_config.DEFAULT_RUNTIMES:
             raise Exception('Python runtime "{}" is not available for AWS Lambda, '
                             'please use one of {}'.format(self._python_runtime_name, lambda_config.DEFAULT_RUNTIMES))
 
+        logger.info('Going to create runtime {} ({}) for AWS Lambda...'.format(runtime_name, requirements_file))
         with open(requirements_file, 'r') as req_file:
             requirements = req_file.read()
 
         self.internal_storage.put_data('/'.join([lambda_config.USER_RUNTIME_PREFIX, runtime_name]), requirements)
+        logger.info('Ok - Created runtime {}'.format(runtime_name))
 
     def create_runtime(self, runtime_name, memory=3008, timeout=900):
         """
