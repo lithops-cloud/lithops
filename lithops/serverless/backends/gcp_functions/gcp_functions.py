@@ -241,6 +241,9 @@ class GCPFunctionsBackend:
         self.internal_storage.storage.delete_object(self.internal_storage.bucket, bin_name)
 
     def build_runtime(self, runtime_name, requirements_file):
+        if requirements_file is None:
+            raise Exception('Please provide a `requirements.txt` file with the necessary modules')
+        logger.info('Going to create runtime {} ({}) for GCP Functions...'.format(runtime_name, requirements_file))
         runtime_python_ver = 'python{}'.format(version_str(sys.version_info))
         if runtime_python_ver not in gcp_config.DEFAULT_RUNTIMES:
             raise Exception('Runtime {} is not available for GCP Functions, '
@@ -250,6 +253,8 @@ class GCPFunctionsBackend:
             requirements = req_file.read()
 
         self.internal_storage.put_data('/'.join([gcp_config.USER_RUNTIMES_PREFIX, runtime_name]), requirements)
+        logger.info('Ok - Created runtime {}'.format(runtime_name))
+        logger.info('Available runtimes: {}'.format(self._list_runtimes(default_runtimes=True)))
 
     def create_runtime(self, runtime_name, memory, timeout=60):
         logger.debug("Creating runtime {} - Memory: {} Timeout: {}".format(runtime_name, memory, timeout))
