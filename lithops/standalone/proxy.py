@@ -25,11 +25,13 @@ import json
 import subprocess as sp
 from gevent.pywsgi import WSGIServer
 
-from lithops.config import LITHOPS_TEMP_DIR, JOBS_DONE_DIR, \
+from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DONE_DIR, \
     REMOTE_INSTALL_DIR, PX_LOG_FILE, LOGS_DIR
 from lithops.storage.utils import create_job_key
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
+from lithops import constants
+from lithops.utils import verify_runtime_name
 
 
 os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
@@ -40,8 +42,7 @@ sys.stdout = log_file_fd
 sys.stderr = log_file_fd
 
 logging.basicConfig(filename=PX_LOG_FILE, level=logging.INFO,
-                    format=('%(asctime)s [%(levelname)s] %(module)s'
-                            ' - %(funcName)s: %(message)s'))
+                    format=constants.LOGGER_FORMAT)
 logger = logging.getLogger('proxy')
 
 proxy = flask.Flask(__name__)
@@ -119,8 +120,8 @@ def init_keeper():
     keeper.start()
 
 
-def error():
-    response = flask.jsonify({'error': 'The action did not receive a dictionary as an argument.'})
+def error(msg):
+    response = flask.jsonify({'error': msg})
     response.status_code = 404
     return response
 
@@ -136,7 +137,13 @@ def run():
 
     message = flask.request.get_json(force=True, silent=True)
     if message and not isinstance(message, dict):
-        return error()
+        return error('The action did not receive a dictionary as an argument.')
+
+    try:
+        runtime = message['job_description']['runtime_name']
+        verify_runtime_name(runtime)
+    except Exception as e:
+        return error(str(e))
 
     last_usage_time = time.time()
 
@@ -146,10 +153,8 @@ def run():
     backend_handler.hard_dismantle_timeout = standalone_config['hard_dismantle_timeout']
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
-    runtime = message['job_description']['runtime_name']
     executor_id = message['executor_id']
     job_id = message['job_id']
-
     job_key = create_job_key(executor_id, job_id)
     jobs[job_key] = 'running'
 
@@ -175,9 +180,14 @@ def preinstalls():
 
     message = flask.request.get_json(force=True, silent=True)
     if message and not isinstance(message, dict):
-        return error()
+        return error('The action did not receive a dictionary as an argument.')
 
-    runtime = message['runtime']
+    try:
+        runtime = message['runtime']
+        verify_runtime_name(runtime)
+    except Exception as e:
+        return error(str(e))
+
     localhost_handler = LocalhostHandler(message)
     runtime_meta = localhost_handler.create_runtime(runtime)
     response = flask.jsonify(runtime_meta)
@@ -236,7 +246,7 @@ def main():
     install_environment()
     init_keeper()
     port = int(os.getenv('PORT', 8080))
-    server = WSGIServer(('0.0.0.0', port), proxy, log=proxy.logger)
+    server = WSGIServer(('127.0.0.1', port), proxy, log=proxy.logger)
     server.serve_forever()
 
 

@@ -1,3 +1,19 @@
+#
+# Copyright Cloudlab URV 2020
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 import sys
 import os
 import uuid
@@ -5,11 +21,11 @@ import flask
 import logging
 import pkgutil
 from lithops.version import __version__
-from lithops.config import default_logging_config
+from lithops.utils import setup_logger
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
 
-logger = logging.getLogger('__main__')
+logger = logging.getLogger('lithops.worker')
 
 
 proxy = flask.Flask(__name__)
@@ -29,8 +45,7 @@ def run():
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
 
-    log_level = message['log_level']
-    default_logging_config(log_level)
+    setup_logger(message['log_level'])
 
     if 'remote_invoker' in message:
         logger.info("Lithops v{} - Starting Cloud Run invoker".format(__version__))

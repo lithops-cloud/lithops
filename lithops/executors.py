@@ -30,11 +30,12 @@ from lithops.invokers import ServerlessInvoker, StandaloneInvoker
 from lithops.storage import InternalStorage
 from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from lithops.job import create_map_job, create_reduce_job
-from lithops.config import default_config, extract_storage_config, \
-    default_logging_config, extract_localhost_config, \
-    extract_standalone_config, extract_serverless_config, LOCALHOST,\
-    SERVERLESS, STANDALONE, CLEANER_DIR, CLEANER_LOG_FILE
-from lithops.utils import timeout_handler, is_notebook, \
+from lithops.config import get_mode, default_config, extract_storage_config,\
+    extract_localhost_config, extract_standalone_config, \
+    extract_serverless_config
+from lithops.constants import LOCALHOST, SERVERLESS, STANDALONE, CLEANER_DIR,\
+    CLEANER_LOG_FILE
+from lithops.utils import timeout_handler, is_notebook, setup_logger, \
     is_unix_system, is_lithops_worker, create_executor_id
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
@@ -51,27 +52,17 @@ class FunctionExecutor:
     for the Localhost, Serverless and Standalone executors
     """
 
-    def __init__(self, type=None, mode=None, config=None, backend=None, storage=None,
+    def __init__(self, mode=None, config=None, backend=None, storage=None,
                  runtime=None, runtime_memory=None, rabbitmq_monitor=None,
                  workers=None, remote_invoker=None, log_level=None):
-
-        mode = mode or type
-
-        if mode is None:
-            config = default_config(copy.deepcopy(config))
-            mode = config['lithops']['mode']
-
-        if mode not in [LOCALHOST, SERVERLESS, STANDALONE]:
+        """ Create a FunctionExecutor Class """
+        if mode and mode not in [LOCALHOST, SERVERLESS, STANDALONE]:
             raise Exception("Function executor mode must be one of '{}', '{}' "
                             "or '{}'".format(LOCALHOST, SERVERLESS, STANDALONE))
-
         if log_level:
-            default_logging_config(log_level)
+            setup_logger(log_level)
 
-        if type is not None:
-            logger.warning("'type' parameter is deprecated and it will be removed"
-                           "in future releases. Use 'mode' parameter instead")
-
+        mode = mode or get_mode(config)
         config_ow = {'lithops': {'mode': mode}, mode: {}}
 
         if runtime is not None:
@@ -116,6 +107,7 @@ class FunctionExecutor:
         self.storage = self.internal_storage.storage
 
         self.futures = []
+        self.cleaned_jobs = set()
         self.total_jobs = 0
         self.last_call = None
 
@@ -255,7 +247,7 @@ class FunctionExecutor:
         This method is executed all within CF.
 
         :param map_function: the function to map over the data
-        :param map_iterdata:  the function to reduce over the futures
+        :param map_iterdata:  An iterable of input data
         :param reduce_function:  the function to reduce over the futures
         :param extra_env: Additional environment variables for action environment. Default None.
         :param extra_args: Additional arguments to pass to function activation. Default None.
@@ -525,6 +517,7 @@ class FunctionExecutor:
         :param clean_cloudobjects: true/false
         :param spawn_cleaner true/false
         """
+
         os.makedirs(CLEANER_DIR, exist_ok=True)
 
         def save_data_to_clean(data):
@@ -540,20 +533,22 @@ class FunctionExecutor:
 
         futures = fs or self.futures
         futures = [futures] if type(futures) != list else futures
+        present_jobs = {create_job_key(f.executor_id, f.job_id) for f in futures
+                        if f.executor_id.count('-') == 1}
+        jobs_to_clean = present_jobs - self.cleaned_jobs
 
-        if futures:
+        if jobs_to_clean:
             logger.info("ExecutorID {} - Cleaning temporary data"
                         .format(self.executor_id))
-            jobs_to_clean = {create_job_key(f.executor_id, f.job_id) for f in futures
-                             if f.done and f.executor_id.count('-') == 1}
             data = {'jobs_to_clean': jobs_to_clean,
                     'clean_cloudobjects': clean_cloudobjects,
                     'storage_config': self.internal_storage.get_storage_config()}
             save_data_to_clean(data)
+            self.cleaned_jobs.update(jobs_to_clean)
 
-        if (futures or cs) and spawn_cleaner:
+        if (jobs_to_clean or cs) and spawn_cleaner:
             log_file = open(CLEANER_LOG_FILE, 'a')
-            cmdstr = '{} -m lithops.util.cleaner'.format(sys.executable)
+            cmdstr = '{} -m lithops.scripts.cleaner'.format(sys.executable)
             sp.Popen(cmdstr, shell=True, stdout=log_file, stderr=log_file)
 
     def dismantle(self):

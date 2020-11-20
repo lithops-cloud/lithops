@@ -1,6 +1,6 @@
 import os
 import subprocess
-from lithops.utils import sizeof_fmt, is_unix_system
+from lithops.utils import sizeof_fmt, is_unix_system, is_lithops_worker
 try:
     from lithops.libs import ps_mem
 except Exception:
@@ -12,8 +12,11 @@ def get_memory_usage(formatted=True):
     Gets the current memory usage of the runtime.
     To be used only in the action code.
     """
-    if not is_unix_system():
+    if not is_unix_system() or os.geteuid() != 0:
+        # Non Unix systems and non root users can't run
+        # the ps_mem module
         return
+
     split_args = False
     pids_to_show = None
     discriminate_by_pid = False

@@ -23,7 +23,7 @@ import shutil
 import subprocess as sp
 from shutil import copyfile
 
-from lithops.config import TEMP, LITHOPS_TEMP_DIR, JOBS_PREFIX,\
+from lithops.constants import TEMP, LITHOPS_TEMP_DIR, JOBS_PREFIX,\
     RN_LOG_FILE, LOGS_DIR
 from lithops.storage.utils import create_job_key
 from lithops.version import __version__
@@ -45,7 +45,7 @@ class LocalhostHandler:
         self.config = localhost_config
         self.runtime = self.config['runtime']
 
-        if self.runtime == 'python3':
+        if self.runtime.startswith('python3'):
             self.env = DefaultEnv()
             self.env_type = 'default'
         else:
@@ -132,8 +132,8 @@ class DockerEnv:
     def get_execution_cmd(self, docker_image_name):
         cmd = ('docker pull {} > /dev/null 2>&1; docker run '
                '--user $(id -u):$(id -g) --rm -v {}:/tmp --entrypoint '
-               '"python" {} {}'.format(docker_image_name, TEMP,
-                                       docker_image_name, RUNNER))
+               '"python" {} /tmp/lithops/runner.py'
+               .format(docker_image_name, TEMP, docker_image_name))
         return cmd
 
 

@@ -49,10 +49,17 @@ class CloudObject:
         self.bucket = bucket
         self.key = key
 
+    def __str__(self):
+        path = '{}://{}/{}'.format(self.backend, self.bucket, self.key)
+        return '<CloudObject at {}>'.format(path)
+
 
 class CloudObjectUrl:
     def __init__(self, url_path):
         self.path = url_path
+
+    def __str__(self):
+        return '<CloudObject at {}>'.format(self.path)
 
 
 def clean_bucket(storage, bucket, prefix, sleep=5):

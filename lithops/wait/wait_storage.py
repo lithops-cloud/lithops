@@ -24,7 +24,7 @@ import logging
 import concurrent.futures
 from threading import Thread
 from lithops.storage.utils import create_status_key
-from lithops.config import JOBS_PREFIX
+from lithops.constants import JOBS_PREFIX
 
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,8 @@ def wait_storage(fs, internal_storage, download_results=False,
     RANDOM_QUERY = False
 
     running_futures = set()
-    ftc = Thread(target=_future_timeout_checker_thread, args=(running_futures, internal_storage, throw_except))
+    ftc = Thread(target=_future_timeout_checker,
+                 args=(fs, running_futures, internal_storage, throw_except))
     ftc.daemon = True
     ftc.start()
 
@@ -165,7 +166,6 @@ def _wait_storage(fs, running_futures, internal_storage, download_results, throw
         # the intersection of those that are done
         current_time = time.time()
         callids_running_in_job, callids_done_in_job = internal_storage.get_job_status(executor_id, job_id)
-
         for f in not_done_futures:
             for call in callids_running_in_job:
                 if (f.executor_id, f.job_id, f.call_id) == call[0]:
@@ -181,7 +181,6 @@ def _wait_storage(fs, running_futures, internal_storage, download_results, throw
         #       .format(round(time.time()-current_time, 3),  len(callids_running_in_job), len(callids_done_in_job)))
 
         not_done_call_ids = set([(f.executor_id, f.job_id, f.call_id) for f in not_done_futures])
-
         done_call_ids = not_done_call_ids.intersection(callids_done_in_job)
         not_done_call_ids = not_done_call_ids - done_call_ids
         still_not_done_futures += [f for f in not_done_futures if ((f.executor_id, f.job_id, f.call_id) in not_done_call_ids)]
@@ -265,7 +264,10 @@ def _wait_storage(fs, running_futures, internal_storage, download_results, throw
     return fs_dones, fs_notdones
 
 
-def _future_timeout_checker_thread(running_futures, internal_storage, throw_except):
+def _future_timeout_checker(futures,
+                            running_futures,
+                            internal_storage,
+                            throw_except):
     should_run = True
     while should_run:
         try:
@@ -277,6 +279,11 @@ def _future_timeout_checker_thread(running_futures, internal_storage, throw_exce
                         if current_time > fut_timeout:
                             msg = 'The function did not run as expected.'
                             raise TimeoutError('HANDLER', msg)
+
+                if all([not f.running for f in running_futures])\
+                   and len(futures) == len(running_futures):
+                    should_run = False
+                    break
                 time.sleep(5)
         except TimeoutError:
             # generate fake TimeoutError call status

@@ -12,8 +12,6 @@ The IBM VPC client is a standalone compute backend. It is used for start and sto
 
 4. Reserve and associate a floating IP address in [IBM VPC floating IPs UI](https://cloud.ibm.com/vpc-ext/network/floatingIPs) to be used for the virtual server instance.
 
-5. Access to your [security groups](https://cloud.ibm.com/vpc-ext/network/securityGroups) rules and open the port 8080
-
 ### Configuration
 
 1. Get your IBM IAM API key, you can create new keys [here](https://cloud.ibm.com/iam/apikeys).
@@ -43,7 +41,11 @@ The IBM VPC client is a standalone compute backend. It is used for start and sto
 
 Note that the first time you execute a job in a brand new VM instance, the initial installation process can take up to ~3 minutes. 
 
-You can view the executions logs in your local machine at */tmp/lithops/functions.log* (Or equivalent in Windows, Mac OS).
+You can view the executions logs in your local machine using the *lithops client*:
+
+```bash
+$ lithops logs poll
+```
 
 #### Summary of configuration keys for IBM VPC
 

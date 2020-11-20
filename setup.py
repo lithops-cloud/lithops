@@ -1,5 +1,53 @@
 #!/usr/bin/env python
 from setuptools import setup, find_packages
+from itertools import chain
+
+
+install_requires = [
+    'Click',
+    'pandas',
+    'PyYAML',
+    'python-dateutil',
+    'pika==0.13.1',
+    'glob2',
+    'tqdm',
+    'lxml',
+    'tblib',
+    'docker',
+    'requests',
+    'seaborn',
+    'paramiko',
+    'matplotlib',
+    'kubernetes',
+    'ibm-cos-sdk',
+    'redis'
+]
+
+
+extras_require = {
+    'aws': [
+        'boto3'
+    ],
+    'gcp': [
+        'gcsfs',
+        'httplib2',
+        'google-cloud-storage',
+        'google-cloud-pubsub',
+        'google-api-python-client',
+        'google-auth'
+    ],
+    'aliyun': [
+        'aliyun-fc2',
+        'oss2'
+    ],
+    'azure': [
+        'azure-storage-blob==2.1.0',
+        'azure-storage-queue==2.1.0'
+    ]
+}
+
+extras_require["all"] = list(set(chain.from_iterable(extras_require.values())))
+
 
 # how to get version info into the project
 exec(open('lithops/version.py').read())
@@ -11,50 +59,12 @@ setup(
     description='Lithops lets you transparently run your Python functions in the Cloud',
     author_email='gilv@il.ibm.com, josep.sampe@urv.cat',
     packages=find_packages(),
-    install_requires=[
-        'Click',
-        'pandas',
-        'PyYAML',
-        'python-dateutil',
-        'pika==0.13.1',
-        'glob2',
-        'tqdm',
-        'lxml',
-        'tblib',
-        'docker',
-        'requests',
-        'seaborn',
-        'paramiko',
-        'matplotlib',
-        'kubernetes',
-        'ibm-cos-sdk',
-        'redis'
-    ],
-    extras_require={
-        'aws': [
-            'boto3'
-        ],
-        'gcp': [
-            'gcsfs',
-            'httplib2',
-            'google-cloud-storage',
-            'google-cloud-pubsub',
-            'google-api-python-client',
-            'google-auth'
-        ],
-        'aliyun': [
-            'aliyun-fc2',
-            'oss2'
-        ],
-        'azure': [
-            'azure-storage-blob==2.1.0',
-            'azure-storage-queue==2.1.0'
-        ]
-    },
+    install_requires=install_requires,
+    extras_require=extras_require,
     include_package_data=True,
     entry_points='''
         [console_scripts]
-        lithops=lithops.cli.cli:cli
+        lithops=lithops.scripts.cli:lithops_cli
     ''',
     classifiers=[
         'Development Status :: 5 - Production/Stable',

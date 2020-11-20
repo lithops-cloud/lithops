@@ -1,15 +1,15 @@
 """
-Simple Lithops example using the 'ibm_cos' parameter, which is
-a ready-to-use ibm_boto3.CLient() instance.
+Simple Lithops example using the 'storage' parameter, which is
+a ready-to-use Storage instance.
 """
 import lithops
 
 
-def my_function(bucket_name, key, storage):
-    print('I am processing the object //{}/{}'.format(bucket_name, key))
+def my_function(bucket_name, obj_key, storage):
+    print('I am processing the object //{}/{}'.format(bucket_name, obj_key))
     counter = {}
 
-    data = storage.get_object(bucket_name, key)
+    data = storage.get_object(bucket_name, obj_key)
 
     for line in data.splitlines():
         for word in line.decode('utf-8').split():
@@ -22,6 +22,8 @@ def my_function(bucket_name, key, storage):
 
 
 if __name__ == '__main__':
+    bucket_name = 'lithops-sample-data'
+    obj_key = 'obj1.txt'
     fexec = lithops.FunctionExecutor()
-    fexec.call_async(my_function, ['lithops-sample-data', 'obj1.txt'])
+    fexec.call_async(my_function, [bucket_name, obj_key])
     print(fexec.get_result())

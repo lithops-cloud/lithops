@@ -1,16 +1,42 @@
 # Changelog
 
-## [v2.2.4.dev0]
+## [v2.2.6.dev0]
 
 ### Added
-- [Core] New lithops logs command
+- [Core] Add joblib backend for scikit-learn
+- [Cli] Add more config paramters in lithops cli
+- [IBM COS] Add 'region' config param
+- [Knative] Add 'min_instances', 'max_instances' and 'concurrency' config params
+
+### Fixed
+- [Core] Fix job monitoring on Windows hosts
+- [Knative] Minor fix when using knative from master branch
+- [GCE] Fix in 'lithops runtime' cli
+- [Core] Minor fix in tests
+
+
+## [v2.2.5]
+
+### Fixed
+- [Core] Fixed issue in serverless config
+- [Core] Fixed issue in localhost storage backend
+- [Code Engine] Fixed issue in code engine backend
+
+## [v2.2.4]
+
+### Added
+- [Core] New 'lithops logs' command
 - [Core] New job cleaner process
 
 ### Changed
 - [Core] localhost/standalone logging per job-id
+- [Core] Updated tblib to 1.7.0
+- [Core] Updated ps_mem lib
+- [Core] Standalone logic to ssh
 
 ### Fixed
 - [Core] Fixed issue in localhost executor and Mac OS
+- [Core] Fixed issue in localhost storage backend
 
 
 ## [v2.2.3]

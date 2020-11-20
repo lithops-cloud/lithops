@@ -15,6 +15,7 @@
 #
 
 import os
+import shlex
 import json
 import time
 import select
@@ -23,9 +24,8 @@ import importlib
 import requests
 from threading import Thread
 
-from lithops.utils import is_lithops_worker
-from lithops.serverless.utils import create_function_handler_zip
-from lithops.config import LOGS_DIR, REMOTE_INSTALL_DIR, FN_LOG_FILE
+from lithops.utils import is_lithops_worker, create_handler_zip
+from lithops.constants import LOGS_DIR, REMOTE_INSTALL_DIR, FN_LOG_FILE
 from lithops.storage.utils import create_job_key
 
 logger = logging.getLogger(__name__)
@@ -66,10 +66,6 @@ class StandaloneHandler:
         self.hard_dismantle_timeout = self.config.get('hard_dismantle_timeout')
         self.soft_dismantle_timeout = self.config.get('soft_dismantle_timeout')
 
-        # self.cpu = self.config.get('cpu', 2)
-        # self.memory = self.config.get('memory', 4)
-        # self.instances = self.config.get('instances', 1)
-
         try:
             module_location = 'lithops.standalone.backends.{}'.format(self.backend_name)
             sb_module = importlib.import_module(module_location)
@@ -86,7 +82,7 @@ class StandaloneHandler:
         self.ssh_credentials = self.backend.get_ssh_credentials()
         self.ip_address = self.backend.get_ip_address()
 
-        from lithops.standalone.utils import SSHClient
+        from lithops.util.ssh_client import SSHClient
         self.ssh_client = SSHClient(self.ssh_credentials)
 
         logger.debug("Standalone handler created successfully")
@@ -130,11 +126,18 @@ class StandaloneHandler:
         Checks if the proxy is ready to receive http connections
         """
         try:
-            url = "http://{}:{}/ping".format(self.ip_address, PROXY_SERVICE_PORT)
-            r = requests.get(url, timeout=1)
-            if r.status_code == 200:
-                return True
-            return False
+            if self.is_lithops_worker:
+                url = "http://{}:{}/ping".format('127.0.0.1', PROXY_SERVICE_PORT)
+                r = requests.get(url, timeout=1, verify=True)
+                if r.status_code == 200:
+                    return True
+                return False
+            else:
+                cmd = 'curl -X GET http://127.0.0.1:8080/ping'
+                out = self.ssh_client.run_remote_command(self.ip_address, cmd, timeout=2)
+                data = json.loads(out)
+                if data['response'] == 'pong':
+                    return True
         except Exception:
             return False
 
@@ -223,9 +226,16 @@ class StandaloneHandler:
                     .format(executor_id, job_id))
         logger.info("View execution logs at {}".format(log_file))
 
-        url = "http://{}:{}/run".format(self.ip_address, PROXY_SERVICE_PORT)
-        r = requests.post(url, data=json.dumps(job_payload))
-        response = r.json()
+        if self.is_lithops_worker:
+            url = "http://{}:{}/run".format('127.0.0.1', PROXY_SERVICE_PORT)
+            r = requests.post(url, data=json.dumps(job_payload), verify=True)
+            response = r.json()
+        else:
+            cmd = ('curl -X POST http://127.0.0.1:8080/run -d {} '
+                   '-H \'Content-Type: application/json\''
+                   .format(shlex.quote(json.dumps(job_payload))))
+            out = self.ssh_client.run_remote_command(self.ip_address, cmd)
+            response = json.loads(out)
 
         return response['activationId']
 
@@ -240,9 +250,17 @@ class StandaloneHandler:
 
         logger.info('Extracting runtime metadata information')
         payload = {'runtime': runtime}
-        url = "http://{}:{}/preinstalls".format(self.ip_address, PROXY_SERVICE_PORT)
-        r = requests.get(url, data=json.dumps(payload))
-        runtime_meta = r.json()
+
+        if self.is_lithops_worker:
+            url = "http://{}:{}/preinstalls".format('127.0.0.1', PROXY_SERVICE_PORT)
+            r = requests.get(url, data=json.dumps(payload), verify=True)
+            runtime_meta = r.json()
+        else:
+            cmd = ('curl http://127.0.0.1:8080/preinstalls -d {} '
+                   '-H \'Content-Type: application/json\' -X GET'
+                   .format(shlex.quote(json.dumps(payload))))
+            out = self.ssh_client.run_remote_command(self.ip_address, cmd)
+            runtime_meta = json.loads(out)
 
         return runtime_meta
 
@@ -280,13 +298,13 @@ class StandaloneHandler:
 
     def _setup_proxy(self):
         logger.info('Installing Lithops proxy in the VM instance')
-        logger.debug('Be patient, installation process can take up to 3 minutes'
+        logger.debug('Be patient, installation process can take up to 3 minutes '
                      'if this is the first time you use the VM instance')
 
         service_file = '/etc/systemd/system/{}'.format(PROXY_SERVICE_NAME)
         self.ssh_client.upload_data_to_file(self.ip_address, PROXY_SERVICE_FILE, service_file)
 
-        cmd = 'mkdir -p {}; '.format(REMOTE_INSTALL_DIR)
+        cmd = 'rm -R {}; mkdir -p {}; '.format(REMOTE_INSTALL_DIR, REMOTE_INSTALL_DIR)
         cmd += 'systemctl daemon-reload; systemctl stop {}; '.format(PROXY_SERVICE_NAME)
         self.ssh_client.run_remote_command(self.ip_address, cmd)
 
@@ -294,15 +312,17 @@ class StandaloneHandler:
         self.ssh_client.upload_data_to_file(self.ip_address, json.dumps(self.config), config_file)
 
         src_proxy = os.path.join(os.path.dirname(__file__), 'proxy.py')
-        create_function_handler_zip(FH_ZIP_LOCATION, src_proxy)
+        create_handler_zip(FH_ZIP_LOCATION, src_proxy)
         self.ssh_client.upload_local_file(self.ip_address, FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip')
         os.remove(FH_ZIP_LOCATION)
 
+        # Install dependenices
         cmd = 'apt-get update; apt-get install unzip python3-pip -y; '
         cmd += 'pip3 install flask gevent pika==0.13.1; '
         cmd += 'unzip -o /tmp/lithops_standalone.zip -d {} > /dev/null 2>&1; '.format(REMOTE_INSTALL_DIR)
         cmd += 'rm /tmp/lithops_standalone.zip; '
         cmd += 'chmod 644 {}; '.format(service_file)
+        # Start proxy service
         cmd += 'systemctl daemon-reload; '
         cmd += 'systemctl stop {}; '.format(PROXY_SERVICE_NAME)
         cmd += 'systemctl enable {}; '.format(PROXY_SERVICE_NAME)

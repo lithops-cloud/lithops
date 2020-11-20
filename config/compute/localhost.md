@@ -4,7 +4,13 @@ Lithops uses local processes to run functions by default. In this mode of execut
 
 ### Execution environments
 
-The localhost executor can run functions in multiple environments. Currently it supports the *default python3* and the *Docker* environments. The environment is automatically chosen depending on if you provided a Docker image as a runtime or not. In both cases, you can view the executions logs at */tmp/lithops/functions.log* (Or equivalent in Windows, Mac OS).
+The localhost executor can run functions in multiple environments. Currently it supports the *default python3* and the *Docker* environments. The environment is automatically chosen depending on if you provided a Docker image as a runtime or not. 
+
+In both cases, you can view the executions logs in your local machine using the *lithops client*:
+
+```bash
+$ lithops logs poll
+```
 
 #### Default Environment
 The default environment runs the functions in the same *python3* interpreter that you ran the lithops script.

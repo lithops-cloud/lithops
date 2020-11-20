@@ -1,5 +1,6 @@
 #
 # (C) Copyright IBM Corp. 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,8 +17,9 @@
 
 import logging
 import requests
+from concurrent.futures import ThreadPoolExecutor
+
 from lithops import utils
-from multiprocessing.pool import ThreadPool
 from lithops.storage import Storage
 from lithops.storage.utils import CloudObject, CloudObjectUrl
 
@@ -79,16 +81,18 @@ def create_partitions(lithops_config, internal_storage, map_iterdata, chunk_size
         objects = {}
         if obj_names:
             for bucket, prefix in obj_names:
-                logger.debug("Listing objects in '{}://{}'".format(sb, '/'.join([bucket, prefix])))
+                logger.debug("Listing objects in '{}://{}/'"
+                             .format(sb, '/'.join([bucket, prefix])))
                 if bucket not in objects:
                     objects[bucket] = []
-                objects[bucket].extend(storage.list_objects(bucket, prefix))
+                objects[bucket].extend(storage.list_objects(bucket, prefix+'/'))
         elif prefixes:
             for bucket, prefix in prefixes:
-                logger.debug("Listing objects in '{}://{}'".format(sb, '/'.join([bucket, prefix])))
+                logger.debug("Listing objects in '{}://{}/'"
+                             .format(sb, '/'.join([bucket, prefix])))
                 if bucket not in objects:
                     objects[bucket] = []
-                objects[bucket].extend(storage.list_objects(bucket, prefix))
+                objects[bucket].extend(storage.list_objects(bucket, prefix+'/'))
         elif buckets:
             for bucket in buckets:
                 logger.debug("Listing objects in '{}://{}'".format(sb, bucket))
@@ -264,9 +268,7 @@ def _split_objects_from_urls(map_func_args_list, chunk_size, chunk_number):
 
         parts_per_object.append(total_partitions)
 
-    pool = ThreadPool(128)
-    pool.map(_split, map_func_args_list)
-    pool.close()
-    pool.join()
+    with ThreadPoolExecutor(128) as ex:
+        ex.map(_split, map_func_args_list)
 
     return partitions, parts_per_object
