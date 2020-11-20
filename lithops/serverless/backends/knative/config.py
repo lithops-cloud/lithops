@@ -33,7 +33,6 @@ RUNTIME_CPU = 1000  # 1 vCPU
 RUNTIME_MIN_INSTANCES = 0
 RUNTIME_MAX_INSTANCES = 250
 RUNTIME_CONCURRENCY = 1
-CONCURRENT_WORKERS = int(RUNTIME_MAX_INSTANCES / RUNTIME_CONCURRENCY)
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_knative.zip')
 
@@ -142,22 +141,26 @@ spec:
       labels:
         type: lithops-runtime
       annotations:
-        # Target 1 in-flight-requests per pod.
-        #autoscaling.knative.dev/target: 1
+        autoscaling.knative.dev/target: "1"
         autoscaling.knative.dev/minScale: "0"
         autoscaling.knative.dev/maxScale: "250"
     spec:
       containerConcurrency: 1
-      timeoutSeconds: TIMEOUT
+      timeoutSeconds: 600
       containers:
       - image: IMAGE
+        env:
+          - name: CONCURRENCY
+            value: "1"
+          - name: TIMEOUT
+            value: "600"
         resources:
           limits:
-            memory: MEMORY
-            #cpu: 1000m
+            memory: "256Mi"
+            cpu: "1000m"
           requests:
-            memory: MEMORY
-            #cpu: 1000m
+            memory: "256Mi"
+            cpu: "1000m"
 """
 
 
@@ -209,4 +212,4 @@ def load_config(config_data):
     if 'workers' not in config_data['lithops']:
         max_instances = config_data['knative']['max_instances']
         concurrency = config_data['knative']['concurrency']
-        config_data['lithops']['workers'] = int(max_instances / concurrency)
+        config_data['lithops']['workers'] = int(max_instances * concurrency)

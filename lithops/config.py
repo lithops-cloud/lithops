@@ -67,9 +67,26 @@ def get_default_config_filename():
             logging.warning('~/.lithops_config is deprecated. Please move your'
                             ' configuration file into ~/.lithops/config')
 
-    logger.info('Getting configuration from {}'.format(config_filename))
-
     return config_filename
+
+
+def get_mode(config_data=None):
+    """ Return lithops execution mode set in configuration """
+    if not config_data:
+        if 'LITHOPS_CONFIG' in os.environ:
+            config_data = json.loads(os.environ.get('LITHOPS_CONFIG'))
+        else:
+            config_filename = get_default_config_filename()
+            if config_filename:
+                config_data = load_yaml_config(config_filename)
+            else:
+                # No config file found. Set to Localhost mode
+                config_data = {'lithops': {'mode': constants.LOCALHOST}}
+
+    if 'mode' not in config_data['lithops']:
+        return constants.MODE_DEFAULT
+
+    return config_data['lithops']['mode']
 
 
 def default_config(config_data=None, config_overwrite={}):
@@ -86,6 +103,7 @@ def default_config(config_data=None, config_overwrite={}):
             config_data = json.loads(os.environ.get('LITHOPS_CONFIG'))
         else:
             config_filename = get_default_config_filename()
+            logger.info('Getting configuration from {}'.format(config_filename))
             if config_filename:
                 config_data = load_yaml_config(config_filename)
             else:
@@ -165,7 +183,7 @@ def default_config(config_data=None, config_overwrite={}):
         if 'runtime' not in config_data[constants.STANDALONE]:
             config_data[constants.STANDALONE]['runtime'] = constants.STANDALONE_RUNTIME_DEFAULT
 
-        sb = config_data['standalone']['backend']
+        sb = config_data[constants.STANDALONE]['backend']
         logger.debug("Loading Standalone backend module: {}".format(sb))
         sb_config = importlib.import_module('lithops.standalone.backends.{}.config'.format(sb))
         sb_config.load_config(config_data)
@@ -222,7 +240,7 @@ def extract_localhost_config(config):
 def extract_serverless_config(config):
     serverless_config = config[constants.SERVERLESS].copy()
     sb = config[constants.SERVERLESS]['backend']
-    serverless_config[sb] = config[sb]
+    serverless_config[sb] = config[sb] if sb in config and config[sb] else {}
     serverless_config[sb]['user_agent'] = 'lithops/{}'.format(__version__)
 
     if 'region' in config[constants.SERVERLESS]:
@@ -234,7 +252,7 @@ def extract_serverless_config(config):
 def extract_standalone_config(config):
     standalone_config = config[constants.STANDALONE].copy()
     sb = config[constants.STANDALONE]['backend']
-    standalone_config[sb] = config[sb]
+    standalone_config[sb] = config[sb] if sb in config and config[sb] else {}
     standalone_config[sb]['user_agent'] = 'lithops/{}'.format(__version__)
 
     if 'region' in config[constants.STANDALONE]:

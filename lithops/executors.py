@@ -30,7 +30,7 @@ from lithops.invokers import ServerlessInvoker, StandaloneInvoker
 from lithops.storage import InternalStorage
 from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from lithops.job import create_map_job, create_reduce_job
-from lithops.config import default_config, extract_storage_config, \
+from lithops.config import get_mode, default_config, extract_storage_config,\
     extract_localhost_config, extract_standalone_config, \
     extract_serverless_config
 from lithops.constants import LOCALHOST, SERVERLESS, STANDALONE, CLEANER_DIR,\
@@ -52,27 +52,17 @@ class FunctionExecutor:
     for the Localhost, Serverless and Standalone executors
     """
 
-    def __init__(self, type=None, mode=None, config=None, backend=None, storage=None,
+    def __init__(self, mode=None, config=None, backend=None, storage=None,
                  runtime=None, runtime_memory=None, rabbitmq_monitor=None,
                  workers=None, remote_invoker=None, log_level=None):
-
-        mode = mode or type
-
-        if mode is None:
-            config = default_config(copy.deepcopy(config))
-            mode = config['lithops']['mode']
-
-        if mode not in [LOCALHOST, SERVERLESS, STANDALONE]:
+        """ Create a FunctionExecutor Class """
+        if mode and mode not in [LOCALHOST, SERVERLESS, STANDALONE]:
             raise Exception("Function executor mode must be one of '{}', '{}' "
                             "or '{}'".format(LOCALHOST, SERVERLESS, STANDALONE))
-
         if log_level:
             setup_logger(log_level)
 
-        if type is not None:
-            logger.warning("'type' parameter is deprecated and it will be removed"
-                           "in future releases. Use 'mode' parameter instead")
-
+        mode = mode or get_mode(config)
         config_ow = {'lithops': {'mode': mode}, mode: {}}
 
         if runtime is not None:
