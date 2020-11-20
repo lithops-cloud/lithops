@@ -1,5 +1,6 @@
 #
 # (C) Copyright IBM Corp. 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,8 +17,9 @@
 
 import logging
 import requests
+from concurrent.futures import ThreadPoolExecutor
+
 from lithops import utils
-from multiprocessing.pool import ThreadPool
 from lithops.storage import Storage
 from lithops.storage.utils import CloudObject, CloudObjectUrl
 
@@ -266,9 +268,7 @@ def _split_objects_from_urls(map_func_args_list, chunk_size, chunk_number):
 
         parts_per_object.append(total_partitions)
 
-    pool = ThreadPool(128)
-    pool.map(_split, map_func_args_list)
-    pool.close()
-    pool.join()
+    with ThreadPoolExecutor(128) as ex:
+        ex.map(_split, map_func_args_list)
 
     return partitions, parts_per_object

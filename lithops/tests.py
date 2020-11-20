@@ -476,4 +476,4 @@ if __name__ == '__main__':
     if args.test == 'help':
         print_help()
     else:
-        run_tests(args.test, args.executor, args.config)
+        run_tests(args.test, args.mode, args.config)

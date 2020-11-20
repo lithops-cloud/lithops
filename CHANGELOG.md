@@ -2,8 +2,16 @@
 
 ## [v2.2.6.dev0]
 
+### Added
+- [Core] Add joblib backend for scikit-learn
+- [IBM COS] Add 'region' config param
+- [Knative] Add 'min_instances', 'max_instances' and 'concurrency' config params
+
 ### Fixed
 - [Core] Fix job monitoring on Windows hosts
+- [Knative] Minor fix when using knative from master branch
+- [GCE] Fix in 'lithops runtime' cli
+- [Core] Minor fix in tests
 
 
 ## [v2.2.5]

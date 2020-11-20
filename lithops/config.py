@@ -166,7 +166,7 @@ def default_config(config_data=None, config_overwrite={}):
         if 'runtime' not in config_data[constants.STANDALONE]:
             config_data[constants.STANDALONE]['runtime'] = constants.STANDALONE_RUNTIME_DEFAULT
 
-        sb = config_data['standalone']['backend']
+        sb = config_data[constants.STANDALONE]['backend']
         logger.debug("Loading Standalone backend module: {}".format(sb))
         sb_config = importlib.import_module('lithops.standalone.backends.{}.config'.format(sb))
         sb_config.load_config(config_data)
@@ -223,7 +223,7 @@ def extract_localhost_config(config):
 def extract_serverless_config(config):
     serverless_config = config[constants.SERVERLESS].copy()
     sb = config[constants.SERVERLESS]['backend']
-    serverless_config[sb] = config[sb]
+    serverless_config[sb] = config[sb] if sb in config and config[sb] else {}
     serverless_config[sb]['user_agent'] = 'lithops/{}'.format(__version__)
 
     if 'region' in config[constants.SERVERLESS]:
@@ -235,7 +235,7 @@ def extract_serverless_config(config):
 def extract_standalone_config(config):
     standalone_config = config[constants.STANDALONE].copy()
     sb = config[constants.STANDALONE]['backend']
-    standalone_config[sb] = config[sb]
+    standalone_config[sb] = config[sb] if sb in config and config[sb] else {}
     standalone_config[sb]['user_agent'] = 'lithops/{}'.format(__version__)
 
     if 'region' in config[constants.STANDALONE]:
