@@ -4,6 +4,7 @@
 
 ### Added
 - [Core] Add joblib backend for scikit-learn
+- [Cli] Add more config paramters in lithops cli
 - [IBM COS] Add 'region' config param
 - [Knative] Add 'min_instances', 'max_instances' and 'concurrency' config params
 

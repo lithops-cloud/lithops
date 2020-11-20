@@ -67,9 +67,26 @@ def get_default_config_filename():
             logging.warning('~/.lithops_config is deprecated. Please move your'
                             ' configuration file into ~/.lithops/config')
 
-    logger.info('Getting configuration from {}'.format(config_filename))
-
     return config_filename
+
+
+def get_mode(config_data=None):
+    """ Return lithops execution mode set in configuration """
+    if not config_data:
+        if 'LITHOPS_CONFIG' in os.environ:
+            config_data = json.loads(os.environ.get('LITHOPS_CONFIG'))
+        else:
+            config_filename = get_default_config_filename()
+            if config_filename:
+                config_data = load_yaml_config(config_filename)
+            else:
+                # No config file found. Set to Localhost mode
+                config_data = {'lithops': {'mode': constants.LOCALHOST}}
+
+    if 'mode' not in config_data['lithops']:
+        return constants.MODE_DEFAULT
+
+    return config_data['lithops']['mode']
 
 
 def default_config(config_data=None, config_overwrite={}):
@@ -86,6 +103,7 @@ def default_config(config_data=None, config_overwrite={}):
             config_data = json.loads(os.environ.get('LITHOPS_CONFIG'))
         else:
             config_filename = get_default_config_filename()
+            logger.info('Getting configuration from {}'.format(config_filename))
             if config_filename:
                 config_data = load_yaml_config(config_filename)
             else:

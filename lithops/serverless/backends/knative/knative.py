@@ -103,12 +103,16 @@ class KnativeServingBackend:
 
         log_msg = 'Lithops v{} init for Knative '.format(__version__)
         if self.istio_endpoint:
-            log_msg += '- Istio Endpoint: {}'.format(__version__, self.istio_endpoint)
+            msg = '- Istio Endpoint: {}'.format(__version__, self.istio_endpoint)
+            log_msg += msg
+            logger.debug('Set '+msg)
         elif self.cluster:
-            log_msg += '- Cluster: {}'.format(self.cluster)
+            msg = '- Cluster: {}'.format(self.cluster)
+            log_msg += msg
+            logger.debug('Set '+msg)
         if not self.log_active:
             print(log_msg)
-        logger.info(log_msg)
+        logger.info('Knative client created successfully')
 
     def _format_service_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '--').replace(':', '--')

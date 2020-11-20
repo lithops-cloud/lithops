@@ -15,7 +15,6 @@
 #
 
 import sys
-import json
 import pickle
 import argparse
 import unittest
@@ -24,7 +23,7 @@ import inspect
 import lithops
 import urllib.request
 from lithops.storage import InternalStorage
-from lithops.config import default_config, extract_storage_config
+from lithops.config import get_mode, default_config, extract_storage_config
 from concurrent.futures import ThreadPoolExecutor
 
 CONFIG = None
@@ -434,12 +433,15 @@ def print_help():
         print(f'-> {func_name}')
 
 
-def run_tests(test_to_run, mode, config=None):
+def run_tests(test_to_run, config=None, mode=None, backend=None):
     global CONFIG, STORAGE_CONFIG, STORAGE
 
-    config_ow = {'lithops': {'mode': mode}} if mode else {}
+    mode = mode or get_mode(config)
+    config_ow = {'lithops': {'mode': mode}}
+    if backend:
+        config_ow[mode] = {'backend': backend}
+    CONFIG = default_config(config, config_ow)
 
-    CONFIG = json.load(config) if config else default_config(config_overwrite=config_ow)
     STORAGE_CONFIG = extract_storage_config(CONFIG)
     STORAGE = InternalStorage(STORAGE_CONFIG).storage
 
@@ -466,6 +468,8 @@ if __name__ == '__main__':
                         help='run a specific test, type "-t help" for tests list')
     parser.add_argument('-m', '--mode', metavar='', default=None,
                         help='serverless, standalone or localhost')
+    parser.add_argument('-b', '--backend', metavar='', default=None,
+                        help='serverless, standalone or localhost')
     parser.add_argument('-d', '--debug', action='store_true', default=False,
                         help='activate debug logging')
     args = parser.parse_args()
@@ -476,4 +480,4 @@ if __name__ == '__main__':
     if args.test == 'help':
         print_help()
     else:
-        run_tests(args.test, args.mode, args.config)
+        run_tests(args.test, args.config, args.mode, args.backend)
