@@ -15,7 +15,6 @@
 #
 
 import sys
-import json
 import pickle
 import argparse
 import unittest
@@ -24,7 +23,7 @@ import inspect
 import lithops
 import urllib.request
 from lithops.storage import InternalStorage
-from lithops.config import default_config, extract_storage_config
+from lithops.config import get_mode, default_config, extract_storage_config
 from concurrent.futures import ThreadPoolExecutor
 
 CONFIG = None
@@ -181,8 +180,8 @@ class TestMethods:
         return cloudobject
 
     @staticmethod
-    def my_cloudobject_get(results, storage):
-        data = [pickle.loads(storage.get_cobject(cloudobject)) for cloudobject in results]
+    def my_cloudobject_get(cloudobjects, storage):
+        data = [pickle.loads(storage.get_cobject(co)) for co in cloudobjects]
         return TestMethods.my_reduce_function(data)
 
 
@@ -293,10 +292,10 @@ class TestLithops(unittest.TestCase):
 
     def test_internal_executions(self):
         print('Testing internal executions...')
-        #fexec = lithops.FunctionExecutor(config=CONFIG)
-        #fexec.map(TestMethods.lithops_inside_lithops_map_function, range(1, 11))
-        #result = fexec.get_result()
-        #self.assertEqual(result, [list(range(i)) for i in range(1, 11)])
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        fexec.map(TestMethods.lithops_inside_lithops_map_function, range(1, 11))
+        result = fexec.get_result()
+        self.assertEqual(result, [list(range(i)) for i in range(1, 11)])
 
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.call_async(TestMethods.lithops_return_futures_map_function1, 3)
@@ -418,9 +417,12 @@ class TestLithops(unittest.TestCase):
         sb = STORAGE_CONFIG['backend']
         data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
         with lithops.FunctionExecutor(config=CONFIG) as fexec:
-            fexec.map_reduce(TestMethods.my_cloudobject_put, data_prefix, TestMethods.my_cloudobject_get)
+            fexec.map(TestMethods.my_cloudobject_put, data_prefix)
+            cloudobjects = fexec.get_result()
+            fexec.call_async(TestMethods.my_cloudobject_get, cloudobjects)
             result = fexec.get_result()
             self.assertEqual(result, self.__class__.cos_result_to_compare)
+            fexec.clean(cs=cloudobjects)
 
 
 def print_help():
@@ -431,12 +433,15 @@ def print_help():
         print(f'-> {func_name}')
 
 
-def run_tests(test_to_run, mode, config=None):
+def run_tests(test_to_run, config=None, mode=None, backend=None):
     global CONFIG, STORAGE_CONFIG, STORAGE
 
-    config_ow = {'lithops': {'mode': mode}} if mode else {}
+    mode = mode or get_mode(config)
+    config_ow = {'lithops': {'mode': mode}}
+    if backend:
+        config_ow[mode] = {'backend': backend}
+    CONFIG = default_config(config, config_ow)
 
-    CONFIG = json.load(config) if config else default_config(config_overwrite=config_ow)
     STORAGE_CONFIG = extract_storage_config(CONFIG)
     STORAGE = InternalStorage(STORAGE_CONFIG).storage
 
@@ -463,6 +468,8 @@ if __name__ == '__main__':
                         help='run a specific test, type "-t help" for tests list')
     parser.add_argument('-m', '--mode', metavar='', default=None,
                         help='serverless, standalone or localhost')
+    parser.add_argument('-b', '--backend', metavar='', default=None,
+                        help='serverless, standalone or localhost')
     parser.add_argument('-d', '--debug', action='store_true', default=False,
                         help='activate debug logging')
     args = parser.parse_args()
@@ -473,4 +480,4 @@ if __name__ == '__main__':
     if args.test == 'help':
         print_help()
     else:
-        run_tests(args.test, args.executor, args.config)
+        run_tests(args.test, args.config, args.mode, args.backend)

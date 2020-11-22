@@ -23,25 +23,26 @@ import time
 import threading
 import json
 import subprocess as sp
-from pathlib import Path
 from gevent.pywsgi import WSGIServer
 
-from lithops.config import STORAGE_DIR, JOBS_DONE_DIR, \
-    REMOTE_INSTALL_DIR, FN_LOG_FILE, PX_LOG_FILE
+from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DONE_DIR, \
+    REMOTE_INSTALL_DIR, PX_LOG_FILE, LOGS_DIR
+from lithops.storage.utils import create_job_key
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
+from lithops import constants
+from lithops.utils import verify_runtime_name
 
 
-os.makedirs(STORAGE_DIR, exist_ok=True)
-Path(FN_LOG_FILE).touch(exist_ok=True)
+os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
+os.makedirs(LOGS_DIR, exist_ok=True)
 
 log_file_fd = open(PX_LOG_FILE, 'a')
 sys.stdout = log_file_fd
 sys.stderr = log_file_fd
 
 logging.basicConfig(filename=PX_LOG_FILE, level=logging.INFO,
-                    format=('%(asctime)s [%(levelname)s] %(module)s'
-                            ' - %(funcName)s: %(message)s'))
+                    format=constants.LOGGER_FORMAT)
 logger = logging.getLogger('proxy')
 
 proxy = flask.Flask(__name__)
@@ -75,9 +76,10 @@ def budget_keeper():
     while True:
         time_since_last_usage = time.time() - last_usage_time
         check_interval = backend_handler.soft_dismantle_timeout / 10
-        for job in jobs.keys():
-            if os.path.isfile('{}/{}.done'.format(JOBS_DONE_DIR, job)):
-                jobs[job] = 'done'
+        for job_key in jobs.keys():
+            done = os.path.join(JOBS_DONE_DIR, job_key+'.done')
+            if os.path.isfile(done):
+                jobs[job_key] = 'done'
         if len(jobs) > 0 and all(value == 'done' for value in jobs.values()) \
            and backend_handler.auto_dismantle:
 
@@ -118,8 +120,8 @@ def init_keeper():
     keeper.start()
 
 
-def error():
-    response = flask.jsonify({'error': 'The action did not receive a dictionary as an argument.'})
+def error(msg):
+    response = flask.jsonify({'error': msg})
     response.status_code = 404
     return response
 
@@ -135,7 +137,13 @@ def run():
 
     message = flask.request.get_json(force=True, silent=True)
     if message and not isinstance(message, dict):
-        return error()
+        return error('The action did not receive a dictionary as an argument.')
+
+    try:
+        runtime = message['job_description']['runtime_name']
+        verify_runtime_name(runtime)
+    except Exception as e:
+        return error(str(e))
 
     last_usage_time = time.time()
 
@@ -145,10 +153,10 @@ def run():
     backend_handler.hard_dismantle_timeout = standalone_config['hard_dismantle_timeout']
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
-    runtime = message['job_description']['runtime_name']
     executor_id = message['executor_id']
     job_id = message['job_id']
-    jobs['{}_{}'.format(executor_id.replace('/', '-'), job_id)] = 'running'
+    job_key = create_job_key(executor_id, job_id)
+    jobs[job_key] = 'running'
 
     localhost_handler = LocalhostHandler({'runtime': runtime})
     localhost_handler.run_job(message)
@@ -172,9 +180,14 @@ def preinstalls():
 
     message = flask.request.get_json(force=True, silent=True)
     if message and not isinstance(message, dict):
-        return error()
+        return error('The action did not receive a dictionary as an argument.')
 
-    runtime = message['runtime']
+    try:
+        runtime = message['runtime']
+        verify_runtime_name(runtime)
+    except Exception as e:
+        return error(str(e))
+
     localhost_handler = LocalhostHandler(message)
     runtime_meta = localhost_handler.create_runtime(runtime)
     response = flask.jsonify(runtime_meta)
@@ -233,7 +246,7 @@ def main():
     install_environment()
     init_keeper()
     port = int(os.getenv('PORT', 8080))
-    server = WSGIServer(('0.0.0.0', port), proxy, log=proxy.logger)
+    server = WSGIServer(('127.0.0.1', port), proxy, log=proxy.logger)
     server.serve_forever()
 
 

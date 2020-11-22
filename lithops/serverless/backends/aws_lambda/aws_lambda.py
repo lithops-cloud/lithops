@@ -25,13 +25,29 @@ import json
 import zipfile
 import sys
 import subprocess
-import tempfile
 import textwrap
 import lithops
 import botocore.exceptions
-from . import config as aws_lambda_config
+from . import config as lambda_config
+from ....storage import InternalStorage
+from ....utils import version_str
+from ....constants import TEMP as TEMP_PATH
 
 logger = logging.getLogger(__name__)
+
+LAYER_DIR_PATH = os.path.join(TEMP_PATH, 'modules', 'python')
+LAYER_ZIP_PATH = os.path.join(TEMP_PATH, 'lithops_layer.zip')
+ACTION_ZIP_PATH = os.path.join(TEMP_PATH, 'lithops_runtime.zip')
+
+
+# Auxiliary function to recursively add a directory to a zip archive
+def add_directory_to_zip(zip_file, full_dir_path, sub_dir=''):
+    for file in os.listdir(full_dir_path):
+        full_path = os.path.join(full_dir_path, file)
+        if os.path.isfile(full_path):
+            zip_file.write(full_path, os.path.join(sub_dir, file), zipfile.ZIP_DEFLATED)
+        elif os.path.isdir(full_path) and '__pycache__' not in full_path:
+            add_directory_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
 
 
 class AWSLambdaBackend:
@@ -40,127 +56,85 @@ class AWSLambdaBackend:
     """
 
     def __init__(self, aws_lambda_config, storage_config):
+        """
+        Initialize AWS Lambda Backend
+        """
         logger.debug('Creating AWS Lambda client')
 
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'aws_lambda'
         self.aws_lambda_config = aws_lambda_config
 
-        self.package = 'lithops_v' + lithops.__version__
+        self.user_key = aws_lambda_config['access_key_id'][-4:]
+        self.package = 'lithops_v{}_{}'.format(lithops.__version__, self.user_key)
         self.region_name = aws_lambda_config['region_name']
         self.role_arn = aws_lambda_config['execution_role']
-        self.layer_key = '_'.join([self.package.replace('.', '-'), '_layer'])
 
         logger.debug('Creating Boto3 AWS Session and Lambda Client')
         self.aws_session = boto3.Session(aws_access_key_id=aws_lambda_config['access_key_id'],
                                          aws_secret_access_key=aws_lambda_config['secret_access_key'],
                                          region_name=self.region_name)
-        self.lambda_client = self.aws_session.client(
-            'lambda', region_name=self.region_name)
+        self.lambda_client = self.aws_session.client('lambda', region_name=self.region_name)
 
-        log_msg = 'Lithops v{} init for AWS Lambda - Region: {}' \
-            .format(lithops.__version__, self.region_name)
+        self.internal_storage = InternalStorage(storage_config)
+
+        log_msg = 'Lithops v{} init for AWS Lambda - Region: {}'.format(lithops.__version__, self.region_name)
         logger.info(log_msg)
         if not self.log_active:
             print(log_msg)
 
-    def __format_action_name(self, runtime_name, runtime_memory):
-        runtime_name = (self.package + '_' + runtime_name).replace('.', '-')
-        return '{}_{}MB'.format(runtime_name, runtime_memory)
+    @property
+    def _python_runtime_name(self):
+        return 'python{}'.format(version_str(sys.version_info))
 
-    def __unformat_action_name(self, action_name):
-        split = action_name.split('_')
-        runtime_name = split[1].replace('-', '.')
-        runtime_memory = int(split[2].replace('MB', ''))
-        return runtime_name, runtime_memory
-
-    def __get_scipy_layer_arn(self, runtime_name):
+    @property
+    def _numerics_layer_arn(self):
         """
-        Retruns arn for the existing numerics lambda layer based on region
+        Returns arn for the existing numerics lambda layer based on region
         return : layer arn
         """
-        runtime_name = runtime_name.replace('p', 'P').replace('.', '')
+        fmt_python_version = self._python_runtime_name.replace('p', 'P').replace('.', '')
         arn = ':'.join([
             'arn',
             'aws',
             'lambda',
             self.region_name,
-            aws_lambda_config.NUMERICS_LAYERS[self.region_name],
+            lambda_config.NUMERICS_LAYERS[self.region_name],
             'layer',
-            'AWSLambda-{}-SciPy1x'.format(runtime_name),
+            'AWSLambda-{}-SciPy1x'.format(fmt_python_version),
             '29'
         ])
         return arn
 
-    def __setup_layers(self, runtime_name):
-        # Check if Lithops dependencies layer is already deployed
-        layers = self.list_layers(runtime_name)
-        dep_layer = [layer for layer in layers if layer['LayerName'] == self.layer_key]
+    def _format_action_name(self, runtime_name, runtime_memory):
+        runtime_name = (self.package + '_' + runtime_name).replace('.', '-')
+        return '{}_{}MB'.format(runtime_name, runtime_memory)
+
+    def _unformat_action_name(self, action_name):
+        split = action_name.split('_')
+        runtime_name = '_'.join(split[3:-1])
+        runtime_memory = int(split[-1].replace('MB', ''))
+        return runtime_name, runtime_memory
+
+    def _format_layer_name(self, runtime_name):
+        return '_'.join([self.package, runtime_name, 'layer']).replace('.', '-')
+
+    def _check_runtime_layer(self, runtime_name):
+        # Check if Lithops dependencies layer for this runtime is already deployed
+        layers = self._list_layers(runtime_name)
+        dep_layer = [layer for layer in layers if layer[0] == self._format_layer_name(runtime_name)]
         if len(dep_layer) == 1:
-            layer = dep_layer.pop()
-            dependencies_layer = layer['LatestMatchingVersion']['LayerVersionArn']
+            _, layer_arn = dep_layer.pop()
+            return layer_arn
         else:
-            dependencies_layer = None
+            return None
 
-        # Create Lithops dependencies layer
-        if dependencies_layer is None:
-            layer_bytes = self.__build_layer_zip()
-            dependencies_layer = self.create_layer(self.layer_key,
-                                                   runtime_name,
-                                                   layer_bytes)
-
-        return [dependencies_layer, self.__get_scipy_layer_arn(runtime_name)]
-
-    def __build_layer_zip(self):
-        """
-        Downloads and builds module dependencies for Lithops lambda runtime
-        return : layer zip bytes
-        """
-
-        def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
-            for file in os.listdir(full_dir_path):
-                full_path = os.path.join(full_dir_path, file)
-                if os.path.isfile(full_path):
-                    zip_file.write(full_path, os.path.join(sub_dir, file), zipfile.ZIP_DEFLATED)
-                elif os.path.isdir(full_path) and '__pycache__' not in full_path:
-                    add_folder_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
-
-        # Delete layer directory if it exists
-        if os.path.exists(aws_lambda_config.LAYER_DIR_PATH):
-            if os.path.isdir(aws_lambda_config.LAYER_DIR_PATH):
-                shutil.rmtree(aws_lambda_config.LAYER_DIR_PATH)
-            elif os.path.isfile(aws_lambda_config.LAYER_DIR_PATH):
-                os.remove(aws_lambda_config.LAYER_DIR_PATH)
-
-        os.makedirs(aws_lambda_config.LAYER_DIR_PATH)
-
-        # Install modules
-        dependencies = [dependency.strip().replace(' ', '')
-                        for dependency in aws_lambda_config.REQUIREMENTS]
-        command = [
-            sys.executable,
-            '-m', 'pip', 'install', '-t',
-            aws_lambda_config.LAYER_DIR_PATH]
-        command.extend(dependencies)
-        subprocess.check_call(command)
-
-        # Compress modules
-        with zipfile.ZipFile(aws_lambda_config.LAYER_ZIP_PATH, 'w') as layer_zip:
-            add_folder_to_zip(layer_zip, os.path.join(tempfile.gettempdir(), 'modules'))
-
-        # Read zip as bytes
-        with open(aws_lambda_config.LAYER_ZIP_PATH, 'rb') as layer_zip:
-            layer_bytes = layer_zip.read()
-
-        return layer_bytes
-
-    def __create_handler_bin(self):
+    def _create_handler_bin(self):
         """
         Creates Lithops handler zip
         return : zip binary
         """
-        logger.debug('Creating function handler zip in {}'
-                     .format(aws_lambda_config.ACTION_ZIP_PATH))
+        logger.debug('Creating function handler zip in {}'.format(ACTION_ZIP_PATH))
 
         def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
             for file in os.listdir(full_dir_path):
@@ -175,7 +149,7 @@ class AWSLambdaBackend:
                                       os.path.join(sub_dir, file))
 
         try:
-            with zipfile.ZipFile(aws_lambda_config.ACTION_ZIP_PATH, 'w') as lithops_zip:
+            with zipfile.ZipFile(ACTION_ZIP_PATH, 'w') as lithops_zip:
                 current_location = os.path.dirname(os.path.abspath(__file__))
                 module_location = os.path.dirname(os.path.abspath(lithops.__file__))
                 main_file = os.path.join(current_location, 'entry_point.py')
@@ -184,92 +158,157 @@ class AWSLambdaBackend:
                                   zipfile.ZIP_DEFLATED)
                 add_folder_to_zip(lithops_zip, module_location)
 
-            with open(aws_lambda_config.ACTION_ZIP_PATH, 'rb') as action_zip:
+            with open(ACTION_ZIP_PATH, 'rb') as action_zip:
                 action_bin = action_zip.read()
         except Exception as e:
-            raise Exception('Unable to create the {} package: {}'.format(aws_lambda_config.ACTION_ZIP_PATH, e))
+            raise Exception('Unable to create {} package: {}'.format(ACTION_ZIP_PATH, e))
         return action_bin
 
-    def build_runtime(self):
-        pass
+    def _create_layer(self, runtime_name):
+        logger.debug('Creating lambda layer for runtime {}'.format(runtime_name))
+        layer_modules = self._get_runtime_modules(runtime_name)
 
-    def update_runtime(self, runtime_name, code, memory=3008, timeout=900):
-        """
-        Updates code, memory and time of existing lambda function
-        """
-        function_name = self.__format_action_name(runtime_name, memory)
-        logger.debug('Updating function {} code/config'.format(function_name))
+        # Delete layer directory if it exists
+        if os.path.exists(LAYER_DIR_PATH):
+            if os.path.isdir(LAYER_DIR_PATH):
+                shutil.rmtree(LAYER_DIR_PATH)
+            elif os.path.isfile(LAYER_DIR_PATH):
+                os.remove(LAYER_DIR_PATH)
 
-        response = self.lambda_client.update_function_code(
-            FunctionName=function_name,
-            ZipFile=code,
-            Publish=False
+        # Create target layer directory
+        os.makedirs(LAYER_DIR_PATH)
+
+        # Install modules
+        dependencies = [dependency.strip().replace(' ', '') for dependency in layer_modules]
+        command = [sys.executable, '-m', 'pip', 'install', '-t', LAYER_DIR_PATH]
+        command.extend(dependencies)
+        subprocess.check_call(command)
+
+        # Compress modules
+        with zipfile.ZipFile(LAYER_ZIP_PATH, 'w') as layer_zip:
+            add_directory_to_zip(layer_zip, os.path.join(TEMP_PATH, 'modules'))
+
+        # Read zip as bytes
+        with open(LAYER_ZIP_PATH, 'rb') as layer_zip:
+            layer_bytes = layer_zip.read()
+
+        layer_name = self._format_layer_name(runtime_name)
+        self.internal_storage.put_data(layer_name, layer_bytes)
+        response = self.lambda_client.publish_layer_version(
+            LayerName=layer_name,
+            Description=self.package,
+            Content={
+                'S3Bucket': self.internal_storage.bucket,
+                'S3Key': layer_name
+            },
+            CompatibleRuntimes=[self._python_runtime_name]
         )
+        self.internal_storage.storage.delete_object(self.internal_storage.bucket, layer_name)
 
-        response_status_code = response['ResponseMetadata']['HTTPStatusCode']
-        if response_status_code == 200 or response_status_code == 201:
-            logger.debug('OK --> Updated function code {}'.format(function_name))
+        if response['ResponseMetadata']['HTTPStatusCode'] == 201:
+            logger.debug('OK --> Layer {} created'.format(layer_name))
+            return response['LayerVersionArn']
         else:
-            msg = 'An error occurred updating function code {}: {}'.format(function_name, response)
+            msg = 'An error occurred creating layer {}: {}'.format(layer_name, response)
             raise Exception(msg)
 
-        layers = self.__setup_layers(runtime_name)
 
-        response = self.lambda_client.update_function_configuration(
-            FunctionName=function_name,
-            Role=self.role_arn,
-            Timeout=timeout,
-            MemorySize=memory,
-            Layers=layers
-        )
+    def _delete_layer(self, layer_name):
+        """
+        Deletes lambda layer from its arn
+        """
+        logger.debug('Deleting lambda layer: {}'.format(layer_name))
 
-        response_status_code = response['ResponseMetadata']['HTTPStatusCode']
-        if response_status_code == 200 or response_status_code == 201:
-            logger.debug('OK --> Updated function code {}'.format(function_name))
+        versions = []
+        response = self.lambda_client.list_layer_versions(LayerName=layer_name)
+        versions.extend([layer['Version'] for layer in response['LayerVersions']])
+
+        while 'NextMarker' in response:
+            response = self.lambda_client.list_layer_versions(Marker=response['NextMarker'])
+            versions.extend([layer['Version'] for layer in response['LayerVersions']])
+
+        for version in versions:
+            response = self.lambda_client.delete_layer_version(
+                LayerName=layer_name,
+                VersionNumber=version
+            )
+            if response['ResponseMetadata']['HTTPStatusCode'] == 204:
+                logger.debug('OK --> Layer {} version {} deleted'.format(layer_name, version))
+
+    def _list_layers(self, runtime_name=None):
+        logger.debug('Listing lambda layers: {}'.format(runtime_name))
+        response = self.lambda_client.list_layers()
+
+        layers = response['Layers'] if 'Layers' in response else []
+        logger.debug('Listed {} layers'.format(len(layers)))
+        lithops_layers = []
+        for layer in layers:
+            if 'lithops' in layer['LayerName']:
+                lithops_layers.append((layer['LayerName'], layer['LatestMatchingVersion']['LayerVersionArn']))
+        return lithops_layers
+
+    def _get_runtime_modules(self, runtime_name):
+        if runtime_name in lambda_config.DEFAULT_RUNTIMES:
+            return lambda_config.DEFAULT_REQUIREMENTS
         else:
-            msg = 'An error occurred updating function code {}: {}'.format(function_name, response)
-            raise Exception(msg)
+            user_runtimes = self.internal_storage.storage.list_keys(self.internal_storage.bucket,
+                                                                    prefix=lambda_config.USER_RUNTIME_PREFIX)
+            user_runtimes_keys = {runtime.split('/', 1)[1]: runtime for runtime in user_runtimes}
+            if runtime_name in user_runtimes_keys:
+                reqs = self.internal_storage.get_data(key=user_runtimes_keys[runtime_name]).decode('utf-8')
+                return reqs.splitlines()
+            else:
+                raise Exception('Runtime {} does not exist. Available runtimes: {}'.format(
+                    runtime_name, lambda_config.DEFAULT_RUNTIMES + user_runtimes))
 
-    def create_runtime(self, runtime_name, memory=3008, code=None, timeout=900):
+    def build_runtime(self, runtime_name, requirements_file):
+        if self._python_runtime_name not in lambda_config.DEFAULT_RUNTIMES:
+            raise Exception('Python runtime "{}" is not available for AWS Lambda, '
+                            'please use one of {}'.format(self._python_runtime_name, lambda_config.DEFAULT_RUNTIMES))
+
+        with open(requirements_file, 'r') as req_file:
+            requirements = req_file.read()
+
+        self.internal_storage.put_data('/'.join([lambda_config.USER_RUNTIME_PREFIX, runtime_name]), requirements)
+
+    def create_runtime(self, runtime_name, memory=3008, timeout=900):
         """
         Create a Lithops runtime as an AWS Lambda function
         """
-        function_name = self.__format_action_name(runtime_name, memory)
+        function_name = self._format_action_name(runtime_name, memory)
         logger.debug('Creating new Lithops lambda runtime: {}'.format(function_name))
 
-        runtime_meta = self.__generate_runtime_meta(runtime_name)
+        runtime_meta = self._generate_runtime_meta(runtime_name)
 
-        if code is None:
-            code = self.__create_handler_bin()
+        runtime_layer_arn = self._check_runtime_layer(runtime_name)
+        if runtime_layer_arn is None:
+            runtime_layer_arn = self._create_layer(runtime_name)
 
-        layers = self.__setup_layers(runtime_name)
-        try:
-            response = self.lambda_client.create_function(
-                FunctionName=function_name,
-                Runtime=runtime_name,
-                Role=self.role_arn,
-                Handler='__main__.lambda_handler',
-                Code={
-                    'ZipFile': code
-                },
-                Description=self.package,
-                Timeout=timeout,
-                MemorySize=memory,
-                Layers=layers
-            )
+        code = self._create_handler_bin()
+        python_runtime_ver = 'python{}'.format(version_str(sys.version_info))
+        response = self.lambda_client.create_function(
+            FunctionName=function_name,
+            Runtime=python_runtime_ver,
+            Role=self.role_arn,
+            Handler='__main__.lambda_handler',
+            Code={
+                'ZipFile': code
+            },
+            Description=self.package,
+            Timeout=timeout,
+            MemorySize=memory,
+            Layers=[runtime_layer_arn, self._numerics_layer_arn]
+        )
 
-            if response['ResponseMetadata']['HTTPStatusCode'] == 201:
-                logger.debug('OK --> Created action {}'.format(runtime_name))
-            else:
-                msg = 'An error occurred creating/updating action {}: {}'.format(runtime_name, response)
-                raise Exception(msg)
-        except self.lambda_client.exceptions.ResourceConflictException:
-            logger.debug('{} lambda function already exists. It will be replaced.')
-            self.update_runtime(runtime_name, code, memory, timeout)
+        if response['ResponseMetadata']['HTTPStatusCode'] == 201:
+            logger.debug('OK --> Created action {}'.format(runtime_name))
+        else:
+            msg = 'An error occurred creating/updating action {}: {}'.format(runtime_name, response)
+            raise Exception(msg)
 
         return runtime_meta
 
-    def delete_runtime(self, runtime_name, memory):
+    def delete_runtime(self, runtime_name, runtime_memory, delete_runtime_storage=True):
         """
         Deletes lambda runtime from its runtime name and memory
         """
@@ -290,28 +329,36 @@ class AWSLambdaBackend:
             msg = 'An error occurred creating/updating action {}: {}'.format(runtime_name, response)
             raise Exception(msg)
 
+        if runtime_name not in lambda_config.DEFAULT_RUNTIMES:
+            build_name, _ = self._unformat_action_name(runtime_name)
+            self.internal_storage.storage.delete_object(self.internal_storage.bucket,
+                                                        '/'.join([lambda_config.USER_RUNTIME_PREFIX, build_name]))
+
     def clean(self):
         """
         Deletes all Lithops Lambda runtimes
         """
         logger.debug('Deleting all runtimes')
 
-        response = self.lambda_client.list_functions(
-            MasterRegion=self.region_name
-        )
+        runtimes = self.list_runtimes()
 
-        for runtime in response['Functions']:
-            if 'lithops' in runtime['FunctionName']:
-                runtime_name, runtime_memory = self.__unformat_action_name(runtime['FunctionName'])
-                self.delete_runtime(runtime_name, runtime_memory)
+        for runtime in runtimes:
+            runtime_name, runtime_memory = runtime
+            self.delete_runtime(runtime_name, runtime_memory)
+
+        layers = self._list_layers()
+        for layer_name, _ in layers:
+            self._delete_layer(layer_name)
 
     def list_runtimes(self, docker_image_name='all'):
         """
         List all the lambda runtimes deployed.
         return: Array of tuples (function_name, memory)
         """
+        logger.debug('Listing all functions deployed...')
+
         functions = []
-        response = self.lambda_client.list_functions()
+        response = self.lambda_client.list_functions(FunctionVersion='ALL')
         for function in response['Functions']:
             if 'lithops' in function['FunctionName']:
                 functions.append((function['FunctionName'], function['MemorySize']))
@@ -322,63 +369,8 @@ class AWSLambdaBackend:
                 if 'lithops' in function['FunctionName']:
                     functions.append((function['FunctionName'], function['MemorySize']))
 
+        logger.debug('Listed {} functions'.format(len(functions)))
         return functions
-
-    def create_layer(self, layer_name, runtime_name, zipfile):
-        """
-        Creates lambda layer from bin code
-        """
-        logger.debug('Creating lambda layer: {}'.format(layer_name))
-        response = self.lambda_client.publish_layer_version(
-            LayerName=layer_name,
-            Description=self.package,
-            Content={
-                'ZipFile': zipfile
-            },
-            CompatibleRuntimes=[runtime_name]
-        )
-
-        if response['ResponseMetadata']['HTTPStatusCode'] == 201:
-            logger.debug('OK --> Layer {} created'.format(layer_name))
-            return response['LayerVersionArn']
-        else:
-            msg = 'An error occurred creating layer {}: {}'.format(layer_name, response)
-            raise Exception(msg)
-
-    def delete_layer(self, layer_arn, version_number=None):
-        """
-        Deletes lambda layer from its arn
-        """
-        logger.debug('Deleting lambda layer: {}'.format(layer_arn))
-
-        if version_number is None:
-            version_number = layer_arn.split(':')[-1]
-
-        response = self.lambda_client.delete_layer_version(
-            LayerName=layer_arn,
-            VersionNumber=version_number
-        )
-
-        if response['ResponseMetadata']['HTTPStatusCode'] == 200:
-            logger.debug('OK --> Layer {} deleted'.format(layer_arn))
-            return response['LayerVersionArn']
-        else:
-            msg = 'An error occurred deleting layer {}: {}'.format(
-                layer_arn, response)
-            raise Exception(msg)
-
-    def list_layers(self, runtime_name=None):
-        """
-        Gets all Lambda Layers available for the Python runtime selected
-        """
-        logger.debug('Listing lambda layers: {}'.format(runtime_name))
-        response = self.lambda_client.list_layers(
-            CompatibleRuntime=runtime_name
-        )
-
-        layers = response['Layers'] if 'Layers' in response else []
-        logger.debug('Layers: {}'.format(layers))
-        return layers
 
     def invoke(self, runtime_name, runtime_memory, payload, self_invoked=False):
         """
@@ -387,7 +379,7 @@ class AWSLambdaBackend:
         exec_id = payload['executor_id']
         call_id = payload['call_id']
 
-        function_name = self.__format_action_name(runtime_name, runtime_memory)
+        function_name = self._format_action_name(runtime_name, runtime_memory)
 
         start = time.time()
         try:
@@ -427,7 +419,7 @@ class AWSLambdaBackend:
         """
         Invoke lambda function and wait for result
         """
-        function_name = self.__format_action_name(runtime_name, runtime_memory)
+        function_name = self._format_action_name(runtime_name, runtime_memory)
 
         response = self.lambda_client.invoke(
             FunctionName=function_name,
@@ -442,12 +434,12 @@ class AWSLambdaBackend:
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        action_name = self.__format_action_name(runtime_name, runtime_memory)
+        action_name = self._format_action_name(runtime_name, runtime_memory)
         runtime_key = '/'.join([self.name, self.region_name, self.region_name, action_name])
 
         return runtime_key
 
-    def __generate_runtime_meta(self, runtime_name):
+    def _generate_runtime_meta(self, runtime_name):
         """
         Extract preinstalled Python modules from lambda function execution environment
         return : runtime meta dictionary
@@ -464,31 +456,41 @@ class AWSLambdaBackend:
             runtime_meta['python_ver'] = str(python_version[0])+'.'+str(python_version[1])
             return runtime_meta
         '''
-        action_location = os.path.join(tempfile.gettempdir(), 'extract_preinstalls_aws.py')
+        # Create function zip archive
+        action_location = os.path.join(TEMP_PATH, 'extract_preinstalls_aws.py')
         with open(action_location, 'w') as f:
             f.write(textwrap.dedent(action_code))
 
-        modules_zip_action = os.path.join(tempfile.gettempdir(), 'extract_preinstalls_aws.zip')
+        modules_zip_action = os.path.join(TEMP_PATH, 'extract_preinstalls_aws.zip')
         with zipfile.ZipFile(modules_zip_action, 'w') as extract_modules_zip:
             extract_modules_zip.write(action_location, '__main__.py')
+
         with open(modules_zip_action, 'rb') as modules_zip:
             action_bytes = modules_zip.read()
 
+        # Create Layer for this runtime
+        runtime_layer_arn = self._check_runtime_layer(runtime_name)
+        if runtime_layer_arn is None:
+            runtime_layer_arn = self._create_layer(runtime_name)
+
         memory = 192
-        modules_function_name = '_'.join([self.__format_action_name(runtime_name, memory),
-                                          'preinstalls', uuid.uuid4().hex[:8]])
+        modules_function_name = '_'.join([self._format_action_name(runtime_name, memory),
+                                          'preinstalls', uuid.uuid4().hex[:4]])
+        python_runtime_ver = 'python{}'.format(version_str(sys.version_info))
+
         try:
             self.lambda_client.create_function(
                 FunctionName=modules_function_name,
-                Runtime=runtime_name,
+                Runtime=python_runtime_ver,
                 Role=self.role_arn,
                 Handler='__main__.lambda_handler',
                 Code={
                     'ZipFile': action_bytes
                 },
                 Description=self.package,
-                Timeout=aws_lambda_config.RUNTIME_TIMEOUT_DEFAULT,
-                MemorySize=memory
+                Timeout=lambda_config.RUNTIME_TIMEOUT_DEFAULT,
+                MemorySize=memory,
+                Layers=[runtime_layer_arn, self._numerics_layer_arn]
             )
         except Exception as e:
             raise Exception('Unable to deploy "modules" action: {}'.format(e))

@@ -89,7 +89,7 @@ class OpenWhiskClient:
         cfexec['code'] = base64.b64encode(code).decode("utf-8") if is_binary else code
         data['exec'] = cfexec
 
-        logger.debug('I am about to create a new cloud function action: {}'.format(action_name))
+        logger.info('Creating function action: {}'.format(action_name))
         url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'actions', package,
                         action_name + "?overwrite=" + str(overwrite)])
 
@@ -106,7 +106,7 @@ class OpenWhiskClient:
         """
         Get an IBM Cloud Functions action
         """
-        logger.debug("I am about to get a cloud function action: {}".format(action_name))
+        logger.info("Getting cloud function action: {}".format(action_name))
         url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'actions', package, action_name])
         res = self.session.get(url)
         return res.json()
@@ -115,7 +115,7 @@ class OpenWhiskClient:
         """
         List all IBM Cloud Functions actions in a package
         """
-        logger.debug("I am about to list all actions from: {}".format(package))
+        logger.info("Listing all actions from: {}".format(package))
         url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'actions', package, ''])
         res = self.session.get(url)
         if res.status_code == 200:
@@ -127,7 +127,7 @@ class OpenWhiskClient:
         """
         Delete an IBM Cloud Function
         """
-        logger.debug("Delete cloud function action: {}".format(action_name))
+        logger.info("Deleting cloud function action: {}".format(action_name))
         url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'actions', package, action_name])
         res = self.session.delete(url)
         resp_text = res.json()
@@ -136,7 +136,7 @@ class OpenWhiskClient:
             logger.debug('An error occurred deleting action {}: {}'.format(action_name, resp_text['error']))
 
     def update_memory(self, package, action_name, memory):
-        logger.debug('I am about to update the memory of the {} action to {}'.format(action_name, memory))
+        logger.info('Updating memory of the {} action to {}'.format(action_name, memory))
         url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.namespace,
                         'actions', package, action_name + "?overwrite=True"])
 
@@ -153,7 +153,7 @@ class OpenWhiskClient:
         """
         List all IBM Cloud Functions packages
         """
-        logger.debug('I am about to list all the IBM CF packages')
+        logger.debug('Listing function packages')
         url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'packages'])
 
         res = self.session.get(url)
@@ -168,7 +168,7 @@ class OpenWhiskClient:
         """
         Delete an IBM Cloud Functions package
         """
-        logger.debug("I am about to delete the package: {}".format(package))
+        logger.info("Deleting functions package: {}".format(package))
         url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'packages', package])
         res = self.session.delete(url)
         resp_text = res.json()
@@ -180,9 +180,9 @@ class OpenWhiskClient:
 
     def create_package(self, package):
         """
-        Create an IBM Cloud Functions package
+        Create a package
         """
-        logger.debug('I am about to create the package {}'.format(package))
+        logger.debug('Creating functions package {}'.format(package))
         url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'packages', package + "?overwrite=False"])
 
         data = {"name": package}
@@ -196,7 +196,7 @@ class OpenWhiskClient:
 
     def invoke(self, package, action_name, payload={}, is_ow_action=False, self_invoked=False):
         """
-        Invoke an IBM Cloud Function by using new request.
+        Invoke an Cloud Function by using new request.
         """
         url = '/'.join([self.endpoint, 'api', 'v1', 'namespaces', self.namespace, 'actions', package, action_name])
         parsed_url = urlparse(url)

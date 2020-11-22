@@ -18,21 +18,31 @@
 import copy
 import signal
 import logging
+import atexit
+import os
+import pickle
+import tempfile
+import sys
+import subprocess as sp
 from functools import partial
+
 from lithops.invokers import ServerlessInvoker, StandaloneInvoker, RealTimeInvoker
+
 from lithops.storage import InternalStorage
-from lithops.storage.utils import delete_cloudobject
 from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
-from lithops.job import create_map_job, create_reduce_job, clean_job
-from lithops.config import default_config, extract_storage_config, \
-    default_logging_config, extract_localhost_config, \
-    extract_standalone_config, extract_serverless_config, LOCALHOST,\
-    SERVERLESS, STANDALONE, REALTIME
-from lithops.utils import timeout_handler, is_notebook, \
+from lithops.job import create_map_job, create_reduce_job
+from lithops.config import get_mode, default_config, extract_storage_config,\
+    extract_localhost_config, extract_standalone_config, \
+    extract_serverless_config
+from lithops.constants import LOCALHOST, SERVERLESS, STANDALONE, REALTIME,\
+    CLEANER_DIR, CLEANER_LOG_FILE
+from lithops.utils import timeout_handler, is_notebook, setup_logger, \
     is_unix_system, is_lithops_worker, create_executor_id
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
 from lithops.serverless.serverless import ServerlessHandler
+from lithops.storage.utils import create_job_key
+
 
 logger = logging.getLogger(__name__)
 
@@ -43,27 +53,17 @@ class FunctionExecutor:
     for the Localhost, Serverless and Standalone executors
     """
 
-    def __init__(self, type=None, mode=None, config=None, backend=None, storage=None,
+    def __init__(self, mode=None, config=None, backend=None, storage=None,
                  runtime=None, runtime_memory=None, rabbitmq_monitor=None,
                  workers=None, remote_invoker=None, log_level=None):
-
-        mode = mode or type
-
-        if mode is None:
-            config = default_config(copy.deepcopy(config))
-            mode = config['lithops']['mode']
-
-        if mode not in [LOCALHOST, SERVERLESS, STANDALONE, REALTIME]:
+        """ Create a FunctionExecutor Class """
+        if mode and mode not in [LOCALHOST, SERVERLESS, STANDALONE, REALTIME]:
             raise Exception("Function executor mode must be one of '{}', '{}' "
                             "or '{}'".format(LOCALHOST, SERVERLESS, STANDALONE, REALTIME))
-
         if log_level:
-            default_logging_config(log_level)
+            setup_logger(log_level)
 
-        if type is not None:
-            logger.warning("'type' parameter is deprecated and it will be removed"
-                           "in future releases. Use 'mode' parameter instead")
-
+        mode = mode or get_mode(config)
         config_ow = {'lithops': {'mode': mode}, mode: {}}
 
         if runtime is not None:
@@ -89,8 +89,12 @@ class FunctionExecutor:
         self.executor_id = create_executor_id()
 
         self.data_cleaner = self.config['lithops'].get('data_cleaner', True)
-        self.rabbitmq_monitor = self.config['lithops'].get(
-            'rabbitmq_monitor', False)
+        if self.data_cleaner and not self.is_lithops_worker:
+            spawn_cleaner = int(self.executor_id.split('-')[1]) == 0
+            atexit.register(self.clean, spawn_cleaner=spawn_cleaner,
+                            clean_cloudobjects=False)
+
+        self.rabbitmq_monitor = self.config['lithops'].get('rabbitmq_monitor', False)
 
         if self.rabbitmq_monitor:
             if 'rabbitmq' in self.config and 'amqp_url' in self.config['rabbitmq']:
@@ -104,8 +108,8 @@ class FunctionExecutor:
         self.storage = self.internal_storage.storage
 
         self.futures = []
-        self.total_jobs = 0
         self.cleaned_jobs = set()
+        self.total_jobs = 0
         self.last_call = None
 
         if mode == LOCALHOST:
@@ -253,7 +257,7 @@ class FunctionExecutor:
         This method is executed all within CF.
 
         :param map_function: the function to map over the data
-        :param map_iterdata:  the function to reduce over the futures
+        :param map_iterdata:  An iterable of input data
         :param reduce_function:  the function to reduce over the futures
         :param extra_env: Additional environment variables for action environment. Default None.
         :param extra_args: Additional arguments to pass to function activation. Default None.
@@ -438,7 +442,7 @@ class FunctionExecutor:
                 if not is_notebook():
                     print()
             if self.data_cleaner and not self.is_lithops_worker:
-                self.clean(cloudobjects=False, force=False, log=False)
+                self.clean(clean_cloudobjects=False)
             if not fs and error and is_notebook():
                 del self.futures[len(self.futures)-len(futures):]
 
@@ -523,54 +527,59 @@ class FunctionExecutor:
         create_timeline(ftrs_to_plot, dst)
         create_histogram(ftrs_to_plot, dst)
 
-    def clean(self, fs=None, cs=None, cloudobjects=True, force=True, log=True):
+    def clean(self, fs=None, cs=None, clean_cloudobjects=True, spawn_cleaner=True):
         """
-        Deletes all the files from COS. These files include the function,
-        the data serialization and the function invocation results.
+        Deletes all the temp files from storage. These files include the function,
+        the data serialization and the function invocation results. It can also clean
+        cloudobjects.
+
+        :param fs: list of futures to clean
+        :param cs: list of cloudobjects to clean
+        :param clean_cloudobjects: true/false
+        :param spawn_cleaner true/false
         """
 
+        os.makedirs(CLEANER_DIR, exist_ok=True)
+
+        def save_data_to_clean(data):
+            with tempfile.NamedTemporaryFile(dir=CLEANER_DIR, delete=False) as temp:
+                pickle.dump(data, temp)
+
         if cs:
-            storage_config = self.internal_storage.get_storage_config()
-            delete_cloudobject(list(cs), storage_config)
+            data = {'cos_to_clean': list(cs),
+                    'storage_config': self.internal_storage.get_storage_config()}
+            save_data_to_clean(data)
             if not fs:
                 return
 
-        futures = self.futures if not fs else fs
-        if type(futures) != list:
-            futures = [futures]
-
-        if not futures:
-            logger.debug('ExecutorID {} - No jobs to clean'
-                         .format(self.executor_id))
-            return
-
-        if fs or force:
-            present_jobs = {(f.executor_id, f.job_id) for f in futures
-                            if f.executor_id.count('/') == 1}
-            jobs_to_clean = present_jobs
-        else:
-            present_jobs = {(f.executor_id, f.job_id) for f in futures
-                            if f.done and f.executor_id.count('/') == 1}
-            jobs_to_clean = present_jobs - self.cleaned_jobs
+        futures = fs or self.futures
+        futures = [futures] if type(futures) != list else futures
+        present_jobs = {create_job_key(f.executor_id, f.job_id) for f in futures
+                        if f.executor_id.count('-') == 1}
+        jobs_to_clean = present_jobs - self.cleaned_jobs
 
         if jobs_to_clean:
-            msg = "ExecutorID {} - Cleaning temporary data".format(
-                self.executor_id)
-            logger.info(msg)
-            if not self.log_active:
-                print(msg)
-            storage_config = self.internal_storage.get_storage_config()
-            clean_job(jobs_to_clean, storage_config,
-                      clean_cloudobjects=cloudobjects)
+            logger.info("ExecutorID {} - Cleaning temporary data"
+                        .format(self.executor_id))
+            data = {'jobs_to_clean': jobs_to_clean,
+                    'clean_cloudobjects': clean_cloudobjects,
+                    'storage_config': self.internal_storage.get_storage_config()}
+            save_data_to_clean(data)
             self.cleaned_jobs.update(jobs_to_clean)
+
+        if (jobs_to_clean or cs) and spawn_cleaner:
+            log_file = open(CLEANER_LOG_FILE, 'a')
+            cmdstr = '{} -m lithops.scripts.cleaner'.format(sys.executable)
+            sp.Popen(cmdstr, shell=True, stdout=log_file, stderr=log_file)
 
     def dismantle(self):
         self.compute_handler.dismantle()
 
+    def init(self):
+        self.compute_handler.init()
+
     def __exit__(self, exc_type, exc_value, traceback):
         self.invoker.stop()
-        if self.data_cleaner:
-            self.clean(log=False)
 
 
 class LocalhostExecutor(FunctionExecutor):
@@ -589,7 +598,7 @@ class LocalhostExecutor(FunctionExecutor):
 
         :return `LocalhostExecutor` object.
         """
-        super().__init__(mode='localhost', config=config,
+        super().__init__(mode=LOCALHOST, config=config,
                          runtime=runtime, storage=storage,
                          log_level=log_level, workers=workers,
                          rabbitmq_monitor=rabbitmq_monitor)
@@ -614,7 +623,7 @@ class ServerlessExecutor(FunctionExecutor):
 
         :return `ServerlessExecutor` object.
         """
-        super().__init__(mode='serverless', config=config, runtime=runtime,
+        super().__init__(mode=SERVERLESS, config=config, runtime=runtime,
                          runtime_memory=runtime_memory, backend=backend,
                          storage=storage, workers=workers,
                          rabbitmq_monitor=rabbitmq_monitor, log_level=log_level,
@@ -638,7 +647,7 @@ class StandaloneExecutor(FunctionExecutor):
 
         :return `StandaloneExecutor` object.
         """
-        super().__init__(mode='standalone', config=config, runtime=runtime,
+        super().__init__(mode=STANDALONE, config=config, runtime=runtime,
                          backend=backend, storage=storage, workers=workers,
                          rabbitmq_monitor=rabbitmq_monitor, log_level=log_level)
 
@@ -661,7 +670,7 @@ class RealTimeExecutor(FunctionExecutor):
 
         :return `ServerlessExecutor` object.
         """
-        super().__init__(mode='realtime', config=config, runtime=runtime,
+        super().__init__(mode=REALTIME, config=config, runtime=runtime,
                          runtime_memory=runtime_memory, backend=backend,
                          storage=storage, workers=workers,
                          rabbitmq_monitor=rabbitmq_monitor, log_level=log_level,

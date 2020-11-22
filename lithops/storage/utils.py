@@ -14,13 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import os
-import sys
+
 import time
-import tempfile
-import pickle
 import logging
-import textwrap
 
 
 logger = logging.getLogger(__name__)
@@ -53,21 +49,27 @@ class CloudObject:
         self.bucket = bucket
         self.key = key
 
+    def __str__(self):
+        path = '{}://{}/{}'.format(self.backend, self.bucket, self.key)
+        return '<CloudObject at {}>'.format(path)
+
 
 class CloudObjectUrl:
     def __init__(self, url_path):
         self.path = url_path
 
+    def __str__(self):
+        return '<CloudObject at {}>'.format(self.path)
 
-def clean_bucket(storage, bucket, prefix, sleep=5, log=True):
+
+def clean_bucket(storage, bucket, prefix, sleep=5):
     """
     Deletes all the files from COS. These files include the function,
     the data serialization and the function invocation results.
     """
     msg = "Going to delete all objects from bucket '{}'".format(bucket)
     msg = msg + " and prefix '{}'".format(prefix) if prefix else msg
-    if log:
-        logger.debug(msg)
+    logger.info(msg)
     total_objects = 0
     objects_to_delete = storage.list_keys(bucket, prefix)
 
@@ -76,55 +78,18 @@ def clean_bucket(storage, bucket, prefix, sleep=5, log=True):
         storage.delete_objects(bucket, objects_to_delete)
         time.sleep(sleep)
         objects_to_delete = storage.list_keys(bucket, prefix)
-    if log:
-        logger.debug('Finished deleting objects, total found: {}'.format(total_objects))
+
+    logger.info('Finished deleting objects, total found: {}'.format(total_objects))
 
 
-def delete_cloudobject(co_to_clean, storage_config):
+def create_job_key(executor_id, job_id):
     """
-    Deletes cloudobjects from storage
+    Create job key
+    :param executor_id: prefix
+    :param job_id: Job's ID
+    :return: exec id
     """
-    co_to_delete = []
-    for co in co_to_clean:
-        co_to_delete.append((co.backend, co.bucket, co.key))
-
-    with tempfile.NamedTemporaryFile(delete=False) as temp:
-        pickle.dump(co_to_delete, temp)
-        cobjs_path = temp.name
-
-    script = """
-    from lithops.storage import InternalStorage
-    import pickle
-    import os
-
-    storage_config = {}
-    cobjs_path = '{}'
-
-    with open(cobjs_path, 'rb') as pk:
-        co_to_delete = pickle.load(pk)
-
-    internal_storage = InternalStorage(storage_config)
-
-    for backend, bucket, key in co_to_delete:
-        if backend == internal_storage.backend:
-            internal_storage.storage.delete_object(bucket, key)
-
-    if os.path.exists(cobjs_path):
-        os.remove(cobjs_path)
-    """.format(storage_config, cobjs_path)
-
-    cmdstr = '{} -c "{}"'.format(sys.executable, textwrap.dedent(script))
-    os.popen(cmdstr)
-
-def create_runtime_meta_key(prefix, activation_id):
-    """
-    Create function key
-    :param prefix: prefix
-    :param executor_id: callset's ID
-    :return: function key
-    """
-    func_key = '/'.join([prefix, activation_id, 'runtime_metadata'])
-    return func_key
+    return '-'.join([executor_id, job_id])
 
 
 def create_func_key(prefix, executor_id, job_id):
@@ -134,8 +99,8 @@ def create_func_key(prefix, executor_id, job_id):
     :param executor_id: callset's ID
     :return: function key
     """
-    func_key = '/'.join([prefix, executor_id, job_id, func_key_suffix])
-    return func_key
+    job_key = create_job_key(executor_id, job_id)
+    return '/'.join([prefix, job_key, func_key_suffix])
 
 
 def create_agg_data_key(prefix, executor_id, job_id):
@@ -143,68 +108,64 @@ def create_agg_data_key(prefix, executor_id, job_id):
     Create aggregate data key
     :param prefix: prefix
     :param executor_id: callset's ID
+    :param job_id: Job's ID
     :return: a key for aggregate data
     """
-    return '/'.join([prefix, executor_id, job_id, agg_data_key_suffix])
+    job_key = create_job_key(executor_id, job_id)
+    return '/'.join([prefix, job_key, agg_data_key_suffix])
 
 
 def create_data_key(prefix, executor_id, job_id, call_id):
     """
     Create data key
     :param prefix: prefix
-    :param executor_id: callset's ID
+    :param executor_id: Executor's ID
+    :param job_id: Job's ID
     :param call_id: call's ID
     :return: data key
     """
-    return '/'.join([prefix, executor_id, job_id, call_id, data_key_suffix])
+    call_key = create_job_key(executor_id, job_id, call_id)
+    return '/'.join([prefix, call_key, data_key_suffix])
 
 
 def create_output_key(prefix, executor_id, job_id, call_id):
     """
     Create output key
     :param prefix: prefix
-    :param executor_id: callset's ID
+    :param executor_id: Executor's ID
+    :param job_id: Job's ID
     :param call_id: call's ID
     :return: output key
     """
-    return '/'.join([prefix, executor_id, job_id, call_id, output_key_suffix])
+    job_key = create_job_key(executor_id, job_id)
+    return '/'.join([prefix, job_key, call_id, output_key_suffix])
 
 
 def create_status_key(prefix, executor_id, job_id, call_id):
     """
     Create status key
     :param prefix: prefix
-    :param executor_id: callset's ID
+    :param executor_id: Executor's ID
+    :param job_id: Job's ID
     :param call_id: call's ID
     :return: status key
     """
-    return '/'.join([prefix, executor_id, job_id, call_id, status_key_suffix])
+    job_key = create_job_key(executor_id, job_id)
+    return '/'.join([prefix, job_key, call_id, status_key_suffix])
 
 
 def create_init_key(prefix, executor_id, job_id, call_id, act_id):
     """
     Create init key
     :param prefix: prefix
-    :param executor_id: callset's ID
+    :param executor_id: Executor's ID
+     :param job_id: Job's ID
     :param call_id: call's ID
     :return: output key
     """
-    return '/'.join([prefix, executor_id, job_id, call_id,
+    job_key = create_job_key(executor_id, job_id)
+    return '/'.join([prefix, job_key, call_id,
                      '{}{}'.format(act_id, init_key_suffix)])
-
-
-def create_keys(prefix, executor_id, job_id, call_id):
-    """
-    Create keys for data, output and status given callset and call IDs.
-    :param prefix: prefix
-    :param executor_id: callset's ID
-    :param call_id: call's ID
-    :return: data_key, output_key, status_key
-    """
-    data_key = create_data_key(prefix, executor_id, job_id, call_id)
-    output_key = create_output_key(prefix, executor_id, job_id, call_id)
-    status_key = create_status_key(prefix, executor_id, job_id, call_id)
-    return data_key, output_key, status_key
 
 
 def get_storage_path(storage_config):

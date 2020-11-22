@@ -20,7 +20,6 @@ import sys
 import pika
 import time
 import pickle
-import tempfile
 import logging
 import inspect
 import requests
@@ -32,15 +31,16 @@ from distutils.util import strtobool
 from lithops.storage import Storage
 from lithops.wait import wait_storage
 from lithops.future import ResponseFuture
-from lithops.libs.tblib import pickling_support
 from lithops.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_function
 from lithops.utils import WrappedStreamingBodyPartition
-from lithops.config import STORAGE_DIR, REALTIME
+from lithops.constants import TEMP
+from lithops.util.metrics import PrometheusExporter
+from lithops.constants import LITHOPS_TEMP_DIR, REALTIME
 
-pickling_support.install()
-logger = logging.getLogger('JobRunner')
+logger = logging.getLogger(__name__)
 
-TEMP = os.path.realpath(tempfile.gettempdir())
+
+
 PYTHON_MODULE_PATH = os.path.join(TEMP, "lithops.modules")
 
 
@@ -68,13 +68,16 @@ class JobRunner:
         self.lithops_config = self.jr_config['lithops_config']
         self.call_id = self.jr_config['call_id']
         self.job_id = self.jr_config['job_id']
-        self.executor_id = self.jr_config['executor_id']
         self.func_key = self.jr_config['func_key']
         self.data_key = self.jr_config['data_key']
         self.data_byte_range = self.jr_config['data_byte_range']
         self.output_key = self.jr_config['output_key']
 
         self.stats = stats(self.jr_config['stats_filename'])
+
+        prom_enabled = self.lithops_config['lithops'].get('monitoring')
+        prom_config = self.lithops_config.get('prometheus', {})
+        self.prometheus = PrometheusExporter(prom_enabled, prom_config)
         self.mode = self.jr_config['mode']
 
     def _get_function_and_modules(self):
@@ -96,7 +99,7 @@ class JobRunner:
         return loaded_func_all
 
     def _get_func(self):
-        func_path = '/'.join([STORAGE_DIR, self.func_key])
+        func_path = '/'.join([LITHOPS_TEMP_DIR, self.func_key])
         with open(func_path, "rb") as f:
             return f.read()
 
@@ -256,7 +259,7 @@ class JobRunner:
         Runs the function
         """
         # self.stats.write('worker_jobrunner_start_tstamp', time.time())
-        logger.info("Started")
+        logger.info("Process started")
         result = None
         exception = False
         try:
@@ -272,20 +275,36 @@ class JobRunner:
             logger.info("After self._unpickle_function")
             data = self._load_data()
 
-            if strtobool(os.environ.get('__PW_REDUCE_JOB', 'False')):
+            if strtobool(os.environ.get('__LITHOPS_REDUCE_JOB', 'False')):
                 self._wait_futures(data)
             elif is_object_processing_function(function):
                 self._load_object(data)
 
             self._fill_optional_args(function, data)
 
+            self.prometheus.send_metric(name='function_start',
+                                        value=time.time(),
+                                        labels=(
+                                            ('job_id', self.job_id),
+                                            ('call_id', self.call_id),
+                                            ('function_name', function.__name__)
+                                        ))
+
             logger.info("Going to execute '{}()'".format(str(function.__name__)))
             print('---------------------- FUNCTION LOG ----------------------', flush=True)
             function_start_tstamp = time.time()
             result = function(**data)
-            function_end_tstamp= time.time()
+            function_end_tstamp = time.time()
             print('----------------------------------------------------------', flush=True)
             logger.info("Success function execution")
+
+            self.prometheus.send_metric(name='function_end',
+                                        value=time.time(),
+                                        labels=(
+                                            ('job_id', self.job_id),
+                                            ('call_id', self.call_id),
+                                            ('function_name', function.__name__)
+                                        ))
 
             self.stats.write('worker_func_start_tstamp', function_start_tstamp)
             self.stats.write('worker_func_end_tstamp', function_end_tstamp)
@@ -344,4 +363,4 @@ class JobRunner:
                 output_upload_end_tstamp = time.time()
                 self.stats.write("worker_result_upload_time", round(output_upload_end_tstamp - output_upload_start_tstamp, 8))
             self.jobrunner_conn.send("Finished")
-            logger.info("Finished")
+            logger.info("Process finished")

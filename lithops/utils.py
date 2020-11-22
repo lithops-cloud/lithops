@@ -1,6 +1,6 @@
 #
 # Copyright 2018 PyWren Team
-# Copyright IBM Corp. 2020
+# (C) Copyright IBM Corp. 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,16 +15,24 @@
 # limitations under the License.
 #
 
-import base64
+
+import io
+import re
 import os
+import sys
 import pika
 import uuid
+import base64
 import inspect
 import struct
+import lithops
+import zipfile
 import platform
-import logging
+import logging.config
 import threading
-import io
+
+from lithops.storage.utils import create_job_key
+from lithops.constants import LOGGER_FORMAT, LOGGER_LEVEL
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +43,11 @@ def uuid_str():
 
 def create_executor_id(lenght=6):
 
-    if '__LITHOPS_EXECUTION_ID' in os.environ:
-        session_id = os.environ['__LITHOPS_EXECUTION_ID']
+    if '__LITHOPS_SESSION_ID' in os.environ:
+        session_id = os.environ['__LITHOPS_SESSION_ID']
     else:
         session_id = uuid_str().replace('/', '')[:lenght]
-        os.environ['__LITHOPS_EXECUTION_ID'] = session_id
+        os.environ['__LITHOPS_SESSION_ID'] = session_id
 
     if '__LITHOPS_TOTAL_EXECUTORS' in os.environ:
         exec_num = int(os.environ['__LITHOPS_TOTAL_EXECUTORS']) + 1
@@ -47,7 +55,7 @@ def create_executor_id(lenght=6):
         exec_num = 0
     os.environ['__LITHOPS_TOTAL_EXECUTORS'] = str(exec_num)
 
-    return '{}/{}'.format(session_id, exec_num)
+    return '{}-{}'.format(session_id, exec_num)
 
 
 def create_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id):
@@ -58,7 +66,8 @@ def create_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id):
     logger.debug('ExecutorID {} | JobID {} - Creating RabbitMQ resources'.format(executor_id, job_id))
 
     def create_resources(rabbit_amqp_url, executor_id, job_id):
-        exchange = 'lithops-{}-{}'.format(executor_id, job_id)
+        job_key = create_job_key(executor_id, job_id)
+        exchange = 'lithops-{}'.format(job_key)
         queue_0 = '{}-0'.format(exchange)  # For waiting
         queue_1 = '{}-1'.format(exchange)  # For invoker
 
@@ -83,7 +92,8 @@ def delete_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id):
     Only called when an exception is produced, otherwise resources are
     automatically deleted.
     """
-    exchange = 'lithops-{}-{}'.format(executor_id, job_id)
+    job_key = create_job_key(executor_id, job_id)
+    exchange = 'lithops-{}'.format(job_key)
     queue_0 = '{}-0'.format(exchange)  # For waiting
     queue_1 = '{}-1'.format(exchange)  # For invoker
 
@@ -97,8 +107,8 @@ def delete_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id):
 
 
 def agg_data(data_strs):
-    """
-    Auxiliary function that aggregates data of a job to a single byte string
+    """Auxiliary function that aggregates data of a job to a single
+    byte string.
     """
     ranges = []
     pos = 0
@@ -109,15 +119,83 @@ def agg_data(data_strs):
     return b"".join(data_strs), ranges
 
 
+def setup_logger(logging_level=LOGGER_LEVEL,
+                 stream=None,
+                 logging_format=LOGGER_FORMAT):
+    """Setup default logging for lithops."""
+    if stream is None:
+        stream = sys.stderr
+
+    if type(logging_level) is str:
+        logging_level = logging.getLevelName(logging_level.upper())
+
+    logging.config.dictConfig({
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'standard': {
+                'format': logging_format
+            },
+        },
+        'handlers': {
+            'default': {
+                'level': logging_level,
+                'class': 'logging.StreamHandler',
+                'formatter': 'standard',
+                'stream': stream
+            },
+        },
+        'loggers': {
+            'lithops': {
+                'handlers': ['default'],
+                'level': logging_level,
+                'propagate': False
+            },
+        }
+    })
+
+
+def create_handler_zip(dst_zip_location, entry_point_file, entry_point_name=None):
+    """Create the zip package that is uploaded as a function"""
+
+    logger.debug("Creating function handler zip in {}".format(dst_zip_location))
+
+    def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
+        for file in os.listdir(full_dir_path):
+            full_path = os.path.join(full_dir_path, file)
+            if os.path.isfile(full_path):
+                zip_file.write(full_path, os.path.join('lithops', sub_dir, file))
+            elif os.path.isdir(full_path) and '__pycache__' not in full_path:
+                add_folder_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
+
+    try:
+        with zipfile.ZipFile(dst_zip_location, 'w', zipfile.ZIP_DEFLATED) as lithops_zip:
+            module_location = os.path.dirname(os.path.abspath(lithops.__file__))
+            entry_point_name = entry_point_name or os.path.basename(entry_point_file)
+            lithops_zip.write(entry_point_file, entry_point_name)
+            add_folder_to_zip(lithops_zip, module_location)
+
+    except Exception:
+        raise Exception('Unable to create the {} package: {}'.format(dst_zip_location))
+
+
+def verify_runtime_name(runtime_name):
+    """Check if the runtime name has a correct formating"""
+    assert re.match("^[A-Za-z0-9_/.:-]*$", runtime_name),\
+        'Runtime name "{}" not valid'.format(runtime_name)
+
+
 def timeout_handler(error_msg, signum, frame):
     raise TimeoutError(error_msg)
 
 
 def version_str(version_info):
+    """Format the python version information"""
     return "{}.{}".format(version_info[0], version_info[1])
 
 
 def is_unix_system():
+    """Check if the current OS is UNIX"""
     curret_system = platform.system()
     return curret_system != 'Windows'
 
@@ -193,11 +271,12 @@ def split_object_url(obj_url):
         path = obj_url
 
     sb = 'ibm_cos' if sb == 'cos' else sb
+    sb = 'aws_s3' if sb == 's3' else sb
 
     bucket, full_key = path.split('/', 1) if '/' in path else (path, '')
 
     if full_key.endswith('/'):
-        prefix = full_key
+        prefix = full_key.replace('/', '')
         obj_name = ''
     elif full_key:
         prefix, obj_name = full_key.rsplit('/', 1) if '/' in full_key else ('', full_key)

@@ -103,12 +103,12 @@ class BaseContext(object):
         '''Returns a bounded semaphore object'''
         from .synchronize import BoundedSemaphore
         return BoundedSemaphore(value)
-
+        
     def Event(self):
         '''Returns an event object'''
         from .synchronize import Event
         return Event()
-
+        
     def Barrier(self, parties, action=None, timeout=None):
         '''Returns a barrier object'''
         from .synchronize import Barrier
@@ -241,7 +241,7 @@ class BaseContext(object):
         pass
 
     def getpid(self):
-        executor_id, job_id, call_id = os.environ.get('CLOUDBUTTON_EXECUTION_ID').rsplit('/', 2)
+        executor_id, job_id, call_id = os.environ.get('LITHOPS_EXECUTION_ID').rsplit('/', 2)
         return call_id
 
 

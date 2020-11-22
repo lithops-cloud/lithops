@@ -23,9 +23,8 @@ import traceback
 from six import reraise
 from lithops.storage import InternalStorage
 from lithops.storage.utils import check_storage_path, get_storage_path
-from lithops.libs.tblib import pickling_support
 
-pickling_support.install()
+
 logger = logging.getLogger(__name__)
 
 
@@ -205,6 +204,7 @@ class ResponseFuture:
 
             if throw_except:
                 sys.excepthook = exception_hook
+                time.sleep(1)
                 reraise(*self._exception)
             else:
                 logger.info(msg1)

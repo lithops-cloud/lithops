@@ -19,8 +19,7 @@ import os as base_os
 from functools import partial
 from lithops.storage import Storage
 from lithops.utils import is_lithops_worker
-from lithops.config import default_config, \
-    load_yaml_config, extract_storage_config
+from lithops import config
 
 
 #
@@ -28,33 +27,25 @@ from lithops.config import default_config, \
 #
 
 class CloudStorage(Storage):
-    def __init__(self, config=None):
-        if isinstance(config, str):
-            config = load_yaml_config(config)
-            self._config = extract_storage_config(config)
-        elif isinstance(config, dict):
-            if 'lithops' in config:
-                self._config = extract_storage_config(config)
-            else:
-                self._config = config
-        else:
-            self._config = extract_storage_config(default_config())
-        super().__init__(self._config)
+    def __init__(self, storage_config=None, lithops_config=None, storage_backend=None, bucket=None):
+        if lithops_config is None:
+            self.lithops_config = config.default_config()
+        if storage_config is None:
+            self.storage_config = config.extract_storage_config(self.lithops_config)
+        if storage_backend is None:
+            self.storage_backend = self.storage_config['backend']
+        if bucket is not None:
+            self.storage_config['bucket'] = bucket
+
+        super().__init__(storage_config=self.storage_config,
+                         lithops_config=self.lithops_config,
+                         storage_backend=self.storage_backend)
 
     def __getstate__(self):
-        return self._config
+        return self.__dict__
 
     def __setstate__(self, state):
-        self.__init__(state)
-
-    def list_keys(self, prefix=None):
-        return self.storage.list_keys(self.bucket, prefix)
-
-    def put_data(self, key, data):
-        return self.storage.put_object(self.bucket, key, data)
-
-    def get_data(self, key, stream=False, extra_get_args={}):
-        return self.storage.get_object(self.bucket, key, stream, extra_get_args)
+        self.__init__(**state)
 
 
 class CloudFileProxy:
@@ -75,7 +66,7 @@ class CloudFileProxy:
         else:
             prefix = path if path.endswith('/') else path + '/'
 
-        paths = self._storage.list_keys(prefix=prefix)
+        paths = self._storage.list_keys(prefix=prefix, bucket_name=_storage.bucket)
         names = set()
         for p in paths:
             p = p[len(prefix):] if p.startswith(prefix) else p
@@ -161,7 +152,7 @@ class DelayedStringBuffer(io.StringIO):
         self._action = action
 
     def close(self):
-        self._action(self.getvalue())
+        self._action(data=self.getvalue())
         io.StringIO.close(self)
 
 
@@ -170,12 +161,12 @@ def cloud_open(filename, mode='r', cloud_storage=None):
     if 'r' in mode:
         if 'b' in mode:
             # we could get_data(stream=True) but some streams are not seekable
-            return io.BytesIO(storage.get_data(filename))
+            return io.BytesIO(storage.get_object(bucket_name=storage.bucket, key=filename))
         else:
-            return io.StringIO(storage.get_data(filename).decode())
+            return io.StringIO(storage.get_object(bucket_name=storage.bucket, key=filename).decode())
 
     if 'w' in mode:
-        action = partial(storage.put_data, filename)
+        action = partial(storage.put_object, key=filename, bucket_name=storage.bucket)
         if 'b' in mode:
             return DelayedBytesBuffer(action)
         else:

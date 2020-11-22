@@ -15,20 +15,17 @@
 # limitations under the License.
 #
 
-import sys
-import subprocess
+
 import time
-import textwrap
 import pickle
 import logging
-import tempfile
 from lithops import utils
 from lithops.job.partitioner import create_partitions
 from lithops.utils import is_object_processing_function, sizeof_fmt
 from lithops.storage.utils import create_func_key, create_agg_data_key
 from lithops.job.serialize import SerializeIndependent, create_module_data
-from lithops.config import MAX_AGG_DATA_SIZE, JOBS_PREFIX, LOCALHOST,\
-    SERVERLESS, STANDALONE, REALTIME, STORAGE_DIR
+from lithops.constants import MAX_AGG_DATA_SIZE, JOBS_PREFIX, LOCALHOST,\
+    SERVERLESS, STANDALONE, REALTIME, LITHOPS_TEMP_DIR
 from types import SimpleNamespace
 
 import os
@@ -106,7 +103,7 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id,
             iterdata.append([map_futures[prev_total_partitons:prev_total_partitons+total_partitions]])
             prev_total_partitons = prev_total_partitons + total_partitions
 
-    reduce_job_env = {'__PW_REDUCE_JOB': True}
+    reduce_job_env = {'__LITHOPS_REDUCE_JOB': True}
     if extra_env is None:
         ext_env = reduce_job_env
     else:
@@ -134,7 +131,7 @@ stores function and modules in temporary directory to be used later in optimized
 '''
 def _store_func_and_modules(func_key, func_str, module_data):
     # save function
-    func_path = '/'.join([STORAGE_DIR, func_key])
+    func_path = '/'.join([LITHOPS_TEMP_DIR, func_key])
     os.makedirs(os.path.dirname(func_path), exist_ok=True)
     with open(func_path, "wb") as f:
         f.write(func_str)
@@ -302,45 +299,3 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     job.metadata = host_job_meta
 
     return job
-
-
-def clean_job(jobs_to_clean, storage_config, clean_cloudobjects):
-    """
-    Clean the jobs in a separate process
-    """
-    with tempfile.NamedTemporaryFile(delete=False) as temp:
-        pickle.dump(jobs_to_clean, temp)
-        jobs_path = temp.name
-
-    script = """
-    from lithops.storage import InternalStorage
-    from lithops.storage.utils import clean_bucket
-    from lithops.config import JOBS_PREFIX, TEMP_PREFIX
-
-    import pickle
-    import os
-
-    storage_config = {}
-    clean_cloudobjects = {}
-    jobs_path = '{}'
-    bucket = storage_config['bucket']
-
-    with open(jobs_path, 'rb') as pk:
-        jobs_to_clean = pickle.load(pk)
-
-    internal_storage = InternalStorage(storage_config)
-    storage = internal_storage.storage
-
-    for executor_id, job_id in jobs_to_clean:
-        prefix = '/'.join([JOBS_PREFIX, executor_id, job_id])
-        clean_bucket(storage, bucket, prefix, log=False)
-        if clean_cloudobjects:
-            prefix = '/'.join([TEMP_PREFIX, executor_id, job_id])
-            clean_bucket(storage, bucket, prefix, log=False)
-
-    if os.path.exists(jobs_path):
-        os.remove(jobs_path)
-    """.format(storage_config, clean_cloudobjects, jobs_path)
-
-    cmdstr = '{} -c "{}"'.format(sys.executable, textwrap.dedent(script))
-    subprocess.Popen(cmdstr, shell=True)

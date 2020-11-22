@@ -1,0 +1,14 @@
+beautifulsoup4
+httplib2
+kafka-python
+lxml
+python-dateutil
+requests
+scrapy
+simplejson
+virtualenv
+Twisted
+PyJWT
+Pillow
+redis
+pika==0.13.1

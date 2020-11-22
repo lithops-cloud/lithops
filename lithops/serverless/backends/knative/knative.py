@@ -29,13 +29,12 @@ from urllib.parse import urlparse
 from kubernetes import client, config, watch
 from lithops.utils import version_str
 from lithops.version import __version__
-from lithops.config import CACHE_DIR, load_yaml_config, dump_yaml_config
-from lithops.serverless.utils import create_function_handler_zip
+from lithops.config import load_yaml_config, dump_yaml_config
+from lithops.constants import CACHE_DIR
+from lithops.utils import create_handler_zip
 from . import config as kconfig
 
 urllib3.disable_warnings()
-logging.getLogger('kubernetes').setLevel(logging.CRITICAL)
-logging.getLogger('urllib3.connectionpool').setLevel(logging.CRITICAL)
 
 logger = logging.getLogger(__name__)
 
@@ -102,13 +101,18 @@ class KnativeServingBackend:
 
         logger.debug('Loaded service host suffix: {}'.format(self.service_host_suffix))
 
+        log_msg = 'Lithops v{} init for Knative '.format(__version__)
         if self.istio_endpoint:
-            log_msg = 'Lithops v{} init for Knative - Istio Endpoint: {}'.format(__version__, self.istio_endpoint)
-        else:
-            log_msg = 'Lithops v{} init for Knative'.format(__version__)
+            msg = '- Istio Endpoint: {}'.format(__version__, self.istio_endpoint)
+            log_msg += msg
+            logger.debug('Set '+msg)
+        elif self.cluster:
+            msg = '- Cluster: {}'.format(self.cluster)
+            log_msg += msg
+            logger.debug('Set '+msg)
         if not self.log_active:
             print(log_msg)
-        logger.info(log_msg)
+        logger.info('Knative client created successfully')
 
     def _format_service_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '--').replace(':', '--')
@@ -124,7 +128,7 @@ class KnativeServingBackend:
         docker_user = self.knative_config['docker_user']
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        return '{}/{}-v{}:{}'.format(docker_user, kconfig.RUNTIME_NAME_DEFAULT, python_version, revision)
+        return '{}/{}-v{}:{}'.format(docker_user, kconfig.RUNTIME_NAME, python_version, revision)
 
     def _get_service_host(self, service_name):
         """
@@ -132,7 +136,6 @@ class KnativeServingBackend:
         """
         logger.debug('Getting service host for: {}'.format(service_name))
         try:
-            #t0 = time.time()
             svc = self.api.get_namespaced_custom_object(
                         group="serving.knative.dev",
                         version="v1",
@@ -144,7 +147,6 @@ class KnativeServingBackend:
                 service_host = svc['status']['url'][7:]
             else:
                 raise Exception('Unable to get service details from {}'.format(service_name))
-            #print(time.time()-t0)
         except Exception as e:
             if json.loads(e.body)['code'] == 404:
                 log_msg = 'Knative service: resource "{}" Not Found'.format(service_name)
@@ -165,7 +167,7 @@ class KnativeServingBackend:
         secret_res = yaml.safe_load(kconfig.secret_res)
         secret_res['stringData'] = string_data
 
-        if self.knative_config['docker_repo'] != kconfig.DOCKER_REPO_DEFAULT:
+        if self.knative_config['docker_repo'] != kconfig.DOCKER_REPO:
             secret_res['metadata']['annotations']['tekton.dev/docker-0'] = self.knative_config['docker_repo']
 
         account_res = yaml.safe_load(kconfig.account_res)
@@ -342,7 +344,7 @@ class KnativeServingBackend:
         """
         Builds the default runtime
         """
-        if os.system('docker --version >{} 2>&1'.format(os.devnull)) == 0:
+        if os.system('{} --version >{} 2>&1'.format(kconfig.DOCKER_PATH, os.devnull)) == 0:
             # Build default runtime using local dokcer
             python_version = version_str(sys.version_info).replace('.', '')
             location = 'https://raw.githubusercontent.com/lithops-cloud/lithops/master/runtime/knative'
@@ -376,12 +378,22 @@ class KnativeServingBackend:
         logger.debug("Namespace: {}".format(self.namespace))
 
         svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
+        svc_res['spec']['template']['spec']['containerConcurrency'] = self.knative_config['concurrency']
+
         full_docker_image_name = '/'.join([self.knative_config['docker_repo'], docker_image_name])
         svc_res['spec']['template']['spec']['containers'][0]['image'] = full_docker_image_name
+        conc_env = {'name': 'CONCURRENCY', 'value': str(self.knative_config['concurrency'])}
+        tout_env = {'name': 'TIMEOUT', 'value': str(timeout)}
+        svc_res['spec']['template']['spec']['containers'][0]['env'][0] = conc_env
+        svc_res['spec']['template']['spec']['containers'][0]['env'][1] = tout_env
         svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['memory'] = '{}Mi'.format(runtime_memory)
         svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['cpu'] = '{}m'.format(self.knative_config['cpu'])
         svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory)
         svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['cpu'] = '{}m'.format(self.knative_config['cpu'])
+
+        svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/minScale'] = str(self.knative_config['min_instances'])
+        svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = str(self.knative_config['max_instances'])
+        svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/target'] = str(self.knative_config['concurrency'])
 
         try:
             # delete the service resource if exists
@@ -451,7 +463,7 @@ class KnativeServingBackend:
 
         return runtime_meta
 
-    def create_runtime(self, docker_image_name, memory, timeout=kconfig.RUNTIME_TIMEOUT_DEFAULT):
+    def create_runtime(self, docker_image_name, memory, timeout=kconfig.RUNTIME_TIMEOUT):
         """
         Creates a new runtime into the knative default namespace from an already built Docker image.
         As knative does not have a default image already published in a docker registry, lithops
@@ -484,15 +496,18 @@ class KnativeServingBackend:
         result = re.match(expression, docker_image_name)
 
         if not result or result.group() != docker_image_name:
-            raise Exception("Invalid docker image name: '.' or '_' characters are not allowed")
+            raise Exception("Invalid docker image name: All letters must be "
+                            "lowercase and '.' or '_' characters are not allowed")
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-        create_function_handler_zip(kconfig.FH_ZIP_LOCATION, entry_point, 'lithopsproxy.py')
+        create_handler_zip(kconfig.FH_ZIP_LOCATION, entry_point, 'lithopsproxy.py')
 
         if dockerfile:
-            cmd = 'docker build -t {} -f {} .'.format(docker_image_name, dockerfile)
+            cmd = '{} build -t {} -f {} .'.format(kconfig.DOCKER_PATH,
+                                                  docker_image_name,
+                                                  dockerfile)
         else:
-            cmd = 'docker build -t {} .'.format(docker_image_name)
+            cmd = '{} build -t {} .'.format(kconfig.DOCKER_PATH, docker_image_name)
 
         if not self.log_active:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
@@ -503,7 +518,7 @@ class KnativeServingBackend:
 
         self._delete_function_handler_zip()
 
-        cmd = 'docker push {}'.format(docker_image_name)
+        cmd = '{} push {}'.format(kconfig.DOCKER_PATH, docker_image_name)
         if not self.log_active:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
         res = os.system(cmd)
@@ -631,6 +646,7 @@ class KnativeServingBackend:
         in order to know which runtimes are installed and which not.
         """
         service_name = self._format_service_name(docker_image_name, runtime_memory)
-        runtime_key = os.path.join(self.cluster, self.namespace, service_name)
+        cluster = self.cluster.replace('https://', '').replace('http://', '')
+        runtime_key = os.path.join(cluster, self.namespace, service_name)
 
         return runtime_key

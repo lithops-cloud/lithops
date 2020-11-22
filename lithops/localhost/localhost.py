@@ -23,12 +23,14 @@ import shutil
 import subprocess as sp
 from shutil import copyfile
 
-from lithops.config import TEMP, STORAGE_DIR, JOBS_PREFIX, FN_LOG_FILE
+from lithops.constants import TEMP, LITHOPS_TEMP_DIR, JOBS_PREFIX,\
+    RN_LOG_FILE, LOGS_DIR
+from lithops.storage.utils import create_job_key
 from lithops.version import __version__
 
 logger = logging.getLogger(__name__)
 
-RUNNER = os.path.join(STORAGE_DIR, 'runner.py')
+RUNNER = os.path.join(LITHOPS_TEMP_DIR, 'runner.py')
 LITHOPS_LOCATION = os.path.dirname(os.path.abspath(lithops.__file__))
 
 
@@ -43,7 +45,7 @@ class LocalhostHandler:
         self.config = localhost_config
         self.runtime = self.config['runtime']
 
-        if self.runtime == 'python3':
+        if self.runtime.startswith('python3'):
             self.env = DefaultEnv()
             self.env_type = 'default'
         else:
@@ -59,9 +61,15 @@ class LocalhostHandler:
         """
         Run the job description against the selected environment
         """
+        executor_id = job_payload['executor_id']
+        job_id = job_payload['job_id']
         runtime = job_payload['job_description']['runtime_name']
+
+        job_key = create_job_key(executor_id, job_id)
+        log_file = os.path.join(LOGS_DIR, job_key+'.log')
         logger.info("Running job in {}. View execution logs at {}"
-                    .format(runtime, FN_LOG_FILE))
+                    .format(runtime, log_file))
+
         if not os.path.isfile(RUNNER):
             self.env.setup()
 
@@ -71,17 +79,16 @@ class LocalhostHandler:
         job_id = job_payload['job_id']
         storage_bucket = job_payload['config']['lithops']['storage_bucket']
 
-        job_dir = os.path.join(STORAGE_DIR, storage_bucket,
-                               JOBS_PREFIX, executor_id, job_id)
+        job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket, JOBS_PREFIX)
         os.makedirs(job_dir, exist_ok=True)
-        jobr_filename = os.path.join(job_dir, 'job.json')
+        jobr_filename = os.path.join(job_dir, '{}-job.json'.format(job_key))
 
         with open(jobr_filename, 'w') as jl:
             json.dump(job_payload, jl)
 
-        log_file = open(os.path.join(STORAGE_DIR, 'local_handler.log'), 'a')
+        log_file = open(RN_LOG_FILE, 'a')
         sp.Popen(exec_command+' run '+jobr_filename, shell=True,
-                 stdout=log_file, universal_newlines=True)
+                 stdout=log_file, stderr=log_file, universal_newlines=True)
 
     def create_runtime(self, runtime):
         """
@@ -113,20 +120,20 @@ class DockerEnv:
         self.runtime = docker_image
 
     def setup(self):
-        os.makedirs(STORAGE_DIR, exist_ok=True)
+        os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
         try:
-            shutil.rmtree(os.path.join(STORAGE_DIR, 'lithops'))
+            shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
         except FileNotFoundError:
             pass
-        shutil.copytree(LITHOPS_LOCATION, os.path.join(STORAGE_DIR, 'lithops'))
+        shutil.copytree(LITHOPS_LOCATION, os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
         src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'runner.py')
         copyfile(src_handler, RUNNER)
 
     def get_execution_cmd(self, docker_image_name):
         cmd = ('docker pull {} > /dev/null 2>&1; docker run '
                '--user $(id -u):$(id -g) --rm -v {}:/tmp --entrypoint '
-               '"python" {} {}'.format(docker_image_name, TEMP,
-                                       docker_image_name, RUNNER))
+               '"python" {} /tmp/lithops/runner.py'
+               .format(docker_image_name, TEMP, docker_image_name))
         return cmd
 
 
@@ -135,12 +142,12 @@ class DefaultEnv:
         self.runtime = sys.executable
 
     def setup(self):
-        os.makedirs(STORAGE_DIR, exist_ok=True)
+        os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
         try:
-            shutil.rmtree(os.path.join(STORAGE_DIR, 'lithops'))
+            shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
         except FileNotFoundError:
             pass
-        shutil.copytree(LITHOPS_LOCATION, os.path.join(STORAGE_DIR, 'lithops'))
+        shutil.copytree(LITHOPS_LOCATION, os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
         src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'runner.py')
         copyfile(src_handler, RUNNER)
 
