@@ -33,7 +33,7 @@ RUN pip install --upgrade setuptools six pip \
 # ones in terms of image size. For example:
 #RUN conda install -c conda-forge opencv && conda install sortedcontainers gevent-websocket && conda clean --all
 
-ENV CONCURRENCY 8
+ENV CONCURRENCY 4
 ENV TIMEOUT 600
 ENV PYTHONUNBUFFERED TRUE
 
@@ -44,4 +44,4 @@ WORKDIR $APP_HOME
 COPY lithops_knative.zip .
 RUN unzip lithops_knative.zip && rm lithops_knative.zip
 
-CMD exec gunicorn --bind :$PORT --workers 1 --threads $CONCURRENCY --timeout $TIMEOUT lithopsproxy:proxy
+CMD exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsproxy:proxy
