@@ -125,7 +125,7 @@ class FunctionExecutor:
             self.compute_handler = ServerlessHandler(serverless_config,
                                                      storage_config)
 
-            if config_ow['lithops'][REALTIME]:
+            if self.config['lithops'][REALTIME]:
                 self.invoker = RealTimeInvoker(self.config,
                                            self.executor_id,
                                            self.internal_storage,
@@ -667,7 +667,7 @@ class RealTimeExecutor(FunctionExecutor):
 
         :return `RealTimeExecutor` object.
         """
-        if config and config['lithops'][REALTIME] not True:
+        if config and not config['lithops'][REALTIME]:
             raise Exception("lithops realtime flag should be set to true when using RealTimeExecutor")
 
         super().__init__(mode=SERVERLESS, config=config, runtime=runtime,
@@ -707,6 +707,7 @@ class RealTimeExecutor(FunctionExecutor):
 
         runtime_meta = self.invoker.select_runtime(job_id, runtime_memory)
 
+        import pdb;pdb.set_trace()
         job = create_map_job(self.config, self.internal_storage,
                              self.executor_id, job_id,
                              map_function=map_function,
@@ -722,6 +723,7 @@ class RealTimeExecutor(FunctionExecutor):
                              obj_chunk_number=chunk_n,
                              invoke_pool_threads=invoke_pool_threads)
 
+        import pdb;pdb.set_trace()
         self.invoker.extend_runtime(job, runtime_memory)
 
         futures = self.invoker.run(job)

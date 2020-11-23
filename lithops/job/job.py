@@ -273,6 +273,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     data_upload_end = time.time()
 
     host_job_meta['host_data_upload_time'] = round(data_upload_end-data_upload_start, 6)
+    func_upload_start = time.time()
 
     # Upload function and modules
     if config['lithops'][REALTIME]:
@@ -285,7 +286,6 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
         
         job.ext_runtime_uuid = uuid
     else:
-        func_upload_start = time.time()
         func_key = create_func_key(JOBS_PREFIX, executor_id, job_id)
         job.func_key = func_key
         internal_storage.put_func(func_key, func_module_str)
