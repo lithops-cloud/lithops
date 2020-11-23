@@ -78,7 +78,8 @@ class JobRunner:
         prom_enabled = self.lithops_config['lithops'].get('monitoring')
         prom_config = self.lithops_config.get('prometheus', {})
         self.prometheus = PrometheusExporter(prom_enabled, prom_config)
-        self.mode = self.jr_config['mode']
+        print("self.jr_config")
+        print(self.jr_config) 
 
     def _get_function_and_modules(self):
         """

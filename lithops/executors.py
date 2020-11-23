@@ -125,7 +125,7 @@ class FunctionExecutor:
             self.compute_handler = ServerlessHandler(serverless_config,
                                                      storage_config)
 
-            if self.config['lithops'][REALTIME]:
+            if self.config['lithops'].get(REALTIME):
                 self.invoker = RealTimeInvoker(self.config,
                                            self.executor_id,
                                            self.internal_storage,
