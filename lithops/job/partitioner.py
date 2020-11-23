@@ -85,14 +85,16 @@ def create_partitions(lithops_config, internal_storage, map_iterdata, chunk_size
                              .format(sb, '/'.join([bucket, prefix])))
                 if bucket not in objects:
                     objects[bucket] = []
-                objects[bucket].extend(storage.list_objects(bucket, prefix+'/'))
+                prefix = prefix + '/' if prefix else prefix
+                objects[bucket].extend(storage.list_objects(bucket, prefix))
         elif prefixes:
             for bucket, prefix in prefixes:
                 logger.debug("Listing objects in '{}://{}/'"
                              .format(sb, '/'.join([bucket, prefix])))
                 if bucket not in objects:
                     objects[bucket] = []
-                objects[bucket].extend(storage.list_objects(bucket, prefix+'/'))
+                prefix = prefix + '/' if prefix else prefix
+                objects[bucket].extend(storage.list_objects(bucket, prefix))
         elif buckets:
             for bucket in buckets:
                 logger.debug("Listing objects in '{}://{}'".format(sb, bucket))
@@ -142,7 +144,8 @@ def _split_objects_from_buckets(map_func_args_list, keys_dict, chunk_size, chunk
 
                 if chunk_number:
                     chunk_rest = obj_size % chunk_number
-                    obj_chunk_size = obj_size // chunk_number + chunk_rest
+                    obj_chunk_size = (obj_size // chunk_number) + \
+                        round((chunk_rest / chunk_number) + 0.5)
                 elif chunk_size:
                     obj_chunk_size = chunk_size
                 else:
@@ -191,7 +194,8 @@ def _split_objects_from_keys(map_func_args_list, keys_dict, chunk_size, chunk_nu
 
         if chunk_number:
             chunk_rest = obj_size % chunk_number
-            obj_chunk_size = obj_size // chunk_number + chunk_rest
+            obj_chunk_size = (obj_size // chunk_number) + \
+                round((chunk_rest / chunk_number) + 0.5)
         elif chunk_size:
             obj_chunk_size = chunk_size
         else:
@@ -239,7 +243,8 @@ def _split_objects_from_urls(map_func_args_list, chunk_size, chunk_number):
 
         if chunk_number and obj_size:
             chunk_rest = obj_size % chunk_number
-            obj_chunk_size = obj_size // chunk_number + chunk_rest
+            obj_chunk_size = (obj_size // chunk_number) + \
+                round((chunk_rest / chunk_number) + 0.5)
         elif chunk_size and obj_size:
             obj_chunk_size = chunk_size
         elif obj_size:

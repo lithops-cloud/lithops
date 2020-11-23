@@ -66,6 +66,7 @@ class JobRunner:
         self.internal_storage = internal_storage
 
         self.lithops_config = self.jr_config['lithops_config']
+        self.executor_id = self.jr_config['executor_id']
         self.call_id = self.jr_config['call_id']
         self.job_id = self.jr_config['job_id']
         self.func_key = self.jr_config['func_key']
