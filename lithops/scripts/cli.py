@@ -203,12 +203,12 @@ def runtime(ctx):
 @click.option('--memory', default=None, help='memory used by the runtime', type=int)
 @click.option('--timeout', default=None, help='runtime timeout', type=int)
 @click.option('--config', '-c', default=None, help='use json config file')
-def create(name, mode, backend, memory, timeout, config):
+def create(name, backend, memory, timeout, config):
     """ Create a serverless runtime """
     setup_logger(logging.DEBUG)
     logger.info('Creating new lithops runtime: {}'.format(name))
 
-    mode = 'serverless'
+    mode = SERVERLESS 
     config_ow = {'lithops': {'mode': mode}}
     if backend:
         config_ow[mode] = {'backend': backend}
