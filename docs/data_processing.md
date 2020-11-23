@@ -1,8 +1,8 @@
 # Using Lithops to process data from a Cloud Object Storage service and public URLs
 
-Lithops has built-in logic for processing data objects from public URLs and object storage services. When you write in the parameters of a function the parameter name: **obj**, you are telling to Lithops that you want to process objects located in IBM Cloud Object Storage service. In contrast, when you write in the parameters of a function the parameter name: **url**, you are telling to Lithops that you want to process data from publicly accessible URLs. 
+Lithops has built-in logic for processing data objects from public URLs and object storage services. When you write in the parameters of a function the parameter name: **obj**, you are telling to Lithops that you want to process objects located in an object storage service. In contrast, when you write in the parameters of a function the parameter name: **url**, you are telling to Lithops that you want to process data from publicly accessible URLs. 
 
-Additionally, the built-in data-processing logic integrates a **data partitioner** system that allows to automatically split the dataset in smallest chunks. Splitting a file into smaller chunks permit to leverage the parallelism provided by IBM Cloud Functions or Knative to process the data. We designed the partitioner within the `map()` and `map_reduce()` API calls, an it is configurable by specifying the *size of the chunk*, or the *number of chunks* to split each file. The current implementation of the data partitioner supports to split files that contain multiple lines (or rows) ended by '\n', for example, a .txt book or a common .csv file among others. More data-types will be supported in future releases.
+Additionally, the built-in data-processing logic integrates a **data partitioner** system that allows to automatically split the dataset in smallest chunks. Splitting a file into smaller chunks permit to leverage the parallelism provided by the compute backends to process the data. We designed the partitioner within the `map()` and `map_reduce()` API calls, an it is configurable by specifying the *size of the chunk*, or the *number of chunks* to split each file. The current implementation of the data partitioner supports to split files that contain multiple lines (or rows) ended by '\n', for example, a .txt book or a common .csv file among others. More data-types will be supported in future releases.
 
 
 ## Processing data from a Cloud Object Storage service
@@ -27,24 +27,24 @@ As stated above, the allowed inputs of the function can be:
 
 - Input data is a bucket or a list of buckets. See an example in [map_reduce_cos_bucket.py](../examples/map_reduce_cos_bucket.py):
     ```python
-    iterdata = '//bucket1'
+    iterdata = 'bucket1'
     ```
 
 -  Input data is a bucket(s) with object prefix. See an example in [map_cos_prefix.py](../examples/map_cos_prefix.py):
     ```python
-    iterdata = ['//bucket1/images/', '//bucket1/videos/']
+    iterdata = ['/bucket1/images/', 'bucket1/videos/']
     ```
     Notice that you must write the end slash (/) to inform partitioner you are providing an object prefix.
 
 - Input data is a list of object keys. See an example in [map_reduce_cos_key.py](../examples/map_reduce_cos_key.py):
     ```python
-    iterdata = ['//bucket1/object1', '//bucket1/object2', '//bucket1/object3'] 
+    iterdata = ['bucket1/object1', 'bucket1/object2', 'bucket1/object3'] 
     ```
     
 Notice that *iterdata* must be only one of the previous 3 types. Intermingled types are not allowed. For example, you cannot set in the same *iterdata* a bucket and some object keys:
 
 ```python
-iterdata = ['//bucket1', '//bucket1/object2', '//bucket1/object3']  # Not allowed
+iterdata = ['bucket1', 'bucket1/object2', 'bucket1/object3']  # Not allowed
 ```
 
 Once iterdata is defined, you can execute Lithops as usual, either using *map()* or *map_reduce()* calls. If you need to split the files in smaller chunks, you can set (optionally) the *chunk_size* or *chunk_n* parameters.
@@ -93,7 +93,7 @@ result = fexec.get_result()
 See a complete example in [map_reduce_url.py](../examples/map_reduce_url.py).
 
 
-## Reducer granularity            
+## Reducer granularity
 When using the `map_reduce()` API call with `chunk_size` or `chunk_n`, by default there will be only one reducer for all the object chunks from all the objects. Alternatively, you can spawn one reducer for each object by setting the parameter `reducer_one_per_object=True`.
 
 ```python

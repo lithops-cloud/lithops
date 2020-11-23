@@ -21,17 +21,6 @@ To contribute a patch:
 5. Add new unit tests for your code.
 
 
-PR Review Process
------------------
-
-- When you first create a PR, add an reviewer to the `assignee` section.
-- Assignees will review your PR and add `@author-action-required` label if further actions are required.
-- Address their comments and remove `@author-action-required` label from the PR.
-- Repeat this process until assignees approve your PR.
-- Once the PR is approved, the author is in charge of ensuring the PR passes the build. Add `test-ok` label if the build succeeds.
-- Committers will merge the PR once the build is passing.
-
-
 Unit testing
 ------------
 

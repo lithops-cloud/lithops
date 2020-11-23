@@ -2,10 +2,14 @@
 <p align="center"> <img src="docs/images/lithops_flat_cloud_1.png" alt="Lithops"
       width='500' title="Lightweight Optimized Processing"/></p>
 
+![GitHub](https://img.shields.io/github/license/lithops-cloud/lithops)
+![PyPI](https://img.shields.io/pypi/v/lithops)
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/lithops)
+
 Lithops is a Python multi-cloud distributed computing framework. It allows to run unmodified local python code at massive scale in the main
 serverless computing platforms. Lithops delivers the user’s code into the cloud without requiring knowledge of how it is deployed and run. Moreover, its multicloud-agnostic architecture ensures portability across cloud providers, overcoming vendor lock-in.
 
-Lithops provides value for a great variety of uses cases like big data analytics and embarrassingly parallel jobs. It is specially suited for highly-parallel programs with little or no need for communication between processes, but it also supports parallel applications that need to share state among processes. Examples of applications that run with Lithops include Monte Carlo simulations, deep learning and machine learning processes, metabolomics computations, and geospatial analytics.
+Lithops provides value for a great variety of uses cases like big data analytics and embarrassingly parallel jobs. It is specially suited for highly-parallel programs with little or no need for communication between processes, but it also supports parallel applications that need to share state among processes. Examples of applications that run with Lithops include Monte Carlo simulations, deep learning and machine learning processes, metabolomics computations, and geospatial analytics, to name few.
 
 
 ## Quick Start
@@ -19,7 +23,7 @@ Lithops provides value for a great variety of uses cases like big data analytics
 2. Test Lithops by simply running the next command:
   
    ```bash
-    $ lithops test
+   $ lithops test
    ```
 
 ## Move to the Cloud
@@ -27,9 +31,12 @@ Lithops provides an extensible backend architecture (compute, storage) that is d
 
 - [Follow these instructions to configure your compute and storage backends](config/)
 
-
-<p align="center"> <img src="docs/images/multicloud.png" alt="Lithops"
-      width='670' title="Supported Clouds"/></p>
+[![IBM Cloud](docs/images/ibm_cloud.png)](docs/supported_clouds.md#ibm-cloud)
+[![AWS](docs/images/aws.png)](docs/supported_clouds.md#aws)
+[![Google](docs/images/google.png)](docs/supported_clouds.md#google-cloud)
+[![Azure](docs/images/azure.png)](docs/supported_clouds.md/#microsoft-azure)
+[![Alibaba](docs/images/alibaba.png)](docs/supported_clouds.md#alibaba-aliyun)
+[![K8s](docs/images/k8s.png)](docs/supported_clouds.md#kubernetes-&-on-premise)
 
 
 ## High-level API
