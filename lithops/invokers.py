@@ -473,8 +473,15 @@ class RealTimeInvoker(ServerlessInvoker):
     action containers on each execution
     """
 
+    def run(self, job):
+        """
+        Extend runtime and run a job described in job_description
+        """
+        self._extend_runtime(job)
+        super().run(job)
+
     # If runtime not exists yet, build unique docker image and register runtime
-    def extend_runtime(self, job, runtime_memory):
+    def _extend_runtime(self, job):
         if not runtime_memory:
             runtime_memory = self.config['serverless']['runtime_memory']
         timeout = self.config['serverless']['runtime_timeout']
