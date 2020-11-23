@@ -196,7 +196,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
 
     mode = config['lithops']['mode']
 
-    if mode == SERVERLESS or REALTIME:
+    if mode == SERVERLESS:
         job.invoke_pool_threads = invoke_pool_threads
         job.runtime_memory = runtime_memory or config['serverless']['runtime_memory']
         job.runtime_timeout = config['serverless']['runtime_timeout']
@@ -275,7 +275,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     host_job_meta['host_data_upload_time'] = round(data_upload_end-data_upload_start, 6)
 
     # Upload function and modules
-    if mode == REALTIME:
+    if config[REALTIME]:
         # Prepare function and modules locally to store in the runtime image later
         uuid = hashlib.md5(bytes(inspect.getsource(func), 'utf-8') + pickle.dumps(module_data)).hexdigest()
         func_key = create_func_key(JOBS_PREFIX, uuid, "")

@@ -59,7 +59,7 @@ class FunctionExecutor:
         """ Create a FunctionExecutor Class """
         if mode and mode not in [LOCALHOST, SERVERLESS, STANDALONE, REALTIME]:
             raise Exception("Function executor mode must be one of '{}', '{}' "
-                            "or '{}'".format(LOCALHOST, SERVERLESS, STANDALONE, REALTIME))
+                            "or '{}'".format(LOCALHOST, SERVERLESS, STANDALONE))
         if log_level:
             setup_logger(log_level)
 
@@ -125,7 +125,13 @@ class FunctionExecutor:
             self.compute_handler = ServerlessHandler(serverless_config,
                                                      storage_config)
 
-            self.invoker = ServerlessInvoker(self.config,
+            if config[REALTIME]:
+                self.invoker = RealTimeInvoker(self.config,
+                                           self.executor_id,
+                                           self.internal_storage,
+                                           self.compute_handler)
+            else:
+                self.invoker = ServerlessInvoker(self.config,
                                              self.executor_id,
                                              self.internal_storage,
                                              self.compute_handler)
@@ -137,16 +143,7 @@ class FunctionExecutor:
                                              self.executor_id,
                                              self.internal_storage,
                                              self.compute_handler)
-        elif mode == REALTIME:
-            serverless_config = extract_serverless_config(self.config)
-            self.compute_handler = ServerlessHandler(serverless_config,
-                                                     storage_config)
-
-            self.invoker = RealTimeInvoker(self.config,
-                                           self.executor_id,
-                                           self.internal_storage,
-                                           self.compute_handler)
-
+            
         logger.info('{} Executor created with ID: {}'
                     .format(mode.capitalize(), self.executor_id))
 
@@ -653,7 +650,7 @@ class StandaloneExecutor(FunctionExecutor):
 
 
 class RealTimeExecutor(FunctionExecutor):
-    def __init__(self, config=None, runtime=None, runtime_memory=None,
+    def __init__(self, config={}, runtime=None, runtime_memory=None,
                  backend=None, storage=None, workers=None, rabbitmq_monitor=None,
                  remote_invoker=None, log_level=None):
         """
@@ -670,7 +667,8 @@ class RealTimeExecutor(FunctionExecutor):
 
         :return `ServerlessExecutor` object.
         """
-        super().__init__(mode=REALTIME, config=config, runtime=runtime,
+        config[REALTIME] = True
+        super().__init__(mode=SERVERLESS, config=config, runtime=runtime,
                          runtime_memory=runtime_memory, backend=backend,
                          storage=storage, workers=workers,
                          rabbitmq_monitor=rabbitmq_monitor, log_level=log_level,

@@ -87,7 +87,7 @@ class JobRunner:
         logger.debug("Getting function and modules")
         func_download_start_tstamp = time.time()
         func_obj = None
-        if self.mode == REALTIME:
+        if self.jr_config[REALTIME]:
             func_obj = self._get_func()
         else:
             func_obj = self.internal_storage.get_func(self.func_key)
@@ -266,7 +266,7 @@ class JobRunner:
             function = None
             logger.info("Before self._get_function_and_modules")
 
-            if self.mode == REALTIME:
+            if self.jr_config[REALTIME]:
                 function = self._get_function_and_modules()
             else:
                 loaded_func_all = self._get_function_and_modules()
