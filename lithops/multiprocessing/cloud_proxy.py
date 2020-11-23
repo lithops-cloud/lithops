@@ -20,6 +20,7 @@ from functools import partial
 from lithops.storage import InternalStorage
 from lithops.utils import is_lithops_worker
 from lithops.config import default_config, load_yaml_config, extract_storage_config
+from lithops.constants import JOBS_PREFIX, TEMP_PREFIX, LOGS_PREFIX, RUNTIMES_PREFIX
 
 
 #
@@ -64,14 +65,20 @@ class CloudFileProxy:
 
     def listdir(self, path='', suffix_dirs=False):
         if path == '':
-            prefix = path
+            prefix = '/'
+        elif path.startswith('/'):
+            prefix = path[1:]
         else:
             prefix = path if path.endswith('/') else path + '/'
 
         paths = self._storage.list_keys(prefix=prefix)
         names = set()
         for p in paths:
+            if any([p.startswith(prefix) for prefix in [JOBS_PREFIX, TEMP_PREFIX, LOGS_PREFIX, RUNTIMES_PREFIX]]):
+                continue
             p = p[len(prefix):] if p.startswith(prefix) else p
+            if p.startswith('/'):
+                p = p[1:]
             splits = p.split('/')
             name = splits[0] + '/' if suffix_dirs and len(splits) > 1 else splits[0]
             names |= set([name])
@@ -89,18 +96,16 @@ class CloudFileProxy:
 
         if dirs == [] and files == [] and not self.path.exists(top):
             raise StopIteration
-
         elif topdown:
-            yield (top, dirs, files)
-            for dir in dirs:
-                for result in self.walk('/'.join([top, dir]), topdown, onerror, followlinks):
+            yield top, dirs, files
+            for dir_name in dirs:
+                for result in self.walk(base_os.path.join(top, dir_name), topdown, onerror, followlinks):
                     yield result
-
         else:
-            for dir in dirs:
-                for result in self.walk('/'.join([top, dir]), topdown, onerror, followlinks):
+            for dir_name in dirs:
+                for result in self.walk(base_os.path.join(top, dir_name), topdown, onerror, followlinks):
                     yield result
-            yield (top, dirs, files)
+            yield top, dirs, files
 
     def remove(self, key):
         self._storage.storage.delete_cobject(key=key)
