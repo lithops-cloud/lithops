@@ -57,7 +57,7 @@ class FunctionExecutor:
                  runtime=None, runtime_memory=None, rabbitmq_monitor=None,
                  workers=None, remote_invoker=None, log_level=None):
         """ Create a FunctionExecutor Class """
-        if mode and mode not in [LOCALHOST, SERVERLESS, STANDALONE, REALTIME]:
+        if mode and mode not in [LOCALHOST, SERVERLESS, STANDALONE]:
             raise Exception("Function executor mode must be one of '{}', '{}' "
                             "or '{}'".format(LOCALHOST, SERVERLESS, STANDALONE))
         if log_level:
@@ -125,7 +125,7 @@ class FunctionExecutor:
             self.compute_handler = ServerlessHandler(serverless_config,
                                                      storage_config)
 
-            if config[REALTIME]:
+            if config_ow['lithops'][REALTIME]:
                 self.invoker = RealTimeInvoker(self.config,
                                            self.executor_id,
                                            self.internal_storage,
@@ -650,11 +650,11 @@ class StandaloneExecutor(FunctionExecutor):
 
 
 class RealTimeExecutor(FunctionExecutor):
-    def __init__(self, config={}, runtime=None, runtime_memory=None,
+    def __init__(self, config=None, runtime=None, runtime_memory=None,
                  backend=None, storage=None, workers=None, rabbitmq_monitor=None,
                  remote_invoker=None, log_level=None):
         """
-        Initialize a ServerlessExecutor class.
+        Initialize a RealTimeExecutor class.
 
         :param config: Settings passed in here will override those in config file.
         :param runtime: Runtime name to use.
@@ -665,9 +665,11 @@ class RealTimeExecutor(FunctionExecutor):
         :param rabbitmq_monitor: use rabbitmq as the monitoring system.
         :param log_level: log level to use during the execution.
 
-        :return `ServerlessExecutor` object.
+        :return `RealTimeExecutor` object.
         """
-        config[REALTIME] = True
+        if config and config['lithops'][REALTIME] not True:
+            raise Exception("lithops realtime flag should be set to true when using RealTimeExecutor")
+
         super().__init__(mode=SERVERLESS, config=config, runtime=runtime,
                          runtime_memory=runtime_memory, backend=backend,
                          storage=storage, workers=workers,

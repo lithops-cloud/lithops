@@ -275,7 +275,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     host_job_meta['host_data_upload_time'] = round(data_upload_end-data_upload_start, 6)
 
     # Upload function and modules
-    if config[REALTIME]:
+    if config['lithops'][REALTIME]:
         # Prepare function and modules locally to store in the runtime image later
         uuid = hashlib.md5(bytes(inspect.getsource(func), 'utf-8') + pickle.dumps(module_data)).hexdigest()
         func_key = create_func_key(JOBS_PREFIX, uuid, "")
