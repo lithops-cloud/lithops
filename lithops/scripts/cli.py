@@ -199,6 +199,9 @@ def runtime(ctx):
 
 @runtime.command('create')
 @click.argument('name')
+@click.option('--mode', '-m', default=None,
+              type=click.Choice([SERVERLESS, LOCALHOST, STANDALONE], case_sensitive=True),
+              help='execution mode')
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--memory', default=None, help='memory used by the runtime', type=int)
 @click.option('--timeout', default=None, help='runtime timeout', type=int)
@@ -208,7 +211,7 @@ def create(name, mode, backend, memory, timeout, config):
     setup_logger(logging.DEBUG)
     logger.info('Creating new lithops runtime: {}'.format(name))
 
-    mode = 'serverless'
+    mode = mode or get_mode(config)
     config_ow = {'lithops': {'mode': mode}}
     if backend:
         config_ow[mode] = {'backend': backend}
