@@ -482,12 +482,11 @@ class RealTimeInvoker(ServerlessInvoker):
 
     # If runtime not exists yet, build unique docker image and register runtime
     def _extend_runtime(self, job):
-        if not runtime_memory:
-            runtime_memory = self.config['serverless']['runtime_memory']
+        runtime_memory = self.config['serverless']['runtime_memory']
         timeout = self.config['serverless']['runtime_timeout']
 
         base_docker_image = self.runtime_name
-        uuid = job['ext_runtime_uuid']
+        uuid = job.ext_runtime_uuid
         ext_runtime_name = "{}:{}".format(base_docker_image.split(":")[0], uuid)
 
         # update job with new extended runtime name
@@ -497,10 +496,11 @@ class RealTimeInvoker(ServerlessInvoker):
         runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
         
         if not runtime_meta:
-            timeout = self.config['pywren']['runtime_timeout']
+            timeout = self.config['lithops']['runtime_timeout']
             logger.debug('Creating runtime: {}, memory: {}MB'.format(ext_runtime_name, runtime_memory))
 
-            runtime_temorary_directory = '/'.join([LITHOPS_TEMP_DIR, os.path.dirname(job['func_key'])])
+            import pdb;pdb.set_trace()
+            runtime_temorary_directory = '/'.join([LITHOPS_TEMP_DIR, os.path.dirname(job.func_key)])
             modules_path = '/'.join([runtime_temorary_directory, 'modules'])
 
             ext_docker_file = '/'.join([runtime_temorary_directory, "Dockerfile"])
