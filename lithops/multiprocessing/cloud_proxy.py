@@ -23,6 +23,11 @@ from lithops.config import default_config, load_yaml_config, extract_storage_con
 from lithops.constants import JOBS_PREFIX, TEMP_PREFIX, LOGS_PREFIX, RUNTIMES_PREFIX
 
 
+def remove_lithops_keys(keys):
+    return list(filter(lambda key: not any([key.startswith(prefix) for prefix in
+                                            [JOBS_PREFIX, TEMP_PREFIX, LOGS_PREFIX, RUNTIMES_PREFIX]]), keys))
+
+
 #
 # Picklable cloud object storage client
 #
@@ -126,14 +131,28 @@ class _path:
         return getattr(base_os.path, name)
 
     def isfile(self, path):
-        return path in self._storage.list_keys(prefix=path)
+        prefix = path
+        if path.startswith('/'):
+            prefix = path[1:]
+
+        keys = remove_lithops_keys(self._storage.list_keys(prefix=prefix))
+        if len(keys) == 1:
+            key = keys.pop()
+            key = key[len(prefix):]
+            return key == ''
+        else:
+            return False
 
     def isdir(self, path):
-        path = path if path.endswith('/') else path + '/'
-        for key in self._storage.list_keys(prefix=path):
-            if key.startswith(path):
-                return True
-        return False
+        prefix = path
+        if path.startswith('/'):
+            prefix = path[1:]
+
+        if prefix != '' and not prefix.endswith('/'):
+            prefix = prefix + '/'
+
+        keys = remove_lithops_keys(self._storage.list_keys(prefix=prefix))
+        return bool(keys)
 
     def exists(self, path):
         dirpath = path if path.endswith('/') else path + '/'
