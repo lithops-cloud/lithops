@@ -267,8 +267,9 @@ class IBMCloudObjectStorageBackend:
         """
         try:
             prefix = '' if prefix is None else prefix
+            start_after = ('' or prefix) if prefix.endswith('/') else ''
             paginator = self.cos_client.get_paginator('list_objects_v2')
-            page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
+            page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix, StartAfter=start_after)
 
             key_list = []
             for page in page_iterator:

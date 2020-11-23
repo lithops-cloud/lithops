@@ -13,6 +13,7 @@
 - [Knative] Minor fix when using knative from master branch
 - [GCE] Fix in 'lithops runtime' cli
 - [Core] Minor fix in tests
+- [Core] Fixed data partitioner
 
 
 ## [v2.2.5]
