@@ -10,17 +10,12 @@
 
 __all__ = ['Queue', 'SimpleQueue', 'JoinableQueue']
 
-import sys
 import os
 import threading
 import collections
-import time
 import weakref
-import errno
 
 from queue import Empty, Full
-
-import _multiprocessing
 
 from . import connection
 from . import util
@@ -29,7 +24,7 @@ from . import context
 
 _ForkingPickler = context.reduction.ForkingPickler
 
-from .util import debug, info, Finalize, register_after_fork, is_exiting
+from .util import debug, info, Finalize, is_exiting
 
 
 #
@@ -38,6 +33,8 @@ from .util import debug, info, Finalize, register_after_fork, is_exiting
 
 class Queue:
     _sentinel = object()
+    Empty = Empty
+    Full = Full
 
     def __init__(self, maxsize=0):
         self._reader, self._writer = connection.RedisPipe(duplex=False)
@@ -105,7 +102,10 @@ class Queue:
         return not self._poll()
 
     def full(self):
-        return False
+        if self._maxsize > 0:
+            return self.qsize() < self._maxsize
+        else:
+            return False
 
     def get_nowait(self):
         return self.get(False)
@@ -145,7 +145,7 @@ class Queue:
         self._thread = threading.Thread(target=type(self)._feed,
                                         args=(self._buffer, self._send_bytes, self._writer.close),
                                         name='QueueFeederThread')
-        # self._thread.daemon = True
+        self._thread.daemon = True
 
         debug('doing self._thread.start()')
         self._thread.start()
@@ -172,11 +172,9 @@ class Queue:
             debug('... queue thread already dead')
 
     @staticmethod
-    def _finalize_close(buffer, notempty):
+    def _finalize_close(buffer):
         debug('telling queue thread to quit')
-        with notempty:
-            buffer.append(Queue._sentinel)
-            notempty.notify()
+        buffer.append(Queue._sentinel)
 
     @staticmethod
     def _feed(buffer, send_bytes, close):
@@ -215,9 +213,7 @@ class SimpleQueue:
         self._closed = False
         self._ref = util.RemoteReference(referenced=[self._reader._handle, self._reader._subhandle],
                                          client=self._reader._client)
-
-    def _poll(self, timeout=0.0):
-        return self._reader.poll(timeout)
+        self._poll = self._reader.poll
 
     def put(self, obj, block=True, timeout=None):
         assert not self._closed
@@ -263,13 +259,23 @@ class SimpleQueue:
 #
 
 class JoinableQueue(Queue):
-
     def __init__(self):
         super().__init__()
         self._unfinished_tasks = synchronize.Semaphore(0)
         self._cond = synchronize.Condition()
 
-    def put(self, obj):
+    def __getstate__(self):
+        return (self._maxsize, self._reader,
+                self._writer, self._opid, self._ref,
+                self._unfinished_tasks, self._cond)
+
+    def __setstate__(self, state):
+        (self._maxsize, self._reader,
+         self._writer, self._opid, self._ref,
+         self._unfinished_tasks, self._cond) = state
+        self._after_fork()
+
+    def put(self, obj, block=True, timeout=None):
         with self._cond:
             super().put(obj)
             self._unfinished_tasks.release()
