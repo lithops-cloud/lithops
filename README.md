@@ -31,12 +31,12 @@ Lithops provides an extensible backend architecture (compute, storage) that is d
 
 - [Follow these instructions to configure your compute and storage backends](config/)
 
-[![IBM Cloud](docs/images/ibm_cloud.png)](config/readme.md#compute-and-storage-backends)
-[![AWS](docs/images/aws.png)](config/readme.md#compute-and-storage-backends)
-[![Google](docs/images/google.png)](config/readme.md#compute-and-storage-backends)
-[![Azure](docs/images/azure.png)](config/readme.md#compute-and-storage-backends)
-[![Alibaba](docs/images/alibaba.png)](config/readme.md#compute-and-storage-backends)
-[![K8s](docs/images/k8s.png)](config/readme.md#compute-and-storage-backends)
+[![IBM Cloud](docs/images/ibm_cloud.png)](config/README.md#compute-and-storage-backends)
+[![AWS](docs/images/aws.png)](config/README.md#compute-and-storage-backends)
+[![Google](docs/images/google.png)](config/README.md#compute-and-storage-backends)
+[![Azure](docs/images/azure.png)](config/README.md#compute-and-storage-backends)
+[![Alibaba](docs/images/alibaba.png)](config/README.md#compute-and-storage-backends)
+[![K8s](docs/images/k8s.png)](config/README.md#compute-and-storage-backends)
 
 
 ## High-level API
