@@ -1,9 +1,7 @@
-from lithops.config import default_logging_config
-default_logging_config('DEBUG')
-
 # from multiprocessizzng import Pool, Manager
 from lithops.multiprocessing import Pool, Manager
-
+from lithops.utils import setup_logger
+setup_logger('DEBUG')
 
 man = Manager()
 val = man.Value('i', 0)
