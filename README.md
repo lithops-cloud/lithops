@@ -170,7 +170,6 @@ If you are interested in contributing, see [CONTRIBUTING.md](./CONTRIBUTING.md) 
 * [Industrial project in Technion on Lithops](http://www.cs.technion.ac.il/~cs234313/projects_sites/W19/04/site/)
 
 ### Papers
-* []() - 
 * [Bringing scaling transparency to Proteomics applications with serverless computing](https://www.serverlesscomputing.org/wosc6/#p10) - Sixth International Workshop on Serverless Computing (WoSC6) 2020
 * [Towards Multicloud Access Transparency in Serverless Computing](https://www.computer.org/csdl/magazine/so/5555/01/09218932/1nMMkpZ8Ko8) - IEEE Software
 * [Serverless data analytics in the IBM Cloud](https://dl.acm.org/citation.cfm?id=3284029) - 19th International Middleware Conference
