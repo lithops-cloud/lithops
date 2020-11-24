@@ -240,7 +240,7 @@ def build(name, file, config, backend):
     verify_runtime_name(name)
     setup_logger(logging.DEBUG)
 
-    mode = 'serverless'
+    mode = SERVERLESS
     config_ow = {'lithops': {'mode': mode}}
     if backend:
         config_ow[mode] = {'backend': backend}
@@ -261,7 +261,7 @@ def update(name, config, backend):
     verify_runtime_name(name)
     setup_logger(logging.DEBUG)
 
-    mode = 'serverless'
+    mode = SERVERLESS
     config_ow = {'lithops': {'mode': mode}}
     if backend:
         config_ow[mode] = {'backend': backend}
@@ -295,11 +295,13 @@ def delete(name, config, backend):
     """ delete a serverless runtime """
     verify_runtime_name(name)
     setup_logger(logging.DEBUG)
-    mode = 'serverless'
+
+    mode = SERVERLESS
     config_ow = {'lithops': {'mode': mode}}
     if backend:
         config_ow[mode] = {'backend': backend}
     config = default_config(config, config_ow)
+
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
     compute_config = extract_serverless_config(config)
