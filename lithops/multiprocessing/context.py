@@ -70,8 +70,8 @@ class BaseContext:
 
     def Pipe(self, duplex=True):
         """Returns two connection object connected by a pipe"""
-        from .connection import Pipe
-        return Pipe(duplex)
+        from .connection import RedisPipe
+        return RedisPipe(duplex)
 
     def Lock(self):
         """Returns a non-recursive lock object"""

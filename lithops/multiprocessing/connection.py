@@ -9,7 +9,7 @@
 # Modifications Copyright (c) 2020 Cloudlab URV
 
 
-__all__ = ['Client', 'Listener', 'Pipe', 'wait']
+__all__ = ['Client', 'Listener', 'RedisPipe', 'wait']
 
 import asyncio
 import io
@@ -20,7 +20,7 @@ import socket
 import time
 import tempfile
 import itertools
-import pynng
+# import pynng
 from multiprocessing.context import BufferTooShort
 
 from . import util
@@ -468,7 +468,7 @@ def Client(address, family=None, authkey=None):
     return c
 
 
-def Pipe(duplex=True):
+def RedisPipe(duplex=True):
     """
     Returns pair of connection objects at either end of a pipe
     """
@@ -703,23 +703,23 @@ def rebuild_connection(df, readable, writable):
 reduction.register(RedisConnection, reduce_connection)
 
 
-async def process_request(ctx: pynng.Context, data: bytes):
-    logging.debug('Processing request')
-    client_id = int.from_bytes(data, byteorder='big', signed=False)
-    logging.debug(f"<Worker {client_id}>: doing some IO")
-    await asyncio.sleep(1)
-
-    logging.debug(f"<Worker {client_id}>: sending the result")
-    await ctx.asend(f"result data for client {client_id}".encode())
-
-
-ENDPOINT = 'tcp://127.0.0.1:50000'
-
-
-async def serve():
-    with pynng.Rep0(listen=ENDPOINT) as sock:
-        while await asyncio.sleep(0, result=True):
-            ctx = sock.new_context()
-            logging.debug('Waiting for client connection...')
-            payload = await ctx.arecv()
-            asyncio.create_task(process_request(ctx, payload))
+# async def process_request(ctx: pynng.Context, data: bytes):
+#     logging.debug('Processing request')
+#     client_id = int.from_bytes(data, byteorder='big', signed=False)
+#     logging.debug(f"<Worker {client_id}>: doing some IO")
+#     await asyncio.sleep(1)
+#
+#     logging.debug(f"<Worker {client_id}>: sending the result")
+#     await ctx.asend(f"result data for client {client_id}".encode())
+#
+#
+# ENDPOINT = 'tcp://127.0.0.1:50000'
+#
+#
+# async def serve():
+#     with pynng.Rep0(listen=ENDPOINT) as sock:
+#         while await asyncio.sleep(0, result=True):
+#             ctx = sock.new_context()
+#             logging.debug('Waiting for client connection...')
+#             payload = await ctx.arecv()
+#             asyncio.create_task(process_request(ctx, payload))
