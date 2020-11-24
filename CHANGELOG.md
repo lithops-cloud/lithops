@@ -1,6 +1,19 @@
 # Changelog
 
-## [v2.2.6.dev0]
+## [v2.2.9.dev0]
+
+### Added
+- [Core] Allow to create a Storage() class from config file
+
+
+## [v2.2.8]
+
+### Fixed
+- [Core] Fix "lithops runtime create" cli
+- [Core] Fixed missing executor_id variable in jobrunner
+
+
+## [v2.2.7]
 
 ### Added
 - [Core] Add joblib backend for scikit-learn
