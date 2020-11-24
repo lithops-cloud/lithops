@@ -31,12 +31,12 @@ Lithops provides an extensible backend architecture (compute, storage) that is d
 
 - [Follow these instructions to configure your compute and storage backends](config/)
 
-[![IBM Cloud](docs/images/ibm_cloud.png)](docs/supported_clouds.md#ibm-cloud)
-[![AWS](docs/images/aws.png)](docs/supported_clouds.md#aws)
-[![Google](docs/images/google.png)](docs/supported_clouds.md#google-cloud)
-[![Azure](docs/images/azure.png)](docs/supported_clouds.md/#microsoft-azure)
-[![Alibaba](docs/images/alibaba.png)](docs/supported_clouds.md#alibaba-aliyun)
-[![K8s](docs/images/k8s.png)](docs/supported_clouds.md#kubernetes-&-on-premise)
+[![IBM Cloud](docs/images/ibm_cloud.png)](config/readme.md#compute-and-storage-backends)
+[![AWS](docs/images/aws.png)](config/readme.md#compute-and-storage-backends)
+[![Google](docs/images/google.png)](config/readme.md#compute-and-storage-backends)
+[![Azure](docs/images/azure.png)](config/readme.md#compute-and-storage-backends)
+[![Alibaba](docs/images/alibaba.png)](config/readme.md#compute-and-storage-backends)
+[![K8s](docs/images/k8s.png)](config/readme.md#compute-and-storage-backends)
 
 
 ## High-level API
@@ -170,7 +170,7 @@ If you are interested in contributing, see [CONTRIBUTING.md](./CONTRIBUTING.md) 
 * [Industrial project in Technion on Lithops](http://www.cs.technion.ac.il/~cs234313/projects_sites/W19/04/site/)
 
 ### Papers
-* [Bringing scaling transparency to Proteomics applications with serverless computing](https://www.serverlesscomputing.org/wosc6/#p10) - Sixth International Workshop on Serverless Computing (WoSC6) 2020
+* [Bringing scaling transparency to Proteomics applications with serverless computing](https://www.serverlesscomputing.org/wosc6/#p10) - 6th International Workshop on Serverless Computing (WoSC6) 2020
 * [Towards Multicloud Access Transparency in Serverless Computing](https://www.computer.org/csdl/magazine/so/5555/01/09218932/1nMMkpZ8Ko8) - IEEE Software
 * [Serverless data analytics in the IBM Cloud](https://dl.acm.org/citation.cfm?id=3284029) - 19th International Middleware Conference
 
