@@ -33,7 +33,7 @@ Lithops provides an extensible backend architecture (compute, storage) that is d
 
 <p align="center">
 <a href="config/README.md#compute-and-storage-backends">
-<img src="docs/images/multicloud.jpg" alt="Multicloud Lithops" width='90%' title="Multicloud Lithops"/>
+<img src="docs/images/multicloud.jpg" alt="Multicloud Lithops" width='99%' title="Multicloud Lithops"/>
 </a>
 </p>
 
