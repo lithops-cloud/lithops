@@ -97,12 +97,12 @@ class BaseContext:
         """Returns a bounded semaphore object"""
         from .synchronize import BoundedSemaphore
         return BoundedSemaphore(value)
-        
+
     def Event(self):
         """Returns an event object"""
         from .synchronize import Event
         return Event()
-        
+
     def Barrier(self, parties, action=None, timeout=None):
         """Returns a barrier object"""
         from .synchronize import Barrier
@@ -123,39 +123,34 @@ class BaseContext:
         from .queues import SimpleQueue
         return SimpleQueue()
 
-    def Pool(self, processes=None, initializer=None, initargs={},
-             maxtasksperchild=None):
+    def Pool(self, processes=None, initializer=None, initargs={}, maxtasksperchild=None):
         """Returns a process pool object"""
         from .pool import Pool
         return Pool(processes, initializer, initargs, maxtasksperchild,
                     context=self.get_context())
 
-    """
     def RawValue(self, typecode_or_type, *args):
-        '''Returns a shared object'''
+        """Returns a shared ctype"""
         from .sharedctypes import RawValue
         return RawValue(typecode_or_type, *args)
-    """
-    """
+
     def RawArray(self, typecode_or_type, size_or_initializer):
-        '''Returns a shared array'''
+        """Returns a shared array"""
         from .sharedctypes import RawArray
         return RawArray(typecode_or_type, size_or_initializer)
-    """
-    """
+
     def Value(self, typecode_or_type, *args, lock=True):
-        '''Returns a synchronized shared object'''
+        """Returns a synchronized shared object"""
         from .sharedctypes import Value
         return Value(typecode_or_type, *args, lock=lock,
                      ctx=self.get_context())
-    """
-    """
+
     def Array(self, typecode_or_type, size_or_initializer, *, lock=True):
-        '''Returns a synchronized shared array'''
+        """Returns a synchronized shared array"""
         from .sharedctypes import Array
         return Array(typecode_or_type, size_or_initializer, lock=lock,
                      ctx=self.get_context())
-    """
+
     """
     def freeze_support(self):
         '''Check whether this is a fake forked process in a frozen executable.

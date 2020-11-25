@@ -7,6 +7,7 @@
 # Licensed to PSF under a Contributor Agreement.
 #
 # Modifications Copyright (c) 2020 Cloudlab URV
+#
 
 from abc import ABCMeta, abstractmethod
 import copyreg
@@ -19,7 +20,7 @@ import sys
 
 from . import context
 
-__all__ = ['send_handle', 'recv_handle', 'ForkingPickler', 'register', 'dump']
+__all__ = ['send_handle', 'recv_handle', 'ForkingPickler', 'register', 'dump', 'DefaultPickler']
 
 HAVE_SEND_HANDLE = (sys.platform == 'win32' or
                     (hasattr(socket, 'CMSG_LEN') and
@@ -32,7 +33,9 @@ HAVE_SEND_HANDLE = (sys.platform == 'win32' or
 #
 
 class ForkingPickler(pickle.Pickler):
-    '''Pickler subclass used by multiprocessing.'''
+    """
+    Pickler subclass used by multiprocessing
+    """
     _extra_reducers = {}
     _copyreg_dispatch_table = copyreg.dispatch_table
 
@@ -43,7 +46,9 @@ class ForkingPickler(pickle.Pickler):
 
     @classmethod
     def register(cls, type, reduce):
-        '''Register a reduce function for a type.'''
+        """
+        Register a reduce function for a type
+        """
         cls._extra_reducers[type] = reduce
 
     @classmethod
@@ -59,7 +64,9 @@ register = ForkingPickler.register
 
 
 def dump(obj, file, protocol=None):
-    """Replacement for pickle.dump() using ForkingPickler."""
+    """
+    Replacement for pickle.dump() using ForkingPickler
+    """
     ForkingPickler(file, protocol).dump(obj)
 
 
@@ -81,7 +88,9 @@ if sys.platform == 'win32':
 
 
     def duplicate(handle, target_process=None, inheritable=False):
-        '''Duplicate a handle.  (target_process is a handle not a pid!)'''
+        """
+        Duplicate a handle.  (target_process is a handle not a pid!)
+        """
         if target_process is None:
             target_process = _winapi.GetCurrentProcess()
         return _winapi.DuplicateHandle(
@@ -90,7 +99,9 @@ if sys.platform == 'win32':
 
 
     def steal_handle(source_pid, handle):
-        '''Steal a handle from process identified by source_pid.'''
+        """
+        Steal a handle from process identified by source_pid
+        """
         source_process_handle = _winapi.OpenProcess(
             _winapi.PROCESS_DUP_HANDLE, False, source_pid)
         try:
