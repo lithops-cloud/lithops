@@ -9,7 +9,7 @@
 Lithops is a Python multi-cloud distributed computing framework. It allows to run unmodified local python code at massive scale in the main
 serverless computing platforms. Lithops delivers the user’s code into the cloud without requiring knowledge of how it is deployed and run. Moreover, its multicloud-agnostic architecture ensures portability across cloud providers, overcoming vendor lock-in.
 
-Lithops provides value for a great variety of uses cases like big data analytics and embarrassingly parallel jobs. It is specially suited for highly-parallel programs with little or no need for communication between processes, but it also supports parallel applications that need to share state among processes. Examples of applications that run with Lithops include Monte Carlo simulations, deep learning and machine learning processes, metabolomics computations, and geospatial analytics, to name few.
+Lithops provides value for a great variety of uses cases like big data analytics and embarrassingly parallel jobs. It is specially suited for highly-parallel programs with little or no need for communication between processes, but it also supports parallel applications that need to share state among processes. Examples of applications that run with Lithops include Monte Carlo simulations, deep learning and machine learning processes, metabolomics computations, and geospatial analytics, to name a few.
 
 
 ## Quick Start
@@ -31,12 +31,11 @@ Lithops provides an extensible backend architecture (compute, storage) that is d
 
 - [Follow these instructions to configure your compute and storage backends](config/)
 
-[![IBM Cloud](docs/images/ibm_cloud.png)](docs/supported_clouds.md#ibm-cloud)
-[![AWS](docs/images/aws.png)](docs/supported_clouds.md#aws)
-[![Google](docs/images/google.png)](docs/supported_clouds.md#google-cloud)
-[![Azure](docs/images/azure.png)](docs/supported_clouds.md/#microsoft-azure)
-[![Alibaba](docs/images/alibaba.png)](docs/supported_clouds.md#alibaba-aliyun)
-[![K8s](docs/images/k8s.png)](docs/supported_clouds.md#kubernetes-&-on-premise)
+<p align="center">
+<a href="config/README.md#compute-and-storage-backends">
+<img src="docs/images/multicloud.jpg" alt="Multicloud Lithops" width='90%' title="Multicloud Lithops"/>
+</a>
+</p>
 
 
 ## High-level API
@@ -145,7 +144,7 @@ This mode allows to run functions by using one or multiple function-as-a-service
 
 <td>
 
-This mode allows to run functions by using a Virtual machines (VM). In the VM, functions run using parallel processes like in the Localhost mode.
+This mode allows to run functions by using a Virtual machine (VM). In the VM, functions run using parallel processes like in the Localhost mode.
 
 </td>
 </tr>
@@ -170,7 +169,7 @@ If you are interested in contributing, see [CONTRIBUTING.md](./CONTRIBUTING.md) 
 * [Industrial project in Technion on Lithops](http://www.cs.technion.ac.il/~cs234313/projects_sites/W19/04/site/)
 
 ### Papers
-* [Bringing scaling transparency to Proteomics applications with serverless computing](https://www.serverlesscomputing.org/wosc6/#p10) - Sixth International Workshop on Serverless Computing (WoSC6) 2020
+* [Bringing scaling transparency to Proteomics applications with serverless computing](https://www.serverlesscomputing.org/wosc6/#p10) - 6th International Workshop on Serverless Computing (WoSC6) 2020
 * [Towards Multicloud Access Transparency in Serverless Computing](https://www.computer.org/csdl/magazine/so/5555/01/09218932/1nMMkpZ8Ko8) - IEEE Software
 * [Serverless data analytics in the IBM Cloud](https://dl.acm.org/citation.cfm?id=3284029) - 19th International Middleware Conference
 
