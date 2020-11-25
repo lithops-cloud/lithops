@@ -130,14 +130,6 @@ class LocalhostStorageBackend:
         for file_dir in dirs:
             shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, file_dir), ignore_errors=True)
 
-    def bucket_exists(self, bucket_name):
-        """
-        Head localhost dir with a name.
-        Throws StorageNoSuchKeyError if the given bucket does not exist.
-        :param bucket_name: name of the bucket
-        """
-        raise NotImplementedError
-
     def head_bucket(self, bucket_name):
         """
         Head localhost dir with a name.

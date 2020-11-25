@@ -23,6 +23,7 @@ from io import BytesIO
 logging.getLogger('azure.storage.common.storageclient').setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
+
 class AzureBlobStorageBackend:
 
     def __init__(self, azure_blob_config, bucket=None, executor_id=None):
@@ -75,7 +76,6 @@ class AzureBlobStorageBackend:
         except AzureMissingResourceHttpError:
             raise StorageNoSuchKeyError(bucket_name, key)
 
-
     def head_object(self, bucket_name, key):
         """
         Head object from COS with a key. Throws StorageNoSuchKeyError if the given key does not exist.
@@ -100,7 +100,6 @@ class AzureBlobStorageBackend:
             self.blob_client.delete_blob(bucket_name, key)
         except AzureMissingResourceHttpError:
             pass
-            #raise StorageNoSuchKeyError(bucket_name, key)
 
     def delete_objects(self, bucket_name, key_list):
         """
@@ -118,20 +117,9 @@ class AzureBlobStorageBackend:
         :return: Data of the object
         """
         try:
-           return self.blob_client.get_container_metadata(bucket_name)
+            return self.blob_client.get_container_metadata(bucket_name)
         except Exception:
-           raise StorageNoSuchKeyError(bucket_name, '')
-
-    def bucket_exists(self, bucket_name):
-        """
-        Returns True if container exists in storage. Throws StorageNoSuchKeyError if the given container does not exist.
-        :param bucket_name: name of the container
-        """
-        try:
-           self.blob_client.get_container_metadata(bucket_name)
-           return True
-        except Exception:
-           raise StorageNoSuchKeyError(bucket_name, '')
+            raise StorageNoSuchKeyError(bucket_name, '')
 
     def list_objects(self, bucket_name, prefix=None):
         """
@@ -147,8 +135,8 @@ class AzureBlobStorageBackend:
             mod_list = []
             for blob in blobs:
                 mod_list.append({
-                    'Key' : blob.name,
-                    'Size' : blob.properties.content_length
+                    'Key': blob.name,
+                    'Size': blob.properties.content_length
                 })
             return mod_list
         except Exception:

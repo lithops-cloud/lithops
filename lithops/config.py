@@ -210,11 +210,8 @@ def default_config(config_data=None, config_overwrite={}):
     return default_storage_config(config_data)
 
 
-def default_storage_config(config_data, backend=None):
+def default_storage_config(config_data=None, backend=None):
     """ Function to load default storage config """
-
-    logger.info('Loading storage configuration')
-
     if not config_data:
         if 'LITHOPS_CONFIG' in os.environ:
             config_data = json.loads(os.environ.get('LITHOPS_CONFIG'))

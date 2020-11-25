@@ -15,17 +15,14 @@
 #
 
 import re
-import io
 import time
 import logging
 from requests.exceptions import SSLError as TooManyConnectionsError
 from io import BytesIO
-from urllib.parse import urlparse
 from google.api_core import exceptions as google_exceptions
 from google.cloud import storage
 from google.cloud.exceptions import NotFound
 
-from google.api_core.exceptions import GoogleAPICallError, AlreadyExists, RetryError
 from ...utils import StorageNoSuchKeyError
 
 logging.getLogger('urllib3').setLevel(logging.CRITICAL)
@@ -149,12 +146,6 @@ class GCPStorageBackend:
             bucket.delete_blobs(blobs=key_list)
         except google_exceptions.NotFound:
             pass
-
-    def bucket_exists(self, bucket_name):
-        try:
-            self.client.get_bucket(bucket_name)
-        except google_exceptions.NotFound:
-            raise StorageNoSuchKeyError(bucket_name, '')
 
     def head_bucket(self, bucket_name):
         pass

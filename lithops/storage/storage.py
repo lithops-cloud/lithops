@@ -80,9 +80,6 @@ class Storage:
     def delete_objects(self, bucket_name, key_list):
         return self.storage_handler.delete_objects(bucket_name, key_list)
 
-    def bucket_exists(self, bucket_name):
-        return self.storage_handler.bucket_exists(bucket_name)
-
     def head_bucket(self, bucket_name):
         return self.storage_handler.head_bucket(bucket_name)
 

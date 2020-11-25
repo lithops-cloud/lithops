@@ -127,19 +127,6 @@ class S3Backend:
             result.append(self.s3_client.delete_objects(Bucket=bucket_name, Delete=delete_keys))
         return result
 
-    def bucket_exists(self, bucket_name):
-        '''
-        Head bucket from COS with a name. Throws StorageNoSuchKeyError if the given bucket does not exist.
-        :param bucket_name: name of the bucket
-        '''
-        try:
-            self.s3_client.head_bucket(Bucket=bucket_name)
-        except botocore.exceptions.ClientError as e:
-            if e.response['Error']['Code'] == '404':
-                raise StorageNoSuchKeyError(bucket_name, '')
-            else:
-                raise e
-
     def head_bucket(self, bucket_name):
         '''
         Head bucket from COS with a name. Throws StorageNoSuchKeyError if the given bucket does not exist.

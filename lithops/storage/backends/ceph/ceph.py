@@ -169,19 +169,6 @@ class CephStorageBackend:
             result.append(self.cos_client.delete_objects(Bucket=bucket_name, Delete=delete_keys))
         return result
 
-    def bucket_exists(self, bucket_name):
-        """
-        Head bucket from Ceph with a name. Throws StorageNoSuchKeyError if the given bucket does not exist.
-        :param bucket_name: name of the bucket
-        """
-        try:
-            self.cos_client.head_bucket(Bucket=bucket_name)
-        except ibm_botocore.exceptions.ClientError as e:
-            if e.response['Error']['Code'] == '404':
-                raise StorageNoSuchKeyError(bucket_name, '')
-            else:
-                raise e
-
     def head_bucket(self, bucket_name):
         """
         Head bucket from Ceph with a name. Throws StorageNoSuchKeyError if the given bucket does not exist.

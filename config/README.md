@@ -119,12 +119,11 @@ import lithops
 
 config = {'lithops' : {'storage_bucket' : 'BUCKET_NAME'},
 
-          'ibm_cf':  {'endpoint': 'HOST',
+          'ibm_cf':  {'endpoint': 'ENDPOINT',
                       'namespace': 'NAMESPACE',
                       'api_key': 'API_KEY'},
 
-          'ibm_cos': {'endpoint': 'ENDPOINT',
-                      'private_endpoint': 'PRIVATE_ENDPOINT',
+          'ibm_cos': {'region': 'REGION',
                       'api_key': 'API_KEY'}}
 
 def hello_world(name):

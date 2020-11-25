@@ -90,14 +90,6 @@ class GcsfsStorageBackend:
         for key in key_list:
             self.delete_object(bucket_name, key)
 
-    def bucket_exists(self, bucket_name):
-        """
-        Head localhost dir with a name.
-        Throws StorageNoSuchKeyError if the given bucket does not exist.
-        :param bucket_name: name of the bucket
-        """
-        raise NotImplementedError
-
     def head_bucket(self, bucket_name):
         """
         Head localhost dir with a name.

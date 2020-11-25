@@ -130,14 +130,6 @@ class RedisBackend:
         :return: metadata of the bucket
         :rtype: dict
         """
-        return {}
-
-    def bucket_exists(self, bucket_name):
-        """
-        Returns True if bucket exists in storage.
-        Throws StorageNoSuchKeyError if the given bucket does not exist.
-        :param bucket_name: name of the bucket
-        """
         return bool(self._client.exists(self._format_key(bucket_name, '')))
 
     def list_objects(self, bucket_name, prefix=None):

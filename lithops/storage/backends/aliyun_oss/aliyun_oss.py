@@ -41,7 +41,7 @@ class AliyunObjectStorageServiceBackend:
 
     def put_object(self, bucket_name, key, data):
         """
-        Put an object in OSS. Override the object if the key already exists. 
+        Put an object in OSS. Override the object if the key already exists.
         Throws StorageNoSuchKeyError if the bucket does not exist.
         :param bucket_name: bucket name
         :param key: key of the object.
@@ -52,12 +52,11 @@ class AliyunObjectStorageServiceBackend:
         if isinstance(data, str):
             data = data.encode()
 
-        try: 
+        try:
             bucket = self._connect_bucket(bucket_name)
             bucket.put_object(key, data)
         except oss2.exceptions.NoSuchBucket:
             raise StorageNoSuchKeyError(bucket_name, '')
-
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
         """
@@ -82,7 +81,6 @@ class AliyunObjectStorageServiceBackend:
 
         except (oss2.exceptions.NoSuchKey, oss2.exceptions.NoSuchBucket):
             raise StorageNoSuchKeyError(bucket_name, key)
-
 
     def head_object(self, bucket_name, key):
         """
@@ -135,19 +133,6 @@ class AliyunObjectStorageServiceBackend:
         except oss2.exceptions.NoSuchBucket:
             raise StorageNoSuchKeyError(bucket_name, '')
 
-    def bucket_exists(self, bucket_name):
-        """
-        Returns True if bucket exists in storage. Throws StorageNoSuchKeyError if the given bucket does not exist.
-        :param bucket_name: name of the bucket
-        """
-        bucket = self._connect_bucket(bucket_name)
-        
-        try:
-            bucket.get_bucket_info()
-        except oss2.exceptions.NoSuchBucket:
-            raise StorageNoSuchKeyError(bucket_name, '')
-        return True
-
     def list_objects(self, bucket_name, prefix=None):
         """
         Return a list of objects for the given bucket and prefix.
@@ -162,7 +147,7 @@ class AliyunObjectStorageServiceBackend:
         prefix = '' if prefix is None else prefix
         try:
             res = bucket.list_objects(prefix=prefix)
-            obj_list = [{'Key' : obj.key, 'Size' : obj.size} for obj in res.object_list]
+            obj_list = [{'Key': obj.key, 'Size': obj.size} for obj in res.object_list]
             return obj_list
 
         except (oss2.exceptions.NoSuchKey, oss2.exceptions.NoSuchBucket):
@@ -177,7 +162,7 @@ class AliyunObjectStorageServiceBackend:
         :rtype: list of str
         """
         bucket = self._connect_bucket(bucket_name)
-        
+
         # adapted to match ibm_cos method
         prefix = '' if prefix is None else prefix
         try:
