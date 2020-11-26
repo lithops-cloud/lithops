@@ -25,6 +25,9 @@ from lithops.utils import version_str
 DOCKER_REPO = 'docker.io'
 RUNTIME_NAME = 'lithops-knative'
 
+DEFAULT_GROUP = "serving.knative.dev"
+DEFAULT_VERSION = "v1"
+
 BUILD_GIT_URL = 'https://github.com/lithops-cloud/lithops'
 DOCKER_PATH = shutil.which('docker')
 RUNTIME_TIMEOUT = 600  # 10 minutes
@@ -35,6 +38,39 @@ RUNTIME_MAX_INSTANCES = 250
 RUNTIME_CONCURRENCY = 1
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_knative.zip')
+
+DEFAULT_DOCKERFILE = """
+RUN apt-get update && apt-get install -y \
+        zip \
+        && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --upgrade setuptools six pip \
+    && pip install --no-cache-dir \
+        gunicorn==19.9.0 \
+        pika==0.13.1 \
+        flask \
+        gevent \
+        glob2 \
+        ibm-cos-sdk \
+        redis \
+        requests \
+        PyYAML \
+        kubernetes \
+        numpy
+
+ENV CONCURRENCY 4
+ENV TIMEOUT 600
+ENV PYTHONUNBUFFERED TRUE
+
+# Copy Lithops proxy and lib to the container image.
+ENV APP_HOME /lithops
+WORKDIR $APP_HOME
+
+COPY lithops_knative.zip .
+RUN unzip lithops_knative.zip && rm lithops_knative.zip
+
+CMD exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsproxy:proxy
+"""
 
 secret_res = """
 apiVersion: v1
@@ -175,19 +211,6 @@ def load_config(config_data):
         config_data['knative']['git_rev'] = revision
     if 'docker_repo' not in config_data['knative']:
         config_data['knative']['docker_repo'] = DOCKER_REPO
-    if 'docker_user' not in config_data['knative']:
-        cmd = "{} info".format(DOCKER_PATH)
-        docker_user_info = sp.check_output(cmd, shell=True, encoding='UTF-8',
-                                           stderr=sp.STDOUT)
-        for line in docker_user_info.splitlines():
-            if 'Username' in line:
-                _, useranme = line.strip().split(':')
-                config_data['knative']['docker_user'] = useranme.strip()
-                break
-
-    if 'docker_user' not in config_data['knative']:
-        raise Exception('You must provide "docker_user" param in config '
-                        'or execute "docker login"')
 
     if 'cpu' not in config_data['knative']:
         config_data['knative']['cpu'] = RUNTIME_CPU
@@ -202,7 +225,22 @@ def load_config(config_data):
         config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY
     if 'runtime_timeout' not in config_data['serverless']:
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT
+
     if 'runtime' not in config_data['serverless']:
+        if 'docker_user' not in config_data['knative']:
+            cmd = "{} info".format(DOCKER_PATH)
+            docker_user_info = sp.check_output(cmd, shell=True, encoding='UTF-8',
+                                               stderr=sp.STDOUT)
+            for line in docker_user_info.splitlines():
+                if 'Username' in line:
+                    _, useranme = line.strip().split(':')
+                    config_data['knative']['docker_user'] = useranme.strip()
+                    break
+
+        if 'docker_user' not in config_data['knative']:
+            raise Exception('You must provide "docker_user" param in config '
+                            'or execute "docker login"')
+
         docker_user = config_data['knative']['docker_user']
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
