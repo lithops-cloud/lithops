@@ -10,7 +10,6 @@
 #
 
 import ctypes
-import weakref
 
 from . import util
 from .context import get_context, reduction
@@ -141,8 +140,31 @@ class SynchronizedArrayProxy(RawArrayProxy, SynchronizedSharedCTypeProxy):
 
 
 class SynchronizedStringProxy(SynchronizedArrayProxy):
-    def __init__(self, ctype, *args, **kwargs):
-        raise NotImplementedError()
+    def __init__(self, ctype, lock=None, ctx=None, *args, **kwargs):
+        super().__init__(ctype, lock=lock, ctx=ctx)
+
+    def __setattr__(self, key, value):
+        if key == 'value':
+            for i, elem in enumerate(value):
+                obj = self._pickler.dumps(elem)
+                self._client.lset(self._oid, i, obj)
+        else:
+            super().__setattr__(key, value)
+
+    def __getattr__(self, item):
+        if item == 'value':
+            return self[:]
+        else:
+            super().__getattribute__(item)
+
+    def __getitem__(self, i):
+        if isinstance(i, slice):
+            start, stop, step = i.indices(self.__len__())
+            objl = self._client.lrange(self._oid, start, stop)
+            return bytes([self._pickler.loads(obj) for obj in objl])
+        else:
+            obj = self._client.lindex(self._oid, i)
+            return bytes([self._pickler.loads(obj)])
 
 
 #
@@ -200,11 +222,11 @@ def Array(typecode_or_type, size_or_initializer, *, lock=True, ctx=None):
     """
     type_ = typecode_to_type.get(typecode_or_type, typecode_or_type)
     if type_ is ctypes.c_char:
-        raise NotImplementedError()
+        obj = SynchronizedStringProxy(type_)
     else:
         obj = SynchronizedArrayProxy(type_)
 
-    if isinstance(size_or_initializer, list):
+    if isinstance(size_or_initializer, list) or isinstance(size_or_initializer, bytes):
         for elem in size_or_initializer:
             obj._append(elem)
     elif isinstance(size_or_initializer, int):
@@ -214,138 +236,3 @@ def Array(typecode_or_type, size_or_initializer, *, lock=True, ctx=None):
         raise ValueError('Invalid size or initializer {}'.format(size_or_initializer))
 
     return obj
-
-# def copy(obj):
-#     new_obj = _new_value(type(obj))
-#     ctypes.pointer(new_obj)[0] = obj
-#     return new_obj
-
-
-# def synchronized(obj, lock=None, ctx=None):
-#     assert not isinstance(obj, SynchronizedBase), 'object already synchronized'
-#     ctx = ctx or get_context()
-#
-#     if isinstance(obj, ctypes._SimpleCData):
-#         return Synchronized(obj, lock, ctx)
-#     elif isinstance(obj, ctypes.Array):
-#         if obj._type_ is ctypes.c_char:
-#             return SynchronizedString(obj, lock, ctx)
-#         return SynchronizedArray(obj, lock, ctx)
-#     else:
-#         cls = type(obj)
-#         try:
-#             scls = class_cache[cls]
-#         except KeyError:
-#             names = [field[0] for field in cls._fields_]
-#             d = {name: make_property(name) for name in names}
-#             classname = 'Synchronized' + cls.__name__
-#             scls = class_cache[cls] = type(classname, (SynchronizedBase,), d)
-#         return scls(obj, lock, ctx)
-
-
-#
-# Functions for pickling/unpickling
-#
-
-# def reduce_ctype(obj):
-#     assert_spawning(obj)
-#     if isinstance(obj, ctypes.Array):
-#         return rebuild_ctype, (obj._type_, obj._wrapper, obj._length_)
-#     else:
-#         return rebuild_ctype, (type(obj), obj._wrapper, None)
-#
-#
-# def rebuild_ctype(type_, wrapper, length):
-#     if length is not None:
-#         type_ = type_ * length
-#     _ForkingPickler.register(type_, reduce_ctype)
-#     buf = wrapper.create_memoryview()
-#     obj = type_.from_buffer(buf)
-#     obj._wrapper = wrapper
-#     return obj
-
-
-#
-# Function to create properties
-#
-
-# def make_property(name):
-#     try:
-#         return prop_cache[name]
-#     except KeyError:
-#         d = {}
-#         exec(template % ((name,) * 7), d)
-#         prop_cache[name] = d[name]
-#         return d[name]
-
-
-# template = '''
-# def get%s(self):
-#     self.acquire()
-#     try:
-#         return self._obj.%s
-#     finally:
-#         self.release()
-# def set%s(self, value):
-#     self.acquire()
-#     try:
-#         self._obj.%s = value
-#     finally:
-#         self.release()
-# %s = property(get%s, set%s)
-# '''
-#
-# prop_cache = {}
-# class_cache = weakref.WeakKeyDictionary()
-
-
-#
-# Synchronized wrappers
-#
-
-# class SynchronizedBase(object):
-#
-#     def __init__(self, obj, lock=None, ctx=None):
-#         self._obj = obj
-#         self._typeid = typeid
-#         # object id
-#         self._oid = '{}-{}'.format(typeid, util.get_uuid())
-#
-#         self._pickler = DefaultPickler() if serializer is None else serializer
-#         self._client = util.get_redis_client()
-#         self._ref = util.RemoteReference(self._oid, client=self._client)
-#
-#
-#     def __repr__(self):
-#         return '<%s wrapper for %s>' % (type(self).__name__, self._obj)
-#
-#
-# class Synchronized(SynchronizedBase):
-#     value = make_property('value')
-#
-#
-# class SynchronizedArray(SynchronizedBase):
-#
-#     def __len__(self):
-#         return len(self._obj)
-#
-#     def __getitem__(self, i):
-#         with self:
-#             return self._obj[i]
-#
-#     def __setitem__(self, i, value):
-#         with self:
-#             self._obj[i] = value
-#
-#     def __getslice__(self, start, stop):
-#         with self:
-#             return self._obj[start:stop]
-#
-#     def __setslice__(self, start, stop, values):
-#         with self:
-#             self._obj[start:stop] = values
-#
-#
-# class SynchronizedString(SynchronizedArray):
-#     value = make_property('value')
-#     raw = make_property('raw')
