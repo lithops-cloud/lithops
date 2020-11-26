@@ -102,6 +102,7 @@ If you need to create new runtime, please follow [Building and managing Lithops 
    ```yaml
    serverless:
        backend: code_engine
+       remote_invoker: True
        runtime: <RUNTIME NAME>
 
    code_engine:
