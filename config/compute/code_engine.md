@@ -124,7 +124,7 @@ def add_value(name):
     return 'Hello ' + name
 
 if __name__ == '__main__':
-	lt = lithops.FunctionExecutor(type="serverless",
+	lt = lithops.FunctionExecutor(mode="serverless",
 			backend='code_engine',
 			runtime = 'ibmfunctions/lithops-ce-3.8.5-2.2.2:1.0.0')
 	lt.map(add_value,  iterdata)
