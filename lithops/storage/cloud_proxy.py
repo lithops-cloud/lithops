@@ -86,7 +86,7 @@ class CloudFileProxy:
                 p = p[1:]
             splits = p.split('/')
             name = splits[0] + '/' if suffix_dirs and len(splits) > 1 else splits[0]
-            names |= set([name])
+            names |= {name}
         return list(names)
 
     def walk(self, top, topdown=True, onerror=None, followlinks=False):
