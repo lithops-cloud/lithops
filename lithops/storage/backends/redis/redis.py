@@ -1,3 +1,20 @@
+#
+# (C) Copyright Cloudlab URV 2020
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+
 import io
 import redis
 import logging
@@ -7,17 +24,18 @@ logger = logging.getLogger(__name__)
 
 
 class RedisBackend:
-    def __init__(self, config, bucket=None, executor_id=None):
+    def __init__(self, config):
+        logger.debug("Creating Redis client")
         config.pop('user_agent', None)
         self._client = redis.StrictRedis(**config)
-        self.bucket = bucket or ''
+        logger.info("Redis client created successfully")
 
     def get_client(self):
         return self._client
 
     def put_object(self, bucket_name, key, data):
         """
-        Put an object in Redis. Override the object if the key already exists. 
+        Put an object in Redis. Override the object if the key already exists.
         :param bucket_name: bucket name
         :param key: key of the object.
         :param data: data of the object
@@ -129,14 +147,6 @@ class RedisBackend:
         :param bucket_name: name of the bucket
         :return: metadata of the bucket
         :rtype: dict
-        """
-        return {}
-
-    def bucket_exists(self, bucket_name):
-        """
-        Returns True if bucket exists in storage.
-        Throws StorageNoSuchKeyError if the given bucket does not exist.
-        :param bucket_name: name of the bucket
         """
         return bool(self._client.exists(self._format_key(bucket_name, '')))
 

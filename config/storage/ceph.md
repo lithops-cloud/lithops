@@ -16,7 +16,7 @@ Lithops with Ceph storage backend.
 
 ```yaml
     lithops:
-        storage_backend: ceph
+        storage: ceph
 
     ceph:
         endpoint: <ENDPOINT_URL>

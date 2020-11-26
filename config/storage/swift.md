@@ -16,7 +16,7 @@ Lithops with OpenStack Swift as storage backend.
 
 ```yaml
     lithops:
-        storage_backend: swift
+        storage: swift
 
     swift:
         auth_url   : <SWIFT_AUTH_URL>

@@ -29,7 +29,7 @@ CHUNK_SIZE_MIN = 0*1024  # 0MB
 CHUNK_THRESHOLD = 128*1024  # 128KB
 
 
-def create_partitions(lithops_config, internal_storage, map_iterdata, chunk_size, chunk_number):
+def create_partitions(config, internal_storage, map_iterdata, chunk_size, chunk_number):
     """
     Method that returns the function that will create the partitions of the objects in the Cloud
     """
@@ -49,7 +49,9 @@ def create_partitions(lithops_config, internal_storage, map_iterdata, chunk_size
             urls.add(elem['url'])
         elif 'obj' in elem:
             if type(elem['obj']) == CloudObject:
-                elem['obj'] = '{}://{}/{}'.format(elem['obj'].backend, elem['obj'].bucket, elem['obj'].key)
+                elem['obj'] = '{}://{}/{}'.format(elem['obj'].backend,
+                                                  elem['obj'].bucket,
+                                                  elem['obj'].key)
             sb, bucket, prefix, obj_name = utils.split_object_url(elem['obj'])
             if sb is None:
                 sb = internal_storage.backend
@@ -77,7 +79,7 @@ def create_partitions(lithops_config, internal_storage, map_iterdata, chunk_size
         if sb == internal_storage.backend:
             storage = internal_storage.storage
         else:
-            storage = Storage(lithops_config=lithops_config, storage_backend=sb)
+            storage = Storage(config=config, backend=sb)
         objects = {}
         if obj_names:
             for bucket, prefix in obj_names:
