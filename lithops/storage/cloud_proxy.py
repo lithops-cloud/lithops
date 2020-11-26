@@ -113,7 +113,7 @@ class CloudFileProxy:
             yield top, dirs, files
 
     def remove(self, key):
-        self._storage.storage.delete_cobject(key=key)
+        self._storage.storage.delete_object(bucket=self._storage.bucket, key=key)
 
     def mkdir(self, *args, **kwargs):
         pass
