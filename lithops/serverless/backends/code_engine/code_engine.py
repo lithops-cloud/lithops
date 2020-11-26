@@ -340,13 +340,16 @@ class CodeEngineBackend:
                 activation_id = 'lithops-' + str(uuid.uuid4()).replace('-', '')[:12]
                 self.storage_config['activation_id'] = activation_id
 
+                payload = copy.deepcopy(self.storage_config)
+                payload['log_level'] = logger.getEffectiveLevel()
+
                 job_desc['metadata']['name'] = activation_id
                 job_desc['metadata']['namespace'] = self.namespace
                 job_desc['apiVersion'] = self.code_engine_config['api_version']
                 job_desc['spec']['jobDefinitionRef'] = str(job_def_name)
                 job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['name'] = str(job_def_name)
                 job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][0]['value'] = 'preinstals'
-                job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = self._dict_to_binary(self.storage_config)
+                job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = self._dict_to_binary(payload)
 
             logger.info("About to invoke code engine job to get runtime metadata")
             logger.info(job_desc)
