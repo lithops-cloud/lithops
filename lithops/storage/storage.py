@@ -36,12 +36,19 @@ class Storage:
     An Storage object is used by partitioner and other components to access
     underlying storage backend without exposing the the implementation details.
     """
-    def __init__(self, storage_config=None, lithops_config=None, backend=None, executor_id=None):
+    def __init__(self, config=None, backend=None, storage_config=None):
+        """ Creates an Storage instance
+
+        :param config: lithops configuration dict
+        :param backend: storage backend name
+
+        :return: Storage instance.
+        """
 
         if storage_config:
             self.storage_config = storage_config
         else:
-            storage_config = default_storage_config(config_data=lithops_config,
+            storage_config = default_storage_config(config_data=config,
                                                     backend=backend)
             self.storage_config = extract_storage_config(storage_config)
 
@@ -52,9 +59,7 @@ class Storage:
             module_location = 'lithops.storage.backends.{}'.format(self.backend)
             sb_module = importlib.import_module(module_location)
             StorageBackend = getattr(sb_module, 'StorageBackend')
-            self.storage_handler = StorageBackend(self.storage_config[self.backend],
-                                                  bucket=self.bucket,
-                                                  executor_id=executor_id)
+            self.storage_handler = StorageBackend(self.storage_config[self.backend])
         except Exception as e:
             logger.error("An exception was produced trying to create the "
                          "'{}' storage backend".format(self.backend))
@@ -63,36 +68,44 @@ class Storage:
         self._created_cobjects_n = itertools.count()
 
     def get_client(self):
+        """
+        Retrieves the underlying storage client.
+        :return: storage backend client
+        """
         return self.storage_handler.get_client()
 
-    def put_object(self, bucket_name, key, data):
-        return self.storage_handler.put_object(bucket_name, key, data)
+    def get_storage_config(self):
+        """
+        Retrieves the configuration of this storage handler.
+        :return: storage configuration
+        """
+        return self.storage_config
 
-    def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
-        return self.storage_handler.get_object(bucket_name, key, stream, extra_get_args)
+    def put_object(self, bucket, key, body):
+        return self.storage_handler.put_object(bucket, key, body)
 
-    def head_object(self, bucket_name, key):
-        return self.storage_handler.head_object(bucket_name, key)
+    def get_object(self, bucket, key, stream=False, extra_get_args={}):
+        return self.storage_handler.get_object(bucket, key, stream, extra_get_args)
 
-    def delete_object(self, bucket_name, key):
-        return self.storage_handler.delete_object(bucket_name, key)
+    def head_object(self, bucket, key):
+        return self.storage_handler.head_object(bucket, key)
 
-    def delete_objects(self, bucket_name, key_list):
-        return self.storage_handler.delete_objects(bucket_name, key_list)
+    def delete_object(self, bucket, key):
+        return self.storage_handler.delete_object(bucket, key)
 
-    def bucket_exists(self, bucket_name):
-        return self.storage_handler.bucket_exists(bucket_name)
+    def delete_objects(self, bucket, key_list):
+        return self.storage_handler.delete_objects(bucket, key_list)
 
-    def head_bucket(self, bucket_name):
-        return self.storage_handler.head_bucket(bucket_name)
+    def head_bucket(self, bucket):
+        return self.storage_handler.head_bucket(bucket)
 
-    def list_objects(self, bucket_name, prefix=None):
-        return self.storage_handler.list_objects(bucket_name, prefix)
+    def list_objects(self, bucket, prefix=None):
+        return self.storage_handler.list_objects(bucket, prefix)
 
-    def list_keys(self, bucket_name, prefix=None):
-        return self.storage_handler.list_keys(bucket_name, prefix)
+    def list_keys(self, bucket, prefix=None):
+        return self.storage_handler.list_keys(bucket, prefix)
 
-    def put_cobject(self, body, bucket=None, key=None):
+    def put_cloudobject(self, body, bucket=None, key=None):
         """
         Put CloudObject into storage.
         :param body: data content
@@ -109,7 +122,7 @@ class Storage:
 
         return CloudObject(self.backend, bucket, key)
 
-    def get_cobject(self, cloudobject=None, bucket=None, key=None, stream=False):
+    def get_cloudobject(self, cloudobject, stream=False):
         """
         Get CloudObject from storage.
         :param cloudobject: CloudObject instance
@@ -117,20 +130,14 @@ class Storage:
         :param key: destination key
         :return: body text
         """
-        if cloudobject:
-            if cloudobject.backend == self.backend:
-                bucket = cloudobject.bucket
-                key = cloudobject.key
-                return self.storage_handler.get_object(bucket, key, stream=stream)
-            else:
-                raise Exception("CloudObject: Invalid Storage backend")
-        elif (bucket and key) or key:
-            bucket = bucket or self.bucket
+        if cloudobject.backend == self.backend:
+            bucket = cloudobject.bucket
+            key = cloudobject.key
             return self.storage_handler.get_object(bucket, key, stream=stream)
         else:
-            return None
+            raise Exception("CloudObject: Invalid Storage backend")
 
-    def delete_cobject(self, cloudobject=None, bucket=None, key=None):
+    def delete_cloudobject(self, cloudobject):
         """
         Get CloudObject from storage.
         :param cloudobject: CloudObject instance
@@ -138,20 +145,14 @@ class Storage:
         :param key: destination key
         :return: body text
         """
-        if cloudobject:
-            if cloudobject.backend == self.backend:
-                bucket = cloudobject.bucket
-                key = cloudobject.key
-                return self.storage_handler.delete_object(bucket, key)
-            else:
-                raise Exception("CloudObject: Invalid Storage backend")
-        elif (bucket and key) or key:
-            bucket = bucket or self.bucket
+        if cloudobject.backend == self.backend:
+            bucket = cloudobject.bucket
+            key = cloudobject.key
             return self.storage_handler.delete_object(bucket, key)
         else:
-            return None
+            raise Exception("CloudObject: Invalid Storage backend")
 
-    def delete_cobjects(self, cloudobjects):
+    def delete_cloudobjects(self, cloudobjects):
         """
         Get CloudObject from storage.
         :param cloudobject: CloudObject instance
@@ -181,13 +182,21 @@ class InternalStorage:
     underlying storage backend without exposing the the implementation details.
     """
 
-    def __init__(self, storage_config, executor_id=None):
-        self.storage_config = storage_config
-        self.backend = self.storage_config['backend']
-        self.bucket = self.storage_config['bucket']
-        self.storage = Storage(storage_config=storage_config, executor_id=executor_id)
+    def __init__(self, storage_config):
+        """ Creates an InternalStorage instance
+        :param storage_config: Storage config dictionary
+
+        :return: InternalStorage instance
+        """
+        self.storage = Storage(storage_config=storage_config)
+        self.backend = self.storage.backend
+        self.bucket = self.storage.bucket
 
     def get_client(self):
+        """
+        Retrieves the underlying storage client.
+        :return: storage backend client
+        """
         return self.storage.get_client()
 
     def get_storage_config(self):
@@ -195,7 +204,7 @@ class InternalStorage:
         Retrieves the configuration of this storage handler.
         :return: storage configuration
         """
-        return self.storage_config
+        return self.storage.get_storage_config()
 
     def put_data(self, key, data):
         """

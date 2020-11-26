@@ -77,14 +77,14 @@ Storage Backends
 <td>
 
 - [IBM Cloud Object Storage](storage/ibm_cos.md)
-- [Infinispan](storage/infinispan.md)
-- [Ceph](storage/ceph.md)
-- [Redis](storage/redis.md)
-- [OpenStack Swift](storage/swift.md)
 - [AWS S3](storage/aws_s3.md)
 - [Google Cloud Storage](storage/gcp_storage.md)
 - [Azure Blob Storage](storage/azure_blob.md)
 - [Aliyun Object Storage Service](storage/aliyun_oss.md)
+- [Infinispan](storage/infinispan.md)
+- [Ceph](storage/ceph.md)
+- [Redis](storage/redis.md)
+- [OpenStack Swift](storage/swift.md)
 
 </td>
 </tr>
@@ -119,12 +119,11 @@ import lithops
 
 config = {'lithops' : {'storage_bucket' : 'BUCKET_NAME'},
 
-          'ibm_cf':  {'endpoint': 'HOST',
+          'ibm_cf':  {'endpoint': 'ENDPOINT',
                       'namespace': 'NAMESPACE',
                       'api_key': 'API_KEY'},
 
-          'ibm_cos': {'endpoint': 'ENDPOINT',
-                      'private_endpoint': 'PRIVATE_ENDPOINT',
+          'ibm_cos': {'region': 'REGION',
                       'api_key': 'API_KEY'}}
 
 def hello_world(name):

@@ -29,7 +29,8 @@ class StorageBackend:
     A wrap-up around OpenStack Swift APIs.
     """
 
-    def __init__(self, swift_config, **kwargs):
+    def __init__(self, swift_config):
+        logger.debug("Creating OpenStack Swift client")
         self.auth_url = swift_config['swift_auth_url']
         self.user_id = swift_config['swift_user_id']
         self.project_id = swift_config['swift_project_id']
@@ -50,6 +51,7 @@ class StorageBackend:
         adapter = requests.adapters.HTTPAdapter(pool_maxsize=64, max_retries=3)
         self.session.mount('http://', adapter)
         self.session.mount('https://', adapter)
+        logger.info("OpenStack Swift client created successfully")
 
     def generate_swift_token(self):
         """
@@ -174,25 +176,6 @@ class StorageBackend:
         keys_to_delete = '\n'.join(keys_to_delete)
         url = '/'.join([self.endpoint, '?bulk-delete'])
         return self.session.delete(url, data=keys_to_delete, headers=headers)
-
-    def bucket_exists(self, container_name):
-        """
-        Head container from Swift with a name. Throws StorageNoSuchKeyError if the given container does not exist.
-        :param container_name: name of the container
-        :return: Data of the bucket
-        :rtype: str/bytes
-        """
-        url = '/'.join([self.endpoint, container_name])
-        try:
-            res = self.session.head(url)
-            if res.status_code == 204:
-                return res.headers
-            elif res.status_code == 404:
-                raise StorageNoSuchKeyError(container_name, '')
-            else:
-                raise Exception('{} - {}'.format(res.status_code))
-        except Exception as e:
-            raise StorageNoSuchKeyError(container_name, '')
 
     def list_objects(self, container_name, prefix=''):
         """

@@ -7,6 +7,8 @@
 3. High-level API
    - [Futures API](api_futures.md)
    - [Multiprocessing API](api_multiprocessing.md)
+   - [Storage API](api_storage.md)
+   - [Storage OS API](api_storage_os.md)
 
 4. Execution Modes
    - [Localhost mode](mode_localhost.md)

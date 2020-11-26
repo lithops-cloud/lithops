@@ -1,3 +1,19 @@
+#
+# (C) Copyright Cloudlab URV 2020
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 import os
 import io
 import glob
@@ -15,9 +31,9 @@ class LocalhostStorageBackend:
     A wrap-up around Localhost filesystem APIs.
     """
 
-    def __init__(self, config, **kwargs):
+    def __init__(self, localhost_config):
         logger.debug("Creating Localhost storage client")
-        self.config = config
+        self.localhost_config = localhost_config
         logger.debug("Localhost storage client created successfully")
 
     def get_client(self):
@@ -129,14 +145,6 @@ class LocalhostStorageBackend:
 
         for file_dir in dirs:
             shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, file_dir), ignore_errors=True)
-
-    def bucket_exists(self, bucket_name):
-        """
-        Head localhost dir with a name.
-        Throws StorageNoSuchKeyError if the given bucket does not exist.
-        :param bucket_name: name of the bucket
-        """
-        raise NotImplementedError
 
     def head_bucket(self, bucket_name):
         """
