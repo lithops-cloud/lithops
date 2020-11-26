@@ -92,6 +92,7 @@ To work with Code Engine there is need to use dedicated runtime. You can either 
 |----|-----|----|-----|
 |ibmfunctions/lithops-ce-3.7.5-2.2.0:1.0.0 | 3.7.5 | [included](../../runtime/code_engine/requirements.txt) | 2.2.0 |
 |ibmfunctions/lithops-ce-3.8.5-2.2.2:1.0.0 | 3.8.5 | [included](../../runtime/code_engine/requirements385.txt) | 2.2.2 |
+|ibmfunctions/lithops-ce-3.8.5-2.2.9:1.0.0 | 3.8.5 | [included](../../runtime/code_engine/requirements385.txt) | 2.2.9 |
 
 If you need to create new runtime, please follow [Building and managing Lithops runtimes to run the functions](../../runtime/)
 
@@ -101,6 +102,7 @@ If you need to create new runtime, please follow [Building and managing Lithops 
    ```yaml
    serverless:
        backend: code_engine
+       remote_invoker: True
        runtime: <RUNTIME NAME>
 
    code_engine:
@@ -124,7 +126,7 @@ def add_value(name):
     return 'Hello ' + name
 
 if __name__ == '__main__':
-	lt = lithops.FunctionExecutor(type="serverless",
+	lt = lithops.FunctionExecutor(mode="serverless",
 			backend='code_engine',
 			runtime = 'ibmfunctions/lithops-ce-3.8.5-2.2.2:1.0.0')
 	lt.map(add_value,  iterdata)
