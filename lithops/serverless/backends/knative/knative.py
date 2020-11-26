@@ -103,7 +103,7 @@ class KnativeServingBackend:
 
         log_msg = 'Lithops v{} init for Knative '.format(__version__)
         if self.istio_endpoint:
-            msg = '- Istio Endpoint: {}'.format(__version__, self.istio_endpoint)
+            msg = '- Istio Endpoint: {}'.format(self.istio_endpoint)
             log_msg += msg
             logger.debug('Set '+msg)
         elif self.cluster:

@@ -1,5 +1,6 @@
 
 # (C) Copyright IBM Corp. 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,6 +26,7 @@ from lithops.utils import is_lithops_worker
 from lithops.storage.utils import create_status_key, create_output_key, \
     status_key_suffix, init_key_suffix, CloudObject, StorageNoSuchKeyError,\
     create_job_key
+from lithops.config import extract_storage_config, default_storage_config
 
 logger = logging.getLogger(__name__)
 
@@ -34,43 +36,31 @@ class Storage:
     An Storage object is used by partitioner and other components to access
     underlying storage backend without exposing the the implementation details.
     """
-    def __init__(self, storage_config=None, lithops_config=None, storage_backend=None, executor_id=None):
-
-        self._created_cobjects_n = itertools.count()
+    def __init__(self, storage_config=None, lithops_config=None, backend=None, executor_id=None):
 
         if storage_config:
             self.storage_config = storage_config
-            self.backend = self.storage_config['backend']
-            self.bucket = self.storage_config['bucket']
-            if 'user_agent' not in self.storage_config[self.backend]:
-                self.storage_config[self.backend]['user_agent'] = 'lithops/{}'.format(__version__)
-
-            try:
-                module_location = 'lithops.storage.backends.{}'.format(self.backend)
-                sb_module = importlib.import_module(module_location)
-                StorageBackend = getattr(sb_module, 'StorageBackend')
-                self.storage_handler = StorageBackend(self.storage_config[self.backend],
-                                                      bucket=self.bucket,
-                                                      executor_id=executor_id)
-            except Exception as e:
-                raise NotImplementedError("An exception was produced trying to create the "
-                                          "'{}' storage backend: {}".format(self.backend, e))
-
         else:
-            self.lithops_config = lithops_config
-            self.backend = storage_backend
-            self.bucket = lithops_config['lithops']['storage_bucket']
+            storage_config = default_storage_config(config_data=lithops_config,
+                                                    backend=backend)
+            self.storage_config = extract_storage_config(storage_config)
 
-            try:
-                module_location = 'lithops.storage.backends.{}'.format(self.backend)
-                sb_module = importlib.import_module(module_location)
-                storage_config = self.lithops_config[self.backend]
-                storage_config['user_agent'] = 'lithops/{}'.format(__version__)
-                StorageBackend = getattr(sb_module, 'StorageBackend')
-                self.storage_handler = StorageBackend(storage_config)
-            except Exception as e:
-                raise NotImplementedError("An exception was produced trying to create the "
-                                          "'{}' storage backend: {}".format(self.backend, e))
+        self.backend = self.storage_config['backend']
+        self.bucket = self.storage_config['bucket']
+
+        try:
+            module_location = 'lithops.storage.backends.{}'.format(self.backend)
+            sb_module = importlib.import_module(module_location)
+            StorageBackend = getattr(sb_module, 'StorageBackend')
+            self.storage_handler = StorageBackend(self.storage_config[self.backend],
+                                                  bucket=self.bucket,
+                                                  executor_id=executor_id)
+        except Exception as e:
+            logger.error("An exception was produced trying to create the "
+                         "'{}' storage backend".format(self.backend))
+            raise e
+
+        self._created_cobjects_n = itertools.count()
 
     def get_client(self):
         return self.storage_handler.get_client()

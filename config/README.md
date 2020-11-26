@@ -57,7 +57,6 @@ Storage Backends
 <tr>
 <td>
 
-- [Localhost](compute/localhost.md)
 - [Remote Virtual Machine](compute/remote_vm.md)
 - [IBM Virtual Private Cloud](compute/ibm_vpc.md)
 
@@ -90,6 +89,9 @@ Storage Backends
 </td>
 </tr>
 </table>
+
+### Lithops and IBM Cloud 
+Students or academic stuff are welcome to follow [IBM Academic Initiative](https://ibm.biz/academic), a special program that allows free trial of IBM Cloud for Academic institutions. This program is provided for students and faculty staff members, and allow up to 12 months of free usage. You can register your university email and get a free of charge account.
 
 ## Verify
 

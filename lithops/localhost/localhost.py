@@ -45,7 +45,7 @@ class LocalhostHandler:
         self.config = localhost_config
         self.runtime = self.config['runtime']
 
-        if self.runtime.startswith('python3'):
+        if '/' not in self.runtime:
             self.env = DefaultEnv()
             self.env_type = 'default'
         else:
