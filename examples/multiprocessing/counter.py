@@ -18,7 +18,6 @@ def sync_incr(proc_id):
 
 if __name__ == '__main__':
     # Raw shared value
-
     v = RawValue('i', 0)
     print(v.value)
 
@@ -32,8 +31,8 @@ if __name__ == '__main__':
 
     # Synchronized shared value
     v = Value('i')
-
     print(v.value)
+
     with Pool() as p:
         res = p.map_async(sync_incr, [str(i) for i in range(4)])
         p.close()

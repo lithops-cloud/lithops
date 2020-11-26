@@ -12,7 +12,7 @@ def f(barrier, q):
 
 if __name__ == "__main__":
     q = SimpleQueue()
-    n = 6
+    n = 4
     barrier = Barrier(n)
 
     with Pool() as p:

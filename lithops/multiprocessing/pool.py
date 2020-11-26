@@ -388,7 +388,7 @@ class Pool(object):
         if self._state != RUN:
             raise ValueError("Pool not running")
 
-        futures = self._executor.call_async(func, data=args, extra_data=kwds)
+        futures = self._executor.call_async(func, data=args)
 
         result = ApplyResult(self._executor, [futures], callback, error_callback)
 

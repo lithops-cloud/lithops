@@ -12,16 +12,10 @@
 
 __all__ = ['Client', 'Listener', 'RedisPipe', 'wait']
 
-import asyncio
 import io
-import logging
 import os
-import sys
-import socket
 import time
-import tempfile
 import itertools
-# import pynng
 from multiprocessing.context import BufferTooShort
 
 from . import util
@@ -47,26 +41,6 @@ BUFSIZE = 8192
 CONNECTION_TIMEOUT = 20.
 
 _mmap_counter = itertools.count()
-
-
-# default_family = 'AF_INET'
-# families = ['AF_INET']
-
-# if hasattr(socket, 'AF_UNIX'):
-#     default_family = 'AF_UNIX'
-#     families += ['AF_UNIX']
-#
-# if sys.platform == 'win32':
-#     default_family = 'AF_PIPE'
-#     families += ['AF_PIPE']
-
-
-# def _init_timeout(timeout=CONNECTION_TIMEOUT):
-#     return time.monotonic() + timeout
-
-
-# def _check_timeout(t):
-#     return time.monotonic() > t
 
 
 def get_handle_pair(conn_type=REDIS_LIST_CONN, from_id=None):
@@ -111,47 +85,10 @@ def arbitrary_address(family):
     """
     Return an arbitrary free address for the given family
     """
-    # if family == 'AF_INET':
-    #     return ('localhost', 0)
-    # elif family == 'AF_UNIX':
-    #     return tempfile.mktemp(prefix='listener-', dir=util.get_temp_dir())
-    # elif family == 'AF_PIPE':
-    #     return tempfile.mktemp(prefix=r'\\.\pipe\pyc-%d-%d-' %
-    #                                   (os.getpid(), next(_mmap_counter)), dir="")
-    # elif family == 'AF_REDIS':
     if family == 'AF_REDIS':
         return 'listener-' + util.get_uuid()
     else:
         raise ValueError('unrecognized family')
-
-
-# def _validate_family(family):
-#     """
-#     Checks if the family is valid for the current environment.
-#     """
-#     if sys.platform != 'win32' and family == 'AF_PIPE':
-#         raise ValueError('Family %s is not recognized.' % family)
-#
-#     if sys.platform == 'win32' and family == 'AF_UNIX':
-#         # double check
-#         if not hasattr(socket, family):
-#             raise ValueError('Family %s is not recognized.' % family)
-
-
-# def address_type(address):
-#     """
-#     Return the types of the address
-#
-#     This can be 'AF_INET', 'AF_UNIX', or 'AF_PIPE'
-#     """
-#     if type(address) == tuple:
-#         return 'AF_INET'
-#     elif type(address) is str and address.startswith('\\\\'):
-#         return 'AF_PIPE'
-#     elif type(address) is str:
-#         return 'AF_UNIX'
-#     else:
-#         raise ValueError('address type of %r unrecognized' % address)
 
 
 #
@@ -227,7 +164,6 @@ class _ConnectionBase:
         self._check_closed()
         self._check_writable()
         self._send_bytes(_ForkingPickler.dumps(obj))
-        raise NotImplementedError()
 
     def send_bytes(self, buf, offset=0, size=None):
         """Send the bytes data from a bytes-like object"""
@@ -453,22 +389,6 @@ class Listener(object):
         self.close()
 
 
-def Client(address, family=None, authkey=None):
-    """
-    Returns a connection to the address of a `Listener`
-    """
-    c = SocketClient(address)
-
-    if authkey is not None and not isinstance(authkey, bytes):
-        raise TypeError('authkey should be a byte string')
-
-    if authkey is not None:
-        answer_challenge(c, authkey)
-        deliver_challenge(c, authkey)
-
-    return c
-
-
 def RedisPipe(duplex=True):
     """
     Returns pair of connection objects at either end of a pipe
@@ -542,24 +462,6 @@ class SocketListener(object):
                 unlink()
 
 
-# def SocketClient(address):
-#     """
-#     Return a connection object connected to the socket given by `address`
-#     """
-#     h1, _ = get_handle_pair(conn_type=REDIS_PUBSUB_CONN)
-#     c = RedisConnection(h1)
-#     c._channelwrite(address, c._subhandle.encode('utf-8'))
-#
-#     if c._poll(CONNECTION_TIMEOUT):
-#         c.recv()
-#         return c
-#     else:
-#         raise ConnectionRefusedError(address)
-#
-#
-# PipeListener = SocketListener
-# PipeClient = SocketClient
-
 #
 # Authentication stuff
 #
@@ -596,51 +498,6 @@ def answer_challenge(connection, authkey):
     response = connection.recv_bytes(256)  # reject large message
     if response != WELCOME:
         raise AuthenticationError('digest sent was rejected')
-
-
-#
-# Support for using xmlrpclib for serialization
-#
-
-# class ConnectionWrapper(object):
-#     def __init__(self, conn, dumps, loads):
-#         self._conn = conn
-#         self._dumps = dumps
-#         self._loads = loads
-#         for attr in ('fileno', 'close', 'poll', 'recv_bytes', 'send_bytes'):
-#             obj = getattr(conn, attr)
-#             setattr(self, attr, obj)
-#
-#     def send(self, obj):
-#         s = self._dumps(obj)
-#         self._conn.send_bytes(s)
-#
-#     def recv(self):
-#         s = self._conn.recv_bytes()
-#         return self._loads(s)
-#
-#
-# def _xml_dumps(obj):
-#     return xmlrpclib.dumps((obj,), None, None, None, 1).encode('utf-8')
-#
-#
-# def _xml_loads(s):
-#     (obj,), method = xmlrpclib.loads(s.decode('utf-8'))
-#     return obj
-#
-#
-# class XmlListener(Listener):
-#     def accept(self):
-#         global xmlrpclib
-#         import xmlrpc.client as xmlrpclib
-#         obj = Listener.accept(self)
-#         return ConnectionWrapper(obj, _xml_dumps, _xml_loads)
-#
-#
-# def XmlClient(*args, **kwds):
-#     global xmlrpclib
-#     import xmlrpc.client as xmlrpclib
-#     return ConnectionWrapper(Client(*args, **kwds), _xml_dumps, _xml_loads)
 
 
 #
@@ -702,25 +559,3 @@ def rebuild_connection(df, readable, writable):
 
 
 reduction.register(RedisConnection, reduce_connection)
-
-
-# async def process_request(ctx: pynng.Context, data: bytes):
-#     logging.debug('Processing request')
-#     client_id = int.from_bytes(data, byteorder='big', signed=False)
-#     logging.debug(f"<Worker {client_id}>: doing some IO")
-#     await asyncio.sleep(1)
-#
-#     logging.debug(f"<Worker {client_id}>: sending the result")
-#     await ctx.asend(f"result data for client {client_id}".encode())
-#
-#
-# ENDPOINT = 'tcp://127.0.0.1:50000'
-#
-#
-# async def serve():
-#     with pynng.Rep0(listen=ENDPOINT) as sock:
-#         while await asyncio.sleep(0, result=True):
-#             ctx = sock.new_context()
-#             logging.debug('Waiting for client connection...')
-#             payload = await ctx.arecv()
-#             asyncio.create_task(process_request(ctx, payload))

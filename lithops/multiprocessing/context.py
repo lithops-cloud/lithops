@@ -151,56 +151,6 @@ class BaseContext:
         return Array(typecode_or_type, size_or_initializer, lock=lock,
                      ctx=self.get_context())
 
-    """
-    def freeze_support(self):
-        '''Check whether this is a fake forked process in a frozen executable.
-        If so then run code specified by commandline and exit.
-        '''
-        if sys.platform == 'win32' and getattr(sys, 'frozen', False):
-            from .spawn import freeze_support
-            freeze_support()
-    """
-    """
-    def get_logger(self):
-        '''Return package logger -- if it does not already exist then
-        it is created.
-        '''
-        from .util import get_logger
-        return get_logger()
-    """
-    """
-    def log_to_stderr(self, level=None):
-        '''Turn on logging and add a handler which prints to stderr'''
-        from .util import log_to_stderr
-        return log_to_stderr(level)
-    """
-    """
-    def allow_connection_pickling(self):
-        '''Install support for sending connections and sockets
-        between processes
-        '''
-        # This is undocumented.  In previous versions of multiprocessing
-        # its only effect was to make socket objects inheritable on Windows.
-        from . import connection
-    """
-    """
-    def set_executable(self, executable):
-        '''Sets the path to a python.exe or pythonw.exe binary used to run
-        child processes instead of sys.executable when using the 'spawn'
-        start method.  Useful for people embedding Python.
-        '''
-        from .spawn import set_executable
-        set_executable(executable)
-    """
-    """
-    def set_forkserver_preload(self, module_names):
-        '''Set list of module names to try to load in forkserver process.
-        This is really just a hint.
-        '''
-        from .forkserver import set_forkserver_preload
-        set_forkserver_preload(module_names)
-    """
-
     def get_context(self, method=None):
         if method is None:
             return self
@@ -231,7 +181,11 @@ class BaseContext:
         pass
 
     def getpid(self):
-        executor_id, job_id, call_id = os.environ.get('LITHOPS_EXECUTION_ID').rsplit('/', 2)
+        execution_id = os.environ.get('LITHOPS_EXECUTION_ID', None)
+        if execution_id is not None:
+            executor_id, job_id, call_id = execution_id.rsplit('/', 2)
+        else:
+            call_id = -1
         return call_id
 
 
