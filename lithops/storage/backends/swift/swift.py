@@ -29,7 +29,8 @@ class StorageBackend:
     A wrap-up around OpenStack Swift APIs.
     """
 
-    def __init__(self, swift_config, **kwargs):
+    def __init__(self, swift_config):
+        logger.debug("Creating OpenStack Swift client")
         self.auth_url = swift_config['swift_auth_url']
         self.user_id = swift_config['swift_user_id']
         self.project_id = swift_config['swift_project_id']
@@ -50,6 +51,7 @@ class StorageBackend:
         adapter = requests.adapters.HTTPAdapter(pool_maxsize=64, max_retries=3)
         self.session.mount('http://', adapter)
         self.session.mount('https://', adapter)
+        logger.info("OpenStack Swift client created successfully")
 
     def generate_swift_token(self):
         """

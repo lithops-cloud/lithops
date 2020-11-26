@@ -53,12 +53,14 @@ def load_config(config_data):
        config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
 
-    if 'code_engine' in config_data:
-        if 'runtime_cpu' not in config_data['code_engine']:
-            config_data['code_engine']['runtime_cpu'] = CPU_DEFAULT
-        if 'api_version' not in config_data['code_engine']:
-            config_data['code_engine']['api_version'] = DEFAULT_API_VERSION
-        if 'group' not in config_data['code_engine']:
-            config_data['code_engine']['group'] = DEFAULT_GROUP
-        if 'version' not in config_data['code_engine']:
-            config_data['code_engine']['version'] = DEFAULT_VERSION
+    if 'code_engine' not in config_data:
+        config_data['code_engine'] = {}
+
+    if 'runtime_cpu' not in config_data['code_engine']:
+        config_data['code_engine']['runtime_cpu'] = CPU_DEFAULT
+    if 'api_version' not in config_data['code_engine']:
+        config_data['code_engine']['api_version'] = DEFAULT_API_VERSION
+    if 'group' not in config_data['code_engine']:
+        config_data['code_engine']['group'] = DEFAULT_GROUP
+    if 'version' not in config_data['code_engine']:
+        config_data['code_engine']['version'] = DEFAULT_VERSION

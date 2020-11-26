@@ -1,5 +1,5 @@
 #
-# Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 class AliyunObjectStorageServiceBackend:
 
-    def __init__(self, config, bucket=None, executor_id=None):
-        self.bucket = bucket
+    def __init__(self, config):
+        logger.debug("Creating Alibaba Object Storage client")
         self.config = config
         self.auth = oss2.Auth(self.config['access_key_id'], self.config['access_key_secret'])
 
@@ -35,6 +35,14 @@ class AliyunObjectStorageServiceBackend:
             self.endpoint = self.config['public_endpoint']
 
         self.bucket = oss2.Bucket(self.auth, self.endpoint, self.bucket)
+        logger.info("Alibaba Object Storage client created successfully")
+
+    def _connect_bucket(self, bucket_name):
+        if self.bucket and self.bucket.bucket_name == bucket_name:
+            bucket = self.bucket
+        else:
+            bucket = oss2.Bucket(self.auth, self.endpoint, bucket_name)
+        return bucket
 
     def get_client(self):
         return self
@@ -172,10 +180,3 @@ class AliyunObjectStorageServiceBackend:
 
         except (oss2.exceptions.NoSuchKey, oss2.exceptions.NoSuchBucket):
             raise StorageNoSuchKeyError(bucket_name, prefix)
-
-    def _connect_bucket(self, bucket_name):
-        if self.bucket and self.bucket.bucket_name == bucket_name:
-            bucket = self.bucket
-        else:
-            bucket = oss2.Bucket(self.auth, self.endpoint, bucket_name)
-        return bucket

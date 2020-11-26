@@ -1,5 +1,5 @@
 #
-# Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,15 +20,16 @@ from azure.storage.blob import BlockBlobService
 from azure.common import AzureMissingResourceHttpError
 from io import BytesIO
 
-logging.getLogger('azure.storage.common.storageclient').setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
 
 
 class AzureBlobStorageBackend:
 
-    def __init__(self, azure_blob_config, bucket=None, executor_id=None):
+    def __init__(self, azure_blob_config):
+        logger.debug("Creating Azure Blob Storage client")
         self.blob_client = BlockBlobService(account_name=azure_blob_config['account_name'],
                                             account_key=azure_blob_config['account_key'])
+        logger.info("Azure Blob Storage client created successfully")
 
     def get_client(self):
         """

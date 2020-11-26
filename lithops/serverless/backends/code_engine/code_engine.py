@@ -47,26 +47,23 @@ class CodeEngineBackend:
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'code_engine'
         self.code_engine_config = code_engine_config
+
         self.is_lithops_worker = is_lithops_worker()
         self.storage_config = storage_config
         self.internal_storage = InternalStorage(storage_config)
+        self.kubecfg = code_engine_config.get('kubectl_config')
+        self.user_agent = code_engine_config['user_agent']
 
-        config.load_kube_config(config_file=code_engine_config.get('kubectl_config'))
+        config.load_kube_config(config_file=self.kubecfg)
         self.capi = client.CustomObjectsApi()
 
-        self.user_agent = code_engine_config['user_agent']
-        contexts = config.list_kube_config_contexts(config_file=code_engine_config.get('kubectl_config'))
-
+        contexts = config.list_kube_config_contexts(config_file=self.kubecfg)
         current_context = contexts[1].get('context')
-        self.user = current_context.get('user')
-
-        self.user_key = self.user
-        self.package = 'lithops_v{}_{}'.format(__version__, self.user_key)
         self.namespace = current_context.get('namespace', 'default')
         self.cluster = current_context.get('cluster')
 
-        log_msg = ('Lithops v{} init for Code Engine - Namespace: {} - '
-                   'Cluster: {} - User {}'.format(__version__, self.namespace, self.cluster, self.user))
+        log_msg = ('Lithops v{} init for Code Engine - Cluster: {} - Namespace: {}'
+                   .format(__version__, self.cluster, self.namespace))
         if not self.log_active:
             print(log_msg)
         self.job_def_ids = set()
@@ -371,7 +368,7 @@ class CodeEngineBackend:
             while retry < 5 and not found:
                 try:
                     logger.debug("Retry attempt {} to read {}".format(retry, status_key))
-                    json_str = self.internal_storage.storage.get_cobject(key=status_key)
+                    json_str = self.internal_storage.get_data(key=status_key)
                     logger.debug("Found in attempt () to read {}".format(retry, status_key))
                     runtime_meta = json.loads(json_str.decode("ascii"))
                     found = True
@@ -382,7 +379,7 @@ class CodeEngineBackend:
             if retry >= 5 and not found:
                 raise("Unable to invoke 'modules' action")
 
-            json_str = self.internal_storage.storage.get_cobject(key=status_key)
+            json_str = self.internal_storage.get_data(key=status_key)
             runtime_meta = json.loads(json_str.decode("ascii"))
 
         except Exception:

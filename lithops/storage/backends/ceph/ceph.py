@@ -32,7 +32,7 @@ class CephStorageBackend:
     A wrap-up around Ceph boto3 APIs.
     """
 
-    def __init__(self, ceph_config, **kwargs):
+    def __init__(self, ceph_config):
         logger.debug("Creating Ceph client")
         self.ceph_config = ceph_config
         user_agent = ceph_config['user_agent']
@@ -56,7 +56,7 @@ class CephStorageBackend:
                                            config=client_config,
                                            endpoint_url=service_endpoint)
 
-        logger.debug("Ceph client created successfully")
+        logger.info("Ceph client created successfully")
 
     def get_client(self):
         """

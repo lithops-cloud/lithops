@@ -1,5 +1,5 @@
 #
-# Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the 'License');
 # you may not use this file except in compliance with the License.
@@ -17,14 +17,15 @@
 import logging
 import boto3
 import botocore
-from ...utils import StorageNoSuchKeyError
+from lithops.storage.utils import StorageNoSuchKeyError
 
 
 logger = logging.getLogger(__name__)
 
 
 class S3Backend:
-    def __init__(self, s3_config, bucket=None, executor_id=None):
+    def __init__(self, s3_config):
+        logger.debug("Creating S3 client")
         service_endpoint = s3_config.get('endpoint').replace('http:', 'https:')
 
         logger.debug('Set AWS S3 Endpoint to {}'.format(service_endpoint))
@@ -40,6 +41,7 @@ class S3Backend:
                                       aws_secret_access_key=s3_config['secret_access_key'],
                                       config=client_config,
                                       endpoint_url=service_endpoint)
+        logger.info("S3 client created successfully")
 
     def get_client(self):
         '''

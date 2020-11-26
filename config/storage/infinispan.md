@@ -20,11 +20,11 @@ Lithops with Infinispan as storage backend.
         username   : <USER_NAME>
         password   : <PASSWORD>
         endpoint   : <INFINISPAN_SERVER_URL:PORT>
-        cache_manager : <CACHE MANAGER>
 ```
 
 - `username`: The username
 - `password`: The password
 - `endpoint`: The endpoint
-- `cache_manager`: cahce manager. # Optional 'default' in default value
+- `cache_name`: cahce name. # Optional 'default' in default value
+- `cache_type`: Type of the cache. # Optional 'default' in default value
  
