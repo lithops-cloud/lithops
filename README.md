@@ -131,8 +131,8 @@ if __name__ == "__main__":
                        key='test.txt',
                        body='Hello World')
     ...
-    data = storage.get_object(bucket='my-bucket',
-                              key='test.txt')
+    print(storage.get_object(bucket='my-bucket',
+                             key='test.txt'))
 ```
 
 </td>
@@ -144,7 +144,7 @@ from lithops.storage.cloud_proxy import open, os
 
 if __name__ == "__main__":
     filepath = 'bar/foo.txt'
-    with open('bar/foo.txt', 'w') as f:
+    with open(filepath, 'w') as f:
         f.write('Hello world!')
 
     dirname = os.path.dirname(filepath)

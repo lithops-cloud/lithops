@@ -57,7 +57,7 @@ storage = Storage(config=config, backend='redis')  # this will create a redis St
 
 ## Storage API Calls
 
-### Storage.put_object()
+### `Storage.put_object()`
 
 Adds an object to a bucket of the storage backend.
 
@@ -77,7 +77,7 @@ Adds an object to a bucket of the storage backend.
     ```
 
 
-### Storage.get_object()
+### `Storage.get_object()`
 
 Retrieves objects from the storage backend.
 
@@ -98,7 +98,7 @@ Retrieves objects from the storage backend.
     ```
 
 
-### Storage.head_object()
+### `Storage.head_object()`
 The HEAD operation retrieves metadata from an object without returning the object itself. This operation is useful if you're only interested in an object's metadata. 
 
 **head_object**(bucket, key)
@@ -116,7 +116,7 @@ The HEAD operation retrieves metadata from an object without returning the objec
     ```
 
 
-### Storage.delete_object()
+### `Storage.delete_object()`
 
 Removes objects from the storage backend
 
@@ -134,7 +134,7 @@ Removes objects from the storage backend
     storage.delete_object('my_bucket', 'test.txt')
     ```
 
-### Storage.delete_objects()
+### `Storage.delete_objects()`
 
 This operation enables you to delete multiple objects from a bucket using a single HTTP request. If you know the object keys that you want to delete, then this operation provides a suitable alternative to sending individual delete requests, reducing per-request overhead.
 
@@ -153,7 +153,7 @@ This operation enables you to delete multiple objects from a bucket using a sing
     ```
 
 
-### Storage.head_bucket()
+### `Storage.head_bucket()`
 
 This operation is useful to determine if a bucket exists and you have permission to access it. The operation returns a 200 OK if the bucket exists and you have permission to access it. Otherwise, the operation might return responses such as 404 Not Found and 403 Forbidden .
 
@@ -171,7 +171,7 @@ This operation is useful to determine if a bucket exists and you have permission
     ```
 
 
-### Storage.list_objects()
+### `Storage.list_objects()`
 
 Returns all of the objects in a bucket. For each object, the list contains the name of the object (key) and the size.
 
@@ -190,7 +190,7 @@ Returns all of the objects in a bucket. For each object, the list contains the n
     ```
 
 
-### Storage.list_keys()
+### `Storage.list_keys()`
 
 Similar to lit_objects(), it returns all of the objects in a bucket. For each object, the list contains only the names of the objects (keys).
 
@@ -209,7 +209,7 @@ Similar to lit_objects(), it returns all of the objects in a bucket. For each ob
     ```
 
 
-### Storage.get_client()
+### `Storage.get_client()`
 Returns the underlying storage backend client. For example, if `Storage` is an instance built on top of AWS S3, it returns a boto3 client.
 
 **get_client**()
@@ -243,7 +243,7 @@ If `bucket` paramter is not provided, it will use the `storage_bucket` set in th
     ```
 
 
-### Storage.get_cloudobject()
+### `Storage.get_cloudobject()`
 
 Retrieves CloudObjects from a bucket of the storage backend.
 
@@ -265,7 +265,7 @@ Retrieves CloudObjects from a bucket of the storage backend.
     ```
 
 
-### Storage.delete_cloudobject()
+### `Storage.delete_cloudobject()`
 
 Removes CloudObjects from a bucket of the storage backend.
 
@@ -285,7 +285,7 @@ Removes CloudObjects from a bucket of the storage backend.
     storage.delete_cloudobject(cobj)
     ```
 
-### Storage.delete_cloudobjects()
+### `Storage.delete_cloudobjects()`
 
 This operation enables you to delete multiple objects from a bucket using a single HTTP request. If you know the object keys that you want to delete, then this operation provides a suitable alternative to sending individual delete requests, reducing per-request overhead.
 
