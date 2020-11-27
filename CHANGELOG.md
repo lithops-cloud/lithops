@@ -4,6 +4,10 @@
 
 ### Added
 - [Core] Allow to create a Storage() class from config file
+- [CodeEngine] Imporved codeengine backend
+
+### Changed
+- [Core] Imporved multiprocessing API
 
 
 ## [v2.2.9]

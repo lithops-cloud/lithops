@@ -1,5 +1,3 @@
-from lithops.storage.cloud_proxy import os, open
-
 import lithops
 from lithops.storage.cloud_proxy import open, os
 
