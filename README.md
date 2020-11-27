@@ -40,7 +40,7 @@ Lithops provides an extensible backend architecture (compute, storage) that is d
 
 ## High-level API
 
-Lithops is shipped with 2 different high-level APIs.
+Lithops is shipped with 2 different high-level Compute APIs, and 2 high-level Storage APIs
 
 
 <table>
@@ -90,6 +90,66 @@ def double(i):
 with Pool() as pool:
     result = pool.map(double, [1, 2, 3, 4, 5])
     print(result)
+```
+
+</td>
+</tr>
+
+</table>
+
+
+<table>
+<tr>
+<th align="center">
+<img width="441" height="1px">
+<p> 
+<small>
+<a href="docs/api_storage.md">Storage API</a>
+</small>
+</p>
+</th>
+<th align="center">
+<img width="441" height="1px">
+<p> 
+<small>
+<a href="docs/api_storage_os.md">Storage OS API</a>
+</small>
+</p>
+</th>
+</tr>
+
+<tr>
+<td>
+
+```python
+from lithops import Storage
+
+
+if __name__ == "__main__":
+    storage = Storage()
+    storage.put_object(bucket='my-bucket',
+                       key='test.txt',
+                       body='Hello World')
+    ...
+    data = storage.get_object(bucket='my-bucket',
+                              key='test.txt')
+```
+
+</td>
+<td>
+
+```python
+from lithops.storage.cloud_proxy import open, os
+
+
+if __name__ == "__main__":
+    filepath = 'bar/foo.txt'
+    with open('bar/foo.txt', 'w') as f:
+        f.write('Hello world!')
+
+    dirname = os.path.dirname(filepath)
+    print(os.listdir(dirname))
+    os.remove(filepath)
 ```
 
 </td>
