@@ -1,9 +1,15 @@
 # Changelog
 
-## [v2.2.9.dev0]
+## [v2.2.10.dev0]
 
 ### Added
 - [Core] Allow to create a Storage() class from config file
+
+
+## [v2.2.9]
+
+### Fixed
+- [CodeEngine] Fixed CodeEngine runtime entrypoint
 
 
 ## [v2.2.8]
