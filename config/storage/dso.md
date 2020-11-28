@@ -17,4 +17,4 @@ Lithops with [DSO](https://github.com/crucial-project/dso/tree/2.0) as storage b
 
 ## Examples
 
-Somes sample scripts are available under `examples/dso`.
+Somes sample scripts are available under [here](https://github.com/otrack/lithops/tree/dso/examples/dso).
