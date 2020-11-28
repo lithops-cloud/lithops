@@ -79,6 +79,7 @@ Storage Backends
 
 - [IBM Cloud Object Storage](storage/ibm_cos.md)
 - [Infinispan](storage/infinispan.md)
+- [DSO](storage/dso.md)
 - [Ceph](storage/ceph.md)
 - [Redis](storage/redis.md)
 - [OpenStack Swift](storage/swift.md)
