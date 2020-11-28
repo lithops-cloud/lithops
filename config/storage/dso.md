@@ -15,3 +15,6 @@ Lithops with [DSO](https://github.com/crucial-project/dso/tree/2.0) as storage b
 
 2. Run a script using a command of the form `"DSO=IP:11222" python3 my_script.py`, where `DSO` is the address of a running DSO deployment.
 
+## Examples
+
+Somes sample scripts are available under `examples/dso`.
