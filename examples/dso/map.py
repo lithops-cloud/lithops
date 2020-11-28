@@ -2,9 +2,12 @@ from dso.client import Client
 from jpype import *
 from jpype import java
 import lithops
+import os
+
+dso=os.environ.get('DSO')
 
 def my_map_function(id, x):
-    client = Client("35.188.231.186:11222")
+    client = Client(dso)
     c = client.getAtomicCounter("cnt")
     c.increment(x)
     b = client.getCyclicBarrier("b", len(iterdata))
@@ -12,7 +15,7 @@ def my_map_function(id, x):
     return c.tally()
 
 if __name__ == "__main__":
-    f = Client("35.188.231.186:11222")
+    f = Client(dso)
     c = f.getAtomicCounter("cnt")
     c.reset()
     iterdata = [1, 2, 3, 4]
