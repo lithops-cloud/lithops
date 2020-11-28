@@ -9,7 +9,7 @@ dso=os.environ.get('DSO')
 def my_function(x):
     client = Client(dso)
     d = client.getAtomicCounter("cnt")
-    return d.increment()
+    return d.increment(x)
 
 if __name__ == '__main__':
     fexec = lithops.FunctionExecutor(runtime='0track/lithops-dso:1.1')
