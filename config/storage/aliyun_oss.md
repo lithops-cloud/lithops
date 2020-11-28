@@ -15,13 +15,13 @@ $ pip install lithops[aliyun]
 
 ```yaml
   lithops:
-    storage_backend : aliyun_oss
+    storage: aliyun_oss
 
   aliyun_oss:
-    public_endpoint : <PUBLIC_ENDPOINT>
-    internal_endpoint : <INTRANET_ENDPOINT>
-    access_key_id : <ACCESS_KEY_ID>
-    access_key_secret : <ACCESS_KEY_SECRET>
+    public_endpoint: <PUBLIC_ENDPOINT>
+    internal_endpoint: <INTRANET_ENDPOINT>
+    access_key_id: <ACCESS_KEY_ID>
+    access_key_secret: <ACCESS_KEY_SECRET>
 ```
 
    - `public_endpoint`: public endpoint (URL) to the service. OSS and FC endpoints are different.

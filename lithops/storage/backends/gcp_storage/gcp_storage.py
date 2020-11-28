@@ -1,5 +1,5 @@
 #
-# Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,29 +15,30 @@
 #
 
 import re
-import io
 import time
 import logging
 from requests.exceptions import SSLError as TooManyConnectionsError
 from io import BytesIO
-from urllib.parse import urlparse
 from google.api_core import exceptions as google_exceptions
 from google.cloud import storage
 from google.cloud.exceptions import NotFound
 
-from google.api_core.exceptions import GoogleAPICallError, AlreadyExists, RetryError
-from ...utils import StorageNoSuchKeyError
+from lithops.storage.utils import StorageNoSuchKeyError
 
 logging.getLogger('urllib3').setLevel(logging.CRITICAL)
 
+logger = logging.getLogger(__name__)
+
 
 class GCPStorageBackend:
-    def __init__(self, gcp_storage_config, bucket=None, executor_id=None):
+    def __init__(self, gcp_storage_config):
+        logger.debug("Creating GCP Storage client")
         self.credentials_path = gcp_storage_config['credentials_path']
         try:  # Get credenitals from JSON file
             self.client = storage.Client.from_service_account_json(self.credentials_path)
         except Exception:  # Get credentials from gcp function environment
             self.client = storage.Client()
+        logger.info("GCP Storage client created successfully")
 
     def get_client(self):
         """
@@ -149,12 +150,6 @@ class GCPStorageBackend:
             bucket.delete_blobs(blobs=key_list)
         except google_exceptions.NotFound:
             pass
-
-    def bucket_exists(self, bucket_name):
-        try:
-            self.client.get_bucket(bucket_name)
-        except google_exceptions.NotFound:
-            raise StorageNoSuchKeyError(bucket_name, '')
 
     def head_bucket(self, bucket_name):
         pass

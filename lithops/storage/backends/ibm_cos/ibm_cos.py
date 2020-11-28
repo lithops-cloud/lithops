@@ -32,7 +32,7 @@ class IBMCloudObjectStorageBackend:
     A wrap-up around IBM COS ibm_boto3 APIs.
     """
 
-    def __init__(self, ibm_cos_config, **kwargs):
+    def __init__(self, ibm_cos_config):
         logger.debug("Creating IBM COS client")
         self.ibm_cos_config = ibm_cos_config
         self.is_lithops_worker = is_lithops_worker()
@@ -203,19 +203,6 @@ class IBMCloudObjectStorageBackend:
             delete_keys['Objects'] = [{'Key': k} for k in key_list[i:i+max_keys_num]]
             result.append(self.cos_client.delete_objects(Bucket=bucket_name, Delete=delete_keys))
         return result
-
-    def bucket_exists(self, bucket_name):
-        """
-        Head bucket from COS with a name. Throws StorageNoSuchKeyError if the given bucket does not exist.
-        :param bucket_name: name of the bucket
-        """
-        try:
-            return self.cos_client.head_bucket(Bucket=bucket_name)
-        except ibm_botocore.exceptions.ClientError as e:
-            if e.response['Error']['Code'] == '404':
-                raise StorageNoSuchKeyError(bucket_name, '')
-            else:
-                raise e
 
     def head_bucket(self, bucket_name):
         """

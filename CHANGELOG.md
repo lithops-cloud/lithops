@@ -1,9 +1,42 @@
 # Changelog
 
-## [v2.2.6.dev0]
+## [v2.2.10.dev0]
+
+### Added
+- [Core] Allow to create a Storage() class from config file
+- [CodeEngine] Imporved codeengine backend
+
+### Changed
+- [Core] Imporved multiprocessing API
+
+
+## [v2.2.9]
+
+### Fixed
+- [CodeEngine] Fixed CodeEngine runtime entrypoint
+
+
+## [v2.2.8]
+
+### Fixed
+- [Core] Fix "lithops runtime create" cli
+- [Core] Fixed missing executor_id variable in jobrunner
+
+
+## [v2.2.7]
+
+### Added
+- [Core] Add joblib backend for scikit-learn
+- [Cli] Add more config paramters in lithops cli
+- [IBM COS] Add 'region' config param
+- [Knative] Add 'min_instances', 'max_instances' and 'concurrency' config params
 
 ### Fixed
 - [Core] Fix job monitoring on Windows hosts
+- [Knative] Minor fix when using knative from master branch
+- [GCE] Fix in 'lithops runtime' cli
+- [Core] Minor fix in tests
+- [Core] Fixed data partitioner
 
 
 ## [v2.2.5]

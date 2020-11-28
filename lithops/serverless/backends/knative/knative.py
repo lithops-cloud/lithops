@@ -101,13 +101,18 @@ class KnativeServingBackend:
 
         logger.debug('Loaded service host suffix: {}'.format(self.service_host_suffix))
 
+        log_msg = 'Lithops v{} init for Knative '.format(__version__)
         if self.istio_endpoint:
-            log_msg = 'Lithops v{} init for Knative - Istio Endpoint: {}'.format(__version__, self.istio_endpoint)
-        else:
-            log_msg = 'Lithops v{} init for Knative'.format(__version__)
+            msg = '- Istio Endpoint: {}'.format(self.istio_endpoint)
+            log_msg += msg
+            logger.debug('Set '+msg)
+        elif self.cluster:
+            msg = '- Cluster: {}'.format(self.cluster)
+            log_msg += msg
+            logger.debug('Set '+msg)
         if not self.log_active:
             print(log_msg)
-        logger.info(log_msg)
+        logger.info('Knative client created successfully')
 
     def _format_service_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '--').replace(':', '--')
@@ -132,8 +137,8 @@ class KnativeServingBackend:
         logger.debug('Getting service host for: {}'.format(service_name))
         try:
             svc = self.api.get_namespaced_custom_object(
-                        group="serving.knative.dev",
-                        version="v1",
+                        group=kconfig.DEFAULT_GROUP,
+                        version=kconfig.DEFAULT_VERSION,
                         name=service_name,
                         namespace=self.namespace,
                         plural="services"
@@ -341,19 +346,13 @@ class KnativeServingBackend:
         """
         if os.system('{} --version >{} 2>&1'.format(kconfig.DOCKER_PATH, os.devnull)) == 0:
             # Build default runtime using local dokcer
-            python_version = version_str(sys.version_info).replace('.', '')
-            location = 'https://raw.githubusercontent.com/lithops-cloud/lithops/master/runtime/knative'
-            resp = requests.get('{}/Dockerfile.python{}'.format(location, python_version))
-            dockerfile = "Dockefile.default-kantive-runtime"
-            if resp.status_code == 200:
-                with open(dockerfile, 'w') as f:
-                    f.write(resp.text)
-                self.build_runtime(default_runtime_img_name, dockerfile)
-                os.remove(dockerfile)
-            else:
-                msg = 'There was an error fetching the default runitme Dockerfile: {}'.format(resp.text)
-                logger.error(msg)
-                exit()
+            python_version = version_str(sys.version_info)
+            dockerfile = "Dockefile.default-knative-runtime"
+            with open(dockerfile, 'w') as f:
+                f.write("FROM python:{}-slim-buster\n".format(python_version))
+                f.write(kconfig.DEFAULT_DOCKERFILE)
+            self.build_runtime(default_runtime_img_name, dockerfile)
+            os.remove(dockerfile)
         else:
             # Build default runtime using Tekton
             self._build_default_runtime_from_git(default_runtime_img_name)
@@ -377,6 +376,10 @@ class KnativeServingBackend:
 
         full_docker_image_name = '/'.join([self.knative_config['docker_repo'], docker_image_name])
         svc_res['spec']['template']['spec']['containers'][0]['image'] = full_docker_image_name
+        conc_env = {'name': 'CONCURRENCY', 'value': str(self.knative_config['concurrency'])}
+        tout_env = {'name': 'TIMEOUT', 'value': str(timeout)}
+        svc_res['spec']['template']['spec']['containers'][0]['env'][0] = conc_env
+        svc_res['spec']['template']['spec']['containers'][0]['env'][1] = tout_env
         svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['memory'] = '{}Mi'.format(runtime_memory)
         svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['cpu'] = '{}m'.format(self.knative_config['cpu'])
         svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory)
@@ -384,12 +387,13 @@ class KnativeServingBackend:
 
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/minScale'] = str(self.knative_config['min_instances'])
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = str(self.knative_config['max_instances'])
+        svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/target'] = str(self.knative_config['concurrency'])
 
         try:
             # delete the service resource if exists
             self.api.delete_namespaced_custom_object(
-                    group="serving.knative.dev",
-                    version="v1",
+                    group=kconfig.DEFAULT_GROUP,
+                    version=kconfig.DEFAULT_VERSION,
                     name=service_name,
                     namespace=self.namespace,
                     plural="services",
@@ -401,8 +405,8 @@ class KnativeServingBackend:
 
         # create the service resource
         self.api.create_namespaced_custom_object(
-                group="serving.knative.dev",
-                version="v1",
+                group=kconfig.DEFAULT_GROUP,
+                version=kconfig.DEFAULT_VERSION,
                 namespace=self.namespace,
                 plural="services",
                 body=svc_res
@@ -410,8 +414,8 @@ class KnativeServingBackend:
 
         w = watch.Watch()
         for event in w.stream(self.api.list_namespaced_custom_object,
-                              namespace=self.namespace, group="serving.knative.dev",
-                              version="v1", plural="services",
+                              namespace=self.namespace, group=kconfig.DEFAULT_GROUP,
+                              version=kconfig.DEFAULT_VERSION, plural="services",
                               field_selector="metadata.name={0}".format(service_name),
                               timeout_seconds=300):
             if event['object'].get('status'):
@@ -486,7 +490,8 @@ class KnativeServingBackend:
         result = re.match(expression, docker_image_name)
 
         if not result or result.group() != docker_image_name:
-            raise Exception("Invalid docker image name: '.' or '_' characters are not allowed")
+            raise Exception("Invalid docker image name: All letters must be "
+                            "lowercase and '.' or '_' characters are not allowed")
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
         create_handler_zip(kconfig.FH_ZIP_LOCATION, entry_point, 'lithopsproxy.py')
@@ -519,8 +524,8 @@ class KnativeServingBackend:
         logger.info('Deleting runtime: {}'.format(service_name))
         try:
             self.api.delete_namespaced_custom_object(
-                    group="serving.knative.dev",
-                    version="v1",
+                    group=kconfig.DEFAULT_GROUP,
+                    version=kconfig.DEFAULT_VERSION,
                     name=service_name,
                     namespace=self.namespace,
                     plural="services",
@@ -543,8 +548,8 @@ class KnativeServingBackend:
         return: list of tuples [docker_image_name, memory]
         """
         knative_services = self.api.list_namespaced_custom_object(
-                                group="serving.knative.dev",
-                                version="v1",
+                                group=kconfig.DEFAULT_GROUP,
+                                version=kconfig.DEFAULT_VERSION,
                                 namespace=self.namespace,
                                 plural="services"
                             )

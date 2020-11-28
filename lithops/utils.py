@@ -1,6 +1,7 @@
 #
 # Copyright 2018 PyWren Team
 # (C) Copyright IBM Corp. 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -42,7 +43,7 @@ def uuid_str():
 
 
 def create_executor_id(lenght=6):
-
+    """ Creates an executor ID. """
     if '__LITHOPS_SESSION_ID' in os.environ:
         session_id = os.environ['__LITHOPS_SESSION_ID']
     else:
@@ -55,6 +56,13 @@ def create_executor_id(lenght=6):
         exec_num = 0
     os.environ['__LITHOPS_TOTAL_EXECUTORS'] = str(exec_num)
 
+    return '{}-{}'.format(session_id, exec_num)
+
+
+def get_executor_id():
+    """ retrieves the current executor ID. """
+    session_id = os.environ['__LITHOPS_SESSION_ID']
+    exec_num = os.environ['__LITHOPS_TOTAL_EXECUTORS']
     return '{}-{}'.format(session_id, exec_num)
 
 
@@ -451,6 +459,8 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
 
     def __init__(self, sb, size, byterange):
         super().__init__(sb, size)
+        # Chunk size
+        self.chunk_size = size
         # Range of the chunk
         self.range = byterange
         # The first chunk does not contain plusbyte
@@ -472,20 +482,20 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
             raise EOFError()
 
         self.pos += len(retval)
-
         first_row_start_pos = 0
-        if self.first_byte != b'\n' and self.plusbytes != 0:
-            logger.debug('Discarding first partial row')
+
+        if self.first_byte != b'\n' and self.plusbytes == 1:
+            logger.info('Discarding first partial row')
             # Previous byte is not \n
             # This means that we have to discard first row because it is cut
             first_row_start_pos = retval.find(b'\n')+1
 
         last_row_end_pos = self.pos
         # Find end of the line in threshold
-        if self.pos > self.size:
-            buf = io.BytesIO(retval[self.size:])
+        if self.pos > self.chunk_size:
+            buf = io.BytesIO(retval[self.chunk_size-self.plusbytes:])
             buf.readline()
-            last_row_end_pos = self.size+buf.tell()
+            last_row_end_pos = self.chunk_size-self.plusbytes+buf.tell()
             self.eof = True
 
         return retval[first_row_start_pos:last_row_end_pos]
@@ -505,7 +515,7 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
             raise EOFError()
         self.pos += len(retval)
 
-        if self.pos >= self.size:
+        if self.pos >= self.chunk_size:
             self.eof = True
 
         return retval

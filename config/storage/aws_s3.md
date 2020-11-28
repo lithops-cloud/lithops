@@ -21,7 +21,7 @@ $ pip install lithops[aws]
 
 ```yaml
     lithops:
-        storage_backend: aws_s3
+        storage: aws_s3
 
     aws:
         access_key_id : <ACCESS_KEY_ID>

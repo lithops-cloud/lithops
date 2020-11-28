@@ -15,7 +15,6 @@
 #
 
 import sys
-import json
 import pickle
 import argparse
 import unittest
@@ -24,7 +23,7 @@ import inspect
 import lithops
 import urllib.request
 from lithops.storage import InternalStorage
-from lithops.config import default_config, extract_storage_config
+from lithops.config import get_mode, default_config, extract_storage_config
 from concurrent.futures import ThreadPoolExecutor
 
 CONFIG = None
@@ -46,9 +45,9 @@ class TestUtils:
         def up(param):
             i, url = param
             content = urllib.request.urlopen(url).read()
-            STORAGE.put_object(bucket_name=STORAGE_CONFIG['bucket'],
+            STORAGE.put_object(bucket=STORAGE_CONFIG['bucket'],
                                key='{}/test{}'.format(PREFIX, str(i)),
-                               data=content)
+                               body=content)
             return len(content.split())
 
         with ThreadPoolExecutor() as pool:
@@ -59,12 +58,12 @@ class TestUtils:
 
     @staticmethod
     def list_test_keys():
-        return STORAGE.list_keys(bucket_name=STORAGE_CONFIG['bucket'], prefix=PREFIX + '/')
+        return STORAGE.list_keys(bucket=STORAGE_CONFIG['bucket'], prefix=PREFIX + '/')
 
     @staticmethod
     def cleanTests():
         for key in TestUtils.list_test_keys():
-            STORAGE.delete_object(bucket_name=STORAGE_CONFIG['bucket'],
+            STORAGE.delete_object(bucket=STORAGE_CONFIG['bucket'],
                                   key=key)
 
 
@@ -177,12 +176,12 @@ class TestMethods:
     @staticmethod
     def my_cloudobject_put(obj, storage):
         counter = TestMethods.my_map_function_obj(obj, 0)
-        cloudobject = storage.put_cobject(pickle.dumps(counter))
+        cloudobject = storage.put_cloudobject(pickle.dumps(counter))
         return cloudobject
 
     @staticmethod
     def my_cloudobject_get(cloudobjects, storage):
-        data = [pickle.loads(storage.get_cobject(co)) for co in cloudobjects]
+        data = [pickle.loads(storage.get_cloudobject(co)) for co in cloudobjects]
         return TestMethods.my_reduce_function(data)
 
 
@@ -434,12 +433,15 @@ def print_help():
         print(f'-> {func_name}')
 
 
-def run_tests(test_to_run, mode, config=None):
+def run_tests(test_to_run, config=None, mode=None, backend=None):
     global CONFIG, STORAGE_CONFIG, STORAGE
 
-    config_ow = {'lithops': {'mode': mode}} if mode else {}
+    mode = mode or get_mode(config)
+    config_ow = {'lithops': {'mode': mode}}
+    if backend:
+        config_ow[mode] = {'backend': backend}
+    CONFIG = default_config(config, config_ow)
 
-    CONFIG = json.load(config) if config else default_config(config_overwrite=config_ow)
     STORAGE_CONFIG = extract_storage_config(CONFIG)
     STORAGE = InternalStorage(STORAGE_CONFIG).storage
 
@@ -466,6 +468,8 @@ if __name__ == '__main__':
                         help='run a specific test, type "-t help" for tests list')
     parser.add_argument('-m', '--mode', metavar='', default=None,
                         help='serverless, standalone or localhost')
+    parser.add_argument('-b', '--backend', metavar='', default=None,
+                        help='serverless, standalone or localhost')
     parser.add_argument('-d', '--debug', action='store_true', default=False,
                         help='activate debug logging')
     args = parser.parse_args()
@@ -476,4 +480,4 @@ if __name__ == '__main__':
     if args.test == 'help':
         print_help()
     else:
-        run_tests(args.test, args.executor, args.config)
+        run_tests(args.test, args.config, args.mode, args.backend)

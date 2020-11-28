@@ -17,35 +17,43 @@
 import io
 import os as base_os
 from functools import partial
-from lithops.storage import Storage
+from lithops.storage import InternalStorage
 from lithops.utils import is_lithops_worker
-from lithops import config
+from lithops.config import default_config, load_yaml_config, extract_storage_config
+from lithops.constants import JOBS_PREFIX, TEMP_PREFIX, LOGS_PREFIX, RUNTIMES_PREFIX
+
+
+def remove_lithops_keys(keys):
+    return list(filter(lambda key: not any([key.startswith(prefix) for prefix in
+                                            [JOBS_PREFIX, TEMP_PREFIX, LOGS_PREFIX, RUNTIMES_PREFIX]]), keys))
 
 
 #
 # Picklable cloud object storage client
 #
 
-class CloudStorage(Storage):
-    def __init__(self, storage_config=None, lithops_config=None, storage_backend=None, bucket=None):
-        if lithops_config is None:
-            self.lithops_config = config.default_config()
-        if storage_config is None:
-            self.storage_config = config.extract_storage_config(self.lithops_config)
-        if storage_backend is None:
-            self.storage_backend = self.storage_config['backend']
-        if bucket is not None:
-            self.storage_config['bucket'] = bucket
-
-        super().__init__(storage_config=self.storage_config,
-                         lithops_config=self.lithops_config,
-                         storage_backend=self.storage_backend)
+class CloudStorage(InternalStorage):
+    def __init__(self, config=None):
+        if isinstance(config, str):
+            config = load_yaml_config(config)
+            self._config = extract_storage_config(config)
+        elif isinstance(config, dict):
+            if 'lithops' in config:
+                self._config = extract_storage_config(config)
+            else:
+                self._config = config
+        else:
+            self._config = extract_storage_config(default_config())
+        super().__init__(self._config)
 
     def __getstate__(self):
-        return self.__dict__
+        return self._config
 
     def __setstate__(self, state):
-        self.__init__(**state)
+        self.__init__(state)
+
+    def list_keys(self, prefix=None):
+        return self.storage.list_keys(self.bucket, prefix)
 
 
 class CloudFileProxy:
@@ -62,17 +70,23 @@ class CloudFileProxy:
 
     def listdir(self, path='', suffix_dirs=False):
         if path == '':
-            prefix = path
+            prefix = '/'
+        elif path.startswith('/'):
+            prefix = path[1:]
         else:
             prefix = path if path.endswith('/') else path + '/'
 
-        paths = self._storage.list_keys(prefix=prefix, bucket_name=_storage.bucket)
+        paths = self._storage.list_keys(prefix=prefix)
         names = set()
         for p in paths:
+            if any([p.startswith(prefix) for prefix in [JOBS_PREFIX, TEMP_PREFIX, LOGS_PREFIX, RUNTIMES_PREFIX]]):
+                continue
             p = p[len(prefix):] if p.startswith(prefix) else p
+            if p.startswith('/'):
+                p = p[1:]
             splits = p.split('/')
             name = splits[0] + '/' if suffix_dirs and len(splits) > 1 else splits[0]
-            names |= set([name])
+            names |= {name}
         return list(names)
 
     def walk(self, top, topdown=True, onerror=None, followlinks=False):
@@ -87,21 +101,19 @@ class CloudFileProxy:
 
         if dirs == [] and files == [] and not self.path.exists(top):
             raise StopIteration
-
         elif topdown:
-            yield (top, dirs, files)
-            for dir in dirs:
-                for result in self.walk('/'.join([top, dir]), topdown, onerror, followlinks):
+            yield top, dirs, files
+            for dir_name in dirs:
+                for result in self.walk(base_os.path.join(top, dir_name), topdown, onerror, followlinks):
                     yield result
-
         else:
-            for dir in dirs:
-                for result in self.walk('/'.join([top, dir]), topdown, onerror, followlinks):
+            for dir_name in dirs:
+                for result in self.walk(base_os.path.join(top, dir_name), topdown, onerror, followlinks):
                     yield result
-            yield (top, dirs, files)
+            yield top, dirs, files
 
-    def remove(self, key):
-        self._storage.delete_cobject(key=key)
+    def remove(self, path):
+        self._storage.storage.delete_object(bucket=self._storage.bucket, key=path)
 
     def mkdir(self, *args, **kwargs):
         pass
@@ -119,14 +131,28 @@ class _path:
         return getattr(base_os.path, name)
 
     def isfile(self, path):
-        return path in self._storage.list_keys(prefix=path)
+        prefix = path
+        if path.startswith('/'):
+            prefix = path[1:]
+
+        keys = remove_lithops_keys(self._storage.list_keys(prefix=prefix))
+        if len(keys) == 1:
+            key = keys.pop()
+            key = key[len(prefix):]
+            return key == ''
+        else:
+            return False
 
     def isdir(self, path):
-        path = path if path.endswith('/') else path + '/'
-        for key in self._storage.list_keys(prefix=path):
-            if key.startswith(path):
-                return True
-        return False
+        prefix = path
+        if path.startswith('/'):
+            prefix = path[1:]
+
+        if prefix != '' and not prefix.endswith('/'):
+            prefix = prefix + '/'
+
+        keys = remove_lithops_keys(self._storage.list_keys(prefix=prefix))
+        return bool(keys)
 
     def exists(self, path):
         dirpath = path if path.endswith('/') else path + '/'
@@ -152,7 +178,7 @@ class DelayedStringBuffer(io.StringIO):
         self._action = action
 
     def close(self):
-        self._action(data=self.getvalue())
+        self._action(self.getvalue())
         io.StringIO.close(self)
 
 
@@ -161,12 +187,12 @@ def cloud_open(filename, mode='r', cloud_storage=None):
     if 'r' in mode:
         if 'b' in mode:
             # we could get_data(stream=True) but some streams are not seekable
-            return io.BytesIO(storage.get_object(bucket_name=storage.bucket, key=filename))
+            return io.BytesIO(storage.get_data(filename))
         else:
-            return io.StringIO(storage.get_object(bucket_name=storage.bucket, key=filename).decode())
+            return io.StringIO(storage.get_data(filename).decode())
 
     if 'w' in mode:
-        action = partial(storage.put_object, key=filename, bucket_name=storage.bucket)
+        action = partial(storage.put_data, filename)
         if 'b' in mode:
             return DelayedBytesBuffer(action)
         else:

@@ -1,4 +1,11 @@
-FROM python:3.8.2-slim-buster
+# Python 3.6
+FROM python:3.6-slim-buster
+
+# Python 3.7
+#FROM python:3.7-slim-buster
+
+# Python 3.8
+#FROM python:3.8-slim-buster
 
 RUN apt-get update && apt-get install -y \
         zip \
@@ -18,6 +25,10 @@ RUN pip install --upgrade setuptools six pip \
         kubernetes \
         numpy
 
+ENV CONCURRENCY 4
+ENV TIMEOUT 600
+ENV PYTHONUNBUFFERED TRUE
+
 # Copy Lithops proxy and lib to the container image.
 ENV APP_HOME /lithops
 WORKDIR $APP_HOME
@@ -25,4 +36,4 @@ WORKDIR $APP_HOME
 COPY lithops_knative.zip .
 RUN unzip lithops_knative.zip && rm lithops_knative.zip
 
-CMD exec gunicorn --bind :$PORT --workers 1 --timeout 600 lithopsproxy:proxy
+CMD exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsproxy:proxy

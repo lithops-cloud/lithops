@@ -26,5 +26,6 @@ class PrometheusExporter():
             logger.debug('Sending metric "{} {}" to {}'.format(name, value, url))
             try:
                 requests.post(url, data='%s %s\n' % (name, value))
-            except Exception:
+            except Exception as e:
+                logger.error(e)
                 pass

@@ -12,14 +12,15 @@ def f(barrier, q):
 
 if __name__ == "__main__":
     q = SimpleQueue()
-    n = 6
+    n = 4
     barrier = Barrier(n)
 
     with Pool() as p:
-        p.map_async(f, [[barrier, q]] * (n - 1)) # all - 1
+        p.map_async(f, [[barrier, q]] * (n - 1))  # all - 1
 
         print('Result queue empty:', q.empty())
 
+        time.sleep(3)
         p.apply_async(f, [barrier, q])
         for _ in range(n):
             print(q.get())

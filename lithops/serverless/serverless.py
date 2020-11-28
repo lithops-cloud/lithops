@@ -1,5 +1,6 @@
 #
 # (C) Copyright IBM Corp. 2018
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,7 +39,8 @@ class ServerlessHandler:
             self.backend = ServerlessBackend(self.config[self.backend_name], storage_config)
 
         except Exception as e:
-            logger.error("There was an error trying to create the {} serverless backend".format(self.backend_name))
+            logger.error("There was an error trying to create the {} "
+                         "serverless backend".format(self.backend_name))
             raise e
 
     def invoke(self, runtime_name, memory, payload):
