@@ -4,7 +4,7 @@
 
 2. [Supported Clouds](supported_clouds.md)
 
-3. High-level API
+3. High-level Compute and Storage APIs
    - [Futures API](api_futures.md)
    - [Multiprocessing API](api_multiprocessing.md)
    - [Storage API](api_storage.md)

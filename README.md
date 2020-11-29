@@ -76,12 +76,10 @@ with FunctionExecutor() as fexec:
     fut = fexec.call_async(hello, 'World')
     print(fut.result())
 ```
-
 </td>
 <td>
 
 ```python
-#from multiprocessing import Pool
 from lithops.multiprocessing import Pool
 
 def double(i):
@@ -91,7 +89,6 @@ with Pool() as pool:
     result = pool.map(double, [1, 2, 3, 4, 5])
     print(result)
 ```
-
 </td>
 </tr>
 
@@ -124,7 +121,6 @@ with Pool() as pool:
 ```python
 from lithops import Storage
 
-
 if __name__ == "__main__":
     storage = Storage()
     storage.put_object(bucket='my-bucket',
@@ -134,13 +130,11 @@ if __name__ == "__main__":
     print(storage.get_object(bucket='my-bucket',
                              key='test.txt'))
 ```
-
 </td>
 <td>
 
 ```python
 from lithops.storage.cloud_proxy import open, os
-
 
 if __name__ == "__main__":
     filepath = 'bar/foo.txt'
@@ -151,7 +145,6 @@ if __name__ == "__main__":
     print(os.listdir(dirname))
     os.remove(filepath)
 ```
-
 </td>
 </tr>
 
