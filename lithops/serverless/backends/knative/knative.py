@@ -49,11 +49,12 @@ class KnativeServingBackend:
         self.name = 'knative'
         self.knative_config = knative_config
         self.istio_endpoint = self.knative_config.get('istio_endpoint')
+        self.kubecfg = self.knative_config.get('kubecfg_path')
 
         # k8s config can be incluster, in ~/.kube/config or generate kube-config.yaml file and
         # set env variable KUBECONFIG=<path-to-kube-confg>
         try:
-            config.load_kube_config()
+            config.load_kube_config(config_file=self.kubecfg)
             current_context = config.list_kube_config_contexts()[1].get('context')
             self.namespace = current_context.get('namespace', 'default')
             self.cluster = current_context.get('cluster')
@@ -125,7 +126,7 @@ class KnativeServingBackend:
         return image_name, int(memory.replace('mb', ''))
 
     def _get_default_runtime_image_name(self):
-        docker_user = self.knative_config['docker_user']
+        docker_user = self.knative_config.get('docker_user')
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         return '{}/{}-v{}:{}'.format(docker_user, kconfig.RUNTIME_NAME, python_version, revision)
@@ -503,7 +504,7 @@ class KnativeServingBackend:
         else:
             cmd = '{} build -t {} .'.format(kconfig.DOCKER_PATH, docker_image_name)
 
-        if not self.log_active:
+        if not self.log_active or (self.log_active and logger.getEffectiveLevel() != logging.DEBUG):
             cmd = cmd + " >{} 2>&1".format(os.devnull)
 
         res = os.system(cmd)
@@ -513,7 +514,7 @@ class KnativeServingBackend:
         self._delete_function_handler_zip()
 
         cmd = '{} push {}'.format(kconfig.DOCKER_PATH, docker_image_name)
-        if not self.log_active:
+        if not self.log_active or (self.log_active and logger.getEffectiveLevel() != logging.DEBUG):
             cmd = cmd + " >{} 2>&1".format(os.devnull)
         res = os.system(cmd)
         if res != 0:
@@ -641,6 +642,6 @@ class KnativeServingBackend:
         """
         service_name = self._format_service_name(docker_image_name, runtime_memory)
         cluster = self.cluster.replace('https://', '').replace('http://', '')
-        runtime_key = os.path.join(cluster, self.namespace, service_name)
+        runtime_key = os.path.join(self.name, cluster, self.namespace, service_name)
 
         return runtime_key
