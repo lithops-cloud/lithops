@@ -19,6 +19,9 @@ if __name__ == '__main__':
     p.join()
 ```
 
+An example is provided [here](../examples/multiprocessing/process.py)
+
+
 ## Pool
 
 The [`Pool`](https://docs.python.org/3/library/multiprocessing.html#module-multiprocessing.pool) is a higher level abstraction that represents a set of worker functions.
@@ -32,6 +35,8 @@ It has methods which allows tasks to be offloaded to the worker processes in a f
 |---|---|---|
 | processes | Number of processes that form the pool. | `workers` parameter from Lithops configuration. |
 | initargs | Configuration for Lithops [FunctionExecutor](./api_futures.md)  | Default Lithops configuration. |
+
+An example is provided [here](../examples/multiprocessing/pool.py)
 
 ### Pool API Reference
 
@@ -182,6 +187,8 @@ If *duplex* is `True` then the pipe is bidirectional, if not, then the pipe is u
 |---|---|---|
 | duplex | Bidirectional connection. | `True` |
 
+An example is provided [here](../examples/multiprocessing/pipe.py)
+
 ##### Connection API reference
 
 - **send()**
@@ -250,6 +257,8 @@ When a process first puts an item on the queue a feeder thread is started which 
 |---|---|---|
 | maxsize | Maximum number of elements that can be queued in the queue. | - |
 
+An example is provided [here](../examples/multiprocessing/buffered_queue.py)
+
 ###### Queue API reference
 
 - **qsize()**
@@ -311,6 +320,8 @@ Terminates background thread if it has stuck blocked. Not waiting for the feeder
 
 It is a simplified `Queue` type, very close to a locked `Pipe`.
 
+An example is provided [here](../examples/multiprocessing/simple_queue.py)
+
 ###### SimpleQueue API reference
 
 - **close()**
@@ -337,6 +348,8 @@ Put *item* into the queue.
 ##### JoinableQueue
 
 A `Queue` subclass. It is a queue which additionally has `task_done()` and `join()` methods.
+
+An example is provided [here](../examples/multiprocessing/joinable_queue.py)
 
 ###### JoinableQueue API reference
 
@@ -366,6 +379,8 @@ An *action*, when provided, is a callable to be called by one of the threads whe
 | parties | Number of processes to wait for to unlock the barrier. | - |
 | action | Callable that one process executes when the processes are released. | `None` |
 | timeout | Barrier wait timeout seconds. | `None` |
+
+An example is provided [here](../examples/multiprocessing/barrier.py)
 
 ##### Barrier API reference
 
@@ -406,6 +421,8 @@ The `acquire()` method blocks if necessary until it can return without making th
 | Parameter | Description | Default |
 |---|---|---|
 | value | Semaphore initial value. | 1 |
+
+An example is provided [here](../examples/multiprocessing/semaphore.py)
 
 ##### Semaphore API reference
 
@@ -495,7 +512,12 @@ Block until the internal flag is true or until the optional *timeout* occurs.
 
 ##### Lock
 
+Mutual exclusion lock.
 Once a process or thread has acquired a lock, subsequent attempts to acquire it from any process or thread will block until it is released; any process or thread may release it.
+
+An example is provided [here](../examples/multiprocessing/lock.py)
+
+##### Event API reference
 
 - **acquire()**
 
@@ -520,6 +542,8 @@ that process or thread must release it once for each time it has been acquired.
 
 [Ctpyes](https://docs.python.org/3/library/ctypes.html#module-ctypes) shared objects. 
 
+An example is provided [here](../examples/multiprocessing/counter.py)
+
 ##### Value
 
 By default the return value is actually a synchronized wrapper for the object.
@@ -539,6 +563,8 @@ A subclass of `Value`. Instead of sharing a single value, `Array` is used to sha
 ##### Manager
 
 Managers provide a way to create data which can be shared between different processes.
+
+An example is provided [here](../examples/multiprocessing/manager.py)
 
 Managers are used to share objects between processed. However, for now, only a limited set of shared objects
 can be created using `Manager()`:
