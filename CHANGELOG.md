@@ -4,8 +4,8 @@
 
 
 ### Changed
-- [CE] Delete runtime name regex verification
-
+- [CodeEngine] Delete runtime name regex verification
+- [Localhost] Run functions in processes instead of threads in Windows
 
 
 ## [v2.2.10]
