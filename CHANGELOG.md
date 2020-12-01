@@ -1,11 +1,19 @@
 # Changelog
 
-## [v2.2.11.dev0]
+## [v2.2.12.dev0]
 
+### Added
+- [CodeEngine] Compatible runtimes between knative and CE
+
+### Changed
+- [Localhost] Run functions in processes instead of threads in Windows
+- [CodeEngine] Reduced payload size
+
+
+## [v2.2.11]
 
 ### Changed
 - [CodeEngine] Delete runtime name regex verification
-- [Localhost] Run functions in processes instead of threads in Windows
 
 
 ## [v2.2.10]
