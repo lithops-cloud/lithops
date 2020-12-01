@@ -282,7 +282,6 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
         uuid = hashlib.md5(bytes(inspect.getsource(func), 'utf-8') + pickle.dumps(module_data)).hexdigest()
         func_key = create_func_key(JOBS_PREFIX, uuid, "")
 
-    #    import pdb;pdb.set_trace()
         _store_func_and_modules(func_key, func_str, module_data)
         
         job.ext_runtime_uuid = uuid

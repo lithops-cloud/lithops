@@ -384,8 +384,7 @@ class FunctionExecutor:
             from tqdm.auto import tqdm
 
             if is_notebook():
-                # ncols=800
-                pbar = tqdm(bar_format='{n}/|/ {n_fmt}/{total_fmt}', total=len(fs_not_done))
+                pbar = tqdm(bar_format='{n}/|/ {n_fmt}/{total_fmt}', total=len(fs_not_done))  # ncols=800
             else:
                 print()
                 pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(fs_not_done), disable=False)
