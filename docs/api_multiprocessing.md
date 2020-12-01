@@ -510,7 +510,7 @@ Once a process or thread has acquired a lock, subsequent attempts to acquire it 
 
 An example is provided [here](../examples/multiprocessing/lock.py)
 
-#### Event API reference
+#### Lock API reference
 
 - **acquire()**
 
