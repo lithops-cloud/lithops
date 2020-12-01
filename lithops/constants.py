@@ -26,7 +26,6 @@ LOGGER_LEVEL_CHOICES = ["debug", "info", "warning", "error", "critical"]
 LOCALHOST = 'localhost'
 SERVERLESS = 'serverless'
 STANDALONE = 'standalone'
-REALTIME = 'realtime'
 
 MODE_DEFAULT = SERVERLESS
 SERVERLESS_BACKEND_DEFAULT = 'ibm_cf'

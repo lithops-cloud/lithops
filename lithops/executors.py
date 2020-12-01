@@ -34,7 +34,7 @@ from lithops.job import create_map_job, create_reduce_job
 from lithops.config import get_mode, default_config, extract_storage_config,\
     extract_localhost_config, extract_standalone_config, \
     extract_serverless_config
-from lithops.constants import LOCALHOST, SERVERLESS, STANDALONE, REALTIME,\
+from lithops.constants import LOCALHOST, SERVERLESS, STANDALONE,\
     CLEANER_DIR, CLEANER_LOG_FILE
 from lithops.utils import timeout_handler, is_notebook, setup_logger, \
     is_unix_system, is_lithops_worker, create_executor_id
@@ -125,7 +125,7 @@ class FunctionExecutor:
             self.compute_handler = ServerlessHandler(serverless_config,
                                                      storage_config)
 
-            if self.config['lithops'].get(REALTIME):
+            if self.config[mode].get('realtime'):
                 self.invoker = RealTimeInvoker(self.config,
                                            self.executor_id,
                                            self.internal_storage,
@@ -647,86 +647,3 @@ class StandaloneExecutor(FunctionExecutor):
         super().__init__(mode=STANDALONE, config=config, runtime=runtime,
                          backend=backend, storage=storage, workers=workers,
                          rabbitmq_monitor=rabbitmq_monitor, log_level=log_level)
-
-
-# class RealTimeExecutor(FunctionExecutor):
-#     def __init__(self, config=None, runtime=None, runtime_memory=None,
-#                  backend=None, storage=None, workers=None, rabbitmq_monitor=None,
-#                  remote_invoker=None, log_level=None):
-#         """
-#         Initialize a RealTimeExecutor class.
-
-#         :param config: Settings passed in here will override those in config file.
-#         :param runtime: Runtime name to use.
-#         :param runtime_memory: memory to use in the runtime.
-#         :param backend: Name of the serverless compute backend to use.
-#         :param storage: Name of the storage backend to use.
-#         :param workers: Max number of concurrent workers.
-#         :param rabbitmq_monitor: use rabbitmq as the monitoring system.
-#         :param log_level: log level to use during the execution.
-
-#         :return `RealTimeExecutor` object.
-#         """
-#         if config and not config['lithops'][REALTIME]:
-#             raise Exception("lithops realtime flag should be set to true when using RealTimeExecutor")
-
-#         super().__init__(mode=SERVERLESS, config=config, runtime=runtime,
-#                          runtime_memory=runtime_memory, backend=backend,
-#                          storage=storage, workers=workers,
-#                          rabbitmq_monitor=rabbitmq_monitor, log_level=log_level,
-#                          remote_invoker=remote_invoker)
-
-#     def map(self, map_function, map_iterdata, extra_args=None, extra_env=None,
-#             runtime_memory=None, chunk_size=None, chunk_n=None, timeout=None,
-#             invoke_pool_threads=500, include_modules=[], exclude_modules=[]):
-#         """
-#         For running multiple function executions asynchronously
-
-#         :param map_function: the function to map over the data
-#         :param map_iterdata: An iterable of input data
-#         :param extra_args: Additional args to pass to the function activations
-#         :param extra_env: Additional env variables for action environment
-#         :param runtime_memory: Memory to use to run the function
-#         :param chunk_size: the size of the data chunks to split each object.
-#                            'None' for processing the whole file in one function
-#                            activation.
-#         :param chunk_n: Number of chunks to split each object. 'None' for
-#                         processing the whole file in one function activation
-#         :param remote_invocation: Enable or disable remote_invocation mechanism
-#         :param timeout: Time that the functions have to complete their execution
-#                         before raising a timeout
-#         :param invoke_pool_threads: Number of threads to use to invoke
-#         :param include_modules: Explicitly pickle these dependencies
-#         :param exclude_modules: Explicitly keep these modules from pickled
-#                                 dependencies
-
-#         :return: A list with size `len(iterdata)` of futures.
-#         """
-#         job_id = self._create_job_id('M')
-#         self.last_call = 'map'
-
-#         runtime_meta = self.invoker.select_runtime(job_id, runtime_memory)
-
-#         import pdb;pdb.set_trace()
-#         job = create_map_job(self.config, self.internal_storage,
-#                              self.executor_id, job_id,
-#                              map_function=map_function,
-#                              iterdata=map_iterdata,
-#                              runtime_meta=runtime_meta,
-#                              runtime_memory=runtime_memory,
-#                              extra_env=extra_env,
-#                              include_modules=include_modules,
-#                              exclude_modules=exclude_modules,
-#                              execution_timeout=timeout,
-#                              extra_args=extra_args,
-#                              obj_chunk_size=chunk_size,
-#                              obj_chunk_number=chunk_n,
-#                              invoke_pool_threads=invoke_pool_threads)
-
-#         import pdb;pdb.set_trace()
-#         self.invoker.extend_runtime(job, runtime_memory)
-
-#         futures = self.invoker.run(job)
-#         self.futures.extend(futures)
-
-#         return futures

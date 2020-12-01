@@ -26,7 +26,7 @@ from lithops.utils import is_object_processing_function, sizeof_fmt
 from lithops.storage.utils import create_func_key, create_agg_data_key
 from lithops.job.serialize import SerializeIndependent, create_module_data
 from lithops.constants import MAX_AGG_DATA_SIZE, JOBS_PREFIX, LOCALHOST,\
-    SERVERLESS, STANDALONE, REALTIME, LITHOPS_TEMP_DIR
+    SERVERLESS, STANDALONE, LITHOPS_TEMP_DIR
 from types import SimpleNamespace
 
 import os
@@ -277,7 +277,8 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     func_upload_start = time.time()
 
     # Upload function and modules
-    if config['lithops'].get(REALTIME):
+    print('job.realtime' + str(config[mode].get('realtime')))
+    if config[mode].get('realtime'):
         # Prepare function and modules locally to store in the runtime image later
         uuid = hashlib.md5(bytes(inspect.getsource(func), 'utf-8') + pickle.dumps(module_data)).hexdigest()
         func_key = create_func_key(JOBS_PREFIX, uuid, "")

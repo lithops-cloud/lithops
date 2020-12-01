@@ -35,7 +35,7 @@ from lithops.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_func
 from lithops.utils import WrappedStreamingBodyPartition
 from lithops.constants import TEMP
 from lithops.util.metrics import PrometheusExporter
-from lithops.constants import LITHOPS_TEMP_DIR, REALTIME
+from lithops.constants import LITHOPS_TEMP_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +80,14 @@ class JobRunner:
         prom_config = self.lithops_config.get('prometheus', {})
         self.prometheus = PrometheusExporter(prom_enabled, prom_config)
         print("self.jr_config")
-        print(self.jr_config) 
+        print(self.jr_config)
+        mode = self.lithops_config['lithops']['mode']
+        print("self.mode:" + mode)
+        
+        print("self.lithops_config[mode]")
+        print(self.lithops_config[mode])
+
+        self.realtime = self.lithops_config[mode].get('realtime', False)
 
     def _get_function_and_modules(self):
         """
@@ -89,7 +96,7 @@ class JobRunner:
         logger.debug("Getting function and modules")
         func_download_start_tstamp = time.time()
         func_obj = None
-        if self.jr_config[REALTIME]:
+        if self.realtime:
             func_obj = self._get_func()
         else:
             func_obj = self.internal_storage.get_func(self.func_key)
@@ -268,7 +275,7 @@ class JobRunner:
             function = None
             logger.info("Before self._get_function_and_modules")
 
-            if self.jr_config[REALTIME]:
+            if self.realtime:
                 function = self._get_function_and_modules()
             else:
                 loaded_func_all = self._get_function_and_modules()
