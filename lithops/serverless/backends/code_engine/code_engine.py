@@ -1,5 +1,6 @@
 #
 # (C) Copyright IBM Corp. 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,25 +16,24 @@
 #
 
 import os
+import re
 import sys
 import logging
-import urllib3
 import copy
-import json
+import time
+import yaml
+import requests
 
-from kubernetes import client, config
+from kubernetes import client, config, watch
 from kubernetes.client.rest import ApiException
 
-from lithops.utils import version_str
+from lithops.utils import version_str, dict_to_b64str
 from lithops.version import __version__
-from lithops.utils import is_lithops_worker
 from lithops.utils import create_handler_zip
-from lithops.constants import JOBS_PREFIX
-from lithops.storage import InternalStorage
-from lithops.storage.utils import StorageNoSuchKeyError
 from . import config as ce_config
+from ..knative import config as kconfig
+from types import SimpleNamespace
 
-urllib3.disable_warnings()
 
 logger = logging.getLogger(__name__)
 
@@ -44,14 +44,11 @@ class CodeEngineBackend:
     """
 
     def __init__(self, code_engine_config, storage_config):
-        logger.debug("Creating Code Engine client")
+        logger.debug("Creating IBM Code Engine client")
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'code_engine'
         self.code_engine_config = code_engine_config
 
-        self.is_lithops_worker = is_lithops_worker()
-        self.storage_config = storage_config
-        self.internal_storage = InternalStorage(storage_config)
         self.kubecfg = code_engine_config.get('kubectl_config')
         self.user_agent = code_engine_config['user_agent']
 
@@ -62,13 +59,14 @@ class CodeEngineBackend:
         current_context = contexts[1].get('context')
         self.namespace = current_context.get('namespace', 'default')
         self.cluster = current_context.get('cluster')
+        self.region = self.cluster.split('//')[1].split('.')[1]
 
         log_msg = ('Lithops v{} init for Code Engine - Cluster: {} - Namespace: {}'
                    .format(__version__, self.cluster, self.namespace))
         if not self.log_active:
             print(log_msg)
         self.job_def_ids = set()
-        logger.info("Code Engine client created successfully")
+        logger.info("IBM Code Engine client created successfully")
 
     def _format_jobdef_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '--').replace(':', '--')
@@ -89,17 +87,19 @@ class CodeEngineBackend:
     def _delete_function_handler_zip(self):
         os.remove(ce_config.FH_ZIP_LOCATION)
 
-    def _dict_to_binary(self, the_dict):
-        string = json.dumps(the_dict)
-        binary = ' '.join(format(ord(letter), 'b') for letter in string)
-        return binary
-
     def build_runtime(self, docker_image_name, dockerfile):
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
-        logger.info('Building a new docker image from Dockerfile')
+        logger.info('Building new docker image from Dockerfile')
         logger.info('Docker image name: {}'.format(docker_image_name))
+
+        expression = '^([a-z0-9]+)/([-a-z0-9]+)(:[a-z0-9]+)?'
+        result = re.match(expression, docker_image_name)
+
+        if not result or result.group() != docker_image_name:
+            raise Exception("Invalid docker image name: All letters must be "
+                            "lowercase and '.' or '_' characters are not allowed")
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
         create_handler_zip(ce_config.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')
@@ -111,9 +111,10 @@ class CodeEngineBackend:
         else:
             cmd = '{} build -t {} .'.format(ce_config.DOCKER_PATH, docker_image_name)
 
-        if not self.log_active:
+        if not self.log_active or (self.log_active and logger.getEffectiveLevel() != logging.DEBUG):
             cmd = cmd + " >{} 2>&1".format(os.devnull)
 
+        logger.info('Building default runtime...')
         res = os.system(cmd)
         if res != 0:
             raise Exception('There was an error building the runtime')
@@ -121,11 +122,12 @@ class CodeEngineBackend:
         self._delete_function_handler_zip()
 
         cmd = '{} push {}'.format(ce_config.DOCKER_PATH, docker_image_name)
-        if not self.log_active:
+        if not self.log_active or (self.log_active and logger.getEffectiveLevel() != logging.DEBUG):
             cmd = cmd + " >{} 2>&1".format(os.devnull)
         res = os.system(cmd)
         if res != 0:
             raise Exception('There was an error pushing the runtime to the container registry')
+        logger.info('Done!')
 
     def _build_default_runtime(self, default_runtime_img_name):
         """
@@ -137,9 +139,12 @@ class CodeEngineBackend:
             dockerfile = "Dockefile.default-codeengine-runtime"
             with open(dockerfile, 'w') as f:
                 f.write("FROM python:{}-slim-buster\n".format(python_version))
-                f.write(ce_config.DEFAULT_DOCKERFILE)
+                f.write(ce_config.DOCKERFILE_DEFAULT)
             self.build_runtime(default_runtime_img_name, dockerfile)
             os.remove(dockerfile)
+        else:
+            raise Exception('docker command not found. Install docker or use '
+                            'an already built runtime')
 
     def create_runtime(self, docker_image_name, memory, timeout):
         """
@@ -152,14 +157,12 @@ class CodeEngineBackend:
             docker_image_name = default_runtime_img_name
             self._build_default_runtime(default_runtime_img_name)
 
-        logger.info('Creating new Lithops runtime based on Docker image {}'.format(docker_image_name))
+        logger.info('Creating new Lithops runtime based on '
+                    'Docker image: {}'.format(docker_image_name))
+        self._create_job_definition(docker_image_name, memory, timeout)
 
-        action_name = self._format_jobdef_name(docker_image_name, 0)
-        if not self._job_def_exists(action_name):
-            logger.debug("No job definition {} exists".format(action_name))
-            action_name = self._create_job_definition(docker_image_name, memory, action_name)
+        runtime_meta = self._generate_runtime_meta(docker_image_name)
 
-        runtime_meta = self._generate_runtime_meta(action_name)
         return runtime_meta
 
     def delete_runtime(self, docker_image_name, memory):
@@ -237,102 +240,95 @@ class CodeEngineBackend:
         For array jobs only remote_invocator is allowed
         """
         payload = copy.deepcopy(payload_cp)
-        if payload['remote_invoker'] is False:
-            raise ("Code Engine Array jobs - only remote_invoker = True is allowed")
+
         array_size = len(payload['job_description']['data_ranges'])
         runtime_memory_array = payload['job_description']['runtime_memory']
-        def_id = self._format_jobdef_name(docker_image_name, runtime_memory_array)
-        logger.debug("Job definition id {}".format(def_id))
-        if not self._job_def_exists(def_id):
-            def_id = self._create_job_definition(docker_image_name, runtime_memory_array, def_id)
 
-        self.job_def_ids.add(def_id)
-        current_location = os.path.dirname(os.path.abspath(__file__))
-        job_run_file = os.path.join(current_location, 'job_run.json')
-        logger.debug("Going to open {} ".format(job_run_file))
-        with open(job_run_file) as json_file:
-            job_desc = json.load(json_file)
+        jobdef_name = self._format_jobdef_name(docker_image_name, runtime_memory_array)
+        logger.debug("Job definition id {}".format(jobdef_name))
+        if not self._job_def_exists(jobdef_name):
+            jobdef_name = self._create_job_definition(docker_image_name, runtime_memory_array, jobdef_name)
 
-            executor_id = payload['executor_id']
-            job_id = payload['job_id'].lower()
-            activation_id = 'lithops-{}-{}'.format(executor_id, job_id)
+        self.job_def_ids.add(jobdef_name)
 
-            job_desc['metadata']['name'] = activation_id
-            job_desc['metadata']['namespace'] = self.namespace
-            job_desc['apiVersion'] = ce_config.DEFAULT_API_VERSION
-            job_desc['spec']['jobDefinitionRef'] = str(def_id)
-            job_desc['spec']['jobDefinitionSpec']['arraySpec'] = '0-' + str(array_size - 1)
-            job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['name'] = str(def_id)
-            job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][0]['value'] = 'payload'
-            job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = self._dict_to_binary(payload)
-            job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['resources']['requests']['memory'] = str(runtime_memory_array) +'Mi'
-            job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['resources']['requests']['cpu'] = str(self.code_engine_config['runtime_cpu'])
+        jobrun_res = yaml.safe_load(ce_config.JOBRUN_DEFAULT)
 
-            logger.debug("Before invoke job name {}".format(job_desc['metadata']['name']))
-            if (logging.getLogger().level == logging.DEBUG):
-                debug_res = copy.deepcopy(job_desc)
-                debug_res['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = ''
-                logger.debug("request - {}".format(debug_res))
-                del debug_res
-            try:
-                res = self.capi.create_namespaced_custom_object(
-                    group=ce_config.DEFAULT_GROUP,
-                    version=ce_config.DEFAULT_VERSION,
-                    namespace=self.namespace,
-                    plural="jobruns",
-                    body=job_desc,
-                )
-            except Exception as e:
-                print(e)
-            logger.info("After invoke job name {}".format(job_desc['metadata']['name']))
+        executor_id = payload['executor_id']
+        job_id = payload['job_id'].lower()
+        activation_id = 'lithops-{}-{}'.format(executor_id, job_id)
 
-            if (logging.getLogger().level == logging.DEBUG):
-                debug_res = copy.deepcopy(res)
-                debug_res['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = ''
-                logger.debug("response - {}".format(debug_res))
-                del debug_res
+        payload.pop('remote_invoker')
+        payload.pop('invokers')
 
-            return res['metadata']['name']
+        job = SimpleNamespace(**payload.pop('job_description'))
+        payload['host_submit_tstamp'] = time.time()
+        payload['func_key'] = job.func_key
+        payload['data_key'] = job.data_key
+        payload['extra_env'] = job.extra_env
+        payload['execution_timeout'] = job.execution_timeout
+        payload['data_byte_range'] = job.data_ranges
+        payload['runtime_name'] = job.runtime_name
+        payload['runtime_memory'] = job.runtime_memory
 
-    def _create_job_definition(self, docker_image_name, runtime_memory, activation_id):
+        jobrun_res['metadata']['name'] = activation_id
+        jobrun_res['metadata']['namespace'] = self.namespace
+        jobrun_res['spec']['jobDefinitionRef'] = str(jobdef_name)
+        jobrun_res['spec']['jobDefinitionSpec']['arraySpec'] = '0-' + str(array_size - 1)
+
+        container = jobrun_res['spec']['jobDefinitionSpec']['template']['containers'][0]
+        container['name'] = str(jobdef_name)
+        container['env'][0]['value'] = 'run'
+        container['env'][1]['value'] = dict_to_b64str(payload)
+        container['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory_array)
+        container['resources']['requests']['cpu'] = '{}m'.format(self.code_engine_config['cpu'])
+
+        logger.debug("request - {}".format(jobrun_res))
+
+        try:
+            res = self.capi.create_namespaced_custom_object(
+                group=ce_config.DEFAULT_GROUP,
+                version=ce_config.DEFAULT_VERSION,
+                namespace=self.namespace,
+                plural="jobruns",
+                body=jobrun_res,
+            )
+        except Exception as e:
+            raise e
+
+        logger.debug("response - {}".format(res))
+
+        return activation_id
+
+    def _create_job_definition(self, docker_image_name, runtime_memory, timeout):
         """
-        Invoke -- return information about this invocation
+        Creates a Job definition
         """
-        current_location = os.path.dirname(os.path.abspath(__file__))
-        job_def_file = os.path.join(current_location, 'job_def.json')
+        jobdef_name = self._format_jobdef_name(docker_image_name, runtime_memory)
 
-        with open(job_def_file) as json_file:
-            job_desc = json.load(json_file)
+        jobdef_res = yaml.safe_load(ce_config.JOBDEF_DEFAULT)
+        jobdef_res['metadata']['name'] = jobdef_name
+        container = jobdef_res['spec']['template']['containers'][0]
+        container['image'] = docker_image_name
+        container['name'] = jobdef_name
+        container['env'][0]['value'] = 'run'
+        container['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory)
+        container['resources']['requests']['cpu'] = '{}m'.format(self.code_engine_config['cpu'])
 
-            job_desc['apiVersion'] = ce_config.DEFAULT_API_VERSION
-            job_desc['spec']['template']['containers'][0]['image'] = docker_image_name
-            job_desc['spec']['template']['containers'][0]['name'] = activation_id
-            job_desc['spec']['template']['containers'][0]['env'][0]['value'] = 'payload'
-            if runtime_memory:
-                job_desc['spec']['template']['containers'][0]['resources']['requests']['memory'] = str(runtime_memory)+'Mi'
-            job_desc['spec']['template']['containers'][0]['resources']['requests']['cpu'] = str(self.code_engine_config['runtime_cpu'])
-            job_desc['metadata']['name'] = activation_id
+        try:
+            res = self.capi.create_namespaced_custom_object(
+                group=ce_config.DEFAULT_GROUP,
+                version=ce_config.DEFAULT_VERSION,
+                namespace=self.namespace,
+                plural="jobdefinitions",
+                body=jobdef_res,
+            )
+            logger.debug("response - {}".format(res))
+        except Exception as e:
+            logger.debug(e)
 
-            logger.info("Before invoke job name {}".format(job_desc['metadata']['name']))
-            try:
-                res = self.capi.create_namespaced_custom_object(
-                    group=ce_config.DEFAULT_GROUP,
-                    version=ce_config.DEFAULT_VERSION,
-                    namespace=self.namespace,
-                    plural="jobdefinitions",
-                    body=job_desc,
-                )
-            except Exception as e:
-                print(e)
-            logger.info("After invoke job name {}".format(job_desc['metadata']['name']))
+        logger.info('Job Definition created')
 
-            if (logging.getLogger().level == logging.DEBUG):
-                debug_res = copy.deepcopy(res)
-                debug_res['spec']['template']['containers'][0]['env'][1]['value'] = ''
-                logger.debug("response - {}".format(debug_res))
-                del debug_res
-
-            return res['metadata']['name']
+        return jobdef_name
 
     def get_runtime_key(self, docker_image_name, runtime_memory):
         """
@@ -340,96 +336,95 @@ class CodeEngineBackend:
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        jobdef_name = self._format_jobdef_name(docker_image_name, 0)
-        cluster = self.cluster.replace('https://', '').replace('http://', '')
-        runtime_key = os.path.join(cluster, self.namespace, jobdef_name)
+        jobdef_name = self._format_jobdef_name(docker_image_name, 256)
+        runtime_key = os.path.join(self.name, self.region, self.namespace, jobdef_name)
 
         return runtime_key
 
-    def _job_def_exists(self, job_def_name):
-        logger.debug("Check if job_definition {} exists".format(job_def_name))
+    def _job_def_exists(self, jobdef_name):
+        logger.debug("Check if job_definition {} exists".format(jobdef_name))
         try:
             self.capi.get_namespaced_custom_object(
                 group=ce_config.DEFAULT_GROUP,
                 version=ce_config.DEFAULT_VERSION,
                 namespace=self.namespace,
                 plural="jobdefinitions",
-                name=job_def_name
+                name=jobdef_name
             )
         except ApiException as e:
             # swallow error
             if (e.status == 404):
-                logger.info("Job definition {} was not found (404)".format(job_def_name))
+                logger.info("Job definition {} not found (404)".format(jobdef_name))
                 return False
-        logger.info("Job definition {} was found".format(job_def_name))
+        logger.debug("Job definition {} found".format(jobdef_name))
         return True
 
-    def _generate_runtime_meta(self, job_def_name):
+    def _generate_runtime_meta(self, docker_image_name):
+        """
+        Creates a service in CodeEngine based on the docker_image_name
+        """
+        logger.info("Extracting Python modules from: {}".format(docker_image_name))
+        svc_res = yaml.safe_load(kconfig.service_res)
+
+        service_name = docker_image_name.replace('/', '--').replace(':', '--')
+        svc_res['metadata']['name'] = service_name
+        svc_res['metadata']['namespace'] = self.namespace
+        svc_res['spec']['template']['spec']['timeoutSeconds'] = 30
+        svc_res['spec']['template']['spec']['containerConcurrency'] = 1
+        svc_res['spec']['template']['spec']['containers'][0]['image'] = docker_image_name
+        svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['memory'] = '128Mi'
+        svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['cpu'] = '100m'
+        svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['memory'] = '128Mi'
+        svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['cpu'] = '100m'
+        svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/minScale'] = "0"
+        svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = "1"
+
         try:
-            current_location = os.path.dirname(os.path.abspath(__file__))
-            job_run_file = os.path.join(current_location, 'job_run.json')
-
-            with open(job_run_file) as json_file:
-                job_desc = json.load(json_file)
-
-                payload = copy.deepcopy(self.storage_config)
-                payload['log_level'] = logger.getEffectiveLevel()
-                payload['runtime_name'] = job_def_name
-
-                job_desc['metadata']['name'] = 'lithops-runtime-preinstalls'
-                job_desc['metadata']['namespace'] = self.namespace
-                job_desc['apiVersion'] = ce_config.DEFAULT_API_VERSION
-                job_desc['spec']['jobDefinitionRef'] = str(job_def_name)
-                job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['name'] = str(job_def_name)
-                job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][0]['value'] = 'preinstalls'
-                job_desc['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = self._dict_to_binary(payload)
-
-            logger.info("About to invoke code engine job to get runtime metadata")
-            logger.info(job_desc)
-            res = self.capi.create_namespaced_custom_object(
-                group=ce_config.DEFAULT_GROUP,
-                version=ce_config.DEFAULT_VERSION,
-                namespace=self.namespace,
-                plural="jobruns",
-                body=job_desc,
-            )
-            if (logging.getLogger().level == logging.DEBUG):
-                debug_res = copy.deepcopy(res)
-                debug_res['spec']['jobDefinitionSpec']['template']['containers'][0]['env'][1]['value'] = ''
-                logger.debug("response - {}".format(debug_res))
-                del debug_res
-
-            # we need to read runtime metadata from COS in retry
-            status_key = '/'.join([JOBS_PREFIX, job_def_name+'.meta'])
-            import time
-            retry = int(1)
-            found = False
-            while retry < 5 and not found:
-                try:
-                    logger.debug("Retry attempt {} to read {}".format(retry, status_key))
-                    json_str = self.internal_storage.get_data(key=status_key)
-                    logger.debug("Found in attempt () to read {}".format(retry, status_key))
-                    runtime_meta = json.loads(json_str.decode("ascii"))
-                    found = True
-                except StorageNoSuchKeyError:
-                    logger.debug("{} not found in attempt {}. Sleep before retry".format(status_key, retry))
-                    retry = retry + 1
-                    time.sleep(15)
-            if retry >= 5 and not found:
-                raise("Unable to invoke 'modules' action")
-
-            json_str = self.internal_storage.get_data(key=status_key)
-            runtime_meta = json.loads(json_str.decode("ascii"))
-
-            self.capi.delete_namespaced_custom_object(
-                group=ce_config.DEFAULT_GROUP,
-                version=ce_config.DEFAULT_VERSION,
-                namespace=self.namespace,
-                plural="jobruns",
-                name='lithops-runtime-preinstalls'
-            )
-
+            # create the service resource
+            self.capi.create_namespaced_custom_object(
+                    group=kconfig.DEFAULT_GROUP,
+                    version=kconfig.DEFAULT_VERSION,
+                    namespace=self.namespace,
+                    plural="services",
+                    body=svc_res
+                )
         except Exception:
-            raise("Unable to invoke 'modules' action")
+            pass
+
+        w = watch.Watch()
+        for event in w.stream(self.capi.list_namespaced_custom_object,
+                              namespace=self.namespace, group=kconfig.DEFAULT_GROUP,
+                              version=kconfig.DEFAULT_VERSION, plural="services",
+                              field_selector="metadata.name={0}".format(service_name),
+                              timeout_seconds=300):
+            if event['object'].get('status'):
+                service_url = event['object']['status'].get('url')
+                conditions = event['object']['status']['conditions']
+                if conditions[0]['status'] == 'True' and \
+                   conditions[1]['status'] == 'True' and \
+                   conditions[2]['status'] == 'True':
+                    w.stop()
+                    time.sleep(2)
+
+        try:
+            service_url = service_url.replace('http://', 'https://')
+            resp = requests.get(service_url+"/preinstalls")
+            runtime_meta = resp.json()
+        except Exception as e:
+            raise Exception('Unable to extract preinstalled modules'
+                            'list from runtime: {}'.format(e))
+
+        try:
+            # delete the service resource if exists
+            self.capi.delete_namespaced_custom_object(
+                    group=kconfig.DEFAULT_GROUP,
+                    version=kconfig.DEFAULT_VERSION,
+                    name=service_name,
+                    namespace=self.namespace,
+                    plural="services",
+                    body=client.V1DeleteOptions()
+                )
+        except Exception:
+            pass
 
         return runtime_meta

@@ -1,5 +1,6 @@
 #
-# (C) Copyright IBM Corp. 2018
+# (C) Copyright IBM Corp. 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,55 +18,79 @@
 import os
 import uuid
 import sys
-import json
+import flask
 import logging
-import pkgutil
 from lithops.version import __version__
-from lithops.utils import setup_logger
+from lithops.utils import setup_logger, b64str_to_dict
 from lithops.worker import function_handler
-from lithops.storage import InternalStorage
-from lithops.constants import JOBS_PREFIX
-from lithops.utils import sizeof_fmt
+from lithops.worker import function_invoker
+from lithops.worker.utils import get_runtime_preinstalls
 
+
+proxy = flask.Flask(__name__)
 
 logger = logging.getLogger('lithops.worker')
 
 
-def binary_to_dict(the_binary):
-    jsn = ''.join(chr(int(x, 2)) for x in the_binary.split())
-    d = json.loads(jsn)
-    return d
+@proxy.route('/', methods=['POST'])
+def run():
+    def error():
+        response = flask.jsonify({'error': 'The action did not receive a dictionary as an argument.'})
+        response.status_code = 404
+        return complete(response)
+
+    message = flask.request.get_json(force=True, silent=True)
+    if message and not isinstance(message, dict):
+        return error()
+
+    act_id = str(uuid.uuid4()).replace('-', '')[:12]
+    os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
+
+    setup_logger(message['log_level'])
+
+    if 'remote_invoker' in message:
+        logger.info("Lithops v{} - Starting Knative invoker".format(__version__))
+        function_invoker(message)
+    else:
+        logger.info("Lithops v{} - Starting Knative execution".format(__version__))
+        function_handler(message)
+
+    response = flask.jsonify({"activationId": act_id})
+    response.status_code = 202
+
+    return complete(response)
 
 
-def runtime_packages(payload):
-    logger.info("Extracting preinstalled Python modules...")
-    internal_storage = InternalStorage(payload)
+@proxy.route('/preinstalls', methods=['GET', 'POST'])
+def preinstalls_task():
+    logger.info("Lithops v{} - Generating metadata".format(__version__))
+    runtime_meta = get_runtime_preinstalls()
+    response = flask.jsonify(runtime_meta)
+    response.status_code = 200
+    logger.info("Done!")
 
-    runtime_meta = dict()
-    mods = list(pkgutil.iter_modules())
-    runtime_meta['preinstalls'] = [entry for entry in sorted([[mod, is_pkg] for _, mod, is_pkg in mods])]
-    python_version = sys.version_info
-    runtime_meta['python_ver'] = str(python_version[0])+"."+str(python_version[1])
-
-    status_key = '/'.join([JOBS_PREFIX, payload['runtime_name']+'.meta'])
-    logger.debug("Runtime metadata key {}".format(status_key))
-    dmpd_response_status = json.dumps(runtime_meta)
-    drs = sizeof_fmt(len(dmpd_response_status))
-    logger.info("Storing execution stats - Size: {}".format(drs))
-    internal_storage.put_data(status_key, dmpd_response_status)
+    return complete(response)
 
 
-def main(action, payload_decoded):
-    logger.info("Welcome to Lithops-Code-Engine entry point. Action {}".format(action))
+def complete(response):
+    # Add sentinel to stdout/stderr
+    sys.stdout.write('%s\n' % 'XXX_THE_END_OF_AN_ACTIVATION_XXX')
+    sys.stdout.flush()
 
-    payload = binary_to_dict(payload_decoded)
+    return response
+
+
+def main_request():
+    port = int(os.getenv('PORT', 8080))
+    proxy.run(debug=True, host='0.0.0.0', port=port)
+
+
+def main_job(action, encoded_payload):
+    logger.info("Lithops v{} - Starting Code Engine execution".format(__version__))
+
+    payload = b64str_to_dict(encoded_payload)
 
     setup_logger(payload['log_level'])
-
-    logger.info(payload)
-    if (action == 'preinstalls'):
-        runtime_packages(payload)
-        return {"Execution": "Finished"}
 
     job_index = os.environ['JOB_INDEX']
     payload['JOB_INDEX'] = job_index
@@ -74,22 +99,16 @@ def main(action, payload_decoded):
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
 
-    if 'remote_invoker' in payload:
-        logger.info("Lithops v{} - Remote Invoker. Starting execution".format(__version__))
-        #function_invoker(payload)
-        payload['data_byte_range'] = payload['job_description']['data_ranges'][int(job_index)]
-        for key in payload['job_description']:
-            payload[key] = payload['job_description'][key]
-        payload['host_submit_tstamp'] = payload['metadata']['host_job_create_tstamp']
-        payload['call_id'] = "{:05d}".format(int(job_index))
+    payload['data_byte_range'] = payload['data_byte_range'][int(job_index)]
+    payload['call_id'] = "{:05d}".format(int(job_index))
 
-        function_handler(payload)
-    else:
-        logger.info("Lithops v{} - Starting execution".format(__version__))
-        function_handler(payload)
+    function_handler(payload)
 
     return {"Execution": "Finished"}
 
 
 if __name__ == '__main__':
-    main(sys.argv[1:][0], sys.argv[1:][1])
+    if 'JOB_INDEX' in os.environ:
+        main_job(sys.argv[1:][0], sys.argv[1:][1])
+    else:
+        main_request()

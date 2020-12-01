@@ -349,12 +349,12 @@ class FunctionExecutor:
                             ' a list of futures before calling the wait()/get_result() method')
 
         if download_results:
-            msg = 'ExecutorID {} - Getting results...'.format(self.executor_id)
+            msg = 'ExecutorID {} - Getting results'.format(self.executor_id)
             fs_done = [f for f in futures if f.done]
             fs_not_done = [f for f in futures if not f.done]
 
         else:
-            msg = 'ExecutorID {} - Waiting for functions to complete...'.format(self.executor_id)
+            msg = 'ExecutorID {} - Waiting for functions to complete'.format(self.executor_id)
             fs_done = [f for f in futures if f.ready or f.done]
             fs_not_done = [f for f in futures if not f.ready and not f.done]
 
@@ -373,18 +373,18 @@ class FunctionExecutor:
 
         pbar = None
         error = False
-        if not self.is_lithops_worker and not self.log_active:
+        if not self.is_lithops_worker:
             from tqdm.auto import tqdm
 
             if is_notebook():
                 pbar = tqdm(bar_format='{n}/|/ {n_fmt}/{total_fmt}', total=len(fs_not_done))  # ncols=800
             else:
                 print()
-                pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(fs_not_done), disable=False)
+                pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(fs_not_done), disable=None)
 
         try:
             if self.rabbitmq_monitor:
-                logger.info('Using RabbitMQ to monitor function activations')
+                logger.debug('Using RabbitMQ to monitor function activations')
                 wait_rabbitmq(futures, self.internal_storage, rabbit_amqp_url=self.rabbit_amqp_url,
                               download_results=download_results, throw_except=throw_except,
                               pbar=pbar, return_when=return_when, THREADPOOL_SIZE=THREADPOOL_SIZE)
