@@ -112,8 +112,6 @@ class OpenWhiskBackend:
         if docker_image_name == 'default':
             docker_image_name = self._get_default_runtime_image_name()
 
-        runtime_meta = self._generate_runtime_meta(docker_image_name)
-
         logger.info('Creating new Lithops runtime based on Docker image {}'.format(docker_image_name))
 
         self.cf_client.create_package(self.package)
@@ -127,7 +125,7 @@ class OpenWhiskBackend:
         self.cf_client.create_action(self.package, action_name, docker_image_name, code=action_bin,
                                      memory=memory, is_binary=True, timeout=timeout*1000)
         self._delete_function_handler_zip()
-        return runtime_meta
+        return self._generate_runtime_meta(docker_image_name, memory)
 
     def delete_runtime(self, docker_image_name, memory):
         """
