@@ -81,7 +81,7 @@ class CodeEngineBackend:
         return image_name, int(memory.replace('mb', ''))
 
     def _get_default_runtime_image_name(self):
-        docker_user = self.code_engine_config['docker_user']
+        docker_user = self.code_engine_config.get('docker_user')
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         return '{}/{}-v{}:{}'.format(docker_user, ce_config.RUNTIME_NAME, python_version, revision)
