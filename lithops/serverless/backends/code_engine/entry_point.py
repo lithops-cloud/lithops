@@ -15,6 +15,7 @@
 #
 
 import os
+import uuid
 import sys
 import json
 import logging
@@ -36,9 +37,9 @@ def binary_to_dict(the_binary):
     return d
 
 
-def runtime_packages(storage_config):
+def runtime_packages(payload):
     logger.info("Extracting preinstalled Python modules...")
-    internal_storage = InternalStorage(storage_config)
+    internal_storage = InternalStorage(payload)
 
     runtime_meta = dict()
     mods = list(pkgutil.iter_modules())
@@ -46,9 +47,7 @@ def runtime_packages(storage_config):
     python_version = sys.version_info
     runtime_meta['python_ver'] = str(python_version[0])+"."+str(python_version[1])
 
-    activation_id = storage_config['activation_id']
-
-    status_key = '/'.join([JOBS_PREFIX, activation_id, 'runtime_metadata'])
+    status_key = '/'.join([JOBS_PREFIX, payload['runtime_name']+'.meta'])
     logger.debug("Runtime metadata key {}".format(status_key))
     dmpd_response_status = json.dumps(runtime_meta)
     drs = sizeof_fmt(len(dmpd_response_status))
@@ -64,13 +63,17 @@ def main(action, payload_decoded):
     setup_logger(payload['log_level'])
 
     logger.info(payload)
-    if (action == 'preinstals'):
+    if (action == 'preinstalls'):
         runtime_packages(payload)
         return {"Execution": "Finished"}
+
     job_index = os.environ['JOB_INDEX']
-    logger.info("Action {}. Job Index {}".format(action, job_index))
-    os.environ['__PW_ACTIVATION_ID'] = payload['activation_id']
     payload['JOB_INDEX'] = job_index
+    logger.info("Action {}. Job Index {}".format(action, job_index))
+
+    act_id = str(uuid.uuid4()).replace('-', '')[:12]
+    os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
+
     if 'remote_invoker' in payload:
         logger.info("Lithops v{} - Remote Invoker. Starting execution".format(__version__))
         #function_invoker(payload)

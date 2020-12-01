@@ -7,6 +7,7 @@
 # Licensed to PSF under a Contributor Agreement.
 #
 # Modifications Copyright (c) 2020 Cloudlab URV
+#
 
 import os
 import itertools
@@ -15,18 +16,18 @@ import weakref
 import atexit
 import redis
 import uuid
-import threading        # we want threading to install it's
-                        # cleanup function before multiprocessing does
-from subprocess import _args_from_interpreter_flags
-
+import threading  # we want threading to install it's cleanup function before multiprocessing does
 from . import process
+import logging
+import lithops
+from lithops.config import default_config
 
 __all__ = [
     'sub_debug', 'debug', 'info', 'sub_warning', 'get_logger',
     'log_to_stderr', 'get_temp_dir', 'register_after_fork',
     'is_exiting', 'Finalize', 'ForkAwareThreadLock', 'ForkAwareLocal',
     'close_all_fds_except', 'SUBDEBUG', 'SUBWARNING'
-    ]
+]
 
 #
 # Logging
@@ -38,72 +39,37 @@ DEBUG = 10
 INFO = 20
 SUBWARNING = 25
 
-LOGGER_NAME = 'multiprocessing'
-DEFAULT_LOGGING_FORMAT = '[%(levelname)s/%(processName)s] %(message)s'
-
-_logger = None
+_logger = logging.getLogger(lithops.__name__)
 _log_to_stderr = False
+
 
 def sub_debug(msg, *args):
     if _logger:
         _logger.log(SUBDEBUG, msg, *args)
 
+
 def debug(msg, *args):
     if _logger:
         _logger.log(DEBUG, msg, *args)
+
 
 def info(msg, *args):
     if _logger:
         _logger.log(INFO, msg, *args)
 
+
 def sub_warning(msg, *args):
     if _logger:
         _logger.log(SUBWARNING, msg, *args)
 
+
 def get_logger():
-    '''
-    Returns logger used by multiprocessing
-    '''
-    global _logger
-    import logging
-
-    logging._acquireLock()
-    try:
-        if not _logger:
-
-            _logger = logging.getLogger(LOGGER_NAME)
-            _logger.propagate = 0
-
-            # XXX multiprocessing should cleanup before logging
-            if hasattr(atexit, 'unregister'):
-                atexit.unregister(_exit_function)
-                atexit.register(_exit_function)
-            else:
-                atexit._exithandlers.remove((_exit_function, (), {}))
-                atexit._exithandlers.append((_exit_function, (), {}))
-
-    finally:
-        logging._releaseLock()
-
     return _logger
 
-def log_to_stderr(level=None):
-    '''
-    Turn on logging and add a handler which prints to stderr
-    '''
-    global _log_to_stderr
-    import logging
 
-    logger = get_logger()
-    formatter = logging.Formatter(DEFAULT_LOGGING_FORMAT)
-    handler = logging.StreamHandler()
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
+def log_to_stderr():
+    raise NotImplementedError()
 
-    if level:
-        logger.setLevel(level)
-    _log_to_stderr = True
-    return _logger
 
 #
 # Function returning a temp directory which will be removed on exit
@@ -120,12 +86,14 @@ def get_temp_dir():
         process.current_process()._config['tempdir'] = tempdir
     return tempdir
 
+
 #
 # Support for reinitialization of objects when bootstrapping a child process
 #
 
 _afterfork_registry = weakref.WeakValueDictionary()
 _afterfork_counter = itertools.count()
+
 
 def _run_after_forkers():
     items = list(_afterfork_registry.items())
@@ -136,8 +104,10 @@ def _run_after_forkers():
         except Exception as e:
             info('after forker raised exception %s', e)
 
+
 def register_after_fork(obj, func):
     _afterfork_registry[(next(_afterfork_counter), id(obj), func)] = obj
+
 
 #
 # Finalization using weakrefs
@@ -148,9 +118,10 @@ _finalizer_counter = itertools.count()
 
 
 class Finalize(object):
-    '''
+    """
     Class which supports object finalization using weakrefs
-    '''
+    """
+
     def __init__(self, obj, callback, args=(), kwargs=None, exitpriority=None):
         assert exitpriority is None or type(exitpriority) is int
 
@@ -172,9 +143,9 @@ class Finalize(object):
                  # been cleared at shutdown
                  _finalizer_registry=_finalizer_registry,
                  sub_debug=sub_debug, getpid=os.getpid):
-        '''
+        """
         Run the callback unless it has already been called or cancelled
-        '''
+        """
         try:
             del _finalizer_registry[self._key]
         except KeyError:
@@ -188,20 +159,20 @@ class Finalize(object):
                           self._callback, self._args, self._kwargs)
                 res = self._callback(*self._args, **self._kwargs)
             self._weakref = self._callback = self._args = \
-                            self._kwargs = self._key = None
+                self._kwargs = self._key = None
             return res
 
     def cancel(self):
-        '''
+        """
         Cancel finalization of the object
-        '''
+        """
         try:
             del _finalizer_registry[self._key]
         except KeyError:
             pass
         else:
             self._weakref = self._callback = self._args = \
-                            self._kwargs = self._key = None
+                self._kwargs = self._key = None
 
     def still_active(self):
         '''
@@ -219,8 +190,8 @@ class Finalize(object):
             return '<%s object, dead>' % self.__class__.__name__
 
         x = '<%s object, callback=%s' % (
-                self.__class__.__name__,
-                getattr(self._callback, '__name__', self._callback))
+            self.__class__.__name__,
+            getattr(self._callback, '__name__', self._callback))
         if self._args:
             x += ', args=' + str(self._args)
         if self._kwargs:
@@ -231,11 +202,11 @@ class Finalize(object):
 
 
 def _run_finalizers(minpriority=None):
-    '''
+    """
     Run all finalizers whose exit priority is not None and at least minpriority
     Finalizers with highest priority are called first; finalizers with
     the same priority will be called in reverse order of creation.
-    '''
+    """
     if _finalizer_registry is None:
         # This function may be called after this module's globals are
         # destroyed.  See the _exit_function function in this module for more
@@ -243,9 +214,9 @@ def _run_finalizers(minpriority=None):
         return
 
     if minpriority is None:
-        f = lambda p : p[0] is not None
+        f = lambda p: p[0] is not None
     else:
-        f = lambda p : p[0] is not None and p[0] >= minpriority
+        f = lambda p: p[0] is not None and p[0] >= minpriority
 
     # Careful: _finalizer_registry may be mutated while this function
     # is running (either by a GC run or by another thread).
@@ -269,6 +240,7 @@ def _run_finalizers(minpriority=None):
     if minpriority is None:
         _finalizer_registry.clear()
 
+
 #
 # Clean up on exit
 #
@@ -279,7 +251,9 @@ def is_exiting():
     '''
     return _exiting or _exiting is None
 
+
 _exiting = False
+
 
 def _exit_function(info=info, debug=debug, _run_finalizers=_run_finalizers,
                    active_children=process.active_children,
@@ -323,7 +297,9 @@ def _exit_function(info=info, debug=debug, _run_finalizers=_run_finalizers,
         debug('running the remaining "atexit" finalizers')
         _run_finalizers()
 
+
 atexit.register(_exit_function)
+
 
 #
 # Some fork aware types
@@ -348,9 +324,11 @@ class ForkAwareThreadLock(object):
 
 class ForkAwareLocal(threading.local):
     def __init__(self):
-        register_after_fork(self, lambda obj : obj.__dict__.clear())
+        register_after_fork(self, lambda obj: obj.__dict__.clear())
+
     def __reduce__(self):
         return type(self), ()
+
 
 #
 # Close fds except those specified
@@ -361,12 +339,15 @@ try:
 except Exception:
     MAXFD = 256
 
+
 def close_all_fds_except(fds):
     fds = list(fds) + [-1, MAXFD]
     fds.sort()
     assert fds[-1] == MAXFD, 'fd too large'
     for i in range(len(fds) - 1):
-        os.closerange(fds[i]+1, fds[i+1])
+        os.closerange(fds[i] + 1, fds[i + 1])
+
+
 #
 # Close sys.stdin and replace stdin with os.devnull
 #
@@ -390,6 +371,7 @@ def _close_stdin():
     except (OSError, ValueError):
         pass
 
+
 #
 # Flush standard streams, if any
 #
@@ -403,6 +385,7 @@ def _flush_std_streams():
         sys.stderr.flush()
     except (AttributeError, ValueError):
         pass
+
 
 #
 # Start a program with only specified fds kept open
@@ -433,13 +416,10 @@ class PicklableRedis(redis.StrictRedis):
         super().__init__(*self._args, **self._kwargs)
 
     def __getstate__(self):
-        return (self._args, self._kwargs)
+        return self._args, self._kwargs
 
     def __setstate__(self, state):
         self.__init__(*state[0], **state[1])
-
-
-from lithops.config import default_config
 
 
 def get_redis_client(**overwrites):
@@ -498,7 +478,7 @@ class RemoteReference:
     @managed.setter
     def managed(self, value):
         managed = value
-        
+
         if self._callback is not None:
             self._callback.atexit = False
             self._callback.detach()
@@ -507,15 +487,15 @@ class RemoteReference:
             self._callback = None
         else:
             self._callback = weakref.finalize(self, type(self)._finalize,
-                self._client, self._rck, self._referenced)
+                                              self._client, self._rck, self._referenced)
 
     def __getstate__(self):
-        return (self._rck, self._referenced, 
-            self._client, self.managed)
+        return (self._rck, self._referenced,
+                self._client, self.managed)
 
     def __setstate__(self, state):
-        (self._rck, self._referenced, 
-            self._client) = state[:-1]
+        (self._rck, self._referenced,
+         self._client) = state[:-1]
         self._callback = None
         self.managed = state[-1]
         self.incref()

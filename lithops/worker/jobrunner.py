@@ -183,7 +183,7 @@ class JobRunner:
                 if self.internal_storage.backend == 'ibm_cos':
                     ibm_boto3_client = self.internal_storage.get_client()
                 else:
-                    ibm_boto3_client = Storage(lithops_config=self.lithops_config, storage_backend='ibm_cos').get_client()
+                    ibm_boto3_client = Storage(config=self.lithops_config, backend='ibm_cos').get_client()
                 data['ibm_cos'] = ibm_boto3_client
             else:
                 raise Exception('Cannot create the ibm_cos client: missing configuration')
@@ -234,7 +234,7 @@ class JobRunner:
             if obj.backend == self.internal_storage.backend:
                 storage = self.internal_storage.storage
             else:
-                storage = Storage(lithops_config=self.lithops_config, storage_backend=obj.backend)
+                storage = Storage(config=self.lithops_config, backend=obj.backend)
 
             if obj.data_byte_range is not None:
                 extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)

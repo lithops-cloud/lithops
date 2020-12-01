@@ -49,11 +49,12 @@ class KnativeServingBackend:
         self.name = 'knative'
         self.knative_config = knative_config
         self.istio_endpoint = self.knative_config.get('istio_endpoint')
+        self.kubecfg = self.knative_config.get('kubecfg_path')
 
         # k8s config can be incluster, in ~/.kube/config or generate kube-config.yaml file and
         # set env variable KUBECONFIG=<path-to-kube-confg>
         try:
-            config.load_kube_config()
+            config.load_kube_config(config_file=self.kubecfg)
             current_context = config.list_kube_config_contexts()[1].get('context')
             self.namespace = current_context.get('namespace', 'default')
             self.cluster = current_context.get('cluster')
@@ -103,7 +104,7 @@ class KnativeServingBackend:
 
         log_msg = 'Lithops v{} init for Knative '.format(__version__)
         if self.istio_endpoint:
-            msg = '- Istio Endpoint: {}'.format(__version__, self.istio_endpoint)
+            msg = '- Istio Endpoint: {}'.format(self.istio_endpoint)
             log_msg += msg
             logger.debug('Set '+msg)
         elif self.cluster:
@@ -125,7 +126,7 @@ class KnativeServingBackend:
         return image_name, int(memory.replace('mb', ''))
 
     def _get_default_runtime_image_name(self):
-        docker_user = self.knative_config['docker_user']
+        docker_user = self.knative_config.get('docker_user')
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         return '{}/{}-v{}:{}'.format(docker_user, kconfig.RUNTIME_NAME, python_version, revision)
@@ -137,8 +138,8 @@ class KnativeServingBackend:
         logger.debug('Getting service host for: {}'.format(service_name))
         try:
             svc = self.api.get_namespaced_custom_object(
-                        group="serving.knative.dev",
-                        version="v1",
+                        group=kconfig.DEFAULT_GROUP,
+                        version=kconfig.DEFAULT_VERSION,
                         name=service_name,
                         namespace=self.namespace,
                         plural="services"
@@ -346,19 +347,13 @@ class KnativeServingBackend:
         """
         if os.system('{} --version >{} 2>&1'.format(kconfig.DOCKER_PATH, os.devnull)) == 0:
             # Build default runtime using local dokcer
-            python_version = version_str(sys.version_info).replace('.', '')
-            location = 'https://raw.githubusercontent.com/lithops-cloud/lithops/master/runtime/knative'
-            resp = requests.get('{}/Dockerfile.python{}'.format(location, python_version))
-            dockerfile = "Dockefile.default-kantive-runtime"
-            if resp.status_code == 200:
-                with open(dockerfile, 'w') as f:
-                    f.write(resp.text)
-                self.build_runtime(default_runtime_img_name, dockerfile)
-                os.remove(dockerfile)
-            else:
-                msg = 'There was an error fetching the default runitme Dockerfile: {}'.format(resp.text)
-                logger.error(msg)
-                exit()
+            python_version = version_str(sys.version_info)
+            dockerfile = "Dockefile.default-knative-runtime"
+            with open(dockerfile, 'w') as f:
+                f.write("FROM python:{}-slim-buster\n".format(python_version))
+                f.write(kconfig.DEFAULT_DOCKERFILE)
+            self.build_runtime(default_runtime_img_name, dockerfile)
+            os.remove(dockerfile)
         else:
             # Build default runtime using Tekton
             self._build_default_runtime_from_git(default_runtime_img_name)
@@ -398,8 +393,8 @@ class KnativeServingBackend:
         try:
             # delete the service resource if exists
             self.api.delete_namespaced_custom_object(
-                    group="serving.knative.dev",
-                    version="v1",
+                    group=kconfig.DEFAULT_GROUP,
+                    version=kconfig.DEFAULT_VERSION,
                     name=service_name,
                     namespace=self.namespace,
                     plural="services",
@@ -411,8 +406,8 @@ class KnativeServingBackend:
 
         # create the service resource
         self.api.create_namespaced_custom_object(
-                group="serving.knative.dev",
-                version="v1",
+                group=kconfig.DEFAULT_GROUP,
+                version=kconfig.DEFAULT_VERSION,
                 namespace=self.namespace,
                 plural="services",
                 body=svc_res
@@ -420,8 +415,8 @@ class KnativeServingBackend:
 
         w = watch.Watch()
         for event in w.stream(self.api.list_namespaced_custom_object,
-                              namespace=self.namespace, group="serving.knative.dev",
-                              version="v1", plural="services",
+                              namespace=self.namespace, group=kconfig.DEFAULT_GROUP,
+                              version=kconfig.DEFAULT_VERSION, plural="services",
                               field_selector="metadata.name={0}".format(service_name),
                               timeout_seconds=300):
             if event['object'].get('status'):
@@ -509,7 +504,7 @@ class KnativeServingBackend:
         else:
             cmd = '{} build -t {} .'.format(kconfig.DOCKER_PATH, docker_image_name)
 
-        if not self.log_active:
+        if not self.log_active or (self.log_active and logger.getEffectiveLevel() != logging.DEBUG):
             cmd = cmd + " >{} 2>&1".format(os.devnull)
 
         res = os.system(cmd)
@@ -519,7 +514,7 @@ class KnativeServingBackend:
         self._delete_function_handler_zip()
 
         cmd = '{} push {}'.format(kconfig.DOCKER_PATH, docker_image_name)
-        if not self.log_active:
+        if not self.log_active or (self.log_active and logger.getEffectiveLevel() != logging.DEBUG):
             cmd = cmd + " >{} 2>&1".format(os.devnull)
         res = os.system(cmd)
         if res != 0:
@@ -530,8 +525,8 @@ class KnativeServingBackend:
         logger.info('Deleting runtime: {}'.format(service_name))
         try:
             self.api.delete_namespaced_custom_object(
-                    group="serving.knative.dev",
-                    version="v1",
+                    group=kconfig.DEFAULT_GROUP,
+                    version=kconfig.DEFAULT_VERSION,
                     name=service_name,
                     namespace=self.namespace,
                     plural="services",
@@ -554,8 +549,8 @@ class KnativeServingBackend:
         return: list of tuples [docker_image_name, memory]
         """
         knative_services = self.api.list_namespaced_custom_object(
-                                group="serving.knative.dev",
-                                version="v1",
+                                group=kconfig.DEFAULT_GROUP,
+                                version=kconfig.DEFAULT_VERSION,
                                 namespace=self.namespace,
                                 plural="services"
                             )
@@ -647,6 +642,6 @@ class KnativeServingBackend:
         """
         service_name = self._format_service_name(docker_image_name, runtime_memory)
         cluster = self.cluster.replace('https://', '').replace('http://', '')
-        runtime_key = os.path.join(cluster, self.namespace, service_name)
+        runtime_key = os.path.join(self.name, cluster, self.namespace, service_name)
 
         return runtime_key

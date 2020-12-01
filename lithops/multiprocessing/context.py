@@ -20,7 +20,7 @@ import os
 from . import process
 from . import reduction
 
-__all__ = []            # things are copied from here to __init__.py
+__all__ = []  # things are copied from here to __init__.py
 
 
 #
@@ -47,8 +47,7 @@ class AuthenticationError(ProcessError):
 # Base type for contexts
 #
 
-class BaseContext(object):
-
+class BaseContext:
     ProcessError = ProcessError
     BufferTooShort = BufferTooShort
     TimeoutError = TimeoutError
@@ -57,159 +56,100 @@ class BaseContext(object):
     current_process = staticmethod(process.current_process)
     active_children = staticmethod(process.active_children)
 
-    """
     def cpu_count(self):
-        '''Returns the number of CPUs in the system'''
-        num = os.cpu_count()
-        if num is None:
-            raise NotImplementedError('cannot determine number of cpus')
-        else:
-            return num
-    """
+        raise NotImplementedError()
+
     def Manager(self):
-        '''Returns a manager associated with a running server process
+        """
+        Returns a manager associated with a running server process
         The managers methods such as `Lock()`, `Condition()` and `Queue()`
         can be used to create shared objects.
-        '''
+        """
         from .managers import SyncManager
         return SyncManager()
 
     def Pipe(self, duplex=True):
-        '''Returns two connection object connected by a pipe'''
-        from .connection import Pipe
-        return Pipe(duplex)
+        """Returns two connection object connected by a pipe"""
+        from .connection import RedisPipe
+        return RedisPipe(duplex)
 
     def Lock(self):
-        '''Returns a non-recursive lock object'''
+        """Returns a non-recursive lock object"""
         from .synchronize import Lock
         return Lock()
 
     def RLock(self):
-        '''Returns a recursive lock object'''
+        """Returns a recursive lock object"""
         from .synchronize import RLock
         return RLock()
 
     def Condition(self, lock=None):
-        '''Returns a condition object'''
+        """Returns a condition object"""
         from .synchronize import Condition
         return Condition(lock)
 
     def Semaphore(self, value=1):
-        '''Returns a semaphore object'''
+        """Returns a semaphore object"""
         from .synchronize import Semaphore
         return Semaphore(value)
 
     def BoundedSemaphore(self, value=1):
-        '''Returns a bounded semaphore object'''
+        """Returns a bounded semaphore object"""
         from .synchronize import BoundedSemaphore
         return BoundedSemaphore(value)
-        
+
     def Event(self):
-        '''Returns an event object'''
+        """Returns an event object"""
         from .synchronize import Event
         return Event()
-        
+
     def Barrier(self, parties, action=None, timeout=None):
-        '''Returns a barrier object'''
+        """Returns a barrier object"""
         from .synchronize import Barrier
         return Barrier(parties, action, timeout)
 
     def Queue(self, maxsize=0):
-        '''Returns a queue object'''
+        """Returns a queue object"""
         from .queues import Queue
         return Queue()
 
     def JoinableQueue(self, maxsize=0):
-        '''Returns a queue object'''
+        """Returns a queue object"""
         from .queues import JoinableQueue
         return JoinableQueue()
 
     def SimpleQueue(self):
-        '''Returns a queue object'''
+        """Returns a queue object"""
         from .queues import SimpleQueue
         return SimpleQueue()
 
-    def Pool(self, processes=None, initializer=None, initargs={},
-             maxtasksperchild=None):
-        '''Returns a process pool object'''
+    def Pool(self, processes=None, initializer=None, initargs={}, maxtasksperchild=None):
+        """Returns a process pool object"""
         from .pool import Pool
         return Pool(processes, initializer, initargs, maxtasksperchild,
                     context=self.get_context())
-    """
+
     def RawValue(self, typecode_or_type, *args):
-        '''Returns a shared object'''
+        """Returns a shared ctype"""
         from .sharedctypes import RawValue
         return RawValue(typecode_or_type, *args)
-    """
-    """
+
     def RawArray(self, typecode_or_type, size_or_initializer):
-        '''Returns a shared array'''
+        """Returns a shared array"""
         from .sharedctypes import RawArray
         return RawArray(typecode_or_type, size_or_initializer)
-    """
-    """
+
     def Value(self, typecode_or_type, *args, lock=True):
-        '''Returns a synchronized shared object'''
+        """Returns a synchronized shared object"""
         from .sharedctypes import Value
         return Value(typecode_or_type, *args, lock=lock,
                      ctx=self.get_context())
-    """
-    """
+
     def Array(self, typecode_or_type, size_or_initializer, *, lock=True):
-        '''Returns a synchronized shared array'''
+        """Returns a synchronized shared array"""
         from .sharedctypes import Array
         return Array(typecode_or_type, size_or_initializer, lock=lock,
                      ctx=self.get_context())
-    """
-    """
-    def freeze_support(self):
-        '''Check whether this is a fake forked process in a frozen executable.
-        If so then run code specified by commandline and exit.
-        '''
-        if sys.platform == 'win32' and getattr(sys, 'frozen', False):
-            from .spawn import freeze_support
-            freeze_support()
-    """
-    """
-    def get_logger(self):
-        '''Return package logger -- if it does not already exist then
-        it is created.
-        '''
-        from .util import get_logger
-        return get_logger()
-    """
-    """
-    def log_to_stderr(self, level=None):
-        '''Turn on logging and add a handler which prints to stderr'''
-        from .util import log_to_stderr
-        return log_to_stderr(level)
-    """
-    """
-    def allow_connection_pickling(self):
-        '''Install support for sending connections and sockets
-        between processes
-        '''
-        # This is undocumented.  In previous versions of multiprocessing
-        # its only effect was to make socket objects inheritable on Windows.
-        from . import connection
-    """
-    """
-    def set_executable(self, executable):
-        '''Sets the path to a python.exe or pythonw.exe binary used to run
-        child processes instead of sys.executable when using the 'spawn'
-        start method.  Useful for people embedding Python.
-        '''
-        from .spawn import set_executable
-        set_executable(executable)
-    """
-    """
-    def set_forkserver_preload(self, module_names):
-        '''Set list of module names to try to load in forkserver process.
-        This is really just a hint.
-        '''
-        from .forkserver import set_forkserver_preload
-        set_forkserver_preload(module_names)
-    """
 
     def get_context(self, method=None):
         if method is None:
@@ -229,8 +169,8 @@ class BaseContext(object):
 
     @property
     def reducer(self):
-        '''Controls how objects will be reduced to a form that can be
-        shared with other processes.'''
+        """Controls how objects will be reduced to a form that can be
+        shared with other processes."""
         return globals().get('reduction')
 
     @reducer.setter
@@ -241,7 +181,11 @@ class BaseContext(object):
         pass
 
     def getpid(self):
-        executor_id, job_id, call_id = os.environ.get('LITHOPS_EXECUTION_ID').rsplit('/', 2)
+        execution_id = os.environ.get('LITHOPS_EXECUTION_ID', None)
+        if execution_id is not None:
+            executor_id, job_id, call_id = execution_id.rsplit('/', 2)
+        else:
+            call_id = -1
         return call_id
 
 
@@ -310,8 +254,8 @@ class SpawnCloudProcess(process.BaseProcess):
 
     @staticmethod
     def _Popen(process_obj):
-        from .popen_cloud import Popen
-        return Popen(process_obj)
+        from .popen_cloud import PopenCloud
+        return PopenCloud(process_obj)
 
 
 class SpawnCloudContext(BaseContext):
@@ -326,8 +270,11 @@ _concrete_contexts = {
     'cloud': SpawnCloudContext()
 }
 
-
 _default_context = DefaultContext(_concrete_contexts['cloud'])
+
+
+def get_context():
+    return _default_context
 
 
 #

@@ -1,18 +1,20 @@
+import time
 from lithops.multiprocessing import Process, JoinableQueue
 
 
-def worker(q):
+def worker(queue):
     working = True
     while working:
-        x = q.get()
+        task = queue.get()
 
         # Do work that may fail
-        assert x < 10
+        assert task < 10
+        time.sleep(0.25)
 
         # Confirm task
-        q.task_done()
+        queue.task_done()
 
-        if x == -1:
+        if task == -1:
             working = False
 
 
@@ -21,12 +23,12 @@ if __name__ == '__main__':
     p = Process(target=worker, args=(q,))
     p.start()
 
-    for x in range(10): 
+    for x in range(10):
         q.put(x)
 
     # uncomment to hang on the q.join
-    #q.put(11)  
+    # q.put(11)
     q.join()
 
-    q.put(-1) # end loop
+    q.put(-1)  # end loop
     p.join()

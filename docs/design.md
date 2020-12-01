@@ -1,16 +1,16 @@
-# Lithops for IBM Cloud - Architecture
+# Lithops Design
 
 ## Overview
-The chart below presents the main components of the architecture of Lithops for IBM Cloud. The components are largely divided into three sets: 
+The chart below presents the main components of the architecture of Lithops. The components are largely divided into three sets: 
 * Components inside the dashed purple frame comprise the client code (running e.g., on your laptop). 
 * Components inside the dashed orange frame comprise a Lithops worker. Each worker executes a "call", one unit of computation (e.g., processing one dataset record, or one object) within a larger map or reduce job of Lithops. Workers execute in the compute backend of choice, such as IBM Cloud Functions, Knative Serving or even your local laptop. 
 * Outside both frames are various external facilities or services with which Lithops components interact. These external components are marked in ellipses, each one with its name and logo.
 
-Note that the sets of Lithops components in both dashed frames are partially overlapping. In particular, the storage components are shared since Lithops's main communication between the client and the workers relies on storage. 
+Note that the sets of Lithops components in both dashed frames are partially overlapping. In particular, the storage components are shared since Lithops's main communication between the client and the workers relies on storage.
 
-![Lithops Architecture](images/lithops.png "Lithops Architecture")
+![Lithops Architecture](images/lithops.png "Lithops Architecture v1.0")
 
-The Lithops components themselves consist of key classes and modules. Both classes and modules are shown using UML class symbols, but class names start with uppercase letters and have an `__init__()` method, while modules do not.     
+The Lithops components themselves consist of key classes and modules. Both classes and modules are shown using UML class symbols, but class names start with uppercase letters and have an `__init__()` method, while modules do not.
 
 The top-level client API module of Lithops, `lithops.__init__`, is shown as a green module. It provides the API functions described in the documentation. Each of its functions creates an instance of `FunctionExecutor`, which is the main class implementing Lithops logic, shown in with a gray background.
 

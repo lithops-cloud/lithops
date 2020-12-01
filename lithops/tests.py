@@ -45,9 +45,9 @@ class TestUtils:
         def up(param):
             i, url = param
             content = urllib.request.urlopen(url).read()
-            STORAGE.put_object(bucket_name=STORAGE_CONFIG['bucket'],
+            STORAGE.put_object(bucket=STORAGE_CONFIG['bucket'],
                                key='{}/test{}'.format(PREFIX, str(i)),
-                               data=content)
+                               body=content)
             return len(content.split())
 
         with ThreadPoolExecutor() as pool:
@@ -58,12 +58,12 @@ class TestUtils:
 
     @staticmethod
     def list_test_keys():
-        return STORAGE.list_keys(bucket_name=STORAGE_CONFIG['bucket'], prefix=PREFIX + '/')
+        return STORAGE.list_keys(bucket=STORAGE_CONFIG['bucket'], prefix=PREFIX + '/')
 
     @staticmethod
     def cleanTests():
         for key in TestUtils.list_test_keys():
-            STORAGE.delete_object(bucket_name=STORAGE_CONFIG['bucket'],
+            STORAGE.delete_object(bucket=STORAGE_CONFIG['bucket'],
                                   key=key)
 
 
@@ -176,12 +176,12 @@ class TestMethods:
     @staticmethod
     def my_cloudobject_put(obj, storage):
         counter = TestMethods.my_map_function_obj(obj, 0)
-        cloudobject = storage.put_cobject(pickle.dumps(counter))
+        cloudobject = storage.put_cloudobject(pickle.dumps(counter))
         return cloudobject
 
     @staticmethod
     def my_cloudobject_get(cloudobjects, storage):
-        data = [pickle.loads(storage.get_cobject(co)) for co in cloudobjects]
+        data = [pickle.loads(storage.get_cloudobject(co)) for co in cloudobjects]
         return TestMethods.my_reduce_function(data)
 
 

@@ -1,5 +1,5 @@
 #
-# Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@ logger = logging.getLogger(__name__)
 
 class AliyunObjectStorageServiceBackend:
 
-    def __init__(self, config, bucket=None, executor_id=None):
-        self.bucket = bucket
+    def __init__(self, config):
+        logger.debug("Creating Alibaba Object Storage client")
         self.config = config
         self.auth = oss2.Auth(self.config['access_key_id'], self.config['access_key_secret'])
 
@@ -35,13 +35,21 @@ class AliyunObjectStorageServiceBackend:
             self.endpoint = self.config['public_endpoint']
 
         self.bucket = oss2.Bucket(self.auth, self.endpoint, self.bucket)
+        logger.info("Alibaba Object Storage client created successfully")
+
+    def _connect_bucket(self, bucket_name):
+        if self.bucket and self.bucket.bucket_name == bucket_name:
+            bucket = self.bucket
+        else:
+            bucket = oss2.Bucket(self.auth, self.endpoint, bucket_name)
+        return bucket
 
     def get_client(self):
         return self
 
     def put_object(self, bucket_name, key, data):
         """
-        Put an object in OSS. Override the object if the key already exists. 
+        Put an object in OSS. Override the object if the key already exists.
         Throws StorageNoSuchKeyError if the bucket does not exist.
         :param bucket_name: bucket name
         :param key: key of the object.
@@ -52,12 +60,11 @@ class AliyunObjectStorageServiceBackend:
         if isinstance(data, str):
             data = data.encode()
 
-        try: 
+        try:
             bucket = self._connect_bucket(bucket_name)
             bucket.put_object(key, data)
         except oss2.exceptions.NoSuchBucket:
             raise StorageNoSuchKeyError(bucket_name, '')
-
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
         """
@@ -82,7 +89,6 @@ class AliyunObjectStorageServiceBackend:
 
         except (oss2.exceptions.NoSuchKey, oss2.exceptions.NoSuchBucket):
             raise StorageNoSuchKeyError(bucket_name, key)
-
 
     def head_object(self, bucket_name, key):
         """
@@ -135,19 +141,6 @@ class AliyunObjectStorageServiceBackend:
         except oss2.exceptions.NoSuchBucket:
             raise StorageNoSuchKeyError(bucket_name, '')
 
-    def bucket_exists(self, bucket_name):
-        """
-        Returns True if bucket exists in storage. Throws StorageNoSuchKeyError if the given bucket does not exist.
-        :param bucket_name: name of the bucket
-        """
-        bucket = self._connect_bucket(bucket_name)
-        
-        try:
-            bucket.get_bucket_info()
-        except oss2.exceptions.NoSuchBucket:
-            raise StorageNoSuchKeyError(bucket_name, '')
-        return True
-
     def list_objects(self, bucket_name, prefix=None):
         """
         Return a list of objects for the given bucket and prefix.
@@ -162,7 +155,7 @@ class AliyunObjectStorageServiceBackend:
         prefix = '' if prefix is None else prefix
         try:
             res = bucket.list_objects(prefix=prefix)
-            obj_list = [{'Key' : obj.key, 'Size' : obj.size} for obj in res.object_list]
+            obj_list = [{'Key': obj.key, 'Size': obj.size} for obj in res.object_list]
             return obj_list
 
         except (oss2.exceptions.NoSuchKey, oss2.exceptions.NoSuchBucket):
@@ -177,7 +170,7 @@ class AliyunObjectStorageServiceBackend:
         :rtype: list of str
         """
         bucket = self._connect_bucket(bucket_name)
-        
+
         # adapted to match ibm_cos method
         prefix = '' if prefix is None else prefix
         try:
@@ -187,10 +180,3 @@ class AliyunObjectStorageServiceBackend:
 
         except (oss2.exceptions.NoSuchKey, oss2.exceptions.NoSuchBucket):
             raise StorageNoSuchKeyError(bucket_name, prefix)
-
-    def _connect_bucket(self, bucket_name):
-        if self.bucket and self.bucket.bucket_name == bucket_name:
-            bucket = self.bucket
-        else:
-            bucket = oss2.Bucket(self.auth, self.endpoint, bucket_name)
-        return bucket

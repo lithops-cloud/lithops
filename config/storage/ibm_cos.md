@@ -31,7 +31,7 @@ Lithops with IBM COS as storage backend.
 10. Edit your lithops config file and add the following keys:
     ```yaml
     lithops:
-        storage_backend: ibm_cos
+        storage: ibm_cos
        
     ibm_cos:
        region   : <REGION>
@@ -53,7 +53,7 @@ Lithops with IBM COS as storage backend.
 11. Edit your lithops config file and add the following keys:
     ```yaml
     lithops:
-        storage_backend: ibm_cos
+        storage: ibm_cos
        
     ibm_cos:
        region   : <REGION>  

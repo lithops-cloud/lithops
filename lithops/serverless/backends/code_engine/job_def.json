@@ -2,7 +2,8 @@
     "apiVersion": "codeengine.cloud.ibm.com/v1beta1",
     "kind": "JobDefinition",
     "metadata": {
-        "name": "<INPUT>"
+        "name": "<INPUT>",
+        "labels":{"type": "lithops-runtime"}
     },
     "spec": {
         "arraySpec": "0",

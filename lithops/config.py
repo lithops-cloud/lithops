@@ -207,8 +207,32 @@ def default_config(config_data=None, config_overwrite={}):
 
         verify_runtime_name(config_data[constants.LOCALHOST]['runtime'])
 
+    return default_storage_config(config_data)
+
+
+def default_storage_config(config_data=None, backend=None):
+    """ Function to load default storage config """
+    if not config_data:
+        if 'LITHOPS_CONFIG' in os.environ:
+            config_data = json.loads(os.environ.get('LITHOPS_CONFIG'))
+        else:
+            config_filename = get_default_config_filename()
+            logger.info('Getting configuration from {}'.format(config_filename))
+            if config_filename:
+                config_data = load_yaml_config(config_filename)
+
+    if 'lithops' not in config_data:
+        config_data['lithops'] = {}
+
+    if 'mode' not in config_data['lithops']:
+        config_data['lithops']['mode'] = constants.MODE_DEFAULT
+
     if 'storage' not in config_data['lithops']:
         config_data['lithops']['storage'] = constants.STORAGE_BACKEND_DEFAULT
+
+    if backend:
+        config_data['lithops']['storage'] = backend
+
     sb = config_data['lithops']['storage']
     logger.debug("Loading Storage backend module: {}".format(sb))
     sb_config = importlib.import_module('lithops.storage.backends.{}.config'.format(sb))

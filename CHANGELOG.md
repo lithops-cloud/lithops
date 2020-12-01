@@ -1,6 +1,38 @@
 # Changelog
 
-## [v2.2.6.dev0]
+## [v2.2.11.dev0]
+
+
+### Changed
+- [CodeEngine] Delete runtime name regex verification
+- [Localhost] Run functions in processes instead of threads in Windows
+
+
+## [v2.2.10]
+
+### Added
+- [Core] Allow to create a Storage() class from config file
+- [CodeEngine] Improved codeengine backend
+
+### Changed
+- [Core] Improved multiprocessing API
+- [Core] Improved Storage OS API
+
+
+## [v2.2.9]
+
+### Fixed
+- [CodeEngine] Fixed CodeEngine runtime entrypoint
+
+
+## [v2.2.8]
+
+### Fixed
+- [Core] Fix "lithops runtime create" cli
+- [Core] Fixed missing executor_id variable in jobrunner
+
+
+## [v2.2.7]
 
 ### Added
 - [Core] Add joblib backend for scikit-learn

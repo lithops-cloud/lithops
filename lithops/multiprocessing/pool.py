@@ -7,6 +7,7 @@
 # Licensed to PSF under a Contributor Agreement.
 #
 # Modifications Copyright (c) 2020 Cloudlab URV
+#
 
 __all__ = ['Pool', 'ThreadPool']
 
@@ -25,11 +26,12 @@ from lithops import FunctionExecutor
 # If threading is available then ThreadPool should be provided.  Therefore
 # we avoid top-level imports which are liable to fail on some systems.
 from . import util
-from . import get_context, TimeoutError
+# from . import get_context, TimeoutError
 
 #
 # Constants representing the state of a pool
 #
+from .context import get_context
 
 RUN = 0
 CLOSE = 1
@@ -41,11 +43,14 @@ TERMINATE = 2
 
 job_counter = itertools.count()
 
+
 def mapstar(args):
     return list(map(*args))
 
+
 def starmapstar(args):
     return list(itertools.starmap(args[0], args[1]))
+
 
 #
 # Hack to embed stringification of remote traceback in local traceback
@@ -54,8 +59,10 @@ def starmapstar(args):
 class RemoteTraceback(Exception):
     def __init__(self, tb):
         self.tb = tb
+
     def __str__(self):
         return self.tb
+
 
 class ExceptionWithTraceback:
     def __init__(self, exc, tb):
@@ -63,8 +70,10 @@ class ExceptionWithTraceback:
         tb = ''.join(tb)
         self.exc = exc
         self.tb = '\n"""\n%s"""' % tb
+
     def __reduce__(self):
         return rebuild_exc, (self.exc, self.tb)
+
 
 def rebuild_exc(exc, tb):
     exc.__cause__ = RemoteTraceback(tb)
@@ -76,8 +85,10 @@ def rebuild_exc(exc, tb):
 #
 
 class MaybeEncodingError(Exception):
-    """Wraps possible unpickleable errors, so they can be
-    safely sent through the socket."""
+    """
+    Wraps possible unpickleable errors, so they can be
+    safely sent through the socket.
+    """
 
     def __init__(self, exc, value):
         self.exc = repr(exc)
@@ -137,7 +148,9 @@ def worker(inqueue, outqueue, initializer=None, initargs=(), maxtasks=None,
 
 
 def _helper_reraises_exception(ex):
-    'Pickle-able helper function for use by _guarded_task_generation.'
+    """
+    Pickle-able helper function for use by _guarded_task_generation.
+    """
     raise ex
 
 
@@ -146,9 +159,9 @@ def _helper_reraises_exception(ex):
 #
 
 class Pool(object):
-    '''
+    """
     Class which supports an async version of applying functions to arguments.
-    '''
+    """
     _wrap_exception = True
 
     def Process(self, *args, **kwds):
@@ -157,7 +170,7 @@ class Pool(object):
     def __init__(self, processes=None, initializer=None, initargs=(),
                  maxtasksperchild=None, context=None):
         self._ctx = context or get_context()
-        #self._setup_queues()
+        # self._setup_queues()
         self._taskqueue = queue.Queue()
         self._cache = {}
         self._state = RUN
@@ -185,44 +198,45 @@ class Pool(object):
             raise TypeError('initializer must be a callable')
 
         self._pool = []
-        #self._repopulate_pool()
+        # self._repopulate_pool()
 
-#         self._worker_handler = threading.Thread(
-#             target=Pool._handle_workers,
-#             args=(self, )
-#             )
-#         self._worker_handler.daemon = True
-#         self._worker_handler._state = RUN
-#         self._worker_handler.start()
-# 
-# 
-#         self._task_handler = threading.Thread(
-#             target=Pool._handle_tasks,
-#             args=(self._taskqueue, self._quick_put, self._outqueue,
-#                   self._pool, self._cache)
-#             )
-#         self._task_handler.daemon = True
-#         self._task_handler._state = RUN
-#         self._task_handler.start()
-# 
-#         self._result_handler = threading.Thread(
-#             target=Pool._handle_results,
-#             args=(self._outqueue, self._quick_get, self._cache)
-#             )
-#         self._result_handler.daemon = True
-#         self._result_handler._state = RUN
-#         self._result_handler.start()
-# 
-#         self._terminate = util.Finalize(
-#             self, self._terminate_pool,
-#             args=(self._taskqueue, self._inqueue, self._outqueue, self._pool,
-#                   self._worker_handler, self._task_handler,
-#                   self._result_handler, self._cache),
-#             exitpriority=15
-#             )
+    #         self._worker_handler = threading.Thread(
+    #             target=Pool._handle_workers,
+    #             args=(self, )
+    #             )
+    #         self._worker_handler.daemon = True
+    #         self._worker_handler._state = RUN
+    #         self._worker_handler.start()
+    #
+    #
+    #         self._task_handler = threading.Thread(
+    #             target=Pool._handle_tasks,
+    #             args=(self._taskqueue, self._quick_put, self._outqueue,
+    #                   self._pool, self._cache)
+    #             )
+    #         self._task_handler.daemon = True
+    #         self._task_handler._state = RUN
+    #         self._task_handler.start()
+    #
+    #         self._result_handler = threading.Thread(
+    #             target=Pool._handle_results,
+    #             args=(self._outqueue, self._quick_get, self._cache)
+    #             )
+    #         self._result_handler.daemon = True
+    #         self._result_handler._state = RUN
+    #         self._result_handler.start()
+    #
+    #         self._terminate = util.Finalize(
+    #             self, self._terminate_pool,
+    #             args=(self._taskqueue, self._inqueue, self._outqueue, self._pool,
+    #                   self._worker_handler, self._task_handler,
+    #                   self._result_handler, self._cache),
+    #             exitpriority=15
+    #             )
 
     def _join_exited_workers(self):
-        """Cleanup after any worker processes which have exited due to reaching
+        """
+        Cleanup after any worker processes which have exited due to reaching
         their specified lifetime.  Returns True if any workers were cleaned up.
         """
         cleaned = False
@@ -237,7 +251,8 @@ class Pool(object):
         return cleaned
 
     def _repopulate_pool(self):
-        """Bring the number of pool processes up to the specified number,
+        """
+        Bring the number of pool processes up to the specified number,
         for use after reaping workers which have exited.
         """
         for i in range(self._processes - len(self._pool)):
@@ -246,7 +261,7 @@ class Pool(object):
                                    self._initializer,
                                    self._initargs, self._maxtasksperchild,
                                    self._wrap_exception)
-                            )
+                             )
             self._pool.append(w)
             w.name = w.name.replace('Process', 'PoolWorker')
             w.daemon = True
@@ -254,7 +269,8 @@ class Pool(object):
             util.debug('added worker')
 
     def _maintain_pool(self):
-        """Clean up any exited workers and start replacements for them.
+        """
+        Clean up any exited workers and start replacements for them.
         """
         if self._join_exited_workers():
             self._repopulate_pool()
@@ -266,50 +282,54 @@ class Pool(object):
         self._quick_get = self._outqueue._reader.recv
 
     def apply(self, func, args=(), kwds={}):
-        '''
+        """
         Equivalent of `func(*args, **kwds)`.
-        '''
+        """
         assert self._state == RUN
+        if kwds and not args:
+            args = {}
         return self.apply_async(func, args, kwds).get()
 
     def map(self, func, iterable, chunksize=None):
-        '''
+        """
         Apply `func` to each element in `iterable`, collecting the results
         in a list that is returned.
-        '''
+        """
         return self._map_async(func, iterable, mapstar, chunksize).get()
 
     def starmap(self, func, iterable, chunksize=None):
-        '''
+        """
         Like `map()` method but the elements of the `iterable` are expected to
         be iterables as well and will be unpacked as arguments. Hence
         `func` and (a, b) becomes func(a, b).
-        '''
+        """
         return self._map_async(func, iterable, starmapstar, chunksize).get()
 
     def starmap_async(self, func, iterable, chunksize=None, callback=None,
                       error_callback=None):
-        '''
+        """
         Asynchronous version of `starmap()` method.
-        '''
+        """
         return self._map_async(func, iterable, starmapstar, chunksize,
                                callback, error_callback)
 
     def _guarded_task_generation(self, result_job, func, iterable):
-        '''Provides a generator of tasks for imap and imap_unordered with
+        """
+        Provides a generator of tasks for imap and imap_unordered with
         appropriate handling for iterables which throw exceptions during
-        iteration.'''
+        iteration.
+        """
         try:
             i = -1
             for i, x in enumerate(iterable):
                 yield (result_job, i, func, (x,), {})
         except Exception as e:
-            yield (result_job, i+1, _helper_reraises_exception, (e,), {})
+            yield (result_job, i + 1, _helper_reraises_exception, (e,), {})
 
     def imap(self, func, iterable, chunksize=1):
-        '''
+        """
         Equivalent of `map()` -- can be MUCH slower than `Pool.map()`.
-        '''
+        """
         if self._state != RUN:
             raise ValueError("Pool not running")
         if chunksize == 1:
@@ -334,9 +354,9 @@ class Pool(object):
             return (item for chunk in result for item in chunk)
 
     def imap_unordered(self, func, iterable, chunksize=1):
-        '''
+        """
         Like `imap()` method but ordering of results is arbitrary.
-        '''
+        """
         if self._state != RUN:
             raise ValueError("Pool not running")
         if chunksize == 1:
@@ -362,13 +382,13 @@ class Pool(object):
 
     def apply_async(self, func, args=(), kwds={}, callback=None,
                     error_callback=None):
-        '''
+        """
         Asynchronous version of `apply()` method.
-        '''
+        """
         if self._state != RUN:
             raise ValueError("Pool not running")
 
-        futures = self._executor.call_async(func, [*args, *kwds])
+        futures = self._executor.call_async(func, data=args)
 
         result = ApplyResult(self._executor, [futures], callback, error_callback)
 
@@ -376,17 +396,17 @@ class Pool(object):
 
     def map_async(self, func, iterable, chunksize=None, callback=None,
                   error_callback=None):
-        '''
+        """
         Asynchronous version of `map()` method.
-        '''
+        """
         return self._map_async(func, iterable, mapstar, chunksize, callback,
                                error_callback)
 
     def _map_async(self, func, iterable, mapper, chunksize=None, callback=None,
                    error_callback=None):
-        '''
+        """
         Helper function to implement map, starmap and their async counterparts.
-        '''
+        """
         if self._state != RUN:
             raise ValueError("Pool not running")
         if not hasattr(iterable, '__len__'):
@@ -528,36 +548,36 @@ class Pool(object):
 
     def __reduce__(self):
         raise NotImplementedError(
-              'pool objects cannot be passed between processes or pickled'
-              )
+            'pool objects cannot be passed between processes or pickled'
+        )
 
     def close(self):
         util.debug('closing pool')
         if self._state == RUN:
             self._state = CLOSE
-            #self._worker_handler._state = CLOSE
+            # self._worker_handler._state = CLOSE
 
     def terminate(self):
         util.debug('terminating pool')
         self._state = TERMINATE
-        #self._worker_handler._state = TERMINATE
-        #self._terminate()
+        # self._worker_handler._state = TERMINATE
+        # self._terminate()
         self._executor.clean()
 
     def join(self):
         util.debug('joining pool')
         assert self._state in (CLOSE, TERMINATE)
-        #self._worker_handler.join()
-        #self._task_handler.join()
-        #self._result_handler.join()
-        #for p in self._pool:
+        # self._worker_handler.join()
+        # self._task_handler.join()
+        # self._result_handler.join()
+        # for p in self._pool:
         #    p.join()
 
     @staticmethod
     def _help_stuff_finish(inqueue, task_handler, size):
         # task_handler may be blocked trying to put items on inqueue
         util.debug('removing tasks from inqueue until task handler finished')
-        
+
         while task_handler.is_alive() and inqueue._reader.poll():
             inqueue._reader.recv()
             time.sleep(0)
@@ -577,7 +597,7 @@ class Pool(object):
         assert result_handler.is_alive() or len(cache) == 0
 
         result_handler._state = TERMINATE
-        outqueue.put(None)                  # sentinel
+        outqueue.put(None)  # sentinel
 
         # We must wait for the worker handler to exit before terminating
         # workers because we don't want workers to be restarted behind our back.
@@ -632,11 +652,12 @@ class ApplyResult(object):
         return self._futures[0].ready
 
     def successful(self):
-        assert self.ready()
+        if not self.ready():
+            raise ValueError('{} not ready'.format(repr(self)))
         return self._success
 
     def wait(self, timeout=None):
-        self._executor.wait(self._futures, download_results=True, timeout=timeout)
+        self._executor.wait(self._futures, download_results=False, timeout=timeout, throw_except=False)
 
     def get(self, timeout=None):
         self.wait(timeout)
@@ -655,8 +676,8 @@ class ApplyResult(object):
         if self._error_callback and not self._success:
             self._error_callback(self._value)
             self._callback = None
-        #self._event.set()
-        #del self._cache[self._job]
+        # self._event.set()
+        # del self._cache[self._job]
 
 
 AsyncResult = ApplyResult  # create alias -- see #17805
@@ -713,7 +734,7 @@ class IMapIterator(object):
             return value
         raise value
 
-    __next__ = next                    # XXX
+    __next__ = next  # XXX
 
     def _set(self, i, obj):
         with self._cond:

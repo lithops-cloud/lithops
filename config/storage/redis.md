@@ -16,7 +16,7 @@ Lithops with Redis as storage backend.
 
 ```yaml
     lithops:
-        storage_backend: redis
+        storage: redis
 
     redis:
         host : <REDIS_HOST_IP>
