@@ -34,8 +34,8 @@ from lithops.job import create_map_job, create_reduce_job
 from lithops.config import get_mode, default_config, extract_storage_config,\
     extract_localhost_config, extract_standalone_config, \
     extract_serverless_config
-from lithops.constants import LOCALHOST, SERVERLESS, STANDALONE,\
-    CLEANER_DIR, CLEANER_LOG_FILE
+from lithops.constants import LOCALHOST, SERVERLESS, STANDALONE, CLEANER_DIR,\
+    CLEANER_LOG_FILE
 from lithops.utils import timeout_handler, is_notebook, setup_logger, \
     is_unix_system, is_lithops_worker, create_executor_id
 from lithops.localhost.localhost import LocalhostHandler
@@ -143,7 +143,7 @@ class FunctionExecutor:
                                              self.executor_id,
                                              self.internal_storage,
                                              self.compute_handler)
-            
+
         logger.info('{} Executor created with ID: {}'
                     .format(mode.capitalize(), self.executor_id))
 
@@ -277,8 +277,7 @@ class FunctionExecutor:
         self.last_call = 'map_reduce'
         map_job_id = self._create_job_id('M')
 
-        runtime_meta = self.invoker.select_runtime(
-            map_job_id, map_runtime_memory)
+        runtime_meta = self.invoker.select_runtime(map_job_id, map_runtime_memory)
 
         map_job = create_map_job(self.config, self.internal_storage,
                                  self.executor_id, map_job_id,
@@ -303,8 +302,7 @@ class FunctionExecutor:
 
         reduce_job_id = map_job_id.replace('M', 'R')
 
-        runtime_meta = self.invoker.select_runtime(
-            reduce_job_id, reduce_runtime_memory)
+        runtime_meta = self.invoker.select_runtime(reduce_job_id, reduce_runtime_memory)
 
         reduce_job = create_reduce_job(self.config, self.internal_storage,
                                        self.executor_id, reduce_job_id,
@@ -363,8 +361,7 @@ class FunctionExecutor:
             fs_not_done = [f for f in futures if not f.done]
 
         else:
-            msg = 'ExecutorID {} - Waiting for functions to complete...'.format(
-                self.executor_id)
+            msg = 'ExecutorID {} - Waiting for functions to complete...'.format(self.executor_id)
             fs_done = [f for f in futures if f.ready or f.done]
             fs_not_done = [f for f in futures if not f.ready and not f.done]
 
@@ -376,10 +373,8 @@ class FunctionExecutor:
             print(msg)
 
         if is_unix_system() and timeout is not None:
-            logger.debug(
-                'Setting waiting timeout to {} seconds'.format(timeout))
-            error_msg = 'Timeout of {} seconds exceeded waiting for function activations to finish'.format(
-                timeout)
+            logger.debug('Setting waiting timeout to {} seconds'.format(timeout))
+            error_msg = 'Timeout of {} seconds exceeded waiting for function activations to finish'.format(timeout)
             signal.signal(signal.SIGALRM, partial(timeout_handler, error_msg))
             signal.alarm(timeout)
 
@@ -390,12 +385,10 @@ class FunctionExecutor:
 
             if is_notebook():
                 # ncols=800
-                pbar = tqdm(
-                    bar_format='{n}/|/ {n_fmt}/{total_fmt}', total=len(fs_not_done))
+                pbar = tqdm(bar_format='{n}/|/ {n_fmt}/{total_fmt}', total=len(fs_not_done))
             else:
                 print()
-                pbar = tqdm(
-                    bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(fs_not_done), disable=False)
+                pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(fs_not_done), disable=False)
 
         try:
             if self.rabbitmq_monitor:
@@ -410,11 +403,9 @@ class FunctionExecutor:
 
         except KeyboardInterrupt as e:
             if download_results:
-                not_dones_call_ids = [(f.job_id, f.call_id)
-                                      for f in futures if not f.done]
+                not_dones_call_ids = [(f.job_id, f.call_id) for f in futures if not f.done]
             else:
-                not_dones_call_ids = [(f.job_id, f.call_id)
-                                      for f in futures if not f.ready and not f.done]
+                not_dones_call_ids = [(f.job_id, f.call_id) for f in futures if not f.ready and not f.done]
             msg = ('ExecutorID {} - Cancelled - Total Activations not done: {}'
                    .format(self.executor_id, len(not_dones_call_ids)))
             if pbar:
@@ -514,8 +505,7 @@ class FunctionExecutor:
         logging.getLogger('matplotlib').setLevel(logging.WARNING)
         from lithops.plots import create_timeline, create_histogram
 
-        msg = 'ExecutorID {} - Creating execution plots'.format(
-            self.executor_id)
+        msg = 'ExecutorID {} - Creating execution plots'.format(self.executor_id)
 
         logger.info(msg)
         if not self.log_active:

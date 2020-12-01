@@ -40,7 +40,6 @@ from lithops.constants import LITHOPS_TEMP_DIR
 logger = logging.getLogger(__name__)
 
 
-
 PYTHON_MODULE_PATH = os.path.join(TEMP, "lithops.modules")
 
 
@@ -79,14 +78,8 @@ class JobRunner:
         prom_enabled = self.lithops_config['lithops'].get('monitoring')
         prom_config = self.lithops_config.get('prometheus', {})
         self.prometheus = PrometheusExporter(prom_enabled, prom_config)
-        print("self.jr_config")
-        print(self.jr_config)
-        mode = self.lithops_config['lithops']['mode']
-        print("self.mode:" + mode)
-        
-        print("self.lithops_config[mode]")
-        print(self.lithops_config[mode])
 
+        mode = self.lithops_config['lithops']['mode']
         self.realtime = self.lithops_config[mode].get('realtime', False)
 
     def _get_function_and_modules(self):
@@ -273,7 +266,6 @@ class JobRunner:
         exception = False
         try:
             function = None
-            logger.info("Before self._get_function_and_modules")
 
             if self.realtime:
                 function = self._get_function_and_modules()
@@ -281,7 +273,6 @@ class JobRunner:
                 loaded_func_all = self._get_function_and_modules()
                 self._save_modules(loaded_func_all['module_data'])
                 function = self._unpickle_function(loaded_func_all['func'])
-            logger.info("After self._unpickle_function")
             data = self._load_data()
 
             if strtobool(os.environ.get('__LITHOPS_REDUCE_JOB', 'False')):

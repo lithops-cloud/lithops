@@ -277,7 +277,6 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     func_upload_start = time.time()
 
     # Upload function and modules
-    print('job.realtime' + str(config[mode].get('realtime')))
     if config[mode].get('realtime'):
         # Prepare function and modules locally to store in the runtime image later
         uuid = hashlib.md5(bytes(inspect.getsource(func), 'utf-8') + pickle.dumps(module_data)).hexdigest()

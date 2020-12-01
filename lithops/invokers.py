@@ -499,7 +499,6 @@ class RealTimeInvoker(ServerlessInvoker):
             timeout = self.config['lithops']['runtime_timeout']
             logger.debug('Creating runtime: {}, memory: {}MB'.format(ext_runtime_name, runtime_memory))
 
-            import pdb;pdb.set_trace()
             runtime_temorary_directory = '/'.join([LITHOPS_TEMP_DIR, os.path.dirname(job.func_key)])
             modules_path = '/'.join([runtime_temorary_directory, 'modules'])
 
