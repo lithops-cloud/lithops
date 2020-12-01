@@ -27,14 +27,10 @@ An example is provided [here](../examples/multiprocessing/process.py)
 The [`Pool`](https://docs.python.org/3/library/multiprocessing.html#module-multiprocessing.pool) is a higher level abstraction that represents a set of worker functions.
 It has methods which allows tasks to be offloaded to the worker processes in a few different ways.
 
-```python
-
-```
-
 | Parameter | Description | Default |
 |---|---|---|
 | processes | Number of processes that form the pool. | `workers` parameter from Lithops configuration. |
-| initargs | Configuration for Lithops [FunctionExecutor](./api_futures.md)  | Default Lithops configuration. |
+| initargs | Configuration for Lithops [FunctionExecutor](./api_futures.md)  | `None` (Default Lithops configuration). |
 
 An example is provided [here](../examples/multiprocessing/pool.py)
 
@@ -159,7 +155,8 @@ Return whether the call completed without raising an exception. Will raise `Valu
 
 Python's `multiprocessing` module provides several shared state and synchronization primitives to communicate processes.
 
-This is accomplished by accessing a remote [Redis](https://redis.io/download) instance. Redis configuration must be set up in [`~/home/.lithops/config`](../config/README.md) file, under `redis` section:
+This is accomplished by accessing a remote [Redis](https://redis.io/download) instance.
+Redis configuration must be set up in [`~/home/.lithops/config`](../config/README.md) file, under `redis` section:
 
 ```yaml
 redis:
@@ -176,9 +173,7 @@ $ docker run --rm -it --network host --name redis redis:6.0.5-buster --requirepa
 ```
 While the container is running, Redis will be accessible at default port `6379`.
 
-### Processes communication
-
-#### Pipe
+### Pipe
 
 Returns a pair `(conn1, conn2)` of `Connection` objects representing the ends of a pipe.
 If *duplex* is `True` then the pipe is bidirectional, if not, then the pipe is unidirectional: `conn1` can only be used for receiving messages and `conn2` can only be used for sending messages.
@@ -189,7 +184,7 @@ If *duplex* is `True` then the pipe is bidirectional, if not, then the pipe is u
 
 An example is provided [here](../examples/multiprocessing/pipe.py)
 
-##### Connection API reference
+#### Connection API reference
 
 - **send()**
 
@@ -248,7 +243,7 @@ Read into *buffer* a complete message of byte data sent from the other end of th
 Blocks until there is something to receive. *buffer* must be a writable bytes-like object.
 If *offset* is given then the message will be written into the buffer from that position.
 
-##### Queue
+### Queue
 
 Returns a process shared queue implemented using a pipe and a few locks/semaphores.
 When a process first puts an item on the queue a feeder thread is started which transfers objects from a buffer into the pipe.
@@ -259,7 +254,7 @@ When a process first puts an item on the queue a feeder thread is started which 
 
 An example is provided [here](../examples/multiprocessing/buffered_queue.py)
 
-###### Queue API reference
+#### Queue API reference
 
 - **qsize()**
 
@@ -316,13 +311,13 @@ It blocks until the background thread exits, ensuring that all data in the buffe
 
 Terminates background thread if it has stuck blocked. Not waiting for the feeder thread to put data into the queue might cause data loss.
 
-##### SimpleQueue
+### SimpleQueue
 
 It is a simplified `Queue` type, very close to a locked `Pipe`.
 
 An example is provided [here](../examples/multiprocessing/simple_queue.py)
 
-###### SimpleQueue API reference
+#### SimpleQueue API reference
 
 - **close()**
 
@@ -345,13 +340,13 @@ Put *item* into the queue.
 |---|---|---|
 | item | Object to put into the queue. Must be picklable | - |
 
-##### JoinableQueue
+### JoinableQueue
 
 A `Queue` subclass. It is a queue which additionally has `task_done()` and `join()` methods.
 
 An example is provided [here](../examples/multiprocessing/joinable_queue.py)
 
-###### JoinableQueue API reference
+#### JoinableQueue API reference
 
 - **task_done()**
 
@@ -366,9 +361,7 @@ Raises a `ValueError` if called more times than there were items placed in the q
 Block until all items in the queue have been gotten and processed.
 When the count of unfinished tasks drops to zero, `join()` unblocks.
 
-### Processes synchronization
-
-#### Barrier
+### Barrier
 
 Create a barrier object for parties number of processes.
 An *action*, when provided, is a callable to be called by one of the threads when they are released.
@@ -382,7 +375,7 @@ An *action*, when provided, is a callable to be called by one of the threads whe
 
 An example is provided [here](../examples/multiprocessing/barrier.py)
 
-##### Barrier API reference
+#### Barrier API reference
 
 - **wait()**
 
@@ -413,7 +406,7 @@ The number of threads currently waiting in the barrier.
 
 A boolean that is `True` if the barrier is in the broken state.
 
-#### Semaphore
+### Semaphore
 
 This class implements semaphore objects. A semaphore manages an atomic counter representing the number of `release()` calls minus the number of `acquire()` calls, plus an initial *value*.
 The `acquire()` method blocks if necessary until it can return without making the counter negative. If not given, `value` defaults to 1.
@@ -424,7 +417,7 @@ The `acquire()` method blocks if necessary until it can return without making th
 
 An example is provided [here](../examples/multiprocessing/semaphore.py)
 
-##### Semaphore API reference
+#### Semaphore API reference
 
 - **acquire()**
 
@@ -443,11 +436,11 @@ Exactly one thread will be awoken by each call to `release()`.
 Release a semaphore, incrementing the internal counter by one.
 When it was zero on entry and other threads are waiting for it to become larger than zero again, wake up one of those threads.
 
-##### BoundedSemaphore
+### BoundedSemaphore
 
 A `Semaphore` subclass. A bounded semaphore checks to make sure its current value doesn’t exceed its initial value.
 
-##### Condition
+### Condition
 
 This class implements condition variable objects. A condition variable allows one or more threads to wait until they are notified by another thread.
 If the lock argument is given and not `None`, it must be a `Lock` or `RLock` object, and it is used as the underlying lock.
@@ -456,7 +449,7 @@ If the lock argument is given and not `None`, it must be a `Lock` or `RLock` obj
 |---|---|---|
 | lock | Condition lock. | `None` |
 
-##### Condition API reference
+#### Condition API reference
 
 - **acquire()**
 
@@ -487,12 +480,12 @@ Wake up one thread waiting on this condition, if any.
 
 Wake up all threads waiting on this condition. This method acts like `notify()`, but wakes up all waiting threads instead of one.
 
-##### Event
+### Event
 
 Class implementing event objects. An event manages a flag that can be set to true with the `set()` method and reset to false with the `clear()` method.
 The `wait()` method blocks until the flag is true. The flag is initially `False`.
 
-##### Event API reference
+#### Event API reference
 
 - **is_set()**
 
@@ -510,14 +503,14 @@ Reset the internal flag to false.
 
 Block until the internal flag is true or until the optional *timeout* occurs.
 
-##### Lock
+### Lock
 
 Mutual exclusion lock.
 Once a process or thread has acquired a lock, subsequent attempts to acquire it from any process or thread will block until it is released; any process or thread may release it.
 
 An example is provided [here](../examples/multiprocessing/lock.py)
 
-##### Event API reference
+#### Event API reference
 
 - **acquire()**
 
@@ -532,19 +525,14 @@ If not, it does not block and returns `False` if the lock is unlocked. Otherwise
 
 Release a lock.
 
-##### RLock
+### RLock
 
 A `Lock` subclass. A recursive lock must be released by the process or thread that acquired it.
 Once a process or thread has acquired a recursive lock, the same process or thread may acquire it again without blocking;
 that process or thread must release it once for each time it has been acquired.
 
-### Shared State
 
-[Ctpyes](https://docs.python.org/3/library/ctypes.html#module-ctypes) shared objects. 
-
-An example is provided [here](../examples/multiprocessing/counter.py)
-
-##### Value
+### Value
 
 By default the return value is actually a synchronized wrapper for the object.
 The object itself can be accessed via the `value` attribute of a `Value`.
@@ -556,11 +544,15 @@ If *lock*, a new lock is created to synchronize access to the value. It can be a
 | typecode_or_type | Ctype of the shared value. | - |
 | lock | Create a lock for the shared value. | `True` |
 
-##### Array
+An example is provided [here](../examples/multiprocessing/counter.py)
+
+### Array
 
 A subclass of `Value`. Instead of sharing a single value, `Array` is used to share a list of values.
 
-##### Manager
+An example is provided [here](../examples/multiprocessing/array.py)
+
+### Manager
 
 Managers provide a way to create data which can be shared between different processes.
 
