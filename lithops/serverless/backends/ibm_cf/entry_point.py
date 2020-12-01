@@ -21,6 +21,7 @@ from lithops.version import __version__
 from lithops.utils import setup_logger
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
+from lithops.worker.utils import get_runtime_preinstalls
 from lithops.constants import LOGGER_FORMAT_SHORT
 
 logger = logging.getLogger('lithops.worker')
@@ -31,11 +32,14 @@ def main(args):
 
     setup_logger(args['log_level'], sys.stdout, LOGGER_FORMAT_SHORT)
 
-    if 'remote_invoker' in args:
-        logger.info("Lithops v{} - Starting invoker".format(__version__))
+    if 'get_preinstalls' in args:
+        logger.info("Lithops v{} - Generating metadata".format(__version__))
+        return get_runtime_preinstalls()
+    elif 'remote_invoker' in args:
+        logger.info("Lithops v{} - Starting IBM CF invoker".format(__version__))
         function_invoker(args)
     else:
-        logger.info("Lithops v{} - Starting execution".format(__version__))
+        logger.info("Lithops v{} - Starting IBM CF execution".format(__version__))
         function_handler(args)
 
     return {"Execution": "Finished"}

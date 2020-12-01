@@ -221,7 +221,7 @@ Returns the underlying storage backend client. For example, if `Storage` is an i
     boto3_client = storage.get_client()
     ```
 
-### Storage.put_cloudobject()
+### `Storage.put_cloudobject()`
 
 Adds objects to a bucket of the storage backend. Returns a **cloudobject** that is a reference to the object.
 

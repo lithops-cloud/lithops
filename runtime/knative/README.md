@@ -105,19 +105,19 @@ pw = lithops.FunctionExecutor(runtime_memory=512)
 
     You can update default runtime by:
 
-        $ lithops runtime update default
+        $ lithops runtime update default -b knative
 
     You can update any other runtime deployed in your namespace by specifying the docker image that the runtime depends on:
 
-        $ lithops runtime update docker_username/runtimename:tag
+        $ lithops runtime update docker_username/runtimename:tag -b knative
 
     For example, you can update an already created runtime based on the Docker image `jsampe/lithops-matplotlib:v36:01` by:
 
-        $ lithops runtime update jsampe/lithops-matplotlib:v36:01
+        $ lithops runtime update jsampe/lithops-matplotlib:v36:01 -b knative
 
     Alternatively, you can update all the deployed runtimes at a time by:
 
-        $ lithops runtime update all
+        $ lithops runtime update all -b knative
 
 2. **Delete a runtime**
 
@@ -125,22 +125,22 @@ pw = lithops.FunctionExecutor(runtime_memory=512)
 
     You can delete default runtime by:
 
-        $ lithops runtime delete default
+        $ lithops runtime delete default -b knative
 
     You can delete any other runtime deployed in your namespace by specifying the docker image that the runtime depends on:
 
-        $ lithops runtime delete docker_username/runtimename:tag
+        $ lithops runtime delete docker_username/runtimename:tag -b knative
 
     For example, you can delete runtime based on the Docker image `jsampe/lithops-knative-conda-v36:01` by:
 
-        $ lithops runtime delete jsampe/lithops-knative-conda-v36:01
+        $ lithops runtime delete jsampe/lithops-knative-conda-v36:01 -b knative
 
     You can delete all the runtimes at a time by:
 
-        $ lithops runtime delete all
+        $ lithops runtime delete all -b knative
 
 3. **Clean everything**
 
      You can clean everything related to Lithops, such as all deployed runtimes and cache information, and start from scratch by simply running the next command (Configuration is not deleted):
 
-        $ lithops clean
+        $ lithops clean -b knative

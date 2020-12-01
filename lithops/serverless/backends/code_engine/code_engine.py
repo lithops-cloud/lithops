@@ -15,7 +15,6 @@
 #
 
 import os
-import re
 import sys
 import logging
 import urllib3
@@ -101,13 +100,6 @@ class CodeEngineBackend:
         """
         logger.info('Building a new docker image from Dockerfile')
         logger.info('Docker image name: {}'.format(docker_image_name))
-
-        expression = '^([a-z0-9]+)/([-a-z0-9]+)(:[a-z0-9]+)?'
-        result = re.match(expression, docker_image_name)
-
-        if not result or result.group() != docker_image_name:
-            raise Exception("Invalid docker image name: All letters must be "
-                            "lowercase and '.' or '_' characters are not allowed")
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
         create_handler_zip(ce_config.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')

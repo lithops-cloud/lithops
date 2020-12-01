@@ -1,13 +1,22 @@
 # Changelog
 
-## [v2.2.10.dev0]
+## [v2.2.11.dev0]
+
+
+### Changed
+- [CE] Delete runtime name regex verification
+
+
+
+## [v2.2.10]
 
 ### Added
 - [Core] Allow to create a Storage() class from config file
-- [CodeEngine] Imporved codeengine backend
+- [CodeEngine] Improved codeengine backend
 
 ### Changed
-- [Core] Imporved multiprocessing API
+- [Core] Improved multiprocessing API
+- [Core] Improved Storage OS API
 
 
 ## [v2.2.9]
