@@ -478,7 +478,7 @@ class RealTimeInvoker(ServerlessInvoker):
         Extend runtime and run a job described in job_description
         """
         self._extend_runtime(job)
-        super().run(job)
+        return super().run(job)
 
     # If runtime not exists yet, build unique docker image and register runtime
     def _extend_runtime(self, job):
