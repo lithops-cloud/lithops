@@ -20,6 +20,7 @@ import ibm_botocore
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import sizeof_fmt, is_lithops_worker
 from lithops.util.ibm_token_manager import IBMTokenManager
+from lithops.constants import STORAGE_CLI_MSG
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,7 @@ class IBMCloudObjectStorageBackend:
     def __init__(self, ibm_cos_config):
         logger.debug("Creating IBM COS client")
         self.ibm_cos_config = ibm_cos_config
+        self.region = self.ibm_cos_config['region']
         self.is_lithops_worker = is_lithops_worker()
         user_agent = self.ibm_cos_config['user_agent']
 
@@ -91,7 +93,8 @@ class IBMCloudObjectStorageBackend:
                                                config=client_config,
                                                endpoint_url=service_endpoint)
 
-        logger.info("IBM COS client created successfully")
+        msg = STORAGE_CLI_MSG.format('IBM COS')
+        logger.info("{} - Region: {}".format(msg, self.region))
 
     def get_client(self):
         """

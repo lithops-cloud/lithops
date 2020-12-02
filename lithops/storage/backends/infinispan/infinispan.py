@@ -19,6 +19,7 @@ import requests
 import json
 import base64
 from requests.auth import HTTPBasicAuth
+from lithops.constants import STORAGE_CLI_MSG
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class InfinispanBackend:
     """
 
     def __init__(self, infinispan_config):
-        logger.debug("Creating Infinispan client")
+        logger.debug("Creating Infinispan storage client")
         self.infinispan_config = infinispan_config
         self.basicAuth = HTTPBasicAuth(infinispan_config.get('username'),
                                        infinispan_config.get('password'))
@@ -44,7 +45,8 @@ class InfinispanBackend:
         self.headers = {"Content-Type": "application/octet-stream",
                         "Key-Content-Type": "application/octet-stream;encoding=base64"}
 
-        logger.info("Infinispan client created successfully")
+        msg = STORAGE_CLI_MSG.format('Infinispan')
+        logger.info("{} - Endpoint: {}".format(msg, self.endpoint))
 
     def __create_cache(self, cache_name, cache_type):
         url = self.endpoint + '/rest/v2/caches/' + cache_name

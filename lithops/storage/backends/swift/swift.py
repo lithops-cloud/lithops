@@ -1,5 +1,5 @@
 #
-# (C) Copyright IBM Corp. 2018
+# (C) Copyright IBM Corp. 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,9 +17,9 @@
 import json
 import logging
 import requests
-from ...utils import StorageNoSuchKeyError
-from ....utils import sizeof_fmt
-
+from lithops.storage.utils import StorageNoSuchKeyError
+from lithops.utils import sizeof_fmt
+from lithops.constants import STORAGE_CLI_MSG
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,9 @@ class StorageBackend:
         adapter = requests.adapters.HTTPAdapter(pool_maxsize=64, max_retries=3)
         self.session.mount('http://', adapter)
         self.session.mount('https://', adapter)
-        logger.info("OpenStack Swift client created successfully")
+
+        msg = STORAGE_CLI_MSG.format('OpenStack Swift')
+        logger.info("{} - Region: {}".format(msg, self.region))
 
     def generate_swift_token(self):
         """
@@ -60,7 +62,9 @@ class StorageBackend:
         """
         url = self.auth_url+"/v3/auth/tokens"
         headers = {'Content-Type': 'application/json'}
-        data = {"auth":{"identity":{"methods":["password"],"password":{"user":{"id":self.user_id,"password":self.password}}},"scope":{"project":{"id":self.project_id}}}}
+        data = {"auth": {"identity": {"methods": ["password"],
+                                      "password": {"user": {"id": self.user_id, "password": self.password}}},
+                         "scope": {"project": {"id": self.project_id}}}}
         json_data = json.dumps(data)
 
         r = requests.post(url, data=json_data, headers=headers)

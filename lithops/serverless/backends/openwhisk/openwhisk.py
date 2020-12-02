@@ -23,7 +23,7 @@ from lithops.version import __version__
 from lithops.utils import is_lithops_worker
 from lithops.libs.openwhisk.client import OpenWhiskClient
 from lithops.utils import create_handler_zip
-
+from lithops.constants import COMPUTE_CLI_MSG
 from . import config as openwhisk_config
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,6 @@ class OpenWhiskBackend:
 
     def __init__(self, ow_config, storage_config):
         logger.debug("Creating OpenWhisk client")
-        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'openwhisk'
         self.ow_config = ow_config
         self.is_lithops_worker = is_lithops_worker()
@@ -48,9 +47,9 @@ class OpenWhiskBackend:
         self.api_key = ow_config['api_key']
         self.insecure = ow_config.get('insecure', False)
 
-        logger.info("Set OpenWhisk Endpoint to {}".format(self.endpoint))
-        logger.info("Set OpenWhisk Namespace to {}".format(self.namespace))
-        logger.info("Set OpenWhisk Insecure to {}".format(self.insecure))
+        logger.debug("Set OpenWhisk Endpoint to {}".format(self.endpoint))
+        logger.debug("Set OpenWhisk Namespace to {}".format(self.namespace))
+        logger.debug("Set OpenWhisk Insecure to {}".format(self.insecure))
 
         self.user_key = self.api_key[:5]
         self.package = 'lithops_v{}_{}'.format(__version__, self.user_key)
@@ -61,11 +60,8 @@ class OpenWhiskBackend:
                                          insecure=self.insecure,
                                          user_agent=self.user_agent)
 
-        log_msg = ('Lithops v{} init for OpenWhisk - Namespace: {}'
-                   .format(__version__, self.namespace))
-        if not self.log_active:
-            print(log_msg)
-        logger.info("OpenWhisk client created successfully")
+        msg = COMPUTE_CLI_MSG.format('OpenWhisk')
+        logger.info("{} - Namespace: {}".format(msg, self.namespace))
 
     def _format_action_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '_').replace(':', '_')

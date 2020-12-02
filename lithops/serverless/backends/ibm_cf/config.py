@@ -64,7 +64,7 @@ def load_config(config_data):
         namespace = config_data['ibm_cf'].pop('namespace')
         api_key = config_data['ibm_cf'].pop('api_key', None)
         namespace_id = config_data['ibm_cf'].pop('namespace_id', None)
-        region = endpoint.split('//')[1].split('.')[0].replace('-', '_')
+        region = endpoint.split('//')[1].split('.')[0]
 
         for k in list(config_data['ibm_cf']):
             # Delete unnecessary keys

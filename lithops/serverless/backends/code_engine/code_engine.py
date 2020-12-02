@@ -23,17 +23,16 @@ import copy
 import time
 import yaml
 import requests
-
+from types import SimpleNamespace
 from kubernetes import client, config, watch
 from kubernetes.client.rest import ApiException
 
 from lithops.utils import version_str, dict_to_b64str
 from lithops.version import __version__
 from lithops.utils import create_handler_zip
+from lithops.constants import COMPUTE_CLI_MSG
 from . import config as ce_config
 from ..knative import config as kconfig
-from types import SimpleNamespace
-
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +44,6 @@ class CodeEngineBackend:
 
     def __init__(self, code_engine_config, storage_config):
         logger.debug("Creating IBM Code Engine client")
-        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'code_engine'
         self.code_engine_config = code_engine_config
 
@@ -61,12 +59,10 @@ class CodeEngineBackend:
         self.cluster = current_context.get('cluster')
         self.region = self.cluster.split('//')[1].split('.')[1]
 
-        log_msg = ('Lithops v{} init for Code Engine - Cluster: {} - Namespace: {}'
-                   .format(__version__, self.cluster, self.namespace))
-        if not self.log_active:
-            print(log_msg)
         self.job_def_ids = set()
-        logger.info("IBM Code Engine client created successfully")
+
+        msg = COMPUTE_CLI_MSG.format('IBM Code Engine')
+        logger.info("{} - Region: {}".format(msg, self.region))
 
     def _format_jobdef_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '--').replace(':', '--')
@@ -91,8 +87,8 @@ class CodeEngineBackend:
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
-        logger.info('Building new docker image from Dockerfile')
-        logger.info('Docker image name: {}'.format(docker_image_name))
+        logger.debug('Building new docker image from Dockerfile')
+        logger.debug('Docker image name: {}'.format(docker_image_name))
 
         expression = '^([a-z0-9]+)/([-a-z0-9]+)(:[a-z0-9]+)?'
         result = re.match(expression, docker_image_name)
@@ -111,10 +107,10 @@ class CodeEngineBackend:
         else:
             cmd = '{} build -t {} .'.format(ce_config.DOCKER_PATH, docker_image_name)
 
-        if not self.log_active or (self.log_active and logger.getEffectiveLevel() != logging.DEBUG):
+        if logger.getEffectiveLevel() != logging.DEBUG:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
 
-        logger.info('Building default runtime...')
+        logger.info('Building default runtime')
         res = os.system(cmd)
         if res != 0:
             raise Exception('There was an error building the runtime')
@@ -122,12 +118,12 @@ class CodeEngineBackend:
         self._delete_function_handler_zip()
 
         cmd = '{} push {}'.format(ce_config.DOCKER_PATH, docker_image_name)
-        if not self.log_active or (self.log_active and logger.getEffectiveLevel() != logging.DEBUG):
+        if logger.getEffectiveLevel() != logging.DEBUG:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
         res = os.system(cmd)
         if res != 0:
             raise Exception('There was an error pushing the runtime to the container registry')
-        logger.info('Done!')
+        logger.debug('Done!')
 
     def _build_default_runtime(self, default_runtime_img_name):
         """
@@ -157,8 +153,8 @@ class CodeEngineBackend:
             docker_image_name = default_runtime_img_name
             self._build_default_runtime(default_runtime_img_name)
 
-        logger.info('Creating new Lithops runtime based on '
-                    'Docker image: {}'.format(docker_image_name))
+        logger.debug('Creating new Lithops runtime based on '
+                     'Docker image: {}'.format(docker_image_name))
         self._create_job_definition(docker_image_name, memory, timeout)
 
         runtime_meta = self._generate_runtime_meta(docker_image_name)
@@ -331,7 +327,7 @@ class CodeEngineBackend:
         except Exception as e:
             logger.debug(e)
 
-        logger.info('Job Definition created')
+        logger.debug('Job Definition created')
 
         return jobdef_name
 

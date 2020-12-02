@@ -1,6 +1,7 @@
 import gcsfs
 import logging
 from lithops.storage.utils import StorageNoSuchKeyError
+from lithops.constants import STORAGE_CLI_MSG
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,8 @@ class GcsfsStorageBackend:
         logger.debug("Creating gcsfs storage client")
         self.config = gcfs_config
         self.fs = gcsfs.GCSFileSystem(project=gcfs_config["project_id"])
-        logger.info("gcsfs storage client created successfully")
+        msg = STORAGE_CLI_MSG.format('gcfs')
+        logger.info("{}".format(msg))
 
     def put_object(self, bucket_name, key, data):
         """

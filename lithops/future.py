@@ -46,8 +46,6 @@ class ResponseFuture:
     GET_RESULT_MAX_RETRIES = 10
 
     def __init__(self, call_id, job, job_metadata, storage_config):
-        self.log_active = logger.getEffectiveLevel() != logging.WARNING
-
         self.call_id = call_id
         self.job_id = job.job_id
         self.executor_id = job.executor_id
@@ -189,13 +187,9 @@ class ResponseFuture:
                 if exctype == fn_exctype and str(exc) == str(fn_exc):
                     msg2 = '--> Exception: {} - {}'.format(fn_exctype.__name__, fn_exc)
                     logger.info(msg1)
-                    if not self.log_active:
-                        print(msg1)
 
                     if self._handler_exception:
                         logger.info(msg2)
-                        if not self.log_active:
-                            print(msg2+'\n')
                     else:
                         traceback.print_exception(*self._exception)
                 else:

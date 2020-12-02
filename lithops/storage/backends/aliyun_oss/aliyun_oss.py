@@ -14,10 +14,12 @@
 # limitations under the License.
 #
 
+import oss2
 import logging
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import is_lithops_worker
-import oss2
+from lithops.constants import STORAGE_CLI_MSG
+
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +37,9 @@ class AliyunObjectStorageServiceBackend:
             self.endpoint = self.config['public_endpoint']
 
         self.bucket = oss2.Bucket(self.auth, self.endpoint, self.bucket)
-        logger.info("Alibaba Object Storage client created successfully")
+
+        msg = STORAGE_CLI_MSG.format('Alibaba Object')
+        logger.info("{} - Endpoint: {}".format(msg, self.endpoint))
 
     def _connect_bucket(self, bucket_name):
         if self.bucket and self.bucket.bucket_name == bucket_name:
