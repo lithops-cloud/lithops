@@ -783,7 +783,11 @@ class CloudPickler(Pickler):
         Save the module location into an internal list
         """
         name = getattr(obj, '__name__', None)
-        module_name = _whichmodule(obj, name)
-        module = sys.modules.get(module_name, None)
+        module = sys.modules.get(name, None)
+
+        if not module:
+            module_name = _whichmodule(obj, name)
+            module = sys.modules.get(module_name, None)
+
         if module and 'cloudpickle' not in module.__name__:
             self.modules.add(module)

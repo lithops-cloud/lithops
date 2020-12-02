@@ -103,7 +103,7 @@ def default_config(config_data=None, config_overwrite={}):
             config_data = json.loads(os.environ.get('LITHOPS_CONFIG'))
         else:
             config_filename = get_default_config_filename()
-            logger.info('Getting configuration from {}'.format(config_filename))
+            logger.debug('Getting configuration from {}'.format(config_filename))
             if config_filename:
                 config_data = load_yaml_config(config_filename)
             else:

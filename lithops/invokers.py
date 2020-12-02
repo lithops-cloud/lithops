@@ -148,7 +148,7 @@ class StandaloneInvoker(Invoker):
 
         log_msg = ('ExecutorID {} | JobID {} - {}() Invocation done - Total: {} activations'
                    .format(job.executor_id, job.job_id, job.function_name, job.total_calls))
-        logger.info(log_msg)
+        logger.debug(log_msg)
         if not self.log_active:
             print(log_msg)
 
@@ -295,8 +295,8 @@ class ServerlessInvoker(Invoker):
             self.token_bucket_q.put('#')
             return
 
-        logger.info('ExecutorID {} | JobID {} - Function call {} done! ({}s) - Activation'
-                    ' ID: {}'.format(job.executor_id, job.job_id, call_id, resp_time, activation_id))
+        logger.debug('ExecutorID {} | JobID {} - Function call {} done! ({}s) - Activation'
+                     ' ID: {}'.format(job.executor_id, job.job_id, call_id, resp_time, activation_id))
 
     def _invoke_remote(self, job):
         """Method used to send a job_description to the remote invoker."""
@@ -316,8 +316,8 @@ class ServerlessInvoker(Invoker):
         resp_time = format(round(roundtrip, 3), '.3f')
 
         if activation_id:
-            logger.info('ExecutorID {} | JobID {} - Remote invoker call done! ({}s) - Activation'
-                        ' ID: {}'.format(job.executor_id, job.job_id, resp_time, activation_id))
+            logger.debug('ExecutorID {} | JobID {} - Remote invoker call done! ({}s) - Activation'
+                         ' ID: {}'.format(job.executor_id, job.job_id, resp_time, activation_id))
         else:
             raise Exception('Unable to spawn remote invoker')
 
@@ -351,7 +351,7 @@ class ServerlessInvoker(Invoker):
             sys.stdout = open(os.devnull, 'w')
             self.select_runtime(job.job_id, self.REMOTE_INVOKER_MEMORY)
             sys.stdout = old_stdout
-            log_msg = ('ExecutorID {} | JobID {} - Starting remote function '
+            log_msg = ('ExecutorID {} | JobID {} - Starting function '
                        'invocation: {}() - Total: {} activations'
                        .format(job.executor_id, job.job_id,
                                job.function_name, job.total_calls))

@@ -23,6 +23,7 @@ import os
 import sys
 import pika
 import uuid
+import json
 import base64
 import inspect
 import struct
@@ -257,6 +258,19 @@ def sizeof_fmt(num, suffix='B'):
 def sdb_to_dict(item):
     attr = item['Attributes']
     return {c['Name']: c['Value'] for c in attr}
+
+
+def dict_to_b64str(the_dict):
+    bytes_dict = json.dumps(the_dict).encode()
+    b64_dict = base64.urlsafe_b64encode(bytes_dict)
+    return b64_dict.decode()
+
+
+def b64str_to_dict(str_data):
+    b64_dict = base64.urlsafe_b64decode(str_data.encode())
+    bytes_dict = json.loads(b64_dict)
+
+    return bytes_dict
 
 
 def bytes_to_b64str(byte_data):

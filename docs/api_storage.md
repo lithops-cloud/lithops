@@ -149,7 +149,7 @@ This operation enables you to delete multiple objects from a bucket using a sing
 
     ```python
     storage = Storage()
-    storage.delete_objects('my_bucket', [test1.txt', 'test2.txt'])
+    storage.delete_objects('my_bucket', ['test1.txt', 'test2.txt'])
     ```
 
 

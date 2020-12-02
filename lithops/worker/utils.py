@@ -1,6 +1,5 @@
 import os
 import sys
-import logging
 import pkgutil
 import subprocess
 from lithops.utils import sizeof_fmt, is_unix_system

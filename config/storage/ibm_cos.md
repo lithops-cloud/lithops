@@ -32,6 +32,7 @@ Lithops with IBM COS as storage backend.
     ```yaml
     lithops:
         storage: ibm_cos
+        storage_bucket: <BUCKET_NAME>
        
     ibm_cos:
        region   : <REGION>
@@ -54,6 +55,7 @@ Lithops with IBM COS as storage backend.
     ```yaml
     lithops:
         storage: ibm_cos
+        storage_bucket: <BUCKET_NAME>
        
     ibm_cos:
        region   : <REGION>  
@@ -73,6 +75,7 @@ Lithops with IBM COS as storage backend.
     ```yaml
     lithops:
         storage_backend: ibm_cos
+        storage_bucket: <BUCKET_NAME>
         
     ibm:
         iam_api_key: <IAM_API_KEY>

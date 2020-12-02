@@ -1,6 +1,6 @@
 # Minimal Docker image for Lithops
 
-FROM python:3.8.5-slim-buster
+FROM python:3.8-slim-buster
 
 ENV FLASK_PROXY_PORT 8080
 
@@ -36,6 +36,10 @@ COPY requirements385.txt requirements.txt
 RUN pip install --upgrade pip setuptools six && pip install --no-cache-dir -r requirements.txt
 # create action working directory
 
+ENV CONCURRENCY 4
+ENV TIMEOUT 600
+ENV PYTHONUNBUFFERED TRUE
+
 # Copy Lithops proxy and lib to the container image.
 ENV APP_HOME /lithops
 WORKDIR $APP_HOME
@@ -43,3 +47,5 @@ WORKDIR $APP_HOME
 COPY lithops_codeengine.zip .
 RUN unzip lithops_codeengine.zip
 RUN rm lithops_codeengine.zip
+
+CMD exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsentry:proxy

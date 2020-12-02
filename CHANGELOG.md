@@ -1,11 +1,26 @@
 # Changelog
 
-## [v2.2.11.dev0]
+## [v2.2.12.dev0]
 
+### Added
+- [CodeEngine] Compatible runtimes between knative and CE
+- [CodeEngine] runtime name regex verification
+- [Standalone] Append installation logs into /tmp/lithops/proxy.log
+
+### Changed
+- [Localhost] Run functions in processes instead of threads in Windows
+- [CodeEngine] Reduced payload size
+- [CodeEngine] Changed way to obtain modules preinstalls
+- [Core] Updated logging
+
+### Fixed
+- [Core] Fixed Cloudpickle 1.6 modules detection
+
+
+## [v2.2.11]
 
 ### Changed
 - [CodeEngine] Delete runtime name regex verification
-- [Localhost] Run functions in processes instead of threads in Windows
 
 
 ## [v2.2.10]
