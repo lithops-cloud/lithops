@@ -214,12 +214,17 @@ class CodeEngineBackend:
         List all the runtimes
         return: list of tuples (docker_image_name, memory)
         """
-        jobdefs = self.capi.list_namespaced_custom_object(
-                                group=ce_config.DEFAULT_GROUP,
-                                version=ce_config.DEFAULT_VERSION,
-                                namespace=self.namespace,
-                                plural="jobdefinitions")
+
         runtimes = []
+        try:
+            jobdefs = self.capi.list_namespaced_custom_object(
+                                    group=ce_config.DEFAULT_GROUP,
+                                    version=ce_config.DEFAULT_VERSION,
+                                    namespace=self.namespace,
+                                    plural="jobdefinitions")
+        except ApiException as e:
+            logger.warn("List all jobdefinitions failed with {} {}".format(e.status, e.reason))
+            return runtimes
 
         for jobdef in jobdefs['items']:
             try:
