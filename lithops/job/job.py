@@ -281,7 +281,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
         # Prepare function and modules locally to store in the runtime image later
         function_file = func.__code__.co_filename
         function_hash = hashlib.md5(open(function_file,'rb').read()).hexdigest()[:16]
-        mod_hash = hashlib.md5(repr(mod_paths).encode('utf-8')).hexdigest()[:16]
+        mod_hash = hashlib.md5(repr(sorted(mod_paths)).encode('utf-8')).hexdigest()[:16]
 
         uuid = f'{function_hash}{mod_hash}'
         func_key = create_func_key(JOBS_PREFIX, uuid, "")
