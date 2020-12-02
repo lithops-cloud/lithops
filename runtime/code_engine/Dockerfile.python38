@@ -33,7 +33,7 @@ RUN pip install --upgrade pip setuptools six \
         numpy 
 
 # install additional python modules
-COPY requirements385.txt requirements.txt
+COPY requirements38.txt requirements.txt
 RUN pip install --upgrade pip setuptools six && pip install --no-cache-dir -r requirements.txt
 
 ENV CONCURRENCY 4

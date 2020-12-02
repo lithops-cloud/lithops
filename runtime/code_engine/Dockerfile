@@ -31,6 +31,10 @@ ENV CONCURRENCY 4
 ENV TIMEOUT 600
 ENV PYTHONUNBUFFERED TRUE
 
+# install additional python modules
+COPY requirements38.txt requirements.txt
+RUN pip install --upgrade pip setuptools six && pip install --no-cache-dir -r requirements.txt
+
 # Copy Lithops proxy and lib to the container image.
 ENV APP_HOME /lithops
 WORKDIR $APP_HOME
