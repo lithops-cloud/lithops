@@ -18,6 +18,7 @@
 import os
 import re
 import sys
+import json
 import logging
 import copy
 import time
@@ -30,9 +31,11 @@ from kubernetes.client.rest import ApiException
 from lithops.utils import version_str, dict_to_b64str
 from lithops.version import __version__
 from lithops.utils import create_handler_zip
-from lithops.constants import COMPUTE_CLI_MSG
+from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
 from . import config as ce_config
 from ..knative import config as kconfig
+from lithops.storage.storage import InternalStorage
+from lithops.storage.utils import StorageNoSuchKeyError
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +49,7 @@ class CodeEngineBackend:
         logger.debug("Creating IBM Code Engine client")
         self.name = 'code_engine'
         self.code_engine_config = code_engine_config
+        self.storage_config = storage_config
 
         self.kubecfg = code_engine_config.get('kubectl_config')
         self.user_agent = code_engine_config['user_agent']
@@ -157,7 +161,7 @@ class CodeEngineBackend:
                      'Docker image: {}'.format(docker_image_name))
         self._create_job_definition(docker_image_name, memory, timeout)
 
-        runtime_meta = self._generate_runtime_meta(docker_image_name)
+        runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
 
         return runtime_meta
 
@@ -281,7 +285,7 @@ class CodeEngineBackend:
         container['env'][0]['value'] = 'run'
         container['env'][1]['value'] = dict_to_b64str(payload)
         container['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory_array)
-        container['resources']['requests']['cpu'] = '{}m'.format(self.code_engine_config['cpu'])
+        container['resources']['requests']['cpu'] = str(self.code_engine_config['cpu'])
 
         logger.debug("request - {}".format(jobrun_res))
 
@@ -313,7 +317,18 @@ class CodeEngineBackend:
         container['name'] = jobdef_name
         container['env'][0]['value'] = 'run'
         container['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory)
-        container['resources']['requests']['cpu'] = '{}m'.format(self.code_engine_config['cpu'])
+        container['resources']['requests']['cpu'] = str(self.code_engine_config['cpu'])
+
+        try:
+            res = self.capi.delete_namespaced_custom_object(
+                group=ce_config.DEFAULT_GROUP,
+                version=ce_config.DEFAULT_VERSION,
+                namespace=self.namespace,
+                plural="jobdefinitions",
+                name=jobdef_name,
+            )
+        except Exception:
+            pass
 
         try:
             res = self.capi.create_namespaced_custom_object(
@@ -327,7 +342,7 @@ class CodeEngineBackend:
         except Exception as e:
             logger.debug(e)
 
-        logger.debug('Job Definition created')
+        logger.debug('Job Definition {} created'.format(jobdef_name))
 
         return jobdef_name
 
@@ -360,7 +375,83 @@ class CodeEngineBackend:
         logger.debug("Job definition {} found".format(jobdef_name))
         return True
 
-    def _generate_runtime_meta(self, docker_image_name):
+    def _generate_runtime_meta(self, docker_image_name, memory):
+
+        logger.info("Extracting Python modules from: {}".format(docker_image_name))
+        jobrun_res = yaml.safe_load(ce_config.JOBRUN_DEFAULT)
+
+        jobdef_name = self._format_jobdef_name(docker_image_name, memory)
+
+        payload = copy.deepcopy(self.storage_config)
+        payload['log_level'] = logger.getEffectiveLevel()
+        payload['runtime_name'] = jobdef_name
+
+        jobrun_res['metadata']['name'] = 'lithops-runtime-preinstalls'
+        jobrun_res['metadata']['namespace'] = self.namespace
+        jobrun_res['spec']['jobDefinitionRef'] = str(jobdef_name)
+        container = jobrun_res['spec']['jobDefinitionSpec']['template']['containers'][0]
+        container['name'] = str(jobdef_name)
+        container['env'][0]['value'] = 'preinstalls'
+        container['env'][1]['value'] = dict_to_b64str(payload)
+
+        try:
+            self.capi.delete_namespaced_custom_object(
+                group=ce_config.DEFAULT_GROUP,
+                version=ce_config.DEFAULT_VERSION,
+                namespace=self.namespace,
+                plural="jobruns",
+                name='lithops-runtime-preinstalls'
+            )
+        except Exception:
+            pass
+
+        try:
+            self.capi.create_namespaced_custom_object(
+                group=ce_config.DEFAULT_GROUP,
+                version=ce_config.DEFAULT_VERSION,
+                namespace=self.namespace,
+                plural="jobruns",
+                body=jobrun_res,
+            )
+        except Exception:
+            pass
+
+        # we need to read runtime metadata from COS in retry
+        status_key = '/'.join([JOBS_PREFIX, jobdef_name+'.meta'])
+
+        internal_storage = InternalStorage(self.storage_config)
+
+        retry = int(1)
+        found = False
+        while retry < 10 and not found:
+            try:
+                logger.debug("Retry attempt {} to read {}".format(retry, status_key))
+                json_str = internal_storage.get_data(key=status_key)
+                logger.debug("Found in attempt () to read {}".format(retry, status_key))
+                runtime_meta = json.loads(json_str.decode("ascii"))
+                found = True
+            except StorageNoSuchKeyError:
+                logger.debug("{} not found in attempt {}. Sleep before retry".format(status_key, retry))
+                retry = retry + 1
+                time.sleep(5)
+
+        if not found:
+            raise Exception("Unable to extract Python preinstalled modules from the runtime")
+
+        try:
+            self.capi.delete_namespaced_custom_object(
+                group=ce_config.DEFAULT_GROUP,
+                version=ce_config.DEFAULT_VERSION,
+                namespace=self.namespace,
+                plural="jobruns",
+                name='lithops-runtime-preinstalls'
+            )
+        except Exception:
+            pass
+
+        return runtime_meta
+
+    def _generate_runtime_meta_service(self, docker_image_name, memory):
         """
         Creates a service in CodeEngine based on the docker_image_name
         """
@@ -374,11 +465,23 @@ class CodeEngineBackend:
         svc_res['spec']['template']['spec']['containerConcurrency'] = 1
         svc_res['spec']['template']['spec']['containers'][0]['image'] = docker_image_name
         svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['memory'] = '128Mi'
-        svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['cpu'] = '100m'
+        svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['cpu'] = '0.1'
         svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['memory'] = '128Mi'
-        svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['cpu'] = '100m'
+        svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['cpu'] = '0.1'
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/minScale'] = "0"
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = "1"
+
+        try:
+            # delete the service resource
+            self.capi.delete_namespaced_custom_object(
+                    group=kconfig.DEFAULT_GROUP,
+                    version=kconfig.DEFAULT_VERSION,
+                    namespace=self.namespace,
+                    plural="services",
+                    name=service_name
+                )
+        except Exception:
+            pass
 
         try:
             # create the service resource
@@ -405,7 +508,6 @@ class CodeEngineBackend:
                    conditions[1]['status'] == 'True' and \
                    conditions[2]['status'] == 'True':
                     w.stop()
-                    time.sleep(2)
 
         try:
             service_url = service_url.replace('http://', 'https://')

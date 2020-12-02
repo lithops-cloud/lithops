@@ -111,13 +111,17 @@ class ResponseFuture:
 
     @property
     def done(self):
-        if self._state in [ResponseFuture.State.Success, ResponseFuture.State.Futures, ResponseFuture.State.Error]:
+        if self._state in [ResponseFuture.State.Success,
+                           ResponseFuture.State.Futures,
+                           ResponseFuture.State.Error]:
             return True
         return False
 
     @property
     def ready(self):
-        if self._state in [ResponseFuture.State.Ready, ResponseFuture.State.Futures, ResponseFuture.State.Error]:
+        if self._state in [ResponseFuture.State.Ready,
+                           ResponseFuture.State.Futures,
+                           ResponseFuture.State.Error]:
             return True
         return False
 
@@ -137,7 +141,8 @@ class ResponseFuture:
         if self._state == ResponseFuture.State.New:
             raise ValueError("task not yet invoked")
 
-        if self._state in [ResponseFuture.State.Ready, ResponseFuture.State.Success]:
+        if self._state in [ResponseFuture.State.Ready,
+                           ResponseFuture.State.Success]:
             return self._call_status
 
         if internal_storage is None:
@@ -181,15 +186,16 @@ class ResponseFuture:
             else:
                 fn_exctype = Exception
                 fn_exc = Exception(self._exception['exc_value'])
-                self._exception = (fn_exctype, fn_exc, self._exception['exc_traceback'])
+                self._exception = (fn_exctype, fn_exc,
+                                   self._exception['exc_traceback'])
 
             def exception_hook(exctype, exc, trcbck):
                 if exctype == fn_exctype and str(exc) == str(fn_exc):
-                    msg2 = '--> Exception: {} - {}'.format(fn_exctype.__name__, fn_exc)
-                    logger.info(msg1)
-
+                    logger.warning(msg1)
                     if self._handler_exception:
-                        logger.info(msg2)
+                        msg2 = 'Exception: {} - {}'.format(fn_exctype.__name__,
+                                                           fn_exc)
+                        logger.warning(msg2)
                     else:
                         traceback.print_exception(*self._exception)
                 else:
@@ -201,8 +207,10 @@ class ResponseFuture:
                 time.sleep(1)
                 reraise(*self._exception)
             else:
-                logger.info(msg1)
-                logger.debug('Exception: {} - {}'.format(self._exception[0].__name__, self._exception[1]))
+                logger.warning(msg1)
+                msg2 = 'Exception: {} - {}'.format(self._exception[0].__name__,
+                                                   self._exception[1])
+                logger.warning(msg2)
                 return None
 
         for key in self._call_status:

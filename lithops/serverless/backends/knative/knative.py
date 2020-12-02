@@ -376,9 +376,9 @@ class KnativeServingBackend:
         svc_res['spec']['template']['spec']['containers'][0]['env'][0] = conc_env
         svc_res['spec']['template']['spec']['containers'][0]['env'][1] = tout_env
         svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['memory'] = '{}Mi'.format(runtime_memory)
-        svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['cpu'] = '{}m'.format(self.knative_config['cpu'])
+        svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['cpu'] = str(self.knative_config['cpu'])
         svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory)
-        svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['cpu'] = '{}m'.format(self.knative_config['cpu'])
+        svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['cpu'] = str(self.knative_config['cpu'])
 
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/minScale'] = str(self.knative_config['min_instances'])
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = str(self.knative_config['max_instances'])
@@ -438,10 +438,11 @@ class KnativeServingBackend:
         """
         Extract installed Python modules from docker image
         """
+        logger.info("Extracting Python modules from: {}".format(docker_image_name))
         payload = {}
 
         payload['service_route'] = "/preinstalls"
-        logger.debug("Extracting Python modules list from: {}".format(docker_image_name))
+
         try:
             runtime_meta = self.invoke(docker_image_name, memory, payload, return_result=True)
         except Exception as e:
@@ -478,8 +479,8 @@ class KnativeServingBackend:
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
-        logger.info('Building a new docker image from Dockerfile')
-        logger.info('Docker image name: {}'.format(docker_image_name))
+        logger.debug('Building a new docker image from Dockerfile')
+        logger.debug('Docker image name: {}'.format(docker_image_name))
 
         expression = '^([a-z0-9]+)/([-a-z0-9]+)(:[a-z0-9]+)?'
         result = re.match(expression, docker_image_name)
@@ -498,6 +499,7 @@ class KnativeServingBackend:
         else:
             cmd = '{} build -t {} .'.format(kconfig.DOCKER_PATH, docker_image_name)
 
+        logger.info('Building default runtime')
         if logger.getEffectiveLevel() != logging.DEBUG:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
 

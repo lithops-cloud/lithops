@@ -32,7 +32,7 @@ BUILD_GIT_URL = 'https://github.com/lithops-cloud/lithops'
 DOCKER_PATH = shutil.which('docker')
 RUNTIME_TIMEOUT = 600  # 10 minutes
 RUNTIME_MEMORY = 256  # 256Mi
-RUNTIME_CPU = 1000  # 1 vCPU
+RUNTIME_CPU = 1  # 1 vCPU
 RUNTIME_MIN_INSTANCES = 0
 RUNTIME_MAX_INSTANCES = 250
 RUNTIME_CONCURRENCY = 1
@@ -58,6 +58,7 @@ RUN pip install --upgrade setuptools six pip \
         kubernetes \
         numpy
 
+ENV PORT 8080
 ENV CONCURRENCY 4
 ENV TIMEOUT 600
 ENV PYTHONUNBUFFERED TRUE
@@ -193,10 +194,10 @@ spec:
         resources:
           limits:
             memory: "256Mi"
-            cpu: "1000m"
+            cpu: "1"
           requests:
             memory: "256Mi"
-            cpu: "1000m"
+            cpu: "1"
 """
 
 

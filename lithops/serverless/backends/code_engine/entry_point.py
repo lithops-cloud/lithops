@@ -18,6 +18,7 @@
 import os
 import uuid
 import sys
+import json
 import flask
 import logging
 from lithops.version import __version__
@@ -25,6 +26,8 @@ from lithops.utils import setup_logger, b64str_to_dict
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
 from lithops.worker.utils import get_runtime_preinstalls
+from lithops.constants import JOBS_PREFIX
+from lithops.storage.storage import InternalStorage
 
 
 proxy = flask.Flask(__name__)
@@ -63,6 +66,7 @@ def run():
 
 @proxy.route('/preinstalls', methods=['GET', 'POST'])
 def preinstalls_task():
+    setup_logger(logging.INFO)
     logger.info("Lithops v{} - Generating metadata".format(__version__))
     runtime_meta = get_runtime_preinstalls()
     response = flask.jsonify(runtime_meta)
@@ -85,12 +89,27 @@ def main_request():
     proxy.run(debug=True, host='0.0.0.0', port=port)
 
 
+def runtime_packages(payload):
+    logger.info("Lithops v{} - Generating metadata".format(__version__))
+    runtime_meta = get_runtime_preinstalls()
+
+    internal_storage = InternalStorage(payload)
+    status_key = '/'.join([JOBS_PREFIX, payload['runtime_name']+'.meta'])
+    logger.info("Runtime metadata key {}".format(status_key))
+    dmpd_response_status = json.dumps(runtime_meta)
+    internal_storage.put_data(status_key, dmpd_response_status)
+
+
 def main_job(action, encoded_payload):
     logger.info("Lithops v{} - Starting Code Engine execution".format(__version__))
 
     payload = b64str_to_dict(encoded_payload)
 
     setup_logger(payload['log_level'])
+
+    if (action == 'preinstalls'):
+        runtime_packages(payload)
+        return {"Execution": "Finished"}
 
     job_index = os.environ['JOB_INDEX']
     payload['JOB_INDEX'] = job_index
