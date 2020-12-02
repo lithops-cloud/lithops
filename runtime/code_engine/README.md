@@ -1,8 +1,8 @@
-# Lithops runtime for Knative
+# Lithops runtime for IBM Code Engine
 
-The runtime is the place where the functions are executed. In Knative, runtimes are based on docker images. 
+The runtime is the place where the functions are executed. In IBM Code Engine, runtimes are based on docker images. 
 
-For running lithops on knative, you need a runtime build on the docker hub (or any other container registry), or you need a docker hub account for placing the runtimes created by lithops.
+For running lithops on Code Engine, you need a runtime build on the docker hub (or any other container registry), or you need a docker hub account for placing the runtimes automatically created by lithops.
 
 If you don't have an already built runtime, the default runtime is built the first time you execute a function. Lithops automatically detects the Python version of your environment and deploys the default runtime based on it.
 
@@ -38,6 +38,7 @@ By default, Lithops uses 1vCPU for the Code Engine runtimes. However, you can ch
 code_enigne:
     cpu: 500
 ```
+
 
 ## Custom runtime
 

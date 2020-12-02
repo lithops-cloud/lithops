@@ -44,7 +44,7 @@ def load_config(config_data):
     if 'runtime' not in config_data['serverless']:
         project_id = config_data['cloudrun']['project_id']
         python_version = version_str(sys.version_info).replace('.', '')
-        revision = 'latest' if 'SNAPSHOT' in __version__ else __version__.replace('.', '')
+        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         runtime_name = '{}/{}-v{}:{}'.format(project_id, RUNTIME_NAME_DEFAULT, python_version, revision)
         config_data['serverless']['runtime'] = runtime_name
 

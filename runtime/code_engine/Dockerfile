@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y \
 
 RUN pip install --upgrade setuptools six pip \
     && pip install --no-cache-dir \
-        gunicorn==19.9.0 \
+        gunicorn \
         pika==0.13.1 \
         flask \
         gevent \
@@ -38,3 +38,4 @@ WORKDIR $APP_HOME
 COPY lithops_codeengine.zip .
 RUN unzip lithops_codeengine.zip && rm lithops_codeengine.zip
 
+CMD exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsentry:proxy

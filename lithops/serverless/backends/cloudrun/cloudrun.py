@@ -71,7 +71,7 @@ class CloudRunServingBackend:
     def _get_default_runtime_image_name(self):
         project_id = self.cloudrun_config['project_id']
         python_version = version_str(sys.version_info).replace('.', '')
-        revision = 'latest' if 'SNAPSHOT' in __version__ else __version__.replace('.', '')
+        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         return '{}/{}-v{}:{}'.format(project_id, cr_config.RUNTIME_NAME_DEFAULT, python_version, revision)
 
     def _get_service_host(self, service_name):

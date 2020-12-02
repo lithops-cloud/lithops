@@ -224,7 +224,7 @@ class ResponseFuture:
                                                       self.call_id,
                                                       self.activation_id,
                                                       str(total_time)))
-        logger.info(log_msg)
+        logger.debug(log_msg)
         self._set_state(ResponseFuture.State.Ready)
 
         if not self._call_status['result']:
@@ -294,7 +294,7 @@ class ResponseFuture:
 
         log_msg = ('ExecutorID {} | JobID {} - Got output from call {} - Activation '
                    'ID: {}'.format(self.executor_id, self.job_id, self.call_id, self.activation_id))
-        logger.info(log_msg)
+        logger.debug(log_msg)
 
         if isinstance(function_result, ResponseFuture) or \
            (type(function_result) == list and len(function_result) > 0 and isinstance(function_result[0], ResponseFuture)):
