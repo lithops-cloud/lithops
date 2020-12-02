@@ -279,7 +279,11 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     # Upload function and modules
     if config[mode].get('realtime'):
         # Prepare function and modules locally to store in the runtime image later
-        uuid = hashlib.md5(bytes(inspect.getsource(func), 'utf-8') + pickle.dumps(module_data)).hexdigest()
+        function_file = func.__code__.co_filename
+        function_hash = hashlib.md5(open(function_file,'rb').read()).hexdigest()[:16]
+        mod_hash = hashlib.md5(repr(mod_paths).encode('utf-8')).hexdigest()[:16]
+
+        uuid = f'{function_hash}{mod_hash}'
         func_key = create_func_key(JOBS_PREFIX, uuid, "")
 
         _store_func_and_modules(func_key, func_str, module_data)
