@@ -27,7 +27,7 @@ class SSHClient():
         try:
             stdin, stdout, stderr = ssh_client.exec_command(cmd)
         except Exception:
-            ssh_client = self._create_client(ip_address, timeout=timeout, force=True)
+            ssh_client = self.create_client(ip_address, timeout=timeout)
             stdin, stdout, stderr = ssh_client.exec_command(cmd)
 
         out = None
