@@ -68,3 +68,7 @@ def load_config(config_data):
 
     if not config_data['ibm_cos']['endpoint'].startswith('http'):
         raise Exception('IBM COS Endpoint must start with http:// or https://')
+
+    if 'region' not in config_data['ibm_cos']:
+        endpoint = config_data['ibm_cos']['endpoint']
+        config_data['ibm_cos']['region'] = endpoint.split('//')[1].split('.')[1]

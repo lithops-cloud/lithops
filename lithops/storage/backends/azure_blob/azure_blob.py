@@ -15,10 +15,11 @@
 #
 
 import logging
-from lithops.storage.utils import StorageNoSuchKeyError
+from io import BytesIO
 from azure.storage.blob import BlockBlobService
 from azure.common import AzureMissingResourceHttpError
-from io import BytesIO
+from lithops.storage.utils import StorageNoSuchKeyError
+from lithops.constants import STORAGE_CLI_MSG
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,9 @@ class AzureBlobStorageBackend:
         logger.debug("Creating Azure Blob Storage client")
         self.blob_client = BlockBlobService(account_name=azure_blob_config['account_name'],
                                             account_key=azure_blob_config['account_key'])
-        logger.info("Azure Blob Storage client created successfully")
+
+        msg = STORAGE_CLI_MSG.format('Azure Blob')
+        logger.info("{}".format(msg))
 
     def get_client(self):
         """

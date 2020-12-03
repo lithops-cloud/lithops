@@ -24,6 +24,7 @@ from . import config as backend_config
 from lithops.utils import uuid_str
 from lithops.version import __version__
 import lithops
+from lithops.constants import COMPUTE_CLI_MSG
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ class AliyunFunctionComputeBackend:
     """
 
     def __init__(self, config, storage_config):
+        logger.debug('Creating Aliyun Function Compute client')
         self.log_level = os.getenv('LITHOPS_LOGLEVEL')
         self.name = 'aliyun_fc'
         self.config = config
@@ -44,10 +46,8 @@ class AliyunFunctionComputeBackend:
                                     accessKeyID=self.config['access_key_id'],
                                     accessKeySecret=self.config['access_key_secret'])
 
-        log_msg = 'Lithops v{} init for Aliyun Function Compute'.format(__version__)
-        logger.info(log_msg)
-        if not self.log_level:
-            print(log_msg)
+        msg = COMPUTE_CLI_MSG.format('Aliyun Function Compute')
+        logger.info("{}".format(msg))
 
     def create_runtime(self, docker_image_name, memory=backend_config.RUNTIME_TIMEOUT_DEFAULT,
                        timeout=backend_config.RUNTIME_TIMEOUT_DEFAULT):

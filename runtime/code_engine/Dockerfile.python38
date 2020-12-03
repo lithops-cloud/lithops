@@ -2,8 +2,6 @@
 
 FROM python:3.8-slim-buster
 
-ENV FLASK_PROXY_PORT 8080
-
 RUN apt-get update \
     # add some packages required for the pip install
     && apt-get install -y \
@@ -19,23 +17,23 @@ RUN apt-get update \
 
 RUN pip install --upgrade pip setuptools six \
     && pip install --no-cache-dir \
-        simplejson \
-        httplib2 \
-        kafka_python \
-        lxml \
-        python-dateutil \
+        gunicorn \
         pika==0.13.1 \
         flask \
         gevent \
+        glob2 \
         ibm-cos-sdk \
         redis \
         requests \
-        numpy 
+        PyYAML \
+        kubernetes \
+        numpy
 
 # install additional python modules
 COPY requirements38.txt requirements.txt
 RUN pip install --upgrade pip setuptools six && pip install --no-cache-dir -r requirements.txt
 
+ENV PORT 8080
 ENV CONCURRENCY 4
 ENV TIMEOUT 600
 ENV PYTHONUNBUFFERED TRUE

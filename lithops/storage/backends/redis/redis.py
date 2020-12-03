@@ -19,16 +19,22 @@ import io
 import redis
 import logging
 from lithops.storage.utils import StorageNoSuchKeyError
+from lithops.constants import STORAGE_CLI_MSG
+
 
 logger = logging.getLogger(__name__)
 
 
 class RedisBackend:
     def __init__(self, config):
-        logger.debug("Creating Redis client")
+        logger.debug("Creating Redis storage client")
         config.pop('user_agent', None)
+        self.config = config
+        self.host = self.config['host']
         self._client = redis.StrictRedis(**config)
-        logger.info("Redis client created successfully")
+
+        msg = STORAGE_CLI_MSG.format('Redis')
+        logger.info("{} - Host: {}".format(msg, self.host))
 
     def get_client(self):
         return self._client

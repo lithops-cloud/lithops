@@ -7,8 +7,6 @@ FROM python:3.6-slim-buster
 # Python 3.8
 #FROM python:3.8-slim-buster
 
-ENV FLASK_PROXY_PORT 8080
-
 RUN apt-get update && apt-get install -y \
         zip \
         && rm -rf /var/lib/apt/lists/*
@@ -27,6 +25,7 @@ RUN pip install --upgrade setuptools six pip \
         kubernetes \
         numpy
 
+ENV PORT 8080
 ENV CONCURRENCY 4
 ENV TIMEOUT 600
 ENV PYTHONUNBUFFERED TRUE

@@ -18,7 +18,7 @@ import logging
 import boto3
 import botocore
 from lithops.storage.utils import StorageNoSuchKeyError
-
+from lithops.constants import STORAGE_CLI_MSG
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +27,6 @@ class S3Backend:
     def __init__(self, s3_config):
         logger.debug("Creating S3 client")
         service_endpoint = s3_config.get('endpoint').replace('http:', 'https:')
-
-        logger.debug('Set AWS S3 Endpoint to {}'.format(service_endpoint))
 
         logger.debug('AWS S3 using access_key_id and secret_access_key')
 
@@ -41,7 +39,9 @@ class S3Backend:
                                       aws_secret_access_key=s3_config['secret_access_key'],
                                       config=client_config,
                                       endpoint_url=service_endpoint)
-        logger.info("S3 client created successfully")
+
+        msg = STORAGE_CLI_MSG.format('S3')
+        logger.info("{} - Endpoint: {}".format(msg, service_endpoint))
 
     def get_client(self):
         '''

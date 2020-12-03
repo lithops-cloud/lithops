@@ -112,7 +112,8 @@ If you need to create new runtime, please follow [Building and managing Lithops 
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|code_engine | cpu | 1000 |no | CPU limit in millicpu. Default 1vCPU (1000m) |
+|code_engine | kubectl_config  |  |no | Path to kubecfg file |
+|code_engine | cpu | 1 |no | CPU limit. Default 1vCPU |
 
 ### Usage Example
 

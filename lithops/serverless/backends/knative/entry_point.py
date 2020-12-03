@@ -63,6 +63,7 @@ def run():
 
 @proxy.route('/preinstalls', methods=['GET', 'POST'])
 def preinstalls_task():
+    setup_logger(logging.INFO)
     logger.info("Lithops v{} - Generating metadata".format(__version__))
     runtime_meta = get_runtime_preinstalls()
     response = flask.jsonify(runtime_meta)

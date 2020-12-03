@@ -141,8 +141,6 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     :return: A list with size `len(iterdata)` of futures for each job
     :rtype:  list of futures.
     """
-    log_level = logger.getEffectiveLevel() != logging.WARNING
-
     ext_env = {} if extra_env is None else extra_env.copy()
     if ext_env:
         ext_env = utils.convert_bools_to_string(ext_env)
@@ -219,11 +217,8 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
                    'of {}'.format(executor_id, job_id, sizeof_fmt(data_limit*1024**2)))
         raise Exception(log_msg)
 
-    log_msg = ('ExecutorID {} | JobID {} - Uploading function and data '
-               '- Total: {}'.format(executor_id, job_id, total_size))
-    logger.info(log_msg)
-    if not log_level:
-        print(log_msg)
+    logger.info('ExecutorID {} | JobID {} - Uploading function and data '
+                '- Total: {}'.format(executor_id, job_id, total_size))
 
     # Upload data
     data_key = create_agg_data_key(JOBS_PREFIX, executor_id, job_id)

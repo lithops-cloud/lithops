@@ -54,7 +54,6 @@ class StandaloneHandler:
     """
 
     def __init__(self, standalone_config):
-        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.config = standalone_config
         self.backend_name = self.config['backend']
         self.runtime = self.config['runtime']
@@ -101,7 +100,7 @@ class StandaloneHandler:
         """
         Waits until the VM instance is ready to receive ssh connections
         """
-        logger.info('Waiting VM instance to become ready')
+        logger.debug('Waiting VM instance to become ready')
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
@@ -212,8 +211,6 @@ class StandaloneHandler:
 
         if not self._is_proxy_ready():
             # The VM instance is stopped
-            if not self.log_active:
-                print('ExecutorID {} - Starting VM instance' .format(executor_id))
             init_time = time.time()
             self.backend.start()
             self._wait_proxy_ready()
@@ -248,7 +245,7 @@ class StandaloneHandler:
         self._setup_proxy()
         self._wait_proxy_ready()
 
-        logger.info('Extracting runtime metadata information')
+        logger.debug('Extracting runtime metadata information')
         payload = {'runtime': runtime}
 
         if self.is_lithops_worker:
@@ -297,7 +294,7 @@ class StandaloneHandler:
         pass
 
     def _setup_proxy(self):
-        logger.info('Installing Lithops proxy in the VM instance')
+        logger.debug('Installing Lithops proxy in the VM instance')
         logger.debug('Be patient, installation process can take up to 3 minutes '
                      'if this is the first time you use the VM instance')
 

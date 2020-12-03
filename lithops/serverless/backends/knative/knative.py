@@ -32,6 +32,7 @@ from lithops.version import __version__
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.constants import CACHE_DIR
 from lithops.utils import create_handler_zip
+from lithops.constants import COMPUTE_CLI_MSG
 from . import config as kconfig
 
 urllib3.disable_warnings()
@@ -45,7 +46,6 @@ class KnativeServingBackend:
     """
 
     def __init__(self, knative_config, storage_config):
-        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'knative'
         self.knative_config = knative_config
         self.istio_endpoint = self.knative_config.get('istio_endpoint')
@@ -102,18 +102,12 @@ class KnativeServingBackend:
 
         logger.debug('Loaded service host suffix: {}'.format(self.service_host_suffix))
 
-        log_msg = 'Lithops v{} init for Knative '.format(__version__)
+        msg = COMPUTE_CLI_MSG.format('Knative')
         if self.istio_endpoint:
-            msg = '- Istio Endpoint: {}'.format(self.istio_endpoint)
-            log_msg += msg
-            logger.debug('Set '+msg)
+            msg += ' - Istio Endpoint: {}'.format(self.istio_endpoint)
         elif self.cluster:
-            msg = '- Cluster: {}'.format(self.cluster)
-            log_msg += msg
-            logger.debug('Set '+msg)
-        if not self.log_active:
-            print(log_msg)
-        logger.info('Knative client created successfully')
+            msg += ' - Cluster: {}'.format(self.cluster)
+        logger.info("{}".format(msg))
 
     def _format_service_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '--').replace(':', '--')
@@ -382,9 +376,9 @@ class KnativeServingBackend:
         svc_res['spec']['template']['spec']['containers'][0]['env'][0] = conc_env
         svc_res['spec']['template']['spec']['containers'][0]['env'][1] = tout_env
         svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['memory'] = '{}Mi'.format(runtime_memory)
-        svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['cpu'] = '{}m'.format(self.knative_config['cpu'])
+        svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['cpu'] = str(self.knative_config['cpu'])
         svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory)
-        svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['cpu'] = '{}m'.format(self.knative_config['cpu'])
+        svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['cpu'] = str(self.knative_config['cpu'])
 
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/minScale'] = str(self.knative_config['min_instances'])
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = str(self.knative_config['max_instances'])
@@ -444,10 +438,11 @@ class KnativeServingBackend:
         """
         Extract installed Python modules from docker image
         """
+        logger.info("Extracting Python modules from: {}".format(docker_image_name))
         payload = {}
 
         payload['service_route'] = "/preinstalls"
-        logger.debug("Extracting Python modules list from: {}".format(docker_image_name))
+
         try:
             runtime_meta = self.invoke(docker_image_name, memory, payload, return_result=True)
         except Exception as e:
@@ -484,8 +479,8 @@ class KnativeServingBackend:
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
-        logger.info('Building a new docker image from Dockerfile')
-        logger.info('Docker image name: {}'.format(docker_image_name))
+        logger.debug('Building a new docker image from Dockerfile')
+        logger.debug('Docker image name: {}'.format(docker_image_name))
 
         expression = '^([a-z0-9]+)/([-a-z0-9]+)(:[a-z0-9]+)?'
         result = re.match(expression, docker_image_name)
@@ -504,7 +499,8 @@ class KnativeServingBackend:
         else:
             cmd = '{} build -t {} .'.format(kconfig.DOCKER_PATH, docker_image_name)
 
-        if not self.log_active or (self.log_active and logger.getEffectiveLevel() != logging.DEBUG):
+        logger.info('Building default runtime')
+        if logger.getEffectiveLevel() != logging.DEBUG:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
 
         res = os.system(cmd)
@@ -514,7 +510,7 @@ class KnativeServingBackend:
         self._delete_function_handler_zip()
 
         cmd = '{} push {}'.format(kconfig.DOCKER_PATH, docker_image_name)
-        if not self.log_active or (self.log_active and logger.getEffectiveLevel() != logging.DEBUG):
+        if logger.getEffectiveLevel() != logging.DEBUG:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
         res = os.system(cmd)
         if res != 0:

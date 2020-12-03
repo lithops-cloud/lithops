@@ -31,17 +31,14 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.auth import jwt
 
+from lithops.version import __version__
+from lithops.utils import version_str
+from lithops.storage import InternalStorage
+from lithops.constants import COMPUTE_CLI_MSG
+from lithops.constants import TEMP as TEMP_PATH
 from . import config as gcp_config
-from ....version import __version__
-from ....utils import version_str
-from ....storage import InternalStorage
-from ....constants import TEMP as TEMP_PATH
 
 logger = logging.getLogger(__name__)
-logging.getLogger('googleapiclient').setLevel(logging.CRITICAL)
-logging.getLogger('google_auth_httplib2').setLevel(logging.CRITICAL)
-logging.getLogger('google.auth.transport.requests').setLevel(logging.CRITICAL)
-logging.getLogger('google.cloud.pubsub_v1.publisher').setLevel(logging.CRITICAL)
 
 ZIP_LOCATION = os.path.join(TEMP_PATH, 'lithops_gcp.zip')
 SCOPES = ('https://www.googleapis.com/auth/cloud-platform',
@@ -53,7 +50,6 @@ AUDIENCE = "https://pubsub.googleapis.com/google.pubsub.v1.Publisher"
 
 class GCPFunctionsBackend:
     def __init__(self, gcp_functions_config, storage_config):
-        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'gcp_functions'
         self.gcp_functions_config = gcp_functions_config
         self.package = 'lithops_v' + __version__
@@ -78,13 +74,8 @@ class GCPFunctionsBackend:
             credentials_pub = None
         self.publisher_client = pubsub_v1.PublisherClient(credentials=credentials_pub)
 
-        log_msg = 'lithops v{} init for GCP Functions - Project: {} - Region: {}'.format(__version__,
-                                                                                         self.project,
-                                                                                         self.region)
-        logger.info(log_msg)
-
-        if not self.log_active:
-            print(log_msg)
+        msg = COMPUTE_CLI_MSG.format('GCP Functions')
+        logger.info("{} - Region: {} - Project: {}".format(msg, self.region, self.project))
 
     def _format_action_name(self, runtime_name, runtime_memory):
         runtime_name = (self.package + '_' + runtime_name).replace('.', '-')
@@ -232,8 +223,6 @@ class GCPFunctionsBackend:
                 raise Exception('Error while deploying Cloud Function')
             elif response['status'] == 'DEPLOY_IN_PROGRESS':
                 time.sleep(self.retry_sleep)
-                if not self.log_active:
-                    print('Still installing...')
             else:
                 raise Exception('Unknown status {}'.format(response['status']))
 

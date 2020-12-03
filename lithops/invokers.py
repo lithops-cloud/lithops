@@ -99,20 +99,13 @@ class StandaloneInvoker(Invoker):
         log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} '
                    .format(self.executor_id, job_id, self.runtime_name))
         logger.info(log_msg)
-        if not self.log_active:
-            print(log_msg, end='')
 
         runtime_key = self.compute_handler.get_runtime_key(self.runtime_name)
         runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
         if not runtime_meta:
-            logger.debug('Runtime {} is not yet installed'.format(self.runtime_name))
-            if not self.log_active:
-                print('(Installing...)')
+            logger.info('Runtime {} is not yet installed'.format(self.runtime_name))
             runtime_meta = self.compute_handler.create_runtime(self.runtime_name)
             self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
-        else:
-            if not self.log_active:
-                print()
 
         py_local_version = version_str(sys.version_info)
         py_remote_version = runtime_meta['python_ver']
@@ -148,9 +141,7 @@ class StandaloneInvoker(Invoker):
 
         log_msg = ('ExecutorID {} | JobID {} - {}() Invocation done - Total: {} activations'
                    .format(job.executor_id, job.job_id, job.function_name, job.total_calls))
-        logger.debug(log_msg)
-        if not self.log_active:
-            print(log_msg)
+        logger.info(log_msg)
 
         futures = []
         for i in range(job.total_calls):
@@ -208,20 +199,13 @@ class ServerlessInvoker(Invoker):
         log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} - {}MB '
                    .format(self.executor_id, job_id, self.runtime_name, runtime_memory))
         logger.info(log_msg)
-        if not self.log_active:
-            print(log_msg, end='')
 
         runtime_key = self.compute_handler.get_runtime_key(self.runtime_name, runtime_memory)
         runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
         if not runtime_meta:
-            logger.debug('Runtime {} with {}MB is not yet installed'.format(self.runtime_name, runtime_memory))
-            if not self.log_active:
-                print('(Installing...)')
+            logger.info('Runtime {} with {}MB is not yet installed'.format(self.runtime_name, runtime_memory))
             runtime_meta = self.compute_handler.create_runtime(self.runtime_name, runtime_memory, timeout)
             self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
-        else:
-            if not self.log_active:
-                print()
 
         py_local_version = version_str(sys.version_info)
         py_remote_version = runtime_meta['python_ver']
@@ -356,8 +340,6 @@ class ServerlessInvoker(Invoker):
                        .format(job.executor_id, job.job_id,
                                job.function_name, job.total_calls))
             logger.info(log_msg)
-            if not self.log_active:
-                print(log_msg)
 
             th = Thread(target=self._invoke_remote, args=(job,), daemon=True)
             th.start()
@@ -378,8 +360,6 @@ class ServerlessInvoker(Invoker):
                            .format(job.executor_id, job.job_id,
                                    job.function_name, job.total_calls))
                 logger.info(log_msg)
-                if not self.log_active:
-                    print(log_msg)
 
                 if self.ongoing_activations < self.workers:
                     callids = range(job.total_calls)

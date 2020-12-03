@@ -21,6 +21,7 @@ import shutil
 import logging
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.constants import LITHOPS_TEMP_DIR
+from lithops.constants import STORAGE_CLI_MSG
 
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,9 @@ class LocalhostStorageBackend:
     def __init__(self, localhost_config):
         logger.debug("Creating Localhost storage client")
         self.localhost_config = localhost_config
-        logger.debug("Localhost storage client created successfully")
+
+        msg = STORAGE_CLI_MSG.format('Localhost')
+        logger.info("{}".format(msg))
 
     def get_client(self):
         # Simulate boto3 client

@@ -20,6 +20,7 @@ import ibm_boto3
 import ibm_botocore
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import sizeof_fmt
+from lithops.constants import STORAGE_CLI_MSG
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,8 @@ class CephStorageBackend:
                                            config=client_config,
                                            endpoint_url=service_endpoint)
 
-        logger.info("Ceph client created successfully")
+        msg = STORAGE_CLI_MSG.format('Ceph')
+        logger.info("{} - Endpoint: {}".format(msg, service_endpoint))
 
     def get_client(self):
         """

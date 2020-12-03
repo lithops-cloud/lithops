@@ -22,7 +22,7 @@ from io import BytesIO
 from google.api_core import exceptions as google_exceptions
 from google.cloud import storage
 from google.cloud.exceptions import NotFound
-
+from lithops.constants import STORAGE_CLI_MSG
 from lithops.storage.utils import StorageNoSuchKeyError
 
 logging.getLogger('urllib3').setLevel(logging.CRITICAL)
@@ -38,7 +38,8 @@ class GCPStorageBackend:
             self.client = storage.Client.from_service_account_json(self.credentials_path)
         except Exception:  # Get credentials from gcp function environment
             self.client = storage.Client()
-        logger.info("GCP Storage client created successfully")
+        msg = STORAGE_CLI_MSG.format('GCP')
+        logger.info("{}".format(msg))
 
     def get_client(self):
         """

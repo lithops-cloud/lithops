@@ -28,7 +28,7 @@ DOCKER_PATH = shutil.which('docker')
 
 RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
 RUNTIME_MEMORY = 256  # Default memory: 256 MB
-RUNTIME_CPU = 1000  # 1 vCPU
+RUNTIME_CPU = 1  # 1 vCPU
 MAX_CONCURRENT_WORKERS = 1000
 
 DEFAULT_GROUP = "codeengine.cloud.ibm.com"
@@ -56,6 +56,7 @@ RUN pip install --upgrade setuptools six pip \
         kubernetes \
         numpy
 
+ENV PORT 8080
 ENV CONCURRENCY 4
 ENV TIMEOUT 600
 ENV PYTHONUNBUFFERED TRUE

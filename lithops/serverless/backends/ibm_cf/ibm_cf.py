@@ -25,7 +25,7 @@ from lithops.utils import is_lithops_worker
 from lithops.libs.openwhisk.client import OpenWhiskClient
 from lithops.utils import create_handler_zip
 from lithops.util.ibm_token_manager import IBMTokenManager
-
+from lithops.constants import COMPUTE_CLI_MSG
 from . import config as ibmcf_config
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,6 @@ class IBMCloudFunctionsBackend:
 
     def __init__(self, ibm_cf_config, storage_config):
         logger.debug("Creating IBM Cloud Functions client")
-        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'ibm_cf'
         self.config = ibm_cf_config
         self.is_lithops_worker = is_lithops_worker()
@@ -86,11 +85,8 @@ class IBMCloudFunctionsBackend:
                                              auth=auth,
                                              user_agent=self.user_agent)
 
-        log_msg = ('Lithops v{} init for IBM Cloud Functions - Namespace: {} - '
-                   'Region: {}'.format(__version__, self.namespace, self.region))
-        if not self.log_active:
-            print(log_msg)
-        logger.info("IBM CF client created successfully")
+        msg = COMPUTE_CLI_MSG.format('IBM CF')
+        logger.info("{} - Region: {} - Namespace: {}".format(msg, self.region, self.namespace))
 
     def _format_action_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '_').replace(':', '_')

@@ -29,11 +29,11 @@ from urllib.parse import urlparse
 from lithops.utils import version_str
 from lithops.version import __version__
 from lithops.utils import create_handler_zip
+from lithops.constants import COMPUTE_CLI_MSG
 from . import config as cr_config
 
 urllib3.disable_warnings()
-logging.getLogger('kubernetes').setLevel(logging.CRITICAL)
-logging.getLogger('urllib3.connectionpool').setLevel(logging.CRITICAL)
+
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class CloudRunServingBackend:
     """
 
     def __init__(self, cloudrun_config, storage_config):
-        self.log_active = logger.getEffectiveLevel() != logging.WARNING
+        logger.debug("Creating Google Cloud Run client")
         self.name = 'cloudrun'
         self.cloudrun_config = cloudrun_config
         self.region = self.cloudrun_config.get('region')
@@ -52,11 +52,8 @@ class CloudRunServingBackend:
         self.cluster = self.cloudrun_config.get('cluster', 'default')
         self.workers = self.cloudrun_config.get('workers')
 
-        log_msg = ('Lithops v{} init for Google Cloud Run - Namespace: {} - '
-                   'Region: {}'.format(__version__, self.namespace, self.region))
-        if not self.log_active:
-            print(log_msg)
-        logger.info("Google Cloud Run client created successfully")
+        msg = COMPUTE_CLI_MSG.format('Google Cloud Run')
+        logger.info("{} - Region: {} - Namespace: {}".format(msg, self.region, self.namespace))
 
     def _format_service_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '--').replace(':', '--')
@@ -113,7 +110,7 @@ class CloudRunServingBackend:
             self.region, docker_image_name, self.workers, '{}Mi'.format(runtime_memory), timeout, service_name
         )
 
-        if not self.log_active:
+        if logger.getEffectiveLevel() != logging.DEBUG:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
 
         res = os.system(cmd)
@@ -175,7 +172,7 @@ class CloudRunServingBackend:
             shutil.copyfile(dockerfile, "Dockerfile")
         cmd = 'gcloud builds submit -t gcr.io/{}'.format(docker_image_name)
 
-        if not self.log_active:
+        if logger.getEffectiveLevel() != logging.DEBUG:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
 
         res = os.system(cmd)
@@ -190,7 +187,7 @@ class CloudRunServingBackend:
 
         cmd = 'gcloud run services delete {} --platform=managed --region={} --quiet'.format(service_name, self.region)
 
-        if not self.log_active:
+        if logger.getEffectiveLevel() != logging.DEBUG:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
 
         res = os.system(cmd)

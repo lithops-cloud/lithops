@@ -2,8 +2,6 @@
 
 FROM python:3.8-slim-buster
 
-ENV FLASK_PROXY_PORT 8080
-
 RUN apt-get update \
     # add some packages required for the pip install
     && apt-get install -y \
@@ -36,6 +34,7 @@ COPY requirements385.txt requirements.txt
 RUN pip install --upgrade pip setuptools six && pip install --no-cache-dir -r requirements.txt
 # create action working directory
 
+ENV PORT 8080
 ENV CONCURRENCY 4
 ENV TIMEOUT 600
 ENV PYTHONUNBUFFERED TRUE

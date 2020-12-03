@@ -54,13 +54,17 @@ class FunctionExecutor:
 
     def __init__(self, mode=None, config=None, backend=None, storage=None,
                  runtime=None, runtime_memory=None, rabbitmq_monitor=None,
-                 workers=None, remote_invoker=None, log_level=None):
+                 workers=None, remote_invoker=None, log_level=logging.INFO):
         """ Create a FunctionExecutor Class """
         if mode and mode not in [LOCALHOST, SERVERLESS, STANDALONE]:
             raise Exception("Function executor mode must be one of '{}', '{}' "
                             "or '{}'".format(LOCALHOST, SERVERLESS, STANDALONE))
-        if log_level:
-            setup_logger(log_level)
+
+        if type(log_level) is str:
+            log_level = logging.getLevelName(log_level.upper())
+        self.log_level = log_level
+        if self.log_level:
+            setup_logger(self.log_level)
 
         mode = mode or get_mode(config)
         config_ow = {'lithops': {'mode': mode}, mode: {}}
@@ -83,7 +87,6 @@ class FunctionExecutor:
 
         self.config = default_config(copy.deepcopy(config), config_ow)
 
-        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.is_lithops_worker = is_lithops_worker()
         self.executor_id = create_executor_id()
 
@@ -362,8 +365,6 @@ class FunctionExecutor:
             return fs_done, fs_not_done
 
         logger.info(msg)
-        if not self.log_active:
-            print(msg)
 
         if is_unix_system() and timeout is not None:
             logger.debug('Setting waiting timeout to {} seconds'.format(timeout))
@@ -373,7 +374,7 @@ class FunctionExecutor:
 
         pbar = None
         error = False
-        if not self.is_lithops_worker:
+        if not self.is_lithops_worker and self.log_level == logging.INFO:
             from tqdm.auto import tqdm
 
             if is_notebook():
@@ -404,8 +405,6 @@ class FunctionExecutor:
                 pbar.close()
                 print()
             logger.info(msg)
-            if not self.log_active:
-                print(msg)
             error = True
             raise e
 
@@ -497,11 +496,7 @@ class FunctionExecutor:
         logging.getLogger('matplotlib').setLevel(logging.WARNING)
         from lithops.plots import create_timeline, create_histogram
 
-        msg = 'ExecutorID {} - Creating execution plots'.format(self.executor_id)
-
-        logger.info(msg)
-        if not self.log_active:
-            print(msg)
+        logger.info('ExecutorID {} - Creating execution plots'.format(self.executor_id))
 
         create_timeline(ftrs_to_plot, dst)
         create_histogram(ftrs_to_plot, dst)
