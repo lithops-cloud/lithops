@@ -5,6 +5,7 @@
 ### Added
 - [CodeEngine] Compatible runtimes between knative and CE
 - [CodeEngine] runtime name regex verification
+- [CodeEngine] Added clear() method to delete all completed jobruns
 - [Standalone] Append installation logs into /tmp/lithops/proxy.log
 
 ### Changed
@@ -15,6 +16,7 @@
 
 ### Fixed
 - [Core] Fixed Cloudpickle 1.6 modules detection
+- [Core] Added tblib.pickling_support in the local machine
 
 
 ## [v2.2.11]

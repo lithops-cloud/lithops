@@ -25,8 +25,9 @@ import concurrent.futures
 from threading import Thread
 from lithops.storage.utils import create_status_key
 from lithops.constants import JOBS_PREFIX
+from lithops.libs.tblib import pickling_support
 
-
+pickling_support.install()
 logger = logging.getLogger(__name__)
 
 ALL_COMPLETED = 1

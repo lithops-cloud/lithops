@@ -173,19 +173,20 @@ class CodeEngineBackend:
         def_id = self._format_jobdef_name(docker_image_name, memory)
         self._job_def_cleanup(def_id)
 
-    def _job_run_cleanup(self, activation_id):
-        logger.debug("Cleanup for activation_id {}".format(activation_id))
+    def _job_run_cleanup(self, jobrun_name):
+        logger.debug("Cleanup for jobrun {}".format(jobrun_name))
         try:
             self.capi.delete_namespaced_custom_object(
                 group=ce_config.DEFAULT_GROUP,
                 version=ce_config.DEFAULT_VERSION,
-                name=activation_id,
+                name=jobrun_name,
                 namespace=self.namespace,
                 plural="jobruns",
                 body=client.V1DeleteOptions(),
             )
-        except ApiException:
-            pass
+        except ApiException as e:
+            logger.warning("Deleting a jobrun failed with {} {}"
+                           .format(e.status, e.reason))
 
     def _job_def_cleanup(self, jobdef_id):
         logger.info("Deleting runtime: {}".format(jobdef_id))
@@ -198,8 +199,9 @@ class CodeEngineBackend:
                 plural="jobdefinitions",
                 body=client.V1DeleteOptions(),
             )
-        except ApiException:
-            pass
+        except ApiException as e:
+            logger.warning("Deleting a jobdef failed with {} {}"
+                           .format(e.status, e.reason))
 
     def clean(self):
         """
@@ -223,7 +225,7 @@ class CodeEngineBackend:
                                     namespace=self.namespace,
                                     plural="jobdefinitions")
         except ApiException as e:
-            logger.warn("List all jobdefinitions failed with {} {}".format(e.status, e.reason))
+            logger.warning("List all jobdefinitions failed with {} {}".format(e.status, e.reason))
             return runtimes
 
         for jobdef in jobdefs['items']:
@@ -238,6 +240,31 @@ class CodeEngineBackend:
                 pass
 
         return runtimes
+
+    def clear(self):
+        """
+        Clean all completed jobruns
+        """
+        logger.debug('Deleting all completed jobruns')
+        jobruns = []
+        try:
+            jobruns = self.capi.list_namespaced_custom_object(
+                                    group=ce_config.DEFAULT_GROUP,
+                                    version=ce_config.DEFAULT_VERSION,
+                                    namespace=self.namespace,
+                                    plural="jobruns")
+        except ApiException as e:
+            logger.warning("Listing all jobruns failed with {} {}"
+                           .format(e.status, e.reason))
+            return
+
+        for jobrun in jobruns['items']:
+            try:
+                jobrun_name = jobrun['metadata']['name']
+                self._job_run_cleanup(jobrun_name)
+            except Exception as e:
+                logger.warning("Deleting a jobrun failed with {}"
+                               .format(e))
 
     def invoke(self, docker_image_name, runtime_memory, payload_cp):
         """
