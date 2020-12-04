@@ -315,7 +315,6 @@ class CodeEngineBackend:
         container['env'][0]['value'] = 'run'
 
         config_map = self._create_config_map(payload, activation_id)
-        #container['env'][1]['value'] = dict_to_b64str(payload)
         container['env'][1]['valueFrom']['configMapKeyRef']['name'] = config_map
 
         container['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory_array)
@@ -426,7 +425,9 @@ class CodeEngineBackend:
         container = jobrun_res['spec']['jobDefinitionSpec']['template']['containers'][0]
         container['name'] = str(jobdef_name)
         container['env'][0]['value'] = 'preinstalls'
-        container['env'][1]['value'] = dict_to_b64str(payload)
+
+        config_map = self._create_config_map(payload, jobdef_name)
+        container['env'][1]['valueFrom']['configMapKeyRef']['name'] = config_map
 
         try:
             self.capi.delete_namespaced_custom_object(
@@ -483,6 +484,7 @@ class CodeEngineBackend:
         except Exception:
             pass
 
+        self._delete_config_map(jobdef_name)
         return runtime_meta
 
     def _generate_runtime_meta_service(self, docker_image_name, memory):
