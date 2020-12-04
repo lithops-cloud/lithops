@@ -260,8 +260,9 @@ class CodeEngineBackend:
 
         for jobrun in jobruns['items']:
             try:
-                jobrun_name = jobrun['metadata']['name']
-                self._job_run_cleanup(jobrun_name)
+                if jobrun['status']['running'] == 0:
+                    jobrun_name = jobrun['metadata']['name']
+                    self._job_run_cleanup(jobrun_name)
             except Exception as e:
                 logger.warning("Deleting a jobrun failed with {}"
                                .format(e))
