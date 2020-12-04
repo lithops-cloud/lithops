@@ -1,5 +1,7 @@
-from lithops.multiprocessing import Pool, TimeoutError
+# from multiprocessing import Pool
+from lithops.multiprocessing import Pool
 from lithops.utils import setup_logger
+
 import time
 import logging
 import os
@@ -26,25 +28,30 @@ def sleep_seconds(s):
 if __name__ == '__main__':
     with Pool() as pool:
 
-        res = pool.apply(hello, 'World')  # Synchronously execute function square remotely
+        # Synchronously execute function square remotely
+        res = pool.apply(hello, 'World')
         print(res)  # print "Hello World!"
 
-        res = pool.map(square, [1, 2, 3, 4, 5])  # Synchronously apply function square to every element of list
+        # Synchronously apply function square to every element of list
+        res = pool.map(square, [1, 2, 3, 4, 5])
         print(res)  # print "[0, 1, 4,..., 81]"
 
-        res = pool.apply_async(square, (20,))  # Asynchronously execute function square remotely
+        # Asynchronously execute function square remotely
+        res = pool.apply_async(square, (20,))
         print(res.ready())  # prints "False"
         res.wait()
         print(res.ready())  # prints "True"
         print(res.get(timeout=5))  # prints "400"
 
-        multiple_results = [pool.apply_async(os.getpid, ()) for i in
-                            range(4)]  # Launching multiple evaluations asynchronously
+        # Launching multiple evaluations asynchronously
+        multiple_results = [pool.apply_async(os.getpid, ()) for i in range(4)]
         print([res.get() for res in multiple_results])
 
+        # Map with multiple args per function
         res = pool.starmap(divide, [(1, 2), (2, 3), (3, 4)])
         print(res)  # prints "[0.5, 0.6666666666666666, 0.75]"
 
+        # Apply async with that raises an exception
         res = pool.apply_async(divide, (1, 0))
         res.wait()
         print(res.successful())  # prints "False"
@@ -53,7 +60,8 @@ if __name__ == '__main__':
         except Exception as e:
             print(e)
 
-        res = pool.apply_async(sleep_seconds, (10,))  # make a single worker sleep for 10 secs
+        # Apply async that times out
+        res = pool.apply_async(sleep_seconds, (10,))
         try:
             print(res.get(timeout=3))
         except TimeoutError:
@@ -61,5 +69,5 @@ if __name__ == '__main__':
 
         print("For the moment, the pool remains available for more work")
 
-    # exiting the 'with'-block has stopped the pool
+    # Exiting the 'with'-block has stopped the pool
     print("Now the pool is closed and no longer available")
