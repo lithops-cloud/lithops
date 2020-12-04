@@ -41,8 +41,8 @@ extras_require = {
         'oss2'
     ],
     'azure': [
-        'azure-storage-blob==2.1.0',
-        'azure-storage-queue==2.1.0'
+        'azure-storage-blob',
+        'azure-storage-queue'
     ]
 }
 
