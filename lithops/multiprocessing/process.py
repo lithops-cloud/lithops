@@ -9,14 +9,11 @@
 # Modifications Copyright (c) 2020 Cloudlab URV
 #
 
-__all__ = ['BaseProcess', 'current_process', 'active_children']
-
 #
 # Imports
 #
 
 import os
-import sys
 import signal
 import itertools
 from _weakrefset import WeakSet

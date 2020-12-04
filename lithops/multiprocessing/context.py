@@ -20,8 +20,6 @@ import os
 from . import process
 from . import reduction
 
-__all__ = []  # things are copied from here to __init__.py
-
 
 #
 # Exceptions

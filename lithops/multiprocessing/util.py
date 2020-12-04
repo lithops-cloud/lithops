@@ -22,13 +22,6 @@ import logging
 import lithops
 from lithops.config import default_config
 
-__all__ = [
-    'sub_debug', 'debug', 'info', 'sub_warning', 'get_logger',
-    'log_to_stderr', 'get_temp_dir', 'register_after_fork',
-    'is_exiting', 'Finalize', 'ForkAwareThreadLock', 'ForkAwareLocal',
-    'close_all_fds_except', 'SUBDEBUG', 'SUBWARNING'
-]
-
 #
 # Logging
 #
