@@ -18,7 +18,6 @@ import os
 import shutil
 import logging
 import uuid
-
 import boto3
 import time
 import json
@@ -28,10 +27,13 @@ import subprocess
 import textwrap
 import lithops
 import botocore.exceptions
+
+from lithops.storage import InternalStorage
+from lithops.utils import version_str
+from lithops.constants import TEMP as TEMP_PATH
+from lithops.constants import COMPUTE_CLI_MSG
 from . import config as lambda_config
-from ....storage import InternalStorage
-from ....utils import version_str
-from ....constants import TEMP as TEMP_PATH
+
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +63,6 @@ class AWSLambdaBackend:
         """
         logger.debug('Creating AWS Lambda client')
 
-        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'aws_lambda'
         self.aws_lambda_config = aws_lambda_config
 
@@ -78,10 +79,8 @@ class AWSLambdaBackend:
 
         self.internal_storage = InternalStorage(storage_config)
 
-        log_msg = 'Lithops v{} init for AWS Lambda - Region: {}'.format(lithops.__version__, self.region_name)
-        logger.info(log_msg)
-        if not self.log_active:
-            print(log_msg)
+        msg = COMPUTE_CLI_MSG.format('AWS Lambda')
+        logger.info("{} - Region: {}".format(msg, self.region_name))
 
     @property
     def _python_runtime_name(self):
@@ -262,14 +261,18 @@ class AWSLambdaBackend:
                     runtime_name, lambda_config.DEFAULT_RUNTIMES + user_runtimes))
 
     def build_runtime(self, runtime_name, requirements_file):
+        if requirements_file is None:
+            raise Exception('Please provide a `requirements.txt` file with the necessary modules')
         if self._python_runtime_name not in lambda_config.DEFAULT_RUNTIMES:
             raise Exception('Python runtime "{}" is not available for AWS Lambda, '
                             'please use one of {}'.format(self._python_runtime_name, lambda_config.DEFAULT_RUNTIMES))
 
+        logger.info('Going to create runtime {} ({}) for AWS Lambda...'.format(runtime_name, requirements_file))
         with open(requirements_file, 'r') as req_file:
             requirements = req_file.read()
 
         self.internal_storage.put_data('/'.join([lambda_config.USER_RUNTIME_PREFIX, runtime_name]), requirements)
+        logger.info('Ok - Created runtime {}'.format(runtime_name))
 
     def create_runtime(self, runtime_name, memory=3008, timeout=900):
         """

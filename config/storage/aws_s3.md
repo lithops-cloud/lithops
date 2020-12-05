@@ -6,9 +6,9 @@ Lithops with AWS S3 as storage backend.
 
 1. Install Amazon Web Services backend dependencies:
 
-```
-$ pip install lithops[aws]
-```
+    ```
+    $ pip install lithops[aws]
+    ```
 
 2. [Login](https://console.aws.amazon.com/?nc2=h_m_mc) to Amazon Web Services Console (or signup if you don't have an account)
 
@@ -19,9 +19,10 @@ $ pip install lithops[aws]
 
 4. Edit your lithopsa config and add the following keys:
 
-```yaml
+    ```yaml
     lithops:
-        storage_backend: aws_s3
+        storage: aws_s3
+        storage_bucket: <BUCKET_NAME>
 
     aws:
         access_key_id : <ACCESS_KEY_ID>
@@ -29,7 +30,7 @@ $ pip install lithops[aws]
 
     aws_s3:
         endpoint : <S3_ENDPOINT_URI>
-```
+    ```
 
  - `access_key_id` and `secret_access_key`: Account access keys to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one.
  - `endpoint`: Endpoint URL of the bucket (e.g. `https://s3.us-east-1.amazonaws.com`)

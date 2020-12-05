@@ -55,7 +55,7 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
 
 6. Choose your new namespce from the "current namespece" dropdown menu.
 
-7. FRom this page copy the namespce name and the namespace GUID.
+7. From this page copy the namespce name and the namespace GUID.
 
 8. Navigate [here](https://cloud.ibm.com/docs/openwhisk?topic=openwhisk-cloudfunctions_regions#cloud-functions-endpoints) and choose your functions endpoint. It must be in the same region where you created the namespace.
 

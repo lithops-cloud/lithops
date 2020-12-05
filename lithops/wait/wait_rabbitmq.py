@@ -8,9 +8,10 @@ import logging
 from threading import Thread
 from concurrent.futures import ThreadPoolExecutor, wait
 from lithops.storage.utils import create_job_key
+from lithops.libs.tblib import pickling_support
 
+pickling_support.install()
 logger = logging.getLogger(__name__)
-logging.getLogger('pika').setLevel(logging.WARNING)
 
 ALL_COMPLETED = 1
 ANY_COMPLETED = 2

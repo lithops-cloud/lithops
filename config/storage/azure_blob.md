@@ -15,8 +15,7 @@ $ pip install lithops[azure]
 
 ```yaml
   lithops:
-    storage_bucket: <CONTAINER_NAME>
-    storage_backend : azure_blob
+    storage : azure_blob
 
   azure_blob:
     account_name : <STORAGE_ACCOUNT_NAME>

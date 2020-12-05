@@ -1,5 +1,6 @@
 #
 # (C) Copyright IBM Corp. 2018
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,7 +39,8 @@ class ServerlessHandler:
             self.backend = ServerlessBackend(self.config[self.backend_name], storage_config)
 
         except Exception as e:
-            logger.error("There was an error trying to create the {} serverless backend".format(self.backend_name))
+            logger.error("There was an error trying to create the {} "
+                         "serverless backend".format(self.backend_name))
             raise e
 
     def invoke(self, runtime_name, memory, payload):
@@ -63,15 +65,22 @@ class ServerlessHandler:
 
     def delete_runtime(self, runtime_name, memory):
         """
-        Wrapper method to create a runtime in the compute backend
+        Wrapper method to delete a runtime in the compute backend
         """
         self.backend.delete_runtime(runtime_name, memory)
 
     def clean(self):
         """
-        Wrapper method to create a runtime in the compute backend
+        Wrapper method to clean the compute backend
         """
         self.backend.clean()
+
+    def clear(self):
+        """
+        Wrapper method to clear the compute backend
+        """
+        if hasattr(self.backend, 'clear'):
+            self.backend.clear()
 
     def list_runtimes(self, runtime_name='all'):
         """

@@ -24,12 +24,13 @@ import json
 import re
 import subprocess as sp
 import uuid
-from . import config as azure_fa_config
-from lithops.version import __version__
-from .functionapps_client import FunctionAppClient
 from azure.storage.queue import QueueService
 from azure.storage.queue.models import QueueMessageFormat
 import lithops
+from lithops.version import __version__
+from lithops.constants import COMPUTE_CLI_MSG
+from . import config as azure_fa_config
+from .functionapps_client import FunctionAppClient
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,7 @@ class AzureFunctionAppBackend:
     """
 
     def __init__(self, config, storage_config):
+        logger.debug("Creating Azure Functions client")
         self.log_level = os.getenv('LITHOPS_LOGLEVEL')
         self.name = 'azure_fa'
         self.config = config
@@ -50,10 +52,8 @@ class AzureFunctionAppBackend:
         self.queue_service.encode_function = QueueMessageFormat.text_base64encode
         self.queue_service.decode_function = QueueMessageFormat.text_base64decode
 
-        log_msg = 'Lithops v{} init for Azure Function Apps'.format(__version__)
-        logger.info(log_msg)
-        if not self.log_level:
-            print(log_msg)
+        msg = COMPUTE_CLI_MSG.format('Azure Functions')
+        logger.info("{}".format(msg))
 
     def create_runtime(self, docker_image_name, memory=None, timeout=azure_fa_config.RUNTIME_TIMEOUT_DEFAULT):
         """

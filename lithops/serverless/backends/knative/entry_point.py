@@ -1,5 +1,6 @@
 #
-# (C) Copyright IBM Corp. 2020
+# (C) Copyright IBM Corp. 2019
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,11 +20,11 @@ import os
 import uuid
 import flask
 import logging
-import pkgutil
 from lithops.version import __version__
 from lithops.utils import setup_logger
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
+from lithops.worker.utils import get_runtime_preinstalls
 
 logger = logging.getLogger('lithops.worker')
 
@@ -62,13 +63,9 @@ def run():
 
 @proxy.route('/preinstalls', methods=['GET', 'POST'])
 def preinstalls_task():
-    logger.info("Extracting preinstalled Python modules...")
-
-    runtime_meta = dict()
-    mods = list(pkgutil.iter_modules())
-    runtime_meta['preinstalls'] = [entry for entry in sorted([[mod, is_pkg] for _, mod, is_pkg in mods])]
-    python_version = sys.version_info
-    runtime_meta['python_ver'] = str(python_version[0])+"."+str(python_version[1])
+    setup_logger(logging.INFO)
+    logger.info("Lithops v{} - Generating metadata".format(__version__))
+    runtime_meta = get_runtime_preinstalls()
     response = flask.jsonify(runtime_meta)
     response.status_code = 200
     logger.info("Done!")

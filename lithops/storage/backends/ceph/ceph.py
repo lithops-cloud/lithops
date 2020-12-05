@@ -20,6 +20,7 @@ import ibm_boto3
 import ibm_botocore
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import sizeof_fmt
+from lithops.constants import STORAGE_CLI_MSG
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ class CephStorageBackend:
     A wrap-up around Ceph boto3 APIs.
     """
 
-    def __init__(self, ceph_config, **kwargs):
+    def __init__(self, ceph_config):
         logger.debug("Creating Ceph client")
         self.ceph_config = ceph_config
         user_agent = ceph_config['user_agent']
@@ -56,7 +57,8 @@ class CephStorageBackend:
                                            config=client_config,
                                            endpoint_url=service_endpoint)
 
-        logger.debug("Ceph client created successfully")
+        msg = STORAGE_CLI_MSG.format('Ceph')
+        logger.info("{} - Endpoint: {}".format(msg, service_endpoint))
 
     def get_client(self):
         """
@@ -168,19 +170,6 @@ class CephStorageBackend:
             delete_keys['Objects'] = [{'Key': k} for k in key_list[i:i+max_keys_num]]
             result.append(self.cos_client.delete_objects(Bucket=bucket_name, Delete=delete_keys))
         return result
-
-    def bucket_exists(self, bucket_name):
-        """
-        Head bucket from Ceph with a name. Throws StorageNoSuchKeyError if the given bucket does not exist.
-        :param bucket_name: name of the bucket
-        """
-        try:
-            self.cos_client.head_bucket(Bucket=bucket_name)
-        except ibm_botocore.exceptions.ClientError as e:
-            if e.response['Error']['Code'] == '404':
-                raise StorageNoSuchKeyError(bucket_name, '')
-            else:
-                raise e
 
     def head_bucket(self, bucket_name):
         """

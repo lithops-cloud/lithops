@@ -1,5 +1,5 @@
 #
-# Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,19 +15,24 @@
 #
 
 import logging
-from lithops.storage.utils import StorageNoSuchKeyError
+from io import BytesIO
 from azure.storage.blob import BlockBlobService
 from azure.common import AzureMissingResourceHttpError
-from io import BytesIO
+from lithops.storage.utils import StorageNoSuchKeyError
+from lithops.constants import STORAGE_CLI_MSG
 
-logging.getLogger('azure.storage.common.storageclient').setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
+
 
 class AzureBlobStorageBackend:
 
-    def __init__(self, azure_blob_config, bucket=None, executor_id=None):
+    def __init__(self, azure_blob_config):
+        logger.debug("Creating Azure Blob Storage client")
         self.blob_client = BlockBlobService(account_name=azure_blob_config['account_name'],
                                             account_key=azure_blob_config['account_key'])
+
+        msg = STORAGE_CLI_MSG.format('Azure Blob')
+        logger.info("{}".format(msg))
 
     def get_client(self):
         """
@@ -75,7 +80,6 @@ class AzureBlobStorageBackend:
         except AzureMissingResourceHttpError:
             raise StorageNoSuchKeyError(bucket_name, key)
 
-
     def head_object(self, bucket_name, key):
         """
         Head object from COS with a key. Throws StorageNoSuchKeyError if the given key does not exist.
@@ -100,7 +104,6 @@ class AzureBlobStorageBackend:
             self.blob_client.delete_blob(bucket_name, key)
         except AzureMissingResourceHttpError:
             pass
-            #raise StorageNoSuchKeyError(bucket_name, key)
 
     def delete_objects(self, bucket_name, key_list):
         """
@@ -118,20 +121,9 @@ class AzureBlobStorageBackend:
         :return: Data of the object
         """
         try:
-           return self.blob_client.get_container_metadata(bucket_name)
+            return self.blob_client.get_container_metadata(bucket_name)
         except Exception:
-           raise StorageNoSuchKeyError(bucket_name, '')
-
-    def bucket_exists(self, bucket_name):
-        """
-        Returns True if container exists in storage. Throws StorageNoSuchKeyError if the given container does not exist.
-        :param bucket_name: name of the container
-        """
-        try:
-           self.blob_client.get_container_metadata(bucket_name)
-           return True
-        except Exception:
-           raise StorageNoSuchKeyError(bucket_name, '')
+            raise StorageNoSuchKeyError(bucket_name, '')
 
     def list_objects(self, bucket_name, prefix=None):
         """
@@ -147,8 +139,8 @@ class AzureBlobStorageBackend:
             mod_list = []
             for blob in blobs:
                 mod_list.append({
-                    'Key' : blob.name,
-                    'Size' : blob.properties.content_length
+                    'Key': blob.name,
+                    'Size': blob.properties.content_length
                 })
             return mod_list
         except Exception:

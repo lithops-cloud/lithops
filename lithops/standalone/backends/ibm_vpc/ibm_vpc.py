@@ -2,8 +2,8 @@ import os
 import logging
 import requests
 import time
-from lithops.version import __version__
-from lithops.util import IBMTokenManager
+from lithops.constants import COMPUTE_CLI_MSG
+from lithops.util.ibm_token_manager import IBMTokenManager
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +12,6 @@ class IBMVPCInstanceClient:
 
     def __init__(self, ibm_vpc_config):
         logger.debug("Creating IBM VPC client")
-        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'ibm_vpc'
         self.config = ibm_vpc_config
 
@@ -43,11 +42,8 @@ class IBMVPCInstanceClient:
         adapter = requests.adapters.HTTPAdapter()
         self.session.mount('https://', adapter)
 
-        log_msg = ('Lithops v{} init for IBM Virtual Private Cloud - Host: {} - Region: {}'
-                   .format(__version__, self.ip_address, self.region))
-        if not self.log_active:
-            print(log_msg)
-        logger.info("IBM VPC client created successfully")
+        msg = COMPUTE_CLI_MSG.format('IBM VPC')
+        logger.info("{} - Region: {} - Host: {}".format(msg, self.region, self.ip_address))
 
     def _authorize_session(self):
         self.config['token'], self.config['token_expiry_time'] = self.iam_token_manager.get_token()
@@ -114,12 +110,12 @@ class IBMVPCInstanceClient:
     def start(self):
         logger.info("Starting VM instance")
         self.create_instance_action('start')
-        logger.info("VM instance started successfully")
+        logger.debug("VM instance started successfully")
 
     def stop(self):
         logger.info("Stopping VM instance")
         self.create_instance_action('stop')
-        logger.info("VM instance stopped successfully")
+        logger.debug("VM instance stopped successfully")
 
     def get_runtime_key(self, runtime_name):
         runtime_key = os.path.join(self.name, self.ip_address,

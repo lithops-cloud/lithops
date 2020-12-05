@@ -16,7 +16,7 @@ In this step you are required to install IBM Cloud CLI tool, Code Engine plugin 
 2. Login to your account (IBM Code Engine is currently present on us_south region, so login to this region)
 
    ```bash
-   ibmcloud login -r us_south
+   ibmcloud login -r us-south
    ```
 
 3. Install the IBM Code Engine plugin:
@@ -43,7 +43,7 @@ In this step you are required to install IBM Cloud CLI tool, Code Engine plugin 
    ibmcloud ce project current
    ```
 
-7. Set the KUBECONFIG environment variable as printed in the previous step:
+7. Set or copy the KUBECONFIG environment variable as printed in the previous step:
 
    ```bash
    export KUBECONFIG=<PATH TO YAML FILE>
@@ -67,9 +67,6 @@ The only requirement to make it working is to have the KUBECONFIG file properly 
    ```yaml
    serverless:
        backend: knative
-
-   knative:
-       docker_user: <DOCKER_USERNAME>
    ```
 
 #### Summary of configuration keys for Knative:
@@ -77,11 +74,14 @@ The only requirement to make it working is to have the KUBECONFIG file properly 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |knative | istio_endpoint | |no | Istio IngressGateway Endpoint. Make sure to use http:// prefix |
-|knative | docker_user | |yes | Docker hub username |
+|knative | docker_user | |no | Docker hub username |
 |knative | docker_token | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
 |knative | git_url | |no | Git repository to build the image |
 |knative | git_rev | |no | Git revision to build the image |
+|knative | min_instances | 0 |no | Minimum number of parallel runtimes |
+|knative | max_instances | 250 |no | Maximum number of parallel runtimes |
 |knative | cpu | 1000 |no | CPU limit in millicpu. Default 1vCPU (1000m) |
+|knative | concurrency | 1 |no | Number of workers per runtime instance |
 
 
 ### Lithops using Kubernetes Job API of Code Engine
@@ -90,8 +90,9 @@ To work with Code Engine there is need to use dedicated runtime. You can either 
 
 |Default runtime name| Python version | What is included | Lithops version |
 |----|-----|----|-----|
-|ibmfunctions/lithops-ce-3.7.5-2.2.0:1.0.0 | 3.7.5 | [included](../../runtime/code_engine/requirements.txt) | 2.2.0 |
-|ibmfunctions/lithops-ce-3.8.5-2.2.2:1.0.0 | 3.8.5 | [included](../../runtime/code_engine/requirements385.txt) | 2.2.2 |
+|ibmfunctions/lithops-ce-3.7.5-2.2.0:1.0.0 | 3.7 | [included](../../runtime/code_engine/requirements.txt) | 2.2.0 |
+|ibmfunctions/lithops-ce-3.8.5-2.2.2:1.0.0 | 3.8 | [included](../../runtime/code_engine/requirements38.txt) | 2.2.2 |
+|ibmfunctions/lithops-ce-3.8.5-2.2.9:1.0.0 | 3.8 | [included](../../runtime/code_engine/requirements38.txt) | 2.2.9 |
 
 If you need to create new runtime, please follow [Building and managing Lithops runtimes to run the functions](../../runtime/)
 
@@ -101,7 +102,6 @@ If you need to create new runtime, please follow [Building and managing Lithops 
    ```yaml
    serverless:
        backend: code_engine
-       remote_invoker: True
        runtime: <RUNTIME NAME>
 
    code_engine:
@@ -112,11 +112,12 @@ If you need to create new runtime, please follow [Building and managing Lithops 
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|code_engine | cpu | 1000 |no | CPU limit in millicpu. Default 1vCPU (1000m) |
+|code_engine | kubectl_config  |  |no | Path to kubecfg file |
+|code_engine | cpu | 1 |no | CPU limit. Default 1vCPU |
 
 ### Usage Example
 
-```
+```python
 import lithops
 
 iterdata = ['Gil', 'Dana', 'John', 'Scott']
@@ -125,9 +126,9 @@ def add_value(name):
     return 'Hello ' + name
 
 if __name__ == '__main__':
-	lt = lithops.FunctionExecutor(type="serverless",
-			backend='code_engine',
-			runtime = 'ibmfunctions/lithops-ce-3.8.5-2.2.2:1.0.0')
-	lt.map(add_value,  iterdata)
-	print (lt.get_result())
+    lt = lithops.FunctionExecutor(mode="serverless",
+            backend='code_engine',
+            runtime='ibmfunctions/lithops-ce-3.8.5-2.2.2:1.0.0')
+    lt.map(add_value,  iterdata)
+    print (lt.get_result())
 ```

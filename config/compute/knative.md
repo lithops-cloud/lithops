@@ -51,9 +51,6 @@ Note that Lithops automatically builds the default runtime the first time you ru
     ```yaml
     serverless:
         backend: knative
-        
-    knative:
-        docker_user: <DOCKER_USERNAME>
     ```
 
 #### Summary of configuration keys for Knative:
@@ -61,11 +58,15 @@ Note that Lithops automatically builds the default runtime the first time you ru
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |knative | istio_endpoint | |no | Istio IngressGateway Endpoint. Make sure to use http:// prefix |
-|knative | docker_user | |yes | Docker hub username |
+|knative | kubecfg_path | |no | Path to kubecfg file. Mandatory if KUBECONFIG env var not present|
+|knative | docker_user | |no | Docker hub username |
 |knative | docker_token | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
 |knative | git_url | |no | Git repository to build the image |
 |knative | git_rev | |no | Git revision to build the image |
-|knative | cpu | 1000 |no | CPU limit in millicpu. Default 1vCPU (1000m) |
+|knative | min_instances | 0 |no | Minimum number of parallel runtimes |
+|knative | max_instances | 250 |no | Maximum number of parallel runtimes |
+|knative | cpu | 1 |no | CPU limit. Default 1vCPU |
+|knative | concurrency | 1 |no | Number of workers per runtime instance |
 
 
 ### Verify

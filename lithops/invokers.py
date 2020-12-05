@@ -33,6 +33,7 @@ from lithops.config import extract_storage_config
 from lithops.utils import version_str, is_lithops_worker, is_unix_system
 from lithops.storage.utils import create_job_key
 from lithops.constants import LOGGER_LEVEL
+from lithops.util.metrics import PrometheusExporter
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,10 @@ class Invoker:
         self.workers = self.config['lithops'].get('workers')
         logger.debug('ExecutorID {} - Total available workers: {}'
                      .format(self.executor_id, self.workers))
+
+        prom_enabled = self.config['lithops'].get('monitoring', False)
+        prom_config = self.config.get('prometheus', {})
+        self.prometheus = PrometheusExporter(prom_enabled, prom_config)
 
         mode = self.config['lithops']['mode']
         self.runtime_name = self.config[mode]['runtime']
@@ -94,20 +99,13 @@ class StandaloneInvoker(Invoker):
         log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} '
                    .format(self.executor_id, job_id, self.runtime_name))
         logger.info(log_msg)
-        if not self.log_active:
-            print(log_msg, end='')
 
         runtime_key = self.compute_handler.get_runtime_key(self.runtime_name)
         runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
         if not runtime_meta:
-            logger.debug('Runtime {} is not yet installed'.format(self.runtime_name))
-            if not self.log_active:
-                print('(Installing...)')
+            logger.info('Runtime {} is not yet installed'.format(self.runtime_name))
             runtime_meta = self.compute_handler.create_runtime(self.runtime_name)
             self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
-        else:
-            if not self.log_active:
-                print()
 
         py_local_version = version_str(sys.version_info)
         py_remote_version = runtime_meta['python_ver']
@@ -125,6 +123,13 @@ class StandaloneInvoker(Invoker):
         """
         job.runtime_name = self.runtime_name
 
+        self.prometheus.send_metric(name='job_total_calls',
+                                    value=job.total_calls,
+                                    labels=(
+                                        ('job_id', job.job_id),
+                                        ('function_name', job.function_name)
+                                    ))
+
         payload = {'config': self.config,
                    'log_level': self.log_level,
                    'executor_id': job.executor_id,
@@ -137,8 +142,6 @@ class StandaloneInvoker(Invoker):
         log_msg = ('ExecutorID {} | JobID {} - {}() Invocation done - Total: {} activations'
                    .format(job.executor_id, job.job_id, job.function_name, job.total_calls))
         logger.info(log_msg)
-        if not self.log_active:
-            print(log_msg)
 
         futures = []
         for i in range(job.total_calls):
@@ -196,20 +199,13 @@ class ServerlessInvoker(Invoker):
         log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} - {}MB '
                    .format(self.executor_id, job_id, self.runtime_name, runtime_memory))
         logger.info(log_msg)
-        if not self.log_active:
-            print(log_msg, end='')
 
         runtime_key = self.compute_handler.get_runtime_key(self.runtime_name, runtime_memory)
         runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
         if not runtime_meta:
-            logger.debug('Runtime {} with {}MB is not yet installed'.format(self.runtime_name, runtime_memory))
-            if not self.log_active:
-                print('(Installing...)')
+            logger.info('Runtime {} with {}MB is not yet installed'.format(self.runtime_name, runtime_memory))
             runtime_meta = self.compute_handler.create_runtime(self.runtime_name, runtime_memory, timeout)
             self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
-        else:
-            if not self.log_active:
-                print()
 
         py_local_version = version_str(sys.version_info)
         py_remote_version = runtime_meta['python_ver']
@@ -283,8 +279,8 @@ class ServerlessInvoker(Invoker):
             self.token_bucket_q.put('#')
             return
 
-        logger.info('ExecutorID {} | JobID {} - Function call {} done! ({}s) - Activation'
-                    ' ID: {}'.format(job.executor_id, job.job_id, call_id, resp_time, activation_id))
+        logger.debug('ExecutorID {} | JobID {} - Function call {} done! ({}s) - Activation'
+                     ' ID: {}'.format(job.executor_id, job.job_id, call_id, resp_time, activation_id))
 
     def _invoke_remote(self, job):
         """Method used to send a job_description to the remote invoker."""
@@ -304,8 +300,8 @@ class ServerlessInvoker(Invoker):
         resp_time = format(round(roundtrip, 3), '.3f')
 
         if activation_id:
-            logger.info('ExecutorID {} | JobID {} - Remote invoker call done! ({}s) - Activation'
-                        ' ID: {}'.format(job.executor_id, job.job_id, resp_time, activation_id))
+            logger.debug('ExecutorID {} | JobID {} - Remote invoker call done! ({}s) - Activation'
+                         ' ID: {}'.format(job.executor_id, job.job_id, resp_time, activation_id))
         else:
             raise Exception('Unable to spawn remote invoker')
 
@@ -323,6 +319,13 @@ class ServerlessInvoker(Invoker):
         except Exception:
             pass
 
+        self.prometheus.send_metric(name='job_total_calls',
+                                    value=job.total_calls,
+                                    labels=(
+                                        ('job_id', job.job_id),
+                                        ('function_name', job.function_name)
+                                    ))
+
         if self.remote_invoker:
             """
             Remote Invocation
@@ -332,13 +335,11 @@ class ServerlessInvoker(Invoker):
             sys.stdout = open(os.devnull, 'w')
             self.select_runtime(job.job_id, self.REMOTE_INVOKER_MEMORY)
             sys.stdout = old_stdout
-            log_msg = ('ExecutorID {} | JobID {} - Starting remote function '
+            log_msg = ('ExecutorID {} | JobID {} - Starting function '
                        'invocation: {}() - Total: {} activations'
                        .format(job.executor_id, job.job_id,
                                job.function_name, job.total_calls))
             logger.info(log_msg)
-            if not self.log_active:
-                print(log_msg)
 
             th = Thread(target=self._invoke_remote, args=(job,), daemon=True)
             th.start()
@@ -359,8 +360,6 @@ class ServerlessInvoker(Invoker):
                            .format(job.executor_id, job.job_id,
                                    job.function_name, job.total_calls))
                 logger.info(log_msg)
-                if not self.log_active:
-                    print(log_msg)
 
                 if self.ongoing_activations < self.workers:
                     callids = range(job.total_calls)
@@ -499,7 +498,7 @@ class JobMonitor:
                 else:
                     break
 
-        logger.debug('ExecutorID {} - | JobID {} -Job monitoring finished'
+        logger.debug('ExecutorID {} | JobID {} - Job monitoring finished'
                      .format(job.executor_id,  job.job_id))
 
     def _job_monitoring_rabbitmq(self, job):

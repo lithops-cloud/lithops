@@ -15,6 +15,7 @@
 #
 
 import os
+import shlex
 import json
 import time
 import select
@@ -53,7 +54,6 @@ class StandaloneHandler:
     """
 
     def __init__(self, standalone_config):
-        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.config = standalone_config
         self.backend_name = self.config['backend']
         self.runtime = self.config['runtime']
@@ -64,10 +64,6 @@ class StandaloneHandler:
         self.auto_dismantle = self.config.get('auto_dismantle')
         self.hard_dismantle_timeout = self.config.get('hard_dismantle_timeout')
         self.soft_dismantle_timeout = self.config.get('soft_dismantle_timeout')
-
-        # self.cpu = self.config.get('cpu', 2)
-        # self.memory = self.config.get('memory', 4)
-        # self.instances = self.config.get('instances', 1)
 
         try:
             module_location = 'lithops.standalone.backends.{}'.format(self.backend_name)
@@ -104,7 +100,7 @@ class StandaloneHandler:
         """
         Waits until the VM instance is ready to receive ssh connections
         """
-        logger.info('Waiting VM instance to become ready')
+        logger.debug('Waiting VM instance to become ready')
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
@@ -215,8 +211,6 @@ class StandaloneHandler:
 
         if not self._is_proxy_ready():
             # The VM instance is stopped
-            if not self.log_active:
-                print('ExecutorID {} - Starting VM instance' .format(executor_id))
             init_time = time.time()
             self.backend.start()
             self._wait_proxy_ready()
@@ -234,8 +228,9 @@ class StandaloneHandler:
             r = requests.post(url, data=json.dumps(job_payload), verify=True)
             response = r.json()
         else:
-            cmd = ('curl -X POST http://127.0.0.1:8080/run -d \'{}\' '
-                   '-H \'Content-Type: application/json\''.format(json.dumps(job_payload)))
+            cmd = ('curl -X POST http://127.0.0.1:8080/run -d {} '
+                   '-H \'Content-Type: application/json\''
+                   .format(shlex.quote(json.dumps(job_payload))))
             out = self.ssh_client.run_remote_command(self.ip_address, cmd)
             response = json.loads(out)
 
@@ -250,7 +245,7 @@ class StandaloneHandler:
         self._setup_proxy()
         self._wait_proxy_ready()
 
-        logger.info('Extracting runtime metadata information')
+        logger.debug('Extracting runtime metadata information')
         payload = {'runtime': runtime}
 
         if self.is_lithops_worker:
@@ -258,8 +253,9 @@ class StandaloneHandler:
             r = requests.get(url, data=json.dumps(payload), verify=True)
             runtime_meta = r.json()
         else:
-            cmd = ('curl -X GET http://127.0.0.1:8080/preinstalls -d \'{}\' '
-                   '-H \'Content-Type: application/json\''.format(json.dumps(payload)))
+            cmd = ('curl http://127.0.0.1:8080/preinstalls -d {} '
+                   '-H \'Content-Type: application/json\' -X GET'
+                   .format(shlex.quote(json.dumps(payload))))
             out = self.ssh_client.run_remote_command(self.ip_address, cmd)
             runtime_meta = json.loads(out)
 
@@ -298,7 +294,7 @@ class StandaloneHandler:
         pass
 
     def _setup_proxy(self):
-        logger.info('Installing Lithops proxy in the VM instance')
+        logger.debug('Installing Lithops proxy in the VM instance')
         logger.debug('Be patient, installation process can take up to 3 minutes '
                      'if this is the first time you use the VM instance')
 
@@ -318,8 +314,10 @@ class StandaloneHandler:
         os.remove(FH_ZIP_LOCATION)
 
         # Install dependenices
-        cmd = 'apt-get update; apt-get install unzip python3-pip -y; '
-        cmd += 'pip3 install flask gevent pika==0.13.1; '
+        cmd = 'mkdir -p /tmp/lithops; '
+        cmd += 'apt-get update >> /tmp/lithops/proxy.log; '
+        cmd += 'apt-get install unzip python3-pip -y >> /tmp/lithops/proxy.log; '
+        cmd += 'pip3 install flask gevent pika==0.13.1 >> /tmp/lithops/proxy.log; '
         cmd += 'unzip -o /tmp/lithops_standalone.zip -d {} > /dev/null 2>&1; '.format(REMOTE_INSTALL_DIR)
         cmd += 'rm /tmp/lithops_standalone.zip; '
         cmd += 'chmod 644 {}; '.format(service_file)

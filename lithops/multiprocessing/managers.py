@@ -8,8 +8,9 @@
 # Licensed to PSF under a Contributor Agreement.
 #
 # Modifications Copyright (c) 2020 Cloudlab URV
+#
 
-__all__ = [ 'BaseManager', 'SyncManager', 'BaseProxy', 'Token' ]
+__all__ = ['BaseManager', 'SyncManager', 'BaseProxy', 'Token']
 
 #
 # Imports
@@ -21,7 +22,6 @@ from . import queues
 from . import util
 from .reduction import DefaultPickler
 import redis
-from copy import deepcopy
 
 
 #
@@ -50,23 +50,22 @@ def deslice(slic: slice):
 #
 
 class Token(object):
-    '''
-    Type to uniquely indentify a shared object
-    '''
+    """
+    Type to uniquely identify a shared object
+    """
     __slots__ = ('typeid', 'address', 'id')
 
     def __init__(self, typeid, address, id):
         (self.typeid, self.address, self.id) = (typeid, address, id)
 
     def __getstate__(self):
-        return (self.typeid, self.address, self.id)
+        return self.typeid, self.address, self.id
 
     def __setstate__(self, state):
         (self.typeid, self.address, self.id) = state
 
     def __repr__(self):
-        return '%s(typeid=%r, address=%r, id=%r)' % \
-               (self.__class__.__name__, self.typeid, self.address, self.id)
+        return '{}(typeid={}, address={}, id={})'.format(self.__class__.__name__, self.typeid, self.address, self.id)
 
     @classmethod
     def create(cls, proxy_obj):
@@ -85,9 +84,9 @@ class Token(object):
 #
 
 class BaseManager:
-    '''
+    """
     Base class for managers
-    '''
+    """
     _registry = {}
 
     def __init__(self, address=None, authkey=None, serializer='pickle',
@@ -106,18 +105,18 @@ class BaseManager:
         self._managing = True
 
     def _create(self, typeid, *args, **kwds):
-        '''
+        """
         Create a new shared object; return the token and exposed tuple
-        '''
+        """
         pass
 
     def join(self, timeout=None):
         pass
 
     def _number_of_objects(self):
-        '''
+        """
         Return the number of shared objects
-        '''
+        """
         return len(self._mrefs)
 
     def __enter__(self):
@@ -137,9 +136,10 @@ class BaseManager:
     @classmethod
     def register(cls, typeid, proxytype=None, callable=None, exposed=None,
                  method_to_typeid=None, create_method=True, can_manage=True):
-        '''
+        """
         Register a typeid with the manager type
-        '''
+        """
+
         def temp(self, *args, **kwds):
             util.debug('requesting creation of a shared %r object', typeid)
             proxy = proxytype(*args, **kwds)
@@ -147,6 +147,7 @@ class BaseManager:
                 proxy._ref.managed = True
                 self._mrefs.append(proxy._ref)
             return proxy
+
         temp.__name__ = typeid
         setattr(cls, typeid, temp)
 
@@ -156,9 +157,9 @@ class BaseManager:
 #
 
 class BaseProxy(object):
-    '''
+    """
     A base for proxies of shared objects
-    '''
+    """
 
     def __init__(self, typeid, serializer=None):
         self._typeid = typeid
@@ -170,9 +171,9 @@ class BaseProxy(object):
         self._ref = util.RemoteReference(self._oid, client=self._client)
 
     def _getvalue(self):
-        '''
+        """
         Get a copy of the value of the referent
-        '''
+        """
         pass
 
     def __repr__(self):
@@ -211,7 +212,6 @@ class BaseProxy(object):
 #        Current implementation is the same as multiprocessing
 
 class ListProxy(BaseProxy):
-
     # KEYS[1] - key to extend
     # KEYS[2] - key to extend with
     # ARGV[1] - number of repetitions
@@ -245,11 +245,11 @@ class ListProxy(BaseProxy):
                 # raised when index >= len(self)
                 raise IndexError('list assignment index out of range')
 
-        elif isinstance(i, slice):    # TODO: step
+        elif isinstance(i, slice):  # TODO: step
             start, end, step = deslice(i)
             if start is None:
                 return
-                
+
             if end < 0:
                 end = len(self) + end
 
@@ -270,9 +270,9 @@ class ListProxy(BaseProxy):
             except TypeError:
                 raise TypeError('can only assign an iterable')
             pipeline.execute()
-        else:    
+        else:
             raise TypeError('list indices must be integers '
-                'or slices, not {}'.format(type(i)))
+                            'or slices, not {}'.format(type(i)))
 
     def __getitem__(self, i):
         if isinstance(i, int) or hasattr(i, '__index__'):
@@ -282,17 +282,17 @@ class ListProxy(BaseProxy):
                 return self._pickler.loads(serialized)
             raise IndexError('list index out of range')
 
-        elif isinstance(i, slice):    # TODO: step
+        elif isinstance(i, slice):  # TODO: step
             start, end, step = deslice(i)
             if start is None:
                 return []
             serialized = self._client.lrange(self._oid, start, end)
             unserialized = [self._pickler.loads(obj) for obj in serialized]
             return unserialized
-            #return type(self)(unserialized)
+            # return type(self)(unserialized)
         else:
             raise TypeError('list indices must be integers '
-                'or slices, not {}'.format(type(i)))
+                            'or slices, not {}'.format(type(i)))
 
     def extend(self, iterable):
         if isinstance(iterable, type(self)):
@@ -344,12 +344,12 @@ class ListProxy(BaseProxy):
         # FIXME: list only allows concatenation to other list objects
         #        (altough it can now be extended by iterables)
         self.extend(x)
-        return self       
+        return self
 
     def __mul__(self, n):
         if not isinstance(n, int):
             raise TypeError("TypeError: can't multiply sequence"
-                    " by non-int of type {}". format(type(n)))
+                            " by non-int of type {}".format(type(n)))
         if n < 1:
             # return type(self)()
             return []
@@ -365,9 +365,9 @@ class ListProxy(BaseProxy):
     def __imul__(self, n):
         if not isinstance(n, int):
             raise TypeError("TypeError: can't multiply sequence"
-                    " by non-int of type {}". format(type(n)))
+                            " by non-int of type {}".format(type(n)))
         if n > 1:
-            self._extend_same_type(self, repeat=n-1)
+            self._extend_same_type(self, repeat=n - 1)
         return self
 
     def __len__(self):
@@ -434,9 +434,9 @@ class DictProxy(BaseProxy):
 
         unserialized = self._pickler.loads(serialized)
         return unserialized
-        
+
     def __delitem__(self, k):
-        res = self._client.hdel(self._oid, k)   
+        res = self._client.hdel(self._oid, k)
         if res == 0:
             raise KeyError(k)
 
@@ -488,7 +488,7 @@ class DictProxy(BaseProxy):
         if args != ():
             if len(args) > 1:
                 raise TypeError('update expected at most'
-                    ' 1 arguments, got {}'.format(len(args)))
+                                ' 1 arguments, got {}'.format(len(args)))
             try:
                 for k in args[0].keys():
                     items.extend((k, self._pickler.dumps(args[0][k])))
@@ -502,7 +502,7 @@ class DictProxy(BaseProxy):
 
         for k in kwargs.keys():
             items.extend((k, self._pickler.dumps(kwargs[k])))
-        
+
         if len(items) > 0:
             self._client.execute_command('HMSET', self._oid, *items)
 
@@ -584,14 +584,14 @@ class ValueProxy(BaseProxy):
 class ArrayProxy(ListProxy):
     def __init__(self, typecode, sequence, lock=True):
         super().__init__(sequence)
-        
+
 
 #
 # Definition of SyncManager
 #
 
 class SyncManager(BaseManager):
-    '''
+    """
     Subclass of `BaseManager` which supports a number of shared object types.
 
     The types registered are those intended for the synchronization
@@ -599,22 +599,22 @@ class SyncManager(BaseManager):
 
     The `multiprocessing.Manager()` function creates started instances of
     this class.
-    '''
+    """
 
 
-SyncManager.register('Queue', queues.Queue)
-SyncManager.register('JoinableQueue', queues.JoinableQueue)
-SyncManager.register('SimpleQueue', queues.SimpleQueue)
-SyncManager.register('Event', synchronize.Event)
+SyncManager.register('list', ListProxy)
+SyncManager.register('dict', DictProxy)
+SyncManager.register('Namespace', NamespaceProxy)
 SyncManager.register('Lock', synchronize.Lock)
 SyncManager.register('RLock', synchronize.RLock)
 SyncManager.register('Semaphore', synchronize.Semaphore)
 SyncManager.register('BoundedSemaphore', synchronize.BoundedSemaphore)
 SyncManager.register('Condition', synchronize.Condition)
+SyncManager.register('Event', synchronize.Event)
 SyncManager.register('Barrier', synchronize.Barrier)
-SyncManager.register('Pool', pool.Pool, can_manage=False)
-SyncManager.register('list', ListProxy)
-SyncManager.register('dict', DictProxy)
+SyncManager.register('Queue', queues.Queue)
 SyncManager.register('Value', ValueProxy)
-SyncManager.register('Namespace', NamespaceProxy)
 SyncManager.register('Array', ArrayProxy)
+SyncManager.register('JoinableQueue', queues.JoinableQueue)
+SyncManager.register('SimpleQueue', queues.SimpleQueue)
+SyncManager.register('Pool', pool.Pool, can_manage=False)

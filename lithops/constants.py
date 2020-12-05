@@ -15,12 +15,16 @@
 #
 
 import os
+import sys
 import tempfile
 
 LOGGER_LEVEL = 'info'
 LOGGER_FORMAT = ("%(asctime)s [%(levelname)s] %(name)s -- %(message)s")
 LOGGER_FORMAT_SHORT = ("[%(levelname)s] %(filename)s -- %(message)s")
 LOGGER_LEVEL_CHOICES = ["debug", "info", "warning", "error", "critical"]
+
+STORAGE_CLI_MSG = 'Created {} Storage client'
+COMPUTE_CLI_MSG = 'Created {} client'
 
 LOCALHOST = 'localhost'
 SERVERLESS = 'serverless'
@@ -38,7 +42,8 @@ RUNTIMES_PREFIX = "lithops.runtimes"
 
 EXECUTION_TIMEOUT_DEFAULT = 1800
 
-STANDALONE_RUNTIME_DEFAULT = 'python3'
+LOCALHOST_RUNTIME_DEFAULT = os.path.basename(sys.executable)
+STANDALONE_RUNTIME_DEFAULT = LOCALHOST_RUNTIME_DEFAULT
 STANDALONE_AUTO_DISMANTLE_DEFAULT = True
 STANDALONE_SOFT_DISMANTLE_TIMEOUT_DEFAULT = 300
 STANDALONE_HARD_DISMANTLE_TIMEOUT_DEFAULT = 3600

@@ -1,3 +1,19 @@
+#
+# (C) Copyright Cloudlab URV 2020
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 import os
 import io
 import glob
@@ -5,6 +21,7 @@ import shutil
 import logging
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.constants import LITHOPS_TEMP_DIR
+from lithops.constants import STORAGE_CLI_MSG
 
 
 logger = logging.getLogger(__name__)
@@ -15,10 +32,12 @@ class LocalhostStorageBackend:
     A wrap-up around Localhost filesystem APIs.
     """
 
-    def __init__(self, config, **kwargs):
+    def __init__(self, localhost_config):
         logger.debug("Creating Localhost storage client")
-        self.config = config
-        logger.debug("Localhost storage client created successfully")
+        self.localhost_config = localhost_config
+
+        msg = STORAGE_CLI_MSG.format('Localhost')
+        logger.info("{}".format(msg))
 
     def get_client(self):
         # Simulate boto3 client
@@ -130,14 +149,6 @@ class LocalhostStorageBackend:
         for file_dir in dirs:
             shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, file_dir), ignore_errors=True)
 
-    def bucket_exists(self, bucket_name):
-        """
-        Head localhost dir with a name.
-        Throws StorageNoSuchKeyError if the given bucket does not exist.
-        :param bucket_name: name of the bucket
-        """
-        raise NotImplementedError
-
     def head_bucket(self, bucket_name):
         """
         Head localhost dir with a name.
@@ -172,11 +183,12 @@ class LocalhostStorageBackend:
                                 bucket_name, '**')
 
         for file_name in glob.glob(root, recursive=True):
-            if file_name.endswith(prefix):
-                continue
-            size = os.stat(file_name).st_size
-            base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
-            obj_list.append({'Key': file_name.replace(base_dir, ''), 'Size': size})
+            if os.path.isfile(file_name):
+                if file_name.endswith(prefix):
+                    continue
+                size = os.stat(file_name).st_size
+                base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
+                obj_list.append({'Key': file_name.replace(base_dir, '').replace('\\', '/'), 'Size': size})
 
         return obj_list
 
@@ -204,9 +216,10 @@ class LocalhostStorageBackend:
                                 bucket_name, '**')
 
         for file_name in glob.iglob(root, recursive=True):
-            if file_name.endswith(prefix):
-                continue
-            base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
-            key_list.append(file_name.replace(base_dir, ''))
+            if os.path.isfile(file_name):
+                if file_name.endswith(prefix):
+                    continue
+                base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
+                key_list.append(file_name.replace(base_dir, '').replace('\\', '/'))
 
         return key_list

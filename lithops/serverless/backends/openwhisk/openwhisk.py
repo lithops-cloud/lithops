@@ -17,13 +17,14 @@
 import os
 import sys
 import logging
-import textwrap
-from . import config as openwhisk_config
+
 from lithops.utils import version_str
 from lithops.version import __version__
 from lithops.utils import is_lithops_worker
 from lithops.libs.openwhisk.client import OpenWhiskClient
 from lithops.utils import create_handler_zip
+from lithops.constants import COMPUTE_CLI_MSG
+from . import config as openwhisk_config
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,6 @@ class OpenWhiskBackend:
 
     def __init__(self, ow_config, storage_config):
         logger.debug("Creating OpenWhisk client")
-        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'openwhisk'
         self.ow_config = ow_config
         self.is_lithops_worker = is_lithops_worker()
@@ -47,9 +47,9 @@ class OpenWhiskBackend:
         self.api_key = ow_config['api_key']
         self.insecure = ow_config.get('insecure', False)
 
-        logger.info("Set OpenWhisk Endpoint to {}".format(self.endpoint))
-        logger.info("Set OpenWhisk Namespace to {}".format(self.namespace))
-        logger.info("Set OpenWhisk Insecure to {}".format(self.insecure))
+        logger.debug("Set OpenWhisk Endpoint to {}".format(self.endpoint))
+        logger.debug("Set OpenWhisk Namespace to {}".format(self.namespace))
+        logger.debug("Set OpenWhisk Insecure to {}".format(self.insecure))
 
         self.user_key = self.api_key[:5]
         self.package = 'lithops_v{}_{}'.format(__version__, self.user_key)
@@ -60,11 +60,8 @@ class OpenWhiskBackend:
                                          insecure=self.insecure,
                                          user_agent=self.user_agent)
 
-        log_msg = ('Lithops v{} init for OpenWhisk - Namespace: {}'
-                   .format(__version__, self.namespace))
-        if not self.log_active:
-            print(log_msg)
-        logger.info("OpenWhisk client created successfully")
+        msg = COMPUTE_CLI_MSG.format('OpenWhisk')
+        logger.info("{} - Namespace: {}".format(msg, self.namespace))
 
     def _format_action_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '_').replace(':', '_')
@@ -111,8 +108,6 @@ class OpenWhiskBackend:
         if docker_image_name == 'default':
             docker_image_name = self._get_default_runtime_image_name()
 
-        runtime_meta = self._generate_runtime_meta(docker_image_name)
-
         logger.info('Creating new Lithops runtime based on Docker image {}'.format(docker_image_name))
 
         self.cf_client.create_package(self.package)
@@ -126,7 +121,7 @@ class OpenWhiskBackend:
         self.cf_client.create_action(self.package, action_name, docker_image_name, code=action_bin,
                                      memory=memory, is_binary=True, timeout=timeout*1000)
         self._delete_function_handler_zip()
-        return runtime_meta
+        return self._generate_runtime_meta(docker_image_name, memory)
 
     def delete_runtime(self, docker_image_name, memory):
         """
@@ -189,49 +184,22 @@ class OpenWhiskBackend:
 
         return runtime_key
 
-    def _generate_runtime_meta(self, docker_image_name):
+    def _generate_runtime_meta(self, docker_image_name, memory):
         """
-        Extract installed Python modules from docker image
+        Extract installed Python modules from the docker image
         """
-        action_code = """
-            import sys
-            import pkgutil
-
-            def main(args):
-                print("Extracting preinstalled Python modules...")
-                runtime_meta = dict()
-                mods = list(pkgutil.iter_modules())
-                runtime_meta["preinstalls"] = [entry for entry in sorted([[mod, is_pkg] for _, mod, is_pkg in mods])]
-                python_version = sys.version_info
-                runtime_meta["python_ver"] = str(python_version[0])+"."+str(python_version[1])
-                print("Done!")
-                return runtime_meta
-            """
-
-        runtime_memory = 128
-        # old_stdout = sys.stdout
-        # sys.stdout = open(os.devnull, 'w')
-        action_name = self._format_action_name(docker_image_name, runtime_memory)
-        self.cf_client.create_package(self.package)
-        self.cf_client.create_action(self.package, action_name, docker_image_name,
-                                     is_binary=False, code=textwrap.dedent(action_code),
-                                     memory=runtime_memory, timeout=30000)
-        # sys.stdout = old_stdout
         logger.debug("Extracting Python modules list from: {}".format(docker_image_name))
-
+        action_name = self._format_action_name(docker_image_name, memory)
+        payload = {'log_level': logger.getEffectiveLevel(), 'get_preinstalls': True}
         try:
             retry_invoke = True
             while retry_invoke:
                 retry_invoke = False
-                runtime_meta = self.cf_client.invoke_with_result(self.package, action_name)
+                runtime_meta = self.cf_client.invoke_with_result(self.package, action_name, payload)
                 if 'activationId' in runtime_meta:
                     retry_invoke = True
-        except Exception:
-            raise("Unable to invoke 'modules' action")
-        try:
-            self.delete_runtime(docker_image_name, runtime_memory)
-        except Exception:
-            raise Exception("Unable to delete 'modules' action")
+        except Exception as e:
+            raise("Unable to extract runtime preinstalls: {}".format(e))
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
             raise Exception(runtime_meta)

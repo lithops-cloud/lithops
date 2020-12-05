@@ -1,11 +1,10 @@
-# Lithops Functions and Parameters
+Lithops Functions and Parameters
+===================
 
-This document describes how to invoke functions based on the *iterdata* variable. In this sense, Lithops allows to send either *args* or *kwargs* in the function invocation.
+This document describes how to invoke functions based on the *iterdata* variable. In this sense, Lithops allows to send either *args* or *kwargs* in the function invocation. Take into account that there are some reserved parameter names that activate internal logic, and they cannot be used as regular parameters.
 
-
-## Reserved parameters
-
-Take into account that there are some reserved parameter names that activate internal logic. These reserved parameters are:
+Reserved parameters
+-------------------
 
 - **id**: To get the call id. For instance, if you spawn 10 activations of a function, you will get here a number from 0 to 9, for example: [map.py](../examples/map.py)
 
@@ -18,7 +17,9 @@ Take into account that there are some reserved parameter names that activate int
 - **obj** & **url**: These two parameter activate internal logic that allows to process data objects stored in the object store or public URLs in a transparent way. See [data-processing](../docs/data-processing.md) documentation for more details and instructions on how to use this built-in data-processing logic.
 
 
-## Single function invocation using the call_async() method.
+Parameters in the call_async() method 
+-------------------------------------
+
 You can send multiple parameters to a single call function writing them into a list. The parameters will be mapped in
 the order you wrote them. In the following example the x  parameter will take the value 3 and the y parameter will 
 take the value 6.
@@ -103,7 +104,9 @@ print (fexec.get_result())
 
 To test all of the previous examples run the [multiple_parameters_call_async.py](../examples/multiple_parameters_call_async.py) located in the `examples` folder.
 
-## Multiple function invocation using the map() and map_reduce() methods.
+Parameters in the map() and map_reduce() methods 
+-------------------------------------
+
 The 'iterdata' variable must be always a list []. In this case to send multiple parameters to the function, the parameters of
 each function must be enclosed within a tuple () as in the next example. The parameters will be mapped in the order you wrote
 them.
@@ -207,7 +210,9 @@ print(fexec.get_result())
 ```
 
 
-## Common parameters across functions invocations
+Common parameters across functions invocations
+----------------------------------------------
+
 Sometimes, functions have common parameters for all the invocations. In this case you have two options to proceed:
 
 - Setting variables in the global scope: You can define the desired variables in the global scope before defining the function. All of these variables can be catched within the function, for example:

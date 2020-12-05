@@ -6,10 +6,8 @@ import pkgutil
 import logging
 import uuid
 import time
-import queue
 import multiprocessing as mp
 from pathlib import Path
-from threading import Thread
 from types import SimpleNamespace
 from contextlib import redirect_stdout, redirect_stderr
 
@@ -36,6 +34,37 @@ class ShutdownSentinel():
     pass
 
 
+def process_runner(worker_id, job_queue):
+    logger.debug('Localhost worker process {} started'.format(worker_id))
+    os.environ['__LITHOPS_LOCAL_EXECUTION'] = 'True'
+
+    p_logger = logging.getLogger('lithops')
+
+    while True:
+        with io.StringIO() as buf,  redirect_stdout(buf), redirect_stderr(buf):
+            event = job_queue.get(block=True)
+            if isinstance(event, ShutdownSentinel):
+                break
+            act_id = str(uuid.uuid4()).replace('-', '')[:12]
+            os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
+            executor_id = event['executor_id']
+            job_id = event['job_id']
+            setup_logger(event['log_level'])
+            p_logger.info("Lithops v{} - Starting execution".format(__version__))
+            function_handler(event)
+            log_output = buf.getvalue()
+
+        job_key = create_job_key(executor_id, job_id)
+        log_file = os.path.join(LOGS_DIR, job_key+'.log')
+        header = "Activation: '{}' ({})\n[\n".format(event['runtime_name'], act_id)
+        tail = ']\n\n'
+        output = log_output.replace('\n', '\n    ', log_output.count('\n')-1)
+        with open(log_file, 'a') as lf:
+            lf.write(header+'    '+output+tail)
+        with open(FN_LOG_FILE, 'a') as lf:
+            lf.write(header+'    '+output+tail)
+
+
 class Runner:
     """
     A wrap-up around Localhost multiprocessing APIs.
@@ -49,17 +78,12 @@ class Runner:
         self.num_workers = self.config['lithops'].get('workers', CPU_COUNT)
         self.workers = []
 
-        if self.use_threads:
-            self.queue = queue.Queue()
-            WORKER = Thread
-        else:
-            if 'fork' in mp.get_all_start_methods():
-                mp.set_start_method('fork')
-            self.queue = mp.Queue()
-            WORKER = mp.Process
+        if 'fork' in mp.get_all_start_methods():
+            mp.set_start_method('fork')
+        self.job_queue = mp.Queue()
 
         for worker_id in range(self.num_workers):
-            p = WORKER(target=self._process_runner, args=(worker_id,))
+            p = mp.Process(target=process_runner, args=(worker_id, self.job_queue))
             self.workers.append(p)
             p.start()
 
@@ -67,41 +91,6 @@ class Runner:
                     '- {} workers'.format(self.executor_id,
                                           self.job_id,
                                           self.num_workers))
-
-    def _process_runner(self, worker_id):
-        logger.debug('Localhost worker process {} started'.format(worker_id))
-
-        p_logger = logging.getLogger('lithops')
-
-        while True:
-            with io.StringIO() as buf,  redirect_stdout(buf), redirect_stderr(buf):
-                try:
-                    event = self.queue.get(block=True)
-                    if isinstance(event, ShutdownSentinel):
-                        break
-                    act_id = str(uuid.uuid4()).replace('-', '')[:12]
-                    os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
-
-                    executor_id = event['executor_id']
-                    job_id = event['job_id']
-                    setup_logger(event['log_level'])
-                    p_logger.info("Lithops v{} - Starting execution".format(__version__))
-                    event['extra_env']['__LITHOPS_LOCAL_EXECUTION'] = 'True'
-                    function_handler(event)
-                except KeyboardInterrupt:
-                    break
-
-                header = "Activation: '{}' ({})\n[\n".format(event['runtime_name'], act_id)
-                tail = ']\n\n'
-                output = buf.getvalue()
-                output = output.replace('\n', '\n    ', output.count('\n')-1)
-
-            job_key = create_job_key(executor_id, job_id)
-            log_file = os.path.join(LOGS_DIR, job_key+'.log')
-            with open(log_file, 'a') as lf:
-                lf.write(header+'    '+output+tail)
-            with open(FN_LOG_FILE, 'a') as lf:
-                lf.write(header+'    '+output+tail)
 
     def _invoke(self, job, call_id, log_level):
         payload = {'config': self.config,
@@ -119,7 +108,7 @@ class Runner:
                    'runtime_name': job.runtime_name,
                    'runtime_memory': job.runtime_memory}
 
-        self.queue.put(payload)
+        self.job_queue.put(payload)
 
     def run(self, job_description, log_level):
         job = SimpleNamespace(**job_description)
@@ -129,7 +118,7 @@ class Runner:
             self._invoke(job, call_id, log_level)
 
         for i in self.workers:
-            self.queue.put(ShutdownSentinel())
+            self.job_queue.put(ShutdownSentinel())
 
     def wait(self):
         for worker in self.workers:

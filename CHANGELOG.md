@@ -1,6 +1,78 @@
 # Changelog
 
-## [v2.2.4.dev0]
+## [v2.2.12.dev0]
+
+### Added
+- [CodeEngine] Compatible runtimes between knative and CE
+- [CodeEngine] runtime name regex verification
+- [CodeEngine] Added clear() method to delete all completed jobruns
+- [Standalone] Append installation logs into /tmp/lithops/proxy.log
+
+### Changed
+- [Localhost] Run functions in processes instead of threads in Windows
+- [CodeEngine] Reduced payload size
+- [CodeEngine] Changed way to obtain modules preinstalls
+- [Core] Updated logging
+
+### Fixed
+- [Core] Fixed Cloudpickle 1.6 modules detection
+- [Core] Added tblib.pickling_support in the local machine
+
+
+## [v2.2.11]
+
+### Changed
+- [CodeEngine] Delete runtime name regex verification
+
+
+## [v2.2.10]
+
+### Added
+- [Core] Allow to create a Storage() class from config file
+- [CodeEngine] Improved codeengine backend
+
+### Changed
+- [Core] Improved multiprocessing API
+- [Core] Improved Storage OS API
+
+
+## [v2.2.9]
+
+### Fixed
+- [CodeEngine] Fixed CodeEngine runtime entrypoint
+
+
+## [v2.2.8]
+
+### Fixed
+- [Core] Fix "lithops runtime create" cli
+- [Core] Fixed missing executor_id variable in jobrunner
+
+
+## [v2.2.7]
+
+### Added
+- [Core] Add joblib backend for scikit-learn
+- [Cli] Add more config paramters in lithops cli
+- [IBM COS] Add 'region' config param
+- [Knative] Add 'min_instances', 'max_instances' and 'concurrency' config params
+
+### Fixed
+- [Core] Fix job monitoring on Windows hosts
+- [Knative] Minor fix when using knative from master branch
+- [GCE] Fix in 'lithops runtime' cli
+- [Core] Minor fix in tests
+- [Core] Fixed data partitioner
+
+
+## [v2.2.5]
+
+### Fixed
+- [Core] Fixed issue in serverless config
+- [Core] Fixed issue in localhost storage backend
+- [Code Engine] Fixed issue in code engine backend
+
+## [v2.2.4]
 
 ### Added
 - [Core] New 'lithops logs' command

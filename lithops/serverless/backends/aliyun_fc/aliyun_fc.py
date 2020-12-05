@@ -26,6 +26,7 @@ from . import config as aliyunfc_config
 from lithops.utils import uuid_str, is_lithops_worker, version_str
 from lithops.version import __version__
 import lithops
+from lithops.constants import COMPUTE_CLI_MSG
 
 logger = logging.getLogger(__name__)
 
@@ -60,10 +61,8 @@ class AliyunFunctionComputeBackend:
                                     accessKeyID=self.access_key_id,
                                     accessKeySecret=self.access_key_secret)
 
-        log_msg = 'Lithops v{} init for Aliyun Function Compute'.format(__version__)
-        logger.info(log_msg)
-        if not self.log_active:
-            print(log_msg)
+        msg = COMPUTE_CLI_MSG.format('Aliyun Function Compute')
+        logger.info("{}".format(msg))
 
     def _format_action_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '_').replace(':', '_')

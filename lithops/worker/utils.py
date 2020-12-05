@@ -1,10 +1,8 @@
 import os
+import sys
+import pkgutil
 import subprocess
-from lithops.utils import sizeof_fmt, is_unix_system, is_lithops_worker
-try:
-    from lithops.libs import ps_mem
-except Exception:
-    pass
+from lithops.utils import sizeof_fmt, is_unix_system
 
 
 def get_memory_usage(formatted=True):
@@ -12,6 +10,7 @@ def get_memory_usage(formatted=True):
     Gets the current memory usage of the runtime.
     To be used only in the action code.
     """
+    from lithops.libs import ps_mem
     if not is_unix_system() or os.geteuid() != 0:
         # Non Unix systems and non root users can't run
         # the ps_mem module
@@ -69,3 +68,16 @@ def get_server_info():
                             '/proc/cgroups': open("/proc/cgroups", 'r').read()})
     """
     return server_info
+
+
+def get_runtime_preinstalls():
+    """
+    Generates the runtime metadata needed for lithops
+    """
+    runtime_meta = dict()
+    mods = list(pkgutil.iter_modules())
+    runtime_meta["preinstalls"] = [entry for entry in sorted([[mod, is_pkg] for _, mod, is_pkg in mods])]
+    python_version = sys.version_info
+    runtime_meta["python_ver"] = str(python_version[0])+"."+str(python_version[1])
+
+    return runtime_meta

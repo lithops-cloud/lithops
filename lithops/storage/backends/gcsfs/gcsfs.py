@@ -1,8 +1,7 @@
 import gcsfs
-import os
-import shutil
 import logging
 from lithops.storage.utils import StorageNoSuchKeyError
+from lithops.constants import STORAGE_CLI_MSG
 
 logger = logging.getLogger(__name__)
 
@@ -12,12 +11,12 @@ class GcsfsStorageBackend:
     A wrapper around gcsfs APIs.
     """
 
-    def __init__(self, config,  bucket = None, executor_id = None):
+    def __init__(self, gcfs_config):
         logger.debug("Creating gcsfs storage client")
-        self.config = config
-        self.bucket = bucket
-        self.fs = gcsfs.GCSFileSystem(project=config["project_id"])
-        logger.debug("gcsfs storage client created successfully")
+        self.config = gcfs_config
+        self.fs = gcsfs.GCSFileSystem(project=gcfs_config["project_id"])
+        msg = STORAGE_CLI_MSG.format('gcfs')
+        logger.info("{}".format(msg))
 
     def put_object(self, bucket_name, key, data):
         """
@@ -89,14 +88,6 @@ class GcsfsStorageBackend:
         """
         for key in key_list:
             self.delete_object(bucket_name, key)
-
-    def bucket_exists(self, bucket_name):
-        """
-        Head localhost dir with a name.
-        Throws StorageNoSuchKeyError if the given bucket does not exist.
-        :param bucket_name: name of the bucket
-        """
-        raise NotImplementedError
 
     def head_bucket(self, bucket_name):
         """

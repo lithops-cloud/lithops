@@ -1,5 +1,5 @@
 #
-# Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the 'License');
 # you may not use this file except in compliance with the License.
@@ -17,17 +17,16 @@
 import logging
 import boto3
 import botocore
-from ...utils import StorageNoSuchKeyError
-
+from lithops.storage.utils import StorageNoSuchKeyError
+from lithops.constants import STORAGE_CLI_MSG
 
 logger = logging.getLogger(__name__)
 
 
 class S3Backend:
-    def __init__(self, s3_config, bucket=None, executor_id=None):
+    def __init__(self, s3_config):
+        logger.debug("Creating S3 client")
         service_endpoint = s3_config.get('endpoint').replace('http:', 'https:')
-
-        logger.debug('Set AWS S3 Endpoint to {}'.format(service_endpoint))
 
         logger.debug('AWS S3 using access_key_id and secret_access_key')
 
@@ -40,6 +39,9 @@ class S3Backend:
                                       aws_secret_access_key=s3_config['secret_access_key'],
                                       config=client_config,
                                       endpoint_url=service_endpoint)
+
+        msg = STORAGE_CLI_MSG.format('S3')
+        logger.info("{} - Endpoint: {}".format(msg, service_endpoint))
 
     def get_client(self):
         '''
@@ -126,19 +128,6 @@ class S3Backend:
             delete_keys['Objects'] = [{'Key': k} for k in key_list[i:i+max_keys_num]]
             result.append(self.s3_client.delete_objects(Bucket=bucket_name, Delete=delete_keys))
         return result
-
-    def bucket_exists(self, bucket_name):
-        '''
-        Head bucket from COS with a name. Throws StorageNoSuchKeyError if the given bucket does not exist.
-        :param bucket_name: name of the bucket
-        '''
-        try:
-            self.s3_client.head_bucket(Bucket=bucket_name)
-        except botocore.exceptions.ClientError as e:
-            if e.response['Error']['Code'] == '404':
-                raise StorageNoSuchKeyError(bucket_name, '')
-            else:
-                raise e
 
     def head_bucket(self, bucket_name):
         '''

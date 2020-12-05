@@ -24,9 +24,8 @@ import subprocess as sp
 from shutil import copyfile
 
 from lithops.constants import TEMP, LITHOPS_TEMP_DIR, JOBS_PREFIX,\
-    RN_LOG_FILE, LOGS_DIR
+    RN_LOG_FILE, LOGS_DIR, COMPUTE_CLI_MSG
 from lithops.storage.utils import create_job_key
-from lithops.version import __version__
 
 logger = logging.getLogger(__name__)
 
@@ -41,21 +40,19 @@ class LocalhostHandler:
     """
 
     def __init__(self, localhost_config):
-        self.log_active = logger.getEffectiveLevel() != logging.WARNING
+        logger.debug('Creating Localhost client')
         self.config = localhost_config
         self.runtime = self.config['runtime']
 
-        if self.runtime == 'python3':
+        if '/' not in self.runtime:
             self.env = DefaultEnv()
             self.env_type = 'default'
         else:
             self.env = DockerEnv(self.runtime)
             self.env_type = 'docker'
 
-        log_msg = ('Lithops v{} init for Localhost'.format(__version__))
-        if not self.log_active:
-            print(log_msg)
-        logger.info("Localhost handler created successfully")
+        msg = COMPUTE_CLI_MSG.format('Localhost Compute')
+        logger.info("{}".format(msg))
 
     def run_job(self, job_payload):
         """

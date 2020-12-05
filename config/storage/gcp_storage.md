@@ -34,7 +34,7 @@ $ pip install lithops[gcp]
 
 ```yaml
     lithops:
-        storage_backend: gcp_storage
+        storage: gcp_storage
 
     gcp:
         project_name : <PROJECT_NAME>

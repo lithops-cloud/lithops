@@ -1,6 +1,7 @@
 #
 # Copyright 2018 PyWren Team
-# Copyright IBM Corp. 2019
+# (C) Copyright IBM Corp. 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -99,7 +100,7 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id,
             iterdata.append([map_futures[prev_total_partitons:prev_total_partitons+total_partitions]])
             prev_total_partitons = prev_total_partitons + total_partitions
 
-    reduce_job_env = {'__PW_REDUCE_JOB': True}
+    reduce_job_env = {'__LITHOPS_REDUCE_JOB': True}
     if extra_env is None:
         ext_env = reduce_job_env
     else:
@@ -140,8 +141,6 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     :return: A list with size `len(iterdata)` of futures for each job
     :rtype:  list of futures.
     """
-    log_level = logger.getEffectiveLevel() != logging.WARNING
-
     ext_env = {} if extra_env is None else extra_env.copy()
     if ext_env:
         ext_env = utils.convert_bools_to_string(ext_env)
@@ -218,11 +217,8 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
                    'of {}'.format(executor_id, job_id, sizeof_fmt(data_limit*1024**2)))
         raise Exception(log_msg)
 
-    log_msg = ('ExecutorID {} | JobID {} - Uploading function and data '
-               '- Total: {}'.format(executor_id, job_id, total_size))
-    logger.info(log_msg)
-    if not log_level:
-        print(log_msg)
+    logger.info('ExecutorID {} | JobID {} - Uploading function and data '
+                '- Total: {}'.format(executor_id, job_id, total_size))
 
     # Upload data
     data_key = create_agg_data_key(JOBS_PREFIX, executor_id, job_id)

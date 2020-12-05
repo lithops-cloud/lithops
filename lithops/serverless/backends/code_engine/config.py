@@ -16,49 +16,164 @@
 
 import os
 import sys
+import shutil
+import subprocess as sp
+
 from lithops.utils import version_str
+from lithops.version import __version__
 
-RUNTIME_DEFAULT = {'3.5': 'cactusone/lithops-code-engine-v3.5',
-                   '3.6': 'cactusone/lithops-code-engine-v3.6',
-                   '3.7': 'cactusone/lithops-code-engine-v3.7',
-                   '3.8': 'cactusone/lithops-code-engine-v3.8'}
+RUNTIME_NAME = 'lithops-codeengine'
 
-RUNTIME_TIMEOUT_DEFAULT = 600  # Default: 600 seconds => 10 minutes
-RUNTIME_MEMORY_DEFAULT = 128  # Default memory: 256 MB
-MAX_CONCURRENT_WORKERS = 1200
-CPU_DEFAULT = 1  # default number of CPU
+DOCKER_PATH = shutil.which('docker')
 
-DEFAULT_API_VERSION = 'codeengine.cloud.ibm.com/v1beta1'
+RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
+RUNTIME_MEMORY = 256  # Default memory: 256 MB
+RUNTIME_CPU = 1  # 1 vCPU
+MAX_CONCURRENT_WORKERS = 1000
+
 DEFAULT_GROUP = "codeengine.cloud.ibm.com"
 DEFAULT_VERSION = "v1beta1"
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_codeengine.zip')
 
 
+DOCKERFILE_DEFAULT = """
+RUN apt-get update && apt-get install -y \
+        zip \
+        && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --upgrade setuptools six pip \
+    && pip install --no-cache-dir \
+        gunicorn \
+        pika==0.13.1 \
+        flask \
+        gevent \
+        glob2 \
+        ibm-cos-sdk \
+        redis \
+        requests \
+        PyYAML \
+        kubernetes \
+        numpy
+
+ENV PORT 8080
+ENV CONCURRENCY 4
+ENV TIMEOUT 600
+ENV PYTHONUNBUFFERED TRUE
+
+# Copy Lithops proxy and lib to the container image.
+ENV APP_HOME /lithops
+WORKDIR $APP_HOME
+
+COPY lithops_codeengine.zip .
+RUN unzip lithops_codeengine.zip && rm lithops_codeengine.zip
+
+CMD exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsentry:proxy
+"""
+
+JOBDEF_DEFAULT = """
+apiVersion: codeengine.cloud.ibm.com/v1beta1
+kind: JobDefinition
+metadata:
+  name: "<INPUT>"
+  labels:
+    type: lithops-runtime
+spec:
+  arraySpec: '0'
+  maxExecutionTime: 7200
+  retryLimit: 3
+  template:
+    containers:
+    - image: "<INPUT>"
+      name: "<INPUT>"
+      command:
+      - "/usr/local/bin/python"
+      args:
+      - "/lithops/lithopsentry.py"
+      - "$(ACTION)"
+      - "$(PAYLOAD)"
+      env:
+      - name: ACTION
+        value: ''
+      - name: PAYLOAD
+        valueFrom:
+          configMapKeyRef:
+             key: 'lithops.payload'
+             name : NAME
+      resources:
+        requests:
+          cpu: '1'
+          memory: 128Mi
+"""
+
+
+JOBRUN_DEFAULT = """
+apiVersion: codeengine.cloud.ibm.com/v1beta1
+kind: JobRun
+metadata:
+  name: "<INPUT>"
+spec:
+  jobDefinitionRef: "<REF>"
+  jobDefinitionSpec:
+    arraySpec: '1'
+    maxExecutionTime: 7200
+    retryLimit: 2
+    template:
+      containers:
+      - name: "<INPUT>"
+        env:
+        - name: ACTION
+          value: ''
+        - name: PAYLOAD
+          valueFrom:
+            configMapKeyRef:
+              key: 'lithops.payload'
+              name : ''
+        resources:
+          requests:
+            cpu: '1'
+            memory: 128Mi
+"""
+
+
 def load_config(config_data):
+    if 'code_engine' not in config_data:
+        config_data['code_engine'] = {}
+
+    if 'runtime_cpu' not in config_data['code_engine']:
+        config_data['code_engine']['cpu'] = RUNTIME_CPU
+
     if 'runtime_memory' not in config_data['serverless']:
-        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
+        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY
     if 'runtime_timeout' not in config_data['serverless']:
-        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT
+
     if 'runtime' not in config_data['serverless']:
-        python_version = version_str(sys.version_info)
-        try:
-            config_data['serverless']['runtime'] = RUNTIME_DEFAULT[python_version]
-        except KeyError:
-            raise Exception('Unsupported Python version: {}'.format(python_version))
+        if not DOCKER_PATH:
+            raise Exception('docker command not found. Install docker or use '
+                            'an already built runtime')
+        if 'docker_user' not in config_data['code_engine']:
+            cmd = "{} info".format(DOCKER_PATH)
+            docker_user_info = sp.check_output(cmd, shell=True, encoding='UTF-8',
+                                               stderr=sp.STDOUT)
+            for line in docker_user_info.splitlines():
+                if 'Username' in line:
+                    _, useranme = line.strip().split(':')
+                    config_data['code_engine']['docker_user'] = useranme.strip()
+                    break
+
+        if 'docker_user' not in config_data['code_engine']:
+            raise Exception('You must provide "docker_user" param in config '
+                            'or execute "docker login"')
+
+        docker_user = config_data['code_engine']['docker_user']
+        python_version = version_str(sys.version_info).replace('.', '')
+        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
+        runtime_name = '{}/{}-v{}:{}'.format(docker_user, RUNTIME_NAME, python_version, revision)
+        config_data['serverless']['runtime'] = runtime_name
 
     config_data['serverless']['remote_invoker'] = True
 
     if 'workers' not in config_data['lithops'] or \
        config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
-
-    if 'code_engine' in config_data:
-        if 'runtime_cpu' not in config_data['code_engine']:
-            config_data['code_engine']['runtime_cpu'] = CPU_DEFAULT
-        if 'api_version' not in config_data['code_engine']:
-            config_data['code_engine']['api_version'] = DEFAULT_API_VERSION
-        if 'group' not in config_data['code_engine']:
-            config_data['code_engine']['group'] = DEFAULT_GROUP
-        if 'version' not in config_data['code_engine']:
-            config_data['code_engine']['version'] = DEFAULT_VERSION

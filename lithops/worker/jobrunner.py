@@ -34,7 +34,7 @@ from lithops.future import ResponseFuture
 from lithops.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_function
 from lithops.utils import WrappedStreamingBodyPartition
 from lithops.constants import TEMP
-
+from lithops.util.metrics import PrometheusExporter
 
 logger = logging.getLogger(__name__)
 
@@ -64,15 +64,19 @@ class JobRunner:
         self.internal_storage = internal_storage
 
         self.lithops_config = self.jr_config['lithops_config']
+        self.executor_id = self.jr_config['executor_id']
         self.call_id = self.jr_config['call_id']
         self.job_id = self.jr_config['job_id']
-        self.executor_id = self.jr_config['executor_id']
         self.func_key = self.jr_config['func_key']
         self.data_key = self.jr_config['data_key']
         self.data_byte_range = self.jr_config['data_byte_range']
         self.output_key = self.jr_config['output_key']
 
         self.stats = stats(self.jr_config['stats_filename'])
+
+        prom_enabled = self.lithops_config['lithops'].get('monitoring')
+        prom_config = self.lithops_config.get('prometheus', {})
+        self.prometheus = PrometheusExporter(prom_enabled, prom_config)
 
     def _get_function_and_modules(self):
         """
@@ -159,7 +163,7 @@ class JobRunner:
                 if self.internal_storage.backend == 'ibm_cos':
                     ibm_boto3_client = self.internal_storage.get_client()
                 else:
-                    ibm_boto3_client = Storage(lithops_config=self.lithops_config, storage_backend='ibm_cos').get_client()
+                    ibm_boto3_client = Storage(config=self.lithops_config, backend='ibm_cos').get_client()
                 data['ibm_cos'] = ibm_boto3_client
             else:
                 raise Exception('Cannot create the ibm_cos client: missing configuration')
@@ -210,7 +214,7 @@ class JobRunner:
             if obj.backend == self.internal_storage.backend:
                 storage = self.internal_storage.storage
             else:
-                storage = Storage(lithops_config=self.lithops_config, storage_backend=obj.backend)
+                storage = Storage(config=self.lithops_config, backend=obj.backend)
 
             if obj.data_byte_range is not None:
                 extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
@@ -253,12 +257,20 @@ class JobRunner:
             function = self._unpickle_function(loaded_func_all['func'])
             data = self._load_data()
 
-            if strtobool(os.environ.get('__PW_REDUCE_JOB', 'False')):
+            if strtobool(os.environ.get('__LITHOPS_REDUCE_JOB', 'False')):
                 self._wait_futures(data)
             elif is_object_processing_function(function):
                 self._load_object(data)
 
             self._fill_optional_args(function, data)
+
+            self.prometheus.send_metric(name='function_start',
+                                        value=time.time(),
+                                        labels=(
+                                            ('job_id', self.job_id),
+                                            ('call_id', self.call_id),
+                                            ('function_name', function.__name__)
+                                        ))
 
             logger.info("Going to execute '{}()'".format(str(function.__name__)))
             print('---------------------- FUNCTION LOG ----------------------', flush=True)
@@ -267,6 +279,14 @@ class JobRunner:
             function_end_tstamp = time.time()
             print('----------------------------------------------------------', flush=True)
             logger.info("Success function execution")
+
+            self.prometheus.send_metric(name='function_end',
+                                        value=time.time(),
+                                        labels=(
+                                            ('job_id', self.job_id),
+                                            ('call_id', self.call_id),
+                                            ('function_name', function.__name__)
+                                        ))
 
             self.stats.write('worker_func_start_tstamp', function_start_tstamp)
             self.stats.write('worker_func_end_tstamp', function_end_tstamp)

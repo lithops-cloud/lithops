@@ -30,7 +30,7 @@ from lithops.invokers import ServerlessInvoker, StandaloneInvoker
 from lithops.storage import InternalStorage
 from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from lithops.job import create_map_job, create_reduce_job
-from lithops.config import default_config, extract_storage_config, \
+from lithops.config import get_mode, default_config, extract_storage_config,\
     extract_localhost_config, extract_standalone_config, \
     extract_serverless_config
 from lithops.constants import LOCALHOST, SERVERLESS, STANDALONE, CLEANER_DIR,\
@@ -52,27 +52,21 @@ class FunctionExecutor:
     for the Localhost, Serverless and Standalone executors
     """
 
-    def __init__(self, type=None, mode=None, config=None, backend=None, storage=None,
+    def __init__(self, mode=None, config=None, backend=None, storage=None,
                  runtime=None, runtime_memory=None, rabbitmq_monitor=None,
-                 workers=None, remote_invoker=None, log_level=None):
-
-        mode = mode or type
-
-        if mode is None:
-            config = default_config(copy.deepcopy(config))
-            mode = config['lithops']['mode']
-
-        if mode not in [LOCALHOST, SERVERLESS, STANDALONE]:
+                 workers=None, remote_invoker=None, log_level=logging.INFO):
+        """ Create a FunctionExecutor Class """
+        if mode and mode not in [LOCALHOST, SERVERLESS, STANDALONE]:
             raise Exception("Function executor mode must be one of '{}', '{}' "
                             "or '{}'".format(LOCALHOST, SERVERLESS, STANDALONE))
 
-        if log_level:
-            setup_logger(log_level)
+        if type(log_level) is str:
+            log_level = logging.getLevelName(log_level.upper())
+        self.log_level = log_level
+        if self.log_level:
+            setup_logger(self.log_level)
 
-        if type is not None:
-            logger.warning("'type' parameter is deprecated and it will be removed"
-                           "in future releases. Use 'mode' parameter instead")
-
+        mode = mode or get_mode(config)
         config_ow = {'lithops': {'mode': mode}, mode: {}}
 
         if runtime is not None:
@@ -93,7 +87,6 @@ class FunctionExecutor:
 
         self.config = default_config(copy.deepcopy(config), config_ow)
 
-        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.is_lithops_worker = is_lithops_worker()
         self.executor_id = create_executor_id()
 
@@ -359,12 +352,12 @@ class FunctionExecutor:
                             ' a list of futures before calling the wait()/get_result() method')
 
         if download_results:
-            msg = 'ExecutorID {} - Getting results...'.format(self.executor_id)
+            msg = 'ExecutorID {} - Getting results'.format(self.executor_id)
             fs_done = [f for f in futures if f.done]
             fs_not_done = [f for f in futures if not f.done]
 
         else:
-            msg = 'ExecutorID {} - Waiting for functions to complete...'.format(self.executor_id)
+            msg = 'ExecutorID {} - Waiting for functions to complete'.format(self.executor_id)
             fs_done = [f for f in futures if f.ready or f.done]
             fs_not_done = [f for f in futures if not f.ready and not f.done]
 
@@ -372,8 +365,6 @@ class FunctionExecutor:
             return fs_done, fs_not_done
 
         logger.info(msg)
-        if not self.log_active:
-            print(msg)
 
         if is_unix_system() and timeout is not None:
             logger.debug('Setting waiting timeout to {} seconds'.format(timeout))
@@ -383,18 +374,18 @@ class FunctionExecutor:
 
         pbar = None
         error = False
-        if not self.is_lithops_worker and not self.log_active:
+        if not self.is_lithops_worker and self.log_level == logging.INFO:
             from tqdm.auto import tqdm
 
             if is_notebook():
                 pbar = tqdm(bar_format='{n}/|/ {n_fmt}/{total_fmt}', total=len(fs_not_done))  # ncols=800
             else:
                 print()
-                pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(fs_not_done), disable=False)
+                pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(fs_not_done), disable=None)
 
         try:
             if self.rabbitmq_monitor:
-                logger.info('Using RabbitMQ to monitor function activations')
+                logger.debug('Using RabbitMQ to monitor function activations')
                 wait_rabbitmq(futures, self.internal_storage, rabbit_amqp_url=self.rabbit_amqp_url,
                               download_results=download_results, throw_except=throw_except,
                               pbar=pbar, return_when=return_when, THREADPOOL_SIZE=THREADPOOL_SIZE)
@@ -414,8 +405,6 @@ class FunctionExecutor:
                 pbar.close()
                 print()
             logger.info(msg)
-            if not self.log_active:
-                print(msg)
             error = True
             raise e
 
@@ -507,11 +496,7 @@ class FunctionExecutor:
         logging.getLogger('matplotlib').setLevel(logging.WARNING)
         from lithops.plots import create_timeline, create_histogram
 
-        msg = 'ExecutorID {} - Creating execution plots'.format(self.executor_id)
-
-        logger.info(msg)
-        if not self.log_active:
-            print(msg)
+        logger.info('ExecutorID {} - Creating execution plots'.format(self.executor_id))
 
         create_timeline(ftrs_to_plot, dst)
         create_histogram(ftrs_to_plot, dst)
