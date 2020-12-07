@@ -12,33 +12,56 @@ $ pip install lithops[azure]
 
 2. Install [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest)
 
-3. Sign in with the Azure CLI:
+3. Install the [Azure Functions core tools](https://github.com/Azure/azure-functions-core-tools)
+
+4. Sign in with the Azure CLI:
 
 ```bash
   $ az login
 ```
 
+6. Create a Resource Group in a specific location, for example:
+
+```bash
+  $ az group create --name LithopsResourceGroup --location westeurope
+```
+
+5. Create a Storage Account with a unique name, for example:
+
+```bash
+  $ storage_account_name=lithops$(openssl rand -hex 3)
+  $ echo $storage_account_name
+  $ az storage account create --name $storage_account_name --location westeurope \
+     --resource-group LithopsResourceGroup --sku Standard_LRS
+```
+
+
 ### Configuration
 
-  3. Edit your lithops config and add the following keys:
+4. Access to the [Azure portal](https://portal.azure.com/#home)
 
-    ```yaml
-      serverless:
-        backend : azure_fa
-    
-      azure_fa:
-        resource_group : <RESOURCE_GROUP>
-        location : <CONSUMPTION_PLAN_LOCATION>
-        account_name : <STORAGE_ACCOUNT_NAME>
-        account_key : <STORAGE_ACCOUNT_KEY>
-        functions_version : <AZURE_FUNCTIONS_VERSION>
-    ```
-   - `resource_group`: the Resource Group of your Storage Account. *Storage Account* > `account_name` > *Overview*.
-   - `account_name`: the name of the Storage Account.
-   - `account_key`: an Account Key, found in *Storage Account* > `account_name` > *Settings* > *Access Keys*.
-   - `location`: the location of the consumption plan for the runtime. \
-      Use `az functionapp list-consumption-locations` to view available locations.
-   - `functions_version`: optional, Azure Functions runtime version (2 or 3, defaults to 2).
+5. Access to the [Storage Account](https://portal.azure.com/#blade/HubsExtension/BrowseResource/resourceType/Microsoft.Storage%2FStorageAccounts)
 
-  
-*Note: the first time executing it it will take several minutes to deploy the runtime. If you want to see more information about the process, you can enable logging by passing the argument `FunctionExecutor(log_level='INFO')`. If you are having troubles when executing it for the first time, try updating your ```pip```.*
+6. In the left menu, click on *Properties* and copy the *Queue service* URL
+
+4. Edit your lithops config and add the following keys:
+
+```yaml
+  serverless:
+    backend : azure_fa
+
+  azure_fa:
+    storage_account: <STORAGE_ACCOUNT_NAME>
+    storage_account_key: <STORAGE_ACCOUNT_KEY>
+    resource_group: <RESOURCE_GROUP>
+    location: <CONSUMPTION_PLAN_LOCATION>
+```
+
+### Summary of configuration keys for Azure Functions Apps:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|azure_fa| resource_group | |yes | Name of the resource group used in steps 4 and 5 of the installation. |
+|azure_fa| storage_account_name | |yes |  The name generated in step 5 of the installation |
+|azure_fa| storage_account_key |  | yes |  An Account Key, found in *Storage Account* > `account_name` > *Settings* > *Access Keys*|
+|azure_fa| location |  |yes | The location of the consumption plan for the runtime. Use `az functionapp list-consumption-locations` to view the available locations.|
