@@ -31,21 +31,24 @@ class AliyunObjectStorageServiceBackend:
         self.config = config
         self.auth = oss2.Auth(self.config['access_key_id'], self.config['access_key_secret'])
 
+
         if is_lithops_worker():
             self.endpoint = self.config['internal_endpoint']
         else:
             self.endpoint = self.config['public_endpoint']
 
-        self.bucket = oss2.Bucket(self.auth, self.endpoint, self.bucket)
+        # Connection pool size in aliyun_oss must be updated to avoid "connection pool is full" type errors.
+        oss2.defaults.connection_pool_size = 30
 
-        msg = STORAGE_CLI_MSG.format('Alibaba Object')
+        msg = STORAGE_CLI_MSG.format('Alibaba Object Storage')
         logger.info("{} - Endpoint: {}".format(msg, self.endpoint))
 
     def _connect_bucket(self, bucket_name):
-        if self.bucket and self.bucket.bucket_name == bucket_name:
+        if hasattr(self, 'bucket') and self.bucket.bucket_name == bucket_name:
             bucket = self.bucket
         else:
-            bucket = oss2.Bucket(self.auth, self.endpoint, bucket_name)
+            self.bucket = oss2.Bucket(self.auth, self.endpoint, bucket_name)
+            bucket = self.bucket
         return bucket
 
     def get_client(self):
@@ -78,13 +81,24 @@ class AliyunObjectStorageServiceBackend:
         :return: Data of the object
         :rtype: str/bytes
         """
-        if 'Range' in extra_get_args:   # expected common format: Range='bytes=L-H'
-            bytes_range = extra_get_args.pop('Range')[6:]
-            bytes_range = bytes_range.split('-')
-            extra_get_args['byte_range'] = (int(bytes_range[0]), int(bytes_range[1]))
-
         try:
             bucket = self._connect_bucket(bucket_name)
+
+            if 'Range' in extra_get_args:   # expected common format: Range='bytes=L-H'
+                bytes_range = extra_get_args.pop('Range')
+                if isinstance(bytes_range, str):
+                    bytes_range = bytes_range[6:]
+                    bytes_range = bytes_range.split('-')
+
+                # Cannot use byte range surpassing the content length
+                if int(bytes_range[0]) != 0:
+                    object_length = bucket.head_object(key).content_length
+                    if int(bytes_range[1]) >= object_length:
+                        bytes_range[1] = object_length - 1
+
+                extra_get_args['byte_range'] = (int(bytes_range[0]), int(bytes_range[1]))
+
+
             data = bucket.get_object(key=key, **extra_get_args)
             if stream:
                 return data

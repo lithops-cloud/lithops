@@ -97,7 +97,6 @@ class AliyunFunctionComputeBackend:
             self.fc_client.create_service(self.service_name)
 
         if docker_image_name == 'default':
-            print("default docker")
             handler_path = aliyunfc_config.HANDLER_FOLDER_LOCATION
             is_custom = False
         elif os.path.isdir(docker_image_name):
