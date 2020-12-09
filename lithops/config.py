@@ -223,8 +223,9 @@ def default_storage_config(config_data=None, backend=None):
             else:
                 logger.debug("No config file found. Running on Localhost mode")
                 backend = None
-                config_data = {'lithops': {'mode': constants.LOCALHOST,
-                                           'storage': constants.LOCALHOST}}
+                config_data = {'lithops': {'mode': constants.LOCALHOST}}
+                config_data['lithops']['storage'] = 'localhost'
+                config_data['lithops']['storage_bucket'] = 'storage'
 
     if 'lithops' not in config_data:
         config_data['lithops'] = {}
