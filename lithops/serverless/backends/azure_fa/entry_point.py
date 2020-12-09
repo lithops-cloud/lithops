@@ -22,23 +22,27 @@ from lithops.version import __version__
 from lithops.utils import setup_logger
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
+from lithops.worker.utils import get_runtime_preinstalls
 
 logger = logging.getLogger('lithops.worker')
 
 
-def main(msgIn: func.QueueMessage):
+def main(msgIn: func.QueueMessage, msgOut: func.Out[func.QueueMessage]):
     try:
         args = json.loads(msgIn.get_body())
     except Exception:
         args = msgIn.get_json()
 
-    os.environ['__PW_ACTIVATION_ID'] = str(msgIn.id)
+    os.environ['__LITHOPS_ACTIVATION_ID'] = str(msgIn.id)
     setup_logger(args['log_level'])
-    if 'remote_invoker' in args:
+
+    if 'get_preinstalls' in args:
+        logger.info("Lithops v{} - Generating metadata".format(__version__))
+        runtime_meta = get_runtime_preinstalls()
+        msgOut.set(json.dumps(runtime_meta))
+    elif 'remote_invoker' in args:
         logger.info("Lithops v{} - Starting invoker".format(__version__))
         function_invoker(args)
     else:
         logger.info("Lithops v{} - Starting execution".format(__version__))
         function_handler(args)
-
-    return {"Execution": "Finished"}
