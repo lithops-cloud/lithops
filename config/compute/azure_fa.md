@@ -51,9 +51,9 @@ $ pip install lithops[azure]
     backend : azure_fa
 
   azure_fa:
+    resource_group: <RESOURCE_GROUP>
     storage_account: <STORAGE_ACCOUNT_NAME>
     storage_account_key: <STORAGE_ACCOUNT_KEY>
-    resource_group: <RESOURCE_GROUP>
     location: <CONSUMPTION_PLAN_LOCATION>
 ```
 
@@ -62,6 +62,6 @@ $ pip install lithops[azure]
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |azure_fa| resource_group | |yes | Name of the resource group used in steps 4 and 5 of the installation. |
-|azure_fa| storage_account_name | |yes |  The name generated in step 5 of the installation |
+|azure_fa| storage_account | |yes |  The name generated in step 5 of the installation |
 |azure_fa| storage_account_key |  | yes |  An Account Key, found in *Storage Account* > `account_name` > *Settings* > *Access Keys*|
 |azure_fa| location |  |yes | The location of the consumption plan for the runtime. Use `az functionapp list-consumption-locations` to view the available locations.|

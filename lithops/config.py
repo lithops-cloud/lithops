@@ -220,6 +220,11 @@ def default_storage_config(config_data=None, backend=None):
             logger.info('Getting configuration from {}'.format(config_filename))
             if config_filename:
                 config_data = load_yaml_config(config_filename)
+            else:
+                logger.debug("No config file found. Running on Localhost mode")
+                backend = None
+                config_data = {'lithops': {'mode': constants.LOCALHOST,
+                                           'storage': constants.LOCALHOST}}
 
     if 'lithops' not in config_data:
         config_data['lithops'] = {}
