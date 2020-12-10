@@ -5,6 +5,9 @@
 ### Added
 - [Azure] Azure Functions backend upgraded
 
+### Fixed
+- [Core] Fixed Storage API error when no config is provided
+- [Core] Fixed expired IAM token in IBM CF during an execution
 
 ## [v2.2.13]
 

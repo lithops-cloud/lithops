@@ -18,7 +18,7 @@ import os
 import sys
 import base64
 import logging
-
+from threading import Lock
 from lithops.utils import version_str
 from lithops.version import __version__
 from lithops.utils import is_lithops_worker
@@ -29,6 +29,7 @@ from lithops.constants import COMPUTE_CLI_MSG
 from . import config as ibmcf_config
 
 logger = logging.getLogger(__name__)
+token_mutex = Lock()
 
 
 class IBMCloudFunctionsBackend:
@@ -67,13 +68,13 @@ class IBMCloudFunctionsBackend:
                                              user_agent=self.user_agent)
 
         elif self.iam_api_key:
-            iam_api_key = self.config.get('iam_api_key')
             api_key_type = 'IAM'
             token = self.config.get('token', None)
             token_expiry_time = self.config.get('token_expiry_time', None)
-
-            self.ibm_iam_api_key_manager = IBMTokenManager(iam_api_key, api_key_type, token, token_expiry_time)
-            token, token_expiry_time = self.ibm_iam_api_key_manager.get_token()
+            self.ibm_token_manager = IBMTokenManager(self.iam_api_key,
+                                                     api_key_type, token,
+                                                     token_expiry_time)
+            token, token_expiry_time = self.ibm_token_manager.get_token()
 
             self.config['token'] = token
             self.config['token_expiry_time'] = token_expiry_time
@@ -86,7 +87,8 @@ class IBMCloudFunctionsBackend:
                                              user_agent=self.user_agent)
 
         msg = COMPUTE_CLI_MSG.format('IBM CF')
-        logger.info("{} - Region: {} - Namespace: {}".format(msg, self.region, self.namespace))
+        logger.info("{} - Region: {} - Namespace: {}".format(msg, self.region,
+                                                             self.namespace))
 
     def _format_action_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '_').replace(':', '_')
@@ -203,7 +205,32 @@ class IBMCloudFunctionsBackend:
                                               payload=payload,
                                               is_ow_action=self.is_lithops_worker)
 
+        if activation_id == 401:
+            # unauthorized. Probably token expired if using IAM auth
+            if self.iam_api_key and not self.is_lithops_worker:
+                self._refresh_cf_client()
+                return self.invoke(docker_image_name, runtime_memory, payload)
+            else:
+                raise Exception('Unauthorized. Review your API key')
+
         return activation_id
+
+    def _refresh_cf_client(self):
+        """ Recreates the OpenWhisk client with a new token.
+        This is only called by the invoke method when it receives
+        a 401 error.
+        """
+        token_mutex.acquire()
+        token, token_expiry_time = self.ibm_token_manager.get_token()
+        if token != self.config['token']:
+            self.config['token'] = token
+            self.config['token_expiry_time'] = token_expiry_time
+            auth = 'Bearer ' + token
+            self.cf_client = OpenWhiskClient(endpoint=self.endpoint,
+                                             namespace=self.namespace_id,
+                                             auth=auth,
+                                             user_agent=self.user_agent)
+        token_mutex.release()
 
     def get_runtime_key(self, docker_image_name, runtime_memory):
         """

@@ -293,6 +293,9 @@ class StandaloneHandler:
     def clean(self):
         pass
 
+    def clear(self):
+        pass
+
     def _setup_proxy(self):
         logger.debug('Installing Lithops proxy in the VM instance')
         logger.debug('Be patient, installation process can take up to 3 minutes '

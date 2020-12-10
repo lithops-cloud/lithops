@@ -2,7 +2,6 @@ import os
 import logging
 from datetime import datetime, timezone
 from ibm_botocore.credentials import DefaultTokenManager
-
 from lithops.utils import is_lithops_worker
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.constants import CACHE_DIR
@@ -51,8 +50,12 @@ class IBMTokenManager:
         dump_yaml_config(self._token_filename, token_data)
 
     def get_token(self):
-        if (self._token_manager._is_expired() or self._get_token_minutes_diff() < 11) and not is_lithops_worker():
-            logger.debug("Using IBM {} API Key - Requesting new token".format(self.api_key_type))
+        """ Gets a new token within a mutex block to prevent multiple threads
+        requesting new tokens at the same time.
+        """
+        if (self._token_manager._is_expired() or self._get_token_minutes_diff() < 11) \
+           and not is_lithops_worker():
+            logger.debug("Token expired. Requesting new token".format(self.api_key_type))
             self._generate_new_token()
 
         token = self._token_manager._token
