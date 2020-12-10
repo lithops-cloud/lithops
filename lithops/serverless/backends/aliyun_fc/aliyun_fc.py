@@ -147,7 +147,7 @@ class AliyunFunctionComputeBackend:
 
     def list_runtimes(self, docker_image_name='all'):
         """
-        List all the runtimes deployed in the IBM CF service
+        List all the runtimes deployed in the Aliyun FC service
         return: list of tuples (docker_image_name, memory)
         """
         if docker_image_name == 'default':
@@ -205,7 +205,6 @@ class AliyunFunctionComputeBackend:
             logger.debug(child.stderr.read().decode())
 
             if child.returncode != 0:
-                print("repeating because of error")
                 cmd = 'pip install -t {} -r {} --no-deps'.format(handler_path, requirements_file)
                 child = sp.Popen(cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE)  # silent
                 child.wait()

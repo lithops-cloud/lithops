@@ -29,6 +29,8 @@ RUNTIME_MEMORY_DEFAULT = 256
 RUNTIME_MEMORY_MAX = 3072
 MAX_CONCURRENT_WORKERS = 300
 
+CONNECTION_POOL_SIZE = 30
+
 SERVICE_NAME = 'lithops-runtime'
 HANDLER_FOLDER_LOCATION = os.path.join(os.getcwd(), 'lithops_handler_aliyun')
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_aliyunfc.zip')

@@ -16,6 +16,8 @@
 
 import oss2
 import logging
+
+from lithops.serverless.backends.aliyun_fc.config import CONNECTION_POOL_SIZE
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import is_lithops_worker
 from lithops.constants import STORAGE_CLI_MSG
@@ -38,7 +40,7 @@ class AliyunObjectStorageServiceBackend:
             self.endpoint = self.config['public_endpoint']
 
         # Connection pool size in aliyun_oss must be updated to avoid "connection pool is full" type errors.
-        oss2.defaults.connection_pool_size = 30
+        oss2.defaults.connection_pool_size = CONNECTION_POOL_SIZE
 
         msg = STORAGE_CLI_MSG.format('Alibaba Object Storage')
         logger.info("{} - Endpoint: {}".format(msg, self.endpoint))
