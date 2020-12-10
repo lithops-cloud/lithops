@@ -115,7 +115,8 @@ class Storage:
         """
         prefix = os.environ.get('__LITHOPS_SESSION_ID', '')
         coid = hex(next(self._created_cobjects_n))[2:]
-        name = '{}/cloudobject_{}'.format(prefix, coid)
+        coname = 'cloudobject_{}'.format(coid)
+        name = '/'.join([prefix, coname]) if prefix else coname
         key = key or '/'.join([TEMP_PREFIX, name])
         bucket = bucket or self.bucket
         self.storage_handler.put_object(bucket, key, body)

@@ -51,7 +51,7 @@ class AzureFunctionAppBackend:
                                                 credential=self.account_key)
 
         msg = COMPUTE_CLI_MSG.format('Azure Functions')
-        logger.info("{}".format(msg))
+        logger.info("{} - Location: {}".format(msg, self.location))
 
     def _format_action_name(self, runtime_name, runtime_memory=None):
         runtime_name = runtime_name.replace('/', '--').replace(':', '--')

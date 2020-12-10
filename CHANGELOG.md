@@ -4,10 +4,14 @@
 
 ### Added
 - [Azure] Azure Functions backend upgraded
+- [Azure] Azure blob backend upgraded
+- [Alibaba] Alibaba Functions backend upgraded
+- [Alibaba] Alibaba Storage backend upgraded
 
 ### Fixed
 - [Core] Fixed Storage API error when no config is provided
 - [Core] Fixed expired IAM token in IBM CF during an execution
+- [CodeEngine] Fixed issue getting region
 
 ## [v2.2.13]
 

@@ -68,7 +68,7 @@ class CodeEngineBackend:
         try:
             self.region = self.cluster.split('//')[1].split('.')[1]
         except Exception:
-            self.region = ''
+            self.region = self.cluster.replace('http://', '').replace('https://', '')
 
         self.job_def_ids = set()
 
@@ -592,7 +592,7 @@ class CodeEngineBackend:
             self.coreV1Api.create_namespaced_config_map(namespace=self.namespace, body=cmap, field_manager=field_manager)
             logger.debug("ConfigMap {} for namespace {} created".format(config_name, self.namespace))
         except ApiException as e:
-            logger.warn("Exception when calling CoreV1Api->create_namespaced_config_map: %s\n" % e)
+            logger.warning("Exception when calling CoreV1Api->create_namespaced_config_map: %s\n" % e)
             if (e.status != 409):
                 raise Exception('Failed to create ConfigMap')
 
@@ -605,6 +605,6 @@ class CodeEngineBackend:
         try:
             logger.debug("Delete ConfigMap {} for namespace {}".format(config_name, self.namespace))
             api_response = self.coreV1Api.delete_namespaced_config_map(name=config_name, namespace=self.namespace, grace_period_seconds=grace_period_seconds)
-            logger.debug(" ConfigMap {} for namespace {} deleted with status {}".format(config_name, self.namespace, api_response.status))
+            logger.debug("ConfigMap {} for namespace {} deleted with status {}".format(config_name, self.namespace, api_response.status))
         except ApiException as e:
-            logger.warn("Exception when calling CoreV1Api->delete_namespaced_config_map: %s\n" % e)
+            logger.warning("Exception when calling CoreV1Api->delete_namespaced_config_map: %s\n" % e)
