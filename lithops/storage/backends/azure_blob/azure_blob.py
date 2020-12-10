@@ -16,8 +16,8 @@
 
 import logging
 from io import BytesIO
-from azure.storage.blob import BlockBlobService
-from azure.common import AzureMissingResourceHttpError
+from azure.storage.blob import BlobServiceClient
+from azure.core.exceptions import ResourceNotFoundError
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.constants import STORAGE_CLI_MSG
 
@@ -28,17 +28,19 @@ class AzureBlobStorageBackend:
 
     def __init__(self, azure_blob_config):
         logger.debug("Creating Azure Blob Storage client")
-        self.blob_client = BlockBlobService(account_name=azure_blob_config['account_name'],
-                                            account_key=azure_blob_config['account_key'])
+        self.storage_account = azure_blob_config['storage_account']
+        self.blob_service_url = 'https://{}.blob.core.windows.net'.format(self.storage_account)
+        self.blob_client = BlobServiceClient(account_url=self.blob_service_url,
+                                             credential=azure_blob_config['storage_account_key'])
 
         msg = STORAGE_CLI_MSG.format('Azure Blob')
         logger.info("{}".format(msg))
 
     def get_client(self):
         """
-        Get Azure BlockBlobService client.
+        Get Azure BlobServiceClient client.
         :return: storage client
-        :rtype: azure.storage.blob.BlockBlobService
+        :rtype: azure.storage.blob.BlobServiceClient
         """
         return self.blob_client
 
@@ -53,7 +55,8 @@ class AzureBlobStorageBackend:
         if isinstance(data, str):
             data = data.encode()
 
-        self.blob_client.create_blob_from_bytes(bucket_name, key, data)
+        container_client = self.blob_client.get_container_client(bucket_name)
+        container_client.upload_blob(key, data)
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
         """
@@ -65,19 +68,20 @@ class AzureBlobStorageBackend:
         if 'Range' in extra_get_args:   # expected common format: Range='bytes=L-H'
             bytes_range = extra_get_args.pop('Range')[6:]
             bytes_range = bytes_range.split('-')
-            extra_get_args['start_range'] = int(bytes_range[0])
-            extra_get_args['end_range'] = int(bytes_range[1])
+            extra_get_args['offset'] = int(bytes_range[0])
+            extra_get_args['length'] = int(bytes_range[1] - bytes_range[0])
         try:
+            container_client = self.blob_client.get_container_client(bucket_name)
             if stream:
                 stream_out = BytesIO()
-                self.blob_client.get_blob_to_stream(bucket_name, key, stream_out, **extra_get_args)
+                container_client.download_blob(key, **extra_get_args).download_to_stream(stream_out)
                 stream_out.seek(0)
                 return stream_out
             else:
-                data = self.blob_client.get_blob_to_bytes(bucket_name, key, **extra_get_args)
-                return data.content
+                data = container_client.download_blob(key, **extra_get_args).content_as_bytes()
+                return data
 
-        except AzureMissingResourceHttpError:
+        except ResourceNotFoundError:
             raise StorageNoSuchKeyError(bucket_name, key)
 
     def head_object(self, bucket_name, key):
@@ -87,11 +91,12 @@ class AzureBlobStorageBackend:
         :return: Data of the object
         :rtype: str/bytes
         """
-        blob = self.blob_client.get_blob_properties(bucket_name, key)
+        container_client = self.blob_client.get_container_client(bucket_name)
+        blob = container_client.get_blob_client(key)
 
         # adapted to match ibm_cos method
         metadata = {}
-        metadata['content-length'] = blob.properties.content_length
+        metadata['content-length'] = blob_client.get_blob_properties().size
         return metadata
 
     def delete_object(self, bucket_name, key):
@@ -101,8 +106,9 @@ class AzureBlobStorageBackend:
         :param key: data key
         """
         try:
-            self.blob_client.delete_blob(bucket_name, key)
-        except AzureMissingResourceHttpError:
+            container_client = self.blob_client.get_container_client(bucket_name)
+            container_client.delete_blob(key, "include")
+        except ResourceNotFoundError:
             pass
 
     def delete_objects(self, bucket_name, key_list):
@@ -121,7 +127,8 @@ class AzureBlobStorageBackend:
         :return: Data of the object
         """
         try:
-            return self.blob_client.get_container_metadata(bucket_name)
+            container_client = self.blob_client.get_container_client(bucket_name)
+            return container_client.get_container_properties()
         except Exception:
             raise StorageNoSuchKeyError(bucket_name, '')
 
@@ -135,12 +142,13 @@ class AzureBlobStorageBackend:
         """
         # adapted to match ibm_cos method
         try:
-            blobs = self.blob_client.list_blobs(bucket_name, prefix)
+            container_client = self.blob_client.get_container_client(bucket_name)
+            blobs = container_client.list_blobs(prefix)
             mod_list = []
             for blob in blobs:
                 mod_list.append({
                     'Key': blob.name,
-                    'Size': blob.properties.content_length
+                    'Size': blob.size
                 })
             return mod_list
         except Exception:
@@ -154,7 +162,8 @@ class AzureBlobStorageBackend:
         :rtype: list of str
         """
         try:
-            keys = [key for key in self.blob_client.list_blob_names(bucket_name, prefix).items]
+            container_client = self.blob_client.get_container_client(bucket_name)
+            keys = [blob.name for blob in container_client.list_blobs(prefix)]
             return keys
         except Exception:
             raise StorageNoSuchKeyError(bucket_name, '' if prefix is None else prefix)
