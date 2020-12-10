@@ -61,9 +61,9 @@ class CodeEngineBackend:
         contexts = config.list_kube_config_contexts(config_file=self.kubecfg)
         current_context = contexts[1].get('context')
         self.namespace = current_context.get('namespace', 'default')
-        logger.debug("Set kubernetes namespace to {}".format(self.cluster))
+        logger.debug("Set namespace to {}".format(self.namespace))
         self.cluster = current_context.get('cluster')
-        logger.debug("Set kubernetes cluster to {}".format(self.cluster))
+        logger.debug("Set cluster to {}".format(self.cluster))
 
         try:
             self.region = self.cluster.split('//')[1].split('.')[1]

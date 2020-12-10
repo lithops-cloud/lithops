@@ -111,6 +111,9 @@ class LocalhostHandler:
     def clean(self):
         pass
 
+    def clear(self):
+        pass
+
 
 class DockerEnv:
     def __init__(self, docker_image):
