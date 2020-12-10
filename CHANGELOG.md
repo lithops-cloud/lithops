@@ -1,6 +1,12 @@
 # Changelog
 
-## [v2.2.12.dev0]
+## [v2.2.14.dev0]
+
+### Added
+- [Azure] Azure Functions backend upgraded
+
+
+## [v2.2.13]
 
 ### Added
 - [CodeEngine] Compatible runtimes between knative and CE
@@ -11,7 +17,6 @@
 ### Changed
 - [Localhost] Run functions in processes instead of threads in Windows
 - [CodeEngine] Reduced payload size
-- [CodeEngine] Changed way to obtain modules preinstalls
 - [Core] Updated logging
 
 ### Fixed
