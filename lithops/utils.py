@@ -489,7 +489,9 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
             raise EOFError()
         # Data always contain one byte from the previous chunk,
         # so l'ets check if it is a \n or not
-        self.first_byte = self.sb.read(self.plusbytes)
+        if self.plusbytes != 0:
+            self.first_byte = self.sb.read(self.plusbytes)
+
         retval = self.sb.read(n)
 
         if retval == "":

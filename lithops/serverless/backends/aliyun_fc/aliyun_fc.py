@@ -19,9 +19,11 @@ import logging
 import shutil
 import json
 import subprocess as sp
+import sys
+
 import fc2
-from . import config as backend_config
-from lithops.utils import uuid_str
+from . import config as aliyunfc_config
+from lithops.utils import uuid_str, is_lithops_worker, version_str
 from lithops.version import __version__
 import lithops
 from lithops.constants import COMPUTE_CLI_MSG
@@ -34,37 +36,69 @@ class AliyunFunctionComputeBackend:
     A wrap-up around Aliyun Function Compute backend.
     """
 
-    def __init__(self, config, storage_config):
-        logger.debug('Creating Aliyun Function Compute client')
-        self.log_level = os.getenv('LITHOPS_LOGLEVEL')
+    def __init__(self, aliyun_fc_config, storage_config):
+        logger.debug("Creating Aliyun Function Compute client")
+        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'aliyun_fc'
-        self.config = config
-        self.service_name = backend_config.SERVICE_NAME
+        self.config = aliyun_fc_config
+        self.is_lithops_worker = is_lithops_worker()
         self.version = 'lithops_{}'.format(__version__)
 
-        self.fc_client = fc2.Client(endpoint=self.config['public_endpoint'],
-                                    accessKeyID=self.config['access_key_id'],
-                                    accessKeySecret=self.config['access_key_secret'])
+        self.user_agent = aliyun_fc_config['user_agent']
+        if 'service' in aliyun_fc_config:
+            self.service_name = aliyun_fc_config['service']
+        else:
+           self.service_name = aliyunfc_config.SERVICE_NAME
+
+        self.endpoint = aliyun_fc_config['public_endpoint']
+        self.access_key_id = aliyun_fc_config['access_key_id']
+        self.access_key_secret = aliyun_fc_config['access_key_secret']
+
+        logger.debug("Set Aliyun FC Service to {}".format(self.service_name))
+        logger.debug("Set Aliyun FC Endpoint to {}".format(self.endpoint))
+
+        self.fc_client = fc2.Client(endpoint=self.endpoint,
+                                    accessKeyID=self.access_key_id,
+                                    accessKeySecret=self.access_key_secret)
 
         msg = COMPUTE_CLI_MSG.format('Aliyun Function Compute')
         logger.info("{}".format(msg))
 
-    def create_runtime(self, docker_image_name, memory=backend_config.RUNTIME_TIMEOUT_DEFAULT,
-                       timeout=backend_config.RUNTIME_TIMEOUT_DEFAULT):
+    def _format_action_name(self, runtime_name, runtime_memory):
+        runtime_name = runtime_name.replace('/', '_').replace(':', '_')
+        return '{}_{}MB'.format(runtime_name, runtime_memory)
+
+    def _unformat_action_name(self, action_name):
+        runtime_name, memory = action_name.rsplit('_', 1)
+        image_name = runtime_name.replace('_', '/', 1)
+        image_name = image_name.replace('_', ':', -1)
+        return image_name, int(memory.replace('MB', ''))
+
+    def _get_default_runtime_image_name(self):
+        python_version = version_str(sys.version_info)
+        return aliyunfc_config.RUNTIME_DEFAULT[python_version]
+
+    def _delete_function_handler_zip(self):
+        os.remove(aliyunfc_config.FH_ZIP_LOCATION)
+
+    def create_runtime(self, docker_image_name, memory=aliyunfc_config.RUNTIME_TIMEOUT_DEFAULT,
+                       timeout=aliyunfc_config.RUNTIME_TIMEOUT_DEFAULT):
         """
         Creates a new runtime into Aliyun Function Compute
         with the custom modules for lithops
         """
-        logger.info('Creating new lithops runtime for Aliyun Function Compute')
+
+        logger.info('Creating new Lithops runtime for Aliyun Function Compute')
 
         res = self.fc_client.list_services(prefix=self.service_name).data
+
         if len(res['services']) == 0:
+            logger.info("creating service {}".format(self.service_name))
             self.fc_client.create_service(self.service_name)
 
         if docker_image_name == 'default':
-            handler_path = backend_config.HANDLER_FOLDER_LOCATION
+            handler_path = aliyunfc_config.HANDLER_FOLDER_LOCATION
             is_custom = False
-
         elif os.path.isdir(docker_image_name):
             handler_path = docker_image_name
             is_custom = True
@@ -73,17 +107,19 @@ class AliyunFunctionComputeBackend:
                             'does not exist: {}'.format(docker_image_name))
 
         try:
+            logging.basicConfig(level=logging.DEBUG)
             self._create_function_handler_folder(handler_path, is_custom=is_custom)
             metadata = self._generate_runtime_meta(handler_path)
-            function_name = self._format_function_name(self.version, docker_image_name, memory)
+            function_name = self._format_action_name(docker_image_name, memory)
 
             self.fc_client.create_function(serviceName=self.service_name,
                                            functionName=function_name,
-                                           runtime=backend_config.PYTHON_RUNTIME,
+                                           runtime=self._get_default_runtime_image_name(),
                                            handler='entry_point.main',
                                            codeDir=handler_path,
                                            memorySize=memory,
                                            timeout=timeout)
+
         finally:
             if not is_custom:
                 self._delete_function_handler_folder(handler_path)
@@ -94,17 +130,46 @@ class AliyunFunctionComputeBackend:
         """
         Deletes a runtime
         """
-        function_name = self._format_function_name(self.version, docker_image_name, memory)
-        self.fc_client.delete_function(self.service_name, function_name)
+        if docker_image_name == 'default':
+            docker_image_name = self._get_default_runtime_image_name()
+        action_name = self._format_action_name(docker_image_name, memory)
+        self.fc_client.delete_function(self.service_name, action_name)
+
+    def clean(self):
+        """"
+        deletes all runtimes from the current service
+        """
+        actions = self.fc_client.list_functions(self, self.service_name, prefix="lithops")
+        for action in actions:
+            self.fc_client.delete_function(self.service_name, action)
+        if self.service_name.startswith("lithops"):
+            self.fc_client.delete_service(self.service_name)
+
+    def list_runtimes(self, docker_image_name='all'):
+        """
+        List all the runtimes deployed in the Aliyun FC service
+        return: list of tuples (docker_image_name, memory)
+        """
+        if docker_image_name == 'default':
+            docker_image_name = self._get_default_runtime_image_name()
+
+        runtimes = []
+        actions = self.fc_client.list_functions(self.service_name)
+
+        for action in actions:
+            action_image_name, memory = self._unformat_action_name(action['name'])
+            if docker_image_name == action_image_name or docker_image_name == 'all':
+                runtimes.append((action_image_name, memory))
+        return runtimes
 
     def invoke(self, docker_image_name, memory=None, payload={}):
         """
         Invoke function
         """
-        function_name = self._format_function_name(self.version, docker_image_name, memory)
+        action_name = self._format_action_name(docker_image_name, memory)
 
         res = self.fc_client.invoke_function(serviceName=self.service_name,
-                                             functionName=function_name,
+                                             functionName=action_name,
                                              payload=json.dumps(payload),
                                              headers={'x-fc-invocation-type': 'Async'})
 
@@ -116,27 +181,14 @@ class AliyunFunctionComputeBackend:
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        function_name = self._format_function_name(self.version, docker_image_name, runtime_memory)
-        runtime_key = os.path.join(self.name, self.config['public_endpoint'], function_name)
+        action_name = self._format_action_name(docker_image_name, runtime_memory)
+        runtime_key = os.path.join(self.name, self.config['public_endpoint'].split('.')[1], action_name)
 
         return runtime_key
 
-    def clean(self):
-        # TODO
-        pass
-
-    def _format_function_name(self, version, runtime_name, runtime_memory):
-        version = version.replace('.', '-')
-
-        if runtime_name != 'default':
-            runtime_name = os.path.basename(runtime_name)
-        runtime_name = runtime_name.replace('/', '_').replace(':', '_')\
-                                .replace('-', '_').replace('.', '_')
-
-        return '{}_{}_{}MB'.format(version, runtime_name, runtime_memory)
-
     def _create_function_handler_folder(self, handler_path, is_custom):
-        logger.debug("Creating function handler folder in {}".format(handler_path))
+        # logger.debug("Creating function handler folder in {}".format(handler_path))
+        print("Creating function handler folder in {}".format(handler_path))
 
         if not is_custom:
             os.mkdir(handler_path)
@@ -173,8 +225,8 @@ class AliyunFunctionComputeBackend:
         dst_location = os.path.join(handler_path, 'lithops')
 
         if os.path.isdir(dst_location):
-            logger.warn("Using user specified 'lithops' module from the custom runtime folder. "
-                        "Please refrain from including it as it will be automatically installed anyway.")
+            logger.warning("Using user specified 'lithops' module from the custom runtime folder. "
+            "Please refrain from including it as it will be automatically installed anyway.")
         else:
             shutil.copytree(module_location, dst_location)
 
@@ -191,7 +243,7 @@ class AliyunFunctionComputeBackend:
 
         self.fc_client.create_function(serviceName=self.service_name,
                                        functionName=function_name,
-                                       runtime=backend_config.PYTHON_RUNTIME,
+                                       runtime=self._get_default_runtime_image_name(),
                                        handler='entry_point.extract_preinstalls',
                                        codeDir=handler_path,
                                        memorySize=128)
@@ -201,6 +253,7 @@ class AliyunFunctionComputeBackend:
             res = self.fc_client.invoke_function(self.service_name, function_name,
                 headers={'x-fc-invocation-type': 'Sync'})
             runtime_meta = json.loads(res.data)
+
         except Exception:
             raise Exception("Unable to invoke 'extract-preinstalls' function")
         finally:
