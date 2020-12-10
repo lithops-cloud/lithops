@@ -96,7 +96,7 @@ class AzureBlobStorageBackend:
 
         # adapted to match ibm_cos method
         metadata = {}
-        metadata['content-length'] = blob_client.get_blob_properties().size
+        metadata['content-length'] = blob.get_blob_properties().size
         return metadata
 
     def delete_object(self, bucket_name, key):
