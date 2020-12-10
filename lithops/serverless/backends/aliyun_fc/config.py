@@ -19,15 +19,21 @@ import os
 from lithops.utils import version_str
 
 
-PYTHON_RUNTIME = 'python3'
+RUNTIME_DEFAULT = { '3.6': 'python3',
+                    '3.7': 'python3',
+                    '3': 'python3'}
+
 RUNTIME_TIMEOUT_DEFAULT = 600    # Default: 600 s => 10 minutes
 RUNTIME_TIMEOUT_MAX = 600        # Platform maximum
 RUNTIME_MEMORY_DEFAULT = 256
 RUNTIME_MEMORY_MAX = 3072
 MAX_CONCURRENT_WORKERS = 300
 
+CONNECTION_POOL_SIZE = 30
+
 SERVICE_NAME = 'lithops-runtime'
 HANDLER_FOLDER_LOCATION = os.path.join(os.getcwd(), 'lithops_handler_aliyun')
+FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_aliyunfc.zip')
 
 
 def load_config(config_data=None):
