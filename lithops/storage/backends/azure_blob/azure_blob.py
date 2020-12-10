@@ -56,7 +56,7 @@ class AzureBlobStorageBackend:
             data = data.encode()
 
         container_client = self.blob_client.get_container_client(bucket_name)
-        container_client.upload_blob(key, data)
+        container_client.upload_blob(key, data, overwrite=True)
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
         """
@@ -117,8 +117,11 @@ class AzureBlobStorageBackend:
         :param bucket: bucket name
         :param key_list: list of keys
         """
-        for key in key_list:
-            self.delete_object(bucket_name, key)
+        try:
+            container_client = self.blob_client.get_container_client(bucket_name)
+            container_client.delete_blobs(key_list, delete_snapshots="include")
+        except ResourceNotFoundError:
+            pass
 
     def head_bucket(self, bucket_name):
         """
