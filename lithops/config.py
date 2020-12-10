@@ -234,6 +234,7 @@ def default_storage_config(config_data=None, backend=None):
     if config_data['lithops']['mode'] == constants.LOCALHOST:
         if 'storage' not in config_data['lithops']:
             config_data['lithops']['storage'] = 'localhost'
+        if 'storage_bucket' not in config_data['lithops']:
             config_data['lithops']['storage_bucket'] = 'storage'
     else:
         if 'storage' not in config_data['lithops']:
