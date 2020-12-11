@@ -5,6 +5,7 @@
 ### Added
 - [Azure] Azure Functions backend upgraded
 - [Localhost] Support passing file-like objects to put_object
+- [Localhost] Support head_bucket and head_object storage operations
 
 ### Fixed
 - [Core] Fixed Storage API error when no config is provided

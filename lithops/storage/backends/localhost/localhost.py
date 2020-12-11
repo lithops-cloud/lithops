@@ -114,10 +114,16 @@ class LocalhostStorageBackend:
         Head object from local filesystem with a key.
         Throws StorageNoSuchKeyError if the given key does not exist.
         :param key: key of the object
-        :return: Data of the object
-        :rtype: str/bytes
+        :return: metadata of the object
         """
-        pass
+        file_path = os.path.join(LITHOPS_TEMP_DIR, bucket_name, key)
+        if os.path.isfile(file_path):
+            # Imitate the COS/S3 response
+            return {
+                'content-length': str(os.stat(file_path).st_size)
+            }
+
+        raise StorageNoSuchKeyError(os.path.join(LITHOPS_TEMP_DIR, bucket_name), key)
 
     def delete_object(self, bucket_name, key):
         """
@@ -155,10 +161,11 @@ class LocalhostStorageBackend:
         Head localhost dir with a name.
         Throws StorageNoSuchKeyError if the given bucket does not exist.
         :param bucket_name: name of the bucket
-        :return: Metadata of the bucket
-        :rtype: str/bytes
         """
-        raise NotImplementedError
+        if os.path.isdir(os.path.join(LITHOPS_TEMP_DIR, bucket_name)):
+            return {}
+        else:
+            raise StorageNoSuchKeyError(os.path.join(LITHOPS_TEMP_DIR, bucket_name), '')
 
     def list_objects(self, bucket_name, prefix=None):
         """
