@@ -15,22 +15,18 @@
 #
 
 import os
-import logging
-import shutil
-import tempfile
-import hashlib
+import sys
 import time
 import json
-import re
-import subprocess as sp
-import uuid
-from azure.storage.queue import QueueService
-from azure.storage.queue.models import QueueMessageFormat
+import logging
+import shutil
+from azure.storage.queue import QueueServiceClient
 import lithops
 from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG
-from . import config as azure_fa_config
-from .functionapps_client import FunctionAppClient
+from lithops.utils import create_handler_zip, version_str, dict_to_b64str,\
+    b64str_to_dict
+from . import config as az_config
 
 logger = logging.getLogger(__name__)
 
@@ -42,67 +38,235 @@ class AzureFunctionAppBackend:
 
     def __init__(self, config, storage_config):
         logger.debug("Creating Azure Functions client")
-        self.log_level = os.getenv('LITHOPS_LOGLEVEL')
         self.name = 'azure_fa'
-        self.config = config
+        self.azure_config = config
+        self.resource_group = self.azure_config['resource_group']
+        self.storage_account = self.azure_config['storage_account']
+        self.account_key = self.azure_config['storage_account_key']
+        self.location = self.azure_config['location']
+        self.functions_version = self.azure_config['functions_version']
 
-        self.fa_client = FunctionAppClient(self.config)
-        self.queue_service = QueueService(account_name=self.config['account_name'],
-                                          account_key=self.config['account_key'])
-        self.queue_service.encode_function = QueueMessageFormat.text_base64encode
-        self.queue_service.decode_function = QueueMessageFormat.text_base64decode
+        self.queue_service_url = 'https://{}.queue.core.windows.net'.format(self.storage_account)
+        self.queue_service = QueueServiceClient(account_url=self.queue_service_url,
+                                                credential=self.account_key)
 
         msg = COMPUTE_CLI_MSG.format('Azure Functions')
         logger.info("{}".format(msg))
 
-    def create_runtime(self, docker_image_name, memory=None, timeout=azure_fa_config.RUNTIME_TIMEOUT_DEFAULT):
+    def _format_action_name(self, runtime_name, runtime_memory=None):
+        runtime_name = runtime_name.replace('/', '--').replace(':', '--')
+        return runtime_name
+
+    def _format_queue_name(self, action_name, q_type):
+        runtime_name = action_name.replace('--', '-')
+        return runtime_name+'-'+q_type
+
+    def _get_default_runtime_image_name(self):
+        py_version = version_str(sys.version_info).replace('.', '')
+        revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
+        runtime_name = '{}-{}-v{}-{}'.format(self.storage_account, az_config.RUNTIME_NAME,
+                                             py_version, revision)
+        return runtime_name
+
+    def create_runtime(self, docker_image_name, memory=None, timeout=az_config.RUNTIME_TIMEOUT):
         """
         Creates a new runtime into Azure Function Apps
         from the provided Linux image for consumption plan
         """
+        default_runtime_img_name = self._get_default_runtime_image_name()
+        if docker_image_name in ['default', default_runtime_img_name]:
+            # We only build the default image. rest of images must already exist
+            # in the docker registry.
+            docker_image_name = default_runtime_img_name
+            self._build_default_runtime(default_runtime_img_name)
 
-        log_msg = 'Creating new Lithops runtime for Azure Function Apps'
-        logger.info(log_msg)
-        if not self.log_level:
-            print(log_msg)
-
-        logger.info('Extracting preinstalls for Azure runtime')
-        metadata = self._generate_runtime_meta()
-
-        logger.info('Creating new Lithops runtime')
-        action_name = self._format_action_name(docker_image_name)
-        self._create_runtime(action_name)
+        logger.info('Creating new Lithops runtime for Azure Function Apps')
+        self._create_function(docker_image_name, memory, timeout)
+        metadata = self._generate_runtime_meta(docker_image_name, memory)
 
         return metadata
 
-    def delete_runtime(self, docker_image_name, extract_preinstalls=False):
+    def _build_default_runtime(self, default_runtime_img_name):
+        """
+        Builds the default runtime
+        """
+        return self.build_runtime(default_runtime_img_name)
+
+        if os.system('{} --version >{} 2>&1'.format(az_config.DOCKER_PATH, os.devnull)) == 0:
+            # Build default runtime using local dokcer
+            python_version = version_str(sys.version_info)
+            dockerfile = "Dockefile.default-azure-runtime"
+            with open(dockerfile, 'w') as f:
+                f.write("FROM mcr.microsoft.com/azure-functions/python:3.0-python{}\n".format(python_version))
+                f.write(az_config.DEFAULT_DOCKERFILE)
+            self.build_runtime_docker(default_runtime_img_name, dockerfile)
+            os.remove(dockerfile)
+        else:
+            raise Exception('docker command not found. Install docker or use '
+                            'an already built runtime')
+
+    def build_runtime(self, runtime_name, requirements_file=None):
+        try:
+            shutil.rmtree(az_config.BUILD_DIR)
+        except Exception:
+            pass
+
+        action_name = self._format_action_name(runtime_name)
+
+        build_dir = os.path.join(az_config.BUILD_DIR, action_name)
+        os.makedirs(build_dir, exist_ok=True)
+
+        logger.info('Building default runtime in {}'.format(build_dir))
+
+        action_dir = os.path.join(build_dir, az_config.ACTION_DIR)
+        os.makedirs(action_dir, exist_ok=True)
+
+        req_file = os.path.join(build_dir, 'requirements.txt')
+        with open(req_file, 'w') as reqf:
+            reqf.write(az_config.REQUIREMENTS_FILE)
+
+        host_file = os.path.join(build_dir, 'host.json')
+        with open(host_file, 'w') as hstf:
+            hstf.write(az_config.HOST_FILE)
+
+        fn_file = os.path.join(action_dir, 'function.json')
+        with open(fn_file, 'w') as fnf:
+            in_q_name = self._format_queue_name(action_name, az_config.IN_QUEUE)
+            az_config.BINDINGS['bindings'][0]['queueName'] = in_q_name
+            out_q_name = self._format_queue_name(action_name, az_config.OUT_QUEUE)
+            az_config.BINDINGS['bindings'][1]['queueName'] = out_q_name
+            fnf.write(json.dumps(az_config.BINDINGS))
+
+        entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
+        main_file = os.path.join(action_dir, '__init__.py')
+        shutil.copy(entry_point, main_file)
+
+        mod_dir = os.path.join(build_dir, az_config.ACTION_MODULES_DIR)
+        os.chdir(build_dir)
+        cmd = 'pip3 install -U -t {} -r requirements.txt'.format(mod_dir)
+        if logger.getEffectiveLevel() != logging.DEBUG:
+            cmd = cmd + " >{} 2>&1".format(os.devnull)
+        os.system(cmd)
+        lithops_location = os.path.dirname(os.path.abspath(lithops.__file__))
+        shutil.copytree(lithops_location, os.path.join(mod_dir, 'lithops'))
+
+    def build_runtime_docker(self, docker_image_name, dockerfile):
+        """
+        Builds a new runtime from a Docker file and pushes it to the Docker hub
+        """
+        logger.debug('Building new docker image from Dockerfile')
+        logger.debug('Docker image name: {}'.format(docker_image_name))
+
+        entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
+        create_handler_zip(az_config.FH_ZIP_LOCATION, entry_point, '__init__.py')
+
+        if dockerfile:
+            cmd = '{} build -t {} -f {} .'.format(az_config.DOCKER_PATH,
+                                                  docker_image_name,
+                                                  dockerfile)
+        else:
+            cmd = '{} build -t {} .'.format(az_config.DOCKER_PATH, docker_image_name)
+
+        if logger.getEffectiveLevel() != logging.DEBUG:
+            cmd = cmd + " >{} 2>&1".format(os.devnull)
+
+        logger.info('Building default runtime')
+        res = os.system(cmd)
+        if res != 0:
+            raise Exception('There was an error building the runtime')
+
+        cmd = '{} push {}'.format(az_config.DOCKER_PATH, docker_image_name)
+        if logger.getEffectiveLevel() != logging.DEBUG:
+            cmd = cmd + " >{} 2>&1".format(os.devnull)
+        res = os.system(cmd)
+        if res != 0:
+            raise Exception('There was an error pushing the runtime to the container registry')
+        logger.debug('Done!')
+
+    def _create_function(self, docker_image_name, memory=None,
+                         timeout=az_config.RUNTIME_TIMEOUT):
+        """
+        Create and publish an Azure Function App
+        """
+        action_name = self._format_action_name(docker_image_name, memory)
+
+        try:
+            in_q_name = self._format_queue_name(action_name, az_config.IN_QUEUE)
+            self.queue_service.create_queue(in_q_name)
+        except Exception:
+            in_queue = self.queue_service.get_queue_client(in_q_name)
+            in_queue.clear_messages()
+        try:
+            out_q_name = self._format_queue_name(action_name, az_config.OUT_QUEUE)
+            self.queue_service.create_queue(out_q_name)
+        except Exception:
+            out_queue = self.queue_service.get_queue_client(out_q_name)
+            out_queue.clear_messages()
+
+        logger.debug('Creating function app')
+        logger.debug('Function name: {}'.format(action_name))
+        python_version = version_str(sys.version_info)
+        cmd = ('az functionapp create --name {} --storage-account {} '
+               '--resource-group {} --os-type Linux  --runtime python '
+               '--runtime-version {} --functions-version {} --consumption-plan-location {}'
+               .format(action_name, self.storage_account, self.resource_group,
+                       python_version, self.functions_version, self.location))
+        if logger.getEffectiveLevel() != logging.DEBUG:
+            cmd = cmd + " >{} 2>&1".format(os.devnull)
+        os.system(cmd)
+
+        logger.debug('Publishing function app')
+        build_dir = os.path.join(az_config.BUILD_DIR, action_name)
+        os.chdir(build_dir)
+        cmd = 'func azure functionapp publish {} --python --no-build'.format(action_name)
+        if logger.getEffectiveLevel() != logging.DEBUG:
+            cmd = cmd + " >{} 2>&1".format(os.devnull)
+        os.system(cmd)
+
+        time.sleep(10)
+
+    def delete_runtime(self, runtime_name, memory):
         """
         Deletes a runtime
         """
-        if extract_preinstalls:
-            action_name = docker_image_name
-        else:
-            action_name = self._format_action_name(docker_image_name)
+        action_name = self._format_action_name(runtime_name, memory)
 
-        self.fa_client.delete_action(action_name)
-        queue_name = self._format_queue_name(docker_image_name, type='trigger')
-        self.queue_service.delete_queue(queue_name)
-
-    def invoke(self, docker_image_name, memory=None, payload={}):
-        """
-        Invoke function
-        """        
-        action_name = self._format_action_name(docker_image_name)
-        queue_name = self._format_queue_name(action_name, type='trigger')
+        logger.debug('Deleting function app: {}'.format(action_name))
+        cmd = ('az functionapp delete --name {} --resource-group {}'
+               .format(action_name, self.resource_group))
+        if logger.getEffectiveLevel() != logging.DEBUG:
+            cmd = cmd + " >{} 2>&1".format(os.devnull)
 
         try:
-            msg = self.queue_service.put_message(queue_name, json.dumps(payload))
-            activation_id = msg.id
-
+            in_q_name = self._format_queue_name(action_name, az_config.IN_QUEUE)
+            self.queue_service.delete_queue(in_q_name)
         except Exception:
-            logger.debug('Creating queue (invoke)')
-            self.queue_service.create_queue(queue_name)
-            return self.invoke(docker_image_name, memory=memory, payload=payload)
+            pass
+        try:
+            out_q_name = self._format_queue_name(action_name, az_config.OUT_QUEUE)
+            self.queue_service.delete_queue(out_q_name)
+        except Exception:
+            pass
+
+    def invoke(self, docker_image_name, memory=None, payload={}, return_result=False):
+        """
+        Invoke function
+        """
+        action_name = self._format_action_name(docker_image_name)
+        in_q_name = self._format_queue_name(action_name, az_config.IN_QUEUE)
+        in_queue = self.queue_service.get_queue_client(in_q_name)
+        msg = in_queue.send_message(dict_to_b64str(payload))
+        activation_id = msg.id
+
+        if return_result:
+            out_q_name = self._format_queue_name(action_name, az_config.OUT_QUEUE)
+            out_queue = self.queue_service.get_queue_client(out_q_name)
+            msg = []
+            while not msg:
+                time.sleep(1)
+                msg = out_queue.receive_message()
+            out_queue.clear_messages()
+            return b64str_to_dict(msg.content)
 
         return activation_id
 
@@ -112,7 +276,7 @@ class AzureFunctionAppBackend:
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        action_name = self._format_action_name(docker_image_name)
+        action_name = self._format_action_name(docker_image_name, runtime_memory)
         runtime_key = os.path.join(self.name, action_name)
 
         return runtime_key
@@ -121,176 +285,21 @@ class AzureFunctionAppBackend:
         # TODO
         pass
 
-    def _format_action_name(self, action_name):
-        sha_1 = hashlib.sha1()
-        block = action_name.encode('ascii', errors='ignore')
-        sha_1.update(block)
-        tag = sha_1.hexdigest()[:8]
-
-        sha_1 = hashlib.sha1()
-        block = self.config['account_name'].encode('ascii', errors='ignore')
-        sha_1.update(block)
-        tag = tag + sha_1.hexdigest()[:8]
-
-        version = re.sub(r'[/_:.-]', '', __version__)
-        action_name = action_name[:16] + '-' + version[:5] + '-' + tag
-
-        return action_name
-
-    def _format_queue_name(self, action_name, type):
-        #  Using different queue names because there is a delay between
-        #  deleting a queue and creating another one with the same name
-        return action_name + '-' + type
-
-    def _create_runtime(self, action_name, extract_preinstalls=False):
-        """
-        Creates a new runtime with the base modules and lithops
-        """
-
-        def add_base_modules():
-            cmd = 'pip3 install -t {} -r requirements.txt'.format(azure_fa_config.ACTION_MODULES_DIR)
-            child = sp.Popen(cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE) # silent
-            child.wait()
-            logger.debug(child.stdout.read().decode())
-            logger.error(child.stderr.read().decode())
-
-            if child.returncode != 0:
-                cmd = 'pip install -t {} -r requirements.txt'.format(azure_fa_config.ACTION_MODULES_DIR)
-                child = sp.Popen(cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE) # silent
-                child.wait()
-                logger.debug(child.stdout.read().decode())
-                logger.error(child.stderr.read().decode())
-
-                if child.returncode != 0:
-                    logger.critical('Failed to install base modules')
-                    exit(1)
-
-        def add_lithops_module():
-            module_location = os.path.dirname(os.path.abspath(lithops.__file__))
-            shutil.copytree(module_location, os.path.join(azure_fa_config.ACTION_MODULES_DIR, 'lithops'))
-
-        def get_bindings_str(action_name, extract_preinstalls=False):
-            if not extract_preinstalls:
-                bindings = {
-                    "scriptFile": "__init__.py",
-                    "bindings": [
-                        {
-                            "name": "msgIn",
-                            "type": "queueTrigger",
-                            "direction": "in",
-                            "queueName": self._format_queue_name(action_name, 'trigger'),
-                            "connection": "AzureWebJobsStorage"
-                        }
-                    ]}
-            else:
-                bindings = {
-                    "scriptFile": "__init__.py",
-                    "bindings": [
-                        {
-                            "name": "msgIn",
-                            "type": "queueTrigger",
-                            "direction": "in",
-                            "queueName": self._format_queue_name(action_name,
-                                                                 type='trigger'),
-                            "connection": "AzureWebJobsStorage"
-                        },
-                        {
-                            "name": "msgOut",
-                            "type": "queue",
-                            "direction": "out",
-                            "queueName": self._format_queue_name(action_name,
-                                                                 type='result'),
-                            "connection": "AzureWebJobsStorage"
-                        }]}
-            return json.dumps(bindings)
-
-        initial_dir = os.getcwd()
-        temp_folder = next(tempfile._get_candidate_names())
-        os.mkdir(temp_folder)
-        os.chdir(temp_folder)
-
-        try:
-
-            # Create project folder from template
-            project_template = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'action')
-            project_dir = os.path.join(initial_dir, temp_folder, action_name)
-            shutil.copytree(project_template, project_dir)
-
-            os.chdir(project_dir)
-            action_dir = os.path.join(project_dir, action_name)
-            os.rename('action', action_dir)
-
-            # Add the base dependencies and current lithops module
-            logger.debug('Adding runtime base modules')
-            os.makedirs(azure_fa_config.ACTION_MODULES_DIR, exist_ok=True)
-            add_base_modules()
-            add_lithops_module()
-
-            # Set entry point file
-            if extract_preinstalls:
-                entry_point_file = 'extract_preinstalls_action.py'
-            else:
-                entry_point_file = 'handler_action.py'
-
-            os.rename(os.path.join(action_dir, entry_point_file),
-                      os.path.join(action_dir, '__init__.py'))
-
-            # Edit the function's bindings for it to be a queue triggered function
-            with open(os.path.join(action_dir, 'function.json'), 'w') as bindings_file:
-                bindings_file.write(get_bindings_str(action_name, extract_preinstalls))
-
-            # Create trigger queue, create action
-            logger.debug('Creating trigger queue')
-            queue_name = self._format_queue_name(action_name, type='trigger')
-            self.queue_service.create_queue(queue_name)
-
-            self.fa_client.create_action(action_name)
-
-        except Exception as e:
-            raise Exception("Unable to create the new runtime", e)
-
-        finally:
-            os.chdir(initial_dir)
-            shutil.rmtree(temp_folder, ignore_errors=True)  # Remove tmp project folder
-
-    def _generate_runtime_meta(self):
+    def _generate_runtime_meta(self, docker_image_name, memory):
         """
         Extract installed Python modules from Azure runtime
         """
-        action_name = 'lithops-extract-preinstalls-' + get_unique_id()
-        self._create_runtime(action_name, extract_preinstalls=True)
+        logger.info("Extracting Python modules from: {}".format(docker_image_name))
+        payload = {'log_level': logger.getEffectiveLevel(), 'get_preinstalls': True}
 
-        logger.info("Invoking 'extract-preinstalls' action")
         try:
-            runtime_meta = self._invoke_with_result(action_name)
+            runtime_meta = self.invoke(docker_image_name, memory=memory,
+                                       payload=payload, return_result=True)
         except Exception:
             raise Exception("Unable to invoke 'extract-preinstalls' action")
-        try:
-            self.delete_runtime(action_name, extract_preinstalls=True)
-        except Exception:
-            raise Exception("Unable to delete 'extract-preinstalls' action")
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
             raise Exception(runtime_meta)
 
-        logger.info("Extracted metadata succesfully")
+        logger.debug("Extracted metadata succesfully")
         return runtime_meta
-
-    def _invoke_with_result(self, action_name):
-        result_queue_name = self._format_queue_name(action_name, type='result')
-        self.queue_service.create_queue(result_queue_name)
-        trigger_queue_name = self._format_queue_name(action_name, type='trigger')
-        self.queue_service.put_message(trigger_queue_name, '')
-
-        msg = []
-        while not msg:
-            msg = self.queue_service.get_messages(result_queue_name, num_messages=1)
-            time.sleep(0.5)
-
-        result_str = msg[0].content
-        self.queue_service.delete_queue(result_queue_name)
-        return json.loads(result_str)
-
-
-def get_unique_id():
-    return str(uuid.uuid4()).replace('-', '')[:10]

@@ -193,15 +193,13 @@ def default_config(config_data=None, config_overwrite={}):
     elif config_data['lithops']['mode'] == constants.LOCALHOST:
         if 'storage' not in config_data['lithops']:
             config_data['lithops']['storage'] = 'localhost'
+        if 'storage_bucket' not in config_data['lithops']:
             config_data['lithops']['storage_bucket'] = 'storage'
-
         if 'workers' not in config_data['lithops']:
             config_data['lithops']['workers'] = mp.cpu_count()
-
         if constants.LOCALHOST not in config_data or \
            config_data[constants.LOCALHOST] is None:
             config_data[constants.LOCALHOST] = {}
-
         if 'runtime' not in config_data[constants.LOCALHOST]:
             config_data[constants.LOCALHOST]['runtime'] = constants.LOCALHOST_RUNTIME_DEFAULT
 
@@ -220,18 +218,29 @@ def default_storage_config(config_data=None, backend=None):
             logger.info('Getting configuration from {}'.format(config_filename))
             if config_filename:
                 config_data = load_yaml_config(config_filename)
+            else:
+                logger.debug("No config file found. Running on Localhost mode")
+                config_data = {'lithops': {'mode': constants.LOCALHOST}}
 
     if 'lithops' not in config_data:
         config_data['lithops'] = {}
 
     if 'mode' not in config_data['lithops']:
         config_data['lithops']['mode'] = constants.MODE_DEFAULT
+    mode = config_data['lithops']['mode']
+    if mode not in config_data:
+        config_data[mode] = {'backend': ''}
 
-    if 'storage' not in config_data['lithops']:
-        config_data['lithops']['storage'] = constants.STORAGE_BACKEND_DEFAULT
-
-    if backend:
-        config_data['lithops']['storage'] = backend
+    if config_data['lithops']['mode'] == constants.LOCALHOST:
+        if 'storage' not in config_data['lithops']:
+            config_data['lithops']['storage'] = 'localhost'
+        if 'storage_bucket' not in config_data['lithops']:
+            config_data['lithops']['storage_bucket'] = 'storage'
+    else:
+        if 'storage' not in config_data['lithops']:
+            config_data['lithops']['storage'] = constants.STORAGE_BACKEND_DEFAULT
+        if backend:
+            config_data['lithops']['storage'] = backend
 
     sb = config_data['lithops']['storage']
     logger.debug("Loading Storage backend module: {}".format(sb))

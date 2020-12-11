@@ -228,12 +228,14 @@ class OpenWhiskClient:
         elif resp_status == 429:
             return None  # "Too many concurrent requests in flight"
         else:
-            logger.debug(data)
             if resp_status == 401:
-                raise Exception('Unauthorized - Invalid API Key')
+                # unauthorized. Probably token expired if using IAM auth
+                return resp_status
             elif resp_status == 404:
+                logger.debug(data)
                 raise Exception('Runtime: {} not deployed'.format(action_name))
             else:
+                logger.debug(data)
                 raise Exception(data['error'])
 
     def invoke_with_result(self, package, action_name, payload={}):

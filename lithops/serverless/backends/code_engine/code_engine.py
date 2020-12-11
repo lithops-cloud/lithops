@@ -56,12 +56,19 @@ class CodeEngineBackend:
 
         config.load_kube_config(config_file=self.kubecfg)
         self.capi = client.CustomObjectsApi()
+        self.coreV1Api = client.CoreV1Api()
 
         contexts = config.list_kube_config_contexts(config_file=self.kubecfg)
         current_context = contexts[1].get('context')
         self.namespace = current_context.get('namespace', 'default')
+        logger.debug("Set namespace to {}".format(self.namespace))
         self.cluster = current_context.get('cluster')
-        self.region = self.cluster.split('//')[1].split('.')[1]
+        logger.debug("Set cluster to {}".format(self.cluster))
+
+        try:
+            self.region = self.cluster.split('//')[1].split('.')[1]
+        except Exception:
+            self.region = ''
 
         self.job_def_ids = set()
 
@@ -263,6 +270,7 @@ class CodeEngineBackend:
                 if jobrun['status']['running'] == 0:
                     jobrun_name = jobrun['metadata']['name']
                     self._job_run_cleanup(jobrun_name)
+                    self._delete_config_map(jobrun_name)
             except Exception as e:
                 logger.warning("Deleting a jobrun failed with {}"
                                .format(e))
@@ -311,7 +319,10 @@ class CodeEngineBackend:
         container = jobrun_res['spec']['jobDefinitionSpec']['template']['containers'][0]
         container['name'] = str(jobdef_name)
         container['env'][0]['value'] = 'run'
-        container['env'][1]['value'] = dict_to_b64str(payload)
+
+        config_map = self._create_config_map(payload, activation_id)
+        container['env'][1]['valueFrom']['configMapKeyRef']['name'] = config_map
+
         container['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory_array)
         container['resources']['requests']['cpu'] = str(self.code_engine_config['cpu'])
 
@@ -420,7 +431,9 @@ class CodeEngineBackend:
         container = jobrun_res['spec']['jobDefinitionSpec']['template']['containers'][0]
         container['name'] = str(jobdef_name)
         container['env'][0]['value'] = 'preinstalls'
-        container['env'][1]['value'] = dict_to_b64str(payload)
+
+        config_map = self._create_config_map(payload, jobdef_name)
+        container['env'][1]['valueFrom']['configMapKeyRef']['name'] = config_map
 
         try:
             self.capi.delete_namespaced_custom_object(
@@ -477,6 +490,7 @@ class CodeEngineBackend:
         except Exception:
             pass
 
+        self._delete_config_map(jobdef_name)
         return runtime_meta
 
     def _generate_runtime_meta_service(self, docker_image_name, memory):
@@ -559,3 +573,38 @@ class CodeEngineBackend:
             pass
 
         return runtime_meta
+
+    def _generate_config_map_name(self, jobrun_name):
+        return 'lithops-config-{}'.format(jobrun_name)
+
+    def _create_config_map(self, payload, jobrun_name):
+
+        config_name = self._generate_config_map_name(jobrun_name)
+        cmap = client.V1ConfigMap()
+        cmap.metadata = client.V1ObjectMeta(name=config_name)
+        cmap.data = {}
+        cmap.data["lithops.payload"] = dict_to_b64str(payload)
+
+        field_manager = 'lithops'
+
+        try:
+            logger.debug("Generate ConfigMap {} for namespace {}".format(config_name, self.namespace))
+            self.coreV1Api.create_namespaced_config_map(namespace=self.namespace, body=cmap, field_manager=field_manager)
+            logger.debug("ConfigMap {} for namespace {} created".format(config_name, self.namespace))
+        except ApiException as e:
+            logger.warn("Exception when calling CoreV1Api->create_namespaced_config_map: %s\n" % e)
+            if (e.status != 409):
+                raise Exception('Failed to create ConfigMap')
+
+        return config_name
+
+    def _delete_config_map(self, jobrun_name):
+
+        config_name = self._generate_config_map_name(jobrun_name)
+        grace_period_seconds = 0
+        try:
+            logger.debug("Delete ConfigMap {} for namespace {}".format(config_name, self.namespace))
+            api_response = self.coreV1Api.delete_namespaced_config_map(name=config_name, namespace=self.namespace, grace_period_seconds=grace_period_seconds)
+            logger.debug(" ConfigMap {} for namespace {} deleted with status {}".format(config_name, self.namespace, api_response.status))
+        except ApiException as e:
+            logger.warn("Exception when calling CoreV1Api->delete_namespaced_config_map: %s\n" % e)

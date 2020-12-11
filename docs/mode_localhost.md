@@ -8,6 +8,14 @@ In both cases, you can view the executions logs in your local machine using the 
 $ lithops logs poll
 ```
 
+Localhost mode does not require any configuration file to work. Alternatively, if you have a config file, you must set the next keys to make it working:
+
+```yaml
+lithops:
+    mode: localhost
+    storage: localhost
+```
+
 ### Default Environment
 The default environment runs the functions in the same *python3* interpreter that you ran the lithops script.
 It does not require any extra configuration. You must ensure that all the dependencies of your script are installed in your machine.

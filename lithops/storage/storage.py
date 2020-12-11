@@ -293,6 +293,7 @@ class InternalStorage:
         :param runtime: name of the runtime
         :return: runtime metadata
         """
+
         path = [RUNTIMES_PREFIX, __version__,  key+".meta.json"]
         filename_local_path = os.path.join(CACHE_DIR, *path)
 

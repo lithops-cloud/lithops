@@ -58,6 +58,7 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function,
         map_iterdata, parts_per_object = create_partitions(config, internal_storage,
                                                            map_iterdata, obj_chunk_size,
                                                            obj_chunk_number)
+
         host_job_meta['host_job_create_partitions_time'] = round(time.time()-create_partitions_start, 6)
     # ########
 

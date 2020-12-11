@@ -96,7 +96,10 @@ spec:
       - name: ACTION
         value: ''
       - name: PAYLOAD
-        value: ''
+        valueFrom:
+          configMapKeyRef:
+             key: 'lithops.payload'
+             name : NAME
       resources:
         requests:
           cpu: '1'
@@ -122,7 +125,10 @@ spec:
         - name: ACTION
           value: ''
         - name: PAYLOAD
-          value: ''
+          valueFrom:
+            configMapKeyRef:
+              key: 'lithops.payload'
+              name : ''
         resources:
           requests:
             cpu: '1'
