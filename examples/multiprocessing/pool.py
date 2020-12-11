@@ -34,7 +34,7 @@ if __name__ == '__main__':
 
         # Synchronously apply function square to every element of list
         res = pool.map(square, [1, 2, 3, 4, 5])
-        print(res)  # print "[0, 1, 4,..., 81]"
+        print(res)  # print "[1, 4, 9, 16, 25]"
 
         # Asynchronously execute function square remotely
         res = pool.apply_async(square, (20,))
