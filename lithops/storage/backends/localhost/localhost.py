@@ -69,18 +69,19 @@ class LocalhostStorageBackend:
         :type data: str/bytes
         :return: None
         """
-        try:
-            data_type = type(data)
-            file_path = os.path.join(LITHOPS_TEMP_DIR, bucket_name, key)
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            if data_type == bytes:
-                with open(file_path, "wb") as f:
-                    f.write(data)
-            else:
-                with open(file_path, "w") as f:
-                    f.write(data)
-        except Exception as e:
-            raise(e)
+        data_type = type(data)
+        file_path = os.path.join(LITHOPS_TEMP_DIR, bucket_name, key)
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        if data_type == bytes:
+            with open(file_path, "wb") as f:
+                f.write(data)
+        elif hasattr(data, 'read'):
+            with open(file_path, "wb") as f:
+                shutil.copyfileobj(data, f, 1024*1024)
+        else:
+            with open(file_path, "w") as f:
+                f.write(data)
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
         """
