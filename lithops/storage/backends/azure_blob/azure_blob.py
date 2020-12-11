@@ -119,7 +119,7 @@ class AzureBlobStorageBackend:
         """
         try:
             container_client = self.blob_client.get_container_client(bucket_name)
-            container_client.delete_blobs(key_list, delete_snapshots="include")
+            container_client.delete_blobs(*key_list, delete_snapshots="include")
         except ResourceNotFoundError:
             pass
 
