@@ -20,11 +20,16 @@ import argparse
 import unittest
 import logging
 import inspect
+from io import BytesIO
+
 import lithops
 import urllib.request
-from lithops.storage import InternalStorage
+
+from lithops.storage import Storage
 from lithops.config import get_mode, default_config, extract_storage_config
 from concurrent.futures import ThreadPoolExecutor
+
+from lithops.storage.utils import StorageNoSuchKeyError
 
 CONFIG = None
 STORAGE_CONFIG = None
@@ -424,6 +429,83 @@ class TestLithops(unittest.TestCase):
             self.assertEqual(result, self.__class__.cos_result_to_compare)
             fexec.clean(cs=cloudobjects)
 
+    def test_storage_put_get_by_stream(self):
+        print('Testing Storage.put_object and get_object with streams')
+        bucket = STORAGE_CONFIG['bucket']
+        bytes_data = b'123'
+        bytes_key = PREFIX + '/bytes'
+
+        STORAGE.put_object(bucket, bytes_key, BytesIO(bytes_data))
+        bytes_stream = STORAGE.get_object(bucket, bytes_key, stream=True)
+
+        self.assertTrue(hasattr(bytes_stream, 'read'))
+        self.assertEqual(bytes_stream.read(), bytes_data)
+
+    def test_storage_get_by_range(self):
+        print('Testing Storage.get_object with Range argument')
+        bucket = STORAGE_CONFIG['bucket']
+        key = PREFIX + '/bytes'
+        STORAGE.put_object(bucket, key, b'0123456789')
+
+        result = STORAGE.get_object(bucket, key, extra_get_args={'Range': 'bytes=1-4'})
+
+        self.assertEqual(result, b'1234')
+
+    def test_storage_list_keys(self):
+        bucket = STORAGE_CONFIG['bucket']
+        test_keys = sorted([
+            PREFIX + '/foo/baz',
+            PREFIX + '/foo/bar/baz',
+            PREFIX + '/foo_bar/baz',
+            PREFIX + '/foo_baz',
+            PREFIX + '/bar',
+            PREFIX + '/bar_baz',
+        ])
+        for key in test_keys:
+            STORAGE.put_object(bucket, key, key.encode())
+
+        all_bucket_keys = STORAGE.list_keys(bucket)
+        prefix_keys = STORAGE.list_keys(bucket, PREFIX)
+        foo_keys = STORAGE.list_keys(bucket, PREFIX + '/foo')
+        foo_slash_keys = STORAGE.list_keys(bucket, PREFIX + '/foo/')
+        bar_keys = STORAGE.list_keys(bucket, PREFIX + '/bar')
+        non_existent_keys = STORAGE.list_keys(bucket, PREFIX + '/doesnt_exist')
+
+        self.assertTrue(set(all_bucket_keys).issuperset(test_keys))
+        self.assertTrue(set(prefix_keys).issuperset(test_keys))
+        self.assertTrue(all(key.startswith(PREFIX) for key in prefix_keys))
+        # To ensure parity between filesystem and object storage implementations, test that
+        # prefixes are treated as textual prefixes, not directory names.
+        self.assertEqual(sorted(foo_keys), sorted([
+            PREFIX + '/foo/baz',
+            PREFIX + '/foo/bar/baz',
+            PREFIX + '/foo_bar/baz',
+            PREFIX + '/foo_baz',
+        ]))
+        self.assertEqual(sorted(foo_slash_keys), sorted([
+            PREFIX + '/foo/baz',
+            PREFIX + '/foo/bar/baz',
+        ]))
+        self.assertEqual(sorted(bar_keys), sorted([
+            PREFIX + '/bar',
+            PREFIX + '/bar_baz',
+        ]))
+
+        self.assertEqual(non_existent_keys, [])
+
+    def test_storage_head_object(self):
+        bucket = STORAGE_CONFIG['bucket']
+        data = b'123456789'
+        STORAGE.put_object(bucket, PREFIX + '/data', data)
+
+        result = STORAGE.head_object(bucket, PREFIX + '/data')
+        self.assertEqual(result['content-length'], str(len(data)))
+
+        def get_nonexistent_object():
+            STORAGE.head_object(bucket, PREFIX + '/doesnt_exist')
+        self.assertRaises(StorageNoSuchKeyError, get_nonexistent_object)
+
+
 
 def print_help():
     print("Available test functions:")
@@ -443,7 +525,7 @@ def run_tests(test_to_run, config=None, mode=None, backend=None):
     CONFIG = default_config(config, config_ow)
 
     STORAGE_CONFIG = extract_storage_config(CONFIG)
-    STORAGE = InternalStorage(STORAGE_CONFIG).storage
+    STORAGE = Storage(storage_config=STORAGE_CONFIG)
 
     suite = unittest.TestSuite()
     if test_to_run == 'all':
