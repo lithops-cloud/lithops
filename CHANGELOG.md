@@ -11,6 +11,7 @@
 - [Core] Fixed Storage API error when no config is provided
 - [Core] Fixed expired IAM token in IBM CF during an execution
 - [Localhost] Fixed empty parent directory deletion when deleting objects
+- [Localhost] Made list_keys/list_objects behavior consistent with other backends 
 
 ## [v2.2.13]
 

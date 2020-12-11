@@ -184,27 +184,12 @@ class LocalhostStorageBackend:
         :rtype: list of str
         """
         obj_list = []
+        base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
 
-        if prefix:
-            if prefix.endswith('/'):
-                root = os.path.join(LITHOPS_TEMP_DIR,
-                                    bucket_name,
-                                    prefix, '**')
-            else:
-                root = os.path.join(LITHOPS_TEMP_DIR,
-                                    bucket_name,
-                                    prefix+'*', '**')
-        else:
-            root = os.path.join(LITHOPS_TEMP_DIR,
-                                bucket_name, '**')
-
-        for file_name in glob.glob(root, recursive=True):
-            if os.path.isfile(file_name):
-                if file_name.endswith(prefix):
-                    continue
-                size = os.stat(file_name).st_size
-                base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
-                obj_list.append({'Key': file_name.replace(base_dir, '').replace('\\', '/'), 'Size': size})
+        for key in self.list_keys(bucket_name, prefix):
+            file_name = os.path.join(base_dir, key)
+            size = os.stat(file_name).st_size
+            obj_list.append({'Key': key, 'Size': size})
 
         return obj_list
 
@@ -217,25 +202,22 @@ class LocalhostStorageBackend:
         :rtype: list of str
         """
         key_list = []
+        base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
 
         if prefix:
             if prefix.endswith('/'):
-                root = os.path.join(LITHOPS_TEMP_DIR,
-                                    bucket_name,
-                                    prefix, '**')
+                roots = [os.path.join(base_dir, prefix, '**')]
             else:
-                root = os.path.join(LITHOPS_TEMP_DIR,
-                                    bucket_name,
-                                    prefix+'*', '**')
+                roots = [
+                    os.path.join(base_dir, prefix+'*'),
+                    os.path.join(base_dir, prefix+'*', '**'),
+                ]
         else:
-            root = os.path.join(LITHOPS_TEMP_DIR,
-                                bucket_name, '**')
+            roots = [os.path.join(base_dir, '**')]
 
-        for file_name in glob.iglob(root, recursive=True):
-            if os.path.isfile(file_name):
-                if file_name.endswith(prefix):
-                    continue
-                base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
-                key_list.append(file_name.replace(base_dir, '').replace('\\', '/'))
+        for root in roots:
+            for file_name in glob.glob(root, recursive=True):
+                if os.path.isfile(file_name):
+                    key_list.append(file_name.replace(base_dir, '').replace('\\', '/'))
 
         return key_list
