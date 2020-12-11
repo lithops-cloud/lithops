@@ -1,4 +1,4 @@
-# Lithopsa on Microsoft Azure
+# Lithops on Microsoft Azure
 
 Lithops with Azure Blob Storage as storage backend.
 
