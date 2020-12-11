@@ -3,7 +3,7 @@ import time
 
 
 def f(q):
-    # print("I'm process", getpid())
+    print("I'm process {}".format(getpid()))
     q.put([42, None, 'hello'])
     for i in range(3):
         q.put('Message no. {} ({})'.format(i, time.time()))

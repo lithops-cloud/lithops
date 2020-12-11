@@ -6,7 +6,7 @@ def replace(index, value):
     a[index] = value
 
 
-def addi(index, value):
+def add(index, value):
     a[index] += value
 
 
@@ -26,7 +26,7 @@ if __name__ == '__main__':
     print(a[0])
 
     with Pool() as p:
-        res = p.starmap_async(addi, [(i, 1) for i in range(len(a))])
+        res = p.starmap_async(add, [(i, 1) for i in range(len(a))])
         p.close()
         res.wait()
         p.join()

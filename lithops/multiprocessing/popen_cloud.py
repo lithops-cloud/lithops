@@ -19,8 +19,6 @@ from lithops.wait import ALL_COMPLETED, ALWAYS
 
 from . import util
 
-__all__ = ['PopenCloud']
-
 
 #
 # Start child process using cloud

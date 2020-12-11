@@ -9,13 +9,12 @@
 # Modifications Copyright (c) 2020 Cloudlab URV
 #
 
-
-__all__ = ['Client', 'Listener', 'RedisPipe', 'wait']
-
 import io
 import os
 import time
 import itertools
+import selectors
+
 from multiprocessing.context import BufferTooShort
 
 from . import util
@@ -345,6 +344,7 @@ class Listener(object):
     This is a wrapper for a bound socket which is 'listening' for
     connections, or for a Windows named pipe.
     """
+
     def __init__(self, address=None, family=None, backlog=1, authkey=None):
         family = 'AF_REDIS'
         address = address or arbitrary_address(family)
@@ -503,8 +503,6 @@ def answer_challenge(connection, authkey):
 #
 # Wait
 #
-
-import selectors
 
 # poll/select have the advantage of not requiring any extra file
 # descriptor, contrarily to epoll/kqueue (also, they require a single

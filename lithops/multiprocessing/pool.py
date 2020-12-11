@@ -9,8 +9,6 @@
 # Modifications Copyright (c) 2020 Cloudlab URV
 #
 
-__all__ = ['Pool', 'ThreadPool']
-
 #
 # Imports
 #
@@ -26,7 +24,6 @@ from lithops import FunctionExecutor
 # If threading is available then ThreadPool should be provided.  Therefore
 # we avoid top-level imports which are liable to fail on some systems.
 from . import util
-# from . import get_context, TimeoutError
 
 #
 # Constants representing the state of a pool
@@ -198,41 +195,6 @@ class Pool(object):
             raise TypeError('initializer must be a callable')
 
         self._pool = []
-        # self._repopulate_pool()
-
-    #         self._worker_handler = threading.Thread(
-    #             target=Pool._handle_workers,
-    #             args=(self, )
-    #             )
-    #         self._worker_handler.daemon = True
-    #         self._worker_handler._state = RUN
-    #         self._worker_handler.start()
-    #
-    #
-    #         self._task_handler = threading.Thread(
-    #             target=Pool._handle_tasks,
-    #             args=(self._taskqueue, self._quick_put, self._outqueue,
-    #                   self._pool, self._cache)
-    #             )
-    #         self._task_handler.daemon = True
-    #         self._task_handler._state = RUN
-    #         self._task_handler.start()
-    #
-    #         self._result_handler = threading.Thread(
-    #             target=Pool._handle_results,
-    #             args=(self._outqueue, self._quick_get, self._cache)
-    #             )
-    #         self._result_handler.daemon = True
-    #         self._result_handler._state = RUN
-    #         self._result_handler.start()
-    #
-    #         self._terminate = util.Finalize(
-    #             self, self._terminate_pool,
-    #             args=(self._taskqueue, self._inqueue, self._outqueue, self._pool,
-    #                   self._worker_handler, self._task_handler,
-    #                   self._result_handler, self._cache),
-    #             exitpriority=15
-    #             )
 
     def _join_exited_workers(self):
         """
@@ -380,8 +342,7 @@ class Pool(object):
                 ))
             return (item for chunk in result for item in chunk)
 
-    def apply_async(self, func, args=(), kwds={}, callback=None,
-                    error_callback=None):
+    def apply_async(self, func, args=(), kwds={}, callback=None, error_callback=None):
         """
         Asynchronous version of `apply()` method.
         """
@@ -649,12 +610,12 @@ class ApplyResult(object):
         self._error_callback = error_callback
 
     def ready(self):
-        return self._futures[0].ready
+        return all(fut.ready for fut in self._futures)
 
     def successful(self):
         if not self.ready():
             raise ValueError('{} not ready'.format(repr(self)))
-        return self._success
+        return not any(fut.error for fut in self._futures)
 
     def wait(self, timeout=None):
         self._executor.wait(self._futures, download_results=False, timeout=timeout, throw_except=False)

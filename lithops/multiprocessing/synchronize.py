@@ -9,11 +9,6 @@
 # Modifications Copyright (c) 2020 Cloudlab URV
 #
 
-__all__ = [
-    'Lock', 'RLock', 'Semaphore', 'BoundedSemaphore',
-    'Condition', 'Event', 'Barrier'
-]
-
 import threading
 import time
 
