@@ -10,6 +10,7 @@
 ### Fixed
 - [Core] Fixed Storage API error when no config is provided
 - [Core] Fixed expired IAM token in IBM CF during an execution
+- [Localhost] Fixed empty parent directory deletion when deleting objects
 
 ## [v2.2.13]
 

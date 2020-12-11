@@ -131,12 +131,20 @@ class LocalhostStorageBackend:
         :param bucket: bucket name
         :param key: data key
         """
-        file_path = os.path.join(LITHOPS_TEMP_DIR, bucket_name, key)
+        base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
+        file_path = os.path.join(base_dir, key)
         try:
-            file_dir = os.path.dirname(file_path)
             if os.path.exists(file_path):
                 os.remove(file_path)
-            shutil.rmtree(file_dir, ignore_errors=True)
+
+            # Recursively clean up empty parent directories, but not the bucket itself
+            parent_dir = os.path.dirname(file_path)
+            while parent_dir.startswith(base_dir) and len(parent_dir) > len(base_dir):
+                try:
+                    os.rmdir(parent_dir)
+                    parent_dir = os.path.abspath(os.path.join(parent_dir, '..'))
+                except OSError:
+                    break
         except Exception:
             pass
 
