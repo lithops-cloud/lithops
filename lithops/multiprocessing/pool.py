@@ -610,12 +610,12 @@ class ApplyResult(object):
         self._error_callback = error_callback
 
     def ready(self):
-        return self._futures[0].ready
+        return all(fut.ready for fut in self._futures)
 
     def successful(self):
         if not self.ready():
             raise ValueError('{} not ready'.format(repr(self)))
-        return self._success
+        return not any(fut.error for fut in self._futures)
 
     def wait(self, timeout=None):
         self._executor.wait(self._futures, download_results=False, timeout=timeout, throw_except=False)

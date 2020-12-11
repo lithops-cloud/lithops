@@ -166,11 +166,10 @@ class BaseManager:
             return proxy
 
         if typeid in dir(cls):
-            raise Exception('{} already registered')
+            raise ValueError('{} already registered')
 
-        # Wrap regular class as GenericProxy
         if typeid not in _builtin_types:
-            proxytype = GenericProxy(typeid, proxytype)
+            raise TypeError('Manager for object type {} is not supported yet.'.format(typeid))
 
         temp.__name__ = typeid
         setattr(cls, typeid, temp)
@@ -211,37 +210,6 @@ class BaseProxy:
         Return representation of the referent (or a fall-back if that fails)
         """
         return repr(self)
-
-
-class MethodCallWrapper:
-    def __init__(self, object_id, method_name):
-        self.object_id = object_id
-        self.method_name = method_name
-
-    def __call__(self, *args, **kwargs):
-        print('TODO call to {} with args {} and kwargs {}')
-
-
-class GenericProxy(BaseProxy):
-    def __init__(self, typeid, proxy_type):
-        self._type = proxy_type
-        super().__init__(typeid)
-
-    def __call__(self, *args, **kwargs):
-        print('TODO initialize shared object with *args and **kwargs')
-        return self
-
-    def __getattribute__(self, name):
-        if name.startswith('_'):
-            return super().__getattribute__(name)
-        else:
-            try:
-                attr = object.__getattribute__(self._type, name)
-                if hasattr(attr, '__call__'):
-                    print('todo call')
-            except AttributeError as e:
-                print(e)
-                raise e
 
 
 #
@@ -673,5 +641,3 @@ SyncManager.register('JoinableQueue', queues.JoinableQueue)
 SyncManager.register('Value', ValueProxy)
 SyncManager.register('Array', ArrayProxy)
 SyncManager.register('Pool', pool.Pool, can_manage=False)
-
-

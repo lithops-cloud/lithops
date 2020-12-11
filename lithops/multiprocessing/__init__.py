@@ -15,10 +15,10 @@
 #
 
 from .context import BaseContext
-from .connection import RedisConnection as Pipe
+from .connection import RedisPipe as Pipe
 from .managers import SyncManager as Manager
 from .pool import Pool
-from .process import BaseProcess as Process
+from .process import CloudProcess as Process
 from .queues import Queue, SimpleQueue, JoinableQueue
 from .sharedctypes import RawValue, RawArray, Value, Array
 from .synchronize import (Semaphore, BoundedSemaphore,
@@ -26,4 +26,4 @@ from .synchronize import (Semaphore, BoundedSemaphore,
                           Condition, Event, Barrier)
 
 context = BaseContext()
-getpid = context.getpid()
+getpid = context.getpid
