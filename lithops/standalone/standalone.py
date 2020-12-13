@@ -331,7 +331,7 @@ class StandaloneHandler:
         cmd += 'apt-get update >> /tmp/lithops/proxy.log; '
         cmd += 'apt-get install unzip python3-pip -y >> /tmp/lithops/proxy.log; '
         cmd += 'pip3 install flask gevent pika==0.13.1 >> /tmp/lithops/proxy.log; '
-        cmd += 'pip3 install ibm-vpc>=0.3.0 >> /tmp/lithops/proxy.log; '
+        cmd += 'pip3 install "ibm-vpc>=0.3.0" >> /tmp/lithops/proxy.log; '
         cmd += 'unzip -o /tmp/lithops_standalone.zip -d {} > /dev/null 2>&1; '.format(REMOTE_INSTALL_DIR)
         cmd += 'rm /tmp/lithops_standalone.zip; '
         cmd += 'chmod 644 {}; '.format(service_file)
