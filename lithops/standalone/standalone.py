@@ -275,6 +275,16 @@ class StandaloneHandler:
         """
         self.backend.stop()
 
+    def create(self):
+        """
+        Create VM instance
+        """
+        import pdb;pdb.set_trace()
+        instance_id, ip_address = self.backend.create()
+        self.ip_address = ip_address
+        self.config['instance_id'] = instance_id
+        self.init()
+        
     def init(self):
         """
         Start the VM instance and initialize runtime

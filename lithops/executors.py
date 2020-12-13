@@ -552,6 +552,9 @@ class FunctionExecutor:
     def init(self):
         self.compute_handler.init()
 
+    def create(self):
+        self.compute_handler.create()
+
     def __exit__(self, exc_type, exc_value, traceback):
         self.invoker.stop()
 
