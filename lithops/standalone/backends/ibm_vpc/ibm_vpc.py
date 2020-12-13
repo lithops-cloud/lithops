@@ -183,9 +183,13 @@ class IBMVPCInstanceClient:
 
     def create(self):
         logger.info("Creating VM instance")
+        
         instance = self._create_instance()
         floating_ip = self._create_and_attach_floating_ip(instance)
         logger.debug("VM instance created successfully")
+        self.instance_id = instance['id']
+        self.config['instance_id'] = instance['id']
+
         return instance['id'], floating_ip
 
     def stop(self):
