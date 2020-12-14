@@ -283,8 +283,6 @@ class StandaloneHandler:
         instance_id, ip_address = self.backend.create()
         self.ip_address = ip_address
         self.config['instance_id'] = instance_id
-        time.sleep(5)
-        self._wait_backend_ready()
         runtime_meta = self.create_runtime(self.config['runtime'])
         runtime_key = self.get_runtime_key(self.config['runtime'])
         return runtime_key, runtime_meta

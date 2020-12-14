@@ -25,6 +25,7 @@ class IBMVPCInstanceClient:
         self.region = self.endpoint.split('//')[1].split('.')[0]
         self.instance_id = self.config['instance_id']
         self.ip_address = self.config.get('ip_address', None)
+        self.vm_create_timeout = self.config.get('vm_create_timeout', 120)
 
         self.instance_data = None
 
@@ -131,7 +132,7 @@ class IBMVPCInstanceClient:
         key_identity_model = {'id': self.config['key_id']}
 
         volume_prototype_instance_by_image_context_model = {
-            'capacity': 100, 'iops': 10000, 'name': self._generate_name('volume'), 'profile': {'name': self.config['volume_tier']}}#''10iops-tier'}}
+            'capacity': 100, 'iops': 10000, 'name': self._generate_name('volume'), 'profile': {'name': self.config['volume_tier_name']}}#''10iops-tier'}}
 
         network_interface_prototype_model = {
             'name': 'eth0', 'subnet': subnet_identity_model, 'security_groups': [security_group_identity_model]}
@@ -171,6 +172,22 @@ class IBMVPCInstanceClient:
 
         return floating_ip
 
+    def _wait_instance_running(self, instance_id):
+        """
+        Waits until the VM instance is running
+        """
+        logger.debug('Waiting VM instance to become running')
+
+        start = time.time()
+        while(time.time() - start < self.vm_create_timeout):
+            instance = self.service.get_instance(instance_id).result
+            if instance['status'] == 'running':
+                return True
+            time.sleep(1)
+
+        self.stop()
+        raise Exception('VM create failed, check logs and configurations')
+
     def _delete_instance(self):
         # delete floating ip
         response = self.service.list_instance_network_interfaces(self.config['instance_id'])
@@ -197,10 +214,12 @@ class IBMVPCInstanceClient:
         logger.debug("VM {} created successfully with floating IP {}".format(instance['name'], floating_ip))
 
         self.instance_id = instance['id']
-        self.config['instance_id'] = instance['id']
+        self.config['instance_id'] = self.instance_id
         self.config['ip_address'] = floating_ip
 
-        return instance['id'], floating_ip
+        self._wait_instance_running(self.instance_id)
+
+        return self.instance_id, floating_ip
 
     def stop(self):
         if self.config['lowcost']:
