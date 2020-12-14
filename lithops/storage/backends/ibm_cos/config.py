@@ -45,10 +45,6 @@ def load_config(config_data):
         if not config_data['ibm_cos']['private_endpoint'].startswith('http'):
             raise Exception('IBM COS Private Endpoint must start with http:// or https://')
 
-    elif config_data['lithops']['mode'] == 'standalone' \
-        and config_data['standalone']['backend'] == 'ibm_vpc':
-            pass
-
     elif 'private_endpoint' in config_data['ibm_cos']:
         del config_data['ibm_cos']['private_endpoint']
 
