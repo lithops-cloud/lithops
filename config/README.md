@@ -82,6 +82,7 @@ Storage Backends
 - [Azure Blob Storage](storage/azure_blob.md)
 - [Aliyun Object Storage Service](storage/aliyun_oss.md)
 - [Infinispan](storage/infinispan.md)
+- [DSO](storage/dso.md)
 - [Ceph](storage/ceph.md)
 - [Redis](storage/redis.md)
 - [OpenStack Swift](storage/swift.md)
