@@ -127,7 +127,7 @@ def _split_objects_from_buckets(map_func_args_list, keys_dict, chunk_size, chunk
     """
     Create partitions from bucket/s
     """
-    logger.info('Creating dataset chunks from bucket/s ...')
+    logger.debug('Creating dataset chunks from bucket/s ...')
     partitions = []
     parts_per_object = []
 
@@ -136,9 +136,9 @@ def _split_objects_from_buckets(map_func_args_list, keys_dict, chunk_size, chunk
         sb, bucket, prefix, obj_name = utils.split_object_url(entry['obj'])
 
         if chunk_size or chunk_number:
-            logger.info('Creating chunks from objects within: {}'.format(bucket))
+            logger.debug('Creating chunks from objects within: {}'.format(bucket))
         else:
-            logger.info('Discovering objects within: {}'.format(bucket))
+            logger.debug('Discovering objects within: {}'.format(bucket))
 
         for key, obj_size in keys_dict[bucket].items():
             if prefix in key and obj_size > 0:
@@ -179,7 +179,7 @@ def _split_objects_from_keys(map_func_args_list, keys_dict, chunk_size, chunk_nu
     Create partitions from a list of objects keys
     """
     if chunk_size or chunk_number:
-        logger.info('Creating chunks from object keys...')
+        logger.debug('Creating chunks from object keys')
 
     partitions = []
     parts_per_object = []
@@ -229,7 +229,7 @@ def _split_objects_from_urls(map_func_args_list, chunk_size, chunk_number):
     Create partitions from a list of objects urls
     """
     if chunk_size or chunk_number:
-        logger.info('Creating chunks from urls...')
+        logger.debug('Creating chunks from urls')
     partitions = []
     parts_per_object = []
 
@@ -238,7 +238,7 @@ def _split_objects_from_urls(map_func_args_list, chunk_size, chunk_number):
         object_url = entry['url']
         metadata = requests.head(object_url)
 
-        logger.info(object_url)
+        logger.debug(object_url)
 
         if 'content-length' in metadata.headers:
             obj_size = int(metadata.headers['content-length'])
