@@ -120,7 +120,6 @@ class IBMVPCInstanceClient:
     def _generate_name(self, r_type):
         return "kpavel-" + namegenerator.gen() + "-" + r_type
 
-
     def _create_instance(self):
         security_group_identity_model = {'id': 'r006-2d3cc459-bb8b-4ec6-a5fb-28e60c9f7d7b'}
         subnet_identity_model = {'id': '0737-bbc80a8f-d46a-4cc6-8a5a-991daa5fc914'}
@@ -167,18 +166,18 @@ class IBMVPCInstanceClient:
 
         return floating_ip
 
-    def delete(self, instance_id):
+    def _delete_instance(self):
         # delete floating ip
-        response = service.list_instance_network_interfaces(instance_id)
+        response = self.service.list_instance_network_interfaces(self.config['instance_id'])
         for nic in response.result['network_interfaces']:
             if 'floating_ips' in nic:
                 for fip in nic['floating_ips']:
-                    service.delete_floating_ip(fip['id'])
-                    print("floating ip {} been deleted".format(floating_ip['address']))
+                    self.service.delete_floating_ip(fip['id'])
+                    print("floating ip {} been deleted".format(fip['address']))
 
         # delete vm instance
-        self.service.delete_instance(instance['id'])
-        print("instance {} been deleted".format(instance['name']))
+        self.service.delete_instance(self.config['instance_id'])
+        print("instance {} been deleted".format(self.config['instance_id']))
 
     def start(self):
         logger.info("Starting VM instance")
@@ -200,8 +199,12 @@ class IBMVPCInstanceClient:
 
     def stop(self):
         logger.info("Stopping VM instance")
-        self.create_instance_action('stop')
-        logger.debug("VM instance stopped successfully")
+        if self.config['lowcost']:
+            self._delete_instance()
+            logger.debug("VM instance deleted successfully")
+        else:
+            self.create_instance_action('stop')
+            logger.debug("VM instance stopped successfully")
 
     def get_runtime_key(self, runtime_name):
         runtime_key = os.path.join(self.name, self.ip_address,

@@ -273,10 +273,7 @@ class StandaloneHandler:
         """
         Stop VM instance
         """
-        if self.config['lowcost']
-            self.backend.delete(self.config['instance_id'])
-        else:
-            self.backend.stop()
+        self.backend.stop()
 
     def create(self):
         """

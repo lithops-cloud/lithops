@@ -114,6 +114,8 @@ def init_keeper():
     with open(config_file, 'r') as cf:
         standalone_config = json.load(cf)
 
+    print('standalone_config', standalone_config)
+
     backend_handler = StandaloneHandler(standalone_config)
     keeper = threading.Thread(target=budget_keeper)
     keeper.daemon = True
