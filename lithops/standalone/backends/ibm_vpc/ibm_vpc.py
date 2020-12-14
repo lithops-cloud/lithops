@@ -188,21 +188,22 @@ class IBMVPCInstanceClient:
         logger.info("Creating VM instance")
 
         instance = self._create_instance()
-        floating_ip = self._create_and_attach_floating_ip(instance)
-        logger.debug("VM instance created successfully")
+        floating_ip = self._create_and_attach_floating_ip(instance)['address']
+        logger.debug("VM {} created successfully with floating IP {}".format(instance['name'], floating_ip))
 
         self.instance_id = instance['id']
         self.config['instance_id'] = instance['id']
         self.config['ip_address'] = floating_ip
 
-        return instance['id'], floating_ip['address']
+        return instance['id'], floating_ip
 
     def stop(self):
-        logger.info("Stopping VM instance")
         if self.config['lowcost']:
+            logger.info("Deleting VM instance")
             self._delete_instance()
             logger.debug("VM instance deleted successfully")
         else:
+            logger.info("Stopping VM instance")
             self.create_instance_action('stop')
             logger.debug("VM instance stopped successfully")
 
