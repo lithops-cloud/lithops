@@ -60,7 +60,7 @@ def budget_keeper():
 
     jobs_running = False
 
-    logger.info("BudgetKeeper started")
+    logger.info("BudgetKeeper started!")
 
     if backend_handler.auto_dismantle:
         logger.info('Auto dismantle activated - Soft timeout: {}s, Hard Timeout: {}s'
@@ -96,7 +96,7 @@ def budget_keeper():
             jobs_running = True
 
         if time_to_dismantle > 0:
-            logger.info("Time to dismantle: {} seconds".format(time_to_dismantle))
+            logger.info("Time to dismantlee: {} seconds".format(time_to_dismantle))
             time.sleep(check_interval)
         else:
             logger.info("Dismantling setup")
@@ -115,6 +115,7 @@ def init_keeper():
         standalone_config = json.load(cf)
 
     print('standalone_config', standalone_config)
+    logger.info('standalone_config {}'.format(standalone_config))
 
     backend_handler = StandaloneHandler(standalone_config)
     keeper = threading.Thread(target=budget_keeper)
