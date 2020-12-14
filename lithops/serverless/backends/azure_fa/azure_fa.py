@@ -51,7 +51,7 @@ class AzureFunctionAppBackend:
                                                 credential=self.account_key)
 
         msg = COMPUTE_CLI_MSG.format('Azure Functions')
-        logger.info("{}".format(msg))
+        logger.info("{} - Location: {}".format(msg, self.location))
 
     def _format_action_name(self, runtime_name, runtime_memory=None):
         runtime_name = runtime_name.replace('/', '--').replace(':', '--')
@@ -213,15 +213,20 @@ class AzureFunctionAppBackend:
                        python_version, self.functions_version, self.location))
         if logger.getEffectiveLevel() != logging.DEBUG:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
-        os.system(cmd)
+        res = os.system(cmd)
+        if res != 0:
+            raise Exception('There was an error creating the function in Azure. cmd: {}'.format(cmd))
 
         logger.debug('Publishing function app')
         build_dir = os.path.join(az_config.BUILD_DIR, action_name)
         os.chdir(build_dir)
-        cmd = 'func azure functionapp publish {} --python --no-build'.format(action_name)
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            cmd = cmd + " >{} 2>&1".format(os.devnull)
-        os.system(cmd)
+        res = 1
+        while res != 0:
+            time.sleep(5)
+            cmd = 'func azure functionapp publish {} --python --no-build'.format(action_name)
+            if logger.getEffectiveLevel() != logging.DEBUG:
+                cmd = cmd + " >{} 2>&1".format(os.devnull)
+            res = os.system(cmd)
 
         time.sleep(10)
 
