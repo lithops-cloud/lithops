@@ -7,12 +7,16 @@
 - [Azure] Azure blob backend upgraded
 - [Alibaba] Alibaba Functions backend upgraded
 - [Alibaba] Alibaba Storage backend upgraded
+- [Localhost] Support passing file-like objects to put_object
+- [Localhost] Support head_bucket and head_object storage operations
 
 ### Fixed
 - [Core] Fixed Storage API error when no config is provided
 - [Core] Fixed expired IAM token in IBM CF during an execution
 - [CodeEngine] Fixed issue getting region
 - [Core] Minor fixes in multiprocessing API
+- [Localhost] Fixed empty parent directory deletion when deleting objects
+- [Localhost] Made list_keys/list_objects behavior consistent with other backends 
 
 ## [v2.2.13]
 

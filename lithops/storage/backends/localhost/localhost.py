@@ -69,18 +69,19 @@ class LocalhostStorageBackend:
         :type data: str/bytes
         :return: None
         """
-        try:
-            data_type = type(data)
-            file_path = os.path.join(LITHOPS_TEMP_DIR, bucket_name, key)
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            if data_type == bytes:
-                with open(file_path, "wb") as f:
-                    f.write(data)
-            else:
-                with open(file_path, "w") as f:
-                    f.write(data)
-        except Exception as e:
-            raise(e)
+        data_type = type(data)
+        file_path = os.path.join(LITHOPS_TEMP_DIR, bucket_name, key)
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+        if data_type == bytes:
+            with open(file_path, "wb") as f:
+                f.write(data)
+        elif hasattr(data, 'read'):
+            with open(file_path, "wb") as f:
+                shutil.copyfileobj(data, f, 1024*1024)
+        else:
+            with open(file_path, "w") as f:
+                f.write(data)
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
         """
@@ -113,10 +114,16 @@ class LocalhostStorageBackend:
         Head object from local filesystem with a key.
         Throws StorageNoSuchKeyError if the given key does not exist.
         :param key: key of the object
-        :return: Data of the object
-        :rtype: str/bytes
+        :return: metadata of the object
         """
-        pass
+        file_path = os.path.join(LITHOPS_TEMP_DIR, bucket_name, key)
+        if os.path.isfile(file_path):
+            # Imitate the COS/S3 response
+            return {
+                'content-length': str(os.stat(file_path).st_size)
+            }
+
+        raise StorageNoSuchKeyError(os.path.join(LITHOPS_TEMP_DIR, bucket_name), key)
 
     def delete_object(self, bucket_name, key):
         """
@@ -124,12 +131,20 @@ class LocalhostStorageBackend:
         :param bucket: bucket name
         :param key: data key
         """
-        file_path = os.path.join(LITHOPS_TEMP_DIR, bucket_name, key)
+        base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
+        file_path = os.path.join(base_dir, key)
         try:
-            file_dir = os.path.dirname(file_path)
             if os.path.exists(file_path):
                 os.remove(file_path)
-            shutil.rmtree(file_dir, ignore_errors=True)
+
+            # Recursively clean up empty parent directories, but not the bucket itself
+            parent_dir = os.path.dirname(file_path)
+            while parent_dir.startswith(base_dir) and len(parent_dir) > len(base_dir):
+                try:
+                    os.rmdir(parent_dir)
+                    parent_dir = os.path.abspath(os.path.join(parent_dir, '..'))
+                except OSError:
+                    break
         except Exception:
             pass
 
@@ -154,10 +169,11 @@ class LocalhostStorageBackend:
         Head localhost dir with a name.
         Throws StorageNoSuchKeyError if the given bucket does not exist.
         :param bucket_name: name of the bucket
-        :return: Metadata of the bucket
-        :rtype: str/bytes
         """
-        raise NotImplementedError
+        if os.path.isdir(os.path.join(LITHOPS_TEMP_DIR, bucket_name)):
+            return {}
+        else:
+            raise StorageNoSuchKeyError(os.path.join(LITHOPS_TEMP_DIR, bucket_name), '')
 
     def list_objects(self, bucket_name, prefix=None):
         """
@@ -168,27 +184,12 @@ class LocalhostStorageBackend:
         :rtype: list of str
         """
         obj_list = []
+        base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
 
-        if prefix:
-            if prefix.endswith('/'):
-                root = os.path.join(LITHOPS_TEMP_DIR,
-                                    bucket_name,
-                                    prefix, '**')
-            else:
-                root = os.path.join(LITHOPS_TEMP_DIR,
-                                    bucket_name,
-                                    prefix+'*', '**')
-        else:
-            root = os.path.join(LITHOPS_TEMP_DIR,
-                                bucket_name, '**')
-
-        for file_name in glob.glob(root, recursive=True):
-            if os.path.isfile(file_name):
-                if file_name.endswith(prefix):
-                    continue
-                size = os.stat(file_name).st_size
-                base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
-                obj_list.append({'Key': file_name.replace(base_dir, '').replace('\\', '/'), 'Size': size})
+        for key in self.list_keys(bucket_name, prefix):
+            file_name = os.path.join(base_dir, key)
+            size = os.stat(file_name).st_size
+            obj_list.append({'Key': key, 'Size': size})
 
         return obj_list
 
@@ -201,25 +202,22 @@ class LocalhostStorageBackend:
         :rtype: list of str
         """
         key_list = []
+        base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
 
         if prefix:
             if prefix.endswith('/'):
-                root = os.path.join(LITHOPS_TEMP_DIR,
-                                    bucket_name,
-                                    prefix, '**')
+                roots = [os.path.join(base_dir, prefix, '**')]
             else:
-                root = os.path.join(LITHOPS_TEMP_DIR,
-                                    bucket_name,
-                                    prefix+'*', '**')
+                roots = [
+                    os.path.join(base_dir, prefix+'*'),
+                    os.path.join(base_dir, prefix+'*', '**'),
+                ]
         else:
-            root = os.path.join(LITHOPS_TEMP_DIR,
-                                bucket_name, '**')
+            roots = [os.path.join(base_dir, '**')]
 
-        for file_name in glob.iglob(root, recursive=True):
-            if os.path.isfile(file_name):
-                if file_name.endswith(prefix):
-                    continue
-                base_dir = os.path.join(LITHOPS_TEMP_DIR, bucket_name, '')
-                key_list.append(file_name.replace(base_dir, '').replace('\\', '/'))
+        for root in roots:
+            for file_name in glob.glob(root, recursive=True):
+                if os.path.isfile(file_name):
+                    key_list.append(file_name.replace(base_dir, '').replace('\\', '/'))
 
         return key_list
