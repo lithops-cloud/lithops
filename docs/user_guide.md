@@ -20,15 +20,17 @@
    - [Parameters format for a *single* call](functions.md#parameters-in-the-call_async-method)
    - [Parameters format for a *map* call](functions.md#parameters-in-the-map-and-map_reduce-methods)
    - [Common parameters across functions](functions.md#common-parameters-across-functions-invocations)
-  
-6. [Lithops for big data analytics](data_processing.md)
+
+6. [Distributed shared objects across function activations](dso.md)
+
+7. [Lithops for big data analytics](data_processing.md)
    - [Processing data from a cloud object store](data_processing.md#processing-data-from-a-cloud-object-storage-service)
    - [Processing data from public URLs](data_processing.md#processing-data-from-public-urls)
 
-7. [Run Lithops on Jupyter notebooks](../examples/hello_world.ipynb)
+8. [Run Lithops on Jupyter notebooks](../examples/hello_world.ipynb)
 
-8. [Execute Airflow workflows using Lithops](https://github.com/lithops-cloud/airflow-plugin)
+9. [Execute Airflow workflows using Lithops](https://github.com/lithops-cloud/airflow-plugin)
 
-9. [Lithops end-to-end Applications](https://github.com/lithops-cloud/applications)
+10. [Lithops end-to-end Applications](https://github.com/lithops-cloud/applications)
 
-10. [Build and manage custom runtimes to run the functions](../runtime/)
+11. [Build and manage custom runtimes to run the functions](../runtime/)

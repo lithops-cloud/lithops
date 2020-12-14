@@ -33,7 +33,7 @@ $ lithops verify
 or
 
 ```bash
-$ python3 -m lithops.tests
+$ python3 -m lithops.scripts.tests
 ```
 
 Notice that if you didn't set a local Lithops's config file, you need to provide it as a json file path by `-c <CONFIG>` flag.

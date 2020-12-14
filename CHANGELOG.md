@@ -10,13 +10,18 @@
 - [Localhost] Support passing file-like objects to put_object
 - [Localhost] Support head_bucket and head_object storage operations
 
+### Changed
+- [Core] Moved tests.py script to 'scripts' folder
+
 ### Fixed
 - [Core] Fixed Storage API error when no config is provided
 - [Core] Fixed expired IAM token in IBM CF during an execution
-- [CodeEngine] Fixed issue getting region
 - [Core] Minor fixes in multiprocessing API
+- [Core] Fixed executor logging
+- [CodeEngine] Fixed issue getting region
 - [Localhost] Fixed empty parent directory deletion when deleting objects
 - [Localhost] Made list_keys/list_objects behavior consistent with other backends 
+
 
 ## [v2.2.13]
 
