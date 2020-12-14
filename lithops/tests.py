@@ -36,6 +36,7 @@ STORAGE_CONFIG = None
 STORAGE = None
 
 PREFIX = '__lithops.test'
+DATASET_PREFIX = PREFIX + '/dataset'
 TEST_FILES_URLS = ["http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.enron.txt",
                    "http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.kos.txt",
                    "http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.nips.txt",
@@ -51,7 +52,7 @@ class TestUtils:
             i, url = param
             content = urllib.request.urlopen(url).read()
             STORAGE.put_object(bucket=STORAGE_CONFIG['bucket'],
-                               key='{}/test{}'.format(PREFIX, str(i)),
+                               key='{}/test{}'.format(DATASET_PREFIX, str(i)),
                                body=content)
             return len(content.split())
 
@@ -66,10 +67,22 @@ class TestUtils:
         return STORAGE.list_keys(bucket=STORAGE_CONFIG['bucket'], prefix=PREFIX + '/')
 
     @staticmethod
+    def list_dataset_keys():
+        return STORAGE.list_keys(bucket=STORAGE_CONFIG['bucket'],
+                                 prefix=DATASET_PREFIX + '/')
+
+    @staticmethod
     def cleanTests():
         for key in TestUtils.list_test_keys():
             STORAGE.delete_object(bucket=STORAGE_CONFIG['bucket'],
                                   key=key)
+
+    @staticmethod
+    def reset_test_objects():
+        for key in TestUtils.list_test_keys():
+            if not key.startswith(DATASET_PREFIX):
+                STORAGE.delete_object(bucket=STORAGE_CONFIG['bucket'],
+                                      key=key)
 
 
 class TestMethods:
@@ -202,6 +215,11 @@ class TestLithops(unittest.TestCase):
     def tearDownClass(cls):
         print('Deleting test files...')
         TestUtils.cleanTests()
+
+    @classmethod
+    def tearDown(cls):
+        print('Resetting test storage...')
+        TestUtils.reset_test_objects()
 
     def test_call_async(self):
         print('Testing call_async()...')
@@ -340,7 +358,7 @@ class TestLithops(unittest.TestCase):
         print('Testing map_reduce() over object keys...')
         sb = STORAGE_CONFIG['backend']
         bucket_name = STORAGE_CONFIG['bucket']
-        iterdata = [sb + '://' + bucket_name + '/' + key for key in TestUtils.list_test_keys()]
+        iterdata = [sb + '://' + bucket_name + '/' + key for key in TestUtils.list_dataset_keys()]
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map_reduce(TestMethods.my_map_function_obj, iterdata,
                          TestMethods.my_reduce_function)
@@ -351,7 +369,7 @@ class TestLithops(unittest.TestCase):
         print('Testing map_reduce() over object keys with one reducer per object...')
         sb = STORAGE_CONFIG['backend']
         bucket_name = STORAGE_CONFIG['bucket']
-        iterdata = [sb + '://' + bucket_name + '/' + key for key in TestUtils.list_test_keys()]
+        iterdata = [sb + '://' + bucket_name + '/' + key for key in TestUtils.list_dataset_keys()]
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map_reduce(TestMethods.my_map_function_obj, iterdata,
                          TestMethods.my_reduce_function,
@@ -369,7 +387,7 @@ class TestLithops(unittest.TestCase):
 
     def test_storage_handler(self):
         print('Testing "storage" function arg...')
-        iterdata = [[key, STORAGE_CONFIG['bucket']] for key in TestUtils.list_test_keys()]
+        iterdata = [[key, STORAGE_CONFIG['bucket']] for key in TestUtils.list_dataset_keys()]
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map_reduce(TestMethods.my_map_function_storage, iterdata,
                          TestMethods.my_reduce_function)
