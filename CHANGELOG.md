@@ -12,6 +12,7 @@
 - [Core] Fixed Storage API error when no config is provided
 - [Core] Fixed expired IAM token in IBM CF during an execution
 - [CodeEngine] Fixed issue getting region
+- [Core] Minor fixes in multiprocessing API
 
 ## [v2.2.13]
 
