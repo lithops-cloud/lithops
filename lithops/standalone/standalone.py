@@ -278,12 +278,14 @@ class StandaloneHandler:
     def create(self):
         """
         Create VM instance
+        Also installs proxy in the VM to minimize risks of having VM unattended
         """
-        import pdb;pdb.set_trace()
         instance_id, ip_address = self.backend.create()
         self.ip_address = ip_address
         self.config['instance_id'] = instance_id
-        self.init()
+        runtime_meta = self.create_runtime(self.config['runtime'])
+        runtime_key = self.get_runtime_key(self.config['runtime'])
+        return runtime_key, runtime_meta
         
     def init(self):
         """
