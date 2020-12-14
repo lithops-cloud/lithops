@@ -121,12 +121,18 @@ class IBMVPCInstanceClient:
         return "kpavel-" + namegenerator.gen() + "-" + r_type
 
     def _create_instance(self):
-        security_group_identity_model = {'id': 'r006-2d3cc459-bb8b-4ec6-a5fb-28e60c9f7d7b'}
-        subnet_identity_model = {'id': '0737-bbc80a8f-d46a-4cc6-8a5a-991daa5fc914'}
-        key_identity_model = {'id': "r006-14719c2a-80cf-4043-8018-fa22d4ce1337"}
+        # security_group_identity_model = {'id': 'r006-2d3cc459-bb8b-4ec6-a5fb-28e60c9f7d7b'}
+        security_group_identity_model = {'id': self.config['security_group_id']}
+
+        # subnet_identity_model = {'id': '0737-bbc80a8f-d46a-4cc6-8a5a-991daa5fc914'}
+        subnet_identity_model = {'id': self.config['subnet_id']}
+        
+        # key_identity_model = {'id': "r006-14719c2a-80cf-4043-8018-fa22d4ce1337"}
+        key_identity_model = {'id': self.config['key_id']}
 
         volume_prototype_instance_by_image_context_model = {
-            'capacity': 100, 'iops': 10000, 'name': self._generate_name('volume'), 'profile': {'name': '10iops-tier'}}
+            'capacity': 100, 'iops': 10000, 'name': self._generate_name('volume'), 'profile': {'name': self.config['volume_tier']}}#''10iops-tier'}}
+
         network_interface_prototype_model = {
             'name': 'eth0', 'subnet': subnet_identity_model, 'security_groups': [security_group_identity_model]}
         volume_attachment_prototype_instance_by_image = {
@@ -136,13 +142,12 @@ class IBMVPCInstanceClient:
         }
         instance_prototype_model = {
             'keys': [key_identity_model], 'name': self._generate_name('instance')}
-        instance_prototype_model['profile'] = {'name': "bx2-8x32"}
+        instance_prototype_model['profile'] = {'name': self.config['profile_name']}#"bx2-8x32"}
 
-        instance_prototype_model['resource_group'] = {
-            'id': "8145289ddf7047ea93fd2835de391f43"}
-        instance_prototype_model['vpc'] = {'id': "r006-afdd7b5d-059f-413f-a319-c0a38ef46824"}
-        instance_prototype_model['image'] = {'id': "r006-988caa8b-7786-49c9-aea6-9553af2b1969"}
-        instance_prototype_model['zone'] = {'name': "us-south-3"}
+        instance_prototype_model['resource_group'] = {'id': self.config['resource_group_id']}#"8145289ddf7047ea93fd2835de391f43"}
+        instance_prototype_model['vpc'] = {'id': self.config['vpc_id']}#"r006-afdd7b5d-059f-413f-a319-c0a38ef46824"}
+        instance_prototype_model['image'] = {'id': self.config['image_id']}#"r006-988caa8b-7786-49c9-aea6-9553af2b1969"}
+        instance_prototype_model['zone'] = {'name': self.config['zone_name']}#"us-south-3"}
 
         instance_prototype_model['boot_volume_attachment'] = volume_attachment_prototype_instance_by_image
         instance_prototype_model['primary_network_interface'] = network_interface_prototype_model
@@ -154,8 +159,8 @@ class IBMVPCInstanceClient:
         # allocate new floating ip
         floating_ip_prototype_model = {}
         floating_ip_prototype_model['name'] = self._generate_name('fip')
-        floating_ip_prototype_model['zone'] = {'name': "us-south-3"}
-        floating_ip_prototype_model['resource_group'] = {'id': "8145289ddf7047ea93fd2835de391f43"}
+        floating_ip_prototype_model['zone'] = {'name': self.config['zone_name']}#"us-south-3"}
+        floating_ip_prototype_model['resource_group'] = {'id': self.config['resource_group_id']}#"8145289ddf7047ea93fd2835de391f43"}
 
         response = self.service.create_floating_ip(floating_ip_prototype_model)
         floating_ip = response.result
