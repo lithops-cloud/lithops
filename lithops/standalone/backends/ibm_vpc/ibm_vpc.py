@@ -167,14 +167,18 @@ class IBMVPCInstanceClient:
 
         return floating_ip
 
-    def _delete_instance(self, instance, floating_ip):
+    def delete(self, instance_id):
+        # delete floating ip
+        response = service.list_instance_network_interfaces(instance_id)
+        for nic in response.result['network_interfaces']:
+            if 'floating_ips' in nic:
+                for fip in nic['floating_ips']:
+                    service.delete_floating_ip(fip['id'])
+                    print("floating ip {} been deleted".format(floating_ip['address']))
+
         # delete vm instance
         self.service.delete_instance(instance['id'])
         print("instance {} been deleted".format(instance['name']))
-
-        # delete floating ip
-        self.service.delete_floating_ip(floating_ip['id'])
-        print("floating ip {} been deleted".format(floating_ip['address']))
 
     def start(self):
         logger.info("Starting VM instance")

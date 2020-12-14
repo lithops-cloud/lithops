@@ -59,7 +59,7 @@ class StandaloneHandler:
         self.runtime = self.config['runtime']
         self.is_lithops_worker = is_lithops_worker()
 
-        self.start_timeout = self.config.get('start_timeout', 300)
+        self.start_timeout = self.config.get('start_timeout', 600)
 
         self.auto_dismantle = self.config.get('auto_dismantle')
         self.hard_dismantle_timeout = self.config.get('hard_dismantle_timeout')
@@ -273,7 +273,10 @@ class StandaloneHandler:
         """
         Stop VM instance
         """
-        self.backend.stop()
+        if self.config['lowcost']
+            self.backend.delete(self.config['instance_id'])
+        else:
+            self.backend.stop()
 
     def create(self):
         """
@@ -283,6 +286,7 @@ class StandaloneHandler:
         instance_id, ip_address = self.backend.create()
         self.ip_address = ip_address
         self.config['instance_id'] = instance_id
+        time.sleep(60)
         runtime_meta = self.create_runtime(self.config['runtime'])
         runtime_key = self.get_runtime_key(self.config['runtime'])
         return runtime_key, runtime_meta
