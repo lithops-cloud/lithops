@@ -40,7 +40,7 @@ class LocalhostHandler:
     """
 
     def __init__(self, localhost_config):
-        logger.debug('Creating Localhost client')
+        logger.debug('Creating Localhost compute client')
         self.config = localhost_config
         self.runtime = self.config['runtime']
 
@@ -51,7 +51,7 @@ class LocalhostHandler:
             self.env = DockerEnv(self.runtime)
             self.env_type = 'docker'
 
-        msg = COMPUTE_CLI_MSG.format('Localhost Compute')
+        msg = COMPUTE_CLI_MSG.format('Localhost compute')
         logger.info("{}".format(msg))
 
     def run_job(self, job_payload):

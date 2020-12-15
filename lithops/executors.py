@@ -360,11 +360,13 @@ class FunctionExecutor:
             msg = 'ExecutorID {} - Getting results'.format(self.executor_id)
             fs_done = [f for f in futures if f.done]
             fs_not_done = [f for f in futures if not f.done]
+            fs_not_ready = [f for f in futures if not f.ready]
 
         else:
             msg = 'ExecutorID {} - Waiting for functions to complete'.format(self.executor_id)
             fs_done = [f for f in futures if f.ready or f.done]
             fs_not_done = [f for f in futures if not f.ready and not f.done]
+            fs_not_ready = [f for f in futures if not f.ready]
 
         if not fs_not_done:
             return fs_done, fs_not_done
@@ -379,7 +381,8 @@ class FunctionExecutor:
 
         pbar = None
         error = False
-        if not self.is_lithops_worker and self.log_level == logging.INFO:
+
+        if not self.is_lithops_worker and self.log_level == logging.INFO and fs_not_ready:
             from tqdm.auto import tqdm
 
             if is_notebook():
@@ -534,7 +537,7 @@ class FunctionExecutor:
         futures = fs or self.futures
         futures = [futures] if type(futures) != list else futures
         present_jobs = {create_job_key(f.executor_id, f.job_id) for f in futures
-                        if f.executor_id.count('-') == 1}
+                        if f.executor_id.count('-') == 1 and f.done}
         jobs_to_clean = present_jobs - self.cleaned_jobs
 
         if jobs_to_clean:
