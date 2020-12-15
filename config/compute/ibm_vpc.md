@@ -52,9 +52,19 @@ $ lithops logs poll
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |ibm_vpc | endpoint | |yes | Endpoint of your subnet region |
-|ibm_vpc | instance_id | |yes | virtual server instance ID |
-|ibm_vpc | ip_address | |yes | Floatting IP address atached to your Vm instance|
+|ibm_vpc | instance_id | | no | virtual server instance ID |
+|ibm_vpc | ip_address | | no | Floatting IP address atached to your Vm instance|
 |ibm_vpc | version | | no | Use for specifying IBM VPC production application version date, it is recommended to configure it statically |
 |ibm_vpc | generation | 2 | no | Use for specifying IBM VPC environment compute generation, see [Comparing compute generations in VPC](https://cloud.ibm.com/docs/cloud-infrastructure?topic=cloud-infrastructure-compare-vpc-vpcoc) for additional information |
 |ibm_vpc | ssh_user | root |no | Username to access the VM |
 |ibm_vpc | ssh_key_filename | | no | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
+|ibm_vpc | security_group_id | | yes | Security group id |
+|ibm_vpc | subnet_id | | yes | Subnet id |
+|ibm_vpc | key_id | | yes | Ssh public key id |
+|ibm_vpc | resource_group_id | | yes | Resource group id |
+|ibm_vpc | vpc_id | | yes | VPC id |
+|ibm_vpc | image_id | | yes | Virtual machine image id |
+|ibm_vpc | zone_name | | yes | Zone name |
+|ibm_vpc | volume_tier_name | | no | Virtual machine volume tier |
+|ibm_vpc | profile_name | | no | Virtual machine profile name |
+|ibm_vpc | delete_on_dismantle | | no | If True delete VM resource when dismantled |

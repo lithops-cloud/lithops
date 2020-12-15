@@ -221,7 +221,7 @@ class IBMVPCInstanceClient:
         return self.instance_id, floating_ip
 
     def stop(self):
-        if self.config['lowcost']:
+        if self.config['delete_on_dismantle']:
             logger.info("Deleting VM instance")
             self._delete_instance()
             logger.debug("VM instance deleted successfully")
