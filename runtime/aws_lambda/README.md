@@ -2,10 +2,15 @@
 
 The runtime is the place where your functions are executed.
 
-Unlike other Serverless backends like IBM Cloud Functions or Google Cloud Run, AWS Lambda is not based on Docker, so it is not possible to provide a Docker image as the function's runtime.
-However, it is possible to expand the default installed packages by providing a different `requirements.txt` file. In consequence, it is not possible to add a system library to the runtime, only Python modules that can be installed using `pip`.
+AWS Lambda provides two methods for packaging the function code and dependencies of a runtime:
 
-AWS Lambda provide the following default runtimes with some packages already preinstalled:
+## Using predefined **runtimes** and **layers**
+An AWS Lambda *runtime* is a predefined environment to run code on Lambda. For example, for Lithops we use runtimes `python3.8`, `python3.7` or `python3.6` that
+come with already preinstalled modules. A *layer* is a set of packaged dependencies that can used by multiple runtimes. For example, Lithops dependencies are
+deployed as a layer, so if multiple runtimes are created with different memory values, they can mount the same layer containing the dependencies, instead
+of deploying them separately for each runtime.
+
+Here you can find which modules are preinstalled by default in a AWS Lambda Python runtime:  
 
 | Runtime name | Python version | Packages included |
 | ----| ----| ---- |
@@ -53,7 +58,7 @@ import lithops
 pw = lithops.FunctionExecutor(runtime_memory=512)
 ```
 
-## Custom runtime
+### Custom layer runtime
 
 **Build your own Lithops runtime for AWS Lambda**
 
@@ -105,3 +110,45 @@ print(res)  # Prints <module 'matplotlib' from '/opt/python/matplotlib/__init__.
 ```
 
 If we are running Lithops, for example, with Python 3.8, `my_matplotlib_runtime` will be a Python 3.8 runtime with the extra modules specified installed.
+
+### Custom container runtime
+
+It is also possible to run a containerized runtime on AWS Lambda. This is useful to package, not only Python modules but also system libraries
+so that they can be used in the Lambda code.
+
+To build your own runtime, first install the [Docker CE](https://docs.docker.com/get-docker/) version and [AWS CLI](https://aws.amazon.com/cli/) in your client machine.
+
+Login to your Docker hub account by running in a terminal the next command.
+```
+$ docker login
+```
+
+Login to your AWS account on the CLI using your Access Key ID and Secret Access Key:
+```
+$ aws configure
+``` 
+
+Update the [template Dockerfile](Dockerfile.python38) that better fits to your requirements with your required system packages and Python modules.
+You can add a container layer (`RUN ...`) to install additional Python modules
+using `pip` or system libraries using `apt`, or even change Python version to a different one.
+
+Then, to build the custom runtime, use `lithops runtime build` CLI specifying the modified `Dockerfile` file and a runtime name.
+Note that the runtime name must be a Docker image name, that is, `your Docker username / container image name`:
+```
+$ lithops runtime build -f MyDockerfile docker_username/my_container_runtime
+```
+
+Finally, we can specify this new runtime when creating a Lithops Function Executor:
+
+```python
+import lithops
+
+def test():
+    return 'hello'
+
+lith = lithops.FunctionExecutor(runtime='docker_username/my_container_image')
+lith.call_async(test, data=())
+res = lith.get_result()
+print(res)  # Prints 'hello'
+```
+

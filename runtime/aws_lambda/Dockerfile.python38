@@ -48,5 +48,7 @@ RUN mkdir lithops
 COPY lithops_lambda.zip ${FUNCTION_DIR}
 RUN unzip lithops_lambda.zip && rm lithops_lambda.zip
 
+# Put your dependencies here, using RUN pip install... or RUN apt instal...
+
 ENTRYPOINT [ "/usr/local/bin/python", "-m", "awslambdaric" ]
 CMD [ "__main__.lambda_handler" ]
