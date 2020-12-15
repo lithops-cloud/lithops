@@ -1,8 +1,6 @@
-# Lithops with DSO
+# Distributed shared objects across function activations
 
-Lithops with [DSO](https://github.com/crucial-project/dso/tree/2.0) as storage backend.
-
-*Notice:* Only works with IBM Cloud Functions.
+*Notice:* Currently it only works with IBM Cloud Functions.
 
 ### Usage
 
@@ -17,4 +15,4 @@ Lithops with [DSO](https://github.com/crucial-project/dso/tree/2.0) as storage b
 
 ## Examples
 
-Somes sample scripts are available under [examples/dso](https://github.com/otrack/lithops/tree/dso/examples/dso).
+Somes sample scripts are available under [examples/dso](../examples/dso).

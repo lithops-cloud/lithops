@@ -22,7 +22,7 @@ import logging
 import shutil
 
 import lithops
-from lithops.tests import print_help, run_tests
+from lithops.scripts.tests import print_help, run_tests
 from lithops.utils import setup_logger, verify_runtime_name
 from lithops.config import get_mode, default_config, extract_storage_config,\
     extract_serverless_config, extract_standalone_config,\
@@ -53,7 +53,7 @@ def lithops_cli():
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 def clean(config, mode, backend, debug):
-    log_level = 'INFO' if not debug else 'DEBUG'
+    log_level = logging.INFO if not debug else logging.DEBUG
     setup_logger(log_level)
     logger.info('Cleaning all Lithops information')
 
@@ -98,9 +98,8 @@ def clean(config, mode, backend, debug):
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 def test_function(config, mode, backend, debug):
-
-    if debug:
-        setup_logger(logging.DEBUG)
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_logger(log_level)
 
     def hello(name):
         return 'Hello {}!'.format(name)
@@ -125,8 +124,8 @@ def test_function(config, mode, backend, debug):
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 def verify(test, config, mode, backend, debug):
-    if debug:
-        setup_logger(logging.DEBUG)
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_logger(log_level)
 
     if test == 'help':
         print_help()

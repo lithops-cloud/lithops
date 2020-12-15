@@ -54,17 +54,22 @@ class FunctionExecutor:
 
     def __init__(self, mode=None, config=None, backend=None, storage=None,
                  runtime=None, runtime_memory=None, rabbitmq_monitor=None,
-                 workers=None, remote_invoker=None, log_level=logging.INFO):
+                 workers=None, remote_invoker=None, log_level=False):
         """ Create a FunctionExecutor Class """
         if mode and mode not in [LOCALHOST, SERVERLESS, STANDALONE]:
             raise Exception("Function executor mode must be one of '{}', '{}' "
                             "or '{}'".format(LOCALHOST, SERVERLESS, STANDALONE))
 
-        if type(log_level) is str:
-            log_level = logging.getLevelName(log_level.upper())
         self.log_level = log_level
         if self.log_level:
+            if type(log_level) is str:
+                self.log_level = logging.getLevelName(log_level.upper())
             setup_logger(self.log_level)
+        elif self.log_level is False:
+            self.log_level = logger.getEffectiveLevel()
+            if self.log_level == logging.WARNING:
+                self.log_level = logging.INFO
+                setup_logger(self.log_level)
 
         mode = mode or get_mode(config)
         config_ow = {'lithops': {'mode': mode}, mode: {}}
