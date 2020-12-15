@@ -218,7 +218,6 @@ class IBMVPCInstanceClient:
         self.config['ip_address'] = floating_ip
 
         self._wait_instance_running(self.instance_id)
-
         return self.instance_id, floating_ip
 
     def stop(self):

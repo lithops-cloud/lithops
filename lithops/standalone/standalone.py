@@ -341,4 +341,4 @@ class StandaloneHandler:
         cmd += 'systemctl stop {}; '.format(PROXY_SERVICE_NAME)
         cmd += 'systemctl enable {}; '.format(PROXY_SERVICE_NAME)
         cmd += 'systemctl start {}; '.format(PROXY_SERVICE_NAME)
-        self.ssh_client.run_remote_command(self.ip_address, cmd, background=True)
+        self.ssh_client.run_remote_command(self.ip_address, cmd, timeout=300)
