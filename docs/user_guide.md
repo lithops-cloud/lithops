@@ -23,14 +23,16 @@
 
 6. [Distributed shared objects across function activations](dso.md)
 
-7. [Lithops for big data analytics](data_processing.md)
+7. [Distributed Scikit-learn / Joblib](sklearn_joblib.md)
+
+8. [Lithops for big data analytics](data_processing.md)
    - [Processing data from a cloud object store](data_processing.md#processing-data-from-a-cloud-object-storage-service)
    - [Processing data from public URLs](data_processing.md#processing-data-from-public-urls)
 
-8. [Run Lithops on Jupyter notebooks](../examples/hello_world.ipynb)
+9. [Run Lithops on Jupyter notebooks](../examples/hello_world.ipynb)
 
-9. [Execute Airflow workflows using Lithops](https://github.com/lithops-cloud/airflow-plugin)
+10. [Execute Airflow workflows using Lithops](https://github.com/lithops-cloud/airflow-plugin)
 
-10. [Lithops end-to-end Applications](https://github.com/lithops-cloud/applications)
+11. [Lithops end-to-end Applications](https://github.com/lithops-cloud/applications)
 
-11. [Build and manage custom runtimes to run the functions](../runtime/)
+12. [Build and manage custom runtimes to run the functions](../runtime/)

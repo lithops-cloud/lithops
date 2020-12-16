@@ -381,13 +381,20 @@ def verify_args(func, iterdata, extra_args):
             else:
                 raise ValueError("Check the args names in the data. "
                                  "You provided these args: {}, and "
-                                 "the args must be: {}".format(list(elem.keys()),
-                                                               list(new_func_sig.parameters.keys())))
-        elif type(elem) in (list, tuple) and len(elem) == len(new_func_sig.parameters):
+                                 "the args must be: {}"
+                                 .format(list(elem.keys()),
+                                         list(new_func_sig.parameters.keys())))
+        elif type(elem) == tuple:
+            new_elem = dict(new_func_sig.bind(*list(elem)).arguments)
+            new_data.append(new_elem)
+        elif type(elem) == list and len(elem) == len(new_func_sig.parameters):
+            print("WARNING: Using a list in iteradata to enclose multiple "
+                  "args of a function is deprecated and will be removed in "
+                  "future releases. Please use a tuple")
             new_elem = dict(new_func_sig.bind(*list(elem)).arguments)
             new_data.append(new_elem)
         else:
-            # single value (string, integer, etc)
+            # single value (list, string, integer, dict, etc)
             new_elem = dict(new_func_sig.bind(elem).arguments)
             new_data.append(new_elem)
 

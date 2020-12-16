@@ -229,7 +229,7 @@ class TestLithops(unittest.TestCase):
         self.assertEqual(result, "a b")
 
         fexec = lithops.FunctionExecutor(config=CONFIG)
-        fexec.call_async(TestMethods.simple_map_function, [4, 6])
+        fexec.call_async(TestMethods.simple_map_function, (4, 6))
         result = fexec.get_result()
         self.assertEqual(result, 10)
 
@@ -240,7 +240,7 @@ class TestLithops(unittest.TestCase):
 
     def test_map(self):
         logger.info('Testing map()')
-        iterdata = [[1, 1], [2, 2], [3, 3], [4, 4]]
+        iterdata = [(1, 1), (2, 2), (3, 3), (4, 4)]
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map(TestMethods.simple_map_function, iterdata)
         result = fexec.get_result()
@@ -277,7 +277,7 @@ class TestLithops(unittest.TestCase):
 
     def test_map_reduce(self):
         logger.info('Testing map_reduce()')
-        iterdata = [[1, 1], [2, 2], [3, 3], [4, 4]]
+        iterdata = [(1, 1), (2, 2), (3, 3), (4, 4)]
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map_reduce(TestMethods.simple_map_function, iterdata,
                          TestMethods.simple_reduce_function)
@@ -287,22 +287,22 @@ class TestLithops(unittest.TestCase):
     def test_multiple_executions(self):
         logger.info('Testing multiple executions')
         fexec = lithops.FunctionExecutor(config=CONFIG)
-        iterdata = [[1, 1], [2, 2]]
+        iterdata = [(1, 1), (2, 2)]
         fexec.map(TestMethods.simple_map_function, iterdata)
-        iterdata = [[3, 3], [4, 4]]
+        iterdata = [(3, 3), (4, 4)]
         fexec.map(TestMethods.simple_map_function, iterdata)
         result = fexec.get_result()
         self.assertEqual(result, [2, 4, 6, 8])
 
-        iterdata = [[1, 1], [2, 2]]
+        iterdata = [(1, 1), (2, 2)]
         fexec.map(TestMethods.simple_map_function, iterdata)
         result = fexec.get_result()
         self.assertEqual(result, [2, 4])
 
-        iterdata = [[1, 1], [2, 2]]
+        iterdata = [(1, 1), (2, 2)]
         futures1 = fexec.map(TestMethods.simple_map_function, iterdata)
         result1 = fexec.get_result(fs=futures1)
-        iterdata = [[3, 3], [4, 4]]
+        iterdata = [(3, 3), (4, 4)]
         futures2 = fexec.map(TestMethods.simple_map_function, iterdata)
         result2 = fexec.get_result(fs=futures2)
         self.assertEqual(result1, [2, 4])
@@ -382,7 +382,7 @@ class TestLithops(unittest.TestCase):
 
     def test_storage_handler(self):
         logger.info('Testing "storage" function arg')
-        iterdata = [[key, STORAGE_CONFIG['bucket']] for key in TestUtils.list_dataset_keys()]
+        iterdata = [(key, STORAGE_CONFIG['bucket']) for key in TestUtils.list_dataset_keys()]
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map_reduce(TestMethods.my_map_function_storage, iterdata,
                          TestMethods.my_reduce_function)

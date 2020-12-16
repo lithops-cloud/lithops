@@ -18,9 +18,11 @@
 - [Core] Fixed expired IAM token in IBM CF during an execution
 - [Core] Minor fixes in multiprocessing API
 - [Core] Fixed executor logging
+- [Core] Fixed issue in cleaner between wait and get_result
 - [CodeEngine] Fixed issue getting region
 - [Localhost] Fixed empty parent directory deletion when deleting objects
-- [Localhost] Made list_keys/list_objects behavior consistent with other backends 
+- [Localhost] Made list_keys/list_objects behavior consistent with other backends
+- [Joblib] Fixed joblib backend
 
 
 ## [v2.2.13]

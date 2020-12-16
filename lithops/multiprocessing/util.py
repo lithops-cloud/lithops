@@ -20,7 +20,7 @@ import threading  # we want threading to install it's cleanup function before mu
 from . import process
 import logging
 import lithops
-from lithops.config import default_config
+from lithops.config import load_config
 
 #
 # Logging
@@ -416,7 +416,10 @@ class PicklableRedis(redis.StrictRedis):
 
 
 def get_redis_client(**overwrites):
-    conn_params = default_config()['redis']
+    try:
+        conn_params = load_config()['redis']
+    except KeyError:
+        raise Exception('Redis section not found in you config')
     conn_params.update(overwrites)
     return PicklableRedis(**conn_params)
 

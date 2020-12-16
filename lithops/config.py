@@ -182,6 +182,7 @@ def default_config(config_data=None, config_overwrite={}):
             config_data[constants.LOCALHOST] = {}
         if 'runtime' not in config_data[constants.LOCALHOST]:
             config_data[constants.LOCALHOST]['runtime'] = constants.LOCALHOST_RUNTIME_DEFAULT
+        logger.debug("Loading compute backend module: localhost")
 
         verify_runtime_name(config_data[constants.LOCALHOST]['runtime'])
 
@@ -211,6 +212,11 @@ def default_storage_config(config_data=None, backend=None):
         if 'storage_bucket' not in config_data['lithops']:
             raise Exception("storage_bucket is mandatory in "
                             "lithops section of the configuration")
+
+    mode = config_data['lithops']['mode']
+    storage = config_data['lithops']['storage']
+    if storage == constants.LOCALHOST and mode != constants.LOCALHOST:
+        raise Exception('Localhost storage backend cannot run in {} mode'.format(mode))
 
     sb = config_data['lithops']['storage']
     logger.debug("Loading Storage backend module: {}".format(sb))

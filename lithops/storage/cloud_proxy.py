@@ -17,9 +17,9 @@
 import io
 import os as base_os
 from functools import partial
-from lithops.storage import InternalStorage
+from lithops.storage import Storage
 from lithops.utils import is_lithops_worker
-from lithops.config import default_config, load_yaml_config, extract_storage_config
+from lithops.config import default_storage_config, load_yaml_config, extract_storage_config
 from lithops.constants import JOBS_PREFIX, TEMP_PREFIX, LOGS_PREFIX, RUNTIMES_PREFIX
 
 
@@ -32,7 +32,7 @@ def remove_lithops_keys(keys):
 # Picklable cloud object storage client
 #
 
-class CloudStorage(InternalStorage):
+class CloudStorage(Storage):
     def __init__(self, config=None):
         if isinstance(config, str):
             config = load_yaml_config(config)
@@ -43,8 +43,8 @@ class CloudStorage(InternalStorage):
             else:
                 self._config = config
         else:
-            self._config = extract_storage_config(default_config())
-        super().__init__(self._config)
+            self._config = extract_storage_config(default_storage_config())
+        super().__init__(storage_config=self._config)
 
     def __getstate__(self):
         return self._config
@@ -52,8 +52,17 @@ class CloudStorage(InternalStorage):
     def __setstate__(self, state):
         self.__init__(state)
 
-    def list_keys(self, prefix=None):
-        return self.storage.list_keys(self.bucket, prefix)
+    def put_data(self, key, data):
+        return self.put_object(self.bucket, key, data)
+
+    def get_data(self, key):
+        return self.get_object(self.bucket, key)
+
+    def delete_data(self, key):
+        self.delete_object(self.bucket, key)
+
+    def list_bucket_keys(self, prefix=None):
+        return self.list_keys(self.bucket, prefix)
 
 
 class CloudFileProxy:
@@ -76,7 +85,7 @@ class CloudFileProxy:
         else:
             prefix = path if path.endswith('/') else path + '/'
 
-        paths = self._storage.list_keys(prefix=prefix)
+        paths = self._storage.list_bucket_keys(prefix=prefix)
         names = set()
         for p in paths:
             if any([p.startswith(prefix) for prefix in [JOBS_PREFIX, TEMP_PREFIX, LOGS_PREFIX, RUNTIMES_PREFIX]]):
@@ -113,7 +122,7 @@ class CloudFileProxy:
             yield top, dirs, files
 
     def remove(self, path):
-        self._storage.storage.delete_object(bucket=self._storage.bucket, key=path)
+        self._storage.delete_data(path)
 
     def mkdir(self, *args, **kwargs):
         pass
@@ -135,7 +144,7 @@ class _path:
         if path.startswith('/'):
             prefix = path[1:]
 
-        keys = remove_lithops_keys(self._storage.list_keys(prefix=prefix))
+        keys = remove_lithops_keys(self._storage.list_bucket_keys(prefix=prefix))
         if len(keys) == 1:
             key = keys.pop()
             key = key[len(prefix):]
@@ -151,12 +160,12 @@ class _path:
         if prefix != '' and not prefix.endswith('/'):
             prefix = prefix + '/'
 
-        keys = remove_lithops_keys(self._storage.list_keys(prefix=prefix))
+        keys = remove_lithops_keys(self._storage.list_bucket_keys(prefix=prefix))
         return bool(keys)
 
     def exists(self, path):
         dirpath = path if path.endswith('/') else path + '/'
-        for key in self._storage.list_keys(prefix=path):
+        for key in self._storage.list_bucket_keys(prefix=path):
             if key.startswith(dirpath) or key == path:
                 return True
         return False
