@@ -1,6 +1,6 @@
 # Lithops Storage API Details
 
-Lithops allows to create a Storage instance and abstract away the backend implementation details. The standard way to get everything set up is to import the lithops `Storage` class and create an instance.
+Lithops allows to create a **Storage** instance and abstract away the backend implementation details. The standard way to get an Storage object set up is to import the lithops `Storage` class and create an instance.
 
 
 **Storage(\*\*kwargs)**

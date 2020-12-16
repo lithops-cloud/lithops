@@ -1,4 +1,4 @@
-# Lithops Multiprocessing API Details (beta)
+# Lithops Multiprocessing API Details
 
 Lithops allows to use the standard Python [multiprocessing](https://docs.python.org/3/library/multiprocessing.html) High-level API to run functions by using a cloud compute backend.
 

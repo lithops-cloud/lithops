@@ -9,3 +9,5 @@ To get started, first install Lithops, then use from lithops.util.joblib import 
 
 - Find a simple joblib example in [examples/joblib_backend.py](../examples/joblib_backend.py)
 - Find a simple sklearn example in [examples/sklearn_job.py](../examples/sklearn_job.py)
+
+Refer to the official [joblib](https://joblib.readthedocs.io/en/latest/parallel.html) and [sklearn](https://scikit-learn.org/stable/user_guide.html) documentation to operate with these libraries.

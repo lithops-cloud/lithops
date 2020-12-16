@@ -37,6 +37,7 @@ lithops:
     #kubectl_config: <Location for kubectl yaml file>
 
 #ibm_cos:
+    region : <REGION>
     #endpoint    : <REGION_ENDPOINT>
     #private_endpoint: <PRIVATE_REGION_ENDPOINT>
     #api_key     : <API_KEY>
