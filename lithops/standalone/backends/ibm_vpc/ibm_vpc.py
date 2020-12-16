@@ -208,17 +208,23 @@ class IBMVPCInstanceClient:
 
     def create(self):
         logger.info("Creating VM instance")
+        self.instance_id = None
 
-        instance = self._create_instance()
-        floating_ip = self._create_and_attach_floating_ip(instance)['address']
-        logger.debug("VM {} created successfully with floating IP {}".format(instance['name'], floating_ip))
+        try:
+            instance = self._create_instance()
+            floating_ip = self._create_and_attach_floating_ip(instance)['address']
+            logger.debug("VM {} created successfully with floating IP {}".format(instance['name'], floating_ip))
 
-        self.instance_id = instance['id']
-        self.config['instance_id'] = self.instance_id
-        self.config['ip_address'] = floating_ip
+            self.instance_id = instance['id']
+            self.config['instance_id'] = self.instance_id
+            self.config['ip_address'] = floating_ip
 
-        self._wait_instance_running(self.instance_id)
-        return self.instance_id, floating_ip
+            self._wait_instance_running(self.instance_id)
+            return self.instance_id, floating_ip
+        except Exception as e:
+            logger.error("There was an error trying to create the VM and  bind floating ip, deleting the vm {}".format(self.instance_id))
+            self._delete_instance()
+            raise e
 
     def stop(self):
         if self.config['delete_on_dismantle']:

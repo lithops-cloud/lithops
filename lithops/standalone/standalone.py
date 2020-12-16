@@ -283,6 +283,12 @@ class StandaloneHandler:
         instance_id, ip_address = self.backend.create()
         self.ip_address = ip_address
         self.config['instance_id'] = instance_id
+
+        # Requires further investigation. If not wait after vm create the create_runtime fails
+        # due to interrupted apt update. Another solution could be to specify all preparations in
+        # user_data and wait with runtime_create until user_data finished the setup
+        time.sleep(120)
+
         runtime_meta = self.create_runtime(self.config['runtime'])
         runtime_key = self.get_runtime_key(self.config['runtime'])
         return runtime_key, runtime_meta
