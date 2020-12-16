@@ -252,7 +252,7 @@ When a process first puts an item on the queue a feeder thread is started which 
 |---|---|---|
 | maxsize | Maximum number of elements that can be queued in the queue. | - |
 
-An example is provided [here](../examples/multiprocessing/buffered_queue.py)
+An example is provided [here](../examples/multiprocessing/queue_poll.py)
 
 #### Queue API reference
 

@@ -1,4 +1,4 @@
-from lithops.multiprocessing import Process, SimpleQueue
+from lithops.multiprocessing import Process, SimpleQueue, Queue
 
 
 def f(q):
@@ -6,7 +6,8 @@ def f(q):
 
 
 if __name__ == '__main__':
-    q = SimpleQueue()
+    # q = SimpleQueue()
+    q = Queue()
     p = Process(target=f, args=(q,))
     p.start()
     print(q.get())  # prints "[42, None, 'hello']"
