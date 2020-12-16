@@ -59,7 +59,7 @@ class StandaloneHandler:
         self.runtime = self.config['runtime']
         self.is_lithops_worker = is_lithops_worker()
 
-        self.start_timeout = self.config.get('start_timeout', 600)
+        self.start_timeout = self.config.get('start_timeout', 300)
 
         self.auto_dismantle = self.config.get('auto_dismantle')
         self.hard_dismantle_timeout = self.config.get('hard_dismantle_timeout')
