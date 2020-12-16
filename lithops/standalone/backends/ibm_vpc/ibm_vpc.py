@@ -17,7 +17,6 @@ class IBMVPCInstanceClient:
 
     def __init__(self, ibm_vpc_config):
         logger.debug("Creating IBM VPC client")
-        
         self.name = 'ibm_vpc'
         self.config = ibm_vpc_config
 

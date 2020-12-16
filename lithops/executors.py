@@ -628,3 +628,4 @@ class StandaloneExecutor(FunctionExecutor):
     def create(self):
         runtime_key, runtime_meta = self.compute_handler.create()
         self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
+
