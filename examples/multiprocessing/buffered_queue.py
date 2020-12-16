@@ -7,7 +7,7 @@ import random
 def work(remote_queue):
     for i in range(5):
         remote_queue.put('Working hard ... {}'.format(i))
-        # time.sleep(random.random())
+        time.sleep(random.random())
 
 
 if __name__ == '__main__':

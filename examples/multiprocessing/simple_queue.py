@@ -6,8 +6,8 @@ def f(q):
 
 
 if __name__ == '__main__':
-    # q = SimpleQueue()
-    q = Queue()
+    q = SimpleQueue()
+    # q = Queue()
     p = Process(target=f, args=(q,))
     p.start()
     print(q.get())  # prints "[42, None, 'hello']"
