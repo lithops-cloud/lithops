@@ -1,6 +1,15 @@
 # Changelog
 
-## [v2.2.14.dev0]
+## [v2.2.15.dev0]
+
+### Added
+- [Joblib] Joblib backend upgraded
+
+### Fixed
+- [Core] Fixed issue in clean when it is called between wait and get_result
+- [Core] Fixed multiprocessing Queue and get_context
+
+## [v2.2.14]
 
 ### Added
 - [Azure] Azure Functions backend upgraded
@@ -22,7 +31,6 @@
 - [CodeEngine] Fixed issue getting region
 - [Localhost] Fixed empty parent directory deletion when deleting objects
 - [Localhost] Made list_keys/list_objects behavior consistent with other backends
-- [Joblib] Fixed joblib backend
 
 
 ## [v2.2.13]
