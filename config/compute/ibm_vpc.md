@@ -49,6 +49,54 @@ $ lithops logs poll
 
 #### Summary of configuration keys for IBM VPC
 
+The fastest way to find all the required keys is following:
+
+1. Login to IBM Cloud and open up your [dashboard](https://cloud.ibm.com/).
+
+2. Navigate to your [IBM VPC create instance](https://cloud.ibm.com/vpc-ext/provision/vs).
+
+3. On the left, fill all the parameters required for your new VM instance creation: name, resource group, location, image, ssh key and vpc
+
+4. On the right, click `Get sample API call`.
+
+5. Copy to clipboard the code from the `REST request: Creating a virtual server instance` dialog and paste to your favorite editor.
+
+6. Close the `Create instance` window without creating it.
+
+7. In the code, find `security_groups` section and paste its `id` value to the .lithops_config ibm_vpc section security_group_id key.
+
+8. Find `subnet` section and paste its `id` value to the .lithops_config ibm_vpc section subnet_id key.
+
+9. Find `keys` section and paste its `id` value to the .lithops_config ibm_vpc section key_id key.
+
+10. Find `resource_group` section and paste its `id` value to the .lithops_config ibm_vpc section resource_group_id key.
+
+11. Find `vpc` section and paste its `id` value to the .lithops_config ibm_vpc section vpc_id key.
+
+12. Find `image` section and paste its `id` value to the .lithops_config ibm_vpc section image_id key.
+
+13. Find `zone` section and paste its `name` value to the .lithops_config ibm_vpc section zone_name key.
+
+14. Set `delete_on_dismantle` to `True` in order to delete VM with all its resource on dismantle instead of stop 
+
+Your lithops config ibm_vpc section should look like:
+    ```yaml
+    ibm_vpc:
+        endpoint    : <REGION_ENDPOINT>	    #endpoint    : <REGION_ENDPOINT>
+        instance_id : <INSTANCE_ID>	    #instance_id : <INSTANCE_ID>  # Optional
+        ip_address  : <FLOATING_IP_ADDRESS>	    #ip_address  : <FLOATING_IP_ADDRESS> # Optional
+        security_group_id: <SECURITY_GROUP_ID>
+        subnet_id: <SUBNET_ID>
+        key_id: <PUBLIC_KEY_ID>
+        resource_group_id: <RESOURCE_GROUP_ID>
+        vpc_id: <VPC_ID>
+        image_id: <IMAGE_ID>
+        zone_name: <ZONE_NAME>
+        volume_tier_name: <VOLUME_TIER_NAME>  # Optional
+        profile_name: <PROFILE_NAME>  # Optional
+        delete_on_dismantle: False  # Optional
+    ```
+
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |ibm_vpc | endpoint | |yes | Endpoint of your subnet region |
