@@ -83,9 +83,9 @@ Your lithops config ibm_vpc section should look like:
 
     ```yaml
     ibm_vpc:
-        endpoint    : <REGION_ENDPOINT>	    #endpoint    : <REGION_ENDPOINT>
-        instance_id : <INSTANCE_ID>	    #instance_id : <INSTANCE_ID>  # Optional
-        ip_address  : <FLOATING_IP_ADDRESS>	    #ip_address  : <FLOATING_IP_ADDRESS> # Optional
+        endpoint    : <REGION_ENDPOINT>
+        instance_id : <INSTANCE_ID>	    # Optional
+        ip_address  : <FLOATING_IP_ADDRESS>	   # Optional
         security_group_id: <SECURITY_GROUP_ID>
         subnet_id: <SUBNET_ID>
         key_id: <PUBLIC_KEY_ID>
