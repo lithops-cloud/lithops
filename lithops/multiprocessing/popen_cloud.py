@@ -63,4 +63,4 @@ class PopenCloud(object):
 
     def _launch(self, process_obj):
         fn_args = [*process_obj._args, *process_obj._kwargs]
-        self.sentinel = self._executor.call_async(process_obj._target, fn_args)
+        self.sentinel = self._executor.call_async(process_obj._target, tuple(fn_args))

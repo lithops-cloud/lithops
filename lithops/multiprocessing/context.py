@@ -271,8 +271,8 @@ _concrete_contexts = {
 _default_context = DefaultContext(_concrete_contexts['cloud'])
 
 
-def get_context():
-    return _default_context
+def get_context(method):
+    return _default_context.get_context(method)
 
 
 #

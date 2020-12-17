@@ -14,7 +14,7 @@
 # Modifications Copyright (c) 2020 Cloudlab URV
 #
 
-from .context import BaseContext
+from .context import BaseContext, get_context
 from .connection import RedisPipe as Pipe
 from .managers import SyncManager as Manager
 from .pool import Pool

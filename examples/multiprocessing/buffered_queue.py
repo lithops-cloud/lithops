@@ -1,30 +1,30 @@
-from lithops.multiprocessing import Process, Queue, getpid
+import lithops.multiprocessing as mp
+from lithops.multiprocessing import Process, Queue
 import time
+import random
 
 
-def f(q):
-    print("I'm process {}".format(getpid()))
-    q.put([42, None, 'hello'])
-    for i in range(3):
-        q.put('Message no. {} ({})'.format(i, time.time()))
-        time.sleep(1)
-    print('Done')
+def work(remote_queue):
+    for i in range(5):
+        remote_queue.put('Working hard ... {}'.format(i))
+        time.sleep(random.random())
 
 
 if __name__ == '__main__':
-    q = Queue()
-    p = Process(target=f, args=(q,))
-    p.start()
+    queue = Queue()
+    process = Process(target=work, args=(queue,))
 
-    print(q.get())  # prints "[42, None, 'hello']"
+    # ctx = mp.get_context('spawn')
+    # queue = ctx.Queue()
+    # process = ctx.Process(target=work, args=(queue,))
 
-    consuming = True
-    while consuming:
+    process.start()
+    process.join()
+
+    while True:
         try:
-            res = q.get(block=True, timeout=3)
-            print(res)
-        except q.Empty as e:
+            data = queue.get(timeout=3)
+            print(data)
+        except queue.Empty:
             print('Queue empty!')
-            consuming = False
-
-    p.join()
+            break
