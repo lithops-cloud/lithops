@@ -80,6 +80,7 @@ The fastest way to find all the required keys is following:
 14. Set `delete_on_dismantle` to `True` in order to delete VM with all its resource on dismantle instead of stop 
 
 Your lithops config ibm_vpc section should look like:
+
     ```yaml
     ibm_vpc:
         endpoint    : <REGION_ENDPOINT>	    #endpoint    : <REGION_ENDPOINT>
