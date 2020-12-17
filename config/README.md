@@ -167,7 +167,7 @@ fexec = lithops.FunctionExecutor(rabbitmq_monitor=True)
 |lithops|storage_bucket | |no | Any bucket that exists in your COS account. This will be used by Lithops for intermediate data |
 |lithops | storage | ibm_cos | no | Storage backend implementation. IBM Cloud Object Storage is the default |
 |lithops| data_cleaner | True | no |If set to True, then the cleaner will automatically delete all the temporary data that was written into `storage_bucket/lithops.jobs`|
-|lithops | executor | serverless | no | Execution mode. One of: **localhost**, **serverless** or **standalone** |
+|lithops | mode | serverless | no | Execution mode. One of: **localhost**, **serverless** or **standalone** |
 |lithops | rabbitmq_monitor | False | no | Activate the rabbitmq monitoring feature |
 |lithops | workers | Depends on the compute backend | no | Max number of concurrent workers |
 |lithops| data_limit | 4 | no | Max (iter)data size (in MB). Set to False for unlimited size |

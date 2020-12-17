@@ -32,7 +32,7 @@ As stated above, the allowed inputs of the function can be:
 
 -  Input data is a bucket(s) with object prefix. See an example in [map_cos_prefix.py](../examples/map_cos_prefix.py):
     ```python
-    iterdata = ['/bucket1/images/', 'bucket1/videos/']
+    iterdata = ['bucket1/images/', 'bucket1/videos/']
     ```
     Notice that you must write the end slash (/) to inform partitioner you are providing an object prefix.
 
