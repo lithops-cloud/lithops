@@ -80,7 +80,7 @@ class JobRunner:
         self.prometheus = PrometheusExporter(prom_enabled, prom_config)
 
         mode = self.lithops_config['lithops']['mode']
-        self.realtime = self.lithops_config[mode].get('realtime', False)
+        self.customized_runtime = self.lithops_config[mode].get('customized_runtime', False)
 
     def _get_function_and_modules(self):
         """
@@ -89,7 +89,7 @@ class JobRunner:
         logger.debug("Getting function and modules")
         func_download_start_tstamp = time.time()
         func_obj = None
-        if self.realtime:
+        if self.customized_runtime:
             func_obj = self._get_func()
         else:
             func_obj = self.internal_storage.get_func(self.func_key)
@@ -267,7 +267,7 @@ class JobRunner:
         try:
             function = None
 
-            if self.realtime:
+            if self.customized_runtime:
                 function = self._get_function_and_modules()
             else:
                 loaded_func_all = self._get_function_and_modules()

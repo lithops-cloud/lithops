@@ -277,7 +277,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     func_upload_start = time.time()
 
     # Upload function and modules
-    if config[mode].get('realtime'):
+    if config[mode].get('customized_runtime'):
         # Prepare function and modules locally to store in the runtime image later
         function_file = func.__code__.co_filename
         function_hash = hashlib.md5(open(function_file,'rb').read()).hexdigest()[:16]

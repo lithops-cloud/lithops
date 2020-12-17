@@ -184,7 +184,7 @@ fexec = lithops.FunctionExecutor(rabbitmq_monitor=True)
 |serverless | runtime_memory | 256 | no | Default runtime memory (in MB) |
 |serverless | runtime_timeout | 600 | no |  Default serveless backend runtime timeout (in seconds) |
 |serverless | remote_invoker | False | no |  Activate the remote invoker feature that uses one cloud function to spawn all the actual `map()` activations |
-|serverless | realtime | False | no | Optimized runtime for realtime applications. Dyncamically extends runtime with function and modules dependencies |
+|serverless | customized_runtime | False | no | Enables early preparation of Lithops workers with the map function and custom Lithops runtime already deployed, and ready to be used in consequent computations |
 
 
 ## Summary of configuration keys for Standalone
