@@ -49,12 +49,101 @@ $ lithops logs poll
 
 #### Summary of configuration keys for IBM VPC
 
+The fastest way to find all the required keys is following:
+
+1. Login to IBM Cloud and open up your [dashboard](https://cloud.ibm.com/).
+
+2. Navigate to your [IBM VPC create instance](https://cloud.ibm.com/vpc-ext/provision/vs).
+
+3. On the left, fill all the parameters required for your new VM instance creation: name, resource group, location, image, ssh key and vpc
+
+4. On the right, click `Get sample API call`.
+
+5. Copy to clipboard the code from the `REST request: Creating a virtual server instance` dialog and paste to your favorite editor.
+
+6. Close the `Create instance` window without creating it.
+
+7. In the code, find `security_groups` section and paste its `id` value to the .lithops_config ibm_vpc section security_group_id key.
+
+8. Find `subnet` section and paste its `id` value to the .lithops_config ibm_vpc section subnet_id key.
+
+9. Find `keys` section and paste its `id` value to the .lithops_config ibm_vpc section key_id key.
+
+10. Find `resource_group` section and paste its `id` value to the .lithops_config ibm_vpc section resource_group_id key.
+
+11. Find `vpc` section and paste its `id` value to the .lithops_config ibm_vpc section vpc_id key.
+
+12. Find `image` section and paste its `id` value to the .lithops_config ibm_vpc section image_id key.
+
+13. Find `zone` section and paste its `name` value to the .lithops_config ibm_vpc section zone_name key.
+
+14. Set `delete_on_dismantle` to `True` in order to delete VM with all its resource on dismantle instead of stop 
+
+Your lithops config ibm_vpc section should look like:
+
+    ```yaml
+    ibm_vpc:
+        endpoint    : <REGION_ENDPOINT>
+        instance_id : <INSTANCE_ID>	    # Optional
+        ip_address  : <FLOATING_IP_ADDRESS>	   # Optional
+        security_group_id: <SECURITY_GROUP_ID>
+        subnet_id: <SUBNET_ID>
+        key_id: <PUBLIC_KEY_ID>
+        resource_group_id: <RESOURCE_GROUP_ID>
+        vpc_id: <VPC_ID>
+        image_id: <IMAGE_ID>
+        zone_name: <ZONE_NAME>
+        volume_tier_name: <VOLUME_TIER_NAME>  # Optional
+        profile_name: <PROFILE_NAME>  # Optional
+        delete_on_dismantle: False  # Optional
+
+
+    e.g. to automatically create VM instance from Ubuntu 20.04 image and delete it on dismantle
+    ibm_vpc:
+        endpoint: https://us-south.iaas.cloud.ibm.com
+        security_group_id: r006-2d3cc459-bb8b-4ec6-a5fb-28e60c9f7d7b
+        subnet_id: 0737-bbc80a8f-d46a-4cc6-8a5a-991daa5fc914
+        key_id: r006-14719c2a-80cf-4043-8018-fa22d4ce1337
+        resource_group_id: 8145289ddf7047ea93fd2835de391f43
+        vpc_id: r006-afdd7b5d-059f-413f-a319-c0a38ef46824
+        image_id: r006-988caa8b-7786-49c9-aea6-9553af2b1969
+        zone_name: us-south-3
+        volume_tier_name: 10iops-tier
+        profile_name: bx2-8x32
+        delete_on_dismantle: True
+    ```
+
+    and in the code call "create()" method:
+    ```python
+    import lithops
+
+    def hello(name):
+        return 'Hello {}!'.format(name)
+
+    if __name__ == '__main__':
+        fexec = lithops.StandaloneExecutor(log_level='DEBUG')
+
+        fexec.create()  #provisions vm instance in ibm vpc
+
+        fexec.call_async(hello, 'World')
+    ```
+
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |ibm_vpc | endpoint | |yes | Endpoint of your subnet region |
-|ibm_vpc | instance_id | |yes | virtual server instance ID |
-|ibm_vpc | ip_address | |yes | Floatting IP address atached to your Vm instance|
+|ibm_vpc | instance_id | | no | virtual server instance ID |
+|ibm_vpc | ip_address | | no | Floatting IP address atached to your Vm instance|
 |ibm_vpc | version | | no | Use for specifying IBM VPC production application version date, it is recommended to configure it statically |
 |ibm_vpc | generation | 2 | no | Use for specifying IBM VPC environment compute generation, see [Comparing compute generations in VPC](https://cloud.ibm.com/docs/cloud-infrastructure?topic=cloud-infrastructure-compare-vpc-vpcoc) for additional information |
 |ibm_vpc | ssh_user | root |no | Username to access the VM |
 |ibm_vpc | ssh_key_filename | | no | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
+|ibm_vpc | security_group_id | | yes | Security group id |
+|ibm_vpc | subnet_id | | yes | Subnet id |
+|ibm_vpc | key_id | | yes | Ssh public key id |
+|ibm_vpc | resource_group_id | | yes | Resource group id |
+|ibm_vpc | vpc_id | | yes | VPC id |
+|ibm_vpc | image_id | | yes | Virtual machine image id |
+|ibm_vpc | zone_name | | yes | Zone name |
+|ibm_vpc | volume_tier_name | | no | Virtual machine volume tier |
+|ibm_vpc | profile_name | | no | Virtual machine profile name |
+|ibm_vpc | delete_on_dismantle | | no | If True delete VM resource when dismantled |

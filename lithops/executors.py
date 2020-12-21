@@ -632,3 +632,8 @@ class StandaloneExecutor(FunctionExecutor):
         super().__init__(mode=STANDALONE, config=config, runtime=runtime,
                          backend=backend, storage=storage, workers=workers,
                          rabbitmq_monitor=rabbitmq_monitor, log_level=log_level)
+
+    def create(self):
+        runtime_key, runtime_meta = self.compute_handler.create()
+        self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
+
