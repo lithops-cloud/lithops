@@ -96,6 +96,36 @@ Your lithops config ibm_vpc section should look like:
         volume_tier_name: <VOLUME_TIER_NAME>  # Optional
         profile_name: <PROFILE_NAME>  # Optional
         delete_on_dismantle: False  # Optional
+
+
+    e.g. to automatically create VM instance from Ubuntu 20.04 image and delete it on dismantle
+    ibm_vpc:
+        endpoint: https://us-south.iaas.cloud.ibm.com
+        security_group_id: r006-2d3cc459-bb8b-4ec6-a5fb-28e60c9f7d7b
+        subnet_id: 0737-bbc80a8f-d46a-4cc6-8a5a-991daa5fc914
+        key_id: r006-14719c2a-80cf-4043-8018-fa22d4ce1337
+        resource_group_id: 8145289ddf7047ea93fd2835de391f43
+        vpc_id: r006-afdd7b5d-059f-413f-a319-c0a38ef46824
+        image_id: r006-988caa8b-7786-49c9-aea6-9553af2b1969
+        zone_name: us-south-3
+        volume_tier_name: 10iops-tier
+        profile_name: bx2-8x32
+        delete_on_dismantle: True
+    ```
+
+    and in the code call "create()" method:
+    ```python
+    import lithops
+
+    def hello(name):
+        return 'Hello {}!'.format(name)
+
+    if __name__ == '__main__':
+        fexec = lithops.StandaloneExecutor(log_level='DEBUG')
+
+        fexec.create()  #provisions vm instance in ibm vpc
+
+        fexec.call_async(hello, 'World')
     ```
 
 |Group|Key|Default|Mandatory|Additional info|
