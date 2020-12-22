@@ -118,7 +118,7 @@ class IBMVPCInstanceClient:
             self.instance_data = self.get_instance()
 
     def _generate_name(self, r_type):
-        return "kpavel-" + namegenerator.gen() + "-" + r_type
+        return "lithops-" + namegenerator.gen() + "-" + r_type
 
     def _create_instance(self):
         # security_group_identity_model = {'id': 'r006-2d3cc459-bb8b-4ec6-a5fb-28e60c9f7d7b'}
