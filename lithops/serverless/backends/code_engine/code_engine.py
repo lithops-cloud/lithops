@@ -493,19 +493,25 @@ class CodeEngineBackend:
         self._delete_config_map(jobdef_name)
         return runtime_meta
 
-    def _generate_runtime_meta_service(self, docker_image_name, memory):
+    def _generate_runtime_meta_service(self, image_name, memory):
         """
-        Creates a service in CodeEngine based on the docker_image_name
+        Creates a service in CodeEngine based on the docker_image_name.
+
+        This is an alternative method to extract the runtime metadata.
+        Currently it is deactivated in favor of _generate_runtime_meta()
+        method which, for now, seems to be faster.
         """
-        logger.info("Extracting Python modules from: {}".format(docker_image_name))
+        logger.info("Extracting Python modules from: {}".format(image_name))
         svc_res = yaml.safe_load(kconfig.service_res)
 
-        service_name = docker_image_name.replace('/', '--').replace(':', '--')
+        service_name = image_name.replace('/', '--').replace(':', '--')
+        full_image_name = '/'.join([self.code_engine_config['container_registry'], image_name])
+
         svc_res['metadata']['name'] = service_name
         svc_res['metadata']['namespace'] = self.namespace
         svc_res['spec']['template']['spec']['timeoutSeconds'] = 30
         svc_res['spec']['template']['spec']['containerConcurrency'] = 1
-        svc_res['spec']['template']['spec']['containers'][0]['image'] = docker_image_name
+        svc_res['spec']['template']['spec']['containers'][0]['image'] = full_image_name
         svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['memory'] = '128Mi'
         svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['cpu'] = '0.1'
         svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['memory'] = '128Mi'
