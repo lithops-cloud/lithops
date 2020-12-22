@@ -22,7 +22,8 @@ install_requires = [
     'ibm-cos-sdk',
     'redis',
     'joblib',
-    'ibm-vpc>=0.4.0'
+    'ibm-vpc>=0.4.0',
+    'namegenerator'
 ]
 
 
