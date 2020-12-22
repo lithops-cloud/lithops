@@ -343,16 +343,16 @@ class CodeEngineBackend:
 
         return activation_id
 
-    def _create_job_definition(self, docker_image_name, runtime_memory, timeout):
+    def _create_job_definition(self, image_name, runtime_memory, timeout):
         """
         Creates a Job definition
         """
-        jobdef_name = self._format_jobdef_name(docker_image_name, runtime_memory)
+        jobdef_name = self._format_jobdef_name(image_name, runtime_memory)
 
         jobdef_res = yaml.safe_load(ce_config.JOBDEF_DEFAULT)
         jobdef_res['metadata']['name'] = jobdef_name
         container = jobdef_res['spec']['template']['containers'][0]
-        container['image'] = docker_image_name
+        container['image'] = '/'.join([self.code_engine_config['container_registry'], image_name])
         container['name'] = jobdef_name
         container['env'][0]['value'] = 'run'
         container['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory)
@@ -379,7 +379,7 @@ class CodeEngineBackend:
             )
             logger.debug("response - {}".format(res))
         except Exception as e:
-            logger.debug(e)
+            raise e
 
         logger.debug('Job Definition {} created'.format(jobdef_name))
 
@@ -468,7 +468,7 @@ class CodeEngineBackend:
             try:
                 logger.debug("Retry attempt {} to read {}".format(retry, status_key))
                 json_str = internal_storage.get_data(key=status_key)
-                logger.debug("Found in attempt () to read {}".format(retry, status_key))
+                logger.debug("Found in attempt {} to read {}".format(retry, status_key))
                 runtime_meta = json.loads(json_str.decode("ascii"))
                 found = True
             except StorageNoSuchKeyError:

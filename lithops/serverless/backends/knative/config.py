@@ -22,7 +22,7 @@ import subprocess as sp
 from lithops.version import __version__
 from lithops.utils import version_str
 
-DOCKER_REPO = 'docker.io'
+CONTAINER_REGISTRY = 'docker.io'
 RUNTIME_NAME = 'lithops-knative'
 
 DEFAULT_GROUP = "serving.knative.dev"
@@ -210,8 +210,8 @@ def load_config(config_data):
     if 'git_rev' not in config_data['knative']:
         revision = 'master' if 'dev' in __version__ else __version__
         config_data['knative']['git_rev'] = revision
-    if 'docker_repo' not in config_data['knative']:
-        config_data['knative']['docker_repo'] = DOCKER_REPO
+    if 'container_registry' not in config_data['knative']:
+        config_data['knative']['container_registry'] = CONTAINER_REGISTRY
 
     if 'cpu' not in config_data['knative']:
         config_data['knative']['cpu'] = RUNTIME_CPU
@@ -247,6 +247,12 @@ def load_config(config_data):
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         runtime_name = '{}/{}-v{}:{}'.format(docker_user, RUNTIME_NAME, python_version, revision)
         config_data['serverless']['runtime'] = runtime_name
+    else:
+        if config_data['serverless']['runtime'].count('/') > 1:
+            # container registry is in the provided runtime name
+            cr, rn = config_data['serverless']['runtime'].split('/', 1)
+            config_data['knative']['container_registry'] = cr
+            config_data['serverless']['runtime'] = rn
 
     if 'workers' not in config_data['lithops']:
         max_instances = config_data['knative']['max_instances']
