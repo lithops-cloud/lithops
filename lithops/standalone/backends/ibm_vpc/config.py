@@ -1,6 +1,8 @@
 import datetime
 
-MANDATORY_PARAMETERS = ['endpoint', 'security_group_id', 'subnet_id', 'key_id', 'resource_group_id', 'vpc_id', 'image_id', 'zone_name']
+MANDATORY_PARAMETERS_CREATE = ['endpoint', 'security_group_id', 'subnet_id', 'key_id', 'resource_group_id', 'vpc_id', 'image_id', 'zone_name']
+
+MANDATORY_PARAMETERS_OPERATE = ['endpoint', 'instance_id', 'ip_address']
 
 def load_config(config_data):
     section = 'ibm_vpc'
@@ -10,11 +12,16 @@ def load_config(config_data):
     else:
         msg = 'IBM IAM api key is mandatory in ibm section of the configuration'
         raise Exception(msg)
-
-    for param in MANDATORY_PARAMETERS:
-        if param not in config_data[section]:
-            msg = '{} is mandatory in {} section of the configuration'.format(param, section)
-            raise Exception(msg)
+    if 'exec_mode' in config_data[section] and config_data[section]['exec_mode'] == 'create':
+        for param in MANDATORY_PARAMETERS_CREATE:
+            if param not in config_data[section]:
+                msg = '{} is mandatory in {} section of the configuration'.format(param, section)
+                raise Exception(msg)
+    else:
+        for param in MANDATORY_PARAMETERS_OPERATE:
+            if param not in config_data[section]:
+                msg = '{} is mandatory in {} section of the configuration'.format(param, section)
+                raise Exception(msg)
 
     if 'version' not in config_data:
         # it is not safe to use version as today() due to timezone differences. may fail at midnight. better use yesterday
