@@ -21,7 +21,8 @@ install_requires = [
     'kubernetes',
     'ibm-cos-sdk',
     'redis',
-    'joblib'
+    'joblib',
+    'ibm-vpc>=0.4.0'
 ]
 
 
