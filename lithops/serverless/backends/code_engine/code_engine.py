@@ -343,16 +343,16 @@ class CodeEngineBackend:
 
         return activation_id
 
-    def _create_job_definition(self, docker_image_name, runtime_memory, timeout):
+    def _create_job_definition(self, image_name, runtime_memory, timeout):
         """
         Creates a Job definition
         """
-        jobdef_name = self._format_jobdef_name(docker_image_name, runtime_memory)
+        jobdef_name = self._format_jobdef_name(image_name, runtime_memory)
 
         jobdef_res = yaml.safe_load(ce_config.JOBDEF_DEFAULT)
         jobdef_res['metadata']['name'] = jobdef_name
         container = jobdef_res['spec']['template']['containers'][0]
-        container['image'] = docker_image_name
+        container['image'] = '/'.join([self.code_engine_config['container_registry'], image_name])
         container['name'] = jobdef_name
         container['env'][0]['value'] = 'run'
         container['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory)
@@ -379,7 +379,7 @@ class CodeEngineBackend:
             )
             logger.debug("response - {}".format(res))
         except Exception as e:
-            logger.debug(e)
+            raise e
 
         logger.debug('Job Definition {} created'.format(jobdef_name))
 
@@ -468,7 +468,7 @@ class CodeEngineBackend:
             try:
                 logger.debug("Retry attempt {} to read {}".format(retry, status_key))
                 json_str = internal_storage.get_data(key=status_key)
-                logger.debug("Found in attempt () to read {}".format(retry, status_key))
+                logger.debug("Found in attempt {} to read {}".format(retry, status_key))
                 runtime_meta = json.loads(json_str.decode("ascii"))
                 found = True
             except StorageNoSuchKeyError:
@@ -493,19 +493,25 @@ class CodeEngineBackend:
         self._delete_config_map(jobdef_name)
         return runtime_meta
 
-    def _generate_runtime_meta_service(self, docker_image_name, memory):
+    def _generate_runtime_meta_service(self, image_name, memory):
         """
-        Creates a service in CodeEngine based on the docker_image_name
+        Creates a service in CodeEngine based on the docker_image_name.
+
+        This is an alternative method to extract the runtime metadata.
+        Currently it is deactivated in favor of _generate_runtime_meta()
+        method which, for now, seems to be faster.
         """
-        logger.info("Extracting Python modules from: {}".format(docker_image_name))
+        logger.info("Extracting Python modules from: {}".format(image_name))
         svc_res = yaml.safe_load(kconfig.service_res)
 
-        service_name = docker_image_name.replace('/', '--').replace(':', '--')
+        service_name = image_name.replace('/', '--').replace(':', '--')
+        full_image_name = '/'.join([self.code_engine_config['container_registry'], image_name])
+
         svc_res['metadata']['name'] = service_name
         svc_res['metadata']['namespace'] = self.namespace
         svc_res['spec']['template']['spec']['timeoutSeconds'] = 30
         svc_res['spec']['template']['spec']['containerConcurrency'] = 1
-        svc_res['spec']['template']['spec']['containers'][0]['image'] = docker_image_name
+        svc_res['spec']['template']['spec']['containers'][0]['image'] = full_image_name
         svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['memory'] = '128Mi'
         svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['cpu'] = '0.1'
         svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['memory'] = '128Mi'

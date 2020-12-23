@@ -162,8 +162,8 @@ class KnativeServingBackend:
         secret_res = yaml.safe_load(kconfig.secret_res)
         secret_res['stringData'] = string_data
 
-        if self.knative_config['docker_repo'] != kconfig.DOCKER_REPO:
-            secret_res['metadata']['annotations']['tekton.dev/docker-0'] = self.knative_config['docker_repo']
+        if self.knative_config['container_registry'] != kconfig.CONTAINER_REGISTRY:
+            secret_res['metadata']['annotations']['tekton.dev/docker-0'] = self.knative_config['container_registry']
 
         account_res = yaml.safe_load(kconfig.account_res)
         secret_res_name = secret_res['metadata']['name']
@@ -243,7 +243,7 @@ class KnativeServingBackend:
         """
         image_name, revision = docker_image_name.split(':')
 
-        if self.knative_config['docker_repo'] == 'docker.io' and revision != 'latest':
+        if self.knative_config['container_registry'] == 'docker.io' and revision != 'latest':
             resp = requests.get('https://index.docker.io/v1/repositories/{}/tags/{}'
                                 .format(docker_image_name, revision))
             if resp.status_code == 200:
@@ -264,7 +264,7 @@ class KnativeServingBackend:
                               'value': 'lithops/compute/backends/knative/tekton/Dockerfile.python{}'.format(python_version)}
         task_run['spec']['inputs']['params'].append(path_to_dockerfile)
         image_url = {'name': 'imageUrl',
-                     'value': '/'.join([self.knative_config['docker_repo'], image_name])}
+                     'value': '/'.join([self.knative_config['container_registry'], image_name])}
         task_run['spec']['inputs']['params'].append(image_url)
         image_tag = {'name': 'imageTag',
                      'value':  revision}
@@ -369,7 +369,7 @@ class KnativeServingBackend:
         svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
         svc_res['spec']['template']['spec']['containerConcurrency'] = self.knative_config['concurrency']
 
-        full_docker_image_name = '/'.join([self.knative_config['docker_repo'], docker_image_name])
+        full_docker_image_name = '/'.join([self.knative_config['container_registry'], docker_image_name])
         svc_res['spec']['template']['spec']['containers'][0]['image'] = full_docker_image_name
         conc_env = {'name': 'CONCURRENCY', 'value': str(self.knative_config['concurrency'])}
         tout_env = {'name': 'TIMEOUT', 'value': str(timeout)}
