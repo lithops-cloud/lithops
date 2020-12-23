@@ -76,6 +76,8 @@ HOST_FILE = """
 
 REQUIREMENTS_FILE = """
 azure-functions
+azure-storage-blob
+azure-storage-queue
 pika==0.13.1
 flask
 gevent
@@ -99,6 +101,8 @@ RUN apt-get update && apt-get install -y \
 RUN pip install --upgrade setuptools six pip \
     && pip install --no-cache-dir \
         azure-functions \
+        azure-storage-blob \
+        azure-storage-queue \
         pika==0.13.1 \
         flask \
         gevent \

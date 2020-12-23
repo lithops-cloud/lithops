@@ -275,6 +275,24 @@ class StandaloneHandler:
         """
         self.backend.stop()
 
+    def create(self):
+        """
+        Create VM instance
+        Also installs proxy in the VM to minimize risks of having VM unattended
+        """
+        instance_id, ip_address = self.backend.create()
+        self.ip_address = ip_address
+        self.config['instance_id'] = instance_id
+
+        # Requires further investigation. If not wait after vm create the create_runtime fails
+        # due to interrupted apt update. Another solution could be to specify all preparations in
+        # user_data and wait with runtime_create until user_data finished the setup
+        time.sleep(120)
+
+        runtime_meta = self.create_runtime(self.config['runtime'])
+        runtime_key = self.get_runtime_key(self.config['runtime'])
+        return runtime_key, runtime_meta
+        
     def init(self):
         """
         Start the VM instance and initialize runtime
@@ -320,7 +338,7 @@ class StandaloneHandler:
         cmd = 'mkdir -p /tmp/lithops; '
         cmd += 'apt-get update >> /tmp/lithops/proxy.log; '
         cmd += 'apt-get install unzip python3-pip -y >> /tmp/lithops/proxy.log; '
-        cmd += 'pip3 install flask gevent pika==0.13.1 >> /tmp/lithops/proxy.log; '
+        cmd += 'pip3 install flask gevent pika==0.13.1 ibm-vpc==0.3.0 namegenerator >> /tmp/lithops/proxy.log; '
         cmd += 'unzip -o /tmp/lithops_standalone.zip -d {} > /dev/null 2>&1; '.format(REMOTE_INSTALL_DIR)
         cmd += 'rm /tmp/lithops_standalone.zip; '
         cmd += 'chmod 644 {}; '.format(service_file)
@@ -329,4 +347,4 @@ class StandaloneHandler:
         cmd += 'systemctl stop {}; '.format(PROXY_SERVICE_NAME)
         cmd += 'systemctl enable {}; '.format(PROXY_SERVICE_NAME)
         cmd += 'systemctl start {}; '.format(PROXY_SERVICE_NAME)
-        self.ssh_client.run_remote_command(self.ip_address, cmd, background=True)
+        self.ssh_client.run_remote_command(self.ip_address, cmd, timeout=300)

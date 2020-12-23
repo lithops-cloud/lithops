@@ -20,17 +20,26 @@ import argparse
 import unittest
 import logging
 import inspect
+from io import BytesIO
+
 import lithops
 import urllib.request
-from lithops.storage import InternalStorage
+
+from lithops.storage import Storage
 from lithops.config import get_mode, default_config, extract_storage_config
 from concurrent.futures import ThreadPoolExecutor
+
+from lithops.storage.utils import StorageNoSuchKeyError
+from lithops.utils import setup_logger
+
+logger = logging.getLogger(__name__)
 
 CONFIG = None
 STORAGE_CONFIG = None
 STORAGE = None
 
 PREFIX = '__lithops.test'
+DATASET_PREFIX = PREFIX + '/dataset'
 TEST_FILES_URLS = ["http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.enron.txt",
                    "http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.kos.txt",
                    "http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.nips.txt",
@@ -46,7 +55,7 @@ class TestUtils:
             i, url = param
             content = urllib.request.urlopen(url).read()
             STORAGE.put_object(bucket=STORAGE_CONFIG['bucket'],
-                               key='{}/test{}'.format(PREFIX, str(i)),
+                               key='{}/test{}'.format(DATASET_PREFIX, str(i)),
                                body=content)
             return len(content.split())
 
@@ -59,6 +68,11 @@ class TestUtils:
     @staticmethod
     def list_test_keys():
         return STORAGE.list_keys(bucket=STORAGE_CONFIG['bucket'], prefix=PREFIX + '/')
+
+    @staticmethod
+    def list_dataset_keys():
+        return STORAGE.list_keys(bucket=STORAGE_CONFIG['bucket'],
+                                 prefix=DATASET_PREFIX + '/')
 
     @staticmethod
     def cleanTests():
@@ -190,16 +204,20 @@ class TestLithops(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        print('Uploading test files...')
+        logger.info('Uploading test files')
         cls.cos_result_to_compare = TestUtils.initTests()
 
     @classmethod
     def tearDownClass(cls):
-        print('Deleting test files...')
+        logger.info('Deleting test files')
         TestUtils.cleanTests()
 
+    @classmethod
+    def tearDown(cls):
+        print()
+
     def test_call_async(self):
-        print('Testing call_async()...')
+        logger.info('Testing call_async()')
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.call_async(TestMethods.hello_world, "")
         result = fexec.get_result()
@@ -211,7 +229,7 @@ class TestLithops(unittest.TestCase):
         self.assertEqual(result, "a b")
 
         fexec = lithops.FunctionExecutor(config=CONFIG)
-        fexec.call_async(TestMethods.simple_map_function, [4, 6])
+        fexec.call_async(TestMethods.simple_map_function, (4, 6))
         result = fexec.get_result()
         self.assertEqual(result, 10)
 
@@ -221,8 +239,8 @@ class TestLithops(unittest.TestCase):
         self.assertEqual(result, 10)
 
     def test_map(self):
-        print('Testing map()...')
-        iterdata = [[1, 1], [2, 2], [3, 3], [4, 4]]
+        logger.info('Testing map()')
+        iterdata = [(1, 1), (2, 2), (3, 3), (4, 4)]
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map(TestMethods.simple_map_function, iterdata)
         result = fexec.get_result()
@@ -258,8 +276,8 @@ class TestLithops(unittest.TestCase):
         self.assertEqual(result, ["a b", "c d"])
 
     def test_map_reduce(self):
-        print('Testing map_reduce()...')
-        iterdata = [[1, 1], [2, 2], [3, 3], [4, 4]]
+        logger.info('Testing map_reduce()')
+        iterdata = [(1, 1), (2, 2), (3, 3), (4, 4)]
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map_reduce(TestMethods.simple_map_function, iterdata,
                          TestMethods.simple_reduce_function)
@@ -267,31 +285,31 @@ class TestLithops(unittest.TestCase):
         self.assertEqual(result, 20)
 
     def test_multiple_executions(self):
-        print('Testing multiple executions...')
+        logger.info('Testing multiple executions')
         fexec = lithops.FunctionExecutor(config=CONFIG)
-        iterdata = [[1, 1], [2, 2]]
+        iterdata = [(1, 1), (2, 2)]
         fexec.map(TestMethods.simple_map_function, iterdata)
-        iterdata = [[3, 3], [4, 4]]
+        iterdata = [(3, 3), (4, 4)]
         fexec.map(TestMethods.simple_map_function, iterdata)
         result = fexec.get_result()
         self.assertEqual(result, [2, 4, 6, 8])
 
-        iterdata = [[1, 1], [2, 2]]
+        iterdata = [(1, 1), (2, 2)]
         fexec.map(TestMethods.simple_map_function, iterdata)
         result = fexec.get_result()
         self.assertEqual(result, [2, 4])
 
-        iterdata = [[1, 1], [2, 2]]
+        iterdata = [(1, 1), (2, 2)]
         futures1 = fexec.map(TestMethods.simple_map_function, iterdata)
         result1 = fexec.get_result(fs=futures1)
-        iterdata = [[3, 3], [4, 4]]
+        iterdata = [(3, 3), (4, 4)]
         futures2 = fexec.map(TestMethods.simple_map_function, iterdata)
         result2 = fexec.get_result(fs=futures2)
         self.assertEqual(result1, [2, 4])
         self.assertEqual(result2, [6, 8])
 
     def test_internal_executions(self):
-        print('Testing internal executions...')
+        logger.info('Testing internal executions')
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map(TestMethods.lithops_inside_lithops_map_function, range(1, 11))
         result = fexec.get_result()
@@ -311,7 +329,7 @@ class TestLithops(unittest.TestCase):
         fexec.get_result()
 
     def test_map_reduce_obj_bucket(self):
-        print('Testing map_reduce() over a bucket...')
+        logger.info('Testing map_reduce() over a bucket')
         sb = STORAGE_CONFIG['backend']
         data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
         fexec = lithops.FunctionExecutor(config=CONFIG)
@@ -321,7 +339,7 @@ class TestLithops(unittest.TestCase):
         self.assertEqual(result, self.__class__.cos_result_to_compare)
 
     def test_map_reduce_obj_bucket_one_reducer_per_object(self):
-        print('Testing map_reduce() over a bucket with one reducer per object...')
+        logger.info('Testing map_reduce() over a bucket with one reducer per object')
         sb = STORAGE_CONFIG['backend']
         data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
         fexec = lithops.FunctionExecutor(config=CONFIG)
@@ -332,10 +350,10 @@ class TestLithops(unittest.TestCase):
         self.assertEqual(sum(result), self.__class__.cos_result_to_compare)
 
     def test_map_reduce_obj_key(self):
-        print('Testing map_reduce() over object keys...')
+        logger.info('Testing map_reduce() over object keys')
         sb = STORAGE_CONFIG['backend']
         bucket_name = STORAGE_CONFIG['bucket']
-        iterdata = [sb + '://' + bucket_name + '/' + key for key in TestUtils.list_test_keys()]
+        iterdata = [sb + '://' + bucket_name + '/' + key for key in TestUtils.list_dataset_keys()]
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map_reduce(TestMethods.my_map_function_obj, iterdata,
                          TestMethods.my_reduce_function)
@@ -343,10 +361,10 @@ class TestLithops(unittest.TestCase):
         self.assertEqual(result, self.__class__.cos_result_to_compare)
 
     def test_map_reduce_obj_key_one_reducer_per_object(self):
-        print('Testing map_reduce() over object keys with one reducer per object...')
+        logger.info('Testing map_reduce() over object keys with one reducer per object')
         sb = STORAGE_CONFIG['backend']
         bucket_name = STORAGE_CONFIG['bucket']
-        iterdata = [sb + '://' + bucket_name + '/' + key for key in TestUtils.list_test_keys()]
+        iterdata = [sb + '://' + bucket_name + '/' + key for key in TestUtils.list_dataset_keys()]
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map_reduce(TestMethods.my_map_function_obj, iterdata,
                          TestMethods.my_reduce_function,
@@ -355,7 +373,7 @@ class TestLithops(unittest.TestCase):
         self.assertEqual(sum(result), self.__class__.cos_result_to_compare)
 
     def test_map_reduce_url(self):
-        print('Testing map_reduce() over URLs...')
+        logger.info('Testing map_reduce() over URLs')
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map_reduce(TestMethods.my_map_function_url, TEST_FILES_URLS,
                          TestMethods.my_reduce_function)
@@ -363,8 +381,8 @@ class TestLithops(unittest.TestCase):
         self.assertEqual(result, self.__class__.cos_result_to_compare)
 
     def test_storage_handler(self):
-        print('Testing "storage" function arg...')
-        iterdata = [[key, STORAGE_CONFIG['bucket']] for key in TestUtils.list_test_keys()]
+        logger.info('Testing "storage" function arg')
+        iterdata = [(key, STORAGE_CONFIG['bucket']) for key in TestUtils.list_dataset_keys()]
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map_reduce(TestMethods.my_map_function_storage, iterdata,
                          TestMethods.my_reduce_function)
@@ -372,7 +390,7 @@ class TestLithops(unittest.TestCase):
         self.assertEqual(result, self.__class__.cos_result_to_compare)
 
     def test_chunks_bucket(self):
-        print('Testing chunks on a bucket...')
+        logger.info('Testing chunks on a bucket')
         sb = STORAGE_CONFIG['backend']
         data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
 
@@ -392,7 +410,7 @@ class TestLithops(unittest.TestCase):
         self.assertEqual(len(futures), 11)
 
     def test_chunks_bucket_one_reducer_per_object(self):
-        print('Testing chunks on a bucket with one reducer per object...')
+        logger.info('Testing chunks on a bucket with one reducer per object')
         sb = STORAGE_CONFIG['backend']
         data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
 
@@ -413,7 +431,7 @@ class TestLithops(unittest.TestCase):
         self.assertEqual(len(futures), 15)
 
     def test_cloudobject(self):
-        print('Testing cloudobjects...')
+        logger.info('Testing cloudobjects')
         sb = STORAGE_CONFIG['backend']
         data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
         with lithops.FunctionExecutor(config=CONFIG) as fexec:
@@ -423,6 +441,84 @@ class TestLithops(unittest.TestCase):
             result = fexec.get_result()
             self.assertEqual(result, self.__class__.cos_result_to_compare)
             fexec.clean(cs=cloudobjects)
+
+    def test_storage_put_get_by_stream(self):
+        logger.info('Testing Storage.put_object and get_object with streams')
+        bucket = STORAGE_CONFIG['bucket']
+        bytes_data = b'123'
+        bytes_key = PREFIX + '/bytes'
+
+        STORAGE.put_object(bucket, bytes_key, BytesIO(bytes_data))
+        bytes_stream = STORAGE.get_object(bucket, bytes_key, stream=True)
+
+        self.assertTrue(hasattr(bytes_stream, 'read'))
+        self.assertEqual(bytes_stream.read(), bytes_data)
+
+    def test_storage_get_by_range(self):
+        logger.info('Testing Storage.get_object with Range argument')
+        bucket = STORAGE_CONFIG['bucket']
+        key = PREFIX + '/bytes'
+        STORAGE.put_object(bucket, key, b'0123456789')
+
+        result = STORAGE.get_object(bucket, key, extra_get_args={'Range': 'bytes=1-4'})
+
+        self.assertEqual(result, b'1234')
+
+    def test_storage_list_keys(self):
+        logger.info('Testing Storage.list_keys')
+        bucket = STORAGE_CONFIG['bucket']
+        test_keys = sorted([
+            PREFIX + '/foo/baz',
+            PREFIX + '/foo/bar/baz',
+            PREFIX + '/foo_bar/baz',
+            PREFIX + '/foo_baz',
+            PREFIX + '/bar',
+            PREFIX + '/bar_baz',
+        ])
+        for key in test_keys:
+            STORAGE.put_object(bucket, key, key.encode())
+
+        all_bucket_keys = STORAGE.list_keys(bucket)
+        prefix_keys = STORAGE.list_keys(bucket, PREFIX)
+        foo_keys = STORAGE.list_keys(bucket, PREFIX + '/foo')
+        foo_slash_keys = STORAGE.list_keys(bucket, PREFIX + '/foo/')
+        bar_keys = STORAGE.list_keys(bucket, PREFIX + '/bar')
+        non_existent_keys = STORAGE.list_keys(bucket, PREFIX + '/doesnt_exist')
+
+        self.assertTrue(set(all_bucket_keys).issuperset(test_keys))
+        self.assertTrue(set(prefix_keys).issuperset(test_keys))
+        self.assertTrue(all(key.startswith(PREFIX) for key in prefix_keys))
+        # To ensure parity between filesystem and object storage implementations, test that
+        # prefixes are treated as textual prefixes, not directory names.
+        self.assertEqual(sorted(foo_keys), sorted([
+            PREFIX + '/foo/baz',
+            PREFIX + '/foo/bar/baz',
+            PREFIX + '/foo_bar/baz',
+            PREFIX + '/foo_baz',
+        ]))
+        self.assertEqual(sorted(foo_slash_keys), sorted([
+            PREFIX + '/foo/baz',
+            PREFIX + '/foo/bar/baz',
+        ]))
+        self.assertEqual(sorted(bar_keys), sorted([
+            PREFIX + '/bar',
+            PREFIX + '/bar_baz',
+        ]))
+
+        self.assertEqual(non_existent_keys, [])
+
+    def test_storage_head_object(self):
+        logger.info('Testing Storage.head_object')
+        bucket = STORAGE_CONFIG['bucket']
+        data = b'123456789'
+        STORAGE.put_object(bucket, PREFIX + '/data', data)
+
+        result = STORAGE.head_object(bucket, PREFIX + '/data')
+        self.assertEqual(result['content-length'], str(len(data)))
+
+        def get_nonexistent_object():
+            STORAGE.head_object(bucket, PREFIX + '/doesnt_exist')
+        self.assertRaises(StorageNoSuchKeyError, get_nonexistent_object)
 
 
 def print_help():
@@ -443,7 +539,7 @@ def run_tests(test_to_run, config=None, mode=None, backend=None):
     CONFIG = default_config(config, config_ow)
 
     STORAGE_CONFIG = extract_storage_config(CONFIG)
-    STORAGE = InternalStorage(STORAGE_CONFIG).storage
+    STORAGE = Storage(storage_config=STORAGE_CONFIG)
 
     suite = unittest.TestSuite()
     if test_to_run == 'all':
@@ -461,7 +557,7 @@ def run_tests(test_to_run, config=None, mode=None, backend=None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="test all Lithops's functionality",
-                                     usage='python -m lithops.tests [-c CONFIG] [-t TESTNAME]')
+                                     usage='python -m lithops.scripts.tests [-c CONFIG] [-t TESTNAME]')
     parser.add_argument('-c', '--config', type=argparse.FileType('r'), metavar='', default=None,
                         help="use json config file")
     parser.add_argument('-t', '--test', metavar='', default='all',
@@ -474,8 +570,8 @@ if __name__ == '__main__':
                         help='activate debug logging')
     args = parser.parse_args()
 
-    if args.debug:
-        logging.basicConfig(level=logging.DEBUG)
+    log_level = logging.INFO if not args.debug else logging.DEBUG
+    setup_logger(log_level)
 
     if args.test == 'help':
         print_help()

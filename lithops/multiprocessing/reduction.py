@@ -20,8 +20,6 @@ import sys
 
 from . import context
 
-__all__ = ['send_handle', 'recv_handle', 'ForkingPickler', 'register', 'dump', 'DefaultPickler']
-
 HAVE_SEND_HANDLE = (sys.platform == 'win32' or
                     (hasattr(socket, 'CMSG_LEN') and
                      hasattr(socket, 'SCM_RIGHTS') and
@@ -160,7 +158,6 @@ if sys.platform == 'win32':
 
 else:
     # Unix
-    __all__ += ['DupFd', 'sendfds', 'recvfds']
     import array
 
     # On MacOSX we should acknowledge receipt of fds -- see Issue14669

@@ -19,11 +19,11 @@ import gc
 import logging
 from numpy import ndarray
 
-from joblib import parallel_backend
 from joblib._parallel_backends import ParallelBackendBase, PoolManagerMixin
 
 from lithops.multiprocessing import Pool, Manager
-from lithops.multiprocessing.cloud_proxy import os as cloudfs
+from lithops.multiprocessing.managers import _builtin_types
+from lithops.storage.cloud_proxy import os as cloudfs
 from lithops.multiprocessing.managers import SyncManager, BaseProxy
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,8 @@ class CloudValueProxy(BaseProxy):
         if value is not None:
             self.set(value)
 
-        cloudfs.delete = lambda *x: [cloudfs._storage.delete_cobject(key=xi) for xi in x]
+        cloudfs.delete = lambda *x: [cloudfs.remove(path=xi) for xi in x]
+        # Override redis client with a storage client
         self._client = self._ref._client = cloudfs
         self._ref.managed = True
 
@@ -51,6 +52,8 @@ class CloudValueProxy(BaseProxy):
 
     value = property(get, set)
 
+
+_builtin_types.add('CloudValue')
 SyncManager.register('CloudValue', CloudValueProxy)
 
 
@@ -72,47 +75,14 @@ class LithopsBackend(ParallelBackendBase, PoolManagerMixin):
         This also checks if we are attempting to create a nested parallel
         loop.
         """
-        # if mp is None:
-        #     return 1
-
-        # if mp.current_process().daemon:
-        #     # Daemonic processes cannot have children
-        #     if n_jobs != 1:
-        #         warnings.warn(
-        #             'Multiprocessing-backed parallel loops cannot be nested,'
-        #             ' setting n_jobs=1',
-        #             stacklevel=3)
-        #     return 1
-
-        # if process_executor._CURRENT_DEPTH > 0:
-        #     # Mixing loky and multiprocessing in nested loop is not supported
-        #     if n_jobs != 1:
-        #         warnings.warn(
-        #             'Multiprocessing-backed parallel loops cannot be nested,'
-        #             ' below loky, setting n_jobs=1',
-        #             stacklevel=3)
-        #     return 1
-
-        # elif not (self.in_main_thread() or self.nesting_level == 0):
-        #     # Prevent posix fork inside in non-main posix threads
-        #     if n_jobs != 1:
-        #         warnings.warn(
-        #             'Multiprocessing-backed parallel loops cannot be nested'
-        #             ' below threads, setting n_jobs=1',
-        #             stacklevel=3)
-        #     return 1
-
-        # return super().effective_n_jobs(n_jobs)
-
+        # this must be 1 as we only want to create 1 LithopsExecutor()
         return 1
 
     def configure(self, n_jobs=1, parallel=None, prefer=None, require=None,
                   **memmappingpool_args):
         """Build a process or thread pool and return the number of workers"""
+
         n_jobs = self.effective_n_jobs(n_jobs)
-        # if n_jobs == 1:
-        #     raise FallbackToBackend(
-        #         SequentialBackend(nesting_level=self.nesting_level))
 
         already_forked = int(os.environ.get(self.JOBLIB_SPAWNED_PROCESS, 0))
         if already_forked:
@@ -129,8 +99,9 @@ class LithopsBackend(ParallelBackendBase, PoolManagerMixin):
 
         # Make sure to free as much memory as possible before forking
         gc.collect()
-        self._pool = Pool()#initargs={'log_level': 'DEBUG'})
+        self._pool = Pool()
         self.parallel = parallel
+
         return n_jobs
 
     def terminate(self):
@@ -171,8 +142,8 @@ def find_shared_objects(calls, manager):
                 record[id(v)].append((i, k))
             else:
                 record[id(v)] = [v, (i, k)]
-                
-    # If we found multiple occurences of one object then
+
+    # If we found multiple occurrences of one object, then
     # store it in shared memory, pass a proxy as a value
     calls = [list(item) for item in calls]
 
@@ -181,7 +152,7 @@ def find_shared_objects(calls, manager):
         if len(positions) > 1 and consider_sharing(obj):
             #shared_object = manager.Value(obj.__class__.__name__) # redis
             shared_object = manager.CloudValue(obj.__class__.__name__)
-            logger.info('proxying: ' + repr(shared_object))
+            logger.debug('proxying: ' + repr(shared_object))
             shared_object.value = obj
 
             for pos in positions:
@@ -200,15 +171,14 @@ def find_shared_objects(calls, manager):
                 except IndexError:
                     call.append([idx_or_key])
 
-    return calls
+    return [tuple(item) for item in calls]
 
 
 def handle_call(func, args, kwargs, proxy_positions=[]):
     if len(proxy_positions) > 0:
         args, kwargs = replace_with_values(args, kwargs, proxy_positions)
 
-    with parallel_backend('sequential'):
-        return func(*args, **kwargs)
+    return func(*args, **kwargs)
 
 
 def replace_with_values(args, kwargs, proxy_positions):

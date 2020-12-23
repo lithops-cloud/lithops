@@ -8,6 +8,9 @@ In this mode of execution, you must use the backend specific client to see the f
 
 In the serverless mode of execution a default runtime is automatically deployed the first time you run a function over it. This runtime (or execution environment) contains some basic packages or dependencies. In this sense, if you need to build a custom runtime with extra packages to run your functions, navigate to the [runtime/](../runtime) folder, choose your backend, and follow the instructions to build it.
 
+In this mode of execution, you have to rely to the compute backend service API and tools to view the function execution logs.
+
+
 Once you have your backend configured, you can create an executor with:
 
 ```python

@@ -14,14 +14,16 @@
 # Modifications Copyright (c) 2020 Cloudlab URV
 #
 
-import sys
-from . import context
+from .context import BaseContext, get_context
+from .connection import RedisPipe as Pipe
+from .managers import SyncManager as Manager
+from .pool import Pool
+from .process import CloudProcess as Process
+from .queues import Queue, SimpleQueue, JoinableQueue
+from .sharedctypes import RawValue, RawArray, Value, Array
+from .synchronize import (Semaphore, BoundedSemaphore,
+                          Lock, RLock,
+                          Condition, Event, Barrier)
 
-#
-# Copy stuff from default context
-#
-
-_names = [x for x in dir(context._default_context) if x[0] != "_"]
-globals().update((name, getattr(context._default_context, name))
-                 for name in _names)
-__all__ = _names + []
+context = BaseContext()
+getpid = context.getpid

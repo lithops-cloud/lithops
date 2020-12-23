@@ -92,14 +92,14 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id,
     """
     host_job_meta = {'host_job_create_tstamp': time.time()}
 
-    iterdata = [[map_futures, ]]
+    iterdata = [(map_futures, )]
 
     if hasattr(map_job, 'parts_per_object') and reducer_one_per_object:
         prev_total_partitons = 0
         iterdata = []
         for total_partitions in map_job.parts_per_object:
-            iterdata.append([map_futures[prev_total_partitons:prev_total_partitons+total_partitions]])
-            prev_total_partitons = prev_total_partitons + total_partitions
+            iterdata.append((map_futures[prev_total_partitons:prev_total_partitons+total_partitions],))
+            prev_total_partitons += total_partitions
 
     reduce_job_env = {'__LITHOPS_REDUCE_JOB': True}
     if extra_env is None:

@@ -210,13 +210,14 @@ class OpenWhiskClient:
                 ctx = ssl._create_unverified_context()
                 conn = http.client.HTTPSConnection(parsed_url.netloc, context=ctx)
                 conn.request("POST", parsed_url.geturl(),
-                             body=json.dumps(payload),
+                             body=json.dumps(payload, default=str),
                              headers=self.headers)
                 resp = conn.getresponse()
                 resp_status = resp.status
                 data = json.loads(resp.read().decode("utf-8"))
                 conn.close()
-        except Exception:
+        except Exception as e:
+            logger.exception('Failed: {}'.format(str(e)))
             if not is_ow_action:
                 conn.close()
             if self_invoked:

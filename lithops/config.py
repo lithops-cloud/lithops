@@ -60,31 +60,36 @@ def get_default_config_filename():
     else:
         config_filename = constants.CONFIG_FILE
         if not os.path.exists(config_filename):
-            config_filename = os.path.join(constants.HOME_DIR, '.lithops_config')
-            if not os.path.exists(config_filename):
-                return None
-
-            logging.warning('~/.lithops_config is deprecated. Please move your'
-                            ' configuration file into ~/.lithops/config')
+            return None
 
     return config_filename
 
 
+def load_config():
+    """ Load the configuration """
+    if 'LITHOPS_CONFIG' in os.environ:
+        config_data = json.loads(os.environ.get('LITHOPS_CONFIG'))
+    else:
+        config_filename = get_default_config_filename()
+        if config_filename:
+            config_data = load_yaml_config(config_filename)
+        else:
+            # No config file found. Set to Localhost mode
+            config_data = {'lithops': {'mode': constants.LOCALHOST,
+                                       'storage': constants.LOCALHOST}}
+
+    return config_data
+
+
 def get_mode(config_data=None):
     """ Return lithops execution mode set in configuration """
-    if not config_data:
-        if 'LITHOPS_CONFIG' in os.environ:
-            config_data = json.loads(os.environ.get('LITHOPS_CONFIG'))
-        else:
-            config_filename = get_default_config_filename()
-            if config_filename:
-                config_data = load_yaml_config(config_filename)
-            else:
-                # No config file found. Set to Localhost mode
-                config_data = {'lithops': {'mode': constants.LOCALHOST}}
+    config_data = config_data or load_config()
+
+    if 'lithops' not in config_data or not config_data['lithops']:
+        config_data['lithops'] = {}
 
     if 'mode' not in config_data['lithops']:
-        return constants.MODE_DEFAULT
+        config_data['lithops']['mode'] = constants.MODE_DEFAULT
 
     return config_data['lithops']['mode']
 
@@ -98,24 +103,16 @@ def default_config(config_data=None, config_overwrite={}):
     logger.info('Lithops v{}'.format(__version__))
     logger.debug("Loading configuration")
 
-    if not config_data:
-        if 'LITHOPS_CONFIG' in os.environ:
-            config_data = json.loads(os.environ.get('LITHOPS_CONFIG'))
-        else:
-            config_filename = get_default_config_filename()
-            logger.debug('Getting configuration from {}'.format(config_filename))
-            if config_filename:
-                config_data = load_yaml_config(config_filename)
-            else:
-                logger.debug("No config file found. Running on Localhost mode")
-                config_data = {'lithops': {'mode': constants.LOCALHOST}}
+    config_data = config_data or load_config()
 
-    if 'lithops' not in config_data:
+    if 'lithops' not in config_data or not config_data['lithops']:
         config_data['lithops'] = {}
 
-    if 'executor' in config_data['lithops']:
-        logging.warning("'executor' key in lithopos section is deprecated, use 'mode' key instead")
-        config_data['lithops']['mode'] = config_data['lithops']['executor']
+    if 'mode' not in config_data['lithops']:
+        config_data['lithops']['mode'] = constants.MODE_DEFAULT
+
+    if 'execution_timeout' not in config_data['lithops']:
+        config_data['lithops']['execution_timeout'] = constants.EXECUTION_TIMEOUT_DEFAULT
 
     # overwrite values provided by the user
     if 'lithops' in config_overwrite:
@@ -139,16 +136,7 @@ def default_config(config_data=None, config_overwrite={}):
             config_data[constants.STANDALONE] = {}
         config_data[constants.STANDALONE].update(config_overwrite[constants.STANDALONE])
 
-    if 'mode' not in config_data['lithops']:
-        config_data['lithops']['mode'] = constants.MODE_DEFAULT
-    if 'execution_timeout' not in config_data['lithops']:
-        config_data['lithops']['execution_timeout'] = constants.EXECUTION_TIMEOUT_DEFAULT
-
     if config_data['lithops']['mode'] == constants.SERVERLESS:
-        if 'storage_bucket' not in config_data['lithops']:
-            raise Exception("storage_bucket is mandatory in "
-                            "lithops section of the configuration")
-
         if constants.SERVERLESS not in config_data or \
            config_data[constants.SERVERLESS] is None:
             config_data[constants.SERVERLESS] = {}
@@ -164,10 +152,6 @@ def default_config(config_data=None, config_overwrite={}):
         verify_runtime_name(config_data[constants.SERVERLESS]['runtime'])
 
     elif config_data['lithops']['mode'] == constants.STANDALONE:
-        if 'storage_bucket' not in config_data['lithops']:
-            raise Exception("storage_bucket is mandatory in "
-                            "lithops section of the configuration")
-
         if constants.STANDALONE not in config_data or \
            config_data[constants.STANDALONE] is None:
             config_data[constants.STANDALONE] = {}
@@ -191,10 +175,6 @@ def default_config(config_data=None, config_overwrite={}):
         verify_runtime_name(config_data[constants.STANDALONE]['runtime'])
 
     elif config_data['lithops']['mode'] == constants.LOCALHOST:
-        if 'storage' not in config_data['lithops']:
-            config_data['lithops']['storage'] = 'localhost'
-        if 'storage_bucket' not in config_data['lithops']:
-            config_data['lithops']['storage_bucket'] = 'storage'
         if 'workers' not in config_data['lithops']:
             config_data['lithops']['workers'] = mp.cpu_count()
         if constants.LOCALHOST not in config_data or \
@@ -202,6 +182,7 @@ def default_config(config_data=None, config_overwrite={}):
             config_data[constants.LOCALHOST] = {}
         if 'runtime' not in config_data[constants.LOCALHOST]:
             config_data[constants.LOCALHOST]['runtime'] = constants.LOCALHOST_RUNTIME_DEFAULT
+        logger.debug("Loading compute backend module: localhost")
 
         verify_runtime_name(config_data[constants.LOCALHOST]['runtime'])
 
@@ -210,37 +191,32 @@ def default_config(config_data=None, config_overwrite={}):
 
 def default_storage_config(config_data=None, backend=None):
     """ Function to load default storage config """
-    if not config_data:
-        if 'LITHOPS_CONFIG' in os.environ:
-            config_data = json.loads(os.environ.get('LITHOPS_CONFIG'))
-        else:
-            config_filename = get_default_config_filename()
-            logger.info('Getting configuration from {}'.format(config_filename))
-            if config_filename:
-                config_data = load_yaml_config(config_filename)
-            else:
-                logger.debug("No config file found. Running on Localhost mode")
-                config_data = {'lithops': {'mode': constants.LOCALHOST}}
 
-    if 'lithops' not in config_data:
+    config_data = config_data or load_config()
+
+    if 'lithops' not in config_data or not config_data['lithops']:
         config_data['lithops'] = {}
 
     if 'mode' not in config_data['lithops']:
         config_data['lithops']['mode'] = constants.MODE_DEFAULT
-    mode = config_data['lithops']['mode']
-    if mode not in config_data:
-        config_data[mode] = {'backend': ''}
 
-    if config_data['lithops']['mode'] == constants.LOCALHOST:
-        if 'storage' not in config_data['lithops']:
-            config_data['lithops']['storage'] = 'localhost'
-        if 'storage_bucket' not in config_data['lithops']:
-            config_data['lithops']['storage_bucket'] = 'storage'
+    if 'storage' not in config_data['lithops']:
+        config_data['lithops']['storage'] = constants.STORAGE_BACKEND_DEFAULT
+
+    if backend:
+        config_data['lithops']['storage'] = backend
+
+    if config_data['lithops']['storage'] == constants.LOCALHOST:
+        config_data['lithops']['storage_bucket'] = 'storage'
     else:
-        if 'storage' not in config_data['lithops']:
-            config_data['lithops']['storage'] = constants.STORAGE_BACKEND_DEFAULT
-        if backend:
-            config_data['lithops']['storage'] = backend
+        if 'storage_bucket' not in config_data['lithops']:
+            raise Exception("storage_bucket is mandatory in "
+                            "lithops section of the configuration")
+
+    mode = config_data['lithops']['mode']
+    storage = config_data['lithops']['storage']
+    if storage == constants.LOCALHOST and mode != constants.LOCALHOST:
+        raise Exception('Localhost storage backend cannot run in {} mode'.format(mode))
 
     sb = config_data['lithops']['storage']
     logger.debug("Loading Storage backend module: {}".format(sb))

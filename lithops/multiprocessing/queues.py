@@ -22,10 +22,9 @@ from . import connection
 from . import util
 from . import synchronize
 from . import context
+from .util import debug, info, Finalize, is_exiting
 
 _ForkingPickler = context.reduction.ForkingPickler
-
-from .util import debug, info, Finalize, is_exiting
 
 
 #
@@ -64,10 +63,6 @@ class Queue:
 
     def _after_fork(self):
         debug('Queue._after_fork()')
-        self._buffer = collections.deque()
-        self._thread = None
-        self._jointhread = None
-        self._joincancelled = False
         self._closed = False
         self._close = None
         self._send_bytes = self._writer.send_bytes
@@ -79,9 +74,8 @@ class Queue:
             raise ValueError(f"Queue {self!r} is closed")
 
         if self._notfull:
-            if self._thread is None:
-                self._start_thread()
-            self._buffer.append(obj)
+            obj = _ForkingPickler.dumps(obj)
+            self._send_bytes(obj)
 
     def get(self, block=True, timeout=None):
         if block and timeout is None:
@@ -127,81 +121,10 @@ class Queue:
     def join_thread(self):
         debug('Queue.join_thread()')
         assert self._closed
-        if self._jointhread:
-            self._jointhread()
 
     def cancel_join_thread(self):
         debug('Queue.cancel_join_thread()')
-        self._joincancelled = True
-        try:
-            self._jointhread.cancel()
-        except AttributeError:
-            pass
-
-    def _start_thread(self):
-        debug('Queue._start_thread()')
-
-        # Start thread which transfers data from buffer to pipe
-        self._buffer.clear()
-        self._thread = threading.Thread(target=type(self)._feed,
-                                        args=(self._buffer, self._send_bytes, self._writer.close),
-                                        name='QueueFeederThread')
-        self._thread.daemon = True
-
-        debug('doing self._thread.start()')
-        self._thread.start()
-        debug('... done self._thread.start()')
-
-        if not self._joincancelled:
-            self._jointhread = Finalize(self._thread,
-                                        type(self)._finalize_join,
-                                        [weakref.ref(self._thread)],
-                                        exitpriority=-5)
-
-        # Send sentinel to the thread queue object when garbage collected
-        self._close = Finalize(self, type(self)._finalize_close,
-                               [self._buffer], exitpriority=10)
-
-    @staticmethod
-    def _finalize_join(twr):
-        debug('joining queue thread')
-        thread = twr()
-        if thread is not None:
-            thread.join()
-            debug('... queue thread joined')
-        else:
-            debug('... queue thread already dead')
-
-    @staticmethod
-    def _finalize_close(buffer):
-        debug('telling queue thread to quit')
-        buffer.append(Queue._sentinel)
-
-    @staticmethod
-    def _feed(buffer, send_bytes, close):
-        debug('starting thread to feed data to pipe')
-        bpopleft = buffer.popleft
-        sentinel = Queue._sentinel
-
-        while 1:
-            try:
-                obj = bpopleft()
-                if obj is sentinel:
-                    debug('feeder thread got sentinel -- exiting')
-                    close()
-                    return
-
-                obj = _ForkingPickler.dumps(obj)
-                send_bytes(obj)
-            except IndexError:
-                pass
-            except Exception as e:
-                if is_exiting():
-                    info('error in queue thread: %s', e)
-                    return
-                else:
-                    import traceback
-                    traceback.print_exc()
+        pass
 
 
 #

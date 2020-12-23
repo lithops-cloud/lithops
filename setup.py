@@ -20,7 +20,10 @@ install_requires = [
     'matplotlib',
     'kubernetes',
     'ibm-cos-sdk',
-    'redis'
+    'redis',
+    'joblib',
+    'ibm-vpc>=0.4.0',
+    'namegenerator'
 ]
 
 

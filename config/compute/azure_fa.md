@@ -20,13 +20,13 @@ $ pip install lithops[azure]
   $ az login
 ```
 
-6. Create a Resource Group in a specific location, for example:
+5. Create a Resource Group in a specific location, for example:
 
 ```bash
   $ az group create --name LithopsResourceGroup --location westeurope
 ```
 
-5. Create a Storage Account with a unique name, for example:
+6. Create a Storage Account with a unique name, for example:
 
 ```bash
   $ storage_account_name=lithops$(openssl rand -hex 3)
@@ -38,13 +38,13 @@ $ pip install lithops[azure]
 
 ### Configuration
 
-4. Access to the [Azure portal](https://portal.azure.com/#home)
+7. Access to the [Azure portal](https://portal.azure.com/#home)
 
-5. Access to the [Storage Account](https://portal.azure.com/#blade/HubsExtension/BrowseResource/resourceType/Microsoft.Storage%2FStorageAccounts)
+8. Access to the [Storage Account](https://portal.azure.com/#blade/HubsExtension/BrowseResource/resourceType/Microsoft.Storage%2FStorageAccounts)
 
-6. In the left menu, click on *Properties* and copy the *Queue service* URL
+9. In the left menu, click on *Access Keys* and copy the *Key 1* key
 
-4. Edit your lithops config and add the following keys:
+10. Edit your lithops config and add the following keys:
 
 ```yaml
   serverless:
@@ -61,7 +61,7 @@ $ pip install lithops[azure]
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|azure_fa| resource_group | |yes | Name of the resource group used in steps 4 and 5 of the installation. |
-|azure_fa| storage_account | |yes |  The name generated in step 5 of the installation |
-|azure_fa| storage_account_key |  | yes |  An Account Key, found in *Storage Account* > `account_name` > *Settings* > *Access Keys*|
+|azure_fa| resource_group | |yes | Name of the resource group used in the step 5 of the installation. |
+|azure_fa| storage_account | |yes |  The name generated in the step 6 of the installation |
+|azure_fa| storage_account_key |  | yes |  An Account Key, found in *Storage Accounts* > `account_name` > *Settings* > *Access Keys*|
 |azure_fa| location |  |yes | The location of the consumption plan for the runtime. Use `az functionapp list-consumption-locations` to view the available locations.|

@@ -54,17 +54,22 @@ class FunctionExecutor:
 
     def __init__(self, mode=None, config=None, backend=None, storage=None,
                  runtime=None, runtime_memory=None, rabbitmq_monitor=None,
-                 workers=None, remote_invoker=None, log_level=logging.INFO):
+                 workers=None, remote_invoker=None, log_level=False):
         """ Create a FunctionExecutor Class """
         if mode and mode not in [LOCALHOST, SERVERLESS, STANDALONE]:
             raise Exception("Function executor mode must be one of '{}', '{}' "
                             "or '{}'".format(LOCALHOST, SERVERLESS, STANDALONE))
 
-        if type(log_level) is str:
-            log_level = logging.getLevelName(log_level.upper())
         self.log_level = log_level
         if self.log_level:
+            if type(log_level) is str:
+                self.log_level = logging.getLevelName(log_level.upper())
             setup_logger(self.log_level)
+        elif self.log_level is False:
+            self.log_level = logger.getEffectiveLevel()
+            if self.log_level == logging.WARNING:
+                self.log_level = logging.INFO
+                setup_logger(self.log_level)
 
         mode = mode or get_mode(config)
         config_ow = {'lithops': {'mode': mode}, mode: {}}
@@ -355,11 +360,13 @@ class FunctionExecutor:
             msg = 'ExecutorID {} - Getting results'.format(self.executor_id)
             fs_done = [f for f in futures if f.done]
             fs_not_done = [f for f in futures if not f.done]
+            fs_not_ready = [f for f in futures if not f.ready]
 
         else:
             msg = 'ExecutorID {} - Waiting for functions to complete'.format(self.executor_id)
             fs_done = [f for f in futures if f.ready or f.done]
             fs_not_done = [f for f in futures if not f.ready and not f.done]
+            fs_not_ready = [f for f in futures if not f.ready]
 
         if not fs_not_done:
             return fs_done, fs_not_done
@@ -374,7 +381,8 @@ class FunctionExecutor:
 
         pbar = None
         error = False
-        if not self.is_lithops_worker and self.log_level == logging.INFO:
+
+        if not self.is_lithops_worker and self.log_level == logging.INFO and fs_not_ready:
             from tqdm.auto import tqdm
 
             if is_notebook():
@@ -529,7 +537,7 @@ class FunctionExecutor:
         futures = fs or self.futures
         futures = [futures] if type(futures) != list else futures
         present_jobs = {create_job_key(f.executor_id, f.job_id) for f in futures
-                        if f.executor_id.count('-') == 1}
+                        if f.executor_id.count('-') == 1 and f.done}
         jobs_to_clean = present_jobs - self.cleaned_jobs
 
         if jobs_to_clean:
@@ -624,3 +632,8 @@ class StandaloneExecutor(FunctionExecutor):
         super().__init__(mode=STANDALONE, config=config, runtime=runtime,
                          backend=backend, storage=storage, workers=workers,
                          rabbitmq_monitor=rabbitmq_monitor, log_level=log_level)
+
+    def create(self):
+        runtime_key, runtime_meta = self.compute_handler.create()
+        self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
+

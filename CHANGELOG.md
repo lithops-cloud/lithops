@@ -1,13 +1,37 @@
 # Changelog
 
-## [v2.2.14.dev0]
+## [v2.2.15.dev0]
+
+### Added
+- [Joblib] Joblib backend upgraded
+
+### Fixed
+- [Core] Fixed issue in clean when it is called between wait and get_result
+- [Core] Fixed multiprocessing Queue and get_context
+
+## [v2.2.14]
 
 ### Added
 - [Azure] Azure Functions backend upgraded
+- [Azure] Azure blob backend upgraded
+- [Alibaba] Alibaba Functions backend upgraded
+- [Alibaba] Alibaba Storage backend upgraded
+- [Localhost] Support passing file-like objects to put_object
+- [Localhost] Support head_bucket and head_object storage operations
+
+### Changed
+- [Core] Moved tests.py script to 'scripts' folder
 
 ### Fixed
 - [Core] Fixed Storage API error when no config is provided
 - [Core] Fixed expired IAM token in IBM CF during an execution
+- [Core] Minor fixes in multiprocessing API
+- [Core] Fixed executor logging
+- [Core] Fixed issue in cleaner between wait and get_result
+- [CodeEngine] Fixed issue getting region
+- [Localhost] Fixed empty parent directory deletion when deleting objects
+- [Localhost] Made list_keys/list_objects behavior consistent with other backends
+
 
 ## [v2.2.13]
 

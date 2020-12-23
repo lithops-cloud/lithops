@@ -74,13 +74,14 @@ The only requirement to make it working is to have the KUBECONFIG file properly 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |knative | istio_endpoint | |no | Istio IngressGateway Endpoint. Make sure to use http:// prefix |
+|knative | container_registry |  docker.io | no | container registry url|
 |knative | docker_user | |no | Docker hub username |
 |knative | docker_token | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
 |knative | git_url | |no | Git repository to build the image |
 |knative | git_rev | |no | Git revision to build the image |
 |knative | min_instances | 0 |no | Minimum number of parallel runtimes |
 |knative | max_instances | 250 |no | Maximum number of parallel runtimes |
-|knative | cpu | 1000 |no | CPU limit in millicpu. Default 1vCPU (1000m) |
+|knative | cpu | 1 |no | CPU limit. Default 1vCPU  |
 |knative | concurrency | 1 |no | Number of workers per runtime instance |
 
 
@@ -116,6 +117,7 @@ If you need to create new runtime, please follow [Building and managing Lithops 
 |---|---|---|---|---|
 |code_engine | kubectl_config  |  |no | Path to kubecfg file |
 |code_engine | cpu | 1 |no | CPU limit. Default 1vCPU |
+|code_engine | container_registry |  docker.io | no | container registry url|
 
 ### Usage Example
 
@@ -130,7 +132,7 @@ def add_value(name):
 if __name__ == '__main__':
     lt = lithops.FunctionExecutor(mode="serverless",
             backend='code_engine',
-            runtime='ibmfunctions/lithops-ce-3.8.5-2.2.2:1.0.0')
+            runtime='ibmfunctions/lithops-codeengine-v38:2213')
     lt.map(add_value,  iterdata)
     print (lt.get_result())
 ```

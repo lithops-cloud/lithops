@@ -9,17 +9,15 @@
 # Modifications Copyright (c) 2020 Cloudlab URV
 #
 
-__all__ = ['BaseProcess', 'current_process', 'active_children']
-
 #
 # Imports
 #
 
 import os
-import sys
 import signal
 import itertools
 from _weakrefset import WeakSet
+from .popen_cloud import PopenCloud
 
 #
 #
@@ -236,6 +234,10 @@ class BaseProcess(object):
 
         return '<%s(%s, %s%s)>' % (type(self).__name__, self._name,
                                    status, self.daemon and ' daemon' or '')
+
+
+class CloudProcess(BaseProcess):
+    _Popen = PopenCloud
 
 
 #
