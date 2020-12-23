@@ -17,14 +17,12 @@
 import os
 import shutil
 import logging
-import uuid
 import boto3
 import time
 import json
 import zipfile
 import sys
 import subprocess
-import textwrap
 import lithops
 import botocore.exceptions
 
@@ -33,7 +31,6 @@ from lithops.utils import version_str
 from lithops.constants import TEMP as TEMP_PATH
 from lithops.constants import COMPUTE_CLI_MSG
 from . import config as lambda_config
-
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +76,11 @@ class AWSLambdaBackend:
 
         self.internal_storage = InternalStorage(storage_config)
 
+        sts_client = self.aws_session.client('sts', region_name=self.region_name)
+        self.account_id = sts_client.get_caller_identity()["Account"]
+
+        self.ecr_client = self.aws_session.client('ecr', region_name=self.region_name)
+
         msg = COMPUTE_CLI_MSG.format('AWS Lambda')
         logger.info("{} - Region: {}".format(msg, self.region_name))
 
@@ -106,6 +108,8 @@ class AWSLambdaBackend:
         return arn
 
     def _format_action_name(self, runtime_name, runtime_memory):
+        if '/' in runtime_name:
+            runtime_name = runtime_name.rsplit('/')[-1]
         runtime_name = (self.package + '_' + runtime_name).replace('.', '-')
         return '{}_{}MB'.format(runtime_name, runtime_memory)
 
@@ -128,37 +132,28 @@ class AWSLambdaBackend:
         else:
             return None
 
-    def _create_handler_bin(self):
+    def _create_handler_bin(self, remove=False):
         """
         Creates Lithops handler zip
         return : zip binary
         """
         logger.debug('Creating function handler zip in {}'.format(ACTION_ZIP_PATH))
 
-        def add_folder_to_zip(zip_file, full_dir_path, sub_dir=''):
-            for file in os.listdir(full_dir_path):
-                full_path = os.path.join(full_dir_path, file)
-                if os.path.isfile(full_path):
-                    zip_file.write(full_path,
-                                   os.path.join('lithops', sub_dir, file),
-                                   zipfile.ZIP_DEFLATED)
-                elif os.path.isdir(full_path) and '__pycache__' not in full_path:
-                    add_folder_to_zip(zip_file,
-                                      full_path,
-                                      os.path.join(sub_dir, file))
-
         try:
-            with zipfile.ZipFile(ACTION_ZIP_PATH, 'w') as lithops_zip:
+            with zipfile.ZipFile('lithops_lambda.zip', 'w') as lithops_zip:
                 current_location = os.path.dirname(os.path.abspath(__file__))
                 module_location = os.path.dirname(os.path.abspath(lithops.__file__))
                 main_file = os.path.join(current_location, 'entry_point.py')
                 lithops_zip.write(main_file,
                                   '__main__.py',
                                   zipfile.ZIP_DEFLATED)
-                add_folder_to_zip(lithops_zip, module_location)
+                add_directory_to_zip(lithops_zip, module_location, sub_dir='lithops')
 
-            with open(ACTION_ZIP_PATH, 'rb') as action_zip:
+            with open('lithops_lambda.zip', 'rb') as action_zip:
                 action_bin = action_zip.read()
+
+            if remove:
+                os.remove('lithops_lambda.zip')
         except Exception as e:
             raise Exception('Unable to create {} package: {}'.format(ACTION_ZIP_PATH, e))
         return action_bin
@@ -211,7 +206,6 @@ class AWSLambdaBackend:
             msg = 'An error occurred creating layer {}: {}'.format(layer_name, response)
             raise Exception(msg)
 
-
     def _delete_layer(self, layer_name):
         """
         Deletes lambda layer from its arn
@@ -260,18 +254,54 @@ class AWSLambdaBackend:
                 raise Exception('Runtime {} does not exist. Available runtimes: {}'.format(
                     runtime_name, lambda_config.DEFAULT_RUNTIMES + user_runtimes))
 
-    def build_runtime(self, runtime_name, requirements_file):
-        if requirements_file is None:
-            raise Exception('Please provide a `requirements.txt` file with the necessary modules')
+    def build_runtime(self, runtime_name, runtime_file):
+        if runtime_file is None:
+            raise Exception('Please provide a `requirements.txt` or Dockerfile')
         if self._python_runtime_name not in lambda_config.DEFAULT_RUNTIMES:
             raise Exception('Python runtime "{}" is not available for AWS Lambda, '
                             'please use one of {}'.format(self._python_runtime_name, lambda_config.DEFAULT_RUNTIMES))
 
-        logger.info('Going to create runtime {} ({}) for AWS Lambda...'.format(runtime_name, requirements_file))
-        with open(requirements_file, 'r') as req_file:
-            requirements = req_file.read()
+        logger.info('Going to create runtime {} ({}) for AWS Lambda...'.format(runtime_name, runtime_file))
 
-        self.internal_storage.put_data('/'.join([lambda_config.USER_RUNTIME_PREFIX, runtime_name]), requirements)
+        if '/' in runtime_name:
+            # Container runtime
+            image_name = runtime_name.split('/')[1]
+            self._create_handler_bin(remove=False)
+            if runtime_file:
+                cmd = '{} build -t {} -f {} .'.format(lambda_config.DOCKER_PATH,
+                                                      image_name,
+                                                      runtime_file)
+            else:
+                cmd = '{} build -t {} .'.format(lambda_config.DOCKER_PATH, image_name)
+
+            res = os.system(cmd)
+            if res != 0:
+                raise Exception('There was an error building the runtime')
+
+            ecr_repo = '{}.dkr.ecr.{}.amazonaws.com'.format(self.account_id, self.region_name)
+
+            cmd = 'aws ecr get-login-password --region {} ' \
+                  '| {} login --username AWS --password-stdin {}'.format(self.region_name,
+                                                                         lambda_config.DOCKER_PATH, ecr_repo)
+
+            res = os.system(cmd)
+            if res != 0:
+                raise Exception('Could not authorize Docker for ECR')
+
+            self.ecr_client.create_repository(repositoryName=image_name)
+
+            cmd = '{} tag {} {}/{} && {} push {}/{}'.format(lambda_config.DOCKER_PATH, image_name, ecr_repo, image_name,
+                                                            lambda_config.DOCKER_PATH, ecr_repo, image_name)
+            os.system(cmd)
+
+            if res != 0:
+                raise Exception('Could not push image {} to ECR repository {}'.format(image_name, ecr_repo))
+        else:
+            # requiremets.txt runtime
+            with open(runtime_file, 'r') as req_file:
+                requirements = req_file.read()
+            self.internal_storage.put_data('/'.join([lambda_config.USER_RUNTIME_PREFIX, runtime_name]), requirements)
+
         logger.info('Ok - Created runtime {}'.format(runtime_name))
 
     def create_runtime(self, runtime_name, memory=3008, timeout=900):
@@ -280,34 +310,77 @@ class AWSLambdaBackend:
         """
         function_name = self._format_action_name(runtime_name, memory)
         logger.debug('Creating new Lithops lambda runtime: {}'.format(function_name))
-
-        runtime_meta = self._generate_runtime_meta(runtime_name)
-
-        runtime_layer_arn = self._check_runtime_layer(runtime_name)
-        if runtime_layer_arn is None:
-            runtime_layer_arn = self._create_layer(runtime_name)
-
-        code = self._create_handler_bin()
         python_runtime_ver = 'python{}'.format(version_str(sys.version_info))
-        response = self.lambda_client.create_function(
-            FunctionName=function_name,
-            Runtime=python_runtime_ver,
-            Role=self.role_arn,
-            Handler='__main__.lambda_handler',
-            Code={
-                'ZipFile': code
-            },
-            Description=self.package,
-            Timeout=timeout,
-            MemorySize=memory,
-            Layers=[runtime_layer_arn, self._numerics_layer_arn]
-        )
 
-        if response['ResponseMetadata']['HTTPStatusCode'] == 201:
+        if '/' in runtime_name:
+            image_name = runtime_name.split('/')[1]
+
+            try:
+                response = self.ecr_client.describe_images(repositoryName=image_name)
+
+                image = response['imageDetails'].pop()
+                image_digest = image['imageDigest']
+            except botocore.exceptions.ClientError:
+                raise Exception('Runtime {} is not deployed to ECR')
+
+            image_uri = '{}.dkr.ecr.{}.amazonaws.com/{}@{}'.format(self.account_id, self.region_name,
+                                                                   image_name, image_digest)
+
+            response = self.lambda_client.create_function(
+                FunctionName=function_name,
+                Role=self.role_arn,
+                Code={
+                    'ImageUri': image_uri
+                },
+                PackageType='Image',
+                Description=self.package,
+                Timeout=timeout,
+                MemorySize=memory
+            )
+
+        else:
+            runtime_layer_arn = self._check_runtime_layer(runtime_name)
+            if runtime_layer_arn is None:
+                runtime_layer_arn = self._create_layer(runtime_name)
+
+            code = self._create_handler_bin()
+            response = self.lambda_client.create_function(
+                FunctionName=function_name,
+                Runtime=python_runtime_ver,
+                Role=self.role_arn,
+                Handler='__main__.lambda_handler',
+                Code={
+                    'ZipFile': code
+                },
+                Description=self.package,
+                Timeout=timeout,
+                MemorySize=memory,
+                Layers=[runtime_layer_arn, self._numerics_layer_arn]
+            )
+
+        if response['ResponseMetadata']['HTTPStatusCode'] in [200, 201]:
             logger.debug('OK --> Created action {}'.format(runtime_name))
+
+            retries = 15
+            while retries > 0:
+                response = self.lambda_client.get_function(
+                    FunctionName=function_name
+                )
+                state = response['Configuration']['State']
+                if state == 'Pending':
+                    time.sleep(5)
+                    retries -= 1
+                    if retries == 0:
+                        raise Exception('Function not deployed: {}'.format(response))
+                elif state == 'Active':
+                    break
+
+            logger.debug('Ok --> Function active')
         else:
             msg = 'An error occurred creating/updating action {}: {}'.format(runtime_name, response)
             raise Exception(msg)
+
+        runtime_meta = self._generate_runtime_meta(runtime_name, memory)
 
         return runtime_meta
 
@@ -442,81 +515,13 @@ class AWSLambdaBackend:
 
         return runtime_key
 
-    def _generate_runtime_meta(self, runtime_name):
+    def _generate_runtime_meta(self, runtime_name, runtime_memory):
         """
         Extract preinstalled Python modules from lambda function execution environment
         return : runtime meta dictionary
         """
-        action_code = '''
-        import sys
-        import pkgutil
-
-        def lambda_handler(event, context):
-            runtime_meta = dict()
-            mods = list(pkgutil.iter_modules())
-            runtime_meta['preinstalls'] = [entry for entry in sorted([[mod, is_pkg] for _, mod, is_pkg in mods])]
-            python_version = sys.version_info
-            runtime_meta['python_ver'] = str(python_version[0])+'.'+str(python_version[1])
-            return runtime_meta
-        '''
-        # Create function zip archive
-        action_location = os.path.join(TEMP_PATH, 'extract_preinstalls_aws.py')
-        with open(action_location, 'w') as f:
-            f.write(textwrap.dedent(action_code))
-
-        modules_zip_action = os.path.join(TEMP_PATH, 'extract_preinstalls_aws.zip')
-        with zipfile.ZipFile(modules_zip_action, 'w') as extract_modules_zip:
-            extract_modules_zip.write(action_location, '__main__.py')
-
-        with open(modules_zip_action, 'rb') as modules_zip:
-            action_bytes = modules_zip.read()
-
-        # Create Layer for this runtime
-        runtime_layer_arn = self._check_runtime_layer(runtime_name)
-        if runtime_layer_arn is None:
-            runtime_layer_arn = self._create_layer(runtime_name)
-
-        memory = 192
-        modules_function_name = '_'.join([self._format_action_name(runtime_name, memory),
-                                          'preinstalls', uuid.uuid4().hex[:4]])
-        python_runtime_ver = 'python{}'.format(version_str(sys.version_info))
-
-        try:
-            self.lambda_client.create_function(
-                FunctionName=modules_function_name,
-                Runtime=python_runtime_ver,
-                Role=self.role_arn,
-                Handler='__main__.lambda_handler',
-                Code={
-                    'ZipFile': action_bytes
-                },
-                Description=self.package,
-                Timeout=lambda_config.RUNTIME_TIMEOUT_DEFAULT,
-                MemorySize=memory,
-                Layers=[runtime_layer_arn, self._numerics_layer_arn]
-            )
-        except Exception as e:
-            raise Exception('Unable to deploy "modules" action: {}'.format(e))
-
         logger.debug('Extracting Python modules list from: {}'.format(runtime_name))
 
-        try:
-            response = self.lambda_client.invoke(
-                FunctionName=modules_function_name,
-                Payload=json.dumps({})
-            )
-            runtime_meta = json.loads(response['Payload'].read())
-        except Exception as e:
-            raise Exception('Unable to invoke "modules" action: {}'.format(e))
+        meta = self.invoke_with_result(runtime_name, runtime_memory, payload={'get_preinstalls': {}})
 
-        try:
-            response = self.lambda_client.delete_function(
-                FunctionName=modules_function_name
-            )
-        except botocore.exceptions.ClientError as e:
-            logger.debug('Could not delete "modules" action: {}'.format(e))
-
-        if 'preinstalls' not in runtime_meta:
-            raise Exception(runtime_meta)
-
-        return runtime_meta
+        return meta
