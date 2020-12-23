@@ -326,19 +326,18 @@ class AWSLambdaBackend:
             image_uri = '{}.dkr.ecr.{}.amazonaws.com/{}@{}'.format(self.account_id, self.region_name,
                                                                    image_name, image_digest)
 
-            # response = self.lambda_client.create_function(
-            #     FunctionName=function_name,
-            #     Role=self.role_arn,
-            #     Handler='__main__.lambda_handler',
-            #     Code={
-            #         'ImageUri': image_uri
-            #     },
-            #     Description=self.package,
-            #     Timeout=timeout,
-            #     MemorySize=memory
-            # )
+            response = self.lambda_client.create_function(
+                FunctionName=function_name,
+                Role=self.role_arn,
+                Code={
+                    'ImageUri': image_uri
+                },
+                PackageType='Image',
+                Description=self.package,
+                Timeout=timeout,
+                MemorySize=memory
+            )
 
-            response = {'ResponseMetadata': {'HTTPStatusCode': 201}}
         else:
             runtime_layer_arn = self._check_runtime_layer(runtime_name)
             if runtime_layer_arn is None:
@@ -359,8 +358,24 @@ class AWSLambdaBackend:
                 Layers=[runtime_layer_arn, self._numerics_layer_arn]
             )
 
-        if response['ResponseMetadata']['HTTPStatusCode'] == 201:
+        if response['ResponseMetadata']['HTTPStatusCode'] in [200, 201]:
             logger.debug('OK --> Created action {}'.format(runtime_name))
+
+            retries = 15
+            while retries > 0:
+                response = self.lambda_client.get_function(
+                    FunctionName=function_name
+                )
+                state = response['Configuration']['State']
+                if state == 'Pending':
+                    time.sleep(5)
+                    retries -= 1
+                    if retries == 0:
+                        raise Exception('Function not deployed: {}'.format(response))
+                elif state == 'Active':
+                    break
+
+            logger.debug('Ok --> Function active')
         else:
             msg = 'An error occurred creating/updating action {}: {}'.format(runtime_name, response)
             raise Exception(msg)
