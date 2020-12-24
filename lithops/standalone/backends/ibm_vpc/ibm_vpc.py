@@ -117,10 +117,12 @@ class IBMVPCInstanceClient:
             time.sleep(1)
             self.instance_data = self.get_instance()
 
-    def _generate_name(self, r_type):
+    def _generate_name(self, r_type, job_key, call_id):
+        if (job_key != None and call_id != None):
+            return "lithops" + str(job_key) + "-" + str(call_id) + "-" + r_type
         return "lithops-" + namegenerator.gen() + "-" + r_type
 
-    def _create_instance(self):
+    def _create_instance(self, job_key, call_id):
         # security_group_identity_model = {'id': 'r006-2d3cc459-bb8b-4ec6-a5fb-28e60c9f7d7b'}
         security_group_identity_model = {'id': self.config['security_group_id']}
 
@@ -131,17 +133,17 @@ class IBMVPCInstanceClient:
         key_identity_model = {'id': self.config['key_id']}
 
         volume_prototype_instance_by_image_context_model = {
-            'capacity': 100, 'iops': 10000, 'name': self._generate_name('volume'), 'profile': {'name': self.config['volume_tier_name']}}#''10iops-tier'}}
+            'capacity': 100, 'iops': 10000, 'name': self._generate_name('volume', job_key, call_id), 'profile': {'name': self.config['volume_tier_name']}}#''10iops-tier'}}
 
         network_interface_prototype_model = {
             'name': 'eth0', 'subnet': subnet_identity_model, 'security_groups': [security_group_identity_model]}
         volume_attachment_prototype_instance_by_image = {
             'delete_volume_on_instance_delete': True,
-            'name': self._generate_name('boot'),
+            'name': self._generate_name('boot', job_key, call_id),
             'volume': volume_prototype_instance_by_image_context_model
         }
         instance_prototype_model = {
-            'keys': [key_identity_model], 'name': self._generate_name('instance')}
+            'keys': [key_identity_model], 'name': self._generate_name('instance', job_key, call_id)}
         instance_prototype_model['profile'] = {'name': self.config['profile_name']}#"bx2-8x32"}
 
         instance_prototype_model['resource_group'] = {'id': self.config['resource_group_id']}#"8145289ddf7047ea93fd2835de391f43"}
@@ -155,10 +157,10 @@ class IBMVPCInstanceClient:
         response = self.service.create_instance(instance_prototype_model)
         return response.result
         
-    def _create_and_attach_floating_ip(self, instance):
+    def _create_and_attach_floating_ip(self, instance, job_key, call_id):
         # allocate new floating ip
         floating_ip_prototype_model = {}
-        floating_ip_prototype_model['name'] = self._generate_name('fip')
+        floating_ip_prototype_model['name'] = self._generate_name('fip', job_key, call_id)
         floating_ip_prototype_model['zone'] = {'name': self.config['zone_name']}#"us-south-3"}
         floating_ip_prototype_model['resource_group'] = {'id': self.config['resource_group_id']}#"8145289ddf7047ea93fd2835de391f43"}
 
@@ -205,13 +207,13 @@ class IBMVPCInstanceClient:
         self.create_instance_action('start')
         logger.debug("VM instance started successfully")
 
-    def create(self):
+    def create(self, job_key = None, call_id = None):
         logger.info("Creating VM instance")
         self.instance_id = None
 
         try:
-            instance = self._create_instance()
-            floating_ip = self._create_and_attach_floating_ip(instance)['address']
+            instance = self._create_instance(job_key, call_id)
+            floating_ip = self._create_and_attach_floating_ip(instance, job_key, call_id)['address']
             logger.debug("VM {} created successfully with floating IP {}".format(instance['name'], floating_ip))
 
             self.instance_id = instance['id']
