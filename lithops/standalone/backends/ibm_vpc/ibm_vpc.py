@@ -22,8 +22,12 @@ class IBMVPCInstanceClient:
 
         self.endpoint = self.config['endpoint']
         self.region = self.endpoint.split('//')[1].split('.')[0]
+
+        #optional, create VM will update new instance id
         self.instance_id = self.config['instance_id']
+        #optional, create VM will update new virtual ip address
         self.ip_address = self.config.get('ip_address', None)
+
         self.vm_create_timeout = self.config.get('vm_create_timeout', 120)
 
         self.instance_data = None
@@ -38,6 +42,7 @@ class IBMVPCInstanceClient:
 
         authenticator = IAMAuthenticator(iam_api_key)
         self.service = VpcV1('2020-06-02', authenticator=authenticator)
+        self.service.set_service_url(self.config['endpoint'])
 
         token = self.config.get('token', None)
         token_expiry_time = self.config.get('token_expiry_time', None)

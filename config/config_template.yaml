@@ -45,7 +45,7 @@ lithops:
     #secret_key : <SECRET_KEY>  # Optional
 
 #ibm_vpc:
-    #endpoint    : <REGION_ENDPOINT>
+    #endpoint    : <REGION_ENDPOINT> # https://eu-de.iaas.cloud.ibm.com/v1
     #instance_id : <INSTANCE_ID>  # Optional
     #ip_address  : <FLOATING_IP_ADDRESS>
     #version     : <VPC_VERSION>
