@@ -163,20 +163,49 @@ class IBMVPCInstanceClient:
         return response.result
         
     def _create_and_attach_floating_ip(self, instance, job_key, call_id):
-        # allocate new floating ip
-        floating_ip_prototype_model = {}
-        floating_ip_prototype_model['name'] = self._generate_name('fip', job_key, call_id)
-        floating_ip_prototype_model['zone'] = {'name': self.config['zone_name']}#"us-south-3"}
-        floating_ip_prototype_model['resource_group'] = {'id': self.config['resource_group_id']}#"8145289ddf7047ea93fd2835de391f43"}
+        floating_ip_name = self._generate_name('fip', job_key, call_id)
+        #check if floating ip exists
+        floating_ip = None
+        try:
+            floating_ip_list = self.service.list_floating_ips().get_result()['floating_ips']
+            for vip in floating_ip_list:
+                if vip['name'] == floating_ip_name:
+                    floating_ip =  vip
+        except Exception as e:
+            logger.warn(e)
 
-        response = self.service.create_floating_ip(floating_ip_prototype_model)
-        floating_ip = response.result
-        
+        try:
+            if floating_ip is None:
+                # allocate new floating ip
+                floating_ip_prototype_model = {}
+                floating_ip_prototype_model['name'] = floating_ip_name
+                floating_ip_prototype_model['zone'] = {'name': self.config['zone_name']}#"us-south-3"}
+                floating_ip_prototype_model['resource_group'] = {'id': self.config['resource_group_id']}#"8145289ddf7047ea93fd2835de391f43"}
+
+                response = self.service.create_floating_ip(floating_ip_prototype_model)
+
+                floating_ip = response.result
+        except Exception as e:
+            logger.warn('Failed to create floating ip {}'.format(str(e)))
+            raise e
+
+        # we need to check if floating ip is not attached already. if not, attach it to instance
+        primary_ni = instance['primary_network_interface']
+        if ('target' in floating_ip and floating_ip['target']['primary_ipv4_address'] == primary_ni['primary_ipv4_address'] and
+            floating_ip['target']['id'] == primary_ni['id']):
+            # floating ip already atteched. do nothing
+            logger.debug('Floating ip {} already attached to eth0 {}'.format(floating_ip['address'],floating_ip['target']['id']))
+            return floating_ip['address']
+
         # attach floating ip
-        response = self.service.add_instance_network_interface_floating_ip(
-            instance['id'], instance['network_interfaces'][0]['id'], floating_ip['id'])
+        try:
+            response = self.service.add_instance_network_interface_floating_ip(
+                instance['id'], instance['network_interfaces'][0]['id'], floating_ip['id'])
+        except Exception as e:
+            logger.warn('Failed to attach floating ip {} to {} : '.format(str(e)))
+            raise e
 
-        return floating_ip
+        return floating_ip['address']
 
     def _wait_instance_running(self, instance_id):
         """
@@ -216,19 +245,34 @@ class IBMVPCInstanceClient:
         logger.info("Creating VM instance")
         self.instance_id = None
 
-        try:
-            instance = self._create_instance(job_key, call_id)
-            floating_ip = self._create_and_attach_floating_ip(instance, job_key, call_id)['address']
-            logger.debug("VM {} created successfully with floating IP {}".format(instance['name'], floating_ip))
+        #check if VSI exists
+        all_instances = self.service.list_instances().get_result()['instances']
+        vsi_exists = False
+        for instance in all_instances:
+            if instance['name'] == self._generate_name('instance', job_key, call_id):
+                logger.debug('{} Already exists. Need to find floating ip attached'.format(instance['name']))
+                vsi_exists = True
+                self.instance_id = instance['id']
+        if (not vsi_exists):
+            try:
+                instance = self._create_instance(job_key, call_id)
+                self.instance_id = instance['id']
+                self.config['instance_id'] = self.instance_id
+                logger.debug("VM {} created successfully ".format(instance['name']))
+            except Exception as e:
+                logger.error("There was an error trying to create the VM for {} {}".format(job_key, call_id))
+                raise e
 
-            self.instance_id = instance['id']
-            self.config['instance_id'] = self.instance_id
+        try:
+            floating_ip = self._create_and_attach_floating_ip(instance, job_key, call_id)
+            logger.debug("VM {} updated successfully with floating IP {}".format(instance['name'], floating_ip))
             self.config['ip_address'] = floating_ip
 
-            self._wait_instance_running(self.instance_id)
+            #what for we need this?
+            #self._wait_instance_running(self.instance_id)
             return self.instance_id, floating_ip
         except Exception as e:
-            logger.error("There was an error trying to create the VM and  bind floating ip, deleting the vm {}".format(self.instance_id))
+            logger.error("There was an error trying to to bind floating ip to vm {}".format(self.instance_id))
             self._delete_instance()
             raise e
 
