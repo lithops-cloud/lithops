@@ -72,6 +72,7 @@ def budget_keeper():
         # being started forever due a wrong configuration
         logger.info('Auto dismantle deactivated - Hard Timeout: {}s'
                     .format(backend_handler.hard_dismantle_timeout))
+    logger.info("Jobs keys are {}".format(jobs.keys()))
 
     while True:
         time_since_last_usage = time.time() - last_usage_time

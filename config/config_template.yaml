@@ -20,6 +20,7 @@ lithops:
 #standalone:
     #backend: ibm_vpc
     #runtime: <RUNTIME_NAME>
+    #exec_mode: create
     #auto_dismantle: True
     #hard_dismantle_timeout: 3600
     #soft_dismantle_timeout: 300
@@ -45,7 +46,7 @@ lithops:
     #secret_key : <SECRET_KEY>  # Optional
 
 #ibm_vpc:
-    #endpoint    : <REGION_ENDPOINT> # https://eu-de.iaas.cloud.ibm.com/v1
+    #endpoint    : <REGION_ENDPOINT> # https://eu-de.iaas.cloud.ibm.com
     #instance_id : <INSTANCE_ID>  # Optional
     #ip_address  : <FLOATING_IP_ADDRESS>
     #version     : <VPC_VERSION>

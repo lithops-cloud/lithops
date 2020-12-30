@@ -7,7 +7,6 @@ from lithops.util.ibm_token_manager import IBMTokenManager
 
 from ibm_vpc import VpcV1
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
-from ibm_cloud_sdk_core import ApiException
 import namegenerator
 
 logger = logging.getLogger(__name__)
@@ -36,13 +35,16 @@ class IBMVPCInstanceClient:
                                 'password': self.config.get('ssh_password', None),
                                 'key_filename': self.config.get('ssh_key_filename', None)}
 
+        from lithops.util.ssh_client import SSHClient
+        self.ssh_client = SSHClient(self.ssh_credentials)
+
         self.session = requests.session()
 
         iam_api_key = self.config.get('iam_api_key')
 
         authenticator = IAMAuthenticator(iam_api_key)
         self.service = VpcV1('2020-06-02', authenticator=authenticator)
-        self.service.set_service_url(self.config['endpoint'])
+        self.service.set_service_url(self.config['endpoint'] + '/v1')
 
         token = self.config.get('token', None)
         token_expiry_time = self.config.get('token_expiry_time', None)
@@ -66,6 +68,9 @@ class IBMVPCInstanceClient:
 
     def get_ssh_credentials(self):
         return self.ssh_credentials
+
+    def get_ssh_client(self):
+        return self.ssh_client
 
     def get_instance(self):
         url = '/'.join([self.endpoint, 'v1', 'instances', self.instance_id
@@ -98,6 +103,9 @@ class IBMVPCInstanceClient:
 
         return ip_address
 
+    def get_instance_id(self):
+        return self.instance_id
+
     def create_instance_action(self, action):
         if action in ['start', 'reboot']:
             expected_status = 'running'
@@ -124,7 +132,8 @@ class IBMVPCInstanceClient:
 
     def _generate_name(self, r_type, job_key, call_id):
         if (job_key != None and call_id != None):
-            return "lithops" + str(job_key) + "-" + str(call_id) + "-" + r_type
+            resp = ("lithops" + "-" + str(job_key) + "-" + str(call_id) + "-" + r_type).replace('/', '-').replace(':','-').lower()
+            return resp
         return "lithops-" + namegenerator.gen() + "-" + r_type
 
     def _create_instance(self, job_key, call_id):
@@ -211,7 +220,7 @@ class IBMVPCInstanceClient:
         """
         Waits until the VM instance is running
         """
-        logger.debug('Waiting VM instance to become running')
+        logger.debug('Waiting VM instance {} {} to become running'.format(self.name, self.ip_address))
 
         start = time.time()
         while(time.time() - start < self.vm_create_timeout):
@@ -222,6 +231,14 @@ class IBMVPCInstanceClient:
 
         self.stop()
         raise Exception('VM create failed, check logs and configurations')
+
+    def _get_instance_id_and_status(self, name):
+        #check if VSI exists and return it's id with status
+        all_instances = self.service.list_instances().get_result()['instances']
+        for instance in all_instances:
+            if instance['name'] == name:
+                logger.debug('{}  exists'.format(instance['name']))
+                return instance['id'], instance['status']
 
     def _delete_instance(self):
         # delete floating ip
@@ -237,12 +254,18 @@ class IBMVPCInstanceClient:
         print("instance {} been deleted".format(self.config['instance_id']))
 
     def start(self):
-        logger.info("Starting VM instance")
-        self.create_instance_action('start')
-        logger.debug("VM instance started successfully")
+        logger.info("Starting VM instance {} with IP {} ".format(self.instance_id, self.ip_address))
+        resp = self.service.create_instance_action(self.instance_id, 'start')
+        logger.debug("VM instance {} started successfully".format(self.instance_id))
+
+    def is_ready(self):
+        resp = self.service.get_instance(self.instance_id).get_result()
+        if resp['status'] == 'running':
+            return True
+        return False
 
     def create(self, job_key = None, call_id = None):
-        logger.info("Creating VM instance")
+        logger.info("Creating VM instance {} {}".format(job_key, call_id))
         self.instance_id = None
 
         #check if VSI exists
@@ -267,9 +290,8 @@ class IBMVPCInstanceClient:
             floating_ip = self._create_and_attach_floating_ip(instance, job_key, call_id)
             logger.debug("VM {} updated successfully with floating IP {}".format(instance['name'], floating_ip))
             self.config['ip_address'] = floating_ip
+            self.ip_address = floating_ip
 
-            #what for we need this?
-            #self._wait_instance_running(self.instance_id)
             return self.instance_id, floating_ip
         except Exception as e:
             logger.error("There was an error trying to to bind floating ip to vm {}".format(self.instance_id))
@@ -282,13 +304,13 @@ class IBMVPCInstanceClient:
             self._delete_instance()
             logger.debug("VM instance deleted successfully")
         else:
-            logger.info("Stopping VM instance")
-            self.create_instance_action('stop')
+            logger.info("Stopping VM instance {}".format(self.ip_address))
+            resp = self.service.create_instance_action(self.instance_id, 'stop')
+            logger.debug("VM instance {} stopped successfully".format(self.instance_id))
+
             logger.debug("VM instance stopped successfully")
 
     def get_runtime_key(self, runtime_name):
-        runtime_key = os.path.join(self.name, self.ip_address,
-                                   self.instance_id,
-                                   runtime_name.strip("/"))
+        runtime_key = runtime_name.strip("/")
 
         return runtime_key

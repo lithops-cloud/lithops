@@ -12,7 +12,7 @@ def load_config(config_data):
     else:
         msg = 'IBM IAM api key is mandatory in ibm section of the configuration'
         raise Exception(msg)
-    if 'exec_mode' in config_data[section] and config_data[section]['exec_mode'] == 'create':
+    if 'exec_mode' in config_data['standalone'] and config_data['standalone']['exec_mode'] == 'create':
         for param in MANDATORY_PARAMETERS_CREATE:
             if param not in config_data[section]:
                 msg = '{} is mandatory in {} section of the configuration'.format(param, section)
