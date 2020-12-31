@@ -242,16 +242,16 @@ class IBMVPCInstanceClient:
 
     def _delete_instance(self):
         # delete floating ip
-        response = self.service.list_instance_network_interfaces(self.config['instance_id'])
+        response = self.service.list_instance_network_interfaces(self.instance_id)
         for nic in response.result['network_interfaces']:
             if 'floating_ips' in nic:
                 for fip in nic['floating_ips']:
                     self.service.delete_floating_ip(fip['id'])
-                    print("floating ip {} been deleted".format(fip['address']))
+                    logger.debug("floating ip {} been deleted".format(fip['address']))
 
         # delete vm instance
-        self.service.delete_instance(self.config['instance_id'])
-        print("instance {} been deleted".format(self.config['instance_id']))
+        resp = self.service.delete_instance(self.instance_id)
+        logger.debug("instance {} been deleted".format(self.instance_id))
 
     def start(self):
         logger.info("Starting VM instance {} with IP {} ".format(self.instance_id, self.ip_address))
@@ -300,9 +300,9 @@ class IBMVPCInstanceClient:
 
     def stop(self):
         if self.config['delete_on_dismantle']:
-            logger.info("Deleting VM instance")
+            logger.info("Deleting VM instance {}".format(self.ip_address))
             self._delete_instance()
-            logger.debug("VM instance deleted successfully")
+            logger.debug("VM instance {} deleted successfully".format(self.ip_address))
         else:
             logger.info("Stopping VM instance {}".format(self.ip_address))
             resp = self.service.create_instance_action(self.instance_id, 'stop')
