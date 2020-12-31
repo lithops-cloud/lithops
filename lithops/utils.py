@@ -261,7 +261,7 @@ def sdb_to_dict(item):
 
 
 def dict_to_b64str(the_dict):
-    bytes_dict = json.dumps(the_dict).encode()
+    bytes_dict = json.dumps(the_dict, default=str).encode()
     b64_dict = base64.urlsafe_b64encode(bytes_dict)
     return b64_dict.decode()
 
