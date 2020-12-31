@@ -38,6 +38,8 @@ class SSHClient():
         if not background:
             out = stdout.read().decode().strip()
             error = stderr.read().decode().strip()
+            logger.debug(out)
+            logger.debug(error)
 
         return out
 
