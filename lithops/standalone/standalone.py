@@ -367,6 +367,7 @@ class StandaloneHandler:
 
         # Install dependenices
         cmd = 'mkdir -p /tmp/lithops; '
+        cmd += 'sudo rm /var/lib/apt/lists/* -vf; '
         cmd += 'apt-get clean; '
         cmd += 'apt-get update >> /tmp/lithops/proxy.log; '
         cmd += 'touch /tmp/lithops/aptdone.txt; '
