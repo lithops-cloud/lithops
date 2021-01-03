@@ -31,6 +31,12 @@ class VMClient:
     def get_ip_address(self):
         return self.host
 
+    def set_instance_id(self, instance_id):
+        self.instance_id = instance_id
+
+    def set_ip_address(self, ip_address):
+        self.ip_address = ip_address
+
     def start(self):
         pass
 
