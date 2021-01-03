@@ -67,15 +67,7 @@ class StandaloneHandler:
         self.soft_dismantle_timeout = self.config.get('soft_dismantle_timeout')
         self.module_location = 'lithops.standalone.backends.{}'.format(self.backend_name)
 
-        try:
-            sb_module = importlib.import_module(self.module_location)
-            StandaloneBackend = getattr(sb_module, 'StandaloneBackend')
-            backend = StandaloneBackend(self.config[self.backend_name])
-
-        except Exception as e:
-            logger.error("There was an error trying to create the "
-                         "{} standalone backend".format(self.backend_name))
-            raise e
+        backend = self.create_backend_handler()
 
         self.log_monitors = {}
 
@@ -305,17 +297,25 @@ class StandaloneHandler:
             logger.debug("Dismantle {} for {}".format(backend.get_instance_id(), backend.get_ip_address()))
             backend.stop()
 
-    def create(self, lock, name_prefix, name_suffix):
+    def create_backend_handler(self, instance_id = None, ip_address = None):
         try:
             sb_module = importlib.import_module(self.module_location)
             StandaloneBackend = getattr(sb_module, 'StandaloneBackend')
             backend = StandaloneBackend(self.config[self.backend_name])
+            if (instance_id != None):
+                backend.set_instance_id(instance_id)
+            if (ip_address != None):
+                backend.set_ip_address(ip_address)
 
         except Exception as e:
             logger.error("There was an error trying to create the "
                          "{} standalone backend".format(self.backend_name))
             raise e
+        return backend
 
+    def create(self, lock, name_prefix, name_suffix):
+
+        backend = self.create_backend_handler()
         backend.create(name_prefix, name_suffix)
 
         if lock is not None:
@@ -374,7 +374,8 @@ class StandaloneHandler:
         cmd += 'apt-get install unzip python3-pip -y >> /tmp/lithops/proxy.log; '
         cmd += 'touch /tmp/lithops/aptdone1.txt; '
         cmd += 'pip3 install flask gevent pika==0.13.1 ibm-vpc==0.3.0 namegenerator >> /tmp/lithops/proxy.log; '
-        cmd += 'touch /tmp/lithops/aptdone2.txt; '
+        cmd += 'touch {}/access.data; '.format(REMOTE_INSTALL_DIR)
+        cmd += 'echo "{} {}" > {}/access.data'.format(backend.get_ip_address(), backend.get_instance_id(), REMOTE_INSTALL_DIR)
         logger.debug('Executing 1st ssh for Lithops proxy to VM instance {}'.format(ip_address))
         ssh_client.run_remote_command(ip_address, cmd, timeout=300)
         logger.debug('Completed 1st ssh for Lithops proxy to VM instance {}'.format(ip_address))
