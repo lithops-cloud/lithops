@@ -274,6 +274,9 @@ class StandaloneHandler:
             out = backend.get_ssh_client().run_remote_command(backend.get_ip_address(), cmd)
             runtime_meta = json.loads(out)
 
+        if not self.provided_backed:
+            backend.stop()
+
         return runtime_meta
 
     def get_runtime_key(self, runtime_name):

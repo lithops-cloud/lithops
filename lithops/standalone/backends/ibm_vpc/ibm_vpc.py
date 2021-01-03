@@ -23,7 +23,7 @@ class IBMVPCInstanceClient:
         self.region = self.endpoint.split('//')[1].split('.')[0]
 
         #optional, create VM will update new instance id
-        self.instance_id = self.config['instance_id']
+        self.instance_id = self.config.get('instance_id', None)
         #optional, create VM will update new virtual ip address
         self.ip_address = self.config.get('ip_address', None)
 
@@ -143,6 +143,7 @@ class IBMVPCInstanceClient:
         return "lithops-" + namegenerator.gen() + "-" + r_type
 
     def _create_instance(self, job_key, call_id):
+        logger.debug("__create_instance {} {} - start".format(job_key, call_id))
         # security_group_identity_model = {'id': 'r006-2d3cc459-bb8b-4ec6-a5fb-28e60c9f7d7b'}
         security_group_identity_model = {'id': self.config['security_group_id']}
 
@@ -174,7 +175,12 @@ class IBMVPCInstanceClient:
         instance_prototype_model['boot_volume_attachment'] = volume_attachment_prototype_instance_by_image
         instance_prototype_model['primary_network_interface'] = network_interface_prototype_model
 
-        response = self.service.create_instance(instance_prototype_model)
+        try:
+            logger.debug("Creating instance for {} {}".format(job_key, call_id))
+            response = self.service.create_instance(instance_prototype_model)
+        except Exception as e:
+            logger.warn(e)
+            raise e
         return response.result
         
     def _create_and_attach_floating_ip(self, instance, job_key, call_id):
@@ -275,7 +281,13 @@ class IBMVPCInstanceClient:
         self.instance_id = None
 
         #check if VSI exists
-        all_instances = self.service.list_instances().get_result()['instances']
+        try:
+            resp = self.service.list_instances()
+            all_instances = resp.get_result()['instances']
+        except Exception as e:
+            logger.warn(e)
+            raise e
+
         vsi_exists = False
         for instance in all_instances:
             if instance['name'] == self._generate_name('instance', job_key, call_id):
