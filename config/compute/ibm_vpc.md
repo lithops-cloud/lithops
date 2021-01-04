@@ -178,22 +178,19 @@ Edit your lithops config and add the relevant keys:
 If you need to create new VM, then follow the steps to create and update Lithops configuration:
 
 1. Create an Ubuntu 20.04 virtual server instance (VM) in [IBM VPC virtual server instances UI](https://cloud.ibm.com/vpc-ext/compute/vs) with CPUs and RAM needed for your application.
-
 2. Reserve and associate a floating IP address in [IBM VPC floating IPs UI](https://cloud.ibm.com/vpc-ext/network/floatingIPs) to be used for the virtual server instance.
-
 3. Get the floating IP address of your virtual server instance which can be found [here](https://cloud.ibm.com/vpc-ext/network/floatingIPs).
-
 4. Get the endpoint of your subnet region, endpoint URLs list can be found [here](https://cloud.ibm.com/apidocs/vpc#endpoint-url).
-
 5. Get the virtual server instance ID by selecting on your instance in [IBM VPC virtual server instances UI](https://cloud.ibm.com/vpc-ext/compute/vs) and then extracting from the instance's details.
 
-### Veiwing invocation logs
+### Viewing the invocation logs
 
 You can view the executions logs in your local machine using the *lithops client*:
 
 ```bash
 $ lithops logs poll
 ```
+
 ## Summary of the configuration keys
 
 |Group|Key|Default|Mandatory|Additional info|
