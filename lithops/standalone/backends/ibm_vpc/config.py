@@ -4,6 +4,11 @@ MANDATORY_PARAMETERS_CREATE = ['endpoint', 'security_group_id', 'subnet_id', 'ke
 
 MANDATORY_PARAMETERS_OPERATE = ['endpoint', 'instance_id', 'ip_address']
 
+def _is_auto_create_mode(config_data):
+    if 'exec_mode' in config_data['standalone'] and config_data['standalone']['exec_mode'] == 'create':
+        return True
+    return False
+
 def load_config(config_data):
     section = 'ibm_vpc'
 
@@ -12,7 +17,7 @@ def load_config(config_data):
     else:
         msg = 'IBM IAM api key is mandatory in ibm section of the configuration'
         raise Exception(msg)
-    if 'exec_mode' in config_data['standalone'] and config_data['standalone']['exec_mode'] == 'create':
+    if _is_auto_create_mode(config_data):
         for param in MANDATORY_PARAMETERS_CREATE:
             if param not in config_data[section]:
                 msg = '{} is mandatory in {} section of the configuration'.format(param, section)
@@ -37,5 +42,7 @@ def load_config(config_data):
     if 'profile_name' not in config_data[section]:
         config_data[section]['profile_name'] = 'bx2-8x32'
 
-    if 'delete_on_dismantle' not in config_data[section]:
+    if _is_auto_create_mode(config_data) and 'delete_on_dismantle' not in config_data[section]:
+        config_data[section]['delete_on_dismantle'] = True
+    else:
         config_data[section]['delete_on_dismantle'] = False
