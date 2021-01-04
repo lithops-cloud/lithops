@@ -166,7 +166,6 @@ Edit your lithops config and add the relevant keys:
 
 	standalone:
 		backend: ibm_vpc
-		exec_mode: create
 
    ibm_vpc:
 		endpoint    : <REGION_ENDPOINT>
