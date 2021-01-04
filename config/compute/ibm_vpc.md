@@ -27,9 +27,9 @@ The partitioning logic on number of VMs is based on the input dataset and is the
 		return x + 7
 
 	if __name__ == '__main__':
-		pw lithops.FunctionExecutor()
-		pw.map(my_map_function, iterdata)
-		print (pw.get_result())
+		fexec = lithops.FunctionExecutor()
+		fexec.map(my_map_function, iterdata)
+		print (fexec.get_result())
 
 The input set is of length 4. Lithops in the auto create mode, will create 4 different VMs so each VM will execute `my_map_function` with different values of the `iterdata`.
 
@@ -110,9 +110,9 @@ To verify auto create mode is working, use the following example
 		return x + 7
 
 	if __name__ == '__main__':
-		pw lithops.FunctionExecutor()
-		pw.map(my_map_function, iterdata)
-		print (pw.get_result())
+		fexec = lithops.FunctionExecutor()
+		fexec.map(my_map_function, iterdata)
+		print (fexec.get_result())
 
 This will create a single VM instance and execute `my_map_function` in the created VM. Upon completion, Lithops will delete the VM.
 
@@ -131,9 +131,9 @@ To verify auto create mode is working, use the following example
 		return x + 7
 
 	if __name__ == '__main__':
-		pw lithops.FunctionExecutor()
-		pw.map(my_map_function, iterdata)
-		print (pw.get_result())
+		fexec = lithops.FunctionExecutor()
+		fexec.map(my_map_function, iterdata)
+		print (fexec.get_result())
 
 This will create 4 different VM instance and execute `my_map_function` in the each of created VM. Upon completion, Lithops will delete the VMs.
 
@@ -147,9 +147,9 @@ In this mode, Lithops can start and stop existing VM and deploy an entire job to
 		return x + 7
 
 	if __name__ == '__main__':
-		pw lithops.FunctionExecutor()
-		pw.map(my_map_function, iterdata)
-		print (pw.get_result())
+		fexec = lithops.FunctionExecutor()
+		fexec.map(my_map_function, iterdata)
+		print (fexec.get_result())
 
 The input set is of length 4. Lithops in the standalone mode, will start a single VM and invoke 4 different Docker containers, each executing `my_map_function` with different values of the `iterdata`.
 
