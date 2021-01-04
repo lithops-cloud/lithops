@@ -183,7 +183,7 @@ If you need to create new VM, then follow the steps to create and update Lithops
 4. Get the endpoint of your subnet region, endpoint URLs list can be found [here](https://cloud.ibm.com/apidocs/vpc#endpoint-url).
 5. Get the virtual server instance ID by selecting on your instance in [IBM VPC virtual server instances UI](https://cloud.ibm.com/vpc-ext/compute/vs) and then extracting from the instance's details.
 
-### Viewing the invocation logs
+## Viewing the invocation logs
 
 You can view the executions logs in your local machine using the *lithops client*:
 
@@ -211,4 +211,4 @@ $ lithops logs poll
 |ibm_vpc | zone_name | | yes | Zone name |
 |ibm_vpc | volume_tier_name | | no | Virtual machine volume tier |
 |ibm_vpc | profile_name | | no | Virtual machine profile name |
-|ibm_vpc | delete_on_dismantle | | no | If True delete VM resource when dismantled |
+|ibm_vpc | delete_on_dismantle | True if auto create mode, otherwise False| no | If True delete VM resource when dismantled |
