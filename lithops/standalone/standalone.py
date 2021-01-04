@@ -373,9 +373,7 @@ class StandaloneHandler:
         cmd += 'sudo rm /var/lib/apt/lists/* -vf; '
         cmd += 'apt-get clean; '
         cmd += 'apt-get update >> /tmp/lithops/proxy.log; '
-        cmd += 'touch /tmp/lithops/aptdone.txt; '
         cmd += 'apt-get install unzip python3-pip -y >> /tmp/lithops/proxy.log; '
-        cmd += 'touch /tmp/lithops/aptdone1.txt; '
         cmd += 'pip3 install flask gevent pika==0.13.1 ibm-vpc==0.3.0 namegenerator >> /tmp/lithops/proxy.log; '
         cmd += 'touch {}/access.data; '.format(REMOTE_INSTALL_DIR)
         cmd += 'echo "{} {}" > {}/access.data'.format(backend.get_ip_address(), backend.get_instance_id(), REMOTE_INSTALL_DIR)

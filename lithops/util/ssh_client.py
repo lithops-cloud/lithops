@@ -22,13 +22,12 @@ class SSHClient():
 
     def run_remote_command(self, ip_address, cmd, timeout=None, background=False):
         if (self.ssh_client == None):
-            logger.debug("{} is not in ssh clients".format(ip_address))
             self.ssh_client = self.create_client(ip_address, timeout)
             logger.debug("{} ssh client created".format(ip_address))
 
         try:
             stdin, stdout, stderr = self.ssh_client.exec_command(cmd)
-            logger.debug("{} executed  ".format(ip_address))
+            logger.debug("ssh executed against {} ".format(ip_address))
         except Exception as e:
             logger.warning(e)
             self.ssh_client = self.create_client(ip_address, timeout)
