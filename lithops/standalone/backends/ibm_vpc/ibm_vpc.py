@@ -38,33 +38,18 @@ class IBMVPCInstanceClient:
         from lithops.util.ssh_client import SSHClient
         self.ssh_client = SSHClient(self.ssh_credentials)
 
-        self.session = requests.session()
-
         iam_api_key = self.config.get('iam_api_key')
 
         authenticator = IAMAuthenticator(iam_api_key)
         self.service = VpcV1('2020-06-02', authenticator=authenticator)
         self.service.set_service_url(self.config['endpoint'] + '/v1')
 
-        token = self.config.get('token', None)
-        token_expiry_time = self.config.get('token_expiry_time', None)
-        api_key_type = 'IAM'
-        self.iam_token_manager = IBMTokenManager(iam_api_key, api_key_type, token, token_expiry_time)
-
-        headers = {'content-type': 'application/json'}
         default_user_agent = self.session.headers['User-Agent']
-        headers['User-Agent'] = default_user_agent + ' {}'.format(self.config['user_agent'])
-        self.session.headers.update(headers)
-
-        adapter = requests.adapters.HTTPAdapter()
-        self.session.mount('https://', adapter)
+        user_agent_string = default_user_agent + ' {}'.format(self.config['user_agent'])
+        self.service._set_user_agent_header(user_agent_string)
 
         msg = COMPUTE_CLI_MSG.format('IBM VPC')
         logger.info("{} - Region: {} - Host: {}".format(msg, self.region, self.ip_address))
-
-    def _authorize_session(self):
-        self.config['token'], self.config['token_expiry_time'] = self.iam_token_manager.get_token()
-        self.session.headers['Authorization'] = 'Bearer ' + self.config['token']
 
     def get_ssh_credentials(self):
         return self.ssh_credentials
@@ -72,36 +57,8 @@ class IBMVPCInstanceClient:
     def get_ssh_client(self):
         return self.ssh_client
 
-    def get_instance(self):
-        url = '/'.join([self.endpoint, 'v1', 'instances', self.instance_id
-                        + f'?version={self.config["version"]}&generation={self.config["generation"]}'])
-        self._authorize_session()
-        res = self.session.get(url)
-        return res.json()
-
     def get_ip_address(self):
-        if self.ip_address:
-            return self.ip_address
-        else:
-            if not self.instance_data:
-                self.instance_data = self.get_instance()
-            network_interface_id = self.instance_data['primary_network_interface']['id']
-
-            url = '/'.join([self.endpoint, 'v1', 'floating_ips'
-                            + f'?version={self.config["version"]}&generation={self.config["generation"]}'])
-            self._authorize_session()
-            res = self.session.get(url)
-            floating_ips_info = res.json()
-
-            ip_address = None
-            for floating_ip in floating_ips_info['floating_ips']:
-                if floating_ip['target']['id'] == network_interface_id:
-                    ip_address = floating_ip['address']
-
-            if ip_address is None:
-                raise Exception('Could not find the public IP address')
-
-        return ip_address
+        return self.ip_address
 
     def get_instance_id(self):
         return self.instance_id
@@ -111,30 +68,6 @@ class IBMVPCInstanceClient:
 
     def set_ip_address(self, ip_address):
         self.ip_address = ip_address
-
-    def create_instance_action(self, action):
-        if action in ['start', 'reboot']:
-            expected_status = 'running'
-        elif action == 'stop':
-            expected_status = 'stopped'
-        else:
-            msg = 'An error occurred cant create instance action \"{}\"'.format(action)
-            raise Exception(msg)
-
-        url = '/'.join([self.config['endpoint'], 'v1', 'instances', self.config['instance_id'],
-                        f'actions?version={self.config["version"]}&generation={self.config["generation"]}'])
-        self._authorize_session()
-        res = self.session.post(url, json={'type': action})
-        resp_text = res.json()
-
-        if res.status_code != 201:
-            msg = 'An error occurred creating instance action {}: {}'.format(action, resp_text['errors'])
-            raise Exception(msg)
-
-        self.instance_data = self.get_instance()
-        while self.instance_data['status'] != expected_status:
-            time.sleep(1)
-            self.instance_data = self.get_instance()
 
     def _generate_name(self, r_type, job_key, call_id):
         if (job_key != None and call_id != None):
