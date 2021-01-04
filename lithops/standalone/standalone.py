@@ -200,7 +200,7 @@ class StandaloneHandler:
         Run the job description against the selected environment
         """
         if self.provided_backed:
-            return self._single_invoke(self.backends[0], self.backends[0].get_ip_address(), job_payload)
+            return self._single_invoke(self.backends[0], job_payload)
         else:
             executor_id = job_payload['executor_id']
             job_id = job_payload['job_id']
