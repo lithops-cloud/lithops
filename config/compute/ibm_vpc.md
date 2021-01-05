@@ -122,6 +122,7 @@ This will create a single VM instance and execute `my_map_function` in the creat
 1. The first time you use Lithops with specific runtime, Lithops will try generate and obtain runtime metadata. For this purpose Lithops will create a VM, extract specific metadata and delete VM. All further executions against same runtime will skip this step as runtime metadata will be cached both locally and in IBM COS.
 2. In certain cases where ssh access details are wrong, Lithops might fail to ssh into created VM from the previous step. In this case, fix the ssh access credentials, navigate into dashboard of IBM VPC and manually delete the VM and floating IP associated with it.
 3.	The first time you deplopy Lithops job in the auto create mode it is advised to navigate to dashboard of IBM VPC and verify that VM is being created and deleted.
+4. If running Lithops over Gen2 fails with error message that decode() in pyJWT need `algorithms` then please make sure pyJWT is version `1.7.1` installed. If needed execute `pip install -U PyJWT==1.7.1`
 
 ### Verify auto create mode with Lithops with multiple VMs
 
