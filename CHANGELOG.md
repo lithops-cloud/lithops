@@ -4,6 +4,7 @@
 
 ### Added
 - [Joblib] Joblib backend upgraded
+- [AWS Lambda] Support for container-based runtimes
 
 ### Fixed
 - [Core] Fixed issue in clean when it is called between wait and get_result

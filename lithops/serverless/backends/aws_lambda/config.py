@@ -15,6 +15,7 @@
 #
 
 import sys
+import shutil
 from lithops.utils import version_str
 
 NUMERICS_LAYERS = {
@@ -45,6 +46,8 @@ DEFAULT_REQUIREMENTS = [
     'redis',
     'pika==0.13.1'
 ]
+
+DOCKER_PATH = shutil.which('docker')
 
 DEFAULT_RUNTIMES = ['python3.6', 'python3.7', 'python3.8']
 
