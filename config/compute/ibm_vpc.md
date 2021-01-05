@@ -98,7 +98,7 @@ Your lithops config ibm_vpc section should now look like:
 	  volume_tier_name: 10iops-tier
 	  profile_name: bx2-8x32
 
-    ```
+   ```
 
 ### Verify auto create mode with Lithops
 
