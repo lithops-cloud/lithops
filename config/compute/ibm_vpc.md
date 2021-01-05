@@ -84,7 +84,6 @@ The fastest way to find all the required keys for `ibm_vpc` section as follows:
 Your lithops config ibm_vpc section should now look like:
 
     ```yaml
-
     ibm_vpc:
 	  endpoint: https://us-south.iaas.cloud.ibm.com
 	  ssh_user: <SSH USER>
@@ -126,7 +125,6 @@ This will create a single VM instance and execute `my_map_function` in the creat
 
 To verify auto create mode is working, use the following example
 
-	```python
 	iterdata = [1,2,3,4]
 
 	def my_map_function(x):
@@ -136,8 +134,6 @@ To verify auto create mode is working, use the following example
 	  fexec = lithops.FunctionExecutor()
 	  fexec.map(my_map_function, iterdata)
 	  print (fexec.get_result())
-	  
-	```
 
 This will create 4 different VM instance and execute `my_map_function` in the each of created VM. Upon completion, Lithops will delete the VMs.
 
