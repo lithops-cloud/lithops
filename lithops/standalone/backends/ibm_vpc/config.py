@@ -44,5 +44,5 @@ def load_config(config_data):
 
     if _is_auto_create_mode(config_data) and 'delete_on_dismantle' not in config_data[section]:
         config_data[section]['delete_on_dismantle'] = True
-    else:
+    elif 'delete_on_dismantle' not in config_data[section]:
         config_data[section]['delete_on_dismantle'] = False
