@@ -98,7 +98,8 @@ Your lithops config ibm_vpc section should now look like:
 	  volume_tier_name: 10iops-tier
 	  profile_name: bx2-8x32
 
-   ```
+	```
+
 
 ### Verify auto create mode with Lithops
 
@@ -113,6 +114,7 @@ To verify auto create mode is working, use the following example
 	  fexec = lithops.FunctionExecutor()
 	  fexec.map(my_map_function, iterdata)
 	  print (fexec.get_result())
+
 
 This will create a single VM instance and execute `my_map_function` in the created VM. Upon completion, Lithops will delete the VM.
 
