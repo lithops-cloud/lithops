@@ -24,12 +24,12 @@ The partitioning logic on number of VMs is based on the input dataset and is the
 	iterdata = [1, 2, 3, 4]
 
 	def my_map_function(x):
-		return x + 7
+	  return x + 7
 
 	if __name__ == '__main__':
-		fexec = lithops.FunctionExecutor()
-		fexec.map(my_map_function, iterdata)
-		print (fexec.get_result())
+	  fexec = lithops.FunctionExecutor()
+	  fexec.map(my_map_function, iterdata)
+	  print (fexec.get_result())
 
 The input set is of length 4. Lithops in the auto create mode, will create 4 different VMs so each VM will execute `my_map_function` with different values of the `iterdata`.
 
@@ -39,28 +39,28 @@ Edit your lithops config and add the relevant keys:
 
    ```yaml
    lithops:
-		mode: standalone
+	  mode: standalone
 
    ibm:
-		iam_api_key: <iam-api-key>
+	  iam_api_key: <iam-api-key>
 
 	standalone:
-		backend: ibm_vpc
-		exec_mode: create
+	  backend: ibm_vpc
+	  exec_mode: create
 
    ibm_vpc:
-		endpoint: <REGION_ENDPOINT>
-		ssh_user: <SSH USER>
-		ssh_key_filename: <PATH TO id_rsa.pub>
-		security_group_id: <SECURITY_GROUP_ID>
-		subnet_id: <SUBNET_ID>
-		key_id: <PUBLIC_KEY_ID>
-		resource_group_id: <RESOURCE_GROUP_ID>
-		vpc_id: <VPC_ID>
-		image_id: <IMAGE_ID>
-		zone_name: <ZONE_NAME>
-		volume_tier_name: <VOLUME_TIER_NAME>  # Optional
-		profile_name: <PROFILE_NAME>  # Optional
+	  endpoint: <REGION_ENDPOINT>
+	  ssh_user: <SSH USER>
+	  ssh_key_filename: <PATH TO id_rsa.pub>
+	  security_group_id: <SECURITY_GROUP_ID>
+	  subnet_id: <SUBNET_ID>
+	  key_id: <PUBLIC_KEY_ID>
+	  resource_group_id: <RESOURCE_GROUP_ID>
+	  vpc_id: <VPC_ID>
+	  image_id: <IMAGE_ID>
+	  zone_name: <ZONE_NAME>
+	  volume_tier_name: <VOLUME_TIER_NAME>  # Optional
+	  profile_name: <PROFILE_NAME>  # Optional
 
    ```
 
@@ -86,18 +86,18 @@ Your lithops config ibm_vpc section should now look like:
     ```yaml
 
     ibm_vpc:
-		endpoint: https://us-south.iaas.cloud.ibm.com
-		ssh_user: <SSH USER>
-		ssh_key_filename: <PATH TO id_rsa.pub>
-		security_group_id: r006-2d3cc459-bb8b-4ec6-a5fb-28e60c9f7d7b
-		subnet_id: 0737-bbc80a8f-d46a-4cc6-8a5a-991daa5fc914
-		key_id: r006-14719c2a-80cf-4043-8018-fa22d4ce1337
-		resource_group_id: 8145289ddf7047ea93fd2835de391f43
-		vpc_id: r006-afdd7b5d-059f-413f-a319-c0a38ef46824
-		image_id: r006-988caa8b-7786-49c9-aea6-9553af2b1969
-		zone_name: us-south-3
-		volume_tier_name: 10iops-tier
-		profile_name: bx2-8x32
+	  endpoint: https://us-south.iaas.cloud.ibm.com
+	  ssh_user: <SSH USER>
+	  ssh_key_filename: <PATH TO id_rsa.pub>
+	  security_group_id: r006-2d3cc459-bb8b-4ec6-a5fb-28e60c9f7d7b
+	  subnet_id: 0737-bbc80a8f-d46a-4cc6-8a5a-991daa5fc914
+	  key_id: r006-14719c2a-80cf-4043-8018-fa22d4ce1337
+	  resource_group_id: 8145289ddf7047ea93fd2835de391f43
+	  vpc_id: r006-afdd7b5d-059f-413f-a319-c0a38ef46824
+	  image_id: r006-988caa8b-7786-49c9-aea6-9553af2b1969
+	  zone_name: us-south-3
+	  volume_tier_name: 10iops-tier
+	  profile_name: bx2-8x32
     ```
 
 ### Verify auto create mode with Lithops
@@ -107,12 +107,12 @@ To verify auto create mode is working, use the following example
 	iterdata = [1]
 
 	def my_map_function(x):
-		return x + 7
+	  return x + 7
 
 	if __name__ == '__main__':
-		fexec = lithops.FunctionExecutor()
-		fexec.map(my_map_function, iterdata)
-		print (fexec.get_result())
+	  fexec = lithops.FunctionExecutor()
+	  fexec.map(my_map_function, iterdata)
+	  print (fexec.get_result())
 
 This will create a single VM instance and execute `my_map_function` in the created VM. Upon completion, Lithops will delete the VM.
 
@@ -128,12 +128,12 @@ To verify auto create mode is working, use the following example
 	iterdata = [1,2,3,4]
 
 	def my_map_function(x):
-		return x + 7
+	  return x + 7
 
 	if __name__ == '__main__':
-		fexec = lithops.FunctionExecutor()
-		fexec.map(my_map_function, iterdata)
-		print (fexec.get_result())
+	  fexec = lithops.FunctionExecutor()
+	  fexec.map(my_map_function, iterdata)
+	  print (fexec.get_result())
 
 This will create 4 different VM instance and execute `my_map_function` in the each of created VM. Upon completion, Lithops will delete the VMs.
 
@@ -144,12 +144,12 @@ In this mode, Lithops can start and stop existing VM and deploy an entire job to
 	iterdata = [1, 2, 3, 4]
 
 	def my_map_function(x):
-		return x + 7
+	  return x + 7
 
 	if __name__ == '__main__':
-		fexec = lithops.FunctionExecutor()
-		fexec.map(my_map_function, iterdata)
-		print (fexec.get_result())
+	  fexec = lithops.FunctionExecutor()
+	  fexec.map(my_map_function, iterdata)
+	  print (fexec.get_result())
 
 The input set is of length 4. Lithops in the standalone mode, will start a single VM and invoke 4 different Docker containers, each executing `my_map_function` with different values of the `iterdata`.
 
@@ -159,20 +159,20 @@ Edit your lithops config and add the relevant keys:
 
    ```yaml
    lithops:
-		mode: standalone
+	  mode: standalone
 
    ibm:
-		iam_api_key: <iam-api-key>
+	  iam_api_key: <iam-api-key>
 
 	standalone:
-		backend: ibm_vpc
+	  backend: ibm_vpc
 
    ibm_vpc:
-		endpoint    : <REGION_ENDPOINT>
-		ssh_user: <SSH USER>
-		ssh_key_filename: <PATH TO id_rsa.pub>
-		ip_address  : <FLOATING IP ADDRESS OF THE VM>
-		instance_id : <INSTANCE ID OF THE VM>
+	  endpoint    : <REGION_ENDPOINT>
+	  ssh_user: <SSH USER>
+	  ssh_key_filename: <PATH TO id_rsa.pub>
+	  ip_address  : <FLOATING IP ADDRESS OF THE VM>
+	  instance_id : <INSTANCE ID OF THE VM>
 
    ```
 If you need to create new VM, then follow the steps to create and update Lithops configuration:
