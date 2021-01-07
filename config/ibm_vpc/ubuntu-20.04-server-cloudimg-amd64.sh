@@ -1,7 +1,7 @@
 curl -O https://cloud-images.ubuntu.com/releases/focal/release/ubuntu-20.04-server-cloudimg-amd64.img
-sudo apt-get update
-sudo apt-get upgrade
-sudo apt-get install libguestfs-tools expect
+sudo apt-get update -y
+#sudo apt-get upgrade -y
+sudo apt-get install libguestfs-tools expect -y
 sudo chmod 0644 /boot/vmlinuz*
 virt-df -h -a ubuntu-20.04-server-cloudimg-amd64.img
 
