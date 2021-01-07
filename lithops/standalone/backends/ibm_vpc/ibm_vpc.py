@@ -39,6 +39,7 @@ class IBMVPCInstanceClient:
         self.ssh_client = SSHClient(self.ssh_credentials)
 
         iam_api_key = self.config.get('iam_api_key')
+        self.custom_image = self.config.get('custom_lithops_image')
 
         authenticator = IAMAuthenticator(iam_api_key)
         self.service = VpcV1('2020-06-02', authenticator=authenticator)
@@ -53,6 +54,9 @@ class IBMVPCInstanceClient:
 
     def get_ssh_credentials(self):
         return self.ssh_credentials
+
+    def is_custom_image(self):
+        return self.custom_image
 
     def get_ssh_client(self):
         return self.ssh_client

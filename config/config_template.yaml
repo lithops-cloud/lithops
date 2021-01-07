@@ -59,6 +59,7 @@ lithops:
     #resource_group_id: <RESOURCE_GROUP_ID>
     #vpc_id: <VPC_ID>
     #image_id: <IMAGE_ID>
+    #custom_lithops_image: <True/False> # Optional
     #zone_name: <ZONE_NAME>
     #volume_tier_name: <VOLUME_TIER_NAME>  # Optional
     #profile_name: <PROFILE_NAME>  # Optional

@@ -37,6 +37,9 @@ class VMClient:
     def set_ip_address(self, ip_address):
         self.ip_address = ip_address
 
+    def is_custom_image(self):
+        return False
+
     def start(self):
         pass
 

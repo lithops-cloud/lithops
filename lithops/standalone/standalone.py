@@ -369,19 +369,20 @@ class StandaloneHandler:
         os.remove(FH_ZIP_LOCATION_IP)
 
         # Install dependenices
+        if not backend.is_custom_image():
+            cmd = 'mkdir -p /tmp/lithops; '
+            cmd += 'sudo rm /var/lib/apt/lists/* -vf; '
+            cmd += 'apt-get clean; '
+            cmd += 'apt-get update >> /tmp/lithops/proxy.log; '
+            cmd += 'apt-get install unzip python3-pip -y >> /tmp/lithops/proxy.log; '
+            cmd += 'pip3 install flask gevent pika==0.13.1 ibm-vpc==0.3.0 namegenerator >> /tmp/lithops/proxy.log; '
+            logger.debug('Non custom image. Executing initial install for {}'.format(ip_address))
+            ssh_client.run_remote_command(ip_address, cmd, timeout=300)
+
         cmd = 'mkdir -p /tmp/lithops; '
-        cmd += 'sudo rm /var/lib/apt/lists/* -vf; '
-        cmd += 'apt-get clean; '
-        cmd += 'apt-get update >> /tmp/lithops/proxy.log; '
-        cmd += 'apt-get install unzip python3-pip -y >> /tmp/lithops/proxy.log; '
-        cmd += 'pip3 install flask gevent pika==0.13.1 ibm-vpc==0.3.0 namegenerator >> /tmp/lithops/proxy.log; '
         cmd += 'touch {}/access.data; '.format(REMOTE_INSTALL_DIR)
-        cmd += 'echo "{} {}" > {}/access.data'.format(backend.get_ip_address(), backend.get_instance_id(), REMOTE_INSTALL_DIR)
-        logger.debug('Executing 1st ssh for Lithops proxy to VM instance {}'.format(ip_address))
-        ssh_client.run_remote_command(ip_address, cmd, timeout=300)
-        logger.debug('Completed 1st ssh for Lithops proxy to VM instance {}'.format(ip_address))
-        
-        cmd = 'unzip -o /tmp/lithops_standalone.zip -d {} > /dev/null 2>&1; '.format(REMOTE_INSTALL_DIR)
+        cmd += 'echo "{} {}" > {}/access.data; '.format(backend.get_ip_address(), backend.get_instance_id(), REMOTE_INSTALL_DIR)
+        cmd += 'unzip -o /tmp/lithops_standalone.zip -d {} > /dev/null 2>&1; '.format(REMOTE_INSTALL_DIR)
         cmd += 'rm /tmp/lithops_standalone.zip; '
         cmd += 'chmod 644 {}; '.format(service_file)
         # Start proxy service

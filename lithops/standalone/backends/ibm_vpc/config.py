@@ -46,3 +46,6 @@ def load_config(config_data):
         config_data[section]['delete_on_dismantle'] = True
     elif 'delete_on_dismantle' not in config_data[section]:
         config_data[section]['delete_on_dismantle'] = False
+
+    if 'custom_lithops_image' not in config_data[section]:
+        config_data[section]['custom_lithops_image'] = False
