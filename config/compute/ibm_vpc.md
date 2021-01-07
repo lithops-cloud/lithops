@@ -1,6 +1,6 @@
 # Lithops and IBM Virtual Private Cloud
 
-The IBM VPC client of Lithops can provide a truely serverless user experience on top of IBM VPC where Lithops creates new VM instances dynamically in runtime and scale Lithops jobs against generated VMs. Alternatively Lithops can start and stop existing VM instances.
+The IBM VPC client of Lithops can provide a truely serverless user experience on top of IBM VPC where Lithops creates new VSIs (Virtual Server Instance)  dynamically in runtime and scale Lithops jobs against generated VSIs. Alternatively Lithops can start and stop existing VSI instances.
 
 ## IBM VPC
 The assumption that you already familiar with IBM Cloud, have your IBM IAM API key created (you can create new keys [here](https://cloud.ibm.com/iam/apikeys)), have valid IBM COS account, region and resource group.
@@ -15,8 +15,20 @@ Follow [IBM VPC setup](https://cloud.ibm.com/vpc-ext/overview) if you need to cr
 4. Create security group for your resource group. More details [here](https://cloud.ibm.com/vpc-ext/network/securityGroups)
 5. Create a SSH key in [IBM VPC SSH keys UI](https://cloud.ibm.com/vpc-ext/compute/sshKeys)
 
+## Choose operatnio system images for VSI
+Any Virtual Service Instance (VSI) need to define the instance’s operating system and version.  Lihops support both standard operation system choices provided by the VPC or using pre-defined custom images that already contains all dependencies required by Lithops.
 
-## Lithops and the VM auto create mode
+### Using standard operation system images
+In this case, no further action required and you can continue to the next step. Lithops will install all required dependecies in the VSI by itself. Notice this can consume about 3 min to complete all installations.
+
+### Using custom operation system images
+This is preferable approach, as using pre-built custom image will greatly improve time that of VSI creation for Lithops jobs. To benefit from this approach, follow the following steps
+
+1. Execute [script](../ibm_vpc/ubuntu-20.04-server-cloudimg-amd64.sh). You need Ubuntu machine to run this script and this script will use a base image based on ubuntu-20.04-server-cloudimg-amd64. There is need to have sudo priveleges to run this script. Once script finished it will generate `ubuntu2004srv.qcow2` that contains all dependecies required by Lithops.
+2. Upload `ubuntu2004srv.qcow2` to the IBM COS and place it under root of the bucket
+3. Navigate to IBM VPC dashboard, custom images and follow instructions to create new custom image based on the `ubuntu2004srv.qcow2`
+
+## Lithops and the VSI auto create mode
 In this mode Lithops will automatically, dynamically in runtime create new VM instances, scale Lithops job against generated VMs and automatically delete VMs when job completed.
 
 The partitioning logic on number of VMs is based on the input dataset and is the same logic for other backends.  The following example further demonstrates this
@@ -64,11 +76,18 @@ Edit your lithops config and add the relevant keys:
 
    ```
 
+If you use custom image then update `ibm_vpc` section, by adding new key
+
+	```yaml
+	ibm_vpc:
+	  custom_lithops_image: True
+
+
 The fastest way to find all the required keys for `ibm_vpc` section as follows:
 
 1. Login to IBM Cloud and open up your [dashboard](https://cloud.ibm.com/).
 2. Navigate to your [IBM VPC create instance](https://cloud.ibm.com/vpc-ext/provision/vs).
-3. On the left, fill all the parameters required for your new VM instance creation: name, resource group, location, image, ssh key and vpc
+3. On the left, fill all the parameters required for your new VM instance creation: name, resource group, location, ssh key, vpc. Choose either Ubuntu 20.04 VSI standard image or choose your **custom image** from the previous step
 4. On the right, click `Get sample API call`.
 5. Copy to clipboard the code from the `REST request: Creating a virtual server instance` dialog and paste to your favorite editor.
 6. Close the `Create instance` window without creating it.
