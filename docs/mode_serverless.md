@@ -31,7 +31,7 @@ This new feature enables early preparation of Lithops workers with the map funct
 
 To activate this mode, set to True the "customized_runtime" property under "serverless" section of the config file.
 
-Warning: when using this feature it is highly recommended to avoid using Public Docker hub and use private docker registry instead.
+Warning: to protect your privacy, use a private docker registry instead of public docker hub.
 
 ```
 serverless:
