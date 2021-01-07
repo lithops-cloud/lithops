@@ -464,7 +464,7 @@ class ServerlessInvoker(Invoker):
             self.invokers = []
 
 
-class RealTimeInvoker(ServerlessInvoker):
+class CustomizedRuntimeInvoker(ServerlessInvoker):
     """
     Module responsible to perform the invocations against the serverless backend in realtime environments
     
@@ -477,6 +477,9 @@ class RealTimeInvoker(ServerlessInvoker):
         """
         Extend runtime and run a job described in job_description
         """
+        logger.info("Warning, you are using customized runtime feature. \
+            Please, notice that the map function code and dependencies are stored and uploaded to docker registry. \
+            It is strongly recommended to avoid using public Docker Hub when using this feature.")
         self._extend_runtime(job)
         return super().run(job)
 

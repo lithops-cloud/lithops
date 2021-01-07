@@ -26,7 +26,7 @@ import sys
 import subprocess as sp
 from functools import partial
 
-from lithops.invokers import ServerlessInvoker, StandaloneInvoker, RealTimeInvoker
+from lithops.invokers import ServerlessInvoker, StandaloneInvoker, CustomizedRuntimeInvoker
 
 from lithops.storage import InternalStorage
 from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
@@ -125,8 +125,8 @@ class FunctionExecutor:
             self.compute_handler = ServerlessHandler(serverless_config,
                                                      storage_config)
 
-            if self.config[mode].get('realtime'):
-                self.invoker = RealTimeInvoker(self.config,
+            if self.config[mode].get('customized_runtime'):
+                self.invoker = CustomizedRuntimeInvoker(self.config,
                                            self.executor_id,
                                            self.internal_storage,
                                            self.compute_handler)
