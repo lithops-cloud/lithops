@@ -28,3 +28,15 @@ or with its own executor:
 ```python
     fexec = lithops.ServerlessExecutor()
 ```
+
+### Dynamic runtime customization
+This new feature enables early preparation of Lithops workers with the map function and custom Lithops runtime already deployed, and ready to be used in consequent computations. This can reduce overall map/reduce computation latency significantly, especially when the computation overhead (pickle stage) is long compared to the actual computation performed at the workers.
+
+To activate this mode, set to True the "customized_runtime" property under "serverless" section of the config file.
+
+Warning: to protect your privacy, use a private docker registry instead of public docker hub.
+
+```
+serverless:
+    customized_runtime: True
+```
