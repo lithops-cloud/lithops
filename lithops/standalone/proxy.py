@@ -57,6 +57,7 @@ def budget_keeper():
     global last_usage_time
     global jobs
     global backend_handler
+    global backend_handler_backend
 
     jobs_running = False
 
@@ -72,6 +73,7 @@ def budget_keeper():
         # being started forever due a wrong configuration
         logger.info('Auto dismantle deactivated - Hard Timeout: {}s'
                     .format(backend_handler.hard_dismantle_timeout))
+    logger.info("Jobs keys are {}".format(jobs.keys()))
 
     while True:
         time_since_last_usage = time.time() - last_usage_time
@@ -101,7 +103,7 @@ def budget_keeper():
         else:
             logger.info("Dismantling setup")
             try:
-                backend_handler.backend.stop()
+                backend_handler_backend.stop()
             except Exception as e:
                 logger.info("Dismantle error {}".format(e))
 
@@ -109,12 +111,24 @@ def budget_keeper():
 def init_keeper():
     global keeper
     global backend_handler
+    global backend_handler_backend
 
     config_file = os.path.join(REMOTE_INSTALL_DIR, 'config')
     with open(config_file, 'r') as cf:
         standalone_config = json.load(cf)
 
     backend_handler = StandaloneHandler(standalone_config)
+
+    access_data = os.path.join(REMOTE_INSTALL_DIR, 'access.data')
+    with open(access_data, 'r') as ad:
+        lines = ad.readlines()
+        for line in lines:
+            res = line.strip().split()
+            break
+
+    logger.info("Parsed self IP {} and instance ID {}".format(res[0], res[1]))
+
+    backend_handler_backend = backend_handler.create_backend_handler(res[1], res[0])
     keeper = threading.Thread(target=budget_keeper)
     keeper.daemon = True
     keeper.start()

@@ -23,6 +23,7 @@ import logging
 import importlib
 import requests
 from threading import Thread
+from concurrent.futures import ThreadPoolExecutor
 
 from lithops.utils import is_lithops_worker, create_handler_zip
 from lithops.constants import LOGS_DIR, REMOTE_INSTALL_DIR, FN_LOG_FILE
@@ -64,39 +65,25 @@ class StandaloneHandler:
         self.auto_dismantle = self.config.get('auto_dismantle')
         self.hard_dismantle_timeout = self.config.get('hard_dismantle_timeout')
         self.soft_dismantle_timeout = self.config.get('soft_dismantle_timeout')
+        self.module_location = 'lithops.standalone.backends.{}'.format(self.backend_name)
 
-        try:
-            module_location = 'lithops.standalone.backends.{}'.format(self.backend_name)
-            sb_module = importlib.import_module(module_location)
-            StandaloneBackend = getattr(sb_module, 'StandaloneBackend')
-            self.backend = StandaloneBackend(self.config[self.backend_name])
-
-        except Exception as e:
-            logger.error("There was an error trying to create the "
-                         "{} standalone backend".format(self.backend_name))
-            raise e
+        backend = self.create_backend_handler()
 
         self.log_monitors = {}
 
-        self.ssh_credentials = self.backend.get_ssh_credentials()
-        self.ip_address = self.backend.get_ip_address()
+        self.exec_mode = self.config.get('exec_mode', 'consume')
+        self.backends = []
+        self.provided_backed = False
 
-        from lithops.util.ssh_client import SSHClient
-        self.ssh_client = SSHClient(self.ssh_credentials)
+        if self.exec_mode != 'create' and \
+            backend.get_ip_address() is not None and \
+            backend.get_instance_id() is not None:
+                self.backends.append(backend)
+                self.provided_backed = True
 
         logger.debug("Standalone handler created successfully")
 
-    def _is_backend_ready(self):
-        """
-        Checks if the VM instance is ready to receive ssh connections
-        """
-        try:
-            self.ssh_client.run_remote_command(self.ip_address, 'id', timeout=2)
-        except Exception:
-            return False
-        return True
-
-    def _wait_backend_ready(self):
+    def _wait_backend_ready(self, backend):
         """
         Waits until the VM instance is ready to receive ssh connections
         """
@@ -104,23 +91,26 @@ class StandaloneHandler:
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
-            if self._is_backend_ready():
+            if backend.is_ready():
+                time.sleep(20)
                 return True
-            time.sleep(1)
+            time.sleep(5)
 
         self.dismantle()
         raise Exception('VM readiness probe expired. Check your VM')
 
-    def _start_backend(self):
-        if not self._is_backend_ready():
+    def _start_backend(self, backend):
+        logger.debug("Starting backend {} if not running".format(backend.get_ip_address()))
+        if not backend.is_ready():
             # The VM instance is stopped
+            logger.debug("Backend {} stopped".format(backend.get_ip_address()))
             init_time = time.time()
-            self.backend.start()
-            self._wait_backend_ready()
+            backend.start()
+            self._wait_backend_ready(backend)
             total_start_time = round(time.time()-init_time, 2)
             logger.info('VM instance ready in {} seconds'.format(total_start_time))
 
-    def _is_proxy_ready(self):
+    def _is_proxy_ready(self, backend):
         """
         Checks if the proxy is ready to receive http connections
         """
@@ -133,29 +123,29 @@ class StandaloneHandler:
                 return False
             else:
                 cmd = 'curl -X GET http://127.0.0.1:8080/ping'
-                out = self.ssh_client.run_remote_command(self.ip_address, cmd, timeout=2)
+                out = backend.get_ssh_client().run_remote_command(backend.get_ip_address(), cmd, timeout=2)
                 data = json.loads(out)
                 if data['response'] == 'pong':
                     return True
         except Exception:
             return False
 
-    def _wait_proxy_ready(self):
+    def _wait_proxy_ready(self, backend):
         """
         Waits until the proxy is ready to receive http connections
         """
-        logger.info('Waiting Lithops proxy to become ready')
+        logger.info('Waiting Lithops proxy to become ready for {}'.format(backend.get_ip_address()))
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
-            if self._is_proxy_ready():
+            if self._is_proxy_ready(backend):
                 return True
-            time.sleep(1)
+            time.sleep(10)
 
         self.dismantle()
-        raise Exception('Proxy readiness probe expired. Check your VM')
+        raise Exception('Proxy readiness probe expired for {}. Check your VM'.format(backend.get_ip_address()))
 
-    def _start_log_monitor(self, executor_id, job_id):
+    def _start_log_monitor(self, executor_id, job_id, backend):
         """
         Starts a process that polls the remote log into a local file
         """
@@ -168,7 +158,7 @@ class StandaloneHandler:
             fdout_0 = open(log_file, 'wb')
             fdout_1 = open(FN_LOG_FILE, 'ab')
 
-            ssh_client = self.ssh_client.create_client(self.ip_address)
+            ssh_client = backend.get_ssh_client().create_client(backend.get_ip_address())
             cmd = 'tail -n +1 -F /tmp/lithops/logs/{}.log'.format(job_key)
             stdin, stdout, stderr = ssh_client.exec_command(cmd)
             channel = stdout.channel
@@ -200,24 +190,48 @@ class StandaloneHandler:
             logger.debug('ExecutorID {} | JobID {} - Remote log monitor '
                          'started'.format(executor_id, job_id))
 
+    def _thread_invoke(self,lock, job_key, call_id, job_payload):
+        backend = self.create(lock, job_key, call_id)
+        job_payload['job_description']['call_id'] = call_id
+        self._single_invoke(backend, job_payload)
+
     def run_job(self, job_payload):
         """
         Run the job description against the selected environment
         """
+        if self.provided_backed:
+            return self._single_invoke(self.backends[0], job_payload)
+        else:
+            executor_id = job_payload['executor_id']
+            job_id = job_payload['job_id']
+            job_key = create_job_key(executor_id, job_id)
+            executor = ThreadPoolExecutor(int(job_payload['job_description']['total_calls']))
+            import threading
+            lock = threading.Lock()
+            for i in range(job_payload['job_description']['total_calls']):
+                call_id = "{:05d}".format(i)
+                executor.submit(self._thread_invoke, lock, job_key, call_id, job_payload)
+
+    def _single_invoke(self, backend, job_payload):
+        logger.debug("_single_invoke - Thread invoke for {} ".format(backend.get_ip_address()))
+        ip_address = backend.get_ip_address()
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
         job_key = create_job_key(executor_id, job_id)
         log_file = os.path.join(LOGS_DIR, job_key+'.log')
 
-        if not self._is_proxy_ready():
+        logger.debug("_single_invoke - check if proxy ready for  {} ".format(ip_address))
+        if not self._is_proxy_ready(backend):
+            logger.debug("_single_invoke -  proxy {} stopped".format(ip_address))
             # The VM instance is stopped
             init_time = time.time()
-            self.backend.start()
-            self._wait_proxy_ready()
+            backend.start()
+            self._wait_proxy_ready(backend)
             total_start_time = round(time.time()-init_time, 2)
-            logger.info('VM instance ready in {} seconds'.format(total_start_time))
+            logger.info('_single_invoke - VM instance ready in {} seconds'.format(total_start_time))
 
-        self._start_log_monitor(executor_id, job_id)
+        logger.debug("_single_invoke - before starting log {} ".format(ip_address))
+        self._start_log_monitor(executor_id, job_id, backend)
 
         logger.info('ExecutorID {} | JobID {} - Running job'
                     .format(executor_id, job_id))
@@ -231,7 +245,7 @@ class StandaloneHandler:
             cmd = ('curl -X POST http://127.0.0.1:8080/run -d {} '
                    '-H \'Content-Type: application/json\''
                    .format(shlex.quote(json.dumps(job_payload))))
-            out = self.ssh_client.run_remote_command(self.ip_address, cmd)
+            out = backend.get_ssh_client().run_remote_command(ip_address, cmd)
             response = json.loads(out)
 
         return response['activationId']
@@ -241,9 +255,10 @@ class StandaloneHandler:
         Installs the proxy and extracts the runtime metadata and
         preinstalled modules
         """
-        self._start_backend()
-        self._setup_proxy()
-        self._wait_proxy_ready()
+        if self.provided_backed:
+            backend = self.backends[0]
+        else:
+            backend = self.create(None, 'proxy', runtime)
 
         logger.debug('Extracting runtime metadata information')
         payload = {'runtime': runtime}
@@ -256,8 +271,11 @@ class StandaloneHandler:
             cmd = ('curl http://127.0.0.1:8080/preinstalls -d {} '
                    '-H \'Content-Type: application/json\' -X GET'
                    .format(shlex.quote(json.dumps(payload))))
-            out = self.ssh_client.run_remote_command(self.ip_address, cmd)
+            out = backend.get_ssh_client().run_remote_command(backend.get_ip_address(), cmd)
             runtime_meta = json.loads(out)
+
+        if not self.provided_backed:
+            backend.stop()
 
         return runtime_meta
 
@@ -267,46 +285,53 @@ class StandaloneHandler:
         runtime key. Each backend has its own runtime key format. Used to
         store modules preinstalls into the storage
         """
-        return self.backend.get_runtime_key(runtime_name)
+        if len(self.backends) > 0:
+            return self.backends[0].get_runtime_key(runtime_name)
+        else:
+            # return default
+            return runtime_name.strip("/")
 
     def dismantle(self):
         """
         Stop VM instance
         """
-        self.backend.stop()
+        logger.info("Entering dismantle for length {}".format(len(self.backends)))
+        for backend in self.backends:
+            logger.debug("Dismantle {} for {}".format(backend.get_instance_id(), backend.get_ip_address()))
+            backend.stop()
 
-    def create(self):
-        """
-        Create VM instance
-        Also installs proxy in the VM to minimize risks of having VM unattended
-        """
-        instance_id, ip_address = self.backend.create()
-        self.ip_address = ip_address
-        self.config['instance_id'] = instance_id
+    def create_backend_handler(self, instance_id = None, ip_address = None):
+        try:
+            sb_module = importlib.import_module(self.module_location)
+            StandaloneBackend = getattr(sb_module, 'StandaloneBackend')
+            backend = StandaloneBackend(self.config[self.backend_name])
+            if (instance_id != None):
+                backend.set_instance_id(instance_id)
+            if (ip_address != None):
+                backend.set_ip_address(ip_address)
 
-        # Requires further investigation. If not wait after vm create the create_runtime fails
-        # due to interrupted apt update. Another solution could be to specify all preparations in
-        # user_data and wait with runtime_create until user_data finished the setup
-        time.sleep(120)
+        except Exception as e:
+            logger.error("There was an error trying to create the "
+                         "{} standalone backend".format(self.backend_name))
+            raise e
+        return backend
 
-        runtime_meta = self.create_runtime(self.config['runtime'])
-        runtime_key = self.get_runtime_key(self.config['runtime'])
-        return runtime_key, runtime_meta
-        
-    def init(self):
-        """
-        Start the VM instance and initialize runtime
-        """
-        self._start_backend()
+    def create(self, lock, name_prefix, name_suffix):
 
-        # Not sure if mandatory, but sleep several seconds to let proxy server start
-        time.sleep(2)
+        backend = self.create_backend_handler()
+        backend.create(name_prefix, name_suffix)
 
-        # if proxy not started, install it
-        if not self._is_proxy_ready():
-            self._setup_proxy()
+        if lock is not None:
+            lock.acquire()
+        self.backends.append(backend)
+        if lock is not None:
+            lock.release()
 
-        self._wait_proxy_ready()
+        self._start_backend(backend)
+        self._setup_proxy(backend)
+        self._wait_proxy_ready(backend)
+
+        return backend
 
     def clean(self):
         pass
@@ -314,31 +339,49 @@ class StandaloneHandler:
     def clear(self):
         pass
 
-    def _setup_proxy(self):
-        logger.debug('Installing Lithops proxy in the VM instance')
+    def _setup_proxy(self, backend):
+        ip_address = backend.get_ip_address()
+        logger.debug('Installing Lithops proxy in the VM instance {}'.format(ip_address))
         logger.debug('Be patient, installation process can take up to 3 minutes '
                      'if this is the first time you use the VM instance')
-
+        ssh_client = backend.get_ssh_client()
+        
         service_file = '/etc/systemd/system/{}'.format(PROXY_SERVICE_NAME)
-        self.ssh_client.upload_data_to_file(self.ip_address, PROXY_SERVICE_FILE, service_file)
+        logger.debug('Upload service file {} - started'.format(service_file))
+        ssh_client.upload_data_to_file(ip_address, PROXY_SERVICE_FILE, service_file)
+        logger.debug('Upload service file {} - completed'.format(service_file))
 
+        logger.debug('Reload daemon {} - started'.format(ip_address))
         cmd = 'rm -R {}; mkdir -p {}; '.format(REMOTE_INSTALL_DIR, REMOTE_INSTALL_DIR)
         cmd += 'systemctl daemon-reload; systemctl stop {}; '.format(PROXY_SERVICE_NAME)
-        self.ssh_client.run_remote_command(self.ip_address, cmd)
+        ssh_client.run_remote_command(ip_address, cmd)
+        logger.debug('Reload daemon {} - finished'.format(ip_address))
 
         config_file = os.path.join(REMOTE_INSTALL_DIR, 'config')
-        self.ssh_client.upload_data_to_file(self.ip_address, json.dumps(self.config), config_file)
+        ssh_client.upload_data_to_file(ip_address, json.dumps(self.config), config_file)
 
         src_proxy = os.path.join(os.path.dirname(__file__), 'proxy.py')
-        create_handler_zip(FH_ZIP_LOCATION, src_proxy)
-        self.ssh_client.upload_local_file(self.ip_address, FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip')
-        os.remove(FH_ZIP_LOCATION)
+        FH_ZIP_LOCATION_IP = os.path.join(os.getcwd(), ip_address.replace('.','a') + 'lithops_standalone.zip')
+        create_handler_zip(FH_ZIP_LOCATION_IP, src_proxy)
+        logger.debug('Upload zip file to {} - start'.format(ip_address))
+        ssh_client.upload_local_file(ip_address, FH_ZIP_LOCATION_IP, '/tmp/lithops_standalone.zip')
+        logger.debug('Upload zip file to {} - completed'.format(ip_address))
+        os.remove(FH_ZIP_LOCATION_IP)
 
         # Install dependenices
+        if not backend.is_custom_image():
+            cmd = 'mkdir -p /tmp/lithops; '
+            cmd += 'sudo rm /var/lib/apt/lists/* -vf; '
+            cmd += 'apt-get clean; '
+            cmd += 'apt-get update >> /tmp/lithops/proxy.log; '
+            cmd += 'apt-get install unzip python3-pip -y >> /tmp/lithops/proxy.log; '
+            cmd += 'pip3 install flask gevent pika==0.13.1 ibm-vpc==0.3.0 namegenerator >> /tmp/lithops/proxy.log; '
+            logger.debug('Non custom image. Executing initial install for {}'.format(ip_address))
+            ssh_client.run_remote_command(ip_address, cmd, timeout=300)
+
         cmd = 'mkdir -p /tmp/lithops; '
-        cmd += 'apt-get update >> /tmp/lithops/proxy.log; '
-        cmd += 'apt-get install unzip python3-pip -y >> /tmp/lithops/proxy.log; '
-        cmd += 'pip3 install flask gevent pika==0.13.1 ibm-vpc==0.3.0 namegenerator >> /tmp/lithops/proxy.log; '
+        cmd += 'touch {}/access.data; '.format(REMOTE_INSTALL_DIR)
+        cmd += 'echo "{} {}" > {}/access.data; '.format(backend.get_ip_address(), backend.get_instance_id(), REMOTE_INSTALL_DIR)
         cmd += 'unzip -o /tmp/lithops_standalone.zip -d {} > /dev/null 2>&1; '.format(REMOTE_INSTALL_DIR)
         cmd += 'rm /tmp/lithops_standalone.zip; '
         cmd += 'chmod 644 {}; '.format(service_file)
@@ -347,4 +390,6 @@ class StandaloneHandler:
         cmd += 'systemctl stop {}; '.format(PROXY_SERVICE_NAME)
         cmd += 'systemctl enable {}; '.format(PROXY_SERVICE_NAME)
         cmd += 'systemctl start {}; '.format(PROXY_SERVICE_NAME)
-        self.ssh_client.run_remote_command(self.ip_address, cmd, timeout=300)
+        logger.debug('Executing 2nd ssh for Lithops proxy to VM instance {}'.format(ip_address))
+        ssh_client.run_remote_command(ip_address, cmd, timeout=300)
+        logger.debug('Completed 2nd ssh for Lithops proxy to VM instance {}'.format(ip_address))

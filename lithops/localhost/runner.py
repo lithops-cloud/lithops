@@ -111,11 +111,20 @@ class Runner:
         self.job_queue.put(payload)
 
     def run(self, job_description, log_level):
+        logger.debug("Localhost run method")
+        if 'call_id' not in job_description:
+            job_description['call_id'] = None
+
         job = SimpleNamespace(**job_description)
 
-        for i in range(job.total_calls):
-            call_id = "{:05d}".format(i)
-            self._invoke(job, call_id, log_level)
+        logger.debug("Call id value is {}".format(job.call_id))
+        if (job.call_id is None):
+            for i in range(job.total_calls):
+                call_id = "{:05d}".format(i)
+                self._invoke(job, call_id, log_level)
+        else:
+            logger.debug("Single invoke for call id {}".format(job.call_id))
+            self._invoke(job, job.call_id, log_level)
 
         for i in self.workers:
             self.job_queue.put(ShutdownSentinel())
