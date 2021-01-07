@@ -15,7 +15,7 @@ Follow [IBM VPC setup](https://cloud.ibm.com/vpc-ext/overview) if you need to cr
 4. Create security group for your resource group. More details [here](https://cloud.ibm.com/vpc-ext/network/securityGroups)
 5. Create a SSH key in [IBM VPC SSH keys UI](https://cloud.ibm.com/vpc-ext/compute/sshKeys)
 
-## Choose operatnio system images for VSI
+## Choose operation system images for VSI
 Any Virtual Service Instance (VSI) need to define the instance’s operating system and version.  Lihops support both standard operation system choices provided by the VPC or using pre-defined custom images that already contains all dependencies required by Lithops.
 
 ### Using standard operation system images
@@ -143,7 +143,7 @@ This will create a single VM instance and execute `my_map_function` in the creat
 3.	The first time you deplopy Lithops job in the auto create mode it is advised to navigate to dashboard of IBM VPC and verify that VM is being created and deleted.
 4. If running Lithops over Gen2 fails with error message that decode() in pyJWT need `algorithms` then please make sure pyJWT is version `1.7.1` installed. If needed execute `pip install -U PyJWT==1.7.1`
 
-### Verify auto create mode with Lithops with multiple VMs
+### Verify Lithops auto create mode with multiple VSIs
 
 To verify auto create mode is working, use the following example
 
@@ -199,7 +199,7 @@ Edit your lithops config and add the relevant keys:
    ```
 If you need to create new VM, then follow the steps to create and update Lithops configuration:
 
-1. Create an Ubuntu 20.04 virtual server instance (VM) in [IBM VPC virtual server instances UI](https://cloud.ibm.com/vpc-ext/compute/vs) with CPUs and RAM needed for your application.
+1. Create an Ubuntu 20.04 virtual server instance (VSI) in [IBM VPC virtual server instances UI](https://cloud.ibm.com/vpc-ext/compute/vs) with CPUs and RAM needed for your application.
 2. Reserve and associate a floating IP address in [IBM VPC floating IPs UI](https://cloud.ibm.com/vpc-ext/network/floatingIPs) to be used for the virtual server instance.
 3. Get the floating IP address of your virtual server instance which can be found [here](https://cloud.ibm.com/vpc-ext/network/floatingIPs).
 4. Get the endpoint of your subnet region, endpoint URLs list can be found [here](https://cloud.ibm.com/apidocs/vpc#endpoint-url).
@@ -230,6 +230,7 @@ $ lithops logs poll
 |ibm_vpc | resource_group_id | | yes | Resource group id |
 |ibm_vpc | vpc_id | | yes | VPC id |
 |ibm_vpc | image_id | | yes | Virtual machine image id |
+|ibm_vpc | custom_lithops_image | False | no | If True means image contains all Lithops dependecies |
 |ibm_vpc | zone_name | | yes | Zone name |
 |ibm_vpc | volume_tier_name | | no | Virtual machine volume tier |
 |ibm_vpc | profile_name | | no | Virtual machine profile name |
