@@ -69,7 +69,7 @@ class BaseProcess(object):
     The class is analogous to `threading.Thread`
     """
 
-    def _Popen(self):
+    def _Popen(self, *args, **kwargs):
         raise NotImplementedError
 
     def __init__(self, group=None, target=None, name=None, args=(), kwargs={},

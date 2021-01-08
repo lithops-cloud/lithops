@@ -540,20 +540,3 @@ def wait(object_list, timeout=None):
             if timeout < 0:
                 return ready
         time.sleep(0.1)
-
-
-#
-# Make connection and socket objects sharable if possible
-#
-
-def reduce_connection(conn):
-    df = reduction.DupFd(conn.fileno())
-    return rebuild_connection, (df, conn.readable, conn.writable)
-
-
-def rebuild_connection(df, readable, writable):
-    fd = df.detach()
-    return RedisConnection(fd, readable, writable)
-
-
-reduction.register(RedisConnection, reduce_connection)

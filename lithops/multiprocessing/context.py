@@ -14,7 +14,6 @@
 # limitations under the License.
 #
 
-import sys
 import os
 
 from . import process
@@ -53,6 +52,8 @@ class BaseContext:
 
     current_process = staticmethod(process.current_process)
     active_children = staticmethod(process.active_children)
+
+    reduction = reduction.ForkingPickler
 
     def cpu_count(self):
         raise NotImplementedError()
@@ -230,16 +231,7 @@ class DefaultContext(BaseContext):
         return self._actual_context._name
 
     def get_all_start_methods(self):
-        if sys.platform == 'win32':
-            return ['spawn']
-        else:
-            if reduction.HAVE_SEND_HANDLE:
-                return ['fork', 'spawn', 'forkserver']
-            else:
-                return ['fork', 'spawn']
-
-
-DefaultContext.__all__ = list(x for x in dir(DefaultContext) if x[0] != '_')
+        return ['fork', 'spawn', 'forkserver', 'cloud']
 
 
 #
@@ -271,7 +263,7 @@ _concrete_contexts = {
 _default_context = DefaultContext(_concrete_contexts['cloud'])
 
 
-def get_context(method):
+def get_context(method=None):
     return _default_context.get_context(method)
 
 

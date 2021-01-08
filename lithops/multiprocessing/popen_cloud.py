@@ -28,7 +28,6 @@ class PopenCloud(object):
     method = 'cloud'
 
     def __init__(self, process_obj):
-        util._flush_std_streams()
         self.returncode = None
         self._executor = FunctionExecutor()
         self._launch(process_obj)

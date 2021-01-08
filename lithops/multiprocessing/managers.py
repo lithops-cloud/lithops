@@ -106,8 +106,7 @@ class BaseManager:
     """
     _registry = {}
 
-    def __init__(self, address=None, authkey=None, serializer='pickle',
-                 ctx=None):
+    def __init__(self, address=None, authkey=None, serializer='pickle', ctx=None):
         self._client = util.get_redis_client()
         self._managing = False
         self._mrefs = []
@@ -202,8 +201,6 @@ class BaseProxy:
     def __repr__(self):
         return '<%s object, typeid=%r, key=%r>' % \
                (type(self).__name__, self._typeid, self._oid)
-        # return '<%s object, typeid=%r, key=%r, refcount=%r>' % \
-        #        (type(self).__name__, self._typeid, self._oid, self._refcount())
 
     def __str__(self):
         """

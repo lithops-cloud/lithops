@@ -164,8 +164,12 @@ class Pool(object):
     def Process(self, *args, **kwds):
         return self._ctx.Process(*args, **kwds)
 
-    def __init__(self, processes=None, initializer=None, initargs=(),
+    def __init__(self, processes=None, initializer=None, initargs=None,
                  maxtasksperchild=None, context=None):
+
+        if initargs is None:
+            initargs = {}
+
         self._ctx = context or get_context()
         # self._setup_queues()
         self._taskqueue = queue.Queue()
