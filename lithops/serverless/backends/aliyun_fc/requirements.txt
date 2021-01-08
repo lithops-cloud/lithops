@@ -19,7 +19,7 @@ incremental==17.5.0
 itsdangerous==1.1.0
 Jinja2==2.11.2
 kafka-python==1.4.6
-lxml==4.3.1
+lxml==4.6.2
 MarkupSafe==1.1.1
 # numpy==1.18.3 # its already in Aliyun's python runtime
 pandas==0.24.2
