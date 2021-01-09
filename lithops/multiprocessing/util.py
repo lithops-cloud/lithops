@@ -59,6 +59,14 @@ def log_to_stderr():
 
 
 #
+# Process function wrapper
+#
+
+def func_wrapper(func):
+    pass
+
+
+#
 # Picklable redis client
 #
 

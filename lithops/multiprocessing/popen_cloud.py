@@ -29,7 +29,6 @@ class PopenCloud(object):
 
     def __init__(self, process_obj):
         self.returncode = None
-        self._executor = FunctionExecutor()
         self._launch(process_obj)
 
     def duplicate_for_child(self, fd):

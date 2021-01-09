@@ -1,5 +1,5 @@
 #
-# A higher level module for using sockets (or Windows named pipes)
+# A higher level module for using sockets
 #
 # multiprocessing/connection.py
 #
