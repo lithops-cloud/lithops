@@ -23,7 +23,11 @@ RUN pip install --upgrade setuptools six pip \
         requests \
         PyYAML \
         kubernetes \
-        numpy
+        numpy \
+        cloudpickle \
+        ps-mem \
+        tblib \
+        namegenerator
 
 ENV CONCURRENCY 4
 ENV TIMEOUT 600

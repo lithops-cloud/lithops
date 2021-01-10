@@ -1,4 +1,8 @@
-FROM python:3.7-slim-buster
+FROM python:3.6-slim-buster
+
+#FROM python:3.7-slim-buster
+
+#FROM python:3.8-slim-buster
 
 RUN apt-get update && apt-get install -y \
         zip \
@@ -17,7 +21,10 @@ RUN pip install --upgrade setuptools six pip \
         kubernetes \
         numpy \
         gcsfs \
-        dask[array]
+        cloudpickle \
+        ps-mem \
+        tblib \
+        namegenerator
 
 # Copy Lithops proxy and lib to the container image.
 ENV APP_HOME /lithops
