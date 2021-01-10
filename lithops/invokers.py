@@ -42,8 +42,8 @@ class Invoker:
     """
     Abstract invoker class
     """
-    def __init__(self, config, executor_id, internal_storage, compute_handler):
 
+    def __init__(self, config, executor_id, internal_storage, compute_handler):
         log_level = logger.getEffectiveLevel()
         self.log_active = log_level != logging.WARNING
         self.log_level = LOGGER_LEVEL if not self.log_active else log_level
@@ -89,6 +89,7 @@ class StandaloneInvoker(Invoker):
     """
     Module responsible to perform the invocations against the Standalone backend
     """
+
     def __init__(self, config, executor_id, internal_storage, compute_handler):
         super().__init__(config, executor_id, internal_storage, compute_handler)
 
@@ -222,7 +223,7 @@ class ServerlessInvoker(Invoker):
         in background.
         """
         for inv_id in range(self.INVOKER_PROCESSES):
-            p = self.INVOKER(target=self._run_invoker_process, args=(inv_id, ))
+            p = self.INVOKER(target=self._run_invoker_process, args=(inv_id,))
             self.invokers.append(p)
             p.daemon = True
             p.start()
@@ -363,7 +364,7 @@ class ServerlessInvoker(Invoker):
 
                 if self.ongoing_activations < self.workers:
                     callids = range(job.total_calls)
-                    total_direct = self.workers-self.ongoing_activations
+                    total_direct = self.workers - self.ongoing_activations
                     callids_to_invoke_direct = callids[:total_direct]
                     callids_to_invoke_nondirect = callids[total_direct:]
 
@@ -371,7 +372,7 @@ class ServerlessInvoker(Invoker):
 
                     logger.debug('ExecutorID {} | JobID {} - Free workers: '
                                  '{} - Going to invoke {} function activations'
-                                 .format(job.executor_id,  job.job_id, total_direct,
+                                 .format(job.executor_id, job.job_id, total_direct,
                                          len(callids_to_invoke_direct)))
 
                     def _callback(future):
@@ -457,16 +458,16 @@ class CustomizedRuntimeInvoker(ServerlessInvoker):
         """
         Extend runtime and run a job described in job_description
         """
-        logger.warn("Warning, you are using customized runtime feature. \
-            Please, notice that the map function code and dependencies are stored and uploaded to docker registry. \
-            To protect your privacy, use a private docker registry instead of public docker hub.")
+        logger.warning("Warning, you are using customized runtime feature. "
+                       "Please, notice that the map function code and dependencies "
+                       "are stored and uploaded to docker registry. "
+                       "To protect your privacy, use a private docker registry instead of public docker hub.")
         self._extend_runtime(job)
         return super().run(job)
 
     # If runtime not exists yet, build unique docker image and register runtime
     def _extend_runtime(self, job):
         runtime_memory = self.config['serverless']['runtime_memory']
-        timeout = self.config['serverless']['runtime_timeout']
 
         base_docker_image = self.runtime_name
         uuid = job.ext_runtime_uuid
@@ -477,9 +478,9 @@ class CustomizedRuntimeInvoker(ServerlessInvoker):
 
         runtime_key = self.compute_handler.get_runtime_key(self.runtime_name, runtime_memory)
         runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
-        
+
         if not runtime_meta:
-            timeout = self.config['lithops']['runtime_timeout']
+            timeout = self.config['serverless']['runtime_timeout']
             logger.debug('Creating runtime: {}, memory: {}MB'.format(ext_runtime_name, runtime_memory))
 
             runtime_temorary_directory = '/'.join([LITHOPS_TEMP_DIR, os.path.dirname(job.func_key)])
@@ -491,7 +492,8 @@ class CustomizedRuntimeInvoker(ServerlessInvoker):
             with open(ext_docker_file, 'w') as df:
                 df.write('\n'.join([
                     'FROM {}'.format(base_docker_image),
-                    'ENV PYTHONPATH={}:${}'.format(modules_path,'PYTHONPATH'), # set python path to point to dependencies folder
+                    'ENV PYTHONPATH={}:${}'.format(modules_path, 'PYTHONPATH'),
+                    # set python path to point to dependencies folder
                     'COPY . {}'.format(runtime_temorary_directory)
                 ]))
 
@@ -573,7 +575,7 @@ class JobMonitor:
                     break
 
         logger.debug('ExecutorID {} | JobID {} - Job monitoring finished'
-                     .format(job.executor_id,  job.job_id))
+                     .format(job.executor_id, job.job_id))
 
     def _job_monitoring_rabbitmq(self, job):
         total_callids_done = 0
@@ -594,7 +596,7 @@ class JobMonitor:
                     self.token_bucket_q.put('#')
                 total_callids_done += 1
             if total_callids_done == job.total_calls or \
-               not self.monitors[job_key]['should_run']:
+                    not self.monitors[job_key]['should_run']:
                 ch.stop_consuming()
 
         channel.basic_consume(callback, queue=queue_1, no_ack=True)
