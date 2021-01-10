@@ -18,15 +18,14 @@ import os
 import logging
 import shutil
 import json
-import subprocess as sp
 import sys
-
+import lithops
 import fc2
-from . import config as aliyunfc_config
+
 from lithops.utils import uuid_str, is_lithops_worker, version_str
 from lithops.version import __version__
-import lithops
-from lithops.constants import COMPUTE_CLI_MSG
+from lithops.constants import COMPUTE_CLI_MSG, TEMP
+from . import config as aliyunfc_config
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +47,7 @@ class AliyunFunctionComputeBackend:
         if 'service' in aliyun_fc_config:
             self.service_name = aliyun_fc_config['service']
         else:
-           self.service_name = aliyunfc_config.SERVICE_NAME
+            self.service_name = aliyunfc_config.SERVICE_NAME
 
         self.endpoint = aliyun_fc_config['public_endpoint']
         self.access_key_id = aliyun_fc_config['access_key_id']
@@ -107,7 +106,6 @@ class AliyunFunctionComputeBackend:
                             'does not exist: {}'.format(docker_image_name))
 
         try:
-            logging.basicConfig(level=logging.DEBUG)
             self._create_function_handler_folder(handler_path, is_custom=is_custom)
             metadata = self._generate_runtime_meta(handler_path)
             function_name = self._format_action_name(docker_image_name, memory)
@@ -195,25 +193,16 @@ class AliyunFunctionComputeBackend:
 
             # Add lithops base modules
             logger.debug("Installing base modules (via pip install)")
-            current_location = os.path.dirname(os.path.abspath(__file__))
-            requirements_file = os.path.join(current_location, 'requirements.txt')
+            req_file = os.path.join(TEMP, 'requirements.txt')
+            with open(req_file, 'w') as reqf:
+                reqf.write(aliyunfc_config.REQUIREMENTS_FILE)
 
-            cmd = 'pip3 install -t {} -r {} --no-deps'.format(handler_path, requirements_file)
-            child = sp.Popen(cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE)  # silent
-            child.wait()
-            logger.debug(child.stdout.read().decode())
-            logger.debug(child.stderr.read().decode())
-
-            if child.returncode != 0:
-                cmd = 'pip install -t {} -r {} --no-deps'.format(handler_path, requirements_file)
-                child = sp.Popen(cmd, shell=True, stdout=sp.PIPE, stderr=sp.PIPE)  # silent
-                child.wait()
-                logger.debug(child.stdout.read().decode())
-                logger.debug(child.stderr.read().decode())
-
-                if child.returncode != 0:
-                    logger.critical('Failed to install base modules')
-                    exit(1)
+            cmd = 'pip3 install -t {} -r {} --no-deps'.format(handler_path, req_file)
+            if logger.getEffectiveLevel() != logging.DEBUG:
+                cmd = cmd + " >{} 2>&1".format(os.devnull)
+            res = os.system(cmd)
+            if res != 0:
+                raise Exception('There was an error building the runtime')
 
         # Add function handler
         current_location = os.path.dirname(os.path.abspath(__file__))
@@ -226,7 +215,7 @@ class AliyunFunctionComputeBackend:
 
         if os.path.isdir(dst_location):
             logger.warning("Using user specified 'lithops' module from the custom runtime folder. "
-            "Please refrain from including it as it will be automatically installed anyway.")
+                           "Please refrain from including it as it will be automatically installed anyway.")
         else:
             shutil.copytree(module_location, dst_location)
 
