@@ -81,7 +81,7 @@ class LocalhostHandler:
         jobr_filename = os.path.join(job_dir, '{}-job.json'.format(job_key))
 
         with open(jobr_filename, 'w') as jl:
-            json.dump(job_payload, jl)
+            json.dump(job_payload, jl, default=str)
 
         log_file = open(RN_LOG_FILE, 'a')
         sp.Popen(exec_command+' run '+jobr_filename, shell=True,
