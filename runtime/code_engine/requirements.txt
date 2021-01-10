@@ -8,7 +8,7 @@ flask == 1.1.1
 beautifulsoup4 == 4.8.0
 httplib2 == 0.18.0
 kafka_python == 1.4.6
-lxml == 4.3.1
+lxml == 4.6.2
 python-dateutil == 2.8.0
 requests == 2.22.0
 scrapy == 1.6.0

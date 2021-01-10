@@ -26,11 +26,15 @@ from lithops.utils import is_object_processing_function, sizeof_fmt
 from lithops.storage.utils import create_func_key, create_agg_data_key
 from lithops.job.serialize import SerializeIndependent, create_module_data
 from lithops.constants import MAX_AGG_DATA_SIZE, JOBS_PREFIX, LOCALHOST,\
-    SERVERLESS, STANDALONE
+    SERVERLESS, STANDALONE, LITHOPS_TEMP_DIR
 from types import SimpleNamespace
 
-logger = logging.getLogger(__name__)
+import os
+import hashlib
+import inspect
+from lithops.utils import b64str_to_bytes
 
+logger = logging.getLogger(__name__)
 
 def create_map_job(config, internal_storage, executor_id, job_id, map_function,
                    iterdata, runtime_meta, runtime_memory, extra_env,
@@ -123,6 +127,41 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id,
                        exclude_modules=exclude_modules,
                        execution_timeout=execution_timeout,
                        host_job_meta=host_job_meta)
+
+'''
+stores function and modules in temporary directory to be used later in optimized runtime
+'''
+def _store_func_and_modules(func_key, func_str, module_data):
+    # save function
+    func_path = '/'.join([LITHOPS_TEMP_DIR, func_key])
+    os.makedirs(os.path.dirname(func_path), exist_ok=True)
+    with open(func_path, "wb") as f:
+        f.write(func_str)
+
+    if module_data:
+        logger.debug("Writing Function dependencies to local disk")
+
+        modules_path = '/'.join([os.path.dirname(func_path), 'modules'])
+
+        for m_filename, m_data in module_data.items():
+            m_path = os.path.dirname(m_filename)
+
+            if len(m_path) > 0 and m_path[0] == "/":
+                m_path = m_path[1:]
+            to_make = os.path.join(modules_path, m_path)
+            try:
+                os.makedirs(to_make)
+            except OSError as e:
+                if e.errno == 17:
+                    pass
+                else:
+                    raise e
+            full_filename = os.path.join(to_make, os.path.basename(m_filename))
+
+            with open(full_filename, 'wb') as fid:
+                fid.write(b64str_to_bytes(m_data))
+
+    logger.debug("Finished storing function and modules")
 
 
 def _create_job(config, internal_storage, executor_id, job_id, func,
@@ -231,12 +270,26 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     data_upload_end = time.time()
 
     host_job_meta['host_data_upload_time'] = round(data_upload_end-data_upload_start, 6)
+    func_upload_start = time.time()
 
     # Upload function and modules
-    func_upload_start = time.time()
-    func_key = create_func_key(JOBS_PREFIX, executor_id, job_id)
+    if config[mode].get('customized_runtime'):
+        # Prepare function and modules locally to store in the runtime image later
+        function_file = func.__code__.co_filename
+        function_hash = hashlib.md5(open(function_file,'rb').read()).hexdigest()[:16]
+        mod_hash = hashlib.md5(repr(sorted(mod_paths)).encode('utf-8')).hexdigest()[:16]
+
+        uuid = f'{function_hash}{mod_hash}'
+        func_key = create_func_key(JOBS_PREFIX, uuid, "")
+
+        _store_func_and_modules(func_key, func_str, module_data)
+        
+        job.ext_runtime_uuid = uuid
+    else:
+        func_key = create_func_key(JOBS_PREFIX, executor_id, job_id)
+        internal_storage.put_func(func_key, func_module_str)
+    
     job.func_key = func_key
-    internal_storage.put_func(func_key, func_module_str)
     func_upload_end = time.time()
 
     host_job_meta['host_func_upload_time'] = round(func_upload_end - func_upload_start, 6)
