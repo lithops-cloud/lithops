@@ -44,7 +44,7 @@ $ pip install lithops[aws]
 #### Additional configuration
 
 ##### VPC
-To deploy the Lithops lambda in a VPC subnet, add the following configuration to the `aws_lambda` configuration section:
+To connect the Lithops lambda to a VPC, add the following configuration to the `aws_lambda` configuration section:
 
 ```yaml
     aws_lambda:
@@ -58,5 +58,37 @@ To deploy the Lithops lambda in a VPC subnet, add the following configuration to
             security_groups:
                 - <SECURITY_GROUP_1>
                 - <SECURITY_GROUP_2>
-                ....
+                ...
 ```
+
+- `subnets`: A list of VPC subnet IDs.
+- `security_groups`: A list of VPC security groups IDs.
+
+**Note:** To be able to create netwrok interfaces for Lambda functions, the role created in step 3 has to have permissions to do so, for example by adding the permission *EC2FullAccess*.
+
+For more information, check out [AWS documentation on VPCs](https://docs.aws.amazon.com/lambda/latest/dg/configuration-vpc.html).
+
+##### EFS
+To attach EFS volumes to the Lithops lambda, add the following configuration to the `aws_lambda` configuration section:
+
+```yaml
+    aws_lambda:
+        execution_role: <EXECUTION_ROLE_ARN>
+        region_name: <REGION_NAME>
+        vpc:
+            ...
+        efs:
+            - access_point: <EFS_ACCESS_POINT_1>
+              mount_path: <LAMBDA_VOLUME_MOUNT_PATH_1>
+            - access_point: <EFS_ACCESS_POINT_2>
+              mount_path: <LAMBDA_VOLUME_MOUNT_PATH_2>
+            ...
+```
+
+- `access_point`: The Amazon Resource Name (ARN) of the Amazon EFS access point that provides access to the file system.
+- `mount_path`: The path where the function can access the file system. It **must** start with `/mnt`.
+
+**Note:** to access those volumes, the Lithops lambda has to be connected to the same VPC and subnets as the EFS volumes are mounted to.
+
+For more information, check out [AWS documentation on attaching EFS volumes to Lambda](https://aws.amazon.com/blogs/compute/using-amazon-efs-for-aws-lambda-in-your-serverless-applications/).
+

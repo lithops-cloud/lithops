@@ -340,7 +340,12 @@ class AWSLambdaBackend:
                 VpcConfig={
                     'SubnetIds': self.aws_lambda_config['vpc']['subnets'],
                     'SecurityGroupIds': self.aws_lambda_config['vpc']['security_groups']
-                }
+                },
+                FileSystemConfigs=[
+                    {'Arn': efs_conf['access_point'],
+                     'LocalMountPath': efs_conf['mount_path']}
+                    for efs_conf in self.aws_lambda_config['efs']
+                ]
             )
 
         else:
@@ -364,7 +369,12 @@ class AWSLambdaBackend:
                 VpcConfig={
                     'SubnetIds': self.aws_lambda_config['vpc']['subnets'],
                     'SecurityGroupIds': self.aws_lambda_config['vpc']['security_groups']
-                }
+                },
+                FileSystemConfigs=[
+                    {'Arn': efs_conf['access_point'],
+                     'LocalMountPath': efs_conf['mount_path']}
+                    for efs_conf in self.aws_lambda_config['efs']
+                ]
             )
 
         if response['ResponseMetadata']['HTTPStatusCode'] in [200, 201]:
@@ -378,7 +388,8 @@ class AWSLambdaBackend:
                 state = response['Configuration']['State']
                 if state == 'Pending':
                     time.sleep(5)
-                    logger.debug('Function is being deployed... (status: {})'.format(response['Configuration']['State']))
+                    logger.debug(
+                        'Function is being deployed... (status: {})'.format(response['Configuration']['State']))
                     retries -= 1
                     if retries == 0:
                         raise Exception('Function not deployed: {}'.format(response))

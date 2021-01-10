@@ -69,6 +69,7 @@ MAX_CONCURRENT_WORKERS = 1000
 
 
 def load_config(config_data):
+    # Generic serverless config
     if 'runtime_memory' not in config_data['serverless']:
         config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
     if config_data['serverless']['runtime_memory'] % 64 != 0:     # Adjust 64 MB memory increments restriction
@@ -98,22 +99,38 @@ def load_config(config_data):
     # Put credential keys to 'aws_lambda' dict entry
     config_data['aws_lambda'] = {**config_data['aws_lambda'], **config_data['aws']}
 
+    # Auth, role and region config
     if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
         raise Exception("'access_key_id' and 'secret_access_key' are mandatory under 'aws' section")
 
     if not {'execution_role', 'region_name'}.issubset(set(config_data['aws_lambda'])):
         raise Exception("'execution_role' and 'region_name' are mandatory under 'aws_lambda' section")
 
+    # VPC config
     if 'vpc' not in config_data['aws_lambda']:
         config_data['aws_lambda']['vpc'] = {'subnets': [], 'security_groups': []}
 
     if not {'subnets', 'security_groups'}.issubset(set(config_data['aws_lambda']['vpc'])):
-        raise Exception('"subnets" and "security_groups" are mandatory sections under "vpc"')
+        raise Exception("'subnets' and 'security_groups' are mandatory sections under 'aws_lambda/vpc'")
 
     if not isinstance(config_data['aws_lambda']['vpc']['subnets'], list):
-        raise Exception('Unknown type {} for aws_lambda '
-                        'vpc subnet section'.format(type(config_data['aws_lambda']['vpc']['subnets'])))
+        raise Exception("Unknown type {} for 'aws_lambda/"
+                        "vpc/subnet' section".format(type(config_data['aws_lambda']['vpc']['subnets'])))
 
     if not isinstance(config_data['aws_lambda']['vpc']['security_groups'], list):
-        raise Exception('Unknown type {} for aws_lambda '
-                        'vpc security_groups section'.format(type(config_data['aws_lambda']['vpc']['security_groups'])))
+        raise Exception("Unknown type {} for 'aws_lambda/"
+                        "vpc/security_groups' section".format(type(config_data['aws_lambda']['vpc']['security_groups'])))
+
+    # EFS config
+    if 'efs' not in config_data['aws_lambda']:
+        config_data['aws_lambda']['efs'] = []
+
+    if not isinstance(config_data['aws_lambda']['efs'], list):
+        raise Exception("Unknown type {} for "
+                        "'aws_lambda/efs' section".format(type(config_data['aws_lambda']['vpc']['security_groups'])))
+
+    if not all(['access_point' in efs_conf and 'mount_path' in efs_conf for efs_conf in config_data['aws_lambda']['efs']]):
+        raise Exception("List of 'access_point' and 'mount_path' mandatory in 'aws_lambda/efs section'")
+
+    if not all([efs_conf['mount_path'].startswith('/mnt') for efs_conf in config_data['aws_lambda']['efs']]):
+        raise Exception("All mount paths must start with '/mnt' on 'aws_lambda/efs/*/mount_path' section")
