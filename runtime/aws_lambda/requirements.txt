@@ -12,3 +12,7 @@ PyJWT
 Pillow
 redis
 pika==0.13.1
+cloudpickle
+ps-mem
+tblib
+namegenerator

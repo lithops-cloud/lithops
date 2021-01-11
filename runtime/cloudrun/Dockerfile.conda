@@ -1,8 +1,17 @@
+# Python 3.6
+FROM continuumio/miniconda3:4.5.4 
+
 # Python 3.7
-FROM continuumio/miniconda3:4.8.2
+#FROM continuumio/miniconda3:4.7.12 
+
+# Python 3.8
+#FROM continuumio/miniconda3:4.9.2
 
 # YOU MUST PIN THE PYTHON VERSION TO PREVENT IT TO BE UPDATED
-RUN echo "python==3.7.4" >> /opt/conda/conda-meta/pinned
+# For python 3.6 use "python==3.6.5"
+# For python 3.7 use "python==3.7.4"
+# For python 3.8 use "python==3.8.5"
+RUN echo "python==3.6.5" >> /opt/conda/conda-meta/pinned
 
 
 RUN apt-get update && apt-get install -y \
@@ -22,7 +31,10 @@ RUN pip install --upgrade setuptools six pip \
         kubernetes \
         numpy \
         gcsfs \
-        dask[array]
+        cloudpickle \
+        ps-mem \
+        tblib \
+        namegenerator
 
 # Add your Conda required packages here. Ensure "conda clean --all" at 
 # the end to remove temporary data. One "RUN" line is better than multiple

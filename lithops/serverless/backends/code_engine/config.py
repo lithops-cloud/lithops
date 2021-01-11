@@ -55,7 +55,10 @@ RUN pip install --upgrade setuptools six pip \
         requests \
         PyYAML \
         kubernetes \
-        numpy
+        numpy \
+        cloudpickle \
+        ps-mem \
+        tblib
 
 ENV PORT 8080
 ENV CONCURRENCY 4

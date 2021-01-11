@@ -1,5 +1,10 @@
-# Minimal Docker image for Lithops
+# Python 3.6
+#FROM python:3.6-slim-buster
 
+# Python 3.7
+#FROM python:3.7-slim-buster
+
+# Python 3.8
 FROM python:3.8-slim-buster
 
 RUN apt-get update \
@@ -9,29 +14,20 @@ RUN apt-get update \
         zlib1g-dev \
         libxslt-dev \
         libxml2-dev \
+        libgl1-mesa-glx \
         zip \
         unzip \
+        make \
     # cleanup package lists, they are not used anymore in this image
     && rm -rf /var/lib/apt/lists/* \
     && apt-cache search linux-headers-generic
 
+COPY requirements.txt requirements.txt
 RUN pip install --upgrade pip setuptools six \
-    && pip install --no-cache-dir \
-        gunicorn \
-        pika==0.13.1 \
-        flask \
-        gevent \
-        glob2 \
-        ibm-cos-sdk \
-        redis \
-        requests \
-        PyYAML \
-        kubernetes \
-        numpy
-
-# install additional python modules
-COPY requirements38.txt requirements.txt
-RUN pip install --upgrade pip setuptools six && pip install --no-cache-dir -r requirements.txt
+        scikit-image \
+        opencv-contrib-python-headless \
+        opencv-python-headless \
+        && pip install --no-cache-dir -r requirements.txt
 
 ENV PORT 8080
 ENV CONCURRENCY 4
@@ -43,6 +39,7 @@ ENV APP_HOME /lithops
 WORKDIR $APP_HOME
 
 COPY lithops_codeengine.zip .
-RUN unzip lithops_codeengine.zip && rm lithops_codeengine.zip
+RUN unzip lithops_codeengine.zip
+RUN rm lithops_codeengine.zip
 
 CMD exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsentry:proxy
