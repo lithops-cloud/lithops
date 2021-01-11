@@ -20,7 +20,7 @@ import sys
 import threading
 
 from lithops import FunctionExecutor
-from .config import get_config
+from . import config as mp_config
 from .util import get_redis_client
 
 #
@@ -77,7 +77,7 @@ class CloudProcess:
         self._name = name or (type(self).__name__ + '-' + str(self._identity))
         if daemon is not None:
             self.daemon = daemon
-        lithops_config = get_config().get('lithops', {})
+        lithops_config = mp_config.get_parameter(mp_config.LITHOPS_CONFIG)
         self._executor = FunctionExecutor(**lithops_config)
         self._forked = False
         self._sentinel = object()
@@ -114,8 +114,7 @@ class CloudProcess:
         fmt_args.update(self._kwargs)
 
         extra_env = {}
-        mp_config = get_config()
-        if mp_config.get('stream_stdout'):
+        if mp_config.get_parameter(mp_config.STREAM_STDOUT):
             extra_env['STREAM_STDOUT'] = self._executor.executor_id
 
         self._logger_thread = threading.Thread(target=self._stdout_monitor, args=(self._executor.executor_id,))

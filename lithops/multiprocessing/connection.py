@@ -14,13 +14,18 @@ import os
 import time
 import itertools
 import selectors
+import queue
+import threading
 
 from multiprocessing.context import BufferTooShort
 
 from . import util
 from .context import reduction, AuthenticationError
+from . import config as mp_config
 
 _ForkingPickler = reduction.ForkingPickler
+
+logger = util.get_logger()
 
 #
 # Constants
@@ -47,24 +52,22 @@ def get_handle_pair(conn_type=REDIS_LIST_CONN, from_id=None):
         conn_id = util.get_uuid()
     else:
         conn_id = from_id
+
     if conn_type == REDIS_LIST_CONN:
-        return (REDIS_LIST_CONN_A + conn_id,
-                REDIS_LIST_CONN_B + conn_id)
+        return REDIS_LIST_CONN_A + conn_id, REDIS_LIST_CONN_B + conn_id
     elif conn_type == REDIS_PUBSUB_CONN:
-        return (REDIS_PUBSUB_CONN_A + conn_id,
-                REDIS_PUBSUB_CONN_B + conn_id)
+        return REDIS_PUBSUB_CONN_A + conn_id, REDIS_PUBSUB_CONN_B + conn_id
+    else:
+        raise ValueError(conn_type)
 
 
 def get_subhandle(handle):
     if handle.startswith(REDIS_LIST_CONN_A):
         return REDIS_LIST_CONN_B + handle[len(REDIS_LIST_CONN_A):]
-
     elif handle.startswith(REDIS_LIST_CONN_B):
         return REDIS_LIST_CONN_A + handle[len(REDIS_LIST_CONN_B):]
-
     elif handle.startswith(REDIS_PUBSUB_CONN_A):
         return REDIS_PUBSUB_CONN_B + handle[len(REDIS_PUBSUB_CONN_A):]
-
     elif handle.startswith(REDIS_PUBSUB_CONN_B):
         return REDIS_PUBSUB_CONN_A + handle[len(REDIS_PUBSUB_CONN_B):]
 
@@ -261,12 +264,18 @@ class RedisConnection(_ConnectionBase):
         self._client = util.get_redis_client()
         self._subhandle = get_subhandle(handle)
         self._connect()
+        self._last_msg_id = b'0'
+        self._msg_buffer = queue.Queue()
 
     def _connect(self):
+        self._stop_thread = False
+        self._consumer_thread = threading.Thread(target=self._consume)
+        self._consumer_thread.daemon = True
+        self._consumer_thread.start()
+
         if self._handle.startswith(REDIS_LIST_CONN):
             self._read = self._listread
             self._write = self._listwrite
-
         elif self._handle.startswith(REDIS_PUBSUB_CONN):
             self._read = self._channelread
             self._write = self._channelwrite
@@ -288,13 +297,20 @@ class RedisConnection(_ConnectionBase):
     def __len__(self):
         return self._client.llen(self._handle)
 
+    def _set_expiry(self, key):
+        self._client.expire(key, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+        self._set_expiry = lambda key: None
+
     def _close(self, _close=None):
         # older versions of StrictRedis can't be closed
         if hasattr(self._client, 'close'):
             self._client.close()
+        if self._consumer_thread:
+            self._stop_thread = True
 
     def _listwrite(self, handle, buf):
-        return self._client.rpush(handle, buf)
+        llen = self._client.rpush(handle, buf)
+        self._set_expiry(handle)
 
     def _listread(self, handle):
         _, v = self._client.blpop([handle])
@@ -304,8 +320,14 @@ class RedisConnection(_ConnectionBase):
         return self._client.publish(handle, buf)
 
     def _channelread(self, handle):
+        logger.debug('Consuming from {}'.format(handle))
         msg = next(self._gen)
         return msg['data']
+
+    def _conn_isalive(self, handle):
+        channel, numsub = self._client.pubsub_numsub(handle).pop()
+        logger.debug('Consumers for channel {}: {}'.format(channel, numsub))
+        return numsub == 1
 
     def _send(self, buf, write=None):
         raise NotImplementedError('Connection._send() on Redis')
@@ -314,13 +336,20 @@ class RedisConnection(_ConnectionBase):
         raise NotImplementedError('Connection._recv() on Redis')
 
     def _send_bytes(self, buf):
-        self._write(self._handle, buf.tobytes())
+        self._write(self._subhandle, buf.tobytes())
 
     def _recv_bytes(self, maxsize=None):
         buf = io.BytesIO()
-        chunk = self._read(self._subhandle)
-        buf.write(chunk)
-        return buf
+        while True:
+            try:
+                chunk = self._msg_buffer.get(timeout=3)
+                buf.write(chunk)
+                return buf
+            except queue.Empty:
+                logger.debug('checking if subhandle {} is closed'.format(self._handle))
+                is_alive = self._conn_isalive(self._subhandle)
+                if not is_alive:
+                    raise EOFError('No one is listening on {}'.format(self._subhandle))
 
     def _poll(self, timeout):
         if hasattr(self, '_pubsub'):
@@ -328,6 +357,13 @@ class RedisConnection(_ConnectionBase):
         else:
             r = wait([(self._client, self._subhandle)], timeout)
         return bool(r)
+
+    def _consume(self):
+        logger.debug('consumer thread started')
+        while not self._stop_thread:
+            msg = self._read(self._handle)
+            self._msg_buffer.put(msg)
+        logger.debug('stopping consumer thread')
 
 
 PipeConnection = RedisConnection
@@ -393,7 +429,8 @@ def RedisPipe(duplex=True):
     """
     Returns pair of connection objects at either end of a pipe
     """
-    h1, h2 = get_handle_pair(conn_type=REDIS_LIST_CONN)
+    conn_type = mp_config.get_parameter(mp_config.REDIS_CONNECTION_TYPE)
+    h1, h2 = get_handle_pair(conn_type=conn_type)
 
     if duplex:
         c1 = RedisConnection(h1)

@@ -16,13 +16,23 @@
 
 _set = set
 
-DEFAULT_CONFIG = {
-    'lithops': {},
-    'redis_expiry_time': 3600,
-    'stream_stdout': False
+
+# General lithops.multiprocessing parameters
+LITHOPS_CONFIG = 'LITHOPS_CONFIG'
+STREAM_STDOUT = 'STREAM_STDOUT'
+
+# Redis specific parameters
+REDIS_EXPIRY_TIME = 'REDIS_EXPIRY_TIME'
+REDIS_CONNECTION_TYPE = 'REDIS_CONNECTION_TYPE'
+
+_DEFAULT_CONFIG = {
+    LITHOPS_CONFIG: {},
+    STREAM_STDOUT: False,
+    REDIS_EXPIRY_TIME: 300,
+    REDIS_CONNECTION_TYPE: 'pubsubconn'
 }
 
-_config = DEFAULT_CONFIG
+_config = _DEFAULT_CONFIG
 
 
 def set(config_dic=None, **configurations):
@@ -32,5 +42,5 @@ def set(config_dic=None, **configurations):
     _config.update(configurations)
 
 
-def get_config():
-    return _config
+def get_parameter(parameter):
+    return _config[parameter]
