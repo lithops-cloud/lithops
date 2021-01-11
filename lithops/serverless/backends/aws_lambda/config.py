@@ -51,7 +51,10 @@ DEFAULT_REQUIREMENTS = [
     'Pillow',
     'pandas',
     'redis',
-    'pika==0.13.1'
+    'pika==0.13.1',
+    'cloudpickle',
+    'ps-mem',
+    'tblib'
 ]
 
 DOCKER_PATH = shutil.which('docker')
