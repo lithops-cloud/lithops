@@ -257,6 +257,10 @@ class StandaloneHandler:
         """
         if self.provided_backed:
             backend = self.backends[0]
+            if not self._is_proxy_ready(backend):
+                # The VM instance is stopped
+                backend.start()
+                self._wait_proxy_ready(backend)
         else:
             backend = self.create(None, 'proxy', runtime)
 
