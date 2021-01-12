@@ -380,7 +380,7 @@ class StandaloneHandler:
             cmd += 'apt-get clean; '
             cmd += 'apt-get update >> /tmp/lithops/proxy.log; '
             cmd += 'apt-get install unzip python3-pip -y >> /tmp/lithops/proxy.log; '
-            cmd += 'pip3 install flask gevent pika==0.13.1 ibm-vpc==0.3.0 namegenerator >> /tmp/lithops/proxy.log; '
+            cmd += 'pip3 install flask gevent pika==0.13.1 cloudpickle tblib ps-mem ibm-vpc namegenerator >> /tmp/lithops/proxy.log; '
             logger.debug('Non custom image. Executing initial install for {}'.format(ip_address))
             ssh_client.run_remote_command(ip_address, cmd, timeout=300)
 

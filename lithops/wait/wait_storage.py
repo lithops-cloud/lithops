@@ -23,9 +23,11 @@ import random
 import logging
 import concurrent.futures
 from threading import Thread
+from tblib import pickling_support
+
 from lithops.storage.utils import create_status_key
 from lithops.constants import JOBS_PREFIX
-from lithops.libs.tblib import pickling_support
+
 
 pickling_support.install()
 logger = logging.getLogger(__name__)

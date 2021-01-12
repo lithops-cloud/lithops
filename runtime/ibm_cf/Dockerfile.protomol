@@ -1,8 +1,8 @@
-FROM lithopscloud/ibmcf-python-v36
+FROM lithopscloud/ibmcf-python-v38
 
 RUN apt-get update && apt-get install -y \
         wget build-essential cmake pkg-config \
-        && rm -rf /var/lib/apt/lists/*
+        && rm -rf /var/lib/apt/lists/* \
         && apt-cache search linux-headers-generic
 
 RUN pip install opencv-contrib-python-headless opencv-python-headless dlib \

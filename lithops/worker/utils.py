@@ -2,6 +2,7 @@ import os
 import sys
 import pkgutil
 import subprocess
+import ps_mem
 from lithops.utils import sizeof_fmt, is_unix_system
 
 
@@ -10,7 +11,6 @@ def get_memory_usage(formatted=True):
     Gets the current memory usage of the runtime.
     To be used only in the action code.
     """
-    from lithops.libs import ps_mem
     if not is_unix_system() or os.geteuid() != 0:
         # Non Unix systems and non root users can't run
         # the ps_mem module
