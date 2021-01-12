@@ -148,7 +148,7 @@ fexec.map(my_function, kwargs)
 print (fexec.get_result())
 ```
 
-If you want to send a list or a dict as a parameter of the function, you must enclose them with [] as in the next 
+If you want to send a list, a tuple or a dict as a parameter of the function, you must enclose them with () as in the next 
 example.
 
 ```python
