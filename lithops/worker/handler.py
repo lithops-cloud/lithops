@@ -177,9 +177,9 @@ def function_handler(event):
 
     except Exception:
         # internal runtime exceptions
-        print('----------------------- EXCEPTION !-----------------------', flush=True)
+        logger.error('----------------------- EXCEPTION !-----------------------')
         traceback.print_exc(file=sys.stdout)
-        print('----------------------------------------------------------', flush=True)
+        logger.error('----------------------------------------------------------')
         call_status.response['exception'] = True
 
         pickled_exc = pickle.dumps(sys.exc_info())
