@@ -1,1 +1,1 @@
-from .cloudrun import CloudRunServingBackend as ServerlessBackend
+from .cloudrun import GCPCloudRunBackend as ServerlessBackend
