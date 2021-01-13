@@ -9,7 +9,6 @@ import os
 
 from . import process
 from . import reduction
-from .process import CloudProcess
 
 #
 # Exceptions
@@ -170,7 +169,8 @@ class BaseContext:
     def _check_available(self):
         pass
 
-    def getpid(self):
+    @staticmethod
+    def getpid():
         execution_id = os.environ.get('LITHOPS_EXECUTION_ID', None)
         if execution_id is not None:
             executor_id, job_id, call_id = execution_id.rsplit('/', 2)

@@ -27,7 +27,7 @@ REDIS_CONNECTION_TYPE = 'REDIS_CONNECTION_TYPE'
 
 _DEFAULT_CONFIG = {
     LITHOPS_CONFIG: {},
-    STREAM_STDOUT: False,
+    STREAM_STDOUT: True,
     REDIS_EXPIRY_TIME: 300,
     REDIS_CONNECTION_TYPE: 'pubsubconn'
 }
@@ -40,6 +40,13 @@ def set(config_dic=None, **configurations):
         config_dic = {}
     _config.update(config_dic)
     _config.update(configurations)
+
+
+def set_parameter(key, value):
+    if key in _config:
+        _config[key] = value
+    else:
+        raise KeyError(key)
 
 
 def get_parameter(parameter):

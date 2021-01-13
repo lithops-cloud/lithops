@@ -15,13 +15,14 @@
 
 import os
 import itertools
-import inspect
 import sys
 import threading
+import traceback
+import os
 
 from lithops import FunctionExecutor
 from . import config as mp_config
-from .util import get_redis_client
+from . import util
 
 #
 #
@@ -34,6 +35,7 @@ except OSError:
 
 _process_counter = itertools.count(1)
 _children = set()
+logger = util.get_logger()
 
 
 #
@@ -52,6 +54,39 @@ def active_children():
     Return list of process objects corresponding to live child processes
     """
     raise NotImplementedError()
+
+
+#
+# Cloud worker
+#
+
+class CloudWorker:
+    def __init__(self, func, func_args=(), func_kwargs={}, log_stream=None):
+        self._func = func
+        self._args = func_args
+        self._kwargs = func_kwargs
+        self.log_stream = None
+
+    def __call__(self, *args, **kwargs):
+        if self.log_stream is not None:
+            sys.stdout = util.RemoteLogStream(self.log_stream)
+
+        try:
+            res = self._func(*self._args, **self._kwargs)
+            sys.stdout.flush()
+            return res
+        except Exception as e:
+            header = "---------- {}: {} at {} ----------".format(e.__class__.__name__, e,
+                                                                 os.environ.get('LITHOPS_EXECUTION_ID'))
+            exception_body = traceback.format_exc()
+            footer = '-' * len(header)
+            sys.stdout.write('\n'.join([header, exception_body, footer, '']))
+            sys.stdout.flush()
+            raise e
+
+    @property
+    def __name__(self):
+        return self._func.__name__
 
 
 #
@@ -82,10 +117,11 @@ class CloudProcess:
         self._forked = False
         self._sentinel = object()
         self._logger_thread = None
+        self._redis = util.get_redis_client()
 
-    def _stdout_monitor(self, stream):
-        redis = get_redis_client()
-        redis_pubsub = redis.pubsub()
+    def _logger_monitor(self, stream):
+        logger.debug('Starting logger monitor thread')
+        redis_pubsub = self._redis.pubsub()
         redis_pubsub.subscribe(stream)
 
         while True:
@@ -108,20 +144,24 @@ class CloudProcess:
         assert not self._forked, 'cannot start a process twice'
         assert self._parent_pid == os.getpid(), 'can only start a process object created by current process'
 
-        sig = inspect.signature(self._target)
-        pos_args = [param.name for _, param in sig.parameters.items() if param.default is inspect.Parameter.empty]
-        fmt_args = dict(zip(pos_args, self._args))
-        fmt_args.update(self._kwargs)
+        # sig = inspect.signature(self._target)
+        # pos_args = [param.name for _, param in sig.parameters.items() if param.default is inspect.Parameter.empty]
+        # fmt_args = dict(zip(pos_args, self._args))
+        # fmt_args.update(self._kwargs)
+
+        cloud_worker = CloudWorker(self._target, func_args=self._args, func_kwargs=self._kwargs)
 
         extra_env = {}
         if mp_config.get_parameter(mp_config.STREAM_STDOUT):
-            extra_env['STREAM_STDOUT'] = self._executor.executor_id
+            stream = self._executor.executor_id
+            logger.debug('Log streaming enabled, stream name: {}'.format(stream))
+            cloud_worker.log_stream = stream
 
-        self._logger_thread = threading.Thread(target=self._stdout_monitor, args=(self._executor.executor_id,))
-        self._logger_thread.daemon = True
-        self._logger_thread.start()
+            self._logger_thread = threading.Thread(target=self._logger_monitor, args=(stream,))
+            self._logger_thread.daemon = True
+            self._logger_thread.start()
 
-        self._executor.call_async(self._target, fmt_args, extra_env=extra_env)
+        self._executor.call_async(cloud_worker, (), extra_env=extra_env)
         del self._target, self._args, self._kwargs
 
         self._forked = True

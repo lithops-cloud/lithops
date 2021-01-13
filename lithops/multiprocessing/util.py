@@ -14,6 +14,9 @@ import redis
 import uuid
 import logging
 import lithops
+import sys
+import threading
+import io
 from lithops.config import load_config
 
 #
@@ -185,3 +188,27 @@ class RemoteReference:
         count = int(client.decr(rck, 1))
         if count < 0 and len(referenced) > 0:
             client.delete(*referenced)
+
+
+class RemoteLogStream:
+    def __init__(self, stream):
+        self._old_stdout = sys.stdout
+        self._feeder_thread = threading
+        self._buff = io.StringIO()
+        self._redis = get_redis_client()
+        self._stream = stream
+        self._offset = 0
+
+    def write(self, log):
+        self._buff.write(log)
+        # self.flush()
+        self._old_stdout.write(log)
+
+    def flush(self):
+        self._buff.seek(self._offset)
+        log = self._buff.read()
+        self._redis.publish(self._stream, log)
+        self._offset = self._buff.tell()
+        # self._buff = io.StringIO()
+        # FIXME flush() does not empty the buffer?
+        self._buff.flush()
