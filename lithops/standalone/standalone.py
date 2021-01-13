@@ -103,7 +103,7 @@ class StandaloneHandler:
         while(time.time() - start < self.start_timeout):
             if self._is_backend_ready(backend):
                 return True
-            time.sleep(2)
+            time.sleep(5)
 
         self.dismantle()
         raise Exception('VM readiness probe expired. Check your VM')
