@@ -187,6 +187,7 @@ class AWSLambdaBackend:
             layer_bytes = layer_zip.read()
 
         layer_name = self._format_layer_name(runtime_name)
+        logger.debug('Creating layer {} ...'.format(layer_name))
         self.internal_storage.put_data(layer_name, layer_bytes)
         response = self.lambda_client.publish_layer_version(
             LayerName=layer_name,
@@ -335,7 +336,16 @@ class AWSLambdaBackend:
                 PackageType='Image',
                 Description=self.package,
                 Timeout=timeout,
-                MemorySize=memory
+                MemorySize=memory,
+                VpcConfig={
+                    'SubnetIds': self.aws_lambda_config['vpc']['subnets'],
+                    'SecurityGroupIds': self.aws_lambda_config['vpc']['security_groups']
+                },
+                FileSystemConfigs=[
+                    {'Arn': efs_conf['access_point'],
+                     'LocalMountPath': efs_conf['mount_path']}
+                    for efs_conf in self.aws_lambda_config['efs']
+                ]
             )
 
         else:
@@ -355,13 +365,22 @@ class AWSLambdaBackend:
                 Description=self.package,
                 Timeout=timeout,
                 MemorySize=memory,
-                Layers=[runtime_layer_arn, self._numerics_layer_arn]
+                Layers=[runtime_layer_arn, self._numerics_layer_arn],
+                VpcConfig={
+                    'SubnetIds': self.aws_lambda_config['vpc']['subnets'],
+                    'SecurityGroupIds': self.aws_lambda_config['vpc']['security_groups']
+                },
+                FileSystemConfigs=[
+                    {'Arn': efs_conf['access_point'],
+                     'LocalMountPath': efs_conf['mount_path']}
+                    for efs_conf in self.aws_lambda_config['efs']
+                ]
             )
 
         if response['ResponseMetadata']['HTTPStatusCode'] in [200, 201]:
             logger.debug('OK --> Created action {}'.format(runtime_name))
 
-            retries = 15
+            retries = 45 if 'vpc' in self.aws_lambda_config else 30  # VPC lambdas take longer to deploy
             while retries > 0:
                 response = self.lambda_client.get_function(
                     FunctionName=function_name
@@ -369,6 +388,8 @@ class AWSLambdaBackend:
                 state = response['Configuration']['State']
                 if state == 'Pending':
                     time.sleep(5)
+                    logger.debug(
+                        'Function is being deployed... (status: {})'.format(response['Configuration']['State']))
                     retries -= 1
                     if retries == 0:
                         raise Exception('Function not deployed: {}'.format(response))

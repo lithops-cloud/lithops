@@ -26,13 +26,14 @@ import traceback
 from threading import Thread
 from multiprocessing import Process, Pipe
 from distutils.util import strtobool
+from tblib import pickling_support
+
 from lithops import version
 from lithops.utils import sizeof_fmt
 from lithops.config import extract_storage_config
 from lithops.storage import InternalStorage
 from lithops.worker.jobrunner import JobRunner
 from lithops.worker.utils import get_memory_usage
-from lithops.libs.tblib import pickling_support
 from lithops.constants import JOBS_PREFIX, LITHOPS_TEMP_DIR
 from lithops.storage.utils import create_output_key, create_status_key,\
     create_init_key, create_job_key

@@ -6,9 +6,10 @@ import queue
 import pickle
 import logging
 from threading import Thread
+from tblib import pickling_support
 from concurrent.futures import ThreadPoolExecutor, wait
+
 from lithops.storage.utils import create_job_key
-from lithops.libs.tblib import pickling_support
 
 pickling_support.install()
 logger = logging.getLogger(__name__)

@@ -87,7 +87,9 @@ requests
 PyYAML
 kubernetes
 numpy
-ibm-cos-sdk
+cloudpickle
+ps-mem
+tblib
 """
 
 DEFAULT_DOCKERFILE = """

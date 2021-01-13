@@ -55,7 +55,10 @@ DEFAULT_REQUIREMENTS = [
     'six',
     'urllib3',
     'virtualenv',
-    'PyYAML'
+    'PyYAML',
+    'cloudpickle',
+    'ps-mem',
+    'tblib'
 ]
 
 

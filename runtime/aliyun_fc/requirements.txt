@@ -1,0 +1,14 @@
+aliyun-fc2
+oss2
+pika==0.13.1
+flask
+gevent
+glob2
+redis
+requests
+PyYAML
+kubernetes
+numpy
+cloudpickle
+ps-mem
+tblib

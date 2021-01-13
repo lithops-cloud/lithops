@@ -55,7 +55,10 @@ RUN pip install --upgrade setuptools six pip \
         requests \
         PyYAML \
         kubernetes \
-        numpy
+        numpy \
+        cloudpickle \
+        ps-mem \
+        tblib
 
 ENV PORT 8080
 ENV CONCURRENCY 4
@@ -144,7 +147,7 @@ def load_config(config_data):
     if 'cpu' not in config_data['code_engine']:
         config_data['code_engine']['cpu'] = RUNTIME_CPU
 
-    if 'container_registry' not in config_data['container_registry']:
+    if 'container_registry' not in config_data['code_engine']:
         config_data['code_engine']['container_registry'] = CONTAINER_REGISTRY
 
     if 'runtime_memory' not in config_data['serverless']:

@@ -256,8 +256,11 @@ class IBMVPCInstanceClient:
     def stop(self):
         if self.config['delete_on_dismantle']:
             logger.info("Deleting VM instance {}".format(self.ip_address))
-            self._delete_instance()
-            logger.debug("VM instance {} deleted successfully".format(self.ip_address))
+            try:
+                self._delete_instance()
+                logger.debug("VM instance {} deleted successfully".format(self.ip_address))
+            except Exception as e:
+                logger.warn("VSI {} Delete error {}" .format(self.ip_address, e))
         else:
             logger.info("Stopping VM instance {}".format(self.ip_address))
             resp = self.service.create_instance_action(self.instance_id, 'stop')
