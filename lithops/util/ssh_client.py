@@ -30,7 +30,12 @@ class SSHClient():
             self.ssh_client = self.create_client(ip_address, timeout)
             stdin, stdout, stderr = self.ssh_client.exec_command(cmd)
 
-        return stdout.read().decode().strip() if not background else None
+        out = None
+        if not background:
+            out = stdout.read().decode().strip()
+            error = stderr.read().decode().strip()
+
+        return out
 
     def upload_local_file(self, ip_address, local_src, remote_dst, timeout=None):
         if self.ssh_client is None:
