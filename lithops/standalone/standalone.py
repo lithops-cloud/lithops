@@ -83,6 +83,16 @@ class StandaloneHandler:
 
         logger.debug("Standalone handler created successfully")
 
+    def _is_backend_ready(self, backend):
+        """
+        Checks if the VM instance is ready to receive ssh connections
+        """
+        try:
+            backend.get_ssh_client().run_remote_command(backend.get_ip_address(), 'id', timeout=2)
+        except Exception:
+            return False
+        return True
+
     def _wait_backend_ready(self, backend):
         """
         Waits until the VM instance is ready to receive ssh connections
@@ -91,17 +101,16 @@ class StandaloneHandler:
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
-            if backend.is_ready():
-                time.sleep(20)
+            if self._is_backend_ready(backend):
                 return True
-            time.sleep(5)
+            time.sleep(2)
 
         self.dismantle()
         raise Exception('VM readiness probe expired. Check your VM')
 
     def _start_backend(self, backend):
         logger.debug("Starting backend {} if not running".format(backend.get_ip_address()))
-        if not backend.is_ready():
+        if not self._is_backend_ready(backend):
             # The VM instance is stopped
             logger.debug("Backend {} stopped".format(backend.get_ip_address()))
             init_time = time.time()
@@ -190,7 +199,7 @@ class StandaloneHandler:
             logger.debug('ExecutorID {} | JobID {} - Remote log monitor '
                          'started'.format(executor_id, job_id))
 
-    def _thread_invoke(self,lock, job_key, call_id, job_payload):
+    def _thread_invoke(self, lock, job_key, call_id, job_payload):
         backend = self.create(lock, job_key, call_id)
         job_payload['job_description']['call_id'] = call_id
         self._single_invoke(backend, job_payload)
@@ -225,7 +234,7 @@ class StandaloneHandler:
             logger.debug("_single_invoke -  proxy {} stopped".format(ip_address))
             # The VM instance is stopped
             init_time = time.time()
-            backend.start()
+            self._start_backend(backend)
             self._wait_proxy_ready(backend)
             total_start_time = round(time.time()-init_time, 2)
             logger.info('_single_invoke - VM instance ready in {} seconds'.format(total_start_time))
@@ -305,14 +314,14 @@ class StandaloneHandler:
             logger.debug("Dismantle {} for {}".format(backend.get_instance_id(), backend.get_ip_address()))
             backend.stop()
 
-    def create_backend_handler(self, instance_id = None, ip_address = None):
+    def create_backend_handler(self, instance_id=None, ip_address=None):
         try:
             sb_module = importlib.import_module(self.module_location)
             StandaloneBackend = getattr(sb_module, 'StandaloneBackend')
             backend = StandaloneBackend(self.config[self.backend_name])
-            if (instance_id != None):
+            if instance_id is not None:
                 backend.set_instance_id(instance_id)
-            if (ip_address != None):
+            if ip_address is not None:
                 backend.set_ip_address(ip_address)
 
         except Exception as e:
@@ -350,7 +359,7 @@ class StandaloneHandler:
         logger.debug('Be patient, installation process can take up to 3 minutes '
                      'if this is the first time you use the VM instance')
         ssh_client = backend.get_ssh_client()
-        
+
         service_file = '/etc/systemd/system/{}'.format(PROXY_SERVICE_NAME)
         logger.debug('Upload service file {} - started'.format(service_file))
         ssh_client.upload_data_to_file(ip_address, PROXY_SERVICE_FILE, service_file)
@@ -366,7 +375,7 @@ class StandaloneHandler:
         ssh_client.upload_data_to_file(ip_address, json.dumps(self.config), config_file)
 
         src_proxy = os.path.join(os.path.dirname(__file__), 'proxy.py')
-        FH_ZIP_LOCATION_IP = os.path.join(os.getcwd(), ip_address.replace('.','a') + 'lithops_standalone.zip')
+        FH_ZIP_LOCATION_IP = os.path.join(os.getcwd(), ip_address.replace('.', 'a') + 'lithops_standalone.zip')
         create_handler_zip(FH_ZIP_LOCATION_IP, src_proxy)
         logger.debug('Upload zip file to {} - start'.format(ip_address))
         ssh_client.upload_local_file(ip_address, FH_ZIP_LOCATION_IP, '/tmp/lithops_standalone.zip')
