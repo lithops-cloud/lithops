@@ -12,14 +12,16 @@
 #
 # Imports
 #
-
 import queue
 import itertools
-import traceback
+
 from lithops import FunctionExecutor
 
 from . import util
 from .context import get_context
+from . import config as mp_config
+from .process import CloudWorker
+
 
 #
 # Constants representing the state of a pool
@@ -37,108 +39,6 @@ job_counter = itertools.count()
 
 
 #
-# Hack to embed stringification of remote traceback in local traceback
-#
-
-class RemoteTraceback(Exception):
-    def __init__(self, tb):
-        self.tb = tb
-
-    def __str__(self):
-        return self.tb
-
-
-class ExceptionWithTraceback:
-    def __init__(self, exc, tb):
-        tb = traceback.format_exception(type(exc), exc, tb)
-        tb = ''.join(tb)
-        self.exc = exc
-        self.tb = '\n"""\n%s"""' % tb
-
-    def __reduce__(self):
-        return rebuild_exc, (self.exc, self.tb)
-
-
-def rebuild_exc(exc, tb):
-    exc.__cause__ = RemoteTraceback(tb)
-    return exc
-
-
-#
-# Code run by worker processes
-#
-
-class MaybeEncodingError(Exception):
-    """
-    Wraps possible unpickleable errors, so they can be
-    safely sent through the socket.
-    """
-
-    def __init__(self, exc, value):
-        self.exc = repr(exc)
-        self.value = repr(value)
-        super(MaybeEncodingError, self).__init__(self.exc, self.value)
-
-    def __str__(self):
-        return "Error sending result: '%s'. Reason: '%s'" % (self.value,
-                                                             self.exc)
-
-    def __repr__(self):
-        return "<%s: %s>" % (self.__class__.__name__, self)
-
-
-def worker(inqueue, outqueue, initializer=None, initargs=(), maxtasks=None,
-           wrap_exception=False):
-    assert maxtasks is None or (type(maxtasks) == int and maxtasks > 0)
-    put = outqueue.put
-    get = inqueue.get
-    if hasattr(inqueue, '_writer'):
-        inqueue._writer.close()
-        outqueue._reader.close()
-
-    if initializer is not None:
-        initializer(*initargs)
-
-    completed = 0
-    while maxtasks is None or (maxtasks and completed < maxtasks):
-        try:
-            task = get()
-        except (EOFError, OSError):
-            util.debug('worker got EOFError or OSError -- exiting')
-            break
-
-        if task is None:
-            util.debug('worker got sentinel -- exiting')
-            break
-
-        job, i, func, args, kwds = task
-        try:
-            result = (True, func(*args, **kwds))
-        except Exception as e:
-            if wrap_exception and func is not _helper_reraises_exception:
-                e = ExceptionWithTraceback(e, e.__traceback__)
-            result = (False, e)
-        try:
-            put((job, i, result))
-        except Exception as e:
-            wrapped = MaybeEncodingError(e, result[1])
-            util.debug("Possible encoding error while sending result: %s" % (
-                wrapped))
-            put((job, i, (False, wrapped)))
-
-        task = job = result = func = args = kwds = None
-        completed += 1
-    util.debug('worker exiting after %d tasks' % completed)
-
-
-def _helper_reraises_exception(ex):
-    """
-    Pickle-able helper function for use by _guarded_task_generation.
-    """
-    raise ex
-
-
-#
 # Class representing a process pool
 #
 
@@ -151,11 +51,9 @@ class Pool(object):
     def Process(self, *args, **kwds):
         return self._ctx.Process(*args, **kwds)
 
-    def __init__(self, processes=None, initializer=None, initargs=None,
-                 maxtasksperchild=None, context=None):
-
+    def __init__(self, processes=None, initializer=None, initargs=None, maxtasksperchild=None, context=None):
         if initargs is None:
-            initargs = {}
+            initargs = ()
 
         self._ctx = context or get_context()
         self._taskqueue = queue.Queue()
@@ -168,17 +66,13 @@ class Pool(object):
         if processes is not None and processes < 1:
             raise ValueError("Number of processes must be at least 1")
 
+        lithops_conf = mp_config.get_parameter(mp_config.LITHOPS_CONFIG)
+
         if processes is not None:
-            if self._initargs:
-                self._executor = FunctionExecutor(workers=processes, **self._initargs)
-            else:
-                self._executor = FunctionExecutor(workers=processes)
             self._processes = processes
+            self._executor = FunctionExecutor(workers=processes, **lithops_conf)
         else:
-            if self._initargs:
-                self._executor = FunctionExecutor(**self._initargs)
-            else:
-                self._executor = FunctionExecutor()
+            self._executor = FunctionExecutor(**lithops_conf)
             self._processes = self._executor.invoker.workers
 
         if initializer is not None and not callable(initializer):
@@ -235,7 +129,9 @@ class Pool(object):
         if self._state != RUN:
             raise ValueError("Pool not running")
 
-        futures = self._executor.call_async(func, data=args)
+        cloud_worker = CloudWorker(func=func, initializer=self._initializer, initargs=self._initargs)
+
+        futures = self._executor.call_async(cloud_worker, data={'args': args, 'kwargs': kwds})
 
         result = ApplyResult(self._executor, [futures], callback, error_callback)
 
@@ -256,7 +152,16 @@ class Pool(object):
         if not hasattr(iterable, '__len__'):
             iterable = list(iterable)
 
-        futures = self._executor.map(func, iterable)
+        cloud_worker = CloudWorker(func=func, initializer=self._initializer, initargs=self._initargs)
+
+        if isinstance(iterable[0], dict):
+            fmt_args = [{'args': (), 'kwargs': kwargs} for kwargs in iterable]
+        elif isinstance(iterable[0], tuple):
+            fmt_args = [{'args': args, 'kwargs': {}} for args in iterable]
+        else:
+            fmt_args = [{'args': (args, ), 'kwargs': {}} for args in iterable]
+
+        futures = self._executor.map(cloud_worker, fmt_args)
 
         result = MapResult(self._executor, futures, callback, error_callback)
 

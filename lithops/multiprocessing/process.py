@@ -61,18 +61,22 @@ def active_children():
 #
 
 class CloudWorker:
-    def __init__(self, func, func_args=(), func_kwargs={}, log_stream=None):
+    def __init__(self, func, initializer=None, initargs=(), log_stream=None):
         self._func = func
-        self._args = func_args
-        self._kwargs = func_kwargs
+        self._initializer = initializer
+        self._initargs = initargs
+
         self.log_stream = None
 
     def __call__(self, *args, **kwargs):
         if self.log_stream is not None:
             sys.stdout = util.RemoteLogStream(self.log_stream)
 
+        if self._initializer is not None:
+            self._initializer(*self._initargs)
+
         try:
-            res = self._func(*self._args, **self._kwargs)
+            res = self._func(*kwargs['args'], **kwargs['kwargs'])
             sys.stdout.flush()
             return res
         except Exception as e:
@@ -149,7 +153,7 @@ class CloudProcess:
         # fmt_args = dict(zip(pos_args, self._args))
         # fmt_args.update(self._kwargs)
 
-        cloud_worker = CloudWorker(self._target, func_args=self._args, func_kwargs=self._kwargs)
+        cloud_worker = CloudWorker(self._target)
 
         extra_env = {}
         if mp_config.get_parameter(mp_config.STREAM_STDOUT):
@@ -161,7 +165,7 @@ class CloudProcess:
             self._logger_thread.daemon = True
             self._logger_thread.start()
 
-        self._executor.call_async(cloud_worker, (), extra_env=extra_env)
+        self._executor.call_async(cloud_worker, {'args': self._args, 'kwargs': self._kwargs}, extra_env=extra_env)
         del self._target, self._args, self._kwargs
 
         self._forked = True
