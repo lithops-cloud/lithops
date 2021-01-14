@@ -374,6 +374,7 @@ class StandaloneHandler:
         config_file = os.path.join(REMOTE_INSTALL_DIR, 'config')
         ssh_client.upload_data_to_file(ip_address, json.dumps(self.config), config_file)
 
+        time.sleep(5)
         src_proxy = os.path.join(os.path.dirname(__file__), 'proxy.py')
         FH_ZIP_LOCATION_IP = os.path.join(os.getcwd(), ip_address.replace('.', 'a') + 'lithops_standalone.zip')
         create_handler_zip(FH_ZIP_LOCATION_IP, src_proxy)
