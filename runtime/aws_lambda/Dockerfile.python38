@@ -30,7 +30,11 @@ RUN pip install \
         pika==0.13.1 \
         simplejson \
         kafka_python \
-        lxml
+        lxml \
+        cloudpickle \
+        ps-mem \
+        tblib \
+        namegenerator
 
 
 FROM python:3.8-buster

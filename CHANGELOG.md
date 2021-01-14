@@ -5,10 +5,26 @@
 ### Added
 - [Joblib] Joblib backend upgraded
 - [AWS Lambda] Support for container-based runtimes
+- [AWS Lambda] Support for running functions in a VPC
+- [AWS Lambda] Support for attaching EFS volumes
+- [Core] Added cloudpickle, tblib and ps-mem deps as requirement of the runtimes
+- [Core] Add a new Serverless mode that allows to include the function within the runtime
+
+### Changed
+- [Core] Allow Standalone mode to start 1 VM per activation
 
 ### Fixed
 - [Core] Fixed issue in clean when it is called between wait and get_result
 - [Core] Fixed multiprocessing Queue and get_context
+- [Core] Fixed multiprocessing args mapping in map and map_async
+
+### Deleted
+- [Core] Removed tblib from lithops.libs
+- [Core] Removed ps-mem from lithops.libs
+
+### Required actions
+- Run: python3 -m pip install -U cloudpickle tblib ps-mem ibm-vpc namegenerator
+
 
 ## [v2.2.14]
 

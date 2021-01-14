@@ -6,10 +6,10 @@ Lithops for IBM Cloud is shipped with these default runtimes:
 
 | Runtime name | Python version | Packages included |
 | ----| ----| ---- |
-| ibmfunctions/lithops:3.5 | 3.5 | [list of packages](https://github.com/ibm-functions/runtime-python/blob/master/python3.6/CHANGELOG.md) |
-| ibmfunctions/action-python-v3.6 | 3.6 | [list of packages](https://github.com/ibm-functions/runtime-python/blob/master/python3.6/CHANGELOG.md) |
-| ibmfunctions/action-python-v3.7 | 3.7 | [list of packages](https://github.com/ibm-functions/runtime-python/blob/master/python3.7/CHANGELOG.md) |
-| jsampe/action-python-v3.8 | 3.8 | [list of packages](https://github.com/lithops-cloud/lithops/blob/master/runtime/ibm_cf/Dockerfile.python38) |
+| lithopscloud/ibmcf-python-v35 | 3.5 | [list of packages](requirements.txt) |
+| lithopscloud/ibmcf-python-v36 | 3.6 | [list of packages](requirements.txt) |
+| lithopscloud/ibmcf-python-v37 | 3.7 | [list of packages](requirements.txt) |
+| lithopscloud/ibmcf-python-v38 | 3.8 | [list of packages](requirements.txt) |
 
 The default runtime is created the first time you execute a function. Lithops automatically detects the Python version of your environment and deploys the default runtime based on it.
 

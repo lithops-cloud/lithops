@@ -257,6 +257,9 @@ class Pool(object):
         Apply `func` to each element in `iterable`, collecting the results
         in a list that is returned.
         """
+        # TODO remove type 'list' whenever using a list in iteradata to enclose multiple args of a function is removed
+        if type(iterable) in (tuple, dict, list):
+            iterable = (iterable, )
         return self._map_async(func, iterable, mapstar, chunksize).get()
 
     def starmap(self, func, iterable, chunksize=None):
@@ -360,6 +363,9 @@ class Pool(object):
         """
         Asynchronous version of `map()` method.
         """
+        # TODO remove type 'list' whenever using a list in iteradata to enclose multiple args of a function is removed
+        if type(iterable) in (tuple, dict, list):
+            iterable = (iterable,)
         return self._map_async(func, iterable, mapstar, chunksize, callback,
                                error_callback)
 

@@ -222,6 +222,7 @@ If you are interested in contributing, see [CONTRIBUTING.md](./CONTRIBUTING.md) 
 * [Industrial project in Technion on Lithops](http://www.cs.technion.ac.il/~cs234313/projects_sites/W19/04/site/)
 
 ### Papers
+* [Primula: a Practical Shuffle/Sort Operator for Serverless Computing](https://www.youtube.com/watch?v=v698iu5YfWM) - ACM/IFIP Middleware 2020
 * [Bringing scaling transparency to Proteomics applications with serverless computing](https://www.serverlesscomputing.org/wosc6/#p10) - 6th International Workshop on Serverless Computing (WoSC6) 2020
 * [Towards Multicloud Access Transparency in Serverless Computing](https://www.computer.org/csdl/magazine/so/5555/01/09218932/1nMMkpZ8Ko8) - IEEE Software
 * [Serverless data analytics in the IBM Cloud](https://dl.acm.org/citation.cfm?id=3284029) - 19th International Middleware Conference
