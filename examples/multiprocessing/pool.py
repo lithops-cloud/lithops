@@ -6,7 +6,7 @@ import time
 import logging
 import os
 
-setup_logger(logging.CRITICAL)
+# setup_logger(logging.CRITICAL)
 
 
 def hello(name):
@@ -29,7 +29,7 @@ if __name__ == '__main__':
     with Pool() as pool:
 
         # Synchronously execute function square remotely
-        res = pool.apply(hello, 'World')
+        res = pool.apply(hello, ('World', ))
         print(res)  # print "Hello World!"
 
         # Synchronously apply function square to every element of list

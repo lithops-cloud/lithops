@@ -1,25 +1,14 @@
 #
-# Copyright 2020 Cloudlab URV
+# Copyright (c) 2006-2008, R Oudkerk
+# Licensed to PSF under a Contributor Agreement.
 #
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Modifications Copyright (c) 2020 Cloudlab URV
 #
 
-import sys
 import os
 
 from . import process
 from . import reduction
-
 
 #
 # Exceptions
@@ -53,6 +42,8 @@ class BaseContext:
 
     current_process = staticmethod(process.current_process)
     active_children = staticmethod(process.active_children)
+
+    reduction = reduction.ForkingPickler
 
     def cpu_count(self):
         raise NotImplementedError()
@@ -178,7 +169,8 @@ class BaseContext:
     def _check_available(self):
         pass
 
-    def getpid(self):
+    @staticmethod
+    def getpid():
         execution_id = os.environ.get('LITHOPS_EXECUTION_ID', None)
         if execution_id is not None:
             executor_id, job_id, call_id = execution_id.rsplit('/', 2)
@@ -190,8 +182,7 @@ class BaseContext:
 #
 # Type of default context -- underlying context can be set at most once
 #
-
-class Process(process.BaseProcess):
+class Process(process.CloudProcess):
     _start_method = None
 
     @staticmethod
@@ -230,16 +221,7 @@ class DefaultContext(BaseContext):
         return self._actual_context._name
 
     def get_all_start_methods(self):
-        if sys.platform == 'win32':
-            return ['spawn']
-        else:
-            if reduction.HAVE_SEND_HANDLE:
-                return ['fork', 'spawn', 'forkserver']
-            else:
-                return ['fork', 'spawn']
-
-
-DefaultContext.__all__ = list(x for x in dir(DefaultContext) if x[0] != '_')
+        return ['fork', 'spawn', 'forkserver', 'cloud']
 
 
 #
@@ -247,7 +229,7 @@ DefaultContext.__all__ = list(x for x in dir(DefaultContext) if x[0] != '_')
 #
 
 
-class SpawnCloudProcess(process.BaseProcess):
+class SpawnCloudProcess(process.CloudProcess):
     _start_method = 'cloud'
 
     @staticmethod
@@ -271,7 +253,7 @@ _concrete_contexts = {
 _default_context = DefaultContext(_concrete_contexts['cloud'])
 
 
-def get_context(method):
+def get_context(method=None):
     return _default_context.get_context(method)
 
 
