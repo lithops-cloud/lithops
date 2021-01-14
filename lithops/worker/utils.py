@@ -2,8 +2,11 @@ import os
 import sys
 import pkgutil
 import subprocess
-import ps_mem
 from lithops.utils import sizeof_fmt, is_unix_system
+
+if is_unix_system():
+    # Windows hosts can't use ps_mem module
+    import ps_mem
 
 
 def get_memory_usage(formatted=True):
