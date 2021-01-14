@@ -69,7 +69,7 @@ class LocalhostHandler:
                     .format(runtime, log_file))
 
         if not os.path.isfile(RUNNER):
-            self.env.setup()
+            self.env.setup(runtime)
 
         exec_command = self.env.get_execution_cmd(runtime)
 
