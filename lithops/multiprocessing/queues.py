@@ -22,7 +22,7 @@ from . import connection
 from . import util
 from . import synchronize
 from . import context
-from .util import debug, info, Finalize, is_exiting
+from .util import debug
 
 _ForkingPickler = context.reduction.ForkingPickler
 

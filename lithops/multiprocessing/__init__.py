@@ -1,13 +1,4 @@
 #
-# Package analogous to 'threading.py' but using processes
-#
-# multiprocessing/__init__.py
-#
-# This package is intended to duplicate the functionality (and much of
-# the API) of threading.py but uses processes instead of threads.  A
-# subpackage 'multiprocessing.dummy' has the same API but is a simple
-# wrapper for 'threading'.
-#
 # Copyright (c) 2006-2008, R Oudkerk
 # Licensed to PSF under a Contributor Agreement.
 #
@@ -24,6 +15,9 @@ from .sharedctypes import RawValue, RawArray, Value, Array
 from .synchronize import (Semaphore, BoundedSemaphore,
                           Lock, RLock,
                           Condition, Event, Barrier)
+
+
+from . import config
 
 context = BaseContext()
 getpid = context.getpid

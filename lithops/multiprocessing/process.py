@@ -14,10 +14,15 @@
 #
 
 import os
-import signal
 import itertools
-from _weakrefset import WeakSet
-from .popen_cloud import PopenCloud
+import sys
+import threading
+import traceback
+import os
+
+from lithops import FunctionExecutor
+from . import config as mp_config
+from . import util
 
 #
 #
@@ -28,6 +33,10 @@ try:
 except OSError:
     ORIGINAL_DIR = None
 
+_process_counter = itertools.count(1)
+_children = set()
+logger = util.get_logger()
+
 
 #
 # Public functions
@@ -37,56 +46,93 @@ def current_process():
     """
     Return process object representing the current process
     """
-    return _current_process
+    raise NotImplementedError()
 
 
 def active_children():
     """
     Return list of process objects corresponding to live child processes
     """
-    _cleanup()
-    return list(_children)
+    raise NotImplementedError()
 
 
 #
-#
-#
-
-def _cleanup():
-    # check for processes which have finished
-    for p in list(_children):
-        if p._popen.poll() is not None:
-            _children.discard(p)
-
-
-#
-# The `Process` class
+# Cloud worker
 #
 
-class BaseProcess(object):
-    """
-    Process objects represent activity that is run in a separate process
-    The class is analogous to `threading.Thread`
-    """
+class CloudWorker:
+    def __init__(self, func, initializer=None, initargs=(), log_stream=None):
+        self._func = func
+        self._initializer = initializer
+        self._initargs = initargs
 
-    def _Popen(self):
-        raise NotImplementedError
+        self.log_stream = None
 
-    def __init__(self, group=None, target=None, name=None, args=(), kwargs={},
-                 *, daemon=None):
-        assert group is None, 'group argument must be None for now'
+    def __call__(self, *args, **kwargs):
+        if self.log_stream is not None:
+            sys.stdout = util.RemoteLogStream(self.log_stream)
+
+        if self._initializer is not None:
+            self._initializer(*self._initargs)
+
+        try:
+            res = self._func(*kwargs['args'], **kwargs['kwargs'])
+            sys.stdout.flush()
+            return res
+        except Exception as e:
+            header = "---------- {}: {} at {} ----------".format(e.__class__.__name__, e,
+                                                                 os.environ.get('LITHOPS_EXECUTION_ID'))
+            exception_body = traceback.format_exc()
+            footer = '-' * len(header)
+            sys.stdout.write('\n'.join([header, exception_body, footer, '']))
+            sys.stdout.flush()
+            raise e
+
+    @property
+    def __name__(self):
+        return self._func.__name__
+
+
+#
+# CloudProcess Class
+#
+
+class CloudProcess:
+    def __init__(self, group=None, target=None, name=None, args=None, kwargs=None, *, daemon=None):
+        assert group is None, 'process grouping is not implemented'
         count = next(_process_counter)
-        self._identity = _current_process._identity + (count,)
-        self._config = _current_process._config.copy()
+
+        if args is None:
+            args = ()
+        if kwargs is None:
+            kwargs = {}
+
+        self._config = {}
+        self._identity = count
         self._parent_pid = os.getpid()
-        self._popen = None
         self._target = target
         self._args = tuple(args)
         self._kwargs = dict(kwargs)
-        self._name = name or type(self).__name__ + '-' + ':'.join(str(i) for i in self._identity)
+        self._name = name or (type(self).__name__ + '-' + str(self._identity))
         if daemon is not None:
             self.daemon = daemon
-        _dangling.add(self)
+        lithops_config = mp_config.get_parameter(mp_config.LITHOPS_CONFIG)
+        self._executor = FunctionExecutor(**lithops_config)
+        self._forked = False
+        self._sentinel = object()
+        self._logger_thread = None
+        self._redis = util.get_redis_client()
+
+    def _logger_monitor(self, stream):
+        logger.debug('Starting logger monitor thread')
+        redis_pubsub = self._redis.pubsub()
+        redis_pubsub.subscribe(stream)
+
+        while True:
+            msg = redis_pubsub.get_message(ignore_subscribe_messages=True, timeout=10)
+            if msg is None:
+                continue
+            sys.stdout.write(msg['data'].decode('utf-8'))
 
     def run(self):
         """
@@ -99,52 +145,51 @@ class BaseProcess(object):
         """
         Start child process
         """
-        assert self._popen is None, 'cannot start a process twice'
-        assert self._parent_pid == os.getpid(), \
-            'can only start a process object created by current process'
-        assert not _current_process._config.get('daemon'), \
-            'daemonic processes are not allowed to have children'
-        _cleanup()
-        self._popen = self._Popen(self)
-        self._sentinel = self._popen.sentinel
-        # Avoid a refcycle if the target function holds an indirect
-        # reference to the process object (see bpo-30775)
+        assert not self._forked, 'cannot start a process twice'
+        assert self._parent_pid == os.getpid(), 'can only start a process object created by current process'
+
+        # sig = inspect.signature(self._target)
+        # pos_args = [param.name for _, param in sig.parameters.items() if param.default is inspect.Parameter.empty]
+        # fmt_args = dict(zip(pos_args, self._args))
+        # fmt_args.update(self._kwargs)
+
+        cloud_worker = CloudWorker(self._target)
+
+        extra_env = {}
+        if mp_config.get_parameter(mp_config.STREAM_STDOUT):
+            stream = self._executor.executor_id
+            logger.debug('Log streaming enabled, stream name: {}'.format(stream))
+            cloud_worker.log_stream = stream
+
+            self._logger_thread = threading.Thread(target=self._logger_monitor, args=(stream,))
+            self._logger_thread.daemon = True
+            self._logger_thread.start()
+
+        self._executor.call_async(cloud_worker, {'args': self._args, 'kwargs': self._kwargs}, extra_env=extra_env)
         del self._target, self._args, self._kwargs
-        _children.add(self)
+
+        self._forked = True
 
     def terminate(self):
         """
         Terminate process; sends SIGTERM signal or uses TerminateProcess()
         """
-        self._popen.terminate()
+        raise NotImplementedError()
 
     def join(self, timeout=None):
         """
         Wait until child process terminates
         """
         assert self._parent_pid == os.getpid(), 'can only join a child process'
-        assert self._popen is not None, 'can only join a started process'
-        res = self._popen.wait(timeout)
-        if res is not None:
-            _children.discard(self)
+        assert self._forked, 'can only join a started process'
+
+        self._executor.wait()
 
     def is_alive(self):
         """
         Return whether process is alive
         """
-        if self is _current_process:
-            return True
-        assert self._parent_pid == os.getpid(), 'can only test a child process'
-
-        if self._popen is None:
-            return False
-
-        returncode = self._popen.poll()
-        if returncode is None:
-            return True
-        else:
-            _children.discard(self)
-            return False
+        raise NotImplementedError()
 
     @property
     def name(self):
@@ -167,7 +212,7 @@ class BaseProcess(object):
         """
         Set whether process is a daemon
         """
-        assert self._popen is None, 'process has already started'
+        assert not self._forked, 'process has already started'
         self._config['daemon'] = daemonic
 
     @property
@@ -179,26 +224,21 @@ class BaseProcess(object):
         """
         Set authorization key of process
         """
-        self._config['authkey'] = AuthenticationString(authkey)
+        self._config['authkey'] = authkey
 
     @property
     def exitcode(self):
         """
         Return exit code of process or `None` if it has yet to stop
         """
-        if self._popen is None:
-            return self._popen
-        return self._popen.poll()
+        raise NotImplementedError()
 
     @property
     def ident(self):
         """
         Return identifier (PID) of process or `None` if it has yet to start
         """
-        if self is _current_process:
-            return os.getpid()
-        else:
-            return self._popen and self._popen.pid
+        raise NotImplementedError()
 
     pid = ident
 
@@ -212,81 +252,3 @@ class BaseProcess(object):
             return self._sentinel
         except AttributeError:
             raise ValueError("process not started")
-
-    def __repr__(self):
-        if self is _current_process:
-            status = 'started'
-        elif self._parent_pid != os.getpid():
-            status = 'unknown'
-        elif self._popen is None:
-            status = 'initial'
-        else:
-            if self._popen.poll() is not None:
-                status = self.exitcode
-            else:
-                status = 'started'
-
-        if type(status) is int:
-            if status == 0:
-                status = 'stopped'
-            else:
-                status = 'stopped[%s]' % _exitcode_to_name.get(status, status)
-
-        return '<%s(%s, %s%s)>' % (type(self).__name__, self._name,
-                                   status, self.daemon and ' daemon' or '')
-
-
-class CloudProcess(BaseProcess):
-    _Popen = PopenCloud
-
-
-#
-# We subclass bytes to avoid accidental transmission of auth keys over network
-#
-
-class AuthenticationString(bytes):
-    def __reduce__(self):
-        return AuthenticationString, (bytes(self),)
-
-
-#
-# Create object representing the main process
-#
-
-class _MainProcess(BaseProcess):
-
-    def __init__(self):
-        self._identity = ()
-        self._name = 'MainProcess'
-        self._parent_pid = None
-        self._popen = None
-        self._config = {'authkey': AuthenticationString(os.urandom(32)),
-                        'semprefix': '/mp'}
-        # Note that some versions of FreeBSD only allow named
-        # semaphores to have names of up to 14 characters.  Therefore
-        # we choose a short prefix.
-        #
-        # On MacOSX in a sandbox it may be necessary to use a
-        # different prefix -- see #19478.
-        #
-        # Everything in self._config will be inherited by descendant
-        # processes.
-
-
-_current_process = _MainProcess()
-_process_counter = itertools.count(1)
-_children = set()
-del _MainProcess
-
-#
-# Give names to some return codes
-#
-
-_exitcode_to_name = {}
-
-for name, signum in list(signal.__dict__.items()):
-    if name[:3] == 'SIG' and '_' not in name:
-        _exitcode_to_name[-signum] = name
-
-# For debug and leak testing
-_dangling = WeakSet()

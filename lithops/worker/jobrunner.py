@@ -291,11 +291,11 @@ class JobRunner:
                                         ))
 
             logger.info("Going to execute '{}()'".format(str(function.__name__)))
-            print('---------------------- FUNCTION LOG ----------------------', flush=True)
+            logger.info('---------------------- FUNCTION LOG ----------------------')
             function_start_tstamp = time.time()
             result = function(**data)
             function_end_tstamp = time.time()
-            print('----------------------------------------------------------', flush=True)
+            logger.info('----------------------------------------------------------')
             logger.info("Success function execution")
 
             self.prometheus.send_metric(name='function_end',
@@ -331,9 +331,9 @@ class JobRunner:
             exception = True
             self.stats.write("exception", True)
             exc_type, exc_value, exc_traceback = sys.exc_info()
-            print('----------------------- EXCEPTION !-----------------------', flush=True)
+            logger.error('----------------------- EXCEPTION !-----------------------')
             traceback.print_exc(file=sys.stdout)
-            print('----------------------------------------------------------', flush=True)
+            logger.error('----------------------------------------------------------')
 
             try:
                 logger.debug("Pickling exception")
