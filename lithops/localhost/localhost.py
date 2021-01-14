@@ -26,6 +26,7 @@ from shutil import copyfile
 from lithops.constants import TEMP, LITHOPS_TEMP_DIR, JOBS_PREFIX,\
     RN_LOG_FILE, LOGS_DIR, COMPUTE_CLI_MSG
 from lithops.storage.utils import create_job_key
+from lithops.utils import is_unix_system
 
 logger = logging.getLogger(__name__)
 
@@ -76,15 +77,23 @@ class LocalhostHandler:
         job_id = job_payload['job_id']
         storage_bucket = job_payload['config']['lithops']['storage_bucket']
 
-        job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket, JOBS_PREFIX)
-        os.makedirs(job_dir, exist_ok=True)
-        jobr_filename = os.path.join(job_dir, '{}-job.json'.format(job_key))
+        local_job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket, JOBS_PREFIX)
+        docker_job_dir = os.path.join('/tmp/lithops/{}/{}'.format(storage_bucket, JOBS_PREFIX))
+        job_file = '{}-job.json'.format(job_key)
 
-        with open(jobr_filename, 'w') as jl:
+        os.makedirs(local_job_dir, exist_ok=True)
+        local_job_filename = os.path.join(local_job_dir, job_file)
+
+        with open(local_job_filename, 'w') as jl:
             json.dump(job_payload, jl, default=str)
 
+        if self.env_type == 'docker':
+            job_filename = '{}/{}'.format(docker_job_dir, job_file)
+        else:
+            job_filename = local_job_filename
+
         log_file = open(RN_LOG_FILE, 'a')
-        sp.Popen(exec_command+' run '+jobr_filename, shell=True,
+        sp.Popen(exec_command+' run '+job_filename, shell=True,
                  stdout=log_file, stderr=log_file, universal_newlines=True)
 
     def create_runtime(self, runtime):
@@ -92,7 +101,7 @@ class LocalhostHandler:
         Extract the runtime metadata and preinstalled modules
         """
         logger.info("Extracting preinstalled Python modules from {}".format(runtime))
-        self.env.setup()
+        self.env.setup(runtime)
         exec_command = self.env.get_execution_cmd(runtime)
         process = sp.run(exec_command+' preinstalls', shell=True, check=True,
                          stdout=sp.PIPE, universal_newlines=True)
@@ -119,7 +128,7 @@ class DockerEnv:
     def __init__(self, docker_image):
         self.runtime = docker_image
 
-    def setup(self):
+    def setup(self, runtime):
         os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
         try:
             shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
@@ -129,11 +138,17 @@ class DockerEnv:
         src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'runner.py')
         copyfile(src_handler, RUNNER)
 
-    def get_execution_cmd(self, docker_image_name):
-        cmd = ('docker pull {} > /dev/null 2>&1; docker run '
-               '--user $(id -u):$(id -g) --rm -v {}:/tmp --entrypoint '
-               '"python" {} /tmp/lithops/runner.py'
-               .format(docker_image_name, TEMP, docker_image_name))
+        sp.run('docker pull {}'.format(self.runtime), shell=True, check=True,
+               stdout=sp.PIPE, universal_newlines=True)
+
+    def get_execution_cmd(self, runtime):
+        if is_unix_system():
+            cmd = ('docker run --user $(id -u):$(id -g) --rm -v {}:/tmp --entrypoint '
+                   '"python" {} /tmp/lithops/runner.py'.format(TEMP, self.runtime))
+        else:
+            cmd = ('docker run --rm -v {}:/tmp --entrypoint "python" {} '
+                   '/tmp/lithops/runner.py'.format(TEMP, self.runtime))
+        logger.debug(cmd)
         return cmd
 
 
@@ -141,7 +156,7 @@ class DefaultEnv:
     def __init__(self):
         self.runtime = sys.executable
 
-    def setup(self):
+    def setup(self, runtime):
         os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
         try:
             shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
@@ -153,4 +168,5 @@ class DefaultEnv:
 
     def get_execution_cmd(self, runtime):
         cmd = '{} {}'.format(self.runtime, RUNNER)
+        logger.debug(cmd)
         return cmd

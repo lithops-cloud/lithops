@@ -17,6 +17,7 @@
 - [Core] Fixed issue in clean when it is called between wait and get_result
 - [Core] Fixed multiprocessing Queue and get_context
 - [Core] Fixed multiprocessing args mapping in map and map_async
+- [Localhost] Fixed issue when using docker images in Windows or MAC
 
 ### Deleted
 - [Core] Removed tblib from lithops.libs
