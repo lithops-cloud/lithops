@@ -144,9 +144,9 @@ class DockerEnv:
     def get_execution_cmd(self, runtime):
         if is_unix_system():
             cmd = ('docker run --user $(id -u):$(id -g) --rm -v {}:/tmp --entrypoint '
-                   '"python" {} /tmp/lithops/runner.py'.format(TEMP, self.runtime))
+                   '"python3" {} /tmp/lithops/runner.py'.format(TEMP, self.runtime))
         else:
-            cmd = ('docker run --rm -v {}:/tmp --entrypoint "python" {} '
+            cmd = ('docker run --rm -v {}:/tmp --entrypoint "python3" {} '
                    '/tmp/lithops/runner.py'.format(TEMP, self.runtime))
         logger.debug(cmd)
         return cmd
