@@ -1,6 +1,6 @@
 # Lithops runtime for IBM Cloud Functions
 
-The runtime is the place where your functions are executed. In Lithops, runtimes are based on docker images, and it includes by default three different runtimes that allows you to run functions with Python 3.5, 3.6 and 3.7 environments. Lithops main runtime is responsible to execute Python functions within IBM Cloud Functions cluster. The strong requirement here is to match Python versions between the client and the runtime. The runtime may also contain additional packages which your code depends on.
+The runtime is the place where your functions are executed. In Lithops, runtimes are based on docker images, and it includes by default three different runtimes that allows you to run functions with Python 3.5, 3.6, 3.7 adn 3.8 environments. Lithops main runtime is responsible to execute Python functions within IBM Cloud Functions cluster. The strong requirement here is to match Python versions between the client and the runtime. The runtime may also contain additional packages which your code depends on.
 
 Lithops for IBM Cloud is shipped with these default runtimes:
 
@@ -46,9 +46,11 @@ pw = lithops.FunctionExecutor(runtime_memory=512)
     If you need some Python modules (or other system libraries) which are not included in the default docker images (see table above), it is possible to build your own Lithops runtime with all of them.
 
     This alternative usage is based on to build a local Docker image, deploy it to the docker hub (you need a [Docker Hub account](https://hub.docker.com)) and use it as a Lithops base runtime.
-    Project provides some skeletons of Docker images, for example:
+    Project provides some base skeletons of Docker images for each supported python version, for example:
 
-    * [Dockerfile](ibm_cf/Dockerfile) - The image is based on `python:3.6-slim-jessie`. 
+    * [Dockerfile](ibm_cf/Dockerfile.python36) - The image is based on `python:3.6-slim-buster`. 
+    * [Dockerfile](ibm_cf/Dockerfile.python37) - The image is based on `python:3.7-slim-buster`. 
+    * [Dockerfile](ibm_cf/Dockerfile.python38) - The image is based on `python:3.8-slim-buster`. 
 
     To build your own runtime, first install the Docker CE version in your client machine. You can find the instructions [here](https://docs.docker.com/get-docker/). If you already have Docker installed omit this step.
 
@@ -57,28 +59,28 @@ pw = lithops.FunctionExecutor(runtime_memory=512)
         $ docker login
 
     Navigate to [ibm_cf/](imb_cf/) and update the Dockerfile that better fits to your requirements with your required system packages and Python modules.
-    If you need another Python version, for example Python 3.7, you must use the [Dockerfile.python37](ibm_cf/Dockerfile.python37) that
-    points to a source image based on Python 3.7. Finally run the build script:
+    If you need another Python version, for example Python 3.8, you must use the [Dockerfile.python38](ibm_cf/Dockerfile.python38) that
+    points to a source image based on Python 3.8. Finally run the build script:
 
         $ lithops runtime build docker_username/runtimename:tag
 
     Note that Docker hub image names look like *"docker_username/runtimename:tag"* and must be all lower case, for example:
 
-        $ lithops runtime build jsampe/lithops-custom-runtime-3.7:0.1
+        $ lithops runtime build jsampe/lithops-custom-runtime-3.8:0.1
 
     By default the Dockerfile should be located in the same folder from where you execute the **lithops runtime** command. If your Dockerfile is located in another folder, or the Dockerfile has another name, you can specify its location with the **-f** parameter, for example:
 
-        $ lithops runtime build -f ibm_cf/Dockerfile.conda jsampe/lithops-conda-runtime-3.6:0.1
+        $ lithops runtime build -f ibm_cf/Dockerfile.conda jsampe/lithops-conda-runtime-3.8:0.1
 
     Once you have built your runtime with all of your necessary packages, you can already use it with Lithops.
     To do so, you have to specify the full docker image name in the configuration or when you create the **ibm_cf_executor** instance, for example:
 
     ```python
     import lithops
-    fexec = lithops.FunctionExecutor(runtime='jsampe/lithops-custom-runtime-3.7:0.1')
+    fexec = lithops.FunctionExecutor(runtime='jsampe/lithops-custom-runtime-3.8:0.1')
     ```
 
-    *NOTE: In this previous example we built a Docker image based on Python 3.7, this means that now we also need Python 3.7 in the client machine.*
+    *NOTE: In this previous example we built a Docker image based on Python 3.8, this means that now we also need Python 3.8 in the client machine.*
 
 2. **Use an already built runtime from a public repository**
 
@@ -87,22 +89,22 @@ pw = lithops.FunctionExecutor(runtime_memory=512)
 
     ```python
     import lithops
-    fexec = lithops.FunctionExecutor(runtime='jsampe/lithops-conda-3.6:0.1')
+    fexec = lithops.FunctionExecutor(runtime='jsampe/lithops-conda-3.8:0.1')
     ```
 
     Alternatively, you can create a Lithops runtime based on already built Docker image by executing the following command, which will deploy all the necessary information to use the runtime with your Lithops.
 
         $ lithops runtime create docker_username/runtimename:tag
 
-    For example, you can use an already created runtime based on Python 3.6 and with the *matplotlib* and *nltk* libraries by running:
+    For example, you can use an already created runtime based on Python 3.8 and with the *matplotlib* and *nltk* libraries by running:
 
-        $ lithops runtime create jsampe/lithops-matplotlib-3.6:0.1
+        $ lithops runtime create jsampe/lithops-matplotlib-3.8:0.1
 
     Once finished, you can use the runtime in your Lithops code:
 
     ```python
     import lithops
-    fexec = lithops.FunctionExecutor(runtime='jsampe/lithops-matplotlib:3.6:0.1')
+    fexec = lithops.FunctionExecutor(runtime='jsampe/lithops-matplotlib:3.8:0.1')
     ```
 
 ## Runtime Management
@@ -119,9 +121,9 @@ pw = lithops.FunctionExecutor(runtime_memory=512)
 
         $ lithops runtime update docker_username/runtimename:tag
 
-    For example, you can update an already created runtime based on the Docker image `jsampe/lithops-conda-3.6:0.1` by:
+    For example, you can update an already created runtime based on the Docker image `jsampe/lithops-conda-3.8:0.1` by:
 
-        $ lithops runtime update jsampe/lithops-conda-3.6:0.1
+        $ lithops runtime update jsampe/lithops-conda-3.8:0.1
 
     Alternatively, you can update all the deployed runtimes at a time by:
 
@@ -139,9 +141,9 @@ pw = lithops.FunctionExecutor(runtime_memory=512)
 
         $ lithops runtime delete docker_username/runtimename:tag
 
-    For example, you can delete runtime based on the Docker image `jsampe/lithops-conda-3.6:0.1` by:
+    For example, you can delete runtime based on the Docker image `jsampe/lithops-conda-3.8:0.1` by:
 
-        $ lithops runtime delete jsampe/lithops-conda-3.6:0.1
+        $ lithops runtime delete jsampe/lithops-conda-3.8:0.1
 
     You can delete all the runtimes at a time by:
 
@@ -151,4 +153,4 @@ pw = lithops.FunctionExecutor(runtime_memory=512)
 
      You can clean everything related to Lithops, such as all deployed runtimes and cache information, and start from scratch by simply running the next command (Configuration is not deleted):
 
-        $ lithops clean
+        $ lithops clean -b ibm_cf
