@@ -45,7 +45,7 @@ class IBMVPCInstanceClient:
         self.service = VpcV1('2020-06-02', authenticator=authenticator)
         self.service.set_service_url(self.config['endpoint'] + '/v1')
 
-        user_agent_string = 'ibm_vpc_lithops ' + ' {}'.format(self.config['user_agent'])
+        user_agent_string = 'ibm_vpc_' + ' {}'.format(self.config['user_agent'])
 
         self.service._set_user_agent_header(user_agent_string)
 
