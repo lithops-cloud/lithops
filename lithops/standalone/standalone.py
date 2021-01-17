@@ -24,6 +24,7 @@ import importlib
 import requests
 import copy
 from threading import Thread
+import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.utils import is_lithops_worker, create_handler_zip
@@ -74,6 +75,8 @@ class StandaloneHandler:
 
         self.exec_mode = self.config.get('exec_mode', 'consume')
         self.backends = []
+        import threading
+        self.backend_lock = threading.Lock()
         self.provided_backed = False
 
         if self.exec_mode != 'create' and \
@@ -106,7 +109,7 @@ class StandaloneHandler:
                 return True
             time.sleep(5)
 
-        self.dismantle()
+        self.dismantle(backend)
         raise Exception('VM readiness probe expired. Check your VM')
 
     def _start_backend(self, backend):
@@ -152,7 +155,7 @@ class StandaloneHandler:
                 return True
             time.sleep(10)
 
-        self.dismantle()
+        self.dismantle(backend)
         raise Exception('Proxy readiness probe expired for {}. Check your VM'.format(backend.get_ip_address()))
 
     def _start_log_monitor(self, executor_id, job_id, backend):
@@ -216,12 +219,21 @@ class StandaloneHandler:
             executor_id = job_payload['executor_id']
             job_id = job_payload['job_id']
             job_key = create_job_key(executor_id, job_id)
-            executor = ThreadPoolExecutor(int(job_payload['job_description']['total_calls']))
+            executor = ThreadPoolExecutor(max_workers=int(job_payload['job_description']['total_calls']))
             import threading
             lock = threading.Lock()
+            futures = []
             for i in range(job_payload['job_description']['total_calls']):
                 call_id = "{:05d}".format(i)
-                executor.submit(self._thread_invoke, lock, job_key, call_id, copy.deepcopy(job_payload))
+                futures.append(executor.submit(self._thread_invoke, lock, job_key, call_id, copy.deepcopy(job_payload)))
+
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    print(future.result())
+                except Exception as e:
+                    logger.error("There was an error trying to concurrently invoke the job {}".format(e))
+                    self.dismantle()
+                    raise e
 
     def _single_invoke(self, backend, job_payload):
         logger.debug("_single_invoke - Thread invoke for {} ".format(backend.get_ip_address()))
@@ -305,14 +317,24 @@ class StandaloneHandler:
             # return default
             return runtime_name.strip("/")
 
-    def dismantle(self):
+    def dismantle(self, backend=None):
         """
         Stop VM instance
         """
-        logger.info("Entering dismantle for length {}".format(len(self.backends)))
-        for backend in self.backends:
-            logger.debug("Dismantle {} for {}".format(backend.get_instance_id(), backend.get_ip_address()))
-            backend.stop()
+
+        self.backend_lock.acquire()
+        try:
+            if backend:
+                logger.info("Entering dismantle for backend {}".format(backend.get_ip_address()))
+                backend.stop()
+                self.backends.remove(backend)
+            else:
+                logger.info("Entering dismantle for length {}".format(len(self.backends)))
+                for backend in self.backends:
+                    logger.debug("Dismantle {} for {}".format(backend.get_instance_id(), backend.get_ip_address()))
+                    backend.stop()
+        finally:
+            self.backend_lock.release()
 
     def create_backend_handler(self, instance_id=None, ip_address=None):
         try:
