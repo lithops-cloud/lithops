@@ -35,7 +35,7 @@ class SSHClient():
         if not background:
             out = stdout.read().decode().strip()
             error = stderr.read().decode().strip()
-            logger.debug(out)
+            logger.debug("{}  - {}".format(ip_address, out))
 
         return out
 

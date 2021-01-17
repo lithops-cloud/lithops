@@ -22,6 +22,7 @@ import select
 import logging
 import importlib
 import requests
+import copy
 from threading import Thread
 from concurrent.futures import ThreadPoolExecutor
 
@@ -202,6 +203,7 @@ class StandaloneHandler:
     def _thread_invoke(self, lock, job_key, call_id, job_payload):
         backend = self.create(lock, job_key, call_id)
         job_payload['job_description']['call_id'] = call_id
+        logger.debug("thread invoke for {} : call id {}".format(backend.get_ip_address(), job_payload['job_description']['call_id']))
         self._single_invoke(backend, job_payload)
 
     def run_job(self, job_payload):
@@ -219,7 +221,7 @@ class StandaloneHandler:
             lock = threading.Lock()
             for i in range(job_payload['job_description']['total_calls']):
                 call_id = "{:05d}".format(i)
-                executor.submit(self._thread_invoke, lock, job_key, call_id, job_payload)
+                executor.submit(self._thread_invoke, lock, job_key, call_id, copy.deepcopy(job_payload))
 
     def _single_invoke(self, backend, job_payload):
         logger.debug("_single_invoke - Thread invoke for {} ".format(backend.get_ip_address()))
