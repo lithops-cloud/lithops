@@ -213,25 +213,26 @@ class IBMVPCInstanceClient:
             return True
         return False
 
-    def create(self, job_key = None, call_id = None):
+    def create(self, job_key = None, call_id = None, check_if_vsi_exists = False):
         logger.info("Creating VM instance {} {}".format(job_key, call_id))
         self.instance_id = None
-
-        #check if VSI exists
-        try:
-            resp = self.service.list_instances()
-            all_instances = resp.get_result()['instances']
-        except Exception as e:
-            logger.warn(e)
-            raise e
-
         vsi_exists = False
-        for instance in all_instances:
-            if instance['name'] == self._generate_name('instance', job_key, call_id):
-                logger.debug('{} Already exists. Need to find floating ip attached'.format(instance['name']))
-                vsi_exists = True
-                self.instance_id = instance['id']
-        if (not vsi_exists):
+
+        if check_if_vsi_exists:
+            #check if VSI exists
+            try:
+                resp = self.service.list_instances()
+                all_instances = resp.get_result()['instances']
+            except Exception as e:
+                logger.warn(e)
+                raise e
+
+            for instance in all_instances:
+                if instance['name'] == self._generate_name('instance', job_key, call_id):
+                    logger.debug('{} Already exists. Need to find floating ip attached'.format(instance['name']))
+                    vsi_exists = True
+                    self.instance_id = instance['id']
+        if not vsi_exists:
             try:
                 instance = self._create_instance(job_key, call_id)
                 self.instance_id = instance['id']
