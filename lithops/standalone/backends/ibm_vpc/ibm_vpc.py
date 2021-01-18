@@ -204,7 +204,19 @@ class IBMVPCInstanceClient:
 
     def start(self):
         logger.info("Starting VM instance {} with IP {} ".format(self.instance_id, self.ip_address))
-        resp = self.service.create_instance_action(self.instance_id, 'start')
+        try:
+            resp = self.service.create_instance_action(self.instance_id, 'start')
+        except Exception as e:
+            logger.warn("Lithops - start VM {} failed".format(self.ip_address))
+            logger.error(e)
+            logger.warn("Lithops - start VM {} retry".format(self.ip_address))
+            try:
+                resp = self.service.create_instance_action(self.instance_id, 'start')
+            except Exception as e:
+                logger.warn("Second retry failed for {}".format(self.ip_address))
+                raise(e)
+
+            
         logger.debug("VM instance {} started successfully".format(self.instance_id))
 
     def is_ready(self):
