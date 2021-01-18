@@ -101,27 +101,25 @@ class StandaloneHandler:
         """
         Waits until the VM instance is ready to receive ssh connections
         """
-        logger.debug('Waiting VM instance to become ready')
+        logger.debug('Waiting VM instance {} to become ready'.format(backend.get_ip_address()))
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
             if self._is_backend_ready(backend):
                 return True
-            time.sleep(5)
+
+            time.sleep(2)
 
         self.dismantle(backend)
-        raise Exception('VM readiness probe expired. Check your VM')
+        raise Exception('VM readiness {} probe expired. Check your VM'.format(backend.get_ip_address()))
 
     def _start_backend(self, backend):
-        logger.debug("Starting backend {} if not running".format(backend.get_ip_address()))
-        if not self._is_backend_ready(backend):
-            # The VM instance is stopped
-            logger.debug("Backend {} stopped".format(backend.get_ip_address()))
-            init_time = time.time()
-            backend.start()
-            self._wait_backend_ready(backend)
-            total_start_time = round(time.time()-init_time, 2)
-            logger.info('VM instance ready in {} seconds'.format(total_start_time))
+        logger.debug("Starting backend {}".format(backend.get_ip_address()))
+        init_time = time.time()
+        backend.start()
+        self._wait_backend_ready(backend)
+        total_start_time = round(time.time()-init_time, 2)
+        logger.info('VM instance {} ready in {} seconds'.format(backend.get_ip_address(), total_start_time))
 
     def _is_proxy_ready(self, backend):
         """
@@ -153,7 +151,7 @@ class StandaloneHandler:
         while(time.time() - start < self.start_timeout):
             if self._is_proxy_ready(backend):
                 return True
-            time.sleep(10)
+            time.sleep(5)
 
         self.dismantle(backend)
         raise Exception('Proxy readiness probe expired for {}. Check your VM'.format(backend.get_ip_address()))
@@ -378,8 +376,6 @@ class StandaloneHandler:
     def _setup_proxy(self, backend):
         ip_address = backend.get_ip_address()
         logger.debug('Installing Lithops proxy in the VM instance {}'.format(ip_address))
-        logger.debug('Be patient, installation process can take up to 3 minutes '
-                     'if this is the first time you use the VM instance')
         ssh_client = backend.get_ssh_client()
 
         service_file = '/etc/systemd/system/{}'.format(PROXY_SERVICE_NAME)
@@ -387,16 +383,12 @@ class StandaloneHandler:
         ssh_client.upload_data_to_file(ip_address, PROXY_SERVICE_FILE, service_file)
         logger.debug('Upload service file {} - completed'.format(service_file))
 
-        logger.debug('Reload daemon {} - started'.format(ip_address))
         cmd = 'rm -R {}; mkdir -p {}; '.format(REMOTE_INSTALL_DIR, REMOTE_INSTALL_DIR)
-        cmd += 'systemctl daemon-reload; systemctl stop {}; '.format(PROXY_SERVICE_NAME)
         ssh_client.run_remote_command(ip_address, cmd)
-        logger.debug('Reload daemon {} - finished'.format(ip_address))
 
         config_file = os.path.join(REMOTE_INSTALL_DIR, 'config')
         ssh_client.upload_data_to_file(ip_address, json.dumps(self.config), config_file)
 
-        time.sleep(5)
         src_proxy = os.path.join(os.path.dirname(__file__), 'proxy.py')
         FH_ZIP_LOCATION_IP = os.path.join(os.getcwd(), ip_address.replace('.', 'a') + 'lithops_standalone.zip')
         create_handler_zip(FH_ZIP_LOCATION_IP, src_proxy)
@@ -407,6 +399,9 @@ class StandaloneHandler:
 
         # Install dependenices
         if not backend.is_custom_image():
+            logger.debug('Be patient, installation process can take up to 3 minutes '
+             'since this is the first time you use the VM instance')
+
             cmd = 'mkdir -p /tmp/lithops; '
             cmd += 'sudo rm /var/lib/apt/lists/* -vf; '
             cmd += 'apt-get clean; '
@@ -427,6 +422,6 @@ class StandaloneHandler:
         cmd += 'systemctl stop {}; '.format(PROXY_SERVICE_NAME)
         cmd += 'systemctl enable {}; '.format(PROXY_SERVICE_NAME)
         cmd += 'systemctl start {}; '.format(PROXY_SERVICE_NAME)
-        logger.debug('Executing 2nd ssh for Lithops proxy to VM instance {}'.format(ip_address))
+        logger.debug('Executing main ssh for Lithops proxy to VM instance {}'.format(ip_address))
         ssh_client.run_remote_command(ip_address, cmd, timeout=300)
-        logger.debug('Completed 2nd ssh for Lithops proxy to VM instance {}'.format(ip_address))
+        logger.debug('Completed main ssh for Lithops proxy to VM instance {}'.format(ip_address))
