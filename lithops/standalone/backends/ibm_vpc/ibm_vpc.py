@@ -8,6 +8,7 @@ from lithops.util.ibm_token_manager import IBMTokenManager
 from ibm_vpc import VpcV1
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
 import namegenerator
+from ipaddress import ip_address
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,20 @@ class IBMVPCInstanceClient:
             return resp
         return "lithops-" + namegenerator.gen() + "-" + r_type
 
+    def execution_wrapper(self, func, method, job_key = None, call_id = None, instance_id = None, ip_address = None):
+        retry_attempt = 0
+        while (int(retry_attempt) < 5):
+            try:
+                logger.debug("Execution {} for {} {} {} {}. Retry attempt {}".format(method, job_key, call_id, instance_id, ip_address, retry_attempt))
+                response = func()
+                return response
+            except Exception as e:
+                logger.debug("Execution {} for {} {} {} {} failed. Retry attempt {}".format(method, job_key, call_id, instance_id, ip_address, retry_attempt))
+                logger.debug(e)
+                retry_attempt = int(retry_attempt) + 1
+                if int(retry_attempt) == 5:
+                    raise e
+
     def _create_instance(self, job_key, call_id):
         logger.debug("__create_instance {} {} - start".format(job_key, call_id))
         # security_group_identity_model = {'id': 'r006-2d3cc459-bb8b-4ec6-a5fb-28e60c9f7d7b'}
@@ -112,12 +127,9 @@ class IBMVPCInstanceClient:
         instance_prototype_model['boot_volume_attachment'] = volume_attachment_prototype_instance_by_image
         instance_prototype_model['primary_network_interface'] = network_interface_prototype_model
 
-        try:
-            logger.debug("Creating instance for {} {}".format(job_key, call_id))
-            response = self.service.create_instance(instance_prototype_model)
-        except Exception as e:
-            logger.warn(e)
-            raise e
+        logger.debug("Creating instance for {} {}".format(job_key, call_id))
+        response = self.execution_wrapper(lambda: self.service.create_instance(instance_prototype_model),'creating instance', job_key = job_key, call_id = call_id)
+
         return response.result
         
     def _create_and_attach_floating_ip(self, instance, job_key, call_id):
@@ -203,19 +215,8 @@ class IBMVPCInstanceClient:
         logger.debug("instance {} been deleted".format(self.instance_id))
 
     def start(self):
-        logger.info("Starting VM instance {} with IP {} ".format(self.instance_id, self.ip_address))
-        try:
-            resp = self.service.create_instance_action(self.instance_id, 'start')
-        except Exception as e:
-            logger.warn("Lithops - start VM {} failed".format(self.ip_address))
-            logger.error(e)
-            logger.warn("Lithops - start VM {} retry".format(self.ip_address))
-            try:
-                resp = self.service.create_instance_action(self.instance_id, 'start')
-            except Exception as e:
-                logger.warn("Second retry failed for {}".format(self.ip_address))
-                raise(e)
-
+        logger.info("Starting VM instance id {} with IP {}".format(self.instance_id, self.ip_address))
+        resp = self.execution_wrapper(lambda: self.service.create_instance_action(self.instance_id, 'start'),'start vm', instance_id = self.instance_id, ip_address = self.ip_address)
             
         logger.debug("VM instance {} started successfully".format(self.instance_id))
 
@@ -276,7 +277,7 @@ class IBMVPCInstanceClient:
                 logger.warn("VSI {} Delete error {}" .format(self.ip_address, e))
         else:
             logger.info("Stopping VM instance {}".format(self.ip_address))
-            resp = self.service.create_instance_action(self.instance_id, 'stop')
+            resp = self.execution_wrapper(lambda: self.service.create_instance_action(self.instance_id, 'stop'), 'stop vm', ip_address = self.ip_address)
             logger.debug("VM instance {} stopped successfully".format(self.instance_id))
 
             logger.debug("VM instance stopped successfully")
