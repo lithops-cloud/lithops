@@ -81,7 +81,7 @@ class IBMVPCInstanceClient:
 
     def execution_wrapper(self, func, method, job_key = None, call_id = None, instance_id = None, ip_address = None):
         retry_attempt = 0
-        while (int(retry_attempt) < 10):
+        while (int(retry_attempt) < 15):
             try:
                 logger.debug("Execution {} for {} {} {} {}. Retry attempt {}".format(method, job_key, call_id, instance_id, ip_address, retry_attempt))
                 response = func()
@@ -90,7 +90,8 @@ class IBMVPCInstanceClient:
                 logger.debug("Execution {} for {} {} {} {} failed. Retry attempt {}".format(method, job_key, call_id, instance_id, ip_address, retry_attempt))
                 logger.debug(e)
                 retry_attempt = int(retry_attempt) + 1
-                if int(retry_attempt) == 10:
+                time.sleep(1)
+                if int(retry_attempt) == 15:
                     raise e
 
     def _create_instance(self, job_key, call_id):
