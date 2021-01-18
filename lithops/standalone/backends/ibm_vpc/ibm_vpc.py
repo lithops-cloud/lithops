@@ -8,7 +8,6 @@ from lithops.util.ibm_token_manager import IBMTokenManager
 from ibm_vpc import VpcV1
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
 import namegenerator
-from ipaddress import ip_address
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +81,7 @@ class IBMVPCInstanceClient:
 
     def execution_wrapper(self, func, method, job_key = None, call_id = None, instance_id = None, ip_address = None):
         retry_attempt = 0
-        while (int(retry_attempt) < 5):
+        while (int(retry_attempt) < 10):
             try:
                 logger.debug("Execution {} for {} {} {} {}. Retry attempt {}".format(method, job_key, call_id, instance_id, ip_address, retry_attempt))
                 response = func()
@@ -91,7 +90,7 @@ class IBMVPCInstanceClient:
                 logger.debug("Execution {} for {} {} {} {} failed. Retry attempt {}".format(method, job_key, call_id, instance_id, ip_address, retry_attempt))
                 logger.debug(e)
                 retry_attempt = int(retry_attempt) + 1
-                if int(retry_attempt) == 5:
+                if int(retry_attempt) == 10:
                     raise e
 
     def _create_instance(self, job_key, call_id):
