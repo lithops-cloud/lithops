@@ -240,7 +240,7 @@ class StandaloneHandler:
             logger.info('_single_invoke - VM instance ready in {} seconds'.format(total_start_time))
 
         logger.debug("_single_invoke - before starting log {} ".format(ip_address))
-        self._start_log_monitor(executor_id, job_id, backend)
+        #self._start_log_monitor(executor_id, job_id, backend)
 
         logger.info('ExecutorID {} | JobID {} - Running job'
                     .format(executor_id, job_id))
