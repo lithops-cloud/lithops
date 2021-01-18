@@ -65,6 +65,7 @@ class StandaloneHandler:
         self.start_timeout = self.config.get('start_timeout', 300)
 
         self.auto_dismantle = self.config.get('auto_dismantle')
+        self.keep_failed = self.config.get('keep_failed', False)
         self.hard_dismantle_timeout = self.config.get('hard_dismantle_timeout')
         self.soft_dismantle_timeout = self.config.get('soft_dismantle_timeout')
         self.module_location = 'lithops.standalone.backends.{}'.format(self.backend_name)
@@ -324,7 +325,8 @@ class StandaloneHandler:
         try:
             if backend:
                 logger.info("Entering dismantle for backend {}".format(backend.get_ip_address()))
-                backend.stop()
+                if not self.keep_failed:
+                    backend.stop()
                 self.backends.remove(backend)
             else:
                 logger.info("Entering dismantle for length {}".format(len(self.backends)))
