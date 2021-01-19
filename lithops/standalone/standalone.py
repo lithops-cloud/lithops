@@ -64,6 +64,7 @@ class StandaloneHandler:
         self.start_timeout = self.config.get('start_timeout', 300)
 
         self.auto_dismantle = self.config.get('auto_dismantle')
+        self.disable_log_monitoring = self.config.get('disable_log_monitoring', 'False')
         self.hard_dismantle_timeout = self.config.get('hard_dismantle_timeout')
         self.soft_dismantle_timeout = self.config.get('soft_dismantle_timeout')
         self.module_location = 'lithops.standalone.backends.{}'.format(self.backend_name)
@@ -240,7 +241,8 @@ class StandaloneHandler:
             logger.info('_single_invoke - VM instance ready in {} seconds'.format(total_start_time))
 
         logger.debug("_single_invoke - before starting log {} ".format(ip_address))
-        #self._start_log_monitor(executor_id, job_id, backend)
+        if self.disable_log_monitoring == 'False':
+            self._start_log_monitor(executor_id, job_id, backend)
 
         logger.info('ExecutorID {} | JobID {} - Running job'
                     .format(executor_id, job_id))
