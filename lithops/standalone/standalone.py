@@ -64,7 +64,6 @@ class StandaloneHandler:
         self.start_timeout = self.config.get('start_timeout', 300)
 
         self.auto_dismantle = self.config.get('auto_dismantle')
-        self.disable_log_monitoring = self.config.get('disable_log_monitoring', 'False')
         self.hard_dismantle_timeout = self.config.get('hard_dismantle_timeout')
         self.soft_dismantle_timeout = self.config.get('soft_dismantle_timeout')
         self.module_location = 'lithops.standalone.backends.{}'.format(self.backend_name)
@@ -106,7 +105,7 @@ class StandaloneHandler:
             if self._is_backend_ready(backend):
                 return True
 
-            time.sleep(2)
+            time.sleep(10)
 
         self.dismantle()
         raise Exception('VM readiness {} probe expired. Check your VM'.format(backend.get_ip_address()))
@@ -241,8 +240,7 @@ class StandaloneHandler:
             logger.info('_single_invoke - VM instance ready in {} seconds'.format(total_start_time))
 
         logger.debug("_single_invoke - before starting log {} ".format(ip_address))
-        if self.disable_log_monitoring == 'False':
-            self._start_log_monitor(executor_id, job_id, backend)
+        self._start_log_monitor(executor_id, job_id, backend)
 
         logger.info('ExecutorID {} | JobID {} - Running job'
                     .format(executor_id, job_id))
@@ -358,17 +356,6 @@ class StandaloneHandler:
         logger.debug('Installing Lithops proxy in the VM instance {}'.format(ip_address))
         ssh_client = backend.get_ssh_client()
 
-        service_file = '/etc/systemd/system/{}'.format(PROXY_SERVICE_NAME)
-        logger.debug('Upload service file {} - started'.format(service_file))
-        ssh_client.upload_data_to_file(ip_address, PROXY_SERVICE_FILE, service_file)
-        logger.debug('Upload service file {} - completed'.format(service_file))
-
-        cmd = 'rm -R {}; mkdir -p {}; '.format(REMOTE_INSTALL_DIR, REMOTE_INSTALL_DIR)
-        ssh_client.run_remote_command(ip_address, cmd)
-
-        config_file = os.path.join(REMOTE_INSTALL_DIR, 'config')
-        ssh_client.upload_data_to_file(ip_address, json.dumps(self.config), config_file)
-
         src_proxy = os.path.join(os.path.dirname(__file__), 'proxy.py')
         FH_ZIP_LOCATION_IP = os.path.join(os.getcwd(), ip_address.replace('.', 'a') + 'lithops_standalone.zip')
         create_handler_zip(FH_ZIP_LOCATION_IP, src_proxy)
@@ -377,21 +364,25 @@ class StandaloneHandler:
         logger.debug('Upload zip file to {} - completed'.format(ip_address))
         os.remove(FH_ZIP_LOCATION_IP)
 
+        cmd = 'rm -R {}; mkdir -p {}; '.format(REMOTE_INSTALL_DIR, REMOTE_INSTALL_DIR)
+        service_file = '/etc/systemd/system/{}'.format(PROXY_SERVICE_NAME)
+        cmd += "echo '{}' > {};".format(PROXY_SERVICE_FILE, service_file)
+        config_file = os.path.join(REMOTE_INSTALL_DIR, 'config')
+        cmd += "echo '{}' > {};".format(json.dumps(self.config), config_file)
+
         # Install dependenices
         if not backend.is_custom_image():
-            logger.debug('Be patient, installation process can take up to 3 minutes '
-             'since this is the first time you use the VM instance')
+            logger.debug('Non custom image. Executing initial install for {}'.format(ip_address))
+            logger.debug('Be patient, installation process can take up to 3 minutes')
 
-            cmd = 'mkdir -p /tmp/lithops; '
+            cmd += 'mkdir -p /tmp/lithops; '
             cmd += 'sudo rm /var/lib/apt/lists/* -vf; '
             cmd += 'apt-get clean; '
             cmd += 'apt-get update >> /tmp/lithops/proxy.log; '
             cmd += 'apt-get install unzip python3-pip -y >> /tmp/lithops/proxy.log; '
             cmd += 'pip3 install flask gevent pika==0.13.1 cloudpickle tblib ps-mem ibm-vpc namegenerator >> /tmp/lithops/proxy.log; '
-            logger.debug('Non custom image. Executing initial install for {}'.format(ip_address))
-            ssh_client.run_remote_command(ip_address, cmd, timeout=300)
 
-        cmd = 'mkdir -p /tmp/lithops; '
+        cmd += 'mkdir -p /tmp/lithops; '
         cmd += 'touch {}/access.data; '.format(REMOTE_INSTALL_DIR)
         cmd += 'echo "{} {}" > {}/access.data; '.format(backend.get_ip_address(), backend.get_instance_id(), REMOTE_INSTALL_DIR)
         cmd += 'unzip -o /tmp/lithops_standalone.zip -d {} > /dev/null 2>&1; '.format(REMOTE_INSTALL_DIR)
@@ -402,6 +393,7 @@ class StandaloneHandler:
         cmd += 'systemctl stop {}; '.format(PROXY_SERVICE_NAME)
         cmd += 'systemctl enable {}; '.format(PROXY_SERVICE_NAME)
         cmd += 'systemctl start {}; '.format(PROXY_SERVICE_NAME)
+
         logger.debug('Executing main ssh for Lithops proxy to VM instance {}'.format(ip_address))
         ssh_client.run_remote_command(ip_address, cmd, timeout=300)
         logger.debug('Completed main ssh for Lithops proxy to VM instance {}'.format(ip_address))
