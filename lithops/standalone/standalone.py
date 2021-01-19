@@ -228,12 +228,8 @@ class StandaloneHandler:
         logger.debug("_single_invoke - check if proxy ready for  {} ".format(ip_address))
         if not self._is_proxy_ready(backend):
             logger.debug("_single_invoke -  proxy {} stopped".format(ip_address))
-            # The VM instance is stopped
-            init_time = time.time()
             self._start_backend(backend)
             self._wait_proxy_ready(backend)
-            total_start_time = round(time.time()-init_time, 2)
-            logger.info('_single_invoke - VM instance ready in {} seconds'.format(total_start_time))
 
         logger.debug("_single_invoke - before starting log {} ".format(ip_address))
         if self.disable_log_monitoring == 'False':
