@@ -64,6 +64,7 @@ class StandaloneHandler:
         self.start_timeout = self.config.get('start_timeout', 300)
 
         self.auto_dismantle = self.config.get('auto_dismantle')
+        self.disable_log_monitoring = self.config.get('disable_log_monitoring', 'False')
         self.hard_dismantle_timeout = self.config.get('hard_dismantle_timeout')
         self.soft_dismantle_timeout = self.config.get('soft_dismantle_timeout')
         self.module_location = 'lithops.standalone.backends.{}'.format(self.backend_name)
@@ -89,7 +90,10 @@ class StandaloneHandler:
         Checks if the VM instance is ready to receive ssh connections
         """
         try:
-            backend.get_ssh_client().run_remote_command(backend.get_ip_address(), 'id', timeout=2)
+            if backend.is_ready():
+                backend.get_ssh_client().run_remote_command(backend.get_ip_address(), 'id', timeout=2)
+            else:
+                return False
         except Exception:
             return False
         return True
@@ -104,8 +108,7 @@ class StandaloneHandler:
         while(time.time() - start < self.start_timeout):
             if self._is_backend_ready(backend):
                 return True
-
-            time.sleep(10)
+            time.sleep(5)
 
         self.dismantle()
         raise Exception('VM readiness {} probe expired. Check your VM'.format(backend.get_ip_address()))
@@ -123,18 +126,11 @@ class StandaloneHandler:
         Checks if the proxy is ready to receive http connections
         """
         try:
-            if self.is_lithops_worker:
-                url = "http://{}:{}/ping".format('127.0.0.1', PROXY_SERVICE_PORT)
-                r = requests.get(url, timeout=1, verify=True)
-                if r.status_code == 200:
-                    return True
-                return False
-            else:
-                cmd = 'curl -X GET http://127.0.0.1:8080/ping'
-                out = backend.get_ssh_client().run_remote_command(backend.get_ip_address(), cmd, timeout=2)
-                data = json.loads(out)
-                if data['response'] == 'pong':
-                    return True
+            url = "http://{}:{}/ping".format(backend.get_ip_address(), PROXY_SERVICE_PORT)
+            r = requests.get(url, timeout=1, verify=True)
+            if r.status_code == 200:
+                return True
+            return False
         except Exception:
             return False
 
@@ -240,7 +236,8 @@ class StandaloneHandler:
             logger.info('_single_invoke - VM instance ready in {} seconds'.format(total_start_time))
 
         logger.debug("_single_invoke - before starting log {} ".format(ip_address))
-        self._start_log_monitor(executor_id, job_id, backend)
+        if self.disable_log_monitoring == 'False':
+            self._start_log_monitor(executor_id, job_id, backend)
 
         logger.info('ExecutorID {} | JobID {} - Running job'
                     .format(executor_id, job_id))
@@ -275,16 +272,9 @@ class StandaloneHandler:
         logger.debug('Extracting runtime metadata information')
         payload = {'runtime': runtime}
 
-        if self.is_lithops_worker:
-            url = "http://{}:{}/preinstalls".format('127.0.0.1', PROXY_SERVICE_PORT)
-            r = requests.get(url, data=json.dumps(payload), verify=True)
-            runtime_meta = r.json()
-        else:
-            cmd = ('curl http://127.0.0.1:8080/preinstalls -d {} '
-                   '-H \'Content-Type: application/json\' -X GET'
-                   .format(shlex.quote(json.dumps(payload))))
-            out = backend.get_ssh_client().run_remote_command(backend.get_ip_address(), cmd)
-            runtime_meta = json.loads(out)
+        url = "http://{}:{}/preinstalls".format(backend.get_ip_address(), PROXY_SERVICE_PORT)
+        r = requests.get(url, data=json.dumps(payload), verify=True)
+        runtime_meta = r.json()
 
         if not self.provided_backed:
             backend.stop()
@@ -376,11 +366,11 @@ class StandaloneHandler:
             logger.debug('Be patient, installation process can take up to 3 minutes')
 
             cmd += 'mkdir -p /tmp/lithops; '
-            cmd += 'sudo rm /var/lib/apt/lists/* -vf; '
-            cmd += 'apt-get clean; '
+            cmd += 'rm /var/lib/apt/lists/* -vf >> /tmp/lithops/proxy.log; '
+            cmd += 'apt-get clean >> /tmp/lithops/proxy.log;  '
             cmd += 'apt-get update >> /tmp/lithops/proxy.log; '
             cmd += 'apt-get install unzip python3-pip -y >> /tmp/lithops/proxy.log; '
-            cmd += 'pip3 install flask gevent pika==0.13.1 cloudpickle tblib ps-mem ibm-vpc namegenerator >> /tmp/lithops/proxy.log; '
+            cmd += 'pip3 install -U flask gevent lithops >> /tmp/lithops/proxy.log; '
 
         cmd += 'mkdir -p /tmp/lithops; '
         cmd += 'touch {}/access.data; '.format(REMOTE_INSTALL_DIR)
@@ -394,6 +384,6 @@ class StandaloneHandler:
         cmd += 'systemctl enable {}; '.format(PROXY_SERVICE_NAME)
         cmd += 'systemctl start {}; '.format(PROXY_SERVICE_NAME)
 
-        logger.debug('Executing main ssh for Lithops proxy to VM instance {}'.format(ip_address))
+        logger.debug('Executing main ssh command for Lithops proxy to VM instance {}'.format(ip_address))
         ssh_client.run_remote_command(ip_address, cmd, timeout=300)
-        logger.debug('Completed main ssh for Lithops proxy to VM instance {}'.format(ip_address))
+        logger.debug('Completed main ssh command for Lithops proxy to VM instance {}'.format(ip_address))

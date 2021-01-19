@@ -145,6 +145,10 @@ def run():
     """
     Run a job
     """
+
+    if flask.request.remote_addr != '127.0.0.1':
+        return error('Wrong request.')
+
     global last_usage_time
     global backend_handler
     global jobs
@@ -260,7 +264,7 @@ def main():
     install_environment()
     init_keeper()
     port = int(os.getenv('PORT', 8080))
-    server = WSGIServer(('127.0.0.1', port), proxy, log=proxy.logger)
+    server = WSGIServer(('0.0.0.0', port), proxy, log=proxy.logger)
     server.serve_forever()
 
 

@@ -26,7 +26,6 @@ class SSHClient():
 
         try:
             stdin, stdout, stderr = self.ssh_client.exec_command(cmd)
-            logger.debug("ssh executed against {} ".format(ip_address))
         except Exception as e:
             self.ssh_client = self.create_client(ip_address, timeout)
             stdin, stdout, stderr = self.ssh_client.exec_command(cmd)
@@ -35,7 +34,6 @@ class SSHClient():
         if not background:
             out = stdout.read().decode().strip()
             error = stderr.read().decode().strip()
-            logger.debug("{}  - {}".format(ip_address, out))
 
         return out
 
