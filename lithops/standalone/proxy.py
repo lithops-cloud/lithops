@@ -23,6 +23,7 @@ import time
 import threading
 import json
 import subprocess as sp
+from cryptography.fernet import Fernet
 from gevent.pywsgi import WSGIServer
 
 from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DONE_DIR, \
@@ -51,6 +52,11 @@ last_usage_time = time.time()
 keeper = None
 jobs = {}
 backend_handler = None
+
+
+config_file = os.path.join(REMOTE_INSTALL_DIR, 'config')
+with open(config_file, 'r') as cf:
+    standalone_config = json.load(cf)
 
 
 def budget_keeper():
@@ -112,10 +118,7 @@ def init_keeper():
     global keeper
     global backend_handler
     global backend_handler_backend
-
-    config_file = os.path.join(REMOTE_INSTALL_DIR, 'config')
-    with open(config_file, 'r') as cf:
-        standalone_config = json.load(cf)
+    global standalone_config
 
     backend_handler = StandaloneHandler(standalone_config)
 
@@ -145,16 +148,17 @@ def run():
     """
     Run a job
     """
-
-    if flask.request.remote_addr != '127.0.0.1':
-        return error('Wrong request.')
-
     global last_usage_time
     global backend_handler
     global jobs
+    global standalone_config
 
-    message = flask.request.get_json(force=True, silent=True)
-    if message and not isinstance(message, dict):
+    encrypted_payload = flask.request.data
+    encryption_key = standalone_config['encryption_key']
+    encryption_type = Fernet(encryption_key)
+    try:
+        message = json.loads(encryption_type.decrypt(encrypted_payload))
+    except Exception:
         return error('The action did not receive a dictionary as an argument.')
 
     try:

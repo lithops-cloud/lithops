@@ -15,7 +15,6 @@
 #
 
 import os
-import shlex
 import json
 import time
 import select
@@ -23,8 +22,11 @@ import logging
 import importlib
 import requests
 import copy
+
 from threading import Thread
+from cryptography.fernet import Fernet
 from concurrent.futures import ThreadPoolExecutor
+
 
 from lithops.utils import is_lithops_worker, create_handler_zip
 from lithops.constants import LOGS_DIR, REMOTE_INSTALL_DIR, FN_LOG_FILE
@@ -68,6 +70,12 @@ class StandaloneHandler:
         self.hard_dismantle_timeout = self.config.get('hard_dismantle_timeout')
         self.soft_dismantle_timeout = self.config.get('soft_dismantle_timeout')
         self.module_location = 'lithops.standalone.backends.{}'.format(self.backend_name)
+
+        if 'encryption_key' in self.config:
+            self.encryption_key = self.config['encryption_key']
+        else:
+            raise Exception("You must provide an 'encryption_key' in the 'standalone' section "
+                            "of your config. Use: 'openssl rand -base64 32' to generate one.")
 
         backend = self.create_backend_handler()
 
@@ -239,16 +247,12 @@ class StandaloneHandler:
                     .format(executor_id, job_id))
         logger.info("View execution logs at {}".format(log_file))
 
-        if self.is_lithops_worker:
-            url = "http://{}:{}/run".format('127.0.0.1', PROXY_SERVICE_PORT)
-            r = requests.post(url, data=json.dumps(job_payload), verify=True)
-            response = r.json()
-        else:
-            cmd = ('curl -X POST http://127.0.0.1:8080/run -d {} '
-                   '-H \'Content-Type: application/json\''
-                   .format(shlex.quote(json.dumps(job_payload))))
-            out = backend.get_ssh_client().run_remote_command(ip_address, cmd)
-            response = json.loads(out)
+        # Encrypt payload with IAM API key.
+        encryption_type = Fernet(self.encryption_key)
+        encrypted_payload = encryption_type.encrypt(json.dumps(job_payload).encode())
+        url = "http://{}:{}/run".format(backend.get_ip_address(), PROXY_SERVICE_PORT)
+        r = requests.post(url, data=encrypted_payload, verify=True)
+        response = r.json()
 
         return response['activationId']
 

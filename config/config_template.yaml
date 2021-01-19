@@ -25,6 +25,7 @@ lithops:
     #disable_log_monitoring : False
     #hard_dismantle_timeout: 3600
     #soft_dismantle_timeout: 300
+    #encryption_key: <RANDOM_KEY>
 
 #ibm:
    #iam_api_key: <IAM KEY>

@@ -196,3 +196,4 @@ fexec = lithops.FunctionExecutor(rabbitmq_monitor=True)
 |standalone | auto_dismantle | True |no | If False then the VM is not stopped automatically. Run **exec.dismantle()** explicitly to stop the VM. |
 |standalone | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |standalone | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
+|standalone | encryption_key |  | yes | Random key used to encrypt the payload. Use, for example: `openssl rand -base64 32` |
