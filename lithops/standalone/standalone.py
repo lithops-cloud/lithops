@@ -152,7 +152,7 @@ class StandaloneHandler:
         while(time.time() - start < self.start_timeout):
             if self._is_proxy_ready(backend):
                 return True
-            time.sleep(5)
+            time.sleep(2)
 
         self.dismantle()
         raise Exception('Proxy readiness probe expired for {}. Check your VM'.format(backend.get_ip_address()))
@@ -226,7 +226,6 @@ class StandaloneHandler:
                 executor.submit(self._thread_invoke, lock, job_key, call_id, copy.deepcopy(job_payload))
 
     def _single_invoke(self, backend, job_payload):
-        logger.debug("_single_invoke - Thread invoke for {} ".format(backend.get_ip_address()))
         ip_address = backend.get_ip_address()
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
@@ -239,12 +238,11 @@ class StandaloneHandler:
             self._start_backend(backend)
             self._wait_proxy_ready(backend)
 
-        logger.debug("_single_invoke - before starting log {} ".format(ip_address))
         if self.disable_log_monitoring == 'False':
             self._start_log_monitor(executor_id, job_id, backend)
 
-        logger.info('ExecutorID {} | JobID {} - Running job'
-                    .format(executor_id, job_id))
+        logger.info('ExecutorID {} | JobID {} - Running job on {}'
+                    .format(executor_id, job_id, ip_address))
         logger.info("View execution logs at {}".format(log_file))
 
         # Encrypt payload with IAM API key.
@@ -253,8 +251,10 @@ class StandaloneHandler:
         url = "http://{}:{}/run".format(backend.get_ip_address(), PROXY_SERVICE_PORT)
         r = requests.post(url, data=encrypted_payload, verify=True)
         response = r.json()
+        act_id = response['activationId']
+        logger.debug('Job invoked on {}. Activation ID: {}'.format(ip_address, act_id))
 
-        return response['activationId']
+        return act_id
 
     def create_runtime(self, runtime):
         """
