@@ -61,6 +61,7 @@ class FunctionExecutor:
             raise Exception("Function executor mode must be one of '{}', '{}' "
                             "or '{}'".format(LOCALHOST, SERVERLESS, STANDALONE))
 
+        # setup lithops logging
         self.log_level = log_level
         if self.log_level:
             if type(log_level) is str:
@@ -70,11 +71,14 @@ class FunctionExecutor:
             self.log_level = logger.getEffectiveLevel()
             if self.log_level == logging.WARNING:
                 self.log_level, log_format = get_log_info(config)
-                setup_logger(log_level=self.log_level, log_format=log_format)
+                if self.log_level:
+                    setup_logger(log_level=self.log_level, log_format=log_format)
 
+        # load mode of execution
         mode = mode or get_mode(config)
         config_ow = {'lithops': {'mode': mode}, mode: {}}
 
+        # overwrite user-provided parameters
         if runtime is not None:
             config_ow[mode]['runtime'] = runtime
         if backend is not None:

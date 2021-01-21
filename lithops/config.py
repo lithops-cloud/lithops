@@ -93,6 +93,9 @@ def get_log_info(config_data=None):
     if 'log_format' not in config_data['lithops']:
         config_data['lithops']['log_format'] = constants.LOGGER_FORMAT
 
+    if config_data['lithops']['log_level'].lower() == 'none':
+        config_data['lithops']['log_level'] = None
+
     return config_data['lithops']['log_level'], config_data['lithops']['log_format']
 
 
