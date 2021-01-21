@@ -81,6 +81,21 @@ def load_config():
     return config_data
 
 
+def get_log_info(config_data=None):
+    """ Return lithops logging informatio set in configuration """
+    config_data = config_data or load_config()
+
+    if 'lithops' not in config_data or not config_data['lithops']:
+        config_data['lithops'] = {}
+
+    if 'log_level' not in config_data['lithops']:
+        config_data['lithops']['log_level'] = constants.LOGGER_LEVEL
+    if 'log_format' not in config_data['lithops']:
+        config_data['lithops']['log_format'] = constants.LOGGER_FORMAT
+
+    return config_data['lithops']['log_level'], config_data['lithops']['log_format']
+
+
 def get_mode(config_data=None):
     """ Return lithops execution mode set in configuration """
     config_data = config_data or load_config()

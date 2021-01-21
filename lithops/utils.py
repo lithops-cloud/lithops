@@ -128,27 +128,27 @@ def agg_data(data_strs):
     return b"".join(data_strs), ranges
 
 
-def setup_logger(logging_level=LOGGER_LEVEL,
+def setup_logger(log_level=LOGGER_LEVEL,
                  stream=None,
-                 logging_format=LOGGER_FORMAT):
+                 log_format=LOGGER_FORMAT):
     """Setup default logging for lithops."""
     if stream is None:
         stream = sys.stderr
 
-    if type(logging_level) is str:
-        logging_level = logging.getLevelName(logging_level.upper())
+    if type(log_level) is str:
+        log_level = logging.getLevelName(log_level.upper())
 
     logging.config.dictConfig({
         'version': 1,
         'disable_existing_loggers': False,
         'formatters': {
             'standard': {
-                'format': logging_format
+                'format': log_format
             },
         },
         'handlers': {
             'default': {
-                'level': logging_level,
+                'level': log_level,
                 'class': 'logging.StreamHandler',
                 'formatter': 'standard',
                 'stream': stream
@@ -157,7 +157,7 @@ def setup_logger(logging_level=LOGGER_LEVEL,
         'loggers': {
             'lithops': {
                 'handlers': ['default'],
-                'level': logging_level,
+                'level': log_level,
                 'propagate': False
             },
         }

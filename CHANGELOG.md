@@ -1,6 +1,12 @@
 # Changelog
 
-## [v2.2.15.dev0]
+## [v2.2.17.dev0]
+
+### Added
+- [Config] Allow 'log_level' and 'log_format' keys in configuration
+
+
+## [v2.2.15]
 
 ### Added
 - [Joblib] Joblib backend upgraded

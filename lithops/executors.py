@@ -33,7 +33,7 @@ from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from lithops.job import create_map_job, create_reduce_job
 from lithops.config import get_mode, default_config, extract_storage_config,\
     extract_localhost_config, extract_standalone_config, \
-    extract_serverless_config
+    extract_serverless_config, get_log_info
 from lithops.constants import LOCALHOST, SERVERLESS, STANDALONE, CLEANER_DIR,\
     CLEANER_LOG_FILE
 from lithops.utils import timeout_handler, is_notebook, setup_logger, \
@@ -69,8 +69,8 @@ class FunctionExecutor:
         elif self.log_level is False:
             self.log_level = logger.getEffectiveLevel()
             if self.log_level == logging.WARNING:
-                self.log_level = logging.INFO
-                setup_logger(self.log_level)
+                self.log_level, log_format = get_log_info(config)
+                setup_logger(log_level=self.log_level, log_format=log_format)
 
         mode = mode or get_mode(config)
         config_ow = {'lithops': {'mode': mode}, mode: {}}
