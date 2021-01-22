@@ -25,3 +25,4 @@ $ pip install lithops[aliyun]
    - `public_endpoint`: public endpoint (URL) to the service. OSS and FC endpoints are different.
    - `access_key_id`: Access Key Id.
    - `access_key_secret`: Access Key Secret. 
+   - `runtime`: Runtime name already deployed in the service

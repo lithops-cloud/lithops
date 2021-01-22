@@ -47,3 +47,4 @@ $ pip install lithops[gcp]
  - `service_account`: Service account email of the service account created on step 5 (e.g. `lithops-executor@lithops.iam.gserviceaccount.com`)
  - `credentials_path`: **Absolute** path of your JSON key file downloaded in step 7 (e.g. `/home/myuser/lithops-invoker1234567890.json`)
  - `region`: Region of the bucket created at step 8. Functions and pub/sub queue will be created in the same region (e.g. `us-east1`)
+ - `runtime`: Runtime name already deployed in the service
