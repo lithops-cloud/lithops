@@ -18,7 +18,7 @@ import os
 import sys
 import logging
 from lithops.version import __version__
-from lithops.utils import setup_logger
+from lithops.utils import setup_lithops_logger
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
 from lithops.worker.utils import get_runtime_preinstalls
@@ -30,7 +30,7 @@ logger = logging.getLogger('lithops.worker')
 def main(args):
     os.environ['__LITHOPS_ACTIVATION_ID'] = os.environ['__OW_ACTIVATION_ID']
 
-    setup_logger(args['log_level'], sys.stdout, LOGGER_FORMAT_SHORT)
+    setup_lithops_logger(args['log_level'], LOGGER_FORMAT_SHORT, sys.stdout)
 
     if 'get_preinstalls' in args:
         logger.info("Lithops v{} - Generating metadata".format(__version__))

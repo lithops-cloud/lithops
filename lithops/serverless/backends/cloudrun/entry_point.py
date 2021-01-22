@@ -21,7 +21,7 @@ import flask
 import logging
 import pkgutil
 from lithops.version import __version__
-from lithops.utils import setup_logger
+from lithops.utils import setup_lithops_logger
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
 
@@ -45,7 +45,7 @@ def run():
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
 
-    setup_logger(message['log_level'])
+    setup_lithops_logger(message['log_level'])
 
     if 'remote_invoker' in message:
         logger.info("Lithops v{} - Starting Cloud Run invoker".format(__version__))

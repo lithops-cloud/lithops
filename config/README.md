@@ -174,6 +174,11 @@ fexec = lithops.FunctionExecutor(rabbitmq_monitor=True)
 |lithops| execution_timeout | 1800 | no | Functions will be automatically killed if they exceed this execution time (in seconds). Alternatively, it can be set in the `call_async()`, `map()` or `map_reduce()` calls with the `timeout` parameter.|
 |lithops| include_modules | [] | no | Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None |
 |lithops| exclude_modules | [] | no | Explicitly keep these modules from pickled dependencies. It is not taken into account if you set include_modules |
+|lithops|log_level | INFO |no | Logging level. One of: WARNING, INFO, DEBUG, ERROR, CRITICAL, Set to None to disable logging |
+|lithops|log_format | "%(asctime)s [%(levelname)s] %(name)s -- %(message)s" |no | Logging format string |
+|lithops|log_stream | ext://sys.stderr |no | Logging stream. eg.: ext://sys.stderr,  ext://sys.stdout|
+|lithops|log_filename |  |no | Path to a file. log_filename has preference over log_stream. |
+
 
 ## Summary of configuration keys for Serverless
 

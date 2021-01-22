@@ -1,12 +1,12 @@
 # from multiprocessing import Pool
 from lithops.multiprocessing import Pool
-from lithops.utils import setup_logger
+from lithops.utils import setup_lithops_logger
 
 import time
 import logging
 import os
 
-# setup_logger(logging.CRITICAL)
+# setup_lithops_logger(logging.CRITICAL)
 
 
 def hello(name):

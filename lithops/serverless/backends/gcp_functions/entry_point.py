@@ -20,7 +20,7 @@ import base64
 import os
 import uuid
 from lithops.version import __version__
-from lithops.utils import setup_logger
+from lithops.utils import setup_lithops_logger
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
 
@@ -31,7 +31,7 @@ def main(event, context):
     logger.info("Starting GCP Functions function execution")
     args = json.loads(base64.b64decode(event['data']).decode('utf-8'))
     os.environ['__PW_ACTIVATION_ID'] = uuid.uuid4().hex
-    setup_logger(args['log_level'])
+    setup_lithops_logger(args['log_level'])
     if 'remote_invoker' in args:
         logger.info("Lithops v{} - Starting invoker".format(__version__))
         function_invoker(args)

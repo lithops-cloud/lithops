@@ -19,7 +19,7 @@ import json
 import logging
 import azure.functions as func
 from lithops.version import __version__
-from lithops.utils import setup_logger
+from lithops.utils import setup_lithops_logger
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
 from lithops.worker.utils import get_runtime_preinstalls
@@ -34,7 +34,7 @@ def main(msgIn: func.QueueMessage, msgOut: func.Out[func.QueueMessage]):
         args = msgIn.get_json()
 
     os.environ['__LITHOPS_ACTIVATION_ID'] = str(msgIn.id)
-    setup_logger(args['log_level'])
+    setup_lithops_logger(args['log_level'])
 
     if 'get_preinstalls' in args:
         logger.info("Lithops v{} - Generating metadata".format(__version__))

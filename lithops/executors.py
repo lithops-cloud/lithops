@@ -33,10 +33,10 @@ from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from lithops.job import create_map_job, create_reduce_job
 from lithops.config import get_mode, default_config, extract_storage_config,\
     extract_localhost_config, extract_standalone_config, \
-    extract_serverless_config
+    extract_serverless_config, get_log_info
 from lithops.constants import LOCALHOST, SERVERLESS, STANDALONE, CLEANER_DIR,\
     CLEANER_LOG_FILE
-from lithops.utils import timeout_handler, is_notebook, setup_logger, \
+from lithops.utils import timeout_handler, is_notebook, setup_lithops_logger, \
     is_unix_system, is_lithops_worker, create_executor_id
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
@@ -61,20 +61,26 @@ class FunctionExecutor:
             raise Exception("Function executor mode must be one of '{}', '{}' "
                             "or '{}'".format(LOCALHOST, SERVERLESS, STANDALONE))
 
-        self.log_level = log_level
-        if self.log_level:
-            if type(log_level) is str:
-                self.log_level = logging.getLevelName(log_level.upper())
-            setup_logger(self.log_level)
-        elif self.log_level is False:
-            self.log_level = logger.getEffectiveLevel()
-            if self.log_level == logging.WARNING:
-                self.log_level = logging.INFO
-                setup_logger(self.log_level)
+        self.is_lithops_worker = is_lithops_worker()
 
+        # setup lithops logging
+        if not self.is_lithops_worker:
+            # if is lithops worker, logging has been set up in entry_point.py
+            if log_level:
+                setup_lithops_logger(log_level)
+            elif log_level is False and logger.getEffectiveLevel() == logging.WARNING:
+                # Set default logging from config
+                setup_lithops_logger(*get_log_info(config))
+
+        self.setup_progressbar = (not self.is_lithops_worker and
+                                  log_level is not None
+                                  and logger.getEffectiveLevel() == logging.INFO)
+
+        # load mode of execution
         mode = mode or get_mode(config)
         config_ow = {'lithops': {'mode': mode}, mode: {}}
 
+        # overwrite user-provided parameters
         if runtime is not None:
             config_ow[mode]['runtime'] = runtime
         if backend is not None:
@@ -93,7 +99,6 @@ class FunctionExecutor:
 
         self.config = default_config(copy.deepcopy(config), config_ow)
 
-        self.is_lithops_worker = is_lithops_worker()
         self.executor_id = create_executor_id()
 
         self.data_cleaner = self.config['lithops'].get('data_cleaner', True)
@@ -389,7 +394,7 @@ class FunctionExecutor:
         pbar = None
         error = False
 
-        if not self.is_lithops_worker and self.log_level == logging.INFO and fs_not_ready:
+        if not self.is_lithops_worker and self.setup_progressbar and fs_not_ready:
             from tqdm.auto import tqdm
 
             if is_notebook():

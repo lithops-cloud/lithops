@@ -30,7 +30,7 @@ from lithops.config import get_mode, default_config, extract_storage_config
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.storage.utils import StorageNoSuchKeyError
-from lithops.utils import setup_logger
+from lithops.utils import setup_lithops_logger
 
 logger = logging.getLogger(__name__)
 
@@ -575,7 +575,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     log_level = logging.INFO if not args.debug else logging.DEBUG
-    setup_logger(log_level)
+    setup_lithops_logger(log_level)
 
     if args.test == 'help':
         print_help()
