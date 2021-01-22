@@ -154,6 +154,8 @@ def load_config(config_data=None):
         raise Exception('You must provide {} to access to Azure Function App'
                         .format(required_parameters))
 
+    if 'runtime' in config_data['azure_fa']:
+        config_data['serverless']['runtime'] = config_data['azure_fa']['runtime']
     if 'runtime' not in config_data['serverless']:
         config_data['azure_fa']['functions_version'] = FUNCTIONS_VERSION
         storage_account = config_data['azure_fa']['storage_account']

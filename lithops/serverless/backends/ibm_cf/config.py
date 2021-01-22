@@ -36,6 +36,10 @@ def load_config(config_data):
         config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
     if 'runtime_timeout' not in config_data['serverless']:
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+
+    if 'runtime' in config_data['ibm_cf']:
+        config_data['serverless']['runtime'] = config_data['ibm_cf']['runtime']
+
     if 'runtime' not in config_data['serverless']:
         python_version = version_str(sys.version_info)
         try:

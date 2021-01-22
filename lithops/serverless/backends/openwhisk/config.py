@@ -44,6 +44,9 @@ def load_config(config_data):
     if 'runtime_timeout' not in config_data['serverless']:
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
 
+    if 'runtime' in config_data['openwhisk']:
+        config_data['serverless']['runtime'] = config_data['openwhisk']['runtime']
+
     if 'runtime' not in config_data['serverless']:
         python_version = version_str(sys.version_info)
         try:

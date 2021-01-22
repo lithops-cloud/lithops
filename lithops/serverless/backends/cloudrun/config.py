@@ -41,6 +41,8 @@ def load_config(config_data):
     if 'runtime_timeout' not in config_data['serverless']:
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
 
+    if 'runtime' in config_data['cloudrun']:
+        config_data['serverless']['runtime'] = config_data['cloudrun']['runtime']
     if 'runtime' not in config_data['serverless']:
         project_id = config_data['cloudrun']['project_id']
         python_version = version_str(sys.version_info).replace('.', '')

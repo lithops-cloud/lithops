@@ -58,6 +58,7 @@ RUN pip install --upgrade setuptools six pip \
         kubernetes \
         numpy \
         cloudpickle \
+        paramiko \
         ps-mem \
         tblib
 
@@ -229,6 +230,9 @@ def load_config(config_data):
         config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY
     if 'runtime_timeout' not in config_data['serverless']:
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT
+
+    if 'runtime' in config_data['knative']:
+        config_data['serverless']['runtime'] = config_data['knative']['runtime']
 
     if 'runtime' not in config_data['serverless']:
         if 'docker_user' not in config_data['knative']:

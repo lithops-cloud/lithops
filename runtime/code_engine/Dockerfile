@@ -16,15 +16,13 @@ RUN apt-get update \
         libxml2-dev \
         zip \
         unzip \
-        gunicorn \
         make \
     # cleanup package lists, they are not used anymore in this image
     && rm -rf /var/lib/apt/lists/* \
     && apt-cache search linux-headers-generic
 
 COPY requirements.txt requirements.txt
-RUN pip install --upgrade pip setuptools six
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip setuptools six gevent && pip install --no-cache-dir -r requirements.txt
 
 ENV PORT 8080
 ENV CONCURRENCY 4
