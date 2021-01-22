@@ -41,7 +41,7 @@ Initialize and return Localhost executor object.
 |workers | cpu_count | Max number of parallel workers |
 |storage | localhost | Storage backend to store temp data|
 |rabbitmq_monitor | False | Activate RabbitMQ monitoring |
-|log_level | INFO | Log level printing (INFO, DEBUG, ...). Set it to None to hide all logs|
+|log_level | INFO | Log level printing (INFO, DEBUG, ...). Set it to None to hide all logs. If this is param is set, al logging params in config are disabled|
 
 Usage:
 
@@ -63,8 +63,8 @@ Initialize and return a Serverless executor object.
 |storage | ibm_cos | Storage backend to store temp data|
 |workers | *depends of the backend* | Max number of parallel workers |
 |rabbitmq_monitor | False | Activate RabbitMQ monitoring |
-|log_level | INFO | Log level printing (INFO, DEBUG, ...). Set it to None to hide all logs|
 |remote_invoker | False | Spawn a function that will perform the actual job invocation (True/False) |
+|log_level | INFO | Log level printing (INFO, DEBUG, ...). Set it to None to hide all logs. If this is param is set, al logging params in config are disabled|
 
 Usage:
 
@@ -85,7 +85,7 @@ Initialize and return an Standalone executor object.
 |workers | cpu_count | Max number of parallel workers |
 |storage | ibm_cos | Storage backend to store temp data|
 |rabbitmq_monitor | False | Activate RabbitMQ monitoring |
-|log_level | INFO | Log level printing (INFO, DEBUG, ...). Set it to None to hide all logs|
+|log_level | INFO | Log level printing (INFO, DEBUG, ...). Set it to None to hide all logs. If this is param is set, al logging params in config are disabled|
 
 Usage:
 
@@ -109,7 +109,7 @@ Initialize and return a generic function executor.
 |storage | ibm_cos | Storage backend to store temp data|
 |rabbitmq_monitor | False | Activate RabbitMQ monitoring |
 |remote_invoker | False | Spawn a function that will perform the actual job invocation (True/False) |
-|log_level | INFO | Log level printing (INFO, DEBUG, ...). Set it to None to hide all logs|
+|log_level | INFO | Log level printing (INFO, DEBUG, ...). Set it to None to hide all logs. If this is param is set, al logging params in config are disabled|
 
 Usage:
 

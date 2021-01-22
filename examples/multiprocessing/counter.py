@@ -1,8 +1,8 @@
 # from multiprocessizzng import Pool, Value, RawValue
 from lithops.multiprocessing import Pool, Value, RawValue
-from lithops.utils import setup_logger
+from lithops.utils import setup_lithops_logger
 
-# setup_logger('DEBUG')
+# setup_lithops_logger('DEBUG')
 
 
 def incr(proc_id):

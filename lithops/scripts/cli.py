@@ -23,7 +23,7 @@ import shutil
 
 import lithops
 from lithops.scripts.tests import print_help, run_tests
-from lithops.utils import setup_logger, verify_runtime_name
+from lithops.utils import setup_lithops_logger, verify_runtime_name
 from lithops.config import get_mode, default_config, extract_storage_config,\
     extract_serverless_config, extract_standalone_config,\
     extract_localhost_config
@@ -55,7 +55,7 @@ def lithops_cli():
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 def clean(config, mode, backend, storage, debug):
     log_level = logging.INFO if not debug else logging.DEBUG
-    setup_logger(log_level)
+    setup_lithops_logger(log_level)
     logger.info('Cleaning all Lithops information')
 
     mode = mode or get_mode(config)
@@ -103,7 +103,7 @@ def clean(config, mode, backend, storage, debug):
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 def test_function(config, mode, backend, storage, debug):
     log_level = logging.INFO if not debug else logging.DEBUG
-    setup_logger(log_level)
+    setup_lithops_logger(log_level)
 
     def hello(name):
         return 'Hello {}!'.format(name)
@@ -131,7 +131,7 @@ def test_function(config, mode, backend, storage, debug):
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 def verify(test, config, mode, backend, storage, debug):
     log_level = logging.INFO if not debug else logging.DEBUG
-    setup_logger(log_level)
+    setup_lithops_logger(log_level)
 
     if test == 'help':
         print_help()
@@ -211,7 +211,7 @@ def runtime(ctx):
 @click.option('--timeout', default=None, help='runtime timeout', type=int)
 def create(name, storage, backend, memory, timeout, config):
     """ Create a serverless runtime """
-    setup_logger(logging.DEBUG)
+    setup_lithops_logger(logging.DEBUG)
     logger.info('Creating new lithops runtime: {}'.format(name))
 
     mode = SERVERLESS
@@ -246,7 +246,7 @@ def create(name, storage, backend, memory, timeout, config):
 def build(name, file, config, backend):
     """ build a serverless runtime. """
     verify_runtime_name(name)
-    setup_logger(logging.DEBUG)
+    setup_lithops_logger(logging.DEBUG)
 
     mode = SERVERLESS
     config_ow = {'lithops': {'mode': mode}}
@@ -268,7 +268,7 @@ def build(name, file, config, backend):
 def update(name, config, backend, storage):
     """ Update a serverless runtime """
     verify_runtime_name(name)
-    setup_logger(logging.DEBUG)
+    setup_lithops_logger(logging.DEBUG)
 
     mode = SERVERLESS
     config_ow = {'lithops': {'mode': mode}}
@@ -306,7 +306,7 @@ def update(name, config, backend, storage):
 def delete(name, config, backend, storage):
     """ delete a serverless runtime """
     verify_runtime_name(name)
-    setup_logger(logging.DEBUG)
+    setup_lithops_logger(logging.DEBUG)
 
     mode = SERVERLESS
     config_ow = {'lithops': {'mode': mode}}

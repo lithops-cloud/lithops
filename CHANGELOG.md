@@ -4,6 +4,10 @@
 
 ### Added
 - [Config] Allow 'log_level' and 'log_format' keys in configuration
+- [Config] Allow 'log_stream' and 'log_filename' keys in configuration
+
+### Changed
+- [Core] Renamed utils.setup_logger() method to utils.setup_lithops_logger()
 
 
 ## [v2.2.15]

@@ -88,15 +88,18 @@ def get_log_info(config_data=None):
     if 'lithops' not in config_data or not config_data['lithops']:
         config_data['lithops'] = {}
 
-    if 'log_level' not in config_data['lithops']:
-        config_data['lithops']['log_level'] = constants.LOGGER_LEVEL
-    if 'log_format' not in config_data['lithops']:
-        config_data['lithops']['log_format'] = constants.LOGGER_FORMAT
+    cl = config_data['lithops']
 
-    if config_data['lithops']['log_level'].lower() == 'none':
-        config_data['lithops']['log_level'] = None
+    if 'log_level' not in cl:
+        cl['log_level'] = constants.LOGGER_LEVEL
+    if 'log_format' not in cl:
+        cl['log_format'] = constants.LOGGER_FORMAT
+    if 'log_stream' not in cl:
+        cl['log_stream'] = constants.LOGGER_STREAM
+    if 'log_filename' not in cl:
+        cl['log_filename'] = None
 
-    return config_data['lithops']['log_level'], config_data['lithops']['log_format']
+    return cl['log_level'], cl['log_format'], cl['log_stream'], cl['log_filename']
 
 
 def get_mode(config_data=None):

@@ -11,7 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from contextlib import redirect_stdout, redirect_stderr
 
-from lithops.utils import version_str, is_unix_system, setup_logger
+from lithops.utils import version_str, is_unix_system, setup_lithops_logger
 from lithops.storage.utils import create_job_key
 from lithops.worker import function_handler
 from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DONE_DIR, LOGS_DIR,\
@@ -49,7 +49,7 @@ def process_runner(worker_id, job_queue):
             os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
             executor_id = event['executor_id']
             job_id = event['job_id']
-            setup_logger(event['log_level'])
+            setup_lithops_logger(event['log_level'])
             p_logger.info("Lithops v{} - Starting execution".format(__version__))
             function_handler(event)
             log_output = buf.getvalue()

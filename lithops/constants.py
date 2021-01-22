@@ -19,6 +19,7 @@ import sys
 import tempfile
 
 LOGGER_LEVEL = 'info'
+LOGGER_STREAM = 'ext://sys.stderr'
 LOGGER_FORMAT = "%(asctime)s [%(levelname)s] %(name)s -- %(message)s"
 LOGGER_FORMAT_SHORT = "[%(levelname)s] %(filename)s -- %(message)s"
 LOGGER_LEVEL_CHOICES = ["debug", "info", "warning", "error", "critical"]
