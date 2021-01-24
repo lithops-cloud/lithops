@@ -16,12 +16,15 @@
 
 import os
 import logging
+import sys
 from os.path import exists, isfile
+
+from ....utils import version_str
 
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_RUNTIME_NAME = 'lithops-cloudrun'
+DEFAULT_RUNTIME_NAME = 'python' + version_str(sys.version_info)
 
 RUNTIME_TIMEOUT_DEFAULT = 300  # 5 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # 256Mi
@@ -36,6 +39,42 @@ AVAILABLE_RUNTIME_CPUS = {1, 2, 4}
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_cloudrun.zip')
 
+DEFAULT_DOCKERFILE = """
+RUN apt-get update && apt-get install -y \
+        zip \
+        && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --upgrade setuptools six pip \
+    && pip install --no-cache-dir \
+        wheel \
+        gunicorn \
+        pika==0.13.1 \
+        flask \
+        gevent \
+        glob2 \
+        redis \
+        requests \
+        PyYAML \
+        kubernetes \
+        numpy \
+        httplib2 \
+        google-cloud-storage \
+        google-api-python-client \
+        google-auth
+
+ENV PORT 8080
+ENV PYTHONUNBUFFERED TRUE
+
+# Copy Lithops proxy and lib to the container image.
+ENV APP_HOME /lithops
+WORKDIR $APP_HOME
+
+COPY lithops_knative.zip .
+RUN unzip lithops_knative.zip && rm lithops_knative.zip
+
+CMD exec gunicorn --bind :$PORT lithopsproxy:proxy
+"""
+
 
 def load_config(config_data):
     if config_data is None:
@@ -46,7 +85,7 @@ def load_config(config_data):
     if 'runtime_timeout' not in config_data['serverless']:
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
     if 'runtime' not in config_data['serverless']:
-        config_data['serverless']['runtime'] = 'default'
+        config_data['serverless']['runtime'] = DEFAULT_RUNTIME_NAME
     elif not config_data['serverless']['runtime'].contains('gcr'):
         raise Exception('Google Cloud Run requires container images to be deployed on Google Cloud Container Registry')
 
@@ -96,6 +135,6 @@ def load_config(config_data):
     if 'container_concurrency' not in config_data['gcp_cloudrun']:
         config_data['gcp_cloudrun']['container_concurrency'] = RUNTIME_CONTAINER_CONCURRENCY_DEFAULT
 
-    config_data['gcp_cloudrun'].update(config_data['gcp'])
-    print(config_data)
+    config_data['gcp_cloudrun']['workers'] = config_data['lithops']['workers']
 
+    config_data['gcp_cloudrun'].update(config_data['gcp'])

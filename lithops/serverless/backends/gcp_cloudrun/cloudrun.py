@@ -19,6 +19,7 @@ import httplib2
 import os
 import sys
 import re
+import time
 
 from google.oauth2 import service_account
 from google_auth_httplib2 import AuthorizedHttp
@@ -45,20 +46,18 @@ class GCPCloudRunBackend:
 
         self.runtime_cpus = cloudrun_config['runtime_cpus']
         self.container_runtime_concurrency = cloudrun_config['container_concurrency']
+        self.workers = cloudrun_config['workers']
 
         self._invoker_sess = None
+        self._invoker_sess_route = '/'
         self._service_url = None
         self._api_resource = None
 
     @staticmethod
     def _format_service_name(runtime_name, runtime_memory):
-        runtime_name = (runtime_name
-                        .replace('gcr.io/', '')
-                        .replace('us.gcr.io/', '')
-                        .replace('/', '-')
-                        .replace(':', '-')
-                        .lower())
-        return '{}-{}mb'.format(runtime_name, runtime_memory)
+        return 'lithops--{}--{}--{}mb'.format(__version__.replace('.', '-'),
+                                              runtime_name.replace('.', ''),
+                                              runtime_memory)
 
     @staticmethod
     def _unformat_service_name(service_name):
@@ -69,6 +68,7 @@ class GCPCloudRunBackend:
 
     def _build_api_resource(self):
         if self._api_resource is None:
+            logger.debug('Building admin API session')
             credentials = service_account.Credentials.from_service_account_file(self.credentials_path, scopes=SCOPES)
             http = AuthorizedHttp(credentials, http=httplib2.Http())
             self._api_resource = build('run', CLOUDRUN_API_VERSION,
@@ -80,16 +80,19 @@ class GCPCloudRunBackend:
         return self._api_resource
 
     def _build_invoker_sess(self, runtime_name, memory, route):
-        if self._invoker_sess is None:
-            target = self._get_service_url(runtime_name, memory) + route
+        if self._invoker_sess is None or route != self._invoker_sess_route:
+            logger.debug('Building invoker session')
+            target = self._get_service_endpoint(runtime_name, memory) + route
             credentials = (service_account
                            .IDTokenCredentials
                            .from_service_account_file(self.credentials_path, target_audience=target))
             self._invoker_sess = AuthorizedSession(credentials)
+            self._invoker_sess_route = route
         return self._invoker_sess
 
-    def _get_service_url(self, runtime_name, memory):
+    def _get_service_endpoint(self, runtime_name, memory):
         if self._service_url is None:
+            logger.debug('Getting service endpoint')
             res = self._build_api_resource().namespaces().services().get(
                 name='namespaces/{}/services/{}'.format(self.project_name,
                                                         self._format_service_name(runtime_name, memory))
@@ -97,23 +100,24 @@ class GCPCloudRunBackend:
             self._service_url = res['status']['url']
         return self._service_url
 
-    def _get_default_runtime_image_name(self):
-        python_version = version_str(sys.version_info).replace('.', '')
+    def _format_image_name(self, runtime_name):
+        runtime_name = runtime_name.replace('.', '').replace('_', '-')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        return 'gcr.io/{}/{}-v{}:{}'.format(self.project_name, cr_config.DEFAULT_RUNTIME_NAME, python_version, revision)
+        return 'gcr.io/{}/lithops-{}:{}'.format(self.project_name, runtime_name, revision)
 
-    def _build_default_runtime(self, default_runtime_img_name):
+    def _build_default_runtime(self):
         """
         Builds the default runtime
         """
+        logger.debug('Building default {} runtime'.format(cr_config.DEFAULT_RUNTIME_NAME))
         if os.system('{} --version >{} 2>&1'.format(kconfig.DOCKER_PATH, os.devnull)) == 0:
             # Build default runtime using local dokcer
             python_version = version_str(sys.version_info)
             dockerfile = "Dockefile.default-knative-runtime"
             with open(dockerfile, 'w') as f:
                 f.write("FROM python:{}-slim-buster\n".format(python_version))
-                f.write(kconfig.DEFAULT_DOCKERFILE)
-            self.build_runtime(default_runtime_img_name, dockerfile)
+                f.write(cr_config.DEFAULT_DOCKERFILE)
+            self.build_runtime(self._format_image_name(cr_config.DEFAULT_RUNTIME_NAME), dockerfile)
             os.remove(dockerfile)
         else:
             raise Exception('Docker CLI not found')
@@ -125,7 +129,8 @@ class GCPCloudRunBackend:
         logger.info("Extracting Python modules from: {}".format(runtime_name))
 
         try:
-            runtime_meta = self.invoke(runtime_name, memory, {}, return_result=True, route='/preinstalls')
+            runtime_meta = self.invoke(runtime_name, memory,
+                                       {'service_route': '/preinstalls'}, return_result=True)
         except Exception as e:
             raise Exception("Unable to extract the preinstalled modules from the runtime: {}".format(e))
 
@@ -134,11 +139,30 @@ class GCPCloudRunBackend:
 
         return runtime_meta
 
-    def invoke(self, runtime_name, memory, payload, return_result=False, route='/'):
+    def invoke(self, runtime_name, memory, payload, return_result=False):
+        exec_id = payload.get('executor_id')
+        call_id = payload.get('call_id')
+        job_id = payload.get('job_id')
+        route = payload.get("service_route", '/')
+
         sess = self._build_invoker_sess(runtime_name, memory, route)
-        res = sess.get(self._get_service_url(runtime_name, memory) + route)
-        if return_result:
-            return res
+
+        if exec_id and job_id and call_id:
+            logger.debug('ExecutorID {} | JobID {} - Invoking function call {}'
+                         .format(exec_id, job_id, call_id))
+        elif exec_id and job_id:
+            logger.debug('ExecutorID {} | JobID {} - Invoking function'
+                         .format(exec_id, job_id))
+        else:
+            logger.debug('Invoking function')
+
+        res = sess.post(url=self._get_service_endpoint(runtime_name, memory) + route, json=payload)
+
+        if res.status_code in (200, 202):
+            data = res.json()
+            if return_result:
+                return data
+            return data["activationId"]
 
     def build_runtime(self, docker_image_name, dockerfile):
         logger.debug('Building a new docker image from Dockerfile')
@@ -179,15 +203,12 @@ class GCPCloudRunBackend:
             raise Exception('There was an error pushing the runtime to the container registry')
 
     def create_runtime(self, runtime_name, memory, timeout):
-        default_runtime_img_name = self._get_default_runtime_image_name()
-        if runtime_name in ['default', default_runtime_img_name]:
-            # We only build the default image. rest of images must already exist
-            # in the docker registry.
-            runtime_name = default_runtime_img_name
-            self._build_default_runtime(default_runtime_img_name)
+        if runtime_name == cr_config.DEFAULT_RUNTIME_NAME:
+            self._build_default_runtime()
+
+        img_name = self._format_image_name(runtime_name)
 
         service_name = self._format_service_name(runtime_name, memory)
-        print(service_name, len(service_name))
 
         body = {
             "apiVersion": 'serving.knative.dev/v1',
@@ -195,6 +216,9 @@ class GCPCloudRunBackend:
             "metadata": {
                 "name": service_name,
                 "namespace": self.project_name,
+                "annotations": {
+                    "autoscaling.knative.dev/maxScale": str(self.workers)
+                }
             },
             "spec": {
                 "template": {
@@ -208,7 +232,7 @@ class GCPCloudRunBackend:
                         "serviceAccountName": self.service_account,
                         "containers": [
                             {
-                                "image": runtime_name,
+                                "image": img_name,
                                 "resources": {
                                     "limits": {
                                         "memory": "{}Mi".format(memory),
@@ -227,11 +251,31 @@ class GCPCloudRunBackend:
                 ]
             }
         }
+
         res = self._build_api_resource().namespaces().services().create(
             parent='namespaces/{}'.format(self.project_name),
             body=body
         ).execute()
-        print(res)
+
+        # Wait until service is up
+        ready = False
+        retry = 15
+        while not ready:
+            res = self._build_api_resource().namespaces().services().get(
+                name='namespaces/{}/services/{}'.format(self.project_name,
+                                                        self._format_service_name(runtime_name, memory))
+            ).execute()
+
+            ready = all(cond['status'] == 'True' for cond in res['status']['conditions'])
+
+            if not ready:
+                logger.debug('Waiting until service is up...')
+                time.sleep((1 / retry) * 25)
+                retry -= 1
+                if retry == 0:
+                    raise Exception('Maximum retries reached: {}'.format(res))
+            else:
+                self._service_url = res['status']['url']
 
         runtime_meta = self._generate_runtime_meta(runtime_name, memory)
         return runtime_meta

@@ -1,6 +1,6 @@
 #
 # (C) Copyright IBM Corp. 2019
-# (C) Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2021
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -49,10 +49,10 @@ def run():
     setup_logger(message['log_level'])
 
     if 'remote_invoker' in message:
-        logger.info("Lithops v{} - Starting Knative invoker".format(__version__))
+        logger.info("Lithops v{} - Starting GCP Cloud Run invoker".format(__version__))
         function_invoker(message)
     else:
-        logger.info("Lithops v{} - Starting Knative execution".format(__version__))
+        logger.info("Lithops v{} - Starting GCP Cloud Run execution".format(__version__))
         function_handler(message)
 
     response = flask.jsonify({"activationId": act_id})
