@@ -75,7 +75,10 @@ class IBMVPCInstanceClient:
 
     def _generate_name(self, r_type, job_key, call_id):
         if (job_key != None and call_id != None):
-            resp = ("lithops" + "-" + str(job_key) + "-" + str(call_id) + "-" + r_type).replace('/', '-').replace(':','-').lower()
+            red_call_id = call_id
+            if red_call_id.find('/') > 0:
+                red_call_id = red_call_id[red_call_id.find('/') + 1:]
+            resp = ("lithops" + "-" + str(job_key) + "-" + str(red_call_id) + "-" + r_type).replace('/', '-').replace(':','-').lower()
             return resp
         return "lithops-" + namegenerator.gen() + "-" + r_type
 

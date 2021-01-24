@@ -68,6 +68,7 @@ class StandaloneHandler:
         self.hard_dismantle_timeout = self.config.get('hard_dismantle_timeout')
         self.soft_dismantle_timeout = self.config.get('soft_dismantle_timeout')
         self.module_location = 'lithops.standalone.backends.{}'.format(self.backend_name)
+        self.local_runtime_load = self.config.get('local_runtime_load', False)
 
         backend = self.create_backend_handler()
 
@@ -275,7 +276,7 @@ class StandaloneHandler:
             backend = self.create(None, 'proxy', runtime)
 
         logger.debug('Extracting runtime metadata information')
-        payload = {'runtime': runtime}
+        payload = {'runtime': runtime, 'local_runtime_load':self.local_runtime_load}
 
         if self.is_lithops_worker:
             url = "http://{}:{}/preinstalls".format('127.0.0.1', PROXY_SERVICE_PORT)
