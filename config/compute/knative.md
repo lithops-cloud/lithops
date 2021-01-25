@@ -68,6 +68,7 @@ Note that Lithops automatically builds the default runtime the first time you ru
 |knative | max_instances | 250 |no | Maximum number of parallel runtimes |
 |knative | cpu | 1 |no | CPU limit. Default 1vCPU |
 |knative | concurrency | 1 |no | Number of workers per runtime instance |
+|knative | runtime |  |no | Docker image name.|
 
 
 ### Verify

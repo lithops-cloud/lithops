@@ -9,7 +9,11 @@ lithops:
     #execution_timeout: 1800
     #include_modules: <LIST_OF_MODULES>
     #exclude_modules: <LIST_OF_MODULES>
-
+    #log_level: INFO
+    #log_format: "%(asctime)s [%(levelname)s] %(name)s -- %(message)s"
+    #log_stream: ext://sys.stdout
+    #log_filename <path_to_a_file>
+    
 #serverless:
     #backend: ibm_cf
     #runtime : <RUNTIME_NAME>
@@ -35,9 +39,11 @@ lithops:
     #namespace   : <NAMESPACE>
     #api_key     : <API_KEY>
     #namespace_id : <NAMESPACE_ID> # Only for IAM auth
+    #runtime: <RUNTIME_NAME>
 
 #code_engine:
     #kubectl_config: <Location for kubectl yaml file>
+    #runtime: <RUNTIME_NAME>
 
 #ibm_cos:
     region : <REGION>
@@ -79,6 +85,7 @@ lithops:
    #istio_endpoint  : <ISTIO_INGRESS_ENDPOINT>
    #docker_user     : <DOCKER_HUB_USERNAME>
    #docker_token    : <DOCKER_HUB_TOKEN>
+   #runtime: <RUNTIME_NAME>
 
 #docker:
     #host: <HOST_IP>
@@ -90,6 +97,7 @@ lithops:
     #namespace   : <NAMESPACE>
     #api_key     : <AUTH_KEY>
     #insecure    : <True/False>
+    #runtime: <RUNTIME_NAME>
 
 #swift:
     #auth_url   : <SWIFT_AUTH_URL>

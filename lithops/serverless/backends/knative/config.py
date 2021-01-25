@@ -58,6 +58,7 @@ RUN pip install --upgrade setuptools six pip \
         kubernetes \
         numpy \
         cloudpickle \
+        paramiko \
         ps-mem \
         tblib
 
@@ -230,6 +231,9 @@ def load_config(config_data):
     if 'runtime_timeout' not in config_data['serverless']:
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT
 
+    if 'runtime' in config_data['knative']:
+        config_data['serverless']['runtime'] = config_data['knative']['runtime']
+
     if 'runtime' not in config_data['serverless']:
         if 'docker_user' not in config_data['knative']:
             cmd = "{} info".format(DOCKER_PATH)
@@ -261,3 +265,7 @@ def load_config(config_data):
         max_instances = config_data['knative']['max_instances']
         concurrency = config_data['knative']['concurrency']
         config_data['lithops']['workers'] = int(max_instances * concurrency)
+
+    if 'invoke_pool_threads' not in config_data['knative']:
+        config_data['knative']['invoke_pool_threads'] = config_data['lithops']['workers']
+    config_data['serverless']['invoke_pool_threads'] = config_data['knative']['invoke_pool_threads']

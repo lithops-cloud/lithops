@@ -73,3 +73,4 @@ Lithops with *OpenWhisk* as serverless compute backend. Lithops can also run fun
 |openwhisk | namespace | |yes | Namespace |
 |openwhisk | api_key | |yes | API Auth|
 |openwhisk | insecure | |yes | Insecure access |
+|openwhisk | runtime |  |no | Docker image name.|

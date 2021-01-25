@@ -69,9 +69,14 @@ RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
 RUNTIME_MEMORY_MAX = 10240  # Max. memory: 10240 MB
 
 MAX_CONCURRENT_WORKERS = 1000
+INVOKE_POOL_THREADS_DEFAULT = 500
 
 
 def load_config(config_data):
+
+    if 'aws' not in config_data and 'aws_lambda' not in config_data:
+        raise Exception("'aws' and 'aws_lambda' sections are mandatory in the configuration")
+
     # Generic serverless config
     if 'runtime_memory' not in config_data['serverless']:
         config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
@@ -90,14 +95,13 @@ def load_config(config_data):
                        "maximum amount".format(RUNTIME_TIMEOUT_MAX, config_data['serverless']['runtime_timeout']))
         config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_MAX
 
+    if 'runtime' in config_data['aws_lambda']:
+        config_data['serverless']['runtime'] = config_data['aws_lambda']['runtime']
     if 'runtime' not in config_data['serverless']:
         config_data['serverless']['runtime'] = 'python{}'.format(version_str(sys.version_info))
 
     if 'workers' not in config_data['lithops']:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
-
-    if 'aws' not in config_data and 'aws_lambda' not in config_data:
-        raise Exception("'aws' and 'aws_lambda' sections are mandatory in the configuration")
 
     # Put credential keys to 'aws_lambda' dict entry
     config_data['aws_lambda'] = {**config_data['aws_lambda'], **config_data['aws']}
@@ -137,3 +141,7 @@ def load_config(config_data):
 
     if not all([efs_conf['mount_path'].startswith('/mnt') for efs_conf in config_data['aws_lambda']['efs']]):
         raise Exception("All mount paths must start with '/mnt' on 'aws_lambda/efs/*/mount_path' section")
+
+    if 'invoke_pool_threads' not in config_data['aws_lambda']:
+        config_data['aws_lambda']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
+    config_data['serverless']['invoke_pool_threads'] = config_data['aws_lambda']['invoke_pool_threads']

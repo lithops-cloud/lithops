@@ -20,7 +20,6 @@
 import io
 import re
 import os
-import sys
 import pika
 import uuid
 import json
@@ -34,7 +33,7 @@ import logging.config
 import threading
 
 from lithops.storage.utils import create_job_key
-from lithops.constants import LOGGER_FORMAT, LOGGER_LEVEL
+from lithops.constants import LOGGER_FORMAT, LOGGER_LEVEL, LOGGER_STREAM
 
 logger = logging.getLogger(__name__)
 
@@ -128,40 +127,58 @@ def agg_data(data_strs):
     return b"".join(data_strs), ranges
 
 
-def setup_logger(logging_level=LOGGER_LEVEL,
-                 stream=None,
-                 logging_format=LOGGER_FORMAT):
-    """Setup default logging for lithops."""
+def setup_lithops_logger(log_level=LOGGER_LEVEL,
+                         log_format=LOGGER_FORMAT,
+                         stream=None, filename=None):
+    """Setup logging for lithops."""
+    if log_level is None:
+        return
+
     if stream is None:
-        stream = sys.stderr
+        stream = LOGGER_STREAM
 
-    if type(logging_level) is str:
-        logging_level = logging.getLevelName(logging_level.upper())
+    if filename is None:
+        filename = os.devnull
 
-    logging.config.dictConfig({
+    if type(log_level) is str:
+        log_level = logging.getLevelName(log_level.upper())
+
+    config_dict = {
         'version': 1,
         'disable_existing_loggers': False,
         'formatters': {
             'standard': {
-                'format': logging_format
+                'format': log_format
             },
         },
         'handlers': {
-            'default': {
-                'level': logging_level,
-                'class': 'logging.StreamHandler',
+            'console_handler': {
+                'level': log_level,
                 'formatter': 'standard',
+                'class': 'logging.StreamHandler',
                 'stream': stream
+            },
+            'file_handler': {
+                'level': log_level,
+                'formatter': 'standard',
+                'class': 'logging.FileHandler',
+                'filename': filename,
+                'mode': 'a',
             },
         },
         'loggers': {
             'lithops': {
-                'handlers': ['default'],
-                'level': logging_level,
+                'handlers': ['console_handler'],
+                'level': log_level,
                 'propagate': False
             },
         }
-    })
+    }
+
+    if filename is not os.devnull:
+        config_dict['loggers']['lithops']['handlers'] = ['file_handler']
+
+    logging.config.dictConfig(config_dict)
 
 
 def create_handler_zip(dst_zip_location, entry_point_file, entry_point_name=None):

@@ -41,6 +41,8 @@ def load_config(config_data):
     if 'runtime_timeout' not in config_data['serverless']:
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
 
+    if 'runtime' in config_data['cloudrun']:
+        config_data['serverless']['runtime'] = config_data['cloudrun']['runtime']
     if 'runtime' not in config_data['serverless']:
         project_id = config_data['cloudrun']['project_id']
         python_version = version_str(sys.version_info).replace('.', '')
@@ -51,3 +53,7 @@ def load_config(config_data):
     if 'workers' not in config_data['lithops']:
         config_data['cloudrun']['workers'] = CONCURRENT_WORKERS_DEFAULT
         config_data['lithops']['workers'] = CONCURRENT_WORKERS_DEFAULT
+
+    if 'invoke_pool_threads' not in config_data['cloudrun']:
+        config_data['cloudrun']['invoke_pool_threads'] = config_data['lithops']['workers']
+    config_data['serverless']['invoke_pool_threads'] = config_data['cloudrun']['invoke_pool_threads']
