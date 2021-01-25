@@ -186,8 +186,10 @@ def run():
     job_id = message['job_id']
     job_key = create_job_key(executor_id, job_id)
     jobs[job_key] = 'running'
+    
+    local_runtime_load = standalone_config.get('local_runtime_load', False)
 
-    localhost_handler = LocalhostHandler({'runtime': runtime})
+    localhost_handler = LocalhostHandler({'runtime': runtime, 'local_runtime_load': local_runtime_load})
     localhost_handler.run_job(message)
 
     response = flask.jsonify({'activationId': act_id})
@@ -217,7 +219,7 @@ def preinstalls():
     except Exception as e:
         return error(str(e))
 
-    localhost_handler = LocalhostHandler(message)
+    localhost_handler = LocalhostHandler({'runtime': runtime, 'local_runtime_load': message['local_runtime_load']})
     runtime_meta = localhost_handler.create_runtime(runtime)
     response = flask.jsonify(runtime_meta)
     response.status_code = 200

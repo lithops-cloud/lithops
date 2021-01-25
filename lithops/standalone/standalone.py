@@ -69,6 +69,7 @@ class StandaloneHandler:
         self.soft_dismantle_timeout = self.config.get('soft_dismantle_timeout')
         self.use_http = self.config.get('use_http', False)
         self.encryption_key = self.config.get('encryption_key')
+        self.local_runtime_load = self.config.get('local_runtime_load', False)
 
         if self.use_http and not self.encryption_key:
             raise Exception("You must provide an 'encryption_key' in the 'standalone' section "
@@ -290,7 +291,7 @@ class StandaloneHandler:
             backend = self.create(None, 'proxy', runtime)
 
         logger.debug('Extracting runtime metadata information')
-        payload = {'runtime': runtime}
+        payload = {'runtime': runtime, 'local_runtime_load':self.local_runtime_load}
 
         if self.is_lithops_worker or self.use_http:
             ip_addr = backend.get_ip_address() if self.use_http else '127.0.0.1'

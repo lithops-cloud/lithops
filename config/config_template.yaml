@@ -27,8 +27,10 @@ lithops:
     #exec_mode: create
     #auto_dismantle: True
     #disable_log_monitoring : False
+    #local_runtime_load: <false, true>
     #hard_dismantle_timeout: 3600
     #soft_dismantle_timeout: 300
+    #use_http: <true, false>
     #encryption_key: <RANDOM_KEY>
 
 #ibm:
