@@ -41,15 +41,16 @@ class LocalhostHandler:
     """
 
     def __init__(self, localhost_config):
-        logger.debug('Creating Localhost compute client')
+        logger.info('Creating Localhost compute client')
         self.config = localhost_config
         self.runtime = self.config['runtime']
+        self.local_runtime_load = self.config.get('local_runtime_load', False)
 
         if '/' not in self.runtime:
             self.env = DefaultEnv()
             self.env_type = 'default'
         else:
-            self.env = DockerEnv(self.runtime)
+            self.env = DockerEnv(self.runtime, self.local_runtime_load)
             self.env_type = 'docker'
 
         msg = COMPUTE_CLI_MSG.format('Localhost compute')
@@ -125,10 +126,13 @@ class LocalhostHandler:
 
 
 class DockerEnv:
-    def __init__(self, docker_image):
+    def __init__(self, docker_image, local_runtime_load):
+        logger.info('Setting DockerEnv for {} local runtime {}'.format(docker_image, local_runtime_load))
         self.runtime = docker_image
+        self.local_runtime_load = local_runtime_load
 
     def setup(self, runtime):
+        logger.info('DockerEnv setup method for runtime {}. Load local runtime {}'.format(runtime, self.local_runtime_load))
         os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
         try:
             shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
@@ -137,8 +141,11 @@ class DockerEnv:
         shutil.copytree(LITHOPS_LOCATION, os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
         src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'runner.py')
         copyfile(src_handler, RUNNER)
-
-        sp.run('docker pull {}'.format(self.runtime), shell=True, check=True,
+        if self.local_runtime_load == True:
+            logger.info('Docker local runtime exists for {}. Skip pull or load'.format(runtime))
+        else:
+            logger.info('Docker runtime pull from local file {}'.format(self.runtime))
+            sp.run('docker pull {}'.format(self.runtime), shell=True, check=True,
                stdout=sp.PIPE, universal_newlines=True)
 
     def get_execution_cmd(self, runtime):
@@ -148,7 +155,6 @@ class DockerEnv:
         else:
             cmd = ('docker run --rm -v {}:/tmp --entrypoint "python3" {} '
                    '/tmp/lithops/runner.py'.format(TEMP, self.runtime))
-        logger.debug(cmd)
         return cmd
 
 

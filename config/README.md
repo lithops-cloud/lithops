@@ -202,3 +202,4 @@ fexec = lithops.FunctionExecutor(rabbitmq_monitor=True)
 |standalone | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |standalone | exec_mode | consume | no | If set to  **create** standalone backend will automatically create VMs based on the standalone backend|
 |standalone | disable_log_monitoring | False | no | If set to  True pull remote logs will be disabled. This can improve running time|
+|standalone | local_runtime_load | False | no | If set to  True the assumption is that compute backend VM contains required docker image locally. This saves docker pull or load|
