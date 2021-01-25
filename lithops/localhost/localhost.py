@@ -44,7 +44,7 @@ class LocalhostHandler:
         logger.info('Creating Localhost compute client')
         self.config = localhost_config
         self.runtime = self.config['runtime']
-        self.local_runtime_load = self.config['local_runtime_load']
+        self.local_runtime_load = self.config.get('local_runtime_load', False)
 
         if '/' not in self.runtime:
             self.env = DefaultEnv()
