@@ -31,6 +31,7 @@ RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
 RUNTIME_MEMORY = 256  # Default memory: 256 MB
 RUNTIME_CPU = 1  # 1 vCPU
 MAX_CONCURRENT_WORKERS = 1000
+INVOKE_POOL_THREADS_DEFAULT = 4
 
 DEFAULT_GROUP = "codeengine.cloud.ibm.com"
 DEFAULT_VERSION = "v1beta1"
@@ -193,3 +194,7 @@ def load_config(config_data):
     if 'workers' not in config_data['lithops'] or \
        config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
+
+    if 'invoke_pool_threads' not in config_data['code_engine']:
+        config_data['code_engine']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
+    config_data['serverless']['invoke_pool_threads'] = config_data['code_engine']['invoke_pool_threads']

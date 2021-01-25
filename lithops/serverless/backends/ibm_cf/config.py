@@ -26,6 +26,7 @@ RUNTIME_DEFAULT = {'3.5': 'lithopscloud/ibmcf-python-v35',
 RUNTIME_TIMEOUT_DEFAULT = 600  # Default: 600 seconds => 10 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
 MAX_CONCURRENT_WORKERS = 1200
+INVOKE_POOL_THREADS_DEFAULT = 500
 
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_ibmcf.zip')
@@ -105,3 +106,7 @@ def load_config(config_data):
 
         if cbr not in config_data['ibm_cf']['regions']:
             raise Exception('Invalid Compute backend region: {}'.format(cbr))
+
+    if 'invoke_pool_threads' not in config_data['ibm_cf']:
+        config_data['ibm_cf']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
+    config_data['serverless']['invoke_pool_threads'] = config_data['ibm_cf']['invoke_pool_threads']
