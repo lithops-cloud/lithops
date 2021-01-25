@@ -265,3 +265,7 @@ def load_config(config_data):
         max_instances = config_data['knative']['max_instances']
         concurrency = config_data['knative']['concurrency']
         config_data['lithops']['workers'] = int(max_instances * concurrency)
+
+    if 'invoke_pool_threads' not in config_data['knative']:
+        config_data['knative']['invoke_pool_threads'] = config_data['lithops']['workers']
+    config_data['serverless']['invoke_pool_threads'] = config_data['knative']['invoke_pool_threads']

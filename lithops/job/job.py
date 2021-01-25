@@ -16,25 +16,23 @@
 # limitations under the License.
 #
 
-
+import os
+import hashlib
 import time
 import pickle
 import logging
 from lithops import utils
 from lithops.job.partitioner import create_partitions
-from lithops.utils import is_object_processing_function, sizeof_fmt
+from lithops.utils import is_object_processing_function, sizeof_fmt, b64str_to_bytes
 from lithops.storage.utils import create_func_key, create_agg_data_key
 from lithops.job.serialize import SerializeIndependent, create_module_data
 from lithops.constants import MAX_AGG_DATA_SIZE, JOBS_PREFIX, LOCALHOST,\
     SERVERLESS, STANDALONE, LITHOPS_TEMP_DIR
 from types import SimpleNamespace
 
-import os
-import hashlib
-import inspect
-from lithops.utils import b64str_to_bytes
 
 logger = logging.getLogger(__name__)
+
 
 def create_map_job(config, internal_storage, executor_id, job_id, map_function,
                    iterdata, runtime_meta, runtime_memory, extra_env,
@@ -128,10 +126,11 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id,
                        execution_timeout=execution_timeout,
                        host_job_meta=host_job_meta)
 
-'''
-stores function and modules in temporary directory to be used later in optimized runtime
-'''
+
 def _store_func_and_modules(func_key, func_str, module_data):
+    ''' stores function and modules in temporary directory to be
+    used later in optimized runtime
+    '''
     # save function
     func_path = '/'.join([LITHOPS_TEMP_DIR, func_key])
     os.makedirs(os.path.dirname(func_path), exist_ok=True)
@@ -197,7 +196,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     mode = config['lithops']['mode']
 
     if mode == SERVERLESS:
-        job.invoke_pool_threads = invoke_pool_threads
+        job.invoke_pool_threads = invoke_pool_threads or config['serverless']['invoke_pool_threads']
         job.runtime_memory = runtime_memory or config['serverless']['runtime_memory']
         job.runtime_timeout = config['serverless']['runtime_timeout']
         if job.execution_timeout >= job.runtime_timeout:

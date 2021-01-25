@@ -106,3 +106,7 @@ def load_config(config_data=None):
     config_data['gcp_functions'] = config_data['gcp'].copy()
     if 'region' not in config_data['gcp_functions']:
         config_data['gcp_functions']['region'] = config_data['pywren']['compute_backend_region']
+
+    if 'invoke_pool_threads' not in config_data['gcp']:
+        config_data['gcp']['invoke_pool_threads'] = config_data['lithops']['workers']
+    config_data['serverless']['invoke_pool_threads'] = config_data['gcp']['invoke_pool_threads']

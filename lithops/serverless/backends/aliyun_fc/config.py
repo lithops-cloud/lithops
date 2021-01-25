@@ -28,6 +28,7 @@ RUNTIME_TIMEOUT_MAX = 600        # Platform maximum
 RUNTIME_MEMORY_DEFAULT = 256
 RUNTIME_MEMORY_MAX = 3072
 MAX_CONCURRENT_WORKERS = 300
+INVOKE_POOL_THREADS_DEFAULT = 500
 
 CONNECTION_POOL_SIZE = 30
 
@@ -92,3 +93,7 @@ def load_config(config_data=None):
             config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
     else:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
+
+    if 'invoke_pool_threads' not in config_data['aliyun_fc']:
+        config_data['aliyun_fc']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
+    config_data['serverless']['invoke_pool_threads'] = config_data['aliyun_fc']['invoke_pool_threads']

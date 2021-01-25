@@ -140,14 +140,14 @@ class FunctionExecutor:
 
             if self.config[mode].get('customized_runtime'):
                 self.invoker = CustomizedRuntimeInvoker(self.config,
-                                           self.executor_id,
-                                           self.internal_storage,
-                                           self.compute_handler)
+                                                        self.executor_id,
+                                                        self.internal_storage,
+                                                        self.compute_handler)
             else:
                 self.invoker = ServerlessInvoker(self.config,
-                                             self.executor_id,
-                                             self.internal_storage,
-                                             self.compute_handler)
+                                                 self.executor_id,
+                                                 self.internal_storage,
+                                                 self.compute_handler)
         elif mode == STANDALONE:
             standalone_config = extract_standalone_config(self.config)
             self.compute_handler = StandaloneHandler(standalone_config)
@@ -208,7 +208,7 @@ class FunctionExecutor:
 
     def map(self, map_function, map_iterdata, extra_args=None, extra_env=None,
             runtime_memory=None, chunk_size=None, chunk_n=None, timeout=None,
-            invoke_pool_threads=500, include_modules=[], exclude_modules=[]):
+            invoke_pool_threads=None, include_modules=[], exclude_modules=[]):
         """
         For running multiple function executions asynchronously
 
@@ -260,7 +260,7 @@ class FunctionExecutor:
     def map_reduce(self, map_function, map_iterdata, reduce_function,
                    extra_args=None, extra_env=None, map_runtime_memory=None,
                    reduce_runtime_memory=None, chunk_size=None, chunk_n=None,
-                   timeout=None, invoke_pool_threads=500, reducer_one_per_object=False,
+                   timeout=None, invoke_pool_threads=None, reducer_one_per_object=False,
                    reducer_wait_local=False, include_modules=[], exclude_modules=[]):
         """
         Map the map_function over the data and apply the reduce_function across all futures.
@@ -579,7 +579,7 @@ class FunctionExecutor:
 class LocalhostExecutor(FunctionExecutor):
 
     def __init__(self, config=None, runtime=None, workers=None,
-                 storage=None, rabbitmq_monitor=None, log_level=None):
+                 storage=None, rabbitmq_monitor=None, log_level=False):
         """
         Initialize a LocalhostExecutor class.
 
@@ -602,7 +602,7 @@ class ServerlessExecutor(FunctionExecutor):
 
     def __init__(self, config=None, runtime=None, runtime_memory=None,
                  backend=None, storage=None, workers=None, rabbitmq_monitor=None,
-                 remote_invoker=None, log_level=None):
+                 remote_invoker=None, log_level=False):
         """
         Initialize a ServerlessExecutor class.
 
@@ -627,7 +627,7 @@ class ServerlessExecutor(FunctionExecutor):
 class StandaloneExecutor(FunctionExecutor):
 
     def __init__(self, config=None, backend=None, runtime=None, storage=None,
-                 workers=None, rabbitmq_monitor=None, log_level=None):
+                 workers=None, rabbitmq_monitor=None, log_level=False):
         """
         Initialize a StandaloneExecutor class.
 

@@ -69,6 +69,7 @@ RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
 RUNTIME_MEMORY_MAX = 10240  # Max. memory: 10240 MB
 
 MAX_CONCURRENT_WORKERS = 1000
+INVOKE_POOL_THREADS_DEFAULT = 500
 
 
 def load_config(config_data):
@@ -140,3 +141,7 @@ def load_config(config_data):
 
     if not all([efs_conf['mount_path'].startswith('/mnt') for efs_conf in config_data['aws_lambda']['efs']]):
         raise Exception("All mount paths must start with '/mnt' on 'aws_lambda/efs/*/mount_path' section")
+
+    if 'invoke_pool_threads' not in config_data['aws_lambda']:
+        config_data['aws_lambda']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
+    config_data['serverless']['invoke_pool_threads'] = config_data['aws_lambda']['invoke_pool_threads']

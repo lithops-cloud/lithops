@@ -34,6 +34,7 @@ RUNTIME_TIMEOUT = 300000    # Default: 300000 ms => 10 minutes
 RUNTIME_TIMEOUT_MAX = 600000        # Platform maximum
 RUNTIME_MEMORY = 1500       # Default memory: 1.5 GB
 MAX_CONCURRENT_WORKERS = 2000
+INVOKE_POOL_THREADS_DEFAULT = 500
 
 IN_QUEUE = "in-trigger"
 OUT_QUEUE = "out-result"
@@ -163,3 +164,7 @@ def load_config(config_data=None):
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         runtime_name = '{}-{}-v{}-{}'.format(storage_account, RUNTIME_NAME, py_version, revision)
         config_data['serverless']['runtime'] = runtime_name
+
+    if 'invoke_pool_threads' not in config_data['azure_fa']:
+        config_data['azure_fa']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
+    config_data['serverless']['invoke_pool_threads'] = config_data['azure_fa']['invoke_pool_threads']
