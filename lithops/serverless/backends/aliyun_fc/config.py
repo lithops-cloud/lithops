@@ -55,12 +55,23 @@ tblib
 
 def load_config(config_data=None):
 
+    if 'aliyun_fc' not in config_data:
+        raise Exception("aliyun_fc section is mandatory in the configuration")
+
+    required_parameters = ('public_endpoint', 'access_key_id', 'access_key_secret')
+
+    if set(required_parameters) > set(config_data['aliyun_fc']):
+        raise Exception('You must provide {} to access to Aliyun Function Compute '
+                        .format(required_parameters))
+
     this_version_str = version_str(sys.version_info)
     if this_version_str != '3.6':
         raise Exception('The functions backend Aliyun Function Compute currently'
                         ' only supports Python version 3.6.X and the local Python'
                         'version is {}'.format(this_version_str))
 
+    if 'runtime' in config_data['aliyun_fc']:
+        config_data['serverless']['runtime'] = config_data['aliyun_fc']['runtime']
     if 'runtime' not in config_data['serverless']:
         config_data['serverless']['runtime'] = 'default'
 
@@ -81,12 +92,3 @@ def load_config(config_data=None):
             config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
     else:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
-
-    if 'aliyun_fc' not in config_data:
-        raise Exception("aliyun_fc section is mandatory in the configuration")
-
-    required_parameters = ('public_endpoint', 'access_key_id', 'access_key_secret')
-
-    if set(required_parameters) > set(config_data['aliyun_fc']):
-        raise Exception('You must provide {} to access to Aliyun Function Compute '
-                        .format(required_parameters))

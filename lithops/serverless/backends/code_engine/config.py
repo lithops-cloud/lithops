@@ -155,6 +155,8 @@ def load_config(config_data):
     if 'runtime_timeout' not in config_data['serverless']:
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT
 
+    if 'runtime' in config_data['code_engine']:
+        config_data['serverless']['runtime'] = config_data['code_engine']['runtime']
     if 'runtime' not in config_data['serverless']:
         if not DOCKER_PATH:
             raise Exception('docker command not found. Install docker or use '

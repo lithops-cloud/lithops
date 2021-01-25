@@ -38,9 +38,11 @@ lithops:
     #namespace   : <NAMESPACE>
     #api_key     : <API_KEY>
     #namespace_id : <NAMESPACE_ID> # Only for IAM auth
+    #runtime: <RUNTIME_NAME>
 
 #code_engine:
     #kubectl_config: <Location for kubectl yaml file>
+    #runtime: <RUNTIME_NAME>
 
 #ibm_cos:
     region : <REGION>
@@ -82,6 +84,7 @@ lithops:
    #istio_endpoint  : <ISTIO_INGRESS_ENDPOINT>
    #docker_user     : <DOCKER_HUB_USERNAME>
    #docker_token    : <DOCKER_HUB_TOKEN>
+   #runtime: <RUNTIME_NAME>
 
 #docker:
     #host: <HOST_IP>
@@ -93,6 +96,7 @@ lithops:
     #namespace   : <NAMESPACE>
     #api_key     : <AUTH_KEY>
     #insecure    : <True/False>
+    #runtime: <RUNTIME_NAME>
 
 #swift:
     #auth_url   : <SWIFT_AUTH_URL>

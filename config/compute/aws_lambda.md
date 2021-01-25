@@ -40,6 +40,7 @@ $ pip install lithops[aws]
  - `access_key_id` and `secret_access_key`: Account access keys to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one.
  - `region_name`: Region where the S3 bucket is located and where Lambda functions will be invoked (e.g. `us-east-1`).
  - `execution_role`: ARN of the execution role created at step 3. You can find it in the Role page at the *Roles* list in the *IAM* section (e.g. `arn:aws:iam::1234567890:role/lithops-role`).
+ - `runtime`: Runtime name already deployed in the service
  
 #### Additional configuration
 

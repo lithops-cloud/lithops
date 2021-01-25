@@ -83,6 +83,7 @@ The only requirement to make it working is to have the KUBECONFIG file properly 
 |knative | max_instances | 250 |no | Maximum number of parallel runtimes |
 |knative | cpu | 1 |no | CPU limit. Default 1vCPU  |
 |knative | concurrency | 1 |no | Number of workers per runtime instance |
+|knative| runtime |  |no | Docker image name.|
 
 
 ### Lithops using Kubernetes Job API of Code Engine
@@ -120,6 +121,7 @@ If you need to create new runtime, please follow [Building and managing Lithops 
 |code_engine | kubectl_config  |  |no | Path to kubecfg file |
 |code_engine | cpu | 1 |no | CPU limit. Default 1vCPU |
 |code_engine | container_registry |  docker.io | no | container registry url|
+|code_engine| runtime |  |no | Docker image name.|
 
 ### Usage Example
 

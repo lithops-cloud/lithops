@@ -66,13 +66,18 @@ def load_config(config_data=None):
     if config_data is None:
         config_data = {}
 
+    if 'gcp' not in config_data:
+        raise Exception("'gcp' section is mandatory in the configuration")
+
     if 'runtime_memory' not in config_data['serverless']:
         config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
     if 'runtime_timeout' not in config_data['serverless']:
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+
+    if 'runtime' in config_data['gcp']:
+        config_data['serverless']['runtime'] = config_data['gcp']['runtime']
     if 'runtime' not in config_data['serverless']:
-        config_data['serverless']['runtime'] = 'python' + \
-                                               version_str(sys.version_info)
+        config_data['serverless']['runtime'] = 'python' + version_str(sys.version_info)
 
     if 'workers' not in config_data['lithops']:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
@@ -85,9 +90,6 @@ def load_config(config_data=None):
         config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_MAX
     if config_data['serverless']['runtime_timeout'] > RUNTIME_TIMEOUT_DEFAULT:
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
-
-    if 'gcp' not in config_data:
-        raise Exception("'gcp' section is mandatory in the configuration")
 
     config_data['gcp']['retries'] = RETRIES
     config_data['gcp']['retry_sleep'] = RETRY_SLEEP

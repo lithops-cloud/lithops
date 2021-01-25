@@ -1,6 +1,7 @@
 # Requirements.txt contains a list of dependencies for the Python Application #
 
 # Setup modules
+gunicorn
 gevent
 flask
 
