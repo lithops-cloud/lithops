@@ -10,6 +10,9 @@ class SSHClient():
         self.ssh_credentials = ssh_credentials
         self.ssh_client = None
 
+    def close(self):
+        self.ssh_client.close()
+
     def create_client(self, ip_address, timeout=None):
         self.ssh_client = paramiko.SSHClient()
         self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -20,7 +23,7 @@ class SSHClient():
 
         return self.ssh_client
 
-    def run_remote_command(self, ip_address, cmd, timeout=None, background=False):
+    def run_remote_command(self, ip_address, cmd, timeout=None, run_async=False):
         if self.ssh_client is None:
             self.ssh_client = self.create_client(ip_address, timeout)
 
@@ -31,7 +34,7 @@ class SSHClient():
             stdin, stdout, stderr = self.ssh_client.exec_command(cmd)
 
         out = None
-        if not background:
+        if not run_async:
             out = stdout.read().decode().strip()
             error = stderr.read().decode().strip()
 

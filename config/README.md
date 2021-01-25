@@ -204,3 +204,4 @@ fexec = lithops.FunctionExecutor(rabbitmq_monitor=True)
 |standalone | exec_mode | consume | no | If set to  **create** standalone backend will automatically create VMs based on the standalone backend|
 |standalone | disable_log_monitoring | False | no | If set to  True pull remote logs will be disabled. This can improve running time|
 |standalone | encryption_key |  | yes | Random key used to encrypt the payload. Use, for example: `openssl rand -base64 32` |
+|standalone | use_http | false | no | `true` or `false`. Whether or not use http connections to communicate with the VM instance. If `falase` (default) it communicates with the VM using ssh connections. If true, it uses the encryption_key to encrypt the payload sent trough http.|
