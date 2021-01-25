@@ -17,17 +17,17 @@ Lithops with IBM COS as storage backend.
 #### Using region
 The easiest apporach is to let Lithops to choose the right endpoint by itself. To enable this, just configure Lithops with region name only, as follows
 
-	```yaml
-		ibm_cos:
-	       region   : <REGION>
-	```
+    ```yaml
+    ibm_cos:
+        region   : <REGION>
+    ```
 ### Using endpoints path
 Alternative to using region, you can configre public and private endpoints as follows
 
-	```yaml
-		ibm_cos:
-			private_endpoint: https://s3.private.<region>cloud-object-storage.appdomain.cloud
-			endpoint: https://s3.<region>.cloud-object-storage.appdomain.cloud
+    ```yaml
+	 ibm_cos:
+        private_endpoint: https://s3.private.<region>cloud-object-storage.appdomain.cloud
+        endpoint: https://s3.<region>.cloud-object-storage.appdomain.cloud
     ```
 
 ### Configuration
