@@ -22,7 +22,6 @@ import logging
 import time
 import threading
 import json
-import subprocess as sp
 from cryptography.fernet import Fernet
 from gevent.pywsgi import WSGIServer
 
@@ -63,7 +62,6 @@ def budget_keeper():
     global last_usage_time
     global jobs
     global backend_handler
-    global backend_handler_backend
 
     jobs_running = False
 
@@ -109,7 +107,7 @@ def budget_keeper():
         else:
             logger.info("Dismantling setup")
             try:
-                backend_handler_backend.stop()
+                backend_handler.stop()
             except Exception as e:
                 logger.info("Dismantle error {}".format(e))
 
@@ -117,21 +115,19 @@ def budget_keeper():
 def init_keeper():
     global keeper
     global backend_handler
-    global backend_handler_backend
     global standalone_config
-
-    backend_handler = StandaloneHandler(standalone_config)
 
     access_data = os.path.join(REMOTE_INSTALL_DIR, 'access.data')
     with open(access_data, 'r') as ad:
-        lines = ad.readlines()
-        for line in lines:
-            res = line.strip().split()
-            break
+        vsi_details = json.load(ad)
+        logger.info("Parsed self IP {} and instance ID {}"
+                    .format(vsi_details['ip_address'],
+                            vsi_details['instance_id']))
 
-    logger.info("Parsed self IP {} and instance ID {}".format(res[0], res[1]))
+    backend = standalone_config['backend']
+    standalone_config[backend].update(vsi_details)
+    backend_handler = StandaloneHandler(standalone_config)
 
-    backend_handler_backend = backend_handler.create_backend_handler(res[1], res[0])
     keeper = threading.Thread(target=budget_keeper)
     keeper.daemon = True
     keeper.start()
@@ -151,22 +147,10 @@ def run():
     global last_usage_time
     global backend_handler
     global jobs
-    global standalone_config
 
-    if 'use_http' in standalone_config and standalone_config['use_http'] is True:
-        logger.info('Running Job. Received invocation through http')
-        encrypted_payload = flask.request.data
-        encryption_key = standalone_config['encryption_key']
-        encryption_type = Fernet(encryption_key)
-        try:
-            message = json.loads(encryption_type.decrypt(encrypted_payload))
-        except Exception:
-            return error('The action did not receive a dictionary as an argument.')
-    else:
-        logger.info('Running Job. Received invocation through ssh')
-        message = flask.request.get_json(force=True, silent=True)
-        if message and not isinstance(message, dict):
-            return error('The action did not receive a dictionary as an argument.')
+    message = flask.request.get_json(force=True, silent=True)
+    if message and not isinstance(message, dict):
+        return error('The action did not receive a dictionary as an argument.')
 
     try:
         runtime = message['job_description']['runtime_name']
@@ -186,10 +170,9 @@ def run():
     job_id = message['job_id']
     job_key = create_job_key(executor_id, job_id)
     jobs[job_key] = 'running'
-    
-    local_runtime_load = standalone_config.get('local_runtime_load', False)
 
-    localhost_handler = LocalhostHandler({'runtime': runtime, 'local_runtime_load': local_runtime_load})
+    pull_runtime = standalone_config.get('pull_runtime', False)
+    localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
     localhost_handler.run_job(message)
 
     response = flask.jsonify({'activationId': act_id})
@@ -219,7 +202,8 @@ def preinstalls():
     except Exception as e:
         return error(str(e))
 
-    localhost_handler = LocalhostHandler({'runtime': runtime, 'local_runtime_load': message['local_runtime_load']})
+    pull_runtime = standalone_config.get('pull_runtime', False)
+    localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
     runtime_meta = localhost_handler.create_runtime(runtime)
     response = flask.jsonify(runtime_meta)
     response.status_code = 200
