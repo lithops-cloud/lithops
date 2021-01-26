@@ -14,10 +14,11 @@ logger = logging.getLogger(__name__)
 
 class IBMVPCInstanceClient:
 
-    def __init__(self, ibm_vpc_config):
+    def __init__(self, ibm_vpc_config, public_vsi=False):
         logger.debug("Creating IBM VPC client")
         self.name = 'ibm_vpc'
         self.config = ibm_vpc_config
+        self.public_vsi = public_vsi
 
         self.endpoint = self.config['endpoint']
         self.region = self.endpoint.split('//')[1].split('.')[0]
@@ -27,16 +28,17 @@ class IBMVPCInstanceClient:
         #optional, create VM will update new virtual ip address
         self.ip_address = self.config.get('ip_address', None)
 
-        self.vm_create_timeout = self.config.get('vm_create_timeout', 120)
-
         self.instance_data = None
 
+        self.vm_create_timeout = self.config.get('vm_create_timeout', 120)
         self.ssh_credentials = {'username': self.config.get('ssh_user', 'root'),
                                 'password': self.config.get('ssh_password', None),
                                 'key_filename': self.config.get('ssh_key_filename', None)}
 
-        from lithops.util.ssh_client import SSHClient
-        self.ssh_client = SSHClient(self.ssh_credentials)
+        if self.public_vsi:
+            self.floating_ip_name = 'lithops-entry-point'
+            from lithops.util.ssh_client import SSHClient
+            self.ssh_client = SSHClient(self.ssh_credentials)
 
         iam_api_key = self.config.get('iam_api_key')
         self.custom_image = self.config.get('custom_lithops_image')
@@ -74,15 +76,14 @@ class IBMVPCInstanceClient:
         self.ip_address = ip_address
 
     def _generate_name(self, r_type, job_key, call_id):
-        if (job_key != None and call_id != None):
+        if job_key is not None and call_id is not None:
             red_call_id = call_id
             if red_call_id.find('/') > 0:
                 red_call_id = red_call_id[red_call_id.find('/') + 1:]
-            resp = ("lithops" + "-" + str(job_key) + "-" + str(red_call_id) + "-" + r_type).replace('/', '-').replace(':','-').lower()
-            return resp
-        return "lithops-" + namegenerator.gen() + "-" + r_type
+            return "lithops-{}-{}-{}".format(job_key, red_call_id, r_type).replace('/', '-').replace(':', '-').replace('.', '').lower()
+        return "lithops-{}-{}".format(namegenerator.gen(), r_type)
 
-    def execution_wrapper(self, func, method, job_key = None, call_id = None, instance_id = None, ip_address = None):
+    def execution_wrapper(self, func, method, job_key=None, call_id=None, instance_id=None, ip_address=None):
         retry_attempt = 0
         while (int(retry_attempt) < 15):
             try:
@@ -99,68 +100,73 @@ class IBMVPCInstanceClient:
 
     def _create_instance(self, job_key, call_id):
         logger.debug("__create_instance {} {} - start".format(job_key, call_id))
-        # security_group_identity_model = {'id': 'r006-2d3cc459-bb8b-4ec6-a5fb-28e60c9f7d7b'}
+
         security_group_identity_model = {'id': self.config['security_group_id']}
-
-        # subnet_identity_model = {'id': '0737-bbc80a8f-d46a-4cc6-8a5a-991daa5fc914'}
         subnet_identity_model = {'id': self.config['subnet_id']}
-        
-        # key_identity_model = {'id': "r006-14719c2a-80cf-4043-8018-fa22d4ce1337"}
-        key_identity_model = {'id': self.config['key_id']}
+        primary_network_interface = {
+            'name': 'eth0',
+            'subnet': subnet_identity_model,
+            'security_groups': [security_group_identity_model]
+        }
 
-        volume_prototype_instance_by_image_context_model = {
-            'capacity': 100, 'iops': 10000, 'name': self._generate_name('volume', job_key, call_id), 'profile': {'name': self.config['volume_tier_name']}}#''10iops-tier'}}
+        boot_volume_profile = {
+            'capacity': 100,
+            'name': self._generate_name('volume', job_key, call_id),
+            'profile': {'name': self.config['volume_tier_name']}}
 
-        network_interface_prototype_model = {
-            'name': 'eth0', 'subnet': subnet_identity_model, 'security_groups': [security_group_identity_model]}
-        volume_attachment_prototype_instance_by_image = {
+        boot_volume_attachment = {
             'delete_volume_on_instance_delete': True,
             'name': self._generate_name('boot', job_key, call_id),
-            'volume': volume_prototype_instance_by_image_context_model
+            'volume': boot_volume_profile
         }
+
+        key_identity_model = {'id': self.config['key_id']}
         instance_prototype_model = {
-            'keys': [key_identity_model], 'name': self._generate_name('instance', job_key, call_id)}
-        instance_prototype_model['profile'] = {'name': self.config['profile_name']}#"bx2-8x32"}
+            'keys': [key_identity_model],
+            'name': self._generate_name('instance', job_key, call_id)
+        }
 
-        instance_prototype_model['resource_group'] = {'id': self.config['resource_group_id']}#"8145289ddf7047ea93fd2835de391f43"}
-        instance_prototype_model['vpc'] = {'id': self.config['vpc_id']}#"r006-afdd7b5d-059f-413f-a319-c0a38ef46824"}
-        instance_prototype_model['image'] = {'id': self.config['image_id']}#"r006-988caa8b-7786-49c9-aea6-9553af2b1969"}
-        instance_prototype_model['zone'] = {'name': self.config['zone_name']}#"us-south-3"}
-
-        instance_prototype_model['boot_volume_attachment'] = volume_attachment_prototype_instance_by_image
-        instance_prototype_model['primary_network_interface'] = network_interface_prototype_model
+        instance_prototype_model['profile'] = {'name': self.config['profile_name']}
+        instance_prototype_model['resource_group'] = {'id': self.config['resource_group_id']}
+        instance_prototype_model['vpc'] = {'id': self.config['vpc_id']}
+        instance_prototype_model['image'] = {'id': self.config['image_id']}
+        instance_prototype_model['zone'] = {'name': self.config['zone_name']}
+        instance_prototype_model['boot_volume_attachment'] = boot_volume_attachment
+        instance_prototype_model['primary_network_interface'] = primary_network_interface
 
         logger.debug("Creating instance for {} {}".format(job_key, call_id))
         response = self.execution_wrapper(lambda: self.service.create_instance(instance_prototype_model),'creating instance', job_key = job_key, call_id = call_id)
 
         return response.result
-        
+
     def _create_and_attach_floating_ip(self, instance, job_key, call_id):
-        floating_ip_name = self._generate_name('fip', job_key, call_id)
-        #check if floating ip exists
+
         floating_ip = None
+
         try:
-            floating_ip_list = self.service.list_floating_ips().get_result()['floating_ips']
-            for vip in floating_ip_list:
-                if vip['name'] == floating_ip_name:
-                    floating_ip =  vip
+            floating_ip_list = self.service.list_floating_ips().get_result()
+            for vip in floating_ip_list['floating_ips']:
+                if vip['name'] == self.floating_ip_name:
+                    floating_ip = vip
         except Exception as e:
-            logger.warn(e)
+            logger.warn('Failed to get the floating ip: {}'.format(str(e)))
+            raise e
 
         try:
             if floating_ip is None:
                 # allocate new floating ip
                 floating_ip_prototype_model = {}
-                floating_ip_prototype_model['name'] = floating_ip_name
-                floating_ip_prototype_model['zone'] = {'name': self.config['zone_name']}#"us-south-3"}
-                floating_ip_prototype_model['resource_group'] = {'id': self.config['resource_group_id']}#"8145289ddf7047ea93fd2835de391f43"}
-
+                floating_ip_prototype_model['name'] = self.floating_ip_name
+                floating_ip_prototype_model['zone'] = {'name': self.config['zone_name']}
+                floating_ip_prototype_model['resource_group'] = {'id': self.config['resource_group_id']}
                 response = self.service.create_floating_ip(floating_ip_prototype_model)
-
                 floating_ip = response.result
         except Exception as e:
-            logger.warn('Failed to create floating ip {}'.format(str(e)))
+            logger.warn('Failed to create floating ip: {}'.format(str(e)))
             raise e
+
+
+        exit()
 
         # we need to check if floating ip is not attached already. if not, attach it to instance
         primary_ni = instance['primary_network_interface']
@@ -229,9 +235,14 @@ class IBMVPCInstanceClient:
             return True
         return False
 
-    def create(self, job_key = None, call_id = None, check_if_vsi_exists = False):
+    def create(self, job_key=None, call_id=None, check_if_vsi_exists=False):
+
+        if self.instance_id:
+            # user provided details of an already created instance
+            return
+
         logger.info("Creating VM instance {} {}".format(job_key, call_id))
-        self.instance_id = None
+
         vsi_exists = False
 
         if check_if_vsi_exists:
@@ -248,6 +259,7 @@ class IBMVPCInstanceClient:
                     logger.debug('{} Already exists. Need to find floating ip attached'.format(instance['name']))
                     vsi_exists = True
                     self.instance_id = instance['id']
+
         if not vsi_exists:
             try:
                 instance = self._create_instance(job_key, call_id)

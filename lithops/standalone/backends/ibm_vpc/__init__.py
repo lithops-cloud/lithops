@@ -1,1 +1,1 @@
-from .ibm_vpc import IBMVPCInstanceClient as StandaloneBackend
+from .ibm_vpc import IBMVPCInstanceClient as StandaloneInstance
