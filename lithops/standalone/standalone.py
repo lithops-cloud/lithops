@@ -29,8 +29,7 @@ from lithops.constants import REMOTE_INSTALL_DIR
 
 logger = logging.getLogger(__name__)
 LOCAL_FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_standalone.zip')
-REMOTE_INVOKER_FILE = '/'.join([REMOTE_INSTALL_DIR, 'invoker.py'])
-REMOTE_SETUP_FILE = '/'.join([REMOTE_INSTALL_DIR, 'setup.py'])
+PROXY_SERVICE_PORT = 8080
 
 
 class StandaloneHandler:
@@ -95,14 +94,12 @@ class StandaloneHandler:
         """
         try:
             if self.is_lithops_worker:
-                ip_addr = instance.get_ip_address() if self.use_http else '127.0.0.1'
-                url = "http://{}:{}/ping".format(ip_addr, PROXY_SERVICE_PORT)
+                url = "http://{}:{}/ping".format('127.0.0.1', PROXY_SERVICE_PORT)
                 r = requests.get(url, timeout=1, verify=True)
                 if r.status_code == 200:
                     return True
                 return False
             else:
-                ip_addr = instance.get_ip_address()
                 cmd = 'curl -X GET http://127.0.0.1:8080/ping'
                 out = instance.get_ssh_client().run_remote_command(cmd, timeout=2)
                 data = json.loads(out)
@@ -148,9 +145,9 @@ class StandaloneHandler:
         ep_instance = self.instances[0]
         ip_address = ep_instance.get_ip_address()
 
-        logger.debug("Check if entry point instance ready for {} ".format(ip_address))
+        logger.debug("Checking if entry point VSI {} is ready".format(ip_address))
         if not self._is_proxy_ready(ep_instance):
-            logger.debug("Entry point instance not ready {} ".format(ip_address))
+            logger.debug("Entry point VSI {} is not ready".format(ip_address))
             # if entry point VSI is topped, this means all VSIs are stopped
             with ThreadPoolExecutor(total_calls) as executor:
                 executor.map(lambda vsi: vsi.start(), self.instances)
@@ -159,7 +156,8 @@ class StandaloneHandler:
             if self.exec_mode == 'create':
                 self._setup_lithops(ep_instance)
 
-        cmd = 'python3 {} {}'.format(INVOKER_FILE, shlex.quote(json.dumps(job_payload)))
+        logger.debug('Entry point VSI {} ready. Running job'.format(ip_address))
+        cmd = 'python3 /opt/lithops/invoker.py {}'.format(shlex.quote(json.dumps(job_payload)))
         out = ep_instance.get_ssh_client().run_remote_command(cmd)
         logger.debug(out)
         response = json.loads(out)
@@ -175,15 +173,21 @@ class StandaloneHandler:
         preinstalled modules
         """
         ep_instance = self.instances[0]
+        ip_addr = ep_instance.get_ip_address()
+        logger.debug('Checking if VM instance is ready {}'.format(ip_addr))
         if not self._is_instance_ready(ep_instance):
+            logger.debug('VM Instance not ready {}'.format(ip_addr))
             ep_instance.create()
             ep_instance.start()
             self._wait_instance_ready(ep_instance)
         self._setup_lithops(ep_instance)
+        self._wait_proxy_ready(ep_instance)
 
         logger.debug('Extracting runtime metadata information')
         payload = {'runtime': runtime, 'pull_runtime': self.pull_runtime}
-        cmd = 'python3 {} {}'.format(INVOKER_FILE, shlex.quote(json.dumps(payload)))
+        cmd = ('curl http://127.0.0.1:8080/preinstalls -d {} '
+               '-H \'Content-Type: application/json\' -X GET'
+               .format(shlex.quote(json.dumps(payload))))
         out = ep_instance.get_ssh_client().run_remote_command(cmd)
         runtime_meta = json.loads(out)
 
@@ -223,36 +227,29 @@ class StandaloneHandler:
         # Upload local lithops version to remote VM instance
         src_proxy = os.path.join(os.path.dirname(__file__), 'proxy.py')
         create_handler_zip(LOCAL_FH_ZIP_LOCATION, src_proxy)
-        logger.debug('Uploading lithops zip package file to {}'.format(ip_address))
-        ssh_client.upload_local_file(LOCAL_FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip')
-        os.remove(LOCAL_FH_ZIP_LOCATION)
+        current_location = os.path.dirname(os.path.abspath(__file__))
+        ssh_location = os.path.join(current_location, '..', 'util', 'ssh_client.py')
+        setup_location = os.path.join(current_location, 'setup.py')
 
-        ep_vsi_data = {'ip_address': ip_address, 'instance_id': ep_instance.get_instance_id()}
+        logger.debug('Uploading lithops files to entry point VSI {}'.format(ip_address))
+        files_to_upload = [(LOCAL_FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip'),
+                           (ssh_location, '/tmp/ssh_client.py'.format(REMOTE_INSTALL_DIR)),
+                           (setup_location, '/tmp/setup.py'.format(REMOTE_INSTALL_DIR))]
+
+        ssh_client.upload_multiple_local_files(files_to_upload)
+        os.remove(LOCAL_FH_ZIP_LOCATION)
 
         # Create dirs and upload config
         cmd = 'rm -R {0}; mkdir -p {0}; mkdir -p /tmp/lithops; '.format(REMOTE_INSTALL_DIR)
+        ep_vsi_data = {'ip_address': ip_address, 'instance_id': ep_instance.get_instance_id()}
         cmd += "echo '{}' > {}/access.data; ".format(json.dumps(ep_vsi_data), REMOTE_INSTALL_DIR)
         cmd += "echo '{}' > {}/config; ".format(json.dumps(self.config), REMOTE_INSTALL_DIR)
-        # Install main deps if necessary
-        cmd += 'command -v unzip >/dev/null 2>&1 || { export INSTALL_LITHOPS_DEPS=true; }; '
-        cmd += 'command -v pip3 >/dev/null 2>&1 || { export INSTALL_LITHOPS_DEPS=true; }; '
-        cmd += 'if [ "$INSTALL_LITHOPS_DEPS" = true ] ; then '
-        cmd += 'rm /var/lib/apt/lists/* -vfR >> /tmp/lithops/proxy.log 2>&1; '
-        cmd += 'apt-get clean >> /tmp/lithops/proxy.log 2>&1; '
-        cmd += 'apt-get update >> /tmp/lithops/proxy.log 2>&1; '
-        cmd += 'apt-get install unzip python3-pip -y >> /tmp/lithops/proxy.log 2>&1; '
-        cmd += 'pip3 install -U flask gevent lithops >> /tmp/lithops/proxy.log 2>&1; '
-        cmd += 'fi; '
-        # Unzip lithops package
-        cmd += 'unzip -o /tmp/lithops_standalone.zip -d {} > /dev/null 2>&1; '.format(REMOTE_INSTALL_DIR)
-        # Copy invoker.py and setup.py in /opt/lithops
-        cmd += 'cp {0}/lithops/standalone/setup.py {0}/setup.py; '.format(REMOTE_INSTALL_DIR)
-        cmd += 'cp {0}/lithops/standalone/invoker.py {0}/invoker.py; '.format(REMOTE_INSTALL_DIR)
+        cmd += "mv /tmp/*.py '{}'; ".format(REMOTE_INSTALL_DIR)
+        cmd += "apt-get install python3-paramiko -y; ".format(REMOTE_INSTALL_DIR)
         # Run setup script
-        #cmd += 'python3 /opt/lithops/setup.py; >> /tmp/lithops/proxy.log 2>&1; '.format()
+        cmd += 'python3 /opt/lithops/setup.py; >> /tmp/lithops/proxy.log 2>&1; '
 
-        logger.debug('Executing main ssh command for Lithops proxy to VM instance {}'.format(ip_address))
-        logger.debug('Be patient, initial installation process can take up to 5 minutes')
+        logger.debug('Executing lithops installation process trough entry point VSI {}'.format(ip_address))
+        logger.debug('Be patient, initial installation process could take up to 5 minutes')
         ssh_client.run_remote_command(cmd)
-        logger.debug('Completed main ssh command for Lithops proxy to VM instance {}'.format(ip_address))
-        exit()
+        logger.debug('Completed lithops installation process trough entry point VSI {}'.format(ip_address))

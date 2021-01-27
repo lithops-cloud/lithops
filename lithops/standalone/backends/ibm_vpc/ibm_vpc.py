@@ -1,13 +1,10 @@
-import os
-import logging
-import requests
 import time
+import logging
+import namegenerator
 from lithops.constants import COMPUTE_CLI_MSG
-from lithops.util.ibm_token_manager import IBMTokenManager
-
 from ibm_vpc import VpcV1
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
-import namegenerator
+
 
 logger = logging.getLogger(__name__)
 
