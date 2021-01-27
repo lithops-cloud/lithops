@@ -14,6 +14,15 @@ MANDATORY_PARAMETERS_OPERATE = ['endpoint',
                                 'ip_address']
 
 
+CLOUD_CONFIG = """
+#cloud-config
+runcmd:
+    - echo 'root:lithops' | chpasswd
+    - sed -i '/#PermitRootLogin without-password/c\PermitRootLogin yes' /etc/ssh/sshd_config
+    - systemctl restart sshd
+"""
+
+
 def _is_auto_create_mode(config_data):
     if 'exec_mode' in config_data['standalone'] \
        and config_data['standalone']['exec_mode'] == 'create':

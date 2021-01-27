@@ -22,7 +22,6 @@ import logging
 import time
 import threading
 import json
-from cryptography.fernet import Fernet
 from gevent.pywsgi import WSGIServer
 
 from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DONE_DIR, \

@@ -22,12 +22,10 @@ class IBMVPCInstanceClient:
 
         self.endpoint = self.config['endpoint']
         self.region = self.endpoint.split('//')[1].split('.')[0]
-
-        #optional, create VM will update new instance id
+        # optional, create VM will update new instance id
         self.instance_id = self.config.get('instance_id', None)
-        #optional, create VM will update new virtual ip address
+        # optional, create VM will update new virtual ip address
         self.ip_address = self.config.get('ip_address', None)
-
         self.instance_data = None
 
         self.vm_create_timeout = self.config.get('vm_create_timeout', 120)
@@ -35,10 +33,9 @@ class IBMVPCInstanceClient:
                                 'password': self.config.get('ssh_password', None),
                                 'key_filename': self.config.get('ssh_key_filename', None)}
 
-        if self.public_vsi:
-            self.floating_ip_name = 'lithops-entry-point'
+        if public_vsi and self.ip_address:
             from lithops.util.ssh_client import SSHClient
-            self.ssh_client = SSHClient(self.ssh_credentials)
+            self.ssh_client = SSHClient(self.ip_address, self.ssh_credentials)
 
         iam_api_key = self.config.get('iam_api_key')
         self.custom_image = self.config.get('custom_lithops_image')
@@ -165,9 +162,6 @@ class IBMVPCInstanceClient:
             logger.warn('Failed to create floating ip: {}'.format(str(e)))
             raise e
 
-
-        exit()
-
         # we need to check if floating ip is not attached already. if not, attach it to instance
         primary_ni = instance['primary_network_interface']
         if ('target' in floating_ip and floating_ip['target']['primary_ipv4_address'] == primary_ni['primary_ipv4_address'] and
@@ -226,7 +220,7 @@ class IBMVPCInstanceClient:
     def start(self):
         logger.info("Starting VM instance id {} with IP {}".format(self.instance_id, self.ip_address))
         resp = self.execution_wrapper(lambda: self.service.create_instance_action(self.instance_id, 'start'),'start vm', instance_id = self.instance_id, ip_address = self.ip_address)
-            
+
         logger.debug("VM instance {} started successfully".format(self.instance_id))
 
     def is_ready(self):
@@ -237,16 +231,15 @@ class IBMVPCInstanceClient:
 
     def create(self, job_key=None, call_id=None, check_if_vsi_exists=False):
 
+        vsi_exists = False
         if self.instance_id:
             # user provided details of an already created instance
-            return
+            vsi_exists = True
 
-        logger.info("Creating VM instance {} {}".format(job_key, call_id))
-
-        vsi_exists = False
+        if job_key and call_id:
+            logger.debug("Creating VM instance {} {}".format(job_key, call_id))
 
         if check_if_vsi_exists:
-            #check if VSI exists
             try:
                 resp = self.service.list_instances()
                 all_instances = resp.get_result()['instances']
@@ -271,16 +264,21 @@ class IBMVPCInstanceClient:
                 raise e
 
         try:
-            floating_ip = self._create_and_attach_floating_ip(instance, job_key, call_id)
-            logger.debug("VM {} updated successfully with floating IP {}".format(instance['name'], floating_ip))
-            self.config['ip_address'] = floating_ip
-            self.ip_address = floating_ip
-
-            return self.instance_id, floating_ip
+            if self.public_vsi:
+                if not self.ip_address:
+                    floating_ip = self._create_and_attach_floating_ip(instance, job_key, call_id)
+                    logger.debug("VM {} updated successfully with floating IP {}".format(instance['name'], floating_ip))
+                    self.config['ip_address'] = floating_ip
+                    self.ip_address = floating_ip
+                if not self.ssh_client:
+                    from lithops.util.ssh_client import SSHClient
+                    self.ssh_client = SSHClient(self.ip_address, self.ssh_credentials)
         except Exception as e:
             logger.error("There was an error trying to to bind floating ip to vm {}".format(self.instance_id))
             self._delete_instance()
             raise e
+
+        return self.instance_id, self.ip_address
 
     def stop(self):
         if self.config['delete_on_dismantle']:
