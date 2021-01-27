@@ -159,9 +159,7 @@ class StandaloneHandler:
         logger.debug('Entry point VSI {} ready. Running job'.format(ip_address))
         cmd = 'python3 /opt/lithops/invoker.py {}'.format(shlex.quote(json.dumps(job_payload)))
         out = ep_instance.get_ssh_client().run_remote_command(cmd)
-        logger.debug(out)
         response = json.loads(out)
-
         act_id = response['activationId']
         logger.debug('Job invoked on {}. Activation ID: {}'.format(ip_address, act_id))
 
@@ -197,7 +195,6 @@ class StandaloneHandler:
         """
         Stop all VM instances
         """
-        logger.info("Entering dismantle for length {}".format(len(self.backends)))
         for instance in self.instances:
             logger.debug("Dismantle {} for {}".format(instance.get_instance_id(), instance.get_ip_address()))
             instance.stop()
@@ -245,9 +242,10 @@ class StandaloneHandler:
         cmd += "echo '{}' > {}/access.data; ".format(json.dumps(ep_vsi_data), REMOTE_INSTALL_DIR)
         cmd += "echo '{}' > {}/config; ".format(json.dumps(self.config), REMOTE_INSTALL_DIR)
         cmd += "mv /tmp/*.py '{}'; ".format(REMOTE_INSTALL_DIR)
-        cmd += "apt-get install python3-paramiko -y; ".format(REMOTE_INSTALL_DIR)
+        cmd += "apt-get install python3-paramiko -y >> /tmp/lithops/proxy.log 2>&1; ".format(REMOTE_INSTALL_DIR)
         # Run setup script
-        cmd += 'python3 /opt/lithops/setup.py; >> /tmp/lithops/proxy.log 2>&1; '
+        cmd += 'python3 {}/setup.py; >> /tmp/lithops/proxy.log 2>&1; '.format(REMOTE_INSTALL_DIR)
+        cmd += 'cp {0}/lithops/standalone/invoker.py {0}/invoker.py; '.format(REMOTE_INSTALL_DIR)
 
         logger.debug('Executing lithops installation process trough entry point VSI {}'.format(ip_address))
         logger.debug('Be patient, initial installation process could take up to 5 minutes')

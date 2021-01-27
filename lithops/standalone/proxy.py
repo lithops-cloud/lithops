@@ -105,7 +105,7 @@ def budget_keeper():
         else:
             logger.info("Dismantling setup")
             try:
-                backend_handler.stop()
+                backend_handler.dismantle()
             except Exception as e:
                 logger.info("Dismantle error {}".format(e))
 

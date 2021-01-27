@@ -24,14 +24,11 @@ lithops:
 #standalone:
     #backend: ibm_vpc
     #runtime: <RUNTIME_NAME>
-    #exec_mode: create
+    #exec_mode: consume
     #auto_dismantle: True
-    #disable_log_monitoring : False
-    #local_runtime_load: <false, true>
+    #pull_runtime: <false, true>
     #hard_dismantle_timeout: 3600
     #soft_dismantle_timeout: 300
-    #use_http: <true, false>
-    #encryption_key: <RANDOM_KEY>
 
 #ibm:
    #iam_api_key: <IAM KEY>

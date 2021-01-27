@@ -1,4 +1,3 @@
-import os
 import paramiko
 import logging
 

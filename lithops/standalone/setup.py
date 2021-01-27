@@ -60,7 +60,7 @@ def get_setup_cmd(ip_address=None, instance_id=None, remote=True):
     cmd += 'curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - >> /tmp/lithops/proxy.log 2>&1; '
     cmd += 'add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" >> /tmp/lithops/proxy.log 2>&1; '
     cmd += 'apt-get update >> /tmp/lithops/proxy.log 2>&1; '
-    cmd += 'apt-get install docker-ce docker-ce-cli containerd.io -y >> /tmp/lithops/proxy.log 2>&1; '
+    cmd += 'apt-get install unzip python3-pip docker-ce docker-ce-cli containerd.io -y >> /tmp/lithops/proxy.log 2>&1; '
     cmd += 'pip3 install -U flask gevent lithops >> /tmp/lithops/proxy.log 2>&1; '
     cmd += 'fi; '
 

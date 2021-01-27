@@ -287,12 +287,10 @@ class IBMVPCInstanceClient:
                 logger.warn("VSI {} Delete error {}" .format(self.ip_address, e))
         else:
             logger.info("Stopping VM instance {}".format(self.ip_address))
-            resp = self.execution_wrapper(lambda: self.service.create_instance_action(self.instance_id, 'stop'), 'stop vm', ip_address = self.ip_address)
+            self.execution_wrapper(lambda: self.service.create_instance_action(self.instance_id, 'stop'), 'stop vm', ip_address=self.ip_address)
             logger.debug("VM instance {} stopped successfully".format(self.instance_id))
 
-            logger.debug("VM instance stopped successfully")
-
     def get_runtime_key(self, runtime_name):
-        runtime_key = runtime_name.strip("/")
+        runtime_key = '/'.join([self.name, runtime_name.replace('/', '-').replace(':', '-')])
 
         return runtime_key
