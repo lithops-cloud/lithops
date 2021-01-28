@@ -25,7 +25,8 @@ import json
 from gevent.pywsgi import WSGIServer
 
 from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DONE_DIR, \
-    REMOTE_INSTALL_DIR, PX_LOG_FILE, LOGS_DIR, LOGGER_FORMAT
+    REMOTE_INSTALL_DIR, PX_LOG_FILE, LOGS_DIR, LOGGER_FORMAT, \
+    PROXY_SERVICE_PORT
 from lithops.storage.utils import create_job_key
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
@@ -211,7 +212,7 @@ def preinstalls():
 
 def main():
     init_keeper()
-    port = int(os.getenv('PORT', 8080))
+    port = int(os.getenv('PORT', PROXY_SERVICE_PORT))
     server = WSGIServer(('0.0.0.0', port), proxy, log=proxy.logger)
     server.serve_forever()
 

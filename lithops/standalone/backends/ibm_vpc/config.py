@@ -1,18 +1,22 @@
 import datetime
 
-MANDATORY_PARAMETERS_CREATE = ['endpoint',
-                               'security_group_id',
-                               'subnet_id',
-                               'key_id',
-                               'resource_group_id',
-                               'vpc_id',
-                               'image_id',
-                               'zone_name']
 
-MANDATORY_PARAMETERS_OPERATE = ['endpoint',
-                                'instance_id',
-                                'ip_address']
+MANDATORY_PARAMETERS_1 = ['endpoint',
+                          'vpc_name',
+                          'resource_group_id',
+                          'key_id']
 
+MANDATORY_PARAMETERS_2 = ['endpoint',
+                          'vpc_id',
+                          'resource_group_id',
+                          'key_id',
+                          'subnet_id'
+                          'security_group_id']
+
+
+MANDATORY_PARAMETERS_3 = ['endpoint',
+                          'instance_id',
+                          'floating_ip']
 
 CLOUD_CONFIG = """
 #cloud-config
@@ -23,13 +27,6 @@ runcmd:
 """
 
 
-def _is_auto_create_mode(config_data):
-    if 'exec_mode' in config_data['standalone'] \
-       and config_data['standalone']['exec_mode'] == 'create':
-        return True
-    return False
-
-
 def load_config(config_data):
     section = 'ibm_vpc'
 
@@ -38,16 +35,19 @@ def load_config(config_data):
     else:
         msg = 'IBM IAM api key is mandatory in ibm section of the configuration'
         raise Exception(msg)
-    if _is_auto_create_mode(config_data):
-        for param in MANDATORY_PARAMETERS_CREATE:
-            if param not in config_data[section]:
-                msg = '{} is mandatory in {} section of the configuration'.format(param, section)
-                raise Exception(msg)
+
+    if 'exec_mode' in config_data['standalone'] \
+       and config_data['standalone'] == 'create':
+        params_to_check = MANDATORY_PARAMETERS_2
     else:
-        for param in MANDATORY_PARAMETERS_OPERATE:
-            if param not in config_data[section]:
-                msg = '{} is mandatory in {} section of the configuration'.format(param, section)
-                raise Exception(msg)
+        params_to_check = MANDATORY_PARAMETERS_3
+
+    """
+    for param in params_to_check:
+        if param not in config_data[section]:
+            msg = '{} is mandatory in {} section of the configuration'.format(param, section)
+            raise Exception(msg)
+    """
 
     if 'version' not in config_data:
         # it is not safe to use version as today() due to timezone differences. may fail at midnight. better use yesterday
@@ -63,10 +63,15 @@ def load_config(config_data):
     if 'profile_name' not in config_data[section]:
         config_data[section]['profile_name'] = 'cx2-2x4'
 
-    if _is_auto_create_mode(config_data) and 'delete_on_dismantle' not in config_data[section]:
+    if 'image_id' not in config_data[section]:
+        config_data[section]['image_id'] = 'r014-b7da49af-b46a-4099-99a4-c183d2d40ea8'
+
+    region = config_data[section]['endpoint'].split('//')[1].split('.')[0]
+    if 'zone_name' not in config_data[section]:
+        config_data[section]['zone_name'] = '{}-2'.format(region)
+
+    if 'delete_on_dismantle' not in config_data[section]:
         config_data[section]['delete_on_dismantle'] = True
-    elif 'delete_on_dismantle' not in config_data[section]:
-        config_data[section]['delete_on_dismantle'] = False
 
     if 'custom_lithops_image' not in config_data[section]:
         config_data[section]['custom_lithops_image'] = False

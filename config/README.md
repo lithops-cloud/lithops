@@ -204,4 +204,4 @@ fexec = lithops.FunctionExecutor(rabbitmq_monitor=True)
 |standalone | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |standalone | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
 |standalone | exec_mode | consume | no | If set to  **create** standalone backend will automatically create VMs based on the standalone backend|
-|standalone | pull_runtime | false | no | If set to true, lithops will execute the command `docker pull <runtime_name>`in each VSI before execution the a job|
+|standalone | pull_runtime | false | no | If set to true, lithops will execute the command `docker pull <runtime_name>` in each VSI before execution the a job|

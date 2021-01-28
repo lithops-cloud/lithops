@@ -65,6 +65,7 @@ CLEANER_PID_FILE = os.path.join(CLEANER_DIR, 'cleaner.pid')
 CLEANER_LOG_FILE = os.path.join(CLEANER_DIR, 'cleaner.log')
 
 REMOTE_INSTALL_DIR = '/opt/lithops'
+PROXY_SERVICE_PORT = 8080
 
 HOME_DIR = os.path.expanduser('~')
 CONFIG_DIR = os.path.join(HOME_DIR, '.lithops')

@@ -17,7 +17,7 @@ class SSHClient():
         """
         self.ssh_client.close()
 
-    def create_client(self, timeout=None):
+    def create_client(self, timeout=2):
         """
         Crate the SSH client connection
         """
