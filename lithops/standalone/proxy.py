@@ -40,7 +40,7 @@ log_file_fd = open(PX_LOG_FILE, 'a')
 sys.stdout = log_file_fd
 sys.stderr = log_file_fd
 
-logging.basicConfig(filename=PX_LOG_FILE, level=logging.INFO,
+logging.basicConfig(filename=PX_LOG_FILE, level=logging.DEBUG,
                     format=LOGGER_FORMAT)
 logger = logging.getLogger('proxy')
 
@@ -124,10 +124,11 @@ def init_keeper():
                             vsi_details['ip_address'],
                             vsi_details['instance_id']))
 
-    backend_name = standalone_config['backend']
-    standalone_config[backend_name].update(vsi_details)
     standalone_handler = StandaloneHandler(standalone_config)
-    standalone_handler.backend.create_instance(vsi_details['instance_name'])
+    vsi = standalone_handler.backend.create_instance(vsi_details['instance_name'])
+    vsi.ip_address = vsi_details['ip_address']
+    vsi.instance_id = vsi_details['instance_id']
+    vsi.delete_on_dismantle = False if 'master' in vsi_details['instance_name'] else True
 
     keeper = threading.Thread(target=budget_keeper)
     keeper.daemon = True

@@ -63,7 +63,6 @@ class StandaloneHandler:
         Initialize the backend and create/start the master VM instance
         """
         self.backend.init()
-        self.backend.create_instance(name='lithops-master', master=True)
 
     def _is_instance_ready(self, instance):
         """
@@ -79,7 +78,7 @@ class StandaloneHandler:
         """
         Waits until the VM instance is ready to receive ssh connections
         """
-        ip_addr = instance.get_ip_address()
+        ip_addr = instance.ip_address
         logger.debug('Waiting master VM instance {} to become ready'.format(ip_addr))
 
         start = time.time()
@@ -116,7 +115,7 @@ class StandaloneHandler:
         """
         Waits until the proxy is ready to receive http connections
         """
-        ip_address = instance.get_ip_address()
+        ip_address = instance.ip_address
         logger.info('Waiting Lithops proxy to become ready on {}'.format(ip_address))
 
         start = time.time()
@@ -132,7 +131,7 @@ class StandaloneHandler:
         """
         Run the job description against the selected environment
         """
-        master_ip = self.backend.master.get_ip_address()
+        master_ip = self.backend.master.ip_address
         total_calls = job_payload['job_description']['total_calls']
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
@@ -166,7 +165,7 @@ class StandaloneHandler:
         Installs the proxy and extracts the runtime metadata and
         preinstalled modules
         """
-        master_ip = self.backend.master.get_ip_address()
+        master_ip = self.backend.master.ip_address
 
         logger.debug('Checking if VM instance {} is ready'.format(master_ip))
         if not self._is_instance_ready(self.backend.master):
@@ -217,7 +216,7 @@ class StandaloneHandler:
         """
         Setup lithops necessary files and dirs in all VSIs using the entry point instance
         """
-        ip_address = instance.get_ip_address()
+        ip_address = instance.ip_address
         logger.debug('Installing Lithops trough VM instance {}'.format(ip_address))
         ssh_client = instance.get_ssh_client()
 
@@ -236,12 +235,13 @@ class StandaloneHandler:
         ssh_client.upload_multiple_local_files(files_to_upload)
         os.remove(LOCAL_FH_ZIP_LOCATION)
 
-        # Create dirs and upload config
-        cmd = 'rm -R {0}; mkdir -p {0}; mkdir -p /tmp/lithops; '.format(REMOTE_INSTALL_DIR)
-        ep_vsi_data = {'instance_name': instance.get_name(), 'ip_address': ip_address,
-                       'instance_id': instance.get_instance_id()}
+        instance_data = {'instance_name': instance.name, 'ip_address': ip_address, 'instance_id': instance.instance_id}
 
-        cmd += "test -f {1}/access.data || echo '{0}' > {1}/access.data; ".format(json.dumps(ep_vsi_data), REMOTE_INSTALL_DIR)
+        # Create dirs and upload config
+        cmd = 'mv {}/access.data .; '.format(REMOTE_INSTALL_DIR)
+        cmd += 'rm -R {0}; mkdir -p {0}; mkdir -p /tmp/lithops; '.format(REMOTE_INSTALL_DIR)
+        cmd += 'mv access.data {}/access.data; '.format(REMOTE_INSTALL_DIR)
+        cmd += "test -f {1}/access.data || echo '{0}' > {1}/access.data; ".format(json.dumps(instance_data), REMOTE_INSTALL_DIR)
         cmd += "test -f {1}/config || echo '{0}' > {1}/config; ".format(json.dumps(self.config), REMOTE_INSTALL_DIR)
         cmd += "mv /tmp/*.py '{}'; ".format(REMOTE_INSTALL_DIR)
         cmd += "apt-get install python3-paramiko -y >> /tmp/lithops/proxy.log 2>&1; ".format(REMOTE_INSTALL_DIR)

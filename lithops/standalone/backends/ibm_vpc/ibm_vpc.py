@@ -22,6 +22,8 @@ from ibm_cloud_sdk_core import ApiException
 from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG
 
+from . import config as ibmvpc_config
+
 
 logger = logging.getLogger(__name__)
 
@@ -202,6 +204,12 @@ class IBMVPCBackend:
         self._create_floating_ip()
         self._create_gateway()
 
+        # create the master VM insatnce
+        name = 'lithops-master-{}'.format(self.config['vpc_id'].split('-')[0])
+        self.master = self.create_instance(name, master=True)
+        self.master.ip_address = self.config.get('floating_ip', None)
+        self.master.instance_id = self.config.get('instance_id', None)
+
     def get_instances(self):
         """
         Returns the list of all created VM instances
@@ -213,9 +221,7 @@ class IBMVPCBackend:
         Create a new VM python instance
         This method does not create the physical VM.
         """
-        vsi = IBMVPCInstance(name, self.config, self.ibm_vpc_client, master=master)
-        if master:
-            self.master = vsi
+        vsi = IBMVPCInstance(name, self.config, self.ibm_vpc_client, public=master)
         self.instances.append(vsi)
         return vsi
 
@@ -225,8 +231,8 @@ class IBMVPCBackend:
         """
         for instance in self.instances:
             logger.debug("Dismantle {} for {}"
-                         .format(instance.get_instance_id(),
-                                 instance.get_ip_address()))
+                         .format(instance.instance_id,
+                                 instance.ip_address))
             instance.stop()
 
     def clean(self):
@@ -249,31 +255,37 @@ class IBMVPCBackend:
 
 class IBMVPCInstance:
 
-    def __init__(self, name, ibm_vpc_config, ibm_vpc_client, master=False):
+    def __init__(self, name, ibm_vpc_config, ibm_vpc_client=None, public=False):
         """
-        Intialize a VM instance instance
+        Initialize a IBMVPCInstance instance
         VMs can have master role, this means they will have a public IP address
         """
         self.name = name
         self.config = ibm_vpc_config
-        self.ibm_vpc_client = ibm_vpc_client
-        self.master = master
-        self.instance_data = None
+        self.delete_on_dismantle = self.config['delete_on_dismantle']
+
+        self.ibm_vpc_client = ibm_vpc_client or self._create_vpc_client()
+        self.public = public
+
         self.ssh_client = None
+        self.instance_id = None
+        self.ip_address = None
 
-        self.instance_id = self.config.get('instance_id')
-        self.ip_address = self.config.get('floating_ip') if master else self.config.get('ip_address')
+        self.ssh_credentials = {
+            'username': self.config.get('ssh_user', ibmvpc_config.SSH_USER),
+            'password': self.config.get('ssh_password', None if public else ibmvpc_config.SSH_PASSWD),
+            'key_filename': self.config.get('ssh_key_filename', None)
+        }
 
-        self.vm_create_timeout = self.config.get('vm_create_timeout', 120)
-        self.ssh_credentials = {'username': self.config.get('ssh_user', 'root'),
-                                'password': self.config.get('ssh_password', None),
-                                'key_filename': self.config.get('ssh_key_filename', None)}
-
-    def get_name(self):
+    def _create_vpc_client(self):
         """
-        Returns the instance name
+        Creates an IBM VPC python sdk instance
         """
-        return self.name
+        authenticator = IAMAuthenticator(self.iam_api_key)
+        ibm_vpc_client = VpcV1('2021-01-19', authenticator=authenticator)
+        ibm_vpc_client.set_service_url(self.endpoint + '/v1')
+
+        return ibm_vpc_client
 
     def get_ssh_client(self):
         """
@@ -281,26 +293,14 @@ class IBMVPCInstance:
         """
         if self.ip_address:
             if not self.ssh_client:
-                self.ssh_client = SSHClient(self.get_ip_address(), self.ssh_credentials)
+                self.ssh_client = SSHClient(self.ip_address, self.ssh_credentials)
         return self.ssh_client
-
-    def get_ip_address(self):
-        """
-        Return the internal private IP
-        """
-        return self.ip_address
-
-    def get_instance_id(self):
-        """
-        Return the instance ID
-        """
-        return self.instance_id
 
     def _create_instance(self, instance_name):
         """
         Creates a new VM instance
         """
-        logger.debug("Creating new VM instance: {}".format(instance_name))
+        logger.debug("Creating new VM instance {}".format(instance_name))
 
         security_group_identity_model = {'id': self.config['security_group_id']}
         subnet_identity_model = {'id': self.config['subnet_id']}
@@ -321,21 +321,21 @@ class IBMVPCInstance:
         }
 
         key_identity_model = {'id': self.config['key_id']}
-        instance_prototype_model = {
+        instance_prototype = {
             'keys': [key_identity_model],
             'name': '{}-instance'.format(instance_name),
         }
 
-        instance_prototype_model['profile'] = {'name': self.config['profile_name']}
-        instance_prototype_model['resource_group'] = {'id': self.config['resource_group_id']}
-        instance_prototype_model['vpc'] = {'id': self.config['vpc_id']}
-        instance_prototype_model['image'] = {'id': self.config['image_id']}
-        instance_prototype_model['zone'] = {'name': self.config['zone_name']}
-        instance_prototype_model['boot_volume_attachment'] = boot_volume_attachment
-        instance_prototype_model['primary_network_interface'] = primary_network_interface
+        instance_prototype['profile'] = {'name': self.config['profile_name']}
+        instance_prototype['resource_group'] = {'id': self.config['resource_group_id']}
+        instance_prototype['vpc'] = {'id': self.config['vpc_id']}
+        instance_prototype['image'] = {'id': self.config['image_id']}
+        instance_prototype['zone'] = {'name': self.config['zone_name']}
+        instance_prototype['boot_volume_attachment'] = boot_volume_attachment
+        instance_prototype['primary_network_interface'] = primary_network_interface
 
         try:
-            resp = self.ibm_vpc_client.create_instance(instance_prototype_model)
+            resp = self.ibm_vpc_client.create_instance(instance_prototype)
         except ApiException as e:
             print("Create VM instance failed with status code " + str(e.code) + ": " + e.message)
             raise e
@@ -345,6 +345,9 @@ class IBMVPCInstance:
         return resp.result
 
     def _attach_floating_ip(self, instance):
+        """
+        Attach a floating IP address only if the VM is the master instance
+        """
 
         fip = self.config['floating_ip']
         fip_id = self.config['floating_ip_id']
@@ -361,7 +364,7 @@ class IBMVPCInstance:
             self.ibm_vpc_client.add_instance_network_interface_floating_ip(
                 instance['id'], instance['network_interfaces'][0]['id'], fip_id)
 
-    def _get_instance_id_and_status(self, name):
+    def get_instance_id_and_status(self, name):
         # check if VSI exists and return it's id with status
         all_instances = self.ibm_vpc_client.list_instances().get_result()['instances']
         for instance in all_instances:
@@ -399,12 +402,10 @@ class IBMVPCInstance:
             self.instance_id = instance['id']
             self.config['instance_id'] = self.instance_id
 
-        # Only the master node has public floating ip
-        if self.master:
+        if self.public:
             self._attach_floating_ip(instance)
 
         if start:
-            logger.info("Starting VM instance {}".format(self.instance_id))
             # In IBM VPC, VM instances are automatically started on create
             if vsi_exists:
                 self.start()
@@ -412,7 +413,7 @@ class IBMVPCInstance:
         return self.instance_id
 
     def start(self):
-        logger.info("Starting VM instance id {}".format(self.instance_id))
+        logger.info("Starting VM instance {}".format(self.instance_id))
 
         try:
             resp = self.ibm_vpc_client.create_instance_action(self.instance_id, 'start')
@@ -447,7 +448,7 @@ class IBMVPCInstance:
         logger.debug("VM instance {} stopped".format(self.instance_id))
 
     def stop(self):
-        if self.config['delete_on_dismantle'] and not self.master:
+        if self.delete_on_dismantle:
             self._delete_instance()
         else:
             self._stop_instance()
