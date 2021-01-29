@@ -56,6 +56,12 @@ class LocalhostHandler:
         msg = COMPUTE_CLI_MSG.format('Localhost compute')
         logger.info("{}".format(msg))
 
+    def init(self):
+        """
+        Init taks for localhost
+        """
+        pass
+
     def run_job(self, job_payload):
         """
         Run the job description against the selected environment

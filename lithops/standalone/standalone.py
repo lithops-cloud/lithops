@@ -54,11 +54,16 @@ class StandaloneHandler:
         sb_module = importlib.import_module(module_location)
         StandaloneBackend = getattr(sb_module, 'StandaloneBackend')
         self.backend = StandaloneBackend(self.config[self.backend_name])
-        self.backend.init()
-        self.backend.create_instance(master=True)
 
         self.exec_mode = self.config.get('exec_mode', 'consume')
         logger.debug("Standalone handler created successfully")
+
+    def init(self):
+        """
+        Initialize the backend and create/start the master VM instance
+        """
+        self.backend.init()
+        self.backend.create_instance(name='lithops-master', master=True)
 
     def _is_instance_ready(self, instance):
         """
@@ -67,7 +72,6 @@ class StandaloneHandler:
         try:
             instance.get_ssh_client().run_remote_command('id')
         except Exception as e:
-            print(e)
             return False
         return True
 
@@ -130,10 +134,14 @@ class StandaloneHandler:
         """
         master_ip = self.backend.master.get_ip_address()
         total_calls = job_payload['job_description']['total_calls']
+        executor_id = job_payload['executor_id']
+        job_id = job_payload['job_id']
 
         if self.exec_mode == 'create':
-            for vm_n in range(total_calls): 
-                self.backend.create_instance()
+            for vm_n in range(total_calls):
+                call_id = "{:05d}".format(vm_n)
+                name = 'lithops-{}-{}-{}'.format(executor_id, job_id, call_id)
+                self.backend.create_instance(name)
 
             instances = self.backend.get_instances()
             with ThreadPoolExecutor(len(instances)) as executor:
@@ -141,8 +149,8 @@ class StandaloneHandler:
 
         logger.debug("Checking if Master VM instance {} is ready".format(master_ip))
         if not self._is_proxy_ready(self.backend.master):
-            logger.debug("Master VM instance {} is not ready".format(master_ip))
-            self.backend.master.start()
+            logger.debug("Master VM instance {} not ready".format(master_ip))
+            self.backend.master.create(check_if_exists=True)
             # Wait only for the entry point instance
             self._wait_instance_ready(self.backend.master)
             if self.exec_mode == 'create':
@@ -160,7 +168,7 @@ class StandaloneHandler:
         """
         master_ip = self.backend.master.get_ip_address()
 
-        logger.debug('Checking if  VM instance {} is ready'.format(master_ip))
+        logger.debug('Checking if VM instance {} is ready'.format(master_ip))
         if not self._is_instance_ready(self.backend.master):
             logger.debug('Master VM instance {} not ready'.format(master_ip))
             self.backend.master.create(check_if_exists=True, start=True)
@@ -230,9 +238,11 @@ class StandaloneHandler:
 
         # Create dirs and upload config
         cmd = 'rm -R {0}; mkdir -p {0}; mkdir -p /tmp/lithops; '.format(REMOTE_INSTALL_DIR)
-        ep_vsi_data = {'ip_address': ip_address, 'instance_id': instance.get_instance_id()}
-        cmd += "echo '{}' > {}/access.data; ".format(json.dumps(ep_vsi_data), REMOTE_INSTALL_DIR)
-        cmd += "echo '{}' > {}/config; ".format(json.dumps(self.config), REMOTE_INSTALL_DIR)
+        ep_vsi_data = {'instance_name': instance.get_name(), 'ip_address': ip_address,
+                       'instance_id': instance.get_instance_id()}
+
+        cmd += "test -f {1}/access.data || echo '{0}' > {1}/access.data; ".format(json.dumps(ep_vsi_data), REMOTE_INSTALL_DIR)
+        cmd += "test -f {1}/config || echo '{0}' > {1}/config; ".format(json.dumps(self.config), REMOTE_INSTALL_DIR)
         cmd += "mv /tmp/*.py '{}'; ".format(REMOTE_INSTALL_DIR)
         cmd += "apt-get install python3-paramiko -y >> /tmp/lithops/proxy.log 2>&1; ".format(REMOTE_INSTALL_DIR)
         # Run setup script

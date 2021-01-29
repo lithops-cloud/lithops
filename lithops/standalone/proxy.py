@@ -49,7 +49,7 @@ proxy = flask.Flask(__name__)
 last_usage_time = time.time()
 keeper = None
 jobs = {}
-backend_handler = None
+standalone_handler = None
 
 
 config_file = os.path.join(REMOTE_INSTALL_DIR, 'config')
@@ -60,33 +60,33 @@ with open(config_file, 'r') as cf:
 def budget_keeper():
     global last_usage_time
     global jobs
-    global backend_handler
+    global standalone_handler
 
     jobs_running = False
 
     logger.info("BudgetKeeper started")
 
-    if backend_handler.auto_dismantle:
+    if standalone_handler.auto_dismantle:
         logger.info('Auto dismantle activated - Soft timeout: {}s, Hard Timeout: {}s'
-                    .format(backend_handler.soft_dismantle_timeout,
-                            backend_handler.hard_dismantle_timeout))
+                    .format(standalone_handler.soft_dismantle_timeout,
+                            standalone_handler.hard_dismantle_timeout))
     else:
         # If auto_dismantle is deactivated, the VM will be always automatically
         # stopped after hard_dismantle_timeout. This will prevent the VM
         # being started forever due a wrong configuration
         logger.info('Auto dismantle deactivated - Hard Timeout: {}s'
-                    .format(backend_handler.hard_dismantle_timeout))
+                    .format(standalone_handler.hard_dismantle_timeout))
     logger.info("Jobs keys are {}".format(jobs.keys()))
 
     while True:
         time_since_last_usage = time.time() - last_usage_time
-        check_interval = backend_handler.soft_dismantle_timeout / 10
+        check_interval = standalone_handler.soft_dismantle_timeout / 10
         for job_key in jobs.keys():
             done = os.path.join(JOBS_DONE_DIR, job_key+'.done')
             if os.path.isfile(done):
                 jobs[job_key] = 'done'
         if len(jobs) > 0 and all(value == 'done' for value in jobs.values()) \
-           and backend_handler.auto_dismantle:
+           and standalone_handler.auto_dismantle:
 
             # here we need to catch a moment when number of running jobs become zero.
             # when it happens we reset countdown back to soft_dismantle_timeout
@@ -95,9 +95,9 @@ def budget_keeper():
                 last_usage_time = time.time()
                 time_since_last_usage = time.time() - last_usage_time
 
-            time_to_dismantle = int(backend_handler.soft_dismantle_timeout - time_since_last_usage)
+            time_to_dismantle = int(standalone_handler.soft_dismantle_timeout - time_since_last_usage)
         else:
-            time_to_dismantle = int(backend_handler.hard_dismantle_timeout - time_since_last_usage)
+            time_to_dismantle = int(standalone_handler.hard_dismantle_timeout - time_since_last_usage)
             jobs_running = True
 
         if time_to_dismantle > 0:
@@ -106,26 +106,28 @@ def budget_keeper():
         else:
             logger.info("Dismantling setup")
             try:
-                backend_handler.dismantle()
+                standalone_handler.dismantle()
             except Exception as e:
                 logger.info("Dismantle error {}".format(e))
 
 
 def init_keeper():
     global keeper
-    global backend_handler
+    global standalone_handler
     global standalone_config
 
     access_data = os.path.join(REMOTE_INSTALL_DIR, 'access.data')
     with open(access_data, 'r') as ad:
         vsi_details = json.load(ad)
-        logger.info("Parsed self IP {} and instance ID {}"
-                    .format(vsi_details['ip_address'],
+        logger.info("Parsed self name: {}, IP: {} and instance ID: {}"
+                    .format(vsi_details['instance_name'],
+                            vsi_details['ip_address'],
                             vsi_details['instance_id']))
 
-    backend = standalone_config['backend']
-    standalone_config[backend].update(vsi_details)
-    backend_handler = StandaloneHandler(standalone_config)
+    backend_name = standalone_config['backend']
+    standalone_config[backend_name].update(vsi_details)
+    standalone_handler = StandaloneHandler(standalone_config)
+    standalone_handler.backend.create_instance(vsi_details['instance_name'])
 
     keeper = threading.Thread(target=budget_keeper)
     keeper.daemon = True
@@ -144,7 +146,7 @@ def run():
     Run a job
     """
     global last_usage_time
-    global backend_handler
+    global standalone_handler
     global jobs
 
     message = flask.request.get_json(force=True, silent=True)
@@ -160,9 +162,9 @@ def run():
     last_usage_time = time.time()
 
     standalone_config = message['config']['standalone']
-    backend_handler.auto_dismantle = standalone_config['auto_dismantle']
-    backend_handler.soft_dismantle_timeout = standalone_config['soft_dismantle_timeout']
-    backend_handler.hard_dismantle_timeout = standalone_config['hard_dismantle_timeout']
+    standalone_handler.auto_dismantle = standalone_config['auto_dismantle']
+    standalone_handler.soft_dismantle_timeout = standalone_config['soft_dismantle_timeout']
+    standalone_handler.hard_dismantle_timeout = standalone_config['hard_dismantle_timeout']
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     executor_id = message['executor_id']
