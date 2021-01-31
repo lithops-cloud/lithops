@@ -23,6 +23,7 @@ import multiprocessing as mp
 import lithops.constants as constants
 from lithops.version import __version__
 from lithops.utils import verify_runtime_name
+from builtins import FileNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +31,11 @@ logger = logging.getLogger(__name__)
 def load_yaml_config(config_filename):
     import yaml
 
-    with open(config_filename, 'r') as config_file:
-        data = yaml.safe_load(config_file)
+    try:
+        with open(config_filename, 'r') as config_file:
+            data = yaml.safe_load(config_file)
+    except FileNotFoundError:
+        data = {}
 
     return data
 

@@ -1,14 +1,18 @@
 import os
 import sys
+import time
 import json
 import logging
+import requests
 import subprocess as sp
 from ssh_client import SSHClient
-
+from concurrent.futures import ThreadPoolExecutor
 
 PX_LOG_FILE = '/tmp/lithops/proxy.log'
 LOGGER_FORMAT = "%(asctime)s [%(levelname)s] %(name)s -- %(message)s"
 INSTALL_DIR = '/opt/lithops'
+
+START_TIMEOUT = 300
 
 PROXY_SERVICE_NAME = 'lithopsproxy.service'
 PROXY_SERVICE_PORT = 8080
@@ -36,9 +40,10 @@ sys.stderr = log_file_fd
 logging.basicConfig(filename=PX_LOG_FILE, level=logging.INFO,
                     format=LOGGER_FORMAT)
 logger = logging.getLogger('setup')
+logging.getLogger('paramiko').setLevel(logging.CRITICAL)
 
 
-def get_setup_cmd(ip_address=None, instance_id=None, remote=True):
+def get_setup_cmd(instance_name=None, ip_address=None, instance_id=None, remote=True):
 
     service_file = '/etc/systemd/system/{}'.format(PROXY_SERVICE_NAME)
     cmd = "echo '{}' > {}; ".format(PROXY_SERVICE_FILE, service_file)
@@ -67,7 +72,7 @@ def get_setup_cmd(ip_address=None, instance_id=None, remote=True):
     if remote:
         # Unzip lithops package
         cmd += 'touch {}/access.data; '.format(INSTALL_DIR)
-        vsi_data = {'ip_address': ip_address, 'instance_id': instance_id}
+        vsi_data = {'instance_name': instance_name, 'ip_address': ip_address, 'instance_id': instance_id}
         cmd += "echo '{}' > {}/access.data; ".format(json.dumps(vsi_data), INSTALL_DIR)
     cmd += 'unzip -o /tmp/lithops_standalone.zip -d {} > /dev/null 2>&1; '.format(INSTALL_DIR)
 
@@ -81,22 +86,94 @@ def get_setup_cmd(ip_address=None, instance_id=None, remote=True):
     return cmd
 
 
-def setup_remote_proxy(ip_address):
+def is_instance_ready(ip_addr):
+    """
+    Checks if the VM instance is ready to receive ssh connections
+    """
+    try:
+        ssh_client = SSHClient(ip_addr, INTERNAL_SSH_CREDNTIALS)
+        ssh_client.run_remote_command('id')
+    except Exception:
+        return False
+    return True
+
+
+def wait_instance_ready(ip_addr):
+    """
+    Waits until the VM instance is ready to receive ssh connections
+    """
+
+    logger.info('Waiting VM instance {} to become ready'.format(ip_addr))
+
+    start = time.time()
+    while(time.time() - start < START_TIMEOUT):
+        if is_instance_ready(ip_addr):
+            logger.info('VM instance {} ready in {}'.format(ip_addr, round(time.time()-start, 2)))
+            return True
+        time.sleep(5)
+
+    raise Exception('VM readiness {} probe expired. Check your master VM'.format(ip_addr))
+
+
+def is_proxy_ready(ip_addr):
+    """
+    Checks if the proxy is ready to receive http connections
+    """
+    try:
+        url = "http://{}:{}/ping".format(ip_addr, PROXY_SERVICE_PORT)
+        r = requests.get(url, timeout=1)
+        if r.status_code == 200:
+            return True
+        return False
+    except Exception:
+        return False
+
+
+def wait_proxy_ready(ip_addr):
+    """
+    Waits until the proxy is ready to receive http connections
+    """
+
+    logger.info('Waiting Lithops proxy to become ready on {}'.format(ip_addr))
+
+    start = time.time()
+    while(time.time() - start < START_TIMEOUT):
+        if is_proxy_ready(ip_addr):
+            logger.info('Lithops proxy ready on {}'.format(ip_addr))
+            return True
+        time.sleep(2)
+
+    raise Exception('Proxy readiness probe expired on {}. Check your VM'.format(ip_addr))
+
+
+def setup_worker(instance_info):
+    """
+    Install all the Lithops dependencies into the worker
+    """
+
+    instance_name, ip_address, instance_id = instance_info
+    logger.info('Going to setup {}, IP address {}'.format(instance_name, ip_address))
+    wait_instance_ready(ip_address)
 
     ssh_client = SSHClient(ip_address, INTERNAL_SSH_CREDNTIALS)
-
     # upload zip lithops package
-    ssh_client.upload_local_file('/tmp/lithops_standalone.zip', '/tmp/lithops_standalone.zip')
-    cmd = get_setup_cmd(ip_address)
-    out = ssh_client.run_remote_command(cmd)
-    print(out)
+    logger.info('Uploading lithops files to VM instance {}'.format(ip_address))
+    ssh_client.upload_local_file('/opt/lithops/lithops_standalone.zip', '/tmp/lithops_standalone.zip')
+    logger.info('Executing lithops installation process in VM instance {}'.format(ip_address))
+    cmd = get_setup_cmd(instance_name, ip_address, instance_id)
+    ssh_client.run_remote_command(cmd, run_async=True)
+    # Wait until the proxy is ready
+    wait_proxy_ready(ip_address)
 
 
 if __name__ == "__main__":
     if 'exec_mode' in STANDALONE_CONFIG and \
-      STANDALONE_CONFIG['mode'] == 'create':
-        with open('/opt/lithops/cluster.data', 'r') as cip:
-            vis_ips = json.load(cip)
+      STANDALONE_CONFIG['exec_mode'] == 'create' \
+      and len(sys.argv) > 1:
+        vm_instances = json.loads(sys.argv[1])
+        with ThreadPoolExecutor(len(vm_instances)) as executor:
+            executor.map(setup_worker, vm_instances)
+
     else:
         cmd = get_setup_cmd(remote=False)
         log_file = open(PX_LOG_FILE, 'a')
