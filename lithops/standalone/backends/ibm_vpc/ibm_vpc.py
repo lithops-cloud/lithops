@@ -292,19 +292,24 @@ class IBMVPCBackend:
                 else:
                     raise e
 
+        deleted_instances = set()
         while True:
-            instances_to_delete = []
+            instances_to_delete = set()
             instances_info = self.ibm_vpc_client.list_instances().get_result()
             for ins in instances_info['instances']:
-                if 'lithops' in ins['name'] and 'master' not in ins['name']:
-                    instances_to_delete.append((ins['name'], ins['id']))
+                if ins['name'].startswith('lithops') and \
+                  'lithops-master' not in ins['name']:
+                    ins_to_dlete = (ins['name'], ins['id'])
+                    if ins_to_dlete not in deleted_instances:
+                        instances_to_delete.add(ins_to_dlete)
 
             if instances_to_delete:
                 with ThreadPoolExecutor(len(instances_to_delete)) as executor:
                     executor.map(delete_instance, instances_to_delete)
-                time.sleep(5)
+                deleted_instances.update(instances_to_delete)
             else:
                 break
+        # time.sleep(5)
 
     def _delete_subnet(self, vpc_data):
         """
@@ -445,7 +450,7 @@ class IBMVPCInstance:
         }
 
     def __str__(self):
-        return '{} ({})'.format(self.name, self.ip_address)
+        return 'VM instance {} ({})'.format(self.name, self.ip_address)
 
     def _create_vpc_client(self):
         """
@@ -557,15 +562,6 @@ class IBMVPCInstance:
                 ip_address = instance_data['primary_network_interface']['primary_ipv4_address']
         return ip_address
 
-    def is_running(self):
-        """
-        Checks if the VM instance is in running status
-        """
-        resp = self.ibm_vpc_client.get_instance(self.instance_id).get_result()
-        if resp['status'] == 'running':
-            return True
-        return False
-
     def create(self, check_if_exists=False, start=True):
         """
         Creates a new VM instance
@@ -574,11 +570,11 @@ class IBMVPCInstance:
         vsi_exists = True if self.instance_id else False
 
         if check_if_exists and not vsi_exists:
-            logger.debug('Checking if VM {} already exists'.format(self.name))
+            logger.debug('Checking if VM instance {} already exists'.format(self.name))
             instances_info = self.ibm_vpc_client.list_instances().get_result()
             for instance in instances_info['instances']:
                 if instance['name'] == self.name:
-                    logger.debug('VM {} already exists'.format(self.name))
+                    logger.debug('VM instance {} already exists'.format(self.name))
                     vsi_exists = True
                     self.instance_id = instance['id']
                     break

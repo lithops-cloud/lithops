@@ -73,7 +73,7 @@ lithops:
     #delete_on_dismantle: False  # Optional
 
 #vm:
-    #host: <IP_ADDRESS>
+    #ip_address: <IP_ADDRESS>
     #ssh_user: <SSH_USERNAME>
     #ssh_password: <SSH_PASSWORD>
 

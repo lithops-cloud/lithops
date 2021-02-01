@@ -1,1 +1,1 @@
-from .vm import VMClient as StandaloneBackend
+from .vm import VMBackend as StandaloneBackend

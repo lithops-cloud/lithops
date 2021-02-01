@@ -78,7 +78,7 @@ class StandaloneHandler:
         """
         Waits until the VM instance is ready to receive ssh connections
         """
-        logger.debug('Waiting VM instance {} to become ready'.format(instance))
+        logger.debug('Waiting {} to become ready'.format(instance))
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
@@ -88,7 +88,7 @@ class StandaloneHandler:
             time.sleep(5)
 
         self.dismantle()
-        raise Exception('VM readiness {} probe expired. Check your master VM'.format(instance))
+        raise Exception('VM readiness probe expired on {}'.format(instance))
 
     def _is_proxy_ready(self, instance):
         """
@@ -123,7 +123,7 @@ class StandaloneHandler:
             time.sleep(2)
 
         self.dismantle()
-        raise Exception('Proxy readiness probe expired on {}. Check your VM'.format(instance))
+        raise Exception('Proxy readiness probe expired on {}'.format(instance))
 
     def run_job(self, job_payload):
         """
@@ -151,15 +151,15 @@ class StandaloneHandler:
                     future = executor.submit(lambda vm: vm.create(start=True), instances[i])
                     future.add_done_callback(_callback)
 
-        logger.debug("Checking if VM instance {} is ready".format(self.backend.master))
+        logger.debug("Checking if {} is ready".format(self.backend.master))
         if not self._is_proxy_ready(self.backend.master):
-            logger.debug("VM instance {} not ready".format(self.backend.master))
+            logger.debug("{} not ready".format(self.backend.master))
             if self.exec_mode != 'create':
                 self.backend.master.create(check_if_exists=True, start=True)
             # Wait only for the entry point instance
             self._wait_instance_ready(self.backend.master)
 
-        logger.debug('VM instance {} ready'.format(self.backend.master))
+        logger.debug('{} ready'.format(self.backend.master))
 
         if self.exec_mode == 'create':
             logger.debug('Waiting worker VM instances to become ready')
@@ -187,9 +187,9 @@ class StandaloneHandler:
         Installs the proxy and extracts the runtime metadata and
         preinstalled modules
         """
-        logger.debug('Checking if VM instance {} is ready'.format(self.backend.master))
+        logger.debug('Checking if {} is ready'.format(self.backend.master))
         if not self._is_instance_ready(self.backend.master):
-            logger.debug('VM instance {} not ready'.format(self.backend.master))
+            logger.debug('{} not ready'.format(self.backend.master))
             self.backend.master.create(check_if_exists=True, start=True)
             self._wait_instance_ready(self.backend.master)
 
@@ -236,7 +236,7 @@ class StandaloneHandler:
         """
         Setup lithops necessary files and dirs in master VM instance
         """
-        logger.debug('Installing Lithops in VM instance {}'.format(self.backend.master))
+        logger.debug('Installing Lithops in {}'.format(self.backend.master))
         ssh_client = self.backend.master.get_ssh_client()
 
         # Upload local lithops version to remote VM instance
@@ -246,7 +246,7 @@ class StandaloneHandler:
         ssh_location = os.path.join(current_location, '..', 'util', 'ssh_client.py')
         setup_location = os.path.join(current_location, 'setup.py')
 
-        logger.debug('Uploading lithops files to VM instance {}'.format(self.backend.master))
+        logger.debug('Uploading lithops files to {}'.format(self.backend.master))
         files_to_upload = [(LOCAL_FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip'),
                            (ssh_location, '/tmp/ssh_client.py'.format(REMOTE_INSTALL_DIR)),
                            (setup_location, '/tmp/setup.py'.format(REMOTE_INSTALL_DIR))]
@@ -272,7 +272,7 @@ class StandaloneHandler:
         cp {0}/lithops/standalone/invoker.py {0}/invoker.py;
         """.format(REMOTE_INSTALL_DIR, json.dumps(instance_data), json.dumps(self.config))
 
-        logger.debug('Executing lithops installation process on VM instance {}'.format(self.backend.master))
+        logger.debug('Executing lithops installation process on {}'.format(self.backend.master))
         logger.debug('Be patient, initial installation process may take up to 5 minutes')
         ssh_client.run_remote_command(script)
         logger.debug('Lithops installation process completed')
