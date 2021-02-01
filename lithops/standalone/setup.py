@@ -159,7 +159,7 @@ def setup_worker(instance_info):
     # upload zip lithops package
     logger.info('Uploading lithops files to VM instance {}'.format(ip_address))
     ssh_client.upload_local_file('/opt/lithops/lithops_standalone.zip', '/tmp/lithops_standalone.zip')
-    logger.info('Executing lithops installation process in VM instance {}'.format(ip_address))
+    logger.info('Executing lithops installation process on VM instance {}'.format(ip_address))
     cmd = get_setup_cmd(instance_name, ip_address, instance_id)
     ssh_client.run_remote_command(cmd, run_async=True)
     # Wait until the proxy is ready

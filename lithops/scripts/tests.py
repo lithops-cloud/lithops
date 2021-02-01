@@ -532,7 +532,7 @@ def print_help():
 def run_tests(test_to_run, config=None, mode=None, backend=None, storage=None):
     global CONFIG, STORAGE_CONFIG, STORAGE
 
-    mode = mode or get_mode(config)
+    mode = mode or get_mode(backend, config)
     config_ow = {'lithops': {'mode': mode}}
     if storage:
         config_ow['lithops']['storage'] = storage

@@ -269,7 +269,6 @@ class IBMVPCBackend:
                 logger.info('Deleting instance {}'.format(ins_name))
                 self.ibm_vpc_client.delete_instance(ins_id)
             except ApiException as e:
-                print(ins_name, ins_id)
                 if e.code == 404:
                     pass
                 else:
@@ -408,7 +407,7 @@ class IBMVPCInstance:
         """
         self.name = name.lower()
         self.config = ibm_vpc_config
-        self.delete_on_dismantle = self.config['delete_on_dismantle']
+        self.delete_on_stop = self.config['delete_on_dismantle']
 
         self.ibm_vpc_client = ibm_vpc_client or self._create_vpc_client()
         self.public = public
@@ -525,10 +524,12 @@ class IBMVPCInstance:
         """
         Requests the the primary network IP address
         """
+        ip_address = None
         if self.instance_id:
-            instance_data = self.ibm_vpc_client.get_instance(self.instance_id).get_result()
-            return instance_data['primary_network_interface']['primary_ipv4_address']
-        return None
+            while not ip_address:
+                instance_data = self.ibm_vpc_client.get_instance(self.instance_id).get_result()
+                ip_address = instance_data['primary_network_interface']['primary_ipv4_address']
+        return ip_address
 
     def is_running(self):
         """
@@ -613,7 +614,7 @@ class IBMVPCInstance:
         logger.debug("VM instance {} stopped".format(self.name))
 
     def stop(self):
-        if self.delete_on_dismantle:
+        if self.delete_on_stop and 'master' not in self.name:
             self._delete_instance()
         else:
             self._stop_instance()

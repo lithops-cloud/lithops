@@ -171,9 +171,9 @@ class StandaloneHandler:
             job_instances = [(inst.name, inst.ip_address, inst.instance_id) for inst in instances[1:]]
             cmd = ('python3 /opt/lithops/setup.py {0};'.format(shlex.quote(json.dumps(job_instances))))
             self.backend.master.get_ssh_client().run_remote_command(cmd)
-            logger.debug('Worker VM Instances ready in {}'.format(round(time.time()-start, 2)))
-            exit()
+            logger.debug('Worker VM Instances ready in {} seconds'.format(round(time.time()-start, 2)))
 
+            job_instances = {inst.name.split('-')[-1]: inst.ip_address for inst in instances[1:]}
             cmd = ('python3 /opt/lithops/invoker.py {} {}'
                    .format(shlex.quote(json.dumps(job_payload)),
                            shlex.quote(json.dumps(job_instances))))
@@ -184,8 +184,6 @@ class StandaloneHandler:
             self.backend.master.get_ssh_client().run_remote_command(cmd, run_async=True)
 
         logger.debug('Job invoked on {}'.format(master_ip))
-
-        exit()
 
     def create_runtime(self, runtime):
         """

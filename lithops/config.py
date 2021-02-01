@@ -106,8 +106,18 @@ def get_log_info(config_data=None):
     return cl['log_level'], cl['log_format'], cl['log_stream'], cl['log_filename']
 
 
-def get_mode(config_data=None):
+def get_mode(backend=None, config_data=None):
     """ Return lithops execution mode set in configuration """
+
+    if backend == constants.LOCALHOST:
+        return constants.LOCALHOST
+    elif backend in constants.SERVERLESS_BACKENDS:
+        return constants.SERVERLESS
+    elif backend in constants.STANDALONE_BACKENDS:
+        return constants.STANDALONE
+    elif backend:
+        raise Exception("Unknown compute backend: {}".format(backend))
+
     config_data = config_data or load_config()
 
     if 'lithops' not in config_data or not config_data['lithops']:
