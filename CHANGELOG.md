@@ -10,6 +10,7 @@
 
 ### Changed
 - [Core] Renamed utils.setup_logger() method to utils.setup_lithops_logger()
+- [GCP Cloud Run] Refactor backend, removed 'gcloud' CLI calls.
 
 
 ## [v2.2.15]

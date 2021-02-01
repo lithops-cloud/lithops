@@ -1,5 +1,5 @@
 #
-# Copyright Cloudlab URV 2020
+# Copyright Cloudlab URV 2021
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import time
 import json
 import logging
 import shutil
+import json
 from azure.storage.queue import QueueServiceClient
 import lithops
 from lithops.version import __version__
@@ -235,12 +236,12 @@ class AzureFunctionAppBackend:
         Deletes a runtime
         """
         action_name = self._format_action_name(runtime_name, memory)
-
         logger.debug('Deleting function app: {}'.format(action_name))
         cmd = ('az functionapp delete --name {} --resource-group {}'
                .format(action_name, self.resource_group))
         if logger.getEffectiveLevel() != logging.DEBUG:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
+        os.system(cmd)
 
         try:
             in_q_name = self._format_queue_name(action_name, az_config.IN_QUEUE)
@@ -287,9 +288,17 @@ class AzureFunctionAppBackend:
         return runtime_key
 
     def clean(self):
-        # TODO
-        pass
+        """
+        Deletes all Lithops Azure Function Apps runtimes
+        """
+        logger.debug('Deleting all runtimes')
 
+        runtimes = self.list_runtimes()
+
+        for runtime in runtimes:
+            runtime_name, runtime_memory = runtime
+            self.delete_runtime(runtime_name, runtime_memory)
+            
     def _generate_runtime_meta(self, docker_image_name, memory):
         """
         Extract installed Python modules from Azure runtime
@@ -308,3 +317,22 @@ class AzureFunctionAppBackend:
 
         logger.debug("Extracted metadata succesfully")
         return runtime_meta
+
+    def list_runtimes(self, docker_image_name='all'):
+        """
+        List all the Azure Function Apps deployed.
+        return: Array of tuples (function_name, memory)
+        """
+        logger.debug('Listing all functions deployed...')
+
+        functions = []
+        response = os.popen('az functionapp list --query "[].defaultHostName\"').read()
+        response = json.loads(response)
+
+        for function in response:
+            function = function.replace('.azurewebsites.net', '')
+            if docker_image_name == function or docker_image_name == 'all':
+                functions.append((function, ''))
+
+        logger.debug('Listed {} functions'.format(len(functions)))
+        return functions

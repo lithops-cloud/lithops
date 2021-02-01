@@ -71,7 +71,7 @@ Storage Backends
 - [OpenWhisk](compute/openwhisk.md)
 - [AWS Lambda](compute/aws_lambda.md)
 - [Google Cloud Functions](compute/gcp_functions.md)
-- [Google Cloud Run](compute/gcp_run.md)
+- [Google Cloud Run](compute/gcp_cloudrun.md)
 - [Azure Functions](compute/azure_fa.md)
 - [Aliyun functions](compute/aliyun_fc.md)
 
