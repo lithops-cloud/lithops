@@ -1,6 +1,6 @@
 #
 # (C) Copyright IBM Corp. 2019
-# (C) Copyright Cloudlab URV 2021
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ def run():
 
 @proxy.route('/preinstalls', methods=['GET', 'POST'])
 def preinstalls_task():
-    setup_logger(logging.INFO)
+    setup_lithops_logger(logging.INFO)
     logger.info("Lithops v{} - Generating metadata".format(__version__))
     runtime_meta = get_runtime_preinstalls()
     response = flask.jsonify(runtime_meta)

@@ -57,9 +57,15 @@ RUN pip install --upgrade setuptools six pip \
         PyYAML \
         kubernetes \
         numpy \
+        cloudpickle \
+        ps-mem \
+        tblib \
+        namegenerator \
+        cryptography \
         httplib2 \
         google-cloud-storage \
         google-api-python-client \
+        gcsfs \
         google-auth
 
 ENV PORT 8080
