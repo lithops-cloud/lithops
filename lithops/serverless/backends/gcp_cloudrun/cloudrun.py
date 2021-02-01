@@ -18,7 +18,6 @@ import logging
 import httplib2
 import os
 import sys
-import re
 import time
 
 from google.oauth2 import service_account
@@ -136,7 +135,7 @@ class GCPCloudRunBackend:
             with open(dockerfile, 'w') as f:
                 f.write("FROM python:{}-slim-buster\n".format(python_version))
                 f.write(cr_config.DEFAULT_DOCKERFILE)
-            self.build_runtime(self._format_image_name(cr_config.DEFAULT_RUNTIME_NAME), dockerfile)
+            self.build_runtime(cr_config.DEFAULT_RUNTIME_NAME, dockerfile)
             os.remove(dockerfile)
         else:
             raise Exception('Docker CLI not found')
@@ -216,6 +215,14 @@ class GCPCloudRunBackend:
 
         os.remove(kconfig.FH_ZIP_LOCATION)
 
+        logger.debug('Authorizing Docker client with GCR permissions'.format(image_name))
+        cmd = 'cat {} | docker login -u _json_key --password-stdin https://gcr.io'.format(self.credentials_path)
+        if logger.getEffectiveLevel() != logging.DEBUG:
+            cmd = cmd + " >{} 2>&1".format(os.devnull)
+        res = os.system(cmd)
+        if res != 0:
+            raise Exception('There was an error authorizing Docker for push to GCR')
+
         logger.info('Pushing Docker image {} to GCP Container Registry'.format(image_name))
         cmd = '{} push {}'.format(kconfig.DOCKER_PATH, image_name)
         if logger.getEffectiveLevel() != logging.DEBUG:
@@ -294,7 +301,7 @@ class GCPCloudRunBackend:
 
             if not ready:
                 logger.debug('Waiting until service is up...')
-                time.sleep(5)
+                time.sleep(10)
                 retry -= 1
                 if retry == 0:
                     raise Exception('Maximum retries reached: {}'.format(res))
