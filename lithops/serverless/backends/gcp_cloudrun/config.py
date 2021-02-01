@@ -86,8 +86,6 @@ def load_config(config_data):
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
     if 'runtime' not in config_data['serverless']:
         config_data['serverless']['runtime'] = DEFAULT_RUNTIME_NAME
-    elif not config_data['serverless']['runtime'].contains('gcr'):
-        raise Exception('Google Cloud Run requires container images to be deployed on Google Cloud Container Registry')
 
     if 'workers' not in config_data['lithops']:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
