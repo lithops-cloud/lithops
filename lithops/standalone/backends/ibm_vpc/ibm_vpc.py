@@ -35,10 +35,11 @@ logger = logging.getLogger(__name__)
 
 class IBMVPCBackend:
 
-    def __init__(self, ibm_vpc_config):
+    def __init__(self, ibm_vpc_config, mode):
         logger.debug("Creating IBM VPC client")
         self.name = 'ibm_vpc'
         self.config = ibm_vpc_config
+        self.mode = mode
 
         self.endpoint = self.config['endpoint']
         self.region = self.endpoint.split('//')[1].split('.')[0]
@@ -229,10 +230,22 @@ class IBMVPCBackend:
         """
         Initialize the VPC
         """
-        logger.debug('Initializing IBM VPC backend')
         vpc_data_filename = os.path.join(CACHE_DIR, self.name, 'data')
         vpc_data = load_yaml_config(vpc_data_filename)
 
+        if self.mode == 'consume':
+            logger.debug('Initializing IBM VPC backend (Consume mode)')
+            if 'instance_name' not in vpc_data:
+                instance_data = self.ibm_vpc_client.get_instance(self.config['instance_id'])
+                name = instance_data.get_result()['name']
+                vpc_data = {'instance_name': name}
+                dump_yaml_config(vpc_data_filename, vpc_data)
+            self.master = self.create_instance(vpc_data['instance_name'], master=True)
+            self.master.instance_id = self.config['instance_id']
+            self.master.ip_address = self.config['ip_address']
+            return
+
+        logger.debug('Initializing IBM VPC backend (Create mode)')
         # Create the VPC if not exists
         self._create_vpc(vpc_data)
         # Set the prefix used for the VPC resources
@@ -258,15 +271,14 @@ class IBMVPCBackend:
         # create the master VM insatnce
         name = 'lithops-master-{}'.format(self.vpc_key)
         self.master = self.create_instance(name, master=True)
-        self.master.ip_address = self.config.get('floating_ip', None)
-        self.master.instance_id = self.config.get('instance_id', None)
+        self.master.ip_address = self.config['floating_ip']
 
     def _delete_vm_instances(self):
         """
         Deletes all VM instances in the VPC
         """
-        msg = ('Deleting all Lithops VMs in {}'.format(self.vpc_name)
-               if self.vpc_name else 'Deleting all Lithops VMs')
+        msg = ('Deleting all Lithops worker VMs in {}'.format(self.vpc_name)
+               if self.vpc_name else 'Deleting all Lithops worker VMs')
         logger.info(msg)
 
         def delete_instance(instance_info):
@@ -432,6 +444,9 @@ class IBMVPCInstance:
             'key_filename': self.config.get('ssh_key_filename', None)
         }
 
+    def __str__(self):
+        return '{} ({})'.format(self.name, self.ip_address)
+
     def _create_vpc_client(self):
         """
         Creates an IBM VPC python-sdk instance
@@ -521,10 +536,11 @@ class IBMVPCInstance:
                 instance['id'], instance['network_interfaces'][0]['id'], fip_id)
 
     def get_instance_id(self):
-        # check if VSI exists and return it's id with status
+        # check if VSI exists and return it's id based on the VM name
         instances_info = self.ibm_vpc_client.list_instances().get_result()
         for instance in instances_info['instances']:
             if instance['name'] == self.name:
+                self.instance_id = instance['id']
                 return instance['id']
 
         logger.debug('Vm instance {} does not exists'.format(self.name))
@@ -554,9 +570,10 @@ class IBMVPCInstance:
         """
         Creates a new VM instance
         """
-        vsi_exists = False
+        instance = None
+        vsi_exists = True if self.instance_id else False
 
-        if check_if_exists:
+        if check_if_exists and not vsi_exists:
             logger.debug('Checking if VM {} already exists'.format(self.name))
             instances_info = self.ibm_vpc_client.list_instances().get_result()
             for instance in instances_info['instances']:
@@ -571,7 +588,7 @@ class IBMVPCInstance:
             self.instance_id = instance['id']
             self.ip_address = self._get_ip_address()
 
-        if self.public:
+        if self.public and instance:
             self._attach_floating_ip(instance)
 
         if start:

@@ -10,7 +10,7 @@ MANDATORY_PARAMETERS_2 = ['endpoint',
                           'vpc_id',
                           'resource_group_id',
                           'key_id',
-                          'subnet_id'
+                          'subnet_id',
                           'security_group_id']
 
 
@@ -46,17 +46,15 @@ def load_config(config_data):
         raise Exception(msg)
 
     if 'exec_mode' in config_data['standalone'] \
-       and config_data['standalone'] == 'create':
+       and config_data['standalone']['exec_mode'] == 'create':
         params_to_check = MANDATORY_PARAMETERS_2
     else:
         params_to_check = MANDATORY_PARAMETERS_3
 
-    """
     for param in params_to_check:
         if param not in config_data[section]:
             msg = '{} is mandatory in {} section of the configuration'.format(param, section)
             raise Exception(msg)
-    """
 
     if 'version' not in config_data:
         # it is not safe to use version as today() due to timezone differences. may fail at midnight. better use yesterday
@@ -81,7 +79,3 @@ def load_config(config_data):
 
     if 'delete_on_dismantle' not in config_data[section]:
         config_data[section]['delete_on_dismantle'] = True
-
-    if 'custom_image' not in config_data[section]:
-        is_custom = config_data[section]['image_id'] == IMAGE_ID_DEFAULT
-        config_data[section]['custom_image'] = is_custom

@@ -49,13 +49,13 @@ class StandaloneHandler:
         self.hard_dismantle_timeout = self.config.get('hard_dismantle_timeout')
         self.soft_dismantle_timeout = self.config.get('soft_dismantle_timeout')
         self.pull_runtime = self.config.get('pull_runtime', False)
+        self.exec_mode = self.config.get('exec_mode', 'consume')
 
         module_location = 'lithops.standalone.backends.{}'.format(self.backend_name)
         sb_module = importlib.import_module(module_location)
         StandaloneBackend = getattr(sb_module, 'StandaloneBackend')
-        self.backend = StandaloneBackend(self.config[self.backend_name])
+        self.backend = StandaloneBackend(self.config[self.backend_name], self.exec_mode)
 
-        self.exec_mode = self.config.get('exec_mode', 'consume')
         logger.debug("Standalone handler created successfully")
 
     def init(self):
@@ -78,18 +78,17 @@ class StandaloneHandler:
         """
         Waits until the VM instance is ready to receive ssh connections
         """
-        ip_addr = instance.ip_address
-        logger.debug('Waiting master VM instance {} to become ready'.format(ip_addr))
+        logger.debug('Waiting VM instance {} to become ready'.format(instance))
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
             if self._is_instance_ready(instance):
-                logger.debug('Master VM instance {} ready in {}'.format(ip_addr, round(time.time()-start, 2)))
+                logger.debug('VM instance {} ready in {}'.format(instance, round(time.time()-start, 2)))
                 return True
             time.sleep(5)
 
         self.dismantle()
-        raise Exception('VM readiness {} probe expired. Check your master VM'.format(ip_addr))
+        raise Exception('VM readiness {} probe expired. Check your master VM'.format(instance))
 
     def _is_proxy_ready(self, instance):
         """
@@ -115,8 +114,7 @@ class StandaloneHandler:
         """
         Waits until the proxy is ready to receive http connections
         """
-        ip_address = instance.ip_address
-        logger.info('Waiting Lithops proxy to become ready on {}'.format(ip_address))
+        logger.info('Waiting Lithops proxy to become ready on {}'.format(instance))
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
@@ -125,13 +123,12 @@ class StandaloneHandler:
             time.sleep(2)
 
         self.dismantle()
-        raise Exception('Proxy readiness probe expired on {}. Check your VM'.format(ip_address))
+        raise Exception('Proxy readiness probe expired on {}. Check your VM'.format(instance))
 
     def run_job(self, job_payload):
         """
         Run the job description against the selected environment
         """
-        master_ip = self.backend.master.ip_address
         total_calls = job_payload['job_description']['total_calls']
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
@@ -154,15 +151,15 @@ class StandaloneHandler:
                     future = executor.submit(lambda vm: vm.create(start=True), instances[i])
                     future.add_done_callback(_callback)
 
-        logger.debug("Checking if Master VM instance {} is ready".format(master_ip))
+        logger.debug("Checking if VM instance {} is ready".format(self.backend.master))
         if not self._is_proxy_ready(self.backend.master):
-            logger.debug("Master VM instance {} not ready".format(master_ip))
+            logger.debug("VM instance {} not ready".format(self.backend.master))
             if self.exec_mode != 'create':
                 self.backend.master.create(check_if_exists=True, start=True)
             # Wait only for the entry point instance
             self._wait_instance_ready(self.backend.master)
 
-        logger.debug('Master VM instance {} ready'.format(master_ip))
+        logger.debug('VM instance {} ready'.format(self.backend.master))
 
         if self.exec_mode == 'create':
             logger.debug('Waiting worker VM instances to become ready')
@@ -183,22 +180,20 @@ class StandaloneHandler:
                    .format(shlex.quote(json.dumps(job_payload))))
             self.backend.master.get_ssh_client().run_remote_command(cmd, run_async=True)
 
-        logger.debug('Job invoked on {}'.format(master_ip))
+        logger.debug('Job invoked on {}'.format(self.backend.master))
 
     def create_runtime(self, runtime):
         """
         Installs the proxy and extracts the runtime metadata and
         preinstalled modules
         """
-        master_ip = self.backend.master.ip_address
-
-        logger.debug('Checking if master VM instance {} is ready'.format(master_ip))
+        logger.debug('Checking if VM instance {} is ready'.format(self.backend.master))
         if not self._is_instance_ready(self.backend.master):
-            logger.debug('Master VM instance {} not ready'.format(master_ip))
+            logger.debug('VM instance {} not ready'.format(self.backend.master))
             self.backend.master.create(check_if_exists=True, start=True)
             self._wait_instance_ready(self.backend.master)
 
-        self._setup_lithops(self.backend.master)
+        self._setup_lithops()
         self._wait_proxy_ready(self.backend.master)
 
         logger.debug('Extracting runtime metadata information')
@@ -237,13 +232,12 @@ class StandaloneHandler:
         """
         return self.backend.get_runtime_key(runtime_name)
 
-    def _setup_lithops(self, instance):
+    def _setup_lithops(self):
         """
-        Setup lithops necessary files and dirs in all VSIs using the entry point instance
+        Setup lithops necessary files and dirs in master VM instance
         """
-        ip_address = instance.ip_address
-        logger.debug('Installing Lithops in master VM instance {}'.format(ip_address))
-        ssh_client = instance.get_ssh_client()
+        logger.debug('Installing Lithops in VM instance {}'.format(self.backend.master))
+        ssh_client = self.backend.master.get_ssh_client()
 
         # Upload local lithops version to remote VM instance
         src_proxy = os.path.join(os.path.dirname(__file__), 'proxy.py')
@@ -252,7 +246,7 @@ class StandaloneHandler:
         ssh_location = os.path.join(current_location, '..', 'util', 'ssh_client.py')
         setup_location = os.path.join(current_location, 'setup.py')
 
-        logger.debug('Uploading lithops files to master VM instance {}'.format(ip_address))
+        logger.debug('Uploading lithops files to VM instance {}'.format(self.backend.master))
         files_to_upload = [(LOCAL_FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip'),
                            (ssh_location, '/tmp/ssh_client.py'.format(REMOTE_INSTALL_DIR)),
                            (setup_location, '/tmp/setup.py'.format(REMOTE_INSTALL_DIR))]
@@ -260,9 +254,9 @@ class StandaloneHandler:
         ssh_client.upload_multiple_local_files(files_to_upload)
         os.remove(LOCAL_FH_ZIP_LOCATION)
 
-        instance_data = {'instance_name': instance.name,
-                         'ip_address': ip_address,
-                         'instance_id': instance.instance_id}
+        instance_data = {'instance_name': self.backend.master.name,
+                         'ip_address': self.backend.master.ip_address,
+                         'instance_id': self.backend.master.instance_id}
         script = """
         mv {0}/access.data .;
         rm -R {0};
@@ -278,7 +272,7 @@ class StandaloneHandler:
         cp {0}/lithops/standalone/invoker.py {0}/invoker.py;
         """.format(REMOTE_INSTALL_DIR, json.dumps(instance_data), json.dumps(self.config))
 
-        logger.debug('Executing lithops installation process on master VM instance {}'.format(ip_address))
+        logger.debug('Executing lithops installation process on VM instance {}'.format(self.backend.master))
         logger.debug('Be patient, initial installation process may take up to 5 minutes')
         ssh_client.run_remote_command(script)
         logger.debug('Lithops installation process completed')
