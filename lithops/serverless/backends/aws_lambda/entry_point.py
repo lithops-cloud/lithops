@@ -17,7 +17,7 @@
 import os
 import logging
 from lithops.version import __version__
-from lithops.utils import setup_logger
+from lithops.utils import setup_lithops_logger
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
 from lithops.worker.utils import get_runtime_preinstalls
@@ -29,7 +29,7 @@ def lambda_handler(event, context):
     os.environ['__PW_ACTIVATION_ID'] = context.aws_request_id
     os.environ['__OW_ACTIVATION_ID'] = context.aws_request_id
 
-    setup_logger(event.get('log_level', logging.INFO))
+    setup_lithops_logger(event.get('log_level', logging.INFO))
 
     if 'get_preinstalls' in event:
         logger.info("Lithops v{} - Generating metadata".format(__version__))

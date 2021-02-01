@@ -34,6 +34,7 @@ RUNTIME_TIMEOUT = 300000    # Default: 300000 ms => 10 minutes
 RUNTIME_TIMEOUT_MAX = 600000        # Platform maximum
 RUNTIME_MEMORY = 1500       # Default memory: 1.5 GB
 MAX_CONCURRENT_WORKERS = 2000
+INVOKE_POOL_THREADS_DEFAULT = 500
 
 IN_QUEUE = "in-trigger"
 OUT_QUEUE = "out-result"
@@ -87,7 +88,9 @@ requests
 PyYAML
 kubernetes
 numpy
-ibm-cos-sdk
+cloudpickle
+ps-mem
+tblib
 """
 
 DEFAULT_DOCKERFILE = """
@@ -152,6 +155,8 @@ def load_config(config_data=None):
         raise Exception('You must provide {} to access to Azure Function App'
                         .format(required_parameters))
 
+    if 'runtime' in config_data['azure_fa']:
+        config_data['serverless']['runtime'] = config_data['azure_fa']['runtime']
     if 'runtime' not in config_data['serverless']:
         config_data['azure_fa']['functions_version'] = FUNCTIONS_VERSION
         storage_account = config_data['azure_fa']['storage_account']
@@ -159,3 +164,7 @@ def load_config(config_data=None):
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         runtime_name = '{}-{}-v{}-{}'.format(storage_account, RUNTIME_NAME, py_version, revision)
         config_data['serverless']['runtime'] = runtime_name
+
+    if 'invoke_pool_threads' not in config_data['azure_fa']:
+        config_data['azure_fa']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
+    config_data['serverless']['invoke_pool_threads'] = config_data['azure_fa']['invoke_pool_threads']

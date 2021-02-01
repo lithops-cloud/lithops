@@ -35,6 +35,7 @@ from lithops.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_func
 from lithops.utils import WrappedStreamingBodyPartition
 from lithops.constants import TEMP
 from lithops.util.metrics import PrometheusExporter
+from lithops.constants import LITHOPS_TEMP_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -78,19 +79,31 @@ class JobRunner:
         prom_config = self.lithops_config.get('prometheus', {})
         self.prometheus = PrometheusExporter(prom_enabled, prom_config)
 
+        mode = self.lithops_config['lithops']['mode']
+        self.customized_runtime = self.lithops_config[mode].get('customized_runtime', False)
+
     def _get_function_and_modules(self):
         """
         Gets and unpickles function and modules from storage
         """
         logger.debug("Getting function and modules")
         func_download_start_tstamp = time.time()
-        func_obj = self.internal_storage.get_func(self.func_key)
+        func_obj = None
+        if self.customized_runtime:
+            func_obj = self._get_func()
+        else:
+            func_obj = self.internal_storage.get_func(self.func_key)
         loaded_func_all = pickle.loads(func_obj)
         func_download_end_tstamp = time.time()
         self.stats.write('worker_func_download_time', round(func_download_end_tstamp-func_download_start_tstamp, 8))
         logger.debug("Finished getting Function and modules")
 
         return loaded_func_all
+
+    def _get_func(self):
+        func_path = '/'.join([LITHOPS_TEMP_DIR, self.func_key])
+        with open(func_path, "rb") as f:
+            return f.read()
 
     def _save_modules(self, module_data):
         """
@@ -252,9 +265,14 @@ class JobRunner:
         result = None
         exception = False
         try:
-            loaded_func_all = self._get_function_and_modules()
-            self._save_modules(loaded_func_all['module_data'])
-            function = self._unpickle_function(loaded_func_all['func'])
+            function = None
+
+            if self.customized_runtime:
+                function = self._get_function_and_modules()
+            else:
+                loaded_func_all = self._get_function_and_modules()
+                self._save_modules(loaded_func_all['module_data'])
+                function = self._unpickle_function(loaded_func_all['func'])
             data = self._load_data()
 
             if strtobool(os.environ.get('__LITHOPS_REDUCE_JOB', 'False')):
@@ -273,11 +291,11 @@ class JobRunner:
                                         ))
 
             logger.info("Going to execute '{}()'".format(str(function.__name__)))
-            print('---------------------- FUNCTION LOG ----------------------', flush=True)
+            logger.info('---------------------- FUNCTION LOG ----------------------')
             function_start_tstamp = time.time()
             result = function(**data)
             function_end_tstamp = time.time()
-            print('----------------------------------------------------------', flush=True)
+            logger.info('----------------------------------------------------------')
             logger.info("Success function execution")
 
             self.prometheus.send_metric(name='function_end',
@@ -313,9 +331,9 @@ class JobRunner:
             exception = True
             self.stats.write("exception", True)
             exc_type, exc_value, exc_traceback = sys.exc_info()
-            print('----------------------- EXCEPTION !-----------------------', flush=True)
+            logger.error('----------------------- EXCEPTION !-----------------------')
             traceback.print_exc(file=sys.stdout)
-            print('----------------------------------------------------------', flush=True)
+            logger.error('----------------------------------------------------------')
 
             try:
                 logger.debug("Pickling exception")

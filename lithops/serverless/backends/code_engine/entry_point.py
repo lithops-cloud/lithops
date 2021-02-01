@@ -22,7 +22,7 @@ import json
 import flask
 import logging
 from lithops.version import __version__
-from lithops.utils import setup_logger, b64str_to_dict
+from lithops.utils import setup_lithops_logger, b64str_to_dict
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
 from lithops.worker.utils import get_runtime_preinstalls
@@ -49,7 +49,7 @@ def run():
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
 
-    setup_logger(message['log_level'])
+    setup_lithops_logger(message['log_level'])
 
     if 'remote_invoker' in message:
         logger.info("Lithops v{} - Starting Knative invoker".format(__version__))
@@ -66,7 +66,7 @@ def run():
 
 @proxy.route('/preinstalls', methods=['GET', 'POST'])
 def preinstalls_task():
-    setup_logger(logging.INFO)
+    setup_lithops_logger(logging.INFO)
     logger.info("Lithops v{} - Generating metadata".format(__version__))
     runtime_meta = get_runtime_preinstalls()
     response = flask.jsonify(runtime_meta)
@@ -105,7 +105,7 @@ def main_job(action, encoded_payload):
 
     payload = b64str_to_dict(encoded_payload)
 
-    setup_logger(payload['log_level'])
+    setup_lithops_logger(payload['log_level'])
 
     if (action == 'preinstalls'):
         runtime_packages(payload)

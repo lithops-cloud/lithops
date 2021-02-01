@@ -22,3 +22,7 @@ six
 urllib3
 virtualenv
 PyYAML
+cloudpickle
+ps-mem
+tblib
+namegenerator

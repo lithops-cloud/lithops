@@ -23,7 +23,7 @@ import shutil
 
 import lithops
 from lithops.scripts.tests import print_help, run_tests
-from lithops.utils import setup_logger, verify_runtime_name
+from lithops.utils import setup_lithops_logger, verify_runtime_name
 from lithops.config import get_mode, default_config, extract_storage_config,\
     extract_serverless_config, extract_standalone_config,\
     extract_localhost_config
@@ -51,14 +51,17 @@ def lithops_cli():
               type=click.Choice([SERVERLESS, LOCALHOST, STANDALONE], case_sensitive=True),
               help='execution mode')
 @click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
-def clean(config, mode, backend, debug):
+def clean(config, mode, backend, storage, debug):
     log_level = logging.INFO if not debug else logging.DEBUG
-    setup_logger(log_level)
+    setup_lithops_logger(log_level)
     logger.info('Cleaning all Lithops information')
 
     mode = mode or get_mode(config)
     config_ow = {'lithops': {'mode': mode}}
+    if storage:
+        config_ow['lithops']['storage'] = storage
     if backend:
         config_ow[mode] = {'backend': backend}
     config = default_config(config, config_ow)
@@ -96,15 +99,17 @@ def clean(config, mode, backend, debug):
               type=click.Choice([SERVERLESS, LOCALHOST, STANDALONE], case_sensitive=True),
               help='execution mode')
 @click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
-def test_function(config, mode, backend, debug):
+def test_function(config, mode, backend, storage, debug):
     log_level = logging.INFO if not debug else logging.DEBUG
-    setup_logger(log_level)
+    setup_lithops_logger(log_level)
 
     def hello(name):
         return 'Hello {}!'.format(name)
 
-    fexec = lithops.FunctionExecutor(config=config, mode=mode, backend=backend)
+    fexec = lithops.FunctionExecutor(config=config, mode=mode,
+                                     backend=backend, storage=storage)
     fexec.call_async(hello, 'World')
     result = fexec.get_result()
     print()
@@ -122,15 +127,16 @@ def test_function(config, mode, backend, debug):
               type=click.Choice([SERVERLESS, LOCALHOST, STANDALONE], case_sensitive=True),
               help='execution mode')
 @click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
-def verify(test, config, mode, backend, debug):
+def verify(test, config, mode, backend, storage, debug):
     log_level = logging.INFO if not debug else logging.DEBUG
-    setup_logger(log_level)
+    setup_lithops_logger(log_level)
 
     if test == 'help':
         print_help()
     else:
-        run_tests(test, config, mode, backend)
+        run_tests(test, config, mode, backend, storage)
 
 
 # /---------------------------------------------------------------------------/
@@ -198,17 +204,20 @@ def runtime(ctx):
 
 @runtime.command('create')
 @click.argument('name')
+@click.option('--config', '-c', default=None, help='use json config file')
 @click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--memory', default=None, help='memory used by the runtime', type=int)
 @click.option('--timeout', default=None, help='runtime timeout', type=int)
-@click.option('--config', '-c', default=None, help='use json config file')
-def create(name, backend, memory, timeout, config):
+def create(name, storage, backend, memory, timeout, config):
     """ Create a serverless runtime """
-    setup_logger(logging.DEBUG)
+    setup_lithops_logger(logging.DEBUG)
     logger.info('Creating new lithops runtime: {}'.format(name))
 
-    mode = SERVERLESS 
+    mode = SERVERLESS
     config_ow = {'lithops': {'mode': mode}}
+    if storage:
+        config_ow['lithops']['storage'] = storage
     if backend:
         config_ow[mode] = {'backend': backend}
     config = default_config(config, config_ow)
@@ -237,7 +246,7 @@ def create(name, backend, memory, timeout, config):
 def build(name, file, config, backend):
     """ build a serverless runtime. """
     verify_runtime_name(name)
-    setup_logger(logging.DEBUG)
+    setup_lithops_logger(logging.DEBUG)
 
     mode = SERVERLESS
     config_ow = {'lithops': {'mode': mode}}
@@ -255,13 +264,16 @@ def build(name, file, config, backend):
 @click.argument('name')
 @click.option('--config', '-c', default=None, help='use json config file')
 @click.option('--backend', '-b', default=None, help='compute backend')
-def update(name, config, backend):
+@click.option('--storage', '-s', default=None, help='storage backend')
+def update(name, config, backend, storage):
     """ Update a serverless runtime """
     verify_runtime_name(name)
-    setup_logger(logging.DEBUG)
+    setup_lithops_logger(logging.DEBUG)
 
     mode = SERVERLESS
     config_ow = {'lithops': {'mode': mode}}
+    if storage:
+        config_ow['lithops']['storage'] = storage
     if backend:
         config_ow[mode] = {'backend': backend}
     config = default_config(config, config_ow)
@@ -290,13 +302,16 @@ def update(name, config, backend):
 @click.argument('name')
 @click.option('--config', '-c', default=None, help='use json config file')
 @click.option('--backend', '-b', default=None, help='compute backend')
-def delete(name, config, backend):
+@click.option('--storage', '-s', default=None, help='storage backend')
+def delete(name, config, backend, storage):
     """ delete a serverless runtime """
     verify_runtime_name(name)
-    setup_logger(logging.DEBUG)
+    setup_lithops_logger(logging.DEBUG)
 
     mode = SERVERLESS
     config_ow = {'lithops': {'mode': mode}}
+    if storage:
+        config_ow['lithops']['storage'] = storage
     if backend:
         config_ow[mode] = {'backend': backend}
     config = default_config(config, config_ow)

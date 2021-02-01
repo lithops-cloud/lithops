@@ -51,6 +51,8 @@ class ModuleDependencyAnalyzer:
         self._inspected_modules = set()
         # Root modules that have yet to be inspected
         self._modules_to_inspect = set()
+        # Root modules not in modules_to_ignore
+        self._modules = set()
         # Root modules that should be ignored by this (Not sent or traversed)
         self._modules_to_ignore = set()
         # Root module paths to transmit. Will never include path to modules
@@ -83,6 +85,12 @@ class ModuleDependencyAnalyzer:
             self._modules_to_ignore.add(module_name)
         else:
             raise TypeError('module_name must be string')
+
+    def get_and_clear_names(self):
+        # might be nice if this returned module names as well
+        modules = self._modules
+        self._modules = set()
+        return modules
 
     def get_and_clear_paths(self):
         # might be nice if this returned module names as well
@@ -117,6 +125,7 @@ class ModuleDependencyAnalyzer:
             return
         _, _, mod_type = description
         if mod_type == imp.PY_SOURCE:
+            self._modules.add(root_module_name)
             self._paths_to_transmit.add(pathname)
             self._logger.debug('Module %r is source/compiled. Added path %r',
                                root_module_name, pathname)
@@ -156,6 +165,7 @@ class ModuleDependencyAnalyzer:
             self._logger.debug('Module %r is package. Recursing...',
                                root_module_name)
             if self._deep_inspect_path(pathname, root_module_name):
+                self._modules.add(root_module_name)
                 self._paths_to_transmit.add(pathname)
                 self._logger.debug('Module %r has no c-extensions. Added path %r',
                                    root_module_name, pathname)

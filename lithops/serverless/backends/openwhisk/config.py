@@ -18,15 +18,15 @@ import os
 import sys
 from lithops.utils import version_str
 
-RUNTIME_DEFAULT = {'3.5': 'ibmfunctions/lithops:3.5',
-                   '3.6': 'ibmfunctions/action-python-v3.6',
-                   '3.7': 'ibmfunctions/action-python-v3.7:1.6.0',
-                   '3.8': 'jsampe/action-python-v3.8'}
+RUNTIME_DEFAULT = {'3.5': 'lithopscloud/ibmcf-python-v35',
+                   '3.6': 'lithopscloud/ibmcf-python-v36',
+                   '3.7': 'lithopscloud/ibmcf-python-v37',
+                   '3.8': 'lithopscloud/ibmcf-python-v38'}
 
 RUNTIME_TIMEOUT_DEFAULT = 300  # Default: 300 seconds => 5 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
 CONCURRENT_WORKERS_DEFAULT = 100
-
+INVOKE_POOL_THREADS_DEFAULT = 500
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_openwhisk.zip')
 
@@ -44,6 +44,9 @@ def load_config(config_data):
     if 'runtime_timeout' not in config_data['serverless']:
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
 
+    if 'runtime' in config_data['openwhisk']:
+        config_data['serverless']['runtime'] = config_data['openwhisk']['runtime']
+
     if 'runtime' not in config_data['serverless']:
         python_version = version_str(sys.version_info)
         try:
@@ -53,3 +56,7 @@ def load_config(config_data):
 
     if 'workers' not in config_data['lithops']:
         config_data['lithops']['workers'] = CONCURRENT_WORKERS_DEFAULT
+
+    if 'invoke_pool_threads' not in config_data['openwhisk']:
+        config_data['openwhisk']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
+    config_data['serverless']['invoke_pool_threads'] = config_data['openwhisk']['invoke_pool_threads']

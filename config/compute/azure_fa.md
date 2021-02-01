@@ -65,3 +65,4 @@ $ pip install lithops[azure]
 |azure_fa| storage_account | |yes |  The name generated in the step 6 of the installation |
 |azure_fa| storage_account_key |  | yes |  An Account Key, found in *Storage Accounts* > `account_name` > *Settings* > *Access Keys*|
 |azure_fa| location |  |yes | The location of the consumption plan for the runtime. Use `az functionapp list-consumption-locations` to view the available locations.|
+|azure_fa| runtime |  |no | Runtime name already deployed in the service.|

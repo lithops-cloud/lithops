@@ -31,6 +31,7 @@ RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
 RUNTIME_MEMORY = 256  # Default memory: 256 MB
 RUNTIME_CPU = 1  # 1 vCPU
 MAX_CONCURRENT_WORKERS = 1000
+INVOKE_POOL_THREADS_DEFAULT = 4
 
 DEFAULT_GROUP = "codeengine.cloud.ibm.com"
 DEFAULT_VERSION = "v1beta1"
@@ -55,7 +56,10 @@ RUN pip install --upgrade setuptools six pip \
         requests \
         PyYAML \
         kubernetes \
-        numpy
+        numpy \
+        cloudpickle \
+        ps-mem \
+        tblib
 
 ENV PORT 8080
 ENV CONCURRENCY 4
@@ -144,7 +148,7 @@ def load_config(config_data):
     if 'cpu' not in config_data['code_engine']:
         config_data['code_engine']['cpu'] = RUNTIME_CPU
 
-    if 'container_registry' not in config_data['knative']:
+    if 'container_registry' not in config_data['code_engine']:
         config_data['code_engine']['container_registry'] = CONTAINER_REGISTRY
 
     if 'runtime_memory' not in config_data['serverless']:
@@ -152,6 +156,8 @@ def load_config(config_data):
     if 'runtime_timeout' not in config_data['serverless']:
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT
 
+    if 'runtime' in config_data['code_engine']:
+        config_data['serverless']['runtime'] = config_data['code_engine']['runtime']
     if 'runtime' not in config_data['serverless']:
         if not DOCKER_PATH:
             raise Exception('docker command not found. Install docker or use '
@@ -188,3 +194,7 @@ def load_config(config_data):
     if 'workers' not in config_data['lithops'] or \
        config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
+
+    if 'invoke_pool_threads' not in config_data['code_engine']:
+        config_data['code_engine']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
+    config_data['serverless']['invoke_pool_threads'] = config_data['code_engine']['invoke_pool_threads']

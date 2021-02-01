@@ -18,14 +18,15 @@ import os
 import sys
 from lithops.utils import version_str
 
-RUNTIME_DEFAULT = {'3.5': 'ibmfunctions/lithops:3.5',
-                   '3.6': 'ibmfunctions/action-python-v3.6',
-                   '3.7': 'ibmfunctions/action-python-v3.7:1.6.0',
-                   '3.8': 'jsampe/action-python-v3.8'}
+RUNTIME_DEFAULT = {'3.5': 'lithopscloud/ibmcf-python-v35',
+                   '3.6': 'lithopscloud/ibmcf-python-v36',
+                   '3.7': 'lithopscloud/ibmcf-python-v37',
+                   '3.8': 'lithopscloud/ibmcf-python-v38'}
 
 RUNTIME_TIMEOUT_DEFAULT = 600  # Default: 600 seconds => 10 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
 MAX_CONCURRENT_WORKERS = 1200
+INVOKE_POOL_THREADS_DEFAULT = 500
 
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_ibmcf.zip')
@@ -36,6 +37,10 @@ def load_config(config_data):
         config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
     if 'runtime_timeout' not in config_data['serverless']:
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+
+    if 'runtime' in config_data['ibm_cf']:
+        config_data['serverless']['runtime'] = config_data['ibm_cf']['runtime']
+
     if 'runtime' not in config_data['serverless']:
         python_version = version_str(sys.version_info)
         try:
@@ -101,3 +106,7 @@ def load_config(config_data):
 
         if cbr not in config_data['ibm_cf']['regions']:
             raise Exception('Invalid Compute backend region: {}'.format(cbr))
+
+    if 'invoke_pool_threads' not in config_data['ibm_cf']:
+        config_data['ibm_cf']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
+    config_data['serverless']['invoke_pool_threads'] = config_data['ibm_cf']['invoke_pool_threads']

@@ -83,6 +83,7 @@ The only requirement to make it working is to have the KUBECONFIG file properly 
 |knative | max_instances | 250 |no | Maximum number of parallel runtimes |
 |knative | cpu | 1 |no | CPU limit. Default 1vCPU  |
 |knative | concurrency | 1 |no | Number of workers per runtime instance |
+|knative| runtime |  |no | Docker image name.|
 
 
 ### Lithops using Kubernetes Job API of Code Engine
@@ -96,6 +97,9 @@ To work with Code Engine there is need to use dedicated runtime. You can either 
 |ibmfunctions/lithops-ce-3.8.5-2.2.9:1.0.0 | 3.8 | [included](../../runtime/code_engine/requirements38.txt) | 2.2.9 |
 |ibmfunctions/lithops-codeengine-v38:2213 | 3.8 | [included](../../runtime/code_engine/requirements38.txt) | 2.2.13 |
 |ibmfunctions/lithops-codeengine-v37-1:2213 | 3.7 | [included](../../runtime/code_engine/requirements.txt) | 2.2.13 |
+|ibmfunctions/lithops-ce-v37:2216 | 3.7 | [included](../../runtime/code_engine/requirements.txt) | 2.2.16 latest stable release|
+|ibmfunctions/lithops-ce-v38:2216 | 3.8 | [included](../../runtime/code_engine/requirements.txt) | 2.2.16 latest stable release |
+|ibmfunctions/lithops-ce-v38:2217dev0 | 3.8 | [included](../../runtime/code_engine/requirements.txt) | 2.2.17dev0 master development branch |
 
 If you need to create new runtime, please follow [Building and managing Lithops runtimes to run the functions](../../runtime/)
 
@@ -118,6 +122,7 @@ If you need to create new runtime, please follow [Building and managing Lithops 
 |code_engine | kubectl_config  |  |no | Path to kubecfg file |
 |code_engine | cpu | 1 |no | CPU limit. Default 1vCPU |
 |code_engine | container_registry |  docker.io | no | container registry url|
+|code_engine| runtime |  |no | Docker image name.|
 
 ### Usage Example
 
@@ -132,7 +137,7 @@ def add_value(name):
 if __name__ == '__main__':
     lt = lithops.FunctionExecutor(mode="serverless",
             backend='code_engine',
-            runtime='ibmfunctions/lithops-codeengine-v38:2213')
+            runtime='ibmfunctions/lithops-ce-v38:2216')
     lt.map(add_value,  iterdata)
     print (lt.get_result())
 ```

@@ -11,7 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from contextlib import redirect_stdout, redirect_stderr
 
-from lithops.utils import version_str, is_unix_system, setup_logger
+from lithops.utils import version_str, is_unix_system, setup_lithops_logger
 from lithops.storage.utils import create_job_key
 from lithops.worker import function_handler
 from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DONE_DIR, LOGS_DIR,\
@@ -49,7 +49,7 @@ def process_runner(worker_id, job_queue):
             os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
             executor_id = event['executor_id']
             job_id = event['job_id']
-            setup_logger(event['log_level'])
+            setup_lithops_logger(event['log_level'])
             p_logger.info("Lithops v{} - Starting execution".format(__version__))
             function_handler(event)
             log_output = buf.getvalue()
@@ -111,11 +111,20 @@ class Runner:
         self.job_queue.put(payload)
 
     def run(self, job_description, log_level):
+        logger.info("Localhost run method")
+        if 'call_id' not in job_description:
+            job_description['call_id'] = None
+
         job = SimpleNamespace(**job_description)
 
-        for i in range(job.total_calls):
-            call_id = "{:05d}".format(i)
-            self._invoke(job, call_id, log_level)
+        logger.info("Call id value is {}".format(job.call_id))
+        if (job.call_id is None):
+            for i in range(job.total_calls):
+                call_id = "{:05d}".format(i)
+                self._invoke(job, call_id, log_level)
+        else:
+            logger.info("Single invoke for call id {}".format(job.call_id))
+            self._invoke(job, job.call_id, log_level)
 
         for i in self.workers:
             self.job_queue.put(ShutdownSentinel())

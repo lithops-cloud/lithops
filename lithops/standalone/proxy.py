@@ -23,6 +23,7 @@ import time
 import threading
 import json
 import subprocess as sp
+from cryptography.fernet import Fernet
 from gevent.pywsgi import WSGIServer
 
 from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DONE_DIR, \
@@ -53,10 +54,16 @@ jobs = {}
 backend_handler = None
 
 
+config_file = os.path.join(REMOTE_INSTALL_DIR, 'config')
+with open(config_file, 'r') as cf:
+    standalone_config = json.load(cf)
+
+
 def budget_keeper():
     global last_usage_time
     global jobs
     global backend_handler
+    global backend_handler_backend
 
     jobs_running = False
 
@@ -72,6 +79,7 @@ def budget_keeper():
         # being started forever due a wrong configuration
         logger.info('Auto dismantle deactivated - Hard Timeout: {}s'
                     .format(backend_handler.hard_dismantle_timeout))
+    logger.info("Jobs keys are {}".format(jobs.keys()))
 
     while True:
         time_since_last_usage = time.time() - last_usage_time
@@ -101,7 +109,7 @@ def budget_keeper():
         else:
             logger.info("Dismantling setup")
             try:
-                backend_handler.backend.stop()
+                backend_handler_backend.stop()
             except Exception as e:
                 logger.info("Dismantle error {}".format(e))
 
@@ -109,12 +117,21 @@ def budget_keeper():
 def init_keeper():
     global keeper
     global backend_handler
-
-    config_file = os.path.join(REMOTE_INSTALL_DIR, 'config')
-    with open(config_file, 'r') as cf:
-        standalone_config = json.load(cf)
+    global backend_handler_backend
+    global standalone_config
 
     backend_handler = StandaloneHandler(standalone_config)
+
+    access_data = os.path.join(REMOTE_INSTALL_DIR, 'access.data')
+    with open(access_data, 'r') as ad:
+        lines = ad.readlines()
+        for line in lines:
+            res = line.strip().split()
+            break
+
+    logger.info("Parsed self IP {} and instance ID {}".format(res[0], res[1]))
+
+    backend_handler_backend = backend_handler.create_backend_handler(res[1], res[0])
     keeper = threading.Thread(target=budget_keeper)
     keeper.daemon = True
     keeper.start()
@@ -134,10 +151,22 @@ def run():
     global last_usage_time
     global backend_handler
     global jobs
+    global standalone_config
 
-    message = flask.request.get_json(force=True, silent=True)
-    if message and not isinstance(message, dict):
-        return error('The action did not receive a dictionary as an argument.')
+    if 'use_http' in standalone_config and standalone_config['use_http'] is True:
+        logger.info('Running Job. Received invocation through http')
+        encrypted_payload = flask.request.data
+        encryption_key = standalone_config['encryption_key']
+        encryption_type = Fernet(encryption_key)
+        try:
+            message = json.loads(encryption_type.decrypt(encrypted_payload))
+        except Exception:
+            return error('The action did not receive a dictionary as an argument.')
+    else:
+        logger.info('Running Job. Received invocation through ssh')
+        message = flask.request.get_json(force=True, silent=True)
+        if message and not isinstance(message, dict):
+            return error('The action did not receive a dictionary as an argument.')
 
     try:
         runtime = message['job_description']['runtime_name']
@@ -157,8 +186,10 @@ def run():
     job_id = message['job_id']
     job_key = create_job_key(executor_id, job_id)
     jobs[job_key] = 'running'
+    
+    local_runtime_load = standalone_config.get('local_runtime_load', False)
 
-    localhost_handler = LocalhostHandler({'runtime': runtime})
+    localhost_handler = LocalhostHandler({'runtime': runtime, 'local_runtime_load': local_runtime_load})
     localhost_handler.run_job(message)
 
     response = flask.jsonify({'activationId': act_id})
@@ -188,7 +219,7 @@ def preinstalls():
     except Exception as e:
         return error(str(e))
 
-    localhost_handler = LocalhostHandler(message)
+    localhost_handler = LocalhostHandler({'runtime': runtime, 'local_runtime_load': message['local_runtime_load']})
     runtime_meta = localhost_handler.create_runtime(runtime)
     response = flask.jsonify(runtime_meta)
     response.status_code = 200
@@ -196,57 +227,10 @@ def preinstalls():
     return response
 
 
-def install_environment():
-    """
-    Install docker command and Python deps in case they are not installed.
-    Only for Ubuntu-based OS
-    """
-
-    os_version = sp.check_output('uname -a', shell=True).decode()
-
-    if 'Ubuntu' in os_version:
-        try:
-            sp.check_output('docker ps > /dev/null 2>&1', shell=True)
-            docker_installed = True
-            logger.info("Environment already installed")
-        except Exception:
-            logger.info("Environment not installed")
-            docker_installed = False
-
-        if not docker_installed:
-            # If docker is not installed, nothing is installed, so lets install anything here
-            cmd = 'apt-get remove docker docker-engine docker.io containerd runc -y; '
-            cmd += 'apt-get update '
-            cmd += '&& apt-get install apt-transport-https ca-certificates curl gnupg-agent software-properties-common -y '
-            cmd += '&& curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - > /dev/null 2>&1 '
-            cmd += '&& add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" '
-            cmd += '&& apt-get update '
-            cmd += '&& apt-get install docker-ce docker-ce-cli containerd.io -y '
-            try:
-                logger.info("Installing Docker...")
-                with open(PX_LOG_FILE, 'a') as lf:
-                    sp.run(cmd, shell=True, stdout=lf, stderr=lf, universal_newlines=True)
-                logger.info("Docker installed successfully")
-            except Exception as e:
-                logger.info("There was an error installing Docker: {}".format(e))
-
-            cmd = 'pip3 install -U lithops'
-            try:
-                logger.info("Installing python packages...")
-                with open(PX_LOG_FILE, 'a') as lf:
-                    sp.run(cmd, shell=True, stdout=lf, stderr=lf, universal_newlines=True)
-                logger.info("Python packages installed successfully")
-            except Exception as e:
-                logger.info("There was an error installing the python packages: {}".format(e))
-    else:
-        logger.info("Linux images different from Ubuntu do not support automatic environment installation")
-
-
 def main():
-    install_environment()
     init_keeper()
     port = int(os.getenv('PORT', 8080))
-    server = WSGIServer(('127.0.0.1', port), proxy, log=proxy.logger)
+    server = WSGIServer(('0.0.0.0', port), proxy, log=proxy.logger)
     server.serve_forever()
 
 

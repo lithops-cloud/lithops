@@ -25,7 +25,7 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
 
 8. Navigate to the [namespace settings](https://cloud.ibm.com/functions/namespace-settings) of your Cloud Functions dashboard.
 
-9. Choose your namespace from the "current namespece" dropdown menu. 
+9. Choose your namespace from the "current namespace" dropdown menu. 
 
 10. Copy the "current namespace" name and the API key.
 
@@ -47,15 +47,15 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
 
 2. Navigate to the [namespace settings](https://cloud.ibm.com/functions/namespace-settings) of your Cloud Functions dashboard.
 
-3. Click on the "current namespece" dropdown menu.
+3. Click on the "current namespace" dropdown menu.
 
 4. Click `Create Namespace +` and provide the necessary information.
 
 5. Click `Create` to create the IAM-based namespace in the region you choose.
 
-6. Choose your new namespce from the "current namespece" dropdown menu.
+6. Choose your new namespace from the "current namespace" dropdown menu.
 
-7. From this page copy the namespce name and the namespace GUID.
+7. From this page copy the namespace name and the namespace GUID.
 
 8. Navigate [here](https://cloud.ibm.com/docs/openwhisk?topic=openwhisk-cloudfunctions_regions#cloud-functions-endpoints) and choose your functions endpoint. It must be in the same region where you created the namespace.
 
@@ -95,3 +95,4 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
 |ibm_cf| namespace | |yes | Value of CURRENT NAMESPACE from [here](https://cloud.ibm.com/functions/namespace-settings) |
 |ibm_cf| api_key |  | no | **Mandatory** if using Cloud Foundry-based namespace. Value of 'KEY' from [here](https://cloud.ibm.com/functions/namespace-settings)|
 |ibm_cf| namespace_id |  |no | **Mandatory** if using IAM-based namespace with IAM API Key. Value of 'GUID' from [here](https://cloud.ibm.com/functions/namespace-settings)|
+|ibm_cf| runtime |  |no | Docker image name.|

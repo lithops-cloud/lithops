@@ -9,7 +9,11 @@ lithops:
     #execution_timeout: 1800
     #include_modules: <LIST_OF_MODULES>
     #exclude_modules: <LIST_OF_MODULES>
-
+    #log_level: INFO
+    #log_format: "%(asctime)s [%(levelname)s] %(name)s -- %(message)s"
+    #log_stream: ext://sys.stdout
+    #log_filename <path_to_a_file>
+    
 #serverless:
     #backend: ibm_cf
     #runtime : <RUNTIME_NAME>
@@ -20,9 +24,14 @@ lithops:
 #standalone:
     #backend: ibm_vpc
     #runtime: <RUNTIME_NAME>
+    #exec_mode: create
     #auto_dismantle: True
+    #disable_log_monitoring : False
+    #local_runtime_load: <false, true>
     #hard_dismantle_timeout: 3600
     #soft_dismantle_timeout: 300
+    #use_http: <true, false>
+    #encryption_key: <RANDOM_KEY>
 
 #ibm:
    #iam_api_key: <IAM KEY>
@@ -32,9 +41,11 @@ lithops:
     #namespace   : <NAMESPACE>
     #api_key     : <API_KEY>
     #namespace_id : <NAMESPACE_ID> # Only for IAM auth
+    #runtime: <RUNTIME_NAME>
 
 #code_engine:
     #kubectl_config: <Location for kubectl yaml file>
+    #runtime: <RUNTIME_NAME>
 
 #ibm_cos:
     region : <REGION>
@@ -45,7 +56,7 @@ lithops:
     #secret_key : <SECRET_KEY>  # Optional
 
 #ibm_vpc:
-    #endpoint    : <REGION_ENDPOINT>
+    #endpoint    : <REGION_ENDPOINT> # https://eu-de.iaas.cloud.ibm.com
     #instance_id : <INSTANCE_ID>  # Optional
     #ip_address  : <FLOATING_IP_ADDRESS>
     #version     : <VPC_VERSION>
@@ -58,6 +69,7 @@ lithops:
     #resource_group_id: <RESOURCE_GROUP_ID>
     #vpc_id: <VPC_ID>
     #image_id: <IMAGE_ID>
+    #custom_lithops_image: <True/False> # Optional
     #zone_name: <ZONE_NAME>
     #volume_tier_name: <VOLUME_TIER_NAME>  # Optional
     #profile_name: <PROFILE_NAME>  # Optional
@@ -75,6 +87,7 @@ lithops:
    #istio_endpoint  : <ISTIO_INGRESS_ENDPOINT>
    #docker_user     : <DOCKER_HUB_USERNAME>
    #docker_token    : <DOCKER_HUB_TOKEN>
+   #runtime: <RUNTIME_NAME>
 
 #docker:
     #host: <HOST_IP>
@@ -86,6 +99,7 @@ lithops:
     #namespace   : <NAMESPACE>
     #api_key     : <AUTH_KEY>
     #insecure    : <True/False>
+    #runtime: <RUNTIME_NAME>
 
 #swift:
     #auth_url   : <SWIFT_AUTH_URL>

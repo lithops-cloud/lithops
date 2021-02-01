@@ -1,5 +1,7 @@
 # Choose your compute and storage backend
 
+To work with Lithops you must configure both compute backend and a storage. Failing to configure them properly will prevent Lithops to submit workloads.
+
 Lithops can work with almost any compute backend and storage any can be used with almost any cloud provider. You have multiple options to choose compute backend and storage backend based on your needs. 
 
 After you choose your compute and storage engine, you need to configure Lithops so it can use choosen compute and storage. Lithops configuration can be provided either in configuration file or provided in runtime via Python dictionary. 
@@ -174,6 +176,11 @@ fexec = lithops.FunctionExecutor(rabbitmq_monitor=True)
 |lithops| execution_timeout | 1800 | no | Functions will be automatically killed if they exceed this execution time (in seconds). Alternatively, it can be set in the `call_async()`, `map()` or `map_reduce()` calls with the `timeout` parameter.|
 |lithops| include_modules | [] | no | Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None |
 |lithops| exclude_modules | [] | no | Explicitly keep these modules from pickled dependencies. It is not taken into account if you set include_modules |
+|lithops|log_level | INFO |no | Logging level. One of: WARNING, INFO, DEBUG, ERROR, CRITICAL, Set to None to disable logging |
+|lithops|log_format | "%(asctime)s [%(levelname)s] %(name)s -- %(message)s" |no | Logging format string |
+|lithops|log_stream | ext://sys.stderr |no | Logging stream. eg.: ext://sys.stderr,  ext://sys.stdout|
+|lithops|log_filename |  |no | Path to a file. log_filename has preference over log_stream. |
+
 
 ## Summary of configuration keys for Serverless
 
@@ -184,6 +191,7 @@ fexec = lithops.FunctionExecutor(rabbitmq_monitor=True)
 |serverless | runtime_memory | 256 | no | Default runtime memory (in MB) |
 |serverless | runtime_timeout | 600 | no |  Default serveless backend runtime timeout (in seconds) |
 |serverless | remote_invoker | False | no |  Activate the remote invoker feature that uses one cloud function to spawn all the actual `map()` activations |
+|serverless | customized_runtime | False | no | Enables early preparation of Lithops workers with the map function and custom Lithops runtime already deployed, and ready to be used in consequent computations |
 
 
 ## Summary of configuration keys for Standalone
@@ -195,3 +203,8 @@ fexec = lithops.FunctionExecutor(rabbitmq_monitor=True)
 |standalone | auto_dismantle | True |no | If False then the VM is not stopped automatically. Run **exec.dismantle()** explicitly to stop the VM. |
 |standalone | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |standalone | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
+|standalone | exec_mode | consume | no | If set to  **create** standalone backend will automatically create VMs based on the standalone backend|
+|standalone | disable_log_monitoring | False | no | If set to  True pull remote logs will be disabled. This can improve running time|
+|standalone | local_runtime_load | False | no | If set to  True the assumption is that compute backend VM contains required docker image locally. This saves docker pull or load|
+|standalone | use_http | false | no | `true` or `false`. Whether or not use http connections to communicate with the VM instance. If `falase` (default) it communicates with the VM using ssh connections. If true, it uses the encryption_key to encrypt the payload sent trough http.|
+|standalone | encryption_key |  | no | Random key used to encrypt the payload. Mandatory if `use_http` is true. Use, for example: `openssl rand -base64 32`. Mandatory if use_http is true |

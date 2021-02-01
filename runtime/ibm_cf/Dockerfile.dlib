@@ -1,15 +1,10 @@
-# Based on: https://github.com/ibm-functions/runtime-python/tree/master/python3.6
-
-FROM ibmfunctions/action-python-v3.6
+FROM lithopscloud/ibmcf-python-v36
 
 RUN apt-get update && apt-get install -y \
         wget build-essential cmake pkg-config \
         && rm -rf /var/lib/apt/lists/* \
         && apt-cache search linux-headers-generic
 
-COPY requirements.txt requirements.txt
-
-RUN pip install --upgrade pip setuptools six && pip install --no-cache-dir -r requirements.txt \
-    && pip install opencv-contrib-python-headless opencv-python-headless dlib \
+RUN pip install opencv-contrib-python-headless opencv-python-headless dlib \
     && wget https://github.com/cmusatyalab/openface/archive/0.2.1.tar.gz \
     && tar -zxvf 0.2.1.tar.gz && cd openface-0.2.1/ && python setup.py install
