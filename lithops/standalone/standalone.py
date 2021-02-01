@@ -271,6 +271,8 @@ class StandaloneHandler:
             logger.debug('Making invocation through ssh to: {}'.format(ip_address))
             out = backend.get_ssh_client().run_remote_command(ip_address, cmd)
             response = json.loads(out)
+            logger.debug("Close ssh connection for {}".format(ip_address))
+            backend.get_ssh_client().close()
 
         act_id = response['activationId']
         logger.debug('Job invoked on {}. Activation ID: {}'.format(ip_address, act_id))
