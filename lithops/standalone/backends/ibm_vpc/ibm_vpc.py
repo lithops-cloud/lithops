@@ -32,8 +32,6 @@ from lithops.config import load_yaml_config, dump_yaml_config
 
 logger = logging.getLogger(__name__)
 
-logging.getLogger('root').setLevel(logging.CRITICAL)
-
 
 class IBMVPCBackend:
 
@@ -44,10 +42,7 @@ class IBMVPCBackend:
 
         self.endpoint = self.config['endpoint']
         self.region = self.endpoint.split('//')[1].split('.')[0]
-        self.vpc_name = self.config['vpc_name']
-        self.gateway_name = 'lithops-gateway-{}'.format(self.vpc_name)
-        self.subnet_name = 'lithops-subnet-{}'.format(self.vpc_name)
-        self.floating_ip_name = 'lithops-floatingip-{}'.format(self.vpc_name)
+        self.vpc_name = self.config.get('vpc_name')
 
         self.instances = []
         self.master = None
@@ -142,19 +137,20 @@ class IBMVPCBackend:
             self.config['gateway_id'] = vpc_data['gateway_id']
             return
 
+        gateway_name = 'lithops-gateway-{}'.format(self.vpc_key)
         gateway_data = None
 
         gateways_info = self.ibm_vpc_client.list_public_gateways().get_result()
         for gw in gateways_info['public_gateways']:
-            if gw['name'] == self.gateway_name:
+            if gw['vpc']['id'] == self.config['vpc_id']:
                 gateway_data = gw
 
         if not gateway_data:
-            logger.debug('Creating Gateway {}'.format(self.gateway_name))
+            logger.debug('Creating Gateway {}'.format(gateway_name))
             gateway_prototype = {}
             gateway_prototype['vpc'] = {'id': self.config['vpc_id']}
             gateway_prototype['zone'] = {'name': self.config['zone_name']}
-            gateway_prototype['name'] = self.gateway_name
+            gateway_prototype['name'] = gateway_name
             response = self.ibm_vpc_client.create_public_gateway(**gateway_prototype)
             gateway_data = response.result
 
@@ -171,19 +167,20 @@ class IBMVPCBackend:
             self.config['subnet_id'] = vpc_data['subnet_id']
             return
 
+        subnet_name = 'lithops-subnet-{}'.format(self.vpc_key)
         subnet_data = None
 
         subnets_info = self.ibm_vpc_client.list_subnets(resource_group_id=self.config['resource_group_id']).get_result()
         for sn in subnets_info['subnets']:
-            if sn['name'] == self.subnet_name:
+            if sn['name'] == subnet_name:
                 subnet_data = sn
 
         if not subnet_data:
-            logger.debug('Creating Subnet {}'.format(self.subnet_name))
+            logger.debug('Creating Subnet {}'.format(subnet_name))
             subnet_prototype = {}
             subnet_prototype['zone'] = {'name': self.config['zone_name']}
             subnet_prototype['ip_version'] = 'ipv4'
-            subnet_prototype['name'] = self.subnet_name
+            subnet_prototype['name'] = subnet_name
             subnet_prototype['resource_group'] = {'id': self.config['resource_group_id']}
             subnet_prototype['vpc'] = {'id': self.config['vpc_id']}
             subnet_prototype['ipv4_cidr_block'] = '10.241.64.0/22'
@@ -208,17 +205,18 @@ class IBMVPCBackend:
             self.config['floating_ip_id'] = vpc_data['floating_ip_id']
             return
 
+        floating_ip_name = 'lithops-floatingip-{}'.format(self.vpc_key)
         floating_ip_data = None
 
         floating_ips_info = self.ibm_vpc_client.list_floating_ips().get_result()
         for fip in floating_ips_info['floating_ips']:
-            if fip['name'] == self.floating_ip_name:
+            if fip['name'] == floating_ip_name:
                 floating_ip_data = fip
 
         if not floating_ip_data:
-            logger.debug('Creating floating IP {}'.format(self.floating_ip_name))
+            logger.debug('Creating floating IP {}'.format(floating_ip_name))
             floating_ip_prototype = {}
-            floating_ip_prototype['name'] = self.floating_ip_name
+            floating_ip_prototype['name'] = floating_ip_name
             floating_ip_prototype['zone'] = {'name': self.config['zone_name']}
             floating_ip_prototype['resource_group'] = {'id': self.config['resource_group_id']}
             response = self.ibm_vpc_client.create_floating_ip(floating_ip_prototype)
@@ -235,9 +233,15 @@ class IBMVPCBackend:
         vpc_data_filename = os.path.join(CACHE_DIR, self.name, 'data')
         vpc_data = load_yaml_config(vpc_data_filename)
 
+        # Create the VPC if not exists
         self._create_vpc(vpc_data)
+        # Set the prefix used for the VPC resources
+        self.vpc_key = self.config['vpc_id'].split('-')[2]
+        # Create a new gateway if not exists
         self._create_gateway(vpc_data)
+        # Create a new subnaet if not exists
         self._create_subnet(vpc_data)
+        # Create a new floating IP if not exists
         self._create_floating_ip(vpc_data)
 
         vpc_data = {
@@ -252,7 +256,7 @@ class IBMVPCBackend:
         dump_yaml_config(vpc_data_filename, vpc_data)
 
         # create the master VM insatnce
-        name = 'lithops-master-{}'.format(self.config['vpc_id'].split('-')[2])
+        name = 'lithops-master-{}'.format(self.vpc_key)
         self.master = self.create_instance(name, master=True)
         self.master.ip_address = self.config.get('floating_ip', None)
         self.master.instance_id = self.config.get('instance_id', None)
@@ -261,7 +265,9 @@ class IBMVPCBackend:
         """
         Deletes all VM instances in the VPC
         """
-        logger.info('Deleting all Lithops VMs in {}'.format(self.vpc_name))
+        msg = ('Deleting all Lithops VMs in {}'.format(self.vpc_name)
+               if self.vpc_name else 'Deleting all Lithops VMs')
+        logger.info(msg)
 
         def delete_instance(instance_info):
             ins_name, ins_id = instance_info
@@ -292,15 +298,16 @@ class IBMVPCBackend:
         """
         Deletes all VM instances in the VPC
         """
+        subnet_name = 'lithops-subnet-{}'.format(self.vpc_key)
         if 'subnet_id' not in vpc_data:
             subnets_info = self.ibm_vpc_client.list_subnets().get_result()
 
             for subn in subnets_info['subnets']:
-                if subn['name'] == self.subnet_name:
+                if subn['name'] == subnet_name:
                     vpc_data['subnet_id'] = subn['id']
 
         if 'subnet_id' in vpc_data:
-            logger.info('Deleting subnet {}'.format(self.subnet_name))
+            logger.info('Deleting subnet {}'.format(subnet_name))
             try:
                 self.ibm_vpc_client.delete_subnet(vpc_data['subnet_id'])
             except ApiException as e:
@@ -314,20 +321,23 @@ class IBMVPCBackend:
         """
         Deletes the public gateway
         """
+        gateway_name = 'lithops-gateway-{}'.format(self.vpc_key)
         if 'gateway_id' not in vpc_data:
             gateways_info = self.ibm_vpc_client.list_public_gateways().get_result()
 
             print(gateways_info)
             for gw in gateways_info['public_gateways']:
-                if ['name'] == self.gateway_name:
+                if ['name'] == gateway_name:
                     vpc_data['gateway_id'] = gw['id']
 
         if 'gateway_id' in vpc_data:
-            logger.info('Deleting gateway {}'.format(self.gateway_name))
+            logger.info('Deleting gateway {}'.format(gateway_name))
             try:
                 self.ibm_vpc_client.delete_public_gateway(vpc_data['gateway_id'])
             except ApiException as e:
                 if e.code == 404:
+                    pass
+                elif e.code == 400:
                     pass
                 else:
                     raise e
