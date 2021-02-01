@@ -18,7 +18,6 @@ RUN pip install --upgrade setuptools six pip \
         flask \
         gevent \
         glob2 \
-        ibm-cos-sdk \
         redis \
         requests \
         PyYAML \
@@ -27,7 +26,10 @@ RUN pip install --upgrade setuptools six pip \
         cloudpickle \
         ps-mem \
         tblib \
-        namegenerator
+        namegenerator \
+        google-cloud-storage \
+        google-api-python-client \
+        google-auth
 
 ENV PYTHONUNBUFFERED TRUE
 

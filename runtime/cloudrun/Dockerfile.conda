@@ -16,17 +16,23 @@ RUN apt-get update && apt-get install -y \
 
 RUN pip install --upgrade setuptools six pip \
     && pip install --no-cache-dir \
-        gunicorn==19.9.0 \
+        gunicorn \
         pika==0.13.1 \
         flask \
         gevent \
         glob2 \
-        ibm-cos-sdk \
         redis \
         requests \
         PyYAML \
         kubernetes \
-        numpy
+        numpy \
+        cloudpickle \
+        ps-mem \
+        tblib \
+        namegenerator \
+        google-cloud-storage \
+        google-api-python-client \
+        google-auth
 
 # Add your Conda required packages here. Ensure "conda clean --all" at 
 # the end to remove temporary data. One "RUN" line is better than multiple
