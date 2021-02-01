@@ -162,21 +162,14 @@ class StandaloneHandler:
         logger.debug('{} ready'.format(self.backend.master))
 
         if self.exec_mode == 'create':
-            logger.debug('Waiting worker VM instances to become ready')
-            logger.debug('Be patient, initial installation process may take up to 5 minutes')
-            start = time.time()
-            job_instances = [(inst.name, inst.ip_address, inst.instance_id) for inst in instances[1:]]
-            cmd = ('python3 /opt/lithops/setup.py {0};'.format(shlex.quote(json.dumps(job_instances))))
-            self.backend.master.get_ssh_client().run_remote_command(cmd)
-            logger.debug('Worker VM Instances ready in {} seconds'.format(round(time.time()-start, 2)))
-
-            job_instances = {inst.name.split('-')[-1]: inst.ip_address for inst in instances[1:]}
-            cmd = ('python3 /opt/lithops/invoker.py {} {}'
+            logger.debug('Be patient, VM startup time may take up to 2 minutes')
+            job_instances = {inst.name.split('-')[-1]: (inst.name, inst.ip_address, inst.instance_id) for inst in instances[1:]}
+            cmd = ('python3 /opt/lithops/controller.py run {} {}'
                    .format(shlex.quote(json.dumps(job_payload)),
                            shlex.quote(json.dumps(job_instances))))
             self.backend.master.get_ssh_client().run_remote_command(cmd, run_async=True)
         else:
-            cmd = ('python3 /opt/lithops/invoker.py {}'
+            cmd = ('python3 /opt/lithops/controller.py run {}'
                    .format(shlex.quote(json.dumps(job_payload))))
             self.backend.master.get_ssh_client().run_remote_command(cmd, run_async=True)
 
@@ -244,12 +237,12 @@ class StandaloneHandler:
         create_handler_zip(LOCAL_FH_ZIP_LOCATION, src_proxy)
         current_location = os.path.dirname(os.path.abspath(__file__))
         ssh_location = os.path.join(current_location, '..', 'util', 'ssh_client.py')
-        setup_location = os.path.join(current_location, 'setup.py')
+        controller_location = os.path.join(current_location, 'controller.py')
 
         logger.debug('Uploading lithops files to {}'.format(self.backend.master))
         files_to_upload = [(LOCAL_FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip'),
                            (ssh_location, '/tmp/ssh_client.py'.format(REMOTE_INSTALL_DIR)),
-                           (setup_location, '/tmp/setup.py'.format(REMOTE_INSTALL_DIR))]
+                           (controller_location, '/tmp/controller.py'.format(REMOTE_INSTALL_DIR))]
 
         ssh_client.upload_multiple_local_files(files_to_upload)
         os.remove(LOCAL_FH_ZIP_LOCATION)
@@ -268,8 +261,7 @@ class StandaloneHandler:
         test -f {0}/config || echo '{2}' > {0}/config;
         mv /tmp/*.py '{0}';
         apt-get install python3-paramiko -y >> /tmp/lithops/proxy.log 2>&1;
-        python3 {0}/setup.py; >> /tmp/lithops/proxy.log 2>&1;
-        cp {0}/lithops/standalone/invoker.py {0}/invoker.py;
+        python3 {0}/controller.py setup; >> /tmp/lithops/proxy.log 2>&1;
         """.format(REMOTE_INSTALL_DIR, json.dumps(instance_data), json.dumps(self.config))
 
         logger.debug('Executing lithops installation process on {}'.format(self.backend.master))

@@ -3,6 +3,7 @@ import sys
 import time
 import json
 import logging
+import copy
 import requests
 import subprocess as sp
 from ssh_client import SSHClient
@@ -39,16 +40,16 @@ sys.stderr = log_file_fd
 
 logging.basicConfig(filename=PX_LOG_FILE, level=logging.INFO,
                     format=LOGGER_FORMAT)
-logger = logging.getLogger('setup')
+logger = logging.getLogger('lithops.controller')
 logging.getLogger('paramiko').setLevel(logging.CRITICAL)
 
 
-def get_setup_cmd(instance_name=None, ip_address=None, instance_id=None, remote=True):
+def get_setup_cmd(instance_name=None, ip_address=None, instance_id=None, worker=True):
 
     service_file = '/etc/systemd/system/{}'.format(PROXY_SERVICE_NAME)
     cmd = "echo '{}' > {}; ".format(PROXY_SERVICE_FILE, service_file)
 
-    if remote:
+    if worker:
         # Create files and directories
         cmd += 'rm -R {0}; mkdir -p {0}; mkdir -p /tmp/lithops;'.format(INSTALL_DIR)
         cmd += "echo '{}' > {}; ".format(json.dumps(STANDALONE_CONFIG), STANDALONE_CONFIG_FILE)
@@ -69,7 +70,7 @@ def get_setup_cmd(instance_name=None, ip_address=None, instance_id=None, remote=
     cmd += 'pip3 install -U flask gevent lithops >> /tmp/lithops/proxy.log 2>&1; '
     cmd += 'fi; '
 
-    if remote:
+    if worker:
         # Unzip lithops package
         cmd += 'touch {}/access.data; '.format(INSTALL_DIR)
         vsi_data = {'instance_name': instance_name, 'ip_address': ip_address, 'instance_id': instance_id}
@@ -86,29 +87,30 @@ def get_setup_cmd(instance_name=None, ip_address=None, instance_id=None, remote=
     return cmd
 
 
-def is_instance_ready(ip_addr):
+def is_instance_ready(ssh_client):
     """
     Checks if the VM instance is ready to receive ssh connections
     """
     try:
-        ssh_client = SSHClient(ip_addr, INTERNAL_SSH_CREDNTIALS)
         ssh_client.run_remote_command('id')
     except Exception:
+        ssh_client.close()
         return False
     return True
 
 
-def wait_instance_ready(ip_addr):
+def wait_instance_ready(ssh_client):
     """
     Waits until the VM instance is ready to receive ssh connections
     """
-
+    ip_addr = ssh_client.ip_address
     logger.info('Waiting VM instance {} to become ready'.format(ip_addr))
 
     start = time.time()
     while(time.time() - start < START_TIMEOUT):
-        if is_instance_ready(ip_addr):
-            logger.info('VM instance {} ready in {}'.format(ip_addr, round(time.time()-start, 2)))
+        if is_instance_ready(ssh_client):
+            logger.info('VM instance {} ready in {}'
+                        .format(ip_addr, round(time.time()-start, 2)))
             return True
         time.sleep(5)
 
@@ -146,36 +148,87 @@ def wait_proxy_ready(ip_addr):
     raise Exception('Proxy readiness probe expired on {}. Check your VM'.format(ip_addr))
 
 
-def setup_worker(instance_info):
+def run_job_on_worker(worek_info, call_id, job_payload):
     """
-    Install all the Lithops dependencies into the worker
+    Install all the Lithops dependencies into the worker.
+    Runs the job
     """
-
-    instance_name, ip_address, instance_id = instance_info
+    instance_name, ip_address, instance_id = worek_info
     logger.info('Going to setup {}, IP address {}'.format(instance_name, ip_address))
-    wait_instance_ready(ip_address)
 
     ssh_client = SSHClient(ip_address, INTERNAL_SSH_CREDNTIALS)
+    wait_instance_ready(ssh_client)
+
     # upload zip lithops package
     logger.info('Uploading lithops files to VM instance {}'.format(ip_address))
     ssh_client.upload_local_file('/opt/lithops/lithops_standalone.zip', '/tmp/lithops_standalone.zip')
     logger.info('Executing lithops installation process on VM instance {}'.format(ip_address))
     cmd = get_setup_cmd(instance_name, ip_address, instance_id)
     ssh_client.run_remote_command(cmd, run_async=True)
+    ssh_client.close()
+
     # Wait until the proxy is ready
     wait_proxy_ready(ip_address)
 
+    job_payload['job_description']['call_id'] = call_id
+
+    executor_id = job_payload['job_description']['executor_id']
+    job_id = job_payload['job_description']['job_id']
+    call_key = '-'.join([executor_id, job_id, call_id])
+
+    url = "http://{}:{}/run".format(ip_address, PROXY_SERVICE_PORT)
+    logger.info('Making {} invocation on {}'.format(call_key, ip_address))
+    r = requests.post(url, data=json.dumps(job_payload))
+    response = r.json()
+
+    if 'activationId' in response:
+        logger.info('Invocation {} done. Activation ID: {}'.format(call_key, response['activationId']))
+    else:
+        logger.error('Invocation {} failed: {}'.format(call_key, response['error']))
+
+
+def run_job():
+    """
+    Runs a given job
+    """
+    job_payload = json.loads(sys.argv[2])
+
+    total_calls = job_payload['job_description']['total_calls']
+    exec_mode = job_payload['config']['standalone'].get('exec_mode', 'consume')
+
+    if exec_mode == 'create':
+        workers = json.loads(sys.argv[3])
+        with ThreadPoolExecutor(total_calls) as executor:
+            for i in range(total_calls):
+                call_id = "{:05d}".format(i)
+                worek_info = workers[call_id]
+                executor.submit(run_job_on_worker, worek_info, call_id,
+                                copy.deepcopy(job_payload))
+    else:
+        # Run the job in the local Vm instance
+        url = "http://{}:{}/run".format('127.0.0.1', PROXY_SERVICE_PORT)
+        requests.post(url, data=json.dumps(job_payload))
+
+
+def setup_master():
+    """
+    Setup master VM
+    """
+    cmd = get_setup_cmd(worker=False)
+    log_file = open(PX_LOG_FILE, 'a')
+    sp.run(cmd, shell=True, check=True, stdout=log_file,
+           stderr=log_file, universal_newlines=True)
+
 
 if __name__ == "__main__":
-    if 'exec_mode' in STANDALONE_CONFIG and \
-      STANDALONE_CONFIG['exec_mode'] == 'create' \
-      and len(sys.argv) > 1:
-        vm_instances = json.loads(sys.argv[1])
-        with ThreadPoolExecutor(len(vm_instances)) as executor:
-            executor.map(setup_worker, vm_instances)
+    logger.info('Starting Master VM Controller service')
+    command = sys.argv[1]
+    logger.info('Received command: {}'.format(command))
 
-    else:
-        cmd = get_setup_cmd(remote=False)
-        log_file = open(PX_LOG_FILE, 'a')
-        sp.run(cmd, shell=True, check=True, stdout=log_file,
-               stderr=log_file, universal_newlines=True)
+    switcher = {
+        'setup': setup_master,
+        'run': run_job
+    }
+
+    func = switcher.get(command, lambda: "Invalid command")
+    func()

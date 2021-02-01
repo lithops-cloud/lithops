@@ -42,7 +42,7 @@ sys.stderr = log_file_fd
 
 logging.basicConfig(filename=PX_LOG_FILE, level=logging.DEBUG,
                     format=LOGGER_FORMAT)
-logger = logging.getLogger('proxy')
+logger = logging.getLogger('lithops.proxy')
 
 proxy = flask.Flask(__name__)
 
@@ -76,7 +76,6 @@ def budget_keeper():
         # being started forever due a wrong configuration
         logger.info('Auto dismantle deactivated - Hard Timeout: {}s'
                     .format(standalone_handler.hard_dismantle_timeout))
-    logger.info("Jobs keys are {}".format(jobs.keys()))
 
     while True:
         time_since_last_usage = time.time() - last_usage_time

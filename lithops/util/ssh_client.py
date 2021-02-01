@@ -16,6 +16,7 @@ class SSHClient():
         Closes the SSH client connection
         """
         self.ssh_client.close()
+        self.ssh_client = None
 
     def create_client(self, timeout=2):
         """
