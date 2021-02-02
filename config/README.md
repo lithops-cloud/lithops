@@ -204,7 +204,4 @@ fexec = lithops.FunctionExecutor(rabbitmq_monitor=True)
 |standalone | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |standalone | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
 |standalone | exec_mode | consume | no | If set to  **create** standalone backend will automatically create VMs based on the standalone backend|
-|standalone | disable_log_monitoring | False | no | If set to  True pull remote logs will be disabled. This can improve running time|
-|standalone | local_runtime_load | False | no | If set to  True the assumption is that compute backend VM contains required docker image locally. This saves docker pull or load|
-|standalone | use_http | false | no | `true` or `false`. Whether or not use http connections to communicate with the VM instance. If `falase` (default) it communicates with the VM using ssh connections. If true, it uses the encryption_key to encrypt the payload sent trough http.|
-|standalone | encryption_key |  | no | Random key used to encrypt the payload. Mandatory if `use_http` is true. Use, for example: `openssl rand -base64 32`. Mandatory if use_http is true |
+|standalone | pull_runtime | false | no | If set to true, lithops will execute the command `docker pull <runtime_name>` in each VSI before execution the a job|

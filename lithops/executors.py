@@ -77,7 +77,7 @@ class FunctionExecutor:
                                   and logger.getEffectiveLevel() == logging.INFO)
 
         # load mode of execution
-        mode = mode or get_mode(config)
+        mode = mode or get_mode(backend, config)
         config_ow = {'lithops': {'mode': mode}, mode: {}}
 
         # overwrite user-provided parameters

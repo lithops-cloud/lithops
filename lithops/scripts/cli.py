@@ -58,7 +58,7 @@ def clean(config, mode, backend, storage, debug):
     setup_lithops_logger(log_level)
     logger.info('Cleaning all Lithops information')
 
-    mode = mode or get_mode(config)
+    mode = mode or get_mode(backend, config)
     config_ow = {'lithops': {'mode': mode}}
     if storage:
         config_ow['lithops']['storage'] = storage

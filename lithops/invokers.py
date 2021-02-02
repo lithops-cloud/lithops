@@ -56,8 +56,9 @@ class Invoker:
         self.is_lithops_worker = is_lithops_worker()
 
         self.workers = self.config['lithops'].get('workers')
-        logger.debug('ExecutorID {} - Total available workers: {}'
-                     .format(self.executor_id, self.workers))
+        if self.workers:
+            logger.debug('ExecutorID {} - Total available workers: {}'
+                         .format(self.executor_id, self.workers))
 
         prom_enabled = self.config['lithops'].get('monitoring', False)
         prom_config = self.config.get('prometheus', {})
@@ -92,6 +93,7 @@ class StandaloneInvoker(Invoker):
 
     def __init__(self, config, executor_id, internal_storage, compute_handler):
         super().__init__(config, executor_id, internal_storage, compute_handler)
+        self.compute_handler.init()
 
     def select_runtime(self, job_id, runtime_memory):
         """

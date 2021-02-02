@@ -112,18 +112,16 @@ class Runner:
 
     def run(self, job_description, log_level):
         logger.info("Localhost run method")
-        if 'call_id' not in job_description:
-            job_description['call_id'] = None
-
         job = SimpleNamespace(**job_description)
+        job_key = create_job_key(job.executor_id, job.job_id)
 
-        logger.info("Call id value is {}".format(job.call_id))
-        if (job.call_id is None):
+        if not hasattr(job, 'call_id'):
+            logger.info("Running entire job {}".format(job_key))
             for i in range(job.total_calls):
                 call_id = "{:05d}".format(i)
                 self._invoke(job, call_id, log_level)
         else:
-            logger.info("Single invoke for call id {}".format(job.call_id))
+            logger.info("Running single call id {}-{}".format(job_key, job.call_id))
             self._invoke(job, job.call_id, log_level)
 
         for i in self.workers:

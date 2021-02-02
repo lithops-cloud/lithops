@@ -22,16 +22,14 @@ import logging
 import time
 import threading
 import json
-import subprocess as sp
-from cryptography.fernet import Fernet
 from gevent.pywsgi import WSGIServer
 
 from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DONE_DIR, \
-    REMOTE_INSTALL_DIR, PX_LOG_FILE, LOGS_DIR
+    REMOTE_INSTALL_DIR, PX_LOG_FILE, LOGS_DIR, LOGGER_FORMAT, \
+    PROXY_SERVICE_PORT
 from lithops.storage.utils import create_job_key
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
-from lithops import constants
 from lithops.utils import verify_runtime_name
 
 
@@ -42,16 +40,16 @@ log_file_fd = open(PX_LOG_FILE, 'a')
 sys.stdout = log_file_fd
 sys.stderr = log_file_fd
 
-logging.basicConfig(filename=PX_LOG_FILE, level=logging.INFO,
-                    format=constants.LOGGER_FORMAT)
-logger = logging.getLogger('proxy')
+logging.basicConfig(filename=PX_LOG_FILE, level=logging.DEBUG,
+                    format=LOGGER_FORMAT)
+logger = logging.getLogger('lithops.proxy')
 
 proxy = flask.Flask(__name__)
 
 last_usage_time = time.time()
 keeper = None
 jobs = {}
-backend_handler = None
+standalone_handler = None
 
 
 config_file = os.path.join(REMOTE_INSTALL_DIR, 'config')
@@ -62,34 +60,32 @@ with open(config_file, 'r') as cf:
 def budget_keeper():
     global last_usage_time
     global jobs
-    global backend_handler
-    global backend_handler_backend
+    global standalone_handler
 
     jobs_running = False
 
     logger.info("BudgetKeeper started")
 
-    if backend_handler.auto_dismantle:
+    if standalone_handler.auto_dismantle:
         logger.info('Auto dismantle activated - Soft timeout: {}s, Hard Timeout: {}s'
-                    .format(backend_handler.soft_dismantle_timeout,
-                            backend_handler.hard_dismantle_timeout))
+                    .format(standalone_handler.soft_dismantle_timeout,
+                            standalone_handler.hard_dismantle_timeout))
     else:
         # If auto_dismantle is deactivated, the VM will be always automatically
         # stopped after hard_dismantle_timeout. This will prevent the VM
         # being started forever due a wrong configuration
         logger.info('Auto dismantle deactivated - Hard Timeout: {}s'
-                    .format(backend_handler.hard_dismantle_timeout))
-    logger.info("Jobs keys are {}".format(jobs.keys()))
+                    .format(standalone_handler.hard_dismantle_timeout))
 
     while True:
         time_since_last_usage = time.time() - last_usage_time
-        check_interval = backend_handler.soft_dismantle_timeout / 10
+        check_interval = standalone_handler.soft_dismantle_timeout / 10
         for job_key in jobs.keys():
             done = os.path.join(JOBS_DONE_DIR, job_key+'.done')
             if os.path.isfile(done):
                 jobs[job_key] = 'done'
         if len(jobs) > 0 and all(value == 'done' for value in jobs.values()) \
-           and backend_handler.auto_dismantle:
+           and standalone_handler.auto_dismantle:
 
             # here we need to catch a moment when number of running jobs become zero.
             # when it happens we reset countdown back to soft_dismantle_timeout
@@ -98,9 +94,9 @@ def budget_keeper():
                 last_usage_time = time.time()
                 time_since_last_usage = time.time() - last_usage_time
 
-            time_to_dismantle = int(backend_handler.soft_dismantle_timeout - time_since_last_usage)
+            time_to_dismantle = int(standalone_handler.soft_dismantle_timeout - time_since_last_usage)
         else:
-            time_to_dismantle = int(backend_handler.hard_dismantle_timeout - time_since_last_usage)
+            time_to_dismantle = int(standalone_handler.hard_dismantle_timeout - time_since_last_usage)
             jobs_running = True
 
         if time_to_dismantle > 0:
@@ -109,29 +105,30 @@ def budget_keeper():
         else:
             logger.info("Dismantling setup")
             try:
-                backend_handler_backend.stop()
+                standalone_handler.dismantle()
             except Exception as e:
                 logger.info("Dismantle error {}".format(e))
 
 
 def init_keeper():
     global keeper
-    global backend_handler
-    global backend_handler_backend
+    global standalone_handler
     global standalone_config
-
-    backend_handler = StandaloneHandler(standalone_config)
 
     access_data = os.path.join(REMOTE_INSTALL_DIR, 'access.data')
     with open(access_data, 'r') as ad:
-        lines = ad.readlines()
-        for line in lines:
-            res = line.strip().split()
-            break
+        vsi_details = json.load(ad)
+        logger.info("Parsed self name: {}, IP: {} and instance ID: {}"
+                    .format(vsi_details['instance_name'],
+                            vsi_details['ip_address'],
+                            vsi_details['instance_id']))
 
-    logger.info("Parsed self IP {} and instance ID {}".format(res[0], res[1]))
+    standalone_handler = StandaloneHandler(standalone_config)
+    vsi = standalone_handler.backend.create_instance(vsi_details['instance_name'])
+    vsi.ip_address = vsi_details['ip_address']
+    vsi.instance_id = vsi_details['instance_id']
+    vsi.delete_on_dismantle = False if 'master' in vsi_details['instance_name'] else True
 
-    backend_handler_backend = backend_handler.create_backend_handler(res[1], res[0])
     keeper = threading.Thread(target=budget_keeper)
     keeper.daemon = True
     keeper.start()
@@ -149,24 +146,12 @@ def run():
     Run a job
     """
     global last_usage_time
-    global backend_handler
+    global standalone_handler
     global jobs
-    global standalone_config
 
-    if 'use_http' in standalone_config and standalone_config['use_http'] is True:
-        logger.info('Running Job. Received invocation through http')
-        encrypted_payload = flask.request.data
-        encryption_key = standalone_config['encryption_key']
-        encryption_type = Fernet(encryption_key)
-        try:
-            message = json.loads(encryption_type.decrypt(encrypted_payload))
-        except Exception:
-            return error('The action did not receive a dictionary as an argument.')
-    else:
-        logger.info('Running Job. Received invocation through ssh')
-        message = flask.request.get_json(force=True, silent=True)
-        if message and not isinstance(message, dict):
-            return error('The action did not receive a dictionary as an argument.')
+    message = flask.request.get_json(force=True, silent=True)
+    if message and not isinstance(message, dict):
+        return error('The action did not receive a dictionary as an argument.')
 
     try:
         runtime = message['job_description']['runtime_name']
@@ -177,19 +162,18 @@ def run():
     last_usage_time = time.time()
 
     standalone_config = message['config']['standalone']
-    backend_handler.auto_dismantle = standalone_config['auto_dismantle']
-    backend_handler.soft_dismantle_timeout = standalone_config['soft_dismantle_timeout']
-    backend_handler.hard_dismantle_timeout = standalone_config['hard_dismantle_timeout']
+    standalone_handler.auto_dismantle = standalone_config['auto_dismantle']
+    standalone_handler.soft_dismantle_timeout = standalone_config['soft_dismantle_timeout']
+    standalone_handler.hard_dismantle_timeout = standalone_config['hard_dismantle_timeout']
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     executor_id = message['executor_id']
     job_id = message['job_id']
     job_key = create_job_key(executor_id, job_id)
     jobs[job_key] = 'running'
-    
-    local_runtime_load = standalone_config.get('local_runtime_load', False)
 
-    localhost_handler = LocalhostHandler({'runtime': runtime, 'local_runtime_load': local_runtime_load})
+    pull_runtime = standalone_config.get('pull_runtime', False)
+    localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
     localhost_handler.run_job(message)
 
     response = flask.jsonify({'activationId': act_id})
@@ -219,7 +203,8 @@ def preinstalls():
     except Exception as e:
         return error(str(e))
 
-    localhost_handler = LocalhostHandler({'runtime': runtime, 'local_runtime_load': message['local_runtime_load']})
+    pull_runtime = standalone_config.get('pull_runtime', False)
+    localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
     runtime_meta = localhost_handler.create_runtime(runtime)
     response = flask.jsonify(runtime_meta)
     response.status_code = 200
@@ -229,7 +214,7 @@ def preinstalls():
 
 def main():
     init_keeper()
-    port = int(os.getenv('PORT', 8080))
+    port = int(os.getenv('PORT', PROXY_SERVICE_PORT))
     server = WSGIServer(('0.0.0.0', port), proxy, log=proxy.logger)
     server.serve_forever()
 

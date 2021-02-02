@@ -17,7 +17,7 @@ Lithops can run functions in a regular remote virtual machine by using processes
         backend: vm
         
     vm:
-        host: <ip>
+        ip_address: <ip>
         ssh_user: <username>
         ssh_password: <password>
 ```
@@ -41,7 +41,7 @@ The Docker environment runs the functions within a Docker container. In this cas
 
 ```yaml
     standalone:
-        runtime: ibmfunctions/action-python-v3.6
+        runtime: lithopscloud/ibmcf-python-v38
 ```
 
 In this mode of execution, you can use any docker image that contains all the required dependencies. For example, the IBM Cloud Functions and Knative runtimes are compatible with it.

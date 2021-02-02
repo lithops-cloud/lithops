@@ -65,8 +65,14 @@ CLEANER_PID_FILE = os.path.join(CLEANER_DIR, 'cleaner.pid')
 CLEANER_LOG_FILE = os.path.join(CLEANER_DIR, 'cleaner.log')
 
 REMOTE_INSTALL_DIR = '/opt/lithops'
+PROXY_SERVICE_PORT = 8080
 
 HOME_DIR = os.path.expanduser('~')
 CONFIG_DIR = os.path.join(HOME_DIR, '.lithops')
 CACHE_DIR = os.path.join(CONFIG_DIR, 'cache')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config')
+
+SERVERLESS_BACKENDS = ['ibm_cf', 'code_engine', 'knative', 'openwhisk',
+                       'aws_lambda', 'gcp_functions', 'cloudrun',
+                       'azure_fa', 'aliyun_fc']
+STANDALONE_BACKENDS = ['ibm_vpc', 'vm']

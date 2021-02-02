@@ -23,6 +23,7 @@ import multiprocessing as mp
 import lithops.constants as constants
 from lithops.version import __version__
 from lithops.utils import verify_runtime_name
+from builtins import FileNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +31,11 @@ logger = logging.getLogger(__name__)
 def load_yaml_config(config_filename):
     import yaml
 
-    with open(config_filename, 'r') as config_file:
-        data = yaml.safe_load(config_file)
+    try:
+        with open(config_filename, 'r') as config_file:
+            data = yaml.safe_load(config_file)
+    except FileNotFoundError:
+        data = {}
 
     return data
 
@@ -102,8 +106,18 @@ def get_log_info(config_data=None):
     return cl['log_level'], cl['log_format'], cl['log_stream'], cl['log_filename']
 
 
-def get_mode(config_data=None):
+def get_mode(backend=None, config_data=None):
     """ Return lithops execution mode set in configuration """
+
+    if backend == constants.LOCALHOST:
+        return constants.LOCALHOST
+    elif backend in constants.SERVERLESS_BACKENDS:
+        return constants.SERVERLESS
+    elif backend in constants.STANDALONE_BACKENDS:
+        return constants.STANDALONE
+    elif backend:
+        raise Exception("Unknown compute backend: {}".format(backend))
+
     config_data = config_data or load_config()
 
     if 'lithops' not in config_data or not config_data['lithops']:

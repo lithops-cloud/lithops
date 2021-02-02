@@ -44,17 +44,23 @@ class LocalhostHandler:
         logger.info('Creating Localhost compute client')
         self.config = localhost_config
         self.runtime = self.config['runtime']
-        self.local_runtime_load = self.config.get('local_runtime_load', False)
 
         if '/' not in self.runtime:
             self.env = DefaultEnv()
             self.env_type = 'default'
         else:
-            self.env = DockerEnv(self.runtime, self.local_runtime_load)
+            pull_runtime = self.config.get('pull_runtime', False)
+            self.env = DockerEnv(self.runtime, pull_runtime)
             self.env_type = 'docker'
 
         msg = COMPUTE_CLI_MSG.format('Localhost compute')
         logger.info("{}".format(msg))
+
+    def init(self):
+        """
+        Init taks for localhost
+        """
+        pass
 
     def run_job(self, job_payload):
         """
@@ -126,13 +132,12 @@ class LocalhostHandler:
 
 
 class DockerEnv:
-    def __init__(self, docker_image, local_runtime_load):
-        logger.info('Setting DockerEnv for {} local runtime {}'.format(docker_image, local_runtime_load))
+    def __init__(self, docker_image, pull_runtime):
+        logger.info('Setting DockerEnv for {}'.format(docker_image, pull_runtime))
         self.runtime = docker_image
-        self.local_runtime_load = local_runtime_load
+        self.pull_runtime = pull_runtime
 
     def setup(self, runtime):
-        logger.info('DockerEnv setup method for runtime {}. Load local runtime {}'.format(runtime, self.local_runtime_load))
         os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
         try:
             shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
@@ -141,12 +146,10 @@ class DockerEnv:
         shutil.copytree(LITHOPS_LOCATION, os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
         src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'runner.py')
         copyfile(src_handler, RUNNER)
-        if self.local_runtime_load == True:
-            logger.info('Docker local runtime exists for {}. Skip pull or load'.format(runtime))
-        else:
-            logger.info('Docker runtime pull from local file {}'.format(self.runtime))
+        if self.pull_runtime:
+            logger.info('Pulling Docker runtime {}'.format(self.runtime))
             sp.run('docker pull {}'.format(self.runtime), shell=True, check=True,
-               stdout=sp.PIPE, universal_newlines=True)
+                   stdout=sp.PIPE, universal_newlines=True)
 
     def get_execution_cmd(self, runtime):
         if is_unix_system():
@@ -155,12 +158,14 @@ class DockerEnv:
         else:
             cmd = ('docker run --rm -v {}:/tmp --entrypoint "python3" {} '
                    '/tmp/lithops/runner.py'.format(TEMP, self.runtime))
+        logger.debug(cmd)
         return cmd
 
 
 class DefaultEnv:
     def __init__(self):
         self.runtime = sys.executable
+        logger.info('Setting DefaultEnv for {}'.format(self.runtime))
 
     def setup(self, runtime):
         os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
