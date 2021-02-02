@@ -83,12 +83,12 @@ class StandaloneHandler:
         start = time.time()
         while(time.time() - start < self.start_timeout):
             if self._is_instance_ready(instance):
-                logger.debug('VM instance {} ready in {}'.format(instance, round(time.time()-start, 2)))
+                logger.debug('{} ready in {}'.format(instance, round(time.time()-start, 2)))
                 return True
             time.sleep(5)
 
         self.dismantle()
-        raise Exception('VM readiness probe expired on {}'.format(instance))
+        raise Exception('SSH Readiness probe expired on {}'.format(instance))
 
     def _is_proxy_ready(self, instance):
         """

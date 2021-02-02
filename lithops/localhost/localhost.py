@@ -85,7 +85,7 @@ class LocalhostHandler:
         storage_bucket = job_payload['config']['lithops']['storage_bucket']
 
         local_job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket, JOBS_PREFIX)
-        docker_job_dir = os.path.join('/tmp/lithops/{}/{}'.format(storage_bucket, JOBS_PREFIX))
+        docker_job_dir = os.path.join('/tmp/lithops/{}'.format(JOBS_PREFIX))
         job_file = '{}-job.json'.format(job_key)
 
         os.makedirs(local_job_dir, exist_ok=True)

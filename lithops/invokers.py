@@ -30,7 +30,7 @@ from concurrent.futures import ThreadPoolExecutor
 from lithops.version import __version__
 from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config
-from lithops.utils import version_str, is_lithops_worker, is_unix_system
+from lithops.utils import version_str, is_lithops_worker, is_unix_system, iterchunks
 from lithops.storage.utils import create_job_key
 from lithops.constants import LOGGER_LEVEL, LITHOPS_TEMP_DIR
 from lithops.util.metrics import PrometheusExporter
@@ -129,6 +129,7 @@ class StandaloneInvoker(Invoker):
         self.prometheus.send_metric(name='job_total_calls',
                                     value=job.total_calls,
                                     labels=(
+                                        ('executor_id', job.executor_id),
                                         ('job_id', job.job_id),
                                         ('function_name', job.function_name)
                                     ))
@@ -250,24 +251,28 @@ class ServerlessInvoker(Invoker):
         logger.debug('ExecutorID {} - Invoker process {} finished'
                      .format(self.executor_id, inv_id))
 
-    def _invoke(self, job, call_id):
+    def _invoke(self, job, call_ids_range):
         """Method used to perform the actual invocation against the
         compute backend.
         """
+        call_ids = ["{:05d}".format(i) for i in call_ids_range]
+        data_ranges = [job.data_ranges[int(call_id)] for call_id in call_ids]
+
         payload = {'config': self.config,
                    'log_level': self.log_level,
                    'func_key': job.func_key,
                    'data_key': job.data_key,
                    'extra_env': job.extra_env,
                    'execution_timeout': job.execution_timeout,
-                   'data_byte_range': job.data_ranges[int(call_id)],
+                   'data_byte_ranges': data_ranges,
                    'executor_id': job.executor_id,
                    'job_id': job.job_id,
-                   'call_id': call_id,
+                   'call_ids': call_ids,
                    'host_submit_tstamp': time.time(),
                    'lithops_version': __version__,
                    'runtime_name': job.runtime_name,
-                   'runtime_memory': job.runtime_memory}
+                   'runtime_memory': job.runtime_memory,
+                   'worker_granularity': job.worker_granularity}
 
         # do the invocation
         start = time.time()
@@ -278,12 +283,12 @@ class ServerlessInvoker(Invoker):
         if not activation_id:
             # reached quota limit
             time.sleep(random.randint(0, 5))
-            self.pending_calls_q.put((job, call_id))
+            self.pending_calls_q.put((job, call_ids_range))
             self.token_bucket_q.put('#')
             return
 
-        logger.debug('ExecutorID {} | JobID {} - Function call {} done! ({}s) - Activation'
-                     ' ID: {}'.format(job.executor_id, job.job_id, call_id, resp_time, activation_id))
+        logger.debug('ExecutorID {} | JobID {} - Function calls {} done! ({}s) - Activation'
+                     ' ID: {}'.format(job.executor_id, job.job_id, ', '.join(call_ids), resp_time, activation_id))
 
     def _invoke_remote(self, job):
         """Method used to send a job_description to the remote invoker."""
@@ -325,6 +330,7 @@ class ServerlessInvoker(Invoker):
         self.prometheus.send_metric(name='job_total_calls',
                                     value=job.total_calls,
                                     labels=(
+                                        ('executor_id', job.executor_id),
                                         ('job_id', job.job_id),
                                         ('function_name', job.function_name)
                                     ))
@@ -354,7 +360,7 @@ class ServerlessInvoker(Invoker):
             """
             try:
                 if self.running_flag.value == 0:
-                    self.ongoing_activations = 0
+                    self.running_workers = 0
                     self.running_flag.value = 1
                     self._start_invoker_process()
 
@@ -364,26 +370,27 @@ class ServerlessInvoker(Invoker):
                                    job.function_name, job.total_calls))
                 logger.info(log_msg)
 
-                if self.ongoing_activations < self.workers:
+                if self.running_workers < self.workers:
+                    free_workers = self.workers - self.running_workers
+                    total_direct = free_workers * job.worker_granularity
                     callids = range(job.total_calls)
-                    total_direct = self.workers - self.ongoing_activations
                     callids_to_invoke_direct = callids[:total_direct]
                     callids_to_invoke_nondirect = callids[total_direct:]
 
-                    self.ongoing_activations += len(callids_to_invoke_direct)
+                    self.running_workers += int(len(callids_to_invoke_direct) / job.worker_granularity)
 
-                    logger.debug('ExecutorID {} | JobID {} - Free workers: '
-                                 '{} - Going to invoke {} function activations'
-                                 .format(job.executor_id, job.job_id, total_direct,
+                    logger.debug('ExecutorID {} | JobID {} - Free workers:'
+                                 ' {} - Worker granularity: {}'
+                                 .format(job.executor_id, job.job_id,
+                                         free_workers, job.worker_granularity,
                                          len(callids_to_invoke_direct)))
 
                     def _callback(future):
                         future.result()
 
                     executor = ThreadPoolExecutor(job.invoke_pool_threads)
-                    for i in callids_to_invoke_direct:
-                        call_id = "{:05d}".format(i)
-                        future = executor.submit(self._invoke, job, call_id)
+                    for call_ids_range in iterchunks(callids_to_invoke_direct, job.chunksize):
+                        future = executor.submit(self._invoke, job, call_ids_range)
                         future.add_done_callback(_callback)
                     time.sleep(0.1)
 
@@ -393,17 +400,15 @@ class ServerlessInvoker(Invoker):
                                      '{} function invocations into pending queue'
                                      .format(job.executor_id, job.job_id,
                                              len(callids_to_invoke_nondirect)))
-                        for i in callids_to_invoke_nondirect:
-                            call_id = "{:05d}".format(i)
-                            self.pending_calls_q.put((job, call_id))
+                        for call_ids_range in iterchunks(callids_to_invoke_nondirect, job.chunksize):
+                            self.pending_calls_q.put((job, call_ids_range))
                 else:
-                    logger.debug('ExecutorID {} | JobID {} - Ongoing activations '
-                                 'reached {} workers, queuing {} function invocations'
-                                 .format(job.executor_id, job.job_id, self.workers,
-                                         job.total_calls))
-                    for i in range(job.total_calls):
-                        call_id = "{:05d}".format(i)
-                        self.pending_calls_q.put((job, call_id))
+                    logger.debug('ExecutorID {} | JobID {} - Reached maximun {} '
+                                 'workers, queuing {} function invocations'
+                                 .format(job.executor_id, job.job_id,
+                                         self.workers, job.total_calls))
+                    for call_ids_range in iterchunks(job.total_calls, job.chunksize):
+                        self.pending_calls_q.put((job, call_ids_range))
 
                 self.job_monitor.start_job_monitoring(job)
 

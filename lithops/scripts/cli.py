@@ -28,7 +28,7 @@ from lithops.config import get_mode, default_config, extract_storage_config,\
     extract_serverless_config, extract_standalone_config,\
     extract_localhost_config
 from lithops.constants import CACHE_DIR, LITHOPS_TEMP_DIR, RUNTIMES_PREFIX,\
-    JOBS_PREFIX, LOCALHOST, SERVERLESS, STANDALONE, FN_LOG_FILE, LOGS_DIR
+    JOBS_PREFIX, LOCALHOST, SERVERLESS, STANDALONE, LOGS_DIR
 from lithops.storage import InternalStorage
 from lithops.serverless import ServerlessHandler
 from lithops.storage.utils import clean_bucket

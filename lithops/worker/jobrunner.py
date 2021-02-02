@@ -291,11 +291,11 @@ class JobRunner:
                                         ))
 
             logger.info("Going to execute '{}()'".format(str(function.__name__)))
-            logger.info('---------------------- FUNCTION LOG ----------------------')
+            print('---------------------- FUNCTION LOG ----------------------')
             function_start_tstamp = time.time()
             result = function(**data)
             function_end_tstamp = time.time()
-            logger.info('----------------------------------------------------------')
+            print('----------------------------------------------------------')
             logger.info("Success function execution")
 
             self.prometheus.send_metric(name='function_end',

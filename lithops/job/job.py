@@ -186,6 +186,8 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
         logger.debug("Extra environment vars {}".format(ext_env))
 
     job = SimpleNamespace()
+    job.chunksize = 2
+    job.worker_granularity = 2
     job.executor_id = executor_id
     job.job_id = job_id
     job.extra_env = ext_env
