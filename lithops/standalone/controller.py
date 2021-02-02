@@ -87,6 +87,12 @@ def get_setup_cmd(instance_name=None, ip_address=None, instance_id=None, worker=
     return cmd
 
 
+def iterchunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
+
 def is_instance_ready(ssh_client):
     """
     Checks if the VM instance is ready to receive ssh connections
@@ -109,7 +115,7 @@ def wait_instance_ready(ssh_client):
     start = time.time()
     while(time.time() - start < START_TIMEOUT):
         if is_instance_ready(ssh_client):
-            logger.info('VM instance {} ready in {}'
+            logger.info('VM instance {} ready in {} seconds'
                         .format(ip_addr, round(time.time()-start, 2)))
             return True
         time.sleep(5)
@@ -141,19 +147,20 @@ def wait_proxy_ready(ip_addr):
     start = time.time()
     while(time.time() - start < START_TIMEOUT):
         if is_proxy_ready(ip_addr):
-            logger.info('Lithops proxy ready on {}'.format(ip_addr))
+            logger.info('Lithops proxy {} ready in {} seconds'
+                        .format(ip_addr, round(time.time()-start, 2)))
             return True
         time.sleep(2)
 
     raise Exception('Proxy readiness probe expired on {}. Check your VM'.format(ip_addr))
 
 
-def run_job_on_worker(worek_info, call_id, job_payload):
+def run_job_on_worker(worker_info, call_ids_range, job_payload):
     """
     Install all the Lithops dependencies into the worker.
     Runs the job
     """
-    instance_name, ip_address, instance_id = worek_info
+    instance_name, ip_address, instance_id = worker_info
     logger.info('Going to setup {}, IP address {}'.format(instance_name, ip_address))
 
     ssh_client = SSHClient(ip_address, INTERNAL_SSH_CREDNTIALS)
@@ -170,21 +177,20 @@ def run_job_on_worker(worek_info, call_id, job_payload):
     # Wait until the proxy is ready
     wait_proxy_ready(ip_address)
 
-    job_payload['job_description']['call_id'] = call_id
-
-    executor_id = job_payload['job_description']['executor_id']
-    job_id = job_payload['job_description']['job_id']
-    call_key = '-'.join([executor_id, job_id, call_id])
+    dbr = job_payload['data_byte_ranges']
+    job_payload['call_ids'] = call_ids_range
+    job_payload['data_byte_ranges'] = [dbr[int(call_id)] for call_id in call_ids_range]
 
     url = "http://{}:{}/run".format(ip_address, PROXY_SERVICE_PORT)
-    logger.info('Making {} invocation on {}'.format(call_key, ip_address))
     r = requests.post(url, data=json.dumps(job_payload))
     response = r.json()
 
     if 'activationId' in response:
-        logger.info('Invocation {} done. Activation ID: {}'.format(call_key, response['activationId']))
+        logger.info('Invocation {} done. Activation ID: {}'
+                    .format(', '.join(call_ids_range), response['activationId']))
     else:
-        logger.error('Invocation {} failed: {}'.format(call_key, response['error']))
+        logger.error('Invocation {} failed: {}'
+                     .format(', '.join(call_ids_range), response['error']))
 
 
 def run_job():
@@ -194,21 +200,25 @@ def run_job():
     global STANDALONE_CONFIG
 
     job_payload = json.loads(sys.argv[2])
-
     STANDALONE_CONFIG.update(job_payload['config']['standalone'])
-
-    total_calls = job_payload['job_description']['total_calls']
     exec_mode = job_payload['config']['standalone'].get('exec_mode', 'consume')
 
     if exec_mode == 'create':
+        logger.info('Running job on worker VMs')
+        call_ids = job_payload['call_ids']
+        chunksize = job_payload['chunksize']
         workers = json.loads(sys.argv[3])
-        with ThreadPoolExecutor(total_calls) as executor:
-            for i in range(total_calls):
-                call_id = "{:05d}".format(i)
-                worek_info = workers[call_id]
-                executor.submit(run_job_on_worker, worek_info, call_id,
+
+        with ThreadPoolExecutor(len(workers)) as executor:
+            for call_ids_range in iterchunks(call_ids, chunksize):
+                worker_info = workers.pop(0)
+                executor.submit(run_job_on_worker,
+                                worker_info,
+                                call_ids_range,
                                 copy.deepcopy(job_payload))
+
     else:
+        logger.info('Running job on localhost')
         # Run the job in the local Vm instance
         url = "http://{}:{}/run".format('127.0.0.1', PROXY_SERVICE_PORT)
         requests.post(url, data=json.dumps(job_payload))

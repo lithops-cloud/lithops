@@ -129,14 +129,14 @@ class StandaloneHandler:
         """
         Run the job description against the selected environment
         """
-        total_calls = job_payload['job_description']['total_calls']
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
 
         if self.exec_mode == 'create':
-            for vm_n in range(total_calls):
-                call_id = "{:05d}".format(vm_n)
-                name = 'lithops-{}-{}-{}'.format(executor_id, job_id, call_id)
+            total_workers = int(len(job_payload['call_ids']) / job_payload['worker_granularity'])
+            for vm_n in range(total_workers):
+                worker_id = "{:04d}".format(vm_n)
+                name = 'lithops-{}-{}-{}'.format(executor_id, job_id, worker_id)
                 self.backend.create_instance(name)
 
             def _callback(future):
@@ -163,7 +163,7 @@ class StandaloneHandler:
 
         if self.exec_mode == 'create':
             logger.debug('Be patient, VM startup time may take up to 2 minutes')
-            job_instances = {inst.name.split('-')[-1]: (inst.name, inst.ip_address, inst.instance_id) for inst in instances[1:]}
+            job_instances = [(inst.name, inst.ip_address, inst.instance_id) for inst in instances[1:]]
             cmd = ('python3 /opt/lithops/controller.py run {} {}'
                    .format(shlex.quote(json.dumps(job_payload)),
                            shlex.quote(json.dumps(job_instances))))

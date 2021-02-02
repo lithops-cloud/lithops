@@ -154,7 +154,7 @@ def run():
         return error('The action did not receive a dictionary as an argument.')
 
     try:
-        runtime = message['job_description']['runtime_name']
+        runtime = message['runtime_name']
         verify_runtime_name(runtime)
     except Exception as e:
         return error(str(e))

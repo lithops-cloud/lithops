@@ -264,8 +264,8 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     # Upload data
     data_key = create_agg_data_key(JOBS_PREFIX, executor_id, job_id)
     job.data_key = data_key
-    data_bytes, data_ranges = utils.agg_data(data_strs)
-    job.data_ranges = data_ranges
+    data_bytes, data_byte_ranges = utils.agg_data(data_strs)
+    job.data_byte_ranges = data_byte_ranges
     data_upload_start = time.time()
     internal_storage.put_data(data_key, data_bytes)
     data_upload_end = time.time()

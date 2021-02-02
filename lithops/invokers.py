@@ -134,12 +134,25 @@ class StandaloneInvoker(Invoker):
                                         ('function_name', job.function_name)
                                     ))
 
+        job_key = create_job_key(job.executor_id, job.job_id)
+        call_ids = ["{:05d}".format(i) for i in range(job.total_calls)]
         payload = {'config': self.config,
+                   'chunksize': job.chunksize,
                    'log_level': self.log_level,
+                   'func_key': job.func_key,
+                   'data_key': job.data_key,
+                   'extra_env': job.extra_env,
+                   'execution_timeout': job.execution_timeout,
+                   'data_byte_ranges': job.data_byte_ranges,
                    'executor_id': job.executor_id,
                    'job_id': job.job_id,
-                   'job_description': job.__dict__,
-                   'lithops_version': __version__}
+                   'job_key': job_key,
+                   'call_ids': call_ids,
+                   'host_submit_tstamp': time.time(),
+                   'lithops_version': __version__,
+                   'runtime_name': job.runtime_name,
+                   'runtime_memory': job.runtime_memory,
+                   'worker_granularity': job.worker_granularity}
 
         self.compute_handler.run_job(payload)
 
@@ -255,8 +268,9 @@ class ServerlessInvoker(Invoker):
         """Method used to perform the actual invocation against the
         compute backend.
         """
+        job_key = create_job_key(job.executor_id, job.job_id)
         call_ids = ["{:05d}".format(i) for i in call_ids_range]
-        data_ranges = [job.data_ranges[int(call_id)] for call_id in call_ids]
+        data_byte_ranges = [job.data_byte_ranges[int(call_id)] for call_id in call_ids]
 
         payload = {'config': self.config,
                    'log_level': self.log_level,
@@ -264,9 +278,10 @@ class ServerlessInvoker(Invoker):
                    'data_key': job.data_key,
                    'extra_env': job.extra_env,
                    'execution_timeout': job.execution_timeout,
-                   'data_byte_ranges': data_ranges,
+                   'data_byte_ranges': data_byte_ranges,
                    'executor_id': job.executor_id,
                    'job_id': job.job_id,
+                   'job_key': job_key,
                    'call_ids': call_ids,
                    'host_submit_tstamp': time.time(),
                    'lithops_version': __version__,

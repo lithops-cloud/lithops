@@ -4,24 +4,22 @@ import json
 import pkgutil
 import logging
 import uuid
-import time
+
 import multiprocessing as mp
 from pathlib import Path
-from types import SimpleNamespace
 
 from lithops.utils import version_str
 from lithops.storage.utils import create_job_key
 from lithops.worker import function_handler
 from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DIR, LOGS_DIR,\
-    RN_LOG_FILE
-from lithops import __version__, constants
+    RN_LOG_FILE, LOGGER_FORMAT
 
 os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
 os.makedirs(JOBS_DIR, exist_ok=True)
 os.makedirs(LOGS_DIR, exist_ok=True)
 
 logging.basicConfig(filename=RN_LOG_FILE, level=logging.INFO,
-                    format=constants.LOGGER_FORMAT)
+                    format=LOGGER_FORMAT)
 logger = logging.getLogger('lithops.localhost.runner')
 
 CPU_COUNT = mp.cpu_count()
@@ -45,35 +43,22 @@ def run():
     logger.info('Got {} job file'.format(job_filename))
 
     with open(job_filename, 'rb') as jf:
-        job_payload = SimpleNamespace(**json.load(jf))
+        job_payload = json.load(jf)
+
+    executor_id = job_payload['executor_id']
+    job_id = job_payload['job_id']
 
     logger.info('ExecutorID {} | JobID {} - Starting execution'
-                .format(job_payload.executor_id, job_payload.job_id))
+                .format(executor_id, job_id))
 
-    job = SimpleNamespace(**job_payload.job_description)
-
-    call_ids = ["{:05d}".format(i) for i in range(job.total_calls)]
-    payload = {'config': job_payload.config,
-               'log_level': job_payload.log_level,
-               'func_key': job.func_key,
-               'data_key': job.data_key,
-               'extra_env': job.extra_env,
-               'execution_timeout': job.execution_timeout,
-               'data_byte_ranges': job.data_ranges,
-               'executor_id': job.executor_id,
-               'job_id': job.job_id,
-               'call_ids': call_ids,
-               'host_submit_tstamp': time.time(),
-               'lithops_version': __version__,
-               'runtime_name': job.runtime_name,
-               'runtime_memory': job.runtime_memory,
-               'worker_granularity': CPU_COUNT}
+    if not job_payload['worker_granularity']:
+        job_payload['worker_granularity'] = CPU_COUNT
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
-    function_handler(payload)
+    function_handler(job_payload)
 
-    job_key = create_job_key(job_payload.executor_id, job_payload.job_id)
+    job_key = create_job_key(executor_id, job_id)
     done = os.path.join(JOBS_DIR, job_key+'.done')
     Path(done).touch()
 
@@ -81,7 +66,7 @@ def run():
         os.remove(job_filename)
 
     logger.info('ExecutorID {} | JobID {} - Execution Finished'
-                .format(job.executor_id, job.job_id))
+                .format(executor_id, job_id))
 
 
 if __name__ == "__main__":

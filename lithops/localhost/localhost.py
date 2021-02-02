@@ -68,7 +68,8 @@ class LocalhostHandler:
         """
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
-        runtime = job_payload['job_description']['runtime_name']
+        runtime = job_payload['runtime_name']
+        storage_bucket = job_payload['config']['lithops']['storage_bucket']
 
         job_key = create_job_key(executor_id, job_id)
         log_file = os.path.join(LOGS_DIR, job_key+'.log')
@@ -78,14 +79,8 @@ class LocalhostHandler:
         if not os.path.isfile(RUNNER):
             self.env.setup(runtime)
 
-        exec_command = self.env.get_execution_cmd(runtime)
-
-        executor_id = job_payload['executor_id']
-        job_id = job_payload['job_id']
-        storage_bucket = job_payload['config']['lithops']['storage_bucket']
-
         local_job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket, JOBS_PREFIX)
-        docker_job_dir = os.path.join('/tmp/lithops/{}'.format(JOBS_PREFIX))
+        docker_job_dir = '/tmp/lithops/{}/{}'.format(storage_bucket, JOBS_PREFIX)
         job_file = '{}-job.json'.format(job_key)
 
         os.makedirs(local_job_dir, exist_ok=True)
@@ -99,9 +94,10 @@ class LocalhostHandler:
         else:
             job_filename = local_job_filename
 
-        log_file = open(RN_LOG_FILE, 'a')
-        sp.Popen(exec_command+' run '+job_filename, shell=True,
-                 stdout=log_file, stderr=log_file, universal_newlines=True)
+        exec_command = self.env.get_execution_cmd(runtime)
+        with open(RN_LOG_FILE, 'a') as log_file:
+            sp.Popen(exec_command+' run '+job_filename, shell=True,
+                     stdout=log_file, stderr=log_file, universal_newlines=True)
 
     def create_runtime(self, runtime):
         """
