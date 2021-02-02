@@ -1,6 +1,7 @@
 #
-# (C) Copyright PyWren Team
-# Copyright IBM Corp. 2019
+# (C) Copyright PyWren Team 2018
+# (C) Copyright IBM Corp. 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,7 +36,8 @@ from lithops.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_func
 from lithops.utils import WrappedStreamingBodyPartition
 from lithops.constants import TEMP
 from lithops.util.metrics import PrometheusExporter
-from lithops.constants import LITHOPS_TEMP_DIR
+from lithops.storage.utils import create_output_key
+from lithops.constants import LITHOPS_TEMP_DIR, JOBS_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -59,22 +61,24 @@ class stats:
 
 class JobRunner:
 
-    def __init__(self, jr_config, jobrunner_conn, internal_storage):
-        self.jr_config = jr_config
+    def __init__(self, job, jobrunner_conn, internal_storage):
         self.jobrunner_conn = jobrunner_conn
         self.internal_storage = internal_storage
 
-        self.lithops_config = self.jr_config['lithops_config']
-        self.executor_id = self.jr_config['executor_id']
-        self.call_id = self.jr_config['call_id']
-        self.job_id = self.jr_config['job_id']
-        self.func_key = self.jr_config['func_key']
-        self.data_key = self.jr_config['data_key']
-        self.data_byte_range = self.jr_config['data_byte_range']
-        self.output_key = self.jr_config['output_key']
+        self.lithops_config = job.config
+        self.executor_id = job.executor_id
+        self.call_id = job.call_id
+        self.job_id = job.job_id
+        self.func_key = job.func_key
+        self.data_key = job.data_key
+        self.data_byte_range = job.data_byte_range
+        self.output_key = create_output_key(JOBS_PREFIX, self.executor_id,
+                                            self.job_id, self.call_id)
 
-        self.stats = stats(self.jr_config['stats_filename'])
+        # Setup stats class
+        self.stats = stats(job.jr_stats_file)
 
+        # Setup prometheus for live metrics
         prom_enabled = self.lithops_config['lithops'].get('monitoring')
         prom_config = self.lithops_config.get('prometheus', {})
         self.prometheus = PrometheusExporter(prom_enabled, prom_config)
