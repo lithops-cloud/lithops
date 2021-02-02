@@ -191,7 +191,11 @@ def run_job():
     """
     Runs a given job
     """
+    global STANDALONE_CONFIG
+
     job_payload = json.loads(sys.argv[2])
+
+    STANDALONE_CONFIG.update(job_payload['config']['standalone'])
 
     total_calls = job_payload['job_description']['total_calls']
     exec_mode = job_payload['config']['standalone'].get('exec_mode', 'consume')

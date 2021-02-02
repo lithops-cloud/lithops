@@ -272,6 +272,7 @@ class IBMVPCBackend:
         name = 'lithops-master-{}'.format(self.vpc_key)
         self.master = self.create_instance(name, master=True)
         self.master.ip_address = self.config['floating_ip']
+        self.master.profile_name = self.config['master_profile_name']
 
     def _delete_vm_instances(self):
         """
@@ -434,7 +435,9 @@ class IBMVPCInstance:
         """
         self.name = name.lower()
         self.config = ibm_vpc_config
+
         self.delete_on_stop = self.config['delete_on_dismantle']
+        self.profile_name = self.config['profile_name']
 
         self.ibm_vpc_client = ibm_vpc_client or self._create_vpc_client()
         self.public = public
@@ -500,7 +503,7 @@ class IBMVPCInstance:
         instance_prototype = {}
         instance_prototype['name'] = instance_name
         instance_prototype['keys'] = [key_identity_model]
-        instance_prototype['profile'] = {'name': self.config['profile_name']}
+        instance_prototype['profile'] = {'name': self.profile_name}
         instance_prototype['resource_group'] = {'id': self.config['resource_group_id']}
         instance_prototype['vpc'] = {'id': self.config['vpc_id']}
         instance_prototype['image'] = {'id': self.config['image_id']}

@@ -22,7 +22,6 @@ MANDATORY_PARAMETERS_3 = ['endpoint',
 IMAGE_ID_DEFAULT = 'r014-b7da49af-b46a-4099-99a4-c183d2d40ea8'  # ubuntu 20.04
 PROFILE_NAME_DEFAULT = 'cx2-2x4'
 VOLUME_TIER_NAME_DEFAULT = 'general-purpose'
-GENERATION_DEFAULT = 2
 
 SSH_USER = 'root'
 SSH_PASSWD = 'lithops'
@@ -61,14 +60,14 @@ def load_config(config_data):
         yesterday = datetime.date.today() - datetime.timedelta(days=1)
         config_data[section]['version'] = yesterday.strftime('%Y-%m-%d')
 
-    if 'generation' not in config_data:
-        config_data[section]['generation'] = GENERATION_DEFAULT
-
     if 'volume_tier_name' not in config_data[section]:
         config_data[section]['volume_tier_name'] = VOLUME_TIER_NAME_DEFAULT
 
     if 'profile_name' not in config_data[section]:
         config_data[section]['profile_name'] = PROFILE_NAME_DEFAULT
+
+    if 'master_profile_name' not in config_data[section]:
+        config_data[section]['master_profile_name'] = PROFILE_NAME_DEFAULT
 
     if 'image_id' not in config_data[section]:
         config_data[section]['image_id'] = IMAGE_ID_DEFAULT
