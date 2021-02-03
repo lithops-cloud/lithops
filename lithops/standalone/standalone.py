@@ -131,9 +131,16 @@ class StandaloneHandler:
         """
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
+        total_calls = len(job_payload['call_ids'])
+        chunksize = job_payload['chunksize']
 
         if self.exec_mode == 'create':
-            total_workers = int(len(job_payload['call_ids']) / job_payload['worker_granularity'])
+            total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
+            logger.debug('ExecutorID {} | JobID {} - Going '
+                         'to invoke {} activations in {} workers'
+                         .format(executor_id, job_id,
+                                 total_calls, total_workers))
+
             for vm_n in range(total_workers):
                 worker_id = "{:04d}".format(vm_n)
                 name = 'lithops-{}-{}-{}'.format(executor_id, job_id, worker_id)
@@ -150,6 +157,10 @@ class StandaloneHandler:
                 for i in range(1, len(instances)):
                     future = executor.submit(lambda vm: vm.create(start=True), instances[i])
                     future.add_done_callback(_callback)
+        else:
+            logger.debug('ExecutorID {} | JobID {} - Going '
+                         'to invoke {} activations in 1 worker'
+                         .format(executor_id, job_id, total_calls,))
 
         logger.debug("Checking if {} is ready".format(self.backend.master))
         if not self._is_proxy_ready(self.backend.master):

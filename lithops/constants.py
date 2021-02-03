@@ -75,3 +75,6 @@ SERVERLESS_BACKENDS = ['ibm_cf', 'code_engine', 'knative', 'openwhisk',
                        'aws_lambda', 'gcp_functions', 'cloudrun',
                        'azure_fa', 'aliyun_fc']
 STANDALONE_BACKENDS = ['ibm_vpc', 'vm']
+
+CHUNKSIZE_DEFAULT = 1
+WORKER_GRANULARITY_DEFAULT = 1

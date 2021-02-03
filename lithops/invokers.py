@@ -124,6 +124,9 @@ class StandaloneInvoker(Invoker):
         """
         Run a job
         """
+        logger.debug('ExecutorID {} | JobID {} - Chunksize: {} - Worker granularity: {}'
+                     .format(job.executor_id, job.job_id, job.chunksize, job.worker_granularity))
+
         job.runtime_name = self.runtime_name
 
         self.prometheus.send_metric(name='job_total_calls',
@@ -156,9 +159,8 @@ class StandaloneInvoker(Invoker):
 
         self.compute_handler.run_job(payload)
 
-        log_msg = ('ExecutorID {} | JobID {} - {}() Invocation done - Total: {} activations'
-                   .format(job.executor_id, job.job_id, job.function_name, job.total_calls))
-        logger.info(log_msg)
+        logger.info('ExecutorID {} | JobID {} - {}() Invocation done - Total: {} activations'
+                    .format(job.executor_id, job.job_id, job.function_name, job.total_calls))
 
         futures = []
         for i in range(job.total_calls):
@@ -302,7 +304,7 @@ class ServerlessInvoker(Invoker):
             self.token_bucket_q.put('#')
             return
 
-        logger.debug('ExecutorID {} | JobID {} - Function calls {} done! ({}s) - Activation'
+        logger.debug('ExecutorID {} | JobID {} - Invocation {} done! ({}s) - Activation'
                      ' ID: {}'.format(job.executor_id, job.job_id, ', '.join(call_ids), resp_time, activation_id))
 
     def _invoke_remote(self, job):
@@ -385,20 +387,27 @@ class ServerlessInvoker(Invoker):
                                    job.function_name, job.total_calls))
                 logger.info(log_msg)
 
+                logger.debug('ExecutorID {} | JobID {} - Chunksize:'
+                             ' {} - Worker granularity: {}'
+                             .format(job.executor_id, job.job_id,
+                                     job.chunksize, job.worker_granularity))
+
                 if self.running_workers < self.workers:
                     free_workers = self.workers - self.running_workers
-                    total_direct = free_workers * job.worker_granularity
+                    total_direct = free_workers * job.chunksize
                     callids = range(job.total_calls)
                     callids_to_invoke_direct = callids[:total_direct]
                     callids_to_invoke_nondirect = callids[total_direct:]
 
-                    self.running_workers += int(len(callids_to_invoke_direct) / job.worker_granularity)
+                    ci = len(callids_to_invoke_direct)
+                    cz = job.chunksize
+                    consumed_workers = ci // cz + (ci % cz > 0)
+                    self.running_workers += consumed_workers
 
                     logger.debug('ExecutorID {} | JobID {} - Free workers:'
-                                 ' {} - Worker granularity: {}'
-                                 .format(job.executor_id, job.job_id,
-                                         free_workers, job.worker_granularity,
-                                         len(callids_to_invoke_direct)))
+                                 ' {} - Going to invoke {} activations in {} workers'
+                                 .format(job.executor_id, job.job_id, free_workers,
+                                         len(callids_to_invoke_direct), consumed_workers))
 
                     def _callback(future):
                         future.result()
@@ -412,14 +421,14 @@ class ServerlessInvoker(Invoker):
                     # Put into the queue the rest of the callids to invoke within the process
                     if callids_to_invoke_nondirect:
                         logger.debug('ExecutorID {} | JobID {} - Putting remaining '
-                                     '{} function invocations into pending queue'
+                                     '{} function activations into pending queue'
                                      .format(job.executor_id, job.job_id,
                                              len(callids_to_invoke_nondirect)))
                         for call_ids_range in iterchunks(callids_to_invoke_nondirect, job.chunksize):
                             self.pending_calls_q.put((job, call_ids_range))
                 else:
                     logger.debug('ExecutorID {} | JobID {} - Reached maximun {} '
-                                 'workers, queuing {} function invocations'
+                                 'workers, queuing {} function activations'
                                  .format(job.executor_id, job.job_id,
                                          self.workers, job.total_calls))
                     for call_ids_range in iterchunks(job.total_calls, job.chunksize):

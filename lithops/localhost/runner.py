@@ -20,7 +20,6 @@ import json
 import pkgutil
 import logging
 import uuid
-import multiprocessing as mp
 from pathlib import Path
 
 from lithops.utils import version_str
@@ -36,17 +35,6 @@ os.makedirs(LOGS_DIR, exist_ok=True)
 logging.basicConfig(filename=RN_LOG_FILE, level=logging.INFO,
                     format=LOGGER_FORMAT)
 logger = logging.getLogger('lithops.localhost.runner')
-
-CPU_COUNT = mp.cpu_count()
-
-
-def extract_runtime_meta():
-    runtime_meta = dict()
-    mods = list(pkgutil.iter_modules())
-    runtime_meta["preinstalls"] = [entry for entry in sorted([[mod, is_pkg] for _, mod, is_pkg in mods])]
-    runtime_meta["python_ver"] = version_str(sys.version_info)
-
-    print(json.dumps(runtime_meta))
 
 
 def run():
@@ -66,9 +54,6 @@ def run():
     logger.info('ExecutorID {} | JobID {} - Starting execution'
                 .format(executor_id, job_id))
 
-    if not job_payload['worker_granularity']:
-        job_payload['worker_granularity'] = CPU_COUNT
-
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
     function_handler(job_payload)
@@ -83,6 +68,15 @@ def run():
     logger.info('ExecutorID {} | JobID {} - Execution Finished'
                 .format(executor_id, job_id))
     log_file_stream.close()
+
+
+def extract_runtime_meta():
+    runtime_meta = dict()
+    mods = list(pkgutil.iter_modules())
+    runtime_meta["preinstalls"] = [entry for entry in sorted([[mod, is_pkg] for _, mod, is_pkg in mods])]
+    runtime_meta["python_ver"] = version_str(sys.version_info)
+
+    print(json.dumps(runtime_meta))
 
 
 if __name__ == "__main__":

@@ -206,7 +206,7 @@ class FunctionExecutor:
 
         return futures[0]
 
-    def map(self, map_function, map_iterdata, chunksize=1, worker_granularity=1,
+    def map(self, map_function, map_iterdata, chunksize=None, worker_granularity=None,
             extra_args=None, extra_env=None, runtime_memory=None, chunk_size=None,
             chunk_n=None, obj_chunk_size=None, obj_chunk_number=None, timeout=None,
             invoke_pool_threads=None, include_modules=[], exclude_modules=[]):
@@ -264,8 +264,8 @@ class FunctionExecutor:
 
         return futures
 
-    def map_reduce(self, map_function, map_iterdata, reduce_function, chunksize=1,
-                   worker_granularity=1, extra_args=None, extra_env=None,
+    def map_reduce(self, map_function, map_iterdata, reduce_function, chunksize=None,
+                   worker_granularity=None, extra_args=None, extra_env=None,
                    map_runtime_memory=None, obj_chunk_size=None, obj_chunk_number=None,
                    reduce_runtime_memory=None, chunk_size=None, chunk_n=None,
                    timeout=None, invoke_pool_threads=None, reducer_one_per_object=False,

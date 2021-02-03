@@ -70,10 +70,15 @@ class LocalhostHandler:
         job_id = job_payload['job_id']
         runtime = job_payload['runtime_name']
         storage_bucket = job_payload['config']['lithops']['storage_bucket']
+        total_calls = len(job_payload['call_ids'])
+
+        logger.debug('ExecutorID {} | JobID {} -  Going '
+                     'to run {} activations in localhost'
+                     .format(executor_id, job_id, total_calls))
 
         job_key = create_job_key(executor_id, job_id)
         log_file = os.path.join(LOGS_DIR, job_key+'.log')
-        logger.info("Running job in {}. View execution logs at {}"
+        logger.info("Running job on {}. View execution logs at {}"
                     .format(runtime, log_file))
 
         if not os.path.isfile(RUNNER):
@@ -154,7 +159,6 @@ class DockerEnv:
         else:
             cmd = ('docker run --rm -v {}:/tmp --entrypoint "python3" {} '
                    '/tmp/lithops/runner.py'.format(TEMP, self.runtime))
-        logger.debug(cmd)
         return cmd
 
 
@@ -175,5 +179,4 @@ class DefaultEnv:
 
     def get_execution_cmd(self, runtime):
         cmd = '{} {}'.format(self.runtime, RUNNER)
-        logger.debug(cmd)
         return cmd
