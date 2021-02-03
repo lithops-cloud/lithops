@@ -206,22 +206,25 @@ class FunctionExecutor:
 
         return futures[0]
 
-    def map(self, map_function, map_iterdata, extra_args=None, extra_env=None,
-            runtime_memory=None, chunk_size=None, chunk_n=None, timeout=None,
+    def map(self, map_function, map_iterdata, chunksize=1, worker_granularity=1,
+            extra_args=None, extra_env=None, runtime_memory=None, chunk_size=None,
+            chunk_n=None, obj_chunk_size=None, obj_chunk_number=None, timeout=None,
             invoke_pool_threads=None, include_modules=[], exclude_modules=[]):
         """
         For running multiple function executions asynchronously
 
         :param map_function: the function to map over the data
         :param map_iterdata: An iterable of input data
+        :param chunksize: Split map_iteradata by this chunk size
+        :param worker_granularity: Intra-function concurrency
         :param extra_args: Additional args to pass to the function activations
         :param extra_env: Additional env variables for action environment
         :param runtime_memory: Memory to use to run the function
-        :param chunk_size: the size of the data chunks to split each object.
+        :param obj_chunk_size: the size of the data chunks to split each object.
                            'None' for processing the whole file in one function
                            activation.
-        :param chunk_n: Number of chunks to split each object. 'None' for
-                        processing the whole file in one function activation
+        :param obj_chunk_number: Number of chunks to split each object. 'None' for
+                                 processing the whole file in one function activation
         :param remote_invocation: Enable or disable remote_invocation mechanism
         :param timeout: Time that the functions have to complete their execution
                         before raising a timeout
@@ -241,6 +244,8 @@ class FunctionExecutor:
                              self.executor_id, job_id,
                              map_function=map_function,
                              iterdata=map_iterdata,
+                             chunksize=chunksize,
+                             worker_granularity=worker_granularity,
                              runtime_meta=runtime_meta,
                              runtime_memory=runtime_memory,
                              extra_env=extra_env,
@@ -248,8 +253,10 @@ class FunctionExecutor:
                              exclude_modules=exclude_modules,
                              execution_timeout=timeout,
                              extra_args=extra_args,
-                             obj_chunk_size=chunk_size,
-                             obj_chunk_number=chunk_n,
+                             chunk_size=chunk_size,
+                             chunk_n=chunk_n,
+                             obj_chunk_size=obj_chunk_size,
+                             obj_chunk_number=obj_chunk_number,
                              invoke_pool_threads=invoke_pool_threads)
 
         futures = self.invoker.run(job)
@@ -257,8 +264,9 @@ class FunctionExecutor:
 
         return futures
 
-    def map_reduce(self, map_function, map_iterdata, reduce_function,
-                   extra_args=None, extra_env=None, map_runtime_memory=None,
+    def map_reduce(self, map_function, map_iterdata, reduce_function, chunksize=1,
+                   worker_granularity=1, extra_args=None, extra_env=None,
+                   map_runtime_memory=None, obj_chunk_size=None, obj_chunk_number=None,
                    reduce_runtime_memory=None, chunk_size=None, chunk_n=None,
                    timeout=None, invoke_pool_threads=None, reducer_one_per_object=False,
                    reducer_wait_local=False, include_modules=[], exclude_modules=[]):
@@ -268,15 +276,17 @@ class FunctionExecutor:
 
         :param map_function: the function to map over the data
         :param map_iterdata:  An iterable of input data
+        :param chunksize: Split map_iteradata by this chunk size
+        :param worker_granularity: Intra-function concurrency
         :param reduce_function:  the function to reduce over the futures
         :param extra_env: Additional environment variables for action environment. Default None.
         :param extra_args: Additional arguments to pass to function activation. Default None.
         :param map_runtime_memory: Memory to use to run the map function. Default None (loaded from config).
         :param reduce_runtime_memory: Memory to use to run the reduce function. Default None (loaded from config).
-        :param chunk_size: the size of the data chunks to split each object. 'None' for processing
-                           the whole file in one function activation.
-        :param chunk_n: Number of chunks to split each object. 'None' for processing the whole
-                        file in one function activation.
+        :param obj_chunk_size: the size of the data chunks to split each object. 'None' for processing
+                               the whole file in one function activation.
+        :param obj_chunk_number: Number of chunks to split each object. 'None' for processing the whole
+                                 file in one function activation.
         :param remote_invocation: Enable or disable remote_invocation mechanism. Default 'False'
         :param timeout: Time that the functions have to complete their execution before raising a timeout.
         :param reducer_one_per_object: Set one reducer per object after running the partitioner
@@ -296,12 +306,16 @@ class FunctionExecutor:
                                  self.executor_id, map_job_id,
                                  map_function=map_function,
                                  iterdata=map_iterdata,
+                                 chunksize=chunksize,
+                                 worker_granularity=worker_granularity,
                                  runtime_meta=runtime_meta,
                                  runtime_memory=map_runtime_memory,
                                  extra_args=extra_args,
                                  extra_env=extra_env,
-                                 obj_chunk_size=chunk_size,
-                                 obj_chunk_number=chunk_n,
+                                 chunk_size=chunk_size,
+                                 chunk_n=chunk_n,
+                                 obj_chunk_size=obj_chunk_size,
+                                 obj_chunk_number=obj_chunk_number,
                                  include_modules=include_modules,
                                  exclude_modules=exclude_modules,
                                  execution_timeout=timeout,

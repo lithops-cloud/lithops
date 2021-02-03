@@ -25,9 +25,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
-
-from . import config as ibmvpc_config
 from lithops.config import load_yaml_config, dump_yaml_config
+from . import config as ibmvpc_config
 
 
 logger = logging.getLogger(__name__)

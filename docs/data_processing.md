@@ -52,10 +52,10 @@ Once iterdata is defined, you can execute Lithops as usual, either using *map()*
 ```python
 import lithops
 
-chunk_size = 4*1024**2  # 4MB
+object_chunksize = 4*1024**2  # 4MB
 
 fexec = lithops.FunctionExecutor()
-fexec.map_reduce(my_map_function, iterdata, chunk_size=chunk_size)
+fexec.map_reduce(my_map_function, iterdata, obj_chunk_size=object_chunksize)
 result = fexec.get_result()
 ```
 
@@ -83,10 +83,11 @@ def my_reduce_function(results):
     return final_result
 
 iterdata = ['http://myurl/myobject1', 'http://myurl/myobject1'] 
-chunk_n = 5
+object_chunk_number= 5
 
 fexec = lithops.FunctionExecutor()
-fexec.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_n=chunk_n)
+fexec.map_reduce(my_map_function, iterdata, my_reduce_function,
+                 obj_chunk_number=object_chunk_number)
 result = fexec.get_result()
 ```
 
@@ -94,9 +95,9 @@ See a complete example in [map_reduce_url.py](../examples/map_reduce_url.py).
 
 
 ## Reducer granularity
-When using the `map_reduce()` API call with `chunk_size` or `chunk_n`, by default there will be only one reducer for all the object chunks from all the objects. Alternatively, you can spawn one reducer for each object by setting the parameter `reducer_one_per_object=True`.
+When using the `map_reduce()` API call with `obj_chunk_size` or `obj_chunk_number`, by default there will be only one reducer for all the object chunks from all the objects. Alternatively, you can spawn one reducer for each object by setting the parameter `reducer_one_per_object=True`.
 
 ```python
 fexec.map_reduce(my_map_function, bucket_name, my_reduce_function, 
-              chunk_size=chunk_size, reducer_one_per_object=True)
+              obj_chunk_size=obj_chunk_size, reducer_one_per_object=True)
 ```

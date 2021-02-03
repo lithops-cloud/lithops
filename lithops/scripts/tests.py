@@ -397,14 +397,14 @@ class TestLithops(unittest.TestCase):
         fexec = lithops.FunctionExecutor(config=CONFIG)
         futures = fexec.map_reduce(TestMethods.my_map_function_obj, data_prefix,
                                    TestMethods.my_reduce_function,
-                                   chunk_size=1 * 1024 ** 2)
+                                   obj_chunk_size=1 * 1024 ** 2)
         result = fexec.get_result(futures)
         self.assertEqual(result, self.__class__.cos_result_to_compare)
         self.assertEqual(len(futures), 8)
 
         fexec = lithops.FunctionExecutor(config=CONFIG)
         futures = fexec.map_reduce(TestMethods.my_map_function_obj, data_prefix,
-                                   TestMethods.my_reduce_function, chunk_n=2)
+                                   TestMethods.my_reduce_function, obj_chunk_number=2)
         result = fexec.get_result(futures)
         self.assertEqual(result, self.__class__.cos_result_to_compare)
         self.assertEqual(len(futures), 11)
@@ -417,14 +417,15 @@ class TestLithops(unittest.TestCase):
         fexec = lithops.FunctionExecutor(config=CONFIG)
         futures = fexec.map_reduce(TestMethods.my_map_function_obj, data_prefix,
                                    TestMethods.my_reduce_function,
-                                   chunk_size=1 * 1024 ** 2, reducer_one_per_object=True)
+                                   obj_chunk_size=1 * 1024 ** 2,
+                                   reducer_one_per_object=True)
         result = fexec.get_result(futures)
         self.assertEqual(sum(result), self.__class__.cos_result_to_compare)
         self.assertEqual(len(futures), 12)
 
         fexec = lithops.FunctionExecutor(config=CONFIG)
         futures = fexec.map_reduce(TestMethods.my_map_function_obj, data_prefix,
-                                   TestMethods.my_reduce_function, chunk_n=2,
+                                   TestMethods.my_reduce_function, obj_chunk_number=2,
                                    reducer_one_per_object=True)
         result = fexec.get_result(futures)
         self.assertEqual(sum(result), self.__class__.cos_result_to_compare)

@@ -29,13 +29,13 @@ CHUNK_SIZE_MIN = 0*1024  # 0MB
 CHUNK_THRESHOLD = 128*1024  # 128KB
 
 
-def create_partitions(config, internal_storage, map_iterdata, chunk_size, chunk_number):
+def create_partitions(config, internal_storage, map_iterdata, obj_chunk_size, obj_chunk_number):
     """
     Method that returns the function that will create the partitions of the objects in the Cloud
     """
     logger.debug('Starting partitioner')
 
-    parts_per_object = None
+    ppo = None  # parts per object
 
     sbs = set()
     buckets = set()
@@ -109,18 +109,26 @@ def create_partitions(config, internal_storage, map_iterdata, chunk_size, chunk_
                 keys_dict[bucket][obj['Key']] = obj['Size']
 
     if buckets or prefixes:
-        partitions, parts_per_object = _split_objects_from_buckets(map_iterdata, keys_dict, chunk_size, chunk_number)
+        partitions, ppo = _split_objects_from_buckets(map_iterdata,
+                                                      keys_dict,
+                                                      obj_chunk_size,
+                                                      obj_chunk_number)
 
     elif obj_names:
-        partitions, parts_per_object = _split_objects_from_keys(map_iterdata, keys_dict, chunk_size, chunk_number)
+        partitions, ppo = _split_objects_from_keys(map_iterdata,
+                                                   keys_dict,
+                                                   obj_chunk_size,
+                                                   obj_chunk_number)
 
     elif urls:
-        partitions, parts_per_object = _split_objects_from_urls(map_iterdata, chunk_size, chunk_number)
+        partitions, ppo = _split_objects_from_urls(map_iterdata,
+                                                   obj_chunk_size,
+                                                   obj_chunk_number)
 
     else:
         raise ValueError('You did not provide any bucket or object key/url')
 
-    return partitions, parts_per_object
+    return partitions, ppo
 
 
 def _split_objects_from_buckets(map_func_args_list, keys_dict, chunk_size, chunk_number):
