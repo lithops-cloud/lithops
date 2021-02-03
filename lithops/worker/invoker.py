@@ -23,26 +23,28 @@ from lithops.serverless import ServerlessHandler
 from lithops.invokers import JobMonitor
 from lithops.storage import InternalStorage
 from lithops.version import __version__
+from lithops.utils import iterchunks
 from concurrent.futures import ThreadPoolExecutor
 from lithops.config import extract_serverless_config, extract_storage_config
-
-logging.getLogger('pika').setLevel(logging.CRITICAL)
-logger = logging.getLogger('invoker')
+from lithops.storage.utils import create_job_key
 
 
-def function_invoker(event):
-    if __version__ != event['lithops_version']:
+logger = logging.getLogger(__name__)
+
+
+def function_invoker(job_payload):
+    if __version__ != job_payload['lithops_version']:
         raise Exception("WRONGVERSION", "Lithops version mismatch",
-                        __version__, event['lithops_version'])
+                        __version__, job_payload['lithops_version'])
 
     log_level = logging.getLevelName(logger.getEffectiveLevel())
     custom_env = {'LITHOPS_WORKER': 'True',
                   'PYTHONUNBUFFERED': 'True'}
     os.environ.update(custom_env)
-    config = event['config']
-    num_invokers = event['invokers']
+    config = job_payload['config']
+    num_invokers = job_payload['invokers']
     invoker = ServerlessInvoker(config, num_invokers, log_level)
-    invoker.run(event['job_description'])
+    invoker.run(job_payload)
 
 
 class ServerlessInvoker:
@@ -73,24 +75,29 @@ class ServerlessInvoker:
 
         self.job_monitor = JobMonitor(self.config, self.internal_storage, self.token_bucket_q)
 
-    def _invoke(self, job, call_id):
+    def _invoke(self, job, call_ids_range):
         """
         Method used to perform the actual invocation against the Compute Backend
         """
+        data_byte_ranges = [job.data_byte_ranges[int(call_id)] for call_id in call_ids_range]
+        job_key = create_job_key(job.executor_id, job.job_id)
         payload = {'config': self.config,
+                   'chunksize': job.chunksize,
                    'log_level': self.log_level,
                    'func_key': job.func_key,
                    'data_key': job.data_key,
                    'extra_env': job.extra_env,
                    'execution_timeout': job.execution_timeout,
-                   'data_byte_range': job.data_ranges[int(call_id)],
+                   'data_byte_ranges': data_byte_ranges,
                    'executor_id': job.executor_id,
                    'job_id': job.job_id,
-                   'call_id': call_id,
+                   'job_key': job_key,
+                   'call_ids': call_ids_range,
                    'host_submit_tstamp': time.time(),
                    'lithops_version': __version__,
                    'runtime_name': job.runtime_name,
-                   'runtime_memory': job.runtime_memory}
+                   'runtime_memory': job.runtime_memory,
+                   'worker_granularity': job.worker_granularity}
 
         # do the invocation
         start = time.time()
@@ -111,44 +118,40 @@ class ServerlessInvoker:
 
         return call_id
 
-    def run(self, job_description):
+    def run(self, job_payload):
         """
         Run a job described in job_description
         """
-        job = SimpleNamespace(**job_description)
+        job = SimpleNamespace(**job_payload)
 
-        log_msg = ('ExecutorID {} | JobID {} - Starting function '
-                   'invocation: {}()  - Total: {} activations'.
-                   format(job.executor_id, job.job_id,
-                          job.function_name, job.total_calls))
-        logger.info(log_msg)
+        job.total_calls = len(job.call_ids)
 
-        self.total_calls = job.total_calls
+        logger.info('ExecutorID {} | JobID {} - Starting function '
+                    'invocation - Total: {} activations'
+                    .format(job.executor_id, job.job_id, job.total_calls))
 
-        if self.num_invokers == 0:
-            # Localhost execution using processes
-            for i in range(job.total_calls):
-                call_id = "{:05d}".format(i)
-                self._invoke(job, call_id)
-        else:
-            for i in range(self.num_workers):
-                self.token_bucket_q.put('#')
+        logger.info('ExecutorID {} | JobID {} - Chunksize:'
+                    ' {} - Worker granularity: {}'
+                    .format(job.executor_id, job.job_id,
+                            job.chunksize, job.worker_granularity))
 
-            for i in range(job.total_calls):
-                call_id = "{:05d}".format(i)
-                self.pending_calls_q.put((job, call_id))
+        for i in range(self.num_workers):
+            self.token_bucket_q.put('#')
 
-            self.job_monitor.start_job_monitoring(job)
+        for call_ids_range in iterchunks(job.call_ids, job.chunksize):
+            self.pending_calls_q.put((job, call_ids_range))
 
-            invokers = []
-            for inv_id in range(self.num_invokers):
-                p = mp.Process(target=self._run_process, args=(inv_id, ))
-                p.daemon = True
-                p.start()
-                invokers.append(p)
+        self.job_monitor.start_job_monitoring(job)
 
-            for p in invokers:
-                p.join()
+        invokers = []
+        for inv_id in range(self.num_invokers):
+            p = mp.Process(target=self._run_process, args=(inv_id, ))
+            p.daemon = True
+            p.start()
+            invokers.append(p)
+
+        for p in invokers:
+            p.join()
 
     def _run_process(self, inv_id):
         """
@@ -160,8 +163,8 @@ class ServerlessInvoker:
             # TODO: Change pending_calls_q check
             while self.pending_calls_q.qsize() > 0:
                 self.token_bucket_q.get()
-                job, call_id = self.pending_calls_q.get()
-                future = executor.submit(self._invoke, job, call_id)
+                job, call_ids_range = self.pending_calls_q.get()
+                future = executor.submit(self._invoke, job, call_ids_range)
                 call_futures.append(future)
 
         logger.info('Invoker process {} finished'.format(inv_id))

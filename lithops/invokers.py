@@ -67,6 +67,31 @@ class Invoker:
         mode = self.config['lithops']['mode']
         self.runtime_name = self.config[mode]['runtime']
 
+    def _create_payload(self, job):
+        """
+        Creates the default pyload dictionary
+        """
+        job_key = create_job_key(job.executor_id, job.job_id)
+        payload = {'config': self.config,
+                   'chunksize': job.chunksize,
+                   'log_level': self.log_level,
+                   'func_key': job.func_key,
+                   'data_key': job.data_key,
+                   'extra_env': job.extra_env,
+                   'execution_timeout': job.execution_timeout,
+                   'data_byte_ranges': job.data_byte_ranges,
+                   'executor_id': job.executor_id,
+                   'job_id': job.job_id,
+                   'job_key': job_key,
+                   'call_ids': None,
+                   'host_submit_tstamp': time.time(),
+                   'lithops_version': __version__,
+                   'runtime_name': job.runtime_name,
+                   'runtime_memory': job.runtime_memory,
+                   'worker_granularity': job.worker_granularity}
+
+        return payload
+
     def select_runtime(self, job_id, runtime_memory):
         """
         Create a runtime and return metadata
@@ -137,26 +162,8 @@ class StandaloneInvoker(Invoker):
                                         ('function_name', job.function_name)
                                     ))
 
-        job_key = create_job_key(job.executor_id, job.job_id)
-        call_ids = ["{:05d}".format(i) for i in range(job.total_calls)]
-        payload = {'config': self.config,
-                   'chunksize': job.chunksize,
-                   'log_level': self.log_level,
-                   'func_key': job.func_key,
-                   'data_key': job.data_key,
-                   'extra_env': job.extra_env,
-                   'execution_timeout': job.execution_timeout,
-                   'data_byte_ranges': job.data_byte_ranges,
-                   'executor_id': job.executor_id,
-                   'job_id': job.job_id,
-                   'job_key': job_key,
-                   'call_ids': call_ids,
-                   'host_submit_tstamp': time.time(),
-                   'lithops_version': __version__,
-                   'runtime_name': job.runtime_name,
-                   'runtime_memory': job.runtime_memory,
-                   'worker_granularity': job.worker_granularity}
-
+        payload = self._create_payload(job)
+        payload['call_ids'] = ["{:05d}".format(i) for i in range(job.total_calls)]
         self.compute_handler.run_job(payload)
 
         logger.info('ExecutorID {} | JobID {} - {}() Invocation done - Total: {} activations'
@@ -270,29 +277,14 @@ class ServerlessInvoker(Invoker):
         """Method used to perform the actual invocation against the
         compute backend.
         """
-        job_key = create_job_key(job.executor_id, job.job_id)
+        start = time.time()
+        # prepare payload
         call_ids = ["{:05d}".format(i) for i in call_ids_range]
         data_byte_ranges = [job.data_byte_ranges[int(call_id)] for call_id in call_ids]
-
-        payload = {'config': self.config,
-                   'log_level': self.log_level,
-                   'func_key': job.func_key,
-                   'data_key': job.data_key,
-                   'extra_env': job.extra_env,
-                   'execution_timeout': job.execution_timeout,
-                   'data_byte_ranges': data_byte_ranges,
-                   'executor_id': job.executor_id,
-                   'job_id': job.job_id,
-                   'job_key': job_key,
-                   'call_ids': call_ids,
-                   'host_submit_tstamp': time.time(),
-                   'lithops_version': __version__,
-                   'runtime_name': job.runtime_name,
-                   'runtime_memory': job.runtime_memory,
-                   'worker_granularity': job.worker_granularity}
-
+        payload = self._create_payload(job)
+        payload['call_ids'] = call_ids
+        payload['data_byte_ranges'] = data_byte_ranges
         # do the invocation
-        start = time.time()
         activation_id = self.compute_handler.invoke(job.runtime_name, job.runtime_memory, payload)
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
@@ -305,20 +297,17 @@ class ServerlessInvoker(Invoker):
             return
 
         logger.debug('ExecutorID {} | JobID {} - Invocation {} done! ({}s) - Activation'
-                     ' ID: {}'.format(job.executor_id, job.job_id, ', '.join(call_ids), resp_time, activation_id))
+                     ' ID: {}'.format(job.executor_id, job.job_id, ', '.join(call_ids),
+                                      resp_time, activation_id))
 
     def _invoke_remote(self, job):
         """Method used to send a job_description to the remote invoker."""
         start = time.time()
 
-        payload = {'config': self.config,
-                   'log_level': self.log_level,
-                   'executor_id': job.executor_id,
-                   'job_id': job.job_id,
-                   'job_description': job.__dict__,
-                   'remote_invoker': True,
-                   'invokers': 4,
-                   'lithops_version': __version__}
+        payload = self._create_payload(job)
+        payload['call_ids'] = ["{:05d}".format(i) for i in range(job.total_calls)]
+        payload['remote_invoker'] = True
+        payload['invokers'] = 4
 
         activation_id = self.compute_handler.invoke(job.runtime_name, self.REMOTE_INVOKER_MEMORY, payload)
         roundtrip = time.time() - start

@@ -34,14 +34,14 @@ from tblib import pickling_support
 from types import SimpleNamespace
 
 from lithops.version import __version__
-from lithops.utils import sizeof_fmt, setup_lithops_logger
 from lithops.config import extract_storage_config
 from lithops.storage import InternalStorage
 from lithops.worker.jobrunner import JobRunner
 from lithops.worker.utils import get_memory_usage, LogStream
 from lithops.constants import JOBS_PREFIX, LITHOPS_TEMP_DIR
-from lithops.storage.utils import create_status_key,\
-    create_init_key, create_job_key
+from lithops.utils import sizeof_fmt, setup_lithops_logger, is_unix_system
+from lithops.storage.utils import create_status_key, create_job_key,\
+    create_init_key
 
 pickling_support.install()
 
@@ -59,8 +59,6 @@ class ShutdownSentinel():
 def function_handler(payload):
     job = SimpleNamespace(**payload)
 
-    job_key = create_job_key(job.executor_id, job.job_id)
-
     job_queue = mp.Queue()
     job_runners = []
 
@@ -74,7 +72,7 @@ def function_handler(payload):
 
     for call_id in job.call_ids:
         data_byte_range = job.data_byte_ranges.pop(0)
-        logger.info('Going to execute job {}-{}'.format(job_key, call_id))
+        logger.info('Going to execute job {}-{}'.format(job.job_key, call_id))
         job_queue.put((job, call_id, data_byte_range))
 
     for i in range(processes):
@@ -168,7 +166,7 @@ def run_job(job):
         handler_conn, jobrunner_conn = Pipe()
         jobrunner = JobRunner(job, jobrunner_conn, internal_storage)
         logger.debug('Starting JobRunner process')
-        jrp = Process(target=jobrunner.run)
+        jrp = Process(target=jobrunner.run) if is_unix_system() else Thread(target=jobrunner.run)
         jrp.start()
 
         jrp.join(job.execution_timeout)

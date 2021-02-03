@@ -24,7 +24,6 @@ import copy
 import time
 import yaml
 import requests
-from types import SimpleNamespace
 from kubernetes import client, config, watch
 from kubernetes.client.rest import ApiException
 
@@ -181,7 +180,7 @@ class CodeEngineBackend:
         self._job_def_cleanup(def_id)
 
     def _job_run_cleanup(self, jobrun_name):
-        logger.debug("Cleanup for jobrun {}".format(jobrun_name))
+        logger.debug("Deleting jobrun {}".format(jobrun_name))
         try:
             self.capi.delete_namespaced_custom_object(
                 group=ce_config.DEFAULT_GROUP,
@@ -214,6 +213,7 @@ class CodeEngineBackend:
         """
         Deletes all runtimes from all packages
         """
+        self.clear()
         jobdefs = self.list_runtimes()
         for docker_image_name, memory in jobdefs:
             self.delete_runtime(docker_image_name, memory)
@@ -254,6 +254,7 @@ class CodeEngineBackend:
         """
         logger.debug('Deleting all completed jobruns')
         jobruns = []
+        configmaps = []
         try:
             jobruns = self.capi.list_namespaced_custom_object(
                                     group=ce_config.DEFAULT_GROUP,
@@ -275,41 +276,49 @@ class CodeEngineBackend:
                 logger.warning("Deleting a jobrun failed with {}"
                                .format(e))
 
-    def invoke(self, docker_image_name, runtime_memory, payload_cp):
+        logger.debug('Deleting all remaining configmaps')
+        try:
+            configmaps = self.coreV1Api.list_namespaced_config_map(namespace=self.namespace)
+        except ApiException as e:
+            logger.warning("Listing all configmaps failed with {} {}"
+                           .format(e.status, e.reason))
+            return
+
+        for configmap in configmaps.items:
+            config_name = configmap.metadata.name
+            if config_name.startswith('lithops'):
+                logger.debug('Deleting configmap {}'.format(config_name))
+                self.coreV1Api.delete_namespaced_config_map(name=config_name,
+                                                            namespace=self.namespace,
+                                                            grace_period_seconds=0)
+
+    def invoke(self, docker_image_name, runtime_memory, job_payload):
         """
         Invoke -- return information about this invocation
         For array jobs only remote_invocator is allowed
         """
-        payload = copy.deepcopy(payload_cp)
+        job_payload.pop('remote_invoker')
+        job_payload.pop('invokers')
 
-        array_size = len(payload['job_description']['data_ranges'])
-        runtime_memory_array = payload['job_description']['runtime_memory']
+        executor_id = job_payload['executor_id']
+        job_id = job_payload['job_id']
 
-        jobdef_name = self._format_jobdef_name(docker_image_name, runtime_memory_array)
+        total_calls = len(job_payload['call_ids'])
+        chunksize = job_payload['chunksize']
+        array_size = total_calls // chunksize + (total_calls % chunksize > 0)
+
+        runtime_memory = job_payload['runtime_memory']
+
+        jobdef_name = self._format_jobdef_name(docker_image_name, runtime_memory)
         logger.debug("Job definition id {}".format(jobdef_name))
         if not self._job_def_exists(jobdef_name):
-            jobdef_name = self._create_job_definition(docker_image_name, runtime_memory_array, jobdef_name)
+            jobdef_name = self._create_job_definition(docker_image_name, runtime_memory, jobdef_name)
 
         self.job_def_ids.add(jobdef_name)
 
         jobrun_res = yaml.safe_load(ce_config.JOBRUN_DEFAULT)
 
-        executor_id = payload['executor_id']
-        job_id = payload['job_id'].lower()
-        activation_id = 'lithops-{}-{}'.format(executor_id, job_id)
-
-        payload.pop('remote_invoker')
-        payload.pop('invokers')
-
-        job = SimpleNamespace(**payload.pop('job_description'))
-        payload['host_submit_tstamp'] = time.time()
-        payload['func_key'] = job.func_key
-        payload['data_key'] = job.data_key
-        payload['extra_env'] = job.extra_env
-        payload['execution_timeout'] = job.execution_timeout
-        payload['data_byte_range'] = job.data_ranges
-        payload['runtime_name'] = job.runtime_name
-        payload['runtime_memory'] = job.runtime_memory
+        activation_id = 'lithops-{}-{}'.format(executor_id, job_id.lower())
 
         jobrun_res['metadata']['name'] = activation_id
         jobrun_res['metadata']['namespace'] = self.namespace
@@ -320,13 +329,17 @@ class CodeEngineBackend:
         container['name'] = str(jobdef_name)
         container['env'][0]['value'] = 'run'
 
-        config_map = self._create_config_map(payload, activation_id)
+        config_map = self._create_config_map(job_payload, activation_id)
         container['env'][1]['valueFrom']['configMapKeyRef']['name'] = config_map
 
-        container['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory_array)
+        container['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory)
         container['resources']['requests']['cpu'] = str(self.code_engine_config['cpu'])
 
-        logger.debug("request - {}".format(jobrun_res))
+        # logger.debug("request - {}".format(jobrun_res)
+
+        logger.debug('ExecutorID {} | JobID {} - Going '
+                     'to run {} activations in {} workers'
+                     .format(executor_id, job_id, total_calls, array_size))
 
         try:
             res = self.capi.create_namespaced_custom_object(
@@ -339,7 +352,7 @@ class CodeEngineBackend:
         except Exception as e:
             raise e
 
-        logger.debug("response - {}".format(res))
+        # logger.debug("response - {}".format(res))
 
         return activation_id
 
@@ -377,7 +390,7 @@ class CodeEngineBackend:
                 plural="jobdefinitions",
                 body=jobdef_res,
             )
-            logger.debug("response - {}".format(res))
+            # logger.debug("response - {}".format(res))
         except Exception as e:
             raise e
 
@@ -580,12 +593,11 @@ class CodeEngineBackend:
 
         return runtime_meta
 
-    def _generate_config_map_name(self, jobrun_name):
-        return 'lithops-config-{}'.format(jobrun_name)
-
     def _create_config_map(self, payload, jobrun_name):
-
-        config_name = self._generate_config_map_name(jobrun_name)
+        """
+        Creates a configmap
+        """
+        config_name = '{}-configmap'.format(jobrun_name)
         cmap = client.V1ConfigMap()
         cmap.metadata = client.V1ObjectMeta(name=config_name)
         cmap.data = {}
@@ -595,7 +607,9 @@ class CodeEngineBackend:
 
         try:
             logger.debug("Generate ConfigMap {} for namespace {}".format(config_name, self.namespace))
-            self.coreV1Api.create_namespaced_config_map(namespace=self.namespace, body=cmap, field_manager=field_manager)
+            self.coreV1Api.create_namespaced_config_map(namespace=self.namespace,
+                                                        body=cmap,
+                                                        field_manager=field_manager)
             logger.debug("ConfigMap {} for namespace {} created".format(config_name, self.namespace))
         except ApiException as e:
             logger.warning("Exception when calling CoreV1Api->create_namespaced_config_map: %s\n" % e)
@@ -605,12 +619,16 @@ class CodeEngineBackend:
         return config_name
 
     def _delete_config_map(self, jobrun_name):
-
-        config_name = self._generate_config_map_name(jobrun_name)
+        """
+        Deletes a configmap
+        """
+        config_name = '{}-configmap'.format(jobrun_name)
         grace_period_seconds = 0
         try:
             logger.debug("Delete ConfigMap {} for namespace {}".format(config_name, self.namespace))
-            api_response = self.coreV1Api.delete_namespaced_config_map(name=config_name, namespace=self.namespace, grace_period_seconds=grace_period_seconds)
+            api_response = self.coreV1Api.delete_namespaced_config_map(name=config_name,
+                                                                       namespace=self.namespace,
+                                                                       grace_period_seconds=grace_period_seconds)
             logger.debug("ConfigMap {} for namespace {} deleted with status {}".format(config_name, self.namespace, api_response.status))
         except ApiException as e:
             logger.warning("Exception when calling CoreV1Api->delete_namespaced_config_map: %s\n" % e)
