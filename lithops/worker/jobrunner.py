@@ -100,7 +100,6 @@ class JobRunner:
         loaded_func_all = pickle.loads(func_obj)
         func_download_end_tstamp = time.time()
         self.stats.write('worker_func_download_time', round(func_download_end_tstamp-func_download_start_tstamp, 8))
-        logger.debug("Finished getting Function and modules")
 
         return loaded_func_all
 
@@ -139,19 +138,16 @@ class JobRunner:
                 with open(full_filename, 'wb') as fid:
                     fid.write(b64str_to_bytes(m_data))
 
-            logger.debug("Finished writing Function dependencies")
-
     def _unpickle_function(self, pickled_func):
         """
         Unpickle function; it will expect modules to be there
         """
-        logger.debug("Unpickle Function")
-        loaded_func = pickle.loads(pickled_func)
-        logger.debug("Finished Function unpickle")
-
-        return loaded_func
+        return pickle.loads(pickled_func)
 
     def _load_data(self):
+        """
+        Loads iteradata
+        """
         extra_get_args = {}
         if self.data_byte_range is not None:
             range_str = 'bytes={}-{}'.format(*self.data_byte_range)
@@ -160,10 +156,7 @@ class JobRunner:
         logger.debug("Getting function data")
         data_download_start_tstamp = time.time()
         data_obj = self.internal_storage.get_data(self.data_key, extra_get_args=extra_get_args)
-        logger.debug("Finished getting Function data")
-        logger.debug("Unpickle Function data")
         loaded_data = pickle.loads(data_obj)
-        logger.debug("Finished unpickle Function data")
         data_download_end_tstamp = time.time()
         self.stats.write('worker_data_download_time', round(data_download_end_tstamp-data_download_start_tstamp, 8))
 
@@ -265,7 +258,7 @@ class JobRunner:
         Runs the function
         """
         # self.stats.write('worker_jobrunner_start_tstamp', time.time())
-        logger.info("Process started")
+        logger.debug("Process started")
         result = None
         exception = False
         try:
@@ -335,9 +328,9 @@ class JobRunner:
             exception = True
             self.stats.write("exception", True)
             exc_type, exc_value, exc_traceback = sys.exc_info()
-            logger.error('----------------------- EXCEPTION !-----------------------')
+            print('----------------------- EXCEPTION !-----------------------')
             traceback.print_exc(file=sys.stdout)
-            logger.error('----------------------------------------------------------')
+            print('----------------------------------------------------------')
 
             try:
                 logger.debug("Pickling exception")

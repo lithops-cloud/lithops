@@ -58,6 +58,7 @@ LOGS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'logs')
 
 RN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'runner.log')
 PX_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'proxy.log')
+FN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'functions.log')
 
 CLEANER_DIR = os.path.join(LITHOPS_TEMP_DIR, 'cleaner')
 CLEANER_PID_FILE = os.path.join(CLEANER_DIR, 'cleaner.pid')

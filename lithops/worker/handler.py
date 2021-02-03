@@ -17,11 +17,12 @@
 #
 
 import os
-import io
 import sys
+import zlib
 import pika
 import time
 import json
+import base64
 import pickle
 import logging
 import traceback
@@ -30,18 +31,17 @@ from threading import Thread
 from multiprocessing import Process, Pipe
 from distutils.util import strtobool
 from tblib import pickling_support
+from types import SimpleNamespace
 
 from lithops.version import __version__
 from lithops.utils import sizeof_fmt, setup_lithops_logger
 from lithops.config import extract_storage_config
 from lithops.storage import InternalStorage
 from lithops.worker.jobrunner import JobRunner
-from lithops.worker.utils import get_memory_usage
+from lithops.worker.utils import get_memory_usage, LogStream
 from lithops.constants import JOBS_PREFIX, LITHOPS_TEMP_DIR
 from lithops.storage.utils import create_status_key,\
     create_init_key, create_job_key
-from contextlib import redirect_stdout, redirect_stderr
-from types import SimpleNamespace
 
 pickling_support.install()
 
@@ -83,42 +83,37 @@ def function_handler(payload):
     for runner in job_runners:
         runner.join()
 
-    logger.info('Activation done')
-    logger.info("Use 'lithops logs poll' to see the execution logs")
-
 
 def process_runner(runner_id, job_queue):
     """
     Listens the job_queue and executes the jobs
     """
     logger.info('Worker process {} started'.format(runner_id))
-    act_id = os.environ['__LITHOPS_ACTIVATION_ID']
 
     while True:
+        event = job_queue.get(block=True)
+        if isinstance(event, ShutdownSentinel):
+            break
 
-        with io.StringIO() as buf, redirect_stdout(buf), redirect_stderr(buf):
-            event = job_queue.get(block=True)
-            if isinstance(event, ShutdownSentinel):
-                break
-            job, call_id, data_byte_range = event
+        job, call_id, data_byte_range = event
 
-            bucket = job.config['lithops']['storage_bucket']
-            job.job_dir = os.path.join(LITHOPS_TEMP_DIR, bucket, JOBS_PREFIX,
-                                       job.job_key, call_id)
-            os.makedirs(job.job_dir, exist_ok=True)
+        bucket = job.config['lithops']['storage_bucket']
+        job.job_dir = os.path.join(LITHOPS_TEMP_DIR, bucket, JOBS_PREFIX, job.job_key, call_id)
+        job.log_file = os.path.join(job.job_dir, 'execution.log')
+        os.makedirs(job.job_dir, exist_ok=True)
 
-            job.call_id = call_id
-            job.data_byte_range = data_byte_range
-            run_job(job)
+        job.call_id = call_id
+        job.data_byte_range = data_byte_range
 
-            log_output = buf.getvalue()
-
-        log_file = os.path.join(job.job_dir, 'execution.log')
-        header = "Activation: '{}' ({})\n[\n".format(job.runtime_name, act_id)
-        tail = ']\n\n'
-        output = log_output.replace('\n', '\n    ', log_output.count('\n')-1)
-        with open(log_file, 'a') as lf:
-            lf.write(header+'    '+output+tail)
+        old_stderr = sys.stderr
+        old_stdout = sys.stdout
+        log_strem = open(job.log_file, 'a')
+        sys.stderr = LogStream(log_strem)
+        sys.stdout = LogStream(log_strem)
+        run_job(job)
+        log_strem.close()
+        sys.stderr = old_stderr
+        sys.stdout = old_stdout
 
 
 def run_job(job):
@@ -230,6 +225,11 @@ def run_job(job):
 
     finally:
         call_status.response['worker_end_tstamp'] = time.time()
+
+        with open(job.log_file, 'rb') as lf:
+            log_str = base64.b64encode(zlib.compress(lf.read())).decode()
+            call_status.response['logs'] = log_str
+
         call_status.send('__end__')
 
         # Unset specific env vars

@@ -137,7 +137,7 @@ class StandaloneHandler:
         if self.exec_mode == 'create':
             total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
             logger.debug('ExecutorID {} | JobID {} - Going '
-                         'to invoke {} activations in {} workers'
+                         'to run {} activations in {} workers'
                          .format(executor_id, job_id,
                                  total_calls, total_workers))
 
@@ -159,7 +159,7 @@ class StandaloneHandler:
                     future.add_done_callback(_callback)
         else:
             logger.debug('ExecutorID {} | JobID {} - Going '
-                         'to invoke {} activations in 1 worker'
+                         'to run {} activations in 1 worker'
                          .format(executor_id, job_id, total_calls,))
 
         logger.debug("Checking if {} is ready".format(self.backend.master))

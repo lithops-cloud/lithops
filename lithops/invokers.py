@@ -405,7 +405,7 @@ class ServerlessInvoker(Invoker):
                     self.running_workers += consumed_workers
 
                     logger.debug('ExecutorID {} | JobID {} - Free workers:'
-                                 ' {} - Going to invoke {} activations in {} workers'
+                                 ' {} - Going to run {} activations in {} workers'
                                  .format(job.executor_id, job.job_id, free_workers,
                                          len(callids_to_invoke_direct), consumed_workers))
 
@@ -478,11 +478,13 @@ class ServerlessInvoker(Invoker):
 
 class CustomizedRuntimeInvoker(ServerlessInvoker):
     """
-    Module responsible to perform the invocations against the serverless backend in realtime environments
-    
-    currently differs from ServerlessInvoker only by having one method that provides extension of specified environment with
-    map function and modules to optimize performance in real time use cases by avoiding repeated data transfers from storage to
-    action containers on each execution
+    Module responsible to perform the invocations against the serverless
+    backend in realtime environments.
+
+    currently differs from ServerlessInvoker only by having one method that
+    provides extension of specified environment with map function and modules
+    to optimize performance in real time use cases by avoiding repeated data
+    transfers from storage to  action containers on each execution
     """
 
     def run(self, job):
@@ -492,7 +494,8 @@ class CustomizedRuntimeInvoker(ServerlessInvoker):
         logger.warning("Warning, you are using customized runtime feature. "
                        "Please, notice that the map function code and dependencies "
                        "are stored and uploaded to docker registry. "
-                       "To protect your privacy, use a private docker registry instead of public docker hub.")
+                       "To protect your privacy, use a private docker registry "
+                       "instead of public docker hub.")
         self._extend_runtime(job)
         return super().run(job)
 

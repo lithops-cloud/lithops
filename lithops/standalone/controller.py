@@ -60,14 +60,14 @@ def get_setup_cmd(instance_name=None, ip_address=None, instance_id=None, worker=
     cmd += 'command -v docker >/dev/null 2>&1 || { export INSTALL_LITHOPS_DEPS=true; }; '
     cmd += 'if [ "$INSTALL_LITHOPS_DEPS" = true ] ; then '
     cmd += 'rm /var/lib/apt/lists/* -vfR >> /tmp/lithops/proxy.log 2>&1; '
-    cmd += 'apt-get clean >> /tmp/lithops/proxy.log 2>&1; '
+    cmd += 'apt-get clean >> /tmp/lithops/proxy.log 2>&1; date >>/tmp/lithops/proxy.log 2>&1; '
     cmd += 'apt-get update >> /tmp/lithops/proxy.log 2>&1; '
-    cmd += 'apt-get install unzip python3-pip apt-transport-https ca-certificates curl software-properties-common gnupg-agent -y >> /tmp/lithops/proxy.log 2>&1;'
+    cmd += 'apt-get install apt-transport-https ca-certificates curl software-properties-common gnupg-agent -y >> /tmp/lithops/proxy.log 2>&1;'
     cmd += 'curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - >> /tmp/lithops/proxy.log 2>&1; '
     cmd += 'add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" >> /tmp/lithops/proxy.log 2>&1; '
     cmd += 'apt-get update >> /tmp/lithops/proxy.log 2>&1; '
     cmd += 'apt-get install unzip python3-pip docker-ce docker-ce-cli containerd.io -y >> /tmp/lithops/proxy.log 2>&1; '
-    cmd += 'pip3 install -U flask gevent lithops >> /tmp/lithops/proxy.log 2>&1; '
+    cmd += 'date >>/tmp/lithops/proxy.log 2>&1; pip3 install -U flask gevent lithops >> /tmp/lithops/proxy.log 2>&1; date >>/tmp/lithops/proxy.log 2>&1;'
     cmd += 'fi; '
 
     if worker:

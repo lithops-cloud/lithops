@@ -72,7 +72,7 @@ class LocalhostHandler:
         storage_bucket = job_payload['config']['lithops']['storage_bucket']
         total_calls = len(job_payload['call_ids'])
 
-        logger.debug('ExecutorID {} | JobID {} -  Going '
+        logger.debug('ExecutorID {} | JobID {} - Going '
                      'to run {} activations in localhost'
                      .format(executor_id, job_id, total_calls))
 

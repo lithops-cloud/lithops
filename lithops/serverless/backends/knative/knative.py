@@ -587,7 +587,7 @@ class KnativeServingBackend:
             endpoint = endpoint.replace('http://', 'https://')
 
         exec_id = payload.get('executor_id')
-        call_id = payload.get('call_id')
+        call_ids = payload.get('call_ids')
         job_id = payload.get('job_id')
         route = payload.get("service_route", '/')
 
@@ -600,9 +600,9 @@ class KnativeServingBackend:
             else:
                 conn = http.client.HTTPConnection(parsed_url.netloc)
 
-            if exec_id and job_id and call_id:
+            if exec_id and job_id and call_ids:
                 logger.debug('ExecutorID {} | JobID {} - Invoking function call {}'
-                             .format(exec_id, job_id, call_id))
+                             .format(exec_id, job_id, ', '.join(call_ids)))
             elif exec_id and job_id:
                 logger.debug('ExecutorID {} | JobID {} - Invoking function'
                              .format(exec_id, job_id))
