@@ -24,8 +24,7 @@ import subprocess as sp
 from shutil import copyfile
 
 from lithops.constants import TEMP, LITHOPS_TEMP_DIR, JOBS_PREFIX,\
-    RN_LOG_FILE, LOGS_DIR, COMPUTE_CLI_MSG
-from lithops.storage.utils import create_job_key
+    RN_LOG_FILE, COMPUTE_CLI_MSG
 from lithops.utils import is_unix_system
 
 logger = logging.getLogger(__name__)
@@ -68,6 +67,7 @@ class LocalhostHandler:
         """
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
+        job_key = job_payload['job_id']
         runtime = job_payload['runtime_name']
         storage_bucket = job_payload['config']['lithops']['storage_bucket']
         total_calls = len(job_payload['call_ids'])
@@ -75,11 +75,6 @@ class LocalhostHandler:
         logger.debug('ExecutorID {} | JobID {} - Going '
                      'to run {} activations in localhost'
                      .format(executor_id, job_id, total_calls))
-
-        job_key = create_job_key(executor_id, job_id)
-        log_file = os.path.join(LOGS_DIR, job_key+'.log')
-        logger.info("Running job on {}. View execution logs at {}"
-                    .format(runtime, log_file))
 
         if not os.path.isfile(RUNNER):
             self.env.setup(runtime)
@@ -100,6 +95,7 @@ class LocalhostHandler:
             job_filename = local_job_filename
 
         exec_command = self.env.get_execution_cmd(runtime)
+        logger.debug(exec_command+' run '+job_filename)
         with open(RN_LOG_FILE, 'a') as log_file:
             sp.Popen(exec_command+' run '+job_filename, shell=True,
                      stdout=log_file, stderr=log_file, universal_newlines=True)

@@ -19,14 +19,14 @@ import time
 import logging
 import multiprocessing as mp
 from types import SimpleNamespace
+from concurrent.futures import ThreadPoolExecutor
+
 from lithops.serverless import ServerlessHandler
 from lithops.invokers import JobMonitor
 from lithops.storage import InternalStorage
 from lithops.version import __version__
 from lithops.utils import iterchunks
-from concurrent.futures import ThreadPoolExecutor
 from lithops.config import extract_serverless_config, extract_storage_config
-from lithops.storage.utils import create_job_key
 
 
 logger = logging.getLogger(__name__)
@@ -80,7 +80,6 @@ class ServerlessInvoker:
         Method used to perform the actual invocation against the Compute Backend
         """
         data_byte_ranges = [job.data_byte_ranges[int(call_id)] for call_id in call_ids_range]
-        job_key = create_job_key(job.executor_id, job.job_id)
         payload = {'config': self.config,
                    'chunksize': job.chunksize,
                    'log_level': self.log_level,
@@ -91,7 +90,7 @@ class ServerlessInvoker:
                    'data_byte_ranges': data_byte_ranges,
                    'executor_id': job.executor_id,
                    'job_id': job.job_id,
-                   'job_key': job_key,
+                   'job_key': job.job_key,
                    'call_ids': call_ids_range,
                    'host_submit_tstamp': time.time(),
                    'lithops_version': __version__,

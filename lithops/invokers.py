@@ -27,12 +27,12 @@ import multiprocessing as mp
 from threading import Thread
 from types import SimpleNamespace
 from concurrent.futures import ThreadPoolExecutor
+
 from lithops.version import __version__
 from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config
 from lithops.utils import version_str, is_lithops_worker, is_unix_system, iterchunks
-from lithops.storage.utils import create_job_key
-from lithops.constants import LOGGER_LEVEL, LITHOPS_TEMP_DIR
+from lithops.constants import LOGGER_LEVEL, LITHOPS_TEMP_DIR, LOGS_DIR
 from lithops.util.metrics import PrometheusExporter
 
 logger = logging.getLogger(__name__)
@@ -71,7 +71,6 @@ class Invoker:
         """
         Creates the default pyload dictionary
         """
-        job_key = create_job_key(job.executor_id, job.job_id)
         payload = {'config': self.config,
                    'chunksize': job.chunksize,
                    'log_level': self.log_level,
@@ -82,7 +81,7 @@ class Invoker:
                    'data_byte_ranges': job.data_byte_ranges,
                    'executor_id': job.executor_id,
                    'job_id': job.job_id,
-                   'job_key': job_key,
+                   'job_key': job.job_key,
                    'call_ids': None,
                    'host_submit_tstamp': time.time(),
                    'lithops_version': __version__,
@@ -164,6 +163,11 @@ class StandaloneInvoker(Invoker):
 
         payload = self._create_payload(job)
         payload['call_ids'] = ["{:05d}".format(i) for i in range(job.total_calls)]
+
+        log_file = os.path.join(LOGS_DIR, payload['job_key']+'.log')
+        logger.debug("ExecutorID {} | JobID {} - View execution logs at {}"
+                     .format(job.executor_id, job.job_id, log_file))
+
         self.compute_handler.run_job(payload)
 
         logger.info('ExecutorID {} | JobID {} - {}() Invocation done - Total: {} activations'
@@ -429,6 +433,10 @@ class ServerlessInvoker(Invoker):
                 self.stop()
                 raise e
 
+        log_file = os.path.join(LOGS_DIR, job.job_key+'.log')
+        logger.debug("ExecutorID {} | JobID {} - View execution logs at {}"
+                     .format(job.executor_id, job.job_id, log_file))
+
         # Create all futures
         futures = []
         for i in range(job.total_calls):
@@ -578,21 +586,19 @@ class JobMonitor:
         if not self.is_lithops_worker:
             th.daemon = True
 
-        job_key = create_job_key(job.executor_id, job.job_id)
-        self.monitors[job_key] = {'thread': th, 'should_run': True}
+        self.monitors[job.job_key] = {'thread': th, 'should_run': True}
         th.start()
 
     def _job_monitoring_os(self, job):
         total_callids_done = 0
-        job_key = create_job_key(job.executor_id, job.job_id)
 
-        while self.monitors[job_key]['should_run'] and total_callids_done < job.total_calls:
+        while self.monitors[job.job_key]['should_run'] and total_callids_done < job.total_calls:
             time.sleep(1)
             callids_running, callids_done = self.internal_storage.get_job_status(job.executor_id, job.job_id)
             total_new_tokens = len(callids_done) - total_callids_done
             total_callids_done = total_callids_done + total_new_tokens
             for i in range(total_new_tokens):
-                if self.monitors[job_key]['should_run']:
+                if self.monitors[job.job_key]['should_run']:
                     self.token_bucket_q.put('#')
                 else:
                     break
@@ -602,9 +608,7 @@ class JobMonitor:
 
     def _job_monitoring_rabbitmq(self, job):
         total_callids_done = 0
-        job_key = create_job_key(job.executor_id, job.job_id)
-
-        exchange = 'lithops-{}'.format(job_key)
+        exchange = 'lithops-{}'.format(job.job_key)
         queue_1 = '{}-1'.format(exchange)
 
         params = pika.URLParameters(self.rabbit_amqp_url)
@@ -615,11 +619,11 @@ class JobMonitor:
             nonlocal total_callids_done
             call_status = json.loads(body.decode("utf-8"))
             if call_status['type'] == '__end__':
-                if self.monitors[job_key]['should_run']:
+                if self.monitors[job.job_key]['should_run']:
                     self.token_bucket_q.put('#')
                 total_callids_done += 1
             if total_callids_done == job.total_calls or \
-                    not self.monitors[job_key]['should_run']:
+                    not self.monitors[job.job_key]['should_run']:
                 ch.stop_consuming()
 
         channel.basic_consume(callback, queue=queue_1, no_ack=True)

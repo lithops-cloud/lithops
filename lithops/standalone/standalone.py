@@ -83,7 +83,7 @@ class StandaloneHandler:
         start = time.time()
         while(time.time() - start < self.start_timeout):
             if self._is_instance_ready(instance):
-                logger.debug('{} ready in {}'.format(instance, round(time.time()-start, 2)))
+                logger.debug('{} ready in {} seconds'.format(instance, round(time.time()-start, 2)))
                 return True
             time.sleep(5)
 
