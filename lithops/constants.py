@@ -78,4 +78,4 @@ SERVERLESS_BACKENDS = ['ibm_cf', 'code_engine', 'knative', 'openwhisk',
 STANDALONE_BACKENDS = ['ibm_vpc', 'vm']
 
 CHUNKSIZE_DEFAULT = 1
-worker_processes_DEFAULT = 1
+WORKER_PROCESSES_DEFAULT = 1

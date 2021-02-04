@@ -155,7 +155,7 @@ Spawn multiple function activations based on the items of an input list.
 |---|---|---|
 |map_function | |The function to map over the data |
 |map_iterdata |  |An iterable of input data (e.g python list) |
-|chunksize | 1 | Split map_iteradata by this chunk size. Lithops spawns 1 worker per resulting chunk |
+|chunksize | 1 | Split map_iteradata in chunks of this size. Lithops spawns 1 worker per resulting chunk |
 |worker_processes | 1 | Number of concurrent/parallel processes in each worker|
 |extra_args|  None | Additional arguments to pass to each map_function activation |
 |extra_env| None |Additional environment variables for CF environment |
@@ -188,7 +188,7 @@ Spawn multiple *map_function* activations,  based on the items of an input list,
 |---|---|---|
 |map_function| |The function to map over the data |
 |map_iterdata |  |An iterable of input data (e.g python list)|
-|chunksize | 1 | Split map_iteradata by this chunk size. Lithops spawns 1 worker per resulting chunk |
+|chunksize | 1 | Split map_iteradata in chunks of this size. Lithops spawns 1 worker per resulting chunk |
 |worker_processes | 1 | Number of concurrent/parallel processes in each worker|
 |extra_args|  None | Additional arguments to pass to each map_function activation |
 |reduce_function|  |The function to map over the results of map_function |

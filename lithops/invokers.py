@@ -148,6 +148,12 @@ class StandaloneInvoker(Invoker):
         """
         Run a job
         """
+        logger.info('ExecutorID {} | JobID {} - Starting function'
+                    ' invocation: {}() - Total: {} activations'
+                    .format(job.executor_id, job.job_id,
+                            job.function_name, job.total_calls))
+        
+        
         logger.debug('ExecutorID {} | JobID {} - Chunksize: {} - Worker processes: {}'
                      .format(job.executor_id, job.job_id, job.chunksize, job.worker_processes))
 
@@ -169,9 +175,6 @@ class StandaloneInvoker(Invoker):
                      .format(job.executor_id, job.job_id, log_file))
 
         self.compute_handler.run_job(payload)
-
-        logger.info('ExecutorID {} | JobID {} - {}() Invocation done - Total: {} activations'
-                    .format(job.executor_id, job.job_id, job.function_name, job.total_calls))
 
         futures = []
         for i in range(job.total_calls):
@@ -300,7 +303,7 @@ class ServerlessInvoker(Invoker):
             self.token_bucket_q.put('#')
             return
 
-        logger.debug('ExecutorID {} | JobID {} - Invocation {} done! ({}s) - Activation'
+        logger.debug('ExecutorID {} | JobID {} - Calls {} invoked ({}s) - Activation'
                      ' ID: {}'.format(job.executor_id, job.job_id, ', '.join(call_ids),
                                       resp_time, activation_id))
 
@@ -318,7 +321,7 @@ class ServerlessInvoker(Invoker):
         resp_time = format(round(roundtrip, 3), '.3f')
 
         if activation_id:
-            logger.debug('ExecutorID {} | JobID {} - Remote invoker call done! ({}s) - Activation'
+            logger.debug('ExecutorID {} | JobID {} - Remote invoker call done ({}s) - Activation'
                          ' ID: {}'.format(job.executor_id, job.job_id, resp_time, activation_id))
         else:
             raise Exception('Unable to spawn remote invoker')
@@ -590,18 +593,37 @@ class JobMonitor:
         th.start()
 
     def _job_monitoring_os(self, job):
-        total_callids_done = 0
+        workers = {}
+        callids_running_worker = {}
+        callids_running_processed = set()
+        callids_done_processed = set()
 
-        while self.monitors[job.job_key]['should_run'] and total_callids_done < job.total_calls:
+        while self.monitors[job.job_key]['should_run'] and len(callids_done_processed) < job.total_calls:
             time.sleep(1)
             callids_running, callids_done = self.internal_storage.get_job_status(job.executor_id, job.job_id)
-            total_new_tokens = len(callids_done) - total_callids_done
-            total_callids_done = total_callids_done + total_new_tokens
-            for i in range(total_new_tokens):
-                if self.monitors[job.job_key]['should_run']:
-                    self.token_bucket_q.put('#')
-                else:
-                    break
+
+            callids_running_to_process = callids_running - callids_running_processed
+            callids_done_to_process = callids_done - callids_done_processed
+
+            for call_id, act_id in callids_running_to_process:
+                if act_id not in workers:
+                    workers[act_id] = set()
+                workers[act_id].add(call_id)
+                callids_running_worker[call_id] = act_id
+
+            callids_running_processed.update(callids_running_to_process)
+
+            for callid_done in callids_done_to_process:
+                if callid_done in callids_running_worker:
+                    act_id = callids_running_worker[callid_done]
+                    workers[act_id].remove(callid_done)
+                    if len(workers[act_id]) == 0:
+                        if self.monitors[job.job_key]['should_run']:
+                            self.token_bucket_q.put('#')
+                        else:
+                            break
+
+            callids_done_processed.update(callids_done_to_process)
 
         logger.debug('ExecutorID {} | JobID {} - Job monitoring finished'
                      .format(job.executor_id, job.job_id))

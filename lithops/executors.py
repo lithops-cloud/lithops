@@ -215,7 +215,7 @@ class FunctionExecutor:
 
         :param map_function: the function to map over the data
         :param map_iterdata: An iterable of input data
-        :param chunksize:  Split map_iteradata by this chunk size.
+        :param chunksize:  Split map_iteradata in chunks of this sizee.
                            Lithops spawns 1 worker per resulting chunk
         :param worker_processes: Number of concurrent/parallel processes in each worker
         :param extra_args: Additional args to pass to the function activations
@@ -277,8 +277,9 @@ class FunctionExecutor:
 
         :param map_function: the function to map over the data
         :param map_iterdata:  An iterable of input data
-        :param chunksize: Split map_iteradata by this chunk size
-        :param worker_processes: Intra-function concurrency
+        :param chunksize: Split map_iteradata in chunks of this size.
+                          Lithops spawns 1 worker per resulting chunk
+        :param worker_processes: Number of concurrent/parallel processes in each worker
         :param reduce_function:  the function to reduce over the futures
         :param extra_env: Additional environment variables for action environment. Default None.
         :param extra_args: Additional arguments to pass to function activation. Default None.

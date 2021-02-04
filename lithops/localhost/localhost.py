@@ -95,7 +95,7 @@ class LocalhostHandler:
             job_filename = local_job_filename
 
         exec_command = self.env.get_execution_cmd(runtime)
-        logger.debug(exec_command+' run '+job_filename)
+        logger.debug('cmd: '+exec_command+' run '+job_filename)
         with open(RN_LOG_FILE, 'a') as log_file:
             sp.Popen(exec_command+' run '+job_filename, shell=True,
                      stdout=log_file, stderr=log_file, universal_newlines=True)

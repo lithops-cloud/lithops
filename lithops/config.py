@@ -160,7 +160,7 @@ def default_config(config_data=None, config_overwrite={}):
         config_data['lithops']['chunksize'] = constants.CHUNKSIZE_DEFAULT
 
     if 'worker_processes' not in config_data['lithops']:
-        config_data['lithops']['worker_processes'] = constants.worker_processes_DEFAULT
+        config_data['lithops']['worker_processes'] = constants.WORKER_PROCESSES_DEFAULT
 
     # overwrite values provided by the user
     if 'lithops' in config_overwrite:
