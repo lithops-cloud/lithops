@@ -96,7 +96,7 @@ class ServerlessInvoker:
                    'lithops_version': __version__,
                    'runtime_name': job.runtime_name,
                    'runtime_memory': job.runtime_memory,
-                   'worker_granularity': job.worker_granularity}
+                   'worker_processes': job.worker_processes}
 
         # do the invocation
         start = time.time()
@@ -130,9 +130,9 @@ class ServerlessInvoker:
                     .format(job.executor_id, job.job_id, job.total_calls))
 
         logger.info('ExecutorID {} | JobID {} - Chunksize:'
-                    ' {} - Worker granularity: {}'
+                    ' {} - Worker processes: {}'
                     .format(job.executor_id, job.job_id,
-                            job.chunksize, job.worker_granularity))
+                            job.chunksize, job.worker_processes))
 
         for i in range(self.num_workers):
             self.token_bucket_q.put('#')

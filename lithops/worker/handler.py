@@ -62,7 +62,7 @@ def function_handler(payload):
     job_queue = mp.Queue()
     job_runners = []
 
-    processes = min(job.worker_granularity, len(job.call_ids))
+    processes = min(job.worker_processes, len(job.call_ids))
     logger.info("Starting {} processes".format(processes))
 
     for runner_id in range(processes):

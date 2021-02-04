@@ -206,7 +206,7 @@ class FunctionExecutor:
 
         return futures[0]
 
-    def map(self, map_function, map_iterdata, chunksize=None, worker_granularity=None,
+    def map(self, map_function, map_iterdata, chunksize=None, worker_processes=None,
             extra_args=None, extra_env=None, runtime_memory=None, chunk_size=None,
             chunk_n=None, obj_chunk_size=None, obj_chunk_number=None, timeout=None,
             invoke_pool_threads=None, include_modules=[], exclude_modules=[]):
@@ -215,8 +215,9 @@ class FunctionExecutor:
 
         :param map_function: the function to map over the data
         :param map_iterdata: An iterable of input data
-        :param chunksize: Split map_iteradata by this chunk size
-        :param worker_granularity: Intra-function concurrency
+        :param chunksize:  Split map_iteradata by this chunk size.
+                           Lithops spawns 1 worker per resulting chunk
+        :param worker_processes: Number of concurrent/parallel processes in each worker
         :param extra_args: Additional args to pass to the function activations
         :param extra_env: Additional env variables for action environment
         :param runtime_memory: Memory to use to run the function
@@ -245,7 +246,7 @@ class FunctionExecutor:
                              map_function=map_function,
                              iterdata=map_iterdata,
                              chunksize=chunksize,
-                             worker_granularity=worker_granularity,
+                             worker_processes=worker_processes,
                              runtime_meta=runtime_meta,
                              runtime_memory=runtime_memory,
                              extra_env=extra_env,
@@ -265,7 +266,7 @@ class FunctionExecutor:
         return futures
 
     def map_reduce(self, map_function, map_iterdata, reduce_function, chunksize=None,
-                   worker_granularity=None, extra_args=None, extra_env=None,
+                   worker_processes=None, extra_args=None, extra_env=None,
                    map_runtime_memory=None, obj_chunk_size=None, obj_chunk_number=None,
                    reduce_runtime_memory=None, chunk_size=None, chunk_n=None,
                    timeout=None, invoke_pool_threads=None, reducer_one_per_object=False,
@@ -277,7 +278,7 @@ class FunctionExecutor:
         :param map_function: the function to map over the data
         :param map_iterdata:  An iterable of input data
         :param chunksize: Split map_iteradata by this chunk size
-        :param worker_granularity: Intra-function concurrency
+        :param worker_processes: Intra-function concurrency
         :param reduce_function:  the function to reduce over the futures
         :param extra_env: Additional environment variables for action environment. Default None.
         :param extra_args: Additional arguments to pass to function activation. Default None.
@@ -307,7 +308,7 @@ class FunctionExecutor:
                                  map_function=map_function,
                                  iterdata=map_iterdata,
                                  chunksize=chunksize,
-                                 worker_granularity=worker_granularity,
+                                 worker_processes=worker_processes,
                                  runtime_meta=runtime_meta,
                                  runtime_memory=map_runtime_memory,
                                  extra_args=extra_args,

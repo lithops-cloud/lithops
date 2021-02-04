@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 def create_map_job(config, internal_storage, executor_id, job_id, map_function,
                    iterdata,  runtime_meta, runtime_memory, extra_env,
                    include_modules, exclude_modules, execution_timeout,
-                   chunksize=None, worker_granularity=None, extra_args=None,
+                   chunksize=None, worker_processes=None, extra_args=None,
                    obj_chunk_size=None, obj_chunk_number=None, chunk_size=None,
                    chunk_n=None, invoke_pool_threads=16):
     """
@@ -79,7 +79,7 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function,
                       func=map_function,
                       iterdata=map_iterdata,
                       chunksize=chunksize,
-                      worker_granularity=worker_granularity,
+                      worker_processes=worker_processes,
                       runtime_meta=runtime_meta,
                       runtime_memory=runtime_memory,
                       extra_env=extra_env,
@@ -176,7 +176,7 @@ def _store_func_and_modules(func_key, func_str, module_data):
 def _create_job(config, internal_storage, executor_id, job_id, func,
                 iterdata,  runtime_meta, runtime_memory, extra_env,
                 include_modules, exclude_modules, execution_timeout,
-                host_job_meta, chunksize=None, worker_granularity=None,
+                host_job_meta, chunksize=None, worker_processes=None,
                 invoke_pool_threads=16):
     """
     Creates a new Job
@@ -188,7 +188,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
 
     job = SimpleNamespace()
     job.chunksize = chunksize or config['lithops']['chunksize']
-    job.worker_granularity = worker_granularity or config['lithops']['worker_granularity']
+    job.worker_processes = worker_processes or config['lithops']['worker_processes']
     job.execution_timeout = execution_timeout or config['lithops']['execution_timeout']
     job.executor_id = executor_id
     job.job_id = job_id

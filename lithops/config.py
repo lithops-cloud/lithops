@@ -159,8 +159,8 @@ def default_config(config_data=None, config_overwrite={}):
     if 'chunksize' not in config_data['lithops']:
         config_data['lithops']['chunksize'] = constants.CHUNKSIZE_DEFAULT
 
-    if 'worker_granularity' not in config_data['lithops']:
-        config_data['lithops']['worker_granularity'] = constants.WORKER_GRANULARITY_DEFAULT
+    if 'worker_processes' not in config_data['lithops']:
+        config_data['lithops']['worker_processes'] = constants.worker_processes_DEFAULT
 
     # overwrite values provided by the user
     if 'lithops' in config_overwrite:
@@ -224,7 +224,7 @@ def default_config(config_data=None, config_overwrite={}):
 
     elif config_data['lithops']['mode'] == constants.LOCALHOST:
         config_data['lithops']['workers'] = 1
-        config_data['lithops']['worker_granularity'] = CPU_COUNT
+        config_data['lithops']['worker_processes'] = CPU_COUNT
         if constants.LOCALHOST not in config_data or \
            config_data[constants.LOCALHOST] is None:
             config_data[constants.LOCALHOST] = {}

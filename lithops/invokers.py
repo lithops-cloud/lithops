@@ -87,7 +87,7 @@ class Invoker:
                    'lithops_version': __version__,
                    'runtime_name': job.runtime_name,
                    'runtime_memory': job.runtime_memory,
-                   'worker_granularity': job.worker_granularity}
+                   'worker_processes': job.worker_processes}
 
         return payload
 
@@ -148,8 +148,8 @@ class StandaloneInvoker(Invoker):
         """
         Run a job
         """
-        logger.debug('ExecutorID {} | JobID {} - Chunksize: {} - Worker granularity: {}'
-                     .format(job.executor_id, job.job_id, job.chunksize, job.worker_granularity))
+        logger.debug('ExecutorID {} | JobID {} - Chunksize: {} - Worker processes: {}'
+                     .format(job.executor_id, job.job_id, job.chunksize, job.worker_processes))
 
         job.runtime_name = self.runtime_name
 
@@ -381,9 +381,9 @@ class ServerlessInvoker(Invoker):
                 logger.info(log_msg)
 
                 logger.debug('ExecutorID {} | JobID {} - Chunksize:'
-                             ' {} - Worker granularity: {}'
+                             ' {} - Worker processes: {}'
                              .format(job.executor_id, job.job_id,
-                                     job.chunksize, job.worker_granularity))
+                                     job.chunksize, job.worker_processes))
 
                 if self.running_workers < self.workers:
                     free_workers = self.workers - self.running_workers
