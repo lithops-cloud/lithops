@@ -22,11 +22,7 @@ Any Virtual Service Instance (VSI) need to define the instance’s operating sys
 Lithops uses by default the Ubuntu 20.04 image. In this case, no further action are required and you can continue to the next step. Lithops will install all required dependencies in the VSI by itself. Notice this can consume about 3 min to complete all installations.
 
 ### Using a custom operating system image
-This is preferable approach, as using pre-built custom image will greatly improve time that of VSI creation for Lithops jobs. To benefit from this approach, follow the following steps
-
-1. Execute [script](../ibm_vpc/ubuntu-20.04-server-cloudimg-amd64.sh). You need Ubuntu machine to run this script and this script will use a base image based on ubuntu-20.04-server-cloudimg-amd64. There is need to have sudo priveleges to run this script. Once script finished it will generate `ubuntu2004srv.qcow2` that contains all dependecies required by Lithops.
-2. Upload `ubuntu2004srv.qcow2` to the IBM COS and place it under root of the bucket
-3. Navigate to IBM VPC dashboard, custom images and follow instructions to create new custom image based on the `ubuntu2004srv.qcow2`
+This is preferable approach, as using pre-built custom image will greatly improve time that of VSI creation for Lithops jobs. To benefit from this approach, navigate to [runtime/ibm_vpc](../../runtime/ibm_vpc), and follow the instructions.
 
 ## Lithops and the VSI auto create mode
 In this mode, Lithops will automatically create new worker VM instances in runtime, scale Lithops job against generated VMs, and automatically delete VMs when the job is completed.
@@ -36,23 +32,23 @@ In this mode, Lithops will automatically create new worker VM instances in runti
 Edit your lithops config and add the relevant keys:
 
 ```yaml
-   lithops:
-	  mode: standalone
+lithops:
+  mode: standalone
 
-   ibm:
-	  iam_api_key: <iam-api-key>
+ibm:
+  iam_api_key: <iam-api-key>
 
-	standalone:
-	  backend: ibm_vpc
-	  exec_mode: create
+standalone:
+  backend: ibm_vpc
+  exec_mode: create
 
-   ibm_vpc:
-	  endpoint: <REGION_ENDPOINT>
-	  vpc_id: <VPC_ID>
-	  resource_group_id: <RESOURCE_GROUP_ID>
-	  security_group_id: <SECURITY_GROUP_ID>
-	  subnet_id: <SUBNET_ID>
-	  key_id: <PUBLIC_KEY_ID>
+ibm_vpc:
+  endpoint: <REGION_ENDPOINT>
+  vpc_id: <VPC_ID>
+  resource_group_id: <RESOURCE_GROUP_ID>
+  security_group_id: <SECURITY_GROUP_ID>
+  subnet_id: <SUBNET_ID>
+  key_id: <PUBLIC_KEY_ID>
 ```
 
 The fastest way to find all the required keys for `ibm_vpc` section as follows:
@@ -75,15 +71,15 @@ The fastest way to find all the required keys for `ibm_vpc` section as follows:
 To verify auto create mode is working, use the following example
 
 ```python
-    iterdata = [1,2,3,4]
+iterdata = [1,2,3,4]
 
-    def my_map_function(x):
-      return x + 7
+def my_map_function(x):
+    return x + 7
 
-    if __name__ == '__main__':
-      fexec = lithops.FunctionExecutor()
-      fexec.map(my_map_function, iterdata)
-      print (fexec.get_result())
+if __name__ == '__main__':
+    fexec = lithops.FunctionExecutor()
+    fexec.map(my_map_function, iterdata)
+    print (fexec.get_result())
 ```
 
 This will create 4 different VM instance and execute `my_map_function` in the each of created VM. Upon completion, Lithops will delete the VMs.
@@ -119,18 +115,18 @@ This will create 4 different VM instance and execute `my_map_function` in the ea
 In this mode, Lithops can start and stop existing VM and deploy an entire job to that VM. The partition logic in this scenario is different from the auto create mode, since entire job executed in the same VM. As example
     
 ```python
-	iterdata = [1, 2, 3, 4]
+iterdata = [1, 2, 3, 4]
 
-	def my_map_function(x):
-	  return x + 7
+def my_map_function(x):
+    return x + 7
 
-	if __name__ == '__main__':
-	  fexec = lithops.FunctionExecutor()
-	  fexec.map(my_map_function, iterdata)
-	  print (fexec.get_result())
+if __name__ == '__main__':
+    fexec = lithops.FunctionExecutor()
+    fexec.map(my_map_function, iterdata)
+    print (fexec.get_result())
 ```
 
-### Lithops configuration for the 'consume' mode
+### Lithops configuration for the consume mode
 
 Edit your lithops config and add the relevant keys:
 
@@ -149,6 +145,7 @@ Edit your lithops config and add the relevant keys:
       instance_id : <INSTANCE ID OF THE VM>
       ip_address  : <FLOATING IP ADDRESS OF THE VM>
    ```
+
 If you need to create new VM, then follow the steps to create and update Lithops configuration:
 
 1. Create an Ubuntu 20.04 virtual server instance (VSI) in [IBM VPC virtual server instances UI](https://cloud.ibm.com/vpc-ext/compute/vs) with CPUs and RAM needed for your application.

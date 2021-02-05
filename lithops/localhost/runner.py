@@ -22,7 +22,7 @@ os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
 os.makedirs(JOBS_DONE_DIR, exist_ok=True)
 os.makedirs(LOGS_DIR, exist_ok=True)
 
-logging.basicConfig(filename=RN_LOG_FILE, level=logging.INFO,
+logging.basicConfig(filename=RN_LOG_FILE, level=logging.DEBUG,
                     format=constants.LOGGER_FORMAT)
 logger = logging.getLogger('runner')
 
