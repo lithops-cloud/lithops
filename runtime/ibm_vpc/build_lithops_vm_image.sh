@@ -76,15 +76,53 @@ virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'rm -rf 
 virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'apt-cache search linux-headers-generic'
 printf "\n\n"
 
+
+include_docker(){
+    # Include docker image
+    echo "-------------------------------------------"
+    echo "--> Including docker image into the VM  <--"
+    echo "-------------------------------------------"
+    echo "Docker image: $DOCKER_IMAGE"
+    echo ""
+    # docker system prune -a
+    
+    docker pull $DOCKER_IMAGE
+    
+    sudo tar -cvf docker.tar /var/lib/docker > /dev/null 2>&1
+    virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'mkdir -p /tmp'
+    virt-copy-in -a ubuntu-20.04-server-cloudimg-amd64.img docker.tar /tmp
+    virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img --run-command 'tar -xvf /tmp/docker.tar -C /'
+    virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img --run-command 'rm -R /tmp'
+    sudo rm docker.tar
+    printf "\n\n"
+}
+
+
+while getopts "d:" opt
+do
+   case "$opt" in
+      d ) DOCKER_IMAGE="$OPTARG"; include_docker ;;
+   esac
+done
+
+if [ -z "$DOCKER_IMAGE" ]
+then
+      FINAL_IMAGE=$1
+else
+      FINAL_IMAGE=$3
+fi
+
 # Finished
 echo "-------------------------------------------------------------------"
 echo "--> Compressing image ubuntu-20.04-server-cloudimg-amd64.img    <--"
 echo "-------------------------------------------------------------------"
-virt-sparsify ubuntu-20.04-server-cloudimg-amd64.img --compress ubuntu2004srv.qcow2
+echo "Final VM image: $FINAL_IMAGE"
+echo ""
+virt-sparsify ubuntu-20.04-server-cloudimg-amd64.img --compress $FINAL_IMAGE
 
 #rm ubuntu-20.04-server-cloudimg-amd64.img
-#kvm -net snap3 -net user -hda ubuntu-20.04-server-cloudimg-amd64.img -m 512
+#kvm -net nic -net user -hda ubuntu-20.04-server-cloudimg-amd64.img -m 512
 
-echo "---------------------------------------------------------------"
-echo "-->   Congratulations! Image ubuntu2004srv.qcow2 Created    <--"
-echo "---------------------------------------------------------------"
+echo "----------------------------------------------"
+echo "-->   Congratulations! VM Image Created    <--"
+echo "----------------------------------------------"
