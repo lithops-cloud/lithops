@@ -303,7 +303,7 @@ class CodeEngineBackend:
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
 
-        total_calls = len(job_payload['call_ids'])
+        total_calls = job_payload['total_calls']
         chunksize = job_payload['chunksize']
         array_size = total_calls // chunksize + (total_calls % chunksize > 0)
 

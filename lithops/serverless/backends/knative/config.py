@@ -41,7 +41,7 @@ FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_knative.zip')
 
 DEFAULT_DOCKERFILE = """
 RUN apt-get update && apt-get install -y \
-        zip htop \
+        zip \
         && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --upgrade setuptools six pip \

@@ -77,6 +77,7 @@ class Invoker:
                    'func_key': job.func_key,
                    'data_key': job.data_key,
                    'extra_env': job.extra_env,
+                   'total_calls': job.total_calls,
                    'execution_timeout': job.execution_timeout,
                    'data_byte_ranges': job.data_byte_ranges,
                    'executor_id': job.executor_id,
@@ -594,6 +595,8 @@ class JobMonitor:
 
     def _job_monitoring_os(self, job):
         workers = {}
+        workers_done = []
+        callids_done_worker = {}
         callids_running_worker = {}
         callids_running_processed = set()
         callids_done_processed = set()
@@ -605,23 +608,27 @@ class JobMonitor:
             callids_running_to_process = callids_running - callids_running_processed
             callids_done_to_process = callids_done - callids_done_processed
 
-            for call_id, act_id in callids_running_to_process:
-                if act_id not in workers:
-                    workers[act_id] = set()
-                workers[act_id].add(call_id)
-                callids_running_worker[call_id] = act_id
-
-            callids_running_processed.update(callids_running_to_process)
+            for call_id, worker_id in callids_running_to_process:
+                if worker_id not in workers:
+                    workers[worker_id] = set()
+                workers[worker_id].add(call_id)
+                callids_running_worker[call_id] = worker_id
 
             for callid_done in callids_done_to_process:
                 if callid_done in callids_running_worker:
-                    act_id = callids_running_worker[callid_done]
-                    workers[act_id].remove(callid_done)
-                    if len(workers[act_id]) == 0:
-                        if self.monitors[job.job_key]['should_run']:
-                            self.token_bucket_q.put('#')
-                        else:
-                            break
+                    worker_id = callids_running_worker[callid_done]
+                    if worker_id not in callids_done_worker:
+                        callids_done_worker[worker_id] = []
+                    callids_done_worker[worker_id].append(callid_done)
+
+            for worker_id in callids_done_worker:
+                if worker_id not in workers_done and \
+                   len(callids_done_worker[worker_id]) == job.chunksize:
+                    workers_done.append(worker_id)
+                    if self.monitors[job.job_key]['should_run']:
+                        self.token_bucket_q.put('#')
+                    else:
+                        break
 
             callids_done_processed.update(callids_done_to_process)
 
