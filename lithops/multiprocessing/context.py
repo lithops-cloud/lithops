@@ -6,9 +6,12 @@
 #
 
 import os
+import lithops
 
 from . import process
+from . import pool
 from . import reduction
+
 
 #
 # Exceptions
@@ -34,7 +37,7 @@ class AuthenticationError(ProcessError):
 # Base type for contexts
 #
 
-class BaseContext:
+class CloudContext:
     ProcessError = ProcessError
     BufferTooShort = BufferTooShort
     TimeoutError = TimeoutError
@@ -45,8 +48,8 @@ class BaseContext:
 
     reduction = reduction.ForkingPickler
 
-    def cpu_count(self):
-        raise NotImplementedError()
+    Process = process.CloudProcess
+    Pool = pool.Pool
 
     def Manager(self):
         """
@@ -100,7 +103,7 @@ class BaseContext:
     def Queue(self, maxsize=0):
         """Returns a queue object"""
         from .queues import Queue
-        return Queue()
+        return Queue(maxsize)
 
     def JoinableQueue(self, maxsize=0):
         """Returns a queue object"""
@@ -111,12 +114,6 @@ class BaseContext:
         """Returns a queue object"""
         from .queues import SimpleQueue
         return SimpleQueue()
-
-    def Pool(self, processes=None, initializer=None, initargs={}, maxtasksperchild=None):
-        """Returns a process pool object"""
-        from .pool import Pool
-        return Pool(processes, initializer, initargs, maxtasksperchild,
-                    context=self.get_context())
 
     def RawValue(self, typecode_or_type, *args):
         """Returns a shared ctype"""
@@ -140,21 +137,23 @@ class BaseContext:
         return Array(typecode_or_type, size_or_initializer, lock=lock,
                      ctx=self.get_context())
 
-    def get_context(self, method=None):
-        if method is None:
-            return self
-        try:
-            ctx = _concrete_contexts[method]
-        except KeyError:
-            raise ValueError('cannot find context for %r' % method)
-        ctx._check_available()
-        return ctx
+    def cpu_count(self):
+        lithops_config = lithops.config.default_config()
+        return lithops_config['lithops']['workers']
+
+    def get_context(self, method='cloud'):
+        if method not in ['spawn', 'fork', 'forkserver', 'cloud']:
+            raise ValueError('cannot find context for {}'.format(method))
+        return _default_context  # For Lithops we only have CloudContext named as all contexts
+
+    def get_all_start_methods(self):
+        return ['fork', 'spawn', 'forkserver', 'cloud']
 
     def get_start_method(self, allow_none=False):
-        return self._name
+        return 'cloud'
 
     def set_start_method(self, method, force=False):
-        raise ValueError('cannot set start method of concrete context')
+        pass
 
     @property
     def reducer(self):
@@ -179,87 +178,11 @@ class BaseContext:
         return call_id
 
 
-#
-# Type of default context -- underlying context can be set at most once
-#
-class Process(process.CloudProcess):
-    _start_method = None
+_default_context = CloudContext()
 
-    @staticmethod
-    def _Popen(process_obj):
-        return _default_context.get_context().Process._Popen(process_obj)
-
-
-class DefaultContext(BaseContext):
-    Process = Process
-
-    def __init__(self, context):
-        self._default_context = context
-        self._actual_context = None
-
-    def get_context(self, method=None):
-        if method is None:
-            if self._actual_context is None:
-                self._actual_context = self._default_context
-            return self._actual_context
-        else:
-            return super().get_context(method)
-
-    def set_start_method(self, method, force=False):
-        if self._actual_context is not None and not force:
-            raise RuntimeError('context has already been set')
-        if method is None and force:
-            self._actual_context = None
-            return
-        self._actual_context = self.get_context(method)
-
-    def get_start_method(self, allow_none=False):
-        if self._actual_context is None:
-            if allow_none:
-                return None
-            self._actual_context = self._default_context
-        return self._actual_context._name
-
-    def get_all_start_methods(self):
-        return ['fork', 'spawn', 'forkserver', 'cloud']
-
-
-#
-# Context types for fixed start method
-#
-
-
-class SpawnCloudProcess(process.CloudProcess):
-    _start_method = 'cloud'
-
-    @staticmethod
-    def _Popen(process_obj):
-        from .popen_cloud import PopenCloud
-        return PopenCloud(process_obj)
-
-
-class SpawnCloudContext(BaseContext):
-    _name = 'cloud'
-    Process = SpawnCloudProcess
-
-
-_concrete_contexts = {
-    'fork': SpawnCloudContext(),
-    'spawn': SpawnCloudContext(),
-    'forkserver': SpawnCloudContext(),
-    'cloud': SpawnCloudContext()
-}
-
-_default_context = DefaultContext(_concrete_contexts['cloud'])
-
-
-def get_context(method=None):
-    return _default_context.get_context(method)
-
-
-#
-# Force the start method
-#
-
-def _force_start_method(method):
-    _default_context._actual_context = _concrete_contexts[method]
+getpid = _default_context.getpid
+cpu_count = _default_context.cpu_count
+get_context = _default_context.get_context
+get_all_start_methods = _default_context.get_all_start_methods
+set_start_method = _default_context.set_start_method
+get_start_method = _default_context.get_start_method

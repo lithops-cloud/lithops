@@ -14,28 +14,27 @@
 # limitations under the License.
 #
 
-_set = set
-
-
 # General lithops.multiprocessing parameters
-LITHOPS_CONFIG = 'LITHOPS_CONFIG'
-STREAM_STDOUT = 'STREAM_STDOUT'
+LITHOPS_CONFIG = 'LITHOPS_CONFIG'  # Override lithops configuration
+STREAM_STDOUT = 'STREAM_STDOUT'  # Enable remote logging
+ENV_VARS = 'ENV_VARS'  # Processes environment variables
 
 # Redis specific parameters
-REDIS_EXPIRY_TIME = 'REDIS_EXPIRY_TIME'
-REDIS_CONNECTION_TYPE = 'REDIS_CONNECTION_TYPE'
+REDIS_EXPIRY_TIME = 'REDIS_EXPIRY_TIME'  # Redis key expiry time in seconds
+REDIS_CONNECTION_TYPE = 'REDIS_CONNECTION_TYPE'  # Pipe/Queue connection type
 
 _DEFAULT_CONFIG = {
     LITHOPS_CONFIG: {},
     STREAM_STDOUT: False,
-    REDIS_EXPIRY_TIME: 300,
-    REDIS_CONNECTION_TYPE: 'pubsubconn'
+    REDIS_EXPIRY_TIME: 900,
+    REDIS_CONNECTION_TYPE: 'listconn',
+    ENV_VARS: {}
 }
 
 _config = _DEFAULT_CONFIG
 
 
-def set(config_dic=None, **configurations):
+def update(config_dic=None, **configurations):
     if config_dic is None:
         config_dic = {}
     _config.update(config_dic)
