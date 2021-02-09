@@ -1,5 +1,5 @@
 #
-# Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,13 +22,14 @@ import logging
 import shutil
 
 import lithops
+from lithops import Storage
 from lithops.scripts.tests import print_help, run_tests
-from lithops.utils import setup_lithops_logger, verify_runtime_name
+from lithops.utils import setup_lithops_logger, verify_runtime_name, sizeof_fmt
 from lithops.config import get_mode, default_config, extract_storage_config,\
     extract_serverless_config, extract_standalone_config,\
     extract_localhost_config
 from lithops.constants import CACHE_DIR, LITHOPS_TEMP_DIR, RUNTIMES_PREFIX,\
-    JOBS_PREFIX, LOCALHOST, SERVERLESS, STANDALONE, FN_LOG_FILE, LOGS_DIR
+    JOBS_PREFIX, LOCALHOST, SERVERLESS, STANDALONE, LOGS_DIR, FN_LOG_FILE
 from lithops.storage import InternalStorage
 from lithops.serverless import ServerlessHandler
 from lithops.storage.utils import clean_bucket
@@ -141,6 +142,86 @@ def verify(test, config, mode, backend, storage, debug):
 
 # /---------------------------------------------------------------------------/
 #
+# lithops storage
+#
+# /---------------------------------------------------------------------------/
+
+@click.group('storage')
+@click.pass_context
+def storage(ctx):
+    pass
+
+
+@storage.command('put')
+@click.argument('filename', type=click.Path(exists=True))
+@click.argument('bucket')
+@click.option('--backend', '-b', default=None, help='storage backend')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def put_object(filename, bucket, backend, debug):
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(log_level)
+    storage = Storage(backend=backend)
+    logger.info('Uploading file {} to bucket {}'.format(filename, bucket))
+    with open(filename, 'rb') as in_file:
+        storage.put_object(bucket, filename, in_file)
+    logger.info('File uploaded successfully')
+
+
+@storage.command('get')
+@click.argument('bucket')
+@click.argument('key')
+@click.option('--backend', '-b', default=None, help='storage backend')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def get_object(bucket, key, backend, debug):
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(log_level)
+    storage = Storage(backend=backend)
+    logger.info('Downloading object {} from bucket {}'.format(key, bucket))
+    data_stream = storage.get_object(bucket, key, stream=True)
+    with open(key, 'wb') as out:
+        shutil.copyfileobj(data_stream, out)
+    logger.info('Object downloaded successfully')
+
+
+@storage.command('delete')
+@click.argument('bucket')
+@click.argument('key')
+@click.option('--backend', '-b', default=None, help='storage backend')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def delete_object(bucket, key, backend, debug):
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(log_level)
+    storage = Storage(backend=backend)
+    logger.info('Deleting object {} from bucket {}'.format(key, bucket))
+    storage.delete_object(bucket, key)
+    logger.info('Object deleted successfully')
+
+
+@storage.command('list')
+@click.argument('bucket')
+@click.option('--backend', '-b', default=None, help='storage backend')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def list_bucket(bucket, backend, debug):
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(log_level)
+    storage = Storage(backend=backend)
+    logger.info('Listing objects in bucket {}'.format(bucket))
+    objects = storage.list_objects(bucket)
+
+    width = max([len(obj['Key']) for obj in objects])
+
+    print('\n{:{width}} \t {} \t\t {:>9}'.format('Key', 'Last modified', 'Size', width=width))
+    print('-' * width, '\t', '-' * 20, '\t', '-' * 9)
+    for obj in objects:
+        key = obj['Key']
+        date = obj['LastModified'].strftime("%b %d %Y %H:%M:%S")
+        size = sizeof_fmt(obj['Size'])
+        print('{:{width}} \t {} \t {:>9}'.format(key, date, size, width=width))
+    print()
+
+
+# /---------------------------------------------------------------------------/
+#
 # lithops logs
 #
 # /---------------------------------------------------------------------------/
@@ -179,7 +260,7 @@ def poll():
 
 @logs.command('get')
 @click.argument('job_key')
-def get(job_key):
+def get_logs(job_key):
     log_file = os.path.join(LOGS_DIR, job_key+'.log')
 
     if not os.path.isfile(log_file):
@@ -330,6 +411,7 @@ def delete(name, config, backend, storage):
 
 lithops_cli.add_command(runtime)
 lithops_cli.add_command(logs)
+lithops_cli.add_command(storage)
 
 
 if __name__ == '__main__':
