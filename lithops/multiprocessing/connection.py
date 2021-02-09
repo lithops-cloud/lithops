@@ -238,10 +238,10 @@ class _ConnectionBase:
     def poll(self, timeout=0.0):
         """Whether there is any input available to be read"""
         # TODO fix poll (always returns True)
-        raise NotImplementedError()
-        # self._check_closed()
-        # self._check_readable()
-        # return self._poll(timeout)
+        # raise NotImplementedError()
+        self._check_closed()
+        self._check_readable()
+        return self._poll(timeout)
 
     def __enter__(self):
         return self
@@ -334,10 +334,10 @@ class RedisConnection(_ConnectionBase):
         return buf
 
     def _poll(self, timeout):
-        if hasattr(self, '_pubsub'):
-            r = wait([(self._pubsub, self._subhandle)], timeout)
+        if self._pubsub:
+            r = wait([(self._pubsub, self._handle)], timeout)
         else:
-            r = wait([(self._client, self._subhandle)], timeout)
+            r = wait([(self._client, self._handle)], timeout)
         return bool(r)
 
 
