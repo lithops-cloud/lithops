@@ -261,13 +261,13 @@ class RedisConnection(_ConnectionBase):
         super().__init__(handle, readable, writable)
         self._client = util.get_redis_client()
         self._subhandle = get_subhandle(handle)
-        self._pubsub = None
         self._connect()
 
     def _connect(self):
         if self._handle.startswith(REDIS_LIST_CONN):
             self._read = self._listread
             self._write = self._listwrite
+            self._pubsub = None
         elif self._handle.startswith(REDIS_PUBSUB_CONN):
             self._read = self._channelread
             self._write = self._channelwrite
@@ -305,13 +305,6 @@ class RedisConnection(_ConnectionBase):
         _, v = self._client.blpop([handle])
         return v
 
-    def _check_pipe_open(self, handle):
-        l_subs = self._client.pubsub_numsub(handle)
-        if len(l_subs) == 1:
-            _, nsubs = l_subs.pop()
-            return nsubs > 0
-        return False
-
     def _channelwrite(self, handle, buf):
         return self._client.publish(handle, buf)
 
@@ -332,13 +325,9 @@ class RedisConnection(_ConnectionBase):
         raise NotImplementedError('Connection._recv() on Redis')
 
     def _send_bytes(self, buf):
-        if not self._check_pipe_open(self._subhandle):
-            raise BrokenPipeError
         self._write(self._subhandle, buf.tobytes())
 
     def _recv_bytes(self, maxsize=None):
-        if not self._check_pipe_open(self._subhandle):
-            raise EOFError
         buf = io.BytesIO()
         chunk = self._read(self._handle)
         buf.write(chunk)
