@@ -550,7 +550,7 @@ An example is provided [here](../examples/multiprocessing/counter.py)
 
 A subclass of `Value`. Instead of sharing a single value, `Array` is used to share a list of values.
 
-An example is provided [here](../examples/multiprocessing/array.py)
+An example is provided [here](../examples/multiprocessing/ctypes.py)
 
 ### Manager
 
