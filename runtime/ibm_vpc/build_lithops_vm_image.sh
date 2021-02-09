@@ -86,7 +86,7 @@ include_docker(){
     echo ""
 
     if [ "$DOCKER_PRUNE" == "prune" ]; then
-      docker system prune -a
+      docker system prune -a -y
     fi
 
     docker pull $DOCKER_IMAGE
