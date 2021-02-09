@@ -28,7 +28,7 @@ REDIS_CONNECTION_TYPE = 'REDIS_CONNECTION_TYPE'  # Pipe/Queue connection type
 
 _DEFAULT_CONFIG = {
     LITHOPS_CONFIG: {},
-    STREAM_STDOUT: True,
+    STREAM_STDOUT: False,
     REDIS_EXPIRY_TIME: 900,
     REDIS_CONNECTION_TYPE: 'listconn',
     ENV_VARS: {}
