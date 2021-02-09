@@ -190,7 +190,11 @@ class RemoteReference:
             client.delete(*referenced)
 
 
-class RemoteLogStream:
+#
+# Remote logging
+#
+
+class RemoteLogIOBuffer:
     def __init__(self, stream):
         self._old_stdout = sys.stdout
         self._feeder_thread = threading
@@ -212,3 +216,33 @@ class RemoteLogStream:
         # self._buff = io.StringIO()
         # FIXME flush() does not empty the buffer?
         self._buff.flush()
+
+
+class RemoteLoggingFeed:
+    def __init__(self, stream):
+        self._logger_thread = threading.Thread(target=self._logger_monitor, args=(stream,))
+        self._stream = stream
+        self._enabled = False
+
+    def _logger_monitor(self, stream):
+        debug('Starting logger monitor thread for stream {}'.format(stream))
+        redis_pubsub = get_redis_client().pubsub()
+        redis_pubsub.subscribe(stream)
+
+        while self._enabled:
+            msg = redis_pubsub.get_message(ignore_subscribe_messages=True, timeout=1)
+            if msg is None:
+                continue
+            if 'data' in msg:
+                sys.stdout.write(msg['data'].decode('utf-8'))
+
+        debug('Logger monitor thread for stream {} finished'.format(stream))
+
+    def start(self):
+        # self._logger_thread.daemon = True
+        self._enabled = True
+        self._logger_thread.start()
+
+    def stop(self):
+        self._enabled = False
+        self._logger_thread.join(5)

@@ -62,6 +62,7 @@ class Pool(object):
         self._maxtasksperchild = maxtasksperchild
         self._initializer = initializer
         self._initargs = initargs
+        self._remote_logger = None
 
         if processes is not None and processes < 1:
             raise ValueError("Number of processes must be at least 1")
@@ -131,7 +132,16 @@ class Pool(object):
 
         cloud_worker = CloudWorker(func=func, initializer=self._initializer, initargs=self._initargs)
 
-        futures = self._executor.call_async(cloud_worker, data={'args': args, 'kwargs': kwds})
+        if mp_config.get_parameter(mp_config.STREAM_STDOUT):
+            stream = self._executor.executor_id
+            util.debug('Log streaming enabled, stream name: {}'.format(stream))
+            self._remote_logger = util.RemoteLoggingFeed(stream)
+            self._remote_logger.start()
+            cloud_worker.log_stream = stream
+
+        extra_env = mp_config.get_parameter(mp_config.ENV_VARS)
+
+        futures = self._executor.call_async(cloud_worker, data={'args': args, 'kwargs': kwds}, extra_env=extra_env)
 
         result = ApplyResult(self._executor, [futures], callback, error_callback)
 
@@ -156,12 +166,21 @@ class Pool(object):
 
         if isinstance(iterable[0], dict):
             fmt_args = [{'args': (), 'kwargs': kwargs} for kwargs in iterable]
-        elif isinstance(iterable[0], tuple):
+        elif isinstance(iterable[0], tuple) or isinstance(iterable[0], list):
             fmt_args = [{'args': args, 'kwargs': {}} for args in iterable]
         else:
             fmt_args = [{'args': (args, ), 'kwargs': {}} for args in iterable]
 
-        futures = self._executor.map(cloud_worker, fmt_args)
+        if mp_config.get_parameter(mp_config.STREAM_STDOUT):
+            stream = self._executor.executor_id
+            util.debug('Log streaming enabled, stream name: {}'.format(stream))
+            self._remote_logger = util.RemoteLoggingFeed(stream)
+            self._remote_logger.start()
+            cloud_worker.log_stream = stream
+
+        extra_env = mp_config.get_parameter(mp_config.ENV_VARS)
+
+        futures = self._executor.map(cloud_worker, fmt_args, extra_env=extra_env)
 
         result = MapResult(self._executor, futures, callback, error_callback)
 
@@ -178,7 +197,9 @@ class Pool(object):
     def terminate(self):
         util.debug('terminating pool')
         self._state = TERMINATE
-        self._executor.clean()
+        if self._remote_logger:
+            self._remote_logger.stop()
+            self._remote_logger = None
 
     def join(self):
         util.debug('joining pool')
