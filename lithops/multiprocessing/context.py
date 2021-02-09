@@ -153,7 +153,7 @@ class CloudContext:
         return 'cloud'
 
     def set_start_method(self, method, force=False):
-        raise ValueError('cannot set start method of concrete context')
+        pass
 
     @property
     def reducer(self):
