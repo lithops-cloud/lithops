@@ -19,7 +19,9 @@ from . import synchronize
 from . import queues
 from . import util
 from .reduction import DefaultPickler
+
 import redis
+import inspect
 
 _builtin_types = {
     'list',
@@ -60,40 +62,6 @@ def deslice(slic: slice):
         end -= 1
 
     return start, end, step
-
-
-#
-# Type for identifying shared objects
-#
-
-class Token(object):
-    """
-    Type to uniquely identify a shared object
-    """
-    __slots__ = ('typeid', 'address', 'id')
-
-    def __init__(self, typeid, address, id):
-        (self.typeid, self.address, self.id) = (typeid, address, id)
-
-    def __getstate__(self):
-        return self.typeid, self.address, self.id
-
-    def __setstate__(self, state):
-        (self.typeid, self.address, self.id) = state
-
-    def __repr__(self):
-        return '{}(typeid={}, address={}, id={})'.format(self.__class__.__name__, self.typeid, self.address, self.id)
-
-    @classmethod
-    def create(cls, proxy_obj):
-        typeid = proxy_obj._typeid
-
-        host = proxy_obj._client.kwargs.pop('host', 'localhost')
-        port = str(proxy_obj._client.kwargs.pop('port', 6379))
-        address = host + ':' + port
-
-        id = proxy_obj._oid
-        return cls(typeid, address, id)
 
 
 #
@@ -156,19 +124,18 @@ class BaseManager:
         Register a typeid with the manager type
         """
 
-        def temp(self, *args, **kwds):
+        def temp(self, *args, **kwargs):
             util.debug('requesting creation of a shared %r object', typeid)
-            proxy = proxytype(*args, **kwds)
+
+            if typeid in _builtin_types:
+                proxy = proxytype(*args, **kwargs)
+            else:
+                proxy = GenericProxy(typeid, proxytype, *args, **kwargs)
+
             if self._managing and can_manage and hasattr(proxy, '_ref'):
                 proxy._ref.managed = True
                 self._mrefs.append(proxy._ref)
             return proxy
-
-        if typeid in dir(cls):
-            raise ValueError('{} already registered')
-
-        if typeid not in _builtin_types:
-            raise TypeError('Manager for object type {} is not supported yet.'.format(typeid))
 
         temp.__name__ = typeid
         setattr(cls, typeid, temp)
@@ -192,15 +159,8 @@ class BaseProxy:
         self._client = util.get_redis_client()
         self._ref = util.RemoteReference(self._oid, client=self._client)
 
-    def _getvalue(self):
-        """
-        Get a copy of the value of the referent
-        """
-        pass
-
     def __repr__(self):
-        return '<%s object, typeid=%r, key=%r>' % \
-               (type(self).__name__, self._typeid, self._oid)
+        return '<{} object, typeid={}, key={}>'.format(type(self).__name__, self._typeid, self._oid)
 
     def __str__(self):
         """
@@ -213,25 +173,109 @@ class BaseProxy:
 # Types/callables which we will register with SyncManager
 #
 
-# NOTE: list slices should return an instance of a ListProxy
-#        or a native python list?
-#        
-#          A = ListProxy([1, 2, 3])
-#          B = A[:2]
-#          C = A + [4, 5]
-#          D = A * 3
-#        
-#        Following the multiprocessing implementation, lists (B,
-#        C, D) are plain python lists while A is the only ListProxy.
-#        This could cause problems like these:
-#        
-#          A = A[2:]
-#        
-#        with A being a python list after executing that line.
-#        
-#        Current implementation is the same as multiprocessing
+class GenericProxy(BaseProxy):
+    def __init__(self, typeid, klass, *args, **kwargs):
+        super().__init__(typeid)
+        self._klass = klass
+        self._init_args = (args, kwargs)
+
+        obj = self._after_fork()
+        self._init_obj(obj)
+
+    def _after_fork(self):
+        args, kwargs = self._init_args
+        obj = self._klass(*args, **kwargs)
+
+        for attr_name in (attr for attr in dir(obj) if inspect.ismethod(getattr(obj, attr))):
+            wrap = MethodWrapper(self, attr_name, obj)
+            setattr(self, attr_name, wrap)
+
+        return obj
+
+    def _init_obj(self, obj):
+
+        if not hasattr(obj, '__shared__'):
+            shared = list(vars(obj).keys())
+            setattr(obj, '__shared__', shared)
+
+        pipeline = self._client.pipeline()
+        for attr_name in obj.__shared__:
+            attr = getattr(obj, attr_name)
+            attr_bin = self._pickler.dumps(attr)
+            pipeline.hset(self._oid, attr_name, attr_bin)
+        pipeline.execute()
+
+    def __getstate__(self):
+        return {
+            '_typeid': self._typeid,
+            '_oid': self._oid,
+            '_pickler': self._pickler,
+            '_client': self._client,
+            '_ref': self._ref,
+            '_klass': self._klass,
+            '_init_args': self._init_args,
+        }
+
+    def __setstate__(self, state):
+        self._typeid = state['_typeid']
+        self._oid = state['_oid']
+        self._pickler = state['_pickler']
+        self._client = state['_client']
+        self._ref = state['_ref']
+        self._klass = state['_klass']
+        self._init_args = state['_init_args']
+        self._after_fork()
+
+
+class MethodWrapper:
+    def __init__(self, proxy, attr_name, shared_object):
+        self._attr_name = attr_name
+        self._shared_object = shared_object
+        self._proxy = proxy
+
+    def __call__(self, *args, **kwargs):
+        attrs = self._proxy._client.hgetall(self._proxy._oid)
+
+        for attr_name, attr_bin in attrs.items():
+            attr_name = attr_name.decode('utf-8')
+            attr = self._proxy._pickler.loads(attr_bin)
+            setattr(self._shared_object, attr_name, attr)
+
+        attr = getattr(self._shared_object, self._attr_name)
+        if callable(attr):
+            result = attr.__call__(*args, **kwargs)
+        else:
+            result = attr
+
+        pipeline = self._proxy._client.pipeline()
+        for attr_name in self._shared_object.__shared__:
+            attr = getattr(self._shared_object, attr_name)
+            attr_bin = self._proxy._pickler.dumps(attr)
+            pipeline.hset(self._proxy._oid, attr_name, attr_bin)
+        pipeline.execute()
+
+        return result
+
 
 class ListProxy(BaseProxy):
+    # NOTE: list slices should return an instance of a ListProxy
+    #       or a native python list?
+    #
+    #          A = ListProxy([1, 2, 3])
+    #          B = A[:2]
+    #          C = A + [4, 5]
+    #          D = A * 3
+    #
+    #        Following the multiprocessing implementation, lists (B,
+    #        C, D) are plain python lists while A is the only ListProxy.
+    #        This could cause problems like these:
+    #
+    #          A = A[2:]
+    #
+    #        with A being a python list after executing that line.
+    #
+    #        Current implementation is the same as multiprocessing
+
     # KEYS[1] - key to extend
     # KEYS[2] - key to extend with
     # ARGV[1] - number of repetitions
