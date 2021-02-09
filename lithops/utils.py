@@ -23,6 +23,7 @@ import os
 import pika
 import uuid
 import json
+import shutil
 import base64
 import inspect
 import struct
@@ -31,6 +32,7 @@ import zipfile
 import platform
 import logging.config
 import threading
+import subprocess as sp
 
 from lithops.storage.utils import create_job_key
 from lithops.constants import LOGGER_FORMAT, LOGGER_LEVEL, LOGGER_STREAM
@@ -300,6 +302,29 @@ def b64str_to_bytes(str_data):
     str_ascii = str_data.encode('ascii')
     byte_data = base64.b64decode(str_ascii)
     return byte_data
+
+
+def get_docker_username():
+    user = None
+    cmd = "{} info".format(shutil.which('docker'))
+    docker_user_info = sp.check_output(cmd, shell=True,
+                                       encoding='UTF-8',
+                                       stderr=sp.STDOUT)
+    for line in docker_user_info.splitlines():
+        if 'Username' in line:
+            _, useranme = line.strip().split(':')
+            user = useranme.strip()
+
+    if user is None:
+        cmd = ("docker-credential-desktop list | jq -r 'to_entries[].key' | while "
+               "read; do docker-credential-desktop get <<<$REPLY; break; done")
+        docker_user_info = sp.check_output(cmd, shell=True,
+                                           encoding='UTF-8',
+                                           stderr=sp.STDOUT)
+        docker_data = json.loads(docker_user_info)
+        user = docker_data['Username']
+
+    return user
 
 
 def split_object_url(obj_url):

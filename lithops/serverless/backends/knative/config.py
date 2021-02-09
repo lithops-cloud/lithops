@@ -18,9 +18,8 @@
 import os
 import sys
 import shutil
-import subprocess as sp
 from lithops.version import __version__
-from lithops.utils import version_str
+from lithops.utils import version_str, get_docker_username
 
 CONTAINER_REGISTRY = 'docker.io'
 RUNTIME_NAME = 'lithops-knative'
@@ -235,20 +234,14 @@ def load_config(config_data):
         config_data['serverless']['runtime'] = config_data['knative']['runtime']
 
     if 'runtime' not in config_data['serverless']:
+        if not DOCKER_PATH:
+            raise Exception('docker command not found. Install docker or use '
+                            'an already built runtime')
         if 'docker_user' not in config_data['knative']:
-            cmd = "{} info".format(DOCKER_PATH)
-            docker_user_info = sp.check_output(cmd, shell=True, encoding='UTF-8',
-                                               stderr=sp.STDOUT)
-            for line in docker_user_info.splitlines():
-                if 'Username' in line:
-                    _, useranme = line.strip().split(':')
-                    config_data['knative']['docker_user'] = useranme.strip()
-                    break
-
-        if 'docker_user' not in config_data['knative']:
+            config_data['knative']['docker_user'] = get_docker_username()
+        if not config_data['knative']['docker_user']:
             raise Exception('You must provide "docker_user" param in config '
                             'or execute "docker login"')
-
         docker_user = config_data['knative']['docker_user']
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
