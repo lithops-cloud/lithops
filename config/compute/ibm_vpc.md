@@ -9,7 +9,7 @@ Follow [IBM VPC setup](https://cloud.ibm.com/vpc-ext/overview) if you need to cr
 
 ### The following is the minimum setup requirements
 
-1.Create new VPC if you don't have one already. More details [here](https://cloud.ibm.com/vpc-ext/network/vpcs)
+1. Create new VPC if you don't have one already. More details [here](https://cloud.ibm.com/vpc-ext/network/vpcs)
 2. Create new subnet with public gateway and IP range and total count. More details [here](https://cloud.ibm.com/vpc-ext/network/subnets)
 3. Create new access contol list. More details [here](https://cloud.ibm.com/vpc-ext/network/acl)
 4. Create security group for your resource group. More details [here](https://cloud.ibm.com/vpc-ext/network/securityGroups)
@@ -42,6 +42,10 @@ standalone:
   backend: ibm_vpc
   exec_mode: create
 
+  #optional
+  # Use False for custom image that contains Lithops runtime
+  pull_runtime: <True/False>
+
 ibm_vpc:
   endpoint: <REGION_ENDPOINT>
   vpc_id: <VPC_ID>
@@ -49,6 +53,20 @@ ibm_vpc:
   security_group_id: <SECURITY_GROUP_ID>
   subnet_id: <SUBNET_ID>
   key_id: <PUBLIC_KEY_ID>
+  image_id: <IMAGE_ID_FOR_VMs> #Either VPC defaults or custom image
+  zone_name: <ZONE_NAME_VPC>
+
+  #optional
+
+  # SSH user to access VPC.
+  ssh_user : <SSH_USER_FOR_VPC> # Default is 'root'
+  #Path to the ssh key file provided to create the VM.
+  ssh_key_filename : <PATH_TO_SSH_KEYFILE> # Default path in OS
+  #Profile name for the worker VMs
+  profile_name: <PROFILE_NAME> # Default is 'cx2-2x4'
+  #Profile name for the master VM
+  master_profile_name:  <PROFILE_NAME> # Default is 'cx2-2x4'
+
 ```
 
 The fastest way to find all the required keys for `ibm_vpc` section as follows:
@@ -94,13 +112,14 @@ This will create 4 different VM instance and execute `my_map_function` in the ea
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
+|standalone| pull_runtime| True | No | If True, Lithops will pull runtime from container registry|
 |ibm_vpc | endpoint | |yes | Endpoint of your subnet region |
 |ibm_vpc | vpc_id | | yes | VPC id |
 |ibm_vpc | resource_group_id | | yes | Resource group id |
 |ibm_vpc | security_group_id | | yes | Security group id |
 |ibm_vpc | subnet_id | | yes | Subnet id |
 |ibm_vpc | key_id | | yes | Ssh public key id |
-|ibm_vpc | ssh_user | root |no | Username to access the VM |
+|ibm_vpc | ssh_user | root |no | Username to access the VPC |
 |ibm_vpc | ssh_key_filename | | no | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
 |ibm_vpc | image_id | | no | Virtual machine image id |
 |ibm_vpc | zone_name | | no | Zone name |
@@ -144,6 +163,14 @@ Edit your lithops config and add the relevant keys:
       endpoint   : <REGION_ENDPOINT>
       instance_id : <INSTANCE ID OF THE VM>
       ip_address  : <FLOATING IP ADDRESS OF THE VM>
+
+      #optional
+
+      # SSH user to access VPC.
+      ssh_user : <SSH_USER_FOR_VPC> # Default is 'root'
+      #Path to the ssh key file provided to create the VM.
+      ssh_key_filename : <PATH_TO_SSH_KEYFILE> # Default path in OS
+
    ```
 
 If you need to create new VM, then follow the steps to create and update Lithops configuration:

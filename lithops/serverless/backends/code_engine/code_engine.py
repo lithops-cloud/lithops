@@ -464,7 +464,7 @@ class CodeEngineBackend:
 
         retry = int(1)
         found = False
-        while retry < 10 and not found:
+        while retry < 20 and not found:
             try:
                 logger.debug("Retry attempt {} to read {}".format(retry, status_key))
                 json_str = internal_storage.get_data(key=status_key)

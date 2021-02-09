@@ -566,6 +566,9 @@ class FunctionExecutor:
             cmdstr = '{} -m lithops.scripts.cleaner'.format(sys.executable)
             sp.Popen(cmdstr, shell=True, stdout=log_file, stderr=log_file)
 
+        if hasattr(self.compute_handler, 'clear'):
+            self.compute_handler.clear()
+
     def dismantle(self):
         self.compute_handler.dismantle()
 

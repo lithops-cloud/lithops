@@ -84,8 +84,11 @@ include_docker(){
     echo "-------------------------------------------"
     echo "Docker image: $DOCKER_IMAGE"
     echo ""
-    # docker system prune -a
-    
+
+    if [ "$DOCKER_PRUNE" == "prune" ]; then
+      docker system prune -a -f
+    fi
+
     docker pull $DOCKER_IMAGE
     
     sudo tar -cvf docker.tar /var/lib/docker > /dev/null 2>&1
@@ -98,19 +101,22 @@ include_docker(){
 }
 
 
-while getopts "d:" opt
+while getopts "d:p:" opt
 do
    case "$opt" in
-      d ) DOCKER_IMAGE="$OPTARG"; include_docker ;;
+      d ) DOCKER_IMAGE="$OPTARG";;
+      p ) DOCKER_PRUNE="$OPTARG";;
    esac
 done
 
-if [ -z "$DOCKER_IMAGE" ]
-then
-      FINAL_IMAGE=$1
+
+if [ ! -z "$DOCKER_IMAGE" ]; then
+     include_docker;
+     FINAL_IMAGE=$3;
 else
-      FINAL_IMAGE=$3
+     FINAL_IMAGE=$1;
 fi
+
 
 # Finished
 echo "-------------------------------------------------------------------"

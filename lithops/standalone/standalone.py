@@ -48,7 +48,7 @@ class StandaloneHandler:
         self.auto_dismantle = self.config.get('auto_dismantle')
         self.hard_dismantle_timeout = self.config.get('hard_dismantle_timeout')
         self.soft_dismantle_timeout = self.config.get('soft_dismantle_timeout')
-        self.pull_runtime = self.config.get('pull_runtime', False)
+        self.pull_runtime = self.config.get('pull_runtime', True)
         self.exec_mode = self.config.get('exec_mode', 'consume')
 
         module_location = 'lithops.standalone.backends.{}'.format(self.backend_name)
