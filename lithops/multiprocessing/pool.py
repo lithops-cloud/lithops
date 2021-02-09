@@ -18,9 +18,8 @@ import itertools
 from lithops import FunctionExecutor
 
 from . import util
-from .context import get_context
 from . import config as mp_config
-from .process import CloudWorker
+from .process import CloudWorker, CloudProcess
 
 
 #
@@ -48,14 +47,12 @@ class Pool(object):
     """
     _wrap_exception = True
 
-    def Process(self, *args, **kwds):
-        return self._ctx.Process(*args, **kwds)
+    Process = CloudProcess
 
     def __init__(self, processes=None, initializer=None, initargs=None, maxtasksperchild=None, context=None):
         if initargs is None:
             initargs = ()
 
-        self._ctx = context or get_context()
         self._taskqueue = queue.Queue()
         self._cache = {}
         self._state = RUN

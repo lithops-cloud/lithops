@@ -14,9 +14,6 @@
 # limitations under the License.
 #
 
-_set = set
-
-
 # General lithops.multiprocessing parameters
 LITHOPS_CONFIG = 'LITHOPS_CONFIG'  # Override lithops configuration
 STREAM_STDOUT = 'STREAM_STDOUT'  # Enable remote logging
@@ -37,7 +34,7 @@ _DEFAULT_CONFIG = {
 _config = _DEFAULT_CONFIG
 
 
-def set(config_dic=None, **configurations):
+def update(config_dic=None, **configurations):
     if config_dic is None:
         config_dic = {}
     _config.update(config_dic)

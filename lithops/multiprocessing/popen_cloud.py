@@ -14,10 +14,7 @@
 # limitations under the License.
 #
 
-from lithops import FunctionExecutor
 from lithops.wait import ALL_COMPLETED, ALWAYS
-
-from . import util
 
 
 #

@@ -13,10 +13,8 @@
 # Imports
 #
 
-import os
 import itertools
 import sys
-import threading
 import traceback
 import os
 
