@@ -1,3 +1,4 @@
+# from multiprocessing import Process, Manager
 from lithops.multiprocessing import Process, Manager
 
 
@@ -17,5 +18,5 @@ if __name__ == '__main__':
         p.start()
         p.join()
 
-        print(d.todict())
-        print(l.tolist())
+        print(dict(d))
+        print(list(l))

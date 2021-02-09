@@ -1,7 +1,8 @@
-import lithops.multiprocessing as mp
-from lithops.multiprocessing import Process, Queue
 import time
 import random
+
+# from multiprocessing import Process, Queue
+from lithops.multiprocessing import Process, Queue
 
 
 def work(remote_queue):

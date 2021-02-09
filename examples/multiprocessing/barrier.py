@@ -1,5 +1,6 @@
-from lithops.multiprocessing import Pool, Barrier, SimpleQueue, getpid
 import time
+
+from lithops.multiprocessing import Pool, Barrier, SimpleQueue, getpid
 
 
 def f(barrier, q):
