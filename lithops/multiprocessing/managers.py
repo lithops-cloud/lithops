@@ -196,10 +196,11 @@ class GenericProxy(BaseProxy):
 
         if not hasattr(obj, '__shared__'):
             shared = list(vars(obj).keys())
-            setattr(obj, '__shared__', shared)
+        else:
+            shared = obj.__shared__
 
         pipeline = self._client.pipeline()
-        for attr_name in obj.__shared__:
+        for attr_name in shared:
             attr = getattr(obj, attr_name)
             attr_bin = self._pickler.dumps(attr)
             pipeline.hset(self._oid, attr_name, attr_bin)
@@ -247,8 +248,13 @@ class MethodWrapper:
         else:
             result = attr
 
+        if not hasattr(self._shared_object, '__shared__'):
+            shared = list(vars(self._shared_object).keys())
+        else:
+            shared = self._shared_object.__shared__
+
         pipeline = self._proxy._client.pipeline()
-        for attr_name in self._shared_object.__shared__:
+        for attr_name in shared:
             attr = getattr(self._shared_object, attr_name)
             attr_bin = self._proxy._pickler.dumps(attr)
             pipeline.hset(self._proxy._oid, attr_name, attr_bin)
