@@ -45,6 +45,7 @@ RUN apt-get update && apt-get install -y \
 
 RUN pip install --upgrade setuptools six pip \
     && pip install --no-cache-dir \
+        flask \
         pika==0.13.1 \
         glob2 \
         ibm-cos-sdk \
@@ -95,9 +96,15 @@ spec:
           value: ''
         - name: PAYLOAD
           value: ''
+        - name: IDGIVER_POD_IP
+          value: ''
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
         resources:
           requests:
-            cpu: '1'
+            cpu: '0.2'
             memory: 128Mi
 """
 

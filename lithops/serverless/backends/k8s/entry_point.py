@@ -15,13 +15,17 @@
 #
 
 import os
-import uuid
 import sys
+import uuid
 import json
 import logging
+import flask
+import requests
+from functools import partial
 
 from lithops.version import __version__
-from lithops.utils import setup_lithops_logger, b64str_to_dict
+from lithops.utils import setup_lithops_logger, b64str_to_dict,\
+    iterchunks
 from lithops.worker import function_handler
 from lithops.worker.utils import get_runtime_preinstalls
 from lithops.constants import JOBS_PREFIX
@@ -30,9 +34,36 @@ from lithops.storage.storage import InternalStorage
 
 logger = logging.getLogger('lithops.worker')
 
+proxy = flask.Flask(__name__)
 
-def runtime_packages(payload):
+IDGIVER_PORT = 8080
+
+JOB_INDEXES = {}
+
+
+@proxy.route('/getid/<jobkey>', methods=['GET'])
+def get_id(jobkey):
+    global JOB_INDEXES
+
+    if jobkey not in JOB_INDEXES:
+        JOB_INDEXES[jobkey] = 0
+    else:
+        JOB_INDEXES[jobkey] += 1
+
+    return str(JOB_INDEXES[jobkey])
+
+
+def id_giver():
+    proxy.run(debug=True, host='0.0.0.0', port=IDGIVER_PORT)
+
+
+def extract_runtime_meta(encoded_payload):
     logger.info("Lithops v{} - Generating metadata".format(__version__))
+
+    payload = b64str_to_dict(encoded_payload)
+
+    setup_lithops_logger(payload['log_level'])
+
     runtime_meta = get_runtime_preinstalls()
 
     internal_storage = InternalStorage(payload)
@@ -42,32 +73,42 @@ def runtime_packages(payload):
     internal_storage.put_data(status_key, dmpd_response_status)
 
 
-def main_job(action, encoded_payload):
-    logger.info("Lithops v{} - Starting Code Engine execution".format(__version__))
+def run_job(encoded_payload):
+    logger.info("Lithops v{} - Starting kubernetes execution".format(__version__))
 
     payload = b64str_to_dict(encoded_payload)
-
     setup_lithops_logger(payload['log_level'])
 
-    if (action == 'preinstalls'):
-        runtime_packages(payload)
-        return {"Execution": "Finished"}
-
-    job_index = os.environ['JOB_INDEX']
-    payload['JOB_INDEX'] = job_index
-    logger.info("Action {}. Job Index {}".format(action, job_index))
+    job_key = payload['job_key']
+    idgiver_ip = os.environ['IDGIVER_POD_IP']
+    res = requests.get('http://{}:{}/getid/{}'.format(idgiver_ip, IDGIVER_PORT, job_key))
+    job_index = int(res.text)
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
+    logger.info("Activation ID: {} - Job Index: {}".format(act_id, job_index))
 
-    payload['data_byte_range'] = payload['data_byte_range'][int(job_index)]
-    payload['call_id'] = "{:05d}".format(int(job_index))
+    chunksize = payload['chunksize']
+    call_ids_ranges = [call_ids_range for call_ids_range in iterchunks(payload['call_ids'], chunksize)]
+    call_ids = call_ids_ranges[job_index]
+    data_byte_ranges = [payload['data_byte_ranges'][int(call_id)] for call_id in call_ids]
+
+    payload['call_ids'] = call_ids
+    payload['data_byte_ranges'] = data_byte_ranges
 
     function_handler(payload)
 
-    return {"Execution": "Finished"}
-
 
 if __name__ == '__main__':
-    print(os.environ)
-    main_job(sys.argv[1:][0], sys.argv[1:][1])
+    action = sys.argv[1]
+    encoded_payload = sys.argv[2]
+
+    switcher = {
+        'preinstalls': partial(extract_runtime_meta, encoded_payload),
+        'run': partial(run_job, encoded_payload),
+        'id_giver': id_giver
+
+    }
+
+    func = switcher.get(action, lambda: "Invalid command")
+    func()
