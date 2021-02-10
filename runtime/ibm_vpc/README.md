@@ -9,7 +9,7 @@ For building the VM image that contains all dependencies required by Lithops, ex
 
 and make it executable with
 
-   chmod +x build_lithops_vm_image.sh
+    chmod +x build_lithops_vm_image.sh
 
 ### Build the Image without Lithops runtime
 In this approach you build custom image that contains all required dependecies for Lithops. However this doesn't include Lithops runtime. In this approach Lithops will pull Lithops runtime during job execution and it will not be part of the image
