@@ -20,20 +20,15 @@ Here you can find which modules are preinstalled by default in a AWS Lambda Pyth
 
 Lithops runtime also ships with the following packages:
 ```
-beautifulsoup4
 httplib2
 kafka-python
-lxml
-python-dateutil
 requests
-scrapy
-simplejson
-virtualenv
-Twisted
-PyJWT
 Pillow
 redis
 pika==0.13.1
+cloudpickle
+ps-mem
+tblib
 ```
 
 The default runtime is created the first time you execute a function. Lithops automatically detects the Python version of your environment and deploys the default runtime based on it.
@@ -70,20 +65,15 @@ For example, we want to add module `matplotlib` to our runtime, since it is not 
 
 First, we need to extend the default `requirements.txt` file provided with Lithops with all the modules we need. For our example, the `requirements.txt` will contain the following modules:
 ```
-beautifulsoup4
 httplib2
 kafka-python
-lxml
-python-dateutil
 requests
-scrapy
-simplejson
-virtualenv
-Twisted
-PyJWT
 Pillow
 redis
 pika==0.13.1
+cloudpickle
+ps-mem
+tblib
 matplotlib
 ```
 
