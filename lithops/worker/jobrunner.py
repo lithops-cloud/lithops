@@ -1,6 +1,7 @@
 #
-# (C) Copyright PyWren Team
-# Copyright IBM Corp. 2019
+# (C) Copyright PyWren Team 2018
+# (C) Copyright IBM Corp. 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,7 +36,8 @@ from lithops.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_func
 from lithops.utils import WrappedStreamingBodyPartition
 from lithops.constants import TEMP
 from lithops.util.metrics import PrometheusExporter
-from lithops.constants import LITHOPS_TEMP_DIR
+from lithops.storage.utils import create_output_key
+from lithops.constants import LITHOPS_TEMP_DIR, JOBS_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -59,22 +61,24 @@ class stats:
 
 class JobRunner:
 
-    def __init__(self, jr_config, jobrunner_conn, internal_storage):
-        self.jr_config = jr_config
+    def __init__(self, job, jobrunner_conn, internal_storage):
         self.jobrunner_conn = jobrunner_conn
         self.internal_storage = internal_storage
 
-        self.lithops_config = self.jr_config['lithops_config']
-        self.executor_id = self.jr_config['executor_id']
-        self.call_id = self.jr_config['call_id']
-        self.job_id = self.jr_config['job_id']
-        self.func_key = self.jr_config['func_key']
-        self.data_key = self.jr_config['data_key']
-        self.data_byte_range = self.jr_config['data_byte_range']
-        self.output_key = self.jr_config['output_key']
+        self.lithops_config = job.config
+        self.executor_id = job.executor_id
+        self.call_id = job.call_id
+        self.job_id = job.job_id
+        self.func_key = job.func_key
+        self.data_key = job.data_key
+        self.data_byte_range = job.data_byte_range
+        self.output_key = create_output_key(JOBS_PREFIX, self.executor_id,
+                                            self.job_id, self.call_id)
 
-        self.stats = stats(self.jr_config['stats_filename'])
+        # Setup stats class
+        self.stats = stats(job.jr_stats_file)
 
+        # Setup prometheus for live metrics
         prom_enabled = self.lithops_config['lithops'].get('monitoring')
         prom_config = self.lithops_config.get('prometheus', {})
         self.prometheus = PrometheusExporter(prom_enabled, prom_config)
@@ -96,7 +100,6 @@ class JobRunner:
         loaded_func_all = pickle.loads(func_obj)
         func_download_end_tstamp = time.time()
         self.stats.write('worker_func_download_time', round(func_download_end_tstamp-func_download_start_tstamp, 8))
-        logger.debug("Finished getting Function and modules")
 
         return loaded_func_all
 
@@ -135,19 +138,16 @@ class JobRunner:
                 with open(full_filename, 'wb') as fid:
                     fid.write(b64str_to_bytes(m_data))
 
-            logger.debug("Finished writing Function dependencies")
-
     def _unpickle_function(self, pickled_func):
         """
         Unpickle function; it will expect modules to be there
         """
-        logger.debug("Unpickle Function")
-        loaded_func = pickle.loads(pickled_func)
-        logger.debug("Finished Function unpickle")
-
-        return loaded_func
+        return pickle.loads(pickled_func)
 
     def _load_data(self):
+        """
+        Loads iteradata
+        """
         extra_get_args = {}
         if self.data_byte_range is not None:
             range_str = 'bytes={}-{}'.format(*self.data_byte_range)
@@ -156,10 +156,7 @@ class JobRunner:
         logger.debug("Getting function data")
         data_download_start_tstamp = time.time()
         data_obj = self.internal_storage.get_data(self.data_key, extra_get_args=extra_get_args)
-        logger.debug("Finished getting Function data")
-        logger.debug("Unpickle Function data")
         loaded_data = pickle.loads(data_obj)
-        logger.debug("Finished unpickle Function data")
         data_download_end_tstamp = time.time()
         self.stats.write('worker_data_download_time', round(data_download_end_tstamp-data_download_start_tstamp, 8))
 
@@ -261,7 +258,7 @@ class JobRunner:
         Runs the function
         """
         # self.stats.write('worker_jobrunner_start_tstamp', time.time())
-        logger.info("Process started")
+        logger.debug("Process started")
         result = None
         exception = False
         try:
@@ -291,11 +288,11 @@ class JobRunner:
                                         ))
 
             logger.info("Going to execute '{}()'".format(str(function.__name__)))
-            logger.info('---------------------- FUNCTION LOG ----------------------')
+            print('---------------------- FUNCTION LOG ----------------------')
             function_start_tstamp = time.time()
             result = function(**data)
             function_end_tstamp = time.time()
-            logger.info('----------------------------------------------------------')
+            print('----------------------------------------------------------')
             logger.info("Success function execution")
 
             self.prometheus.send_metric(name='function_end',
@@ -331,9 +328,9 @@ class JobRunner:
             exception = True
             self.stats.write("exception", True)
             exc_type, exc_value, exc_traceback = sys.exc_info()
-            logger.error('----------------------- EXCEPTION !-----------------------')
+            print('----------------------- EXCEPTION !-----------------------')
             traceback.print_exc(file=sys.stdout)
-            logger.error('----------------------------------------------------------')
+            print('----------------------------------------------------------')
 
             try:
                 logger.debug("Pickling exception")

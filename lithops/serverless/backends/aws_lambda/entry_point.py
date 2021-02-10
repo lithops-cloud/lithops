@@ -26,8 +26,7 @@ logger = logging.getLogger('lithops.worker')
 
 
 def lambda_handler(event, context):
-    os.environ['__PW_ACTIVATION_ID'] = context.aws_request_id
-    os.environ['__OW_ACTIVATION_ID'] = context.aws_request_id
+    os.environ['__LITHOPS_ACTIVATION_ID'] = context.aws_request_id
 
     setup_lithops_logger(event.get('log_level', logging.INFO))
 

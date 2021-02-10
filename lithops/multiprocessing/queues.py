@@ -12,9 +12,6 @@
 __all__ = ['Queue', 'SimpleQueue', 'JoinableQueue']
 
 import os
-import threading
-import collections
-import weakref
 
 from queue import Empty, Full
 

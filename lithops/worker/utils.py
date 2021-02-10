@@ -84,3 +84,17 @@ def get_runtime_preinstalls():
     runtime_meta["python_ver"] = str(python_version[0])+"."+str(python_version[1])
 
     return runtime_meta
+
+
+class LogStream:
+    def __init__(self, stream):
+        self._old_stdout = sys.stdout
+        self._stream = stream
+
+    def write(self, log):
+        self._old_stdout.write(log)
+        self._stream.write(log)
+        self.flush()
+
+    def flush(self):
+        self._stream.flush()

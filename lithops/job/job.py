@@ -24,7 +24,8 @@ import logging
 from lithops import utils
 from lithops.job.partitioner import create_partitions
 from lithops.utils import is_object_processing_function, sizeof_fmt, b64str_to_bytes
-from lithops.storage.utils import create_func_key, create_agg_data_key
+from lithops.storage.utils import create_func_key, create_agg_data_key,\
+    create_job_key
 from lithops.job.serialize import SerializeIndependent, create_module_data
 from lithops.constants import MAX_AGG_DATA_SIZE, JOBS_PREFIX, LOCALHOST,\
     SERVERLESS, STANDALONE, LITHOPS_TEMP_DIR
@@ -35,13 +36,20 @@ logger = logging.getLogger(__name__)
 
 
 def create_map_job(config, internal_storage, executor_id, job_id, map_function,
-                   iterdata, runtime_meta, runtime_memory, extra_env,
+                   iterdata,  runtime_meta, runtime_memory, extra_env,
                    include_modules, exclude_modules, execution_timeout,
-                   extra_args=None,  obj_chunk_size=None, obj_chunk_number=None,
-                   invoke_pool_threads=128):
+                   chunksize=None, worker_processes=None, extra_args=None,
+                   obj_chunk_size=None, obj_chunk_number=None, chunk_size=None,
+                   chunk_n=None, invoke_pool_threads=16):
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
     """
+
+    if chunk_size or chunk_n:
+        print('>> WARNING: chunk_size and chunk_n parameters are deprecated'
+              'use obj_chunk_size and obj_chunk_number instead')
+        obj_chunk_size = chunk_size
+        obj_chunk_number = chunk_n
 
     host_job_meta = {'host_job_create_tstamp': time.time()}
     map_iterdata = utils.verify_args(map_function, iterdata, extra_args)
@@ -51,15 +59,15 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function,
         utils.create_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id)
 
     # Object processing functionality
-    parts_per_object = None
+    ppo = None
     if is_object_processing_function(map_function):
         create_partitions_start = time.time()
         # Create partitions according chunk_size or chunk_number
         logger.debug('ExecutorID {} | JobID {} - Calling map on partitions '
                      'from object storage flow'.format(executor_id, job_id))
-        map_iterdata, parts_per_object = create_partitions(config, internal_storage,
-                                                           map_iterdata, obj_chunk_size,
-                                                           obj_chunk_number)
+        map_iterdata, ppo = create_partitions(config, internal_storage,
+                                              map_iterdata, obj_chunk_size,
+                                              obj_chunk_number)
 
         host_job_meta['host_job_create_partitions_time'] = round(time.time()-create_partitions_start, 6)
     # ########
@@ -70,6 +78,8 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function,
                       job_id=job_id,
                       func=map_function,
                       iterdata=map_iterdata,
+                      chunksize=chunksize,
+                      worker_processes=worker_processes,
                       runtime_meta=runtime_meta,
                       runtime_memory=runtime_memory,
                       extra_env=extra_env,
@@ -79,8 +89,8 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function,
                       host_job_meta=host_job_meta,
                       invoke_pool_threads=invoke_pool_threads)
 
-    if parts_per_object:
-        job.parts_per_object = parts_per_object
+    if ppo:
+        job.parts_per_object = ppo
 
     return job
 
@@ -164,21 +174,12 @@ def _store_func_and_modules(func_key, func_str, module_data):
 
 
 def _create_job(config, internal_storage, executor_id, job_id, func,
-                iterdata, runtime_meta, runtime_memory, extra_env,
+                iterdata,  runtime_meta, runtime_memory, extra_env,
                 include_modules, exclude_modules, execution_timeout,
-                host_job_meta, invoke_pool_threads=128):
+                host_job_meta, chunksize=None, worker_processes=None,
+                invoke_pool_threads=16):
     """
-    :param func: the function to map over the data
-    :param iterdata: An iterable of input data
-    :param extra_env: Additional environment variables for CF environment. Default None.
-    :param extra_meta: Additional metadata to pass to CF. Default None.
-    :param remote_invocation: Enable remote invocation. Default False.
-    :param invoke_pool_threads: Number of threads to use to invoke.
-    :param data_all_as_one: upload the data as a single object. Default True
-    :param overwrite_invoke_args: Overwrite other args. Mainly used for testing.
-    :param exclude_modules: Explicitly keep these modules from pickled dependencies.
-    :return: A list with size `len(iterdata)` of futures for each job
-    :rtype:  list of futures.
+    Creates a new Job
     """
     ext_env = {} if extra_env is None else extra_env.copy()
     if ext_env:
@@ -186,10 +187,13 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
         logger.debug("Extra environment vars {}".format(ext_env))
 
     job = SimpleNamespace()
+    job.chunksize = chunksize or config['lithops']['chunksize']
+    job.worker_processes = worker_processes or config['lithops']['worker_processes']
+    job.execution_timeout = execution_timeout or config['lithops']['execution_timeout']
     job.executor_id = executor_id
     job.job_id = job_id
+    job.job_key = create_job_key(job.executor_id, job.job_id)
     job.extra_env = ext_env
-    job.execution_timeout = execution_timeout or config['lithops']['execution_timeout']
     job.function_name = func.__name__
     job.total_calls = len(iterdata)
 
@@ -262,8 +266,8 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     # Upload data
     data_key = create_agg_data_key(JOBS_PREFIX, executor_id, job_id)
     job.data_key = data_key
-    data_bytes, data_ranges = utils.agg_data(data_strs)
-    job.data_ranges = data_ranges
+    data_bytes, data_byte_ranges = utils.agg_data(data_strs)
+    job.data_byte_ranges = data_byte_ranges
     data_upload_start = time.time()
     internal_storage.put_data(data_key, data_bytes)
     data_upload_end = time.time()

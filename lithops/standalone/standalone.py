@@ -83,12 +83,12 @@ class StandaloneHandler:
         start = time.time()
         while(time.time() - start < self.start_timeout):
             if self._is_instance_ready(instance):
-                logger.debug('VM instance {} ready in {}'.format(instance, round(time.time()-start, 2)))
+                logger.debug('{} ready in {} seconds'.format(instance, round(time.time()-start, 2)))
                 return True
             time.sleep(5)
 
         self.dismantle()
-        raise Exception('VM readiness probe expired on {}'.format(instance))
+        raise Exception('SSH Readiness probe expired on {}'.format(instance))
 
     def _is_proxy_ready(self, instance):
         """
@@ -129,14 +129,21 @@ class StandaloneHandler:
         """
         Run the job description against the selected environment
         """
-        total_calls = job_payload['job_description']['total_calls']
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
+        total_calls = job_payload['total_calls']
+        chunksize = job_payload['chunksize']
 
         if self.exec_mode == 'create':
-            for vm_n in range(total_calls):
-                call_id = "{:05d}".format(vm_n)
-                name = 'lithops-{}-{}-{}'.format(executor_id, job_id, call_id)
+            total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
+            logger.debug('ExecutorID {} | JobID {} - Going '
+                         'to run {} activations in {} workers'
+                         .format(executor_id, job_id,
+                                 total_calls, total_workers))
+
+            for vm_n in range(total_workers):
+                worker_id = "{:04d}".format(vm_n)
+                name = 'lithops-{}-{}-{}'.format(executor_id, job_id, worker_id)
                 self.backend.create_instance(name)
 
             def _callback(future):
@@ -150,6 +157,10 @@ class StandaloneHandler:
                 for i in range(1, len(instances)):
                     future = executor.submit(lambda vm: vm.create(start=True), instances[i])
                     future.add_done_callback(_callback)
+        else:
+            logger.debug('ExecutorID {} | JobID {} - Going '
+                         'to run {} activations in 1 worker'
+                         .format(executor_id, job_id, total_calls,))
 
         logger.debug("Checking if {} is ready".format(self.backend.master))
         if not self._is_proxy_ready(self.backend.master):
@@ -163,7 +174,7 @@ class StandaloneHandler:
 
         if self.exec_mode == 'create':
             logger.debug('Be patient, VM startup time may take up to 2 minutes')
-            job_instances = {inst.name.split('-')[-1]: (inst.name, inst.ip_address, inst.instance_id) for inst in instances[1:]}
+            job_instances = [(inst.name, inst.ip_address, inst.instance_id) for inst in instances[1:]]
             cmd = ('python3 /opt/lithops/controller.py run {} {}'
                    .format(shlex.quote(json.dumps(job_payload)),
                            shlex.quote(json.dumps(job_instances))))

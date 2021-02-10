@@ -37,17 +37,9 @@ NUMERICS_LAYERS = {
 }
 
 DEFAULT_REQUIREMENTS = [
-    'beautifulsoup4',
     'httplib2',
     'kafka-python',
-    'lxml',
-    'python-dateutil',
     'requests',
-    'scrapy',
-    'simplejson',
-    'virtualenv',
-    'Twisted',
-    'PyJWT',
     'Pillow',
     'pandas',
     'redis',

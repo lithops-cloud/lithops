@@ -24,17 +24,16 @@ RUN pip install \
         awslambdaric \
         boto3 \
         redis \
+        httplib2 \
         requests \
         numpy \
+        scipy \
         pandas \
         pika==0.13.1 \
-        simplejson \
-        kafka_python \
-        lxml \
+        kafka-python \
         cloudpickle \
         ps-mem \
-        tblib \
-        namegenerator
+        tblib
 
 
 FROM python:3.8-buster
@@ -52,7 +51,7 @@ RUN mkdir lithops
 COPY lithops_lambda.zip ${FUNCTION_DIR}
 RUN unzip lithops_lambda.zip && rm lithops_lambda.zip
 
-# Put your dependencies here, using RUN pip install... or RUN apt instal...
+# Put your dependencies here, using RUN pip install... or RUN apt install...
 
 ENTRYPOINT [ "/usr/local/bin/python", "-m", "awslambdaric" ]
 CMD [ "__main__.lambda_handler" ]

@@ -13,10 +13,8 @@
 # Imports
 #
 
-import os
 import itertools
 import sys
-import threading
 import traceback
 import os
 
@@ -65,12 +63,11 @@ class CloudWorker:
         self._func = func
         self._initializer = initializer
         self._initargs = initargs
-
         self.log_stream = None
 
     def __call__(self, *args, **kwargs):
         if self.log_stream is not None:
-            sys.stdout = util.RemoteLogStream(self.log_stream)
+            sys.stdout = util.RemoteLogIOBuffer(self.log_stream)
 
         if self._initializer is not None:
             self._initializer(*self._initargs)
@@ -120,19 +117,8 @@ class CloudProcess:
         self._executor = FunctionExecutor(**lithops_config)
         self._forked = False
         self._sentinel = object()
-        self._logger_thread = None
+        self._remote_logger = None
         self._redis = util.get_redis_client()
-
-    def _logger_monitor(self, stream):
-        logger.debug('Starting logger monitor thread')
-        redis_pubsub = self._redis.pubsub()
-        redis_pubsub.subscribe(stream)
-
-        while True:
-            msg = redis_pubsub.get_message(ignore_subscribe_messages=True, timeout=10)
-            if msg is None:
-                continue
-            sys.stdout.write(msg['data'].decode('utf-8'))
 
     def run(self):
         """
@@ -148,22 +134,16 @@ class CloudProcess:
         assert not self._forked, 'cannot start a process twice'
         assert self._parent_pid == os.getpid(), 'can only start a process object created by current process'
 
-        # sig = inspect.signature(self._target)
-        # pos_args = [param.name for _, param in sig.parameters.items() if param.default is inspect.Parameter.empty]
-        # fmt_args = dict(zip(pos_args, self._args))
-        # fmt_args.update(self._kwargs)
-
         cloud_worker = CloudWorker(self._target)
 
-        extra_env = {}
         if mp_config.get_parameter(mp_config.STREAM_STDOUT):
             stream = self._executor.executor_id
             logger.debug('Log streaming enabled, stream name: {}'.format(stream))
+            self._remote_logger = util.RemoteLoggingFeed(stream)
+            self._remote_logger.start()
             cloud_worker.log_stream = stream
 
-            self._logger_thread = threading.Thread(target=self._logger_monitor, args=(stream,))
-            self._logger_thread.daemon = True
-            self._logger_thread.start()
+        extra_env = mp_config.get_parameter(mp_config.ENV_VARS)
 
         self._executor.call_async(cloud_worker, {'args': self._args, 'kwargs': self._kwargs}, extra_env=extra_env)
         del self._target, self._args, self._kwargs
@@ -184,6 +164,8 @@ class CloudProcess:
         assert self._forked, 'can only join a started process'
 
         self._executor.wait()
+        if self._remote_logger:
+            self._remote_logger.stop()
 
     def is_alive(self):
         """

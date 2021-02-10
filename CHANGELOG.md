@@ -3,14 +3,23 @@
 ## [v2.2.17.dev0]
 
 ### Added
+- [Core] Added multiprocessing support in workers
+- [Core] Added 'cunksize' param to API calls
+- [Core] Added 'worker_granularity' param to API calls
+- [Core] Allow multiple calls in the same worker trough 'chunksize' and 'worker_granularity' params
 - [Config] Allow 'log_level' and 'log_format' keys in configuration
 - [Config] Allow 'log_stream' and 'log_filename' keys in configuration
 - [Config] Allow 'runtime' being configured at serverless backend level
 - [Config] Allow 'invoke_pool_threads' being configured at serverless backend level
 
+
 ### Changed
+- [Core] Improved Standalone execution mode
 - [Core] Renamed utils.setup_logger() method to utils.setup_lithops_logger()
+- [Core] Renamed partitioner 'chunk_size' param to 'obj_chunk_size'
+- [Core] Renamed partitioner 'chunk_n' param to 'obj_chunk_number'
 - [GCP Cloud Run] Refactor backend, removed 'gcloud' CLI calls.
+- [IBM VPC] Improved IBM VPC backend
 
 
 ## [v2.2.15]

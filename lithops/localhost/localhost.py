@@ -1,5 +1,5 @@
 #
-# Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,8 +24,7 @@ import subprocess as sp
 from shutil import copyfile
 
 from lithops.constants import TEMP, LITHOPS_TEMP_DIR, JOBS_PREFIX,\
-    RN_LOG_FILE, LOGS_DIR, COMPUTE_CLI_MSG
-from lithops.storage.utils import create_job_key
+    RN_LOG_FILE, COMPUTE_CLI_MSG
 from lithops.utils import is_unix_system
 
 logger = logging.getLogger(__name__)
@@ -68,24 +67,20 @@ class LocalhostHandler:
         """
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
-        runtime = job_payload['job_description']['runtime_name']
+        job_key = job_payload['job_id']
+        runtime = job_payload['runtime_name']
+        storage_bucket = job_payload['config']['lithops']['storage_bucket']
+        total_calls = len(job_payload['call_ids'])
 
-        job_key = create_job_key(executor_id, job_id)
-        log_file = os.path.join(LOGS_DIR, job_key+'.log')
-        logger.info("Running job in {}. View execution logs at {}"
-                    .format(runtime, log_file))
+        logger.debug('ExecutorID {} | JobID {} - Going '
+                     'to run {} activations in localhost'
+                     .format(executor_id, job_id, total_calls))
 
         if not os.path.isfile(RUNNER):
             self.env.setup(runtime)
 
-        exec_command = self.env.get_execution_cmd(runtime)
-
-        executor_id = job_payload['executor_id']
-        job_id = job_payload['job_id']
-        storage_bucket = job_payload['config']['lithops']['storage_bucket']
-
         local_job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket, JOBS_PREFIX)
-        docker_job_dir = os.path.join('/tmp/lithops/{}/{}'.format(storage_bucket, JOBS_PREFIX))
+        docker_job_dir = '/tmp/lithops/{}/{}'.format(storage_bucket, JOBS_PREFIX)
         job_file = '{}-job.json'.format(job_key)
 
         os.makedirs(local_job_dir, exist_ok=True)
@@ -99,9 +94,11 @@ class LocalhostHandler:
         else:
             job_filename = local_job_filename
 
-        log_file = open(RN_LOG_FILE, 'a')
-        sp.Popen(exec_command+' run '+job_filename, shell=True,
-                 stdout=log_file, stderr=log_file, universal_newlines=True)
+        exec_command = self.env.get_execution_cmd(runtime)
+        logger.debug('cmd: '+exec_command+' run '+job_filename)
+        with open(RN_LOG_FILE, 'a') as log_file:
+            sp.Popen(exec_command+' run '+job_filename, shell=True,
+                     stdout=log_file, stderr=log_file, universal_newlines=True)
 
     def create_runtime(self, runtime):
         """
@@ -158,7 +155,6 @@ class DockerEnv:
         else:
             cmd = ('docker run --rm -v {}:/tmp --entrypoint "python3" {} '
                    '/tmp/lithops/runner.py'.format(TEMP, self.runtime))
-        logger.debug(cmd)
         return cmd
 
 
@@ -179,5 +175,4 @@ class DefaultEnv:
 
     def get_execution_cmd(self, runtime):
         cmd = '{} {}'.format(self.runtime, RUNNER)
-        logger.debug(cmd)
         return cmd

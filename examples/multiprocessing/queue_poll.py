@@ -1,5 +1,6 @@
-from lithops.multiprocessing import Process, Queue, getpid
 import time
+
+from lithops.multiprocessing import Process, Queue, getpid
 
 
 def f(q):

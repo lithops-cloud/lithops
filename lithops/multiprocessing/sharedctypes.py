@@ -12,7 +12,7 @@
 import ctypes
 
 from . import util
-from .context import get_context, reduction
+from . import get_context, reduction
 
 _ForkingPickler = reduction.DefaultPickler
 

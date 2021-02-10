@@ -1,6 +1,7 @@
 #
-# Copyright 2018 PyWren Team
-# Copyright IBM Corp. 2019
+# (C) Copyright PyWren Team 2018
+# (C) Copyright IBM Corp. 2020
+# (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,26 +18,30 @@
 
 import os
 import sys
+import zlib
 import pika
 import time
 import json
+import base64
 import pickle
 import logging
 import traceback
+import multiprocessing as mp
 from threading import Thread
 from multiprocessing import Process, Pipe
 from distutils.util import strtobool
 from tblib import pickling_support
+from types import SimpleNamespace
 
-from lithops import version
-from lithops.utils import sizeof_fmt
+from lithops.version import __version__
 from lithops.config import extract_storage_config
 from lithops.storage import InternalStorage
 from lithops.worker.jobrunner import JobRunner
-from lithops.worker.utils import get_memory_usage
+from lithops.worker.utils import get_memory_usage, LogStream
 from lithops.constants import JOBS_PREFIX, LITHOPS_TEMP_DIR
-from lithops.storage.utils import create_output_key, create_status_key,\
-    create_init_key, create_job_key
+from lithops.utils import sizeof_fmt, setup_lithops_logger, is_unix_system
+from lithops.storage.utils import create_status_key, create_job_key,\
+    create_init_key
 
 pickling_support.install()
 
@@ -46,96 +51,125 @@ logger = logging.getLogger(__name__)
 LITHOPS_LIBS_PATH = '/action/lithops/libs'
 
 
-def function_handler(event):
+class ShutdownSentinel():
+    """Put an instance of this class on the queue to shut it down"""
+    pass
+
+
+def function_handler(payload):
+    job = SimpleNamespace(**payload)
+
+    job_queue = mp.Queue()
+    job_runners = []
+
+    processes = min(job.worker_processes, len(job.call_ids))
+    logger.info("Starting {} processes".format(processes))
+
+    for runner_id in range(processes):
+        p = mp.Process(target=process_runner, args=(runner_id, job_queue))
+        job_runners.append(p)
+        p.start()
+
+    for call_id in job.call_ids:
+        data_byte_range = job.data_byte_ranges.pop(0)
+        logger.info('Going to execute job {}-{}'.format(job.job_key, call_id))
+        job_queue.put((job, call_id, data_byte_range))
+
+    for i in range(processes):
+        job_queue.put(ShutdownSentinel())
+
+    for runner in job_runners:
+        runner.join()
+
+
+def process_runner(runner_id, job_queue):
+    """
+    Listens the job_queue and executes the jobs
+    """
+    logger.info('Worker process {} started'.format(runner_id))
+
+    while True:
+        event = job_queue.get(block=True)
+        if isinstance(event, ShutdownSentinel):
+            break
+
+        job, call_id, data_byte_range = event
+
+        bucket = job.config['lithops']['storage_bucket']
+        job.job_dir = os.path.join(LITHOPS_TEMP_DIR, bucket, JOBS_PREFIX, job.job_key, call_id)
+        job.log_file = os.path.join(job.job_dir, 'execution.log')
+        os.makedirs(job.job_dir, exist_ok=True)
+
+        job.call_id = call_id
+        job.data_byte_range = data_byte_range
+
+        old_stderr = sys.stderr
+        old_stdout = sys.stdout
+        log_strem = open(job.log_file, 'a')
+        sys.stderr = LogStream(log_strem)
+        sys.stdout = LogStream(log_strem)
+        run_job(job)
+        log_strem.close()
+        sys.stderr = old_stderr
+        sys.stdout = old_stdout
+
+
+def run_job(job):
+    """
+    Runs a single job within a separate process
+    """
     start_tstamp = time.time()
+    setup_lithops_logger(job.log_level)
 
-    logger.debug("Action handler started")
+    logger.info("Lithops v{} - Starting execution".format(__version__))
+    logger.info("Execution ID: {}/{}".format(job.job_key, job.call_id))
+    logger.debug("Runtime name: {}".format(job.runtime_name))
+    if job.runtime_memory:
+        logger.debug("Runtime memory: {}MB".format(job.runtime_memory))
+    logger.debug("Function timeout: {}s".format(job.execution_timeout))
 
-    extra_env = event.get('extra_env', {})
-    os.environ.update(extra_env)
-    os.environ.update({'LITHOPS_WORKER': 'True',
-                       'PYTHONUNBUFFERED': 'True'})
+    env = job.extra_env
+    env['LITHOPS_WORKER'] = 'True'
+    env['PYTHONUNBUFFERED'] = 'True'
+    env['LITHOPS_CONFIG'] = json.dumps(job.config)
+    env['PYTHONPATH'] = "{}:{}".format(os.getcwd(), LITHOPS_LIBS_PATH)
+    env['__LITHOPS_SESSION_ID'] = '-'.join([job.job_key, job.call_id])
+    os.environ.update(env)
 
-    config = event['config']
-    call_id = event['call_id']
-    job_id = event['job_id']
-    executor_id = event['executor_id']
-    job_key = create_job_key(executor_id, job_id)
-    logger.info("Execution ID: {}/{}".format(job_key, call_id))
-
-    runtime_name = event['runtime_name']
-    runtime_memory = event['runtime_memory']
-    execution_timeout = event['execution_timeout']
-
-    logger.debug("Runtime name: {}".format(runtime_name))
-    if runtime_memory:
-        logger.debug("Runtime memory: {}MB".format(runtime_memory))
-    logger.debug("Function timeout: {}s".format(execution_timeout))
-
-    func_key = event['func_key']
-    data_key = event['data_key']
-    data_byte_range = event['data_byte_range']
-
-    storage_config = extract_storage_config(config)
+    storage_config = extract_storage_config(job.config)
     internal_storage = InternalStorage(storage_config)
 
-    call_status = CallStatus(config, internal_storage)
-    call_status.response['host_submit_tstamp'] = event['host_submit_tstamp']
+    call_status = CallStatus(job.config, internal_storage)
     call_status.response['worker_start_tstamp'] = start_tstamp
-    context_dict = {
-        'python_version': os.environ.get("PYTHON_VERSION"),
-        'call_id': call_id,
-        'job_id': job_id,
-        'executor_id': executor_id,
-        'activation_id': os.environ.get('__LITHOPS_ACTIVATION_ID')
-    }
-    call_status.response.update(context_dict)
+    call_status.response['host_submit_tstamp'] = job.host_submit_tstamp
+    call_status.response['call_id'] = job.call_id
+    call_status.response['job_id'] = job.job_id
+    call_status.response['executor_id'] = job.executor_id
 
     show_memory_peak = strtobool(os.environ.get('SHOW_MEMORY_PEAK', 'False'))
 
     try:
-        if version.__version__ != event['lithops_version']:
+        if __version__ != job.lithops_version:
             msg = ("Lithops version mismatch. Host version: {} - Runtime version: {}"
-                   .format(event['lithops_version'], version.__version__))
+                   .format(job.lithops_version, __version__))
             raise RuntimeError('HANDLER', msg)
 
         # send init status event
         call_status.send('__init__')
-
-        # call_status.response['free_disk_bytes'] = free_disk_space("/tmp")
-        custom_env = {'LITHOPS_CONFIG': json.dumps(config),
-                      '__LITHOPS_SESSION_ID': '-'.join([job_key, call_id]),
-                      'PYTHONPATH': "{}:{}".format(os.getcwd(), LITHOPS_LIBS_PATH)}
-        os.environ.update(custom_env)
-
-        jobrunner_stats_dir = os.path.join(LITHOPS_TEMP_DIR, storage_config['bucket'],
-                                           JOBS_PREFIX, job_key, call_id)
-        os.makedirs(jobrunner_stats_dir, exist_ok=True)
-        jobrunner_stats_filename = os.path.join(jobrunner_stats_dir, 'jobrunner.stats.txt')
-
-        jobrunner_config = {'lithops_config': config,
-                            'call_id':  call_id,
-                            'job_id':  job_id,
-                            'executor_id':  executor_id,
-                            'func_key': func_key,
-                            'data_key': data_key,
-                            'data_byte_range': data_byte_range,
-                            'output_key': create_output_key(JOBS_PREFIX, executor_id, job_id, call_id),
-                            'stats_filename': jobrunner_stats_filename}
 
         if show_memory_peak:
             mm_handler_conn, mm_conn = Pipe()
             memory_monitor = Thread(target=memory_monitor_worker, args=(mm_conn, ))
             memory_monitor.start()
 
+        job.jr_stats_file = os.path.join(job.job_dir, 'jobrunner.stats.txt')
         handler_conn, jobrunner_conn = Pipe()
-        jobrunner = JobRunner(jobrunner_config, jobrunner_conn, internal_storage)
+        jobrunner = JobRunner(job, jobrunner_conn, internal_storage)
         logger.debug('Starting JobRunner process')
-        local_execution = strtobool(os.environ.get('__LITHOPS_LOCAL_EXECUTION', 'False'))
-        jrp = Thread(target=jobrunner.run) if local_execution else Process(target=jobrunner.run)
+        jrp = Process(target=jobrunner.run) if is_unix_system() else Thread(target=jobrunner.run)
         jrp.start()
 
-        jrp.join(execution_timeout)
+        jrp.join(job.execution_timeout)
         logger.debug('JobRunner process finished')
 
         if jrp.is_alive():
@@ -146,7 +180,7 @@ def function_handler(event):
                 # thread does not have terminate method
                 pass
             msg = ('Function exceeded maximum time of {} seconds and was '
-                   'killed'.format(execution_timeout))
+                   'killed'.format(job.execution_timeout))
             raise TimeoutError('HANDLER', msg)
 
         if show_memory_peak:
@@ -165,8 +199,8 @@ def function_handler(event):
             msg = 'Function exceeded maximum memory and was killed'
             raise MemoryError('HANDLER', msg)
 
-        if os.path.exists(jobrunner_stats_filename):
-            with open(jobrunner_stats_filename, 'r') as fid:
+        if os.path.exists(job.jr_stats_file):
+            with open(job.jr_stats_file, 'r') as fid:
                 for l in fid.readlines():
                     key, value = l.strip().split(" ", 1)
                     try:
@@ -178,9 +212,9 @@ def function_handler(event):
 
     except Exception:
         # internal runtime exceptions
-        logger.error('----------------------- EXCEPTION !-----------------------')
+        print('----------------------- EXCEPTION !-----------------------')
         traceback.print_exc(file=sys.stdout)
-        logger.error('----------------------------------------------------------')
+        print('----------------------------------------------------------')
         call_status.response['exception'] = True
 
         pickled_exc = pickle.dumps(sys.exc_info())
@@ -189,10 +223,15 @@ def function_handler(event):
 
     finally:
         call_status.response['worker_end_tstamp'] = time.time()
+
+        with open(job.log_file, 'rb') as lf:
+            log_str = base64.b64encode(zlib.compress(lf.read())).decode()
+            call_status.response['logs'] = log_str
+
         call_status.send('__end__')
 
         # Unset specific env vars
-        for key in extra_env:
+        for key in job.extra_env:
             os.environ.pop(key, None)
         os.environ.pop('__LITHOPS_TOTAL_EXECUTORS', None)
 
@@ -206,7 +245,11 @@ class CallStatus:
         self.rabbitmq_monitor = self.config['lithops'].get('rabbitmq_monitor', False)
         self.store_status = strtobool(os.environ.get('__LITHOPS_STORE_STATUS', 'True'))
         self.internal_storage = internal_storage
-        self.response = {'exception': False}
+        self.response = {
+            'exception': False,
+            'activation_id': os.environ.get('__LITHOPS_ACTIVATION_ID'),
+            'python_version': os.environ.get("PYTHON_VERSION")
+        }
 
     def send(self, event_type):
         self.response['type'] = event_type

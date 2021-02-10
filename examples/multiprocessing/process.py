@@ -1,6 +1,7 @@
 import getpass
 
 from lithops.multiprocessing import Process
+# from multiprocessing import Process
 
 
 def function(name, language='english'):

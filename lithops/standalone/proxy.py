@@ -24,7 +24,7 @@ import threading
 import json
 from gevent.pywsgi import WSGIServer
 
-from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DONE_DIR, \
+from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DIR, \
     REMOTE_INSTALL_DIR, PX_LOG_FILE, LOGS_DIR, LOGGER_FORMAT, \
     PROXY_SERVICE_PORT
 from lithops.storage.utils import create_job_key
@@ -81,7 +81,7 @@ def budget_keeper():
         time_since_last_usage = time.time() - last_usage_time
         check_interval = standalone_handler.soft_dismantle_timeout / 10
         for job_key in jobs.keys():
-            done = os.path.join(JOBS_DONE_DIR, job_key+'.done')
+            done = os.path.join(JOBS_DIR, job_key+'.done')
             if os.path.isfile(done):
                 jobs[job_key] = 'done'
         if len(jobs) > 0 and all(value == 'done' for value in jobs.values()) \
@@ -154,7 +154,7 @@ def run():
         return error('The action did not receive a dictionary as an argument.')
 
     try:
-        runtime = message['job_description']['runtime_name']
+        runtime = message['runtime_name']
         verify_runtime_name(runtime)
     except Exception as e:
         return error(str(e))
