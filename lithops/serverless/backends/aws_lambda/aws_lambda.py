@@ -380,14 +380,14 @@ class AWSLambdaBackend:
         if response['ResponseMetadata']['HTTPStatusCode'] in [200, 201]:
             logger.debug('OK --> Created action {}'.format(runtime_name))
 
-            retries = 45 if 'vpc' in self.aws_lambda_config else 30  # VPC lambdas take longer to deploy
+            retries, sleep_seconds = (15, 25) if 'vpc' in self.aws_lambda_config else (30, 5)
             while retries > 0:
                 response = self.lambda_client.get_function(
                     FunctionName=function_name
                 )
                 state = response['Configuration']['State']
                 if state == 'Pending':
-                    time.sleep(5)
+                    time.sleep(sleep_seconds)
                     logger.debug(
                         'Function is being deployed... (status: {})'.format(response['Configuration']['State']))
                     retries -= 1
