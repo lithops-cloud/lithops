@@ -53,7 +53,7 @@ MAX_AGG_DATA_SIZE = 4  # 4MiB
 
 TEMP = os.path.realpath(tempfile.gettempdir())
 LITHOPS_TEMP_DIR = os.path.join(TEMP, 'lithops')
-JOBS_DONE_DIR = os.path.join(LITHOPS_TEMP_DIR, 'jobs')
+JOBS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'jobs')
 LOGS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'logs')
 
 RN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'runner.log')
@@ -76,3 +76,6 @@ SERVERLESS_BACKENDS = ['ibm_cf', 'code_engine', 'knative', 'openwhisk',
                        'aws_lambda', 'gcp_functions', 'cloudrun',
                        'azure_fa', 'aliyun_fc']
 STANDALONE_BACKENDS = ['ibm_vpc', 'vm']
+
+CHUNKSIZE_DEFAULT = 1
+WORKER_PROCESSES_DEFAULT = 1

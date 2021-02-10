@@ -20,12 +20,19 @@ import json
 import importlib
 import logging
 import multiprocessing as mp
-import lithops.constants as constants
+
+from lithops import constants
 from lithops.version import __version__
 from lithops.utils import verify_runtime_name
 from builtins import FileNotFoundError
 
 logger = logging.getLogger(__name__)
+
+os.makedirs(constants.LITHOPS_TEMP_DIR, exist_ok=True)
+os.makedirs(constants.JOBS_DIR, exist_ok=True)
+os.makedirs(constants.LOGS_DIR, exist_ok=True)
+
+CPU_COUNT = mp.cpu_count()
 
 
 def load_yaml_config(config_filename):
@@ -149,6 +156,12 @@ def default_config(config_data=None, config_overwrite={}):
     if 'execution_timeout' not in config_data['lithops']:
         config_data['lithops']['execution_timeout'] = constants.EXECUTION_TIMEOUT_DEFAULT
 
+    if 'chunksize' not in config_data['lithops']:
+        config_data['lithops']['chunksize'] = constants.CHUNKSIZE_DEFAULT
+
+    if 'worker_processes' not in config_data['lithops']:
+        config_data['lithops']['worker_processes'] = constants.WORKER_PROCESSES_DEFAULT
+
     # overwrite values provided by the user
     if 'lithops' in config_overwrite:
         config_data['lithops'].update(config_overwrite['lithops'])
@@ -210,8 +223,8 @@ def default_config(config_data=None, config_overwrite={}):
         verify_runtime_name(config_data[constants.STANDALONE]['runtime'])
 
     elif config_data['lithops']['mode'] == constants.LOCALHOST:
-        if 'workers' not in config_data['lithops']:
-            config_data['lithops']['workers'] = mp.cpu_count()
+        config_data['lithops']['workers'] = 1
+        config_data['lithops']['worker_processes'] = CPU_COUNT
         if constants.LOCALHOST not in config_data or \
            config_data[constants.LOCALHOST] is None:
             config_data[constants.LOCALHOST] = {}

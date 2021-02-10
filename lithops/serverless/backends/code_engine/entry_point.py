@@ -22,7 +22,8 @@ import json
 import flask
 import logging
 from lithops.version import __version__
-from lithops.utils import setup_lithops_logger, b64str_to_dict
+from lithops.utils import setup_lithops_logger, b64str_to_dict,\
+    iterchunks
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
 from lithops.worker.utils import get_runtime_preinstalls
@@ -111,15 +112,20 @@ def main_job(action, encoded_payload):
         runtime_packages(payload)
         return {"Execution": "Finished"}
 
-    job_index = os.environ['JOB_INDEX']
+    job_index = int(os.environ['JOB_INDEX'])
     payload['JOB_INDEX'] = job_index
     logger.info("Action {}. Job Index {}".format(action, job_index))
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
 
-    payload['data_byte_range'] = payload['data_byte_range'][int(job_index)]
-    payload['call_id'] = "{:05d}".format(int(job_index))
+    chunksize = payload['chunksize']
+    call_ids_ranges = [call_ids_range for call_ids_range in iterchunks(payload['call_ids'], chunksize)]
+    call_ids = call_ids_ranges[job_index]
+    data_byte_ranges = [payload['data_byte_ranges'][int(call_id)] for call_id in call_ids]
+
+    payload['call_ids'] = call_ids
+    payload['data_byte_ranges'] = data_byte_ranges
 
     function_handler(payload)
 

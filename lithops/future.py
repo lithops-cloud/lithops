@@ -15,15 +15,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+import os
 import sys
 import time
+import zlib
+import base64
 import pickle
 import logging
 import traceback
 from six import reraise
 from lithops.storage import InternalStorage
-from lithops.storage.utils import check_storage_path, get_storage_path
-
+from lithops.storage.utils import check_storage_path, get_storage_path,\
+    create_job_key
+from lithops.constants import FN_LOG_FILE, LOGS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +60,7 @@ class ResponseFuture:
         self.runtime_memory = job.runtime_memory
         self.activation_id = None
         self.stats = {}
+        self.logs = None
 
         self._storage_config = storage_config
         self._produce_output = True
@@ -166,6 +172,18 @@ class ResponseFuture:
             self._set_state(ResponseFuture.State.Running)
             return self._call_status
 
+        if self._call_status['logs']:
+            self.logs = zlib.decompress(base64.b64decode(self._call_status['logs'].encode())).decode()
+            job_key = create_job_key(self.executor_id, self.job_id)
+            log_file = os.path.join(LOGS_DIR, job_key+'.log')
+            header = "Activation: '{}' ({})\n[\n".format(self.runtime_name, self.activation_id)
+            tail = ']\n\n'
+            output = self.logs.replace('\r', '').replace('\n', '\n    ', self.logs.count('\n')-1)
+            with open(log_file, 'a') as lf:
+                lf.write(header+'    '+output+tail)
+            with open(FN_LOG_FILE, 'a') as lf:
+                lf.write(header+'    '+output+tail)
+
         if self._call_status['exception']:
             self._set_state(ResponseFuture.State.Error)
             self._exception = pickle.loads(eval(self._call_status['exc_info']))
@@ -204,7 +222,6 @@ class ResponseFuture:
 
             if throw_except:
                 sys.excepthook = exception_hook
-                time.sleep(1)
                 reraise(*self._exception)
             else:
                 logger.warning(msg1)

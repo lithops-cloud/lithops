@@ -68,6 +68,12 @@ def get_executor_id():
     return '{}-{}'.format(session_id, exec_num)
 
 
+def iterchunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
+
 def create_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id):
     """
     Creates RabbitMQ queues and exchanges of a given job in a thread.
