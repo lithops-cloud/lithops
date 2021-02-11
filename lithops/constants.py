@@ -57,7 +57,7 @@ JOBS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'jobs')
 LOGS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'logs')
 
 RN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'runner.log')
-PX_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'proxy.log')
+LT_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'lithops.log')
 FN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'functions.log')
 
 CLEANER_DIR = os.path.join(LITHOPS_TEMP_DIR, 'cleaner')
@@ -65,7 +65,7 @@ CLEANER_PID_FILE = os.path.join(CLEANER_DIR, 'cleaner.pid')
 CLEANER_LOG_FILE = os.path.join(CLEANER_DIR, 'cleaner.log')
 
 REMOTE_INSTALL_DIR = '/opt/lithops'
-PROXY_SERVICE_PORT = 8080
+LITHOPS_SERVICE_PORT = 8080
 
 HOME_DIR = os.path.expanduser('~')
 CONFIG_DIR = os.path.join(HOME_DIR, '.lithops')

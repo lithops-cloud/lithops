@@ -242,7 +242,7 @@ class IBMVPCBackend:
             self.master = IBMVPCInstance(vpc_data['instance_name'], self.config,
                                          self.ibm_vpc_client, public=True)
             self.master.instance_id = self.config['instance_id']
-            self.master.ip_address = self.config['ip_address']
+            self.master.public_ip = self.config['ip_address']
             return
 
         logger.debug('Initializing IBM VPC backend (Create mode)')
@@ -271,7 +271,7 @@ class IBMVPCBackend:
         # create the master VM insatnce
         name = 'lithops-master-{}'.format(self.vpc_key)
         self.master = IBMVPCInstance(name, self.config, self.ibm_vpc_client, public=True)
-        self.master.ip_address = self.config['floating_ip']
+        self.master.public_ip = self.config['floating_ip']
         self.master.profile_name = self.config['master_profile_name']
 
     def _delete_vm_instances(self):
@@ -405,11 +405,11 @@ class IBMVPCBackend:
         """
         Stop all VM instances
         """
-        for instance in self.instances:
+        for worker in self.workers:
             logger.debug("Dismantle {} for {}"
-                         .format(instance.instance_id,
-                                 instance.ip_address))
-            instance.stop()
+                         .format(worker.instance_id,
+                                 worker.ip_address))
+            worker.stop()
 
     def create_worker(self, name):
         """
@@ -445,6 +445,7 @@ class IBMVPCInstance:
         self.ssh_client = None
         self.instance_id = None
         self.ip_address = None
+        self.public_ip = None
 
         self.ssh_credentials = {
             'username': self.config.get('ssh_user', ibmvpc_config.SSH_USER),
@@ -453,7 +454,7 @@ class IBMVPCInstance:
         }
 
     def __str__(self):
-        return 'VM instance {} ({})'.format(self.name, self.ip_address)
+        return 'VM instance {} ({})'.format(self.name, self.public_ip or self.ip_address)
 
     def _create_vpc_client(self):
         """
@@ -469,9 +470,9 @@ class IBMVPCInstance:
         """
         Creates an ssh client against the VM only if the Instance is the master
         """
-        if self.ip_address:
+        if self.ip_address or self.public_ip:
             if not self.ssh_client:
-                self.ssh_client = SSHClient(self.ip_address, self.ssh_credentials)
+                self.ssh_client = SSHClient(self.public_ip or self.ip_address, self.ssh_credentials)
         return self.ssh_client
 
     def _create_instance(self, instance_name):

@@ -24,7 +24,7 @@ import shlex
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.utils import is_lithops_worker, create_handler_zip
-from lithops.constants import REMOTE_INSTALL_DIR
+from lithops.constants import REMOTE_INSTALL_DIR, LT_LOG_FILE
 
 
 logger = logging.getLogger(__name__)
@@ -200,11 +200,14 @@ class StandaloneHandler:
         self._setup_lithops()
         self._wait_lithops_ready(self.backend.master)
 
+        print(self.backend.master.public_ip, self.backend.master.ip_address)
+
         logger.debug('Extracting runtime metadata information')
         payload = {'runtime': runtime, 'pull_runtime': self.pull_runtime}
-        cmd = ('curl http://127.0.0.1:8080/preinstalls -d {} '
+        cmd = ('curl http://{}:8080/preinstalls -d {} '
                '-H \'Content-Type: application/json\' -X GET'
-               .format(shlex.quote(json.dumps(payload))))
+               .format(self.backend.master.ip_address, shlex.quote(json.dumps(payload))))
+        print(cmd)
         out = self.backend.master.get_ssh_client().run_remote_command(cmd)
         runtime_meta = json.loads(out)
 
@@ -244,36 +247,39 @@ class StandaloneHandler:
         ssh_client = self.backend.master.get_ssh_client()
 
         # Upload local lithops version to remote VM instance
-        src_proxy = os.path.join(os.path.dirname(__file__), 'proxy.py')
+        src_proxy = os.path.join(os.path.dirname(__file__), 'worker_proxy.py')
         create_handler_zip(LOCAL_FH_ZIP_LOCATION, src_proxy)
         current_location = os.path.dirname(os.path.abspath(__file__))
-        ssh_location = os.path.join(current_location, '..', 'util', 'ssh_client.py')
-        controller_location = os.path.join(current_location, 'controller.py')
+        setup_location = os.path.join(current_location, 'master_setup.py')
+        controller_location = os.path.join(current_location, 'master_controller.py')
 
         logger.debug('Uploading lithops files to {}'.format(self.backend.master))
         files_to_upload = [(LOCAL_FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip'),
-                           (ssh_location, '/tmp/ssh_client.py'.format(REMOTE_INSTALL_DIR)),
-                           (controller_location, '/tmp/controller.py'.format(REMOTE_INSTALL_DIR))]
+                           (setup_location, '/tmp/master_setup.py'.format(REMOTE_INSTALL_DIR)),
+                           (controller_location, '/tmp/master_controller.py'.format(REMOTE_INSTALL_DIR))]
 
         ssh_client.upload_multiple_local_files(files_to_upload)
         os.remove(LOCAL_FH_ZIP_LOCATION)
 
-        instance_data = {'instance_name': self.backend.master.name,
-                         'ip_address': self.backend.master.ip_address,
-                         'instance_id': self.backend.master.instance_id}
+        master_data = {'instance_name': self.backend.master.name,
+                       'ip_address': self.backend.master.ip_address,
+                       'instance_id': self.backend.master.instance_id}
         script = """
+        mkdir -p /tmp/lithops;
+        setup_host(){{
         mv {0}/access.data .;
         rm -R {0};
         mkdir -p {0};
         cp /tmp/lithops_standalone.zip {0};
-        mkdir -p /tmp/lithops;
         mv access.data {0}/access.data;
         test -f {0}/access.data || echo '{1}' > {0}/access.data;
         test -f {0}/config || echo '{2}' > {0}/config;
         mv /tmp/*.py '{0}';
-        apt-get install python3-paramiko -y >> /tmp/lithops/proxy.log 2>&1;
-        python3 {0}/controller.py setup; >> /tmp/lithops/proxy.log 2>&1;
-        """.format(REMOTE_INSTALL_DIR, json.dumps(instance_data), json.dumps(self.config))
+        python3 {0}/master_setup.py;
+        }}
+        setup_host >> {3} 2>&1;
+        """.format(REMOTE_INSTALL_DIR, json.dumps(master_data),
+                   json.dumps(self.config), LT_LOG_FILE)
 
         logger.debug('Executing lithops installation process on {}'.format(self.backend.master))
         logger.debug('Be patient, initial installation process may take up to 5 minutes')
