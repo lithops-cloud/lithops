@@ -90,7 +90,7 @@ class StandaloneHandler:
         self.dismantle()
         raise Exception('SSH Readiness probe expired on {}'.format(instance))
 
-    def _is_proxy_ready(self, instance):
+    def _is_lithops_ready(self, instance):
         """
         Checks if the proxy is ready to receive http connections
         """
@@ -110,20 +110,20 @@ class StandaloneHandler:
         except Exception:
             return False
 
-    def _wait_proxy_ready(self, instance):
+    def _wait_lithops_ready(self, instance):
         """
         Waits until the proxy is ready to receive http connections
         """
-        logger.info('Waiting Lithops proxy to become ready on {}'.format(instance))
+        logger.info('Waiting Lithops to become ready on {}'.format(instance))
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
-            if self._is_proxy_ready(instance):
+            if self._is_lithops_ready(instance):
                 return True
             time.sleep(2)
 
         self.dismantle()
-        raise Exception('Proxy readiness probe expired on {}'.format(instance))
+        raise Exception('Lithops readiness probe expired on {}'.format(instance))
 
     def run_job(self, job_payload):
         """
@@ -144,18 +144,18 @@ class StandaloneHandler:
             for vm_n in range(total_workers):
                 worker_id = "{:04d}".format(vm_n)
                 name = 'lithops-{}-{}-{}'.format(executor_id, job_id, worker_id)
-                self.backend.create_instance(name)
+                self.backend.create_worker(name)
 
             def _callback(future):
                 # This callback is used to raise in-thread exceptions (if any)
                 future.result()
 
-            instances = self.backend.instances
-            with ThreadPoolExecutor(len(instances)) as executor:
-                future = executor.submit(lambda vm: vm.create(check_if_exists=True, start=True), instances[0])
+            workers = self.backend.workers
+            with ThreadPoolExecutor(len(workers)+1) as executor:
+                future = executor.submit(lambda vm: vm.create(check_if_exists=True, start=True), self.backend.master)
                 future.add_done_callback(_callback)
-                for i in range(1, len(instances)):
-                    future = executor.submit(lambda vm: vm.create(start=True), instances[i])
+                for i in range(len(workers)):
+                    future = executor.submit(lambda vm: vm.create(start=True), workers[i])
                     future.add_done_callback(_callback)
         else:
             logger.debug('ExecutorID {} | JobID {} - Going '
@@ -163,7 +163,7 @@ class StandaloneHandler:
                          .format(executor_id, job_id, total_calls,))
 
         logger.debug("Checking if {} is ready".format(self.backend.master))
-        if not self._is_proxy_ready(self.backend.master):
+        if not self._is_lithops_ready(self.backend.master):
             logger.debug("{} not ready".format(self.backend.master))
             if self.exec_mode != 'create':
                 self.backend.master.create(check_if_exists=True, start=True)
@@ -174,7 +174,7 @@ class StandaloneHandler:
 
         if self.exec_mode == 'create':
             logger.debug('Be patient, VM startup time may take up to 2 minutes')
-            job_instances = [(inst.name, inst.ip_address, inst.instance_id) for inst in instances[1:]]
+            job_instances = [(inst.name, inst.ip_address, inst.instance_id) for inst in workers]
             cmd = ('python3 /opt/lithops/controller.py run {} {}'
                    .format(shlex.quote(json.dumps(job_payload)),
                            shlex.quote(json.dumps(job_instances))))
@@ -198,7 +198,7 @@ class StandaloneHandler:
             self._wait_instance_ready(self.backend.master)
 
         self._setup_lithops()
-        self._wait_proxy_ready(self.backend.master)
+        self._wait_lithops_ready(self.backend.master)
 
         logger.debug('Extracting runtime metadata information')
         payload = {'runtime': runtime, 'pull_runtime': self.pull_runtime}

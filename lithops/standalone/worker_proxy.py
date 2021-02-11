@@ -124,7 +124,7 @@ def init_keeper():
                             vsi_details['instance_id']))
 
     standalone_handler = StandaloneHandler(standalone_config)
-    vsi = standalone_handler.backend.create_instance(vsi_details['instance_name'])
+    vsi = standalone_handler.backend.create_worker(vsi_details['instance_name'])
     vsi.ip_address = vsi_details['ip_address']
     vsi.instance_id = vsi_details['instance_id']
     vsi.delete_on_dismantle = False if 'master' in vsi_details['instance_name'] else True

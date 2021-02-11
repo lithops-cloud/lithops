@@ -44,8 +44,8 @@ class IBMVPCBackend:
         self.region = self.endpoint.split('//')[1].split('.')[0]
         self.vpc_name = self.config.get('vpc_name')
 
-        self.instances = []
         self.master = None
+        self.workers = []
 
         iam_api_key = self.config.get('iam_api_key')
         self.custom_image = self.config.get('custom_lithops_image')
@@ -239,7 +239,8 @@ class IBMVPCBackend:
                 name = instance_data.get_result()['name']
                 vpc_data = {'instance_name': name}
                 dump_yaml_config(vpc_data_filename, vpc_data)
-            self.master = self.create_instance(vpc_data['instance_name'], master=True)
+            self.master = IBMVPCInstance(vpc_data['instance_name'], self.config,
+                                         self.ibm_vpc_client, public=True)
             self.master.instance_id = self.config['instance_id']
             self.master.ip_address = self.config['ip_address']
             return
@@ -269,7 +270,7 @@ class IBMVPCBackend:
 
         # create the master VM insatnce
         name = 'lithops-master-{}'.format(self.vpc_key)
-        self.master = self.create_instance(name, master=True)
+        self.master = IBMVPCInstance(name, self.config, self.ibm_vpc_client, public=True)
         self.master.ip_address = self.config['floating_ip']
         self.master.profile_name = self.config['master_profile_name']
 
@@ -410,13 +411,13 @@ class IBMVPCBackend:
                                  instance.ip_address))
             instance.stop()
 
-    def create_instance(self, name, master=False):
+    def create_worker(self, name):
         """
         Create a new VM python instance
         This method does not create the physical VM.
         """
-        vsi = IBMVPCInstance(name, self.config, self.ibm_vpc_client, public=master)
-        self.instances.append(vsi)
+        vsi = IBMVPCInstance(name, self.config, self.ibm_vpc_client)
+        self.workers.append(vsi)
         return vsi
 
     def get_runtime_key(self, runtime_name):
@@ -597,7 +598,7 @@ class IBMVPCInstance:
         return self.instance_id
 
     def start(self):
-        logger.info("Starting VM instance {}".format(self.name))
+        logger.debug("Starting VM instance {}".format(self.name))
 
         try:
             resp = self.ibm_vpc_client.create_instance_action(self.instance_id, 'start')
