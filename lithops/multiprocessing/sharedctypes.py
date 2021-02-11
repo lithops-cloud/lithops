@@ -10,11 +10,10 @@
 #
 
 import ctypes
+import cloudpickle
 
 from . import util
-from . import get_context, reduction
-
-_ForkingPickler = reduction.DefaultPickler
+from . import get_context
 
 #
 #
@@ -39,7 +38,6 @@ class SharedCTypeProxy:
     def __init__(self, ctype, *args, **kwargs):
         self._typeid = ctype.__name__
         self._oid = '{}-{}'.format(self._typeid, util.get_uuid())
-        self._pickler = _ForkingPickler()
         self._client = util.get_redis_client()
         self._ref = util.RemoteReference(self._oid, client=self._client)
 
@@ -74,7 +72,7 @@ class RawValueProxy(SharedCTypeProxy):
 
     def __setattr__(self, key, value):
         if key == 'value':
-            obj = self._pickler.dumps(value)
+            obj = cloudpickle.dumps(value)
             self._client.set(self._oid, obj)
         else:
             super().__setattr__(key, value)
@@ -85,7 +83,7 @@ class RawValueProxy(SharedCTypeProxy):
             if not obj:
                 value = 0
             else:
-                value = self._pickler.loads(obj)
+                value = cloudpickle.loads(obj)
             return value
         else:
             super().__getattribute__(item)
@@ -104,7 +102,7 @@ class RawArrayProxy(SharedCTypeProxy):
         super().__init__(ctype)
 
     def _append(self, value):
-        obj = self._pickler.dumps(value)
+        obj = cloudpickle.dumps(value)
         self._client.rpush(self._oid, obj)
 
     def __len__(self):
@@ -114,10 +112,10 @@ class RawArrayProxy(SharedCTypeProxy):
         if isinstance(i, slice):
             start, stop, step = i.indices(self.__len__())
             objl = self._client.lrange(self._oid, start, stop)
-            return [self._pickler.loads(obj) for obj in objl]
+            return [cloudpickle.loads(obj) for obj in objl]
         else:
             obj = self._client.lindex(self._oid, i)
-            return self._pickler.loads(obj)
+            return cloudpickle.loads(obj)
 
     def __setitem__(self, i, value):
         if isinstance(i, slice):
@@ -125,7 +123,7 @@ class RawArrayProxy(SharedCTypeProxy):
             for i, val in enumerate(value):
                 self[i + start] = val
         else:
-            obj = self._pickler.dumps(value)
+            obj = cloudpickle.dumps(value)
             self._client.lset(self._oid, i, obj)
 
 
@@ -144,7 +142,7 @@ class SynchronizedStringProxy(SynchronizedArrayProxy):
     def __setattr__(self, key, value):
         if key == 'value':
             for i, elem in enumerate(value):
-                obj = self._pickler.dumps(elem)
+                obj = cloudpickle.dumps(elem)
                 self._client.lset(self._oid, i, obj)
         else:
             super().__setattr__(key, value)
@@ -159,10 +157,10 @@ class SynchronizedStringProxy(SynchronizedArrayProxy):
         if isinstance(i, slice):
             start, stop, step = i.indices(self.__len__())
             objl = self._client.lrange(self._oid, start, stop)
-            return bytes([self._pickler.loads(obj) for obj in objl])
+            return bytes([cloudpickle.loads(obj) for obj in objl])
         else:
             obj = self._client.lindex(self._oid, i)
-            return bytes([self._pickler.loads(obj)])
+            return bytes([cloudpickle.loads(obj)])
 
 
 #

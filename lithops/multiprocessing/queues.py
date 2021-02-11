@@ -12,17 +12,14 @@
 __all__ = ['Queue', 'SimpleQueue', 'JoinableQueue']
 
 import os
+import cloudpickle
 
 from queue import Empty, Full
 
 from . import connection
 from . import util
 from . import synchronize
-from . import context
 from .util import debug
-
-_ForkingPickler = context.reduction.ForkingPickler
-
 
 #
 # Queue type using a pipe, buffer and thread
@@ -71,7 +68,7 @@ class Queue:
             raise ValueError(f"Queue {self!r} is closed")
 
         if self._notfull:
-            obj = _ForkingPickler.dumps(obj)
+            obj = cloudpickle.dumps(obj)
             self._send_bytes(obj)
 
     def get(self, block=True, timeout=None):
@@ -85,7 +82,7 @@ class Queue:
                 raise Empty
             res = self._recv_bytes()
 
-        return _ForkingPickler.loads(res)
+        return cloudpickle.loads(res)
 
     def qsize(self):
         return len(self._reader)
@@ -138,7 +135,7 @@ class SimpleQueue:
 
     def put(self, obj, block=True, timeout=None):
         assert not self._closed
-        obj = _ForkingPickler.dumps(obj)
+        obj = cloudpickle.dumps(obj)
         self._writer.send_bytes(obj)
 
     def get(self, block=True, timeout=None):
@@ -152,7 +149,7 @@ class SimpleQueue:
                 raise Empty
             res = self._reader.recv_bytes()
 
-        return _ForkingPickler.loads(res)
+        return cloudpickle.loads(res)
 
     def qsize(self):
         return len(self._reader)
