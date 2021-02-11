@@ -399,19 +399,17 @@ class IBMVPCBackend:
 
     def clear(self):
         """
-        Clear all the backend resources
+        Delete all the workers
         """
-        pass
+        self.dismantle()
 
     def dismantle(self):
         """
         Stop all VM instances
         """
         for worker in self.workers:
-            logger.debug("Dismantle {} for {}"
-                         .format(worker.instance_id,
-                                 worker.ip_address))
             worker.stop()
+        self.workers = []
 
     def create_worker(self, name):
         """
@@ -626,8 +624,6 @@ class IBMVPCInstance:
             else:
                 raise e
 
-        logger.debug("VM instance {} deleted".format(self.name))
-
     def _stop_instance(self):
         """
         Stops the VM instacne and
@@ -640,7 +636,6 @@ class IBMVPCInstance:
                 pass
             else:
                 raise e
-        logger.debug("VM instance {} stopped".format(self.name))
 
     def stop(self):
         if self.delete_on_stop:

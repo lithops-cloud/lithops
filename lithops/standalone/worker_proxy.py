@@ -25,10 +25,8 @@ import json
 from gevent.pywsgi import WSGIServer
 
 from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DIR, \
-    STANDALONE_INSTALL_DIR, SA_LOG_FILE, LOGS_DIR,\
-    STANDALONE_SERVICE_PORT, STANDALONE_CONFIG_FILE,\
-    LOGGER_FORMAT
-from lithops.storage.utils import create_job_key
+    STANDALONE_INSTALL_DIR, SA_LOG_FILE, LOGGER_FORMAT,\
+    STANDALONE_SERVICE_PORT, STANDALONE_CONFIG_FILE
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
 from lithops.utils import verify_runtime_name
@@ -37,57 +35,56 @@ from lithops.utils import verify_runtime_name
 logging.basicConfig(filename=SA_LOG_FILE, level=logging.DEBUG,
                     format=LOGGER_FORMAT)
 logger = logging.getLogger('worker_proxy')
-logging.getLogger('paramiko').setLevel(logging.CRITICAL)
 
 proxy = flask.Flask(__name__)
 
-last_usage_time = time.time()
-keeper = None
-jobs = {}
-standalone_handler = None
-standalone_config = None
+LAST_USAGE_TIME = time.time()
+KEEPER = None
+JOBS = {}
+STANDALONE_HANDLER = None
+STANDALONE_CONFIG = None
 
 
 def budget_keeper():
-    global last_usage_time
-    global jobs
-    global standalone_handler
+    global LAST_USAGE_TIME
+    global JOBS
+    global STANDALONE_HANDLER
 
     jobs_running = False
 
     logger.info("BudgetKeeper started")
 
-    if standalone_handler.auto_dismantle:
+    if STANDALONE_HANDLER.auto_dismantle:
         logger.info('Auto dismantle activated - Soft timeout: {}s, Hard Timeout: {}s'
-                    .format(standalone_handler.soft_dismantle_timeout,
-                            standalone_handler.hard_dismantle_timeout))
+                    .format(STANDALONE_HANDLER.soft_dismantle_timeout,
+                            STANDALONE_HANDLER.hard_dismantle_timeout))
     else:
         # If auto_dismantle is deactivated, the VM will be always automatically
         # stopped after hard_dismantle_timeout. This will prevent the VM
         # being started forever due a wrong configuration
         logger.info('Auto dismantle deactivated - Hard Timeout: {}s'
-                    .format(standalone_handler.hard_dismantle_timeout))
+                    .format(STANDALONE_HANDLER.hard_dismantle_timeout))
 
     while True:
-        time_since_last_usage = time.time() - last_usage_time
-        check_interval = standalone_handler.soft_dismantle_timeout / 10
-        for job_key in jobs.keys():
+        time_since_last_usage = time.time() - LAST_USAGE_TIME
+        check_interval = STANDALONE_HANDLER.soft_dismantle_timeout / 10
+        for job_key in JOBS.keys():
             done = os.path.join(JOBS_DIR, job_key+'.done')
             if os.path.isfile(done):
-                jobs[job_key] = 'done'
-        if len(jobs) > 0 and all(value == 'done' for value in jobs.values()) \
-           and standalone_handler.auto_dismantle:
+                JOBS[job_key] = 'done'
+        if len(JOBS) > 0 and all(value == 'done' for value in JOBS.values()) \
+           and STANDALONE_HANDLER.auto_dismantle:
 
-            # here we need to catch a moment when number of running jobs become zero.
+            # here we need to catch a moment when number of running JOBS become zero.
             # when it happens we reset countdown back to soft_dismantle_timeout
             if jobs_running:
                 jobs_running = False
-                last_usage_time = time.time()
-                time_since_last_usage = time.time() - last_usage_time
+                LAST_USAGE_TIME = time.time()
+                time_since_last_usage = time.time() - LAST_USAGE_TIME
 
-            time_to_dismantle = int(standalone_handler.soft_dismantle_timeout - time_since_last_usage)
+            time_to_dismantle = int(STANDALONE_HANDLER.soft_dismantle_timeout - time_since_last_usage)
         else:
-            time_to_dismantle = int(standalone_handler.hard_dismantle_timeout - time_since_last_usage)
+            time_to_dismantle = int(STANDALONE_HANDLER.hard_dismantle_timeout - time_since_last_usage)
             jobs_running = True
 
         if time_to_dismantle > 0:
@@ -96,15 +93,15 @@ def budget_keeper():
         else:
             logger.info("Dismantling setup")
             try:
-                standalone_handler.dismantle()
+                STANDALONE_HANDLER.dismantle()
             except Exception as e:
                 logger.info("Dismantle error {}".format(e))
 
 
 def init_keeper():
-    global keeper
-    global standalone_handler
-    global standalone_config
+    global KEEPER
+    global STANDALONE_HANDLER
+    global STANDALONE_CONFIG
 
     access_data = os.path.join(STANDALONE_INSTALL_DIR, 'access.data')
     with open(access_data, 'r') as ad:
@@ -114,15 +111,15 @@ def init_keeper():
                             vsi_details['ip_address'],
                             vsi_details['instance_id']))
 
-    standalone_handler = StandaloneHandler(standalone_config)
-    vsi = standalone_handler.backend.create_worker(vsi_details['instance_name'])
+    STANDALONE_HANDLER = StandaloneHandler(STANDALONE_CONFIG)
+    vsi = STANDALONE_HANDLER.backend.create_worker(vsi_details['instance_name'])
     vsi.ip_address = vsi_details['ip_address']
     vsi.instance_id = vsi_details['instance_id']
     vsi.delete_on_stop = False if 'master' in vsi_details['instance_name'] else True
 
-    keeper = threading.Thread(target=budget_keeper)
-    keeper.daemon = True
-    keeper.start()
+    KEEPER = threading.Thread(target=budget_keeper)
+    KEEPER.daemon = True
+    KEEPER.start()
 
 
 def error(msg):
@@ -136,37 +133,34 @@ def run():
     """
     Run a job
     """
-    global last_usage_time
-    global standalone_handler
-    global jobs
+    global LAST_USAGE_TIME
+    global STANDALONE_HANDLER
+    global JOBS
 
-    message = flask.request.get_json(force=True, silent=True)
-    if message and not isinstance(message, dict):
+    job_payload = flask.request.get_json(force=True, silent=True)
+    if job_payload and not isinstance(job_payload, dict):
         return error('The action did not receive a dictionary as an argument.')
 
     try:
-        runtime = message['runtime_name']
+        runtime = job_payload['runtime_name']
         verify_runtime_name(runtime)
     except Exception as e:
         return error(str(e))
 
-    last_usage_time = time.time()
+    LAST_USAGE_TIME = time.time()
 
-    standalone_config = message['config']['standalone']
-    standalone_handler.auto_dismantle = standalone_config['auto_dismantle']
-    standalone_handler.soft_dismantle_timeout = standalone_config['soft_dismantle_timeout']
-    standalone_handler.hard_dismantle_timeout = standalone_config['hard_dismantle_timeout']
+    STANDALONE_CONFIG.update(job_payload['config']['standalone'])
+    STANDALONE_HANDLER.auto_dismantle = STANDALONE_CONFIG['auto_dismantle']
+    STANDALONE_HANDLER.soft_dismantle_timeout = STANDALONE_CONFIG['soft_dismantle_timeout']
+    STANDALONE_HANDLER.hard_dismantle_timeout = STANDALONE_CONFIG['hard_dismantle_timeout']
+
+    JOBS[job_payload['job_key']] = 'running'
+
+    pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
+    localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
+    localhost_handler.run_job(job_payload)
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
-    executor_id = message['executor_id']
-    job_id = message['job_id']
-    job_key = create_job_key(executor_id, job_id)
-    jobs[job_key] = 'running'
-
-    pull_runtime = standalone_config.get('pull_runtime', False)
-    localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
-    localhost_handler.run_job(message)
-
     response = flask.jsonify({'activationId': act_id})
     response.status_code = 202
 
@@ -194,7 +188,7 @@ def preinstalls():
     except Exception as e:
         return error(str(e))
 
-    pull_runtime = standalone_config.get('pull_runtime', False)
+    pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
     localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
     runtime_meta = localhost_handler.create_runtime(runtime)
     response = flask.jsonify(runtime_meta)
@@ -204,13 +198,12 @@ def preinstalls():
 
 
 def main():
-    global standalone_config
+    global STANDALONE_CONFIG
 
     os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
-    os.makedirs(LOGS_DIR, exist_ok=True)
 
     with open(STANDALONE_CONFIG_FILE, 'r') as cf:
-        standalone_config = json.load(cf)
+        STANDALONE_CONFIG = json.load(cf)
 
     with open(SA_LOG_FILE, 'a') as log_file:
         sys.stdout = log_file
