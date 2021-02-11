@@ -469,36 +469,19 @@ class AWSLambdaBackend:
         logger.debug('Listed {} functions'.format(len(functions)))
         return functions
 
-    def invoke(self, runtime_name, runtime_memory, payload, self_invoked=False):
+    def invoke(self, runtime_name, runtime_memory, payload):
         """
         Invoke lambda function asynchronously
         """
-        exec_id = payload['executor_id']
-        call_id = payload['call_id']
-
         function_name = self._format_action_name(runtime_name, runtime_memory)
 
-        start = time.time()
-        try:
-            response = self.lambda_client.invoke(
-                FunctionName=function_name,
-                InvocationType='Event',
-                Payload=json.dumps(payload)
-            )
-        except Exception as e:
-            log_msg = ('ExecutorID {} - Function {} invocation failed: {}'.format(exec_id, call_id, str(e)))
-            logger.debug(log_msg)
-            if self_invoked:
-                return None
-            return self.invoke(runtime_name, runtime_memory, payload, self_invoked=True)
-
-        roundtrip = time.time() - start
-        resp_time = format(round(roundtrip, 3), '.3f')
+        response = self.lambda_client.invoke(
+            FunctionName=function_name,
+            InvocationType='Event',
+            Payload=json.dumps(payload)
+        )
 
         if response['ResponseMetadata']['HTTPStatusCode'] == 202:
-            log_msg = ('ExecutorID {} - Function {} invocation done! ({}s) - Activation ID: '
-                       '{}'.format(exec_id, call_id, resp_time, response['ResponseMetadata']['RequestId']))
-            logger.debug(log_msg)
             return response['ResponseMetadata']['RequestId']
         else:
             logger.debug(response)
@@ -506,9 +489,6 @@ class AWSLambdaBackend:
                 raise Exception('Unauthorized - Invalid API Key')
             elif response['ResponseMetadata']['HTTPStatusCode'] == 404:
                 raise Exception('Lithops Runtime: {} not deployed'.format(runtime_name))
-            elif response['ResponseMetadata']['HTTPStatusCode'] == 429:
-                # Too many concurrent requests in flight
-                return None
             else:
                 raise Exception(response)
 
