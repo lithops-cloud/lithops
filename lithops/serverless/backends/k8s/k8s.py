@@ -23,7 +23,7 @@ import copy
 import time
 import yaml
 import urllib3
-from kubernetes import client, config
+from kubernetes import client, config, watch
 from kubernetes.client.rest import ApiException
 
 from lithops.utils import version_str, dict_to_b64str
@@ -34,7 +34,7 @@ from lithops.storage.storage import InternalStorage
 from lithops.storage.utils import StorageNoSuchKeyError
 
 from . import config as k8s_config
-from types import SimpleNamespace
+
 
 logger = logging.getLogger(__name__)
 urllib3.disable_warnings()
@@ -56,7 +56,7 @@ class KubernetesBackend:
 
         config.load_kube_config(config_file=self.kubecfg)
         self.batch_api = client.BatchV1Api()
-        self.core_Api = client.CoreV1Api()
+        self.core_api = client.CoreV1Api()
 
         contexts = config.list_kube_config_contexts(config_file=self.kubecfg)
         current_context = contexts[1].get('context')
@@ -66,7 +66,7 @@ class KubernetesBackend:
         logger.debug("Set cluster to {}".format(self.cluster))
 
         msg = COMPUTE_CLI_MSG.format('Kubernetes Job')
-        logger.info("{} - namespace: {}".format(msg, self.namespace))
+        logger.info("{} - Namespace: {}".format(msg, self.namespace))
 
     def _format_job_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '--').replace(':', '--')
@@ -167,11 +167,12 @@ class KubernetesBackend:
         """
         pass
 
-    def clean(self):
+    def clean(self, force=True):
         """
         Deletes all jobs
         """
-        logger.debug('Cleaning Jobs')
+        logger.debug('Cleaning kubernetes Jobs')
+
         try:
             jobs = self.batch_api.list_namespaced_job(namespace=self.namespace)
         except ApiException:
@@ -179,7 +180,8 @@ class KubernetesBackend:
 
         for job in jobs.items:
             try:
-                if job.metadata.labels['type'] == 'lithops-runtime':
+                if job.metadata.labels['type'] == 'lithops-runtime'\
+                   and (job.status.completion_time is not None or force):
                     job_name = job.metadata.name
                     logger.debug('Deleting job {}'.format(job_name))
                     self.batch_api.delete_namespaced_job(name=job_name,
@@ -187,6 +189,13 @@ class KubernetesBackend:
                                                          propagation_policy='Background')
             except Exception:
                 pass
+
+    def clear(self):
+        """
+        Delete only completed jobs
+        """
+        time.sleep(1.5)
+        self.clean(force=False)
 
     def list_runtimes(self, docker_image_name='all'):
         """
@@ -197,35 +206,60 @@ class KubernetesBackend:
         logger.debug('Note that k8s job backend does not manage runtimes')
         return []
 
+    def _start_id_giver(self, docker_image_name):
+
+        job_name = 'lithops-idgiver'
+
+        idgiver_pods = self.core_api.list_namespaced_pod(
+            namespace=self.namespace, label_selector="job-name={}".format(job_name)
+            )
+
+        if len(idgiver_pods.items) > 0:
+            return idgiver_pods.items[0].status.pod_ip
+
+        try:
+            self.batch_api.delete_namespaced_job(name=job_name,
+                                                 namespace=self.namespace,
+                                                 propagation_policy='Background')
+            time.sleep(2)
+        except Exception as e:
+            pass
+
+        job_res = yaml.safe_load(k8s_config.JOB_DEFAULT)
+        job_res['metadata']['name'] = job_name
+        job_res['metadata']['namespace'] = self.namespace
+        container = job_res['spec']['template']['spec']['containers'][0]
+        container['image'] = docker_image_name
+        container['env'][0]['value'] = 'id_giver'
+
+        try:
+            self.batch_api.create_namespaced_job(namespace=self.namespace,
+                                                 body=job_res)
+        except Exception as e:
+            raise e
+
+        w = watch.Watch()
+        for event in w.stream(self.core_api.list_namespaced_pod, namespace=self.namespace,
+                              label_selector="job-name={}".format(job_name)):
+            if event['object'].status.phase == "Running":
+                return event['object'].status.pod_ip
+
     def invoke(self, docker_image_name, runtime_memory, job_payload):
         """
         Invoke -- return information about this invocation
         For array jobs only remote_invocator is allowed
         """
+
+        idgiver_ip = self._start_id_giver(docker_image_name)
+
         job_payload.pop('remote_invoker')
         job_payload.pop('invokers')
 
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
-
-        #total_calls = job_payload['total_calls']
-        #chunksize = job_payload['chunksize']
-        total_calls = 2
-        chunksize = 1
+        total_calls = job_payload['total_calls']
+        chunksize = job_payload['chunksize']
         total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
-
-        # -----------
-        payload = {}
-        job = SimpleNamespace(**job_payload.pop('job_description'))
-        payload['host_submit_tstamp'] = time.time()
-        payload['func_key'] = job.func_key
-        payload['data_key'] = job.data_key
-        payload['extra_env'] = job.extra_env
-        payload['execution_timeout'] = job.execution_timeout
-        payload['data_byte_range'] = job.data_ranges
-        payload['runtime_name'] = job.runtime_name
-        payload['runtime_memory'] = job.runtime_memory
-        # --------------
 
         job_res = yaml.safe_load(k8s_config.JOB_DEFAULT)
 
@@ -242,8 +276,9 @@ class KubernetesBackend:
 
         container['env'][0]['value'] = 'run'
         container['env'][1]['value'] = dict_to_b64str(job_payload)
+        container['env'][2]['value'] = idgiver_ip
 
-        container['resources']['requests']['memory'] = '{}Mi'.format(payload['runtime_memory'])
+        container['resources']['requests']['memory'] = '{}Mi'.format(job_payload['runtime_memory'])
         container['resources']['requests']['cpu'] = str(self.k8s_config['cpu'])
 
         try:

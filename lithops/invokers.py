@@ -153,8 +153,7 @@ class StandaloneInvoker(Invoker):
                     ' invocation: {}() - Total: {} activations'
                     .format(job.executor_id, job.job_id,
                             job.function_name, job.total_calls))
-        
-        
+
         logger.debug('ExecutorID {} | JobID {} - Chunksize: {} - Worker processes: {}'
                      .format(job.executor_id, job.job_id, job.chunksize, job.worker_processes))
 
@@ -172,8 +171,8 @@ class StandaloneInvoker(Invoker):
         payload['call_ids'] = ["{:05d}".format(i) for i in range(job.total_calls)]
 
         log_file = os.path.join(LOGS_DIR, payload['job_key']+'.log')
-        logger.debug("ExecutorID {} | JobID {} - View execution logs at {}"
-                     .format(job.executor_id, job.job_id, log_file))
+        logger.info("ExecutorID {} | JobID {} - View execution logs at {}"
+                    .format(job.executor_id, job.job_id, log_file))
 
         self.compute_handler.run_job(payload)
 
@@ -354,19 +353,19 @@ class ServerlessInvoker(Invoker):
             Remote Invocation
             Use a single cloud function to perform all the function invocations
             """
-            old_stdout = sys.stdout
-            sys.stdout = open(os.devnull, 'w')
+            log_level = logger.getEffectiveLevel()
+            logging.getLogger('lithops').setLevel(logging.CRITICAL)
             self.select_runtime(job.job_id, self.REMOTE_INVOKER_MEMORY)
-            sys.stdout = old_stdout
+            logging.getLogger('lithops').setLevel(log_level)
             log_msg = ('ExecutorID {} | JobID {} - Starting function '
                        'invocation: {}() - Total: {} activations'
                        .format(job.executor_id, job.job_id,
                                job.function_name, job.total_calls))
             logger.info(log_msg)
+            self._invoke_remote(job)
+            # th = Thread(target=self._invoke_remote, args=(job,), daemon=True)
+            # th.start()
 
-            th = Thread(target=self._invoke_remote, args=(job,), daemon=True)
-            th.start()
-            time.sleep(0.1)
         else:
             """
             Normal Invocation
@@ -438,8 +437,8 @@ class ServerlessInvoker(Invoker):
                 raise e
 
         log_file = os.path.join(LOGS_DIR, job.job_key+'.log')
-        logger.debug("ExecutorID {} | JobID {} - View execution logs at {}"
-                     .format(job.executor_id, job.job_id, log_file))
+        logger.info("ExecutorID {} | JobID {} - View execution logs at {}"
+                    .format(job.executor_id, job.job_id, log_file))
 
         # Create all futures
         futures = []
