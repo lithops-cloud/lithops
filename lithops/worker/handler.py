@@ -29,6 +29,7 @@ import traceback
 import multiprocessing as mp
 from threading import Thread
 from multiprocessing import Process, Pipe
+from multiprocessing.managers import SyncManager
 from distutils.util import strtobool
 from tblib import pickling_support
 from types import SimpleNamespace
@@ -59,7 +60,9 @@ class ShutdownSentinel():
 def function_handler(payload):
     job = SimpleNamespace(**payload)
 
-    job_queue = mp.Queue()
+    manager = SyncManager()
+    manager.start()
+    job_queue = manager.Queue()
     job_runners = []
 
     processes = min(job.worker_processes, len(job.call_ids))
@@ -80,6 +83,8 @@ def function_handler(payload):
 
     for runner in job_runners:
         runner.join()
+
+    manager.shutdown()
 
 
 def process_runner(runner_id, job_queue):
