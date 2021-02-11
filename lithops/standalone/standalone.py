@@ -177,18 +177,17 @@ class StandaloneHandler:
             logger.debug('Be patient, VM startup time may take up to 2 minutes')
             worker_instances = [(inst.name, inst.ip_address, inst.instance_id) for inst in workers]
             job_payload['woreker_instances'] = worker_instances
-
             cmd = ('curl http://127.0.0.1:{}/run-create -d {} '
                    '-H \'Content-Type: application/json\' -X POST'
                    .format(STANDALONE_SERVICE_PORT,
                            shlex.quote(json.dumps(job_payload))))
-
-            self.backend.master.get_ssh_client().run_remote_command(cmd, run_async=True)
         else:
-            cmd = ('python3 /opt/lithops/controller.py run {}'
-                   .format(shlex.quote(json.dumps(job_payload))))
-            self.backend.master.get_ssh_client().run_remote_command(cmd, run_async=True)
+            cmd = ('curl http://127.0.0.1:{}/run -d {} '
+                   '-H \'Content-Type: application/json\' -X POST'
+                   .format(STANDALONE_SERVICE_PORT,
+                           shlex.quote(json.dumps(job_payload))))
 
+        self.backend.master.get_ssh_client().run_remote_command(cmd, run_async=True)
         logger.debug('Job invoked on {}'.format(self.backend.master))
 
     def create_runtime(self, runtime):

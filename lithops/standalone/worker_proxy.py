@@ -25,24 +25,19 @@ import json
 from gevent.pywsgi import WSGIServer
 
 from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DIR, \
-    REMOTE_INSTALL_DIR, PX_LOG_FILE, LOGS_DIR, LOGGER_FORMAT, \
-    PROXY_SERVICE_PORT
+    STANDALONE_INSTALL_DIR, SA_LOG_FILE, LOGS_DIR,\
+    STANDALONE_SERVICE_PORT, STANDALONE_CONFIG_FILE,\
+    LOGGER_FORMAT
 from lithops.storage.utils import create_job_key
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
 from lithops.utils import verify_runtime_name
 
 
-os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
-os.makedirs(LOGS_DIR, exist_ok=True)
-
-log_file_fd = open(PX_LOG_FILE, 'a')
-sys.stdout = log_file_fd
-sys.stderr = log_file_fd
-
-logging.basicConfig(filename=PX_LOG_FILE, level=logging.DEBUG,
+logging.basicConfig(filename=SA_LOG_FILE, level=logging.DEBUG,
                     format=LOGGER_FORMAT)
-logger = logging.getLogger('lithops.proxy')
+logger = logging.getLogger('worker_proxy')
+logging.getLogger('paramiko').setLevel(logging.CRITICAL)
 
 proxy = flask.Flask(__name__)
 
@@ -50,11 +45,7 @@ last_usage_time = time.time()
 keeper = None
 jobs = {}
 standalone_handler = None
-
-
-config_file = os.path.join(REMOTE_INSTALL_DIR, 'config')
-with open(config_file, 'r') as cf:
-    standalone_config = json.load(cf)
+standalone_config = None
 
 
 def budget_keeper():
@@ -115,7 +106,7 @@ def init_keeper():
     global standalone_handler
     global standalone_config
 
-    access_data = os.path.join(REMOTE_INSTALL_DIR, 'access.data')
+    access_data = os.path.join(STANDALONE_INSTALL_DIR, 'access.data')
     with open(access_data, 'r') as ad:
         vsi_details = json.load(ad)
         logger.info("Parsed self name: {}, IP: {} and instance ID: {}"
@@ -127,7 +118,7 @@ def init_keeper():
     vsi = standalone_handler.backend.create_worker(vsi_details['instance_name'])
     vsi.ip_address = vsi_details['ip_address']
     vsi.instance_id = vsi_details['instance_id']
-    vsi.delete_on_dismantle = False if 'master' in vsi_details['instance_name'] else True
+    vsi.delete_on_stop = False if 'master' in vsi_details['instance_name'] else True
 
     keeper = threading.Thread(target=budget_keeper)
     keeper.daemon = True
@@ -213,10 +204,21 @@ def preinstalls():
 
 
 def main():
-    init_keeper()
-    port = int(os.getenv('PORT', PROXY_SERVICE_PORT))
-    server = WSGIServer(('0.0.0.0', port), proxy, log=proxy.logger)
-    server.serve_forever()
+    global standalone_config
+
+    os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
+    os.makedirs(LOGS_DIR, exist_ok=True)
+
+    with open(STANDALONE_CONFIG_FILE, 'r') as cf:
+        standalone_config = json.load(cf)
+
+    with open(SA_LOG_FILE, 'a') as log_file:
+        sys.stdout = log_file
+        sys.stderr = log_file
+        init_keeper()
+        server = WSGIServer(('0.0.0.0', STANDALONE_SERVICE_PORT),
+                            proxy, log=proxy.logger)
+        server.serve_forever()
 
 
 if __name__ == '__main__':

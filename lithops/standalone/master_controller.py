@@ -30,14 +30,16 @@ from concurrent.futures import ThreadPoolExecutor
 from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DIR, \
     STANDALONE_INSTALL_DIR, SA_LOG_FILE, LOGS_DIR,\
     STANDALONE_SERVICE_PORT, STANDALONE_CONFIG_FILE,\
-    STANDALONE_SSH_CREDNTIALS
+    STANDALONE_SSH_CREDNTIALS, LOGGER_FORMAT
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
-from lithops.utils import verify_runtime_name, iterchunks, setup_lithops_logger
+from lithops.utils import verify_runtime_name, iterchunks
 from lithops.util.ssh_client import SSHClient
 
 
-logger = logging.getLogger('lithops.controller')
+logging.basicConfig(filename=SA_LOG_FILE, level=logging.INFO,
+                    format=LOGGER_FORMAT)
+logger = logging.getLogger('master_controller')
 
 controller = flask.Flask(__name__)
 
@@ -54,7 +56,7 @@ Description=Lithops Proxy
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 {}/proxy.py
+ExecStart=/usr/bin/python3 {}/worker_proxy.py
 Restart=always
 
 [Install]
@@ -143,45 +145,45 @@ def init_keeper():
 
 def get_worker_setup_cmd(instance_name, ip_address, instance_id):
 
-    service_file = '/etc/systemd/system/{}'.format(PROXY_SERVICE_NAME)
-    cmd = "echo '{}' > {}; ".format(PROXY_SERVICE_FILE, service_file)
+    vm_data = {'instance_name': instance_name, 'ip_address': ip_address, 'instance_id': instance_id}
 
-    # Create files and directories
-    cmd += 'rm -R {0}; mkdir -p {0}; mkdir -p /tmp/lithops;'.format(STANDALONE_INSTALL_DIR)
-    cmd += "echo '{}' > {}; ".format(json.dumps(standalone_config), STANDALONE_CONFIG_FILE)
+    return """
+    rm -R {0}; mkdir -p {0}; mkdir -p /tmp/lithops;
 
-    # Install dependencies (only if they are not installed)
-    cmd += 'command -v unzip >/dev/null 2>&1 || { export INSTALL_LITHOPS_DEPS=true; }; '
-    cmd += 'command -v pip3 >/dev/null 2>&1 || { export INSTALL_LITHOPS_DEPS=true; }; '
-    cmd += 'command -v docker >/dev/null 2>&1 || { export INSTALL_LITHOPS_DEPS=true; }; '
-    cmd += 'if [ "$INSTALL_LITHOPS_DEPS" = true ] ; then '
-    cmd += 'rm /var/lib/apt/lists/* -vfR >> /tmp/lithops/proxy.log 2>&1; '
-    cmd += 'apt-get clean >> /tmp/lithops/proxy.log 2>&1; date >>/tmp/lithops/proxy.log 2>&1; '
-    cmd += 'apt-get update >> /tmp/lithops/proxy.log 2>&1; '
-    cmd += 'apt-get install apt-transport-https ca-certificates curl software-properties-common gnupg-agent -y >> /tmp/lithops/proxy.log 2>&1;'
-    cmd += 'curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - >> /tmp/lithops/proxy.log 2>&1; '
-    cmd += 'add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" >> /tmp/lithops/proxy.log 2>&1; '
-    cmd += 'apt-get update >> /tmp/lithops/proxy.log 2>&1; '
-    cmd += 'apt-get install unzip python3-pip docker-ce docker-ce-cli containerd.io -y >> /tmp/lithops/proxy.log 2>&1; '
-    cmd += 'date >>/tmp/lithops/proxy.log 2>&1; pip3 install -U flask gevent lithops >> /tmp/lithops/proxy.log 2>&1; date >>/tmp/lithops/proxy.log 2>&1;'
-    cmd += 'fi; '
+    install_packages(){{
+    command -v unzip >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
+    command -v pip3 >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
+    command -v docker >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
+    if [ "$INSTALL_LITHOPS_DEPS" = true ] ; then
+    rm /var/lib/apt/lists/* -vfR;
+    apt-get clean;
+    apt-get update;
+    apt-get install apt-transport-https ca-certificates curl software-properties-common gnupg-agent -y;
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -;
+    add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable";
+    apt-get update;
+    apt-get install unzip python3-pip docker-ce docker-ce-cli containerd.io -y;
+    pip3 install -U flask gevent lithops;
+    fi;
+    }}
+    install_packages >> {3} 2>&1
 
-    # Unzip lithops package
-    cmd += 'touch {}/access.data; '.format(STANDALONE_INSTALL_DIR)
-    vsi_data = {'instance_name': instance_name, 'ip_address': ip_address, 'instance_id': instance_id}
-    cmd += "echo '{}' > {}/access.data; ".format(json.dumps(vsi_data), STANDALONE_INSTALL_DIR)
-    cmd += 'unzip -o /tmp/lithops_standalone.zip -d {} > /dev/null 2>&1; '.format(STANDALONE_INSTALL_DIR)
+    unzip -o /tmp/lithops_standalone.zip -d {0} > /dev/null 2>&1;
+    echo '{1}' > {2};
+    echo '{6}' > {0}/access.data;
 
-    # Start proxy service
-    cmd += 'chmod 644 {}; '.format(service_file)
-    cmd += 'systemctl daemon-reload; '
-    cmd += 'systemctl stop {}; '.format(PROXY_SERVICE_NAME)
-    cmd += 'systemctl enable {}; '.format(PROXY_SERVICE_NAME)
-    cmd += 'systemctl start {}; '.format(PROXY_SERVICE_NAME)
-
-    print(cmd)
-
-    return cmd
+    setup_service(){{
+    echo '{4}' > /etc/systemd/system/{5};
+    chmod 644 /etc/systemd/system/{5};
+    systemctl daemon-reload;
+    systemctl stop {5};
+    systemctl enable {5};
+    systemctl start {5};
+    }}
+    setup_service >> {3} 2>&1
+    """.format(STANDALONE_INSTALL_DIR, json.dumps(standalone_config),
+               STANDALONE_CONFIG_FILE, SA_LOG_FILE, PROXY_SERVICE_FILE,
+               PROXY_SERVICE_NAME, json.dumps(vm_data))
 
 
 def is_instance_ready(ssh_client):
@@ -317,6 +319,8 @@ def run_create():
     chunksize = job_payload['chunksize']
     workers = job_payload['woreker_instances']
 
+    jobs[job_payload['job_key']] = 'running'
+
     with ThreadPoolExecutor(len(workers)) as executor:
         for call_ids_range in iterchunks(call_ids, chunksize):
             worker_info = workers.pop(0)
@@ -324,6 +328,12 @@ def run_create():
                             worker_info,
                             call_ids_range,
                             copy.deepcopy(job_payload))
+
+    act_id = str(uuid.uuid4()).replace('-', '')[:12]
+    response = flask.jsonify({'activationId': act_id})
+    response.status_code = 202
+
+    return response
 
 
 @controller.route('/run', methods=['POST'])
@@ -352,12 +362,12 @@ def run():
     standalone_handler.soft_dismantle_timeout = standalone_config['soft_dismantle_timeout']
     standalone_handler.hard_dismantle_timeout = standalone_config['hard_dismantle_timeout']
 
-    act_id = str(uuid.uuid4()).replace('-', '')[:12]
     jobs[job_payload['job_key']] = 'running'
     pull_runtime = standalone_config.get('pull_runtime', False)
     localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
     localhost_handler.run_job(job_payload)
 
+    act_id = str(uuid.uuid4()).replace('-', '')[:12]
     response = flask.jsonify({'activationId': act_id})
     response.status_code = 202
 
@@ -396,8 +406,6 @@ def preinstalls():
 
 def main():
     global standalone_config
-
-    setup_lithops_logger('DEBUG', filename=SA_LOG_FILE)
 
     os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
     os.makedirs(LOGS_DIR, exist_ok=True)

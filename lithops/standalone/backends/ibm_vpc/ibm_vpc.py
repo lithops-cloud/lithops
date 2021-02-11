@@ -26,7 +26,7 @@ from concurrent.futures import ThreadPoolExecutor
 from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
-from . import config as ibmvpc_config
+from .config import SSH_PASSWD, CLOUD_CONFIG
 
 
 logger = logging.getLogger(__name__)
@@ -243,6 +243,7 @@ class IBMVPCBackend:
                                          self.ibm_vpc_client, public=True)
             self.master.instance_id = self.config['instance_id']
             self.master.public_ip = self.config['ip_address']
+            self.master.delete_on_stop = False
             return
 
         logger.debug('Initializing IBM VPC backend (Create mode)')
@@ -273,6 +274,7 @@ class IBMVPCBackend:
         self.master = IBMVPCInstance(name, self.config, self.ibm_vpc_client, public=True)
         self.master.public_ip = self.config['floating_ip']
         self.master.profile_name = self.config['master_profile_name']
+        self.master.delete_on_stop = False
 
     def _delete_vm_instances(self):
         """
@@ -448,8 +450,8 @@ class IBMVPCInstance:
         self.public_ip = None
 
         self.ssh_credentials = {
-            'username': self.config.get('ssh_user', ibmvpc_config.SSH_USER),
-            'password': self.config.get('ssh_password', None if public else ibmvpc_config.SSH_PASSWD),
+            'username': self.config['ssh_user'],
+            'password': self.config.get('ssh_password', None if public else SSH_PASSWD),
             'key_filename': self.config.get('ssh_key_filename', None)
         }
 
@@ -513,7 +515,7 @@ class IBMVPCInstance:
         instance_prototype['primary_network_interface'] = primary_network_interface
 
         if not self.public:
-            instance_prototype['user_data'] = ibmvpc_config.CLOUD_CONFIG
+            instance_prototype['user_data'] = CLOUD_CONFIG
 
         try:
             resp = self.ibm_vpc_client.create_instance(instance_prototype)
@@ -641,7 +643,7 @@ class IBMVPCInstance:
         logger.debug("VM instance {} stopped".format(self.name))
 
     def stop(self):
-        if self.delete_on_stop and 'master' not in self.name:
+        if self.delete_on_stop:
             self._delete_instance()
         else:
             self._stop_instance()

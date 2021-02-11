@@ -3,9 +3,9 @@ import logging
 import subprocess as sp
 
 
-LT_LOG_FILE = '/tmp/lithops/lithops.log'
+SA_LOG_FILE = '/tmp/lithops/standalone.log'
 LOGGER_FORMAT = "%(asctime)s [%(levelname)s] %(name)s -- %(message)s"
-INSTALL_DIR = '/opt/lithops'
+STANDALONE_INSTALL_DIR = '/opt/lithops'
 
 CONTROLLER_SERVICE_NAME = 'lithopscontroller.service'
 CONTROLLER_SERVICE_FILE = """
@@ -19,11 +19,11 @@ Restart=always
 
 [Install]
 WantedBy=multi-user.target
-""".format(INSTALL_DIR)
+""".format(STANDALONE_INSTALL_DIR)
 
-logging.basicConfig(filename=LT_LOG_FILE, level=logging.INFO,
+logging.basicConfig(filename=SA_LOG_FILE, level=logging.INFO,
                     format=LOGGER_FORMAT)
-logger = logging.getLogger('lithops.setup')
+logger = logging.getLogger('master_setup')
 
 
 def get_host_setup_script():
@@ -49,7 +49,7 @@ def get_host_setup_script():
     unzip -o /tmp/lithops_standalone.zip -d {0} > /dev/null 2>&1;
     }}
     install_packages >> {1} 2>&1
-    """.format(INSTALL_DIR, LT_LOG_FILE)
+    """.format(STANDALONE_INSTALL_DIR, SA_LOG_FILE)
 
 
 def setup_master():
@@ -59,7 +59,7 @@ def setup_master():
     logger.info('Installing dependencies')
     script = get_host_setup_script()
 
-    with open(LT_LOG_FILE, 'a') as log_file:
+    with open(SA_LOG_FILE, 'a') as log_file:
         sp.run(script, shell=True, check=True, stdout=log_file,
                stderr=log_file, universal_newlines=True)
 
@@ -75,10 +75,10 @@ def setup_master():
     setup_service >> {2} 2>&1
     """.format(CONTROLLER_SERVICE_FILE,
                CONTROLLER_SERVICE_NAME,
-               LT_LOG_FILE)
+               SA_LOG_FILE)
 
     logger.info('Installing controller service')
-    with open(LT_LOG_FILE, 'a') as log_file:
+    with open(SA_LOG_FILE, 'a') as log_file:
         sp.run(script, shell=True, check=True, stdout=log_file,
                stderr=log_file, universal_newlines=True)
 
@@ -88,7 +88,7 @@ def setup_master():
 if __name__ == "__main__":
     logger.info('Starting Lithops Master VM setup script')
 
-    with open(LT_LOG_FILE, 'a') as log_file:
+    with open(SA_LOG_FILE, 'a') as log_file:
         sys.stdout = log_file
         sys.stderr = log_file
         setup_master()
