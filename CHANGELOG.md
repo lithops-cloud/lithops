@@ -5,13 +5,17 @@
 ### Added
 - [Core] Added multiprocessing support in workers
 - [Core] Added 'cunksize' param to API calls
-- [Core] Added 'worker_granularity' param to API calls
-- [Core] Allow multiple calls in the same worker trough 'chunksize' and 'worker_granularity' params
+- [Core] Added 'worker_processes' param to API calls
+- [Core] Allow a worker to process more than one call trough 'chunksize' param
+- [Core] All Functions logs are now synchronized with the client
 - [Config] Allow 'log_level' and 'log_format' keys in configuration
 - [Config] Allow 'log_stream' and 'log_filename' keys in configuration
 - [Config] Allow 'runtime' being configured at serverless backend level
 - [Config] Allow 'invoke_pool_threads' being configured at serverless backend level
-
+- [Multiprocessing] Added generic Manager 
+- [Kubernetes] Add kubernetes job backend
+- [CLI] Extended lithops cli with storage put, get, delete and list options
+- [Azure] Added missing azure functions backend methods
 
 ### Changed
 - [Core] Improved Standalone execution mode
@@ -20,6 +24,12 @@
 - [Core] Renamed partitioner 'chunk_n' param to 'obj_chunk_number'
 - [GCP Cloud Run] Refactor backend, removed 'gcloud' CLI calls.
 - [IBM VPC] Improved IBM VPC backend
+- [Aws Lambda] Lambda layer modules update
+
+### Fixes
+- [Multiprocessing] Fix issues related to Pipes and Queues
+- [Multiprocessing] Fix multiprocessing.context methods
+- [CodeEngine/knative] Fix getting docker username in MAC OS hosts
 
 
 ## [v2.2.15]

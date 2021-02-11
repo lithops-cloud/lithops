@@ -74,7 +74,7 @@ CONFIG_FILE = os.path.join(CONFIG_DIR, 'config')
 
 SERVERLESS_BACKENDS = ['ibm_cf', 'code_engine', 'knative', 'openwhisk',
                        'aws_lambda', 'gcp_functions', 'cloudrun',
-                       'azure_fa', 'aliyun_fc']
+                       'azure_fa', 'aliyun_fc', 'k8s']
 STANDALONE_BACKENDS = ['ibm_vpc', 'vm']
 
 CHUNKSIZE_DEFAULT = 1
