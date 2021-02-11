@@ -218,6 +218,16 @@ class CodeEngineBackend:
         for docker_image_name, memory in jobdefs:
             self.delete_runtime(docker_image_name, memory)
 
+        logger.debug('Deleting all remaining lithops configmaps')
+        configmaps = self.coreV1Api.list_namespaced_config_map(namespace=self.namespace)
+        for configmap in configmaps.items:
+            config_name = configmap.metadata.name
+            if config_name.startswith('lithops'):
+                logger.debug('Deleting configmap {}'.format(config_name))
+                self.coreV1Api.delete_namespaced_config_map(name=config_name,
+                                                            namespace=self.namespace,
+                                                            grace_period_seconds=0)
+
     def list_runtimes(self, docker_image_name='all'):
         """
         List all the runtimes
@@ -253,8 +263,8 @@ class CodeEngineBackend:
         Clean all completed jobruns
         """
         logger.debug('Deleting all completed jobruns')
+        time.sleep(1)
         jobruns = []
-        configmaps = []
         try:
             jobruns = self.capi.list_namespaced_custom_object(
                                     group=ce_config.DEFAULT_GROUP,
@@ -275,22 +285,6 @@ class CodeEngineBackend:
             except Exception as e:
                 logger.warning("Deleting a jobrun failed with {}"
                                .format(e))
-
-        logger.debug('Deleting all remaining configmaps')
-        try:
-            configmaps = self.coreV1Api.list_namespaced_config_map(namespace=self.namespace)
-        except ApiException as e:
-            logger.warning("Listing all configmaps failed with {} {}"
-                           .format(e.status, e.reason))
-            return
-
-        for configmap in configmaps.items:
-            config_name = configmap.metadata.name
-            if config_name.startswith('lithops'):
-                logger.debug('Deleting configmap {}'.format(config_name))
-                self.coreV1Api.delete_namespaced_config_map(name=config_name,
-                                                            namespace=self.namespace,
-                                                            grace_period_seconds=0)
 
     def invoke(self, docker_image_name, runtime_memory, job_payload):
         """

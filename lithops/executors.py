@@ -15,19 +15,18 @@
 # limitations under the License.
 #
 
+import os
+import sys
 import copy
 import signal
 import logging
 import atexit
-import os
 import pickle
 import tempfile
-import sys
 import subprocess as sp
 from functools import partial
 
 from lithops.invokers import ServerlessInvoker, StandaloneInvoker, CustomizedRuntimeInvoker
-
 from lithops.storage import InternalStorage
 from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from lithops.job import create_map_job, create_reduce_job
@@ -577,19 +576,15 @@ class FunctionExecutor:
             save_data_to_clean(data)
             self.cleaned_jobs.update(jobs_to_clean)
 
+            self.compute_handler.clear()
+
         if (jobs_to_clean or cs) and spawn_cleaner:
             log_file = open(CLEANER_LOG_FILE, 'a')
             cmdstr = '{} -m lithops.scripts.cleaner'.format(sys.executable)
             sp.Popen(cmdstr, shell=True, stdout=log_file, stderr=log_file)
 
-        if hasattr(self.compute_handler, 'clear'):
-            self.compute_handler.clear()
-
     def dismantle(self):
         self.compute_handler.dismantle()
-
-    def init(self):
-        self.compute_handler.init()
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.invoker.stop()
