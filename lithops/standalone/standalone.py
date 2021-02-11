@@ -24,12 +24,12 @@ import shlex
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.utils import is_lithops_worker, create_handler_zip
-from lithops.constants import REMOTE_INSTALL_DIR, LT_LOG_FILE
+from lithops.constants import STANDALONE_INSTALL_DIR, \
+    SA_LOG_FILE, STANDALONE_SERVICE_PORT
 
 
 logger = logging.getLogger(__name__)
 LOCAL_FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_standalone.zip')
-PROXY_SERVICE_PORT = 8080
 
 
 class StandaloneHandler:
@@ -64,66 +64,67 @@ class StandaloneHandler:
         """
         self.backend.init()
 
-    def _is_instance_ready(self, instance):
+    def _is_master_instance_ready(self):
         """
         Checks if the VM instance is ready to receive ssh connections
         """
         try:
-            instance.get_ssh_client().run_remote_command('id')
+            self.backend.master.get_ssh_client().run_remote_command('id')
         except Exception:
             return False
         return True
 
-    def _wait_instance_ready(self, instance):
+    def _wait_master_instance_ready(self):
         """
         Waits until the VM instance is ready to receive ssh connections
         """
-        logger.debug('Waiting {} to become ready'.format(instance))
+        logger.debug('Waiting {} to become ready'.format(self.backend.master))
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
-            if self._is_instance_ready(instance):
-                logger.debug('{} ready in {} seconds'.format(instance, round(time.time()-start, 2)))
+            if self._is_instance_ready():
+                logger.debug('{} ready in {} seconds'.format(self.backend.master,
+                                                             round(time.time()-start, 2)))
                 return True
             time.sleep(5)
 
         self.dismantle()
-        raise Exception('SSH Readiness probe expired on {}'.format(instance))
+        raise Exception('SSH Readiness probe expired on {}'.format(self.backend.master))
 
-    def _is_lithops_ready(self, instance):
+    def _is_master_lithops_ready(self):
         """
         Checks if the proxy is ready to receive http connections
         """
         try:
             if self.is_lithops_worker:
-                url = "http://{}:{}/ping".format('127.0.0.1', PROXY_SERVICE_PORT)
+                url = "http://127.0.0.1:{}/ping".format(STANDALONE_SERVICE_PORT)
                 r = requests.get(url, timeout=1)
                 if r.status_code == 200:
                     return True
                 return False
             else:
-                cmd = 'curl -X GET http://127.0.0.1:8080/ping'
-                out = instance.get_ssh_client().run_remote_command(cmd)
+                cmd = 'curl -X GET http://127.0.0.1:{}/ping'.format(STANDALONE_SERVICE_PORT)
+                out = self.backend.master.get_ssh_client().run_remote_command(cmd)
                 data = json.loads(out)
                 if data['response'] == 'pong':
                     return True
         except Exception:
             return False
 
-    def _wait_lithops_ready(self, instance):
+    def _wait_master_lithops_ready(self):
         """
         Waits until the proxy is ready to receive http connections
         """
-        logger.info('Waiting Lithops to become ready on {}'.format(instance))
+        logger.info('Waiting Lithops to become ready on {}'.format(self.backend.master))
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
-            if self._is_lithops_ready(instance):
+            if self._is_master_lithops_ready():
                 return True
             time.sleep(2)
 
         self.dismantle()
-        raise Exception('Lithops readiness probe expired on {}'.format(instance))
+        raise Exception('Lithops readiness probe expired on {}'.format(self.backend.master))
 
     def run_job(self, job_payload):
         """
@@ -163,21 +164,25 @@ class StandaloneHandler:
                          .format(executor_id, job_id, total_calls,))
 
         logger.debug("Checking if {} is ready".format(self.backend.master))
-        if not self._is_lithops_ready(self.backend.master):
+        if not self._is_master_lithops_ready():
             logger.debug("{} not ready".format(self.backend.master))
             if self.exec_mode != 'create':
                 self.backend.master.create(check_if_exists=True, start=True)
             # Wait only for the entry point instance
-            self._wait_instance_ready(self.backend.master)
+            self._wait_master_instance_ready()
 
         logger.debug('{} ready'.format(self.backend.master))
 
         if self.exec_mode == 'create':
             logger.debug('Be patient, VM startup time may take up to 2 minutes')
-            job_instances = [(inst.name, inst.ip_address, inst.instance_id) for inst in workers]
-            cmd = ('python3 /opt/lithops/controller.py run {} {}'
-                   .format(shlex.quote(json.dumps(job_payload)),
-                           shlex.quote(json.dumps(job_instances))))
+            worker_instances = [(inst.name, inst.ip_address, inst.instance_id) for inst in workers]
+            job_payload['woreker_instances'] = worker_instances
+
+            cmd = ('curl http://127.0.0.1:{}/run-create -d {} '
+                   '-H \'Content-Type: application/json\' -X POST'
+                   .format(STANDALONE_SERVICE_PORT,
+                           shlex.quote(json.dumps(job_payload))))
+
             self.backend.master.get_ssh_client().run_remote_command(cmd, run_async=True)
         else:
             cmd = ('python3 /opt/lithops/controller.py run {}'
@@ -192,22 +197,19 @@ class StandaloneHandler:
         preinstalled modules
         """
         logger.debug('Checking if {} is ready'.format(self.backend.master))
-        if not self._is_instance_ready(self.backend.master):
+        if not self._is_master_instance_ready():
             logger.debug('{} not ready'.format(self.backend.master))
             self.backend.master.create(check_if_exists=True, start=True)
-            self._wait_instance_ready(self.backend.master)
+            self._wait_master_instance_ready(self.backend.master)
 
-        self._setup_lithops()
-        self._wait_lithops_ready(self.backend.master)
-
-        print(self.backend.master.public_ip, self.backend.master.ip_address)
+        self._setup_lithops_master()
+        self._wait_master_lithops_ready()
 
         logger.debug('Extracting runtime metadata information')
         payload = {'runtime': runtime, 'pull_runtime': self.pull_runtime}
-        cmd = ('curl http://{}:8080/preinstalls -d {} '
+        cmd = ('curl http://127.0.0.1:8080/preinstalls -d {} '
                '-H \'Content-Type: application/json\' -X GET'
-               .format(self.backend.master.ip_address, shlex.quote(json.dumps(payload))))
-        print(cmd)
+               .format(shlex.quote(json.dumps(payload))))
         out = self.backend.master.get_ssh_client().run_remote_command(cmd)
         runtime_meta = json.loads(out)
 
@@ -239,7 +241,7 @@ class StandaloneHandler:
         """
         return self.backend.get_runtime_key(runtime_name)
 
-    def _setup_lithops(self):
+    def _setup_lithops_master(self):
         """
         Setup lithops necessary files and dirs in master VM instance
         """
@@ -255,8 +257,8 @@ class StandaloneHandler:
 
         logger.debug('Uploading lithops files to {}'.format(self.backend.master))
         files_to_upload = [(LOCAL_FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip'),
-                           (setup_location, '/tmp/master_setup.py'.format(REMOTE_INSTALL_DIR)),
-                           (controller_location, '/tmp/master_controller.py'.format(REMOTE_INSTALL_DIR))]
+                           (setup_location, '/tmp/master_setup.py'.format(STANDALONE_INSTALL_DIR)),
+                           (controller_location, '/tmp/master_controller.py'.format(STANDALONE_INSTALL_DIR))]
 
         ssh_client.upload_multiple_local_files(files_to_upload)
         os.remove(LOCAL_FH_ZIP_LOCATION)
@@ -278,8 +280,8 @@ class StandaloneHandler:
         python3 {0}/master_setup.py;
         }}
         setup_host >> {3} 2>&1;
-        """.format(REMOTE_INSTALL_DIR, json.dumps(master_data),
-                   json.dumps(self.config), LT_LOG_FILE)
+        """.format(STANDALONE_INSTALL_DIR, json.dumps(master_data),
+                   json.dumps(self.config), SA_LOG_FILE)
 
         logger.debug('Executing lithops installation process on {}'.format(self.backend.master))
         logger.debug('Be patient, initial installation process may take up to 5 minutes')

@@ -28,9 +28,9 @@ from gevent.pywsgi import WSGIServer
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DIR, \
-    REMOTE_INSTALL_DIR, LT_LOG_FILE, LOGS_DIR, \
-    LITHOPS_SERVICE_PORT
-from lithops.storage.utils import create_job_key
+    STANDALONE_INSTALL_DIR, SA_LOG_FILE, LOGS_DIR,\
+    STANDALONE_SERVICE_PORT, STANDALONE_CONFIG_FILE,\
+    STANDALONE_SSH_CREDNTIALS
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
 from lithops.utils import verify_runtime_name, iterchunks, setup_lithops_logger
@@ -45,6 +45,7 @@ last_usage_time = time.time()
 keeper = None
 jobs = {}
 standalone_handler = None
+standalone_config = None
 
 PROXY_SERVICE_NAME = 'lithopsproxy.service'
 PROXY_SERVICE_FILE = """
@@ -58,17 +59,9 @@ Restart=always
 
 [Install]
 WantedBy=multi-user.target
-""".format(REMOTE_INSTALL_DIR)
+""".format(STANDALONE_INSTALL_DIR)
 
 START_TIMEOUT = 300
-
-INTERNAL_SSH_CREDNTIALS = {'username': 'root', 'password': 'lithops'}
-STANDALONE_CONFIG_FILE = os.path.join(REMOTE_INSTALL_DIR, 'config')
-STANDALONE_CONFIG = json.loads(open(STANDALONE_CONFIG_FILE, 'r').read())
-
-config_file = os.path.join(STANDALONE_CONFIG_FILE)
-with open(config_file, 'r') as cf:
-    standalone_config = json.load(cf)
 
 
 def budget_keeper():
@@ -129,7 +122,7 @@ def init_keeper():
     global standalone_handler
     global standalone_config
 
-    access_data = os.path.join(REMOTE_INSTALL_DIR, 'access.data')
+    access_data = os.path.join(STANDALONE_INSTALL_DIR, 'access.data')
     with open(access_data, 'r') as ad:
         vsi_details = json.load(ad)
         logger.info("Parsed self name: {}, IP: {} and instance ID: {}"
@@ -148,10 +141,47 @@ def init_keeper():
     keeper.start()
 
 
-def iterchunks(lst, n):
-    """Yield successive n-sized chunks from lst."""
-    for i in range(0, len(lst), n):
-        yield lst[i:i + n]
+def get_worker_setup_cmd(instance_name, ip_address, instance_id):
+
+    service_file = '/etc/systemd/system/{}'.format(PROXY_SERVICE_NAME)
+    cmd = "echo '{}' > {}; ".format(PROXY_SERVICE_FILE, service_file)
+
+    # Create files and directories
+    cmd += 'rm -R {0}; mkdir -p {0}; mkdir -p /tmp/lithops;'.format(STANDALONE_INSTALL_DIR)
+    cmd += "echo '{}' > {}; ".format(json.dumps(standalone_config), STANDALONE_CONFIG_FILE)
+
+    # Install dependencies (only if they are not installed)
+    cmd += 'command -v unzip >/dev/null 2>&1 || { export INSTALL_LITHOPS_DEPS=true; }; '
+    cmd += 'command -v pip3 >/dev/null 2>&1 || { export INSTALL_LITHOPS_DEPS=true; }; '
+    cmd += 'command -v docker >/dev/null 2>&1 || { export INSTALL_LITHOPS_DEPS=true; }; '
+    cmd += 'if [ "$INSTALL_LITHOPS_DEPS" = true ] ; then '
+    cmd += 'rm /var/lib/apt/lists/* -vfR >> /tmp/lithops/proxy.log 2>&1; '
+    cmd += 'apt-get clean >> /tmp/lithops/proxy.log 2>&1; date >>/tmp/lithops/proxy.log 2>&1; '
+    cmd += 'apt-get update >> /tmp/lithops/proxy.log 2>&1; '
+    cmd += 'apt-get install apt-transport-https ca-certificates curl software-properties-common gnupg-agent -y >> /tmp/lithops/proxy.log 2>&1;'
+    cmd += 'curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add - >> /tmp/lithops/proxy.log 2>&1; '
+    cmd += 'add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" >> /tmp/lithops/proxy.log 2>&1; '
+    cmd += 'apt-get update >> /tmp/lithops/proxy.log 2>&1; '
+    cmd += 'apt-get install unzip python3-pip docker-ce docker-ce-cli containerd.io -y >> /tmp/lithops/proxy.log 2>&1; '
+    cmd += 'date >>/tmp/lithops/proxy.log 2>&1; pip3 install -U flask gevent lithops >> /tmp/lithops/proxy.log 2>&1; date >>/tmp/lithops/proxy.log 2>&1;'
+    cmd += 'fi; '
+
+    # Unzip lithops package
+    cmd += 'touch {}/access.data; '.format(STANDALONE_INSTALL_DIR)
+    vsi_data = {'instance_name': instance_name, 'ip_address': ip_address, 'instance_id': instance_id}
+    cmd += "echo '{}' > {}/access.data; ".format(json.dumps(vsi_data), STANDALONE_INSTALL_DIR)
+    cmd += 'unzip -o /tmp/lithops_standalone.zip -d {} > /dev/null 2>&1; '.format(STANDALONE_INSTALL_DIR)
+
+    # Start proxy service
+    cmd += 'chmod 644 {}; '.format(service_file)
+    cmd += 'systemctl daemon-reload; '
+    cmd += 'systemctl stop {}; '.format(PROXY_SERVICE_NAME)
+    cmd += 'systemctl enable {}; '.format(PROXY_SERVICE_NAME)
+    cmd += 'systemctl start {}; '.format(PROXY_SERVICE_NAME)
+
+    print(cmd)
+
+    return cmd
 
 
 def is_instance_ready(ssh_client):
@@ -189,7 +219,7 @@ def is_proxy_ready(ip_addr):
     Checks if the proxy is ready to receive http connections
     """
     try:
-        url = "http://{}:{}/ping".format(ip_addr, LITHOPS_SERVICE_PORT)
+        url = "http://{}:{}/ping".format(ip_addr, STANDALONE_SERVICE_PORT)
         r = requests.get(url, timeout=1)
         if r.status_code == 200:
             return True
@@ -224,14 +254,14 @@ def run_job_on_worker(worker_info, call_ids_range, job_payload):
     instance_name, ip_address, instance_id = worker_info
     logger.info('Going to setup {}, IP address {}'.format(instance_name, ip_address))
 
-    ssh_client = SSHClient(ip_address, INTERNAL_SSH_CREDNTIALS)
+    ssh_client = SSHClient(ip_address, STANDALONE_SSH_CREDNTIALS)
     wait_instance_ready(ssh_client)
 
     # upload zip lithops package
     logger.info('Uploading lithops files to VM instance {}'.format(ip_address))
     ssh_client.upload_local_file('/opt/lithops/lithops_standalone.zip', '/tmp/lithops_standalone.zip')
     logger.info('Executing lithops installation process on VM instance {}'.format(ip_address))
-    script = get_host_setup_scritp(instance_name, ip_address, instance_id)
+    script = get_worker_setup_cmd(instance_name, ip_address, instance_id)
     ssh_client.run_remote_command(script, run_async=True)
     ssh_client.close()
 
@@ -242,7 +272,7 @@ def run_job_on_worker(worker_info, call_ids_range, job_payload):
     job_payload['call_ids'] = call_ids_range
     job_payload['data_byte_ranges'] = [dbr[int(call_id)] for call_id in call_ids_range]
 
-    url = "http://{}:{}/run".format(ip_address, LITHOPS_SERVICE_PORT)
+    url = "http://{}:{}/run".format(ip_address, STANDALONE_SERVICE_PORT)
     r = requests.post(url, data=json.dumps(job_payload))
     response = r.json()
 
@@ -254,78 +284,79 @@ def run_job_on_worker(worker_info, call_ids_range, job_payload):
                      .format(', '.join(call_ids_range), response['error']))
 
 
-def run_job():
-    """
-    Runs a given job
-    """
-    global STANDALONE_CONFIG
-
-    job_payload = json.loads(sys.argv[2])
-    STANDALONE_CONFIG.update(job_payload['config']['standalone'])
-    exec_mode = job_payload['config']['standalone'].get('exec_mode', 'consume')
-
-    if exec_mode == 'create':
-        logger.info('Running job on worker VMs')
-        call_ids = job_payload['call_ids']
-        chunksize = job_payload['chunksize']
-        workers = json.loads(sys.argv[3])
-
-        with ThreadPoolExecutor(len(workers)) as executor:
-            for call_ids_range in iterchunks(call_ids, chunksize):
-                worker_info = workers.pop(0)
-                executor.submit(run_job_on_worker,
-                                worker_info,
-                                call_ids_range,
-                                copy.deepcopy(job_payload))
-
-    else:
-        logger.info('Running job on localhost')
-        # Run the job in the local Vm instance
-        url = "http://{}:{}/run".format('127.0.0.1', LITHOPS_SERVICE_PORT)
-        requests.post(url, data=json.dumps(job_payload))
-
-
 def error(msg):
     response = flask.jsonify({'error': msg})
     response.status_code = 404
     return response
 
 
-@controller.route('/run', methods=['POST'])
-def run():
+@controller.route('/run-create', methods=['POST'])
+def run_create():
     """
-    Run a job
+    Runs a given job remotely in workers, in create mode
     """
-    global last_usage_time
-    global standalone_handler
-    global jobs
+    global standalone_config
 
-    message = flask.request.get_json(force=True, silent=True)
-    if message and not isinstance(message, dict):
+    logger.info('Running job on worker VMs')
+
+    job_payload = flask.request.get_json(force=True, silent=True)
+    if job_payload and not isinstance(job_payload, dict):
         return error('The action did not receive a dictionary as an argument.')
 
     try:
-        runtime = message['runtime_name']
+        runtime = job_payload['runtime_name']
         verify_runtime_name(runtime)
     except Exception as e:
         return error(str(e))
 
     last_usage_time = time.time()
 
-    standalone_config = message['config']['standalone']
+    standalone_config.update(job_payload['config']['standalone'])
+
+    call_ids = job_payload['call_ids']
+    chunksize = job_payload['chunksize']
+    workers = job_payload['woreker_instances']
+
+    with ThreadPoolExecutor(len(workers)) as executor:
+        for call_ids_range in iterchunks(call_ids, chunksize):
+            worker_info = workers.pop(0)
+            executor.submit(run_job_on_worker,
+                            worker_info,
+                            call_ids_range,
+                            copy.deepcopy(job_payload))
+
+
+@controller.route('/run', methods=['POST'])
+def run():
+    """
+    Run a job locally, in consume mode
+    """
+    global last_usage_time
+    global standalone_handler
+    global jobs
+
+    job_payload = flask.request.get_json(force=True, silent=True)
+    if job_payload and not isinstance(job_payload, dict):
+        return error('The action did not receive a dictionary as an argument.')
+
+    try:
+        runtime = job_payload['runtime_name']
+        verify_runtime_name(runtime)
+    except Exception as e:
+        return error(str(e))
+
+    last_usage_time = time.time()
+
+    standalone_config.update(job_payload['config']['standalone'])
     standalone_handler.auto_dismantle = standalone_config['auto_dismantle']
     standalone_handler.soft_dismantle_timeout = standalone_config['soft_dismantle_timeout']
     standalone_handler.hard_dismantle_timeout = standalone_config['hard_dismantle_timeout']
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
-    executor_id = message['executor_id']
-    job_id = message['job_id']
-    job_key = create_job_key(executor_id, job_id)
-    jobs[job_key] = 'running'
-
+    jobs[job_payload['job_key']] = 'running'
     pull_runtime = standalone_config.get('pull_runtime', False)
     localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
-    localhost_handler.run_job(message)
+    localhost_handler.run_job(job_payload)
 
     response = flask.jsonify({'activationId': act_id})
     response.status_code = 202
@@ -364,16 +395,22 @@ def preinstalls():
 
 
 def main():
-    setup_lithops_logger('DEBUG', filename=LT_LOG_FILE)
+    global standalone_config
+
+    setup_lithops_logger('DEBUG', filename=SA_LOG_FILE)
 
     os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
     os.makedirs(LOGS_DIR, exist_ok=True)
 
-    with open(LT_LOG_FILE, 'a') as log_file:
+    with open(STANDALONE_CONFIG_FILE, 'r') as cf:
+        standalone_config = json.load(cf)
+
+    with open(SA_LOG_FILE, 'a') as log_file:
         sys.stdout = log_file
         sys.stderr = log_file
         init_keeper()
-        server = WSGIServer(('0.0.0.0', LITHOPS_SERVICE_PORT), controller, log=controller.logger)
+        server = WSGIServer(('0.0.0.0', STANDALONE_SERVICE_PORT),
+                            controller, log=controller.logger)
         server.serve_forever()
 
 

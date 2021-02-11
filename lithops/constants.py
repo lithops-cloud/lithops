@@ -44,10 +44,15 @@ RUNTIMES_PREFIX = "lithops.runtimes"
 EXECUTION_TIMEOUT_DEFAULT = 1800
 
 LOCALHOST_RUNTIME_DEFAULT = os.path.basename(sys.executable)
+
 STANDALONE_RUNTIME_DEFAULT = LOCALHOST_RUNTIME_DEFAULT
 STANDALONE_AUTO_DISMANTLE_DEFAULT = True
 STANDALONE_SOFT_DISMANTLE_TIMEOUT_DEFAULT = 300
 STANDALONE_HARD_DISMANTLE_TIMEOUT_DEFAULT = 3600
+STANDALONE_INSTALL_DIR = '/opt/lithops'
+STANDALONE_SERVICE_PORT = 8080
+STANDALONE_SSH_CREDNTIALS = {'username': 'root', 'password': 'lithops'}
+STANDALONE_CONFIG_FILE = os.path.join(STANDALONE_INSTALL_DIR, 'config')
 
 MAX_AGG_DATA_SIZE = 4  # 4MiB
 
@@ -57,15 +62,12 @@ JOBS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'jobs')
 LOGS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'logs')
 
 RN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'runner.log')
-LT_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'lithops.log')
+SA_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'standalone.log')
 FN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'functions.log')
 
 CLEANER_DIR = os.path.join(LITHOPS_TEMP_DIR, 'cleaner')
 CLEANER_PID_FILE = os.path.join(CLEANER_DIR, 'cleaner.pid')
 CLEANER_LOG_FILE = os.path.join(CLEANER_DIR, 'cleaner.log')
-
-REMOTE_INSTALL_DIR = '/opt/lithops'
-LITHOPS_SERVICE_PORT = 8080
 
 HOME_DIR = os.path.expanduser('~')
 CONFIG_DIR = os.path.join(HOME_DIR, '.lithops')
