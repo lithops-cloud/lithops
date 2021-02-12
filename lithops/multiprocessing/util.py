@@ -196,7 +196,6 @@ class RemoteReference:
 
 class RemoteLogIOBuffer:
     def __init__(self, stream):
-        self._old_stdout = sys.stdout
         self._feeder_thread = threading
         self._buff = io.StringIO()
         self._redis = get_redis_client()
@@ -216,6 +215,15 @@ class RemoteLogIOBuffer:
         # self._buff = io.StringIO()
         # FIXME flush() does not empty the buffer?
         self._buff.flush()
+
+    def start(self):
+        import sys
+        self._old_stdout = sys.stdout
+        sys.stdout = self
+
+    def stop(self):
+        import sys
+        sys.stdout = self._old_stdout
 
 
 class RemoteLoggingFeed:

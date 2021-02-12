@@ -14,14 +14,13 @@ import os
 import time
 import itertools
 import selectors
+import cloudpickle
 
 from multiprocessing.context import BufferTooShort
 
 from . import util
-from .context import reduction, AuthenticationError
+from .context import AuthenticationError
 from . import config as mp_config
-
-_ForkingPickler = reduction.ForkingPickler
 
 #
 # Constants
@@ -161,7 +160,7 @@ class _ConnectionBase:
         """Send a (picklable) object"""
         self._check_closed()
         self._check_writable()
-        self._send_bytes(_ForkingPickler.dumps(obj))
+        self._send_bytes(cloudpickle.dumps(obj))
 
     def send_bytes(self, buf, offset=0, size=None):
         """Send the bytes data from a bytes-like object"""
@@ -233,7 +232,7 @@ class _ConnectionBase:
         self._check_closed()
         self._check_readable()
         buf = self._recv_bytes()
-        return _ForkingPickler.loads(buf.getbuffer())
+        return cloudpickle.loads(buf.getbuffer())
 
     def poll(self, timeout=0.0):
         """Whether there is any input available to be read"""
@@ -325,7 +324,7 @@ class RedisConnection(_ConnectionBase):
         raise NotImplementedError('Connection._recv() on Redis')
 
     def _send_bytes(self, buf):
-        self._write(self._subhandle, buf.tobytes())
+        self._write(self._subhandle, buf)
 
     def _recv_bytes(self, maxsize=None):
         buf = io.BytesIO()
@@ -376,9 +375,6 @@ class Listener(object):
         if self._listener is None:
             raise OSError('listener is closed')
         c = self._listener.accept()
-        if self._authkey:
-            deliver_challenge(c, self._authkey)
-            answer_challenge(c, self._authkey)
         return c
 
     def close(self):
@@ -474,44 +470,6 @@ class SocketListener(object):
 
 
 #
-# Authentication stuff
-#
-
-MESSAGE_LENGTH = 20
-
-CHALLENGE = b'#CHALLENGE#'
-WELCOME = b'#WELCOME#'
-FAILURE = b'#FAILURE#'
-
-
-def deliver_challenge(connection, authkey):
-    import hmac
-    assert isinstance(authkey, bytes)
-    message = os.urandom(MESSAGE_LENGTH)
-    connection.send_bytes(CHALLENGE + message)
-    digest = hmac.new(authkey, message, 'md5').digest()
-    response = connection.recv_bytes(256)  # reject large message
-    if response == digest:
-        connection.send_bytes(WELCOME)
-    else:
-        connection.send_bytes(FAILURE)
-        raise AuthenticationError('digest received was wrong')
-
-
-def answer_challenge(connection, authkey):
-    import hmac
-    assert isinstance(authkey, bytes)
-    message = connection.recv_bytes(256)  # reject large message
-    assert message[:len(CHALLENGE)] == CHALLENGE, 'message = %r' % message
-    message = message[len(CHALLENGE):]
-    digest = hmac.new(authkey, message, 'md5').digest()
-    connection.send_bytes(digest)
-    response = connection.recv_bytes(256)  # reject large message
-    if response != WELCOME:
-        raise AuthenticationError('digest sent was rejected')
-
-
-#
 # Wait
 #
 
@@ -551,20 +509,3 @@ def wait(object_list, timeout=None):
             if timeout < 0:
                 return ready
         time.sleep(0.1)
-
-
-#
-# Make connection and socket objects sharable if possible
-#
-
-def reduce_connection(conn):
-    df = reduction.DupFd(conn.fileno())
-    return rebuild_connection, (df, conn.readable, conn.writable)
-
-
-def rebuild_connection(df, readable, writable):
-    fd = df.detach()
-    return RedisConnection(fd, readable, writable)
-
-
-reduction.register(RedisConnection, reduce_connection)

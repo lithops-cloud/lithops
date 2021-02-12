@@ -67,23 +67,36 @@ class CloudWorker:
 
     def __call__(self, *args, **kwargs):
         if self.log_stream is not None:
-            sys.stdout = util.RemoteLogIOBuffer(self.log_stream)
+            remote_log_buff = util.RemoteLogIOBuffer(self.log_stream)
+        else:
+            remote_log_buff = None
 
         if self._initializer is not None:
             self._initializer(*self._initargs)
 
+        if remote_log_buff:
+            remote_log_buff.start()
+
         try:
             res = self._func(*kwargs['args'], **kwargs['kwargs'])
-            sys.stdout.flush()
+            exception = None
             return res
         except Exception as e:
+            exception = e
             header = "---------- {}: {} at {} ----------".format(e.__class__.__name__, e,
                                                                  os.environ.get('LITHOPS_EXECUTION_ID'))
             exception_body = traceback.format_exc()
             footer = '-' * len(header)
-            sys.stdout.write('\n'.join([header, exception_body, footer, '']))
-            sys.stdout.flush()
-            raise e
+            if remote_log_buff:
+                remote_log_buff.write('\n'.join([header, exception_body, footer, '']))
+                remote_log_buff.flush()
+        finally:
+            if remote_log_buff:
+                remote_log_buff.flush()
+                remote_log_buff.stop()
+
+        if exception:
+            raise exception
 
     @property
     def __name__(self):
@@ -163,9 +176,16 @@ class CloudProcess:
         assert self._parent_pid == os.getpid(), 'can only join a child process'
         assert self._forked, 'can only join a started process'
 
-        self._executor.wait()
-        if self._remote_logger:
-            self._remote_logger.stop()
+        try:
+            self._executor.wait()
+            exception = None
+        except Exception as e:
+            exception = e
+        finally:
+            if self._remote_logger:
+                self._remote_logger.stop()
+            if exception:
+                raise exception
 
     def is_alive(self):
         """
