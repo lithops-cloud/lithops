@@ -2,6 +2,38 @@
 
 Lithops allows to use the standard Python [multiprocessing](https://docs.python.org/3/library/multiprocessing.html) High-level API to run functions by using a cloud compute backend.
 
+### Table of contents
+
+  * [Process](#process)
+  * [Pool](#pool)
+    + [Pool API Reference](#pool-api-reference)
+    + [AsyncResult API reference](#asyncresult-api-reference)
+  * [Processes communication, synchronization and shared state](#processes-communication--synchronization-and-shared-state)
+    + [Pipe](#pipe)
+      - [Connection API reference](#connection-api-reference)
+    + [Queue](#queue)
+      - [Queue API reference](#queue-api-reference)
+    + [SimpleQueue](#simplequeue)
+      - [SimpleQueue API reference](#simplequeue-api-reference)
+    + [JoinableQueue](#joinablequeue)
+      - [JoinableQueue API reference](#joinablequeue-api-reference)
+    + [Barrier](#barrier)
+      - [Barrier API reference](#barrier-api-reference)
+    + [Semaphore](#semaphore)
+      - [Semaphore API reference](#semaphore-api-reference)
+    + [BoundedSemaphore](#boundedsemaphore)
+    + [Condition](#condition)
+      - [Condition API reference](#condition-api-reference)
+    + [Event](#event)
+      - [Event API reference](#event-api-reference)
+    + [Lock](#lock)
+      - [Lock API reference](#lock-api-reference)
+    + [RLock](#rlock)
+    + [Value](#value)
+    + [Array](#array)
+    + [Manager](#manager)
+      - [Customized Manager](#customized-managers)
+
 ## Process
 
 The [`Process`](https://docs.python.org/3/library/multiprocessing.html#process-and-exceptions) class is used to execute a single function on the cloud compute backend. First, the function is set up when the `Process` class is instantiated.
@@ -558,8 +590,7 @@ Managers provide a way to create data which can be shared between different proc
 
 An example is provided [here](../examples/multiprocessing/manager.py)
 
-Managers are used to share objects between processed. However, for now, only a limited set of shared objects
-can be created using `Manager()`:
+Managers are used to share objects between processed. There is a set of objects that can be directly created with a `Manager()`:
 
 1. **Barrier()**: Create a shared [threading.Barrier](https://docs.python.org/3/library/threading.html#threading.Barrier) object and return a proxy for it.
 2. **BoundedSemaphore()**: Create a shared [threading.BoundedSemaphore](https://docs.python.org/3/library/threading.html#threading.BoundedSemaphore) object and return a proxy for it.
@@ -574,3 +605,30 @@ can be created using `Manager()`:
 11. **Value()**: Create an object with a writable value attribute and return a proxy for it.
 12. **dict()**: Create a shared [dict](https://docs.python.org/3/library/stdtypes.html#dict) object and return a proxy for it.
 13. **list()**: Create a shared list object and return a proxy for it.
+
+#### Customized managers
+You can also create one's own manager. To do so, create a subclass or instance of BaseManager and use the `register()` classmethod to register new types or callables with the manager class.
+
+For example:
+```python
+from lithops.multiprocessing.managers import BaseManager
+
+class MathsClass:
+    def add(self, x, y):
+        return x + y
+    def mul(self, x, y):
+        return x * y
+
+class MyManager(BaseManager):
+    pass
+
+MyManager.register('Maths', MathsClass)
+
+if __name__ == '__main__':
+    with MyManager() as manager:
+        maths = manager.Maths()
+        print(maths.add(4, 3))         # prints 7
+        print(maths.mul(7, 8))         # prints 56
+```
+
+A more complete example can be found [here](../examples/multiprocessing/parameter_server.py)

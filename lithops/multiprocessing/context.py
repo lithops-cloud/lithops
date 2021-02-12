@@ -10,7 +10,6 @@ import lithops
 
 from . import process
 from . import pool
-from . import reduction
 
 
 #
@@ -45,8 +44,6 @@ class CloudContext:
 
     current_process = staticmethod(process.current_process)
     active_children = staticmethod(process.active_children)
-
-    reduction = reduction.ForkingPickler
 
     Process = process.CloudProcess
     Pool = pool.Pool

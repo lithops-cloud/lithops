@@ -18,10 +18,10 @@ from . import pool
 from . import synchronize
 from . import queues
 from . import util
-from .reduction import DefaultPickler
 
 import redis
 import inspect
+import cloudpickle
 
 _builtin_types = {
     'list',
@@ -155,7 +155,7 @@ class BaseProxy:
         # object id
         self._oid = '{}-{}'.format(typeid, util.get_uuid())
 
-        self._pickler = DefaultPickler() if serializer is None else serializer
+        self._pickler = cloudpickle
         self._client = util.get_redis_client()
         self._ref = util.RemoteReference(self._oid, client=self._client)
 
@@ -237,9 +237,12 @@ class MethodWrapper:
     def __call__(self, *args, **kwargs):
         attrs = self._proxy._client.hgetall(self._proxy._oid)
 
+        hashes = {}
+
         for attr_name, attr_bin in attrs.items():
             attr_name = attr_name.decode('utf-8')
             attr = self._proxy._pickler.loads(attr_bin)
+            hashes[attr_name] = hash(attr_bin)
             setattr(self._shared_object, attr_name, attr)
 
         attr = getattr(self._shared_object, self._attr_name)
@@ -257,7 +260,8 @@ class MethodWrapper:
         for attr_name in shared:
             attr = getattr(self._shared_object, attr_name)
             attr_bin = self._proxy._pickler.dumps(attr)
-            pipeline.hset(self._proxy._oid, attr_name, attr_bin)
+            if hash(attr_bin) != hashes[attr_name]:
+                pipeline.hset(self._proxy._oid, attr_name, attr_bin)
         pipeline.execute()
 
         return result
