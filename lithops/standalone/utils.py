@@ -2,28 +2,28 @@ import json
 from lithops.constants import STANDALONE_INSTALL_DIR, SA_LOG_FILE,\
     STANDALONE_CONFIG_FILE
 
-CONTROLLER_SERVICE_NAME = 'lithopscontroller.service'
-CONTROLLER_SERVICE_FILE = """
+MASTER_SERVICE_NAME = 'lithops-master.service'
+MASTER_SERVICE_FILE = """
 [Unit]
-Description=Lithops Controller
+Description=Lithops Master Service
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 {}/controller.py
+ExecStart=/usr/bin/python3 {}/master.py
 Restart=always
 
 [Install]
 WantedBy=multi-user.target
 """.format(STANDALONE_INSTALL_DIR)
 
-PROXY_SERVICE_NAME = 'lithopsproxy.service'
-PROXY_SERVICE_FILE = """
+WORKER_SERVICE_NAME = 'lithops-worker.service'
+WORKER_SERVICE_FILE = """
 [Unit]
-Description=Lithops Proxy
+Description=Lithops Worker Service
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 {}/proxy.py
+ExecStart=/usr/bin/python3 {}/worker.py
 Restart=always
 
 [Install]
@@ -89,8 +89,8 @@ def get_master_setup_script(config, vm_data):
     systemctl start {1};
     }}
     setup_service >> {2} 2>&1
-    """.format(CONTROLLER_SERVICE_FILE,
-               CONTROLLER_SERVICE_NAME,
+    """.format(MASTER_SERVICE_FILE,
+               MASTER_SERVICE_NAME,
                SA_LOG_FILE)
     return script
 
@@ -117,6 +117,6 @@ def get_worker_setup_script(config, vm_data):
     }}
     setup_service >> {3} 2>&1
     """.format(STANDALONE_INSTALL_DIR, json.dumps(config),
-               STANDALONE_CONFIG_FILE, SA_LOG_FILE, PROXY_SERVICE_FILE,
-               PROXY_SERVICE_NAME, json.dumps(vm_data))
+               STANDALONE_CONFIG_FILE, SA_LOG_FILE, WORKER_SERVICE_FILE,
+               WORKER_SERVICE_NAME, json.dumps(vm_data))
     return script

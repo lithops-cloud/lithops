@@ -252,14 +252,14 @@ class StandaloneHandler:
         logger.debug('Installing Lithops in {}'.format(self.backend.master))
         ssh_client = self.backend.master.get_ssh_client()
 
-        src_proxy = os.path.join(os.path.dirname(__file__), 'proxy.py')
+        src_proxy = os.path.join(os.path.dirname(__file__), 'worker.py')
         create_handler_zip(LOCAL_FH_ZIP_LOCATION, src_proxy)
         current_location = os.path.dirname(os.path.abspath(__file__))
-        controller_location = os.path.join(current_location, 'controller.py')
+        controller_location = os.path.join(current_location, 'master.py')
 
         logger.debug('Uploading lithops files to {}'.format(self.backend.master))
         files_to_upload = [(LOCAL_FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip'),
-                           (controller_location, '/tmp/controller.py'.format(STANDALONE_INSTALL_DIR))]
+                           (controller_location, '/tmp/master.py'.format(STANDALONE_INSTALL_DIR))]
         ssh_client.upload_multiple_local_files(files_to_upload)
         os.remove(LOCAL_FH_ZIP_LOCATION)
 
