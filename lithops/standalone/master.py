@@ -23,11 +23,12 @@ import uuid
 import flask
 import logging
 import requests
+from pathlib import Path
 from gevent.pywsgi import WSGIServer
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.constants import LITHOPS_TEMP_DIR, SA_LOG_FILE,\
-    LOGGER_FORMAT, STANDALONE_SSH_CREDNTIALS,\
+    LOGGER_FORMAT, STANDALONE_SSH_CREDNTIALS, JOBS_DIR,\
     STANDALONE_SERVICE_PORT, STANDALONE_CONFIG_FILE
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.utils import verify_runtime_name, iterchunks
@@ -177,13 +178,14 @@ def run_create():
     except Exception as e:
         return error(str(e))
 
-    BUDGET_KEEPER.last_usage_time = time.time()
-    BUDGET_KEEPER.update_config(job_payload['config']['standalone'])
-    BUDGET_KEEPER.jobs[job_payload['job_key']] = 'running'
-
+    job_key = job_payload['job_key']
     call_ids = job_payload['call_ids']
     chunksize = job_payload['chunksize']
     workers = job_payload['woreker_instances']
+
+    BUDGET_KEEPER.last_usage_time = time.time()
+    BUDGET_KEEPER.update_config(job_payload['config']['standalone'])
+    BUDGET_KEEPER.jobs[job_key] = 'running'
 
     with ThreadPoolExecutor(len(workers)) as executor:
         for call_ids_range in iterchunks(call_ids, chunksize):
@@ -192,6 +194,9 @@ def run_create():
                             worker_info,
                             call_ids_range,
                             copy.deepcopy(job_payload))
+
+    done = os.path.join(JOBS_DIR, job_key+'.done')
+    Path(done).touch()
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     response = flask.jsonify({'activationId': act_id})

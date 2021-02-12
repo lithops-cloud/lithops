@@ -24,8 +24,7 @@ import shlex
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.utils import is_lithops_worker, create_handler_zip
-from lithops.constants import STANDALONE_INSTALL_DIR, \
-    SA_LOG_FILE, STANDALONE_SERVICE_PORT
+from lithops.constants import STANDALONE_INSTALL_DIR, STANDALONE_SERVICE_PORT
 from lithops.standalone.utils import get_master_setup_script
 
 
@@ -168,15 +167,15 @@ class StandaloneHandler:
                          'to run {} activations in 1 worker'
                          .format(executor_id, job_id, total_calls,))
 
-        logger.debug("Checking if {} is ready".format(self.backend.master))
+        logger.debug("Checking if Lithops service is ready in {}".format(self.backend.master))
         if not self._is_service_ready():
-            logger.debug("{} not ready".format(self.backend.master))
+            logger.debug("Lithops service not ready")
             if self.exec_mode != 'create':
                 self.backend.master.create(check_if_exists=True, start=True)
             # Wait only for the entry point instance
             self._wait_instance_ready()
 
-        logger.debug('{} ready'.format(self.backend.master))
+        logger.debug('Lithops service ready')
 
         if self.exec_mode == 'create':
             logger.debug('Be patient, VM startup time may take up to 2 minutes')

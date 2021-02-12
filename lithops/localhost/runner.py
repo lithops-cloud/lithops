@@ -23,7 +23,6 @@ import uuid
 from pathlib import Path
 
 from lithops.utils import version_str
-from lithops.storage.utils import create_job_key
 from lithops.worker import function_handler
 from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DIR, LOGS_DIR,\
     RN_LOG_FILE, LOGGER_FORMAT
@@ -50,6 +49,7 @@ def run():
 
     executor_id = job_payload['executor_id']
     job_id = job_payload['job_id']
+    job_key = job_payload['job_key']
 
     logger.info('ExecutorID {} | JobID {} - Starting execution'
                 .format(executor_id, job_id))
@@ -58,7 +58,6 @@ def run():
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
     function_handler(job_payload)
 
-    job_key = create_job_key(executor_id, job_id)
     done = os.path.join(JOBS_DIR, job_key+'.done')
     Path(done).touch()
 
