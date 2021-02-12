@@ -26,7 +26,7 @@ from concurrent.futures import ThreadPoolExecutor
 from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
-from . import config as ibmvpc_config
+from .config import SSH_PASSWD, CLOUD_CONFIG
 
 
 logger = logging.getLogger(__name__)
@@ -44,8 +44,8 @@ class IBMVPCBackend:
         self.region = self.endpoint.split('//')[1].split('.')[0]
         self.vpc_name = self.config.get('vpc_name')
 
-        self.instances = []
         self.master = None
+        self.workers = []
 
         iam_api_key = self.config.get('iam_api_key')
         self.custom_image = self.config.get('custom_lithops_image')
@@ -239,9 +239,11 @@ class IBMVPCBackend:
                 name = instance_data.get_result()['name']
                 vpc_data = {'instance_name': name}
                 dump_yaml_config(vpc_data_filename, vpc_data)
-            self.master = self.create_instance(vpc_data['instance_name'], master=True)
+            self.master = IBMVPCInstance(vpc_data['instance_name'], self.config,
+                                         self.ibm_vpc_client, public=True)
             self.master.instance_id = self.config['instance_id']
-            self.master.ip_address = self.config['ip_address']
+            self.master.public_ip = self.config['ip_address']
+            self.master.delete_on_dismantle = False
             return
 
         logger.debug('Initializing IBM VPC backend (Create mode)')
@@ -269,9 +271,10 @@ class IBMVPCBackend:
 
         # create the master VM insatnce
         name = 'lithops-master-{}'.format(self.vpc_key)
-        self.master = self.create_instance(name, master=True)
-        self.master.ip_address = self.config['floating_ip']
+        self.master = IBMVPCInstance(name, self.config, self.ibm_vpc_client, public=True)
+        self.master.public_ip = self.config['floating_ip']
         self.master.profile_name = self.config['master_profile_name']
+        self.master.delete_on_dismantle = False
 
     def _delete_vm_instances(self):
         """
@@ -396,27 +399,25 @@ class IBMVPCBackend:
 
     def clear(self):
         """
-        Clear all the backend resources
+        Delete all the workers
         """
-        pass
+        self.dismantle()
 
     def dismantle(self):
         """
         Stop all VM instances
         """
-        for instance in self.instances:
-            logger.debug("Dismantle {} for {}"
-                         .format(instance.instance_id,
-                                 instance.ip_address))
-            instance.stop()
+        for worker in self.workers:
+            worker.stop()
+        self.workers = []
 
-    def create_instance(self, name, master=False):
+    def create_worker(self, name):
         """
         Create a new VM python instance
         This method does not create the physical VM.
         """
-        vsi = IBMVPCInstance(name, self.config, self.ibm_vpc_client, public=master)
-        self.instances.append(vsi)
+        vsi = IBMVPCInstance(name, self.config, self.ibm_vpc_client)
+        self.workers.append(vsi)
         return vsi
 
     def get_runtime_key(self, runtime_name):
@@ -435,7 +436,7 @@ class IBMVPCInstance:
         self.name = name.lower()
         self.config = ibm_vpc_config
 
-        self.delete_on_stop = self.config['delete_on_dismantle']
+        self.delete_on_dismantle = self.config['delete_on_dismantle']
         self.profile_name = self.config['profile_name']
 
         self.ibm_vpc_client = ibm_vpc_client or self._create_vpc_client()
@@ -444,15 +445,16 @@ class IBMVPCInstance:
         self.ssh_client = None
         self.instance_id = None
         self.ip_address = None
+        self.public_ip = None
 
         self.ssh_credentials = {
-            'username': self.config.get('ssh_user', ibmvpc_config.SSH_USER),
-            'password': self.config.get('ssh_password', None if public else ibmvpc_config.SSH_PASSWD),
+            'username': self.config['ssh_user'],
+            'password': self.config.get('ssh_password', None if public else SSH_PASSWD),
             'key_filename': self.config.get('ssh_key_filename', None)
         }
 
     def __str__(self):
-        return 'VM instance {} ({})'.format(self.name, self.ip_address)
+        return 'VM instance {} ({})'.format(self.name, self.public_ip or self.ip_address)
 
     def _create_vpc_client(self):
         """
@@ -468,9 +470,9 @@ class IBMVPCInstance:
         """
         Creates an ssh client against the VM only if the Instance is the master
         """
-        if self.ip_address:
+        if self.ip_address or self.public_ip:
             if not self.ssh_client:
-                self.ssh_client = SSHClient(self.ip_address, self.ssh_credentials)
+                self.ssh_client = SSHClient(self.public_ip or self.ip_address, self.ssh_credentials)
         return self.ssh_client
 
     def _create_instance(self, instance_name):
@@ -511,7 +513,7 @@ class IBMVPCInstance:
         instance_prototype['primary_network_interface'] = primary_network_interface
 
         if not self.public:
-            instance_prototype['user_data'] = ibmvpc_config.CLOUD_CONFIG
+            instance_prototype['user_data'] = CLOUD_CONFIG
 
         try:
             resp = self.ibm_vpc_client.create_instance(instance_prototype)
@@ -597,7 +599,7 @@ class IBMVPCInstance:
         return self.instance_id
 
     def start(self):
-        logger.info("Starting VM instance {}".format(self.name))
+        logger.debug("Starting VM instance {}".format(self.name))
 
         try:
             resp = self.ibm_vpc_client.create_instance_action(self.instance_id, 'start')
@@ -622,8 +624,6 @@ class IBMVPCInstance:
             else:
                 raise e
 
-        logger.debug("VM instance {} deleted".format(self.name))
-
     def _stop_instance(self):
         """
         Stops the VM instacne and
@@ -636,10 +636,9 @@ class IBMVPCInstance:
                 pass
             else:
                 raise e
-        logger.debug("VM instance {} stopped".format(self.name))
 
     def stop(self):
-        if self.delete_on_stop and 'master' not in self.name:
+        if self.delete_on_dismantle:
             self._delete_instance()
         else:
             self._stop_instance()

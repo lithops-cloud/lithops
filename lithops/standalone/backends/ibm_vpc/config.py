@@ -61,6 +61,9 @@ def load_config(config_data):
         yesterday = datetime.date.today() - datetime.timedelta(days=1)
         config_data[section]['version'] = yesterday.strftime('%Y-%m-%d')
 
+    if 'ssh_user' not in config_data[section]:
+        config_data[section]['ssh_user'] = SSH_USER
+
     if 'volume_tier_name' not in config_data[section]:
         config_data[section]['volume_tier_name'] = VOLUME_TIER_NAME_DEFAULT
 

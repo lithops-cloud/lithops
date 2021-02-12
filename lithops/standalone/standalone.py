@@ -24,12 +24,12 @@ import shlex
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.utils import is_lithops_worker, create_handler_zip
-from lithops.constants import REMOTE_INSTALL_DIR
+from lithops.constants import STANDALONE_INSTALL_DIR, STANDALONE_SERVICE_PORT
+from lithops.standalone.utils import get_master_setup_script
 
 
 logger = logging.getLogger(__name__)
 LOCAL_FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_standalone.zip')
-PROXY_SERVICE_PORT = 8080
 
 
 class StandaloneHandler:
@@ -64,66 +64,71 @@ class StandaloneHandler:
         """
         self.backend.init()
 
-    def _is_instance_ready(self, instance):
+    def _is_instance_ready(self):
         """
         Checks if the VM instance is ready to receive ssh connections
         """
         try:
-            instance.get_ssh_client().run_remote_command('id')
+            self.backend.master.get_ssh_client().run_remote_command('id')
         except Exception:
             return False
         return True
 
-    def _wait_instance_ready(self, instance):
+    def _wait_instance_ready(self):
         """
         Waits until the VM instance is ready to receive ssh connections
         """
-        logger.debug('Waiting {} to become ready'.format(instance))
+        logger.debug('Waiting {} to become ready'
+                     .format(self.backend.master))
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
-            if self._is_instance_ready(instance):
-                logger.debug('{} ready in {} seconds'.format(instance, round(time.time()-start, 2)))
+            if self._is_instance_ready():
+                logger.debug('{} ready in {} seconds'.format(self.backend.master,
+                                                             round(time.time()-start, 2)))
                 return True
             time.sleep(5)
 
         self.dismantle()
-        raise Exception('SSH Readiness probe expired on {}'.format(instance))
+        raise Exception('Readiness probe expired on {}'
+                        .format(self.backend.master))
 
-    def _is_proxy_ready(self, instance):
+    def _is_service_ready(self):
         """
         Checks if the proxy is ready to receive http connections
         """
         try:
             if self.is_lithops_worker:
-                url = "http://{}:{}/ping".format('127.0.0.1', PROXY_SERVICE_PORT)
+                url = "http://127.0.0.1:{}/ping".format(STANDALONE_SERVICE_PORT)
                 r = requests.get(url, timeout=1)
                 if r.status_code == 200:
                     return True
                 return False
             else:
-                cmd = 'curl -X GET http://127.0.0.1:8080/ping'
-                out = instance.get_ssh_client().run_remote_command(cmd)
+                cmd = 'curl -X GET http://127.0.0.1:{}/ping'.format(STANDALONE_SERVICE_PORT)
+                out = self.backend.master.get_ssh_client().run_remote_command(cmd)
                 data = json.loads(out)
                 if data['response'] == 'pong':
                     return True
         except Exception:
             return False
 
-    def _wait_proxy_ready(self, instance):
+    def _wait_service_ready(self):
         """
         Waits until the proxy is ready to receive http connections
         """
-        logger.info('Waiting Lithops proxy to become ready on {}'.format(instance))
+        logger.info('Waiting Lithops service to become ready on {}'
+                    .format(self.backend.master))
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
-            if self._is_proxy_ready(instance):
+            if self._is_service_ready():
                 return True
             time.sleep(2)
 
         self.dismantle()
-        raise Exception('Proxy readiness probe expired on {}'.format(instance))
+        raise Exception('Lithops service readiness probe expired on {}'
+                        .format(self.backend.master))
 
     def run_job(self, job_payload):
         """
@@ -144,46 +149,49 @@ class StandaloneHandler:
             for vm_n in range(total_workers):
                 worker_id = "{:04d}".format(vm_n)
                 name = 'lithops-{}-{}-{}'.format(executor_id, job_id, worker_id)
-                self.backend.create_instance(name)
+                self.backend.create_worker(name)
 
             def _callback(future):
                 # This callback is used to raise in-thread exceptions (if any)
                 future.result()
 
-            instances = self.backend.instances
-            with ThreadPoolExecutor(len(instances)) as executor:
-                future = executor.submit(lambda vm: vm.create(check_if_exists=True, start=True), instances[0])
+            workers = self.backend.workers
+            with ThreadPoolExecutor(len(workers)+1) as executor:
+                future = executor.submit(lambda vm: vm.create(check_if_exists=True, start=True), self.backend.master)
                 future.add_done_callback(_callback)
-                for i in range(1, len(instances)):
-                    future = executor.submit(lambda vm: vm.create(start=True), instances[i])
+                for i in range(len(workers)):
+                    future = executor.submit(lambda vm: vm.create(start=True), workers[i])
                     future.add_done_callback(_callback)
         else:
             logger.debug('ExecutorID {} | JobID {} - Going '
                          'to run {} activations in 1 worker'
                          .format(executor_id, job_id, total_calls,))
 
-        logger.debug("Checking if {} is ready".format(self.backend.master))
-        if not self._is_proxy_ready(self.backend.master):
-            logger.debug("{} not ready".format(self.backend.master))
+        logger.debug("Checking if Lithops service is ready in {}".format(self.backend.master))
+        if not self._is_service_ready():
+            logger.debug("Lithops service not ready")
             if self.exec_mode != 'create':
                 self.backend.master.create(check_if_exists=True, start=True)
             # Wait only for the entry point instance
-            self._wait_instance_ready(self.backend.master)
+            self._wait_instance_ready()
 
-        logger.debug('{} ready'.format(self.backend.master))
+        logger.debug('Lithops service ready')
 
         if self.exec_mode == 'create':
             logger.debug('Be patient, VM startup time may take up to 2 minutes')
-            job_instances = [(inst.name, inst.ip_address, inst.instance_id) for inst in instances[1:]]
-            cmd = ('python3 /opt/lithops/controller.py run {} {}'
-                   .format(shlex.quote(json.dumps(job_payload)),
-                           shlex.quote(json.dumps(job_instances))))
-            self.backend.master.get_ssh_client().run_remote_command(cmd, run_async=True)
+            worker_instances = [(inst.name, inst.ip_address, inst.instance_id) for inst in workers]
+            job_payload['woreker_instances'] = worker_instances
+            cmd = ('curl http://127.0.0.1:{}/run-create -d {} '
+                   '-H \'Content-Type: application/json\' -X POST'
+                   .format(STANDALONE_SERVICE_PORT,
+                           shlex.quote(json.dumps(job_payload))))
         else:
-            cmd = ('python3 /opt/lithops/controller.py run {}'
-                   .format(shlex.quote(json.dumps(job_payload))))
-            self.backend.master.get_ssh_client().run_remote_command(cmd, run_async=True)
+            cmd = ('curl http://127.0.0.1:{}/run -d {} '
+                   '-H \'Content-Type: application/json\' -X POST'
+                   .format(STANDALONE_SERVICE_PORT,
+                           shlex.quote(json.dumps(job_payload))))
 
+        self.backend.master.get_ssh_client().run_remote_command(cmd, run_async=True)
         logger.debug('Job invoked on {}'.format(self.backend.master))
 
     def create_runtime(self, runtime):
@@ -192,13 +200,13 @@ class StandaloneHandler:
         preinstalled modules
         """
         logger.debug('Checking if {} is ready'.format(self.backend.master))
-        if not self._is_instance_ready(self.backend.master):
+        if not self._is_instance_ready():
             logger.debug('{} not ready'.format(self.backend.master))
             self.backend.master.create(check_if_exists=True, start=True)
-            self._wait_instance_ready(self.backend.master)
+            self._wait_instance_ready()
 
-        self._setup_lithops()
-        self._wait_proxy_ready(self.backend.master)
+        self._setup_service()
+        self._wait_service_ready()
 
         logger.debug('Extracting runtime metadata information')
         payload = {'runtime': runtime, 'pull_runtime': self.pull_runtime}
@@ -236,44 +244,29 @@ class StandaloneHandler:
         """
         return self.backend.get_runtime_key(runtime_name)
 
-    def _setup_lithops(self):
+    def _setup_service(self):
         """
-        Setup lithops necessary files and dirs in master VM instance
+        Setup lithops necessary packages and files in master VM instance
         """
         logger.debug('Installing Lithops in {}'.format(self.backend.master))
         ssh_client = self.backend.master.get_ssh_client()
 
-        # Upload local lithops version to remote VM instance
-        src_proxy = os.path.join(os.path.dirname(__file__), 'proxy.py')
+        src_proxy = os.path.join(os.path.dirname(__file__), 'worker.py')
         create_handler_zip(LOCAL_FH_ZIP_LOCATION, src_proxy)
         current_location = os.path.dirname(os.path.abspath(__file__))
-        ssh_location = os.path.join(current_location, '..', 'util', 'ssh_client.py')
-        controller_location = os.path.join(current_location, 'controller.py')
+        controller_location = os.path.join(current_location, 'master.py')
 
         logger.debug('Uploading lithops files to {}'.format(self.backend.master))
         files_to_upload = [(LOCAL_FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip'),
-                           (ssh_location, '/tmp/ssh_client.py'.format(REMOTE_INSTALL_DIR)),
-                           (controller_location, '/tmp/controller.py'.format(REMOTE_INSTALL_DIR))]
-
+                           (controller_location, '/tmp/master.py'.format(STANDALONE_INSTALL_DIR))]
         ssh_client.upload_multiple_local_files(files_to_upload)
         os.remove(LOCAL_FH_ZIP_LOCATION)
 
-        instance_data = {'instance_name': self.backend.master.name,
-                         'ip_address': self.backend.master.ip_address,
-                         'instance_id': self.backend.master.instance_id}
-        script = """
-        mv {0}/access.data .;
-        rm -R {0};
-        mkdir -p {0};
-        cp /tmp/lithops_standalone.zip {0};
-        mkdir -p /tmp/lithops;
-        mv access.data {0}/access.data;
-        test -f {0}/access.data || echo '{1}' > {0}/access.data;
-        test -f {0}/config || echo '{2}' > {0}/config;
-        mv /tmp/*.py '{0}';
-        apt-get install python3-paramiko -y >> /tmp/lithops/proxy.log 2>&1;
-        python3 {0}/controller.py setup; >> /tmp/lithops/proxy.log 2>&1;
-        """.format(REMOTE_INSTALL_DIR, json.dumps(instance_data), json.dumps(self.config))
+        vm_data = {'instance_name': self.backend.master.name,
+                   'ip_address': self.backend.master.ip_address,
+                   'instance_id': self.backend.master.instance_id}
+
+        script = get_master_setup_script(self.config, vm_data)
 
         logger.debug('Executing lithops installation process on {}'.format(self.backend.master))
         logger.debug('Be patient, initial installation process may take up to 5 minutes')
