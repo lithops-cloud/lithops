@@ -44,6 +44,7 @@ class BudgetKeeper(threading.Thread):
         self.standalone_handler.hard_dismantle_timeout = config['hard_dismantle_timeout']
 
     def run(self):
+        runing = True
         jobs_running = False
 
         logger.info("BudgetKeeper started")
@@ -59,7 +60,7 @@ class BudgetKeeper(threading.Thread):
             logger.info('Auto dismantle deactivated - Hard Timeout: {}s'
                         .format(self.standalone_handler.hard_dismantle_timeout))
 
-        while True:
+        while runing:
             time_since_last_usage = time.time() - self.last_usage_time
             check_interval = self.standalone_handler.soft_dismantle_timeout / 10
             for job_key in self.jobs.keys():
@@ -88,5 +89,6 @@ class BudgetKeeper(threading.Thread):
                 logger.info("Dismantling setup")
                 try:
                     self.standalone_handler.dismantle()
+                    runing = False
                 except Exception as e:
                     logger.info("Dismantle error {}".format(e))

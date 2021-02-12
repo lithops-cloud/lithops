@@ -27,19 +27,17 @@ from pathlib import Path
 from gevent.pywsgi import WSGIServer
 from concurrent.futures import ThreadPoolExecutor
 
-from lithops.constants import LITHOPS_TEMP_DIR, SA_LOG_FILE,\
-    LOGGER_FORMAT, STANDALONE_SSH_CREDNTIALS, JOBS_DIR,\
-    STANDALONE_SERVICE_PORT, STANDALONE_CONFIG_FILE
+from lithops.constants import LITHOPS_TEMP_DIR, SA_LOG_FILE, JOBS_DIR,\
+    STANDALONE_SSH_CREDNTIALS, STANDALONE_SERVICE_PORT, STANDALONE_CONFIG_FILE
 from lithops.localhost.localhost import LocalhostHandler
-from lithops.utils import verify_runtime_name, iterchunks
+from lithops.utils import verify_runtime_name, iterchunks, setup_lithops_logger
 from lithops.util.ssh_client import SSHClient
 from lithops.standalone.utils import get_worker_setup_script
 from lithops.standalone.keeper import BudgetKeeper
 
-logging.basicConfig(filename=SA_LOG_FILE, level=logging.INFO,
-                    format=LOGGER_FORMAT)
+
+setup_lithops_logger(logging.DEBUG, filename=SA_LOG_FILE)
 logger = logging.getLogger('lithops.standalone.master')
-logging.getLogger('paramiko').setLevel(logging.CRITICAL)
 
 controller = flask.Flask('lithops.standalone.master')
 

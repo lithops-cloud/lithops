@@ -243,7 +243,7 @@ class IBMVPCBackend:
                                          self.ibm_vpc_client, public=True)
             self.master.instance_id = self.config['instance_id']
             self.master.public_ip = self.config['ip_address']
-            self.master.delete_on_stop = False
+            self.master.delete_on_dismantle = False
             return
 
         logger.debug('Initializing IBM VPC backend (Create mode)')
@@ -274,7 +274,7 @@ class IBMVPCBackend:
         self.master = IBMVPCInstance(name, self.config, self.ibm_vpc_client, public=True)
         self.master.public_ip = self.config['floating_ip']
         self.master.profile_name = self.config['master_profile_name']
-        self.master.delete_on_stop = False
+        self.master.delete_on_dismantle = False
 
     def _delete_vm_instances(self):
         """
@@ -436,7 +436,7 @@ class IBMVPCInstance:
         self.name = name.lower()
         self.config = ibm_vpc_config
 
-        self.delete_on_stop = self.config['delete_on_dismantle']
+        self.delete_on_dismantle = self.config['delete_on_dismantle']
         self.profile_name = self.config['profile_name']
 
         self.ibm_vpc_client = ibm_vpc_client or self._create_vpc_client()
@@ -638,7 +638,7 @@ class IBMVPCInstance:
                 raise e
 
     def stop(self):
-        if self.delete_on_stop:
+        if self.delete_on_dismantle:
             self._delete_instance()
         else:
             self._stop_instance()
