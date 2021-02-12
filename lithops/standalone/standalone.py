@@ -64,7 +64,7 @@ class StandaloneHandler:
         """
         self.backend.init()
 
-    def _is_master_instance_ready(self):
+    def _is_instance_ready(self):
         """
         Checks if the VM instance is ready to receive ssh connections
         """
@@ -74,7 +74,7 @@ class StandaloneHandler:
             return False
         return True
 
-    def _wait_master_instance_ready(self):
+    def _wait_instance_ready(self):
         """
         Waits until the VM instance is ready to receive ssh connections
         """
@@ -91,7 +91,7 @@ class StandaloneHandler:
         self.dismantle()
         raise Exception('SSH Readiness probe expired on {}'.format(self.backend.master))
 
-    def _is_master_lithops_ready(self):
+    def _is_service_ready(self):
         """
         Checks if the proxy is ready to receive http connections
         """
@@ -111,7 +111,7 @@ class StandaloneHandler:
         except Exception:
             return False
 
-    def _wait_master_lithops_ready(self):
+    def _wait_service_ready(self):
         """
         Waits until the proxy is ready to receive http connections
         """
@@ -119,7 +119,7 @@ class StandaloneHandler:
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
-            if self._is_master_lithops_ready():
+            if self._is_service_ready():
                 return True
             time.sleep(2)
 
@@ -164,12 +164,12 @@ class StandaloneHandler:
                          .format(executor_id, job_id, total_calls,))
 
         logger.debug("Checking if {} is ready".format(self.backend.master))
-        if not self._is_master_lithops_ready():
+        if not self._is_service_ready():
             logger.debug("{} not ready".format(self.backend.master))
             if self.exec_mode != 'create':
                 self.backend.master.create(check_if_exists=True, start=True)
             # Wait only for the entry point instance
-            self._wait_master_instance_ready()
+            self._wait_instance_ready()
 
         logger.debug('{} ready'.format(self.backend.master))
 
@@ -196,13 +196,13 @@ class StandaloneHandler:
         preinstalled modules
         """
         logger.debug('Checking if {} is ready'.format(self.backend.master))
-        if not self._is_master_instance_ready():
+        if not self._is_instance_ready():
             logger.debug('{} not ready'.format(self.backend.master))
             self.backend.master.create(check_if_exists=True, start=True)
-            self._wait_master_instance_ready(self.backend.master)
+            self._wait_instance_ready()
 
-        self._setup_lithops_master()
-        self._wait_master_lithops_ready()
+        self._setup_service()
+        self._wait_service_ready()
 
         logger.debug('Extracting runtime metadata information')
         payload = {'runtime': runtime, 'pull_runtime': self.pull_runtime}
@@ -240,7 +240,7 @@ class StandaloneHandler:
         """
         return self.backend.get_runtime_key(runtime_name)
 
-    def _setup_lithops_master(self):
+    def _setup_service(self):
         """
         Setup lithops necessary files and dirs in master VM instance
         """
@@ -248,16 +248,16 @@ class StandaloneHandler:
         ssh_client = self.backend.master.get_ssh_client()
 
         # Upload local lithops version to remote VM instance
-        src_proxy = os.path.join(os.path.dirname(__file__), 'worker_proxy.py')
+        src_proxy = os.path.join(os.path.dirname(__file__), 'proxy.py')
         create_handler_zip(LOCAL_FH_ZIP_LOCATION, src_proxy)
         current_location = os.path.dirname(os.path.abspath(__file__))
         setup_location = os.path.join(current_location, 'master_setup.py')
-        controller_location = os.path.join(current_location, 'master_controller.py')
+        controller_location = os.path.join(current_location, 'controller.py')
 
         logger.debug('Uploading lithops files to {}'.format(self.backend.master))
         files_to_upload = [(LOCAL_FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip'),
                            (setup_location, '/tmp/master_setup.py'.format(STANDALONE_INSTALL_DIR)),
-                           (controller_location, '/tmp/master_controller.py'.format(STANDALONE_INSTALL_DIR))]
+                           (controller_location, '/tmp/controller.py'.format(STANDALONE_INSTALL_DIR))]
 
         ssh_client.upload_multiple_local_files(files_to_upload)
         os.remove(LOCAL_FH_ZIP_LOCATION)

@@ -62,7 +62,7 @@ JOBS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'jobs')
 LOGS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'logs')
 
 RN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'runner.log')
-SA_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'standalone.log')
+SA_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'service.log')
 FN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'functions.log')
 
 CLEANER_DIR = os.path.join(LITHOPS_TEMP_DIR, 'cleaner')

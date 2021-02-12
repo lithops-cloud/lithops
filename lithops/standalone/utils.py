@@ -1,11 +1,6 @@
-import sys
-import logging
-import subprocess as sp
-
-
-SA_LOG_FILE = '/tmp/lithops/standalone.log'
-LOGGER_FORMAT = "%(asctime)s [%(levelname)s] %(name)s -- %(message)s"
-STANDALONE_INSTALL_DIR = '/opt/lithops'
+import json
+from lithops.constants import STANDALONE_INSTALL_DIR, SA_LOG_FILE,\
+    STANDALONE_CONFIG_FILE
 
 CONTROLLER_SERVICE_NAME = 'lithopscontroller.service'
 CONTROLLER_SERVICE_FILE = """
@@ -21,9 +16,19 @@ Restart=always
 WantedBy=multi-user.target
 """.format(STANDALONE_INSTALL_DIR)
 
-logging.basicConfig(filename=SA_LOG_FILE, level=logging.INFO,
-                    format=LOGGER_FORMAT)
-logger = logging.getLogger('master_setup')
+PROXY_SERVICE_NAME = 'lithopsproxy.service'
+PROXY_SERVICE_FILE = """
+[Unit]
+Description=Lithops Proxy
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 {}/proxy.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+""".format(STANDALONE_INSTALL_DIR)
 
 
 def get_host_setup_script():
@@ -53,18 +58,12 @@ def get_host_setup_script():
     """.format(STANDALONE_INSTALL_DIR, SA_LOG_FILE)
 
 
-def setup_master():
+def get_master_setup_script():
     """
-    Setup master VM
+    Returns master VM installation script
     """
-    logger.info('Installing dependencies')
     script = get_host_setup_script()
-
-    with open(SA_LOG_FILE, 'a') as log_file:
-        sp.run(script, shell=True, check=True, stdout=log_file,
-               stderr=log_file, universal_newlines=True)
-
-    script = """
+    script += """
     setup_service(){{
     echo '{0}' > /etc/systemd/system/{1};
     chmod 644 /etc/systemd/system/{1};
@@ -77,19 +76,36 @@ def setup_master():
     """.format(CONTROLLER_SERVICE_FILE,
                CONTROLLER_SERVICE_NAME,
                SA_LOG_FILE)
-
-    logger.info('Installing controller service')
-    with open(SA_LOG_FILE, 'a') as log_file:
-        sp.run(script, shell=True, check=True, stdout=log_file,
-               stderr=log_file, universal_newlines=True)
-
-    logger.info('Master VM installation process finished')
+    return script
 
 
-if __name__ == "__main__":
-    logger.info('Starting Lithops Master VM setup script')
+def get_worker_setup_script(worker_info, standalone_config):
+    """
+    Returns worker VM installation script
+    """
+    instance_name, ip_address, instance_id = worker_info
+    vm_data = {'instance_name': instance_name,
+               'ip_address': ip_address,
+               'instance_id': instance_id}
 
-    with open(SA_LOG_FILE, 'a') as log_file:
-        sys.stdout = log_file
-        sys.stderr = log_file
-        setup_master()
+    script = """
+    rm -R {0}; mkdir -p {0}; mkdir -p /tmp/lithops;
+    """.format(STANDALONE_INSTALL_DIR)
+    script += get_host_setup_script()
+    script += """
+    echo '{1}' > {2};
+    echo '{6}' > {0}/access.data;
+
+    setup_service(){{
+    echo '{4}' > /etc/systemd/system/{5};
+    chmod 644 /etc/systemd/system/{5};
+    systemctl daemon-reload;
+    systemctl stop {5};
+    systemctl enable {5};
+    systemctl start {5};
+    }}
+    setup_service >> {3} 2>&1
+    """.format(STANDALONE_INSTALL_DIR, json.dumps(standalone_config),
+               STANDALONE_CONFIG_FILE, SA_LOG_FILE, PROXY_SERVICE_FILE,
+               PROXY_SERVICE_NAME, json.dumps(vm_data))
+    return script

@@ -34,9 +34,9 @@ from lithops.utils import verify_runtime_name
 
 logging.basicConfig(filename=SA_LOG_FILE, level=logging.DEBUG,
                     format=LOGGER_FORMAT)
-logger = logging.getLogger('worker_proxy')
+logger = logging.getLogger('lithops.proxy')
 
-proxy = flask.Flask(__name__)
+proxy = flask.Flask('lithops.proxy')
 
 LAST_USAGE_TIME = time.time()
 KEEPER = None

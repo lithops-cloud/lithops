@@ -35,14 +35,14 @@ from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
 from lithops.utils import verify_runtime_name, iterchunks
 from lithops.util.ssh_client import SSHClient
-
+from lithops.standalone.utils import get_worker_setup_script
 
 logging.basicConfig(filename=SA_LOG_FILE, level=logging.INFO,
                     format=LOGGER_FORMAT)
-logger = logging.getLogger('master_controller')
+logger = logging.getLogger('lithops.controller')
 logging.getLogger('paramiko').setLevel(logging.CRITICAL)
 
-controller = flask.Flask(__name__)
+controller = flask.Flask('lithops.controller')
 
 INSTANCE_START_TIMEOUT = 300
 LAST_USAGE_TIME = time.time()
@@ -50,20 +50,6 @@ KEEPER = None
 JOBS = {}
 STANDALONE_HANDLER = None
 STANDALONE_CONFIG = None
-
-PROXY_SERVICE_NAME = 'lithopsproxy.service'
-PROXY_SERVICE_FILE = """
-[Unit]
-Description=Lithops Proxy
-After=network.target
-
-[Service]
-ExecStart=/usr/bin/python3 {}/worker_proxy.py
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-""".format(STANDALONE_INSTALL_DIR)
 
 
 def budget_keeper():
@@ -143,49 +129,6 @@ def init_keeper():
     KEEPER.start()
 
 
-def get_worker_setup_cmd(instance_name, ip_address, instance_id):
-
-    vm_data = {'instance_name': instance_name, 'ip_address': ip_address, 'instance_id': instance_id}
-
-    return """
-    rm -R {0}; mkdir -p {0}; mkdir -p /tmp/lithops;
-
-    install_packages(){{
-    command -v unzip >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
-    command -v pip3 >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
-    command -v docker >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
-    if [ "$INSTALL_LITHOPS_DEPS" = true ] ; then
-    rm /var/lib/apt/lists/* -vfR;
-    apt-get clean;
-    apt-get update;
-    apt-get install apt-transport-https ca-certificates curl software-properties-common gnupg-agent -y;
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -;
-    add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable";
-    apt-get update;
-    apt-get install unzip python3-pip docker-ce docker-ce-cli containerd.io -y;
-    pip3 install -U flask gevent lithops;
-    fi;
-    }}
-    install_packages >> {3} 2>&1
-
-    unzip -o /tmp/lithops_standalone.zip -d {0} > /dev/null 2>&1;
-    echo '{1}' > {2};
-    echo '{6}' > {0}/access.data;
-
-    setup_service(){{
-    echo '{4}' > /etc/systemd/system/{5};
-    chmod 644 /etc/systemd/system/{5};
-    systemctl daemon-reload;
-    systemctl stop {5};
-    systemctl enable {5};
-    systemctl start {5};
-    }}
-    setup_service >> {3} 2>&1
-    """.format(STANDALONE_INSTALL_DIR, json.dumps(STANDALONE_CONFIG),
-               STANDALONE_CONFIG_FILE, SA_LOG_FILE, PROXY_SERVICE_FILE,
-               PROXY_SERVICE_NAME, json.dumps(vm_data))
-
-
 def is_instance_ready(ssh_client):
     """
     Checks if the VM instance is ready to receive ssh connections
@@ -263,7 +206,8 @@ def run_job_on_worker(worker_info, call_ids_range, job_payload):
     logger.info('Uploading lithops files to VM instance {}'.format(ip_address))
     ssh_client.upload_local_file('/opt/lithops/lithops_standalone.zip', '/tmp/lithops_standalone.zip')
     logger.info('Executing lithops installation process on VM instance {}'.format(ip_address))
-    script = get_worker_setup_cmd(instance_name, ip_address, instance_id)
+    script = get_worker_setup_script(worker_info, STANDALONE_CONFIG)
+    logger.info(script)
     ssh_client.run_remote_command(script, run_async=True)
     ssh_client.close()
 
@@ -299,6 +243,7 @@ def run_create():
     """
     global LAST_USAGE_TIME
     global STANDALONE_CONFIG
+    global JOBS
 
     logger.info('Running job on worker VMs')
 
