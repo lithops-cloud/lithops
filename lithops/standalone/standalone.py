@@ -26,6 +26,7 @@ from concurrent.futures import ThreadPoolExecutor
 from lithops.utils import is_lithops_worker, create_handler_zip
 from lithops.constants import STANDALONE_INSTALL_DIR, \
     SA_LOG_FILE, STANDALONE_SERVICE_PORT
+from lithops.standalone.utils import get_master_setup_script
 
 
 logger = logging.getLogger(__name__)
@@ -78,7 +79,8 @@ class StandaloneHandler:
         """
         Waits until the VM instance is ready to receive ssh connections
         """
-        logger.debug('Waiting {} to become ready'.format(self.backend.master))
+        logger.debug('Waiting {} to become ready'
+                     .format(self.backend.master))
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
@@ -89,7 +91,8 @@ class StandaloneHandler:
             time.sleep(5)
 
         self.dismantle()
-        raise Exception('SSH Readiness probe expired on {}'.format(self.backend.master))
+        raise Exception('Readiness probe expired on {}'
+                        .format(self.backend.master))
 
     def _is_service_ready(self):
         """
@@ -115,7 +118,8 @@ class StandaloneHandler:
         """
         Waits until the proxy is ready to receive http connections
         """
-        logger.info('Waiting Lithops to become ready on {}'.format(self.backend.master))
+        logger.info('Waiting Lithops service to become ready on {}'
+                    .format(self.backend.master))
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
@@ -124,7 +128,8 @@ class StandaloneHandler:
             time.sleep(2)
 
         self.dismantle()
-        raise Exception('Lithops readiness probe expired on {}'.format(self.backend.master))
+        raise Exception('Lithops service readiness probe expired on {}'
+                        .format(self.backend.master))
 
     def run_job(self, job_payload):
         """
@@ -242,45 +247,27 @@ class StandaloneHandler:
 
     def _setup_service(self):
         """
-        Setup lithops necessary files and dirs in master VM instance
+        Setup lithops necessary packages and files in master VM instance
         """
         logger.debug('Installing Lithops in {}'.format(self.backend.master))
         ssh_client = self.backend.master.get_ssh_client()
 
-        # Upload local lithops version to remote VM instance
         src_proxy = os.path.join(os.path.dirname(__file__), 'proxy.py')
         create_handler_zip(LOCAL_FH_ZIP_LOCATION, src_proxy)
         current_location = os.path.dirname(os.path.abspath(__file__))
-        setup_location = os.path.join(current_location, 'master_setup.py')
         controller_location = os.path.join(current_location, 'controller.py')
 
         logger.debug('Uploading lithops files to {}'.format(self.backend.master))
         files_to_upload = [(LOCAL_FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip'),
-                           (setup_location, '/tmp/master_setup.py'.format(STANDALONE_INSTALL_DIR)),
                            (controller_location, '/tmp/controller.py'.format(STANDALONE_INSTALL_DIR))]
-
         ssh_client.upload_multiple_local_files(files_to_upload)
         os.remove(LOCAL_FH_ZIP_LOCATION)
 
-        master_data = {'instance_name': self.backend.master.name,
-                       'ip_address': self.backend.master.ip_address,
-                       'instance_id': self.backend.master.instance_id}
-        script = """
-        mkdir -p /tmp/lithops;
-        setup_host(){{
-        mv {0}/access.data .;
-        rm -R {0};
-        mkdir -p {0};
-        cp /tmp/lithops_standalone.zip {0};
-        mv access.data {0}/access.data;
-        test -f {0}/access.data || echo '{1}' > {0}/access.data;
-        test -f {0}/config || echo '{2}' > {0}/config;
-        mv /tmp/*.py '{0}';
-        python3 {0}/master_setup.py;
-        }}
-        setup_host >> {3} 2>&1;
-        """.format(STANDALONE_INSTALL_DIR, json.dumps(master_data),
-                   json.dumps(self.config), SA_LOG_FILE)
+        vm_data = {'instance_name': self.backend.master.name,
+                   'ip_address': self.backend.master.ip_address,
+                   'instance_id': self.backend.master.instance_id}
+
+        script = get_master_setup_script(self.config, vm_data)
 
         logger.debug('Executing lithops installation process on {}'.format(self.backend.master))
         logger.debug('Be patient, initial installation process may take up to 5 minutes')

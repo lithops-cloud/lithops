@@ -58,11 +58,27 @@ def get_host_setup_script():
     """.format(STANDALONE_INSTALL_DIR, SA_LOG_FILE)
 
 
-def get_master_setup_script():
+def get_master_setup_script(config, vm_data):
     """
     Returns master VM installation script
     """
-    script = get_host_setup_script()
+    script = """
+    mkdir -p /tmp/lithops;
+    setup_host(){{
+    mv {0}/access.data .;
+    rm -R {0};
+    mkdir -p {0};
+    cp /tmp/lithops_standalone.zip {0};
+    mv access.data {0}/access.data;
+    test -f {0}/access.data || echo '{1}' > {0}/access.data;
+    test -f {0}/config || echo '{2}' > {0}/config;
+    mv /tmp/*.py '{0}';
+    }}
+    setup_host >> {3} 2>&1;
+    """.format(STANDALONE_INSTALL_DIR, json.dumps(vm_data),
+               json.dumps(config), SA_LOG_FILE)
+
+    script += get_host_setup_script()
     script += """
     setup_service(){{
     echo '{0}' > /etc/systemd/system/{1};
@@ -79,15 +95,10 @@ def get_master_setup_script():
     return script
 
 
-def get_worker_setup_script(worker_info, standalone_config):
+def get_worker_setup_script(config, vm_data):
     """
     Returns worker VM installation script
     """
-    instance_name, ip_address, instance_id = worker_info
-    vm_data = {'instance_name': instance_name,
-               'ip_address': ip_address,
-               'instance_id': instance_id}
-
     script = """
     rm -R {0}; mkdir -p {0}; mkdir -p /tmp/lithops;
     """.format(STANDALONE_INSTALL_DIR)
@@ -105,7 +116,7 @@ def get_worker_setup_script(worker_info, standalone_config):
     systemctl start {5};
     }}
     setup_service >> {3} 2>&1
-    """.format(STANDALONE_INSTALL_DIR, json.dumps(standalone_config),
+    """.format(STANDALONE_INSTALL_DIR, json.dumps(config),
                STANDALONE_CONFIG_FILE, SA_LOG_FILE, PROXY_SERVICE_FILE,
                PROXY_SERVICE_NAME, json.dumps(vm_data))
     return script

@@ -206,8 +206,12 @@ def run_job_on_worker(worker_info, call_ids_range, job_payload):
     logger.info('Uploading lithops files to VM instance {}'.format(ip_address))
     ssh_client.upload_local_file('/opt/lithops/lithops_standalone.zip', '/tmp/lithops_standalone.zip')
     logger.info('Executing lithops installation process on VM instance {}'.format(ip_address))
-    script = get_worker_setup_script(worker_info, STANDALONE_CONFIG)
-    logger.info(script)
+
+    vm_data = {'instance_name': instance_name,
+               'ip_address': ip_address,
+               'instance_id': instance_id}
+
+    script = get_worker_setup_script(STANDALONE_CONFIG, vm_data)
     ssh_client.run_remote_command(script, run_async=True)
     ssh_client.close()
 
