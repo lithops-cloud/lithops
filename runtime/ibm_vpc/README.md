@@ -11,14 +11,6 @@ and make it executable with
 
     chmod +x build_lithops_vm_image.sh
 
-### Build the Image without Lithops runtime
-In this approach you build custom image that contains all required dependecies for Lithops. However this doesn't include Lithops runtime. In this approach Lithops will pull Lithops runtime during job execution and it will not be part of the image
-
- ```
- $ ./build_lithops_vm_image.sh lithops-ubuntu-20.04.qcow2
- ```
-In this example the script generates a VM image named `lithops-ubuntu-20.04.qcow2` that contains all dependencies required by Lithops.
-
 ### Build the Image with Lithops runtime
 
 If you plan to run your function within a **docker runtime** in the VM, it is preferable to include the docker image into the VM image. In this way, you will avoid the initial `docker pull <image/name>` command, thus reducing the overall execution time. To do so, add the `-d` flag followed by the docker image name you plant to use, for example:
@@ -34,6 +26,14 @@ Lithops will include all the local Docker images together with the Lithops runti
  $ ./build_lithops_vm_image.sh -p prune -d lithopscloud/ibmcf-python-v38  lithops-ubuntu-20.04.qcow2
 ```
 
+In this example the script generates a VM image named `lithops-ubuntu-20.04.qcow2` that contains all dependencies required by Lithops.
+
+### Build the Image without Lithops runtime
+Alternative is to build image without Lithops runtime. This approach is less preferable. In this approach you build custom image that contains all required dependecies for Lithops. However this doesn't include Lithops runtime. In this approach Lithops will pull Lithops runtime during job execution and it will not be part of the image
+
+ ```
+ $ ./build_lithops_vm_image.sh lithops-ubuntu-20.04.qcow2
+ ```
 In this example the script generates a VM image named `lithops-ubuntu-20.04.qcow2` that contains all dependencies required by Lithops.
 
 
