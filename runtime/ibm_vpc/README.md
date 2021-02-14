@@ -54,7 +54,7 @@ Once local image is ready you need to upload it to COS. The best would be to use
 
 3. Upload the `lithops-ubuntu-20.04.qcow2` image to your IBM COS instance, and place it under the root of a bucket
 
-        rclone -P --log-level INFO copy lithops-ubuntu-20.04.qcow2 COS:gvernikuseast/
+        rclone -P --log-level INFO copy lithops-ubuntu-20.04.qcow2 COS:<YOUR BUCKET>/
 
 2. Grant permissions to the IBM VPC service to allow access to your IBM Cloud Object Storage instance
 
