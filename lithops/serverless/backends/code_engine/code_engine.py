@@ -606,9 +606,11 @@ class CodeEngineBackend:
                                                         field_manager=field_manager)
             logger.debug("ConfigMap {} for namespace {} created".format(config_name, self.namespace))
         except ApiException as e:
-            logger.warning("Exception when calling CoreV1Api->create_namespaced_config_map: %s\n" % e)
             if (e.status != 409):
+                logger.warning("Exception when calling CoreV1Api->create_namespaced_config_map: %s\n" % e)
                 raise Exception('Failed to create ConfigMap')
+            else:
+                logger.debug("ConfigMap {} for namespace {} already exists".format(config_name, self.namespace))
 
         return config_name
 
