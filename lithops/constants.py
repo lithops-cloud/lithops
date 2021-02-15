@@ -50,6 +50,7 @@ STANDALONE_AUTO_DISMANTLE_DEFAULT = True
 STANDALONE_SOFT_DISMANTLE_TIMEOUT_DEFAULT = 300
 STANDALONE_HARD_DISMANTLE_TIMEOUT_DEFAULT = 3600
 STANDALONE_INSTALL_DIR = '/opt/lithops'
+STANDALONE_LOG_FILE = '/tmp/lithops/service.log'
 STANDALONE_SERVICE_PORT = 8080
 STANDALONE_SSH_CREDNTIALS = {'username': 'root', 'password': 'lithops'}
 STANDALONE_CONFIG_FILE = os.path.join(STANDALONE_INSTALL_DIR, 'config')
@@ -62,7 +63,6 @@ JOBS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'jobs')
 LOGS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'logs')
 
 RN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'runner.log')
-SA_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'service.log')
 FN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'functions.log')
 
 CLEANER_DIR = os.path.join(LITHOPS_TEMP_DIR, 'cleaner')

@@ -27,7 +27,7 @@ from pathlib import Path
 from gevent.pywsgi import WSGIServer
 from concurrent.futures import ThreadPoolExecutor
 
-from lithops.constants import LITHOPS_TEMP_DIR, SA_LOG_FILE, JOBS_DIR,\
+from lithops.constants import LITHOPS_TEMP_DIR, STANDALONE_LOG_FILE, JOBS_DIR,\
     STANDALONE_SSH_CREDNTIALS, STANDALONE_SERVICE_PORT, STANDALONE_CONFIG_FILE
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.utils import verify_runtime_name, iterchunks, setup_lithops_logger
@@ -36,7 +36,7 @@ from lithops.standalone.utils import get_worker_setup_script
 from lithops.standalone.keeper import BudgetKeeper
 
 
-setup_lithops_logger(logging.DEBUG, filename=SA_LOG_FILE)
+setup_lithops_logger(logging.DEBUG, filename=STANDALONE_LOG_FILE)
 logger = logging.getLogger('lithops.standalone.master')
 
 controller = flask.Flask('lithops.standalone.master')
@@ -274,7 +274,7 @@ def main():
     with open(STANDALONE_CONFIG_FILE, 'r') as cf:
         STANDALONE_CONFIG = json.load(cf)
 
-    with open(SA_LOG_FILE, 'a') as log_file:
+    with open(STANDALONE_LOG_FILE, 'a') as log_file:
         sys.stdout = log_file
         sys.stderr = log_file
         BUDGET_KEEPER = BudgetKeeper(STANDALONE_CONFIG)
