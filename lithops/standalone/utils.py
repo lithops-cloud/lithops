@@ -1,5 +1,5 @@
 import json
-from lithops.constants import STANDALONE_INSTALL_DIR, SA_LOG_FILE,\
+from lithops.constants import STANDALONE_INSTALL_DIR, STANDALONE_LOG_FILE,\
     STANDALONE_CONFIG_FILE
 
 MASTER_SERVICE_NAME = 'lithops-master.service'
@@ -55,7 +55,8 @@ def get_host_setup_script():
     install_packages >> {1} 2>&1
 
     unzip -o /tmp/lithops_standalone.zip -d {0} > /dev/null 2>&1;
-    """.format(STANDALONE_INSTALL_DIR, SA_LOG_FILE)
+    rm /tmp/lithops_standalone.zip
+    """.format(STANDALONE_INSTALL_DIR, STANDALONE_LOG_FILE)
 
 
 def get_master_setup_script(config, vm_data):
@@ -76,7 +77,7 @@ def get_master_setup_script(config, vm_data):
     }}
     setup_host >> {3} 2>&1;
     """.format(STANDALONE_INSTALL_DIR, json.dumps(vm_data),
-               json.dumps(config), SA_LOG_FILE)
+               json.dumps(config), STANDALONE_LOG_FILE)
 
     script += get_host_setup_script()
     script += """
@@ -91,7 +92,7 @@ def get_master_setup_script(config, vm_data):
     setup_service >> {2} 2>&1
     """.format(MASTER_SERVICE_FILE,
                MASTER_SERVICE_NAME,
-               SA_LOG_FILE)
+               STANDALONE_LOG_FILE)
     return script
 
 
@@ -117,6 +118,7 @@ def get_worker_setup_script(config, vm_data):
     }}
     setup_service >> {3} 2>&1
     """.format(STANDALONE_INSTALL_DIR, json.dumps(config),
-               STANDALONE_CONFIG_FILE, SA_LOG_FILE, WORKER_SERVICE_FILE,
-               WORKER_SERVICE_NAME, json.dumps(vm_data))
+               STANDALONE_CONFIG_FILE, STANDALONE_LOG_FILE,
+               WORKER_SERVICE_FILE, WORKER_SERVICE_NAME,
+               json.dumps(vm_data))
     return script

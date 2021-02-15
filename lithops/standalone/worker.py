@@ -23,13 +23,13 @@ import time
 import json
 from gevent.pywsgi import WSGIServer
 
-from lithops.constants import LITHOPS_TEMP_DIR, SA_LOG_FILE,\
+from lithops.constants import LITHOPS_TEMP_DIR, STANDALONE_LOG_FILE,\
     STANDALONE_SERVICE_PORT, STANDALONE_CONFIG_FILE
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.utils import verify_runtime_name, setup_lithops_logger
 from lithops.standalone.keeper import BudgetKeeper
 
-setup_lithops_logger(logging.DEBUG, filename=SA_LOG_FILE)
+setup_lithops_logger(logging.DEBUG, filename=STANDALONE_LOG_FILE)
 logger = logging.getLogger('lithops.standalone.worker')
 
 proxy = flask.Flask('lithops.standalone.worker')
@@ -115,7 +115,7 @@ def main():
     with open(STANDALONE_CONFIG_FILE, 'r') as cf:
         STANDALONE_CONFIG = json.load(cf)
 
-    with open(SA_LOG_FILE, 'a') as log_file:
+    with open(STANDALONE_LOG_FILE, 'a') as log_file:
         sys.stdout = log_file
         sys.stderr = log_file
         BUDGET_KEEPER = BudgetKeeper(STANDALONE_CONFIG)
