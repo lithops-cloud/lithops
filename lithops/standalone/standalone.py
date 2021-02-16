@@ -167,18 +167,17 @@ class StandaloneHandler:
                          'to run {} activations in 1 worker'
                          .format(executor_id, job_id, total_calls,))
 
-        logger.debug("Checking if Lithops service is ready in {}".format(self.backend.master))
+        logger.debug("Checking if Lithops service is ready on {}".format(self.backend.master))
         if not self._is_service_ready():
-            logger.debug("Lithops service not ready")
+            logger.debug("Lithops service not ready on {}".format(self.backend.master))
             if self.exec_mode != 'create':
                 self.backend.master.create(check_if_exists=True, start=True)
             # Wait only for the entry point instance
             self._wait_instance_ready()
 
-        logger.debug('Lithops service ready')
+        logger.debug('Lithops service ready on {}'.format(self.backend.master))
 
         if self.exec_mode == 'create':
-            logger.debug('Be patient, VM startup time may take up to 2 minutes')
             worker_instances = [(inst.name, inst.ip_address, inst.instance_id) for inst in workers]
             job_payload['woreker_instances'] = worker_instances
             cmd = ('curl http://127.0.0.1:{}/run-create -d {} '
@@ -192,6 +191,7 @@ class StandaloneHandler:
                            shlex.quote(json.dumps(job_payload))))
 
         self.backend.master.get_ssh_client().run_remote_command(cmd, run_async=True)
+        self.backend.master.del_ssh_client()
         logger.debug('Job invoked on {}'.format(self.backend.master))
 
     def create_runtime(self, runtime):

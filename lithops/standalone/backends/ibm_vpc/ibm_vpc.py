@@ -475,6 +475,14 @@ class IBMVPCInstance:
                 self.ssh_client = SSHClient(self.public_ip or self.ip_address, self.ssh_credentials)
         return self.ssh_client
 
+    def del_ssh_client(self):
+        """
+        Deletes the ssh client
+        """
+        if self.ssh_client:
+            self.ssh_client.close()
+            self.ssh_client = None
+
     def _create_instance(self, instance_name):
         """
         Creates a new VM instance
