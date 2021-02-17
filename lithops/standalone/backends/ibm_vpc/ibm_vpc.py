@@ -407,8 +407,8 @@ class IBMVPCBackend:
         """
         Stop all VM instances
         """
-        for worker in self.workers:
-            worker.stop()
+        with ThreadPoolExecutor(len(self.workers)) as ex:
+            ex.map(lambda worker: worker.stop(), self.workers)
         self.workers = []
 
     def create_worker(self, name):

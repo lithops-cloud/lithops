@@ -441,10 +441,14 @@ class FunctionExecutor:
                 print()
             logger.info(msg)
             error = True
+            if self.data_cleaner and not self.is_lithops_worker:
+                self.clean(clean_cloudobjects=False, force=True)
             raise e
 
         except Exception as e:
             error = True
+            if self.data_cleaner and not self.is_lithops_worker:
+                self.clean(clean_cloudobjects=False, force=True)
             raise e
 
         finally:
@@ -536,7 +540,7 @@ class FunctionExecutor:
         create_timeline(ftrs_to_plot, dst)
         create_histogram(ftrs_to_plot, dst)
 
-    def clean(self, fs=None, cs=None, clean_cloudobjects=True, spawn_cleaner=True):
+    def clean(self, fs=None, cs=None, clean_cloudobjects=True, spawn_cleaner=True, force=False):
         """
         Deletes all the temp files from storage. These files include the function,
         the data serialization and the function invocation results. It can also clean
@@ -564,7 +568,7 @@ class FunctionExecutor:
         futures = fs or self.futures
         futures = [futures] if type(futures) != list else futures
         present_jobs = {create_job_key(f.executor_id, f.job_id) for f in futures
-                        if f.executor_id.count('-') == 1 and f.done}
+                        if (f.executor_id.count('-') == 1 and f.done) or force}
         jobs_to_clean = present_jobs - self.cleaned_jobs
 
         if jobs_to_clean:
