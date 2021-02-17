@@ -21,6 +21,7 @@ from . import util
 from . import synchronize
 from .util import debug
 
+
 #
 # Queue type using a pipe, buffer and thread
 #
@@ -31,7 +32,7 @@ class Queue:
     Full = Full
 
     def __init__(self, maxsize=0):
-        self._reader, self._writer = connection.RedisPipe(duplex=False)
+        self._reader, self._writer = connection.Pipe(duplex=False, conn_type='listconn')
         self._ref = util.RemoteReference(referenced=[self._reader._handle, self._reader._subhandle],
                                          client=self._reader._client)
         self._opid = os.getpid()
@@ -127,7 +128,7 @@ class Queue:
 
 class SimpleQueue:
     def __init__(self):
-        self._reader, self._writer = connection.RedisPipe(duplex=False)
+        self._reader, self._writer = connection.Pipe(duplex=False)
         self._closed = False
         self._ref = util.RemoteReference(referenced=[self._reader._handle, self._reader._subhandle],
                                          client=self._reader._client)

@@ -8,7 +8,7 @@
 from .context import (CloudContext, cpu_count, get_context,
                       get_all_start_methods, set_start_method, get_start_method)
 from .context import CloudContext as DefaultContext
-from .connection import RedisPipe as Pipe
+from .connection import Pipe
 from .managers import SyncManager as Manager
 from .pool import Pool
 from .process import CloudProcess as Process

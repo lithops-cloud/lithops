@@ -9,18 +9,22 @@
 # Modifications Copyright (c) 2020 Cloudlab URV
 #
 
-import io
-import os
+import weakref
 import time
-import itertools
+import socket
 import selectors
+import threading
+import random
+
 import cloudpickle
+import pynng
 
 from multiprocessing.context import BufferTooShort
 
 from . import util
-from .context import AuthenticationError
+from .util import debug
 from . import config as mp_config
+from queue import Queue
 
 #
 # Constants
@@ -28,19 +32,25 @@ from . import config as mp_config
 
 # Handle prefixes
 # (Separated keys/channels so that a given connection cannot read its own messages)
-REDIS_LIST_CONN = 'listconn'  # uses lists
+REDIS_LIST_CONN = 'listconn'  # uses Redis lists
 REDIS_LIST_CONN_A = REDIS_LIST_CONN + '-a-'
 REDIS_LIST_CONN_B = REDIS_LIST_CONN + '-b-'
-REDIS_PUBSUB_CONN = 'pubsubconn'  # uses channels (pub/sub)
+
+REDIS_PUBSUB_CONN = 'pubsubconn'  # uses Redis channels (pub/sub)
 REDIS_PUBSUB_CONN_A = REDIS_PUBSUB_CONN + '-a-'
 REDIS_PUBSUB_CONN_B = REDIS_PUBSUB_CONN + '-b-'
 
-BUFSIZE = 8192
-# A very generous timeout when it comes to local connections...
-CONNECTION_TIMEOUT = 20.
+NANOMSG_CONN = 'nanomsgconn'  # uses TCP sockets (nanomessage)
+NANOMSG_CONN_A = NANOMSG_CONN + '-a-'
+NANOMSG_CONN_B = NANOMSG_CONN + '-b-'
 
-_mmap_counter = itertools.count()
+MIN_PORT = 49152
+MAX_PORT = 65536
 
+
+#
+#  Helper functions
+#
 
 def get_handle_pair(conn_type, from_id=None):
     if from_id is None:
@@ -51,6 +61,8 @@ def get_handle_pair(conn_type, from_id=None):
         return REDIS_LIST_CONN_A + conn_id, REDIS_LIST_CONN_B + conn_id
     elif conn_type == REDIS_PUBSUB_CONN:
         return REDIS_PUBSUB_CONN_A + conn_id, REDIS_PUBSUB_CONN_B + conn_id
+    elif conn_type == NANOMSG_CONN:
+        return NANOMSG_CONN_A + conn_id, NANOMSG_CONN_B + conn_id
     else:
         raise Exception('Unknown connection type {}'.format(conn_type))
 
@@ -64,6 +76,10 @@ def get_subhandle(handle):
         return REDIS_PUBSUB_CONN_B + handle[len(REDIS_PUBSUB_CONN_A):]
     elif handle.startswith(REDIS_PUBSUB_CONN_B):
         return REDIS_PUBSUB_CONN_A + handle[len(REDIS_PUBSUB_CONN_B):]
+    elif handle.startswith(NANOMSG_CONN_A):
+        return NANOMSG_CONN_B + handle[len(NANOMSG_CONN_A):]
+    elif handle.startswith(NANOMSG_CONN_B):
+        return NANOMSG_CONN_A + handle[len(NANOMSG_CONN_B):]
 
     raise ValueError("bad handle prefix '{}' - "
                      "see lithops.multiprocessing.connection handle prefixes".format(handle))
@@ -86,6 +102,13 @@ def arbitrary_address(family):
         return 'listener-' + util.get_uuid()
     else:
         raise ValueError('unrecognized family')
+
+
+def get_network_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    s.connect(('<broadcast>', 0))
+    return s.getsockname()[0]
 
 
 #
@@ -197,7 +220,7 @@ class _ConnectionBase:
         buf = self._recv_bytes(maxlength)
         if buf is None:
             self._bad_message_length()
-        return buf.getvalue()
+        return buf
 
     def _recv_bytes(self, maxlength=None):
         raise NotImplementedError()
@@ -232,12 +255,11 @@ class _ConnectionBase:
         self._check_closed()
         self._check_readable()
         buf = self._recv_bytes()
-        return cloudpickle.loads(buf.getbuffer())
+        return cloudpickle.loads(buf)
 
     def poll(self, timeout=0.0):
         """Whether there is any input available to be read"""
         # TODO fix poll (always returns True)
-        # raise NotImplementedError()
         self._check_closed()
         self._check_readable()
         return self._poll(timeout)
@@ -260,18 +282,20 @@ class RedisConnection(_ConnectionBase):
         super().__init__(handle, readable, writable)
         self._client = util.get_redis_client()
         self._subhandle = get_subhandle(handle)
+        self._pubsub = None
         self._connect()
 
     def _connect(self):
         if self._handle.startswith(REDIS_LIST_CONN):
             self._read = self._listread
             self._write = self._listwrite
-            self._pubsub = None
         elif self._handle.startswith(REDIS_PUBSUB_CONN):
             self._read = self._channelread
             self._write = self._channelwrite
             self._pubsub = self._client.pubsub()
             self._pubsub.subscribe(self._handle)
+        else:
+            raise Exception('Unknown connection type {}'.format(self._handle))
 
     def __getstate__(self):
         return (self._client, self._handle, self._subhandle,
@@ -327,10 +351,8 @@ class RedisConnection(_ConnectionBase):
         self._write(self._subhandle, buf)
 
     def _recv_bytes(self, maxsize=None):
-        buf = io.BytesIO()
-        chunk = self._read(self._handle)
-        buf.write(chunk)
-        return buf
+        msg = self._read(self._handle)
+        return msg
 
     def _poll(self, timeout):
         if self._pubsub:
@@ -338,6 +360,114 @@ class RedisConnection(_ConnectionBase):
         else:
             r = wait([(self._client, self._handle)], timeout)
         return bool(r)
+
+
+class NanomsgConnection(_ConnectionBase):
+    """
+    Connection class for PyNNG
+    """
+
+    def __init__(self, handle, readable=True, writable=True):
+        super().__init__(handle, readable, writable)
+        self._client = util.get_redis_client()
+        self._subhandle = get_subhandle(handle)
+        self._connect()
+
+    def _connect(self):
+        self._buff = Queue()
+        self._rep = pynng.Rep0()
+
+        binded = False
+        while not binded:
+            try:
+                addr = 'tcp://' + get_network_ip() + ':' + str(random.randrange(MIN_PORT, MAX_PORT))
+                self._rep.listen(addr)
+                debug('assigned server address is {}'.format(addr))
+                binded = True
+            except pynng.exceptions.AddressInUse:
+                pass
+        self._listener = threading.Thread(target=self._listen)
+        self._listener.daemon = True
+        self._listener.start()
+
+        self._req = None
+
+        self._client.set(self._handle, bytes(addr, 'utf-8'))
+
+    def _listen(self):
+        debug('server thread started')
+        while True:
+            try:
+                msg = self._rep.recv()
+                debug('message received')
+            except pynng.exceptions.Closed:
+                break
+            self._buff.put(msg)
+            self._rep.send(b'ok')
+        debug('server thread finished')
+
+    def __getstate__(self):
+        return (self._client, self._handle, self._subhandle,
+                self._readable, self._writable)
+
+    def __setstate__(self, state):
+        (self._client, self._handle, self._subhandle,
+         self._readable, self._writable) = state
+        self._connect()
+
+    def __len__(self):
+        return self._client.llen(self._handle)
+
+    def __reduce__(self):
+        self._close()
+        return super().__reduce__()
+
+    def _set_expiry(self, key):
+        self._client.expire(key, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+        self._set_expiry = lambda key: None
+
+    def _close(self, _close=None):
+        debug('closing connections')
+        self._rep.close()
+        self._client.delete(self._handle)
+        if self._req:
+            self._req.close()
+        if hasattr(self._client, 'close'):
+            self._client.close()
+
+    def _send(self, buf, write=None):
+        raise NotImplementedError('Connection._send() on Redis')
+
+    def _recv(self, size, read=None):
+        raise NotImplementedError('Connection._recv() on Redis')
+
+    def _send_bytes(self, buf):
+        if self._req is None:
+            self._req = pynng.Req0()
+
+        addr = self._client.get(self._subhandle)
+
+        retry = 5
+        while addr is None:
+            time.sleep(1)
+            addr = self._client.get(self._subhandle)
+            retry -= 1
+            if retry == 0:
+                raise Exception('Server address could not be fetched')
+
+        addr = addr.decode('utf-8')
+        self._req.dial(addr)
+        debug('dialing {}'.format(addr))
+        self._req.send(buf)
+        res = self._req.recv()
+        debug(res)
+
+    def _recv_bytes(self, maxsize=None):
+        chunk = self._buff.get()
+        return chunk
+
+    def _poll(self, timeout):
+        pass
 
 
 PipeConnection = RedisConnection
@@ -396,18 +526,28 @@ class Listener(object):
         self.close()
 
 
-def RedisPipe(duplex=True):
+def Pipe(duplex=True, conn_type=None):
     """
     Returns pair of connection objects at either end of a pipe
     """
-    h1, h2 = get_handle_pair(conn_type=mp_config.get_parameter(mp_config.REDIS_CONNECTION_TYPE))
+    if conn_type is None:
+        conn_type = mp_config.get_parameter(mp_config.PIPE_CONNECTION_TYPE)
+
+    if conn_type == REDIS_LIST_CONN or conn_type == REDIS_PUBSUB_CONN:
+        connection = RedisConnection
+    elif conn_type == NANOMSG_CONN:
+        connection = NanomsgConnection
+    else:
+        raise Exception('Unknown connection type {}'.format(conn_type))
+
+    h1, h2 = get_handle_pair(conn_type=conn_type)
 
     if duplex:
-        c1 = RedisConnection(h1)
-        c2 = RedisConnection(h2)
+        c1 = connection(h1)
+        c2 = connection(h2)
     else:
-        c1 = RedisConnection(h1, writable=False)
-        c2 = RedisConnection(h2, readable=False)
+        c1 = connection(h1, writable=False)
+        c2 = connection(h2, readable=False)
 
     return c1, c2
 
@@ -509,3 +649,4 @@ def wait(object_list, timeout=None):
             if timeout < 0:
                 return ready
         time.sleep(0.1)
+

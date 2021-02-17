@@ -19,15 +19,17 @@ LITHOPS_CONFIG = 'LITHOPS_CONFIG'  # Override lithops configuration
 STREAM_STDOUT = 'STREAM_STDOUT'  # Enable remote logging
 ENV_VARS = 'ENV_VARS'  # Processes environment variables
 
+# Middleware configuration parameters
+PIPE_CONNECTION_TYPE = 'PIPE_CONNECTION_TYPE'  # Pipe/Queue connection type
+
 # Redis specific parameters
 REDIS_EXPIRY_TIME = 'REDIS_EXPIRY_TIME'  # Redis key expiry time in seconds
-REDIS_CONNECTION_TYPE = 'REDIS_CONNECTION_TYPE'  # Pipe/Queue connection type
 
 _DEFAULT_CONFIG = {
     LITHOPS_CONFIG: {},
     STREAM_STDOUT: False,
     REDIS_EXPIRY_TIME: 900,
-    REDIS_CONNECTION_TYPE: 'listconn',
+    PIPE_CONNECTION_TYPE: 'listconn',
     ENV_VARS: {}
 }
 
