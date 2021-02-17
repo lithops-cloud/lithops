@@ -191,13 +191,13 @@ This mode allows to run functions in your local machine, by using processes. Thi
 </td>
 <td>
 
-This mode allows to run functions by using one or multiple function-as-a-service (FaaS) Serverless compute backends. In this mode of execution, each function invocation equals to a parallel task running in the cloud in an isolated environment.
+This mode allows to run functions by using publicly accessible Serverless compute services, such as IBM Cloud Functions, Amazon Lambda or Google Cloud Functions, among others. In this mode of execution, each function invocation equals to a parallel task running in the cloud in an isolated environment.
 
 </td>
 
 <td>
 
-This mode allows to run functions by using a Virtual machine (VM). In the VM, functions run using parallel processes like in the Localhost mode.
+This mode allows to run functions by using one or multiple Virtual machines (VM), either in a private cluster or in the cloud. In each VM, functions run using parallel processes like in the Localhost mode.
 
 </td>
 </tr>

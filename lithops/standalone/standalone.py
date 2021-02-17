@@ -64,7 +64,7 @@ class StandaloneHandler:
         """
         self.backend.init()
 
-    def _is_instance_ready(self):
+    def _is_master_instance_ready(self):
         """
         Checks if the VM instance is ready to receive ssh connections
         """
@@ -74,7 +74,7 @@ class StandaloneHandler:
             return False
         return True
 
-    def _wait_instance_ready(self):
+    def _wait_master_instance_ready(self):
         """
         Waits until the VM instance is ready to receive ssh connections
         """
@@ -83,7 +83,7 @@ class StandaloneHandler:
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
-            if self._is_instance_ready():
+            if self._is_master_instance_ready():
                 logger.debug('{} ready in {} seconds'.format(self.backend.master,
                                                              round(time.time()-start, 2)))
                 return True
@@ -93,7 +93,7 @@ class StandaloneHandler:
         raise Exception('Readiness probe expired on {}'
                         .format(self.backend.master))
 
-    def _is_service_ready(self):
+    def _is_master_service_ready(self):
         """
         Checks if the proxy is ready to receive http connections
         """
@@ -113,7 +113,7 @@ class StandaloneHandler:
         except Exception:
             return False
 
-    def _wait_service_ready(self):
+    def _wait_master_service_ready(self):
         """
         Waits until the proxy is ready to receive http connections
         """
@@ -122,7 +122,7 @@ class StandaloneHandler:
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
-            if self._is_service_ready():
+            if self._is_master_service_ready():
                 return True
             time.sleep(2)
 
@@ -139,46 +139,34 @@ class StandaloneHandler:
         total_calls = job_payload['total_calls']
         chunksize = job_payload['chunksize']
 
-        if self.exec_mode == 'create':
-            total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
-            logger.debug('ExecutorID {} | JobID {} - Going '
-                         'to run {} activations in {} workers'
-                         .format(executor_id, job_id,
-                                 total_calls, total_workers))
+        total_workers = total_calls // chunksize + (total_calls % chunksize > 0) \
+            if self.exec_mode == 'create' else 1
 
+        logger.debug('ExecutorID {} | JobID {} - Going '
+                     'to run {} activations in {} workers'
+                     .format(executor_id, job_id,
+                             total_calls, total_workers))
+
+        if self.exec_mode == 'create':
             for vm_n in range(total_workers):
                 worker_id = "{:04d}".format(vm_n)
                 name = 'lithops-{}-{}-{}'.format(executor_id, job_id, worker_id)
                 self.backend.create_worker(name)
 
-            def _callback(future):
-                # This callback is used to raise in-thread exceptions (if any)
-                future.result()
-
-            workers = self.backend.workers
-            with ThreadPoolExecutor(len(workers)+1) as executor:
-                future = executor.submit(lambda vm: vm.create(check_if_exists=True, start=True), self.backend.master)
-                future.add_done_callback(_callback)
-                for i in range(len(workers)):
-                    future = executor.submit(lambda vm: vm.create(start=True), workers[i])
-                    future.add_done_callback(_callback)
-        else:
-            logger.debug('ExecutorID {} | JobID {} - Going '
-                         'to run {} activations in 1 worker'
-                         .format(executor_id, job_id, total_calls,))
+            with ThreadPoolExecutor(len(self.backend.workers)) as executor:
+                executor.map(lambda vm: vm.create(start=True), self.backend.workers)
 
         logger.debug("Checking if Lithops service is ready on {}".format(self.backend.master))
-        if not self._is_service_ready():
+        if not self._is_master_service_ready():
             logger.debug("Lithops service not ready on {}".format(self.backend.master))
-            if self.exec_mode != 'create':
-                self.backend.master.create(check_if_exists=True, start=True)
-            # Wait only for the entry point instance
-            self._wait_instance_ready()
+            self.backend.master.create(check_if_exists=True, start=True)
+            self._wait_master_instance_ready()
 
         logger.debug('Lithops service ready on {}'.format(self.backend.master))
 
         if self.exec_mode == 'create':
-            worker_instances = [(inst.name, inst.ip_address, inst.instance_id) for inst in workers]
+            worker_instances = [(inst.name, inst.ip_address, inst.instance_id)
+                                for inst in self.backend.workers]
             job_payload['woreker_instances'] = worker_instances
             cmd = ('curl http://127.0.0.1:{}/run-create -d {} '
                    '-H \'Content-Type: application/json\' -X POST'
@@ -200,13 +188,13 @@ class StandaloneHandler:
         preinstalled modules
         """
         logger.debug('Checking if {} is ready'.format(self.backend.master))
-        if not self._is_instance_ready():
+        if not self._is_master_instance_ready():
             logger.debug('{} not ready'.format(self.backend.master))
             self.backend.master.create(check_if_exists=True, start=True)
-            self._wait_instance_ready()
+            self._wait_master_instance_ready()
 
-        self._setup_service()
-        self._wait_service_ready()
+        self._setup_master_service()
+        self._wait_master_service_ready()
 
         logger.debug('Extracting runtime metadata information')
         payload = {'runtime': runtime, 'pull_runtime': self.pull_runtime}
@@ -244,7 +232,7 @@ class StandaloneHandler:
         """
         return self.backend.get_runtime_key(runtime_name)
 
-    def _setup_service(self):
+    def _setup_master_service(self):
         """
         Setup lithops necessary packages and files in master VM instance
         """
