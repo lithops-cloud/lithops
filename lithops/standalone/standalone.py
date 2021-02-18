@@ -148,13 +148,14 @@ class StandaloneHandler:
                              total_calls, total_workers))
 
         if self.exec_mode == 'create':
-            for vm_n in range(total_workers):
-                worker_id = "{:04d}".format(vm_n)
-                name = 'lithops-{}-{}-{}'.format(executor_id, job_id, worker_id)
-                self.backend.create_worker(name)
+            with ThreadPoolExecutor(total_workers) as ex:
+                for vm_n in range(total_workers):
+                    worker_id = "{:04d}".format(vm_n)
+                    name = 'lithops-{}-{}-{}'.format(executor_id, job_id, worker_id)
+                    ex.submit(self.backend.create_worker, name)
 
-            with ThreadPoolExecutor(len(self.backend.workers)) as executor:
-                executor.map(lambda vm: vm.create(start=True), self.backend.workers)
+            logger.debug("Total worker VM instances created: {}/{}"
+                         .format(len(self.backend.workers), total_workers))
 
         logger.debug("Checking if Lithops service is ready on {}".format(self.backend.master))
         if not self._is_master_service_ready():
@@ -168,17 +169,13 @@ class StandaloneHandler:
             worker_instances = [(inst.name, inst.ip_address, inst.instance_id)
                                 for inst in self.backend.workers]
             job_payload['woreker_instances'] = worker_instances
-            cmd = ('curl http://127.0.0.1:{}/run-create -d {} '
-                   '-H \'Content-Type: application/json\' -X POST'
-                   .format(STANDALONE_SERVICE_PORT,
-                           shlex.quote(json.dumps(job_payload))))
-        else:
-            cmd = ('curl http://127.0.0.1:{}/run -d {} '
-                   '-H \'Content-Type: application/json\' -X POST'
-                   .format(STANDALONE_SERVICE_PORT,
-                           shlex.quote(json.dumps(job_payload))))
 
-        self.backend.master.get_ssh_client().run_remote_command(cmd, run_async=True)
+        cmd = ('curl http://127.0.0.1:{}/run -d {} '
+               '-H \'Content-Type: application/json\' -X POST'
+               .format(STANDALONE_SERVICE_PORT,
+                       shlex.quote(json.dumps(job_payload))))
+
+        self.backend.master.get_ssh_client().run_remote_command(cmd)
         self.backend.master.del_ssh_client()
         logger.debug('Job invoked on {}'.format(self.backend.master))
 

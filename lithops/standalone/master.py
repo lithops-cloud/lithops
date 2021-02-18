@@ -15,7 +15,6 @@
 #
 
 import os
-import sys
 import copy
 import time
 import json
@@ -23,6 +22,7 @@ import uuid
 import flask
 import logging
 import requests
+import multiprocessing as mp
 from pathlib import Path
 from gevent.pywsgi import WSGIServer
 from concurrent.futures import ThreadPoolExecutor
@@ -44,6 +44,7 @@ controller = flask.Flask('lithops.standalone.master')
 INSTANCE_START_TIMEOUT = 300
 STANDALONE_CONFIG = None
 BUDGET_KEEPER = None
+JOB_PROCESSES = {}
 
 
 def is_worker_instance_ready(ssh_client):
@@ -52,9 +53,7 @@ def is_worker_instance_ready(ssh_client):
     """
     try:
         ssh_client.run_remote_command('id')
-    except Exception as e:
-        logger.info(e)
-        ssh_client.close()
+    except Exception:
         return False
     return True
 
@@ -73,7 +72,7 @@ def wait_worker_instance_ready(ssh_client):
             logger.info('Worker VM instance {} ready in {} seconds'
                         .format(ip_addr, round(time.time()-start, 2)))
             return True
-        time.sleep(5)
+        time.sleep(3)
 
     raise Exception('VM readiness {} probe expired. '
                     'Check your master VM'.format(ip_addr))
@@ -106,12 +105,12 @@ def wait_worker_serveice_ready(ip_addr):
             logger.info('Lithops worker {} ready in {} seconds'
                         .format(ip_addr, round(time.time()-start, 2)))
             return True
-        time.sleep(2)
+        time.sleep(1)
 
     raise Exception('Worker readiness probe expired on {}. Check your VM'.format(ip_addr))
 
 
-def run_job_on_worker(worker_info, call_ids_range, job_payload):
+def run_tasks_on_worker(worker_info, call_ids_range, job_payload):
     """
     Install all the Lithops dependencies into the worker.
     Runs the job
@@ -135,7 +134,7 @@ def run_job_on_worker(worker_info, call_ids_range, job_payload):
     ssh_client.run_remote_command(script, run_async=True)
     ssh_client.close()
 
-    # Wait until the proxy is ready
+    # Wait until the worker service is ready
     wait_worker_serveice_ready(ip_address)
 
     dbr = job_payload['data_byte_ranges']
@@ -154,44 +153,20 @@ def run_job_on_worker(worker_info, call_ids_range, job_payload):
                      .format(', '.join(call_ids_range), response['error']))
 
 
-def error(msg):
-    response = flask.jsonify({'error': msg})
-    response.status_code = 404
-    return response
-
-
-@controller.route('/run-create', methods=['POST'])
-def run_create():
+def job_process(job_payload):
     """
-    Runs a given job remotely in workers, in create mode
+    Process responsible to wait for workers to become ready, and
+    submit individual tasks of the job to them
     """
-    global BUDGET_KEEPER
-
-    logger.info('Running job on worker VMs')
-
-    job_payload = flask.request.get_json(force=True, silent=True)
-    if job_payload and not isinstance(job_payload, dict):
-        return error('The action did not receive a dictionary as an argument.')
-
-    try:
-        runtime = job_payload['runtime_name']
-        verify_runtime_name(runtime)
-    except Exception as e:
-        return error(str(e))
-
     job_key = job_payload['job_key']
     call_ids = job_payload['call_ids']
     chunksize = job_payload['chunksize']
     workers = job_payload['woreker_instances']
 
-    BUDGET_KEEPER.last_usage_time = time.time()
-    BUDGET_KEEPER.update_config(job_payload['config']['standalone'])
-    BUDGET_KEEPER.jobs[job_key] = 'running'
-
     with ThreadPoolExecutor(len(workers)) as executor:
         for call_ids_range in iterchunks(call_ids, chunksize):
             worker_info = workers.pop(0)
-            executor.submit(run_job_on_worker,
+            executor.submit(run_tasks_on_worker,
                             worker_info,
                             call_ids_range,
                             copy.deepcopy(job_payload))
@@ -199,10 +174,10 @@ def run_create():
     done = os.path.join(JOBS_DIR, job_key+'.done')
     Path(done).touch()
 
-    act_id = str(uuid.uuid4()).replace('-', '')[:12]
-    response = flask.jsonify({'activationId': act_id})
-    response.status_code = 202
 
+def error(msg):
+    response = flask.jsonify({'error': msg})
+    response.status_code = 404
     return response
 
 
@@ -227,9 +202,19 @@ def run():
     BUDGET_KEEPER.update_config(job_payload['config']['standalone'])
     BUDGET_KEEPER.jobs[job_payload['job_key']] = 'running'
 
-    pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
-    localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
-    localhost_handler.run_job(job_payload)
+    exec_mode = job_payload['config']['standalone'].get('exec_mode', 'consume')
+
+    if exec_mode == 'consume':
+        # Consume mode runs the job locally
+        pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
+        localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
+        localhost_handler.run_job(job_payload)
+
+    elif exec_mode == 'create':
+        # Create mode runs the job in worker VMs
+        jp = mp.Process(target=job_process, args=(job_payload,))
+        jp.start()
+        JOB_PROCESSES[job_payload['job_key']] = jp
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     response = flask.jsonify({'activationId': act_id})
@@ -277,14 +262,11 @@ def main():
     with open(STANDALONE_CONFIG_FILE, 'r') as cf:
         STANDALONE_CONFIG = json.load(cf)
 
-    with open(STANDALONE_LOG_FILE, 'a') as log_file:
-        sys.stdout = log_file
-        sys.stderr = log_file
-        BUDGET_KEEPER = BudgetKeeper(STANDALONE_CONFIG)
-        BUDGET_KEEPER.start()
-        server = WSGIServer(('0.0.0.0', STANDALONE_SERVICE_PORT),
-                            controller, log=controller.logger)
-        server.serve_forever()
+    BUDGET_KEEPER = BudgetKeeper(STANDALONE_CONFIG)
+    BUDGET_KEEPER.start()
+    server = WSGIServer(('0.0.0.0', STANDALONE_SERVICE_PORT),
+                        controller, log=controller.logger)
+    server.serve_forever()
 
 
 if __name__ == '__main__':

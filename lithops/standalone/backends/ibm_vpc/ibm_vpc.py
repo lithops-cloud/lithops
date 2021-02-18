@@ -405,11 +405,12 @@ class IBMVPCBackend:
 
     def dismantle(self):
         """
-        Stop all VM instances
+        Stop all worker VM instances
         """
-        with ThreadPoolExecutor(len(self.workers)) as ex:
-            ex.map(lambda worker: worker.stop(), self.workers)
-        self.workers = []
+        if len(self.workers) > 0:
+            with ThreadPoolExecutor(len(self.workers)) as ex:
+                ex.map(lambda worker: worker.stop(), self.workers)
+            self.workers = []
 
     def create_worker(self, name):
         """
@@ -417,8 +418,8 @@ class IBMVPCBackend:
         This method does not create the physical VM.
         """
         vsi = IBMVPCInstance(name, self.config, self.ibm_vpc_client)
+        vsi.create(start=True)
         self.workers.append(vsi)
-        return vsi
 
     def get_runtime_key(self, runtime_name):
         name = runtime_name.replace('/', '-').replace(':', '-')
@@ -526,7 +527,13 @@ class IBMVPCInstance:
         try:
             resp = self.ibm_vpc_client.create_instance(instance_prototype)
         except ApiException as e:
-            raise Exception("Create VM instance failed with status code " + str(e.code) + ": " + e.message)
+            if e.code == 400:
+                logger.debug("Create VM instance {} failed due to quota limit"
+                             .format(instance_name))
+            else:
+                logger.debug("Create VM instance {} failed with status code {}"
+                             .format(instance_name, str(e.code)))
+            raise e
 
         logger.debug("VM instance {} created successfully ".format(instance_name))
 
