@@ -46,37 +46,40 @@ STANDALONE_CONFIG = None
 BUDGET_KEEPER = None
 
 
-def is_instance_ready(ssh_client):
+def is_worker_instance_ready(ssh_client):
     """
     Checks if the VM instance is ready to receive ssh connections
     """
     try:
         ssh_client.run_remote_command('id')
-    except Exception:
+    except Exception as e:
+        logger.info(e)
         ssh_client.close()
         return False
     return True
 
 
-def wait_instance_ready(ssh_client):
+def wait_worker_instance_ready(ssh_client):
     """
     Waits until the VM instance is ready to receive ssh connections
     """
     ip_addr = ssh_client.ip_address
-    logger.info('Waiting VM instance {} to become ready'.format(ip_addr))
+    logger.info('Waiting worker VM instance {} to '
+                'become ready'.format(ip_addr))
 
     start = time.time()
     while(time.time() - start < INSTANCE_START_TIMEOUT):
-        if is_instance_ready(ssh_client):
-            logger.info('VM instance {} ready in {} seconds'
+        if is_worker_instance_ready(ssh_client):
+            logger.info('Worker VM instance {} ready in {} seconds'
                         .format(ip_addr, round(time.time()-start, 2)))
             return True
         time.sleep(5)
 
-    raise Exception('VM readiness {} probe expired. Check your master VM'.format(ip_addr))
+    raise Exception('VM readiness {} probe expired. '
+                    'Check your master VM'.format(ip_addr))
 
 
-def is_proxy_ready(ip_addr):
+def is_worker_serveice_ready(ip_addr):
     """
     Checks if the proxy is ready to receive http connections
     """
@@ -90,22 +93,22 @@ def is_proxy_ready(ip_addr):
         return False
 
 
-def wait_proxy_ready(ip_addr):
+def wait_worker_serveice_ready(ip_addr):
     """
     Waits until the proxy is ready to receive http connections
     """
 
-    logger.info('Waiting Lithops proxy to become ready on {}'.format(ip_addr))
+    logger.info('Waiting Lithops worker to become ready on {}'.format(ip_addr))
 
     start = time.time()
     while(time.time() - start < INSTANCE_START_TIMEOUT):
-        if is_proxy_ready(ip_addr):
-            logger.info('Lithops proxy {} ready in {} seconds'
+        if is_worker_serveice_ready(ip_addr):
+            logger.info('Lithops worker {} ready in {} seconds'
                         .format(ip_addr, round(time.time()-start, 2)))
             return True
         time.sleep(2)
 
-    raise Exception('Proxy readiness probe expired on {}. Check your VM'.format(ip_addr))
+    raise Exception('Worker readiness probe expired on {}. Check your VM'.format(ip_addr))
 
 
 def run_job_on_worker(worker_info, call_ids_range, job_payload):
@@ -117,7 +120,7 @@ def run_job_on_worker(worker_info, call_ids_range, job_payload):
     logger.info('Going to setup {}, IP address {}'.format(instance_name, ip_address))
 
     ssh_client = SSHClient(ip_address, STANDALONE_SSH_CREDNTIALS)
-    wait_instance_ready(ssh_client)
+    wait_worker_instance_ready(ssh_client)
 
     # upload zip lithops package
     logger.info('Uploading lithops files to VM instance {}'.format(ip_address))
@@ -133,7 +136,7 @@ def run_job_on_worker(worker_info, call_ids_range, job_payload):
     ssh_client.close()
 
     # Wait until the proxy is ready
-    wait_proxy_ready(ip_address)
+    wait_worker_serveice_ready(ip_address)
 
     dbr = job_payload['data_byte_ranges']
     job_payload['call_ids'] = call_ids_range
