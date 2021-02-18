@@ -17,7 +17,6 @@
 import os
 import uuid
 import flask
-import sys
 import logging
 import time
 import json
@@ -115,14 +114,11 @@ def main():
     with open(STANDALONE_CONFIG_FILE, 'r') as cf:
         STANDALONE_CONFIG = json.load(cf)
 
-    with open(STANDALONE_LOG_FILE, 'a') as log_file:
-        sys.stdout = log_file
-        sys.stderr = log_file
-        BUDGET_KEEPER = BudgetKeeper(STANDALONE_CONFIG)
-        BUDGET_KEEPER.start()
-        server = WSGIServer(('0.0.0.0', STANDALONE_SERVICE_PORT),
-                            proxy, log=proxy.logger)
-        server.serve_forever()
+    BUDGET_KEEPER = BudgetKeeper(STANDALONE_CONFIG)
+    BUDGET_KEEPER.start()
+    server = WSGIServer(('0.0.0.0', STANDALONE_SERVICE_PORT),
+                        proxy, log=proxy.logger)
+    server.serve_forever()
 
 
 if __name__ == '__main__':

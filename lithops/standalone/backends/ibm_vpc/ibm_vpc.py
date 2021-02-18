@@ -405,20 +405,27 @@ class IBMVPCBackend:
 
     def dismantle(self):
         """
-        Stop all VM instances
+        Stop all worker VM instances
         """
-        with ThreadPoolExecutor(len(self.workers)) as ex:
-            ex.map(lambda worker: worker.stop(), self.workers)
-        self.workers = []
+        if len(self.workers) > 0:
+            with ThreadPoolExecutor(len(self.workers)) as ex:
+                ex.map(lambda worker: worker.stop(), self.workers)
+            self.workers = []
+
+    def get_vm(self, name):
+        """
+        Returns a VM class instance.
+        Does not creates nor starts a VM instance
+        """
+        return IBMVPCInstance(name, self.config, self.ibm_vpc_client)
 
     def create_worker(self, name):
         """
-        Create a new VM python instance
-        This method does not create the physical VM.
+        Creates a new worker VM instance in VPC
         """
-        vsi = IBMVPCInstance(name, self.config, self.ibm_vpc_client)
-        self.workers.append(vsi)
-        return vsi
+        vm = IBMVPCInstance(name, self.config, self.ibm_vpc_client)
+        vm.create(start=True)
+        self.workers.append(vm)
 
     def get_runtime_key(self, runtime_name):
         name = runtime_name.replace('/', '-').replace(':', '-')
@@ -526,7 +533,13 @@ class IBMVPCInstance:
         try:
             resp = self.ibm_vpc_client.create_instance(instance_prototype)
         except ApiException as e:
-            raise Exception("Create VM instance failed with status code " + str(e.code) + ": " + e.message)
+            if e.code == 400:
+                logger.debug("Create VM instance {} failed due to quota limit"
+                             .format(instance_name))
+            else:
+                logger.debug("Create VM instance {} failed with status code {}"
+                             .format(instance_name, str(e.code)))
+            raise e
 
         logger.debug("VM instance {} created successfully ".format(instance_name))
 
