@@ -94,7 +94,7 @@ class BudgetKeeper(threading.Thread):
             else:
                 logger.info("Dismantling setup")
                 try:
-                    self.vm.dismantle()
+                    self.vm.stop()
                     runing = False
                 except Exception as e:
                     logger.info("Dismantle error {}".format(e))
