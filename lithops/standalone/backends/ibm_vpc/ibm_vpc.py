@@ -412,14 +412,20 @@ class IBMVPCBackend:
                 ex.map(lambda worker: worker.stop(), self.workers)
             self.workers = []
 
+    def get_vm(self, name):
+        """
+        Returns a VM class instance.
+        Does not creates nor starts a VM instance
+        """
+        return IBMVPCInstance(name, self.config, self.ibm_vpc_client)
+
     def create_worker(self, name):
         """
-        Create a new VM python instance
-        This method does not create the physical VM.
+        Creates a new worker VM instance in VPC
         """
-        vsi = IBMVPCInstance(name, self.config, self.ibm_vpc_client)
-        vsi.create(start=True)
-        self.workers.append(vsi)
+        vm = IBMVPCInstance(name, self.config, self.ibm_vpc_client)
+        vm.create(start=True)
+        self.workers.append(vm)
 
     def get_runtime_key(self, runtime_name):
         name = runtime_name.replace('/', '-').replace(':', '-')
