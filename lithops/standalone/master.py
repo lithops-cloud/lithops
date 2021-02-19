@@ -41,7 +41,7 @@ logger = logging.getLogger('lithops.standalone.master')
 
 controller = flask.Flask('lithops.standalone.master')
 
-INSTANCE_START_TIMEOUT = 300
+INSTANCE_START_TIMEOUT = 200
 STANDALONE_CONFIG = None
 BUDGET_KEEPER = None
 JOB_PROCESSES = {}
@@ -53,7 +53,10 @@ def is_worker_instance_ready(ssh_client):
     """
     try:
         ssh_client.run_remote_command('id')
-    except Exception:
+    except Exception as e:
+        logger.debug('ssh connection to {} failed with: {}'
+                     .format(ssh_client.ip_address, e))
+        ssh_client.close()
         return False
     return True
 
@@ -72,7 +75,7 @@ def wait_worker_instance_ready(ssh_client):
             logger.info('Worker VM instance {} ready in {} seconds'
                         .format(ip_addr, round(time.time()-start, 2)))
             return True
-        time.sleep(3)
+        time.sleep(5)
 
     raise Exception('VM readiness {} probe expired. '
                     'Check your master VM'.format(ip_addr))
@@ -107,7 +110,7 @@ def wait_worker_serveice_ready(ip_addr):
             return True
         time.sleep(1)
 
-    raise Exception('Worker readiness probe expired on {}. Check your VM'.format(ip_addr))
+    raise Exception('Worker readiness probe expired on {}'.format(ip_addr))
 
 
 def run_tasks_on_worker(worker_info, call_ids_range, job_payload):
