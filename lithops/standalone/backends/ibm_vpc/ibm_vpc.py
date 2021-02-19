@@ -651,6 +651,9 @@ class IBMVPCInstance:
         logger.debug("Deleting VM instance {}".format(self.name))
         try:
             resp = self.ibm_vpc_client.delete_instance(self.instance_id)
+            self.instance_id = None
+            self.ip_address = None
+            self.del_ssh_client()
         except ApiException as e:
             if e.code == 404:
                 pass
