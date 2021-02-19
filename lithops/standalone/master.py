@@ -23,17 +23,18 @@ import flask
 import logging
 import requests
 import multiprocessing as mp
+from queue import Queue
 from pathlib import Path
 from gevent.pywsgi import WSGIServer
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.constants import LITHOPS_TEMP_DIR, STANDALONE_LOG_FILE, JOBS_DIR,\
-    STANDALONE_SSH_CREDNTIALS, STANDALONE_SERVICE_PORT, STANDALONE_CONFIG_FILE
+    STANDALONE_SERVICE_PORT, STANDALONE_CONFIG_FILE
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.utils import verify_runtime_name, iterchunks, setup_lithops_logger
-from lithops.util.ssh_client import SSHClient
 from lithops.standalone.utils import get_worker_setup_script
 from lithops.standalone.keeper import BudgetKeeper
+from lithops.standalone.standalone import StandaloneHandler
 
 
 setup_lithops_logger(logging.DEBUG, filename=STANDALONE_LOG_FILE)
@@ -42,7 +43,9 @@ logger = logging.getLogger('lithops.standalone.master')
 controller = flask.Flask('lithops.standalone.master')
 
 INSTANCE_START_TIMEOUT = 200
+MAX_INSTANCE_CREATE_RETRIES = 3
 STANDALONE_CONFIG = None
+STANDALONE_HANDLER = None
 BUDGET_KEEPER = None
 JOB_PROCESSES = {}
 
@@ -56,7 +59,7 @@ def is_worker_instance_ready(ssh_client):
     except Exception as e:
         logger.debug('ssh connection to {} failed with: {}'
                      .format(ssh_client.ip_address, e))
-        ssh_client.close()
+        # ssh_client.close()
         return False
     return True
 
@@ -77,8 +80,9 @@ def wait_worker_instance_ready(ssh_client):
             return True
         time.sleep(5)
 
-    raise Exception('VM readiness {} probe expired. '
-                    'Check your master VM'.format(ip_addr))
+    msg = 'Worker VM readiness probe expired on {}'.format(ip_addr)
+    logger.error(msg)
+    raise TimeoutError(msg)
 
 
 def is_worker_serveice_ready(ip_addr):
@@ -110,28 +114,49 @@ def wait_worker_serveice_ready(ip_addr):
             return True
         time.sleep(1)
 
-    raise Exception('Worker readiness probe expired on {}'.format(ip_addr))
+    msg = 'Worker service readiness probe expired on {}'.format(ip_addr)
+    logger.error(msg)
+    raise TimeoutError(msg)
 
 
-def run_tasks_on_worker(worker_info, call_ids_range, job_payload):
+def run_worker(worker_info, work_queue):
     """
+    Run worker process
     Install all the Lithops dependencies into the worker.
     Runs the job
     """
     instance_name, ip_address, instance_id = worker_info
-    logger.info('Going to setup {}, IP address {}'.format(instance_name, ip_address))
+    vm = STANDALONE_HANDLER.backend.get_vm(instance_name)
+    vm.ip_address = ip_address
+    vm.instance_id = instance_id
 
-    ssh_client = SSHClient(ip_address, STANDALONE_SSH_CREDNTIALS)
-    wait_worker_instance_ready(ssh_client)
+    worker_ready = False
+    retry = 0
+    while not worker_ready and retry < MAX_INSTANCE_CREATE_RETRIES:
+        try:
+            logger.info('Going to setup {}, IP address {}'
+                        .format(vm.name, vm.ip_address))
+            ssh_client = vm.get_ssh_client()
+            wait_worker_instance_ready(ssh_client)
+            worker_ready = True
+        except TimeoutError:  # VM not started in time
+            if retry == MAX_INSTANCE_CREATE_RETRIES:
+                msg = 'Worker VM {} failed after {} retries.'.format(vm.name, retry)
+                logger.debug(msg)
+                raise Exception(msg)
+            logger.info('Recreating worker VM {}'.format(vm.name))
+            retry += 1
+            vm.delete()
+            vm.create()
 
     # upload zip lithops package
     logger.info('Uploading lithops files to VM instance {}'.format(ip_address))
     ssh_client.upload_local_file('/opt/lithops/lithops_standalone.zip', '/tmp/lithops_standalone.zip')
     logger.info('Executing lithops installation process on VM instance {}'.format(ip_address))
 
-    vm_data = {'instance_name': instance_name,
-               'ip_address': ip_address,
-               'instance_id': instance_id}
+    vm_data = {'instance_name': vm.name,
+               'ip_address': vm.ip_address,
+               'instance_id': vm.instance_id}
 
     script = get_worker_setup_script(STANDALONE_CONFIG, vm_data)
     ssh_client.run_remote_command(script, run_async=True)
@@ -139,6 +164,9 @@ def run_tasks_on_worker(worker_info, call_ids_range, job_payload):
 
     # Wait until the worker service is ready
     wait_worker_serveice_ready(ip_address)
+
+    #while not work_queue.empty():
+    call_ids_range, job_payload = work_queue.get()
 
     dbr = job_payload['data_byte_ranges']
     job_payload['call_ids'] = call_ids_range
@@ -166,13 +194,15 @@ def job_process(job_payload):
     chunksize = job_payload['chunksize']
     workers = job_payload['woreker_instances']
 
+    work_queue = Queue()
+
+    for call_ids_range in iterchunks(call_ids, chunksize):
+        task = (call_ids_range, copy.deepcopy(job_payload))
+        work_queue.put(task)
+
     with ThreadPoolExecutor(len(workers)) as executor:
-        for call_ids_range in iterchunks(call_ids, chunksize):
-            worker_info = workers.pop(0)
-            executor.submit(run_tasks_on_worker,
-                            worker_info,
-                            call_ids_range,
-                            copy.deepcopy(job_payload))
+        for worker_info in workers:
+            executor.submit(run_worker, worker_info, work_queue)
 
     done = os.path.join(JOBS_DIR, job_key+'.done')
     Path(done).touch()
@@ -258,6 +288,7 @@ def preinstalls():
 
 def main():
     global STANDALONE_CONFIG
+    global STANDALONE_HANDLER
     global BUDGET_KEEPER
 
     os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
@@ -267,6 +298,9 @@ def main():
 
     BUDGET_KEEPER = BudgetKeeper(STANDALONE_CONFIG)
     BUDGET_KEEPER.start()
+
+    STANDALONE_HANDLER = StandaloneHandler(STANDALONE_CONFIG)
+
     server = WSGIServer(('0.0.0.0', STANDALONE_SERVICE_PORT),
                         controller, log=controller.logger)
     server.serve_forever()
