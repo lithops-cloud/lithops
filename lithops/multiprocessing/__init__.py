@@ -17,9 +17,9 @@ from .sharedctypes import RawValue, RawArray, Value, Array
 from .synchronize import (Semaphore, BoundedSemaphore,
                           Lock, RLock,
                           Condition, Event, Barrier)
+from .process import current_process, active_children, parent_process
 
 
 from . import config
 
 context = CloudContext()
-getpid = context.getpid
