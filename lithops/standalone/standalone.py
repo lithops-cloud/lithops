@@ -56,6 +56,7 @@ class StandaloneHandler:
         StandaloneBackend = getattr(sb_module, 'StandaloneBackend')
         self.backend = StandaloneBackend(self.config[self.backend_name], self.exec_mode)
 
+        self.jobs = []  # list to store executed jobs (job_keys)
         logger.debug("Standalone handler created successfully")
 
     def init(self):
@@ -84,8 +85,9 @@ class StandaloneHandler:
         start = time.time()
         while(time.time() - start < self.start_timeout):
             if self._is_master_instance_ready():
-                logger.debug('{} ready in {} seconds'.format(self.backend.master,
-                                                             round(time.time()-start, 2)))
+                logger.debug('{} ready in {} seconds'
+                             .format(self.backend.master,
+                                     round(time.time()-start, 2)))
                 return True
             time.sleep(5)
 
@@ -123,6 +125,9 @@ class StandaloneHandler:
         start = time.time()
         while(time.time() - start < self.start_timeout):
             if self._is_master_service_ready():
+                logger.debug('{} ready in {} seconds'
+                             .format(self.backend.master,
+                                     round(time.time()-start, 2)))
                 return True
             time.sleep(2)
 
@@ -142,13 +147,15 @@ class StandaloneHandler:
         total_workers = total_calls // chunksize + (total_calls % chunksize > 0) \
             if self.exec_mode == 'create' else 1
 
-        logger.debug('ExecutorID {} | JobID {} - Going '
-                     'to run {} activations in {} workers'
-                     .format(executor_id, job_id,
-                             total_calls, total_workers))
+        def start_master_instance(wait=True):
+            if not self._is_master_service_ready():
+                self.backend.master.create(check_if_exists=True, start=True)
+                if wait:
+                    self._wait_master_service_ready()
 
         if self.exec_mode == 'create':
-            with ThreadPoolExecutor(total_workers) as ex:
+            with ThreadPoolExecutor(total_workers+1) as ex:
+                ex.submit(start_master_instance, wait=False)
                 for vm_n in range(total_workers):
                     worker_id = "{:04d}".format(vm_n)
                     name = 'lithops-{}-{}-{}'.format(executor_id, job_id, worker_id)
@@ -157,13 +164,13 @@ class StandaloneHandler:
             logger.debug("Total worker VM instances created: {}/{}"
                          .format(len(self.backend.workers), total_workers))
 
-        logger.debug("Checking if Lithops service is ready on {}".format(self.backend.master))
-        if not self._is_master_service_ready():
-            logger.debug("Lithops service not ready on {}".format(self.backend.master))
-            self.backend.master.create(check_if_exists=True, start=True)
-            self._wait_master_instance_ready()
+        logger.debug('ExecutorID {} | JobID {} - Going '
+                     'to run {} activations in {} workers'
+                     .format(executor_id, job_id,
+                             total_calls, len(self.backend.workers)))
 
-        logger.debug('Lithops service ready on {}'.format(self.backend.master))
+        logger.debug("Checking if {} is ready".format(self.backend.master))
+        start_master_instance(wait=True)
 
         if self.exec_mode == 'create':
             worker_instances = [(inst.name, inst.ip_address, inst.instance_id)
@@ -178,6 +185,8 @@ class StandaloneHandler:
         self.backend.master.get_ssh_client().run_remote_command(cmd)
         self.backend.master.del_ssh_client()
         logger.debug('Job invoked on {}'.format(self.backend.master))
+
+        self.jobs.append(job_payload['job_key'])
 
     def create_runtime(self, runtime):
         """
@@ -217,8 +226,19 @@ class StandaloneHandler:
 
     def clear(self):
         """
-        Clear all the backend resources
+        Clear all the backend resources.
+        clear method is executed after the results are get,
+        when an exception is produced, or when a user press ctrl+c
         """
+        cmd = ('curl http://127.0.0.1:{}/clear -d {} '
+               '-H \'Content-Type: application/json\' -X POST'
+               .format(STANDALONE_SERVICE_PORT,
+                       shlex.quote(json.dumps(self.jobs))))
+        try:
+            self.backend.master.get_ssh_client().run_remote_command(cmd)
+            self.backend.master.del_ssh_client()
+        except Exception:
+            pass
         self.backend.clear()
 
     def get_runtime_key(self, runtime_name):

@@ -15,15 +15,13 @@
 #
 
 import os
-import uuid
-import flask
 import logging
 import time
 import json
-from gevent.pywsgi import WSGIServer
+import requests
 
-from lithops.constants import LITHOPS_TEMP_DIR, STANDALONE_LOG_FILE,\
-    STANDALONE_SERVICE_PORT, STANDALONE_CONFIG_FILE
+from lithops.constants import LITHOPS_TEMP_DIR, STANDALONE_LOG_FILE, JOBS_DIR,\
+    STANDALONE_SERVICE_PORT, STANDALONE_CONFIG_FILE, STANDALONE_INSTALL_DIR
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.utils import verify_runtime_name, setup_lithops_logger
 from lithops.standalone.keeper import BudgetKeeper
@@ -31,78 +29,57 @@ from lithops.standalone.keeper import BudgetKeeper
 setup_lithops_logger(logging.DEBUG, filename=STANDALONE_LOG_FILE)
 logger = logging.getLogger('lithops.standalone.worker')
 
-proxy = flask.Flask('lithops.standalone.worker')
 
 STANDALONE_CONFIG = None
 BUDGET_KEEPER = None
 
 
-def error(msg):
-    response = flask.jsonify({'error': msg})
-    response.status_code = 404
-    return response
+def wait_job_completed(job_key):
+    """
+    Waits unitl the current job is completed
+    """
+    done = os.path.join(JOBS_DIR, job_key+'.done')
+    while True:
+        if os.path.isfile(done):
+            os.remove(done)
+            break
+        time.sleep(1)
 
 
-@proxy.route('/run', methods=['POST'])
-def run():
+def run_worker(master_ip, job_key):
     """
     Run a job
     """
     global BUDGET_KEEPER
 
-    job_payload = flask.request.get_json(force=True, silent=True)
-    if job_payload and not isinstance(job_payload, dict):
-        return error('The action did not receive a dictionary as an argument.')
+    while True:
+        url = 'http://{}:{}/get-task/{}'.format(master_ip, STANDALONE_SERVICE_PORT, job_key)
+        logger.info('Getting task from {}'.format(url))
+        resp = requests.get(url)
 
-    try:
-        runtime = job_payload['runtime_name']
-        verify_runtime_name(runtime)
-    except Exception as e:
-        return error(str(e))
+        if resp.status_code != 200:
+            logger.info('All tasks completed'.format(url))
+            return
 
-    BUDGET_KEEPER.last_usage_time = time.time()
-    BUDGET_KEEPER.update_config(job_payload['config']['standalone'])
-    BUDGET_KEEPER.jobs[job_payload['job_key']] = 'running'
+        job_payload = resp.json()
+        logger.info(job_payload)
+        logger.info('Got tasks {}'.format(', '.join(job_payload['call_ids'])))
 
-    pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
-    localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
-    localhost_handler.run_job(job_payload)
+        try:
+            runtime = job_payload['runtime_name']
+            verify_runtime_name(runtime)
+        except Exception:
+            return
 
-    act_id = str(uuid.uuid4()).replace('-', '')[:12]
-    response = flask.jsonify({'activationId': act_id})
-    response.status_code = 202
+        BUDGET_KEEPER.last_usage_time = time.time()
+        BUDGET_KEEPER.update_config(job_payload['config']['standalone'])
+        BUDGET_KEEPER.jobs[job_payload['job_key']] = 'running'
 
-    return response
+        pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
+        localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
+        localhost_handler.run_job(job_payload)
 
-
-@proxy.route('/ping', methods=['GET'])
-def ping():
-    response = flask.jsonify({'response': 'pong'})
-    response.status_code = 200
-
-    return response
-
-
-@proxy.route('/preinstalls', methods=['GET'])
-def preinstalls():
-
-    message = flask.request.get_json(force=True, silent=True)
-    if message and not isinstance(message, dict):
-        return error('The action did not receive a dictionary as an argument.')
-
-    try:
-        runtime = message['runtime']
-        verify_runtime_name(runtime)
-    except Exception as e:
-        return error(str(e))
-
-    pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
-    localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
-    runtime_meta = localhost_handler.create_runtime(runtime)
-    response = flask.jsonify(runtime_meta)
-    response.status_code = 200
-
-    return response
+        wait_job_completed(job_key)
 
 
 def main():
@@ -114,11 +91,23 @@ def main():
     with open(STANDALONE_CONFIG_FILE, 'r') as cf:
         STANDALONE_CONFIG = json.load(cf)
 
+    vm_data_file = os.path.join(STANDALONE_INSTALL_DIR, 'access.data')
+    with open(vm_data_file, 'r') as ad:
+        vm_data = json.load(ad)
+        master_ip = vm_data['master_ip']
+        job_key = vm_data['job_key']
+
     BUDGET_KEEPER = BudgetKeeper(STANDALONE_CONFIG)
     BUDGET_KEEPER.start()
-    server = WSGIServer(('0.0.0.0', STANDALONE_SERVICE_PORT),
-                        proxy, log=proxy.logger)
-    server.serve_forever()
+
+    run_worker(master_ip, job_key)
+    logger.info('Finished')
+
+    try:
+        # Try to stop the VM once no more pending tasks to run
+        BUDGET_KEEPER.vm.stop()
+    except Exception:
+        pass
 
 
 if __name__ == '__main__':
