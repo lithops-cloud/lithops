@@ -32,7 +32,7 @@ class Queue:
     Full = Full
 
     def __init__(self, maxsize=0):
-        self._reader, self._writer = connection.Pipe(duplex=False, conn_type='listconn')
+        self._reader, self._writer = connection.Pipe(duplex=False, conn_type=connection.REDIS_LIST_CONN)
         self._ref = util.RemoteReference(referenced=[self._reader._handle, self._reader._subhandle],
                                          client=self._reader._client)
         self._opid = os.getpid()
