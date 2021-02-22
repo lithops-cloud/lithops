@@ -50,6 +50,8 @@ JOB_PROCESSES = {}
 WORK_QUEUES = {}
 MASTER_IP = None
 
+MP_MANAGER = mp.Manager()
+
 
 def is_worker_instance_ready(ssh_client):
     """
@@ -99,9 +101,7 @@ def setup_worker(worker_info, work_queue, job_key):
 
     worker_ready = False
     retry = 0
-    logger.info('setup worker {}'.format(instance_name))
-    logger.info(work_queue.empty())
-    logger.info(work_queue.qsize())
+
     while(not worker_ready and not work_queue.empty()
           and retry < MAX_INSTANCE_CREATE_RETRIES):
         try:
@@ -119,7 +119,7 @@ def setup_worker(worker_info, work_queue, job_key):
             retry += 1
             vm.delete()
             vm.create()
-    logger.info('finished setup')
+
     if work_queue.empty():
         return
 
@@ -176,7 +176,7 @@ def run_job_process(job_payload, work_queue):
     with ThreadPoolExecutor(len(workers)) as executor:
         for worker_info in workers:
             executor.submit(setup_worker, worker_info, work_queue, job_key)
-    logger.info('--------')
+
     while not work_queue.empty():
         time.sleep(1)
 
@@ -266,7 +266,7 @@ def run():
 
     elif exec_mode == 'create':
         # Create mode runs the job in worker VMs
-        work_queue = mp.Queue()
+        work_queue = MP_MANAGER.Queue()
         WORK_QUEUES[job_key] = work_queue
         jp = mp.Process(target=run_job_process, args=(job_payload, work_queue))
         jp.daemon = True
