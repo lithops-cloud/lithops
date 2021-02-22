@@ -20,16 +20,15 @@ import time
 import json
 import uuid
 import flask
+import queue
 import logging
-import requests
 import multiprocessing as mp
-from queue import Queue
 from pathlib import Path
 from gevent.pywsgi import WSGIServer
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.constants import LITHOPS_TEMP_DIR, STANDALONE_LOG_FILE, JOBS_DIR,\
-    STANDALONE_SERVICE_PORT, STANDALONE_CONFIG_FILE
+    STANDALONE_SERVICE_PORT, STANDALONE_CONFIG_FILE, STANDALONE_INSTALL_DIR
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.utils import verify_runtime_name, iterchunks, setup_lithops_logger
 from lithops.standalone.utils import get_worker_setup_script
@@ -40,7 +39,7 @@ from lithops.standalone.standalone import StandaloneHandler
 setup_lithops_logger(logging.DEBUG, filename=STANDALONE_LOG_FILE)
 logger = logging.getLogger('lithops.standalone.master')
 
-controller = flask.Flask('lithops.standalone.master')
+app = flask.Flask(__name__)
 
 INSTANCE_START_TIMEOUT = 200
 MAX_INSTANCE_CREATE_RETRIES = 3
@@ -48,6 +47,8 @@ STANDALONE_CONFIG = None
 STANDALONE_HANDLER = None
 BUDGET_KEEPER = None
 JOB_PROCESSES = {}
+WORK_QUEUES = {}
+MASTER_IP = None
 
 
 def is_worker_instance_ready(ssh_client):
@@ -57,9 +58,9 @@ def is_worker_instance_ready(ssh_client):
     try:
         ssh_client.run_remote_command('id')
     except Exception as e:
-        logger.debug('ssh connection to {} failed with: {}'
+        logger.debug('ssh connection to {} failed: {}'
                      .format(ssh_client.ip_address, e))
-        # ssh_client.close()
+        ssh_client.close()
         return False
     return True
 
@@ -85,41 +86,7 @@ def wait_worker_instance_ready(ssh_client):
     raise TimeoutError(msg)
 
 
-def is_worker_serveice_ready(ip_addr):
-    """
-    Checks if the proxy is ready to receive http connections
-    """
-    try:
-        url = "http://{}:{}/ping".format(ip_addr, STANDALONE_SERVICE_PORT)
-        r = requests.get(url, timeout=1)
-        if r.status_code == 200:
-            return True
-        return False
-    except Exception:
-        return False
-
-
-def wait_worker_serveice_ready(ip_addr):
-    """
-    Waits until the proxy is ready to receive http connections
-    """
-
-    logger.info('Waiting Lithops worker to become ready on {}'.format(ip_addr))
-
-    start = time.time()
-    while(time.time() - start < INSTANCE_START_TIMEOUT):
-        if is_worker_serveice_ready(ip_addr):
-            logger.info('Lithops worker {} ready in {} seconds'
-                        .format(ip_addr, round(time.time()-start, 2)))
-            return True
-        time.sleep(1)
-
-    msg = 'Worker service readiness probe expired on {}'.format(ip_addr)
-    logger.error(msg)
-    raise TimeoutError(msg)
-
-
-def run_worker(worker_info, work_queue):
+def setup_worker(worker_info, work_queue, job_key):
     """
     Run worker process
     Install all the Lithops dependencies into the worker.
@@ -132,7 +99,11 @@ def run_worker(worker_info, work_queue):
 
     worker_ready = False
     retry = 0
-    while not worker_ready and retry < MAX_INSTANCE_CREATE_RETRIES:
+    logger.info('setup worker {}'.format(instance_name))
+    logger.info(work_queue.empty())
+    logger.info(work_queue.qsize())
+    while(not worker_ready and not work_queue.empty()
+          and retry < MAX_INSTANCE_CREATE_RETRIES):
         try:
             logger.info('Going to setup {}, IP address {}'
                         .format(vm.name, vm.ip_address))
@@ -148,6 +119,9 @@ def run_worker(worker_info, work_queue):
             retry += 1
             vm.delete()
             vm.create()
+    logger.info('finished setup')
+    if work_queue.empty():
+        return
 
     # upload zip lithops package
     logger.info('Uploading lithops files to VM instance {}'.format(ip_address))
@@ -156,35 +130,31 @@ def run_worker(worker_info, work_queue):
 
     vm_data = {'instance_name': vm.name,
                'ip_address': vm.ip_address,
-               'instance_id': vm.instance_id}
+               'instance_id': vm.instance_id,
+               'master_ip': MASTER_IP,
+               'job_key': job_key}
 
     script = get_worker_setup_script(STANDALONE_CONFIG, vm_data)
     ssh_client.run_remote_command(script, run_async=True)
     ssh_client.close()
 
-    # Wait until the worker service is ready
-    wait_worker_serveice_ready(ip_address)
 
-    #while not work_queue.empty():
-    call_ids_range, job_payload = work_queue.get()
+def stop_job_process(job_key):
+    """
+    Stops a job process
+    """
+    global JOB_PROCESSES
 
-    dbr = job_payload['data_byte_ranges']
-    job_payload['call_ids'] = call_ids_range
-    job_payload['data_byte_ranges'] = [dbr[int(call_id)] for call_id in call_ids_range]
+    done = os.path.join(JOBS_DIR, job_key+'.done')
+    Path(done).touch()
 
-    url = "http://{}:{}/run".format(ip_address, STANDALONE_SERVICE_PORT)
-    r = requests.post(url, data=json.dumps(job_payload))
-    response = r.json()
-
-    if 'activationId' in response:
-        logger.info('Calls {} invoked. Activation ID: {}'
-                    .format(', '.join(call_ids_range), response['activationId']))
-    else:
-        logger.error('calls {} failed invocation: {}'
-                     .format(', '.join(call_ids_range), response['error']))
+    if job_key in JOB_PROCESSES and JOB_PROCESSES[job_key].is_alive():
+        JOB_PROCESSES[job_key].terminate()
+        logger.info('Finished job {} invocation'.format(job_key))
+    del JOB_PROCESSES[job_key]
 
 
-def job_process(job_payload):
+def run_job_process(job_payload, work_queue):
     """
     Process responsible to wait for workers to become ready, and
     submit individual tasks of the job to them
@@ -194,18 +164,26 @@ def job_process(job_payload):
     chunksize = job_payload['chunksize']
     workers = job_payload['woreker_instances']
 
-    work_queue = Queue()
-
     for call_ids_range in iterchunks(call_ids, chunksize):
-        task = (call_ids_range, copy.deepcopy(job_payload))
-        work_queue.put(task)
+        task_payload = copy.deepcopy(job_payload)
+        dbr = task_payload['data_byte_ranges']
+        task_payload['call_ids'] = call_ids_range
+        task_payload['data_byte_ranges'] = [dbr[int(call_id)] for call_id in call_ids_range]
+        work_queue.put(task_payload)
+
+    logger.info("Total tasks in {} work queue: {}".format(job_key, work_queue.qsize()))
 
     with ThreadPoolExecutor(len(workers)) as executor:
         for worker_info in workers:
-            executor.submit(run_worker, worker_info, work_queue)
+            executor.submit(setup_worker, worker_info, work_queue, job_key)
+    logger.info('--------')
+    while not work_queue.empty():
+        time.sleep(1)
 
     done = os.path.join(JOBS_DIR, job_key+'.done')
     Path(done).touch()
+
+    logger.info('Finished job {} invocation.'.format(job_key))
 
 
 def error(msg):
@@ -214,12 +192,52 @@ def error(msg):
     return response
 
 
-@controller.route('/run', methods=['POST'])
+@app.route('/get-task/<job_key>', methods=['GET'])
+def get_task(job_key):
+    """
+    Returns a task from the work queue
+    """
+    global WORK_QUEUES
+    global JOB_PROCESSES
+
+    try:
+        task_payload = WORK_QUEUES[job_key].get(timeout=0.1)
+        response = flask.jsonify(task_payload)
+        response.status_code = 200
+        logger.info('Calls {} invoked on {}'
+                    .format(', '.join(task_payload['call_ids']),
+                            flask.request.remote_addr))
+    except queue.Empty:
+        stop_job_process(job_key)
+        response = ('', 204)
+    return response
+
+
+@app.route('/clear', methods=['POST'])
+def clear():
+    """
+    Stops received job processes
+    """
+    global JOB_PROCESSES
+
+    job_key_list = flask.request.get_json(force=True, silent=True)
+    for job_key in job_key_list:
+        if job_key in JOB_PROCESSES and JOB_PROCESSES[job_key].is_alive():
+            logger.info('Received SIGTERM: Stopping job process {}'
+                        .format(job_key))
+        stop_job_process(job_key)
+
+    return ('', 204)
+
+
+@app.route('/run', methods=['POST'])
 def run():
     """
     Run a job locally, in consume mode
     """
     global BUDGET_KEEPER
+    global WORK_QUEUES
+    global JOB_PROCESSES
 
     job_payload = flask.request.get_json(force=True, silent=True)
     if job_payload and not isinstance(job_payload, dict):
@@ -231,9 +249,12 @@ def run():
     except Exception as e:
         return error(str(e))
 
+    job_key = job_payload['job_key']
+    logger.info('Received job {}'.format(job_key))
+
     BUDGET_KEEPER.last_usage_time = time.time()
     BUDGET_KEEPER.update_config(job_payload['config']['standalone'])
-    BUDGET_KEEPER.jobs[job_payload['job_key']] = 'running'
+    BUDGET_KEEPER.jobs[job_key] = 'running'
 
     exec_mode = job_payload['config']['standalone'].get('exec_mode', 'consume')
 
@@ -245,9 +266,12 @@ def run():
 
     elif exec_mode == 'create':
         # Create mode runs the job in worker VMs
-        jp = mp.Process(target=job_process, args=(job_payload,))
+        work_queue = mp.Queue()
+        WORK_QUEUES[job_key] = work_queue
+        jp = mp.Process(target=run_job_process, args=(job_payload, work_queue))
+        jp.daemon = True
         jp.start()
-        JOB_PROCESSES[job_payload['job_key']] = jp
+        JOB_PROCESSES[job_key] = jp
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     response = flask.jsonify({'activationId': act_id})
@@ -256,15 +280,14 @@ def run():
     return response
 
 
-@controller.route('/ping', methods=['GET'])
+@app.route('/ping', methods=['GET'])
 def ping():
     response = flask.jsonify({'response': 'pong'})
     response.status_code = 200
-
     return response
 
 
-@controller.route('/preinstalls', methods=['GET'])
+@app.route('/preinstalls', methods=['GET'])
 def preinstalls():
 
     payload = flask.request.get_json(force=True, silent=True)
@@ -290,11 +313,16 @@ def main():
     global STANDALONE_CONFIG
     global STANDALONE_HANDLER
     global BUDGET_KEEPER
+    global MASTER_IP
 
     os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
 
     with open(STANDALONE_CONFIG_FILE, 'r') as cf:
         STANDALONE_CONFIG = json.load(cf)
+
+    vm_data_file = os.path.join(STANDALONE_INSTALL_DIR, 'access.data')
+    with open(vm_data_file, 'r') as ad:
+        MASTER_IP = json.load(ad)['ip_address']
 
     BUDGET_KEEPER = BudgetKeeper(STANDALONE_CONFIG)
     BUDGET_KEEPER.start()
@@ -302,7 +330,7 @@ def main():
     STANDALONE_HANDLER = StandaloneHandler(STANDALONE_CONFIG)
 
     server = WSGIServer(('0.0.0.0', STANDALONE_SERVICE_PORT),
-                        controller, log=controller.logger)
+                        app, log=app.logger)
     server.serve_forever()
 
 

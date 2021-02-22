@@ -67,7 +67,7 @@ class LocalhostHandler:
         """
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
-        job_key = job_payload['job_id']
+        job_key = job_payload['job_key']
         runtime = job_payload['runtime_name']
         storage_bucket = job_payload['config']['lithops']['storage_bucket']
         total_calls = len(job_payload['call_ids'])
