@@ -455,7 +455,13 @@ class _NanomsgConnection(_ConnectionBase):
         return chunk
 
     def _poll(self, timeout):
-        pass
+        max_time = time.monotonic() + timeout
+        while time.monotonic() < max_time:
+            qsize = self._buff.qsize()
+            if qsize > 0:
+                return True
+            else:
+                time.sleep(0.1)
 
 
 PipeConnection = _RedisConnection
