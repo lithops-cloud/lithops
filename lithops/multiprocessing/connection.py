@@ -15,6 +15,7 @@ import socket
 import selectors
 import threading
 import random
+import io
 
 import cloudpickle
 import pynng
@@ -92,16 +93,6 @@ def _validate_address(address):
         raise ValueError("address '{}' is not of any known type ({}, {})".format(address,
                                                                                  REDIS_LIST_CONN,
                                                                                  REDIS_PUBSUB_CONN))
-
-
-def arbitrary_address(family):
-    """
-    Return an arbitrary free address for the given family
-    """
-    if family == 'AF_REDIS':
-        return 'listener-' + util.get_uuid()
-    else:
-        raise ValueError('unrecognized family')
 
 
 def get_network_ip():
@@ -241,13 +232,14 @@ class _ConnectionBase:
             elif offset > bytesize:
                 raise ValueError("offset too large")
             result = self._recv_bytes()
-            size = result.tell()
+            result_buff = io.BytesIO()
+            result_buff.write(result)
+            size = result_buff.tell()
             if bytesize < offset + size:
-                raise BufferTooShort(result.getvalue())
+                raise BufferTooShort(result_buff.getvalue())
             # Message can fit in dest
-            result.seek(0)
-            result.readinto(m[offset // itemsize:
-                              (offset + size) // itemsize])
+            result_buff.seek(0)
+            result_buff.readinto(m[offset // itemsize: (offset + size) // itemsize])
             return size
 
     def recv(self):
@@ -271,7 +263,7 @@ class _ConnectionBase:
         self.close()
 
 
-class RedisConnection(_ConnectionBase):
+class _RedisConnection(_ConnectionBase):
     """
     Connection class for Redis.
     """
@@ -362,7 +354,7 @@ class RedisConnection(_ConnectionBase):
         return bool(r)
 
 
-class NanomsgConnection(_ConnectionBase):
+class _NanomsgConnection(_ConnectionBase):
     """
     Connection class for PyNNG
     """
@@ -422,10 +414,6 @@ class NanomsgConnection(_ConnectionBase):
         self._close()
         return super().__reduce__()
 
-    def _set_expiry(self, key):
-        self._client.expire(key, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
-        self._set_expiry = lambda key: None
-
     def _close(self, _close=None):
         debug('closing connections')
         self._rep.close()
@@ -470,7 +458,7 @@ class NanomsgConnection(_ConnectionBase):
         pass
 
 
-PipeConnection = RedisConnection
+PipeConnection = _RedisConnection
 
 
 #
@@ -480,20 +468,13 @@ PipeConnection = RedisConnection
 class Listener(object):
     """
     Returns a listener object.
-
-    This is a wrapper for a bound socket which is 'listening' for
-    connections, or for a Windows named pipe.
     """
 
     def __init__(self, address=None, family=None, backlog=1, authkey=None):
-        family = 'AF_REDIS'
-        address = address or arbitrary_address(family)
-
-        self._listener = SocketListener(address, family, backlog)
+        self._listener = _RedisListener(address, family, backlog)
 
         if authkey is not None and not isinstance(authkey, bytes):
             raise TypeError('authkey should be a byte string')
-
         self._authkey = authkey
 
     def accept(self):
@@ -526,6 +507,10 @@ class Listener(object):
         self.close()
 
 
+def Client(address, family=None, authkey=None):
+    return _RedisClient(address)
+
+
 def Pipe(duplex=True, conn_type=None):
     """
     Returns pair of connection objects at either end of a pipe
@@ -534,9 +519,9 @@ def Pipe(duplex=True, conn_type=None):
         conn_type = mp_config.get_parameter(mp_config.PIPE_CONNECTION_TYPE)
 
     if conn_type == REDIS_LIST_CONN or conn_type == REDIS_PUBSUB_CONN:
-        connection = RedisConnection
+        connection = _RedisConnection
     elif conn_type == NANOMSG_CONN:
-        connection = NanomsgConnection
+        connection = _NanomsgConnection
     else:
         raise Exception('Unknown connection type {}'.format(conn_type))
 
@@ -556,14 +541,9 @@ def Pipe(duplex=True, conn_type=None):
 # Definitions for connections based on sockets
 #
 
-class SocketListener(object):
-    """
-    Representation of a socket which is bound to an address and listening
-    """
-
+class _RedisListener(object):
     def __init__(self, address, family=None, backlog=1):
         self._address = address
-        self._family = 'AF_REDIS'
         self._client = util.get_redis_client()
         self._connect()
 
@@ -572,7 +552,9 @@ class SocketListener(object):
 
     def _connect(self):
         self._pubsub = self._client.pubsub()
-        self._pubsub.subscribe(self._address)
+        ip, port = self._address
+        chan = '{}:{}'.format(ip, port)
+        self._pubsub.subscribe(chan)
         self._gen = self._pubsub.listen()
         # ignore first message (subscribe message)
         next(self._gen)
@@ -589,7 +571,7 @@ class SocketListener(object):
     def accept(self):
         msg = next(self._gen)
         client_subhandle = msg['data'].decode('utf-8')
-        c = RedisConnection(client_subhandle)
+        c = _RedisConnection(client_subhandle)
         c.send('OK')
         self._last_accepted = client_subhandle
         return c
@@ -607,6 +589,21 @@ class SocketListener(object):
             if unlink is not None:
                 self._unlink = None
                 unlink()
+
+
+def _RedisClient(address):
+    """
+    Return a connection object connected to the socket given by `address`
+    """
+    h1, h2 = get_handle_pair(conn_type=REDIS_LIST_CONN)
+    c = _RedisConnection(h1)
+    redis_client = util.get_redis_client()
+    ip, port = address
+    chan = '{}:{}'.format(ip, port)
+    redis_client.publish(chan, bytes(h2, 'utf-8'))
+    ack = c.recv()
+    assert ack == b'OK'
+    return c
 
 
 #
@@ -649,4 +646,3 @@ def wait(object_list, timeout=None):
             if timeout < 0:
                 return ready
         time.sleep(0.1)
-
