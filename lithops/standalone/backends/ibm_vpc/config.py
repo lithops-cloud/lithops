@@ -32,6 +32,11 @@ bootcmd:
     - echo '{0}:{1}' | chpasswd
     - sed -i '/PasswordAuthentication no/c\PasswordAuthentication yes' /etc/ssh/sshd_config
     - echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
+runcmd:
+    - echo '{0}:{1}' | chpasswd
+    - sed -i '/PasswordAuthentication no/c\PasswordAuthentication yes' /etc/ssh/sshd_config
+    - echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
+    - systemctl restart sshd
 """.format(SSH_USER, SSH_PASSWD)
 
 
