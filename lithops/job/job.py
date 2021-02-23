@@ -279,19 +279,19 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     if config[mode].get('customized_runtime'):
         # Prepare function and modules locally to store in the runtime image later
         function_file = func.__code__.co_filename
-        function_hash = hashlib.md5(open(function_file,'rb').read()).hexdigest()[:16]
+        function_hash = hashlib.md5(open(function_file, 'rb').read()).hexdigest()[:16]
         mod_hash = hashlib.md5(repr(sorted(mod_paths)).encode('utf-8')).hexdigest()[:16]
 
-        uuid = f'{function_hash}{mod_hash}'
+        uuid = '{}{}'.format(function_hash, mod_hash)
         func_key = create_func_key(JOBS_PREFIX, uuid, "")
 
         _store_func_and_modules(func_key, func_str, module_data)
-        
+
         job.ext_runtime_uuid = uuid
     else:
         func_key = create_func_key(JOBS_PREFIX, executor_id, job_id)
         internal_storage.put_func(func_key, func_module_str)
-    
+
     job.func_key = func_key
     func_upload_end = time.time()
 
