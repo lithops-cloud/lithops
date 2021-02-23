@@ -320,6 +320,11 @@ def main():
     with open(STANDALONE_CONFIG_FILE, 'r') as cf:
         STANDALONE_CONFIG = json.load(cf)
 
+    # Delete ssh_key_filename
+    backend = STANDALONE_CONFIG['backend']
+    if 'ssh_key_filename' in STANDALONE_CONFIG[backend]:
+        del STANDALONE_CONFIG[backend]['ssh_key_filename']
+
     vm_data_file = os.path.join(STANDALONE_INSTALL_DIR, 'access.data')
     with open(vm_data_file, 'r') as ad:
         MASTER_IP = json.load(ad)['ip_address']
