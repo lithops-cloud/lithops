@@ -488,7 +488,10 @@ class IBMVPCInstance:
         Deletes the ssh client
         """
         if self.ssh_client:
-            self.ssh_client.close()
+            try:
+                self.ssh_client.close()
+            except Exception:
+                pass
             self.ssh_client = None
 
     def _create_instance(self):
@@ -650,15 +653,15 @@ class IBMVPCInstance:
         """
         logger.debug("Deleting VM instance {}".format(self.name))
         try:
-            resp = self.ibm_vpc_client.delete_instance(self.instance_id)
-            self.instance_id = None
-            self.ip_address = None
-            self.del_ssh_client()
+            self.ibm_vpc_client.delete_instance(self.instance_id)
         except ApiException as e:
             if e.code == 404:
                 pass
             else:
                 raise e
+        self.instance_id = None
+        self.ip_address = None
+        self.del_ssh_client()
 
     def _stop_instance(self):
         """
