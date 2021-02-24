@@ -33,7 +33,6 @@ from lithops.localhost.localhost import LocalhostHandler
 from lithops.utils import verify_runtime_name, iterchunks, setup_lithops_logger
 from lithops.standalone.utils import get_worker_setup_script
 from lithops.standalone.keeper import BudgetKeeper
-from lithops.standalone.standalone import StandaloneHandler
 
 
 setup_lithops_logger(logging.DEBUG, filename=STANDALONE_LOG_FILE)
@@ -53,37 +52,35 @@ MASTER_IP = None
 MP_MANAGER = mp.Manager()
 
 
-def is_worker_instance_ready(ssh_client):
+def is_worker_instance_ready(vm):
     """
     Checks if the VM instance is ready to receive ssh connections
     """
     try:
-        ssh_client.run_remote_command('id')
+        vm.get_ssh_client().run_remote_command('id')
     except Exception as e:
-        logger.debug('ssh connection to {} failed: {}'
-                     .format(ssh_client.ip_address, e))
-        ssh_client.close()
+        logger.debug('ssh to {} failed: {}'
+                     .format(vm.ip_address, e))
+        vm.del_ssh_client()
         return False
     return True
 
 
-def wait_worker_instance_ready(ssh_client):
+def wait_worker_instance_ready(vm):
     """
     Waits until the VM instance is ready to receive ssh connections
     """
-    ip_addr = ssh_client.ip_address
-    logger.info('Waiting worker VM instance {} to '
-                'become ready'.format(ip_addr))
+    logger.info('Waiting {} to become ready'.format(vm))
 
     start = time.time()
     while(time.time() - start < INSTANCE_START_TIMEOUT):
-        if is_worker_instance_ready(ssh_client):
-            logger.info('Worker VM instance {} ready in {} seconds'
-                        .format(ip_addr, round(time.time()-start, 2)))
+        if is_worker_instance_ready(vm):
+            logger.info('{} ready in {} seconds'
+                        .format(vm, round(time.time()-start, 2)))
             return True
         time.sleep(5)
 
-    msg = 'Worker VM readiness probe expired on {}'.format(ip_addr)
+    msg = 'Readiness probe expired on {}'.format(vm)
     logger.error(msg)
     raise TimeoutError(msg)
 
@@ -95,8 +92,7 @@ def setup_worker(worker_info, work_queue, job_key):
     Runs the job
     """
     instance_name, ip_address, instance_id = worker_info
-    logger.info('Setting up worker {} ({})'
-                .format(instance_name, ip_address))
+    logger.info('Starting setup for VM instance {}'.format(instance_name))
 
     vm = STANDALONE_HANDLER.backend.get_vm(instance_name)
     vm.ip_address = ip_address
@@ -105,35 +101,32 @@ def setup_worker(worker_info, work_queue, job_key):
     worker_ready = False
     retry = 0
 
-    logger.info(work_queue.empty())
-    logger.info(work_queue.qsize())
+    logger.info('Queue empty: {} - Queue size: {}'
+                .format(work_queue.empty(), work_queue.qsize()))
 
     while(not worker_ready and not work_queue.empty()
           and retry < MAX_INSTANCE_CREATE_RETRIES):
         try:
-            ssh_client = vm.get_ssh_client()
-            wait_worker_instance_ready(ssh_client)
+            wait_worker_instance_ready(vm)
             worker_ready = True
         except TimeoutError:  # VM not started in time
             if retry == MAX_INSTANCE_CREATE_RETRIES:
-                msg = 'Worker VM {} failed after {} retries.'.format(vm.name, retry)
+                msg = '{} readiness probe failed after {} retries.'.format(vm, retry)
                 logger.debug(msg)
                 raise Exception(msg)
-            logger.info('Recreating worker VM {}'.format(vm.name))
+            logger.info('Recreating VM instance {}'.format(vm.name))
             retry += 1
             vm.delete()
             vm.create()
-            logger.info('Setting up worker {} ({})' .format(vm.name, vm.ip_address))
 
     if work_queue.empty():
-        logger.info('Work queue is already empty. Skipping worker {}({})'
-                    .format(vm.name, vm.ip_address))
+        logger.info('Work queue is already empty. Skipping {}'.format(vm))
         return
 
     # upload zip lithops package
     logger.info('Uploading lithops files to {}'.format(vm))
-    ssh_client.upload_local_file('/opt/lithops/lithops_standalone.zip',
-                                 '/tmp/lithops_standalone.zip')
+    vm.get_ssh_client().upload_local_file('/opt/lithops/lithops_standalone.zip',
+                                          '/tmp/lithops_standalone.zip')
     logger.info('Executing lithops installation process on {}'.format(vm))
 
     vm_data = {'instance_name': vm.name,
@@ -143,9 +136,9 @@ def setup_worker(worker_info, work_queue, job_key):
                'job_key': job_key}
 
     script = get_worker_setup_script(STANDALONE_CONFIG, vm_data)
-    ssh_client.run_remote_command(script, run_async=True)
-    ssh_client.close()
-    logger.info('Worker installation process finished on {}'.format(vm))
+    vm.get_ssh_client().run_remote_command(script, run_async=True)
+    vm.del_ssh_client()
+    logger.info('Installation process finished on {}'.format(vm))
 
 
 def stop_job_process(job_key):
@@ -343,7 +336,7 @@ def main():
     BUDGET_KEEPER = BudgetKeeper(STANDALONE_CONFIG)
     BUDGET_KEEPER.start()
 
-    STANDALONE_HANDLER = StandaloneHandler(STANDALONE_CONFIG)
+    STANDALONE_HANDLER = BUDGET_KEEPER.sh
 
     server = WSGIServer(('0.0.0.0', STANDALONE_SERVICE_PORT),
                         app, log=app.logger)

@@ -32,13 +32,13 @@ class BudgetKeeper(threading.Thread):
         logger.info("Starting BudgetKeeper for {} ({}), instance ID: {}"
                     .format(self.instance_name, self.ip_address, self.instance_id))
 
-        sh = StandaloneHandler(self.standalone_config)
+        self.sh = StandaloneHandler(self.standalone_config)
 
-        self.auto_dismantle = sh.auto_dismantle
-        self.soft_dismantle_timeout = sh.soft_dismantle_timeout
-        self.hard_dismantle_timeout = sh.hard_dismantle_timeout
+        self.auto_dismantle = self.sh.auto_dismantle
+        self.soft_dismantle_timeout = self.sh.soft_dismantle_timeout
+        self.hard_dismantle_timeout = self.sh.hard_dismantle_timeout
 
-        self.vm = sh.backend.get_vm(self.instance_name)
+        self.vm = self.sh.backend.get_vm(self.instance_name)
         self.vm.ip_address = self.ip_address
         self.vm.instance_id = self.instance_id
         self.vm.delete_on_dismantle = False if 'master' in self.instance_name else True
