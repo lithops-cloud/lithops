@@ -435,13 +435,15 @@ class _NanomsgConnection(_ConnectionBase):
 
         addr = self._client.get(self._subhandle)
 
-        retry = 5
+        retry = 15
+        retry_sleep = 1
         while addr is None:
-            time.sleep(1)
+            time.sleep(retry_sleep)
+            retry_sleep += 0.5
             addr = self._client.get(self._subhandle)
             retry -= 1
             if retry == 0:
-                raise Exception('Server address could not be fetched')
+                raise Exception('Server address could not be fetched for handle {}'.format(self._subhandle))
 
         addr = addr.decode('utf-8')
         self._req.dial(addr)
@@ -477,7 +479,13 @@ class Listener(object):
     """
 
     def __init__(self, address=None, family=None, backlog=1, authkey=None):
-        self._listener = _RedisListener(address, family, backlog)
+        conn_type = mp_config.get_parameter(mp_config.PIPE_CONNECTION_TYPE)
+        if conn_type == REDIS_LIST_CONN:
+            self._listener = _RedisListener(address, family, backlog)
+        elif conn_type == NANOMSG_CONN:
+            self._listener = _NanomsgListener(address, family, backlog)
+        else:
+            raise Exception('Unknown connection type {}'.format(conn_type))
 
         if authkey is not None and not isinstance(authkey, bytes):
             raise TypeError('authkey should be a byte string')
@@ -514,7 +522,13 @@ class Listener(object):
 
 
 def Client(address, family=None, authkey=None):
-    return _RedisClient(address)
+    conn_type = mp_config.get_parameter(mp_config.PIPE_CONNECTION_TYPE)
+    if conn_type == REDIS_LIST_CONN:
+        return _RedisClient(address)
+    elif conn_type == NANOMSG_CONN:
+        return _NanomsgClient(address)
+    else:
+        raise Exception('Unknown connection type {}'.format(conn_type))
 
 
 def Pipe(duplex=True, conn_type=None):
@@ -547,7 +561,7 @@ def Pipe(duplex=True, conn_type=None):
 # Definitions for connections based on sockets
 #
 
-class _RedisListener(object):
+class _RedisListener:
     def __init__(self, address, family=None, backlog=1):
         self._address = address
         self._client = util.get_redis_client()
@@ -610,6 +624,15 @@ def _RedisClient(address):
     ack = c.recv()
     assert ack == b'OK'
     return c
+
+
+class _NanomsgListener:
+    def __init__(self, address, family, backlog):
+        pass
+
+
+def _NanomsgClient(address):
+    pass
 
 
 #
