@@ -95,6 +95,9 @@ def setup_worker(worker_info, work_queue, job_key):
     Runs the job
     """
     instance_name, ip_address, instance_id = worker_info
+    logger.info('Setting up worker {} ({})'
+                .format(instance_name, ip_address))
+
     vm = STANDALONE_HANDLER.backend.get_vm(instance_name)
     vm.ip_address = ip_address
     vm.instance_id = instance_id
@@ -102,11 +105,12 @@ def setup_worker(worker_info, work_queue, job_key):
     worker_ready = False
     retry = 0
 
+    logger.info(work_queue.empty())
+    logger.info(work_queue.qsize())
+
     while(not worker_ready and not work_queue.empty()
           and retry < MAX_INSTANCE_CREATE_RETRIES):
         try:
-            logger.info('Going to setup {}, IP address {}'
-                        .format(vm.name, vm.ip_address))
             ssh_client = vm.get_ssh_client()
             wait_worker_instance_ready(ssh_client)
             worker_ready = True
@@ -119,14 +123,18 @@ def setup_worker(worker_info, work_queue, job_key):
             retry += 1
             vm.delete()
             vm.create()
+            logger.info('Setting up worker {} ({})' .format(vm.name, vm.ip_address))
 
     if work_queue.empty():
+        logger.info('Work queue is already empty. Skipping worker {}({})'
+                    .format(vm.name, vm.ip_address))
         return
 
     # upload zip lithops package
-    logger.info('Uploading lithops files to VM instance {}'.format(ip_address))
-    ssh_client.upload_local_file('/opt/lithops/lithops_standalone.zip', '/tmp/lithops_standalone.zip')
-    logger.info('Executing lithops installation process on VM instance {}'.format(ip_address))
+    logger.info('Uploading lithops files to {}'.format(vm))
+    ssh_client.upload_local_file('/opt/lithops/lithops_standalone.zip',
+                                 '/tmp/lithops_standalone.zip')
+    logger.info('Executing lithops installation process on {}'.format(vm))
 
     vm_data = {'instance_name': vm.name,
                'ip_address': vm.ip_address,
@@ -137,6 +145,7 @@ def setup_worker(worker_info, work_queue, job_key):
     script = get_worker_setup_script(STANDALONE_CONFIG, vm_data)
     ssh_client.run_remote_command(script, run_async=True)
     ssh_client.close()
+    logger.info('Worker installation process finished on {}'.format(vm))
 
 
 def stop_job_process(job_key):
@@ -162,7 +171,7 @@ def run_job_process(job_payload, work_queue):
     job_key = job_payload['job_key']
     call_ids = job_payload['call_ids']
     chunksize = job_payload['chunksize']
-    workers = job_payload['woreker_instances']
+    workers = job_payload['worker_instances']
 
     for call_ids_range in iterchunks(call_ids, chunksize):
         task_payload = copy.deepcopy(job_payload)
@@ -176,6 +185,8 @@ def run_job_process(job_payload, work_queue):
     with ThreadPoolExecutor(len(workers)) as executor:
         for worker_info in workers:
             executor.submit(setup_worker, worker_info, work_queue, job_key)
+
+    logger.info('All workers set up for job {}'.format(job_key))
 
     while not work_queue.empty():
         time.sleep(1)

@@ -175,7 +175,7 @@ class StandaloneHandler:
         if self.exec_mode == 'create':
             worker_instances = [(inst.name, inst.ip_address, inst.instance_id)
                                 for inst in self.backend.workers]
-            job_payload['woreker_instances'] = worker_instances
+            job_payload['worker_instances'] = worker_instances
 
         cmd = ('curl http://127.0.0.1:{}/run -d {} '
                '-H \'Content-Type: application/json\' -X POST'
