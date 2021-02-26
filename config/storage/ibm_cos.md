@@ -26,7 +26,7 @@ Alternative to using region, you can configre public and private endpoints as fo
 
     ```yaml
 	 ibm_cos:
-        private_endpoint: https://s3.private.<region>cloud-object-storage.appdomain.cloud
+        private_endpoint: https://s3.private.<region>.cloud-object-storage.appdomain.cloud
         endpoint: https://s3.<region>.cloud-object-storage.appdomain.cloud
     ```
 
