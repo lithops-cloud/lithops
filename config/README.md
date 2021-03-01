@@ -4,7 +4,7 @@ To work with Lithops you must configure both compute backend and a storage. Fail
 
 Lithops can work with almost any compute backend and storage any can be used with almost any cloud provider. You have multiple options to choose compute backend and storage backend based on your needs. 
 
-After you choose your compute and storage engine, you need to configure Lithops so it can use choosen compute and storage. Lithops configuration can be provided either in configuration file or provided in runtime via Python dictionary. 
+After you choose your compute and storage engine, you need to configure Lithops so it can use chosen compute and storage. Lithops configuration can be provided either in configuration file or provided in runtime via Python dictionary. 
 
 ## Lithops configuration
 
@@ -109,7 +109,7 @@ def hello_world(name):
 
 if __name__ == '__main__':
     fexec = lithops.FunctionExecutor()
-    fexec.call_async(hello, 'World')
+    fexec.call_async(hello_world, 'World')
     print(fexec.get_result())
 ```
 
@@ -133,7 +133,7 @@ def hello_world(name):
 
 if __name__ == '__main__':
     fexec = lithops.FunctionExecutor(config=config)
-    fexec.call_async(hello, 'World')
+    fexec.call_async(hello_world, 'World')
     print(fexec.get_result())
 ```
 
