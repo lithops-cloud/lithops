@@ -25,7 +25,7 @@ The easiest apporach is to let Lithops to choose the right endpoint by itself. T
 Alternative to using region, you can configre public and private endpoints as follows
 
     ```yaml
-	 ibm_cos:
+    ibm_cos:
         private_endpoint: https://s3.private.<region>.cloud-object-storage.appdomain.cloud
         endpoint: https://s3.<region>.cloud-object-storage.appdomain.cloud
     ```
