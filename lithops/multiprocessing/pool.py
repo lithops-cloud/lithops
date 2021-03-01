@@ -14,12 +14,15 @@
 #
 import queue
 import itertools
+import logging
 
 from lithops import FunctionExecutor
 
 from . import util
 from . import config as mp_config
 from .process import CloudWorker, CloudProcess
+
+logger = logging.getLogger(__name__)
 
 
 #
@@ -131,7 +134,7 @@ class Pool(object):
 
         if mp_config.get_parameter(mp_config.STREAM_STDOUT):
             stream = self._executor.executor_id
-            util.debug('Log streaming enabled, stream name: {}'.format(stream))
+            logger.debug('Log streaming enabled, stream name: {}'.format(stream))
             self._remote_logger = util.RemoteLoggingFeed(stream)
             self._remote_logger.start()
             cloud_worker.log_stream = stream
@@ -170,7 +173,7 @@ class Pool(object):
 
         if mp_config.get_parameter(mp_config.STREAM_STDOUT):
             stream = self._executor.executor_id
-            util.debug('Log streaming enabled, stream name: {}'.format(stream))
+            logger.debug('Log streaming enabled, stream name: {}'.format(stream))
             self._remote_logger = util.RemoteLoggingFeed(stream)
             self._remote_logger.start()
             cloud_worker.log_stream = stream
@@ -187,19 +190,19 @@ class Pool(object):
         raise NotImplementedError('pool objects cannot be passed between processes or pickled')
 
     def close(self):
-        util.debug('closing pool')
+        logger.debug('closing pool')
         if self._state == RUN:
             self._state = CLOSE
 
     def terminate(self):
-        util.debug('terminating pool')
+        logger.debug('terminating pool')
         self._state = TERMINATE
         if self._remote_logger:
             self._remote_logger.stop()
             self._remote_logger = None
 
     def join(self):
-        util.debug('joining pool')
+        logger.debug('joining pool')
         assert self._state in (CLOSE, TERMINATE)
 
     def __enter__(self):

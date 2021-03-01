@@ -5,11 +5,13 @@
 # Modifications Copyright (c) 2020 Cloudlab URV
 #
 
-import os
+import logging
 import lithops
 
 from . import process
 from . import pool
+
+logger = logging.getLogger(__name__)
 
 
 #

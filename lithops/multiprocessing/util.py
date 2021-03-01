@@ -13,60 +13,12 @@ import weakref
 import redis
 import uuid
 import logging
-import lithops
 import sys
 import threading
 import io
 from lithops.config import load_config
 
-#
-# Logging
-#
-
-NOTSET = 0
-SUBDEBUG = 5
-DEBUG = 10
-INFO = 20
-SUBWARNING = 25
-
-_logger = logging.getLogger(lithops.__name__)
-_log_to_stderr = False
-
-
-def sub_debug(msg, *args):
-    if _logger:
-        _logger.log(SUBDEBUG, msg, *args)
-
-
-def debug(msg, *args):
-    if _logger:
-        _logger.log(DEBUG, msg, *args)
-
-
-def info(msg, *args):
-    if _logger:
-        _logger.log(INFO, msg, *args)
-
-
-def sub_warning(msg, *args):
-    if _logger:
-        _logger.log(SUBWARNING, msg, *args)
-
-
-def get_logger():
-    return _logger
-
-
-def log_to_stderr():
-    raise NotImplementedError()
-
-
-#
-# Process function wrapper
-#
-
-def func_wrapper(func):
-    pass
+logger = logging.getLogger(__name__)
 
 
 #
@@ -77,6 +29,7 @@ class PicklableRedis(redis.StrictRedis):
     def __init__(self, *args, **kwargs):
         self._args = args
         self._kwargs = kwargs
+        logger.debug('Creating picklable Redis client')
         super().__init__(*self._args, **self._kwargs)
 
     def __getstate__(self):
@@ -210,6 +163,7 @@ class RemoteLogIOBuffer:
     def flush(self):
         self._buff.seek(self._offset)
         log = self._buff.read()
+        logger.debug('Flush remote logging stream (len %i)', len(log))
         self._redis.publish(self._stream, log)
         self._offset = self._buff.tell()
         # self._buff = io.StringIO()
@@ -220,10 +174,12 @@ class RemoteLogIOBuffer:
         import sys
         self._old_stdout = sys.stdout
         sys.stdout = self
+        logger.debug('Starting remote logging feed to stream %s', self._stream)
 
     def stop(self):
         import sys
         sys.stdout = self._old_stdout
+        logger.debug('Stopping remote logging feed to stream %s', self._stream)
 
 
 class RemoteLoggingFeed:
@@ -233,7 +189,7 @@ class RemoteLoggingFeed:
         self._enabled = False
 
     def _logger_monitor(self, stream):
-        debug('Starting logger monitor thread for stream {}'.format(stream))
+        logger.debug('Starting logger feeder thread for stream %s', stream)
         redis_pubsub = get_redis_client().pubsub()
         redis_pubsub.subscribe(stream)
 
@@ -244,7 +200,7 @@ class RemoteLoggingFeed:
             if 'data' in msg:
                 sys.stdout.write(msg['data'].decode('utf-8'))
 
-        debug('Logger monitor thread for stream {} finished'.format(stream))
+        logger.debug('Logger monitor thread for stream %s finished', stream)
 
     def start(self):
         # self._logger_thread.daemon = True

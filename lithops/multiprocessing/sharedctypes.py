@@ -11,13 +11,12 @@
 
 import ctypes
 import cloudpickle
+import logging
 
 from . import util
 from . import get_context
 
-#
-#
-#
+logger = logging.getLogger(__name__)
 
 typecode_to_type = {
     'c': ctypes.c_char, 'u': ctypes.c_wchar,
@@ -30,16 +29,13 @@ typecode_to_type = {
 }
 
 
-#
-#
-#
-
 class SharedCTypeProxy:
     def __init__(self, ctype, *args, **kwargs):
         self._typeid = ctype.__name__
         self._oid = '{}-{}'.format(self._typeid, util.get_uuid())
         self._client = util.get_redis_client()
         self._ref = util.RemoteReference(self._oid, client=self._client)
+        logger.debug('Requested creation on shared C type %s', self._oid)
 
 
 class SynchronizedSharedCTypeProxy(SharedCTypeProxy):
@@ -73,6 +69,7 @@ class RawValueProxy(SharedCTypeProxy):
     def __setattr__(self, key, value):
         if key == 'value':
             obj = cloudpickle.dumps(value)
+            logger.debug('Set raw value %s of size %i B', self._oid, len(obj))
             self._client.set(self._oid, obj)
         else:
             super().__setattr__(key, value)
@@ -81,8 +78,10 @@ class RawValueProxy(SharedCTypeProxy):
         if item == 'value':
             obj = self._client.get(self._oid)
             if not obj:
+                logger.debug('Get value %s returned None', self._oid)
                 value = 0
             else:
+                logger.debug('Get value %s of size %i B', self._oid, len(obj))
                 value = cloudpickle.loads(obj)
             return value
         else:
@@ -111,10 +110,12 @@ class RawArrayProxy(SharedCTypeProxy):
     def __getitem__(self, i):
         if isinstance(i, slice):
             start, stop, step = i.indices(self.__len__())
+            logger.debug('Requested get list slice from %i to %i', start, stop)
             objl = self._client.lrange(self._oid, start, stop)
             return [cloudpickle.loads(obj) for obj in objl]
         else:
             obj = self._client.lindex(self._oid, i)
+            logger.debug('Requested get list index %i of size %i B', i, len(obj))
             return cloudpickle.loads(obj)
 
     def __setitem__(self, i, value):
@@ -124,6 +125,7 @@ class RawArrayProxy(SharedCTypeProxy):
                 self[i + start] = val
         else:
             obj = cloudpickle.dumps(value)
+            logger.debug('Requested set list index %i of size %i B', i, len(obj))
             self._client.lset(self._oid, i, obj)
 
 
@@ -143,6 +145,7 @@ class SynchronizedStringProxy(SynchronizedArrayProxy):
         if key == 'value':
             for i, elem in enumerate(value):
                 obj = cloudpickle.dumps(elem)
+                logger.debug('Requested set string index %i of size %i B', i, len(obj))
                 self._client.lset(self._oid, i, obj)
         else:
             super().__setattr__(key, value)
@@ -156,6 +159,7 @@ class SynchronizedStringProxy(SynchronizedArrayProxy):
     def __getitem__(self, i):
         if isinstance(i, slice):
             start, stop, step = i.indices(self.__len__())
+            logger.debug('Requested get string slice from %i to %i', start, stop)
             objl = self._client.lrange(self._oid, start, stop)
             return bytes([cloudpickle.loads(obj) for obj in objl])
         else:
@@ -172,6 +176,7 @@ def RawValue(typecode_or_type, initial_value=None):
     """
     Returns a ctypes object allocated from shared memory
     """
+    logger.debug('Requested creation of resource RawValue')
     type_ = typecode_to_type.get(typecode_or_type, typecode_or_type)
     obj = RawValueProxy(type_)
     if initial_value:
@@ -183,6 +188,7 @@ def RawArray(typecode_or_type, size_or_initializer):
     """
     Returns a ctypes array allocated from shared memory
     """
+    logger.debug('Requested creation of resource RawArray')
     type_ = typecode_to_type.get(typecode_or_type, typecode_or_type)
     if type_ is ctypes.c_char:
         raise NotImplementedError()
@@ -205,6 +211,7 @@ def Value(typecode_or_type, initial_value=None, lock=True, ctx=None):
     """
     Return a synchronization wrapper for a Value
     """
+    logger.debug('Requested creation of resource Value')
     type_ = typecode_to_type.get(typecode_or_type, typecode_or_type)
     obj = SynchronizedValueProxy(type_)
     if initial_value is not None:
@@ -216,6 +223,7 @@ def Array(typecode_or_type, size_or_initializer, *, lock=True, ctx=None):
     """
     Return a synchronization wrapper for a RawArray
     """
+    logger.debug('Requested creation of resource Array')
     type_ = typecode_to_type.get(typecode_or_type, typecode_or_type)
     if type_ is ctypes.c_char:
         obj = SynchronizedStringProxy(type_)

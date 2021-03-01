@@ -13,13 +13,15 @@ __all__ = ['Queue', 'SimpleQueue', 'JoinableQueue']
 
 import os
 import cloudpickle
+import logging
 
 from queue import Empty, Full
 
 from . import connection
 from . import util
 from . import synchronize
-from .util import debug
+
+logger = logging.getLogger(__name__)
 
 
 #
@@ -57,7 +59,7 @@ class Queue:
             return True
 
     def _after_fork(self):
-        debug('Queue._after_fork()')
+        logger.debug('Queue._after_fork()')
         self._closed = False
         self._close = None
         self._send_bytes = self._writer.send_bytes
@@ -114,11 +116,11 @@ class Queue:
                 close()
 
     def join_thread(self):
-        debug('Queue.join_thread()')
+        logger.debug('Queue.join_thread()')
         assert self._closed
 
     def cancel_join_thread(self):
-        debug('Queue.cancel_join_thread()')
+        logger.debug('Queue.cancel_join_thread()')
         pass
 
 

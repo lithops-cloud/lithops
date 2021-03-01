@@ -16,6 +16,7 @@
 import itertools
 import traceback
 import os
+import logging
 import multiprocessing as _mp
 
 from lithops import FunctionExecutor
@@ -34,7 +35,7 @@ except OSError:
 
 _process_counter = itertools.count(1)
 _children = set()
-logger = util.get_logger()
+logger = logging.getLogger(__name__)
 
 
 #

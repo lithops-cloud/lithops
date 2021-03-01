@@ -14,14 +14,17 @@
 # Imports
 #
 
+import redis
+import inspect
+import cloudpickle
+import logging
+
 from . import pool
 from . import synchronize
 from . import queues
 from . import util
 
-import redis
-import inspect
-import cloudpickle
+logger = logging.getLogger(__name__)
 
 _builtin_types = {
     'list',
@@ -125,7 +128,7 @@ class BaseManager:
         """
 
         def temp(self, *args, **kwargs):
-            util.debug('requesting creation of a shared %r object', typeid)
+            logger.debug('requesting creation of a shared %r object', typeid)
 
             if typeid in _builtin_types:
                 proxy = proxytype(*args, **kwargs)
