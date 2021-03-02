@@ -98,13 +98,14 @@ class Pool(object):
         be iterables as well and will be unpacked as arguments. Hence
         `func` and (a, b) becomes func(a, b).
         """
-        return self._map_async(func, iterable, chunksize=chunksize).get()
+        return self._map_async(func, iterable, chunksize=chunksize, starmap=True).get()
 
     def starmap_async(self, func, iterable, chunksize=None, callback=None, error_callback=None):
         """
         Asynchronous version of `starmap()` method.
         """
-        return self._map_async(func, iterable, chunksize=chunksize, callback=callback, error_callback=error_callback)
+        return self._map_async(func, iterable, chunksize=chunksize, callback=callback, error_callback=error_callback,
+                               starmap=True)
 
     def imap(self, func, iterable, chunksize=1):
         """
@@ -150,7 +151,7 @@ class Pool(object):
         """
         return self._map_async(func, iterable, chunksize, callback, error_callback)
 
-    def _map_async(self, func, iterable, chunksize=None, callback=None, error_callback=None):
+    def _map_async(self, func, iterable, chunksize=None, callback=None, error_callback=None, starmap=False):
         """
         Helper function to implement map, starmap and their async counterparts.
         """
@@ -161,12 +162,10 @@ class Pool(object):
 
         cloud_worker = CloudWorker(func=func, initializer=self._initializer, initargs=self._initargs)
 
-        if isinstance(iterable[0], dict):
-            fmt_args = [{'args': (), 'kwargs': kwargs} for kwargs in iterable]
-        elif isinstance(iterable[0], tuple) or isinstance(iterable[0], list):
-            fmt_args = [{'args': args, 'kwargs': {}} for args in iterable]
-        else:
+        if not starmap:
             fmt_args = [{'args': (args, ), 'kwargs': {}} for args in iterable]
+        else:
+            fmt_args = [{'args': args, 'kwargs': {}} for args in iterable]
 
         if mp_config.get_parameter(mp_config.STREAM_STDOUT):
             stream = self._executor.executor_id
