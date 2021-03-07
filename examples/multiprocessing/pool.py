@@ -28,7 +28,7 @@ def sleep_seconds(s):
 if __name__ == '__main__':
     with Pool() as pool:
 
-        # Synchronously execute function square remotely
+        # Synchronously execute function hello remotely
         res = pool.apply(hello, ('World', ))
         print(res)  # print "Hello World!"
 
