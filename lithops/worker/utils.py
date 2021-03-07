@@ -86,7 +86,7 @@ def get_runtime_preinstalls():
     return runtime_meta
 
 
-class LogStream:
+class LogStream(object):
     def __init__(self, stream):
         self._old_stdout = sys.stdout
         self._stream = stream
@@ -98,3 +98,6 @@ class LogStream:
 
     def flush(self):
         self._stream.flush()
+
+    def fileno(self):
+        return self._old_stdout.fileno()
