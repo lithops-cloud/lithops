@@ -1,6 +1,18 @@
 # Changelog
 
-## [v2.2.17.dev0]
+## [v2.3.1.dev0]
+
+### Added
+- 
+
+### Changed
+- 
+
+### Fixes
+- [Cli] Fixed --config param in lithops cli
+
+
+## [v2.3.0]
 
 ### Added
 - [Core] Added multiprocessing support in workers
