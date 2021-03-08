@@ -628,7 +628,7 @@ class KnativeServingBackend:
             raise Exception("Lithops runtime is not deployed in your k8s cluster")
         else:
             logger.debug('ExecutorID {} | JobID {} - Function call {} failed ({}). Retrying request'
-                         .format(exec_id, job_id, call_id, resp_status))
+                         .format(exec_id, job_id, ', '.join(call_ids), resp_status))
 
     def get_runtime_key(self, docker_image_name, runtime_memory):
         """
