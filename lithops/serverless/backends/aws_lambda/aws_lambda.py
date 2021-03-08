@@ -496,19 +496,6 @@ class AWSLambdaBackend:
             else:
                 raise Exception(response)
 
-    def invoke_with_result(self, runtime_name, runtime_memory, payload={}):
-        """
-        Invoke lambda function and wait for result
-        """
-        function_name = self._format_action_name(runtime_name, runtime_memory)
-
-        response = self.lambda_client.invoke(
-            FunctionName=function_name,
-            Payload=json.dumps(payload)
-        )
-
-        return json.loads(response['Payload'].read())
-
     def get_runtime_key(self, runtime_name, runtime_memory):
         """
         Method that creates and returns the runtime key.
@@ -527,6 +514,11 @@ class AWSLambdaBackend:
         """
         logger.debug('Extracting Python modules list from: {}'.format(runtime_name))
 
-        meta = self.invoke_with_result(runtime_name, runtime_memory, payload={'get_preinstalls': {}})
+        function_name = self._format_action_name(runtime_name, runtime_memory)
 
-        return meta
+        response = self.lambda_client.invoke(
+            FunctionName=function_name,
+            Payload=json.dumps({'get_preinstalls': {}})
+        )
+
+        return json.loads(response['Payload'].read())
