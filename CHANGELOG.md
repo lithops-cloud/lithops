@@ -10,6 +10,7 @@
 
 ### Fixes
 - [Cli] Fixed --config param in lithops cli
+- [Standalone] Fixed internal executions
 
 
 ## [v2.3.0]
