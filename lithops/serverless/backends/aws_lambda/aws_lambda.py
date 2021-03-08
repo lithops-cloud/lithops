@@ -54,7 +54,7 @@ class AWSLambdaBackend:
     A wrap-up around AWS Boto3 API
     """
 
-    def __init__(self, aws_lambda_config, storage_config):
+    def __init__(self, aws_lambda_config, internal_storage):
         """
         Initialize AWS Lambda Backend
         """
@@ -74,7 +74,7 @@ class AWSLambdaBackend:
                                          region_name=self.region_name)
         self.lambda_client = self.aws_session.client('lambda', region_name=self.region_name)
 
-        self.internal_storage = InternalStorage(storage_config)
+        self.internal_storage = internal_storage
 
         sts_client = self.aws_session.client('sts', region_name=self.region_name)
         self.account_id = sts_client.get_caller_identity()["Account"]
@@ -302,7 +302,7 @@ class AWSLambdaBackend:
             if res != 0:
                 raise Exception('Could not push image {} to ECR repository {}'.format(image_name, ecr_repo))
         else:
-            # requiremets.txt runtime
+            # requirements.txt runtime
             with open(runtime_file, 'r') as req_file:
                 requirements = req_file.read()
             self.internal_storage.put_data('/'.join([lambda_config.USER_RUNTIME_PREFIX, runtime_name]), requirements)
@@ -382,7 +382,7 @@ class AWSLambdaBackend:
             )
 
         if response['ResponseMetadata']['HTTPStatusCode'] in [200, 201]:
-            logger.debug('OK --> Created action {}'.format(runtime_name))
+            logger.debug('OK --> Created lambda function {}'.format(runtime_name))
 
             retries, sleep_seconds = (15, 25) if 'vpc' in self.aws_lambda_config else (30, 5)
             while retries > 0:
@@ -392,8 +392,8 @@ class AWSLambdaBackend:
                 state = response['Configuration']['State']
                 if state == 'Pending':
                     time.sleep(sleep_seconds)
-                    logger.debug(
-                        'Function is being deployed... (status: {})'.format(response['Configuration']['State']))
+                    logger.debug('Function is being deployed... '
+                                 '(status: {})'.format(response['Configuration']['State']))
                     retries -= 1
                     if retries == 0:
                         raise Exception('Function not deployed: {}'.format(response))

@@ -135,7 +135,7 @@ class FunctionExecutor:
         elif mode == SERVERLESS:
             serverless_config = extract_serverless_config(self.config)
             self.compute_handler = ServerlessHandler(serverless_config,
-                                                     storage_config)
+                                                     self.internal_storage)
 
             if self.config[mode].get('customized_runtime'):
                 self.invoker = CustomizedRuntimeInvoker(self.config,

@@ -37,7 +37,7 @@ SCOPES = ('https://www.googleapis.com/auth/cloud-platform',)
 
 
 class GCPCloudRunBackend:
-    def __init__(self, cloudrun_config, storage_config):
+    def __init__(self, cloudrun_config, internal_storage):
         self.credentials_path = cloudrun_config['credentials_path']
         self.service_account = cloudrun_config['service_account']
         self.project_name = cloudrun_config['project_name']

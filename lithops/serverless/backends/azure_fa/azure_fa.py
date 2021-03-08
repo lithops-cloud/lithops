@@ -37,7 +37,7 @@ class AzureFunctionAppBackend:
     A wrap-up around Azure Function Apps backend.
     """
 
-    def __init__(self, config, storage_config):
+    def __init__(self, config, internal_storage):
         logger.debug("Creating Azure Functions client")
         self.name = 'azure_fa'
         self.azure_config = config
