@@ -278,6 +278,7 @@ class AWSLambdaBackend:
             res = os.system(cmd)
             if res != 0:
                 raise Exception('There was an error building the runtime')
+            os.remove('lithops_lambda.zip')
 
             ecr_repo = '{}.dkr.ecr.{}.amazonaws.com'.format(self.account_id, self.region_name)
 
@@ -289,7 +290,10 @@ class AWSLambdaBackend:
             if res != 0:
                 raise Exception('Could not authorize Docker for ECR')
 
-            self.ecr_client.create_repository(repositoryName=image_name)
+            try:
+                self.ecr_client.create_repository(repositoryName=image_name)
+            except self.ecr_client.exceptions.RepositoryAlreadyExistsException as e:
+                logger.info('Repository {} already exists'.format(image_name))
 
             cmd = '{} tag {} {}/{} && {} push {}/{}'.format(lambda_config.DOCKER_PATH, image_name, ecr_repo, image_name,
                                                             lambda_config.DOCKER_PATH, ecr_repo, image_name)
