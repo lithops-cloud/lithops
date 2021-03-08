@@ -27,7 +27,7 @@ from lithops.scripts.tests import print_help, run_tests
 from lithops.utils import setup_lithops_logger, verify_runtime_name, sizeof_fmt
 from lithops.config import get_mode, default_config, extract_storage_config,\
     extract_serverless_config, extract_standalone_config,\
-    extract_localhost_config
+    extract_localhost_config, load_yaml_config
 from lithops.constants import CACHE_DIR, LITHOPS_TEMP_DIR, RUNTIMES_PREFIX,\
     JOBS_PREFIX, LOCALHOST, SERVERLESS, STANDALONE, LOGS_DIR, FN_LOG_FILE
 from lithops.storage import InternalStorage
@@ -47,7 +47,7 @@ def lithops_cli():
 
 
 @lithops_cli.command('clean')
-@click.option('--config', '-c', default=None, help='use json config file')
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--mode', '-m', default=None,
               type=click.Choice([SERVERLESS, LOCALHOST, STANDALONE], case_sensitive=True),
               help='execution mode')
@@ -55,6 +55,9 @@ def lithops_cli():
 @click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 def clean(config, mode, backend, storage, debug):
+    if config:
+        config = load_yaml_config(config)
+
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
     logger.info('Cleaning all Lithops information')
@@ -95,7 +98,7 @@ def clean(config, mode, backend, storage, debug):
 
 
 @lithops_cli.command('test')
-@click.option('--config', '-c', default=None, help='use json config file')
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--mode', '-m', default=None,
               type=click.Choice([SERVERLESS, LOCALHOST, STANDALONE], case_sensitive=True),
               help='execution mode')
@@ -103,6 +106,9 @@ def clean(config, mode, backend, storage, debug):
 @click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 def test_function(config, mode, backend, storage, debug):
+    if config:
+        config = load_yaml_config(config)
+
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
 
@@ -123,7 +129,7 @@ def test_function(config, mode, backend, storage, debug):
 
 @lithops_cli.command('verify')
 @click.option('--test', '-t', default='all', help='run a specific test, type "-t help" for tests list')
-@click.option('--config', '-c', default=None, help='use json config file')
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--mode', '-m', default=None,
               type=click.Choice([SERVERLESS, LOCALHOST, STANDALONE], case_sensitive=True),
               help='execution mode')
@@ -131,6 +137,9 @@ def test_function(config, mode, backend, storage, debug):
 @click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 def verify(test, config, mode, backend, storage, debug):
+    if config:
+        config = load_yaml_config(config)
+
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
 
@@ -285,13 +294,16 @@ def runtime(ctx):
 
 @runtime.command('create')
 @click.argument('name')
-@click.option('--config', '-c', default=None, help='use json config file')
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--memory', default=None, help='memory used by the runtime', type=int)
 @click.option('--timeout', default=None, help='runtime timeout', type=int)
 def create(name, storage, backend, memory, timeout, config):
     """ Create a serverless runtime """
+    if config:
+        config = load_yaml_config(config)
+
     setup_lithops_logger(logging.DEBUG)
     logger.info('Creating new lithops runtime: {}'.format(name))
 
@@ -322,10 +334,13 @@ def create(name, storage, backend, memory, timeout, config):
 @runtime.command('build')
 @click.argument('name')
 @click.option('--file', '-f', default=None, help='file needed to build the runtime')
-@click.option('--config', '-c', default=None, help='use json config file')
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
 def build(name, file, config, backend):
     """ build a serverless runtime. """
+    if config:
+        config = load_yaml_config(config)
+
     verify_runtime_name(name)
     setup_lithops_logger(logging.DEBUG)
 
@@ -343,11 +358,14 @@ def build(name, file, config, backend):
 
 @runtime.command('update')
 @click.argument('name')
-@click.option('--config', '-c', default=None, help='use json config file')
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--storage', '-s', default=None, help='storage backend')
 def update(name, config, backend, storage):
     """ Update a serverless runtime """
+    if config:
+        config = load_yaml_config(config)
+
     verify_runtime_name(name)
     setup_lithops_logger(logging.DEBUG)
 
@@ -381,11 +399,14 @@ def update(name, config, backend, storage):
 
 @runtime.command('delete')
 @click.argument('name')
-@click.option('--config', '-c', default=None, help='use json config file')
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--storage', '-s', default=None, help='storage backend')
 def delete(name, config, backend, storage):
     """ delete a serverless runtime """
+    if config:
+        config = load_yaml_config(config)
+
     verify_runtime_name(name)
     setup_lithops_logger(logging.DEBUG)
 

@@ -177,13 +177,17 @@ class StandaloneHandler:
                                 for inst in self.backend.workers]
             job_payload['worker_instances'] = worker_instances
 
-        cmd = ('curl http://127.0.0.1:{}/run -d {} '
-               '-H \'Content-Type: application/json\' -X POST'
-               .format(STANDALONE_SERVICE_PORT,
-                       shlex.quote(json.dumps(job_payload))))
+        if self.is_lithops_worker:
+            url = "http://127.0.0.1:{}/run".format(STANDALONE_SERVICE_PORT)
+            requests.post(url, data=json.dumps(job_payload))
+        else:
+            cmd = ('curl http://127.0.0.1:{}/run -d {} '
+                   '-H \'Content-Type: application/json\' -X POST'
+                   .format(STANDALONE_SERVICE_PORT,
+                           shlex.quote(json.dumps(job_payload))))
+            self.backend.master.get_ssh_client().run_remote_command(cmd)
+            self.backend.master.del_ssh_client()
 
-        self.backend.master.get_ssh_client().run_remote_command(cmd)
-        self.backend.master.del_ssh_client()
         logger.debug('Job invoked on {}'.format(self.backend.master))
 
         self.jobs.append(job_payload['job_key'])
