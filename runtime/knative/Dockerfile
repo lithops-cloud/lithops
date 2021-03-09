@@ -19,6 +19,10 @@ RUN pip install --upgrade setuptools six pip \
         gevent \
         glob2 \
         ibm-cos-sdk \
+        google-cloud-storage \
+        google-cloud-pubsub \
+        azure-storage-blob \
+        azure-storage-queue \
         redis \
         requests \
         PyYAML \
@@ -26,8 +30,7 @@ RUN pip install --upgrade setuptools six pip \
         numpy \
         cloudpickle \
         ps-mem \
-        tblib \
-        namegenerator
+        tblib
 
 ENV CONCURRENCY 4
 ENV TIMEOUT 600
