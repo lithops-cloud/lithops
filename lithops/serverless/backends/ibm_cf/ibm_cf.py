@@ -54,7 +54,7 @@ class IBMCloudFunctionsBackend:
         logger.debug("Set IBM CF Namespace to {}".format(self.namespace))
         logger.debug("Set IBM CF Endpoint to {}".format(self.endpoint))
 
-        self.user_key = self.api_key[:5] if self.api_key else self.iam_api_key[:5]
+        self.user_key = self.api_key.split(':')[1][:4] if self.api_key else self.iam_api_key[:4]
         self.package = 'lithops_v{}_{}'.format(__version__, self.user_key)
 
         if self.api_key:
