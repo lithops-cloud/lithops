@@ -79,7 +79,7 @@ matplotlib
 
 Then, we will build the runtime, specifying the modified `requirements.txt` file and a runtime name:
 ```
-$ lithops runtime build -f requirements.txt my_matplotlib_runtime
+$ lithops runtime build -f requirements.txt my_matplotlib_runtime -b aws_lambda
 ```
 
 This command will add an extra runtime called `my_matplotlib_runtime` to the available AWS Lambda runtimes.
@@ -125,7 +125,7 @@ using `pip` or system libraries using `apt`, or even change Python version to a 
 Then, to build the custom runtime, use `lithops runtime build` CLI specifying the modified `Dockerfile` file and a runtime name.
 Note that the runtime name must be a Docker image name, that is, `your Docker username / container image name`:
 ```
-$ lithops runtime build -f MyDockerfile docker_username/my_container_runtime
+$ lithops runtime build -f MyDockerfile docker_username/my_container_runtime -b aws_lambda
 ```
 
 Finally, we can specify this new runtime when creating a Lithops Function Executor:
