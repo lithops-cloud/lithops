@@ -3,14 +3,17 @@
 ## [v2.3.1.dev0]
 
 ### Added
-- 
+- [knative] Include GCP and Azure storage libs into default knative runtime
 
 ### Changed
-- 
+- [IBM CF] Change user_key to API-key pass instead of user 
 
 ### Fixes
 - [Cli] Fixed --config param in lithops cli
 - [Standalone] Fixed internal executions
+- [Core] Fixed rabbitmq monitor when get_result() is called after wait()
+- [GCP Storage] Fix GCP Storage backend put obj as stream
+- [GCP Functions] Improved runtime create time
 
 
 ## [v2.3.0]
