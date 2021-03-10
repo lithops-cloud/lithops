@@ -49,10 +49,10 @@ def main(event, context):
         runtime_meta_json = json.dumps(runtime_meta)
         internal_storage.put_data(object_key, runtime_meta_json)
     elif 'remote_invoker' in args:
-        logger.info("Lithops v{} - Starting IBM CF invoker".format(__version__))
+        logger.info("Lithops v{} - Starting Google Cloud Functions invoker".format(__version__))
         function_invoker(args)
     else:
-        logger.info("Lithops v{} - Starting IBM CF execution".format(__version__))
+        logger.info("Lithops v{} - Starting Google Cloud Functions execution".format(__version__))
         function_handler(args)
 
     return {"Execution": "Finished"}
