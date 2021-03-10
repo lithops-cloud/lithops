@@ -67,6 +67,7 @@ Storage Backends
 
 - [IBM Cloud Functions](compute/ibm_cf.md)
 - [IBM Code Engine](compute/code_engine.md)
+- [Kubernetes batch/job](compute/k8s_job.md)
 - [Knative](compute/knative.md)
 - [OpenWhisk](compute/openwhisk.md)
 - [AWS Lambda](compute/aws_lambda.md)

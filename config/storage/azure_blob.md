@@ -11,7 +11,7 @@ Lithops with Azure Blob Storage as storage backend.
 $ python3 -m pip install lithops[azure]
 ```
 
-2. Navigate to your storage account and create a new bucket (e.g. `lithops-data`). Remember to update the corresponding Lithops config field with this bucket name.
+2. Navigate to your storage account and [create a new bucket (container)](https://docs.microsoft.com/es-es/azure/storage/blobs/storage-quickstart-blobs-portal#create-a-container) (e.g. `lithops-data`). Remember to update the corresponding Lithops config field with this bucket name.
 
 3. Edit your lithops config and add the following keys:
 
