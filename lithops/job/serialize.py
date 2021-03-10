@@ -63,7 +63,8 @@ class SerializeIndependent:
         for module_name in mods:
             if module_name == '__main__':
                 continue
-            direct_modules.add(importlib.util.find_spec(module_name).origin)
+            origin = importlib.util.find_spec(module_name).origin
+            direct_modules.add(origin if origin != 'built-in' else module_name)
             self._modulemgr.add(module_name)
 
         logger.debug("Referenced modules: {}".format(None if not direct_modules
@@ -72,8 +73,9 @@ class SerializeIndependent:
         if include_modules is not None:
             tent_mod_paths = self._modulemgr.get_and_clear_paths()
             if include_modules:
-                logger.debug("Filtering modules to transmit: {}"
-                             .format(None if not include_modules else ", ".join(include_modules)))
+                logger.debug("Tentative modules to transmit: {}"
+                             .format(None if not tent_mod_paths else ", ".join(tent_mod_paths)))
+                logger.debug("Include modules: {}".format(", ".join(include_modules)))
                 for im in include_modules:
                     for mp in tent_mod_paths:
                         if im in mp:
