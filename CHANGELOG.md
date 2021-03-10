@@ -1,6 +1,6 @@
 # Changelog
 
-## [v2.3.1.dev0]
+## [v2.3.1.dev1]
 
 ### Added
 - [knative] Include GCP and Azure storage libs into default knative runtime
@@ -14,6 +14,7 @@
 - [Core] Fixed rabbitmq monitor when get_result() is called after wait()
 - [GCP Storage] Fix GCP Storage backend put obj as stream
 - [GCP Functions] Improved runtime create time
+- [Azure blob] Fix in azure blob get method
 
 
 ## [v2.3.0]
@@ -40,7 +41,7 @@
 - [Core] Renamed partitioner 'chunk_n' param to 'obj_chunk_number'
 - [GCP Cloud Run] Refactor backend, removed 'gcloud' CLI calls.
 - [IBM VPC] Improved IBM VPC backend
-- [Aws Lambda] Lambda layer modules update
+- [AWS Lambda] Lambda layer modules update
 
 ### Fixes
 - [Multiprocessing] Fix issues related to Pipes and Queues

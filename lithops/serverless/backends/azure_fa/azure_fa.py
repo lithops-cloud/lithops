@@ -16,11 +16,10 @@
 
 import os
 import sys
-import time
 import json
+import time
 import logging
 import shutil
-import json
 from azure.storage.queue import QueueServiceClient
 import lithops
 from lithops.version import __version__
@@ -81,7 +80,6 @@ class AzureFunctionAppBackend:
             docker_image_name = default_runtime_img_name
             self._build_default_runtime(default_runtime_img_name)
 
-        logger.info('Creating new Lithops runtime for Azure Function Apps')
         self._create_function(docker_image_name, memory, timeout)
         metadata = self._generate_runtime_meta(docker_image_name, memory)
 
@@ -189,23 +187,25 @@ class AzureFunctionAppBackend:
         """
         Create and publish an Azure Function App
         """
+        logger.info('Creating new Lithops runtime for Azure Function Apps')
         action_name = self._format_action_name(docker_image_name, memory)
 
         try:
             in_q_name = self._format_queue_name(action_name, az_config.IN_QUEUE)
+            logger.debug('Creating queue {}'.format(in_q_name))
             self.queue_service.create_queue(in_q_name)
         except Exception:
             in_queue = self.queue_service.get_queue_client(in_q_name)
             in_queue.clear_messages()
         try:
             out_q_name = self._format_queue_name(action_name, az_config.OUT_QUEUE)
+            logger.debug('Creating queue {}'.format(out_q_name))
             self.queue_service.create_queue(out_q_name)
         except Exception:
             out_queue = self.queue_service.get_queue_client(out_q_name)
             out_queue.clear_messages()
 
-        logger.debug('Creating function app')
-        logger.debug('Function name: {}'.format(action_name))
+        logger.debug('Creating function app. Function name: {}'.format(action_name))
         python_version = version_str(sys.version_info)
         cmd = ('az functionapp create --name {} --storage-account {} '
                '--resource-group {} --os-type Linux  --runtime python '
