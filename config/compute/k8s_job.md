@@ -5,27 +5,26 @@ Lithops with kubernetes as serverless compute backend.
 
 ### Configuration
 
-1. Make sure you have a kubernetes cluster configuration file.
-   - Option 1: You have the config file in `~/.kube/config`
-
-   - Option 2: You have the config file in another location, and you exported the KUBECONFIG variable
-     ```bash
-     export KUBECONFIG=<path-to-kube-config-file>
-     ```
-
-   - Option 3: You have the config file in another location, and you set the `kubecfg_path` var in the lithops config
-     ```yaml
-     k8s:
-         kubecfg_path: <path-to-kube-config-file>
-     ```
-
-
-2. Edit your Lithops config and add the following keys:
+1. Edit your Lithops config and add the following keys:
 
 ```yaml
   serverless:
       backend : k8s
 ```
+
+2. Make sure you have a kubernetes cluster configuration file.
+   - Option 1: You have the config file in `~/.kube/config`
+
+   - Option 2: You have the config file in another location, and you exported the KUBECONFIG variable:
+     ```bash
+     export KUBECONFIG=<path-to-kube-config-file>
+     ```
+
+   - Option 3: You have the config file in another location, and you set the `kubecfg_path` var in the Lithops config:
+     ```yaml
+     k8s:
+         kubecfg_path: <path-to-kube-config-file>
+     ```
 
 #### Summary of configuration keys for kubernetes:
 
