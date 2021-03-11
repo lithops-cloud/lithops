@@ -22,7 +22,7 @@ MANDATORY_PARAMETERS_3 = ['endpoint',
 IMAGE_ID_DEFAULT = 'r014-b7da49af-b46a-4099-99a4-c183d2d40ea8'  # ubuntu 20.04
 PROFILE_NAME_DEFAULT = 'cx2-2x4'
 VOLUME_TIER_NAME_DEFAULT = 'general-purpose'
-
+UNIT_PRICE = 0.000017
 SSH_USER = 'root'
 SSH_PASSWD = 'lithops'
 
@@ -86,3 +86,5 @@ def load_config(config_data):
 
     if 'delete_on_dismantle' not in config_data[section]:
         config_data[section]['delete_on_dismantle'] = True
+
+    config_data['unit_price'] = UNIT_PRICE

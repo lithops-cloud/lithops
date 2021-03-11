@@ -31,7 +31,7 @@ RUNTIME_MEMORY = 256  # Default memory: 256 MB
 RUNTIME_CPU = 1  # 1 vCPU
 MAX_CONCURRENT_WORKERS = 1000
 INVOKE_POOL_THREADS_DEFAULT = 4
-
+UNIT_PRICE = 0.000017
 DEFAULT_GROUP = "codeengine.cloud.ibm.com"
 DEFAULT_VERSION = "v1beta1"
 
@@ -188,3 +188,5 @@ def load_config(config_data):
     if 'invoke_pool_threads' not in config_data['code_engine']:
         config_data['code_engine']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
     config_data['serverless']['invoke_pool_threads'] = config_data['code_engine']['invoke_pool_threads']
+
+    config_data['unit_price'] = UNIT_PRICE

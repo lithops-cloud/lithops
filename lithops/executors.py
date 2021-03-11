@@ -24,16 +24,22 @@ import atexit
 import pickle
 import tempfile
 import subprocess as sp
+import warnings
+from datetime import datetime
 from functools import partial
+from pathlib import Path
+import pandas as pd
+import numpy as np
 
+from lithops import constants
 from lithops.invokers import ServerlessInvoker, StandaloneInvoker, CustomizedRuntimeInvoker
 from lithops.storage import InternalStorage
 from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from lithops.job import create_map_job, create_reduce_job
-from lithops.config import get_mode, default_config, extract_storage_config,\
+from lithops.config import get_mode, default_config, extract_storage_config, \
     extract_localhost_config, extract_standalone_config, \
     extract_serverless_config, get_log_info
-from lithops.constants import LOCALHOST, SERVERLESS, STANDALONE, CLEANER_DIR,\
+from lithops.constants import LOCALHOST, SERVERLESS, STANDALONE, CLEANER_DIR, \
     CLEANER_LOG_FILE
 from lithops.utils import timeout_handler, is_notebook, setup_lithops_logger, \
     is_unix_system, is_lithops_worker, create_executor_id
@@ -41,7 +47,6 @@ from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
 from lithops.serverless.serverless import ServerlessHandler
 from lithops.storage.utils import create_job_key
-
 
 logger = logging.getLogger(__name__)
 
@@ -462,7 +467,7 @@ class FunctionExecutor:
             if self.data_cleaner and not self.is_lithops_worker:
                 self.clean(clean_cloudobjects=False)
             if not fs and error and is_notebook():
-                del self.futures[len(self.futures)-len(futures):]
+                del self.futures[len(self.futures) - len(futures):]
 
         if download_results:
             fs_done = [f for f in futures if f.done]
@@ -484,7 +489,6 @@ class FunctionExecutor:
         :param timeout: Timeout for waiting for results.
         :param THREADPOOL_SIZE: Number of threads to use. Default 128
         :param WAIT_DUR_SEC: Time interval between each check.
-
         :return: The result of the future/s
         """
         fs_done, _ = self.wait(fs=fs, throw_except=throw_except,
@@ -511,6 +515,41 @@ class FunctionExecutor:
             return result[0]
 
         return result
+
+    def job_summary(self, cloud_objects_n=0):
+        """
+        logs information of a job executed by the calling function executor.
+        currently supports: code_engine, ibm_vpc and ibm_cf.
+
+        :param cloud_objects_n: number of cloud object used by user in COS.
+        """
+
+        def append(content):
+            """ appends information processed to a log file."""
+            headers = ['Function Name', 'Invocations', 'Memory Used(MB)',
+                       'Average Runtime(sec)', 'Cost($)', 'Cloud Objects Used']
+            pd.DataFrame(content).to_csv(path, mode='a', header=headers, index=False)
+
+        def calc_cost(total_runtime, memory_gb):
+            """ returns total cost associated with executing the calling function-executor's job."""
+            return self.config['unit_price'] * memory_gb * total_runtime
+
+        # avoid logging info unless pricing comes attached to chosen computational backend.
+        if 'unit_price' in self.config:
+
+            path = os.path.join(constants.LOGS_DIR, datetime.now().strftime("%Y-%m-%d_%H:%M:%S.csv"))
+            futures = self.futures
+            if type(futures) != list:
+                futures = [futures]
+            actions_num = len(futures)
+            func_name = futures[0].function_name
+            memory_mb = futures[0].runtime_memory  # memory required to run a single invocation
+            runtimes = [future.stats['worker_exec_time'] for future in futures]
+            cost = calc_cost(sum(runtimes), memory_mb / 1024)
+            append([[func_name, actions_num, memory_mb, np.average(runtimes), cost, cloud_objects_n]])
+
+        else:
+            warnings.warn(message="Couldn't log job.\nComputational backend used isn't supported by this function.")
 
     def plot(self, fs=None, dst=None):
         """
@@ -666,4 +705,3 @@ class StandaloneExecutor(FunctionExecutor):
     def create(self):
         runtime_key, runtime_meta = self.compute_handler.create()
         self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
-
