@@ -142,7 +142,7 @@ class AzureFunctionAppBackend:
 
         mod_dir = os.path.join(build_dir, az_config.ACTION_MODULES_DIR)
         os.chdir(build_dir)
-        cmd = 'pip3 install -U -t {} -r requirements.txt'.format(mod_dir)
+        cmd = '{} -m pip install -U -t {} -r requirements.txt'.format(sys.executable, mod_dir)
         if logger.getEffectiveLevel() != logging.DEBUG:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
         os.system(cmd)
