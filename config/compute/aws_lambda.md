@@ -7,7 +7,7 @@ Lithops with *AWS Lambda* as serverless compute backend.
 1. Install Amazon Web Services backend dependencies:
 
 ```
-$ pip install lithops[aws]
+$ python3 -m pip install lithops[aws]
 ```
 
 2. [Login](https://console.aws.amazon.com/?nc2=h_m_mc) to Amazon Web Services Console (or signup if you don't have an account)

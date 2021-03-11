@@ -18,7 +18,7 @@ import sys
 from os.path import exists, isfile
 from lithops.utils import version_str
 
-RUNTIME_TIMEOUT_DEFAULT = 540  # 540 s == 9 min
+RUNTIME_TIMEOUT_DEFAULT = 90  # 90 s == 1:30'
 RUNTIME_MEMORY_DEFAULT = 256  # 256 MB
 RUNTIME_MEMORY_MAX = 2048  # 2048 MB
 RUNTIME_MEMORY_OPTIONS = {128, 256, 512, 1024, 2048, 4096}
@@ -33,12 +33,13 @@ USER_RUNTIMES_PREFIX = 'lithops.user_runtimes'
 
 DEFAULT_REQUIREMENTS = [
     'numpy',
-    'scikit-learn',
     'scipy',
+    'scikit-learn',
     'pandas',
     'google-cloud',
     'google-cloud-storage',
     'google-cloud-pubsub',
+    'google-auth',
     'certifi',
     'chardet',
     'docutils',
@@ -48,10 +49,8 @@ DEFAULT_REQUIREMENTS = [
     'kafka-python',
     'lxml',
     'pika==0.13.0',
-    'python-dateutil',
     'redis',
     'requests',
-    'simplejson',
     'six',
     'urllib3',
     'virtualenv',

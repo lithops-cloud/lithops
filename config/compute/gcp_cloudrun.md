@@ -7,7 +7,7 @@ Lithops with *GCP Cloud Run* as serverless compute backend.
 1. Install Google Cloud Platform backend dependencies:
 
 ```
-$ pip install lithops[gcp]
+$ python3 -m install lithops[gcp]
 ```
 
 2. [Login](https://console.cloud.google.com) to Google Cloud Console (or sign up if you don't have an account).
@@ -33,7 +33,7 @@ $ pip install lithops[gcp]
 
 ```yaml
     serverless:
-        backend: gcp_functions
+        backend: gcp_cloudrun
 
     gcp:
         project_name : <PROJECT_NAME>

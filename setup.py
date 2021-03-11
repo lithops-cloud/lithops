@@ -23,7 +23,6 @@ install_requires = [
     'redis',
     'joblib',
     'ibm-vpc',
-    'namegenerator',
     'cloudpickle',
     'tblib',
     'ps-mem'

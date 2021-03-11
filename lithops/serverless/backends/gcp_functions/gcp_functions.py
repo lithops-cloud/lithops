@@ -22,7 +22,6 @@ import httplib2
 import sys
 import zipfile
 import time
-import textwrap
 import lithops
 from google.cloud import pubsub_v1
 from google.oauth2 import service_account
@@ -34,8 +33,9 @@ from google.auth import jwt
 from lithops.version import __version__
 from lithops.utils import version_str
 from lithops.storage import InternalStorage
-from lithops.constants import COMPUTE_CLI_MSG
+from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
 from lithops.constants import TEMP as TEMP_PATH
+
 from . import config as gcp_config
 
 logger = logging.getLogger(__name__)
@@ -77,12 +77,12 @@ class GCPFunctionsBackend:
         msg = COMPUTE_CLI_MSG.format('GCP Functions')
         logger.info("{} - Region: {} - Project: {}".format(msg, self.region, self.project))
 
-    def _format_action_name(self, runtime_name, runtime_memory):
+    def _format_function_name(self, runtime_name, runtime_memory):
         runtime_name = (self.package + '_' + runtime_name).replace('.', '-')
         return '{}_{}MB'.format(runtime_name, runtime_memory)
 
     def _format_topic_name(self, runtime_name, runtime_memory):
-        return self._format_action_name(runtime_name, runtime_memory) + '_topic'
+        return self._format_function_name(runtime_name, runtime_memory) + '_topic'
 
     def _unformat_action_name(self, action_name):
         split = action_name.split('_')
@@ -178,8 +178,8 @@ class GCPFunctionsBackend:
         logger.debug("Creating function {} - Memory: {} Timeout: {} Trigger: {}".format(runtime_name,
                                                                                         memory, timeout, trigger))
         default_location = self._full_default_location()
-        function_location = self._full_function_location(self._format_action_name(runtime_name, memory))
-        bin_name = self._format_action_name(runtime_name, memory) + '_bin.zip'
+        function_location = self._full_function_location(self._format_function_name(runtime_name, memory))
+        bin_name = self._format_function_name(runtime_name, memory) + '_bin.zip'
         self.internal_storage.put_data(bin_name, code)
 
         python_runtime_ver = 'python{}'.format(version_str(sys.version_info))
@@ -223,6 +223,7 @@ class GCPFunctionsBackend:
                 raise Exception('Error while deploying Cloud Function')
             elif response['status'] == 'DEPLOY_IN_PROGRESS':
                 time.sleep(self.retry_sleep)
+                logger.info('Waiting for function to be deployed...')
             else:
                 raise Exception('Unknown status {}'.format(response['status']))
 
@@ -248,16 +249,13 @@ class GCPFunctionsBackend:
     def create_runtime(self, runtime_name, memory, timeout=60):
         logger.debug("Creating runtime {} - Memory: {} Timeout: {}".format(runtime_name, memory, timeout))
 
-        # Get runtime preinstalls
-        runtime_meta = self._generate_runtime_meta(runtime_name)
-
         # Create topic
         topic_name = self._format_topic_name(runtime_name, memory)
         topic_list_request = self.publisher_client.list_topics(request={'project': 'projects/{}'.format(self.project)})
         topic_location = self._full_topic_location(topic_name)
         topics = [topic.name for topic in topic_list_request]
         if topic_location in topics:
-            logger.info("Topic {} already exists - Restarting queue...".format(topic_location))
+            logger.debug("Topic {} already exists - Restarting queue...".format(topic_location))
             self.publisher_client.delete_topic(topic=topic_location)
         logger.debug("Creating topic {}...".format(topic_location))
         self.publisher_client.create_topic(name=topic_location)
@@ -269,10 +267,13 @@ class GCPFunctionsBackend:
 
         self._create_function(runtime_name, memory, code=action_bin, timeout=timeout, trigger='Pub/Sub')
 
+        # Get runtime preinstalls
+        runtime_meta = self._generate_runtime_meta(runtime_name, memory)
+
         return runtime_meta
 
     def delete_runtime(self, runtime_name, runtime_memory, delete_runtime_storage=True):
-        action_name = self._format_action_name(runtime_name, runtime_memory)
+        action_name = self._format_function_name(runtime_name, runtime_memory)
         function_location = self._full_function_location(action_name)
         logger.debug('Going to delete runtime {}'.format(action_name))
 
@@ -334,104 +335,48 @@ class GCPFunctionsBackend:
         return runtimes
 
     def invoke(self, runtime_name, runtime_memory, payload={}):
-        exec_id = payload['executor_id']
-        call_id = payload['call_id']
-        topic_location = self._full_topic_location(
-            self._format_topic_name(runtime_name, runtime_memory))
+        topic_location = self._full_topic_location(self._format_topic_name(runtime_name, runtime_memory))
 
-        start = time.time()
-        try:
-            # Publish message
-            fut = self.publisher_client.publish(
-                topic_location, bytes(json.dumps(payload).encode('utf-8')))
-            invocation_id = fut.result()
-        except Exception as e:
-            logger.debug('ExecutorID {} - Function {} invocation failed: {}'.format(exec_id, call_id, str(e)))
-            return None
-
-        roundtrip = time.time() - start
-        resp_time = format(round(roundtrip, 3), '.3f')
-
-        logger.debug('ExecutorID {} - Function {} invocation done! ({}s) - Activation ID: {}'.format(exec_id,
-                                                                                                     call_id, resp_time,
-                                                                                                     invocation_id))
+        fut = self.publisher_client.publish(topic_location,
+                                            bytes(json.dumps(payload).encode('utf-8')))
+        invocation_id = fut.result()
 
         return invocation_id
 
-    def invoke_with_result(self, runtime_name, runtime_memory, payload={}):
-        action_name = self._format_action_name(runtime_name, runtime_memory)
-        function_location = self._full_function_location(action_name)
-        logger.debug('Going to synchronously invoke {} through developer API'.format(action_name))
+    def get_runtime_key(self, runtime_name, runtime_memory):
+        action_name = self._format_function_name(runtime_name, runtime_memory)
+        runtime_key = os.path.join(self.name, self.region, action_name)
+        logger.debug('Runtime key: {}'.format(runtime_key))
+        return runtime_key
 
+    def _generate_runtime_meta(self, runtime_name, memory):
+        logger.debug('Generating runtime meta for {}...'.format(runtime_name))
+
+        function_name = self._format_function_name(runtime_name, memory)
+        function_location = self._full_function_location(function_name)
+        logger.debug('Going to synchronously invoke {} through developer API'.format(function_name))
+
+        payload = {
+            'get_preinstalls': {
+                'runtime_name': runtime_name,
+                'storage_config': self.internal_storage.storage.storage_config
+            }
+        }
+
+        # Data is b64 encoded so we can treat REST call the same as async pub/sub event trigger
         response = self._get_funct_conn().projects().locations().functions().call(
             name=function_location,
             body={'data': json.dumps({'data': self._encode_payload(payload)})}
         ).execute(num_retries=self.num_retries)
 
-        logger.debug('Invocation {} success'.format(action_name))
-        return json.loads(response['result'])
+        if 'result' in response and response['result'] == 'OK':
+            object_key = '/'.join([JOBS_PREFIX, runtime_name + '.meta'])
 
-    def get_runtime_key(self, runtime_name, runtime_memory):
-        action_name = self._format_action_name(runtime_name, runtime_memory)
-        runtime_key = os.path.join(self.name, self.region, action_name)
-        logger.debug('Runtime key: {}'.format(runtime_key))
-        return runtime_key
-
-    def _generate_runtime_meta(self, runtime_name):
-        action_code = """
-            import sys
-            import pkgutil
-            import json
-
-            def main(request):
-                runtime_meta = dict()
-                mods = list(pkgutil.iter_modules())
-                runtime_meta['preinstalls'] = [entry for entry in sorted([[mod, is_pkg] for _, mod, is_pkg in mods])]
-                python_version = sys.version_info
-                runtime_meta['python_ver'] = str(python_version[0])+"."+str(python_version[1])
-                return json.dumps(runtime_meta)
-        """
-        logger.debug('Generating runtime meta for {}...'.format(runtime_name))
-
-        # Get runtime requirements
-        runtime_requirements = self._get_runtime_requirements(runtime_name)
-        requirements_file_path = os.path.join(TEMP_PATH, '{}_requirements.txt'.format(runtime_name))
-        with open(requirements_file_path, 'w') as reqs_file:
-            for req in runtime_requirements:
-                reqs_file.write('{}\n'.format(req))
-
-        extract_modules_zip_path = os.path.join(TEMP_PATH, 'extract_modules_gcp.zip')
-        try:
-            with zipfile.ZipFile(extract_modules_zip_path, 'w') as extract_modules_zip:
-
-                # Add action_code entrypoint as main.py to zip archive
-                extract_modules_entrypoint_filename = os.path.join(TEMP_PATH, 'extract_modules_entrypoint.py')
-                with open(extract_modules_entrypoint_filename, 'w') as extract_mods_entrypoint_f:
-                    extract_mods_entrypoint_f.write(textwrap.dedent(action_code))
-                extract_modules_zip.write(extract_modules_entrypoint_filename, 'main.py', zipfile.ZIP_DEFLATED)
-
-                # Add runtime requirements.txt to zip archive
-                extract_modules_zip.write(requirements_file_path, 'requirements.txt', zipfile.ZIP_DEFLATED)
-
-        except Exception as e:
-            raise Exception('Unable to create Lithops extract_modules package: {}'.format(e))
-
-        with open(extract_modules_zip_path, 'rb') as modules_zip:
-            function_zip_bin = modules_zip.read()
-
-        self._create_function(runtime_name, 128, function_zip_bin, trigger='HTTP')
-
-        logger.debug("Extracting Python modules list from: {}".format(runtime_name))
-        try:
-            runtime_meta = self.invoke_with_result(runtime_name, 128)
-        except Exception as e:
-            raise Exception("Unable to invoke 'modules' action: {}".format(e))
-        try:
-            self.delete_runtime(runtime_name, 128, delete_runtime_storage=False)
-        except Exception as e:
-            raise Exception("Unable to delete 'modules' action: {}".format(e))
-
-        if not runtime_meta or 'preinstalls' not in runtime_meta:
-            raise Exception(runtime_meta)
-
-        return runtime_meta
+            runtime_meta_json = self.internal_storage.get_data(object_key)
+            runtime_meta = json.loads(runtime_meta_json)
+            self.internal_storage.storage.delete_object(self.internal_storage.bucket, object_key)
+            return runtime_meta
+        elif 'error' in response:
+            raise Exception(response['error'])
+        else:
+            raise Exception('Error at retrieving runtime meta: {}'.format(response))

@@ -2,12 +2,14 @@
 
 Lithops with Azure Function App as serverless compute backend.
 
+*Note that currently Azure functions supports Python 3.6, 3.7 or 3.8. So you must use one of these versions in your client machine.*
+
 ### Installation
 
 1. Install Microsoft Azure backend dependencies:
 
 ```
-$ pip install lithops[azure]
+$ python3 -m pip install lithops[azure]
 ```
 
 2. Install [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest)

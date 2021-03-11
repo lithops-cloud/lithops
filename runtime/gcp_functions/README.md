@@ -103,7 +103,7 @@ matplotlib
 
 Then, we will build the runtime, specifying the modified `requirements.txt` file and a runtime name:
 ```
-$ lithops runtime build -f requirements.txt my_matplotlib_runtime
+$ lithops runtime build -f requirements.txt my_matplotlib_runtime -b gcp_functions
 ```
 
 This command will add an extra runtime called `my_matplotlib_runtime` to the available Google Cloud Function runtimes.

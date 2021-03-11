@@ -172,7 +172,7 @@ class ResponseFuture:
             self._set_state(ResponseFuture.State.Running)
             return self._call_status
 
-        if self._call_status['logs']:
+        if 'logs' in self._call_status:
             self.logs = zlib.decompress(base64.b64decode(self._call_status['logs'].encode())).decode()
             job_key = create_job_key(self.executor_id, self.job_id)
             log_file = os.path.join(LOGS_DIR, job_key+'.log')

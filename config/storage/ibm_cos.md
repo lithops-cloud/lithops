@@ -8,7 +8,8 @@ Lithops with IBM COS as storage backend.
 
 1. Create an [IBM Cloud Object Storage account](https://www.ibm.com/cloud/object-storage).
 
-2. Crate a bucket in your desired region.
+2. Crate a bucket in your desired region. Remember to update the corresponding Lithops config field with this bucket name.
+
 3. Login to IBM Cloud and open up your dashboard. Then navigate to your instance of Object Storage.
 
 4. In the side navigation, click `Endpoints` to find your `region`, `API public` and `private endpoints`.
@@ -17,18 +18,18 @@ Lithops with IBM COS as storage backend.
 #### Using region
 The easiest apporach is to let Lithops to choose the right endpoint by itself. To enable this, just configure Lithops with region name only, as follows
 
-    ```yaml
+```yaml
     ibm_cos:
         region   : <REGION>
-    ```
+```
 ### Using endpoints path
 Alternative to using region, you can configre public and private endpoints as follows
 
-    ```yaml
+```yaml
 	 ibm_cos:
-        private_endpoint: https://s3.private.<region>.cloud-object-storage.appdomain.cloud
-        endpoint: https://s3.<region>.cloud-object-storage.appdomain.cloud
-    ```
+	     endpoint: https://s3.<region>.cloud-object-storage.appdomain.cloud
+        private_endpoint: https://s3.private.<region>.cloud-object-storage.appdomain.cloud 
+```
 
 ### Configuration
 
@@ -118,7 +119,6 @@ Alternative to using region, you can configre public and private endpoints as fo
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ibm_cos | storage_bucket | |yes | Storage bucket in your COS |
 |ibm_cos | region | |no | Region of your bucket. **Mandatory** if no endpoint. For example: us-east, us-south, eu-gb, eu-de, etc..|
 |ibm_cos | endpoint | |no | Endpoint to your COS account. **Mandatory** if no region. Make sure to use the full path with 'https://' as prefix. |
 |ibm_cos | private_endpoint | |no | Private endpoint to your COS account. **Mandatory** if no region. Make sure to use the full path with 'https://' or http:// as prefix. |

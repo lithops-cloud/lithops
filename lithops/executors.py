@@ -392,13 +392,13 @@ class FunctionExecutor:
             msg = 'ExecutorID {} - Getting results'.format(self.executor_id)
             fs_done = [f for f in futures if f.done]
             fs_not_done = [f for f in futures if not f.done]
-            fs_not_ready = [f for f in futures if not f.ready]
+            # fs_not_ready = [f for f in futures if not f.ready and not f.done]
 
         else:
             msg = 'ExecutorID {} - Waiting for functions to complete'.format(self.executor_id)
             fs_done = [f for f in futures if f.ready or f.done]
-            fs_not_done = [f for f in futures if not f.ready and not f.done]
-            fs_not_ready = [f for f in futures if not f.ready]
+            fs_not_done = [f for f in futures if not f.done]
+            # fs_not_ready = [f for f in futures if not f.ready and not f.done]
 
         if not fs_not_done:
             return fs_done, fs_not_done
@@ -414,7 +414,7 @@ class FunctionExecutor:
         pbar = None
         error = False
 
-        if not self.is_lithops_worker and self.setup_progressbar and fs_not_ready:
+        if not self.is_lithops_worker and self.setup_progressbar:
             from tqdm.auto import tqdm
 
             if is_notebook():
@@ -425,7 +425,6 @@ class FunctionExecutor:
 
         try:
             if self.rabbitmq_monitor:
-                logger.debug('Using RabbitMQ to monitor function activations')
                 wait_rabbitmq(futures, self.internal_storage, rabbit_amqp_url=self.rabbit_amqp_url,
                               download_results=download_results, throw_except=throw_except,
                               pbar=pbar, return_when=return_when, THREADPOOL_SIZE=THREADPOOL_SIZE)
