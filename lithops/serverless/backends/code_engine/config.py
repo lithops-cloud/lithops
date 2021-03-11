@@ -144,6 +144,10 @@ def load_config(config_data):
     if 'code_engine' not in config_data:
         config_data['code_engine'] = {}
 
+    if 'kubectl_config' in config_data['code_engine']:
+        print('"kubectl_config" variable in config is deprecated, use "kubecfg_path" instead')
+        config_data['code_engine']['kubecfg_path'] = config_data['code_engine']['kubectl_config']
+
     if 'cpu' not in config_data['code_engine']:
         config_data['code_engine']['cpu'] = RUNTIME_CPU
 
