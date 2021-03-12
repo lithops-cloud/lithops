@@ -4,17 +4,21 @@
 
 ### Added
 - [knative] Include GCP and Azure storage libs into default knative runtime
+- [CodeEngie] Enable internal kubernetes pod executions
+- [k8s] Enable internal kubernetes pod executions
 
 ### Changed
 - [IBM CF] Change user_key to API-key pass instead of user 
 
 ### Fixes
+- [Core] Overwrite the runtime set in config with the runtime set in the FunctionExecutor
 - [Cli] Fixed --config param in lithops cli
 - [Standalone] Fixed internal executions
 - [Core] Fixed rabbitmq monitor when get_result() is called after wait()
 - [GCP Storage] Fix GCP Storage backend put obj as stream
 - [GCP Functions] Improved runtime create time
 - [Azure blob] Fix in azure blob get method
+- [Azure Functions] Fix build runtime command
 
 
 ## [v2.3.0]

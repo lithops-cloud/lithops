@@ -234,6 +234,10 @@ def default_config(config_data=None, config_overwrite={}):
 
         verify_runtime_name(config_data[constants.LOCALHOST]['runtime'])
 
+    mode = config_data['lithops']['mode']
+    if 'runtime' in config_overwrite[mode]:
+        config_data[mode]['runtime'] = config_overwrite[mode]['runtime']
+
     return default_storage_config(config_data)
 
 
