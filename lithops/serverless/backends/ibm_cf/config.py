@@ -27,7 +27,6 @@ RUNTIME_TIMEOUT_DEFAULT = 600  # Default: 600 seconds => 10 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
 MAX_CONCURRENT_WORKERS = 1200
 INVOKE_POOL_THREADS_DEFAULT = 500
-UNIT_PRICE = 0.000017
 
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_ibmcf.zip')
@@ -112,4 +111,5 @@ def load_config(config_data):
         config_data['ibm_cf']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
     config_data['serverless']['invoke_pool_threads'] = config_data['ibm_cf']['invoke_pool_threads']
 
-    config_data['unit_price'] = UNIT_PRICE
+
+    #config_data['unit_price'] = UNIT_PRICE

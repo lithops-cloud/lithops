@@ -24,10 +24,10 @@ import atexit
 import pickle
 import tempfile
 import subprocess as sp
-import warnings
 from datetime import datetime
 from functools import partial
 from pathlib import Path
+
 import pandas as pd
 import numpy as np
 
@@ -163,6 +163,8 @@ class FunctionExecutor:
 
         logger.info('{} Executor created with ID: {}'
                     .format(mode.capitalize(), self.executor_id))
+
+        self.log_path = None
 
     def __enter__(self):
         return self
@@ -515,41 +517,6 @@ class FunctionExecutor:
 
         return result
 
-    def job_summary(self, cloud_objects_n=0):
-        """
-        logs information of a job executed by the calling function executor.
-        currently supports: code_engine, ibm_vpc and ibm_cf.
-
-        :param cloud_objects_n: number of cloud object used by user in COS.
-        """
-
-        def append(content):
-            """ appends information processed to a log file."""
-            headers = ['Function Name', 'Invocations', 'Memory Used(MB)',
-                       'Average Runtime(sec)', 'Cost($)', 'Cloud Objects Used']
-            pd.DataFrame(content).to_csv(path, mode='a', header=headers, index=False)
-
-        def calc_cost(total_runtime, memory_gb):
-            """ returns total cost associated with executing the calling function-executor's job."""
-            return self.config['unit_price'] * memory_gb * total_runtime
-
-        # avoid logging info unless pricing comes attached to chosen computational backend.
-        if 'unit_price' in self.config:
-
-            path = os.path.join(constants.LOGS_DIR, datetime.now().strftime("%Y-%m-%d_%H:%M:%S.csv"))
-            futures = self.futures
-            if type(futures) != list:
-                futures = [futures]
-            actions_num = len(futures)
-            func_name = futures[0].function_name
-            memory_mb = futures[0].runtime_memory  # memory required to run a single invocation
-            runtimes = [future.stats['worker_exec_time'] for future in futures]
-            cost = calc_cost(sum(runtimes), memory_mb / 1024)
-            append([[func_name, actions_num, memory_mb, np.average(runtimes), cost, cloud_objects_n]])
-
-        else:
-            warnings.warn(message="Couldn't log job.\nComputational backend used isn't supported by this function.")
-
     def plot(self, fs=None, dst=None):
         """
         Creates timeline and histogram of the current execution in dst_dir.
@@ -630,6 +597,74 @@ class FunctionExecutor:
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.invoker.stop()
+
+    def job_summary(self, cloud_objects_n=0, new_log=False):
+        """
+        logs information of a job executed by the calling function executor.
+        currently supports: code_engine, ibm_vpc and ibm_cf.
+
+        :param cloud_objects_n: number of cloud object used by user in COS.
+        :param new_log: creates new log file in flag is True.
+        """
+
+        def init():
+            Path('logs').mkdir(exist_ok=True)
+            self.log_path = os.path.join(constants.LOGS_DIR, datetime.now().strftime("%Y-%m-%d_%H:%M:%S.csv"))
+            headers = ['Function', 'Actions', 'Memory(MB)', 'AvgRuntime', 'Cost', 'CloudObjects']
+            pd.DataFrame([], columns=headers).to_csv(self.log_path, index=False)
+
+        def append(content):
+            """ appends information processed to a log file."""
+            pd.DataFrame(content).to_csv(self.log_path, mode='a', header=False, index=False)
+
+        def append_summary():
+            """ summarizes the log file"""
+            df = pd.read_csv(self.log_path)
+            total_average = sum(df.AvgRuntime * df.Actions) / df.Actions.sum()
+            df = df.append(pd.DataFrame([['Summary', df.Actions.sum(), df['Memory(MB)'].sum(), total_average,
+                                          df.Cost.sum(), cloud_objects_n]]))
+            total_row = df.tail(1).iloc[:, 0:6]
+            total_row.to_csv(self.log_path, mode='a', header=False, index=False)
+
+        def get_object_num():
+            df = pd.read_csv(self.log_path)
+            return df.iloc[-1].iloc[-1]
+
+        # Avoid logging info unless chosen computational backend is supported.
+        if hasattr(self.compute_handler.backend,'calc_cost'):
+
+
+            #if new_log or not self.log_path:
+            #if not self.log_path:
+
+            if self.log_path:
+                cloud_objects_n += get_object_num()
+
+            init()
+
+            futures = self.futures
+            if type(futures) != list:
+                futures = [futures]
+
+            memory = []
+            runtimes = []
+            func_names = {future.function_name for future in futures}
+
+            for func_name in func_names:
+                for future in futures:
+                    if func_name == future.function_name:
+                        memory.append(future.runtime_memory)
+                        runtimes.append(future.stats['worker_exec_time'])
+                cost = self.compute_handler.backend.calc_cost(runtimes, memory)
+                append([[func_name, len(runtimes), sum(memory), np.average(runtimes), cost, 0]])
+                memory.clear()
+                runtimes.clear()
+            append_summary()
+
+        else:  # calc_cost() doesn't exist for chosen computational backend.
+            logger.warning("Could not log job.\nComputational backend used isn't supported by this function.")
+            return
+        logger.info(f"View log file logs at {self.log_path}")
 
 
 class LocalhostExecutor(FunctionExecutor):
