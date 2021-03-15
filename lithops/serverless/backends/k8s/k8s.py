@@ -73,8 +73,8 @@ class KubernetesBackend:
         logger.debug("Set namespace to {}".format(self.namespace))
         logger.debug("Set cluster to {}".format(self.cluster))
 
-        self.capi = client.CustomObjectsApi()
-        self.coreV1Api = client.CoreV1Api()
+        self.batch_api = client.BatchV1Api()
+        self.core_api = client.CoreV1Api()
 
         self.jobs = []  # list to store executed jobs (job_keys)
 

@@ -79,13 +79,16 @@ def get_default_config_filename():
 def load_config():
     """ Load the configuration """
     if 'LITHOPS_CONFIG' in os.environ:
+        logger.debug("Loading configuration from env LITHOPS_CONFIG")
         config_data = json.loads(os.environ.get('LITHOPS_CONFIG'))
     else:
         config_filename = get_default_config_filename()
         if config_filename:
+            logger.debug("Loading configuration from {}".format(config_filename))
             config_data = load_yaml_config(config_filename)
         else:
             # No config file found. Set to Localhost mode
+            logger.debug("Config file not found. Setting Lithops to localhost mode")
             config_data = {'lithops': {'mode': constants.LOCALHOST,
                                        'storage': constants.LOCALHOST}}
 
@@ -93,7 +96,7 @@ def load_config():
 
 
 def get_log_info(config_data=None):
-    """ Return lithops logging informatio set in configuration """
+    """ Return lithops logging information set in configuration """
     config_data = config_data or load_config()
 
     if 'lithops' not in config_data or not config_data['lithops']:
@@ -143,7 +146,6 @@ def default_config(config_data=None, config_overwrite={}):
     then ~/.lithops/config
     """
     logger.info('Lithops v{}'.format(__version__))
-    logger.debug("Loading configuration")
 
     config_data = config_data or load_config()
 
