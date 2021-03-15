@@ -662,7 +662,7 @@ class FunctionExecutor:
                 memory.append(future.runtime_memory)
                 runtimes.append(future.stats['worker_exec_time'])
 
-            # appends
+            # appends last Job-ID
             cost = self.compute_handler.backend.calc_cost(runtimes, memory)
             append([[curr_job_id, job_func, len(runtimes), sum(memory),
                      np.round(np.average(runtimes), 10), cost, ' ']])
