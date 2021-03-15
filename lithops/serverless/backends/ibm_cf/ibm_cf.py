@@ -30,6 +30,7 @@ from . import config as ibmcf_config
 
 logger = logging.getLogger(__name__)
 token_mutex = Lock()
+UNIT_PRICE = 0.000017
 
 
 class IBMCloudFunctionsBackend:
@@ -146,7 +147,7 @@ class IBMCloudFunctionsBackend:
         with open(ibmcf_config.FH_ZIP_LOCATION, "rb") as action_zip:
             action_bin = action_zip.read()
         self.cf_client.create_action(self.package, action_name, docker_image_name, code=action_bin,
-                                     memory=memory, is_binary=True, timeout=timeout*1000)
+                                     memory=memory, is_binary=True, timeout=timeout * 1000)
 
         self._delete_function_handler_zip()
 
@@ -170,7 +171,7 @@ class IBMCloudFunctionsBackend:
         packages = self.cf_client.list_packages()
         for pkg in packages:
             if (pkg['name'].startswith('lithops') and pkg['name'].endswith(self.user_key)) or \
-               (pkg['name'].startswith('lithops') and pkg['name'].count('_') == 1):
+                    (pkg['name'].startswith('lithops') and pkg['name'].count('_') == 1):
                 actions = self.cf_client.list_actions(pkg['name'])
                 while actions:
                     for action in actions:
@@ -258,9 +259,16 @@ class IBMCloudFunctionsBackend:
                 if 'activationId' in runtime_meta:
                     retry_invoke = True
         except Exception as e:
-            raise("Unable to extract runtime preinstalls: {}".format(e))
+            raise ("Unable to extract runtime preinstalls: {}".format(e))
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
             raise Exception(runtime_meta)
 
         return runtime_meta
+
+    def calc_cost(self, runtimes, memory, *argv,**arg):
+        """ returns total cost associated with executing the calling function-executor's job.
+        :params *argv and **arg: made to support compatibility with similarly named functions in
+        alternative computational backends.
+        """
+        return UNIT_PRICE * sum(runtimes[i] * memory[i] / 1024 for i in range(len(runtimes)))
