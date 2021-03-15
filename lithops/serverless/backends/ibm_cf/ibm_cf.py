@@ -266,8 +266,9 @@ class IBMCloudFunctionsBackend:
 
         return runtime_meta
 
-    def calc_cost(self, runtimes, memory, *argv):
+    def calc_cost(self, runtimes, memory, *argv,**arg):
         """ returns total cost associated with executing the calling function-executor's job.
-        :param *argv: made to support similarly named functions in alternative computational backends.
+        :params *argv and **arg: made to support compatibility with similarly named functions in
+        alternative computational backends.
         """
         return UNIT_PRICE * sum(runtimes[i] * memory[i] / 1024 for i in range(len(runtimes)))

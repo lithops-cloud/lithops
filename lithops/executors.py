@@ -598,48 +598,44 @@ class FunctionExecutor:
     def __exit__(self, exc_type, exc_value, traceback):
         self.invoker.stop()
 
-    def job_summary(self, cloud_objects_n=0, new_log=False):
+    def job_summary(self, cloud_objects_n=0):
         """
         logs information of a job executed by the calling function executor.
         currently supports: code_engine, ibm_vpc and ibm_cf.
+        on future commits, support will extend to code_engine and ibm_vpc :
 
-        :param cloud_objects_n: number of cloud object used by user in COS.
-        :param new_log: creates new log file in flag is True.
+        :param cloud_objects_n: number of cloud object used in COS, declared by user.
         """
 
         def init():
-            Path('logs').mkdir(exist_ok=True)
-            self.log_path = os.path.join(constants.LOGS_DIR, datetime.now().strftime("%Y-%m-%d_%H:%M:%S.csv"))
-            headers = ['Function', 'Actions', 'Memory(MB)', 'AvgRuntime', 'Cost', 'CloudObjects']
+            headers = ['Job_ID', 'Function', 'Invocations', 'Memory(MB)', 'AvgRuntime', 'Cost', 'CloudObjects']
             pd.DataFrame([], columns=headers).to_csv(self.log_path, index=False)
 
         def append(content):
-            """ appends information processed to a log file."""
+            """ appends job information to log file."""
             pd.DataFrame(content).to_csv(self.log_path, mode='a', header=False, index=False)
 
         def append_summary():
-            """ summarizes the log file"""
+            """ add a summary row to the log file"""
             df = pd.read_csv(self.log_path)
-            total_average = sum(df.AvgRuntime * df.Actions) / df.Actions.sum()
-            df = df.append(pd.DataFrame([['Summary', df.Actions.sum(), df['Memory(MB)'].sum(), total_average,
-                                          df.Cost.sum(), cloud_objects_n]]))
-            total_row = df.tail(1).iloc[:, 0:6]
+            total_average = sum(df.AvgRuntime * df.Invocations) / df.Invocations.sum()
+            total_row = pd.DataFrame([['Summary', ' ', df.Invocations.sum(), df['Memory(MB)'].sum(),
+                                       round(total_average, 10), df.Cost.sum(), cloud_objects_n]])
             total_row.to_csv(self.log_path, mode='a', header=False, index=False)
 
         def get_object_num():
+            """returns cloud objects used up to this point, using this function executor. """
             df = pd.read_csv(self.log_path)
-            return df.iloc[-1].iloc[-1]
+            return float(df.iloc[-1].iloc[-1])
 
         # Avoid logging info unless chosen computational backend is supported.
-        if hasattr(self.compute_handler.backend,'calc_cost'):
+        if hasattr(self.compute_handler.backend, 'calc_cost'):
 
-
-            #if new_log or not self.log_path:
-            #if not self.log_path:
-
-            if self.log_path:
+            if self.log_path:  # retrieve cloud_objects_n from last log file
                 cloud_objects_n += get_object_num()
-
+            else:
+                self.log_path = os.path.join(constants.LOGS_DIR, datetime.now().strftime("%Y-%m-%d_%H:%M:%S.csv"))
+            # override current logfile
             init()
 
             futures = self.futures
@@ -648,17 +644,29 @@ class FunctionExecutor:
 
             memory = []
             runtimes = []
-            func_names = {future.function_name for future in futures}
+            curr_job_id = futures[0].job_id
+            job_func = futures[0].function_name  # each job is conducted on a single function
 
-            for func_name in func_names:
-                for future in futures:
-                    if func_name == future.function_name:
-                        memory.append(future.runtime_memory)
-                        runtimes.append(future.stats['worker_exec_time'])
-                cost = self.compute_handler.backend.calc_cost(runtimes, memory)
-                append([[func_name, len(runtimes), sum(memory), np.average(runtimes), cost, 0]])
-                memory.clear()
-                runtimes.clear()
+            for future in futures:
+                if curr_job_id != future.job_id:
+                    cost = self.compute_handler.backend.calc_cost(runtimes, memory)
+                    append([[curr_job_id, job_func, len(runtimes), sum(memory),
+                             np.round(np.average(runtimes), 10), cost, ' ']])
+
+                    # updating next iteration's variables:
+                    curr_job_id = future.job_id
+                    job_func = future.function_name
+                    memory.clear()
+                    runtimes.clear()
+
+                memory.append(future.runtime_memory)
+                runtimes.append(future.stats['worker_exec_time'])
+
+            # appends
+            cost = self.compute_handler.backend.calc_cost(runtimes, memory)
+            append([[curr_job_id, job_func, len(runtimes), sum(memory),
+                     np.round(np.average(runtimes), 10), cost, ' ']])
+            # append summary row to end of the dataframe
             append_summary()
 
         else:  # calc_cost() doesn't exist for chosen computational backend.
