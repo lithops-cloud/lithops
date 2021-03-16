@@ -1,16 +1,27 @@
 # Changelog
 
-## [v2.3.1.dev0]
+## [v2.3.1.dev1]
 
 ### Added
-- 
+- [knative] Include GCP and Azure storage libs into default knative runtime
+- [CodeEngie] Enable internal kubernetes pod executions
+- [k8s] Enable internal kubernetes pod executions
+- [Cli] Added 'empty' function to storage cli to empty a bucket
+- [Core] Added new method to FunctionExecutor() to calculate execution costs
+- [IBM CF] Added formula to calculate execution costs
 
 ### Changed
-- 
+- [IBM CF] Change user_key to API-key pass instead of user 
 
 ### Fixes
+- [Core] Overwrite the runtime set in config with the runtime set in the FunctionExecutor
 - [Cli] Fixed --config param in lithops cli
 - [Standalone] Fixed internal executions
+- [Core] Fixed rabbitmq monitor when get_result() is called after wait()
+- [GCP Storage] Fix GCP Storage backend put obj as stream
+- [GCP Functions] Improved runtime create time
+- [Azure blob] Fix in azure blob get method
+- [Azure Functions] Fix build runtime command
 
 
 ## [v2.3.0]
@@ -37,7 +48,7 @@
 - [Core] Renamed partitioner 'chunk_n' param to 'obj_chunk_number'
 - [GCP Cloud Run] Refactor backend, removed 'gcloud' CLI calls.
 - [IBM VPC] Improved IBM VPC backend
-- [Aws Lambda] Lambda layer modules update
+- [AWS Lambda] Lambda layer modules update
 
 ### Fixes
 - [Multiprocessing] Fix issues related to Pipes and Queues

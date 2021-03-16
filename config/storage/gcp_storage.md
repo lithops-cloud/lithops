@@ -7,7 +7,7 @@ Lithops with GCP Storage as storage backend.
 1. Install Google Cloud Platform backend dependencies:
 
 ```
-$ pip install lithops[gcp]
+$ python3 -m pip install lithops[gcp]
 ```
 
  2. [Login](https://console.cloud.google.com) to Google Cloud Console (or signup if you don't have an account).
@@ -26,7 +26,7 @@ $ pip install lithops[gcp]
 
  7. Click on *Continue*. Then, click on *Create key*. Select *JSON* and then *Create*. Download the JSON file to a secure location in you computer. Click *Done*.
 
- 8. Navigate to *Storage* on the menu. Create a bucket and name it `lithops-data` or similar. Remember to update the corresponding Cloudbutton's config field with this bucket name.
+ 8. Navigate to *Storage* on the menu. Create a bucket and name it `lithops-data` or similar. Remember to update the corresponding Lithops config field with this bucket name.
 
 ### Configuration
 
@@ -35,6 +35,7 @@ $ pip install lithops[gcp]
 ```yaml
     lithops:
         storage: gcp_storage
+        storage_bucket: <BUCKET_NAME>
 
     gcp:
         project_name : <PROJECT_NAME>

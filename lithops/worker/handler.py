@@ -38,7 +38,7 @@ from lithops.version import __version__
 from lithops.config import extract_storage_config
 from lithops.storage import InternalStorage
 from lithops.worker.jobrunner import JobRunner
-from lithops.worker.utils import get_memory_usage, LogStream
+from lithops.worker.utils import get_memory_usage, LogStream, custom_redirection
 from lithops.constants import JOBS_PREFIX, LITHOPS_TEMP_DIR
 from lithops.utils import sizeof_fmt, setup_lithops_logger, is_unix_system
 from lithops.storage.utils import create_status_key, create_job_key,\
@@ -108,15 +108,10 @@ def process_runner(runner_id, job_queue):
         job.call_id = call_id
         job.data_byte_range = data_byte_range
 
-        old_stderr = sys.stderr
-        old_stdout = sys.stdout
-        log_strem = open(job.log_file, 'a')
-        sys.stderr = LogStream(log_strem)
-        sys.stdout = LogStream(log_strem)
-        run_job(job)
-        log_strem.close()
-        sys.stderr = old_stderr
-        sys.stdout = old_stdout
+        with open(job.log_file, 'a') as log_strem:
+            job.log_stream = LogStream(log_strem)
+            with custom_redirection(job.log_stream):
+                run_job(job)
 
 
 def run_job(job):
@@ -229,6 +224,8 @@ def run_job(job):
     finally:
         call_status.response['worker_end_tstamp'] = time.time()
 
+        # Flush log stream and save it to the call status
+        job.log_stream.flush()
         with open(job.log_file, 'rb') as lf:
             log_str = base64.b64encode(zlib.compress(lf.read())).decode()
             call_status.response['logs'] = log_str

@@ -31,7 +31,6 @@ RUNTIME_MEMORY = 256  # Default memory: 256 MB
 RUNTIME_CPU = 1  # 1 vCPU
 MAX_CONCURRENT_WORKERS = 1000
 INVOKE_POOL_THREADS_DEFAULT = 4
-
 DEFAULT_GROUP = "codeengine.cloud.ibm.com"
 DEFAULT_VERSION = "v1beta1"
 
@@ -143,6 +142,10 @@ spec:
 def load_config(config_data):
     if 'code_engine' not in config_data:
         config_data['code_engine'] = {}
+
+    if 'kubectl_config' in config_data['code_engine']:
+        print('"kubectl_config" variable in config is deprecated, use "kubecfg_path" instead')
+        config_data['code_engine']['kubecfg_path'] = config_data['code_engine']['kubectl_config']
 
     if 'cpu' not in config_data['code_engine']:
         config_data['code_engine']['cpu'] = RUNTIME_CPU

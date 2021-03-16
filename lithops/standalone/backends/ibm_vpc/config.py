@@ -22,7 +22,6 @@ MANDATORY_PARAMETERS_3 = ['endpoint',
 IMAGE_ID_DEFAULT = 'r014-b7da49af-b46a-4099-99a4-c183d2d40ea8'  # ubuntu 20.04
 PROFILE_NAME_DEFAULT = 'cx2-2x4'
 VOLUME_TIER_NAME_DEFAULT = 'general-purpose'
-
 SSH_USER = 'root'
 SSH_PASSWD = 'lithops'
 

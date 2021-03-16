@@ -110,3 +110,6 @@ def load_config(config_data):
     if 'invoke_pool_threads' not in config_data['ibm_cf']:
         config_data['ibm_cf']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
     config_data['serverless']['invoke_pool_threads'] = config_data['ibm_cf']['invoke_pool_threads']
+
+
+    #config_data['unit_price'] = UNIT_PRICE

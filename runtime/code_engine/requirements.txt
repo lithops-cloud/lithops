@@ -20,7 +20,7 @@ python-dateutil
 requests
 scrapy
 simplejson
-virtualenv
+#virtualenv
 Twisted
 PyJWT
 
@@ -34,16 +34,16 @@ pandas
 Pillow
 
 # IBM specific python modules
-ibm_db
-cloudant
-watson-developer-cloud
+#ibm_db
+#cloudant
+#watson-developer-cloud
 ibm-cos-sdk
-ibmcloudsql
+#ibmcloudsql
 
 # Compose Libs
 psycopg2-binary
-pymongo
+#pymongo
 redis
 pika == 0.13.1
-elasticsearch
+#elasticsearch
 etcd3

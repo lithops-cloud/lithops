@@ -139,7 +139,7 @@ def setup_lithops_logger(log_level=LOGGER_LEVEL,
                          log_format=LOGGER_FORMAT,
                          stream=None, filename=None):
     """Setup logging for lithops."""
-    if log_level is None:
+    if log_level is None or str(log_level).lower() == 'none':
         return
 
     if stream is None:

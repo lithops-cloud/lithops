@@ -69,7 +69,7 @@ class AzureBlobStorageBackend:
             bytes_range = extra_get_args.pop('Range')[6:]
             bytes_range = bytes_range.split('-')
             extra_get_args['offset'] = int(bytes_range[0])
-            extra_get_args['length'] = int(bytes_range[1]) - extra_get_args['offset']
+            extra_get_args['length'] = int(bytes_range[1]) - int(bytes_range[0]) + 1
         try:
             container_client = self.blob_client.get_container_client(bucket_name)
             if stream:
