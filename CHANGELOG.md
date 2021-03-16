@@ -1,8 +1,9 @@
 # Changelog
 
-## [v2.3.1.dev1]
+## [v2.3.1.dev2]
 
 ### Added
+- [Core] Allow Support for Python 3.9
 - [knative] Include GCP and Azure storage libs into default knative runtime
 - [CodeEngie] Enable internal kubernetes pod executions
 - [k8s] Enable internal kubernetes pod executions
