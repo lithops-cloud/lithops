@@ -6,6 +6,9 @@
 - [knative] Include GCP and Azure storage libs into default knative runtime
 - [CodeEngie] Enable internal kubernetes pod executions
 - [k8s] Enable internal kubernetes pod executions
+- [Cli] Added 'empty' function to storage cli to empty a bucket
+- [Core] Added new method to FunctionExecutor() to calculate execution costs
+- [IBM CF] Added formula to calculate execution costs
 
 ### Changed
 - [IBM CF] Change user_key to API-key pass instead of user 

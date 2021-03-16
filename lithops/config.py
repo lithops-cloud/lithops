@@ -76,19 +76,22 @@ def get_default_config_filename():
     return config_filename
 
 
-def load_config():
+def load_config(log=True):
     """ Load the configuration """
     if 'LITHOPS_CONFIG' in os.environ:
-        logger.debug("Loading configuration from env LITHOPS_CONFIG")
+        if log:
+            logger.debug("Loading configuration from env LITHOPS_CONFIG")
         config_data = json.loads(os.environ.get('LITHOPS_CONFIG'))
     else:
         config_filename = get_default_config_filename()
         if config_filename:
-            logger.debug("Loading configuration from {}".format(config_filename))
+            if log:
+                logger.debug("Loading configuration from {}".format(config_filename))
             config_data = load_yaml_config(config_filename)
         else:
             # No config file found. Set to Localhost mode
-            logger.debug("Config file not found. Setting Lithops to localhost mode")
+            if log:
+                logger.debug("Config file not found. Setting Lithops to localhost mode")
             config_data = {'lithops': {'mode': constants.LOCALHOST,
                                        'storage': constants.LOCALHOST}}
 
@@ -97,7 +100,7 @@ def load_config():
 
 def get_log_info(config_data=None):
     """ Return lithops logging information set in configuration """
-    config_data = config_data or load_config()
+    config_data = config_data or load_config(log=False)
 
     if 'lithops' not in config_data or not config_data['lithops']:
         config_data['lithops'] = {}
@@ -128,7 +131,7 @@ def get_mode(backend=None, config_data=None):
     elif backend:
         raise Exception("Unknown compute backend: {}".format(backend))
 
-    config_data = config_data or load_config()
+    config_data = config_data or load_config(log=False)
 
     if 'lithops' not in config_data or not config_data['lithops']:
         config_data['lithops'] = {}
