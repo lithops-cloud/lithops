@@ -7,6 +7,9 @@ FROM python:3.6-slim-buster
 # Python 3.8
 #FROM python:3.8-slim-buster
 
+# Python 3.9
+#FROM python:3.9-slim-buster
+
 RUN apt-get update && apt-get install -y \
         zip \
         && rm -rf /var/lib/apt/lists/*

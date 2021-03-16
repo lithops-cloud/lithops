@@ -122,7 +122,7 @@ RUN mkdir -p /home/site/wwwroo \
     && rm lithops_azure.zip
 """
 
-SUPPORTED_PYTHON = ['3.6', '3.7', '3.8']
+SUPPORTED_PYTHON = ['3.6', '3.7', '3.8', '3.9']
 
 
 def load_config(config_data=None):
