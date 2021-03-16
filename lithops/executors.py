@@ -23,14 +23,10 @@ import logging
 import atexit
 import pickle
 import tempfile
+import numpy as np
 import subprocess as sp
 from datetime import datetime
 from functools import partial
-from pathlib import Path
-
-import pandas as pd
-import numpy as np
-
 from lithops import constants
 from lithops.invokers import ServerlessInvoker, StandaloneInvoker, CustomizedRuntimeInvoker
 from lithops.storage import InternalStorage
@@ -606,6 +602,7 @@ class FunctionExecutor:
 
         :param cloud_objects_n: number of cloud object used in COS, declared by user.
         """
+        import pandas as pd
 
         def init():
             headers = ['Job_ID', 'Function', 'Invocations', 'Memory(MB)', 'AvgRuntime', 'Cost', 'CloudObjects']
