@@ -205,7 +205,7 @@ class AzureFunctionAppBackend:
             out_queue = self.queue_service.get_queue_client(out_q_name)
             out_queue.clear_messages()
 
-        logger.debug('Creating function app. Function name: {}'.format(action_name))
+        logger.debug('Creating function app: {}'.format(action_name))
         python_version = version_str(sys.version_info)
         cmd = ('az functionapp create --name {} --storage-account {} '
                '--resource-group {} --os-type Linux  --runtime python '
@@ -218,7 +218,7 @@ class AzureFunctionAppBackend:
         if res != 0:
             raise Exception('There was an error creating the function in Azure. cmd: {}'.format(cmd))
 
-        logger.debug('Publishing function app')
+        logger.debug('Publishing function app: {}'.format(action_name))
         build_dir = os.path.join(az_config.BUILD_DIR, action_name)
         os.chdir(build_dir)
         res = 1
