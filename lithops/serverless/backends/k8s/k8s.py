@@ -45,11 +45,11 @@ class KubernetesBackend:
     A wrap-up around Code Engine backend.
     """
 
-    def __init__(self, k8s_config, storage_config):
+    def __init__(self, k8s_config, internal_storage):
         logger.debug("Creating Kubernetes Job client")
         self.name = 'k8s'
         self.k8s_config = k8s_config
-        self.storage_config = storage_config
+        self.internal_storage = internal_storage
 
         self.kubecfg_path = k8s_config.get('kubecfg_path')
         self.user_agent = k8s_config['user_agent']
@@ -323,7 +323,7 @@ class KubernetesBackend:
 
         logger.info("Extracting Python modules from: {}".format(docker_image_name))
 
-        payload = copy.deepcopy(self.storage_config)
+        payload = copy.deepcopy(self.internal_storage.storage.storage_config)
         payload['runtime_name'] = runtime_name
         payload['log_level'] = logger.getEffectiveLevel()
 

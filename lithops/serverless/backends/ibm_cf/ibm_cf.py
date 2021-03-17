@@ -37,7 +37,7 @@ class IBMCloudFunctionsBackend:
     A wrap-up around IBM Cloud Functions backend.
     """
 
-    def __init__(self, ibm_cf_config, storage_config):
+    def __init__(self, ibm_cf_config, internal_storage):
         logger.debug("Creating IBM Cloud Functions client")
         self.name = 'ibm_cf'
         self.config = ibm_cf_config

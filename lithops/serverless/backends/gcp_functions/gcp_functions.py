@@ -49,7 +49,7 @@ AUDIENCE = "https://pubsub.googleapis.com/google.pubsub.v1.Publisher"
 
 
 class GCPFunctionsBackend:
-    def __init__(self, gcp_functions_config, storage_config):
+    def __init__(self, gcp_functions_config, internal_storage):
         self.name = 'gcp_functions'
         self.gcp_functions_config = gcp_functions_config
         self.package = 'lithops_v' + __version__
@@ -61,8 +61,7 @@ class GCPFunctionsBackend:
         self.num_retries = gcp_functions_config['retries']
         self.retry_sleep = gcp_functions_config['retry_sleep']
 
-        # Instantiate storage client (used to upload function bin)
-        self.internal_storage = InternalStorage(storage_config)
+        self.internal_storage = internal_storage
 
         # Setup Pub/Sub client
         try:  # Get credentials from JSON file

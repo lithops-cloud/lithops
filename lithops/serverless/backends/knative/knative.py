@@ -45,7 +45,7 @@ class KnativeServingBackend:
     A wrap-up around Knative Serving APIs.
     """
 
-    def __init__(self, knative_config, storage_config):
+    def __init__(self, knative_config, internal_storage):
         self.name = 'knative'
         self.knative_config = knative_config
         self.istio_endpoint = self.knative_config.get('istio_endpoint')
