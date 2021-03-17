@@ -18,6 +18,8 @@ import threading
 import io
 from lithops.config import load_config
 
+from . import config as mp_config
+
 logger = logging.getLogger(__name__)
 
 
@@ -121,11 +123,19 @@ class RemoteReference:
 
     def incref(self):
         if not self.managed:
-            return int(self._client.incr(self._rck, 1))
+            pipeline = self._client.pipeline()
+            pipeline.incr(self._rck, 1)
+            pipeline.expire(self._rck, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+            counter, _ = pipeline.execute()
+            return int(counter)
 
     def decref(self):
         if not self.managed:
-            return int(self._client.decr(self._rck, 1))
+            pipeline = self._client.pipeline()
+            pipeline.decr(self._rck, 1)
+            pipeline.expire(self._rck, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+            counter, _ = pipeline.execute()
+            return int(counter)
 
     def refcount(self):
         count = self._client.get(self._rck)

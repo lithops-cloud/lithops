@@ -15,6 +15,7 @@ import logging
 
 from . import util
 from . import get_context
+from . import config as mp_config
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,7 @@ class RawValueProxy(SharedCTypeProxy):
         if key == 'value':
             obj = cloudpickle.dumps(value)
             logger.debug('Set raw value %s of size %i B', self._oid, len(obj))
-            self._client.set(self._oid, obj)
+            self._client.set(self._oid, obj, ex=mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
         else:
             super().__setattr__(key, value)
 
@@ -112,6 +113,7 @@ class RawArrayProxy(SharedCTypeProxy):
             start, stop, step = i.indices(self.__len__())
             logger.debug('Requested get list slice from %i to %i', start, stop)
             objl = self._client.lrange(self._oid, start, stop)
+            self._client.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
             return [cloudpickle.loads(obj) for obj in objl]
         else:
             obj = self._client.lindex(self._oid, i)
@@ -127,6 +129,7 @@ class RawArrayProxy(SharedCTypeProxy):
             obj = cloudpickle.dumps(value)
             logger.debug('Requested set list index %i of size %i B', i, len(obj))
             self._client.lset(self._oid, i, obj)
+            self._client.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
 
 
 class SynchronizedArrayProxy(RawArrayProxy, SynchronizedSharedCTypeProxy):
@@ -147,6 +150,7 @@ class SynchronizedStringProxy(SynchronizedArrayProxy):
                 obj = cloudpickle.dumps(elem)
                 logger.debug('Requested set string index %i of size %i B', i, len(obj))
                 self._client.lset(self._oid, i, obj)
+                self._client.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
         else:
             super().__setattr__(key, value)
 
@@ -161,9 +165,11 @@ class SynchronizedStringProxy(SynchronizedArrayProxy):
             start, stop, step = i.indices(self.__len__())
             logger.debug('Requested get string slice from %i to %i', start, stop)
             objl = self._client.lrange(self._oid, start, stop)
+            self._client.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
             return bytes([cloudpickle.loads(obj) for obj in objl])
         else:
             obj = self._client.lindex(self._oid, i)
+            self._client.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
             return bytes([cloudpickle.loads(obj)])
 
 

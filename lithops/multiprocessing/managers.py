@@ -23,6 +23,7 @@ from . import pool
 from . import synchronize
 from . import queues
 from . import util
+from . import config as mp_config
 
 logger = logging.getLogger(__name__)
 
@@ -159,8 +160,8 @@ class BaseProxy:
         self._oid = '{}-{}'.format(typeid, util.get_uuid())
 
         self._pickler = cloudpickle
-        self._client = util.get_redis_client()
-        self._ref = util.RemoteReference(self._oid, client=self._client)
+        self.client = util.get_redis_client()
+        self._ref = util.RemoteReference(self._oid, client=self.client)
 
     def __repr__(self):
         return '<{} object, typeid={}, key={}>'.format(type(self).__name__, self._typeid, self._oid)
@@ -207,6 +208,7 @@ class GenericProxy(BaseProxy):
             attr = getattr(obj, attr_name)
             attr_bin = self._pickler.dumps(attr)
             pipeline.hset(self._oid, attr_name, attr_bin)
+        pipeline.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
         pipeline.execute()
 
     def __getstate__(self):
@@ -238,7 +240,7 @@ class MethodWrapper:
         self._proxy = proxy
 
     def __call__(self, *args, **kwargs):
-        attrs = self._proxy._client.hgetall(self._proxy._oid)
+        attrs = self._proxy.client.hgetall(self._proxy._oid)
 
         hashes = {}
 
@@ -259,12 +261,13 @@ class MethodWrapper:
         else:
             shared = self._shared_object.__shared__
 
-        pipeline = self._proxy._client.pipeline()
+        pipeline = self._proxy.client.pipeline()
         for attr_name in shared:
             attr = getattr(self._shared_object, attr_name)
             attr_bin = self._proxy._pickler.dumps(attr)
             if hash(attr_bin) != hashes[attr_name]:
                 pipeline.hset(self._proxy._oid, attr_name, attr_bin)
+        pipeline.expire(self._proxy._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
         pipeline.execute()
 
         return result
@@ -306,7 +309,7 @@ class ListProxy(BaseProxy):
 
     def __init__(self, iterable=None):
         super().__init__('list')
-        self._lua_extend_list = self._client.register_script(ListProxy.LUA_EXTEND_LIST_SCRIPT)
+        self._lua_extend_list = self.client.register_script(ListProxy.LUA_EXTEND_LIST_SCRIPT)
         util.make_stateless_script(self._lua_extend_list)
 
         if iterable is not None:
@@ -317,7 +320,10 @@ class ListProxy(BaseProxy):
             idx = i.__index__()
             serialized = self._pickler.dumps(obj)
             try:
-                self._client.lset(self._oid, idx, serialized)
+                pipeline = self.client.pipeline()
+                pipeline.lset(self._oid, idx, serialized)
+                pipeline.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+                pipeline.execute()
             except redis.exceptions.ResponseError:
                 # raised when index >= len(self)
                 raise IndexError('list assignment index out of range')
@@ -330,7 +336,7 @@ class ListProxy(BaseProxy):
             if end < 0:
                 end = len(self) + end
 
-            pipeline = self._client.pipeline(transaction=False)
+            pipeline = self.client.pipeline(transaction=False)
             try:
                 iterable = iter(obj)
                 for j in range(start, end):
@@ -346,6 +352,7 @@ class ListProxy(BaseProxy):
                 return
             except TypeError:
                 raise TypeError('can only assign an iterable')
+            pipeline.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
             pipeline.execute()
         else:
             raise TypeError('list indices must be integers '
@@ -354,7 +361,10 @@ class ListProxy(BaseProxy):
     def __getitem__(self, i):
         if isinstance(i, int) or hasattr(i, '__index__'):
             idx = i.__index__()
-            serialized = self._client.lindex(self._oid, idx)
+            pipeline = self.client.pipeline()
+            pipeline.lindex(self._oid, idx)
+            pipeline.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+            serialized, _ = pipeline.execute()
             if serialized is not None:
                 return self._pickler.loads(serialized)
             raise IndexError('list index out of range')
@@ -363,7 +373,10 @@ class ListProxy(BaseProxy):
             start, end, step = deslice(i)
             if start is None:
                 return []
-            serialized = self._client.lrange(self._oid, start, end)
+            pipeline = self.client.pipeline()
+            pipeline.lrange(self._oid, start, end)
+            pipeline.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+            serialized, _ = pipeline.execute()
             unserialized = [self._pickler.loads(obj) for obj in serialized]
             return unserialized
             # return type(self)(unserialized)
@@ -377,20 +390,30 @@ class ListProxy(BaseProxy):
         else:
             if iterable != []:
                 values = map(self._pickler.dumps, iterable)
-                self._client.rpush(self._oid, *values)
+                pipeline = self.client.pipeline()
+                pipeline.rpush(self._oid, *values)
+                pipeline.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+                pipeline.execute()
 
     def _extend_same_type(self, listproxy, repeat=1):
         self._lua_extend_list(keys=[self._oid, listproxy._oid],
                               args=[repeat],
-                              client=self._client)
+                              client=self.client)
 
     def append(self, obj):
         serialized = self._pickler.dumps(obj)
-        self._client.rpush(self._oid, serialized)
+        pipeline = self.client.pipeline()
+        pipeline.rpush(self._oid, serialized)
+        pipeline.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+        pipeline.execute()
 
     def pop(self, index=None):
         if index is None:
-            serialized = self._client.rpop(self._oid)
+            pipeline = self.client.pipeline()
+            pipeline.rpop(self._oid)
+            pipeline.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+            serialized, _ = pipeline.execute()
+
             if serialized is not None:
                 return self._pickler.loads(serialized)
         else:
@@ -448,11 +471,14 @@ class ListProxy(BaseProxy):
         return self
 
     def __len__(self):
-        return self._client.llen(self._oid)
+        return self.client.llen(self._oid)
 
     def remove(self, obj):
         serialized = self._pickler.dumps(obj)
-        self._client.lrem(self._oid, 1, serialized)
+        pipeline = self.client.pipeline()
+        pipeline.lrem(self._oid, 1, serialized)
+        pipeline.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+        pipeline.execute()
         return self
 
     def __delitem__(self, i):
@@ -461,7 +487,7 @@ class ListProxy(BaseProxy):
         self.remove(sentinel)
 
     def tolist(self):
-        serialized = self._client.lrange(self._oid, 0, -1)
+        serialized = self.client.lrange(self._oid, 0, -1)
         unserialized = [self._pickler.loads(obj) for obj in serialized]
         return unserialized
 
@@ -471,13 +497,13 @@ class ListProxy(BaseProxy):
 
     def reverse(self):
         rev = reversed(self[:])
-        self._client.delete(self._oid)
+        self.client.delete(self._oid)
         self.extend(rev)
         return self
 
     def sort(self, key=None, reverse=False):
         sortd = sorted(self[:], key=key, reverse=reverse)
-        self._client.delete(self._oid)
+        self.client.delete(self._oid)
         self.extend(sortd)
         return self
 
@@ -490,7 +516,7 @@ class ListProxy(BaseProxy):
     def insert(self, index, obj):
         new_list = self[:]
         new_list.insert(index, obj)
-        self._client.delete(self._oid)
+        self.client.delete(self._oid)
         self.extend(new_list)
 
 
@@ -502,26 +528,35 @@ class DictProxy(BaseProxy):
 
     def __setitem__(self, k, v):
         serialized = self._pickler.dumps(v)
-        self._client.hset(self._oid, k, serialized)
+        pipeline = self.client.pipeline()
+        pipeline.hset(self._oid, k, serialized)
+        pipeline.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+        pipeline.execute()
 
     def __getitem__(self, k):
-        serialized = self._client.hget(self._oid, k)
+        pipeline = self.client.pipeline()
+        pipeline.hget(self._oid, k)
+        pipeline.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+        serialized, _ = pipeline.execute()
         if serialized is None:
             raise KeyError(k)
 
-        unserialized = self._pickler.loads(serialized)
-        return unserialized
+        return self._pickler.loads(serialized)
 
     def __delitem__(self, k):
-        res = self._client.hdel(self._oid, k)
+        pipeline = self.client.pipeline()
+        pipeline.hdel(self._oid, k)
+        pipeline.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
+        res, _ = pipeline.execute()
+
         if res == 0:
             raise KeyError(k)
 
     def __contains__(self, k):
-        return self._client.hexists(self._oid, k)
+        return self.client.hexists(self._oid, k)
 
     def __len__(self):
-        return self._client.hlen(self._oid)
+        return self.client.hlen(self._oid)
 
     def __iter__(self):
         return iter(self.keys())
@@ -554,7 +589,7 @@ class DictProxy(BaseProxy):
 
     def setdefault(self, k, default=None):
         serialized = self._pickler.dumps(default)
-        res = self._client.hsetnx(self._oid, k, serialized)
+        res = self.client.hsetnx(self._oid, k, serialized)
         if res == 1:
             return default
         else:
@@ -581,30 +616,31 @@ class DictProxy(BaseProxy):
             items.extend((k, self._pickler.dumps(kwargs[k])))
 
         if len(items) > 0:
-            self._client.execute_command('HMSET', self._oid, *items)
+            self.client.execute_command('HMSET', self._oid, *items)
+            self.client.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
 
     def keys(self):
-        return [k.decode() for k in self._client.hkeys(self._oid)]
+        return [k.decode() for k in self.client.hkeys(self._oid)]
 
     def values(self):
-        return [self._pickler.loads(v) for v in self._client.hvals(self._oid)]
+        return [self._pickler.loads(v) for v in self.client.hvals(self._oid)]
 
     def items(self):
-        raw_dict = self._client.hgetall(self._oid)
+        raw_dict = self.client.hgetall(self._oid)
         items = []
         for k, v in raw_dict.items():
             items.append((k.decode(), self._pickler.loads(v)))
         return items
 
     def clear(self):
-        self._client.delete(self._oid)
+        self.client.delete(self._oid)
 
     def copy(self):
         # TODO: use lua script
         return type(self)(self.items())
 
     def todict(self):
-        raw_dict = self._client.hgetall(self._oid)
+        raw_dict = self.client.hgetall(self._oid)
         py_dict = {}
         for k, v in raw_dict.items():
             py_dict[k.decode()] = self._pickler.loads(v)
@@ -648,12 +684,12 @@ class ValueProxy(BaseProxy):
             self.set(value)
 
     def get(self):
-        serialized = self._client.get(self._oid)
+        serialized = self.client.get(self._oid)
         return self._pickler.loads(serialized)
 
     def set(self, value):
         serialized = self._pickler.dumps(value)
-        self._client.set(self._oid, serialized)
+        self.client.set(self._oid, serialized, ex=mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
 
     value = property(get, set)
 

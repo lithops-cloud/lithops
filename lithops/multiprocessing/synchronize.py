@@ -14,6 +14,7 @@ import time
 import logging
 
 from . import util
+from . import config as mp_config
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ class SemLock:
         logger.debug('Requested creation of resource Lock %s', self._name)
         if value != 0:
             self._client.rpush(self._name, *([''] * value))
+        self._client.expire(self._name, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
 
         self._lua_release = self._client.register_script(Semaphore.LUA_RELEASE_SCRIPT)
         util.make_stateless_script(self._lua_release)
@@ -193,6 +195,7 @@ class Condition:
         self.release()
         logger.debug('Waiting for token %s on condition %s', wait_handle, self._notify_handle)
         self._client.blpop([wait_handle], timeout)
+        self._client.expire(wait_handle, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
         self.acquire()
 
     def notify(self):
@@ -302,7 +305,7 @@ class Barrier(threading.Barrier):
 
     @_state.setter
     def _state(self, value):
-        self._client.set(self._state_handle, value)
+        self._client.set(self._state_handle, value, ex=mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
 
     @property
     def _count(self):
@@ -310,4 +313,4 @@ class Barrier(threading.Barrier):
 
     @_count.setter
     def _count(self, value):
-        self._client.set(self._count_handle, value)
+        self._client.set(self._count_handle, value, ex=mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
