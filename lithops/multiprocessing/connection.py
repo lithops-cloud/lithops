@@ -639,7 +639,7 @@ def _RedisClient(address):
     chan = '{}:{}'.format(ip, port)
     redis_client.publish(chan, bytes(h2, 'utf-8'))
     ack = c.recv()
-    assert ack == b'OK'
+    assert ack == 'OK'
     return c
 
 
