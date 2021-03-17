@@ -64,6 +64,10 @@ class LithopsBackend(ParallelBackendBase, PoolManagerMixin):
     However, does not suffer from the Python Global Interpreter Lock.
     """
 
+    def __init__(self, nesting_level=None, inner_max_num_threads=None, **pool_kwargs):
+        super().__init__(nesting_level, inner_max_num_threads, **{})
+        self.__pool_kwargs = pool_kwargs
+
     # Environment variables to protect against bad situations when nesting
     JOBLIB_SPAWNED_PROCESS = "__JOBLIB_SPAWNED_PARALLEL__"
 
@@ -99,7 +103,7 @@ class LithopsBackend(ParallelBackendBase, PoolManagerMixin):
 
         # Make sure to free as much memory as possible before forking
         gc.collect()
-        self._pool = Pool()
+        self._pool = Pool(**self.__pool_kwargs)
         self.parallel = parallel
 
         return n_jobs
