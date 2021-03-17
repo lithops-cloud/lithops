@@ -31,7 +31,6 @@ from lithops.version import __version__
 from lithops.utils import create_handler_zip
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
 from . import config as ce_config
-from lithops.storage.storage import InternalStorage
 from lithops.storage.utils import StorageNoSuchKeyError
 
 logger = logging.getLogger(__name__)
