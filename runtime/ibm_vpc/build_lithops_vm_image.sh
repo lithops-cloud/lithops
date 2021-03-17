@@ -85,6 +85,8 @@ include_docker(){
     echo "Docker image: $DOCKER_IMAGE"
     echo ""
 
+	apt-get install docker.io
+
     if [ "$DOCKER_PRUNE" == "prune" ]; then
       docker system prune -a -f
     fi

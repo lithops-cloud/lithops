@@ -2,6 +2,7 @@ import os
 import sys
 import pkgutil
 import subprocess
+from contextlib import contextmanager
 from lithops.utils import sizeof_fmt, is_unix_system
 
 if is_unix_system():
@@ -86,7 +87,21 @@ def get_runtime_preinstalls():
     return runtime_meta
 
 
+@contextmanager
+def custom_redirection(fileobj):
+    old_stdout = sys.stdout
+    old_stderr = sys.stderr
+    sys.stdout = fileobj
+    sys.stderr = fileobj
+    try:
+        yield fileobj
+    finally:
+        sys.stdout = old_stdout
+        sys.stderr = old_stderr
+
+
 class LogStream:
+
     def __init__(self, stream):
         self._old_stdout = sys.stdout
         self._stream = stream
@@ -98,3 +113,6 @@ class LogStream:
 
     def flush(self):
         self._stream.flush()
+
+    def fileno(self):
+        return self._old_stdout.fileno()

@@ -9,14 +9,16 @@ Lithops with OpenStack Swift as storage backend.
 
 2. Install and configure [OpenStack Swift](https://docs.openstack.org/swift/latest/install/)
 
+3. Create a new bucket (container) (e.g. `lithops-data`). Remember to update the corresponding Lithops config field with this bucket name.
 
 ### Configuration
 
-3. Edit your lithops config file and add the following keys:
+4. Edit your lithops config file and add the following keys:
 
 ```yaml
     lithops:
         storage: swift
+        storage_bucket: <BUCKET_NAME>
 
     swift:
         auth_url   : <SWIFT_AUTH_URL>

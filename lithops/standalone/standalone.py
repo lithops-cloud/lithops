@@ -56,6 +56,7 @@ class StandaloneHandler:
         StandaloneBackend = getattr(sb_module, 'StandaloneBackend')
         self.backend = StandaloneBackend(self.config[self.backend_name], self.exec_mode)
 
+        self.jobs = []  # list to store executed jobs (job_keys)
         logger.debug("Standalone handler created successfully")
 
     def init(self):
@@ -64,7 +65,7 @@ class StandaloneHandler:
         """
         self.backend.init()
 
-    def _is_instance_ready(self):
+    def _is_master_instance_ready(self):
         """
         Checks if the VM instance is ready to receive ssh connections
         """
@@ -74,7 +75,7 @@ class StandaloneHandler:
             return False
         return True
 
-    def _wait_instance_ready(self):
+    def _wait_master_instance_ready(self):
         """
         Waits until the VM instance is ready to receive ssh connections
         """
@@ -83,9 +84,10 @@ class StandaloneHandler:
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
-            if self._is_instance_ready():
-                logger.debug('{} ready in {} seconds'.format(self.backend.master,
-                                                             round(time.time()-start, 2)))
+            if self._is_master_instance_ready():
+                logger.debug('{} ready in {} seconds'
+                             .format(self.backend.master,
+                                     round(time.time()-start, 2)))
                 return True
             time.sleep(5)
 
@@ -93,7 +95,7 @@ class StandaloneHandler:
         raise Exception('Readiness probe expired on {}'
                         .format(self.backend.master))
 
-    def _is_service_ready(self):
+    def _is_master_service_ready(self):
         """
         Checks if the proxy is ready to receive http connections
         """
@@ -113,7 +115,7 @@ class StandaloneHandler:
         except Exception:
             return False
 
-    def _wait_service_ready(self):
+    def _wait_master_service_ready(self):
         """
         Waits until the proxy is ready to receive http connections
         """
@@ -122,7 +124,10 @@ class StandaloneHandler:
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
-            if self._is_service_ready():
+            if self._is_master_service_ready():
+                logger.debug('{} ready in {} seconds'
+                             .format(self.backend.master,
+                                     round(time.time()-start, 2)))
                 return True
             time.sleep(2)
 
@@ -139,60 +144,53 @@ class StandaloneHandler:
         total_calls = job_payload['total_calls']
         chunksize = job_payload['chunksize']
 
-        if self.exec_mode == 'create':
-            total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
-            logger.debug('ExecutorID {} | JobID {} - Going '
-                         'to run {} activations in {} workers'
-                         .format(executor_id, job_id,
-                                 total_calls, total_workers))
+        total_workers = total_calls // chunksize + (total_calls % chunksize > 0) \
+            if self.exec_mode == 'create' else 1
 
-            for vm_n in range(total_workers):
-                worker_id = "{:04d}".format(vm_n)
-                name = 'lithops-{}-{}-{}'.format(executor_id, job_id, worker_id)
-                self.backend.create_worker(name)
-
-            def _callback(future):
-                # This callback is used to raise in-thread exceptions (if any)
-                future.result()
-
-            workers = self.backend.workers
-            with ThreadPoolExecutor(len(workers)+1) as executor:
-                future = executor.submit(lambda vm: vm.create(check_if_exists=True, start=True), self.backend.master)
-                future.add_done_callback(_callback)
-                for i in range(len(workers)):
-                    future = executor.submit(lambda vm: vm.create(start=True), workers[i])
-                    future.add_done_callback(_callback)
-        else:
-            logger.debug('ExecutorID {} | JobID {} - Going '
-                         'to run {} activations in 1 worker'
-                         .format(executor_id, job_id, total_calls,))
-
-        logger.debug("Checking if Lithops service is ready in {}".format(self.backend.master))
-        if not self._is_service_ready():
-            logger.debug("Lithops service not ready")
-            if self.exec_mode != 'create':
+        def start_master_instance(wait=True):
+            if not self._is_master_service_ready():
                 self.backend.master.create(check_if_exists=True, start=True)
-            # Wait only for the entry point instance
-            self._wait_instance_ready()
-
-        logger.debug('Lithops service ready')
+                if wait:
+                    self._wait_master_service_ready()
 
         if self.exec_mode == 'create':
-            logger.debug('Be patient, VM startup time may take up to 2 minutes')
-            worker_instances = [(inst.name, inst.ip_address, inst.instance_id) for inst in workers]
-            job_payload['woreker_instances'] = worker_instances
-            cmd = ('curl http://127.0.0.1:{}/run-create -d {} '
-                   '-H \'Content-Type: application/json\' -X POST'
-                   .format(STANDALONE_SERVICE_PORT,
-                           shlex.quote(json.dumps(job_payload))))
+            with ThreadPoolExecutor(total_workers+1) as ex:
+                ex.submit(start_master_instance, wait=False)
+                for vm_n in range(total_workers):
+                    worker_id = "{:04d}".format(vm_n)
+                    name = 'lithops-{}-{}-{}'.format(executor_id, job_id, worker_id)
+                    ex.submit(self.backend.create_worker, name)
+
+            logger.debug("Total worker VM instances created: {}/{}"
+                         .format(len(self.backend.workers), total_workers))
+
+        logger.debug('ExecutorID {} | JobID {} - Going '
+                     'to run {} activations in {} workers'
+                     .format(executor_id, job_id,
+                             total_calls, len(self.backend.workers)))
+
+        logger.debug("Checking if {} is ready".format(self.backend.master))
+        start_master_instance(wait=True)
+
+        if self.exec_mode == 'create':
+            worker_instances = [(inst.name, inst.ip_address, inst.instance_id)
+                                for inst in self.backend.workers]
+            job_payload['worker_instances'] = worker_instances
+
+        if self.is_lithops_worker:
+            url = "http://127.0.0.1:{}/run".format(STANDALONE_SERVICE_PORT)
+            requests.post(url, data=json.dumps(job_payload))
         else:
             cmd = ('curl http://127.0.0.1:{}/run -d {} '
                    '-H \'Content-Type: application/json\' -X POST'
                    .format(STANDALONE_SERVICE_PORT,
                            shlex.quote(json.dumps(job_payload))))
+            self.backend.master.get_ssh_client().run_remote_command(cmd)
+            self.backend.master.del_ssh_client()
 
-        self.backend.master.get_ssh_client().run_remote_command(cmd, run_async=True)
         logger.debug('Job invoked on {}'.format(self.backend.master))
+
+        self.jobs.append(job_payload['job_key'])
 
     def create_runtime(self, runtime):
         """
@@ -200,13 +198,13 @@ class StandaloneHandler:
         preinstalled modules
         """
         logger.debug('Checking if {} is ready'.format(self.backend.master))
-        if not self._is_instance_ready():
+        if not self._is_master_instance_ready():
             logger.debug('{} not ready'.format(self.backend.master))
             self.backend.master.create(check_if_exists=True, start=True)
-            self._wait_instance_ready()
+            self._wait_master_instance_ready()
 
-        self._setup_service()
-        self._wait_service_ready()
+        self._setup_master_service()
+        self._wait_master_service_ready()
 
         logger.debug('Extracting runtime metadata information')
         payload = {'runtime': runtime, 'pull_runtime': self.pull_runtime}
@@ -232,8 +230,19 @@ class StandaloneHandler:
 
     def clear(self):
         """
-        Clear all the backend resources
+        Clear all the backend resources.
+        clear method is executed after the results are get,
+        when an exception is produced, or when a user press ctrl+c
         """
+        cmd = ('curl http://127.0.0.1:{}/clear -d {} '
+               '-H \'Content-Type: application/json\' -X POST'
+               .format(STANDALONE_SERVICE_PORT,
+                       shlex.quote(json.dumps(self.jobs))))
+        try:
+            self.backend.master.get_ssh_client().run_remote_command(cmd)
+            self.backend.master.del_ssh_client()
+        except Exception:
+            pass
         self.backend.clear()
 
     def get_runtime_key(self, runtime_name):
@@ -244,7 +253,7 @@ class StandaloneHandler:
         """
         return self.backend.get_runtime_key(runtime_name)
 
-    def _setup_service(self):
+    def _setup_master_service(self):
         """
         Setup lithops necessary packages and files in master VM instance
         """

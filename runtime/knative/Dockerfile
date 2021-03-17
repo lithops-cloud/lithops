@@ -7,6 +7,9 @@ FROM python:3.6-slim-buster
 # Python 3.8
 #FROM python:3.8-slim-buster
 
+# Python 3.9
+#FROM python:3.9-slim-buster
+
 RUN apt-get update && apt-get install -y \
         zip \
         && rm -rf /var/lib/apt/lists/*
@@ -19,6 +22,10 @@ RUN pip install --upgrade setuptools six pip \
         gevent \
         glob2 \
         ibm-cos-sdk \
+        google-cloud-storage \
+        google-cloud-pubsub \
+        azure-storage-blob \
+        azure-storage-queue \
         redis \
         requests \
         PyYAML \
@@ -26,8 +33,7 @@ RUN pip install --upgrade setuptools six pip \
         numpy \
         cloudpickle \
         ps-mem \
-        tblib \
-        namegenerator
+        tblib
 
 ENV CONCURRENCY 4
 ENV TIMEOUT 600

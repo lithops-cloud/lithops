@@ -1,5 +1,6 @@
 import paramiko
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -10,6 +11,12 @@ class SSHClient():
         self.ip_address = ip_address
         self.ssh_credentials = ssh_credentials
         self.ssh_client = None
+
+        if 'key_filename' in self.ssh_credentials and \
+           self.ssh_credentials['key_filename'] and \
+           '~' in self.ssh_credentials['key_filename']:
+            fpath = os.path.expanduser(self.ssh_credentials['key_filename'])
+            self.ssh_credentials['key_filename'] = fpath
 
     def close(self):
         """

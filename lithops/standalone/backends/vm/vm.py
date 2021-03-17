@@ -67,6 +67,14 @@ class VMInstance:
                 self.ssh_client = SSHClient(self.ip_address, self.ssh_credentials)
         return self.ssh_client
 
+    def del_ssh_client(self):
+        """
+        Deletes the ssh client
+        """
+        if self.ssh_client:
+            self.ssh_client.close()
+            self.ssh_client = None
+
     def create(self):
         pass
 

@@ -4,7 +4,7 @@ To work with Lithops you must configure both compute backend and a storage. Fail
 
 Lithops can work with almost any compute backend and storage any can be used with almost any cloud provider. You have multiple options to choose compute backend and storage backend based on your needs. 
 
-After you choose your compute and storage engine, you need to configure Lithops so it can use choosen compute and storage. Lithops configuration can be provided either in configuration file or provided in runtime via Python dictionary. 
+After you choose your compute and storage engine, you need to configure Lithops so it can use chosen compute and storage. Lithops configuration can be provided either in configuration file or provided in runtime via Python dictionary. 
 
 ## Lithops configuration
 
@@ -67,6 +67,7 @@ Storage Backends
 
 - [IBM Cloud Functions](compute/ibm_cf.md)
 - [IBM Code Engine](compute/code_engine.md)
+- [Kubernetes batch/job](compute/k8s_job.md)
 - [Knative](compute/knative.md)
 - [OpenWhisk](compute/openwhisk.md)
 - [AWS Lambda](compute/aws_lambda.md)
@@ -109,7 +110,7 @@ def hello_world(name):
 
 if __name__ == '__main__':
     fexec = lithops.FunctionExecutor()
-    fexec.call_async(hello, 'World')
+    fexec.call_async(hello_world, 'World')
     print(fexec.get_result())
 ```
 
@@ -133,7 +134,7 @@ def hello_world(name):
 
 if __name__ == '__main__':
     fexec = lithops.FunctionExecutor(config=config)
-    fexec.call_async(hello, 'World')
+    fexec.call_async(hello_world, 'World')
     print(fexec.get_result())
 ```
 
@@ -166,7 +167,7 @@ fexec = lithops.FunctionExecutor(rabbitmq_monitor=True)
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|lithops|storage_bucket | |no | Any bucket that exists in your COS account. This will be used by Lithops for intermediate data |
+|lithops|storage_bucket | |yes | Any bucket that exists in your COS account. This will be used by Lithops for intermediate data |
 |lithops | storage | ibm_cos | no | Storage backend implementation. IBM Cloud Object Storage is the default |
 |lithops| data_cleaner | True | no |If set to True, then the cleaner will automatically delete all the temporary data that was written into `storage_bucket/lithops.jobs`|
 |lithops | mode | serverless | no | Execution mode. One of: **localhost**, **serverless** or **standalone** |

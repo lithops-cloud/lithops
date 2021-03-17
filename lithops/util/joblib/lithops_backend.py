@@ -121,7 +121,7 @@ class LithopsBackend(ParallelBackendBase, PoolManagerMixin):
         manager.start()
         mem_opt_calls = find_shared_objects(func.items, manager)
 
-        return self._get_pool().map_async(
+        return self._get_pool().starmap_async(
             handle_call,
             mem_opt_calls,
             callback=Then(callback, manager.shutdown))

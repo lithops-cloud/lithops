@@ -23,17 +23,19 @@ import logging
 import atexit
 import pickle
 import tempfile
+import numpy as np
 import subprocess as sp
+from datetime import datetime
 from functools import partial
-
+from lithops import constants
 from lithops.invokers import ServerlessInvoker, StandaloneInvoker, CustomizedRuntimeInvoker
 from lithops.storage import InternalStorage
 from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from lithops.job import create_map_job, create_reduce_job
-from lithops.config import get_mode, default_config, extract_storage_config,\
+from lithops.config import get_mode, default_config, extract_storage_config, \
     extract_localhost_config, extract_standalone_config, \
     extract_serverless_config, get_log_info
-from lithops.constants import LOCALHOST, SERVERLESS, STANDALONE, CLEANER_DIR,\
+from lithops.constants import LOCALHOST, SERVERLESS, STANDALONE, CLEANER_DIR, \
     CLEANER_LOG_FILE
 from lithops.utils import timeout_handler, is_notebook, setup_lithops_logger, \
     is_unix_system, is_lithops_worker, create_executor_id
@@ -41,7 +43,6 @@ from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
 from lithops.serverless.serverless import ServerlessHandler
 from lithops.storage.utils import create_job_key
-
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +159,8 @@ class FunctionExecutor:
 
         logger.info('{} Executor created with ID: {}'
                     .format(mode.capitalize(), self.executor_id))
+
+        self.log_path = None
 
     def __enter__(self):
         return self
@@ -387,13 +390,13 @@ class FunctionExecutor:
             msg = 'ExecutorID {} - Getting results'.format(self.executor_id)
             fs_done = [f for f in futures if f.done]
             fs_not_done = [f for f in futures if not f.done]
-            fs_not_ready = [f for f in futures if not f.ready]
+            # fs_not_ready = [f for f in futures if not f.ready and not f.done]
 
         else:
             msg = 'ExecutorID {} - Waiting for functions to complete'.format(self.executor_id)
             fs_done = [f for f in futures if f.ready or f.done]
-            fs_not_done = [f for f in futures if not f.ready and not f.done]
-            fs_not_ready = [f for f in futures if not f.ready]
+            fs_not_done = [f for f in futures if not f.done]
+            # fs_not_ready = [f for f in futures if not f.ready and not f.done]
 
         if not fs_not_done:
             return fs_done, fs_not_done
@@ -409,7 +412,7 @@ class FunctionExecutor:
         pbar = None
         error = False
 
-        if not self.is_lithops_worker and self.setup_progressbar and fs_not_ready:
+        if not self.is_lithops_worker and self.setup_progressbar:
             from tqdm.auto import tqdm
 
             if is_notebook():
@@ -420,7 +423,6 @@ class FunctionExecutor:
 
         try:
             if self.rabbitmq_monitor:
-                logger.debug('Using RabbitMQ to monitor function activations')
                 wait_rabbitmq(futures, self.internal_storage, rabbit_amqp_url=self.rabbit_amqp_url,
                               download_results=download_results, throw_except=throw_except,
                               pbar=pbar, return_when=return_when, THREADPOOL_SIZE=THREADPOOL_SIZE)
@@ -441,10 +443,14 @@ class FunctionExecutor:
                 print()
             logger.info(msg)
             error = True
+            if self.data_cleaner and not self.is_lithops_worker:
+                self.clean(clean_cloudobjects=False, force=True)
             raise e
 
         except Exception as e:
             error = True
+            if self.data_cleaner and not self.is_lithops_worker:
+                self.clean(clean_cloudobjects=False, force=True)
             raise e
 
         finally:
@@ -458,7 +464,7 @@ class FunctionExecutor:
             if self.data_cleaner and not self.is_lithops_worker:
                 self.clean(clean_cloudobjects=False)
             if not fs and error and is_notebook():
-                del self.futures[len(self.futures)-len(futures):]
+                del self.futures[len(self.futures) - len(futures):]
 
         if download_results:
             fs_done = [f for f in futures if f.done]
@@ -480,7 +486,6 @@ class FunctionExecutor:
         :param timeout: Timeout for waiting for results.
         :param THREADPOOL_SIZE: Number of threads to use. Default 128
         :param WAIT_DUR_SEC: Time interval between each check.
-
         :return: The result of the future/s
         """
         fs_done, _ = self.wait(fs=fs, throw_except=throw_except,
@@ -536,7 +541,7 @@ class FunctionExecutor:
         create_timeline(ftrs_to_plot, dst)
         create_histogram(ftrs_to_plot, dst)
 
-    def clean(self, fs=None, cs=None, clean_cloudobjects=True, spawn_cleaner=True):
+    def clean(self, fs=None, cs=None, clean_cloudobjects=True, spawn_cleaner=True, force=False):
         """
         Deletes all the temp files from storage. These files include the function,
         the data serialization and the function invocation results. It can also clean
@@ -564,7 +569,7 @@ class FunctionExecutor:
         futures = fs or self.futures
         futures = [futures] if type(futures) != list else futures
         present_jobs = {create_job_key(f.executor_id, f.job_id) for f in futures
-                        if f.executor_id.count('-') == 1 and f.done}
+                        if (f.executor_id.count('-') == 1 and f.done) or force}
         jobs_to_clean = present_jobs - self.cleaned_jobs
 
         if jobs_to_clean:
@@ -588,6 +593,84 @@ class FunctionExecutor:
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.invoker.stop()
+
+    def job_summary(self, cloud_objects_n=0):
+        """
+        logs information of a job executed by the calling function executor.
+        currently supports: code_engine, ibm_vpc and ibm_cf.
+        on future commits, support will extend to code_engine and ibm_vpc :
+
+        :param cloud_objects_n: number of cloud object used in COS, declared by user.
+        """
+        import pandas as pd
+
+        def init():
+            headers = ['Job_ID', 'Function', 'Invocations', 'Memory(MB)', 'AvgRuntime', 'Cost', 'CloudObjects']
+            pd.DataFrame([], columns=headers).to_csv(self.log_path, index=False)
+
+        def append(content):
+            """ appends job information to log file."""
+            pd.DataFrame(content).to_csv(self.log_path, mode='a', header=False, index=False)
+
+        def append_summary():
+            """ add a summary row to the log file"""
+            df = pd.read_csv(self.log_path)
+            total_average = sum(df.AvgRuntime * df.Invocations) / df.Invocations.sum()
+            total_row = pd.DataFrame([['Summary', ' ', df.Invocations.sum(), df['Memory(MB)'].sum(),
+                                       round(total_average, 10), df.Cost.sum(), cloud_objects_n]])
+            total_row.to_csv(self.log_path, mode='a', header=False, index=False)
+
+        def get_object_num():
+            """returns cloud objects used up to this point, using this function executor. """
+            df = pd.read_csv(self.log_path)
+            return float(df.iloc[-1].iloc[-1])
+
+        # Avoid logging info unless chosen computational backend is supported.
+        if hasattr(self.compute_handler.backend, 'calc_cost'):
+
+            if self.log_path:  # retrieve cloud_objects_n from last log file
+                cloud_objects_n += get_object_num()
+            else:
+                self.log_path = os.path.join(constants.LOGS_DIR, datetime.now().strftime("%Y-%m-%d_%H:%M:%S.csv"))
+            # override current logfile
+            init()
+
+            futures = self.futures
+            if type(futures) != list:
+                futures = [futures]
+
+            memory = []
+            runtimes = []
+            curr_job_id = futures[0].job_id
+            job_func = futures[0].function_name  # each job is conducted on a single function
+
+            for future in futures:
+                if curr_job_id != future.job_id:
+                    cost = self.compute_handler.backend.calc_cost(runtimes, memory)
+                    append([[curr_job_id, job_func, len(runtimes), sum(memory),
+                             np.round(np.average(runtimes), 10), cost, ' ']])
+
+                    # updating next iteration's variables:
+                    curr_job_id = future.job_id
+                    job_func = future.function_name
+                    memory.clear()
+                    runtimes.clear()
+
+                memory.append(future.runtime_memory)
+                runtimes.append(future.stats['worker_exec_time'])
+
+            # appends last Job-ID
+            cost = self.compute_handler.backend.calc_cost(runtimes, memory)
+            append([[curr_job_id, job_func, len(runtimes), sum(memory),
+                     np.round(np.average(runtimes), 10), cost, ' ']])
+            # append summary row to end of the dataframe
+            append_summary()
+
+        else:  # calc_cost() doesn't exist for chosen computational backend.
+            logger.warning("Could not log job: {} backend isn't supported by this function."
+                           .format(self.self.compute_handler.backend.name))
+            return
+        logger.info("View log file logs at {}".format(self.log_path))
 
 
 class LocalhostExecutor(FunctionExecutor):
@@ -662,4 +745,3 @@ class StandaloneExecutor(FunctionExecutor):
     def create(self):
         runtime_key, runtime_meta = self.compute_handler.create()
         self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
-

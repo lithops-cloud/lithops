@@ -23,8 +23,7 @@ import logging
 import copy
 import time
 import yaml
-import requests
-from kubernetes import client, config, watch
+from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
 from lithops.utils import version_str, dict_to_b64str
@@ -32,7 +31,6 @@ from lithops.version import __version__
 from lithops.utils import create_handler_zip
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
 from . import config as ce_config
-from ..knative import config as kconfig
 from lithops.storage.storage import InternalStorage
 from lithops.storage.utils import StorageNoSuchKeyError
 
@@ -50,26 +48,37 @@ class CodeEngineBackend:
         self.code_engine_config = code_engine_config
         self.storage_config = storage_config
 
-        self.kubecfg = code_engine_config.get('kubectl_config')
+        self.kubecfg_path = code_engine_config.get('kubecfg_path')
         self.user_agent = code_engine_config['user_agent']
 
-        config.load_kube_config(config_file=self.kubecfg)
+        try:
+            config.load_kube_config(config_file=self.kubecfg_path)
+            contexts = config.list_kube_config_contexts(config_file=self.kubecfg_path)
+            current_context = contexts[1].get('context')
+            self.namespace = current_context.get('namespace', 'default')
+            self.cluster = current_context.get('cluster')
+            self.code_engine_config['namespace'] = self.namespace
+            self.code_engine_config['cluster'] = self.cluster
+            self.is_incluster = False
+        except Exception:
+            logger.debug('Loading incluster config')
+            config.load_incluster_config()
+            self.namespace = self.code_engine_config.get('namespace', 'default')
+            self.cluster = self.code_engine_config.get('cluster', 'default')
+            self.is_incluster = True
+
+        logger.debug("Set namespace to {}".format(self.namespace))
+        logger.debug("Set cluster to {}".format(self.cluster))
+
         self.capi = client.CustomObjectsApi()
         self.coreV1Api = client.CoreV1Api()
-
-        contexts = config.list_kube_config_contexts(config_file=self.kubecfg)
-        current_context = contexts[1].get('context')
-        self.namespace = current_context.get('namespace', 'default')
-        logger.debug("Set namespace to {}".format(self.namespace))
-        self.cluster = current_context.get('cluster')
-        logger.debug("Set cluster to {}".format(self.cluster))
 
         try:
             self.region = self.cluster.split('//')[1].split('.')[1]
         except Exception:
             self.region = self.cluster.replace('http://', '').replace('https://', '')
 
-        self.job_def_ids = set()
+        self.jobs = []  # list to store executed jobs (job_keys)
 
         msg = COMPUTE_CLI_MSG.format('IBM Code Engine')
         logger.info("{} - Region: {}".format(msg, self.region))
@@ -218,7 +227,7 @@ class CodeEngineBackend:
         for docker_image_name, memory in jobdefs:
             self.delete_runtime(docker_image_name, memory)
 
-        logger.debug('Deleting all remaining lithops configmaps')
+        logger.debug('Deleting all lithops configmaps')
         configmaps = self.coreV1Api.list_namespaced_config_map(namespace=self.namespace)
         for configmap in configmaps.items:
             config_name = configmap.metadata.name
@@ -260,31 +269,15 @@ class CodeEngineBackend:
 
     def clear(self):
         """
-        Clean all completed jobruns
+        Clean all completed jobruns in the current executor
         """
-        logger.debug('Deleting all completed jobruns')
-        time.sleep(1)
-        jobruns = []
-        try:
-            jobruns = self.capi.list_namespaced_custom_object(
-                                    group=ce_config.DEFAULT_GROUP,
-                                    version=ce_config.DEFAULT_VERSION,
-                                    namespace=self.namespace,
-                                    plural="jobruns")
-        except ApiException as e:
-            logger.warning("Listing all jobruns failed with {} {}"
-                           .format(e.status, e.reason))
-            return
-
-        for jobrun in jobruns['items']:
+        for job_key in self.jobs:
+            jobrun_name = 'lithops-{}'.format(job_key.lower())
             try:
-                if jobrun['status']['running'] == 0:
-                    jobrun_name = jobrun['metadata']['name']
-                    self._job_run_cleanup(jobrun_name)
-                    self._delete_config_map(jobrun_name)
+                self._job_run_cleanup(jobrun_name)
+                self._delete_config_map(jobrun_name)
             except Exception as e:
-                logger.warning("Deleting a jobrun failed with {}"
-                               .format(e))
+                logger.debug("Deleting a jobrun failed with: {}".format(e))
 
     def invoke(self, docker_image_name, runtime_memory, job_payload):
         """
@@ -297,6 +290,9 @@ class CodeEngineBackend:
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
 
+        job_key = job_payload['job_key']
+        self.jobs.append(job_key)
+
         total_calls = job_payload['total_calls']
         chunksize = job_payload['chunksize']
         array_size = total_calls // chunksize + (total_calls % chunksize > 0)
@@ -308,11 +304,9 @@ class CodeEngineBackend:
         if not self._job_def_exists(jobdef_name):
             jobdef_name = self._create_job_definition(docker_image_name, runtime_memory, jobdef_name)
 
-        self.job_def_ids.add(jobdef_name)
-
         jobrun_res = yaml.safe_load(ce_config.JOBRUN_DEFAULT)
 
-        activation_id = 'lithops-{}-{}'.format(executor_id, job_id.lower())
+        activation_id = 'lithops-{}'.format(job_key.lower())
 
         jobrun_res['metadata']['name'] = activation_id
         jobrun_res['metadata']['namespace'] = self.namespace
@@ -500,93 +494,6 @@ class CodeEngineBackend:
         self._delete_config_map(jobdef_name)
         return runtime_meta
 
-    def _generate_runtime_meta_service(self, image_name, memory):
-        """
-        Creates a service in CodeEngine based on the docker_image_name.
-
-        This is an alternative method to extract the runtime metadata.
-        Currently it is deactivated in favor of _generate_runtime_meta()
-        method which, for now, seems to be faster.
-        """
-        logger.info("Extracting Python modules from: {}".format(image_name))
-        svc_res = yaml.safe_load(kconfig.service_res)
-
-        service_name = image_name.replace('/', '--').replace(':', '--')
-        full_image_name = '/'.join([self.code_engine_config['container_registry'], image_name])
-
-        svc_res['metadata']['name'] = service_name
-        svc_res['metadata']['namespace'] = self.namespace
-        svc_res['spec']['template']['spec']['timeoutSeconds'] = 30
-        svc_res['spec']['template']['spec']['containerConcurrency'] = 1
-        svc_res['spec']['template']['spec']['containers'][0]['image'] = full_image_name
-        svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['memory'] = '128Mi'
-        svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['cpu'] = '0.1'
-        svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['memory'] = '128Mi'
-        svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['cpu'] = '0.1'
-        svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/minScale'] = "0"
-        svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = "1"
-
-        try:
-            # delete the service resource
-            self.capi.delete_namespaced_custom_object(
-                    group=kconfig.DEFAULT_GROUP,
-                    version=kconfig.DEFAULT_VERSION,
-                    namespace=self.namespace,
-                    plural="services",
-                    name=service_name
-                )
-        except Exception:
-            pass
-
-        try:
-            # create the service resource
-            self.capi.create_namespaced_custom_object(
-                    group=kconfig.DEFAULT_GROUP,
-                    version=kconfig.DEFAULT_VERSION,
-                    namespace=self.namespace,
-                    plural="services",
-                    body=svc_res
-                )
-        except Exception:
-            pass
-
-        w = watch.Watch()
-        for event in w.stream(self.capi.list_namespaced_custom_object,
-                              namespace=self.namespace, group=kconfig.DEFAULT_GROUP,
-                              version=kconfig.DEFAULT_VERSION, plural="services",
-                              field_selector="metadata.name={0}".format(service_name),
-                              timeout_seconds=300):
-            if event['object'].get('status'):
-                service_url = event['object']['status'].get('url')
-                conditions = event['object']['status']['conditions']
-                if conditions[0]['status'] == 'True' and \
-                   conditions[1]['status'] == 'True' and \
-                   conditions[2]['status'] == 'True':
-                    w.stop()
-
-        try:
-            service_url = service_url.replace('http://', 'https://')
-            resp = requests.get(service_url+"/preinstalls")
-            runtime_meta = resp.json()
-        except Exception as e:
-            raise Exception('Unable to extract preinstalled modules'
-                            'list from runtime: {}'.format(e))
-
-        try:
-            # delete the service resource if exists
-            self.capi.delete_namespaced_custom_object(
-                    group=kconfig.DEFAULT_GROUP,
-                    version=kconfig.DEFAULT_VERSION,
-                    name=service_name,
-                    namespace=self.namespace,
-                    plural="services",
-                    body=client.V1DeleteOptions()
-                )
-        except Exception:
-            pass
-
-        return runtime_meta
-
     def _create_config_map(self, payload, jobrun_name):
         """
         Creates a configmap
@@ -621,10 +528,9 @@ class CodeEngineBackend:
         config_name = '{}-configmap'.format(jobrun_name)
         grace_period_seconds = 0
         try:
-            logger.debug("Delete ConfigMap {} for namespace {}".format(config_name, self.namespace))
+            logger.debug("Deleting ConfigMap {} for namespace {}".format(config_name, self.namespace))
             api_response = self.coreV1Api.delete_namespaced_config_map(name=config_name,
                                                                        namespace=self.namespace,
                                                                        grace_period_seconds=grace_period_seconds)
-            logger.debug("ConfigMap {} for namespace {} deleted with status {}".format(config_name, self.namespace, api_response.status))
         except ApiException as e:
             logger.warning("Exception when calling CoreV1Api->delete_namespaced_config_map: %s\n" % e)

@@ -14,6 +14,7 @@
 # limitations under the License.
 #
 
+import os
 import sys
 import pickle
 import argparse
@@ -26,11 +27,12 @@ import lithops
 import urllib.request
 
 from lithops.storage import Storage
-from lithops.config import get_mode, default_config, extract_storage_config
+from lithops.config import get_mode, default_config, extract_storage_config, load_yaml_config
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.utils import setup_lithops_logger
+from builtins import FileNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -311,9 +313,9 @@ class TestLithops(unittest.TestCase):
     def test_internal_executions(self):
         logger.info('Testing internal executions')
         fexec = lithops.FunctionExecutor(config=CONFIG)
-        fexec.map(TestMethods.lithops_inside_lithops_map_function, range(1, 11))
+        fexec.map(TestMethods.lithops_inside_lithops_map_function, range(1, 5))
         result = fexec.get_result()
-        self.assertEqual(result, [list(range(i)) for i in range(1, 11)])
+        self.assertEqual(result, [list(range(i)) for i in range(1, 5)])
 
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.call_async(TestMethods.lithops_return_futures_map_function1, 3)
@@ -560,9 +562,9 @@ def run_tests(test_to_run, config=None, mode=None, backend=None, storage=None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="test all Lithops's functionality",
-                                     usage='python -m lithops.scripts.tests [-c CONFIG] [-t TESTNAME]')
-    parser.add_argument('-c', '--config', type=argparse.FileType('r'), metavar='', default=None,
-                        help="use json config file")
+                                     usage='python -m lithops.scripts.tests [-c CONFIG] [-t TESTNAME] ...')
+    parser.add_argument('-c', '--config', metavar='', default=None,
+                        help="'path to yaml config file")
     parser.add_argument('-t', '--test', metavar='', default='all',
                         help='run a specific test, type "-t help" for tests list')
     parser.add_argument('-m', '--mode', metavar='', default=None,
@@ -574,6 +576,12 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--debug', action='store_true', default=False,
                         help='activate debug logging')
     args = parser.parse_args()
+
+    if args.config:
+        if os.path.exists(args.config):
+            args.config = load_yaml_config(args.config)
+        else:
+            raise FileNotFoundError("Provided config file '{}' does not exist".format(args.config))
 
     log_level = logging.INFO if not args.debug else logging.DEBUG
     setup_lithops_logger(log_level)

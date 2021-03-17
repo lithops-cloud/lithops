@@ -32,11 +32,11 @@ import lithops
 pw = lithops.FunctionExecutor(runtime_memory=512)
 ```
 
-By default, Lithops uses 1vCPU for the Code Engine runtimes. However, you can change it in the `config` by setting the appropiate vCPU size in `millicpu` units:
+By default, Lithops uses 1vCPU for the Code Engine runtimes. However, you can change it in the `config` by setting the appropriate vCPU size:
 
 ```yaml
 code_enigne:
-    cpu: 500
+    cpu: 0.5
 ```
 
 ## Custom runtime
@@ -59,25 +59,25 @@ code_enigne:
     Update the Dockerfile that better fits to your requirements with your required system packages and Python modules.
     If you need another Python version, for example Python 3.8, you must change the initial line of the Dockefile:
 
-        $ lithops runtime build docker_username/runtimename:tag -b knative
+        $ lithops runtime build -b knative docker_username/runtimename:tag
 
     Note that Docker hub image names look like *"docker_username/runtimename:tag"* and must be all lower case, and must not include '.' or '_', for example:
 
-        $ lithops runtime build -b knative myaccount/lithops-knative-custom-v38:01
+        $ lithops runtime build -b knative myaccount/lithops-kn-custom-v38:01
 
     By default the Dockerfile should be located in the same folder from where you execute the **lithops runtime** command. If your Dockerfile is located in another folder, or the Dockerfile has another name, you can specify its location with the **-f** parameter, for example:
 
-        $ lithops runtime build -b knative -f ibm_cf/Dockerfile.conda myaccount/lithops-knative-custom-v38:01
+        $ lithops runtime build -b knative -f knative/Dockerfile.conda myaccount/lithops-kn-custom-v38:01
 
     Once you have built your runtime with all of your necessary packages, you can already use it with Lithops.
     To do so, you have to specify the full docker image name in the configuration or when you create the **FunctionExecutor** instance, or directly in the config file, for example:
 
     ```python
     import lithops
-    fexec = lithops.FunctionExecutor(runtime='myaccount/lithops-knative-custom-v38:01')
+    fexec = lithops.FunctionExecutor(runtime='myaccount/lithops-kn-custom-v38:01')
     ```
 
-    *NOTE: In this previous example shows how to build a Docker image based on Python 3.7, this means that now you also need Python 3.7 in the client machine.*
+    *NOTE: In this previous example shows how to build a Docker image based on Python 3.8, this means that now you also need Python 3.8 in the client machine.*
 
 2. **Use an already built runtime from a public repository**
 
@@ -86,22 +86,22 @@ code_enigne:
 
     ```python
     import lithops
-    fexec = lithops.FunctionExecutor(runtime='jsampe/lithops-knative-conda-v38:01')
+    fexec = lithops.FunctionExecutor(runtime='jsampe/lithops-kn-conda-v38:01')
     ```
 
     Alternatively, you can create a Lithops runtime based on already built Docker image by executing the following command, which will deploy all the necessary information to use the runtime with your Lithops.
 
         $ lithops runtime create -b knative docker_username/runtimename:tag
 
-    For example, you can use an already created runtime based on Python 3.6 and with the *matplotlib* and *nltk* libraries by running:
+    For example, you can use an already created runtime based on Python 3.8 and with the *matplotlib* and *nltk* libraries by running:
 
-        $ lithops runtime create -b knative jsampe/lithops-matplotlib-v38:01
+        $ lithops runtime create -b knative jsampe/lithops-kn-matplotlib-v38:01
 
     Once finished, you can use the runtime in your Lithops code:
 
     ```python
     import lithops
-    fexec = lithops.FunctionExecutor(runtime='jsampe/lithops-matplotlib:v38:01')
+    fexec = lithops.FunctionExecutor(runtime='jsampe/lithops-kn-matplotlib:v38:01')
     ```
 
 ## Runtime Management
@@ -118,9 +118,9 @@ code_enigne:
 
         $ lithops runtime update docker_username/runtimename:tag -b knative
 
-    For example, you can update an already created runtime based on the Docker image `jsampe/lithops-matplotlib-v38:01` by:
+    For example, you can update an already created runtime based on the Docker image `jsampe/lithops-kn-matplotlib-v38:01` by:
 
-        $ lithops runtime update jsampe/lithops-matplotlib-v38:01 -b knative
+        $ lithops runtime update jsampe/lithops-kn-matplotlib-v38:01 -b knative
 
     Alternatively, you can update all the deployed runtimes at a time by:
 
@@ -138,9 +138,9 @@ code_enigne:
 
         $ lithops runtime delete docker_username/runtimename:tag -b knative
 
-    For example, you can delete runtime based on the Docker image `jsampe/lithops-knative-conda-v36:01` by:
+    For example, you can delete runtime based on the Docker image `jsampe/lithops-kn-conda-v36:01` by:
 
-        $ lithops runtime delete jsampe/lithops-knative-conda-v36:01 -b knative
+        $ lithops runtime delete jsampe/lithops-kn-conda-v36:01 -b knative
 
     You can delete all the runtimes at a time by:
 

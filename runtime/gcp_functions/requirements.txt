@@ -25,4 +25,3 @@ PyYAML
 cloudpickle
 ps-mem
 tblib
-namegenerator

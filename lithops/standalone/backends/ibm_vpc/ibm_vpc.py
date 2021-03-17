@@ -405,20 +405,27 @@ class IBMVPCBackend:
 
     def dismantle(self):
         """
-        Stop all VM instances
+        Stop all worker VM instances
         """
-        for worker in self.workers:
-            worker.stop()
-        self.workers = []
+        if len(self.workers) > 0:
+            with ThreadPoolExecutor(len(self.workers)) as ex:
+                ex.map(lambda worker: worker.stop(), self.workers)
+            self.workers = []
+
+    def get_vm(self, name):
+        """
+        Returns a VM class instance.
+        Does not creates nor starts a VM instance
+        """
+        return IBMVPCInstance(name, self.config, self.ibm_vpc_client)
 
     def create_worker(self, name):
         """
-        Create a new VM python instance
-        This method does not create the physical VM.
+        Creates a new worker VM instance in VPC
         """
-        vsi = IBMVPCInstance(name, self.config, self.ibm_vpc_client)
-        self.workers.append(vsi)
-        return vsi
+        vm = IBMVPCInstance(name, self.config, self.ibm_vpc_client)
+        vm.create(start=True)
+        self.workers.append(vm)
 
     def get_runtime_key(self, runtime_name):
         name = runtime_name.replace('/', '-').replace(':', '-')
@@ -444,6 +451,7 @@ class IBMVPCInstance:
 
         self.ssh_client = None
         self.instance_id = None
+        self.instance_data = None
         self.ip_address = None
         self.public_ip = None
 
@@ -475,11 +483,22 @@ class IBMVPCInstance:
                 self.ssh_client = SSHClient(self.public_ip or self.ip_address, self.ssh_credentials)
         return self.ssh_client
 
-    def _create_instance(self, instance_name):
+    def del_ssh_client(self):
+        """
+        Deletes the ssh client
+        """
+        if self.ssh_client:
+            try:
+                self.ssh_client.close()
+            except Exception:
+                pass
+            self.ssh_client = None
+
+    def _create_instance(self):
         """
         Creates a new VM instance
         """
-        logger.debug("Creating new VM instance {}".format(instance_name))
+        logger.debug("Creating new VM instance {}".format(self.name))
 
         security_group_identity_model = {'id': self.config['security_group_id']}
         subnet_identity_model = {'id': self.config['subnet_id']}
@@ -491,7 +510,7 @@ class IBMVPCInstance:
 
         boot_volume_profile = {
             'capacity': 100,
-            'name': '{}-boot'.format(instance_name),
+            'name': '{}-boot'.format(self.name),
             'profile': {'name': self.config['volume_tier_name']}}
 
         boot_volume_attachment = {
@@ -502,7 +521,7 @@ class IBMVPCInstance:
         key_identity_model = {'id': self.config['key_id']}
 
         instance_prototype = {}
-        instance_prototype['name'] = instance_name
+        instance_prototype['name'] = self.name
         instance_prototype['keys'] = [key_identity_model]
         instance_prototype['profile'] = {'name': self.profile_name}
         instance_prototype['resource_group'] = {'id': self.config['resource_group_id']}
@@ -518,9 +537,17 @@ class IBMVPCInstance:
         try:
             resp = self.ibm_vpc_client.create_instance(instance_prototype)
         except ApiException as e:
-            raise Exception("Create VM instance failed with status code " + str(e.code) + ": " + e.message)
+            if e.code == 400 and 'already exists' in e.message:
+                return self.get_instance_data()
+            elif e.code == 400 and 'over quota' in e.message:
+                logger.debug("Create VM instance {} failed due to quota limit"
+                             .format(self.name))
+            else:
+                logger.debug("Create VM instance {} failed with status code {}"
+                             .format(self.name, str(e.code)))
+            raise e
 
-        logger.debug("VM instance {} created successfully ".format(instance_name))
+        logger.debug("VM instance {} created successfully ".format(self.name))
 
         return resp.result
 
@@ -544,15 +571,26 @@ class IBMVPCInstance:
             self.ibm_vpc_client.add_instance_network_interface_floating_ip(
                 instance['id'], instance['network_interfaces'][0]['id'], fip_id)
 
-    def get_instance_id(self):
-        # check if VSI exists and return it's id based on the VM name
-        instances_info = self.ibm_vpc_client.list_instances().get_result()
-        for instance in instances_info['instances']:
-            if instance['name'] == self.name:
-                self.instance_id = instance['id']
-                return instance['id']
+    def get_instance_data(self):
+        """
+        Returns the instance information
+        """
+        instances_data = self.ibm_vpc_client.list_instances(name=self.name).get_result()
+        if len(instances_data['instances']) > 0:
+            self.instance_data = instances_data['instances'][0]
+            return self.instance_data
+        return None
 
-        logger.debug('Vm instance {} does not exists'.format(self.name))
+    def get_instance_id(self):
+        """
+        Returns the instance ID
+        """
+        instance_data = self.get_instance_data()
+        if instance_data:
+            self.instance_id = instance_data['id']
+            return self.instance_id
+
+        logger.debug('VM instance {} does not exists'.format(self.name))
         return None
 
     def _get_ip_address(self):
@@ -575,16 +613,14 @@ class IBMVPCInstance:
 
         if check_if_exists and not vsi_exists:
             logger.debug('Checking if VM instance {} already exists'.format(self.name))
-            instances_info = self.ibm_vpc_client.list_instances().get_result()
-            for instance in instances_info['instances']:
-                if instance['name'] == self.name:
-                    logger.debug('VM instance {} already exists'.format(self.name))
-                    vsi_exists = True
-                    self.instance_id = instance['id']
-                    break
+            instances_data = self.get_instance_data()
+            if instances_data:
+                logger.debug('VM instance {} already exists'.format(self.name))
+                vsi_exists = True
+                self.instance_id = instances_data['id']
 
         if not vsi_exists:
-            instance = self._create_instance(self.name)
+            instance = self._create_instance()
             self.instance_id = instance['id']
             self.ip_address = self._get_ip_address()
 
@@ -617,12 +653,15 @@ class IBMVPCInstance:
         """
         logger.debug("Deleting VM instance {}".format(self.name))
         try:
-            resp = self.ibm_vpc_client.delete_instance(self.instance_id)
+            self.ibm_vpc_client.delete_instance(self.instance_id)
         except ApiException as e:
             if e.code == 404:
                 pass
             else:
                 raise e
+        self.instance_id = None
+        self.ip_address = None
+        self.del_ssh_client()
 
     def _stop_instance(self):
         """

@@ -1,5 +1,5 @@
 #
-# (C) Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2021
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -51,19 +51,32 @@ class KubernetesBackend:
         self.k8s_config = k8s_config
         self.storage_config = storage_config
 
-        self.kubecfg = k8s_config.get('kubectl_config')
+        self.kubecfg_path = k8s_config.get('kubecfg_path')
         self.user_agent = k8s_config['user_agent']
 
-        config.load_kube_config(config_file=self.kubecfg)
+        try:
+            config.load_kube_config(config_file=self.kubecfg_path)
+            contexts = config.list_kube_config_contexts(config_file=self.kubecfg_path)
+            current_context = contexts[1].get('context')
+            self.namespace = current_context.get('namespace', 'default')
+            self.cluster = current_context.get('cluster')
+            self.k8s_config['namespace'] = self.namespace
+            self.k8s_config['cluster'] = self.cluster
+            self.is_incluster = False
+        except Exception:
+            logger.debug('Loading incluster config')
+            config.load_incluster_config()
+            self.namespace = self.k8s_config.get('namespace', 'default')
+            self.cluster = self.k8s_config.get('cluster', 'default')
+            self.is_incluster = True
+
+        logger.debug("Set namespace to {}".format(self.namespace))
+        logger.debug("Set cluster to {}".format(self.cluster))
+
         self.batch_api = client.BatchV1Api()
         self.core_api = client.CoreV1Api()
 
-        contexts = config.list_kube_config_contexts(config_file=self.kubecfg)
-        current_context = contexts[1].get('context')
-        self.namespace = current_context.get('namespace', 'default')
-        logger.debug("Set namespace to {}".format(self.namespace))
-        self.cluster = current_context.get('cluster')
-        logger.debug("Set cluster to {}".format(self.cluster))
+        self.jobs = []  # list to store executed jobs (job_keys)
 
         msg = COMPUTE_CLI_MSG.format('Kubernetes Job')
         logger.info("{} - Namespace: {}".format(msg, self.namespace))
@@ -194,8 +207,15 @@ class KubernetesBackend:
         """
         Delete only completed jobs
         """
-        time.sleep(1.5)
-        self.clean(force=False)
+        for job_key in self.jobs:
+            job_name = 'lithops-{}'.format(job_key.lower())
+            logger.debug('Deleting job {}'.format(job_name))
+            try:
+                self.batch_api.delete_namespaced_job(name=job_name,
+                                                     namespace=self.namespace,
+                                                     propagation_policy='Background')
+            except Exception:
+                pass
 
     def list_runtimes(self, docker_image_name='all'):
         """
@@ -257,13 +277,17 @@ class KubernetesBackend:
 
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
+
+        job_key = job_payload['job_key']
+        self.jobs.append(job_key)
+
         total_calls = job_payload['total_calls']
         chunksize = job_payload['chunksize']
         total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
 
         job_res = yaml.safe_load(k8s_config.JOB_DEFAULT)
 
-        activation_id = 'lithops-{}-{}'.format(executor_id, job_id.lower())
+        activation_id = 'lithops-{}'.format(job_key.lower())
 
         job_res['metadata']['name'] = activation_id
         job_res['metadata']['namespace'] = self.namespace
@@ -280,6 +304,10 @@ class KubernetesBackend:
 
         container['resources']['requests']['memory'] = '{}Mi'.format(job_payload['runtime_memory'])
         container['resources']['requests']['cpu'] = str(self.k8s_config['cpu'])
+
+        logger.debug('ExecutorID {} | JobID {} - Going '
+                     'to run {} activations in {} workers'
+                     .format(executor_id, job_id, total_calls, total_workers))
 
         try:
             self.batch_api.create_namespaced_job(namespace=self.namespace,

@@ -1,6 +1,6 @@
 # Lithops Storage API Details
 
-Lithops allows to create a **Storage** instance and abstract away the backend implementation details. The standard way to get an Storage object set up is to import the lithops `Storage` class and create an instance.
+Lithops allows to create a **Storage** instance and abstract away the backend implementation details. The standard way to get a Storage object set up is to import the lithops `Storage` class and create an instance.
 
 
 **Storage(\*\*kwargs)**
@@ -33,7 +33,7 @@ config = {'lithops' : {'storage' : 'ibm_cos'},
 storage = Storage(config=config)
 ```
 
-In such a case you have multiple storage set in your configuration, you can force the storage backend by using the `backend` parameter:
+In case you have multiple storage set in your configuration, you can force the storage backend by using the `backend` parameter:
 
 ```python
 from lithops import Storage
@@ -192,7 +192,7 @@ Returns all of the objects in a bucket. For each object, the list contains the n
 
 ### `Storage.list_keys()`
 
-Similar to lit_objects(), it returns all of the objects in a bucket. For each object, the list contains only the names of the objects (keys).
+Similar to list_objects(), it returns all of the objects in a bucket. For each object, the list contains only the names of the objects (keys).
 
 **list_keys**(bucket, \*\*kwargs)
 

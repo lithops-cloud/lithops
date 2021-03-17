@@ -51,6 +51,10 @@ RUN pip install --upgrade setuptools six pip \
         gevent \
         glob2 \
         ibm-cos-sdk \
+        google-cloud-storage \
+        google-cloud-pubsub \
+        azure-storage-blob \
+        azure-storage-queue \
         redis \
         requests \
         PyYAML \
