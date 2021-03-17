@@ -48,6 +48,9 @@ extras_require = {
     'azure': [
         'azure-storage-blob',
         'azure-storage-queue'
+    ],
+    'multiprocessing': [
+        'pynng'
     ]
 }
 

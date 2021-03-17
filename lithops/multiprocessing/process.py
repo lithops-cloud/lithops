@@ -14,11 +14,13 @@
 #
 
 import itertools
-import sys
 import traceback
 import os
+import logging
+import multiprocessing as _mp
 
 from lithops import FunctionExecutor
+from lithops.utils import is_lithops_worker
 from . import config as mp_config
 from . import util
 
@@ -33,7 +35,7 @@ except OSError:
 
 _process_counter = itertools.count(1)
 _children = set()
-logger = util.get_logger()
+logger = logging.getLogger(__name__)
 
 
 #
@@ -44,7 +46,12 @@ def current_process():
     """
     Return process object representing the current process
     """
-    raise NotImplementedError()
+    if is_lithops_worker():
+        p = CloudProcess(name=os.environ.get('LITHOPS_MP_WORKER_NAME'))
+        p._pid = os.environ.get('__LITHOPS_SESSION_ID', '-1')
+        return p
+    else:
+        return _mp.current_process()
 
 
 def active_children():
@@ -54,42 +61,54 @@ def active_children():
     raise NotImplementedError()
 
 
+def parent_process():
+    """
+    Return process object representing the parent process
+    """
+    raise NotImplementedError()
+
+
 #
 # Cloud worker
 #
 
 class CloudWorker:
-    def __init__(self, func, initializer=None, initargs=(), log_stream=None):
+    def __init__(self, func, initializer=None, initargs=(), name=None, log_stream=None):
         self._func = func
         self._initializer = initializer
         self._initargs = initargs
+        self._name = name or (type(self).__name__ + '-' + str(next(_process_counter)))
         self.log_stream = None
 
     def __call__(self, *args, **kwargs):
+        # Put worker name in envs to get it from within the function
+        os.environ['LITHOPS_MP_WORKER_NAME'] = self._name
+
+        # Setup remote logger
         if self.log_stream is not None:
             remote_log_buff = util.RemoteLogIOBuffer(self.log_stream)
+            remote_log_buff.start()
         else:
             remote_log_buff = None
 
+        # Execute worker initializer function
         if self._initializer is not None:
             self._initializer(*self._initargs)
-
-        if remote_log_buff:
-            remote_log_buff.start()
 
         try:
             res = self._func(*kwargs['args'], **kwargs['kwargs'])
             exception = None
             return res
         except Exception as e:
+            # Print exception stack trace to remote logging buffer
             exception = e
-            header = "---------- {}: {} at {} ----------".format(e.__class__.__name__, e,
-                                                                 os.environ.get('LITHOPS_EXECUTION_ID'))
+            header = "---------- {} at {} ({}) ----------".format(e.__class__.__name__,
+                                                                  os.environ.get('LITHOPS_MP_WORKER_NAME'),
+                                                                  os.environ.get('__LITHOPS_SESSION_ID'))
             exception_body = traceback.format_exc()
             footer = '-' * len(header)
             if remote_log_buff:
                 remote_log_buff.write('\n'.join([header, exception_body, footer, '']))
-                remote_log_buff.flush()
         finally:
             if remote_log_buff:
                 remote_log_buff.flush()
@@ -100,7 +119,7 @@ class CloudWorker:
 
     @property
     def __name__(self):
-        return self._func.__name__
+        return os.environ.get('LITHOPS_MP_WORKER_NAME')
 
 
 #
@@ -110,7 +129,6 @@ class CloudWorker:
 class CloudProcess:
     def __init__(self, group=None, target=None, name=None, args=None, kwargs=None, *, daemon=None):
         assert group is None, 'process grouping is not implemented'
-        count = next(_process_counter)
 
         if args is None:
             args = ()
@@ -118,17 +136,17 @@ class CloudProcess:
             kwargs = {}
 
         self._config = {}
-        self._identity = count
         self._parent_pid = os.getpid()
         self._target = target
         self._args = tuple(args)
         self._kwargs = dict(kwargs)
-        self._name = name or (type(self).__name__ + '-' + str(self._identity))
+        self._name = name or (type(self).__name__ + '-' + str(next(_process_counter)))
+        self._pid = None
         if daemon is not None:
             self.daemon = daemon
         lithops_config = mp_config.get_parameter(mp_config.LITHOPS_CONFIG)
         self._executor = FunctionExecutor(**lithops_config)
-        self._forked = False
+        self._future = None
         self._sentinel = object()
         self._remote_logger = None
         self._redis = util.get_redis_client()
@@ -144,10 +162,10 @@ class CloudProcess:
         """
         Start child process
         """
-        assert not self._forked, 'cannot start a process twice'
+        assert not self._pid, 'cannot start a process twice'
         assert self._parent_pid == os.getpid(), 'can only start a process object created by current process'
 
-        cloud_worker = CloudWorker(self._target)
+        cloud_worker = CloudWorker(self._target, name=self._name)
 
         if mp_config.get_parameter(mp_config.STREAM_STDOUT):
             stream = self._executor.executor_id
@@ -158,10 +176,11 @@ class CloudProcess:
 
         extra_env = mp_config.get_parameter(mp_config.ENV_VARS)
 
-        self._executor.call_async(cloud_worker, {'args': self._args, 'kwargs': self._kwargs}, extra_env=extra_env)
+        self._future = self._executor.call_async(cloud_worker,
+                                                 {'args': self._args, 'kwargs': self._kwargs},
+                                                 extra_env=extra_env)
+        self._pid = '/'.join([self._future.executor_id, self._future.job_id, self._future.call_id])
         del self._target, self._args, self._kwargs
-
-        self._forked = True
 
     def terminate(self):
         """
@@ -174,10 +193,10 @@ class CloudProcess:
         Wait until child process terminates
         """
         assert self._parent_pid == os.getpid(), 'can only join a child process'
-        assert self._forked, 'can only join a started process'
+        assert self._pid, 'can only join a started process'
 
         try:
-            self._executor.wait()
+            self._executor.wait(fs=[self._future])
             exception = None
         except Exception as e:
             exception = e
@@ -214,7 +233,7 @@ class CloudProcess:
         """
         Set whether process is a daemon
         """
-        assert not self._forked, 'process has already started'
+        assert not self._pid, 'process has already started'
         self._config['daemon'] = daemonic
 
     @property
@@ -240,7 +259,7 @@ class CloudProcess:
         """
         Return identifier (PID) of process or `None` if it has yet to start
         """
-        raise NotImplementedError()
+        return self._pid
 
     pid = ident
 

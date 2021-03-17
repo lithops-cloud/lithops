@@ -1,4 +1,4 @@
-# from multiprocessizzng import Pool, Value, RawValue
+# from multiprocessing import Pool, Value, RawValue
 from lithops.multiprocessing import Pool, Value, RawValue
 from lithops.utils import setup_lithops_logger
 

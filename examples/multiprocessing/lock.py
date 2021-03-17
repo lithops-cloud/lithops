@@ -1,11 +1,11 @@
 import time
 
-from lithops.multiprocessing import Pool, Lock, SimpleQueue, getpid
+from lithops.multiprocessing import Pool, Lock, SimpleQueue, current_process
 
 
 def f(lock, q):
     with lock:
-        pid = getpid()
+        pid = current_process().pid
         ts = time.time()
         msg = 'process: {} - timestamp: {}'.format(pid, ts)
         q.put(msg)
