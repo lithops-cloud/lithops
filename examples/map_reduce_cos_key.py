@@ -62,8 +62,8 @@ def my_reduce_function(results):
 if __name__ == "__main__":
     chunk_size = 4*1024**2  # 4MB
 
-    fexec = lithops.FunctionExecutor()
-    fexec.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_size=chunk_size)
+    fexec = lithops.FunctionExecutor(log_level='INFO')
+    fexec.map_reduce(my_map_function, iterdata, my_reduce_function, obj_chunk_size=chunk_size)
     print(fexec.get_result())
 
     """
@@ -72,6 +72,6 @@ if __name__ == "__main__":
     print()
     print('Testing one reducer per object:')
     fexec = lithops.FunctionExecutor()
-    fexec.map_reduce(my_map_function, iterdata, my_reduce_function, chunk_size=chunk_size,
-                  reducer_one_per_object=True)
+    fexec.map_reduce(my_map_function, iterdata, my_reduce_function, obj_chunk_size=chunk_size,
+                     reducer_one_per_object=True)
     print(fexec.get_result())
