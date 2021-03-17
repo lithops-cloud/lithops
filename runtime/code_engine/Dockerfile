@@ -7,6 +7,9 @@
 # Python 3.8
 FROM python:3.8-slim-buster
 
+# Python 3.9
+#FROM python:3.9-slim-buster
+
 RUN apt-get update \
     # add some packages required for the pip install
     && apt-get install -y \

@@ -8,7 +8,6 @@ flask
 cloudpickle
 ps-mem
 tblib
-namegenerator
 
 # default available packages for python3
 beautifulsoup4
