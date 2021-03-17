@@ -106,6 +106,9 @@ spec:
           requests:
             cpu: '0.2'
             memory: 128Mi
+          limits:
+            cpu: '0.2'
+            memory: 128Mi
 """
 
 
