@@ -21,7 +21,8 @@ from lithops.utils import version_str
 RUNTIME_DEFAULT = {'3.5': 'lithopscloud/ibmcf-python-v35',
                    '3.6': 'lithopscloud/ibmcf-python-v36',
                    '3.7': 'lithopscloud/ibmcf-python-v37',
-                   '3.8': 'lithopscloud/ibmcf-python-v38'}
+                   '3.8': 'lithopscloud/ibmcf-python-v38',
+                   '3.9': 'lithopscloud/ibmcf-python-v39'}
 
 RUNTIME_TIMEOUT_DEFAULT = 600  # Default: 600 seconds => 10 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB

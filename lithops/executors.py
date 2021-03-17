@@ -667,9 +667,10 @@ class FunctionExecutor:
             append_summary()
 
         else:  # calc_cost() doesn't exist for chosen computational backend.
-            logger.warning("Could not log job.\nComputational backend used isn't supported by this function.")
+            logger.warning("Could not log job: {} backend isn't supported by this function."
+                           .format(self.self.compute_handler.backend.name))
             return
-        logger.info(f"View log file logs at {self.log_path}")
+        logger.info("View log file logs at {}".format(self.log_path))
 
 
 class LocalhostExecutor(FunctionExecutor):
