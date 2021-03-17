@@ -28,8 +28,8 @@ REDIS_EXPIRY_TIME = 'REDIS_EXPIRY_TIME'  # Redis key expiry time in seconds
 _DEFAULT_CONFIG = {
     LITHOPS_CONFIG: {},
     STREAM_STDOUT: False,
-    REDIS_EXPIRY_TIME: 900,
-    PIPE_CONNECTION_TYPE: 'listconn',
+    REDIS_EXPIRY_TIME: 3600,  # 1 hour
+    PIPE_CONNECTION_TYPE: 'redislist',
     ENV_VARS: {}
 }
 
