@@ -1,10 +1,10 @@
 import time
 
-from lithops.multiprocessing import Process, Queue, getpid
+from lithops.multiprocessing import Process, Queue, current_process
 
 
 def f(q):
-    print("I'm process {}".format(getpid()))
+    print("I'm process {}".format(current_process().pid))
     q.put([42, None, 'hello'])
     for i in range(3):
         q.put('Message no. {} ({})'.format(i, time.time()))
