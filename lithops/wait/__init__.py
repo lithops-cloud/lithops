@@ -1,6 +1,3 @@
-from .wait_storage import wait_storage
-from .wait_rabbitmq import wait_rabbitmq
-
-ALL_COMPLETED = 1
-ANY_COMPLETED = 2
-ALWAYS = 3
+from .storage import wait_storage
+from .rabbitmq import wait_rabbitmq
+from .utils import ALL_COMPLETED, ANY_COMPLETED, ALWAYS
