@@ -145,7 +145,7 @@ def _split_objects_from_buckets(map_func_args_list, keys_dict, chunk_size, chunk
     elif chunk_size:
         logger.debug('Chunk number set to {}'.format(chunk_number))
     else:
-        logger.debug('Chunk size or chunk number not set ')
+        logger.debug('Chunk size and chunk number not set ')
 
     for entry in map_func_args_list:
         # Each entry is a bucket
@@ -198,7 +198,7 @@ def _split_objects_from_keys(map_func_args_list, keys_dict, chunk_size, chunk_nu
     elif chunk_size:
         logger.debug('Chunk number set to {}'.format(chunk_number))
     else:
-        logger.debug('Chunk size or chunk number not set ')
+        logger.debug('Chunk size and chunk number not set ')
 
     partitions = []
     parts_per_object = []
@@ -257,7 +257,7 @@ def _split_objects_from_urls(map_func_args_list, chunk_size, chunk_number):
     elif chunk_size:
         logger.debug('Chunk number set to {}'.format(chunk_number))
     else:
-        logger.debug('Chunk size or chunk number not set ')
+        logger.debug('Chunk size and chunk number not set ')
 
     partitions = []
     parts_per_object = []

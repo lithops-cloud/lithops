@@ -4,6 +4,7 @@
 
 ### Added
 - [Core] Allow Support for Python 3.9
+- [Core] Added standalone get_result() and wait() methods
 - [knative] Include GCP and Azure storage libs into default knative runtime
 - [CodeEngine] Enable internal kubernetes pod executions
 - [k8s] Enable internal kubernetes pod executions

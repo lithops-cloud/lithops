@@ -10,13 +10,10 @@ from tblib import pickling_support
 from concurrent.futures import ThreadPoolExecutor, wait
 
 from lithops.storage.utils import create_job_key
+from lithops.wait.utils import ALL_COMPLETED
 
 pickling_support.install()
 logger = logging.getLogger(__name__)
-
-ALL_COMPLETED = 1
-ANY_COMPLETED = 2
-ALWAYS = 3
 
 
 def wait_rabbitmq(fs, internal_storage, rabbit_amqp_url, download_results=False,
