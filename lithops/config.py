@@ -16,6 +16,7 @@
 #
 
 import os
+import copy
 import json
 import importlib
 import logging
@@ -37,7 +38,6 @@ CPU_COUNT = mp.cpu_count()
 
 def load_yaml_config(config_filename):
     import yaml
-
     try:
         with open(config_filename, 'r') as config_file:
             data = yaml.safe_load(config_file)
@@ -100,7 +100,7 @@ def load_config(log=True):
 
 def get_log_info(config_data=None):
     """ Return lithops logging information set in configuration """
-    config_data = config_data or load_config(log=False)
+    config_data = copy.deepcopy(config_data) or load_config(log=False)
 
     if 'lithops' not in config_data or not config_data['lithops']:
         config_data['lithops'] = {}
@@ -131,7 +131,7 @@ def get_mode(backend=None, config_data=None):
     elif backend:
         raise Exception("Unknown compute backend: {}".format(backend))
 
-    config_data = config_data or load_config(log=False)
+    config_data = copy.deepcopy(config_data) or load_config(log=False)
 
     if 'lithops' not in config_data or not config_data['lithops']:
         config_data['lithops'] = {}
@@ -150,7 +150,7 @@ def default_config(config_data=None, config_overwrite={}):
     """
     logger.info('Lithops v{}'.format(__version__))
 
-    config_data = config_data or load_config()
+    config_data = copy.deepcopy(config_data) or load_config()
 
     if 'lithops' not in config_data or not config_data['lithops']:
         config_data['lithops'] = {}
@@ -249,7 +249,7 @@ def default_config(config_data=None, config_overwrite={}):
 def default_storage_config(config_data=None, backend=None):
     """ Function to load default storage config """
 
-    config_data = config_data or load_config()
+    config_data = copy.deepcopy(config_data) or load_config()
 
     if 'lithops' not in config_data or not config_data['lithops']:
         config_data['lithops'] = {}
