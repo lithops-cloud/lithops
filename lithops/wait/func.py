@@ -72,16 +72,18 @@ def wait(fs, throw_except=True, return_when=ALL_COMPLETED,
     if not is_lithops_worker() and setup_progressbar:
         from tqdm.auto import tqdm
 
-        if is_notebook():
-            pbar = tqdm(bar_format='{n}/|/ {n_fmt}/{total_fmt}', total=len(fs_not_done))  # ncols=800
-        else:
+        if not is_notebook():
             print()
-            pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(fs_not_done), disable=None)
+        pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
+                    total=len(fs_not_done), disable=None)
 
     try:
-        wait_storage(fs, internal_storage, download_results=download_results,
-                     throw_except=throw_except, return_when=return_when, pbar=pbar,
-                     THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
+        wait_storage(fs, internal_storage,
+                     download_results=download_results,
+                     throw_except=throw_except,
+                     return_when=return_when, pbar=pbar,
+                     THREADPOOL_SIZE=THREADPOOL_SIZE,
+                     WAIT_DUR_SEC=WAIT_DUR_SEC)
 
     except KeyboardInterrupt as e:
         if download_results:
@@ -117,7 +119,8 @@ def wait(fs, throw_except=True, return_when=ALL_COMPLETED,
 
 
 def get_result(fs, throw_except=True, timeout=None,
-               THREADPOOL_SIZE=128, WAIT_DUR_SEC=1, internal_storage=None):
+               THREADPOOL_SIZE=128, WAIT_DUR_SEC=1,
+               internal_storage=None):
     """
     For getting the results from all function activations
 
@@ -143,7 +146,8 @@ def get_result(fs, throw_except=True, timeout=None,
     result = []
     fs_done = [f for f in fs_done if not f.futures and f._produce_output]
     for f in fs_done:
-        result.append(f.result(throw_except=throw_except, internal_storage=internal_storage))
+        result.append(f.result(throw_except=throw_except,
+                               internal_storage=internal_storage))
 
     logger.debug("Finished getting results")
 
