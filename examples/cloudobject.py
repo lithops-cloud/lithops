@@ -4,17 +4,16 @@ objects stored in the storage backend between functions without
 knowing they exact location (bucket, key)
 """
 import lithops
-import os
 
 
 def my_function_put(text, storage):
-    co1 = storage.put_cobject('Cloudobject test 1: {}'.format(text, ))
-    co2 = storage.put_cobject('Cloudobject test 2: {}'.format(text, ))
+    co1 = storage.put_cloudobject('Cloudobject test 1: {}'.format(text, ))
+    co2 = storage.put_cloudobject('Cloudobject test 2: {}'.format(text, ))
     return [co1, co2]
 
 
 def my_function_get(co, storage):
-    data = storage.get_cobject(co)
+    data = storage.get_cloudobject(co)
     return data
 
 
