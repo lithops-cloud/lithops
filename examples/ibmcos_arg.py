@@ -23,5 +23,5 @@ def my_function(bucket_name, key, ibm_cos):
 
 if __name__ == '__main__':
     fexec = lithops.FunctionExecutor()
-    fexec.call_async(my_function, ['fexec-sample-data', 'obj1.txt'])
+    fexec.call_async(my_function, ('lithops-sample-data', 'obj1.txt'))
     print(fexec.get_result())
