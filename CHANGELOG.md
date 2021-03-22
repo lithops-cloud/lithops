@@ -17,6 +17,7 @@
 
 ### Changed
 - [IBM CF] Change user_key to API-key pass instead of user
+- [Azure] Changed configuration keys
 
 ### Fixes
 - [Core] Overwrite the runtime set in config with the runtime set in the FunctionExecutor

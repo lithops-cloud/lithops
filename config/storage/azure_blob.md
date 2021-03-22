@@ -11,31 +11,38 @@ Lithops with Azure Blob Storage as storage backend.
 $ python3 -m pip install lithops[azure]
 ```
 
-2. Install [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest)
+5. Create a Resource Group and a Storage Account:
 
-3. Sign in with the Azure CLI:
+   Option 1:
 
-```bash
-  $ az login
-```
+     1. Access to the [Azure portal Resource Groups](https://portal.azure.com/#blade/HubsExtension/BrowseResourceGroups) and create a new Resource group named **LithopsResourceGroup** in your preferred region. If you already have a resource group, omit this step.
+     
+     2. Access to the [Azure portal Storage Accounts](https://portal.azure.com/#blade/HubsExtension/BrowseResourceGroups) and create a new Storage Account with a unique name, for example: **lithops0sa25s1**. If you already have a storage account, omit this step.
 
-4. Create a Resource Group in a specific location, for example:
+   Option 2:
+   
+    1. Install [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest)
 
-```bash
-  $ az group create --name LithopsResourceGroup --location westeurope
-```
+    2. Sign in with the Azure CLI:
 
-5. Create a Storage Account with a unique name, for example:
+    ```bash
+      $ az login
+    ```
 
-```bash
-  $ storage_account_name=lithops$(openssl rand -hex 3)
-  $ echo $storage_account_name
-  $ az storage account create --name $storage_account_name --location westeurope \
-     --resource-group LithopsResourceGroup --sku Standard_LRS
-```
-
-6. Alternatively, you can create the Resource group and the Storage Account through the [dashboard](https://portal.azure.com/#blade/HubsExtension/BrowseResource/resourceType/Microsoft.Storage%2FStorageAccounts).
-
+    3. Create a Resource Group in your preferred region. If you already have a resource group, omit this step.
+    
+    ```bash
+      $ az group create --name LithopsResourceGroup --location westeurope
+    ```
+    
+    4. Create a Storage Account with a unique name. If you already have a storage account, omit this step.
+    
+    ```bash
+      $ storage_account_name=lithops$(openssl rand -hex 3)
+      $ echo $storage_account_name
+      $ az storage account create --name $storage_account_name --location westeurope \
+         --resource-group LithopsResourceGroup --sku Standard_LRS
+    ```
 
 ### Configuration
 
@@ -43,7 +50,7 @@ $ python3 -m pip install lithops[azure]
 
 2. In the left menu, click on *Access Keys* and copy the *Key 1* key
 
-3. In the left menu, navigate to Blob service --> Containers, and create a new container (e.g. `lithops-data`). Remember to update the `storage_bucket` Lithops config field with this container name.
+3. In the left menu, navigate to *Blob service* --> *Containers*, and create a *new container (e.g. `lithops-data`). Remember to update the `storage_bucket` Lithops config field with this container name.
 
 1. Edit your lithops config and add the following keys:
 
@@ -52,14 +59,14 @@ $ python3 -m pip install lithops[azure]
       storage : azure_blob
       storage_bucket: <CONTAINER_NAME>
 
-  azure_blob:
-      storage_account : <STORAGE_ACCOUNT_NAME>
-      storage_account_key : <STORAGE_ACCOUNT_KEY>
+  azure_storage:
+      storage_account_name: <STORAGE_ACCOUNT_NAME>
+      storage_account_key: <STORAGE_ACCOUNT_KEY>
 ```
 
-### Summary of configuration keys for Azure Functions Apps:
+### Summary of configuration keys for Azure:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|azure_blob| storage_account | |yes |  The name generated in the step 5 of the installation |
-|azure_blob| storage_account_key |  | yes |  An Account Key, found in *Storage Accounts* > `account_name` > *Settings* > *Access Keys*|
+|azure_storage| storage_account_name | |yes |  The storage account name |
+|azure_storage| storage_account_key |  | yes |  An storage account key, found in *Storage Accounts* > `account_name` > *Settings* > *Access Keys*|

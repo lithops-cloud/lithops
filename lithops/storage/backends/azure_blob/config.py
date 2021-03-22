@@ -14,12 +14,15 @@
 # limitations under the License.
 #
 
+REQUIRED_AZURE_STORAGE_PARAMS = ['storage_account_name', 'storage_account_key']
+
 
 def load_config(config_data=None):
-    if 'azure_blob' not in config_data:
-        raise Exception("azure_blob section is mandatory in the configuration")
+    if 'azure_storage' not in config_data:
+        raise Exception("azure_storage section is mandatory in the configuration")
 
-    required_parameters = ('account_name', 'account_key')
+    for key in REQUIRED_AZURE_STORAGE_PARAMS:
+        if key not in config_data['azure_storage']:
+            raise Exception('{} key is mandatory in azure section of the configuration'.format(key))
 
-    if set(required_parameters) > set(config_data['azure_blob']):
-        raise Exception('You must provide {} to access to Azure Blob Storage'.format(required_parameters))
+    config_data['azure_blob'] = config_data['azure_storage']
