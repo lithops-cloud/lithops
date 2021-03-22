@@ -28,8 +28,8 @@ class AzureBlobStorageBackend:
 
     def __init__(self, azure_blob_config):
         logger.debug("Creating Azure Blob Storage client")
-        self.storage_account = azure_blob_config['storage_account']
-        self.blob_service_url = 'https://{}.blob.core.windows.net'.format(self.storage_account)
+        self.storage_account_name = azure_blob_config['storage_account_name']
+        self.blob_service_url = 'https://{}.blob.core.windows.net'.format(self.storage_account_name)
         self.blob_client = BlobServiceClient(account_url=self.blob_service_url,
                                              credential=azure_blob_config['storage_account_key'])
 

@@ -32,8 +32,8 @@ RUNTIME_NAME = 'lithops-runtime'
 FUNCTIONS_VERSION = 3
 RUNTIME_TIMEOUT = 300000    # Default: 300000 ms => 10 minutes
 RUNTIME_TIMEOUT_MAX = 600000        # Platform maximum
-RUNTIME_MEMORY = 1500       # Default memory: 1.5 GB
-MAX_CONCURRENT_WORKERS = 2000
+RUNTIME_MEMORY = 1024       # Default memory: 1.5 GB
+MAX_CONCURRENT_WORKERS = 1000
 INVOKE_POOL_THREADS_DEFAULT = 500
 
 IN_QUEUE = "in-trigger"
@@ -61,10 +61,14 @@ HOST_FILE = """
 {
   "version": "2.0",
   "logging": {
+    "fileLoggingMode": "always",
+    "logLevel": {
+      "default": "Debug",
+      "Function.lithops_handler": "Debug"
+    },
     "applicationInsights": {
       "samplingSettings": {
-        "isEnabled": true,
-        "excludedTypes": "Request"
+        "excludedTypes": "Request;Trace"
       }
     }
   },
@@ -124,6 +128,9 @@ RUN mkdir -p /home/site/wwwroo \
 
 SUPPORTED_PYTHON = ['3.6', '3.7', '3.8', '3.9']
 
+REQUIRED_AZURE_STORAGE_PARAMS = ['storage_account_name', 'storage_account_key']
+REQUIRED_azure_functions_PARAMS = ['resource_group', 'location']
+
 
 def load_config(config_data=None):
 
@@ -146,25 +153,32 @@ def load_config(config_data=None):
     if 'workers' not in config_data['lithops']:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
 
-    if 'azure_fa' not in config_data:
-        raise Exception("azure_fa section is mandatory in the configuration")
+    if 'azure_storage' not in config_data:
+        raise Exception("azure_storage section is mandatory in the configuration")
 
-    required_parameters = ('resource_group', 'location', 'storage_account', 'storage_account_key')
+    if 'azure_functions' not in config_data:
+        raise Exception("azure_functions section is mandatory in the configuration")
 
-    if set(required_parameters) > set(config_data['azure_fa']):
-        raise Exception('You must provide {} to access to Azure Function App'
-                        .format(required_parameters))
+    for key in REQUIRED_AZURE_STORAGE_PARAMS:
+        if key not in config_data['azure_storage']:
+            raise Exception('{} key is mandatory in azure section of the configuration'.format(key))
 
-    if 'runtime' in config_data['azure_fa']:
-        config_data['serverless']['runtime'] = config_data['azure_fa']['runtime']
+    for key in REQUIRED_azure_functions_PARAMS:
+        if key not in config_data['azure_functions']:
+            raise Exception('{} key is mandatory in azure section of the configuration'.format(key))
+
+    config_data['azure_functions'].update(config_data['azure_storage'])
+
+    if 'runtime' in config_data['azure_functions']:
+        config_data['serverless']['runtime'] = config_data['azure_functions']['runtime']
     if 'runtime' not in config_data['serverless']:
-        config_data['azure_fa']['functions_version'] = FUNCTIONS_VERSION
-        storage_account = config_data['azure_fa']['storage_account']
+        config_data['azure_functions']['functions_version'] = FUNCTIONS_VERSION
+        storage_account_name = config_data['azure_functions']['storage_account_name']
         py_version = python_version.replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        runtime_name = '{}-{}-v{}-{}'.format(storage_account, RUNTIME_NAME, py_version, revision)
+        runtime_name = '{}-{}-v{}-{}'.format(storage_account_name, RUNTIME_NAME, py_version, revision)
         config_data['serverless']['runtime'] = runtime_name
 
-    if 'invoke_pool_threads' not in config_data['azure_fa']:
-        config_data['azure_fa']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
-    config_data['serverless']['invoke_pool_threads'] = config_data['azure_fa']['invoke_pool_threads']
+    if 'invoke_pool_threads' not in config_data['azure_functions']:
+        config_data['azure_functions']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
+    config_data['serverless']['invoke_pool_threads'] = config_data['azure_functions']['invoke_pool_threads']
