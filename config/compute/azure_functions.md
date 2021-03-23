@@ -80,6 +80,7 @@ $ python3 -m pip install lithops[azure]
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|azure_fa| resource_group | |yes | Name of the resource group used in the step 5 of the installation. |
-|azure_fa| location |  |yes | The location of the consumption plan for the runtime. Use `az functionapp list-consumption-locations` to view the available locations.|
-|azure_fa| runtime |  |no | Runtime name already deployed in the service.|
+|azure_functions| resource_group | |yes | Name of the resource group used in the step 5 of the installation. |
+|azure_functions| location |  |yes | The location of the consumption plan for the runtime. Use `az functionapp list-consumption-locations` to view the available locations.|
+|azure_functions| runtime |  |no | Runtime name already deployed in the service.|
+|azure_functions| invocation_type | http  | no | One of 'http' or 'event'.|

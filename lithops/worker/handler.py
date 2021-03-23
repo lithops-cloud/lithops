@@ -59,32 +59,38 @@ class ShutdownSentinel():
 
 def function_handler(payload):
     job = SimpleNamespace(**payload)
-
-    manager = SyncManager()
-    manager.start()
-    job_queue = manager.Queue()
-    job_runners = []
-
     processes = min(job.worker_processes, len(job.call_ids))
-    logger.info("Starting {} processes".format(processes))
 
-    for runner_id in range(processes):
-        p = mp.Process(target=process_runner, args=(runner_id, job_queue))
-        job_runners.append(p)
-        p.start()
-
-    for call_id in job.call_ids:
+    if processes == 1:
+        call_id = job.call_ids.pop(0)
         data_byte_range = job.data_byte_ranges.pop(0)
-        logger.info('Going to execute job {}-{}'.format(job.job_key, call_id))
-        job_queue.put((job, call_id, data_byte_range))
+        event = (job, call_id, data_byte_range)
+        event_handler(event)
 
-    for i in range(processes):
-        job_queue.put(ShutdownSentinel())
+    else:
+        manager = SyncManager()
+        manager.start()
+        job_queue = manager.Queue()
+        job_runners = []
 
-    for runner in job_runners:
-        runner.join()
+        logger.info("Starting {} processes".format(processes))
 
-    manager.shutdown()
+        for runner_id in range(processes):
+            p = mp.Process(target=process_runner, args=(runner_id, job_queue))
+            job_runners.append(p)
+            p.start()
+
+        for call_id in job.call_ids:
+            data_byte_range = job.data_byte_ranges.pop(0)
+            job_queue.put((job, call_id, data_byte_range))
+
+        for i in range(processes):
+            job_queue.put(ShutdownSentinel())
+
+        for runner in job_runners:
+            runner.join()
+
+        manager.shutdown()
 
 
 def process_runner(runner_id, job_queue):
@@ -97,21 +103,29 @@ def process_runner(runner_id, job_queue):
         event = job_queue.get(block=True)
         if isinstance(event, ShutdownSentinel):
             break
+        event_handler(event)
 
-        job, call_id, data_byte_range = event
 
-        bucket = job.config['lithops']['storage_bucket']
-        job.job_dir = os.path.join(LITHOPS_TEMP_DIR, bucket, JOBS_PREFIX, job.job_key, call_id)
-        job.log_file = os.path.join(job.job_dir, 'execution.log')
-        os.makedirs(job.job_dir, exist_ok=True)
+def event_handler(event):
+    """
+    Processes a single event
+    """
+    job, call_id, data_byte_range = event
 
-        job.call_id = call_id
-        job.data_byte_range = data_byte_range
+    logger.debug('Going to execute job {}-{}'.format(job.job_key, call_id))
 
-        with open(job.log_file, 'a') as log_strem:
-            job.log_stream = LogStream(log_strem)
-            with custom_redirection(job.log_stream):
-                run_job(job)
+    bucket = job.config['lithops']['storage_bucket']
+    job.job_dir = os.path.join(LITHOPS_TEMP_DIR, bucket, JOBS_PREFIX, job.job_key, call_id)
+    job.log_file = os.path.join(job.job_dir, 'execution.log')
+    os.makedirs(job.job_dir, exist_ok=True)
+
+    job.call_id = call_id
+    job.data_byte_range = data_byte_range
+
+    with open(job.log_file, 'a') as log_strem:
+        job.log_stream = LogStream(log_strem)
+        with custom_redirection(job.log_stream):
+            run_job(job)
 
 
 def run_job(job):
@@ -312,7 +326,7 @@ class CallStatus:
             except Exception as e:
                 logger.error("Unable to send status to rabbitmq")
                 logger.error(str(e))
-                logger.info('Retrying to send status to rabbitmq...')
+                logger.info('Retrying to send status to rabbitmq')
                 time.sleep(0.2)
 
 
