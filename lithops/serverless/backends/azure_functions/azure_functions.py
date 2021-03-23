@@ -16,13 +16,18 @@
 
 import os
 import sys
+import ssl
+import uuid
 import json
 import time
 import logging
 import shutil
 import lithops
-from azure.storage.queue import QueueServiceClient
 import zipfile
+import http.client
+from urllib.parse import urlparse
+from azure.storage.queue import QueueServiceClient
+
 from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG
 from lithops.utils import create_handler_zip, version_str, dict_to_b64str,\
@@ -41,6 +46,7 @@ class AzureFunctionAppBackend:
         logger.debug("Creating Azure Functions client")
         self.name = 'azure_fa'
         self.azure_config = config
+        self.invocation_type = self.azure_config['invocation_type']
         self.resource_group = self.azure_config['resource_group']
         self.storage_account_name = self.azure_config['storage_account_name']
         self.storage_account_key = self.azure_config['storage_account_key']
@@ -65,8 +71,8 @@ class AzureFunctionAppBackend:
     def _get_default_runtime_image_name(self):
         py_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
-        runtime_name = '{}-{}-v{}-{}'.format(self.storage_account_name, az_config.RUNTIME_NAME,
-                                             py_version, revision)
+        runtime_name = '{}-{}-v{}-{}-{}'.format(self.storage_account_name, az_config.RUNTIME_NAME,
+                                                py_version, revision, self.invocation_type)
         return runtime_name
 
     def create_runtime(self, docker_image_name, memory=None, timeout=az_config.RUNTIME_TIMEOUT):
@@ -135,12 +141,17 @@ class AzureFunctionAppBackend:
             hstf.write(az_config.HOST_FILE)
 
         fn_file = os.path.join(action_dir, 'function.json')
-        with open(fn_file, 'w') as fnf:
-            in_q_name = self._format_queue_name(action_name, az_config.IN_QUEUE)
-            az_config.BINDINGS['bindings'][0]['queueName'] = in_q_name
-            out_q_name = self._format_queue_name(action_name, az_config.OUT_QUEUE)
-            az_config.BINDINGS['bindings'][1]['queueName'] = out_q_name
-            fnf.write(json.dumps(az_config.BINDINGS))
+        if self.invocation_type == 'event':
+            with open(fn_file, 'w') as fnf:
+                in_q_name = self._format_queue_name(action_name, az_config.IN_QUEUE)
+                az_config.BINDINGS_QUEUE['bindings'][0]['queueName'] = in_q_name
+                out_q_name = self._format_queue_name(action_name, az_config.OUT_QUEUE)
+                az_config.BINDINGS_QUEUE['bindings'][1]['queueName'] = out_q_name
+                fnf.write(json.dumps(az_config.BINDINGS_QUEUE))
+
+        elif self.invocation_type == 'http':
+            with open(fn_file, 'w') as fnf:
+                fnf.write(json.dumps(az_config.BINDINGS_HTTP))
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
         main_file = os.path.join(action_dir, '__init__.py')
@@ -200,20 +211,21 @@ class AzureFunctionAppBackend:
         action_name = self._format_action_name(docker_image_name, memory)
         logger.info('Creating new Lithops runtime for Azure Function: {}'.format(action_name))
 
-        try:
-            in_q_name = self._format_queue_name(action_name, az_config.IN_QUEUE)
-            logger.debug('Creating queue {}'.format(in_q_name))
-            self.queue_service.create_queue(in_q_name)
-        except Exception:
-            in_queue = self.queue_service.get_queue_client(in_q_name)
-            in_queue.clear_messages()
-        try:
-            out_q_name = self._format_queue_name(action_name, az_config.OUT_QUEUE)
-            logger.debug('Creating queue {}'.format(out_q_name))
-            self.queue_service.create_queue(out_q_name)
-        except Exception:
-            out_queue = self.queue_service.get_queue_client(out_q_name)
-            out_queue.clear_messages()
+        if self.invocation_type == 'event':
+            try:
+                in_q_name = self._format_queue_name(action_name, az_config.IN_QUEUE)
+                logger.debug('Creating queue {}'.format(in_q_name))
+                self.queue_service.create_queue(in_q_name)
+            except Exception:
+                in_queue = self.queue_service.get_queue_client(in_q_name)
+                in_queue.clear_messages()
+            try:
+                out_q_name = self._format_queue_name(action_name, az_config.OUT_QUEUE)
+                logger.debug('Creating queue {}'.format(out_q_name))
+                self.queue_service.create_queue(out_q_name)
+            except Exception:
+                out_queue = self.queue_service.get_queue_client(out_q_name)
+                out_queue.clear_messages()
 
         python_version = version_str(sys.version_info)
         cmd = ('az functionapp create --name {} --storage-account {} '
@@ -270,21 +282,47 @@ class AzureFunctionAppBackend:
         """
         Invoke function
         """
-        action_name = self._format_action_name(docker_image_name)
-        in_q_name = self._format_queue_name(action_name, az_config.IN_QUEUE)
-        in_queue = self.queue_service.get_queue_client(in_q_name)
-        msg = in_queue.send_message(dict_to_b64str(payload))
-        activation_id = msg.id
+        action_name = self._format_action_name(docker_image_name, memory)
+        if self.invocation_type == 'event':
 
-        if return_result:
-            out_q_name = self._format_queue_name(action_name, az_config.OUT_QUEUE)
-            out_queue = self.queue_service.get_queue_client(out_q_name)
-            msg = []
-            while not msg:
-                time.sleep(1)
-                msg = out_queue.receive_message()
-            out_queue.clear_messages()
-            return b64str_to_dict(msg.content)
+            in_q_name = self._format_queue_name(action_name, az_config.IN_QUEUE)
+            in_queue = self.queue_service.get_queue_client(in_q_name)
+            msg = in_queue.send_message(dict_to_b64str(payload))
+            activation_id = msg.id
+
+            if return_result:
+                out_q_name = self._format_queue_name(action_name, az_config.OUT_QUEUE)
+                out_queue = self.queue_service.get_queue_client(out_q_name)
+                msg = []
+                while not msg:
+                    time.sleep(1)
+                    msg = out_queue.receive_message()
+                out_queue.clear_messages()
+                return b64str_to_dict(msg.content)
+
+        elif self.invocation_type == 'http':
+            endpoint = "https://{}.azurewebsites.net".format(action_name)
+            parsed_url = urlparse(endpoint)
+            ctx = ssl._create_unverified_context()
+            conn = http.client.HTTPSConnection(parsed_url.netloc, context=ctx)
+
+            route = "/api/lithops_handler"
+            if return_result:
+                conn.request("GET", route, body=json.dumps(payload))
+                resp = conn.getresponse()
+                data = json.loads(resp.read().decode("utf-8"))
+                conn.close()
+                return data
+            else:
+                # logger.debug('Invoking calls {}'.format(', '.join(payload['call_ids'])))
+                conn.request("POST", route, body=json.dumps(payload))
+                resp = conn.getresponse()
+                if resp.status == 429:
+                    time.sleep(0.2)
+                    conn.close()
+                    return None
+                activation_id = resp.read().decode("utf-8")
+                conn.close()
 
         return activation_id
 

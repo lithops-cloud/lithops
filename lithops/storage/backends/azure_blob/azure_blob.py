@@ -107,7 +107,7 @@ class AzureBlobStorageBackend:
         """
         try:
             container_client = self.blob_client.get_container_client(bucket_name)
-            container_client.delete_blob(key, "include")
+            container_client.delete_blob(key, delete_snapshots="include")
         except ResourceNotFoundError:
             pass
 
@@ -119,7 +119,9 @@ class AzureBlobStorageBackend:
         """
         try:
             container_client = self.blob_client.get_container_client(bucket_name)
-            container_client.delete_blobs(*key_list, delete_snapshots="include")
+            composite_list = [key_list[x:x+50] for x in range(0, len(key_list), 50)]
+            for key_sublist in composite_list:
+                container_client.delete_blobs(*key_sublist, delete_snapshots="include")
         except ResourceNotFoundError:
             pass
 

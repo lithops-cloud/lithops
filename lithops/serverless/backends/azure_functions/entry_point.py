@@ -1,5 +1,5 @@
 #
-# Copyright Cloudlab URV 2020
+# Copyright Cloudlab URV 2021
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,22 +27,42 @@ from lithops.worker.utils import get_runtime_preinstalls
 logger = logging.getLogger('lithops.worker')
 
 
-def main(msgIn: func.QueueMessage, msgOut: func.Out[func.QueueMessage]):
+def main_queue(msgIn: func.QueueMessage, msgOut: func.Out[func.QueueMessage]):
     try:
-        args = json.loads(msgIn.get_body())
+        payload = json.loads(msgIn.get_body())
     except Exception:
-        args = msgIn.get_json()
+        payload = msgIn.get_json()
 
     os.environ['__LITHOPS_ACTIVATION_ID'] = str(msgIn.id)
-    setup_lithops_logger(args['log_level'])
+    setup_lithops_logger(payload['log_level'])
 
-    if 'get_preinstalls' in args:
+    if 'get_preinstalls' in payload:
         logger.info("Lithops v{} - Generating metadata".format(__version__))
         runtime_meta = get_runtime_preinstalls()
         msgOut.set(json.dumps(runtime_meta))
-    elif 'remote_invoker' in args:
+    elif 'remote_invoker' in payload:
         logger.info("Lithops v{} - Starting invoker".format(__version__))
-        function_invoker(args)
+        function_invoker(payload)
     else:
         logger.info("Lithops v{} - Starting execution".format(__version__))
-        function_handler(args)
+        function_handler(payload)
+
+
+def main_http(req: func.HttpRequest, context: func.Context) -> str:
+    payload = req.get_json()
+
+    os.environ['__LITHOPS_ACTIVATION_ID'] = context.invocation_id
+    setup_lithops_logger(payload['log_level'])
+
+    if 'get_preinstalls' in payload:
+        logger.info("Lithops v{} - Generating metadata".format(__version__))
+        runtime_meta = get_runtime_preinstalls()
+        return json.dumps(runtime_meta)
+    elif 'remote_invoker' in payload:
+        logger.info("Lithops v{} - Starting invoker".format(__version__))
+        function_invoker(payload)
+    else:
+        logger.info("Lithops v{} - Starting execution".format(__version__))
+        function_handler(payload)
+
+    return context.invocation_id

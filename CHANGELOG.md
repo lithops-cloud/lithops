@@ -14,6 +14,7 @@
 - [Multiprocessing] Added Nanomsg connection type for addressable backends
 - [Multiprocessing] Added expiry time for Redis multiprocessing resources
 - [Multiprocessing] Added Listener and Client for multiprocessing using Redis
+- [Azure Functions] Added support for http trigger
 
 ### Changed
 - [IBM CF] Change user_key to API-key pass instead of user
