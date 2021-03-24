@@ -30,11 +30,17 @@ DOCKER_PATH = shutil.which('docker')
 
 RUNTIME_NAME = 'lithops-runtime'
 FUNCTIONS_VERSION = 3
-RUNTIME_TIMEOUT = 300000    # Default: 300000 ms => 10 minutes
-RUNTIME_TIMEOUT_MAX = 600000        # Platform maximum
+RUNTIME_TIMEOUT = 600    # Default: 600 s => 10 minutes
 RUNTIME_MEMORY = 1536       # Default memory: 1.5 GB
 MAX_CONCURRENT_WORKERS = 200
 INVOKE_POOL_THREADS_DEFAULT = 500
+
+SUPPORTED_PYTHON = ['3.6', '3.7', '3.8', '3.9']
+
+REQUIRED_AZURE_STORAGE_PARAMS = ['storage_account_name', 'storage_account_key']
+REQUIRED_azure_functions_PARAMS = ['resource_group', 'location']
+
+INVOCATION_TYPE_DEFAULT = 'http'
 
 IN_QUEUE = "in-trigger"
 OUT_QUEUE = "out-result"
@@ -157,13 +163,6 @@ RUN mkdir -p /home/site/wwwroo \
     && rm lithops_azure.zip
 """
 
-SUPPORTED_PYTHON = ['3.6', '3.7', '3.8', '3.9']
-
-REQUIRED_AZURE_STORAGE_PARAMS = ['storage_account_name', 'storage_account_key']
-REQUIRED_azure_functions_PARAMS = ['resource_group', 'location']
-
-INVOCATION_TYPE_DEFAULT = 'http'
-
 
 def load_config(config_data=None):
 
@@ -171,17 +170,11 @@ def load_config(config_data=None):
     if python_version not in SUPPORTED_PYTHON:
         raise Exception('Python {} is not supported'.format(python_version))
 
-    if 'runtime_memory' in config_data['serverless']:
-        print("Ignoring user specified '{}'. The current Azure compute backend"
-              " does not support custom runtimes.".format('runtime_memory'))
-        print('Default runtime memory: {}MB'.format(RUNTIME_MEMORY))
-    config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY
+    if 'runtime_memory' not in config_data['serverless']:
+        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY
 
-    if 'runtime_timeout' in config_data['serverless']:
-        print("Ignoring user specified '{}'. The current Azure compute backend"
-              " does not support custom runtimes.".format('runtime_timeout'))
-        print('Default runtime timeout: {}ms'.format(RUNTIME_TIMEOUT))
-    config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT
+    if 'runtime_timeout' not in config_data['serverless']:
+        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT
 
     if 'workers' not in config_data['lithops']:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS

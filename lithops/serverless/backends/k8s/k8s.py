@@ -187,20 +187,19 @@ class KubernetesBackend:
 
         try:
             jobs = self.batch_api.list_namespaced_job(namespace=self.namespace)
-        except ApiException:
-            pass
-
-        for job in jobs.items:
-            try:
+            for job in jobs.items:
                 if job.metadata.labels['type'] == 'lithops-runtime'\
                    and (job.status.completion_time is not None or force):
                     job_name = job.metadata.name
                     logger.debug('Deleting job {}'.format(job_name))
-                    self.batch_api.delete_namespaced_job(name=job_name,
-                                                         namespace=self.namespace,
-                                                         propagation_policy='Background')
-            except Exception:
-                pass
+                    try:
+                        self.batch_api.delete_namespaced_job(name=job_name,
+                                                             namespace=self.namespace,
+                                                             propagation_policy='Background')
+                    except Exception:
+                        pass
+        except ApiException:
+            pass
 
     def clear(self):
         """
