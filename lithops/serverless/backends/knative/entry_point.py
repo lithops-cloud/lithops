@@ -45,6 +45,7 @@ def run():
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
+    os.environ['__LITHOPS_BACKEND'] = 'Knative'
 
     setup_lithops_logger(message['log_level'])
 

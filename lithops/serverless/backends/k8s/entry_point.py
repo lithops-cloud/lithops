@@ -86,6 +86,8 @@ def run_job(encoded_payload):
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
+    os.environ['__LITHOPS_BACKEND'] = 'k8s'
+
     logger.info("Activation ID: {} - Job Index: {}".format(act_id, job_index))
 
     chunksize = payload['chunksize']

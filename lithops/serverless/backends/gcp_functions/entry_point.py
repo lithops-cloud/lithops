@@ -27,18 +27,17 @@ from lithops.worker.utils import get_runtime_preinstalls
 from lithops.storage.storage import InternalStorage
 from lithops.constants import JOBS_PREFIX
 
-
-
 logger = logging.getLogger('lithops.worker')
 
 
 def main(event, context):
-    logger.info("Starting GCP Functions function execution")
-
     # pub/sub event data is b64 encoded
     args = json.loads(base64.b64decode(event['data']).decode('utf-8'))
-    os.environ['__LITHOPS_ACTIVATION_ID'] = uuid.uuid4().hex
+
     setup_lithops_logger(args.get('log_level', 'INFO'))
+
+    os.environ['__LITHOPS_ACTIVATION_ID'] = uuid.uuid4().hex
+    os.environ['__LITHOPS_BACKEND'] = 'Google Cloud Functions'
 
     if 'get_preinstalls' in args:
         logger.info("Lithops v{} - Generating metadata".format(__version__))

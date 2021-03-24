@@ -33,36 +33,40 @@ def main_queue(msgIn: func.QueueMessage, msgOut: func.Out[func.QueueMessage]):
     except Exception:
         payload = msgIn.get_json()
 
-    os.environ['__LITHOPS_ACTIVATION_ID'] = str(msgIn.id)
     setup_lithops_logger(payload['log_level'])
+
+    os.environ['__LITHOPS_ACTIVATION_ID'] = str(msgIn.id)
+    os.environ['__LITHOPS_BACKEND'] = 'Azure Functions (event)'
 
     if 'get_preinstalls' in payload:
         logger.info("Lithops v{} - Generating metadata".format(__version__))
         runtime_meta = get_runtime_preinstalls()
         msgOut.set(json.dumps(runtime_meta))
     elif 'remote_invoker' in payload:
-        logger.info("Lithops v{} - Starting invoker".format(__version__))
+        logger.info("Lithops v{} - Starting Azure Functions (event) invoker".format(__version__))
         function_invoker(payload)
     else:
-        logger.info("Lithops v{} - Starting execution".format(__version__))
+        logger.info("Lithops v{} - Starting Azure Functions (event) execution".format(__version__))
         function_handler(payload)
 
 
 def main_http(req: func.HttpRequest, context: func.Context) -> str:
     payload = req.get_json()
 
-    os.environ['__LITHOPS_ACTIVATION_ID'] = context.invocation_id
     setup_lithops_logger(payload['log_level'])
+
+    os.environ['__LITHOPS_ACTIVATION_ID'] = context.invocation_id
+    os.environ['__LITHOPS_BACKEND'] = 'Azure Functions (http)'
 
     if 'get_preinstalls' in payload:
         logger.info("Lithops v{} - Generating metadata".format(__version__))
         runtime_meta = get_runtime_preinstalls()
         return json.dumps(runtime_meta)
     elif 'remote_invoker' in payload:
-        logger.info("Lithops v{} - Starting invoker".format(__version__))
+        logger.info("Lithops v{} - Starting Azure Functions (http) invoker".format(__version__))
         function_invoker(payload)
     else:
-        logger.info("Lithops v{} - Starting execution".format(__version__))
+        logger.info("Lithops v{} - Starting Azure Functions (http) execution".format(__version__))
         function_handler(payload)
 
     return context.invocation_id

@@ -21,6 +21,7 @@ from lithops.version import __version__
 from lithops.utils import setup_lithops_logger
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
+from lithops.worker.utils import get_runtime_preinstalls
 
 logger = logging.getLogger('lithops.worker')
 
@@ -28,12 +29,18 @@ logger = logging.getLogger('lithops.worker')
 def main(event, context):
     args = json.loads(event)
     os.environ['__LITHOPS_ACTIVATION_ID'] = context.request_id
+    os.environ['__LITHOPS_BACKEND'] = 'Alibaba Function Compute'
+
     setup_lithops_logger(args['log_level'])
-    if 'remote_invoker' in args:
-        logger.info("Lithops v{} - Starting invoker".format(__version__))
+
+    if 'get_preinstalls' in event:
+        logger.info("Lithops v{} - Generating metadata".format(__version__))
+        return get_runtime_preinstalls()
+    elif 'remote_invoker' in args:
+        logger.info("Lithops v{} - Starting Alibaba Function Compute invoker".format(__version__))
         function_invoker(args)
     else:
-        logger.info("Lithops v{} - Starting execution".format(__version__))
+        logger.info("Lithops v{} - Starting Alibaba Function Compute execution".format(__version__))
         function_handler(args)
 
     return {"Execution": "Finished"}

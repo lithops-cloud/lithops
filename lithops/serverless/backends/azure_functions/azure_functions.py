@@ -17,7 +17,6 @@
 import os
 import sys
 import ssl
-import uuid
 import json
 import time
 import logging
@@ -169,39 +168,6 @@ class AzureFunctionAppBackend:
             archive.extractall(path=mod_dir)
             os.remove(mod_dir+'/__init__.py')
             os.remove(az_config.FH_ZIP_LOCATION)
-
-    def build_runtime_docker(self, docker_image_name, dockerfile):
-        """
-        Builds a new runtime from a Docker file and pushes it to the Docker hub
-        """
-        logger.debug('Building new docker image from Dockerfile')
-        logger.debug('Docker image name: {}'.format(docker_image_name))
-
-        entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-        create_handler_zip(az_config.FH_ZIP_LOCATION, entry_point, '__init__.py')
-
-        if dockerfile:
-            cmd = '{} build -t {} -f {} .'.format(az_config.DOCKER_PATH,
-                                                  docker_image_name,
-                                                  dockerfile)
-        else:
-            cmd = '{} build -t {} .'.format(az_config.DOCKER_PATH, docker_image_name)
-
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            cmd = cmd + " >{} 2>&1".format(os.devnull)
-
-        logger.info('Building default runtime')
-        res = os.system(cmd)
-        if res != 0:
-            raise Exception('There was an error building the runtime')
-
-        cmd = '{} push {}'.format(az_config.DOCKER_PATH, docker_image_name)
-        if logger.getEffectiveLevel() != logging.DEBUG:
-            cmd = cmd + " >{} 2>&1".format(os.devnull)
-        res = os.system(cmd)
-        if res != 0:
-            raise Exception('There was an error pushing the runtime to the container registry')
-        logger.debug('Done!')
 
     def _create_function(self, docker_image_name, memory=None,
                          timeout=az_config.RUNTIME_TIMEOUT):

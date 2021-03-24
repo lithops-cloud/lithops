@@ -43,10 +43,11 @@ def run():
     if message and not isinstance(message, dict):
         return error()
 
+    setup_lithops_logger(message['log_level'])
+
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
-
-    setup_lithops_logger(message['log_level'])
+    os.environ['__LITHOPS_BACKEND'] = 'Google Cloud Run'
 
     if 'remote_invoker' in message:
         logger.info("Lithops v{} - Starting GCP Cloud Run invoker".format(__version__))
