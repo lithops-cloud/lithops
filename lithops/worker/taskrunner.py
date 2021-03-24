@@ -1,6 +1,6 @@
 #
 # (C) Copyright IBM Corp. 2020
-# (C) Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2021
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -33,15 +33,11 @@ from lithops.wait import wait_storage
 from lithops.future import ResponseFuture
 from lithops.utils import sizeof_fmt, is_object_processing_function
 from lithops.utils import WrappedStreamingBodyPartition
-from lithops.constants import TEMP
 from lithops.util.metrics import PrometheusExporter
 from lithops.storage.utils import create_output_key
 from lithops.constants import JOBS_PREFIX
 
 logger = logging.getLogger(__name__)
-
-
-PYTHON_MODULE_PATH = os.path.join(TEMP, "lithops.modules")
 
 
 class stats:
@@ -76,9 +72,6 @@ class TaskRunner:
         prom_enabled = self.lithops_config['lithops'].get('monitoring')
         prom_config = self.lithops_config.get('prometheus', {})
         self.prometheus = PrometheusExporter(prom_enabled, prom_config)
-
-        mode = self.lithops_config['lithops']['mode']
-        self.customized_runtime = self.lithops_config[mode].get('customized_runtime', False)
 
     def _fill_optional_args(self, function, data):
         """

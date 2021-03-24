@@ -50,8 +50,6 @@ pickling_support.install()
 
 logger = logging.getLogger(__name__)
 
-LITHOPS_LIBS_PATH = '/action/lithops/libs'
-
 
 class ShutdownSentinel():
     """Put an instance of this class on the queue to shut it down"""
@@ -147,7 +145,6 @@ def run_task(task, internal_storage):
     env['LITHOPS_WORKER'] = 'True'
     env['PYTHONUNBUFFERED'] = 'True'
     env['LITHOPS_CONFIG'] = json.dumps(task.config)
-    env['PYTHONPATH'] = "{}:{}".format(os.getcwd(), LITHOPS_LIBS_PATH)
     env['__LITHOPS_SESSION_ID'] = '-'.join([task.job_key, task.id])
     os.environ.update(env)
 
@@ -161,11 +158,6 @@ def run_task(task, internal_storage):
     show_memory_peak = strtobool(os.environ.get('SHOW_MEMORY_PEAK', 'False'))
 
     try:
-        if __version__ != task.lithops_version:
-            msg = ("Lithops version mismatch. Host version: {} - Runtime version: {}"
-                   .format(task.lithops_version, __version__))
-            raise RuntimeError('HANDLER', msg)
-
         # send init status event
         call_status.send('__init__')
 

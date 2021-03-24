@@ -1,5 +1,5 @@
 #
-# (C) Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2021
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,10 +22,9 @@ import pickle
 import subprocess
 from contextlib import contextmanager
 
+from lithops.version import __version__ as lithops_ver
 from lithops.utils import sizeof_fmt, is_unix_system, b64str_to_bytes
-from lithops.constants import TEMP, LITHOPS_TEMP_DIR
-
-PYTHON_MODULE_PATH = os.path.join(TEMP, "lithops.modules")
+from lithops.constants import LITHOPS_TEMP_DIR, MODULES_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -54,9 +53,8 @@ def get_function_and_modules(job, internal_storage):
     loaded_func_all = pickle.loads(func_obj)
 
     if loaded_func_all['module_data']:
-        logger.debug("Writing Function dependencies to local disk")
-        module_path = os.path.join(PYTHON_MODULE_PATH, job.job_key)
-        # shutil.rmtree(PYTHON_MODULE_PATH, True)  # delete old modules
+        module_path = os.path.join(MODULES_DIR, job.job_key)
+        logger.debug("Writing function dependencies to {}".format(module_path))
         os.makedirs(module_path, exist_ok=True)
         sys.path.append(module_path)
 
@@ -74,6 +72,7 @@ def get_function_and_modules(job, internal_storage):
                 else:
                     raise e
             full_filename = os.path.join(to_make, os.path.basename(m_filename))
+            # logger.debug('Writing {}'.format(full_filename))
 
             with open(full_filename, 'wb') as fid:
                 fid.write(b64str_to_bytes(m_data))
@@ -181,7 +180,8 @@ def get_runtime_preinstalls():
     mods = list(pkgutil.iter_modules())
     runtime_meta["preinstalls"] = [entry for entry in sorted([[mod, is_pkg] for _, mod, is_pkg in mods])]
     python_version = sys.version_info
-    runtime_meta["python_ver"] = str(python_version[0])+"."+str(python_version[1])
+    runtime_meta["python_version"] = str(python_version[0])+"."+str(python_version[1])
+    runtime_meta["lithops_version"] = lithops_ver
 
     return runtime_meta
 

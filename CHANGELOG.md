@@ -20,6 +20,7 @@
 - [IBM CF] Change user_key to API-key pass instead of user
 - [Azure] Changed configuration keys
 - [Core] Improved worker when chunksize is set to values > 1
+- [Core] Check lithops version mismatch in host instead of in worker
 
 ### Fixes
 - [Core] Overwrite the runtime set in config with the runtime set in the FunctionExecutor
