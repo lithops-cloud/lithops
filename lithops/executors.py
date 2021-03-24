@@ -446,7 +446,7 @@ class FunctionExecutor:
                                       for f in futures if not f.ready and not f.done]
             msg = ('ExecutorID {} - Cancelled - Total Activations not done: {}'
                    .format(self.executor_id, len(not_dones_call_ids)))
-            if pbar:
+            if pbar and not pbar.disable:
                 pbar.close()
                 print()
             logger.info(msg)
@@ -456,6 +456,9 @@ class FunctionExecutor:
             raise e
 
         except Exception as e:
+            if pbar and not pbar.disable:
+                pbar.close()
+                print()
             error = True
             if self.data_cleaner and not self.is_lithops_worker:
                 self.clean(clean_cloudobjects=False, force=True)
