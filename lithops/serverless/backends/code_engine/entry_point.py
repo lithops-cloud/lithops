@@ -47,16 +47,17 @@ def run():
     if message and not isinstance(message, dict):
         return error()
 
-    act_id = str(uuid.uuid4()).replace('-', '')[:12]
-    os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
-
     setup_lithops_logger(message['log_level'])
 
+    act_id = str(uuid.uuid4()).replace('-', '')[:12]
+    os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
+    os.environ['__LITHOPS_BACKEND'] = 'Code Engine (Knative)'
+
     if 'remote_invoker' in message:
-        logger.info("Lithops v{} - Starting Knative invoker".format(__version__))
+        logger.info("Lithops v{} - Starting Code Engine (Knative) invoker".format(__version__))
         function_invoker(message)
     else:
-        logger.info("Lithops v{} - Starting Knative execution".format(__version__))
+        logger.info("Lithops v{} - Starting Code Engine (Knative) execution".format(__version__))
         function_handler(message)
 
     response = flask.jsonify({"activationId": act_id})
@@ -102,7 +103,7 @@ def runtime_packages(payload):
 
 
 def main_job(action, encoded_payload):
-    logger.info("Lithops v{} - Starting Code Engine execution".format(__version__))
+    logger.info("Lithops v{} - Starting Code Engine (Job) execution".format(__version__))
 
     payload = b64str_to_dict(encoded_payload)
 
@@ -118,6 +119,7 @@ def main_job(action, encoded_payload):
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
+    os.environ['__LITHOPS_BACKEND'] = 'Code Engine (Job)'
 
     chunksize = payload['chunksize']
     call_ids_ranges = [call_ids_range for call_ids_range in iterchunks(payload['call_ids'], chunksize)]

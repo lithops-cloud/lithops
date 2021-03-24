@@ -61,6 +61,9 @@ def function_handler(payload):
     job = SimpleNamespace(**payload)
     processes = min(job.worker_processes, len(job.call_ids))
 
+    logger.info('Tasks received: {} - Concurrent workers: {}'
+                .format(len(job.call_ids), processes))
+
     storage_config = extract_storage_config(job.config)
     internal_storage = InternalStorage(storage_config)
     job.func = get_function_and_modules(job, internal_storage)
@@ -76,8 +79,6 @@ def function_handler(payload):
         manager.start()
         job_queue = manager.Queue()
         job_runners = []
-
-        logger.info("Starting {} processes".format(processes))
 
         for runner_id in range(processes):
             p = mp.Process(target=process_runner, args=(runner_id, job_queue, internal_storage))
@@ -138,14 +139,15 @@ def run_task(task, internal_storage):
     start_tstamp = time.time()
     setup_lithops_logger(task.log_level)
 
-    logger.info("Lithops v{} - Starting execution".format(__version__))
+    backend = os.environ.get('__LITHOPS_BACKEND', '')
+    logger.info("Lithops v{} - Starting {} execution".format(__version__, backend))
     logger.info("Execution ID: {}/{}".format(task.job_key, task.id))
 
     if task.runtime_memory:
-        logger.debug('Runtime: {} - Memory: {} - Timeout: {}'
+        logger.debug('Runtime: {} - Memory: {}MB - Timeout: {} seconds'
                      .format(task.runtime_name, task.runtime_memory, task.execution_timeout))
     else:
-        logger.debug('Runtime: {} - Timeout: {}'.format(task.runtime_name, task.execution_timeout))
+        logger.debug('Runtime: {} - Timeout: {} seconds'.format(task.runtime_name, task.execution_timeout))
 
     env = task.extra_env
     env['LITHOPS_WORKER'] = 'True'

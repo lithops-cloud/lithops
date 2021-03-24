@@ -27,6 +27,7 @@ logger = logging.getLogger('lithops.worker')
 
 def lambda_handler(event, context):
     os.environ['__LITHOPS_ACTIVATION_ID'] = context.aws_request_id
+    os.environ['__LITHOPS_BACKEND'] = 'AWS Lambda'
 
     setup_lithops_logger(event.get('log_level', logging.INFO))
 
@@ -34,10 +35,10 @@ def lambda_handler(event, context):
         logger.info("Lithops v{} - Generating metadata".format(__version__))
         return get_runtime_preinstalls()
     elif 'remote_invoker' in event:
-        logger.info("Lithops v{} - Starting invoker".format(__version__))
+        logger.info("Lithops v{} - Starting AWS Lambda invoker".format(__version__))
         function_invoker(event)
     else:
-        logger.info("Lithops v{} - Starting execution".format(__version__))
+        logger.info("Lithops v{} - Starting AWS Lambda execution".format(__version__))
         function_handler(event)
 
     return {"Execution": "Finished"}

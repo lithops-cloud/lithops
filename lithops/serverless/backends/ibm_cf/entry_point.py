@@ -29,6 +29,7 @@ logger = logging.getLogger('lithops.worker')
 
 def main(args):
     os.environ['__LITHOPS_ACTIVATION_ID'] = os.environ['__OW_ACTIVATION_ID']
+    os.environ['__LITHOPS_BACKEND'] = 'IBM CF'
 
     setup_lithops_logger(args['log_level'], LOGGER_FORMAT_SHORT, sys.stdout)
 
