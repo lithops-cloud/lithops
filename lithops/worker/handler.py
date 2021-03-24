@@ -22,6 +22,7 @@ import zlib
 import pika
 import time
 import json
+import queue
 import base64
 import pickle
 import logging
@@ -70,10 +71,12 @@ def function_handler(payload):
     job_data = get_function_data(job, internal_storage)
 
     if processes == 1:
-        task_id = job.call_ids.pop(0)
-        data = job_data.pop(0)
-        event = (job, task_id, data)
-        event_handler(event, internal_storage)
+        job_queue = queue.Queue()
+        for task_id in job.call_ids:
+            data = job_data.pop(0)
+            job_queue.put((job, task_id, data))
+        job_queue.put(ShutdownSentinel())
+        process_runner(job_queue, internal_storage)
     else:
         manager = SyncManager()
         manager.start()
@@ -81,9 +84,10 @@ def function_handler(payload):
         job_runners = []
 
         for runner_id in range(processes):
-            p = mp.Process(target=process_runner, args=(runner_id, job_queue, internal_storage))
+            p = mp.Process(target=process_runner, args=(job_queue, internal_storage))
             job_runners.append(p)
             p.start()
+            logger.info('Worker process {} started'.format(runner_id))
 
         for task_id in job.call_ids:
             data = job_data.pop(0)
@@ -98,38 +102,28 @@ def function_handler(payload):
         manager.shutdown()
 
 
-def process_runner(runner_id, job_queue, internal_storage):
+def process_runner(job_queue, internal_storage):
     """
     Listens the job_queue and executes the jobs
     """
-    logger.info('Worker process {} started'.format(runner_id))
-
     while True:
         event = job_queue.get(block=True)
         if isinstance(event, ShutdownSentinel):
             break
-        event_handler(event, internal_storage)
 
+        task, task_id, data = event
+        task.id = task_id
+        task.data = data
 
-def event_handler(event, internal_storage):
-    """
-    Processes a single event
-    """
-    task, task_id, data = event
-    task.id = task_id
-    task.data = data
+        bucket = task.config['lithops']['storage_bucket']
+        task.task_dir = os.path.join(LITHOPS_TEMP_DIR, bucket, JOBS_PREFIX, task.job_key, task_id)
+        task.log_file = os.path.join(task.task_dir, 'execution.log')
+        os.makedirs(task.task_dir, exist_ok=True)
 
-    logger.debug('Going to execute job {}-{}'.format(task.job_key, task_id))
-
-    bucket = task.config['lithops']['storage_bucket']
-    task.task_dir = os.path.join(LITHOPS_TEMP_DIR, bucket, JOBS_PREFIX, task.job_key, task_id)
-    task.log_file = os.path.join(task.task_dir, 'execution.log')
-    os.makedirs(task.task_dir, exist_ok=True)
-
-    with open(task.log_file, 'a') as log_strem:
-        task.log_stream = LogStream(log_strem)
-        with custom_redirection(task.log_stream):
-            run_task(task, internal_storage)
+        with open(task.log_file, 'a') as log_strem:
+            task.log_stream = LogStream(log_strem)
+            with custom_redirection(task.log_stream):
+                run_task(task, internal_storage)
 
 
 def run_task(task, internal_storage):
