@@ -83,7 +83,7 @@ $ python3 -m pip install lithops[azure]
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|azure_batch| account_name | |yes | The batch account name |
-|azure_batch| account_key | |yes |  The account key, found in *batch Accounts* > `account_name` > *Settings* > *Keys*|
-|azure_batch| account_url |  |yes | The account, found in *batch Accounts* > `account_name` > *Settings* > *Keys*|
-|azure_batch| runtime |  |no | Runtime name already deployed in the service.|
+|azure_batch| batch_account_name | |yes | The batch account name |
+|azure_batch| batch_account_key | |yes |  The account key, found in *batch Accounts* > `account_name` > *Settings* > *Keys*|
+|azure_batch| batch_account_url |  |yes | The account, found in *batch Accounts* > `account_name` > *Settings* > *Keys*|
+|azure_batch| poolvmsize |  |no | [VM size](https://docs.microsoft.com/es-es/azure/cloud-services/cloud-services-sizes-specs).|

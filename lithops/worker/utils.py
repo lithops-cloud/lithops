@@ -1,13 +1,112 @@
+#
+# (C) Copyright Cloudlab URV 2020
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 import os
 import sys
 import pkgutil
+import logging
+import pickle
 import subprocess
 from contextlib import contextmanager
-from lithops.utils import sizeof_fmt, is_unix_system
+
+from lithops.utils import sizeof_fmt, is_unix_system, b64str_to_bytes
+from lithops.constants import TEMP, LITHOPS_TEMP_DIR
+
+PYTHON_MODULE_PATH = os.path.join(TEMP, "lithops.modules")
+
+logger = logging.getLogger(__name__)
+
 
 if is_unix_system():
     # Windows hosts can't use ps_mem module
     import ps_mem
+
+
+def get_function_and_modules(job, internal_storage):
+    """
+    Gets the function and the modules from storage
+    """
+    logger.debug("Getting function and modules")
+
+    mode = job.config['lithops']['mode']
+    customized_runtime = job.config[mode].get('customized_runtime', False)
+
+    func_obj = None
+    if customized_runtime:
+        func_path = '/'.join([LITHOPS_TEMP_DIR, job.func_key])
+        with open(func_path, "rb") as f:
+            func_obj = f.read()
+    else:
+        func_obj = internal_storage.get_func(job.func_key)
+    loaded_func_all = pickle.loads(func_obj)
+
+    if loaded_func_all['module_data']:
+        logger.debug("Writing Function dependencies to local disk")
+        module_path = os.path.join(PYTHON_MODULE_PATH, job.job_key)
+        # shutil.rmtree(PYTHON_MODULE_PATH, True)  # delete old modules
+        os.makedirs(module_path, exist_ok=True)
+        sys.path.append(module_path)
+
+        for m_filename, m_data in loaded_func_all['module_data'].items():
+            m_path = os.path.dirname(m_filename)
+
+            if len(m_path) > 0 and m_path[0] == "/":
+                m_path = m_path[1:]
+            to_make = os.path.join(module_path, m_path)
+            try:
+                os.makedirs(to_make)
+            except OSError as e:
+                if e.errno == 17:
+                    pass
+                else:
+                    raise e
+            full_filename = os.path.join(to_make, os.path.basename(m_filename))
+
+            with open(full_filename, 'wb') as fid:
+                fid.write(b64str_to_bytes(m_data))
+
+    return loaded_func_all['func']
+
+
+def get_function_data(job, internal_storage):
+    """
+    Get function data (iteradata) from storage
+    """
+    logger.debug("Getting function data")
+
+    extra_get_args = {}
+    if job.data_byte_ranges is not None:
+        init_byte = job.data_byte_ranges[0][0]
+        last_byte = job.data_byte_ranges[-1][1]
+        range_str = 'bytes={}-{}'.format(init_byte, last_byte)
+        extra_get_args['Range'] = range_str
+
+    data_obj = internal_storage.get_data(job.data_key, extra_get_args=extra_get_args)
+
+    loaded_data = []
+    offset = 0
+    if job.data_byte_ranges is not None:
+        for dbr in job.data_byte_ranges:
+            length = dbr[1] - dbr[0] + 1
+            loaded_data.append(data_obj[offset:offset+length])
+            offset += length
+    else:
+        loaded_data.append(data_obj)
+
+    return loaded_data
 
 
 def get_memory_usage(formatted=True):
