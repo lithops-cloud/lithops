@@ -140,7 +140,7 @@ class StandaloneInvoker(Invoker):
                             .format(lithops_version, runtime_meta['lithops_version']))
 
         py_local_version = version_str(sys.version_info)
-        py_remote_version = runtime_meta['python_ver']
+        py_remote_version = runtime_meta['python_version']
 
         if py_local_version != py_remote_version:
             raise Exception(("The indicated runtime '{}' is running Python {} and it "
