@@ -25,5 +25,5 @@ if __name__ == '__main__':
     bucket_name = 'lithops-sample-data'
     obj_key = 'obj1.txt'
     fexec = lithops.FunctionExecutor()
-    fexec.call_async(my_function, [bucket_name, obj_key])
+    fexec.call_async(my_function, (bucket_name, obj_key))
     print(fexec.get_result())

@@ -73,7 +73,7 @@ Storage Backends
 - [AWS Lambda](compute/aws_lambda.md)
 - [Google Cloud Functions](compute/gcp_functions.md)
 - [Google Cloud Run](compute/gcp_cloudrun.md)
-- [Azure Functions](compute/azure_fa.md)
+- [Azure Functions](compute/azure_functions.md)
 - [Aliyun functions](compute/aliyun_fc.md)
 
 </td>

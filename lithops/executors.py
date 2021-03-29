@@ -23,22 +23,18 @@ import logging
 import atexit
 import pickle
 import tempfile
+import numpy as np
 import subprocess as sp
 from datetime import datetime
 from functools import partial
-from pathlib import Path
-
-import pandas as pd
-import numpy as np
-
 from lithops import constants
 from lithops.invokers import ServerlessInvoker, StandaloneInvoker, CustomizedRuntimeInvoker
 from lithops.storage import InternalStorage
 from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
 from lithops.job import create_map_job, create_reduce_job
-from lithops.config import get_mode, default_config, extract_storage_config, \
+from lithops.config import get_mode, default_config, \
     extract_localhost_config, extract_standalone_config, \
-    extract_serverless_config, get_log_info
+    extract_serverless_config, get_log_info, extract_storage_config
 from lithops.constants import LOCALHOST, SERVERLESS, STANDALONE, CLEANER_DIR, \
     CLEANER_LOG_FILE
 from lithops.utils import timeout_handler, is_notebook, setup_lithops_logger, \
@@ -140,7 +136,7 @@ class FunctionExecutor:
         elif mode == SERVERLESS:
             serverless_config = extract_serverless_config(self.config)
             self.compute_handler = ServerlessHandler(serverless_config,
-                                                     storage_config)
+                                                     self.internal_storage)
 
             if self.config[mode].get('customized_runtime'):
                 self.invoker = CustomizedRuntimeInvoker(self.config,
@@ -409,40 +405,48 @@ class FunctionExecutor:
 
         if is_unix_system() and timeout is not None:
             logger.debug('Setting waiting timeout to {} seconds'.format(timeout))
-            error_msg = 'Timeout of {} seconds exceeded waiting for function activations to finish'.format(timeout)
+            error_msg = ('Timeout of {} seconds exceeded waiting for '
+                         'function activations to finish'.format(timeout))
             signal.signal(signal.SIGALRM, partial(timeout_handler, error_msg))
             signal.alarm(timeout)
 
+        # Setup progress bar
         pbar = None
-        error = False
-
         if not self.is_lithops_worker and self.setup_progressbar:
             from tqdm.auto import tqdm
-
-            if is_notebook():
-                pbar = tqdm(bar_format='{n}/|/ {n_fmt}/{total_fmt}', total=len(fs_not_done))  # ncols=800
-            else:
+            if not is_notebook():
                 print()
-                pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ', total=len(fs_not_done), disable=None)
+            pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
+                        total=len(fs_not_done), disable=None)
 
+        # Start waiting for results
+        error = False
         try:
             if self.rabbitmq_monitor:
-                wait_rabbitmq(futures, self.internal_storage, rabbit_amqp_url=self.rabbit_amqp_url,
-                              download_results=download_results, throw_except=throw_except,
-                              pbar=pbar, return_when=return_when, THREADPOOL_SIZE=THREADPOOL_SIZE)
+                wait_rabbitmq(futures, self.internal_storage,
+                              rabbit_amqp_url=self.rabbit_amqp_url,
+                              download_results=download_results,
+                              throw_except=throw_except,
+                              pbar=pbar, return_when=return_when,
+                              THREADPOOL_SIZE=THREADPOOL_SIZE)
             else:
-                wait_storage(futures, self.internal_storage, download_results=download_results,
-                             throw_except=throw_except, return_when=return_when, pbar=pbar,
-                             THREADPOOL_SIZE=THREADPOOL_SIZE, WAIT_DUR_SEC=WAIT_DUR_SEC)
+                wait_storage(futures, self.internal_storage,
+                             download_results=download_results,
+                             throw_except=throw_except,
+                             return_when=return_when, pbar=pbar,
+                             THREADPOOL_SIZE=THREADPOOL_SIZE,
+                             WAIT_DUR_SEC=WAIT_DUR_SEC)
 
         except KeyboardInterrupt as e:
             if download_results:
-                not_dones_call_ids = [(f.job_id, f.call_id) for f in futures if not f.done]
+                not_dones_call_ids = [(f.job_id, f.call_id)
+                                      for f in futures if not f.done]
             else:
-                not_dones_call_ids = [(f.job_id, f.call_id) for f in futures if not f.ready and not f.done]
+                not_dones_call_ids = [(f.job_id, f.call_id)
+                                      for f in futures if not f.ready and not f.done]
             msg = ('ExecutorID {} - Cancelled - Total Activations not done: {}'
                    .format(self.executor_id, len(not_dones_call_ids)))
-            if pbar:
+            if pbar and not pbar.disable:
                 pbar.close()
                 print()
             logger.info(msg)
@@ -452,6 +456,9 @@ class FunctionExecutor:
             raise e
 
         except Exception as e:
+            if pbar and not pbar.disable:
+                pbar.close()
+                print()
             error = True
             if self.data_cleaner and not self.is_lithops_worker:
                 self.clean(clean_cloudobjects=False, force=True)
@@ -606,6 +613,7 @@ class FunctionExecutor:
 
         :param cloud_objects_n: number of cloud object used in COS, declared by user.
         """
+        import pandas as pd
 
         def init():
             headers = ['Job_ID', 'Function', 'Invocations', 'Memory(MB)', 'AvgRuntime', 'Cost', 'CloudObjects']
@@ -670,9 +678,10 @@ class FunctionExecutor:
             append_summary()
 
         else:  # calc_cost() doesn't exist for chosen computational backend.
-            logger.warning("Could not log job.\nComputational backend used isn't supported by this function.")
+            logger.warning("Could not log job: {} backend isn't supported by this function."
+                           .format(self.self.compute_handler.backend.name))
             return
-        logger.info(f"View log file logs at {self.log_path}")
+        logger.info("View log file logs at {}".format(self.log_path))
 
 
 class LocalhostExecutor(FunctionExecutor):

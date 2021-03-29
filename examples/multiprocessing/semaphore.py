@@ -1,10 +1,10 @@
-from lithops.multiprocessing import Pool, Semaphore, SimpleQueue, getpid
+from lithops.multiprocessing import Pool, Semaphore, SimpleQueue, current_process
 import time
 
 
 def f(sem, q):
     with sem:
-        pid = getpid()
+        pid = current_process().pid
         ts = time.time()
         msg = 'process: {} - timestamp: {}'.format(pid, ts)
         q.put(msg)

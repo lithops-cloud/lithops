@@ -34,7 +34,7 @@ class OpenWhiskBackend:
     A wrap-up around OpenWhisk Functions backend.
     """
 
-    def __init__(self, ow_config, storage_config):
+    def __init__(self, ow_config, internal_storage):
         logger.debug("Creating OpenWhisk client")
         self.name = 'openwhisk'
         self.ow_config = ow_config

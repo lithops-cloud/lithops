@@ -27,7 +27,7 @@ class ServerlessHandler:
     underlying serverless backend without exposing the implementation details.
     """
 
-    def __init__(self, servereless_config, storage_config):
+    def __init__(self, servereless_config, internal_storage):
         self.config = servereless_config
         self.backend_name = self.config['backend']
         self.backend = None
@@ -36,7 +36,7 @@ class ServerlessHandler:
             module_location = 'lithops.serverless.backends.{}'.format(self.backend_name)
             sb_module = importlib.import_module(module_location)
             ServerlessBackend = getattr(sb_module, 'ServerlessBackend')
-            self.backend = ServerlessBackend(self.config[self.backend_name], storage_config)
+            self.backend = ServerlessBackend(self.config[self.backend_name], internal_storage)
 
         except Exception as e:
             logger.error("There was an error trying to create the {} "

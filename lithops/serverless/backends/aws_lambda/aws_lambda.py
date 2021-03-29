@@ -54,7 +54,7 @@ class AWSLambdaBackend:
     A wrap-up around AWS Boto3 API
     """
 
-    def __init__(self, aws_lambda_config, storage_config):
+    def __init__(self, aws_lambda_config, internal_storage):
         """
         Initialize AWS Lambda Backend
         """
@@ -74,7 +74,7 @@ class AWSLambdaBackend:
                                          region_name=self.region_name)
         self.lambda_client = self.aws_session.client('lambda', region_name=self.region_name)
 
-        self.internal_storage = InternalStorage(storage_config)
+        self.internal_storage = internal_storage
 
         sts_client = self.aws_session.client('sts', region_name=self.region_name)
         self.account_id = sts_client.get_caller_identity()["Account"]
@@ -278,6 +278,7 @@ class AWSLambdaBackend:
             res = os.system(cmd)
             if res != 0:
                 raise Exception('There was an error building the runtime')
+            os.remove('lithops_lambda.zip')
 
             ecr_repo = '{}.dkr.ecr.{}.amazonaws.com'.format(self.account_id, self.region_name)
 
@@ -289,7 +290,10 @@ class AWSLambdaBackend:
             if res != 0:
                 raise Exception('Could not authorize Docker for ECR')
 
-            self.ecr_client.create_repository(repositoryName=image_name)
+            try:
+                self.ecr_client.create_repository(repositoryName=image_name)
+            except self.ecr_client.exceptions.RepositoryAlreadyExistsException as e:
+                logger.info('Repository {} already exists'.format(image_name))
 
             cmd = '{} tag {} {}/{} && {} push {}/{}'.format(lambda_config.DOCKER_PATH, image_name, ecr_repo, image_name,
                                                             lambda_config.DOCKER_PATH, ecr_repo, image_name)
@@ -298,7 +302,7 @@ class AWSLambdaBackend:
             if res != 0:
                 raise Exception('Could not push image {} to ECR repository {}'.format(image_name, ecr_repo))
         else:
-            # requiremets.txt runtime
+            # requirements.txt runtime
             with open(runtime_file, 'r') as req_file:
                 requirements = req_file.read()
             self.internal_storage.put_data('/'.join([lambda_config.USER_RUNTIME_PREFIX, runtime_name]), requirements)
@@ -378,7 +382,7 @@ class AWSLambdaBackend:
             )
 
         if response['ResponseMetadata']['HTTPStatusCode'] in [200, 201]:
-            logger.debug('OK --> Created action {}'.format(runtime_name))
+            logger.debug('OK --> Created lambda function {}'.format(runtime_name))
 
             retries, sleep_seconds = (15, 25) if 'vpc' in self.aws_lambda_config else (30, 5)
             while retries > 0:
@@ -388,8 +392,8 @@ class AWSLambdaBackend:
                 state = response['Configuration']['State']
                 if state == 'Pending':
                     time.sleep(sleep_seconds)
-                    logger.debug(
-                        'Function is being deployed... (status: {})'.format(response['Configuration']['State']))
+                    logger.debug('Function is being deployed... '
+                                 '(status: {})'.format(response['Configuration']['State']))
                     retries -= 1
                     if retries == 0:
                         raise Exception('Function not deployed: {}'.format(response))
@@ -492,19 +496,6 @@ class AWSLambdaBackend:
             else:
                 raise Exception(response)
 
-    def invoke_with_result(self, runtime_name, runtime_memory, payload={}):
-        """
-        Invoke lambda function and wait for result
-        """
-        function_name = self._format_action_name(runtime_name, runtime_memory)
-
-        response = self.lambda_client.invoke(
-            FunctionName=function_name,
-            Payload=json.dumps(payload)
-        )
-
-        return json.loads(response['Payload'].read())
-
     def get_runtime_key(self, runtime_name, runtime_memory):
         """
         Method that creates and returns the runtime key.
@@ -523,6 +514,11 @@ class AWSLambdaBackend:
         """
         logger.debug('Extracting Python modules list from: {}'.format(runtime_name))
 
-        meta = self.invoke_with_result(runtime_name, runtime_memory, payload={'get_preinstalls': {}})
+        function_name = self._format_action_name(runtime_name, runtime_memory)
 
-        return meta
+        response = self.lambda_client.invoke(
+            FunctionName=function_name,
+            Payload=json.dumps({'get_preinstalls': {}})
+        )
+
+        return json.loads(response['Payload'].read())

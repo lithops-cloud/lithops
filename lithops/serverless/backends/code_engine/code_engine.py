@@ -31,7 +31,6 @@ from lithops.version import __version__
 from lithops.utils import create_handler_zip
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
 from . import config as ce_config
-from lithops.storage.storage import InternalStorage
 from lithops.storage.utils import StorageNoSuchKeyError
 
 logger = logging.getLogger(__name__)
@@ -42,11 +41,11 @@ class CodeEngineBackend:
     A wrap-up around Code Engine backend.
     """
 
-    def __init__(self, code_engine_config, storage_config):
+    def __init__(self, code_engine_config, internal_storage):
         logger.debug("Creating IBM Code Engine client")
         self.name = 'code_engine'
         self.code_engine_config = code_engine_config
-        self.storage_config = storage_config
+        self.internal_storage = internal_storage
 
         self.kubecfg_path = code_engine_config.get('kubecfg_path')
         self.user_agent = code_engine_config['user_agent']
@@ -422,7 +421,7 @@ class CodeEngineBackend:
 
         jobdef_name = self._format_jobdef_name(docker_image_name, memory)
 
-        payload = copy.deepcopy(self.storage_config)
+        payload = copy.deepcopy(self.internal_storage.storage.storage_config)
         payload['log_level'] = logger.getEffectiveLevel()
         payload['runtime_name'] = jobdef_name
 
@@ -461,14 +460,12 @@ class CodeEngineBackend:
         # we need to read runtime metadata from COS in retry
         status_key = '/'.join([JOBS_PREFIX, jobdef_name+'.meta'])
 
-        internal_storage = InternalStorage(self.storage_config)
-
         retry = int(1)
         found = False
         while retry < 20 and not found:
             try:
                 logger.debug("Retry attempt {} to read {}".format(retry, status_key))
-                json_str = internal_storage.get_data(key=status_key)
+                json_str = self.internal_storage.get_data(key=status_key)
                 logger.debug("Found in attempt {} to read {}".format(retry, status_key))
                 runtime_meta = json.loads(json_str.decode("ascii"))
                 found = True

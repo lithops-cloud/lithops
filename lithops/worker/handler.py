@@ -22,6 +22,7 @@ import zlib
 import pika
 import time
 import json
+import queue
 import base64
 import pickle
 import logging
@@ -37,8 +38,9 @@ from types import SimpleNamespace
 from lithops.version import __version__
 from lithops.config import extract_storage_config
 from lithops.storage import InternalStorage
-from lithops.worker.jobrunner import JobRunner
-from lithops.worker.utils import get_memory_usage, LogStream, custom_redirection
+from lithops.worker.taskrunner import TaskRunner
+from lithops.worker.utils import get_memory_usage, LogStream, custom_redirection,\
+    get_function_and_modules, get_function_data
 from lithops.constants import JOBS_PREFIX, LITHOPS_TEMP_DIR
 from lithops.utils import sizeof_fmt, setup_lithops_logger, is_unix_system
 from lithops.storage.utils import create_status_key, create_job_key,\
@@ -46,10 +48,7 @@ from lithops.storage.utils import create_status_key, create_job_key,\
 
 pickling_support.install()
 
-logging.getLogger('pika').setLevel(logging.CRITICAL)
 logger = logging.getLogger(__name__)
-
-LITHOPS_LIBS_PATH = '/action/lithops/libs'
 
 
 class ShutdownSentinel():
@@ -59,101 +58,106 @@ class ShutdownSentinel():
 
 def function_handler(payload):
     job = SimpleNamespace(**payload)
-
-    manager = SyncManager()
-    manager.start()
-    job_queue = manager.Queue()
-    job_runners = []
-
     processes = min(job.worker_processes, len(job.call_ids))
-    logger.info("Starting {} processes".format(processes))
 
-    for runner_id in range(processes):
-        p = mp.Process(target=process_runner, args=(runner_id, job_queue))
-        job_runners.append(p)
-        p.start()
+    logger.info('Tasks received: {} - Concurrent workers: {}'
+                .format(len(job.call_ids), processes))
 
-    for call_id in job.call_ids:
-        data_byte_range = job.data_byte_ranges.pop(0)
-        logger.info('Going to execute job {}-{}'.format(job.job_key, call_id))
-        job_queue.put((job, call_id, data_byte_range))
+    storage_config = extract_storage_config(job.config)
+    internal_storage = InternalStorage(storage_config)
+    job.func = get_function_and_modules(job, internal_storage)
+    job_data = get_function_data(job, internal_storage)
 
-    for i in range(processes):
+    if processes == 1:
+        job_queue = queue.Queue()
+        for task_id in job.call_ids:
+            data = job_data.pop(0)
+            job_queue.put((job, task_id, data))
         job_queue.put(ShutdownSentinel())
+        process_runner(job_queue, internal_storage)
+    else:
+        manager = SyncManager()
+        manager.start()
+        job_queue = manager.Queue()
+        job_runners = []
 
-    for runner in job_runners:
-        runner.join()
+        for runner_id in range(processes):
+            p = mp.Process(target=process_runner, args=(job_queue, internal_storage))
+            job_runners.append(p)
+            p.start()
+            logger.info('Worker process {} started'.format(runner_id))
 
-    manager.shutdown()
+        for task_id in job.call_ids:
+            data = job_data.pop(0)
+            job_queue.put((job, task_id, data))
+
+        for i in range(processes):
+            job_queue.put(ShutdownSentinel())
+
+        for runner in job_runners:
+            runner.join()
+
+        manager.shutdown()
 
 
-def process_runner(runner_id, job_queue):
+def process_runner(job_queue, internal_storage):
     """
     Listens the job_queue and executes the jobs
     """
-    logger.info('Worker process {} started'.format(runner_id))
-
     while True:
         event = job_queue.get(block=True)
         if isinstance(event, ShutdownSentinel):
             break
 
-        job, call_id, data_byte_range = event
+        task, task_id, data = event
+        task.id = task_id
+        task.data = data
 
-        bucket = job.config['lithops']['storage_bucket']
-        job.job_dir = os.path.join(LITHOPS_TEMP_DIR, bucket, JOBS_PREFIX, job.job_key, call_id)
-        job.log_file = os.path.join(job.job_dir, 'execution.log')
-        os.makedirs(job.job_dir, exist_ok=True)
+        bucket = task.config['lithops']['storage_bucket']
+        task.task_dir = os.path.join(LITHOPS_TEMP_DIR, bucket, JOBS_PREFIX, task.job_key, task_id)
+        task.log_file = os.path.join(task.task_dir, 'execution.log')
+        os.makedirs(task.task_dir, exist_ok=True)
 
-        job.call_id = call_id
-        job.data_byte_range = data_byte_range
-
-        with open(job.log_file, 'a') as log_strem:
-            job.log_stream = LogStream(log_strem)
-            with custom_redirection(job.log_stream):
-                run_job(job)
+        with open(task.log_file, 'a') as log_strem:
+            task.log_stream = LogStream(log_strem)
+            with custom_redirection(task.log_stream):
+                run_task(task, internal_storage)
 
 
-def run_job(job):
+def run_task(task, internal_storage):
     """
     Runs a single job within a separate process
     """
     start_tstamp = time.time()
-    setup_lithops_logger(job.log_level)
+    setup_lithops_logger(task.log_level)
 
-    logger.info("Lithops v{} - Starting execution".format(__version__))
-    logger.info("Execution ID: {}/{}".format(job.job_key, job.call_id))
-    logger.debug("Runtime name: {}".format(job.runtime_name))
-    if job.runtime_memory:
-        logger.debug("Runtime memory: {}MB".format(job.runtime_memory))
-    logger.debug("Function timeout: {}s".format(job.execution_timeout))
+    backend = os.environ.get('__LITHOPS_BACKEND', '')
+    logger.info("Lithops v{} - Starting {} execution".format(__version__, backend))
+    logger.info("Execution ID: {}/{}".format(task.job_key, task.id))
 
-    env = job.extra_env
+    if task.runtime_memory:
+        logger.debug('Runtime: {} - Memory: {}MB - Timeout: {} seconds'
+                     .format(task.runtime_name, task.runtime_memory, task.execution_timeout))
+    else:
+        logger.debug('Runtime: {} - Timeout: {} seconds'.format(task.runtime_name, task.execution_timeout))
+
+    env = task.extra_env
     env['LITHOPS_WORKER'] = 'True'
     env['PYTHONUNBUFFERED'] = 'True'
-    env['LITHOPS_CONFIG'] = json.dumps(job.config)
-    env['PYTHONPATH'] = "{}:{}".format(os.getcwd(), LITHOPS_LIBS_PATH)
-    env['__LITHOPS_SESSION_ID'] = '-'.join([job.job_key, job.call_id])
+    env['LITHOPS_CONFIG'] = json.dumps(task.config)
+    env['__LITHOPS_SESSION_ID'] = '-'.join([task.job_key, task.id])
     os.environ.update(env)
 
-    storage_config = extract_storage_config(job.config)
-    internal_storage = InternalStorage(storage_config)
-
-    call_status = CallStatus(job.config, internal_storage)
+    call_status = CallStatus(task.config, internal_storage)
     call_status.response['worker_start_tstamp'] = start_tstamp
-    call_status.response['host_submit_tstamp'] = job.host_submit_tstamp
-    call_status.response['call_id'] = job.call_id
-    call_status.response['job_id'] = job.job_id
-    call_status.response['executor_id'] = job.executor_id
+    call_status.response['host_submit_tstamp'] = task.host_submit_tstamp
+    call_status.response['call_id'] = task.id
+    call_status.response['job_id'] = task.job_id
+    call_status.response['executor_id'] = task.executor_id
 
     show_memory_peak = strtobool(os.environ.get('SHOW_MEMORY_PEAK', 'False'))
 
     try:
-        if __version__ != job.lithops_version:
-            msg = ("Lithops version mismatch. Host version: {} - Runtime version: {}"
-                   .format(job.lithops_version, __version__))
-            raise RuntimeError('HANDLER', msg)
-
         # send init status event
         call_status.send('__init__')
 
@@ -162,15 +166,15 @@ def run_job(job):
             memory_monitor = Thread(target=memory_monitor_worker, args=(mm_conn, ))
             memory_monitor.start()
 
-        job.jr_stats_file = os.path.join(job.job_dir, 'jobrunner.stats.txt')
+        task.stats_file = os.path.join(task.task_dir, 'task_stats.txt')
         handler_conn, jobrunner_conn = Pipe()
-        jobrunner = JobRunner(job, jobrunner_conn, internal_storage)
-        logger.debug('Starting JobRunner process')
-        jrp = Process(target=jobrunner.run) if is_unix_system() else Thread(target=jobrunner.run)
+        taskrunner = TaskRunner(task, jobrunner_conn, internal_storage)
+        logger.debug('Starting TaskRunner process')
+        jrp = Process(target=taskrunner.run) if is_unix_system() else Thread(target=taskrunner.run)
         jrp.start()
 
-        jrp.join(job.execution_timeout)
-        logger.debug('JobRunner process finished')
+        jrp.join(task.execution_timeout)
+        logger.debug('TaskRunner process finished')
 
         if jrp.is_alive():
             # If process is still alive after jr.join(job_max_runtime), kill it
@@ -180,7 +184,7 @@ def run_job(job):
                 # thread does not have terminate method
                 pass
             msg = ('Function exceeded maximum time of {} seconds and was '
-                   'killed'.format(job.execution_timeout))
+                   'killed'.format(task.execution_timeout))
             raise TimeoutError('HANDLER', msg)
 
         if show_memory_peak:
@@ -199,8 +203,8 @@ def run_job(job):
             msg = 'Function exceeded maximum memory and was killed'
             raise MemoryError('HANDLER', msg)
 
-        if os.path.exists(job.jr_stats_file):
-            with open(job.jr_stats_file, 'r') as fid:
+        if os.path.exists(task.stats_file):
+            with open(task.stats_file, 'r') as fid:
                 for l in fid.readlines():
                     key, value = l.strip().split(" ", 1)
                     try:
@@ -225,15 +229,15 @@ def run_job(job):
         call_status.response['worker_end_tstamp'] = time.time()
 
         # Flush log stream and save it to the call status
-        job.log_stream.flush()
-        with open(job.log_file, 'rb') as lf:
+        task.log_stream.flush()
+        with open(task.log_file, 'rb') as lf:
             log_str = base64.b64encode(zlib.compress(lf.read())).decode()
             call_status.response['logs'] = log_str
 
         call_status.send('__end__')
 
         # Unset specific env vars
-        for key in job.extra_env:
+        for key in task.extra_env:
             os.environ.pop(key, None)
         os.environ.pop('__LITHOPS_TOTAL_EXECUTORS', None)
 
@@ -312,7 +316,7 @@ class CallStatus:
             except Exception as e:
                 logger.error("Unable to send status to rabbitmq")
                 logger.error(str(e))
-                logger.info('Retrying to send status to rabbitmq...')
+                logger.info('Retrying to send status to rabbitmq')
                 time.sleep(0.2)
 
 

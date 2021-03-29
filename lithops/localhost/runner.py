@@ -17,13 +17,14 @@
 import os
 import sys
 import json
-import pkgutil
+import platform
 import logging
 import uuid
+import multiprocessing as mp
 from pathlib import Path
 
-from lithops.utils import version_str
 from lithops.worker import function_handler
+from lithops.worker.utils import get_runtime_preinstalls
 from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DIR, LOGS_DIR,\
     RN_LOG_FILE, LOGGER_FORMAT
 
@@ -34,6 +35,11 @@ os.makedirs(LOGS_DIR, exist_ok=True)
 logging.basicConfig(filename=RN_LOG_FILE, level=logging.INFO,
                     format=LOGGER_FORMAT)
 logger = logging.getLogger('lithops.localhost.runner')
+
+
+# Change spawn method for MacOS
+if platform.system() == 'Darwin':
+    mp.set_start_method("fork")
 
 
 def run():
@@ -70,11 +76,7 @@ def run():
 
 
 def extract_runtime_meta():
-    runtime_meta = dict()
-    mods = list(pkgutil.iter_modules())
-    runtime_meta["preinstalls"] = [entry for entry in sorted([[mod, is_pkg] for _, mod, is_pkg in mods])]
-    runtime_meta["python_ver"] = version_str(sys.version_info)
-
+    runtime_meta = get_runtime_preinstalls()
     print(json.dumps(runtime_meta))
 
 

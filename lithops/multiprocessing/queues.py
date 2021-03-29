@@ -13,13 +13,16 @@ __all__ = ['Queue', 'SimpleQueue', 'JoinableQueue']
 
 import os
 import cloudpickle
+import logging
 
 from queue import Empty, Full
 
 from . import connection
 from . import util
 from . import synchronize
-from .util import debug
+
+logger = logging.getLogger(__name__)
+
 
 #
 # Queue type using a pipe, buffer and thread
@@ -31,7 +34,7 @@ class Queue:
     Full = Full
 
     def __init__(self, maxsize=0):
-        self._reader, self._writer = connection.RedisPipe(duplex=False)
+        self._reader, self._writer = connection.Pipe(duplex=False, conn_type=connection.REDIS_LIST_CONN)
         self._ref = util.RemoteReference(referenced=[self._reader._handle, self._reader._subhandle],
                                          client=self._reader._client)
         self._opid = os.getpid()
@@ -56,7 +59,7 @@ class Queue:
             return True
 
     def _after_fork(self):
-        debug('Queue._after_fork()')
+        logger.debug('Queue._after_fork()')
         self._closed = False
         self._close = None
         self._send_bytes = self._writer.send_bytes
@@ -113,11 +116,11 @@ class Queue:
                 close()
 
     def join_thread(self):
-        debug('Queue.join_thread()')
+        logger.debug('Queue.join_thread()')
         assert self._closed
 
     def cancel_join_thread(self):
-        debug('Queue.cancel_join_thread()')
+        logger.debug('Queue.cancel_join_thread()')
         pass
 
 
@@ -127,7 +130,7 @@ class Queue:
 
 class SimpleQueue:
     def __init__(self):
-        self._reader, self._writer = connection.RedisPipe(duplex=False)
+        self._reader, self._writer = connection.Pipe(duplex=False)
         self._closed = False
         self._ref = util.RemoteReference(referenced=[self._reader._handle, self._reader._subhandle],
                                          client=self._reader._client)

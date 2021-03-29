@@ -28,9 +28,9 @@ from threading import Thread
 from types import SimpleNamespace
 from concurrent.futures import ThreadPoolExecutor
 
-from lithops.version import __version__
 from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config
+from lithops.version import __version__ as lithops_version
 from lithops.utils import version_str, is_lithops_worker, is_unix_system, iterchunks
 from lithops.constants import LOGGER_LEVEL, LITHOPS_TEMP_DIR, LOGS_DIR
 from lithops.util.metrics import PrometheusExporter
@@ -85,7 +85,7 @@ class Invoker:
                    'job_key': job.job_key,
                    'call_ids': None,
                    'host_submit_tstamp': time.time(),
-                   'lithops_version': __version__,
+                   'lithops_version': lithops_version,
                    'runtime_name': job.runtime_name,
                    'runtime_memory': job.runtime_memory,
                    'worker_processes': job.worker_processes}
@@ -135,8 +135,12 @@ class StandaloneInvoker(Invoker):
             runtime_meta = self.compute_handler.create_runtime(self.runtime_name)
             self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
+        if lithops_version != runtime_meta['lithops_version']:
+            raise Exception("Lithops version mismatch. Host version: {} - Runtime version: {}"
+                            .format(lithops_version, runtime_meta['lithops_version']))
+
         py_local_version = version_str(sys.version_info)
-        py_remote_version = runtime_meta['python_ver']
+        py_remote_version = runtime_meta['python_version']
 
         if py_local_version != py_remote_version:
             raise Exception(("The indicated runtime '{}' is running Python {} and it "
@@ -227,7 +231,7 @@ class ServerlessInvoker(Invoker):
         """
         if not runtime_memory:
             runtime_memory = self.config['serverless']['runtime_memory']
-        timeout = self.config['serverless']['runtime_timeout']
+        runtime_timeout = self.config['serverless']['runtime_timeout']
 
         log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} - {}MB '
                    .format(self.executor_id, job_id, self.runtime_name, runtime_memory))
@@ -235,14 +239,19 @@ class ServerlessInvoker(Invoker):
 
         runtime_key = self.compute_handler.get_runtime_key(self.runtime_name, runtime_memory)
         runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
+
         if not runtime_meta:
             logger.info('Runtime {} with {}MB is not yet installed'.format(self.runtime_name, runtime_memory))
-            runtime_meta = self.compute_handler.create_runtime(self.runtime_name, runtime_memory, timeout)
+            runtime_meta = self.compute_handler.create_runtime(self.runtime_name, runtime_memory, runtime_timeout)
+            runtime_meta['runtime_timeout'] = runtime_timeout
             self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
-        py_local_version = version_str(sys.version_info)
-        py_remote_version = runtime_meta['python_ver']
+        if lithops_version != runtime_meta['lithops_version']:
+            raise Exception("Lithops version mismatch. Host version: {} - Runtime version: {}"
+                            .format(lithops_version, runtime_meta['lithops_version']))
 
+        py_local_version = version_str(sys.version_info)
+        py_remote_version = runtime_meta['python_version']
         if py_local_version != py_remote_version:
             raise Exception(("The indicated runtime '{}' is running Python {} and it "
                              "is not compatible with the local Python version {}")

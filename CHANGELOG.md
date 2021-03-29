@@ -1,14 +1,26 @@
 # Changelog
 
-## [v2.3.1.dev1]
+## [v2.3.1.dev2]
 
 ### Added
+- [Core] Allow Support for Python 3.9
+- [Core] Added standalone get_result() and wait() methods
 - [knative] Include GCP and Azure storage libs into default knative runtime
-- [CodeEngie] Enable internal kubernetes pod executions
+- [CodeEngine] Enable internal kubernetes pod executions
 - [k8s] Enable internal kubernetes pod executions
+- [Cli] Added 'empty' function to storage cli to empty a bucket
+- [Core] Added new method to FunctionExecutor() to calculate execution costs
+- [IBM CF] Added formula to calculate execution costs
+- [Multiprocessing] Added Nanomsg connection type for addressable backends
+- [Multiprocessing] Added expiry time for Redis multiprocessing resources
+- [Multiprocessing] Added Listener and Client for multiprocessing using Redis
+- [Azure Functions] Added support for http trigger
 
 ### Changed
-- [IBM CF] Change user_key to API-key pass instead of user 
+- [IBM CF] Change user_key to API-key pass instead of user
+- [Azure] Changed configuration keys
+- [Core] Improved worker when chunksize is set to values > 1
+- [Core] Check lithops version mismatch in host instead of in worker
 
 ### Fixes
 - [Core] Overwrite the runtime set in config with the runtime set in the FunctionExecutor

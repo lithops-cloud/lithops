@@ -48,6 +48,9 @@ extras_require = {
     'azure': [
         'azure-storage-blob',
         'azure-storage-queue'
+    ],
+    'multiprocessing': [
+        'pynng'
     ]
 }
 
@@ -61,7 +64,7 @@ setup(
     version=__version__,
     url='https://github.com/lithops-cloud/lithops',
     author='Gil Vernik, Josep Sampe',
-    description='Lithops lets you transparently run your Python functions in the Cloud',
+    description='Lithops lets you transparently run your Python applications in the Cloud',
     author_email='gilv@il.ibm.com, josep.sampe@urv.cat',
     packages=find_packages(),
     install_requires=install_requires,
@@ -77,9 +80,11 @@ setup(
         'Operating System :: OS Independent',
         'Natural Language :: English',
         'License :: OSI Approved :: Apache Software License',
+        'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
         'Topic :: Software Development :: Libraries :: Python Modules',
         'Topic :: Scientific/Engineering',
         'Topic :: System :: Distributed Computing',

@@ -30,7 +30,6 @@ from lithops.utils import version_str, dict_to_b64str
 from lithops.version import __version__
 from lithops.utils import create_handler_zip
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
-from lithops.storage.storage import InternalStorage
 from lithops.storage.utils import StorageNoSuchKeyError
 
 from . import config as k8s_config
@@ -45,11 +44,11 @@ class KubernetesBackend:
     A wrap-up around Code Engine backend.
     """
 
-    def __init__(self, k8s_config, storage_config):
+    def __init__(self, k8s_config, internal_storage):
         logger.debug("Creating Kubernetes Job client")
         self.name = 'k8s'
         self.k8s_config = k8s_config
-        self.storage_config = storage_config
+        self.internal_storage = internal_storage
 
         self.kubecfg_path = k8s_config.get('kubecfg_path')
         self.user_agent = k8s_config['user_agent']
@@ -188,20 +187,19 @@ class KubernetesBackend:
 
         try:
             jobs = self.batch_api.list_namespaced_job(namespace=self.namespace)
-        except ApiException:
-            pass
-
-        for job in jobs.items:
-            try:
+            for job in jobs.items:
                 if job.metadata.labels['type'] == 'lithops-runtime'\
                    and (job.status.completion_time is not None or force):
                     job_name = job.metadata.name
                     logger.debug('Deleting job {}'.format(job_name))
-                    self.batch_api.delete_namespaced_job(name=job_name,
-                                                         namespace=self.namespace,
-                                                         propagation_policy='Background')
-            except Exception:
-                pass
+                    try:
+                        self.batch_api.delete_namespaced_job(name=job_name,
+                                                             namespace=self.namespace,
+                                                             propagation_policy='Background')
+                    except Exception:
+                        pass
+        except ApiException:
+            pass
 
     def clear(self):
         """
@@ -304,6 +302,8 @@ class KubernetesBackend:
 
         container['resources']['requests']['memory'] = '{}Mi'.format(job_payload['runtime_memory'])
         container['resources']['requests']['cpu'] = str(self.k8s_config['cpu'])
+        container['resources']['limits']['memory'] = '{}Mi'.format(job_payload['runtime_memory'])
+        container['resources']['limits']['cpu'] = str(self.k8s_config['cpu'])
 
         logger.debug('ExecutorID {} | JobID {} - Going '
                      'to run {} activations in {} workers'
@@ -323,7 +323,7 @@ class KubernetesBackend:
 
         logger.info("Extracting Python modules from: {}".format(docker_image_name))
 
-        payload = copy.deepcopy(self.storage_config)
+        payload = copy.deepcopy(self.internal_storage.storage.storage_config)
         payload['runtime_name'] = runtime_name
         payload['log_level'] = logger.getEffectiveLevel()
 
@@ -353,14 +353,12 @@ class KubernetesBackend:
         # we need to read runtime metadata from COS in retry
         status_key = '/'.join([JOBS_PREFIX, runtime_name+'.meta'])
 
-        internal_storage = InternalStorage(self.storage_config)
-
         retry = 1
         found = False
         while retry < 20 and not found:
             try:
                 logger.debug("Retry attempt {} to read {}".format(retry, status_key))
-                json_str = internal_storage.get_data(key=status_key)
+                json_str = self.internal_storage.get_data(key=status_key)
                 logger.debug("Found in attempt {} to read {}".format(retry, status_key))
                 runtime_meta = json.loads(json_str.decode("ascii"))
                 found = True

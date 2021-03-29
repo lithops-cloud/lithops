@@ -1,11 +1,11 @@
 import time
 
-from lithops.multiprocessing import Pool, Barrier, SimpleQueue, getpid
+from lithops.multiprocessing import Pool, Barrier, SimpleQueue, current_process
 
 
-def f(barrier, q):
-    barrier.wait()
-    pid = getpid()
+def f(b, q):
+    b.wait()
+    pid = current_process().pid
     ts = time.time()
     msg = 'process: {} - timestamp: {}'.format(pid, ts)
     q.put(msg)
