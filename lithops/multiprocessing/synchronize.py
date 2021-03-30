@@ -11,8 +11,12 @@
 
 import threading
 import time
+import logging
 
 from . import util
+from . import config as mp_config
+
+logger = logging.getLogger(__name__)
 
 #
 # Constants
@@ -44,8 +48,10 @@ class SemLock:
         self._name = 'semlock-' + util.get_uuid()
         self._max_value = max_value
         self._client = util.get_redis_client()
+        logger.debug('Requested creation of resource Lock %s', self._name)
         if value != 0:
             self._client.rpush(self._name, *([''] * value))
+        self._client.expire(self._name, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
 
         self._lua_release = self._client.register_script(Semaphore.LUA_RELEASE_SCRIPT)
         util.make_stateless_script(self._lua_release)
@@ -73,12 +79,15 @@ class SemLock:
 
     def acquire(self, block=True):
         if block:
+            logger.debug('Requested blocking acquire for lock %s', self._name)
             self._client.blpop([self._name])
             return True
         else:
+            logger.debug('Requested non-blocking acquire for lock %s', self._name)
             return self._client.lpop(self._name) is not None
 
     def release(self):
+        logger.debug('Requested release for lock %s', self._name)
         self._lua_release(keys=[self._name],
                           args=[self._max_value],
                           client=self._client)
@@ -96,7 +105,6 @@ class SemLock:
 #
 
 class Semaphore(SemLock):
-
     def __init__(self, value=1):
         super().__init__(value, SEM_VALUE_MAX)
 
@@ -106,7 +114,6 @@ class Semaphore(SemLock):
 #
 
 class BoundedSemaphore(SemLock):
-
     def __init__(self, value=1):
         super().__init__(value, value)
 
@@ -116,7 +123,6 @@ class BoundedSemaphore(SemLock):
 #
 
 class Lock(SemLock):
-
     def __init__(self):
         super().__init__(1, 1)
         self.owned = False
@@ -140,7 +146,6 @@ class Lock(SemLock):
 #
 
 class RLock(Lock):
-
     def acquire(self, block=True):
         return self.owned or super().acquire(block)
 
@@ -150,7 +155,6 @@ class RLock(Lock):
 #
 
 class Condition:
-
     def __init__(self, lock=None):
         if lock:
             self._lock = lock
@@ -161,6 +165,7 @@ class Condition:
             self._client = self._lock._client
 
         self._notify_handle = 'condition-notify-' + util.get_uuid()
+        logger.debug('Requested creation of resource Condition %s', self._notify_handle)
         self._ref = util.RemoteReference(self._notify_handle,
                                          client=self._client)
 
@@ -180,32 +185,34 @@ class Condition:
         assert self._lock.owned
 
         # Enqueue the key we will be waiting for until we are notified
-        self._wait_handle = 'condition-wait-' + util.get_uuid()
-        res = self._client.rpush(self._notify_handle, self._wait_handle)
+        wait_handle = 'condition-wait-' + util.get_uuid()
+        res = self._client.rpush(self._notify_handle, wait_handle)
 
         if not res:
-            raise Exception('Condition ({}) could not enqueue \
-                waiting key'.format(self._notify_handle))
+            raise Exception('Condition ({}) could not enqueue waiting key'.format(self._notify_handle))
 
         # Release lock, wait to get notified, acquire lock
         self.release()
-        self._client.blpop([self._wait_handle], timeout)
+        logger.debug('Waiting for token %s on condition %s', wait_handle, self._notify_handle)
+        self._client.blpop([wait_handle], timeout)
+        self._client.expire(wait_handle, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
         self.acquire()
 
     def notify(self):
         assert self._lock.owned
 
+        logger.debug('Notify condition %s', self._notify_handle)
         wait_handle = self._client.lpop(self._notify_handle)
         if wait_handle is not None:
             res = self._client.rpush(wait_handle, '')
 
             if not res:
-                raise Exception('Condition ({}) could not notify \
-                    one waiting process'.format(self._notify_handle))
+                raise Exception('Condition ({}) could not notify one waiting process'.format(self._notify_handle))
 
     def notify_all(self, msg=''):
         assert self._lock.owned
 
+        logger.debug('Notify all for condition %s', self._notify_handle)
         pipeline = self._client.pipeline(transaction=False)
         pipeline.lrange(self._notify_handle, 0, -1)
         pipeline.delete(self._notify_handle)
@@ -218,8 +225,7 @@ class Condition:
             results = pipeline.execute()
 
             if not all(results):
-                raise Exception('Condition ({}) could not notify \
-                    all waiting processes'.format(self._notify_handle))
+                raise Exception('Condition ({}) could not notify all waiting processes'.format(self._notify_handle))
 
     def wait_for(self, predicate, timeout=None):
         result = predicate()
@@ -239,36 +245,38 @@ class Condition:
             result = predicate()
         return result
 
-    # def __repr__(self):
-
 
 #
 # Event
 #
 
 class Event:
-
     def __init__(self):
         self._cond = Condition()
         self._client = self._cond._client
         self._flag_handle = 'event-flag-' + util.get_uuid()
+        logger.debug('Requested creation of resource Event %s', self._flag_handle)
         self._ref = util.RemoteReference(self._flag_handle,
                                          client=self._client)
 
     def is_set(self):
+        logger.debug('Request event %s is set', self._flag_handle)
         return self._client.get(self._flag_handle) == b'1'
 
     def set(self):
         with self._cond:
+            logger.debug('Request set event %s', self._flag_handle)
             self._client.set(self._flag_handle, '1')
             self._cond.notify_all()
 
     def clear(self):
         with self._cond:
+            logger.debug('Request clear event %s', self._flag_handle)
             self._client.set(self._flag_handle, '0')
 
     def wait(self, timeout=None):
         with self._cond:
+            logger.debug('Request wait for event %s', self._flag_handle)
             self._cond.wait_for(self.is_set, timeout)
 
 
@@ -277,20 +285,18 @@ class Event:
 #
 
 class Barrier(threading.Barrier):
-
     def __init__(self, parties, action=None, timeout=None):
         self._cond = Condition()
         self._client = self._cond._client
         uuid = util.get_uuid()
         self._state_handle = 'barrier-state-' + uuid
         self._count_handle = 'barrier-count-' + uuid
-        self._ref = util.RemoteReference(
-            referenced=[self._state_handle, self._count_handle],
-            client=self._client)
+        self._ref = util.RemoteReference(referenced=[self._state_handle, self._count_handle],
+                                         client=self._client)
         self._action = action
         self._timeout = timeout
         self._parties = parties
-        self._state = 0  # 0 filling, 1, draining, -1 resetting, -2 broken
+        self._state = 0  # 0 = filling, 1 = draining, -1 = resetting, -2 = broken
         self._count = 0
 
     @property
@@ -299,7 +305,7 @@ class Barrier(threading.Barrier):
 
     @_state.setter
     def _state(self, value):
-        self._client.set(self._state_handle, value)
+        self._client.set(self._state_handle, value, ex=mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
 
     @property
     def _count(self):
@@ -307,4 +313,4 @@ class Barrier(threading.Barrier):
 
     @_count.setter
     def _count(self, value):
-        self._client.set(self._count_handle, value)
+        self._client.set(self._count_handle, value, ex=mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))

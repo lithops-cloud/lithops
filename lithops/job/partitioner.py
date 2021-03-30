@@ -22,6 +22,7 @@ from concurrent.futures import ThreadPoolExecutor
 from lithops import utils
 from lithops.storage import Storage
 from lithops.storage.utils import CloudObject, CloudObjectUrl
+from lithops.utils import sizeof_fmt
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +34,6 @@ def create_partitions(config, internal_storage, map_iterdata, obj_chunk_size, ob
     """
     Method that returns the function that will create the partitions of the objects in the Cloud
     """
-    logger.debug('Starting partitioner')
-
     ppo = None  # parts per object
 
     sbs = set()
@@ -83,24 +82,27 @@ def create_partitions(config, internal_storage, map_iterdata, obj_chunk_size, ob
         objects = {}
         if obj_names:
             for bucket, prefix in obj_names:
-                logger.debug("Listing objects in '{}://{}/'"
+                logger.debug("Listing objects in '{}://{}'"
                              .format(sb, '/'.join([bucket, prefix])))
                 if bucket not in objects:
                     objects[bucket] = []
                 prefix = prefix + '/' if prefix else prefix
                 objects[bucket].extend(storage.list_objects(bucket, prefix))
+            logger.debug("Total objects found: {}".format(len(objects[bucket])))
         elif prefixes:
             for bucket, prefix in prefixes:
-                logger.debug("Listing objects in '{}://{}/'"
+                logger.debug("Listing objects in '{}://{}'"
                              .format(sb, '/'.join([bucket, prefix])))
                 if bucket not in objects:
                     objects[bucket] = []
                 prefix = prefix + '/' if prefix else prefix
                 objects[bucket].extend(storage.list_objects(bucket, prefix))
+            logger.debug("Total objects found: {}".format(len(objects[bucket])))
         elif buckets:
             for bucket in buckets:
                 logger.debug("Listing objects in '{}://{}'".format(sb, bucket))
                 objects[bucket] = storage.list_objects(bucket)
+            logger.debug("Total objects found: {}".format(len(objects[bucket])))
 
         keys_dict = {}
         for bucket in objects:
@@ -135,22 +137,22 @@ def _split_objects_from_buckets(map_func_args_list, keys_dict, chunk_size, chunk
     """
     Create partitions from bucket/s
     """
-    logger.debug('Creating dataset chunks from bucket/s ...')
     partitions = []
     parts_per_object = []
+
+    if chunk_number:
+        logger.debug('Chunk size set to {}'.format(chunk_size))
+    elif chunk_size:
+        logger.debug('Chunk number set to {}'.format(chunk_number))
+    else:
+        logger.debug('Chunk size and chunk number not set ')
 
     for entry in map_func_args_list:
         # Each entry is a bucket
         sb, bucket, prefix, obj_name = utils.split_object_url(entry['obj'])
 
-        if chunk_size or chunk_number:
-            logger.debug('Creating chunks from objects within: {}'.format(bucket))
-        else:
-            logger.debug('Discovering objects within: {}'.format(bucket))
-
         for key, obj_size in keys_dict[bucket].items():
             if prefix in key and obj_size > 0:
-                logger.debug('Creating partitions from object {} size {}'.format(key, obj_size))
 
                 if chunk_number:
                     chunk_rest = obj_size % chunk_number
@@ -162,6 +164,11 @@ def _split_objects_from_buckets(map_func_args_list, keys_dict, chunk_size, chunk
                     obj_chunk_size = obj_size
 
                 size = total_partitions = 0
+
+                ci = obj_size
+                cz = obj_chunk_size
+                parts = ci // cz + (ci % cz > 0)
+                logger.debug('Creating {} partitions from object {} ({})'.format(parts, key, sizeof_fmt(obj_size)))
 
                 while size < obj_size:
                     brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
@@ -186,8 +193,12 @@ def _split_objects_from_keys(map_func_args_list, keys_dict, chunk_size, chunk_nu
     """
     Create partitions from a list of objects keys
     """
-    if chunk_size or chunk_number:
-        logger.debug('Creating chunks from object keys')
+    if chunk_number:
+        logger.debug('Chunk size set to {}'.format(chunk_size))
+    elif chunk_size:
+        logger.debug('Chunk number set to {}'.format(chunk_number))
+    else:
+        logger.debug('Chunk size and chunk number not set ')
 
     partitions = []
     parts_per_object = []
@@ -213,6 +224,11 @@ def _split_objects_from_keys(map_func_args_list, keys_dict, chunk_size, chunk_nu
 
         size = total_partitions = 0
 
+        ci = obj_size
+        cz = obj_chunk_size
+        parts = ci // cz + (ci % cz > 0)
+        logger.debug('Creating {} partitions from object {} ({})'.format(parts, key, sizeof_fmt(obj_size)))
+
         while size < obj_size:
             brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
             brange = None if obj_size == obj_chunk_size else brange
@@ -236,8 +252,13 @@ def _split_objects_from_urls(map_func_args_list, chunk_size, chunk_number):
     """
     Create partitions from a list of objects urls
     """
-    if chunk_size or chunk_number:
-        logger.debug('Creating chunks from urls')
+    if chunk_number:
+        logger.debug('Chunk size set to {}'.format(chunk_size))
+    elif chunk_size:
+        logger.debug('Chunk number set to {}'.format(chunk_number))
+    else:
+        logger.debug('Chunk size and chunk number not set ')
+
     partitions = []
     parts_per_object = []
 
@@ -245,8 +266,6 @@ def _split_objects_from_urls(map_func_args_list, chunk_size, chunk_number):
         obj_size = None
         object_url = entry['url']
         metadata = requests.head(object_url)
-
-        logger.debug(object_url)
 
         if 'content-length' in metadata.headers:
             obj_size = int(metadata.headers['content-length'])
@@ -266,6 +285,11 @@ def _split_objects_from_urls(map_func_args_list, chunk_size, chunk_number):
             obj_chunk_size = obj_size
 
         size = total_partitions = 0
+
+        ci = obj_size
+        cz = obj_chunk_size
+        parts = ci // cz + (ci % cz > 0)
+        logger.debug('Creating {} partitions from object {} ({})'.format(parts, object_url, sizeof_fmt(obj_size)))
 
         while size < obj_size:
             brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)

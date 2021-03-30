@@ -6,7 +6,7 @@ AWS Lambda provides two methods for packaging the function code and dependencies
 
 ## Using predefined **runtimes** and **layers**
 An AWS Lambda *runtime* is a predefined environment to run code on Lambda. For example, for Lithops we use runtimes `python3.8`, `python3.7` or `python3.6` that
-come with already preinstalled modules. A *layer* is a set of packaged dependencies that can used by multiple runtimes. For example, Lithops dependencies are
+come with already preinstalled modules. A *layer* is a set of packaged dependencies that can be used by multiple runtimes. For example, Lithops dependencies are
 deployed as a layer, so if multiple runtimes are created with different memory values, they can mount the same layer containing the dependencies, instead
 of deploying them separately for each runtime.
 
@@ -79,7 +79,7 @@ matplotlib
 
 Then, we will build the runtime, specifying the modified `requirements.txt` file and a runtime name:
 ```
-$ lithops runtime build -f requirements.txt my_matplotlib_runtime
+$ lithops runtime build -f requirements.txt my_matplotlib_runtime -b aws_lambda
 ```
 
 This command will add an extra runtime called `my_matplotlib_runtime` to the available AWS Lambda runtimes.
@@ -125,7 +125,7 @@ using `pip` or system libraries using `apt`, or even change Python version to a 
 Then, to build the custom runtime, use `lithops runtime build` CLI specifying the modified `Dockerfile` file and a runtime name.
 Note that the runtime name must be a Docker image name, that is, `your Docker username / container image name`:
 ```
-$ lithops runtime build -f MyDockerfile docker_username/my_container_runtime
+$ lithops runtime build -f MyDockerfile docker_username/my_container_runtime -b aws_lambda
 ```
 
 Finally, we can specify this new runtime when creating a Lithops Function Executor:

@@ -162,4 +162,4 @@ gcp_cloudrun:
 
      You can clean everything related to Lithops, such as all deployed runtimes and cache information, and start from scratch by simply running the next command (Configuration is not deleted):
 
-        $ lithops clean -b knative
+        $ lithops clean -b gcp_cloudrun

@@ -40,6 +40,6 @@ def my_map_function(obj):
 
 
 if __name__ == "__main__":
-    fexec = lithops.FunctionExecutor()
+    fexec = lithops.FunctionExecutor(log_level='DEBUG')
     fexec.map(my_map_function, data_location)
     print(fexec.get_result())

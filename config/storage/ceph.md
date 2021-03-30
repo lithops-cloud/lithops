@@ -9,6 +9,7 @@ Lithops with Ceph storage backend.
 
 2. Create a new user.
 
+3. Create a new bucket (e.g. `lithops-data`). Remember to update the corresponding Lithops config field with this bucket name.
 
 ### Configuration
 
@@ -17,6 +18,7 @@ Lithops with Ceph storage backend.
 ```yaml
     lithops:
         storage: ceph
+        storage_bucket: <BUCKET_NAME>
 
     ceph:
         endpoint: <ENDPOINT_URL>

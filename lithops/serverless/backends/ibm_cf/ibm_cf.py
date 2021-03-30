@@ -37,7 +37,7 @@ class IBMCloudFunctionsBackend:
     A wrap-up around IBM Cloud Functions backend.
     """
 
-    def __init__(self, ibm_cf_config, storage_config):
+    def __init__(self, ibm_cf_config, internal_storage):
         logger.debug("Creating IBM Cloud Functions client")
         self.name = 'ibm_cf'
         self.config = ibm_cf_config
@@ -54,7 +54,7 @@ class IBMCloudFunctionsBackend:
         logger.debug("Set IBM CF Namespace to {}".format(self.namespace))
         logger.debug("Set IBM CF Endpoint to {}".format(self.endpoint))
 
-        self.user_key = self.api_key[:5] if self.api_key else self.iam_api_key[:5]
+        self.user_key = self.api_key.split(':')[1][:4] if self.api_key else self.iam_api_key[:4]
         self.package = 'lithops_v{}_{}'.format(__version__, self.user_key)
 
         if self.api_key:
@@ -146,7 +146,7 @@ class IBMCloudFunctionsBackend:
         with open(ibmcf_config.FH_ZIP_LOCATION, "rb") as action_zip:
             action_bin = action_zip.read()
         self.cf_client.create_action(self.package, action_name, docker_image_name, code=action_bin,
-                                     memory=memory, is_binary=True, timeout=timeout*1000)
+                                     memory=memory, is_binary=True, timeout=timeout * 1000)
 
         self._delete_function_handler_zip()
 
@@ -170,7 +170,7 @@ class IBMCloudFunctionsBackend:
         packages = self.cf_client.list_packages()
         for pkg in packages:
             if (pkg['name'].startswith('lithops') and pkg['name'].endswith(self.user_key)) or \
-               (pkg['name'].startswith('lithops') and pkg['name'].count('_') == 1):
+                    (pkg['name'].startswith('lithops') and pkg['name'].count('_') == 1):
                 actions = self.cf_client.list_actions(pkg['name'])
                 while actions:
                     for action in actions:
@@ -258,9 +258,16 @@ class IBMCloudFunctionsBackend:
                 if 'activationId' in runtime_meta:
                     retry_invoke = True
         except Exception as e:
-            raise("Unable to extract runtime preinstalls: {}".format(e))
+            raise ("Unable to extract runtime preinstalls: {}".format(e))
 
         if not runtime_meta or 'preinstalls' not in runtime_meta:
             raise Exception(runtime_meta)
 
         return runtime_meta
+
+    def calc_cost(self, runtimes, memory, *argv, **arg):
+        """ returns total cost associated with executing the calling function-executor's job.
+        :params *argv and **arg: made to support compatibility with similarly named functions in
+        alternative computational backends.
+        """
+        return ibmcf_config.UNIT_PRICE * sum(runtimes[i] * memory[i] / 1024 for i in range(len(runtimes)))

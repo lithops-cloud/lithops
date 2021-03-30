@@ -28,8 +28,8 @@ class AzureBlobStorageBackend:
 
     def __init__(self, azure_blob_config):
         logger.debug("Creating Azure Blob Storage client")
-        self.storage_account = azure_blob_config['storage_account']
-        self.blob_service_url = 'https://{}.blob.core.windows.net'.format(self.storage_account)
+        self.storage_account_name = azure_blob_config['storage_account_name']
+        self.blob_service_url = 'https://{}.blob.core.windows.net'.format(self.storage_account_name)
         self.blob_client = BlobServiceClient(account_url=self.blob_service_url,
                                              credential=azure_blob_config['storage_account_key'])
 
@@ -69,7 +69,7 @@ class AzureBlobStorageBackend:
             bytes_range = extra_get_args.pop('Range')[6:]
             bytes_range = bytes_range.split('-')
             extra_get_args['offset'] = int(bytes_range[0])
-            extra_get_args['length'] = int(bytes_range[1]) - extra_get_args['offset']
+            extra_get_args['length'] = int(bytes_range[1]) - int(bytes_range[0]) + 1
         try:
             container_client = self.blob_client.get_container_client(bucket_name)
             if stream:
@@ -107,7 +107,7 @@ class AzureBlobStorageBackend:
         """
         try:
             container_client = self.blob_client.get_container_client(bucket_name)
-            container_client.delete_blob(key, "include")
+            container_client.delete_blob(key, delete_snapshots="include")
         except ResourceNotFoundError:
             pass
 
@@ -119,7 +119,9 @@ class AzureBlobStorageBackend:
         """
         try:
             container_client = self.blob_client.get_container_client(bucket_name)
-            container_client.delete_blobs(*key_list, delete_snapshots="include")
+            composite_list = [key_list[x:x+50] for x in range(0, len(key_list), 50)]
+            for key_sublist in composite_list:
+                container_client.delete_blobs(*key_sublist, delete_snapshots="include")
         except ResourceNotFoundError:
             pass
 

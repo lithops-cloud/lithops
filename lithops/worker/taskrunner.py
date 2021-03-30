@@ -1,7 +1,6 @@
 #
-# (C) Copyright PyWren Team 2018
 # (C) Copyright IBM Corp. 2020
-# (C) Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2021
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,17 +31,13 @@ from distutils.util import strtobool
 from lithops.storage import Storage
 from lithops.wait import wait_storage
 from lithops.future import ResponseFuture
-from lithops.utils import sizeof_fmt, b64str_to_bytes, is_object_processing_function
+from lithops.utils import sizeof_fmt, is_object_processing_function
 from lithops.utils import WrappedStreamingBodyPartition
-from lithops.constants import TEMP
 from lithops.util.metrics import PrometheusExporter
 from lithops.storage.utils import create_output_key
-from lithops.constants import LITHOPS_TEMP_DIR, JOBS_PREFIX
+from lithops.constants import JOBS_PREFIX
 
 logger = logging.getLogger(__name__)
-
-
-PYTHON_MODULE_PATH = os.path.join(TEMP, "lithops.modules")
 
 
 class stats:
@@ -59,108 +54,24 @@ class stats:
         self.stats_fid.close()
 
 
-class JobRunner:
+class TaskRunner:
 
-    def __init__(self, job, jobrunner_conn, internal_storage):
+    def __init__(self, task, jobrunner_conn, internal_storage):
+        self.task = task
         self.jobrunner_conn = jobrunner_conn
         self.internal_storage = internal_storage
+        self.lithops_config = task.config
 
-        self.lithops_config = job.config
-        self.executor_id = job.executor_id
-        self.call_id = job.call_id
-        self.job_id = job.job_id
-        self.func_key = job.func_key
-        self.data_key = job.data_key
-        self.data_byte_range = job.data_byte_range
-        self.output_key = create_output_key(JOBS_PREFIX, self.executor_id,
-                                            self.job_id, self.call_id)
+        self.output_key = create_output_key(JOBS_PREFIX, self.task.executor_id,
+                                            self.task.job_id, self.task.id)
 
         # Setup stats class
-        self.stats = stats(job.jr_stats_file)
+        self.stats = stats(self.task.stats_file)
 
         # Setup prometheus for live metrics
         prom_enabled = self.lithops_config['lithops'].get('monitoring')
         prom_config = self.lithops_config.get('prometheus', {})
         self.prometheus = PrometheusExporter(prom_enabled, prom_config)
-
-        mode = self.lithops_config['lithops']['mode']
-        self.customized_runtime = self.lithops_config[mode].get('customized_runtime', False)
-
-    def _get_function_and_modules(self):
-        """
-        Gets and unpickles function and modules from storage
-        """
-        logger.debug("Getting function and modules")
-        func_download_start_tstamp = time.time()
-        func_obj = None
-        if self.customized_runtime:
-            func_obj = self._get_func()
-        else:
-            func_obj = self.internal_storage.get_func(self.func_key)
-        loaded_func_all = pickle.loads(func_obj)
-        func_download_end_tstamp = time.time()
-        self.stats.write('worker_func_download_time', round(func_download_end_tstamp-func_download_start_tstamp, 8))
-
-        return loaded_func_all
-
-    def _get_func(self):
-        func_path = '/'.join([LITHOPS_TEMP_DIR, self.func_key])
-        with open(func_path, "rb") as f:
-            return f.read()
-
-    def _save_modules(self, module_data):
-        """
-        Save modules, before we unpickle actual function
-        """
-        if module_data:
-            logger.debug("Writing Function dependencies to local disk")
-            module_path = os.path.join(PYTHON_MODULE_PATH, self.executor_id,
-                                       self.job_id, self.call_id)
-            # shutil.rmtree(PYTHON_MODULE_PATH, True)  # delete old modules
-            os.makedirs(module_path, exist_ok=True)
-            sys.path.append(module_path)
-
-            for m_filename, m_data in module_data.items():
-                m_path = os.path.dirname(m_filename)
-
-                if len(m_path) > 0 and m_path[0] == "/":
-                    m_path = m_path[1:]
-                to_make = os.path.join(module_path, m_path)
-                try:
-                    os.makedirs(to_make)
-                except OSError as e:
-                    if e.errno == 17:
-                        pass
-                    else:
-                        raise e
-                full_filename = os.path.join(to_make, os.path.basename(m_filename))
-
-                with open(full_filename, 'wb') as fid:
-                    fid.write(b64str_to_bytes(m_data))
-
-    def _unpickle_function(self, pickled_func):
-        """
-        Unpickle function; it will expect modules to be there
-        """
-        return pickle.loads(pickled_func)
-
-    def _load_data(self):
-        """
-        Loads iteradata
-        """
-        extra_get_args = {}
-        if self.data_byte_range is not None:
-            range_str = 'bytes={}-{}'.format(*self.data_byte_range)
-            extra_get_args['Range'] = range_str
-
-        logger.debug("Getting function data")
-        data_download_start_tstamp = time.time()
-        data_obj = self.internal_storage.get_data(self.data_key, extra_get_args=extra_get_args)
-        loaded_data = pickle.loads(data_obj)
-        data_download_end_tstamp = time.time()
-        self.stats.write('worker_data_download_time', round(data_download_end_tstamp-data_download_start_tstamp, 8))
-
-        return loaded_data
 
     def _fill_optional_args(self, function, data):
         """
@@ -191,7 +102,7 @@ class JobRunner:
                 raise Exception('Cannot create the rabbitmq client: missing configuration')
 
         if 'id' in func_sig.parameters:
-            data['id'] = int(self.call_id)
+            data['id'] = int(self.task.id)
 
     def _wait_futures(self, data):
         logger.info('Reduce function: waiting for map results')
@@ -262,15 +173,8 @@ class JobRunner:
         result = None
         exception = False
         try:
-            function = None
-
-            if self.customized_runtime:
-                function = self._get_function_and_modules()
-            else:
-                loaded_func_all = self._get_function_and_modules()
-                self._save_modules(loaded_func_all['module_data'])
-                function = self._unpickle_function(loaded_func_all['func'])
-            data = self._load_data()
+            function = pickle.loads(self.task.func)
+            data = pickle.loads(self.task.data)
 
             if strtobool(os.environ.get('__LITHOPS_REDUCE_JOB', 'False')):
                 self._wait_futures(data)
@@ -282,8 +186,8 @@ class JobRunner:
             self.prometheus.send_metric(name='function_start',
                                         value=time.time(),
                                         labels=(
-                                            ('job_id', self.job_id),
-                                            ('call_id', self.call_id),
+                                            ('job_id', self.task.job_id),
+                                            ('call_id', self.task.id),
                                             ('function_name', function.__name__)
                                         ))
 
@@ -298,8 +202,8 @@ class JobRunner:
             self.prometheus.send_metric(name='function_end',
                                         value=time.time(),
                                         labels=(
-                                            ('job_id', self.job_id),
-                                            ('call_id', self.call_id),
+                                            ('job_id', self.task.job_id),
+                                            ('call_id', self.task.id),
                                             ('function_name', function.__name__)
                                         ))
 
@@ -351,6 +255,7 @@ class JobRunner:
                                             'pickle_exception': pickle_exception})
                 pickle.loads(pickled_exc)  # this is just to make sure it can be unpickled
                 self.stats.write("exc_info", str(pickled_exc))
+
         finally:
             store_result = strtobool(os.environ.get('STORE_RESULT', 'True'))
             if result is not None and store_result and not exception:

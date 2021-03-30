@@ -23,8 +23,7 @@ import logging
 import copy
 import time
 import yaml
-import requests
-from kubernetes import client, config, watch
+from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
 from lithops.utils import version_str, dict_to_b64str
@@ -32,8 +31,6 @@ from lithops.version import __version__
 from lithops.utils import create_handler_zip
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
 from . import config as ce_config
-from ..knative import config as kconfig
-from lithops.storage.storage import InternalStorage
 from lithops.storage.utils import StorageNoSuchKeyError
 
 logger = logging.getLogger(__name__)
@@ -44,25 +41,36 @@ class CodeEngineBackend:
     A wrap-up around Code Engine backend.
     """
 
-    def __init__(self, code_engine_config, storage_config):
+    def __init__(self, code_engine_config, internal_storage):
         logger.debug("Creating IBM Code Engine client")
         self.name = 'code_engine'
         self.code_engine_config = code_engine_config
-        self.storage_config = storage_config
+        self.internal_storage = internal_storage
 
-        self.kubecfg = code_engine_config.get('kubectl_config')
+        self.kubecfg_path = code_engine_config.get('kubecfg_path')
         self.user_agent = code_engine_config['user_agent']
 
-        config.load_kube_config(config_file=self.kubecfg)
+        try:
+            config.load_kube_config(config_file=self.kubecfg_path)
+            contexts = config.list_kube_config_contexts(config_file=self.kubecfg_path)
+            current_context = contexts[1].get('context')
+            self.namespace = current_context.get('namespace', 'default')
+            self.cluster = current_context.get('cluster')
+            self.code_engine_config['namespace'] = self.namespace
+            self.code_engine_config['cluster'] = self.cluster
+            self.is_incluster = False
+        except Exception:
+            logger.debug('Loading incluster config')
+            config.load_incluster_config()
+            self.namespace = self.code_engine_config.get('namespace', 'default')
+            self.cluster = self.code_engine_config.get('cluster', 'default')
+            self.is_incluster = True
+
+        logger.debug("Set namespace to {}".format(self.namespace))
+        logger.debug("Set cluster to {}".format(self.cluster))
+
         self.capi = client.CustomObjectsApi()
         self.coreV1Api = client.CoreV1Api()
-
-        contexts = config.list_kube_config_contexts(config_file=self.kubecfg)
-        current_context = contexts[1].get('context')
-        self.namespace = current_context.get('namespace', 'default')
-        logger.debug("Set namespace to {}".format(self.namespace))
-        self.cluster = current_context.get('cluster')
-        logger.debug("Set cluster to {}".format(self.cluster))
 
         try:
             self.region = self.cluster.split('//')[1].split('.')[1]
@@ -413,7 +421,7 @@ class CodeEngineBackend:
 
         jobdef_name = self._format_jobdef_name(docker_image_name, memory)
 
-        payload = copy.deepcopy(self.storage_config)
+        payload = copy.deepcopy(self.internal_storage.storage.storage_config)
         payload['log_level'] = logger.getEffectiveLevel()
         payload['runtime_name'] = jobdef_name
 
@@ -452,14 +460,12 @@ class CodeEngineBackend:
         # we need to read runtime metadata from COS in retry
         status_key = '/'.join([JOBS_PREFIX, jobdef_name+'.meta'])
 
-        internal_storage = InternalStorage(self.storage_config)
-
         retry = int(1)
         found = False
         while retry < 20 and not found:
             try:
                 logger.debug("Retry attempt {} to read {}".format(retry, status_key))
-                json_str = internal_storage.get_data(key=status_key)
+                json_str = self.internal_storage.get_data(key=status_key)
                 logger.debug("Found in attempt {} to read {}".format(retry, status_key))
                 runtime_meta = json.loads(json_str.decode("ascii"))
                 found = True

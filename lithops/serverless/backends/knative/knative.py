@@ -45,17 +45,18 @@ class KnativeServingBackend:
     A wrap-up around Knative Serving APIs.
     """
 
-    def __init__(self, knative_config, storage_config):
+    def __init__(self, knative_config, internal_storage):
         self.name = 'knative'
         self.knative_config = knative_config
         self.istio_endpoint = self.knative_config.get('istio_endpoint')
-        self.kubecfg = self.knative_config.get('kubecfg_path')
+        self.kubecfg_path = self.knative_config.get('kubecfg_path')
 
         # k8s config can be incluster, in ~/.kube/config or generate kube-config.yaml file and
         # set env variable KUBECONFIG=<path-to-kube-confg>
         try:
-            config.load_kube_config(config_file=self.kubecfg)
-            current_context = config.list_kube_config_contexts()[1].get('context')
+            config.load_kube_config(config_file=self.kubecfg_path)
+            contexts = config.list_kube_config_contexts(config_file=self.kubecfg_path)
+            current_context = contexts[1].get('context')
             self.namespace = current_context.get('namespace', 'default')
             self.cluster = current_context.get('cluster')
             self.knative_config['namespace'] = self.namespace
@@ -66,6 +67,9 @@ class KnativeServingBackend:
             self.namespace = self.knative_config.get('namespace', 'default')
             self.cluster = self.knative_config.get('cluster', 'default')
             self.is_incluster = True
+
+        logger.debug("Set namespace to {}".format(self.namespace))
+        logger.debug("Set cluster to {}".format(self.cluster))
 
         self.api = client.CustomObjectsApi()
         self.v1 = client.CoreV1Api()

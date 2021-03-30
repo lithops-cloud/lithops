@@ -313,9 +313,9 @@ class TestLithops(unittest.TestCase):
     def test_internal_executions(self):
         logger.info('Testing internal executions')
         fexec = lithops.FunctionExecutor(config=CONFIG)
-        fexec.map(TestMethods.lithops_inside_lithops_map_function, range(1, 11))
+        fexec.map(TestMethods.lithops_inside_lithops_map_function, range(1, 5))
         result = fexec.get_result()
-        self.assertEqual(result, [list(range(i)) for i in range(1, 11)])
+        self.assertEqual(result, [list(range(i)) for i in range(1, 5)])
 
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.call_async(TestMethods.lithops_return_futures_map_function1, 3)

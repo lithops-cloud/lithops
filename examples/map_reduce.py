@@ -36,5 +36,5 @@ if __name__ == "__main__":
     """
     fexec = lithops.FunctionExecutor()
     fexec.map_reduce(my_map_function, iterdata, my_reduce_function,
-                  reducer_wait_local=True)
+                     reducer_wait_local=True)
     print(fexec.get_result())

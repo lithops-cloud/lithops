@@ -5,11 +5,13 @@
 # Modifications Copyright (c) 2020 Cloudlab URV
 #
 
-import os
+import logging
 import lithops
 
 from . import process
 from . import pool
+
+logger = logging.getLogger(__name__)
 
 
 #
@@ -59,8 +61,8 @@ class CloudContext:
 
     def Pipe(self, duplex=True):
         """Returns two connection object connected by a pipe"""
-        from .connection import RedisPipe
-        return RedisPipe(duplex)
+        from .connection import Pipe
+        return Pipe(duplex)
 
     def Lock(self):
         """Returns a non-recursive lock object"""
@@ -165,19 +167,9 @@ class CloudContext:
     def _check_available(self):
         pass
 
-    @staticmethod
-    def getpid():
-        execution_id = os.environ.get('LITHOPS_EXECUTION_ID', None)
-        if execution_id is not None:
-            executor_id, job_id, call_id = execution_id.rsplit('/', 2)
-        else:
-            call_id = -1
-        return call_id
-
 
 _default_context = CloudContext()
 
-getpid = _default_context.getpid
 cpu_count = _default_context.cpu_count
 get_context = _default_context.get_context
 get_all_start_methods = _default_context.get_all_start_methods

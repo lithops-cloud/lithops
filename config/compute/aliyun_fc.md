@@ -7,7 +7,7 @@ Lithops with *Aliyun Function Compute* as serverless compute backend.
 1. Install Alibaba Cloud backend dependencies:
 
 ```
-$ pip install lithops[aliyun]
+$ python3 -m pip install lithops[aliyun]
 ```
 
 2. Edit your Lithops config and add the following keys:

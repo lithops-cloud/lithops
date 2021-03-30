@@ -10,13 +10,10 @@ from tblib import pickling_support
 from concurrent.futures import ThreadPoolExecutor, wait
 
 from lithops.storage.utils import create_job_key
+from lithops.wait.utils import ALL_COMPLETED
 
 pickling_support.install()
 logger = logging.getLogger(__name__)
-
-ALL_COMPLETED = 1
-ANY_COMPLETED = 2
-ALWAYS = 3
 
 
 def wait_rabbitmq(fs, internal_storage, rabbit_amqp_url, download_results=False,
@@ -44,9 +41,13 @@ def wait_rabbitmq(fs, internal_storage, rabbit_amqp_url, download_results=False,
     thread_pool = ThreadPoolExecutor(max_workers=THREADPOOL_SIZE)
     present_jobs = {}
     done_call_ids = {}
+    get_result_fs = []
 
     for f in fs:
-        if (download_results and not f.done) or (not download_results and not (f.ready or f.done)):
+        if download_results and f.ready:
+            get_result_fs.append(f)
+
+        elif (download_results and not f.done) or (not download_results and not (f.ready or f.done)):
             job_key = create_job_key(f.executor_id, f.job_id)
             if job_key not in present_jobs:
                 present_jobs[job_key] = {}
@@ -83,8 +84,16 @@ def wait_rabbitmq(fs, internal_storage, rabbit_amqp_url, download_results=False,
 
     get_result_futures = []
 
-    def get_result(f):
+    def get_result(f, update=False):
         f.result(throw_except=throw_except, internal_storage=internal_storage)
+        if pbar and update:
+            pbar.update(1)
+            pbar.refresh()
+
+    # get result for those futures that are ready
+    for f in get_result_fs:
+        gr_ft = thread_pool.submit(get_result, f, True)
+        get_result_futures.append(gr_ft)
 
     while not reception_finished():
         try:

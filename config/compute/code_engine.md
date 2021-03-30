@@ -2,7 +2,7 @@
 
 [IBM Code Engine](https://cloud.ibm.com/codeengine/overview) allows you to run your application, job or container on a managed serverless platform. Auto-scale workloads and only pay for the resources you consume.
 
-IBM Code Engine expose both Knative and Kubernetes Job Descriptor API. Lithops supports both of them. Follow IBM Code Engine documentation to get more details on the difference between those APIs.
+IBM Code Engine exposes both Knative and Kubernetes Job Descriptor API. Lithops supports both of them. Follow IBM Code Engine documentation to get more details on the difference between those APIs.
 
 ###  Initial requirements
 In this step you are required to install IBM Cloud CLI tool, Code Engine plugin and create new Code Engine project
@@ -25,7 +25,7 @@ In this step you are required to install IBM Cloud CLI tool, Code Engine plugin 
    ibmcloud plugin install code-engine
    ```
 
-4. Create a new Code Engine project (you can also do this through the dashboard). If you already have existing project, then proceed to step 5:
+4. Create a new Code Engine project (you can also do this through the dashboard). If you already have an existing project, then proceed to step 5:
 
    ```bash
    ibmcloud ce project create --name myproject
@@ -73,7 +73,7 @@ The only requirement to make it working is to have the KUBECONFIG file properly 
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|knative | istio_endpoint | |no | Istio IngressGateway Endpoint. Make sure to use http:// prefix |
+|knative | kubecfg_path | |no | Path to kubecfg file. Mandatory if config file not in `~/.kube/config` or KUBECONFIG env var not present|
 |knative | container_registry |  docker.io | no | container registry url|
 |knative | docker_user | |no | Docker hub username |
 |knative | docker_token | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
@@ -83,7 +83,7 @@ The only requirement to make it working is to have the KUBECONFIG file properly 
 |knative | max_instances | 250 |no | Maximum number of parallel runtimes |
 |knative | cpu | 1 |no | CPU limit. Default 1vCPU  |
 |knative | concurrency | 1 |no | Number of workers per runtime instance |
-|knative| runtime |  |no | Docker image name.|
+|knative | runtime |  |no | Docker image name.|
 
 
 ### Lithops using Kubernetes Job API of Code Engine
@@ -112,17 +112,17 @@ If you need to create new runtime, please follow [Building and managing Lithops 
        runtime: <RUNTIME NAME>
 
    code_engine:
-       kubectl_config: <PATH TO CONFIG YAML FIlE>
+       kubecfg_path: <PATH TO CONFIG YAML FIlE>
    ```
 
 #### Summary of configuration keys for Job API:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|code_engine | kubectl_config  |  |no | Path to kubecfg file |
+|code_engine | kubecfg_path | |no | Path to kubecfg file. Mandatory if config file not in `~/.kube/config` or KUBECONFIG env var not present|
 |code_engine | cpu | 1 |no | CPU limit. Default 1vCPU |
 |code_engine | container_registry |  docker.io | no | container registry url|
-|code_engine| runtime |  |no | Docker image name.|
+|code_engine | runtime |  |no | Docker image name.|
 
 ### Usage Example
 

@@ -61,6 +61,7 @@ TEMP = os.path.realpath(tempfile.gettempdir())
 LITHOPS_TEMP_DIR = os.path.join(TEMP, 'lithops')
 JOBS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'jobs')
 LOGS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'logs')
+MODULES_DIR = os.path.join(LITHOPS_TEMP_DIR, 'modules')
 
 RN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'runner.log')
 FN_LOG_FILE = os.path.join(LITHOPS_TEMP_DIR, 'functions.log')
@@ -76,7 +77,7 @@ CONFIG_FILE = os.path.join(CONFIG_DIR, 'config')
 
 SERVERLESS_BACKENDS = ['ibm_cf', 'code_engine', 'knative', 'openwhisk',
                        'aws_lambda', 'gcp_functions', 'cloudrun',
-                       'azure_fa', 'aliyun_fc', 'k8s']
+                       'azure_functions', 'aliyun_fc', 'k8s']
 STANDALONE_BACKENDS = ['ibm_vpc', 'vm']
 
 CHUNKSIZE_DEFAULT = 1

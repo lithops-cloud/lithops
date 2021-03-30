@@ -67,12 +67,13 @@ Storage Backends
 
 - [IBM Cloud Functions](compute/ibm_cf.md)
 - [IBM Code Engine](compute/code_engine.md)
+- [Kubernetes batch/job](compute/k8s_job.md)
 - [Knative](compute/knative.md)
 - [OpenWhisk](compute/openwhisk.md)
 - [AWS Lambda](compute/aws_lambda.md)
 - [Google Cloud Functions](compute/gcp_functions.md)
 - [Google Cloud Run](compute/gcp_cloudrun.md)
-- [Azure Functions](compute/azure_fa.md)
+- [Azure Functions](compute/azure_functions.md)
 - [Aliyun functions](compute/aliyun_fc.md)
 
 </td>
@@ -166,7 +167,7 @@ fexec = lithops.FunctionExecutor(rabbitmq_monitor=True)
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|lithops|storage_bucket | |no | Any bucket that exists in your COS account. This will be used by Lithops for intermediate data |
+|lithops|storage_bucket | |yes | Any bucket that exists in your COS account. This will be used by Lithops for intermediate data |
 |lithops | storage | ibm_cos | no | Storage backend implementation. IBM Cloud Object Storage is the default |
 |lithops| data_cleaner | True | no |If set to True, then the cleaner will automatically delete all the temporary data that was written into `storage_bucket/lithops.jobs`|
 |lithops | mode | serverless | no | Execution mode. One of: **localhost**, **serverless** or **standalone** |
