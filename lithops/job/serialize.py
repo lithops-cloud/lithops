@@ -53,7 +53,6 @@ class SerializeIndependent:
 
         strs = []
         mods = []
-
         for obj in list_of_objs:
             mods.extend(self._module_inspect(obj))
             strs.append(cloudpickle.dumps(obj))
@@ -127,9 +126,21 @@ class SerializeIndependent:
             mods.add(fn.__module__)
             codeworklist.append(fn)
             cvs = inspect.getclosurevars(fn)
-            gvars = cvs.globals
-            for k, v in gvars.items():
+
+            for k, v in cvs.nonlocals.items():
                 if inspect.ismodule(v):
+                    print(v.__name__)
+                    mods.add(v.__name__)
+                elif inspect.isfunction(v) and id(v) not in seen:
+                    seen.add(id(v))
+                    mods.add(v.__module__)
+                    worklist.append(v)
+                elif hasattr(v, "__module__"):
+                    mods.add(v.__module__)
+
+            for k, v in cvs.globals.items():
+                if inspect.ismodule(v):
+                    print(v.__name__)
                     mods.add(v.__name__)
                 elif inspect.isfunction(v) and id(v) not in seen:
                     seen.add(id(v))
