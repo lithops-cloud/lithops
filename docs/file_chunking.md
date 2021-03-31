@@ -1,5 +1,6 @@
 # Lithops' file "chunking":
-When using the Lithop's map function to run a single function over a rather large file, one might consider breaking the workload to smaller portions, handing each portion to a separate thread. We refer to said portions as chunks.
+When using the Lithop's map function to run a single function over a rather large file, one might consider breaking the
+workload to smaller portions, handing each portion to a separate thread. We refer to said portions as chunks.
 
 Hereinafter is an example for using a map function to read a csv. file, stored in COS, split to pre-determined sized chunks: 
 
@@ -18,7 +19,7 @@ def line_counter_in_chunk(obj):
 
 if __name__ == "__main__":
     data_location = 'cos://bucket_name/file_name.csv'
-    size = int(6.7 * pow(2,20))  # ~6.7MIB - arbitrarily chosen chunk size in bytes 
+    size = int(6.7 * pow(2,20))  # ~6.7MiB - arbitrarily chosen chunk size in bytes 
 
     fexec = lithops.FunctionExecutor()
     fexec.map(line_counter_in_chunk, data_location,obj_chunk_size=size)
@@ -27,8 +28,26 @@ if __name__ == "__main__":
     with open('logs/map_output', 'w') as f:
     	f.write(str(res).replace('{','\n{'))
 ```
-- To take full advantage of the test (for the next topic), use a file with a K number of rows repeating themselves as a routine.
-  A csv. example file may be found [here](lithops/examples/line_integrity.csv).  
+- To take full advantage of the test above (for the next topic), use a file with a K number of rows repeating themselves 
+  as a routine. You may create a csv. example file using the following function:
+  ```  
+    def create_routine_file():
+        """ creates a ~17MB csv. file consisting of 5 lines repeating routine.  """
+    
+        # EOL = end of line identifier for ease of testing
+        str_routine = """The Project Gutenberg eBook of Judgments in Vacation, by Edward Abbott Parry EOL1
+    This eBook is for the use of anyone anywhere in the United States and EOL2  
+    most other parts of the world at no cost and with almost no restrictions EOL3
+    whatsoever. You may copy it, give it away or re-use it under the terms EOL4
+    of the Project Gutenberg License included with this eBook or online at EOL5"""
+    
+        ITERATIONS = 45000
+        with open('line_integrity.csv', 'a+') as f:
+            for i in range(ITERATIONS):
+                f.write(str_routine)
+                if i < ITERATIONS - 1:
+                    f.write('\n')
+     ```
 
 - Alternatively, One may exchange the obj_chunk_size with the obj_chunk_number parameter to split the file into a known
   number of chunks. 
