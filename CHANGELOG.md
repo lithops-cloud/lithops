@@ -15,6 +15,7 @@
 - [Multiprocessing] Added expiry time for Redis multiprocessing resources
 - [Multiprocessing] Added Listener and Client for multiprocessing using Redis
 - [Azure Functions] Added support for http trigger
+- [Core] Set lithops to localhost mode when config files is empty
 
 ### Changed
 - [IBM CF] Change user_key to API-key pass instead of user
