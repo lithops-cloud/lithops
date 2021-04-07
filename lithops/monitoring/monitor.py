@@ -51,7 +51,7 @@ class RabbitMQMonitor(threading.Thread):
         self.channel.start_consuming()
 
 
-class ObjectStorageMonitor(threading.Thread):
+class StorageMonitor(threading.Thread):
 
     def __init__(self, lithops_config, internal_storage, token_bucket_q, job):
         super().__init__()
@@ -146,7 +146,7 @@ class JobMonitor:
         logger.debug('ExecutorID {} | JobID {} - Starting job monitoring'
                      .format(job.executor_id, job.job_id))
 
-        jm = ObjectStorageMonitor(self.lithops_config, self.internal_storage,
-                                  self.token_bucket_q, job)
+        jm = StorageMonitor(self.lithops_config, self.internal_storage,
+                            self.token_bucket_q, job)
         jm.start()
         self.monitors.append(jm)

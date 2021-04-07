@@ -18,7 +18,6 @@
 import os
 import sys
 import copy
-import signal
 import logging
 import atexit
 import pickle
@@ -26,24 +25,24 @@ import tempfile
 import numpy as np
 import subprocess as sp
 from datetime import datetime
-from functools import partial
 from lithops import constants
 from lithops.invokers import ServerlessInvoker, StandaloneInvoker, CustomizedRuntimeInvoker
 from lithops.storage import InternalStorage
-from lithops.wait import wait_storage, wait_rabbitmq, ALL_COMPLETED
+from lithops.wait import wait, ALL_COMPLETED
 from lithops.job import create_map_job, create_reduce_job
 from lithops.config import get_mode, default_config, \
     extract_localhost_config, extract_standalone_config, \
     extract_serverless_config, get_log_info, extract_storage_config
 from lithops.constants import LOCALHOST, SERVERLESS, STANDALONE, CLEANER_DIR, \
     CLEANER_LOG_FILE
-from lithops.utils import timeout_handler, is_notebook, setup_lithops_logger, \
-    is_unix_system, is_lithops_worker, create_executor_id
+from lithops.utils import is_notebook, setup_lithops_logger, \
+    is_lithops_worker, create_executor_id
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
 from lithops.serverless.serverless import ServerlessHandler
 from lithops.storage.utils import create_job_key
 from lithops.monitoring.monitor import JobMonitor
+from lithops.wait.wait import get_result
 
 logger = logging.getLogger(__name__)
 
@@ -72,10 +71,6 @@ class FunctionExecutor:
             elif log_level is False and logger.getEffectiveLevel() == logging.WARNING:
                 # Set default logging from config
                 setup_lithops_logger(*get_log_info(config))
-
-        self.setup_progressbar = (not self.is_lithops_worker and
-                                  log_level is not None
-                                  and logger.getEffectiveLevel() == logging.INFO)
 
         # load mode of execution
         mode = mode or get_mode(backend, config)
@@ -133,7 +128,7 @@ class FunctionExecutor:
             self.compute_handler = ServerlessHandler(serverless_config,
                                                      self.internal_storage)
 
-            if self.config[mode].get('customized_runtime'):
+            if self.config[SERVERLESS].get('customized_runtime'):
                 self.invoker = CustomizedRuntimeInvoker(self.config,
                                                         self.executor_id,
                                                         self.internal_storage,
@@ -386,83 +381,20 @@ class FunctionExecutor:
         if type(futures) != list:
             futures = [futures]
 
-        if not futures:
-            raise Exception('You must run the call_async(), map() or map_reduce(), or provide'
-                            ' a list of futures before calling the wait()/get_result() method')
-
-        if download_results:
-            msg = 'ExecutorID {} - Getting results'.format(self.executor_id)
-            fs_done = [f for f in futures if f.done]
-            fs_not_done = [f for f in futures if not f.done]
-            # fs_not_ready = [f for f in futures if not f.ready and not f.done]
-
-        else:
-            msg = 'ExecutorID {} - Waiting for functions to complete'.format(self.executor_id)
-            fs_done = [f for f in futures if f.ready or f.done]
-            fs_not_done = [f for f in futures if not f.done]
-            # fs_not_ready = [f for f in futures if not f.ready and not f.done]
-
-        if not fs_not_done:
-            return fs_done, fs_not_done
-
-        logger.info(msg)
-
-        if is_unix_system() and timeout is not None:
-            logger.debug('Setting waiting timeout to {} seconds'.format(timeout))
-            error_msg = ('Timeout of {} seconds exceeded waiting for '
-                         'function activations to finish'.format(timeout))
-            signal.signal(signal.SIGALRM, partial(timeout_handler, error_msg))
-            signal.alarm(timeout)
-
-        # Setup progress bar
-        pbar = None
-        if not self.is_lithops_worker and self.setup_progressbar:
-            from tqdm.auto import tqdm
-            if not is_notebook():
-                print()
-            pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
-                        total=len(fs_not_done), disable=None)
-
         # Start waiting for results
         error = False
         try:
-            #if self.rabbitmq_monitor:
-            #    wait_rabbitmq(futures, self.internal_storage,
-            #                  rabbit_amqp_url=self.rabbit_amqp_url,
-            #                  download_results=download_results,
-            #                  throw_except=throw_except,
-            #                  pbar=pbar, return_when=return_when,
-            #                  THREADPOOL_SIZE=THREADPOOL_SIZE)
-            #else:
-            wait_storage(futures, self.internal_storage,
-                         download_results=download_results,
-                         throw_except=throw_except,
-                         return_when=return_when, pbar=pbar,
-                         THREADPOOL_SIZE=THREADPOOL_SIZE,
-                         WAIT_DUR_SEC=WAIT_DUR_SEC)
-
-        except KeyboardInterrupt as e:
-            if download_results:
-                not_dones_call_ids = [(f.job_id, f.call_id)
-                                      for f in futures if not f.done]
-            else:
-                not_dones_call_ids = [(f.job_id, f.call_id)
-                                      for f in futures if not f.ready and not f.done]
-            msg = ('ExecutorID {} - Cancelled - Total Activations not done: {}'
-                   .format(self.executor_id, len(not_dones_call_ids)))
-            if pbar and not pbar.disable:
-                pbar.close()
-                print()
-            logger.info(msg)
-            error = True
-            if self.data_cleaner and not self.is_lithops_worker:
-                self.clean(clean_cloudobjects=False, force=True)
-            raise e
+            wait(fs=futures,
+                 internal_storage=self.internal_storage,
+                 job_monitor=self.job_monitor,
+                 download_results=download_results,
+                 throw_except=throw_except,
+                 return_when=return_when,
+                 timeout=timeout,
+                 THREADPOOL_SIZE=THREADPOOL_SIZE,
+                 WAIT_DUR_SEC=WAIT_DUR_SEC)
 
         except Exception as e:
-            if pbar and not pbar.disable:
-                pbar.close()
-                print()
             error = True
             if self.data_cleaner and not self.is_lithops_worker:
                 self.clean(clean_cloudobjects=False, force=True)
@@ -471,12 +403,6 @@ class FunctionExecutor:
         finally:
             self.job_monitor.stop()
             self.invoker.stop()
-            if is_unix_system():
-                signal.alarm(0)
-            if pbar and not pbar.disable:
-                pbar.close()
-                if not is_notebook():
-                    print()
             if self.data_cleaner and not self.is_lithops_worker:
                 self.clean(clean_cloudobjects=False)
             if not fs and error and is_notebook():
@@ -504,25 +430,16 @@ class FunctionExecutor:
         :param WAIT_DUR_SEC: Time interval between each check.
         :return: The result of the future/s
         """
-        fs_done, _ = self.wait(fs=fs, throw_except=throw_except,
-                               timeout=timeout, download_results=True,
-                               THREADPOOL_SIZE=THREADPOOL_SIZE,
-                               WAIT_DUR_SEC=WAIT_DUR_SEC)
-        result = []
-        fs_done = [f for f in fs_done if not f.futures and f._produce_output]
-        for f in fs_done:
-            if fs:
-                # Process futures provided by the user
-                result.append(f.result(throw_except=throw_except,
-                                       internal_storage=self.internal_storage))
-            elif not fs and not f._read:
-                # Process internally stored futures
-                result.append(f.result(throw_except=throw_except,
-                                       internal_storage=self.internal_storage))
-                f._read = True
+        futures = fs or self.futures
+        if type(futures) != list:
+            futures = [futures]
 
-        logger.debug("ExecutorID {} Finished getting results"
-                     .format(self.executor_id))
+        result = get_result(fs=futures, throw_except=throw_except,
+                            timeout=timeout, mark_as_read=True,
+                            job_monitor=self.job_monitor,
+                            THREADPOOL_SIZE=THREADPOOL_SIZE,
+                            WAIT_DUR_SEC=WAIT_DUR_SEC,
+                            internal_storage=self.internal_storage)
 
         if len(result) == 1 and self.last_call != 'map':
             return result[0]

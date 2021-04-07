@@ -546,6 +546,10 @@ class CustomizedRuntimeInvoker(ServerlessInvoker):
             if not self.log_active:
                 print()
 
+        if lithops_version != runtime_meta['lithops_version']:
+            raise Exception("Lithops version mismatch. Host version: {} - Runtime version: {}"
+                            .format(lithops_version, runtime_meta['lithops_version']))
+
         py_local_version = version_str(sys.version_info)
         py_remote_version = runtime_meta['python_ver']
 

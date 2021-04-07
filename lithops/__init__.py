@@ -4,4 +4,4 @@ from lithops.executors import ServerlessExecutor
 from lithops.executors import StandaloneExecutor
 from lithops.storage import Storage
 from lithops.version import __version__
-from lithops.wait.func import wait, get_result
+from lithops.wait.wait import wait, get_result

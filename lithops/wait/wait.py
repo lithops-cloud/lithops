@@ -11,9 +11,9 @@ from .utils import ALL_COMPLETED
 logger = logging.getLogger(__name__)
 
 
-def wait(fs, throw_except=True, return_when=ALL_COMPLETED,
-         download_results=False, timeout=None, THREADPOOL_SIZE=128,
-         WAIT_DUR_SEC=1, internal_storage=None):
+def wait(fs, internal_storage=None, job_monitor=None, throw_except=True,
+         return_when=ALL_COMPLETED, download_results=False,
+         timeout=None, THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
     """
     Wait for the Future instances (possibly created by different Executor instances)
     given by fs to complete. Returns a named 2-tuple of sets. The first set, named done,
@@ -35,23 +35,23 @@ def wait(fs, throw_except=True, return_when=ALL_COMPLETED,
         and `fs_notdone` is a list of futures that have not completed.
     :rtype: 2-tuple of list
     """
-    if not internal_storage:
-        internal_storage = InternalStorage(fs[0].storage_config)
+    if not fs:
+        return
 
     if type(fs) != list:
         fs = [fs]
 
-    setup_progressbar = (not is_lithops_worker() and
-                         logger.getEffectiveLevel() == logging.INFO)
+    if not internal_storage:
+        internal_storage = InternalStorage(fs[0].storage_config)
 
     if download_results:
-        msg = 'Getting results from functions'
+        msg = 'ExecutorID {} - Getting results from functions'.format(fs[0].executor_id)
         fs_done = [f for f in fs if f.done]
         fs_not_done = [f for f in fs if not f.done]
         # fs_not_ready = [f for f in futures if not f.ready and not f.done]
 
     else:
-        msg = 'Waiting for functions to complete'
+        msg = 'ExecutorID {} - Waiting for functions to complete'.format(fs[0].executor_id)
         fs_done = [f for f in fs if f.ready or f.done]
         fs_not_done = [f for f in fs if not f.done]
         # fs_not_ready = [f for f in futures if not f.ready and not f.done]
@@ -67,11 +67,10 @@ def wait(fs, throw_except=True, return_when=ALL_COMPLETED,
         signal.signal(signal.SIGALRM, partial(timeout_handler, error_msg))
         signal.alarm(timeout)
 
+    # Setup progress bar
     pbar = None
-
-    if not is_lithops_worker() and setup_progressbar:
+    if not is_lithops_worker() and logger.getEffectiveLevel() == logging.INFO:
         from tqdm.auto import tqdm
-
         if not is_notebook():
             print()
         pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
@@ -119,6 +118,7 @@ def wait(fs, throw_except=True, return_when=ALL_COMPLETED,
 
 
 def get_result(fs, throw_except=True, timeout=None,
+               job_monitor=None, mark_as_read=False,
                THREADPOOL_SIZE=128, WAIT_DUR_SEC=1,
                internal_storage=None):
     """
@@ -140,18 +140,23 @@ def get_result(fs, throw_except=True, timeout=None,
 
     fs_done, _ = wait(fs=fs, throw_except=throw_except,
                       timeout=timeout, download_results=True,
+                      job_monitor=job_monitor,
                       internal_storage=internal_storage,
                       THREADPOOL_SIZE=THREADPOOL_SIZE,
                       WAIT_DUR_SEC=WAIT_DUR_SEC)
     result = []
     fs_done = [f for f in fs_done if not f.futures and f._produce_output]
     for f in fs_done:
-        result.append(f.result(throw_except=throw_except,
-                               internal_storage=internal_storage))
+        if not mark_as_read:
+            # Process futures provided by the user
+            result.append(f.result(throw_except=throw_except,
+                                   internal_storage=internal_storage))
+        elif mark_as_read and not f._read:
+            # Process internally stored futures
+            result.append(f.result(throw_except=throw_except,
+                                   internal_storage=internal_storage))
+            f._read = True
 
-    logger.debug("Finished getting results")
-
-    if len(result) == 1:
-        return result[0]
+    logger.debug("ExecutorID {} - Finished getting results".format(fs[0].executor_id))
 
     return result
