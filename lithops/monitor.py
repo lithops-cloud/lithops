@@ -2,6 +2,7 @@ import json
 import pika
 import logging
 import time
+import sys
 import queue
 import threading
 import multiprocessing as mp
@@ -44,7 +45,7 @@ class RabbitMQMonitor(threading.Thread):
                 total_callids_done += 1
             if total_callids_done == self.job.total_calls or not self.should_run:
                 ch.stop_consuming()
-                logger.debug('ExecutorID {} | JobID {} - Job monitoring finished'
+                logger.debug('ExecutorID {} | JobID {} - RabbitMQ job monitor finished'
                              .format(self.job.executor_id, self.job.job_id))
 
         self.channel.basic_consume(callback, queue=queue_1, no_ack=True)
@@ -107,7 +108,7 @@ class StorageMonitor(threading.Thread):
 
             callids_done_processed.update(callids_done_to_process)
 
-        logger.debug('ExecutorID {} | JobID {} - Job monitoring finished'
+        logger.debug('ExecutorID {} | JobID {} - Storage job monitor finished'
                      .format(self.job.executor_id, self.job.job_id))
 
 
@@ -118,7 +119,7 @@ class JobMonitor:
         self.internal_storage = internal_storage
         self.monitors = []
 
-        self.backend = self.lithops_config['lithops'].get('monitoring', 'ObjectStorage')
+        self.backend = self.lithops_config['lithops'].get('monitoring', 'Storage')
 
         self.use_threads = (is_lithops_worker()
                             or not is_unix_system()
@@ -143,10 +144,10 @@ class JobMonitor:
         return active_jobs
 
     def start_job_monitoring(self, job):
-        logger.debug('ExecutorID {} | JobID {} - Starting job monitoring'
-                     .format(job.executor_id, job.job_id))
-
-        jm = StorageMonitor(self.lithops_config, self.internal_storage,
-                            self.token_bucket_q, job)
+        logger.debug('ExecutorID {} | JobID {} - Starting {} job monitor'
+                     .format(job.executor_id, job.job_id, self.backend))
+        Monitor = getattr(sys.modules[__name__], '{}Monitor'.format(self.backend))
+        jm = Monitor(self.lithops_config, self.internal_storage,
+                     self.token_bucket_q, job)
         jm.start()
         self.monitors.append(jm)

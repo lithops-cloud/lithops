@@ -28,7 +28,7 @@ from datetime import datetime
 from lithops import constants
 from lithops.invokers import ServerlessInvoker, StandaloneInvoker, CustomizedRuntimeInvoker
 from lithops.storage import InternalStorage
-from lithops.wait import wait, ALL_COMPLETED
+from lithops.wait import wait, get_result, ALL_COMPLETED
 from lithops.job import create_map_job, create_reduce_job
 from lithops.config import get_mode, default_config, \
     extract_localhost_config, extract_standalone_config, \
@@ -41,8 +41,8 @@ from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
 from lithops.serverless.serverless import ServerlessHandler
 from lithops.storage.utils import create_job_key
-from lithops.monitoring.monitor import JobMonitor
-from lithops.wait.wait import get_result
+from lithops.monitor import JobMonitor
+
 
 logger = logging.getLogger(__name__)
 
@@ -430,16 +430,25 @@ class FunctionExecutor:
         :param WAIT_DUR_SEC: Time interval between each check.
         :return: The result of the future/s
         """
-        futures = fs or self.futures
-        if type(futures) != list:
-            futures = [futures]
+        fs_done, _ = self.wait(fs=fs, throw_except=throw_except,
+                               timeout=timeout, download_results=True,
+                               THREADPOOL_SIZE=THREADPOOL_SIZE,
+                               WAIT_DUR_SEC=WAIT_DUR_SEC)
+        result = []
+        fs_done = [f for f in fs_done if not f.futures and f._produce_output]
+        for f in fs_done:
+            if fs:
+                # Process futures provided by the user
+                result.append(f.result(throw_except=throw_except,
+                                       internal_storage=self.internal_storage))
+            elif not fs and not f._read:
+                # Process internally stored futures
+                result.append(f.result(throw_except=throw_except,
+                                       internal_storage=self.internal_storage))
+                f._read = True
 
-        result = get_result(fs=futures, throw_except=throw_except,
-                            timeout=timeout, mark_as_read=True,
-                            job_monitor=self.job_monitor,
-                            THREADPOOL_SIZE=THREADPOOL_SIZE,
-                            WAIT_DUR_SEC=WAIT_DUR_SEC,
-                            internal_storage=self.internal_storage)
+        logger.debug("ExecutorID {} Finished getting results"
+                     .format(self.executor_id))
 
         if len(result) == 1 and self.last_call != 'map':
             return result[0]

@@ -118,7 +118,6 @@ def wait(fs, internal_storage=None, job_monitor=None, throw_except=True,
 
 
 def get_result(fs, throw_except=True, timeout=None,
-               job_monitor=None, mark_as_read=False,
                THREADPOOL_SIZE=128, WAIT_DUR_SEC=1,
                internal_storage=None):
     """
@@ -140,22 +139,14 @@ def get_result(fs, throw_except=True, timeout=None,
 
     fs_done, _ = wait(fs=fs, throw_except=throw_except,
                       timeout=timeout, download_results=True,
-                      job_monitor=job_monitor,
                       internal_storage=internal_storage,
                       THREADPOOL_SIZE=THREADPOOL_SIZE,
                       WAIT_DUR_SEC=WAIT_DUR_SEC)
     result = []
     fs_done = [f for f in fs_done if not f.futures and f._produce_output]
     for f in fs_done:
-        if not mark_as_read:
-            # Process futures provided by the user
-            result.append(f.result(throw_except=throw_except,
-                                   internal_storage=internal_storage))
-        elif mark_as_read and not f._read:
-            # Process internally stored futures
-            result.append(f.result(throw_except=throw_except,
-                                   internal_storage=internal_storage))
-            f._read = True
+        result.append(f.result(throw_except=throw_except,
+                               internal_storage=internal_storage))
 
     logger.debug("ExecutorID {} - Finished getting results".format(fs[0].executor_id))
 
