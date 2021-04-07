@@ -17,8 +17,6 @@
 
 import os
 import sys
-import json
-import pika
 import time
 import random
 import queue
@@ -43,7 +41,7 @@ class Invoker:
     Abstract invoker class
     """
 
-    def __init__(self, config, executor_id, internal_storage, compute_handler):
+    def __init__(self, config, executor_id, internal_storage, compute_handler, job_monitor):
         log_level = logger.getEffectiveLevel()
         self.log_active = log_level != logging.WARNING
         self.log_level = LOGGER_LEVEL if not self.log_active else log_level
@@ -54,6 +52,7 @@ class Invoker:
         self.internal_storage = internal_storage
         self.compute_handler = compute_handler
         self.is_lithops_worker = is_lithops_worker()
+        self.job_monitor = job_monitor
 
         self.workers = self.config['lithops'].get('workers')
         if self.workers:
@@ -116,8 +115,8 @@ class StandaloneInvoker(Invoker):
     Module responsible to perform the invocations against the Standalone backend
     """
 
-    def __init__(self, config, executor_id, internal_storage, compute_handler):
-        super().__init__(config, executor_id, internal_storage, compute_handler)
+    def __init__(self, config, executor_id, internal_storage, compute_handler, job_monitor):
+        super().__init__(config, executor_id, internal_storage, compute_handler, job_monitor)
         self.compute_handler.init()
 
     def select_runtime(self, job_id, runtime_memory):
@@ -200,8 +199,8 @@ class ServerlessInvoker(Invoker):
     REMOTE_INVOKER_MEMORY = 2048
     INVOKER_PROCESSES = 2
 
-    def __init__(self, config, executor_id, internal_storage, compute_handler):
-        super().__init__(config, executor_id, internal_storage, compute_handler)
+    def __init__(self, config, executor_id, internal_storage, compute_handler, job_monitor):
+        super().__init__(config, executor_id, internal_storage, compute_handler, job_monitor)
 
         self.remote_invoker = self.config['serverless'].get('remote_invoker', False)
         self.use_threads = (self.is_lithops_worker
@@ -211,17 +210,15 @@ class ServerlessInvoker(Invoker):
         self.ongoing_activations = 0
 
         if self.use_threads:
-            self.token_bucket_q = queue.Queue()
             self.pending_calls_q = queue.Queue()
             self.running_flag = SimpleNamespace(value=0)
             self.INVOKER = Thread
         else:
-            self.token_bucket_q = mp.Queue()
             self.pending_calls_q = mp.Queue()
             self.running_flag = mp.Value('i', 0)
             self.INVOKER = mp.Process
 
-        self.job_monitor = JobMonitor(self.config, self.internal_storage, self.token_bucket_q)
+        self.token_bucket_q = self.job_monitor.token_bucket_q
 
         logger.debug('ExecutorID {} - Serverless invoker created'.format(self.executor_id))
 
@@ -465,9 +462,6 @@ class ServerlessInvoker(Invoker):
         """
         Stop the invoker process and JobMonitor
         """
-
-        self.job_monitor.stop()
-
         if self.invokers:
             logger.debug('ExecutorID {} - Stopping invoker'
                          .format(self.executor_id))
@@ -561,107 +555,3 @@ class CustomizedRuntimeInvoker(ServerlessInvoker):
                             .format(self.runtime_name, py_remote_version, py_local_version))
 
         return runtime_meta
-
-
-class JobMonitor:
-
-    def __init__(self, lithops_config, internal_storage, token_bucket_q):
-        self.config = lithops_config
-        self.internal_storage = internal_storage
-        self.token_bucket_q = token_bucket_q
-        self.is_lithops_worker = is_lithops_worker()
-        self.monitors = {}
-
-        self.rabbitmq_monitor = self.config['lithops'].get('rabbitmq_monitor', False)
-        if self.rabbitmq_monitor:
-            self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
-
-    def stop(self):
-        for job_key in self.monitors:
-            self.monitors[job_key]['should_run'] = False
-
-    def get_active_jobs(self):
-        active_jobs = 0
-        for job_key in self.monitors:
-            if self.monitors[job_key]['thread'].is_alive():
-                active_jobs += 1
-        return active_jobs
-
-    def start_job_monitoring(self, job):
-        logger.debug('ExecutorID {} | JobID {} - Starting job monitoring'
-                     .format(job.executor_id, job.job_id))
-        if self.rabbitmq_monitor:
-            th = Thread(target=self._job_monitoring_rabbitmq, args=(job,))
-        else:
-            th = Thread(target=self._job_monitoring_os, args=(job,))
-
-        if not self.is_lithops_worker:
-            th.daemon = True
-
-        self.monitors[job.job_key] = {'thread': th, 'should_run': True}
-        th.start()
-
-    def _job_monitoring_os(self, job):
-        workers = {}
-        workers_done = []
-        callids_done_worker = {}
-        callids_running_worker = {}
-        callids_running_processed = set()
-        callids_done_processed = set()
-
-        while self.monitors[job.job_key]['should_run'] and len(callids_done_processed) < job.total_calls:
-            time.sleep(1)
-            callids_running, callids_done = self.internal_storage.get_job_status(job.executor_id, job.job_id)
-
-            callids_running_to_process = callids_running - callids_running_processed
-            callids_done_to_process = callids_done - callids_done_processed
-
-            for call_id, worker_id in callids_running_to_process:
-                if worker_id not in workers:
-                    workers[worker_id] = set()
-                workers[worker_id].add(call_id)
-                callids_running_worker[call_id] = worker_id
-
-            for callid_done in callids_done_to_process:
-                if callid_done in callids_running_worker:
-                    worker_id = callids_running_worker[callid_done]
-                    if worker_id not in callids_done_worker:
-                        callids_done_worker[worker_id] = []
-                    callids_done_worker[worker_id].append(callid_done)
-
-            for worker_id in callids_done_worker:
-                if worker_id not in workers_done and \
-                   len(callids_done_worker[worker_id]) == job.chunksize:
-                    workers_done.append(worker_id)
-                    if self.monitors[job.job_key]['should_run']:
-                        self.token_bucket_q.put('#')
-                    else:
-                        break
-
-            callids_done_processed.update(callids_done_to_process)
-
-        logger.debug('ExecutorID {} | JobID {} - Job monitoring finished'
-                     .format(job.executor_id, job.job_id))
-
-    def _job_monitoring_rabbitmq(self, job):
-        total_callids_done = 0
-        exchange = 'lithops-{}'.format(job.job_key)
-        queue_1 = '{}-1'.format(exchange)
-
-        params = pika.URLParameters(self.rabbit_amqp_url)
-        connection = pika.BlockingConnection(params)
-        channel = connection.channel()
-
-        def callback(ch, method, properties, body):
-            nonlocal total_callids_done
-            call_status = json.loads(body.decode("utf-8"))
-            if call_status['type'] == '__end__':
-                if self.monitors[job.job_key]['should_run']:
-                    self.token_bucket_q.put('#')
-                total_callids_done += 1
-            if total_callids_done == job.total_calls or \
-                    not self.monitors[job.job_key]['should_run']:
-                ch.stop_consuming()
-
-        channel.basic_consume(callback, queue=queue_1, no_ack=True)
-        channel.start_consuming()

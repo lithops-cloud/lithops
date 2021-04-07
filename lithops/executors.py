@@ -43,6 +43,7 @@ from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
 from lithops.serverless.serverless import ServerlessHandler
 from lithops.storage.utils import create_job_key
+from lithops.monitoring.monitor import JobMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,7 @@ class FunctionExecutor:
     """
 
     def __init__(self, mode=None, config=None, backend=None, storage=None,
-                 runtime=None, runtime_memory=None, rabbitmq_monitor=None,
+                 runtime=None, runtime_memory=None, monitoring=None,
                  workers=None, remote_invoker=None, log_level=False):
         """ Create a FunctionExecutor Class """
         if mode and mode not in [LOCALHOST, SERVERLESS, STANDALONE]:
@@ -94,8 +95,8 @@ class FunctionExecutor:
             config_ow['lithops']['storage'] = storage
         if workers is not None:
             config_ow['lithops']['workers'] = workers
-        if rabbitmq_monitor is not None:
-            config_ow['lithops']['rabbitmq_monitor'] = rabbitmq_monitor
+        if monitoring is not None:
+            config_ow['lithops']['monitoring'] = monitoring
 
         self.config = default_config(copy.deepcopy(config), config_ow)
 
@@ -107,18 +108,11 @@ class FunctionExecutor:
             atexit.register(self.clean, spawn_cleaner=spawn_cleaner,
                             clean_cloudobjects=False)
 
-        self.rabbitmq_monitor = self.config['lithops'].get('rabbitmq_monitor', False)
-
-        if self.rabbitmq_monitor:
-            if 'rabbitmq' in self.config and 'amqp_url' in self.config['rabbitmq']:
-                self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
-            else:
-                raise Exception("You cannot use rabbitmq_mnonitor since "
-                                "'amqp_url' is not present in configuration")
-
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
         self.storage = self.internal_storage.storage
+
+        self.job_monitor = JobMonitor(self.config, self.internal_storage)
 
         self.futures = []
         self.cleaned_jobs = set()
@@ -132,7 +126,8 @@ class FunctionExecutor:
             self.invoker = StandaloneInvoker(self.config,
                                              self.executor_id,
                                              self.internal_storage,
-                                             self.compute_handler)
+                                             self.compute_handler,
+                                             self.job_monitor)
         elif mode == SERVERLESS:
             serverless_config = extract_serverless_config(self.config)
             self.compute_handler = ServerlessHandler(serverless_config,
@@ -142,12 +137,14 @@ class FunctionExecutor:
                 self.invoker = CustomizedRuntimeInvoker(self.config,
                                                         self.executor_id,
                                                         self.internal_storage,
-                                                        self.compute_handler)
+                                                        self.compute_handler,
+                                                        self.job_monitor)
             else:
                 self.invoker = ServerlessInvoker(self.config,
                                                  self.executor_id,
                                                  self.internal_storage,
-                                                 self.compute_handler)
+                                                 self.compute_handler,
+                                                 self.job_monitor)
         elif mode == STANDALONE:
             standalone_config = extract_standalone_config(self.config)
             self.compute_handler = StandaloneHandler(standalone_config)
@@ -155,7 +152,8 @@ class FunctionExecutor:
             self.invoker = StandaloneInvoker(self.config,
                                              self.executor_id,
                                              self.internal_storage,
-                                             self.compute_handler)
+                                             self.compute_handler,
+                                             self.job_monitor)
 
         logger.info('{} Executor created with ID: {}'
                     .format(mode.capitalize(), self.executor_id))
@@ -163,7 +161,13 @@ class FunctionExecutor:
         self.log_path = None
 
     def __enter__(self):
+        """ Context manager method """
         return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """ Context manager method """
+        self.job_monitor.stop()
+        self.invoker.stop()
 
     def _create_job_id(self, call_type):
         job_id = str(self.total_jobs).zfill(3)
@@ -422,20 +426,20 @@ class FunctionExecutor:
         # Start waiting for results
         error = False
         try:
-            if self.rabbitmq_monitor:
-                wait_rabbitmq(futures, self.internal_storage,
-                              rabbit_amqp_url=self.rabbit_amqp_url,
-                              download_results=download_results,
-                              throw_except=throw_except,
-                              pbar=pbar, return_when=return_when,
-                              THREADPOOL_SIZE=THREADPOOL_SIZE)
-            else:
-                wait_storage(futures, self.internal_storage,
-                             download_results=download_results,
-                             throw_except=throw_except,
-                             return_when=return_when, pbar=pbar,
-                             THREADPOOL_SIZE=THREADPOOL_SIZE,
-                             WAIT_DUR_SEC=WAIT_DUR_SEC)
+            #if self.rabbitmq_monitor:
+            #    wait_rabbitmq(futures, self.internal_storage,
+            #                  rabbit_amqp_url=self.rabbit_amqp_url,
+            #                  download_results=download_results,
+            #                  throw_except=throw_except,
+            #                  pbar=pbar, return_when=return_when,
+            #                  THREADPOOL_SIZE=THREADPOOL_SIZE)
+            #else:
+            wait_storage(futures, self.internal_storage,
+                         download_results=download_results,
+                         throw_except=throw_except,
+                         return_when=return_when, pbar=pbar,
+                         THREADPOOL_SIZE=THREADPOOL_SIZE,
+                         WAIT_DUR_SEC=WAIT_DUR_SEC)
 
         except KeyboardInterrupt as e:
             if download_results:
@@ -465,6 +469,7 @@ class FunctionExecutor:
             raise e
 
         finally:
+            self.job_monitor.stop()
             self.invoker.stop()
             if is_unix_system():
                 signal.alarm(0)
@@ -596,14 +601,8 @@ class FunctionExecutor:
 
         if (jobs_to_clean or cs) and spawn_cleaner:
             log_file = open(CLEANER_LOG_FILE, 'a')
-            cmdstr = '{} -m lithops.scripts.cleaner'.format(sys.executable)
-            sp.Popen(cmdstr, shell=True, stdout=log_file, stderr=log_file)
-
-    def dismantle(self):
-        self.compute_handler.dismantle()
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.invoker.stop()
+            cmdstr = [sys.executable, '-m', 'lithops.scripts.cleaner']
+            sp.Popen(' '.join(cmdstr), shell=True, stdout=log_file, stderr=log_file)
 
     def job_summary(self, cloud_objects_n=0):
         """
