@@ -248,7 +248,7 @@ class CallStatus:
 
     def __init__(self, lithops_config, internal_storage):
         self.config = lithops_config
-        self.rabbitmq_monitor = self.config['lithops'].get('rabbitmq_monitor', False)
+        self.monitoring = self.config['lithops'].get('monitoring', 'Storage')
         self.store_status = strtobool(os.environ.get('__LITHOPS_STORE_STATUS', 'True'))
         self.internal_storage = internal_storage
         self.response = {
@@ -260,9 +260,9 @@ class CallStatus:
     def send(self, event_type):
         self.response['type'] = event_type
         if self.store_status:
-            if self.rabbitmq_monitor:
+            if self.monitoring == 'RabbitMQ':
                 self._send_status_rabbitmq()
-            if not self.rabbitmq_monitor or event_type == '__end__':
+            if not self.monitoring == 'RabbitMQ' or event_type == '__end__':
                 self._send_status_os()
 
     def _send_status_os(self):
@@ -307,9 +307,7 @@ class CallStatus:
             try:
                 connection = pika.BlockingConnection(params)
                 channel = connection.channel()
-                channel.exchange_declare(exchange=exchange, exchange_type='fanout', auto_delete=True)
-                channel.basic_publish(exchange=exchange, routing_key='',
-                                      body=dmpd_response_status)
+                channel.basic_publish(exchange=exchange, routing_key='', body=dmpd_response_status)
                 connection.close()
                 logger.info("Execution status sent to rabbitmq - Size: {}".format(drs))
                 status_sent = True

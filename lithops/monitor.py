@@ -2,7 +2,7 @@ import json
 import pika
 import logging
 import time
-import sys
+import lithops
 import queue
 import threading
 import multiprocessing as mp
@@ -18,19 +18,61 @@ class RabbitMQMonitor(threading.Thread):
         super().__init__()
         self.lithops_config = lithops_config
         self.internal_storage = internal_storage
-        self.rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
+        self.rabbit_amqp_url = self.lithops_config['rabbitmq'].get('amqp_url')
         self.should_run = True
         self.token_bucket_q = token_bucket_q
         self.job = job
         self.daemon = not is_lithops_worker()
+        self._create_resources()
+
+    def _create_resources(self):
+        """
+        Creates RabbitMQ queues and exchanges of a given job in a thread.
+        Called when a job is created.
+        """
+        logger.debug('ExecutorID {} | JobID {} - Creating RabbitMQ resources'
+                     .format(self.job.executor_id, self.job.job_id))
+
+        exchange = 'lithops-{}'.format(self.job.job_key)
+        queue_0 = '{}-0'.format(exchange)  # For local monitor
+        queue_1 = '{}-1'.format(exchange)  # For remote monitor
+
+        params = pika.URLParameters(self.rabbit_amqp_url)
+        connection = pika.BlockingConnection(params)
+        channel = connection.channel()
+        channel.exchange_declare(exchange=exchange, exchange_type='fanout', auto_delete=True)
+        channel.queue_declare(queue=queue_0, auto_delete=True)
+        channel.queue_bind(exchange=exchange, queue=queue_0)
+        channel.queue_declare(queue=queue_1, auto_delete=True)
+        channel.queue_bind(exchange=exchange, queue=queue_1)
+        connection.close()
+
+    def _delete_resources(self):
+        """
+        Deletes RabbitMQ queues and exchanges of a given job.
+        Only called when an exception is produced, otherwise resources are
+        automatically deleted.
+        """
+        exchange = 'lithops-{}'.format(self.job.job_key)
+        queue_0 = '{}-0'.format(exchange)  # For local monitor
+        queue_1 = '{}-1'.format(exchange)  # For remote monitor
+
+        params = pika.URLParameters(self.rabbit_amqp_url)
+        connection = pika.BlockingConnection(params)
+        channel = connection.channel()
+        channel.queue_delete(queue=queue_0)
+        channel.queue_delete(queue=queue_1)
+        channel.exchange_delete(exchange=exchange)
+        connection.close()
 
     def stop(self):
         self.should_run = False
+        self._delete_resources()
 
     def run(self):
         total_callids_done = 0
         exchange = 'lithops-{}'.format(self.job.job_key)
-        queue_1 = '{}-1'.format(exchange)
+        queue_0 = '{}-0'.format(exchange)
 
         params = pika.URLParameters(self.rabbit_amqp_url)
         connection = pika.BlockingConnection(params)
@@ -48,7 +90,7 @@ class RabbitMQMonitor(threading.Thread):
                 logger.debug('ExecutorID {} | JobID {} - RabbitMQ job monitor finished'
                              .format(self.job.executor_id, self.job.job_id))
 
-        self.channel.basic_consume(callback, queue=queue_1, no_ack=True)
+        self.channel.basic_consume(callback, queue=queue_0, no_ack=True)
         self.channel.start_consuming()
 
 
@@ -117,7 +159,7 @@ class JobMonitor:
     def __init__(self, lithops_config, internal_storage):
         self.lithops_config = lithops_config
         self.internal_storage = internal_storage
-        self.monitors = []
+        self.monitors = {}
 
         self.backend = self.lithops_config['lithops'].get('monitoring', 'Storage')
 
@@ -131,10 +173,10 @@ class JobMonitor:
             self.token_bucket_q = mp.Queue()
 
     def stop(self):
-        for job_monitor in self.monitors:
-            job_monitor.stop()
+        for job_key in self.monitors:
+            self.monitors[job_key].stop()
 
-        self.monitors = []
+        self.monitors = {}
 
     def get_active_jobs(self):
         active_jobs = 0
@@ -146,8 +188,8 @@ class JobMonitor:
     def start_job_monitoring(self, job):
         logger.debug('ExecutorID {} | JobID {} - Starting {} job monitor'
                      .format(job.executor_id, job.job_id, self.backend))
-        Monitor = getattr(sys.modules[__name__], '{}Monitor'.format(self.backend))
+        Monitor = getattr(lithops.monitor, '{}Monitor'.format(self.backend))
         jm = Monitor(self.lithops_config, self.internal_storage,
                      self.token_bucket_q, job)
         jm.start()
-        self.monitors.append(jm)
+        self.monitors[job.job_key] = jm

@@ -436,8 +436,6 @@ class ServerlessInvoker(Invoker):
                     for call_ids_range in iterchunks(job.total_calls, job.chunksize):
                         self.pending_calls_q.put((job, call_ids_range))
 
-                self.job_monitor.start_job_monitoring(job)
-
             except (KeyboardInterrupt, Exception) as e:
                 self.stop()
                 raise e
@@ -460,7 +458,7 @@ class ServerlessInvoker(Invoker):
 
     def stop(self):
         """
-        Stop the invoker process and JobMonitor
+        Stop the invoker process
         """
         if self.invokers:
             logger.debug('ExecutorID {} - Stopping invoker'

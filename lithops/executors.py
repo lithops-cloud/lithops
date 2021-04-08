@@ -28,7 +28,7 @@ from datetime import datetime
 from lithops import constants
 from lithops.invokers import ServerlessInvoker, StandaloneInvoker, CustomizedRuntimeInvoker
 from lithops.storage import InternalStorage
-from lithops.wait import wait, get_result, ALL_COMPLETED
+from lithops.wait import wait, ALL_COMPLETED
 from lithops.job import create_map_job, create_reduce_job
 from lithops.config import get_mode, default_config, \
     extract_localhost_config, extract_standalone_config, \
@@ -203,6 +203,7 @@ class FunctionExecutor:
                              execution_timeout=timeout)
 
         futures = self.invoker.run(job)
+        self.job_monitor.start_job_monitoring(job)
         self.futures.extend(futures)
 
         return futures[0]
@@ -262,6 +263,7 @@ class FunctionExecutor:
                              invoke_pool_threads=invoke_pool_threads)
 
         futures = self.invoker.run(job)
+        self.job_monitor.start_job_monitoring(job)
         self.futures.extend(futures)
 
         return futures
@@ -325,6 +327,7 @@ class FunctionExecutor:
                                  invoke_pool_threads=invoke_pool_threads)
 
         map_futures = self.invoker.run(map_job)
+        self.job_monitor.start_job_monitoring(map_job)
         self.futures.extend(map_futures)
 
         if reducer_wait_local:
@@ -345,7 +348,7 @@ class FunctionExecutor:
                                        exclude_modules=exclude_modules)
 
         reduce_futures = self.invoker.run(reduce_job)
-
+        self.job_monitor.start_job_monitoring(reduce_job)
         self.futures.extend(reduce_futures)
 
         for f in map_futures:
@@ -612,7 +615,7 @@ class FunctionExecutor:
 class LocalhostExecutor(FunctionExecutor):
 
     def __init__(self, config=None, runtime=None, workers=None,
-                 storage=None, rabbitmq_monitor=None, log_level=False):
+                 storage=None, monitoring=None, log_level=False):
         """
         Initialize a LocalhostExecutor class.
 
@@ -620,7 +623,7 @@ class LocalhostExecutor(FunctionExecutor):
         :param runtime: Runtime name to use.
         :param storage: Name of the storage backend to use.
         :param workers: Max number of concurrent workers.
-        :param rabbitmq_monitor: use rabbitmq as the monitoring system.
+        :param monitoring: monitoring system.
         :param log_level: log level to use during the execution.
 
         :return `LocalhostExecutor` object.
@@ -628,13 +631,13 @@ class LocalhostExecutor(FunctionExecutor):
         super().__init__(mode=LOCALHOST, config=config,
                          runtime=runtime, storage=storage,
                          log_level=log_level, workers=workers,
-                         rabbitmq_monitor=rabbitmq_monitor)
+                         monitoring=monitoring)
 
 
 class ServerlessExecutor(FunctionExecutor):
 
     def __init__(self, config=None, runtime=None, runtime_memory=None,
-                 backend=None, storage=None, workers=None, rabbitmq_monitor=None,
+                 backend=None, storage=None, workers=None, monitoring=None,
                  remote_invoker=None, log_level=False):
         """
         Initialize a ServerlessExecutor class.
@@ -645,7 +648,7 @@ class ServerlessExecutor(FunctionExecutor):
         :param backend: Name of the serverless compute backend to use.
         :param storage: Name of the storage backend to use.
         :param workers: Max number of concurrent workers.
-        :param rabbitmq_monitor: use rabbitmq as the monitoring system.
+        :param monitoring: monitoring system.
         :param log_level: log level to use during the execution.
 
         :return `ServerlessExecutor` object.
@@ -653,14 +656,14 @@ class ServerlessExecutor(FunctionExecutor):
         super().__init__(mode=SERVERLESS, config=config, runtime=runtime,
                          runtime_memory=runtime_memory, backend=backend,
                          storage=storage, workers=workers,
-                         rabbitmq_monitor=rabbitmq_monitor, log_level=log_level,
+                         monitoring=monitoring, log_level=log_level,
                          remote_invoker=remote_invoker)
 
 
 class StandaloneExecutor(FunctionExecutor):
 
     def __init__(self, config=None, backend=None, runtime=None, storage=None,
-                 workers=None, rabbitmq_monitor=None, log_level=False):
+                 workers=None, monitoring=None, log_level=False):
         """
         Initialize a StandaloneExecutor class.
 
@@ -669,14 +672,14 @@ class StandaloneExecutor(FunctionExecutor):
         :param backend: Name of the standalone compute backend to use.
         :param storage: Name of the storage backend to use.
         :param workers: Max number of concurrent workers.
-        :param rabbitmq_monitor: use rabbitmq as the monitoring system.
+        :param monitoring: monitoring system.
         :param log_level: log level to use during the execution.
 
         :return `StandaloneExecutor` object.
         """
         super().__init__(mode=STANDALONE, config=config, runtime=runtime,
                          backend=backend, storage=storage, workers=workers,
-                         rabbitmq_monitor=rabbitmq_monitor, log_level=log_level)
+                         monitoring=monitoring, log_level=log_level)
 
     def create(self):
         runtime_key, runtime_meta = self.compute_handler.create()
