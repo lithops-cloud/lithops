@@ -32,7 +32,6 @@ from google.auth import jwt
 
 from lithops.version import __version__
 from lithops.utils import version_str
-from lithops.storage import InternalStorage
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
 from lithops.constants import TEMP as TEMP_PATH
 
@@ -51,6 +50,7 @@ AUDIENCE = "https://pubsub.googleapis.com/google.pubsub.v1.Publisher"
 class GCPFunctionsBackend:
     def __init__(self, gcp_functions_config, internal_storage):
         self.name = 'gcp_functions'
+        self.type = 'faas'
         self.gcp_functions_config = gcp_functions_config
         self.package = 'lithops_v' + __version__
 

@@ -43,11 +43,14 @@ class ServerlessHandler:
                          "serverless backend".format(self.backend_name))
             raise e
 
-    def invoke(self, runtime_name, memory, payload):
+    def invoke(self, job_payload):
         """
         Invoke -- return information about this invocation
         """
-        return self.backend.invoke(runtime_name, memory, payload)
+        runtime_name = job_payload['runtime_name']
+        runtime_memory = job_payload['runtime_memory']
+
+        return self.backend.invoke(runtime_name, runtime_memory, job_payload)
 
     def build_runtime(self, runtime_name, file):
         """
@@ -95,3 +98,9 @@ class ServerlessHandler:
         into the storage
         """
         return self.backend.get_runtime_key(runtime_name, memory)
+
+    def get_backend_type(self):
+        """
+        Wrapper method that returns the type of the backend (Batch or FaaS)
+        """
+        return self.backend.type

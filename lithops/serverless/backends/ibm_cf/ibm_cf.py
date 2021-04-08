@@ -40,6 +40,7 @@ class IBMCloudFunctionsBackend:
     def __init__(self, ibm_cf_config, internal_storage):
         logger.debug("Creating IBM Cloud Functions client")
         self.name = 'ibm_cf'
+        self.type = 'faas'
         self.config = ibm_cf_config
         self.is_lithops_worker = is_lithops_worker()
 

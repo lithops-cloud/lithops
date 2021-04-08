@@ -47,6 +47,7 @@ class KnativeServingBackend:
 
     def __init__(self, knative_config, internal_storage):
         self.name = 'knative'
+        self.type = 'faas'
         self.knative_config = knative_config
         self.istio_endpoint = self.knative_config.get('istio_endpoint')
         self.kubecfg_path = self.knative_config.get('kubecfg_path')

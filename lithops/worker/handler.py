@@ -307,6 +307,8 @@ class CallStatus:
             try:
                 connection = pika.BlockingConnection(params)
                 channel = connection.channel()
+                if self.response['type'] == '__init__':
+                    channel.exchange_declare(exchange=exchange, exchange_type='fanout', auto_delete=True)
                 channel.basic_publish(exchange=exchange, routing_key='', body=dmpd_response_status)
                 connection.close()
                 logger.info("Execution status sent to rabbitmq - Size: {}".format(drs))

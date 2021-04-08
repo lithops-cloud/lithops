@@ -26,7 +26,7 @@ import numpy as np
 import subprocess as sp
 from datetime import datetime
 from lithops import constants
-from lithops.invokers import ServerlessInvoker, StandaloneInvoker, CustomizedRuntimeInvoker
+from lithops.invokers import create_invoker
 from lithops.storage import InternalStorage
 from lithops.wait import wait, ALL_COMPLETED
 from lithops.job import create_map_job, create_reduce_job
@@ -117,38 +117,18 @@ class FunctionExecutor:
         if mode == LOCALHOST:
             localhost_config = extract_localhost_config(self.config)
             self.compute_handler = LocalhostHandler(localhost_config)
-
-            self.invoker = StandaloneInvoker(self.config,
-                                             self.executor_id,
-                                             self.internal_storage,
-                                             self.compute_handler,
-                                             self.job_monitor)
         elif mode == SERVERLESS:
             serverless_config = extract_serverless_config(self.config)
-            self.compute_handler = ServerlessHandler(serverless_config,
-                                                     self.internal_storage)
-
-            if self.config[SERVERLESS].get('customized_runtime'):
-                self.invoker = CustomizedRuntimeInvoker(self.config,
-                                                        self.executor_id,
-                                                        self.internal_storage,
-                                                        self.compute_handler,
-                                                        self.job_monitor)
-            else:
-                self.invoker = ServerlessInvoker(self.config,
-                                                 self.executor_id,
-                                                 self.internal_storage,
-                                                 self.compute_handler,
-                                                 self.job_monitor)
+            self.compute_handler = ServerlessHandler(serverless_config, self.internal_storage)
         elif mode == STANDALONE:
             standalone_config = extract_standalone_config(self.config)
             self.compute_handler = StandaloneHandler(standalone_config)
 
-            self.invoker = StandaloneInvoker(self.config,
-                                             self.executor_id,
-                                             self.internal_storage,
-                                             self.compute_handler,
-                                             self.job_monitor)
+        self.invoker = create_invoker(self.config,
+                                      self.executor_id,
+                                      self.internal_storage,
+                                      self.compute_handler,
+                                      self.job_monitor)
 
         logger.info('{} Executor created with ID: {}'
                     .format(mode.capitalize(), self.executor_id))
@@ -202,7 +182,7 @@ class FunctionExecutor:
                              exclude_modules=exclude_modules,
                              execution_timeout=timeout)
 
-        futures = self.invoker.run(job)
+        futures = self.invoker.run_job(job)
         self.job_monitor.start_job_monitoring(job)
         self.futures.extend(futures)
 
@@ -262,7 +242,7 @@ class FunctionExecutor:
                              obj_chunk_number=obj_chunk_number,
                              invoke_pool_threads=invoke_pool_threads)
 
-        futures = self.invoker.run(job)
+        futures = self.invoker.run_job(job)
         self.job_monitor.start_job_monitoring(job)
         self.futures.extend(futures)
 
@@ -326,7 +306,7 @@ class FunctionExecutor:
                                  execution_timeout=timeout,
                                  invoke_pool_threads=invoke_pool_threads)
 
-        map_futures = self.invoker.run(map_job)
+        map_futures = self.invoker.run_job(map_job)
         self.job_monitor.start_job_monitoring(map_job)
         self.futures.extend(map_futures)
 
@@ -347,7 +327,7 @@ class FunctionExecutor:
                                        include_modules=include_modules,
                                        exclude_modules=exclude_modules)
 
-        reduce_futures = self.invoker.run(reduce_job)
+        reduce_futures = self.invoker.run_job(reduce_job)
         self.job_monitor.start_job_monitoring(reduce_job)
         self.futures.extend(reduce_futures)
 

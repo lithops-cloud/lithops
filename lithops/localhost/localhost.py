@@ -61,7 +61,7 @@ class LocalhostHandler:
         """
         pass
 
-    def run_job(self, job_payload):
+    def invoke(self, job_payload):
         """
         Run the job description against the selected environment
         """
@@ -120,6 +120,12 @@ class LocalhostHandler:
         runtime_key = os.path.join('localhost', self.env_type, runtime_name.strip("/"))
 
         return runtime_key
+
+    def get_backend_type(self):
+        """
+        Wrapper method that returns the type of the backend (Batch or FaaS)
+        """
+        return 'batch'
 
     def clean(self):
         pass

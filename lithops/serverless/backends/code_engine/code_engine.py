@@ -44,6 +44,7 @@ class CodeEngineBackend:
     def __init__(self, code_engine_config, internal_storage):
         logger.debug("Creating IBM Code Engine client")
         self.name = 'code_engine'
+        self.type = 'batch'
         self.code_engine_config = code_engine_config
         self.internal_storage = internal_storage
 

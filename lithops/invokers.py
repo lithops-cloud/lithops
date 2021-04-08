@@ -30,10 +30,27 @@ from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config
 from lithops.version import __version__ as lithops_version
 from lithops.utils import version_str, is_lithops_worker, is_unix_system, iterchunks
-from lithops.constants import LOGGER_LEVEL, LITHOPS_TEMP_DIR, LOGS_DIR
+from lithops.constants import LOGGER_LEVEL, LITHOPS_TEMP_DIR, LOGS_DIR, SERVERLESS
 from lithops.util.metrics import PrometheusExporter
 
 logger = logging.getLogger(__name__)
+
+
+def create_invoker(config, executor_id, internal_storage,
+                   compute_handler, job_monitor):
+    """
+    Creates the appropriate invoker based on the backend type
+    """
+    if compute_handler.get_backend_type() == 'batch':
+        return BatchInvoker(config, executor_id, internal_storage,
+                            compute_handler, job_monitor)
+    else:
+        if config[SERVERLESS].get('customized_runtime'):
+            return CustomRuntimeFaaSInvoker(config, executor_id, internal_storage,
+                                            compute_handler, job_monitor)
+        else:
+            return FaaSInvoker(config, executor_id, internal_storage,
+                               compute_handler, job_monitor)
 
 
 class Invoker:
@@ -97,11 +114,52 @@ class Invoker:
         """
         raise NotImplementedError
 
-    def run(self, job):
+    def run_job(self, job):
         """
         Run a job
         """
-        raise NotImplementedError
+        logger.info('ExecutorID {} | JobID {} - Starting function '
+                    'invocation: {}() - Total: {} activations'
+                    .format(job.executor_id, job.job_id,
+                            job.function_name, job.total_calls))
+
+        logger.debug('ExecutorID {} | JobID {} - Chunksize:'
+                     ' {} - Worker processes: {}'
+                     .format(job.executor_id, job.job_id,
+                             job.chunksize, job.worker_processes))
+
+        self.prometheus.send_metric(name='job_total_calls',
+                                    value=job.total_calls,
+                                    labels=(
+                                        ('executor_id', job.executor_id),
+                                        ('job_id', job.job_id),
+                                        ('function_name', job.function_name)
+                                    ))
+
+        try:
+            job.runtime_name = self.runtime_name
+            self._invoke_job(job)
+        except (KeyboardInterrupt, Exception) as e:
+            self.stop()
+            raise e
+
+        log_file = os.path.join(LOGS_DIR, job.job_key+'.log')
+        logger.info("ExecutorID {} | JobID {} - View execution logs at {}"
+                    .format(job.executor_id, job.job_id, log_file))
+
+        # Create all futures
+        futures = []
+        for i in range(job.total_calls):
+            call_id = "{:05d}".format(i)
+            fut = ResponseFuture(call_id, job,
+                                 job.metadata.copy(),
+                                 self.storage_config)
+            fut._set_state(ResponseFuture.State.Invoked)
+            futures.append(fut)
+
+        job.futures = futures
+
+        return futures
 
     def stop(self):
         """
@@ -110,7 +168,7 @@ class Invoker:
         pass
 
 
-class StandaloneInvoker(Invoker):
+class BatchInvoker(Invoker):
     """
     Module responsible to perform the invocations against the Standalone backend
     """
@@ -148,18 +206,10 @@ class StandaloneInvoker(Invoker):
 
         return runtime_meta
 
-    def run(self, job):
+    def _invoke_job(self, job):
         """
         Run a job
         """
-        logger.info('ExecutorID {} | JobID {} - Starting function'
-                    ' invocation: {}() - Total: {} activations'
-                    .format(job.executor_id, job.job_id,
-                            job.function_name, job.total_calls))
-
-        logger.debug('ExecutorID {} | JobID {} - Chunksize: {} - Worker processes: {}'
-                     .format(job.executor_id, job.job_id, job.chunksize, job.worker_processes))
-
         job.runtime_name = self.runtime_name
 
         self.prometheus.send_metric(name='job_total_calls',
@@ -177,23 +227,21 @@ class StandaloneInvoker(Invoker):
         logger.info("ExecutorID {} | JobID {} - View execution logs at {}"
                     .format(job.executor_id, job.job_id, log_file))
 
-        self.compute_handler.run_job(payload)
+        start = time.time()
+        activation_id = self.compute_handler.run_job(payload)
+        roundtrip = time.time() - start
+        resp_time = format(round(roundtrip, 3), '.3f')
 
-        futures = []
-        for i in range(job.total_calls):
-            call_id = "{:05d}".format(i)
-            fut = ResponseFuture(call_id, job,
-                                 job.metadata.copy(),
-                                 self.storage_config)
-            fut._set_state(ResponseFuture.State.Invoked)
-            futures.append(fut)
-
-        return futures
+        if activation_id:
+            logger.debug('ExecutorID {} | JobID {} - Remote invoker call done ({}s) - Activation'
+                         ' ID: {}'.format(job.executor_id, job.job_id, resp_time, activation_id))
+        else:
+            raise Exception('Unable to spawn remote invoker')
 
 
-class ServerlessInvoker(Invoker):
+class FaaSInvoker(Invoker):
     """
-    Module responsible to perform the invocations against the serverless backend
+    Module responsible to perform the invocations against the FaaS backends
     """
 
     REMOTE_INVOKER_MEMORY = 2048
@@ -260,45 +308,47 @@ class ServerlessInvoker(Invoker):
         """Starts the invoker process responsible to spawn pending calls
         in background.
         """
+
+        def invoker_process(inv_id):
+            """Run process that implements token bucket scheduling approach"""
+            logger.debug('ExecutorID {} - Invoker process {} started'
+                         .format(self.executor_id, inv_id))
+
+            with ThreadPoolExecutor(max_workers=250) as executor:
+                while True:
+                    try:
+                        self.token_bucket_q.get()
+                        job, call_id = self.pending_calls_q.get()
+                    except KeyboardInterrupt:
+                        break
+                    if self.running_flag.value:
+                        executor.submit(self._invoke_task, job, call_id)
+                    else:
+                        break
+
+            logger.debug('ExecutorID {} - Invoker process {} finished'
+                         .format(self.executor_id, inv_id))
+
         for inv_id in range(self.INVOKER_PROCESSES):
-            p = self.INVOKER(target=self._run_invoker_process, args=(inv_id,))
+            p = self.INVOKER(target=invoker_process, args=(inv_id,))
             self.invokers.append(p)
             p.daemon = True
             p.start()
 
-    def _run_invoker_process(self, inv_id):
-        """Run process that implements token bucket scheduling approach"""
-        logger.debug('ExecutorID {} - Invoker process {} started'
-                     .format(self.executor_id, inv_id))
-
-        with ThreadPoolExecutor(max_workers=250) as executor:
-            while True:
-                try:
-                    self.token_bucket_q.get()
-                    job, call_id = self.pending_calls_q.get()
-                except KeyboardInterrupt:
-                    break
-                if self.running_flag.value:
-                    executor.submit(self._invoke, job, call_id)
-                else:
-                    break
-
-        logger.debug('ExecutorID {} - Invoker process {} finished'
-                     .format(self.executor_id, inv_id))
-
-    def _invoke(self, job, call_ids_range):
+    def _invoke_task(self, job, call_ids_range):
         """Method used to perform the actual invocation against the
         compute backend.
         """
-        start = time.time()
         # prepare payload
         call_ids = ["{:05d}".format(i) for i in call_ids_range]
         data_byte_ranges = [job.data_byte_ranges[int(call_id)] for call_id in call_ids]
         payload = self._create_payload(job)
         payload['call_ids'] = call_ids
         payload['data_byte_ranges'] = data_byte_ranges
+
         # do the invocation
-        activation_id = self.compute_handler.invoke(job.runtime_name, job.runtime_memory, payload)
+        start = time.time()
+        activation_id = self.compute_handler.invoke(payload)
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 
@@ -313,148 +363,56 @@ class ServerlessInvoker(Invoker):
                      ' ID: {}'.format(job.executor_id, job.job_id, ', '.join(call_ids),
                                       resp_time, activation_id))
 
-    def _invoke_remote(self, job):
-        """Method used to send a job_description to the remote invoker."""
-        start = time.time()
-
-        payload = self._create_payload(job)
-        payload['call_ids'] = ["{:05d}".format(i) for i in range(job.total_calls)]
-        payload['remote_invoker'] = True
-        payload['invokers'] = 4
-
-        activation_id = self.compute_handler.invoke(job.runtime_name, self.REMOTE_INVOKER_MEMORY, payload)
-        roundtrip = time.time() - start
-        resp_time = format(round(roundtrip, 3), '.3f')
-
-        if activation_id:
-            logger.debug('ExecutorID {} | JobID {} - Remote invoker call done ({}s) - Activation'
-                         ' ID: {}'.format(job.executor_id, job.job_id, resp_time, activation_id))
-        else:
-            raise Exception('Unable to spawn remote invoker')
-
-    def run(self, job):
+    def _invoke_job(self, job):
         """
-        Run a job described in job_description
+        Normal Invocation
+        Use local threads to perform all the function invocations
         """
+        if self.running_flag.value == 0:
+            self.running_workers = 0
+            self.running_flag.value = 1
+            self._start_invoker_process()
 
-        job.runtime_name = self.runtime_name
+        if self.running_workers < self.workers:
+            free_workers = self.workers - self.running_workers
+            total_direct = free_workers * job.chunksize
+            callids = range(job.total_calls)
+            callids_to_invoke_direct = callids[:total_direct]
+            callids_to_invoke_nondirect = callids[total_direct:]
 
-        try:
-            while True:
-                self.token_bucket_q.get_nowait()
-                self.ongoing_activations -= 1
-        except Exception:
-            pass
+            ci = len(callids_to_invoke_direct)
+            cz = job.chunksize
+            consumed_workers = ci // cz + (ci % cz > 0)
+            self.running_workers += consumed_workers
 
-        self.prometheus.send_metric(name='job_total_calls',
-                                    value=job.total_calls,
-                                    labels=(
-                                        ('executor_id', job.executor_id),
-                                        ('job_id', job.job_id),
-                                        ('function_name', job.function_name)
-                                    ))
+            logger.debug('ExecutorID {} | JobID {} - Free workers:'
+                         ' {} - Going to run {} activations in {} workers'
+                         .format(job.executor_id, job.job_id, free_workers,
+                                 len(callids_to_invoke_direct), consumed_workers))
 
-        if self.remote_invoker:
-            """
-            Remote Invocation
-            Use a single cloud function to perform all the function invocations
-            """
-            log_level = logger.getEffectiveLevel()
-            logging.getLogger('lithops').setLevel(logging.CRITICAL)
-            self.select_runtime(job.job_id, self.REMOTE_INVOKER_MEMORY)
-            logging.getLogger('lithops').setLevel(log_level)
-            log_msg = ('ExecutorID {} | JobID {} - Starting function '
-                       'invocation: {}() - Total: {} activations'
-                       .format(job.executor_id, job.job_id,
-                               job.function_name, job.total_calls))
-            logger.info(log_msg)
-            self._invoke_remote(job)
-            # th = Thread(target=self._invoke_remote, args=(job,), daemon=True)
-            # th.start()
+            def _callback(future):
+                future.result()
 
-        else:
-            """
-            Normal Invocation
-            Use local threads to perform all the function invocations
-            """
-            try:
-                if self.running_flag.value == 0:
-                    self.running_workers = 0
-                    self.running_flag.value = 1
-                    self._start_invoker_process()
+            executor = ThreadPoolExecutor(job.invoke_pool_threads)
+            for call_ids_range in iterchunks(callids_to_invoke_direct, job.chunksize):
+                future = executor.submit(self._invoke_task, job, call_ids_range)
+                future.add_done_callback(_callback)
 
-                log_msg = ('ExecutorID {} | JobID {} - Starting function '
-                           'invocation: {}() - Total: {} activations'
-                           .format(job.executor_id, job.job_id,
-                                   job.function_name, job.total_calls))
-                logger.info(log_msg)
-
-                logger.debug('ExecutorID {} | JobID {} - Chunksize:'
-                             ' {} - Worker processes: {}'
+            # Put into the queue the rest of the callids to invoke within the process
+            if callids_to_invoke_nondirect:
+                logger.debug('ExecutorID {} | JobID {} - Putting remaining '
+                             '{} function activations into pending queue'
                              .format(job.executor_id, job.job_id,
-                                     job.chunksize, job.worker_processes))
-
-                if self.running_workers < self.workers:
-                    free_workers = self.workers - self.running_workers
-                    total_direct = free_workers * job.chunksize
-                    callids = range(job.total_calls)
-                    callids_to_invoke_direct = callids[:total_direct]
-                    callids_to_invoke_nondirect = callids[total_direct:]
-
-                    ci = len(callids_to_invoke_direct)
-                    cz = job.chunksize
-                    consumed_workers = ci // cz + (ci % cz > 0)
-                    self.running_workers += consumed_workers
-
-                    logger.debug('ExecutorID {} | JobID {} - Free workers:'
-                                 ' {} - Going to run {} activations in {} workers'
-                                 .format(job.executor_id, job.job_id, free_workers,
-                                         len(callids_to_invoke_direct), consumed_workers))
-
-                    def _callback(future):
-                        future.result()
-
-                    executor = ThreadPoolExecutor(job.invoke_pool_threads)
-                    for call_ids_range in iterchunks(callids_to_invoke_direct, job.chunksize):
-                        future = executor.submit(self._invoke, job, call_ids_range)
-                        future.add_done_callback(_callback)
-                    time.sleep(0.1)
-
-                    # Put into the queue the rest of the callids to invoke within the process
-                    if callids_to_invoke_nondirect:
-                        logger.debug('ExecutorID {} | JobID {} - Putting remaining '
-                                     '{} function activations into pending queue'
-                                     .format(job.executor_id, job.job_id,
-                                             len(callids_to_invoke_nondirect)))
-                        for call_ids_range in iterchunks(callids_to_invoke_nondirect, job.chunksize):
-                            self.pending_calls_q.put((job, call_ids_range))
-                else:
-                    logger.debug('ExecutorID {} | JobID {} - Reached maximun {} '
-                                 'workers, queuing {} function activations'
-                                 .format(job.executor_id, job.job_id,
-                                         self.workers, job.total_calls))
-                    for call_ids_range in iterchunks(job.total_calls, job.chunksize):
-                        self.pending_calls_q.put((job, call_ids_range))
-
-            except (KeyboardInterrupt, Exception) as e:
-                self.stop()
-                raise e
-
-        log_file = os.path.join(LOGS_DIR, job.job_key+'.log')
-        logger.info("ExecutorID {} | JobID {} - View execution logs at {}"
-                    .format(job.executor_id, job.job_id, log_file))
-
-        # Create all futures
-        futures = []
-        for i in range(job.total_calls):
-            call_id = "{:05d}".format(i)
-            fut = ResponseFuture(call_id, job,
-                                 job.metadata.copy(),
-                                 self.storage_config)
-            fut._set_state(ResponseFuture.State.Invoked)
-            futures.append(fut)
-
-        return futures
+                                     len(callids_to_invoke_nondirect)))
+                for call_ids_range in iterchunks(callids_to_invoke_nondirect, job.chunksize):
+                    self.pending_calls_q.put((job, call_ids_range))
+        else:
+            logger.debug('ExecutorID {} | JobID {} - Reached maximun {} '
+                         'workers, queuing {} function activations'
+                         .format(job.executor_id, job.job_id,
+                                 self.workers, job.total_calls))
+            for call_ids_range in iterchunks(job.total_calls, job.chunksize):
+                self.pending_calls_q.put((job, call_ids_range))
 
     def stop(self):
         """
@@ -477,7 +435,7 @@ class ServerlessInvoker(Invoker):
             self.invokers = []
 
 
-class CustomizedRuntimeInvoker(ServerlessInvoker):
+class CustomRuntimeFaaSInvoker(FaaSInvoker):
     """
     Module responsible to perform the invocations against the serverless
     backend in realtime environments.

@@ -23,6 +23,10 @@ class RabbitMQMonitor(threading.Thread):
         self.token_bucket_q = token_bucket_q
         self.job = job
         self.daemon = not is_lithops_worker()
+
+        params = pika.URLParameters(self.rabbit_amqp_url)
+        self.connection = pika.BlockingConnection(params)
+
         self._create_resources()
 
     def _create_resources(self):
@@ -37,15 +41,12 @@ class RabbitMQMonitor(threading.Thread):
         queue_0 = '{}-0'.format(exchange)  # For local monitor
         queue_1 = '{}-1'.format(exchange)  # For remote monitor
 
-        params = pika.URLParameters(self.rabbit_amqp_url)
-        connection = pika.BlockingConnection(params)
-        channel = connection.channel()
+        channel = self.connection.channel()
         channel.exchange_declare(exchange=exchange, exchange_type='fanout', auto_delete=True)
         channel.queue_declare(queue=queue_0, auto_delete=True)
         channel.queue_bind(exchange=exchange, queue=queue_0)
         channel.queue_declare(queue=queue_1, auto_delete=True)
         channel.queue_bind(exchange=exchange, queue=queue_1)
-        connection.close()
 
     def _delete_resources(self):
         """
@@ -57,26 +58,22 @@ class RabbitMQMonitor(threading.Thread):
         queue_0 = '{}-0'.format(exchange)  # For local monitor
         queue_1 = '{}-1'.format(exchange)  # For remote monitor
 
-        params = pika.URLParameters(self.rabbit_amqp_url)
-        connection = pika.BlockingConnection(params)
-        channel = connection.channel()
+        channel = self.connection.channel()
         channel.queue_delete(queue=queue_0)
         channel.queue_delete(queue=queue_1)
         channel.exchange_delete(exchange=exchange)
-        connection.close()
 
     def stop(self):
         self.should_run = False
         self._delete_resources()
+        self.connection.close()
 
     def run(self):
         total_callids_done = 0
         exchange = 'lithops-{}'.format(self.job.job_key)
         queue_0 = '{}-0'.format(exchange)
 
-        params = pika.URLParameters(self.rabbit_amqp_url)
-        connection = pika.BlockingConnection(params)
-        self.channel = connection.channel()
+        channel = self.connection.channel()
 
         def callback(ch, method, properties, body):
             nonlocal total_callids_done
@@ -90,8 +87,8 @@ class RabbitMQMonitor(threading.Thread):
                 logger.debug('ExecutorID {} | JobID {} - RabbitMQ job monitor finished'
                              .format(self.job.executor_id, self.job.job_id))
 
-        self.channel.basic_consume(callback, queue=queue_0, no_ack=True)
-        self.channel.start_consuming()
+        channel.basic_consume(callback, queue=queue_0, no_ack=True)
+        channel.start_consuming()
 
 
 class StorageMonitor(threading.Thread):

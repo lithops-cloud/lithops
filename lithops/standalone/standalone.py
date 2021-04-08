@@ -135,7 +135,7 @@ class StandaloneHandler:
         raise Exception('Lithops service readiness probe expired on {}'
                         .format(self.backend.master))
 
-    def run_job(self, job_payload):
+    def invoke(self, job_payload):
         """
         Run the job description against the selected environment
         """
@@ -252,6 +252,12 @@ class StandaloneHandler:
         store modules preinstalls into the storage
         """
         return self.backend.get_runtime_key(runtime_name)
+
+    def get_backend_type(self):
+        """
+        Wrapper method that returns the type of the backend (Batch or FaaS)
+        """
+        return 'batch'
 
     def _setup_master_service(self):
         """

@@ -182,8 +182,6 @@ def load_config(config_data):
             config_data['code_engine']['container_registry'] = cr
             config_data['serverless']['runtime'] = rn
 
-    config_data['serverless']['remote_invoker'] = True
-
     if 'workers' not in config_data['lithops'] or \
        config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS

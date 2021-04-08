@@ -47,6 +47,7 @@ class KubernetesBackend:
     def __init__(self, k8s_config, internal_storage):
         logger.debug("Creating Kubernetes Job client")
         self.name = 'k8s'
+        self.type = 'batch'
         self.k8s_config = k8s_config
         self.internal_storage = internal_storage
 
