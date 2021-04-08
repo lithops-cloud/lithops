@@ -268,11 +268,7 @@ class KubernetesBackend:
         Invoke -- return information about this invocation
         For array jobs only remote_invocator is allowed
         """
-
         idgiver_ip = self._start_id_giver(docker_image_name)
-
-        job_payload.pop('remote_invoker')
-        job_payload.pop('invokers')
 
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']

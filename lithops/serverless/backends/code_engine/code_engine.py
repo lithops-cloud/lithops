@@ -20,6 +20,7 @@ import re
 import sys
 import json
 import logging
+import urllib3
 import copy
 import time
 import yaml
@@ -32,6 +33,9 @@ from lithops.utils import create_handler_zip
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
 from . import config as ce_config
 from lithops.storage.utils import StorageNoSuchKeyError
+
+
+urllib3.disable_warnings()
 
 logger = logging.getLogger(__name__)
 
@@ -284,9 +288,6 @@ class CodeEngineBackend:
         Invoke -- return information about this invocation
         For array jobs only remote_invocator is allowed
         """
-        job_payload.pop('remote_invoker')
-        job_payload.pop('invokers')
-
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
 
@@ -463,7 +464,7 @@ class CodeEngineBackend:
 
         retry = int(1)
         found = False
-        while retry < 20 and not found:
+        while retry < 10 and not found:
             try:
                 logger.debug("Retry attempt {} to read {}".format(retry, status_key))
                 json_str = self.internal_storage.get_data(key=status_key)
@@ -473,7 +474,7 @@ class CodeEngineBackend:
             except StorageNoSuchKeyError:
                 logger.debug("{} not found in attempt {}. Sleep before retry".format(status_key, retry))
                 retry = retry + 1
-                time.sleep(5)
+                time.sleep(10)
 
         if not found:
             raise Exception("Unable to extract Python preinstalled modules from the runtime")

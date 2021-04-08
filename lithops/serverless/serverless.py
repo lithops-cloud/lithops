@@ -43,6 +43,12 @@ class ServerlessHandler:
                          "serverless backend".format(self.backend_name))
             raise e
 
+    def init(self):
+        """
+        Init tasks for serverless batch backends
+        """
+        pass
+
     def invoke(self, job_payload):
         """
         Invoke -- return information about this invocation

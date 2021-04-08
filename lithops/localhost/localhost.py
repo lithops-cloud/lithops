@@ -57,7 +57,7 @@ class LocalhostHandler:
 
     def init(self):
         """
-        Init taks for localhost
+        Init tasks for localhost
         """
         pass
 
@@ -100,20 +100,20 @@ class LocalhostHandler:
             sp.Popen(exec_command+' run '+job_filename, shell=True,
                      stdout=log_file, stderr=log_file, universal_newlines=True)
 
-    def create_runtime(self, runtime):
+    def create_runtime(self, runtime_name, *args):
         """
         Extract the runtime metadata and preinstalled modules
         """
-        logger.info("Extracting preinstalled Python modules from {}".format(runtime))
-        self.env.setup(runtime)
-        exec_command = self.env.get_execution_cmd(runtime)
+        logger.info("Extracting preinstalled Python modules from {}".format(runtime_name))
+        self.env.setup(runtime_name)
+        exec_command = self.env.get_execution_cmd(runtime_name)
         process = sp.run(exec_command+' preinstalls', shell=True, check=True,
                          stdout=sp.PIPE, universal_newlines=True)
         runtime_meta = json.loads(process.stdout.strip())
 
         return runtime_meta
 
-    def get_runtime_key(self, runtime_name):
+    def get_runtime_key(self, runtime_name, *args):
         """
         Generate the runtime key that identifies the runtime
         """

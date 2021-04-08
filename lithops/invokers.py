@@ -80,8 +80,45 @@ class Invoker:
         prom_config = self.config.get('prometheus', {})
         self.prometheus = PrometheusExporter(prom_enabled, prom_config)
 
-        mode = self.config['lithops']['mode']
-        self.runtime_name = self.config[mode]['runtime']
+        self.mode = self.config['lithops']['mode']
+        self.runtime_name = self.config[self.mode]['runtime']
+
+    def select_runtime(self, job_id, runtime_memory):
+        """
+        Return the runtime metadata
+        """
+        runtime_memory = runtime_memory or self.config[self.mode].get('runtime_memory')
+        runtime_timeout = self.config[self.mode].get('runtime_timeout')
+
+        msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} '
+               .format(self.executor_id, job_id, self.runtime_name))
+        msg = msg+'- {}MB'.format(runtime_memory) if runtime_memory else msg
+        logger.info(msg)
+
+        runtime_key = self.compute_handler.get_runtime_key(self.runtime_name, runtime_memory)
+        runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
+
+        if not runtime_meta:
+            msg = 'Runtime {}'.format(self.runtime_name)
+            msg = msg+' with {}MB' if runtime_memory else msg
+            logger.info(msg+' is not yet installed')
+            runtime_meta = self.compute_handler.create_runtime(self.runtime_name, runtime_memory, runtime_timeout)
+            runtime_meta['runtime_timeout'] = runtime_timeout
+            self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
+
+        # Verify python version and lithops version
+        if lithops_version != runtime_meta['lithops_version']:
+            raise Exception("Lithops version mismatch. Host version: {} - Runtime version: {}"
+                            .format(lithops_version, runtime_meta['lithops_version']))
+
+        py_local_version = version_str(sys.version_info)
+        py_remote_version = runtime_meta['python_version']
+        if py_local_version != py_remote_version:
+            raise Exception(("The indicated runtime '{}' is running Python {} and it "
+                             "is not compatible with the local Python version {}")
+                            .format(self.runtime_name, py_remote_version, py_local_version))
+
+        return runtime_meta
 
     def _create_payload(self, job):
         """
@@ -107,12 +144,6 @@ class Invoker:
                    'worker_processes': job.worker_processes}
 
         return payload
-
-    def select_runtime(self, job_id, runtime_memory):
-        """
-        Create a runtime and return metadata
-        """
-        raise NotImplementedError
 
     def run_job(self, job):
         """
@@ -177,66 +208,20 @@ class BatchInvoker(Invoker):
         super().__init__(config, executor_id, internal_storage, compute_handler, job_monitor)
         self.compute_handler.init()
 
-    def select_runtime(self, job_id, runtime_memory):
-        """
-        Return the runtime metadata
-        """
-        log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} '
-                   .format(self.executor_id, job_id, self.runtime_name))
-        logger.info(log_msg)
-
-        runtime_key = self.compute_handler.get_runtime_key(self.runtime_name)
-        runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
-        if not runtime_meta:
-            logger.info('Runtime {} is not yet installed'.format(self.runtime_name))
-            runtime_meta = self.compute_handler.create_runtime(self.runtime_name)
-            self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
-
-        if lithops_version != runtime_meta['lithops_version']:
-            raise Exception("Lithops version mismatch. Host version: {} - Runtime version: {}"
-                            .format(lithops_version, runtime_meta['lithops_version']))
-
-        py_local_version = version_str(sys.version_info)
-        py_remote_version = runtime_meta['python_version']
-
-        if py_local_version != py_remote_version:
-            raise Exception(("The indicated runtime '{}' is running Python {} and it "
-                             "is not compatible with the local Python version {}")
-                            .format(self.runtime_name, py_remote_version, py_local_version))
-
-        return runtime_meta
-
     def _invoke_job(self, job):
         """
         Run a job
         """
-        job.runtime_name = self.runtime_name
-
-        self.prometheus.send_metric(name='job_total_calls',
-                                    value=job.total_calls,
-                                    labels=(
-                                        ('executor_id', job.executor_id),
-                                        ('job_id', job.job_id),
-                                        ('function_name', job.function_name)
-                                    ))
-
         payload = self._create_payload(job)
         payload['call_ids'] = ["{:05d}".format(i) for i in range(job.total_calls)]
 
-        log_file = os.path.join(LOGS_DIR, payload['job_key']+'.log')
-        logger.info("ExecutorID {} | JobID {} - View execution logs at {}"
-                    .format(job.executor_id, job.job_id, log_file))
-
         start = time.time()
-        activation_id = self.compute_handler.run_job(payload)
+        activation_id = self.compute_handler.invoke(payload)
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 
-        if activation_id:
-            logger.debug('ExecutorID {} | JobID {} - Remote invoker call done ({}s) - Activation'
-                         ' ID: {}'.format(job.executor_id, job.job_id, resp_time, activation_id))
-        else:
-            raise Exception('Unable to spawn remote invoker')
+        logger.debug('ExecutorID {} | JobID {} - Job invoked ({}s) - Activation ID: {}'
+                     .format(job.executor_id, job.job_id, resp_time, activation_id or job.job_key))
 
 
 class FaaSInvoker(Invoker):
@@ -269,40 +254,6 @@ class FaaSInvoker(Invoker):
         self.token_bucket_q = self.job_monitor.token_bucket_q
 
         logger.debug('ExecutorID {} - Serverless invoker created'.format(self.executor_id))
-
-    def select_runtime(self, job_id, runtime_memory):
-        """
-        Return the runtime metadata
-        """
-        if not runtime_memory:
-            runtime_memory = self.config['serverless']['runtime_memory']
-        runtime_timeout = self.config['serverless']['runtime_timeout']
-
-        log_msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} - {}MB '
-                   .format(self.executor_id, job_id, self.runtime_name, runtime_memory))
-        logger.info(log_msg)
-
-        runtime_key = self.compute_handler.get_runtime_key(self.runtime_name, runtime_memory)
-        runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
-
-        if not runtime_meta:
-            logger.info('Runtime {} with {}MB is not yet installed'.format(self.runtime_name, runtime_memory))
-            runtime_meta = self.compute_handler.create_runtime(self.runtime_name, runtime_memory, runtime_timeout)
-            runtime_meta['runtime_timeout'] = runtime_timeout
-            self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
-
-        if lithops_version != runtime_meta['lithops_version']:
-            raise Exception("Lithops version mismatch. Host version: {} - Runtime version: {}"
-                            .format(lithops_version, runtime_meta['lithops_version']))
-
-        py_local_version = version_str(sys.version_info)
-        py_remote_version = runtime_meta['python_version']
-        if py_local_version != py_remote_version:
-            raise Exception(("The indicated runtime '{}' is running Python {} and it "
-                             "is not compatible with the local Python version {}")
-                            .format(self.runtime_name, py_remote_version, py_local_version))
-
-        return runtime_meta
 
     def _start_invoker_process(self):
         """Starts the invoker process responsible to spawn pending calls
@@ -446,7 +397,7 @@ class CustomRuntimeFaaSInvoker(FaaSInvoker):
     transfers from storage to  action containers on each execution
     """
 
-    def run(self, job):
+    def run_job(self, job):
         """
         Extend runtime and run a job described in job_description
         """
@@ -456,7 +407,7 @@ class CustomRuntimeFaaSInvoker(FaaSInvoker):
                        "To protect your privacy, use a private docker registry "
                        "instead of public docker hub.")
         self._extend_runtime(job)
-        return super().run(job)
+        return super().run_job(job)
 
     # If runtime not exists yet, build unique docker image and register runtime
     def _extend_runtime(self, job):
@@ -473,7 +424,7 @@ class CustomRuntimeFaaSInvoker(FaaSInvoker):
         runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
 
         if not runtime_meta:
-            timeout = self.config['serverless']['runtime_timeout']
+            runtime_timeout = self.config['serverless']['runtime_timeout']
             logger.debug('Creating runtime: {}, memory: {}MB'.format(ext_runtime_name, runtime_memory))
 
             runtime_temorary_directory = '/'.join([LITHOPS_TEMP_DIR, os.path.dirname(job.func_key)])
@@ -496,11 +447,9 @@ class CustomRuntimeFaaSInvoker(FaaSInvoker):
             self.compute_handler.build_runtime(ext_runtime_name, ext_docker_file)
             os.chdir(cwd)
 
-            runtime_meta = self.compute_handler.create_runtime(ext_runtime_name, runtime_memory, timeout=timeout)
+            runtime_meta = self.compute_handler.create_runtime(ext_runtime_name, runtime_memory, runtime_timeout)
+            runtime_meta['runtime_timeout'] = runtime_timeout
             self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
-        else:
-            if not self.log_active:
-                print()
 
         if lithops_version != runtime_meta['lithops_version']:
             raise Exception("Lithops version mismatch. Host version: {} - Runtime version: {}"
