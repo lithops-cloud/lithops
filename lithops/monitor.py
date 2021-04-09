@@ -31,22 +31,17 @@ from lithops.utils import is_lithops_worker, is_unix_system
 logger = logging.getLogger(__name__)
 
 
-class RabbitMQMonitor(threading.Thread):
+class RabbitmqMonitor(threading.Thread):
 
-    def __init__(self, lithops_config, internal_storage, token_bucket_q,
-                 job, generate_tokens, *args):
+    def __init__(self, job, internal_storage, token_bucket_q, generate_tokens, config):
         super().__init__()
-        self.lithops_config = lithops_config
+        self.job = job
         self.internal_storage = internal_storage
-        self.rabbit_amqp_url = self.lithops_config['rabbitmq'].get('amqp_url')
+        self.rabbit_amqp_url = config.get('amqp_url')
         self.should_run = True
         self.token_bucket_q = token_bucket_q
-        self.job = job
         self.generate_tokens = generate_tokens
         self.daemon = not is_lithops_worker()
-
-        params = pika.URLParameters(self.rabbit_amqp_url)
-        self.connection = pika.BlockingConnection(params)
 
         self._create_resources()
 
@@ -57,6 +52,9 @@ class RabbitMQMonitor(threading.Thread):
         """
         logger.debug('ExecutorID {} | JobID {} - Creating RabbitMQ resources'
                      .format(self.job.executor_id, self.job.job_id))
+
+        params = pika.URLParameters(self.rabbit_amqp_url)
+        self.connection = pika.BlockingConnection(params)
 
         exchange = 'lithops-{}'.format(self.job.job_key)
         queue_0 = '{}-0'.format(exchange)  # For local monitor
@@ -83,11 +81,36 @@ class RabbitMQMonitor(threading.Thread):
         channel.queue_delete(queue=queue_0)
         channel.queue_delete(queue=queue_1)
         channel.exchange_delete(exchange=exchange)
+        self.connection.close()
 
     def stop(self):
         self.should_run = False
         self._delete_resources()
-        self.connection.close()
+
+    def _tag_future_as_running(self, call_status):
+        """
+        Assigns a call_status to its future
+        """
+        for f in self.job.futures:
+            if f.call_id == call_status['call_id']:
+                f._call_status = call_status
+
+    def _tag_future_as_ready(self, call_status):
+        """
+        tags a future as ready based on call_status
+        """
+        for f in self.job.futures:
+            if f.call_id == call_status['call_id']:
+                f._call_status = call_status
+                f._call_status_ready = True
+
+    def _generate_tokens(self, call_status):
+        """
+        generates a new token for the invoker
+        """
+        if call_status['type'] == '__end__':
+            if self.should_run and self.generate_tokens:
+                self.token_bucket_q.put('#')
 
     def run(self):
         total_callids_done = 0
@@ -99,10 +122,14 @@ class RabbitMQMonitor(threading.Thread):
         def callback(ch, method, properties, body):
             nonlocal total_callids_done
             call_status = json.loads(body.decode("utf-8"))
+
+            if call_status['type'] == '__init__':
+                self._tag_future_as_running(call_status)
+
             if call_status['type'] == '__end__':
-                if self.should_run:
-                    self.token_bucket_q.put('#')
+                self._tag_future_as_ready(call_status)
                 total_callids_done += 1
+
             if total_callids_done == self.job.total_calls or not self.should_run:
                 ch.stop_consuming()
                 logger.debug('ExecutorID {} | JobID {} - RabbitMQ job monitor finished'
@@ -116,7 +143,7 @@ class StorageMonitor(threading.Thread):
 
     WAIT_DUR_SEC = 2  # Check interval
 
-    def __init__(self, job, internal_storage, token_bucket_q, generate_tokens):
+    def __init__(self, job, internal_storage, token_bucket_q, generate_tokens, config):
         super().__init__()
         self.internal_storage = internal_storage
         self.should_run = True
@@ -150,7 +177,7 @@ class StorageMonitor(threading.Thread):
         """
         return all([f._call_status_ready for f in self.job.futures])
 
-    def _mark_status_as_running(self, callids_running):
+    def _tag_future_as_running(self, callids_running):
         """
         Mark which futures are in running status based on callids_running
         """
@@ -170,7 +197,7 @@ class StorageMonitor(threading.Thread):
         self.callids_running_processed_timeout.update(callids_running_to_process)
         _future_timeout_checker(self.running_futures)
 
-    def _mark_status_as_ready(self, callids_done):
+    def _tag_future_as_ready(self, callids_done):
         """
         Mark which futures has a call_status ready to be downloaded
         """
@@ -228,8 +255,8 @@ class StorageMonitor(threading.Thread):
             callids_running, callids_done = \
                 self.internal_storage.get_job_status(self.job.executor_id, self.job.job_id)
             self._generate_tokens(callids_running, callids_done)
-            self._mark_status_as_running(callids_running)
-            self._mark_status_as_ready(callids_done)
+            self._tag_future_as_running(callids_running)
+            self._tag_future_as_ready(callids_done)
 
         logger.debug('ExecutorID {} | JobID {} - Storage job monitor finished'
                      .format(self.job.executor_id, self.job.job_id))
@@ -261,16 +288,17 @@ class JobMonitor:
                 active_jobs += 1
         return active_jobs
 
-    def start_job_monitoring(self, job, internal_storage, generate_tokens=False):
+    def start_job_monitoring(self, job, internal_storage,
+                             generate_tokens=False, config=None):
         """
         Starts a monitor for a given job
         """
         logger.debug('ExecutorID {} | JobID {} - Starting {} job monitor'
                      .format(job.executor_id, job.job_id, job.monitoring))
-        Monitor = getattr(lithops.monitor, '{}Monitor'.format(job.monitoring))
+        Monitor = getattr(lithops.monitor, '{}Monitor'.format(job.monitoring.capitalize()))
         jm = Monitor(job=job, internal_storage=internal_storage,
                      token_bucket_q=self.token_bucket_q,
-                     generate_tokens=generate_tokens)
+                     generate_tokens=generate_tokens, config=config)
         jm.start()
         self.monitors[job.job_key] = jm
 

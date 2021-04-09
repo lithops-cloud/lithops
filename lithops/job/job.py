@@ -182,7 +182,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
         logger.debug("Extra environment vars {}".format(ext_env))
 
     job = SimpleNamespace()
-    job.monitoring = config['lithops'].get('monitoring', 'Storage').capitalize()
+    job.monitoring = config['lithops'].get('monitoring', 'storage').lower()
     job.chunksize = chunksize or config['lithops']['chunksize']
     job.worker_processes = worker_processes or config['lithops']['worker_processes']
     job.execution_timeout = execution_timeout or config['lithops']['execution_timeout']

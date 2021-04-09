@@ -148,7 +148,7 @@ def run_task(task, internal_storage):
     env['__LITHOPS_SESSION_ID'] = '-'.join([task.job_key, task.id])
     os.environ.update(env)
 
-    call_status = CallStatus(task.config, internal_storage)
+    call_status = CallStatus(task.config, internal_storage, task.monitoring)
     call_status.response['worker_start_tstamp'] = start_tstamp
     call_status.response['host_submit_tstamp'] = task.host_submit_tstamp
     call_status.response['call_id'] = task.id
@@ -246,9 +246,9 @@ def run_task(task, internal_storage):
 
 class CallStatus:
 
-    def __init__(self, lithops_config, internal_storage):
+    def __init__(self, lithops_config, internal_storage, monitoring):
         self.config = lithops_config
-        self.monitoring = self.config['lithops'].get('monitoring', 'Storage')
+        self.monitoring = monitoring
         self.store_status = strtobool(os.environ.get('__LITHOPS_STORE_STATUS', 'True'))
         self.internal_storage = internal_storage
         self.response = {
@@ -260,9 +260,9 @@ class CallStatus:
     def send(self, event_type):
         self.response['type'] = event_type
         if self.store_status:
-            if self.monitoring == 'RabbitMQ':
+            if self.monitoring == 'rabbitmq':
                 self._send_status_rabbitmq()
-            if not self.monitoring == 'RabbitMQ' or event_type == '__end__':
+            if not self.monitoring == 'rabbitmq' or event_type == '__end__':
                 self._send_status_os()
 
     def _send_status_os(self):

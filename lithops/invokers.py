@@ -229,7 +229,9 @@ class BatchInvoker(Invoker):
         Run a job
         """
         futures = Invoker.run_job(self, job)
-        self.job_monitor.start_job_monitoring(job, self.internal_storage)
+        monitoring_config = self.config.get(job.monitoring.lower())
+        self.job_monitor.start_job_monitoring(job, self.internal_storage,
+                                              config=monitoring_config)
         return futures
 
 
@@ -399,7 +401,11 @@ class FaaSInvoker(Invoker):
         Run a job
         """
         futures = Invoker.run_job(self, job)
-        self.job_monitor.start_job_monitoring(job, self.internal_storage, generate_tokens=True)
+
+        monitoring_config = self.config.get(job.monitoring.lower())
+        self.job_monitor.start_job_monitoring(job, self.internal_storage,
+                                              generate_tokens=True,
+                                              config=monitoring_config)
         return futures
 
 
