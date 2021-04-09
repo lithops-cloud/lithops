@@ -19,9 +19,10 @@ import pika
 import logging
 import time
 import lithops
+import pickle
+import sys
 import queue
 import threading
-import copy
 import multiprocessing as mp
 
 
@@ -125,13 +126,20 @@ class StorageMonitor(threading.Thread):
         self.daemon = not is_lithops_worker()
         self.futures_ready = []
 
-        # vars for calculating and generating new tokens for invoker
+        # vars for _generate_tokens
         self.workers = {}
         self.workers_done = []
         self.callids_done_worker = {}
         self.callids_running_worker = {}
         self.callids_running_processed = set()
         self.callids_done_processed = set()
+
+        # vars for _mark_status_as_running
+        self.running_futures = set()
+        self.callids_running_processed_timeout = set()
+
+        # vars for _mark_status_as_ready
+        self.callids_done_processed_status = set()
 
     def stop(self):
         self.should_run = False
@@ -142,21 +150,37 @@ class StorageMonitor(threading.Thread):
         """
         return all([f._call_status_ready for f in self.job.futures])
 
-    def _timeout_checker(self, callids_running):
+    def _mark_status_as_running(self, callids_running):
         """
-        Mark all futures in callids_running as running
+        Mark which futures are in running status based on callids_running
         """
-        pass
+        current_time = time.time()
+        not_done_futures = [f for f in self.job.futures if not (f.ready or f.done)]
+        callids_running_to_process = callids_running - self.callids_running_processed_timeout
+        for f in not_done_futures:
+            for call in callids_running_to_process:
+                if (f.executor_id, f.job_id, f.call_id) == call[0]:
+                    if f.invoked and f not in self.running_futures:
+                        f.activation_id = call[1]
+                        f._call_status = {'type': '__init__',
+                                          'activation_id': call[1],
+                                          'start_time': current_time}
+                        f.status(internal_storage=self.internal_storage)
+                        self.running_futures.add(f)
+        self.callids_running_processed_timeout.update(callids_running_to_process)
+        _future_timeout_checker(self.running_futures)
 
     def _mark_status_as_ready(self, callids_done):
         """
-        Mark which call_status are ready in the futures
+        Mark which futures has a call_status ready to be downloaded
         """
         not_ready_futures = [f for f in self.job.futures if not f._call_status_ready]
+        callids_done_to_process = callids_done - self.callids_done_processed_status
         for f in not_ready_futures:
-            for call_data in callids_done:
+            for call_data in callids_done_to_process:
                 if (f.executor_id, f.job_id, f.call_id) == call_data:
                     f._call_status_ready = True
+        self.callids_done_processed_status.update(callids_done_to_process)
 
     def _generate_tokens(self, callids_running, callids_done):
         """
@@ -165,10 +189,10 @@ class StorageMonitor(threading.Thread):
         if not self.generate_tokens:
             return
 
-        self.callids_running_to_process = callids_running - self.callids_running_processed
+        callids_running_to_process = callids_running - self.callids_running_processed
         callids_done_to_process = callids_done - self.callids_done_processed
 
-        for call_id, worker_id in self.callids_running_to_process:
+        for call_id, worker_id in callids_running_to_process:
             if worker_id not in self.workers:
                 self.workers[worker_id] = set()
             self.workers[worker_id].add(call_id)
@@ -190,6 +214,7 @@ class StorageMonitor(threading.Thread):
                 else:
                     break
 
+        self.callids_running_processed.update(callids_running_to_process)
         self.callids_done_processed.update(callids_done_to_process)
 
     def run(self):
@@ -203,8 +228,8 @@ class StorageMonitor(threading.Thread):
             callids_running, callids_done = \
                 self.internal_storage.get_job_status(self.job.executor_id, self.job.job_id)
             self._generate_tokens(callids_running, callids_done)
+            self._mark_status_as_running(callids_running)
             self._mark_status_as_ready(callids_done)
-            self._timeout_checker(callids_running)
 
         logger.debug('ExecutorID {} | JobID {} - Storage job monitor finished'
                      .format(self.job.executor_id, self.job.job_id))
@@ -248,3 +273,29 @@ class JobMonitor:
                      generate_tokens=generate_tokens)
         jm.start()
         self.monitors[job.job_key] = jm
+
+
+def _future_timeout_checker(running_futures):
+    """
+    Checks if running futures exceeded the timeout
+    """
+    current_time = time.time()
+    for fut in running_futures:
+        if fut.running and fut._call_status:
+            try:
+                fut_timeout = fut._call_status['start_time'] + fut.execution_timeout + 5
+                if current_time > fut_timeout:
+                    msg = 'The function did not run as expected.'
+                    raise TimeoutError('HANDLER', msg)
+            except TimeoutError:
+                # generate fake TimeoutError call status
+                pickled_exception = str(pickle.dumps(sys.exc_info()))
+                call_status = {'type': '__end__',
+                               'exception': True,
+                               'exc_info': pickled_exception,
+                               'executor_id': fut.executor_id,
+                               'job_id': fut.job_id,
+                               'call_id': fut.call_id,
+                               'activation_id': fut.activation_id}
+                fut._call_status = call_status
+                fut._call_status_ready = True

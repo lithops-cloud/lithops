@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 def wait(fs, internal_storage=None, throw_except=True, timeout=None,
          return_when=ALL_COMPLETED, download_results=False,
-         THREADPOOL_SIZE=128, WAIT_DUR_SEC=2, job_monitor=None):
+         THREADPOOL_SIZE=128, WAIT_DUR_SEC=1, job_monitor=None):
     """
     Wait for the Future instances (possibly created by different Executor instances)
     given by fs to complete. Returns a named 2-tuple of sets. The first set, named done,
@@ -255,13 +255,9 @@ def _check_job_ststus(job_data, download_results, throw_except, threadpool_size,
             fs_to_wait_on.append(f)
 
     def get_result(f):
-        if f.running:
-            f._call_status = None
         f.result(throw_except=throw_except, internal_storage=internal_storage)
 
     def get_status(f):
-        if f.running:
-            f._call_status = None
         f.status(throw_except=throw_except, internal_storage=internal_storage)
 
     pool = cf.ThreadPoolExecutor(max_workers=threadpool_size)

@@ -153,6 +153,10 @@ class ResponseFuture:
                            ResponseFuture.State.Success]:
             return self._call_status
 
+        if self._call_status and self._call_status_ready \
+           and self._call_status['type'] == '__init__':
+            self._call_status = None
+
         if internal_storage is None:
             internal_storage = InternalStorage(self._storage_config)
 
@@ -271,6 +275,9 @@ class ResponseFuture:
         :raises CancelledError: If the job is cancelled before completed.
         :raises TimeoutError: If job is not complete after `timeout` seconds.
         """
+        if not self._produce_output:
+            self._set_state(ResponseFuture.State.Success)
+
         if self._state == ResponseFuture.State.New:
             raise ValueError("task not yet invoked")
 
@@ -300,6 +307,8 @@ class ResponseFuture:
             self._output_query_count += 1
 
         if call_output is None:
+            print(self._call_status)
+            print(self._call_status_ready)
             if throw_except:
                 raise Exception('Unable to get the result from call {} - '
                                 'Activation ID: {}'.format(self.call_id, self.activation_id))
@@ -312,7 +321,6 @@ class ResponseFuture:
 
         self.stats['host_result_done_tstamp'] = time.time()
         self.stats['host_result_query_count'] = self._output_query_count
-
         log_msg = ('ExecutorID {} | JobID {} - Got output from call {} - Activation '
                    'ID: {}'.format(self.executor_id, self.job_id, self.call_id, self.activation_id))
         logger.debug(log_msg)
