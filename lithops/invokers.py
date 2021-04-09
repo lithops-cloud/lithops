@@ -137,6 +137,7 @@ class Invoker:
                    'job_id': job.job_id,
                    'job_key': job.job_key,
                    'call_ids': None,
+                   'monitoring': job.monitoring,
                    'host_submit_tstamp': time.time(),
                    'lithops_version': lithops_version,
                    'runtime_name': job.runtime_name,
@@ -222,6 +223,14 @@ class BatchInvoker(Invoker):
 
         logger.debug('ExecutorID {} | JobID {} - Job invoked ({}s) - Activation ID: {}'
                      .format(job.executor_id, job.job_id, resp_time, activation_id or job.job_key))
+
+    def run_job(self, job):
+        """
+        Run a job
+        """
+        futures = Invoker.run_job(self, job)
+        self.job_monitor.start_job_monitoring(job, self.internal_storage)
+        return futures
 
 
 class FaaSInvoker(Invoker):
@@ -385,6 +394,14 @@ class FaaSInvoker(Invoker):
                     pass
             self.invokers = []
 
+    def run_job(self, job):
+        """
+        Run a job
+        """
+        futures = Invoker.run_job(self, job)
+        self.job_monitor.start_job_monitoring(job, self.internal_storage, generate_tokens=True)
+        return futures
+
 
 class CustomRuntimeFaaSInvoker(FaaSInvoker):
     """
@@ -407,7 +424,7 @@ class CustomRuntimeFaaSInvoker(FaaSInvoker):
                        "To protect your privacy, use a private docker registry "
                        "instead of public docker hub.")
         self._extend_runtime(job)
-        return super().run_job(job)
+        return FaaSInvoker.run_job(self, job)
 
     # If runtime not exists yet, build unique docker image and register runtime
     def _extend_runtime(self, job):

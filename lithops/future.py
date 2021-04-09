@@ -72,6 +72,7 @@ class ResponseFuture:
         self._return_val = None
         self._new_futures = None
         self._traceback = None
+        self._call_status_ready = False
         self._call_status = None
         self._call_output = None
         self._status_query_count = 0

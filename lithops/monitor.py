@@ -21,8 +21,9 @@ import time
 import lithops
 import queue
 import threading
+import copy
 import multiprocessing as mp
-import concurrent.futures as cf
+
 
 from lithops.utils import is_lithops_worker, is_unix_system
 
@@ -31,7 +32,8 @@ logger = logging.getLogger(__name__)
 
 class RabbitMQMonitor(threading.Thread):
 
-    def __init__(self, lithops_config, internal_storage, token_bucket_q, job):
+    def __init__(self, lithops_config, internal_storage, token_bucket_q,
+                 job, generate_tokens, *args):
         super().__init__()
         self.lithops_config = lithops_config
         self.internal_storage = internal_storage
@@ -39,6 +41,7 @@ class RabbitMQMonitor(threading.Thread):
         self.should_run = True
         self.token_bucket_q = token_bucket_q
         self.job = job
+        self.generate_tokens = generate_tokens
         self.daemon = not is_lithops_worker()
 
         params = pika.URLParameters(self.rabbit_amqp_url)
@@ -110,155 +113,98 @@ class RabbitMQMonitor(threading.Thread):
 
 class StorageMonitor(threading.Thread):
 
-    def __init__(self, lithops_config, internal_storage, token_bucket_q, job):
+    WAIT_DUR_SEC = 2  # Check interval
+
+    def __init__(self, job, internal_storage, token_bucket_q, generate_tokens):
         super().__init__()
-        self.lithops_config = lithops_config
         self.internal_storage = internal_storage
         self.should_run = True
         self.token_bucket_q = token_bucket_q
         self.job = job
+        self.generate_tokens = generate_tokens
         self.daemon = not is_lithops_worker()
         self.futures_ready = []
 
-        self.pbar = None
-        self.throw_except = False
-        self.download_results = False
-        self.wait_dur_sec = 2
-        self.threadpool_size = 128
-        self.pool = cf.ThreadPoolExecutor(max_workers=self.threadpool_size)
+        # vars for calculating and generating new tokens for invoker
+        self.workers = {}
+        self.workers_done = []
+        self.callids_done_worker = {}
+        self.callids_running_worker = {}
+        self.callids_running_processed = set()
+        self.callids_done_processed = set()
 
     def stop(self):
-        self.pool.shutdown()
         self.should_run = False
 
-    def update_params(self, pbar, throw_except, download_results,
-                      wait_dur_sec, threadpool_size):
-        """
-        Method used to update the waiting parameters
-        """
-        self.pbar = pbar
-        self.throw_except = throw_except
-        self.download_results = download_results
-        self.wait_dur_sec = wait_dur_sec
-        self.threadpool_size = threadpool_size
-
-    def all_done(self):
+    def _all_ready(self):
         """
         Checks if all futures are ready or done
         """
-        if self.download_results:
-            return all([f.done for f in self.job.futures])
-        else:
-            return all([f.ready or f.done for f in self.job.futures])
+        return all([f._call_status_ready for f in self.job.futures])
 
-    def any_done(self):
-        """
-        Checks if all futures are ready or done
-        """
-        if self.download_results:
-            return any([f.done for f in self.job.futures])
-        else:
-            return any([f.ready or f.done for f in self.job.futures])
-
-    def _process_callids_running(self, callids_running):
+    def _timeout_checker(self, callids_running):
         """
         Mark all futures in callids_running as running
         """
         pass
 
-    def _process_callids_done(self, callids_done):
+    def _mark_status_as_ready(self, callids_done):
         """
-        Download status from all callids_done
+        Mark which call_status are ready in the futures
         """
-        if self.download_results:
-            not_done_futures = [f for f in self.job.futures if not f.done]
-        else:
-            not_done_futures = [f for f in self.job.futures if not (f.ready or f.done)]
+        not_ready_futures = [f for f in self.job.futures if not f._call_status_ready]
+        for f in not_ready_futures:
+            for call_data in callids_done:
+                if (f.executor_id, f.job_id, f.call_id) == call_data:
+                    f._call_status_ready = True
 
-        not_done_call_ids = set([(f.executor_id, f.job_id, f.call_id) for f in not_done_futures])
-        done_call_ids = not_done_call_ids.intersection(callids_done)
+    def _generate_tokens(self, callids_running, callids_done):
+        """
+        Method that generates new tokens
+        """
+        if not self.generate_tokens:
+            return
 
-        fs_to_wait_on = []
-        for f in self.job.futures:
-            if (f.executor_id, f.job_id, f.call_id) in done_call_ids:
-                fs_to_wait_on.append(f)
+        self.callids_running_to_process = callids_running - self.callids_running_processed
+        callids_done_to_process = callids_done - self.callids_done_processed
 
-        def get_result(f):
-            if f.running:
-                f._call_status = None
-            f.result(throw_except=self.throw_except, internal_storage=self.internal_storage)
+        for call_id, worker_id in self.callids_running_to_process:
+            if worker_id not in self.workers:
+                self.workers[worker_id] = set()
+            self.workers[worker_id].add(call_id)
+            self.callids_running_worker[call_id] = worker_id
 
-        def get_status(f):
-            if f.running:
-                f._call_status = None
-            f.status(throw_except=self.throw_except, internal_storage=self.internal_storage)
+        for callid_done in callids_done_to_process:
+            if callid_done in self.callids_running_worker:
+                worker_id = self.callids_running_worker[callid_done]
+                if worker_id not in self.callids_done_worker:
+                    self.callids_done_worker[worker_id] = []
+                self.callids_done_worker[worker_id].append(callid_done)
 
-        if self.download_results:
-            list(self.pool.map(get_result, fs_to_wait_on))
-        else:
-            list(self.pool.map(get_status, fs_to_wait_on))
+        for worker_id in self.callids_done_worker:
+            if worker_id not in self.workers_done and \
+               len(self.callids_done_worker[worker_id]) == self.job.chunksize:
+                self.workers_done.append(worker_id)
+                if self.should_run:
+                    self.token_bucket_q.put('#')
+                else:
+                    break
 
-        if self.pbar:
-            for f in fs_to_wait_on:
-                if (self.download_results and f.done) or \
-                   (not self.download_results and (f.ready or f.done)):
-                    self.pbar.update(1)
-            self.pbar.refresh()
-
-        # Check for new futures
-        new_futures = [f.result() for f in fs_to_wait_on if f.futures]
-        for futures in new_futures:
-            self.job.futures.extend(futures)
-            if self.pbar:
-                self.pbar.total = self.pbar.total + len(futures)
-                self.pbar.refresh()
-
-        self.futures_ready.append(fs_to_wait_on)
+        self.callids_done_processed.update(callids_done_to_process)
 
     def run(self):
-        workers = {}
-        workers_done = []
-        callids_done_worker = {}
-        callids_running_worker = {}
-        callids_running_processed = set()
-        callids_done_processed = set()
-
-        while self.should_run and len(callids_done_processed) < self.job.total_calls:
-            time.sleep(self.wait_dur_sec)
+        """
+        Run method
+        """
+        while self.should_run and not self._all_ready():
+            time.sleep(self.WAIT_DUR_SEC)
             if not self.should_run:
                 break
-            callids_running, callids_done = self.internal_storage.get_job_status(self.job.executor_id,
-                                                                                 self.job.job_id)
-
-            callids_running_to_process = callids_running - callids_running_processed
-            callids_done_to_process = callids_done - callids_done_processed
-
-            for call_id, worker_id in callids_running_to_process:
-                if worker_id not in workers:
-                    workers[worker_id] = set()
-                workers[worker_id].add(call_id)
-                callids_running_worker[call_id] = worker_id
-
-            for callid_done in callids_done_to_process:
-                if callid_done in callids_running_worker:
-                    worker_id = callids_running_worker[callid_done]
-                    if worker_id not in callids_done_worker:
-                        callids_done_worker[worker_id] = []
-                    callids_done_worker[worker_id].append(callid_done)
-
-            for worker_id in callids_done_worker:
-                if worker_id not in workers_done and \
-                   len(callids_done_worker[worker_id]) == self.job.chunksize:
-                    workers_done.append(worker_id)
-                    if self.should_run:
-                        self.token_bucket_q.put('#')
-                    else:
-                        break
-
-            callids_done_processed.update(callids_done_to_process)
-
-            self._process_callids_running(callids_running)
-            self._process_callids_done(callids_done)
+            callids_running, callids_done = \
+                self.internal_storage.get_job_status(self.job.executor_id, self.job.job_id)
+            self._generate_tokens(callids_running, callids_done)
+            self._mark_status_as_ready(callids_done)
+            self._timeout_checker(callids_running)
 
         logger.debug('ExecutorID {} | JobID {} - Storage job monitor finished'
                      .format(self.job.executor_id, self.job.job_id))
@@ -266,13 +212,8 @@ class StorageMonitor(threading.Thread):
 
 class JobMonitor:
 
-    def __init__(self, lithops_config, internal_storage):
-        self.lithops_config = lithops_config
-        self.internal_storage = internal_storage
+    def __init__(self):
         self.monitors = {}
-
-        self.backend = self.lithops_config['lithops'].get('monitoring', 'Storage')
-
         self.use_threads = (is_lithops_worker()
                             or not is_unix_system()
                             or mp.get_start_method() != 'fork')
@@ -295,11 +236,15 @@ class JobMonitor:
                 active_jobs += 1
         return active_jobs
 
-    def start_job_monitoring(self, job):
+    def start_job_monitoring(self, job, internal_storage, generate_tokens=False):
+        """
+        Starts a monitor for a given job
+        """
         logger.debug('ExecutorID {} | JobID {} - Starting {} job monitor'
-                     .format(job.executor_id, job.job_id, self.backend))
-        Monitor = getattr(lithops.monitor, '{}Monitor'.format(self.backend))
-        jm = Monitor(self.lithops_config, self.internal_storage,
-                     self.token_bucket_q, job)
+                     .format(job.executor_id, job.job_id, job.monitoring))
+        Monitor = getattr(lithops.monitor, '{}Monitor'.format(job.monitoring))
+        jm = Monitor(job=job, internal_storage=internal_storage,
+                     token_bucket_q=self.token_bucket_q,
+                     generate_tokens=generate_tokens)
         jm.start()
         self.monitors[job.job_key] = jm

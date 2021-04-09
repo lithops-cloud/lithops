@@ -107,8 +107,6 @@ class FunctionExecutor:
         self.internal_storage = InternalStorage(storage_config)
         self.storage = self.internal_storage.storage
 
-        self.job_monitor = JobMonitor(self.config, self.internal_storage)
-
         self.futures = []
         self.cleaned_jobs = set()
         self.total_jobs = 0
@@ -124,6 +122,7 @@ class FunctionExecutor:
             standalone_config = extract_standalone_config(self.config)
             self.compute_handler = StandaloneHandler(standalone_config)
 
+        self.job_monitor = JobMonitor()
         self.invoker = create_invoker(self.config,
                                       self.executor_id,
                                       self.internal_storage,
@@ -183,7 +182,6 @@ class FunctionExecutor:
                              execution_timeout=timeout)
 
         futures = self.invoker.run_job(job)
-        self.job_monitor.start_job_monitoring(job)
         self.futures.extend(futures)
 
         return futures[0]
@@ -243,7 +241,6 @@ class FunctionExecutor:
                              invoke_pool_threads=invoke_pool_threads)
 
         futures = self.invoker.run_job(job)
-        self.job_monitor.start_job_monitoring(job)
         self.futures.extend(futures)
 
         return futures
@@ -307,11 +304,10 @@ class FunctionExecutor:
                                  invoke_pool_threads=invoke_pool_threads)
 
         map_futures = self.invoker.run_job(map_job)
-        self.job_monitor.start_job_monitoring(map_job)
         self.futures.extend(map_futures)
 
         if reducer_wait_local:
-            self.wait(fs=map_futures)
+            wait(fs=map_futures, internal_storage=self.internal_storage, job_monitor=self.job_monitor)
 
         reduce_job_id = map_job_id.replace('M', 'R')
 
@@ -328,7 +324,6 @@ class FunctionExecutor:
                                        exclude_modules=exclude_modules)
 
         reduce_futures = self.invoker.run_job(reduce_job)
-        self.job_monitor.start_job_monitoring(reduce_job)
         self.futures.extend(reduce_futures)
 
         for f in map_futures:
