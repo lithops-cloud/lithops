@@ -29,7 +29,7 @@ from pydoc import locate
 from distutils.util import strtobool
 
 from lithops.storage import Storage
-from lithops.wait.storage import wait_storage
+from lithops.wait_old.storage import wait_storage
 from lithops.future import ResponseFuture
 from lithops.utils import sizeof_fmt, is_object_processing_function
 from lithops.utils import WrappedStreamingBodyPartition

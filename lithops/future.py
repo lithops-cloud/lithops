@@ -53,6 +53,7 @@ class ResponseFuture:
     def __init__(self, call_id, job, job_metadata, storage_config):
         self.call_id = call_id
         self.job_id = job.job_id
+        self.job_key = job.job_key
         self.executor_id = job.executor_id
         self.function_name = job.function_name
         self.execution_timeout = job.execution_timeout

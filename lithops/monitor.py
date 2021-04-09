@@ -1,3 +1,19 @@
+#
+# Copyright Cloudlab URV 2021
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 import json
 import pika
 import logging
@@ -6,6 +22,7 @@ import lithops
 import queue
 import threading
 import multiprocessing as mp
+import concurrent.futures as cf
 
 from lithops.utils import is_lithops_worker, is_unix_system
 
@@ -101,9 +118,102 @@ class StorageMonitor(threading.Thread):
         self.token_bucket_q = token_bucket_q
         self.job = job
         self.daemon = not is_lithops_worker()
+        self.futures_ready = []
+
+        self.pbar = None
+        self.throw_except = False
+        self.download_results = False
+        self.wait_dur_sec = 2
+        self.threadpool_size = 128
+        self.pool = cf.ThreadPoolExecutor(max_workers=self.threadpool_size)
 
     def stop(self):
+        self.pool.shutdown()
         self.should_run = False
+
+    def update_params(self, pbar, throw_except, download_results,
+                      wait_dur_sec, threadpool_size):
+        """
+        Method used to update the waiting parameters
+        """
+        self.pbar = pbar
+        self.throw_except = throw_except
+        self.download_results = download_results
+        self.wait_dur_sec = wait_dur_sec
+        self.threadpool_size = threadpool_size
+
+    def all_done(self):
+        """
+        Checks if all futures are ready or done
+        """
+        if self.download_results:
+            return all([f.done for f in self.job.futures])
+        else:
+            return all([f.ready or f.done for f in self.job.futures])
+
+    def any_done(self):
+        """
+        Checks if all futures are ready or done
+        """
+        if self.download_results:
+            return any([f.done for f in self.job.futures])
+        else:
+            return any([f.ready or f.done for f in self.job.futures])
+
+    def _process_callids_running(self, callids_running):
+        """
+        Mark all futures in callids_running as running
+        """
+        pass
+
+    def _process_callids_done(self, callids_done):
+        """
+        Download status from all callids_done
+        """
+        if self.download_results:
+            not_done_futures = [f for f in self.job.futures if not f.done]
+        else:
+            not_done_futures = [f for f in self.job.futures if not (f.ready or f.done)]
+
+        not_done_call_ids = set([(f.executor_id, f.job_id, f.call_id) for f in not_done_futures])
+        done_call_ids = not_done_call_ids.intersection(callids_done)
+
+        fs_to_wait_on = []
+        for f in self.job.futures:
+            if (f.executor_id, f.job_id, f.call_id) in done_call_ids:
+                fs_to_wait_on.append(f)
+
+        def get_result(f):
+            if f.running:
+                f._call_status = None
+            f.result(throw_except=self.throw_except, internal_storage=self.internal_storage)
+
+        def get_status(f):
+            if f.running:
+                f._call_status = None
+            f.status(throw_except=self.throw_except, internal_storage=self.internal_storage)
+
+        if self.download_results:
+            list(self.pool.map(get_result, fs_to_wait_on))
+        else:
+            list(self.pool.map(get_status, fs_to_wait_on))
+
+        if self.pbar:
+            for f in fs_to_wait_on:
+                if (self.download_results and f.done) or \
+                   (not self.download_results and (f.ready or f.done)):
+                    self.pbar.update(1)
+            self.pbar.refresh()
+
+        # Check for new futures
+        new_futures = [f.result() for f in fs_to_wait_on if f.futures]
+        for futures in new_futures:
+            self.job.futures.extend(futures)
+            if self.pbar:
+                self.pbar.total = self.pbar.total + len(futures)
+                self.pbar.refresh()
+
+        self.futures_ready.append(fs_to_wait_on)
 
     def run(self):
         workers = {}
@@ -114,7 +224,7 @@ class StorageMonitor(threading.Thread):
         callids_done_processed = set()
 
         while self.should_run and len(callids_done_processed) < self.job.total_calls:
-            time.sleep(2)
+            time.sleep(self.wait_dur_sec)
             if not self.should_run:
                 break
             callids_running, callids_done = self.internal_storage.get_job_status(self.job.executor_id,
@@ -146,6 +256,9 @@ class StorageMonitor(threading.Thread):
                         break
 
             callids_done_processed.update(callids_done_to_process)
+
+            self._process_callids_running(callids_running)
+            self._process_callids_done(callids_done)
 
         logger.debug('ExecutorID {} | JobID {} - Storage job monitor finished'
                      .format(self.job.executor_id, self.job.job_id))

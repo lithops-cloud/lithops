@@ -1,19 +1,35 @@
+#
+# Copyright Cloudlab URV 2021
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 import signal
 import logging
+import time
 from functools import partial
 from lithops.utils import is_unix_system, timeout_handler, is_notebook, is_lithops_worker
 from lithops.storage import InternalStorage
 
-from .storage import wait_storage
-from .utils import ALL_COMPLETED
-
+ALL_COMPLETED = 1
+ANY_COMPLETED = 2
 
 logger = logging.getLogger(__name__)
 
 
-def wait(fs, internal_storage=None, job_monitor=None, throw_except=True,
+def wait(fs, internal_storage=None, throw_except=True, timeout=None,
          return_when=ALL_COMPLETED, download_results=False,
-         timeout=None, THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
+         THREADPOOL_SIZE=128, WAIT_DUR_SEC=2, job_monitor=None):
     """
     Wait for the Future instances (possibly created by different Executor instances)
     given by fs to complete. Returns a named 2-tuple of sets. The first set, named done,
@@ -53,13 +69,13 @@ def wait(fs, internal_storage=None, job_monitor=None, throw_except=True,
     else:
         msg = 'ExecutorID {} - Waiting for functions to complete'.format(fs[0].executor_id)
         fs_done = [f for f in fs if f.ready or f.done]
-        fs_not_done = [f for f in fs if not f.done]
+        fs_not_done = [f for f in fs if not (f.ready or f.done)]
         # fs_not_ready = [f for f in futures if not f.ready and not f.done]
+
+    logger.info(msg)
 
     if not fs_not_done:
         return fs_done, fs_not_done
-
-    logger.info(msg)
 
     if is_unix_system() and timeout is not None:
         logger.debug('Setting waiting timeout to {} seconds'.format(timeout))
@@ -74,15 +90,23 @@ def wait(fs, internal_storage=None, job_monitor=None, throw_except=True,
         if not is_notebook():
             print()
         pbar = tqdm(bar_format='  {l_bar}{bar}| {n_fmt}/{total_fmt}  ',
-                    total=len(fs_not_done), disable=None)
+                    total=len(fs), disable=None)
+        pbar.update(len(fs_done))
 
     try:
-        wait_storage(fs, internal_storage,
-                     download_results=download_results,
-                     throw_except=throw_except,
-                     return_when=return_when, pbar=pbar,
-                     THREADPOOL_SIZE=THREADPOOL_SIZE,
-                     WAIT_DUR_SEC=WAIT_DUR_SEC)
+        present_jobs = {f.job_key for f in fs_not_done}
+
+        for job_key in present_jobs:
+            monitor = job_monitor.monitors[job_key]
+            monitor.update_params(pbar, throw_except, download_results,
+                                  WAIT_DUR_SEC, THREADPOOL_SIZE)
+
+            if return_when == ALL_COMPLETED:
+                while not job_monitor.monitors[job_key].all_done():
+                    time.sleep(1)
+            elif return_when == ANY_COMPLETED:
+                while not job_monitor.monitors[job_key].any_done():
+                    time.sleep(1)
 
     except KeyboardInterrupt as e:
         if download_results:

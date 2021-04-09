@@ -27,10 +27,15 @@ from tblib import pickling_support
 
 from lithops.storage.utils import create_status_key
 from lithops.constants import JOBS_PREFIX
-from lithops.wait.utils import ALL_COMPLETED, ANY_COMPLETED, ALWAYS
 
 pickling_support.install()
 logger = logging.getLogger(__name__)
+
+
+
+ALL_COMPLETED = 1
+ANY_COMPLETED = 2
+ALWAYS = 3
 
 
 def wait_storage(fs, internal_storage, download_results=False,
