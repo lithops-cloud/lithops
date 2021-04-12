@@ -28,7 +28,8 @@ from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config
 from lithops.version import __version__ as lithops_version
 from lithops.utils import version_str, is_lithops_worker, iterchunks
-from lithops.constants import LOGGER_LEVEL, LITHOPS_TEMP_DIR, LOGS_DIR, SERVERLESS
+from lithops.constants import LOGGER_LEVEL, LITHOPS_TEMP_DIR, LOGS_DIR, SERVERLESS,\
+    STANDALONE, LOCALHOST
 from lithops.util.metrics import PrometheusExporter
 
 logger = logging.getLogger(__name__)
@@ -88,6 +89,9 @@ class Invoker:
         runtime_memory = runtime_memory or self.config[self.mode].get('runtime_memory')
         runtime_timeout = self.config[self.mode].get('runtime_timeout')
 
+        if self.mode == STANDALONE or self.mode == LOCALHOST:
+            runtime_memory = None
+
         msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} '
                .format(self.executor_id, job_id, self.runtime_name))
         msg = msg+'- {}MB'.format(runtime_memory) if runtime_memory else msg
@@ -98,7 +102,7 @@ class Invoker:
 
         if not runtime_meta:
             msg = 'Runtime {}'.format(self.runtime_name)
-            msg = msg+' with {}MB' if runtime_memory else msg
+            msg = msg+' with {}MB'.format(runtime_memory) if runtime_memory else msg
             logger.info(msg+' is not yet installed')
             runtime_meta = self.compute_handler.create_runtime(self.runtime_name, runtime_memory, runtime_timeout)
             runtime_meta['runtime_timeout'] = runtime_timeout
