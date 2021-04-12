@@ -379,8 +379,8 @@ class FunctionExecutor:
             raise e
 
         finally:
-            self.job_monitor.stop()
             self.invoker.stop()
+            self.job_monitor.stop()
             if self.data_cleaner and not self.is_lithops_worker:
                 self.clean(clean_cloudobjects=False)
             if not fs and error and is_notebook():

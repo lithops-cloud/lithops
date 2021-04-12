@@ -21,15 +21,13 @@ import time
 import random
 import queue
 import logging
-import multiprocessing as mp
-from threading import Thread
-from types import SimpleNamespace
+import threading
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config
 from lithops.version import __version__ as lithops_version
-from lithops.utils import version_str, is_lithops_worker, is_unix_system, iterchunks
+from lithops.utils import version_str, is_lithops_worker, iterchunks
 from lithops.constants import LOGGER_LEVEL, LITHOPS_TEMP_DIR, LOGS_DIR, SERVERLESS
 from lithops.util.metrics import PrometheusExporter
 
@@ -228,10 +226,12 @@ class BatchInvoker(Invoker):
         """
         Run a job
         """
-        futures = Invoker.run_job(self, job)
         monitoring_config = self.config.get(job.monitoring.lower())
-        self.job_monitor.start_job_monitoring(job, self.internal_storage,
-                                              config=monitoring_config)
+        mon = self.job_monitor.create(job, self.internal_storage,
+                                      config=monitoring_config)
+        futures = Invoker.run_job(self, job)
+        mon.start()
+
         return futures
 
 
@@ -241,66 +241,77 @@ class FaaSInvoker(Invoker):
     """
 
     REMOTE_INVOKER_MEMORY = 2048
-    INVOKER_PROCESSES = 2
+    ASYNC_INVOKERS = 2
 
     def __init__(self, config, executor_id, internal_storage, compute_handler, job_monitor):
         super().__init__(config, executor_id, internal_storage, compute_handler, job_monitor)
 
         self.remote_invoker = self.config['serverless'].get('remote_invoker', False)
-        self.use_threads = (self.is_lithops_worker
-                            or not is_unix_system()
-                            or mp.get_start_method() != 'fork')
+
         self.invokers = []
         self.ongoing_activations = 0
-
-        if self.use_threads:
-            self.pending_calls_q = queue.Queue()
-            self.running_flag = SimpleNamespace(value=0)
-            self.INVOKER = Thread
-        else:
-            self.pending_calls_q = mp.Queue()
-            self.running_flag = mp.Value('i', 0)
-            self.INVOKER = mp.Process
-
-        self.token_bucket_q = self.job_monitor.token_bucket_q
+        self.pending_calls_q = queue.Queue()
+        self.should_run = False
 
         logger.debug('ExecutorID {} - Serverless invoker created'.format(self.executor_id))
 
-    def _start_invoker_process(self):
+    def _start_async_invokers(self):
         """Starts the invoker process responsible to spawn pending calls
         in background.
         """
 
         def invoker_process(inv_id):
             """Run process that implements token bucket scheduling approach"""
-            logger.debug('ExecutorID {} - Invoker process {} started'
+            logger.debug('ExecutorID {} - Async invoker {} started'
                          .format(self.executor_id, inv_id))
 
             with ThreadPoolExecutor(max_workers=250) as executor:
-                while True:
+                while self.should_run:
                     try:
-                        self.token_bucket_q.get()
+                        self.job_monitor.token_bucket_q.get()
                         job, call_id = self.pending_calls_q.get()
                     except KeyboardInterrupt:
                         break
-                    if self.running_flag.value:
+                    if self.should_run:
                         executor.submit(self._invoke_task, job, call_id)
                     else:
                         break
 
-            logger.debug('ExecutorID {} - Invoker process {} finished'
+            logger.debug('ExecutorID {} - Async invoker {} finished'
                          .format(self.executor_id, inv_id))
 
-        for inv_id in range(self.INVOKER_PROCESSES):
-            p = self.INVOKER(target=invoker_process, args=(inv_id,))
+        for inv_id in range(self.ASYNC_INVOKERS):
+            p = threading.Thread(target=invoker_process, args=(inv_id,))
             self.invokers.append(p)
             p.daemon = True
             p.start()
+
+    def stop(self):
+        """
+        Stop async invokers
+        """
+        if self.invokers:
+            logger.debug('ExecutorID {} - Stopping async invokers'
+                         .format(self.executor_id))
+            self.should_run = False
+
+            while not self.pending_calls_q.empty():
+                try:
+                    self.pending_calls_q.get(False)
+                except Exception:
+                    pass
+
+            for invoker in self.invokers:
+                self.job_monitor.token_bucket_q.put('$')
+                self.pending_calls_q.put((None, None))
+
+            self.invokers = []
 
     def _invoke_task(self, job, call_ids_range):
         """Method used to perform the actual invocation against the
         compute backend.
         """
+        time.sleep(3)
         # prepare payload
         call_ids = ["{:05d}".format(i) for i in call_ids_range]
         data_byte_ranges = [job.data_byte_ranges[int(call_id)] for call_id in call_ids]
@@ -330,10 +341,10 @@ class FaaSInvoker(Invoker):
         Normal Invocation
         Use local threads to perform all the function invocations
         """
-        if self.running_flag.value == 0:
+        if self.should_run is False:
             self.running_workers = 0
-            self.running_flag.value = 1
-            self._start_invoker_process()
+            self.should_run = True
+            self._start_async_invokers()
 
         if self.running_workers < self.workers:
             free_workers = self.workers - self.running_workers
@@ -376,36 +387,17 @@ class FaaSInvoker(Invoker):
             for call_ids_range in iterchunks(job.total_calls, job.chunksize):
                 self.pending_calls_q.put((job, call_ids_range))
 
-    def stop(self):
-        """
-        Stop the invoker process
-        """
-        if self.invokers:
-            logger.debug('ExecutorID {} - Stopping invoker'
-                         .format(self.executor_id))
-            self.running_flag.value = 0
-
-            for invoker in self.invokers:
-                self.token_bucket_q.put('#')
-                self.pending_calls_q.put((None, None))
-
-            while not self.pending_calls_q.empty():
-                try:
-                    self.pending_calls_q.get(False)
-                except Exception:
-                    pass
-            self.invokers = []
-
     def run_job(self, job):
         """
         Run a job
         """
-        futures = Invoker.run_job(self, job)
-
         monitoring_config = self.config.get(job.monitoring.lower())
-        self.job_monitor.start_job_monitoring(job, self.internal_storage,
-                                              generate_tokens=True,
-                                              config=monitoring_config)
+        mon = self.job_monitor.create(job, self.internal_storage,
+                                      generate_tokens=True,
+                                      config=monitoring_config)
+        futures = Invoker.run_job(self, job)
+        mon.start()
+
         return futures
 
 

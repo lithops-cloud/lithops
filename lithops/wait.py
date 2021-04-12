@@ -26,6 +26,7 @@ from types import SimpleNamespace
 
 ALL_COMPLETED = 1
 ANY_COMPLETED = 2
+ALWAYS = 3
 
 logger = logging.getLogger(__name__)
 
@@ -98,25 +99,35 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
         if not job_monitor:
             job_monitor = JobMonitor()
             for job_data in jobs:
-                job_monitor.start_job_monitoring(**job_data)
+                job_monitor.create(**job_data).start()
 
         if return_when == ALL_COMPLETED:
             while not _all_done(fs, download_results):
                 for job_data in jobs:
-                    _check_job_ststus(job_data, pbar=pbar,
-                                      throw_except=throw_except,
-                                      download_results=download_results,
-                                      threadpool_size=THREADPOOL_SIZE)
-                    time.sleep(WAIT_DUR_SEC)
+                    _get_job_data(fs, job_data, pbar=pbar,
+                                  throw_except=throw_except,
+                                  download_results=download_results,
+                                  threadpool_size=THREADPOOL_SIZE,
+                                  job_monitor=job_monitor)
+                time.sleep(WAIT_DUR_SEC)
 
         elif return_when == ANY_COMPLETED:
             while not _any_done(fs, download_results):
                 for job_data in jobs:
-                    _check_job_ststus(job_data, pbar=pbar,
-                                      throw_except=throw_except,
-                                      download_results=download_results,
-                                      threadpool_size=THREADPOOL_SIZE)
-                    time.sleep(WAIT_DUR_SEC)
+                    _get_job_data(fs, job_data, pbar=pbar,
+                                  throw_except=throw_except,
+                                  download_results=download_results,
+                                  threadpool_size=THREADPOOL_SIZE,
+                                  job_monitor=job_monitor)
+                time.sleep(WAIT_DUR_SEC)
+
+        elif return_when == ALWAYS:
+            for job_data in jobs:
+                _get_job_data(fs, job_data, pbar=pbar,
+                              throw_except=throw_except,
+                              download_results=download_results,
+                              threadpool_size=THREADPOOL_SIZE,
+                              job_monitor=job_monitor)
 
     except KeyboardInterrupt as e:
         if download_results:
@@ -231,7 +242,7 @@ def _any_done(fs, download_results):
         return any([f.ready or f.done for f in fs])
 
 
-def _check_job_ststus(job_data, download_results, throw_except, threadpool_size, pbar):
+def _get_job_data(fs, job_data, download_results, throw_except, threadpool_size, pbar, job_monitor):
     """
     Downloads all status/results from ready futures
     """
@@ -276,8 +287,13 @@ def _check_job_ststus(job_data, download_results, throw_except, threadpool_size,
 
     # Check for new futures
     new_futures = [f.result() for f in fs_to_wait_on if f.futures]
-    for futures in new_futures:
-        job.futures.extend(futures)
-        if pbar:
-            pbar.total = pbar.total + len(futures)
-            pbar.refresh()
+    if new_futures:
+        for futures in new_futures:
+            job.futures.extend(futures)
+            fs.extend(futures)
+            if pbar:
+                pbar.total = pbar.total + len(futures)
+                pbar.refresh()
+        if not job_monitor.is_alive(job.job_key):
+            # this is only for storage monitor
+            job_monitor.create(**job_data).start()

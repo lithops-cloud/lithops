@@ -307,8 +307,6 @@ class ResponseFuture:
             self._output_query_count += 1
 
         if call_output is None:
-            print(self._call_status)
-            print(self._call_status_ready)
             if throw_except:
                 raise Exception('Unable to get the result from call {} - '
                                 'Activation ID: {}'.format(self.call_id, self.activation_id))
