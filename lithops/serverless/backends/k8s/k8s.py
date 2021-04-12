@@ -215,6 +215,7 @@ class KubernetesBackend:
                                                      propagation_policy='Background')
             except Exception:
                 pass
+        self.jobs = []
 
     def list_runtimes(self, docker_image_name='all'):
         """

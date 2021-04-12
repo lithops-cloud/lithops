@@ -204,8 +204,8 @@ class CodeEngineBackend:
                 body=client.V1DeleteOptions(),
             )
         except ApiException as e:
-            logger.warning("Deleting a jobrun failed with {} {}"
-                           .format(e.status, e.reason))
+            logger.debug("Deleting a jobrun failed with {} {}"
+                         .format(e.status, e.reason))
 
     def _job_def_cleanup(self, jobdef_id):
         logger.info("Deleting runtime: {}".format(jobdef_id))
@@ -219,8 +219,8 @@ class CodeEngineBackend:
                 body=client.V1DeleteOptions(),
             )
         except ApiException as e:
-            logger.warning("Deleting a jobdef failed with {} {}"
-                           .format(e.status, e.reason))
+            logger.debug("Deleting a jobdef failed with {} {}"
+                         .format(e.status, e.reason))
 
     def clean(self):
         """
@@ -282,6 +282,7 @@ class CodeEngineBackend:
                 self._delete_config_map(jobrun_name)
             except Exception as e:
                 logger.debug("Deleting a jobrun failed with: {}".format(e))
+        self.jobs = []
 
     def invoke(self, docker_image_name, runtime_memory, job_payload):
         """
@@ -506,17 +507,21 @@ class CodeEngineBackend:
         field_manager = 'lithops'
 
         try:
-            logger.debug("Generate ConfigMap {} for namespace {}".format(config_name, self.namespace))
+            logger.debug("Generate ConfigMap {} for namespace {}"
+                         .format(config_name, self.namespace))
             self.coreV1Api.create_namespaced_config_map(namespace=self.namespace,
                                                         body=cmap,
                                                         field_manager=field_manager)
-            logger.debug("ConfigMap {} for namespace {} created".format(config_name, self.namespace))
+            logger.debug("ConfigMap {} for namespace {} created"
+                         .format(config_name, self.namespace))
         except ApiException as e:
             if (e.status != 409):
-                logger.warning("Exception when calling CoreV1Api->create_namespaced_config_map: %s\n" % e)
+                logger.debug("Creating a configmap failed with {} {}"
+                             .format(e.status, e.reason))
                 raise Exception('Failed to create ConfigMap')
             else:
-                logger.debug("ConfigMap {} for namespace {} already exists".format(config_name, self.namespace))
+                logger.debug("ConfigMap {} for namespace {} already exists"
+                             .format(config_name, self.namespace))
 
         return config_name
 
@@ -527,9 +532,11 @@ class CodeEngineBackend:
         config_name = '{}-configmap'.format(jobrun_name)
         grace_period_seconds = 0
         try:
-            logger.debug("Deleting ConfigMap {} for namespace {}".format(config_name, self.namespace))
-            api_response = self.coreV1Api.delete_namespaced_config_map(name=config_name,
-                                                                       namespace=self.namespace,
-                                                                       grace_period_seconds=grace_period_seconds)
+            logger.debug("Deleting ConfigMap {} for namespace {}"
+                         .format(config_name, self.namespace))
+            self.coreV1Api.delete_namespaced_config_map(name=config_name,
+                                                        namespace=self.namespace,
+                                                        grace_period_seconds=grace_period_seconds)
         except ApiException as e:
-            logger.warning("Exception when calling CoreV1Api->delete_namespaced_config_map: %s\n" % e)
+            logger.debug("Deleting a configmap failed with {} {}"
+                         .format(e.status, e.reason))

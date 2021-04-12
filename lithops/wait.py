@@ -206,6 +206,7 @@ def _create_jobs_from_futures(fs, internal_storage):
         job = SimpleNamespace()
         job.monitoring = 'Storage'
         job.futures = [f for f in fs if f.job_key == job_key]
+        job.total_calls = len(job.futures)
         f = job.futures[0]
         job.executor_id = f.executor_id
         job.job_id = f.job_id

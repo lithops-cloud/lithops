@@ -42,7 +42,6 @@ class Monitor(threading.Thread):
         self.generate_tokens = generate_tokens
         self.config = config
         self.daemon = not is_lithops_worker()
-        self.total_calls = 0
 
         # vars for _mark_status_as_running
         self.running_futures = set()
@@ -166,7 +165,6 @@ class RabbitmqMonitor(Monitor):
     def run(self):
         logger.debug('ExecutorID {} | JobID {} - Starting RabbitMQ job monitor'
                      .format(self.job.executor_id, self.job.job_id))
-        self.total_calls = self.job.total_calls
         total_callids_done = 0
         channel = self.connection.channel()
 
@@ -297,7 +295,6 @@ class StorageMonitor(Monitor):
         """
         Run method
         """
-        self.total_calls = self.job.total_calls
         logger.debug('ExecutorID {} | JobID {} - Starting Storage job monitor'
                      .format(self.job.executor_id, self.job.job_id))
 
