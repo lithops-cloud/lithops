@@ -315,7 +315,6 @@ class FaaSInvoker(Invoker):
         """Method used to perform the actual invocation against the
         compute backend.
         """
-        time.sleep(3)
         # prepare payload
         call_ids = ["{:05d}".format(i) for i in call_ids_range]
         data_byte_ranges = [job.data_byte_ranges[int(call_id)] for call_id in call_ids]
