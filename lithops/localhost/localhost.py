@@ -40,7 +40,7 @@ class LocalhostHandler:
     """
 
     def __init__(self, localhost_config):
-        logger.info('Creating Localhost compute client')
+        logger.debug('Creating Localhost compute client')
         self.config = localhost_config
         self.runtime = self.config['runtime']
 
@@ -130,7 +130,7 @@ class LocalhostHandler:
 
 class DockerEnv:
     def __init__(self, docker_image, pull_runtime):
-        logger.info('Setting DockerEnv for {}'.format(docker_image, pull_runtime))
+        logger.debug('Setting DockerEnv for {}'.format(docker_image, pull_runtime))
         self.runtime = docker_image
         self.pull_runtime = pull_runtime
 
@@ -144,7 +144,7 @@ class DockerEnv:
         src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'runner.py')
         copyfile(src_handler, RUNNER)
         if self.pull_runtime:
-            logger.info('Pulling Docker runtime {}'.format(self.runtime))
+            logger.debug('Pulling Docker runtime {}'.format(self.runtime))
             sp.run('docker pull {}'.format(self.runtime), shell=True, check=True,
                    stdout=sp.PIPE, universal_newlines=True)
 
@@ -161,7 +161,7 @@ class DockerEnv:
 class DefaultEnv:
     def __init__(self):
         self.runtime = sys.executable
-        logger.info('Setting DefaultEnv for {}'.format(self.runtime))
+        logger.debug('Setting DefaultEnv for {}'.format(self.runtime))
 
     def setup(self, runtime):
         os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
