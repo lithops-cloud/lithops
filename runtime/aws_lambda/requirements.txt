@@ -3,7 +3,7 @@ kafka-python
 requests
 Pillow
 redis
-pika==0.13.1
+pika
 cloudpickle
 ps-mem
 tblib

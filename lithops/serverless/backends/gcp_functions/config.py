@@ -48,7 +48,7 @@ DEFAULT_REQUIREMENTS = [
     'jmespath',
     'kafka-python',
     'lxml',
-    'pika==0.13.0',
+    'pika',
     'redis',
     'requests',
     'six',
