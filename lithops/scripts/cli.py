@@ -78,7 +78,7 @@ def clean(config, mode, backend, storage, debug):
         compute_handler = LocalhostHandler(compute_config)
     elif mode == SERVERLESS:
         compute_config = extract_serverless_config(config)
-        compute_handler = ServerlessHandler(compute_config, storage_config)
+        compute_handler = ServerlessHandler(compute_config, internal_storage)
     elif mode == STANDALONE:
         compute_config = extract_standalone_config(config)
         compute_handler = StandaloneHandler(compute_config)
@@ -347,7 +347,7 @@ def create(name, storage, backend, memory, timeout, config):
     internal_storage = InternalStorage(storage_config)
 
     compute_config = extract_serverless_config(config)
-    compute_handler = ServerlessHandler(compute_config, storage_config)
+    compute_handler = ServerlessHandler(compute_config, internal_storage)
     mem = memory if memory else compute_config['runtime_memory']
     to = timeout if timeout else compute_config['runtime_timeout']
     runtime_key = compute_handler.get_runtime_key(name, mem)
@@ -383,8 +383,10 @@ def build(name, file, config, backend):
         name = config[mode]['runtime']
 
     storage_config = extract_storage_config(config)
+    internal_storage = InternalStorage(storage_config)
+
     compute_config = extract_serverless_config(config)
-    compute_handler = ServerlessHandler(compute_config, storage_config)
+    compute_handler = ServerlessHandler(compute_config, internal_storage)
     compute_handler.build_runtime(name, file)
 
 
@@ -416,7 +418,7 @@ def update(name, config, backend, storage):
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
     compute_config = extract_serverless_config(config)
-    compute_handler = ServerlessHandler(compute_config, storage_config)
+    compute_handler = ServerlessHandler(compute_config, internal_storage)
 
     timeout = compute_config['runtime_memory']
     logger.info('Updating runtime: {}'.format(name))
@@ -461,7 +463,7 @@ def delete(name, config, backend, storage):
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
     compute_config = extract_serverless_config(config)
-    compute_handler = ServerlessHandler(compute_config, storage_config)
+    compute_handler = ServerlessHandler(compute_config, internal_storage)
 
     runtimes = compute_handler.list_runtimes(name)
     for runtime in runtimes:
