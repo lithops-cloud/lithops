@@ -246,21 +246,7 @@ class ApplyResult(object):
         if self._callback is not None:
             self._callback(self._value)
 
-        if mp_config.get_parameter(mp_config.EXPORT_EXECUTION_DETAILS):
-            try:
-                path = os.path.realpath(mp_config.get_parameter(mp_config.EXPORT_EXECUTION_DETAILS))
-                job_id = self._futures[0].job_id
-                plots_file_name = '{}_{}'.format(self._executor.executor_id, job_id)
-                self._executor.plot(fs=self._futures, dst=os.path.join(path, plots_file_name))
-
-                stats = {fut.call_id: fut.stats for fut in self._futures}
-                stats_file_name = '{}_{}_stats.json'.format(self._executor.executor_id, job_id)
-                with open(os.path.join(path, stats_file_name), 'w') as stats_file:
-                    stats_json = json.dumps(stats, indent=4)
-                    stats_file.write(stats_json)
-            except Exception as e:
-                logger.error('Error while exporting execution results: {}\n{}'.format(e, traceback.format_exc()))
-
+        util.export_execution_details(self._futures, self._executor)
 
         return self._value
 

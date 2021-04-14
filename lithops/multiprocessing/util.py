@@ -8,7 +8,7 @@
 #
 # Modifications Copyright (c) 2020 Cloudlab URV
 #
-
+import traceback
 import weakref
 import redis
 import uuid
@@ -16,6 +16,8 @@ import logging
 import sys
 import threading
 import io
+import os
+import json
 from lithops.config import load_config
 
 from . import config as mp_config
@@ -51,22 +53,36 @@ def get_redis_client(**overwrites):
 
 
 #
-# Unique id for redis keys/hashes
+# Helper functions
 #
 
 def get_uuid(length=12):
     return uuid.uuid1().hex[:length]
 
 
-#
-# Make stateless redis Lua script (redis.client.Script)
-# Just to ensure no redis client is cache'd and avoid 
-# creating another connection when unpickling this object.
-#
-
 def make_stateless_script(script):
+    # Make stateless redis Lua script (redis.client.Script)
+    # Just to ensure no redis client is cache'd and avoid
+    # creating another connection when unpickling this object.
     script.registered_client = None
     return script
+
+
+def export_execution_details(futures, lithops_executor):
+    if mp_config.get_parameter(mp_config.EXPORT_EXECUTION_DETAILS):
+        try:
+            path = os.path.realpath(mp_config.get_parameter(mp_config.EXPORT_EXECUTION_DETAILS))
+            job_id = futures[0].job_id
+            plots_file_name = '{}_{}'.format(lithops_executor.executor_id, job_id)
+            lithops_executor.plot(fs=futures, dst=os.path.join(path, plots_file_name))
+
+            stats = {fut.call_id: fut.stats for fut in futures}
+            stats_file_name = '{}_{}_stats.json'.format(lithops_executor.executor_id, job_id)
+            with open(os.path.join(path, stats_file_name), 'w') as stats_file:
+                stats_json = json.dumps(stats, indent=4)
+                stats_file.write(stats_json)
+        except Exception as e:
+            logger.error('Error while exporting execution results: {}\n{}'.format(e, traceback.format_exc()))
 
 
 #
