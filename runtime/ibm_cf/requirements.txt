@@ -43,6 +43,6 @@ ibm-vpc
 psycopg2-binary
 #pymongo
 redis
-pika == 0.13.1
+pika
 #elasticsearch
 etcd3

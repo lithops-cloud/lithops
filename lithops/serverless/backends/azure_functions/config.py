@@ -120,7 +120,7 @@ REQUIREMENTS_FILE = """
 azure-functions
 azure-storage-blob
 azure-storage-queue
-pika==0.13.1
+pika
 flask
 gevent
 glob2
@@ -147,7 +147,7 @@ RUN pip install --upgrade setuptools six pip \
         azure-functions \
         azure-storage-blob \
         azure-storage-queue \
-        pika==0.13.1 \
+        pika \
         flask \
         gevent \
         glob2 \

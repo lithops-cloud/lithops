@@ -43,7 +43,7 @@ DEFAULT_REQUIREMENTS = [
     'Pillow',
     'pandas',
     'redis',
-    'pika==0.13.1',
+    'pika',
     'cloudpickle',
     'ps-mem',
     'tblib'
