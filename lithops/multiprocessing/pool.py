@@ -15,6 +15,8 @@
 import queue
 import itertools
 import logging
+import pickle
+import os
 
 from lithops import FunctionExecutor
 
@@ -242,6 +244,13 @@ class ApplyResult(object):
 
         if self._callback is not None:
             self._callback(self._value)
+
+        if mp_config.get_parameter(mp_config.EXPORT_EXECUTION_DETAILS):
+            path = mp_config.get_parameter(mp_config.EXPORT_EXECUTION_DETAILS)
+            self._executor.plot(fs=self._futures, dst=path)
+            with open(os.path.join(path, 'futures.pickle'), 'wb') as futures_file:
+                futures_bin = pickle.dumps(self._futures)
+                futures_file.write(futures_bin)
 
         return self._value
 
