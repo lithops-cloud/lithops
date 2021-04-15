@@ -46,7 +46,7 @@ RUN apt-get update && apt-get install -y \
 RUN pip install --upgrade setuptools six pip \
     && pip install --no-cache-dir \
         gunicorn \
-        pika==0.13.1 \
+        pika \
         flask \
         gevent \
         glob2 \

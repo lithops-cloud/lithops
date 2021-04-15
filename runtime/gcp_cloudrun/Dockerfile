@@ -18,7 +18,7 @@ RUN pip install --upgrade setuptools six pip \
     && pip install --no-cache-dir \
         wheel \
         gunicorn \
-        pika==0.13.1 \
+        pika \
         flask \
         gevent \
         glob2 \
