@@ -221,10 +221,12 @@ class TaskRunner:
                 logger.debug("Pickling result")
                 output_dict = {'result': result}
                 pickled_output = pickle.dumps(output_dict)
+                self.stats.write('worker_func_result_size', len(pickled_output))
 
             else:
                 logger.debug("No result to store")
                 self.stats.write("result", False)
+                self.stats.write('worker_func_result_size', 0)
 
             # self.stats.write('worker_jobrunner_end_tstamp', time.time())
 
