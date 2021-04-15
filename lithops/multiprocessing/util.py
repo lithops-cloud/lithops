@@ -18,6 +18,7 @@ import threading
 import io
 import os
 import json
+import socket
 from lithops.config import load_config
 
 from . import config as mp_config
@@ -83,6 +84,13 @@ def export_execution_details(futures, lithops_executor):
                 stats_file.write(stats_json)
         except Exception as e:
             logger.error('Error while exporting execution results: {}\n{}'.format(e, traceback.format_exc()))
+
+
+def get_network_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    s.connect(('<broadcast>', 0))
+    return s.getsockname()[0]
 
 
 #
