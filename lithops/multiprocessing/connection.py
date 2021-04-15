@@ -10,7 +10,6 @@
 #
 
 import time
-import socket
 import selectors
 import threading
 import random
@@ -98,13 +97,6 @@ def _validate_address(address):
                                                                                  REDIS_PUBSUB_CONN))
 
 
-def get_network_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    s.connect(('<broadcast>', 0))
-    return s.getsockname()[0]
-
-
 #
 # Connection classes
 #
@@ -179,7 +171,6 @@ class _ConnectionBase:
         self._check_closed()
         self._check_writable()
         obj_bin = cloudpickle.dumps(obj)
-        logger.debug('Connection send %i B', len(obj_bin))
         self._send_bytes(obj_bin)
 
     def send_bytes(self, buf, offset=0, size=None):
@@ -253,7 +244,6 @@ class _ConnectionBase:
         self._check_closed()
         self._check_readable()
         buf = self._recv_bytes()
-        logger.debug('Connection received %i B', len(buf))
         return cloudpickle.loads(buf)
 
     def poll(self, timeout=0.0):
@@ -351,10 +341,16 @@ class _RedisConnection(_ConnectionBase):
         raise NotImplementedError('Connection._recv() on Redis')
 
     def _send_bytes(self, buf):
+        t0 = time.time()
         self._write(self._subhandle, buf)
+        t1 = time.time()
+        logger.debug('Redis Pipe send - {} - {} - {} - {}'.format(t0, t1, t1 - t0, len(buf)))
 
     def _recv_bytes(self, maxsize=None):
+        t0 = time.time()
         msg = self._read(self._handle)
+        t1 = time.time()
+        logger.debug('Redis Pipe recv - {} - {} - {} - {}'.format(t0, t1, t1 - t0, len(msg)))
         return msg
 
     def _poll(self, timeout):
@@ -384,7 +380,7 @@ class _NanomsgConnection(_ConnectionBase):
         bind = False
         while not bind:
             try:
-                addr = 'tcp://' + get_network_ip() + ':' + str(random.randrange(MIN_PORT, MAX_PORT))
+                addr = 'tcp://' + util.get_network_ip() + ':' + str(random.randrange(MIN_PORT, MAX_PORT))
                 self._rep.listen(addr)
                 logger.debug('Assigned server address is %s', addr)
                 bind = True
@@ -464,7 +460,7 @@ class _NanomsgConnection(_ConnectionBase):
         logger.debug('Send %i B to %s', len(buf), addr)
         self._req.send(buf)
         res = self._req.recv()
-        logger.debug(res)
+        # logger.debug(res)
 
     def _recv_bytes(self, maxsize=None):
         chunk = self._buff.get()
