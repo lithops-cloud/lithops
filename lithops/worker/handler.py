@@ -148,7 +148,7 @@ def run_task(task, internal_storage):
     env['__LITHOPS_SESSION_ID'] = '-'.join([task.job_key, task.id])
     os.environ.update(env)
 
-    call_status = CallStatus(task.config, internal_storage, task.monitoring)
+    call_status = CallStatus(task.config, internal_storage)
     call_status.response['worker_start_tstamp'] = start_tstamp
     call_status.response['host_submit_tstamp'] = task.host_submit_tstamp
     call_status.response['call_id'] = task.id
@@ -246,9 +246,9 @@ def run_task(task, internal_storage):
 
 class CallStatus:
 
-    def __init__(self, lithops_config, internal_storage, monitoring):
+    def __init__(self, lithops_config, internal_storage):
         self.config = lithops_config
-        self.monitoring = monitoring
+        self.monitoring = self.config['lithops']['monitoring']
         self.store_status = strtobool(os.environ.get('__LITHOPS_STORE_STATUS', 'True'))
         self.internal_storage = internal_storage
         self.response = {

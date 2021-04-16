@@ -139,7 +139,6 @@ class Invoker:
                    'job_id': job.job_id,
                    'job_key': job.job_key,
                    'call_ids': None,
-                   'monitoring': job.monitoring,
                    'host_submit_tstamp': time.time(),
                    'lithops_version': lithops_version,
                    'runtime_name': job.runtime_name,
@@ -230,11 +229,9 @@ class BatchInvoker(Invoker):
         """
         Run a job
         """
-        monitoring_config = self.config.get(job.monitoring.lower())
-        mon = self.job_monitor.create(job, self.internal_storage,
-                                      config=monitoring_config)
+        job_monitor = self.job_monitor.create(job, self.internal_storage)
         futures = Invoker.run_job(self, job)
-        mon.start()
+        job_monitor.start()
 
         return futures
 
@@ -332,7 +329,7 @@ class FaaSInvoker(Invoker):
             # reached quota limit
             time.sleep(random.randint(0, 5))
             self.pending_calls_q.put((job, call_ids_range))
-            self.token_bucket_q.put('#')
+            self.job_monitor.token_bucket_q.put('#')
             return
 
         logger.debug('ExecutorID {} | JobID {} - Calls {} invoked ({}s) - Activation'
@@ -394,12 +391,10 @@ class FaaSInvoker(Invoker):
         """
         Run a job
         """
-        monitoring_config = self.config.get(job.monitoring.lower())
-        mon = self.job_monitor.create(job, self.internal_storage,
-                                      generate_tokens=True,
-                                      config=monitoring_config)
+        job_monitor = self.job_monitor.create(job, self.internal_storage,
+                                              generate_tokens=True)
         futures = Invoker.run_job(self, job)
-        mon.start()
+        job_monitor.start()
 
         return futures
 

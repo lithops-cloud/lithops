@@ -23,17 +23,21 @@ from lithops.utils import is_unix_system, timeout_handler, is_notebook, is_litho
 from lithops.storage import InternalStorage
 from lithops.monitor import JobMonitor
 from types import SimpleNamespace
+from itertools import chain
 
 ALL_COMPLETED = 1
 ANY_COMPLETED = 2
 ALWAYS = 3
 
+THREADPOOL_SIZE = 128
+WAIT_DUR_SEC = 1
+
 logger = logging.getLogger(__name__)
 
 
 def wait(fs, internal_storage=None, throw_except=True, timeout=None,
-         return_when=ALL_COMPLETED, download_results=False,
-         THREADPOOL_SIZE=128, WAIT_DUR_SEC=1, job_monitor=None):
+         return_when=ALL_COMPLETED, download_results=False, job_monitor=None,
+         threadpool_size=THREADPOOL_SIZE, wait_dur_sec=WAIT_DUR_SEC):
     """
     Wait for the Future instances (possibly created by different Executor instances)
     given by fs to complete. Returns a named 2-tuple of sets. The first set, named done,
@@ -47,8 +51,8 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
     :param return_when: One of `ALL_COMPLETED`, `ANY_COMPLETED`, `ALWAYS`
     :param download_results: Download results. Default false (Only get statuses)
     :param timeout: Timeout of waiting for results.
-    :param THREADPOOL_SIZE: Number of threads to use. Default 64
-    :param WAIT_DUR_SEC: Time interval between each check.
+    :param threadpool_zise: Number of threads to use. Default 64
+    :param wait_dur_sec: Time interval between each check.
 
     :return: `(fs_done, fs_notdone)`
         where `fs_done` is a list of futures that have completed
@@ -97,9 +101,10 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
     try:
         jobs = _create_jobs_from_futures(fs, internal_storage)
         if not job_monitor:
-            job_monitor = JobMonitor()
-            for job_data in jobs:
-                job_monitor.create(**job_data).start()
+            job_monitor = JobMonitor(backend='storage')
+            [job_monitor.create(**job_data).start() for job_data in jobs]
+
+        sleep_sec = wait_dur_sec if job_monitor.backend == 'storage' else 0.2
 
         if return_when == ALL_COMPLETED:
             while not _all_done(fs, download_results):
@@ -107,9 +112,9 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
                     _get_job_data(fs, job_data, pbar=pbar,
                                   throw_except=throw_except,
                                   download_results=download_results,
-                                  threadpool_size=THREADPOOL_SIZE,
+                                  threadpool_size=threadpool_size,
                                   job_monitor=job_monitor)
-                time.sleep(WAIT_DUR_SEC)
+                time.sleep(sleep_sec)
 
         elif return_when == ANY_COMPLETED:
             while not _any_done(fs, download_results):
@@ -117,16 +122,16 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
                     _get_job_data(fs, job_data, pbar=pbar,
                                   throw_except=throw_except,
                                   download_results=download_results,
-                                  threadpool_size=THREADPOOL_SIZE,
+                                  threadpool_size=threadpool_size,
                                   job_monitor=job_monitor)
-                time.sleep(WAIT_DUR_SEC)
+                time.sleep(sleep_sec)
 
         elif return_when == ALWAYS:
             for job_data in jobs:
                 _get_job_data(fs, job_data, pbar=pbar,
                               throw_except=throw_except,
                               download_results=download_results,
-                              threadpool_size=THREADPOOL_SIZE,
+                              threadpool_size=threadpool_size,
                               job_monitor=job_monitor)
 
     except KeyboardInterrupt as e:
@@ -163,7 +168,8 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
 
 
 def get_result(fs, throw_except=True, timeout=None,
-               THREADPOOL_SIZE=128, WAIT_DUR_SEC=1,
+               threadpool_zise=THREADPOOL_SIZE,
+               wait_dur_sec=WAIT_DUR_SEC,
                internal_storage=None):
     """
     For getting the results from all function activations
@@ -182,8 +188,8 @@ def get_result(fs, throw_except=True, timeout=None,
     fs_done, _ = wait(fs=fs, throw_except=throw_except,
                       timeout=timeout, download_results=True,
                       internal_storage=internal_storage,
-                      THREADPOOL_SIZE=THREADPOOL_SIZE,
-                      WAIT_DUR_SEC=WAIT_DUR_SEC)
+                      threadpool_zise=threadpool_zise,
+                      wait_dur_sec=wait_dur_sec)
     result = []
     fs_done = [f for f in fs_done if not f.futures and f._produce_output]
     for f in fs_done:
@@ -204,7 +210,6 @@ def _create_jobs_from_futures(fs, internal_storage):
     for job_key in present_jobs:
         job_data = {}
         job = SimpleNamespace()
-        job.monitoring = 'Storage'
         job.futures = [f for f in fs if f.job_key == job_key]
         job.total_calls = len(job.futures)
         f = job.futures[0]
@@ -287,14 +292,19 @@ def _get_job_data(fs, job_data, download_results, throw_except, threadpool_size,
         pbar.refresh()
 
     # Check for new futures
-    new_futures = [f.result() for f in fs_to_wait_on if f.futures]
+    new_futures = list(chain(*[f.result() for f in fs_to_wait_on if f.futures]))
     if new_futures:
-        for futures in new_futures:
-            job.futures.extend(futures)
-            fs.extend(futures)
-            if pbar:
-                pbar.total = pbar.total + len(futures)
-                pbar.refresh()
-        if not job_monitor.is_alive(job.job_key):
-            # this is only for storage monitor
-            job_monitor.create(**job_data).start()
+        fs.extend(new_futures)
+        if pbar:
+            pbar.total = pbar.total + len(new_futures)
+            pbar.refresh()
+
+        if job_monitor.backend == 'storage':
+            job.futures.extend(new_futures)
+            if not job_monitor.is_alive(job.job_key):
+                # this is only for storage monitor
+                job_monitor.create(**job_data).start()
+        else:
+            jobs = _create_jobs_from_futures(new_futures, internal_storage)
+            for job_data in jobs:
+                job_monitor.create(**job_data).start()

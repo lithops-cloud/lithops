@@ -304,6 +304,10 @@ class StorageMonitor(Monitor):
                 break
             callids_running, callids_done = \
                 self.internal_storage.get_job_status(self.job.executor_id, self.job.job_id)
+            logger.debug('ExecutorID {} | JobID {} - Found {} activations done, {} pending'
+                         .format(self.job.executor_id, self.job.job_id,
+                                 min(len(callids_done), len(self.job.futures)),
+                                 max(self.job.total_calls - len(callids_done), 0)))
             self._generate_tokens(callids_running, callids_done)
             self._tag_future_as_running(callids_running)
             self._tag_future_as_ready(callids_done)
@@ -314,7 +318,9 @@ class StorageMonitor(Monitor):
 
 class JobMonitor:
 
-    def __init__(self):
+    def __init__(self, backend, config=None):
+        self.backend = backend
+        self.config = config
         self.monitors = {}
         self.token_bucket_q = queue.Queue()
 
@@ -343,16 +349,13 @@ class JobMonitor:
                 active_jobs += 1
         return active_jobs
 
-    def create(self, job, internal_storage, generate_tokens=False, config=None):
+    def create(self, job, internal_storage, generate_tokens=False):
         """
         Creates a new monitor for a given job
         """
-        monitor = job.monitoring.capitalize()
-        logger.debug('ExecutorID {} | JobID {} - Creating {} job monitor'
-                     .format(job.executor_id, job.job_id, monitor))
-        Monitor = getattr(lithops.monitor, '{}Monitor'.format(monitor))
+        Monitor = getattr(lithops.monitor, '{}Monitor'.format(self.backend.capitalize()))
         jm = Monitor(job=job, internal_storage=internal_storage,
                      token_bucket_q=self.token_bucket_q,
-                     generate_tokens=generate_tokens, config=config)
+                     generate_tokens=generate_tokens, config=self.config)
         self.monitors[job.job_key] = jm
         return jm

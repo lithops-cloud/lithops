@@ -28,7 +28,7 @@ from datetime import datetime
 from lithops import constants
 from lithops.invokers import create_invoker
 from lithops.storage import InternalStorage
-from lithops.wait import wait, ALL_COMPLETED
+from lithops.wait import wait, ALL_COMPLETED, THREADPOOL_SIZE, WAIT_DUR_SEC
 from lithops.job import create_map_job, create_reduce_job
 from lithops.config import get_mode, default_config, \
     extract_localhost_config, extract_standalone_config, \
@@ -122,7 +122,12 @@ class FunctionExecutor:
             standalone_config = extract_standalone_config(self.config)
             self.compute_handler = StandaloneHandler(standalone_config)
 
-        self.job_monitor = JobMonitor()
+        # Create the monitoring system
+        monitoring_backend = self.config['lithops']['monitoring'].lower()
+        monitoring_config = self.config.get(monitoring_backend)
+        self.job_monitor = JobMonitor(monitoring_backend, monitoring_config)
+
+        # Create the invokder
         self.invoker = create_invoker(self.config,
                                       self.executor_id,
                                       self.internal_storage,
@@ -332,8 +337,8 @@ class FunctionExecutor:
         return map_futures + reduce_futures
 
     def wait(self, fs=None, throw_except=True, return_when=ALL_COMPLETED,
-             download_results=False, timeout=None, THREADPOOL_SIZE=128,
-             WAIT_DUR_SEC=1):
+             download_results=False, timeout=None, threadpool_size=THREADPOOL_SIZE,
+             wait_dur_sec=WAIT_DUR_SEC):
         """
         Wait for the Future instances (possibly created by different Executor instances)
         given by fs to complete. Returns a named 2-tuple of sets. The first set, named done,
@@ -347,8 +352,8 @@ class FunctionExecutor:
         :param return_when: One of `ALL_COMPLETED`, `ANY_COMPLETED`, `ALWAYS`
         :param download_results: Download results. Default false (Only get statuses)
         :param timeout: Timeout of waiting for results.
-        :param THREADPOOL_SIZE: Number of threads to use. Default 64
-        :param WAIT_DUR_SEC: Time interval between each check.
+        :param threadpool_size: Number of threads to use. Default 64
+        :param wait_dur_sec: Time interval between each check.
 
         :return: `(fs_done, fs_notdone)`
             where `fs_done` is a list of futures that have completed
@@ -369,8 +374,8 @@ class FunctionExecutor:
                  throw_except=throw_except,
                  return_when=return_when,
                  timeout=timeout,
-                 THREADPOOL_SIZE=THREADPOOL_SIZE,
-                 WAIT_DUR_SEC=WAIT_DUR_SEC)
+                 threadpool_size=threadpool_size,
+                 wait_dur_sec=wait_dur_sec)
 
         except Exception as e:
             error = True
@@ -396,7 +401,7 @@ class FunctionExecutor:
         return fs_done, fs_notdone
 
     def get_result(self, fs=None, throw_except=True, timeout=None,
-                   THREADPOOL_SIZE=128, WAIT_DUR_SEC=1):
+                   threadpool_size=THREADPOOL_SIZE, wait_dur_sec=WAIT_DUR_SEC):
         """
         For getting the results from all function activations
 
@@ -410,8 +415,8 @@ class FunctionExecutor:
         """
         fs_done, _ = self.wait(fs=fs, throw_except=throw_except,
                                timeout=timeout, download_results=True,
-                               THREADPOOL_SIZE=THREADPOOL_SIZE,
-                               WAIT_DUR_SEC=WAIT_DUR_SEC)
+                               threadpool_size=threadpool_size,
+                               wait_dur_sec=wait_dur_sec)
         result = []
         fs_done = [f for f in fs_done if not f.futures and f._produce_output]
         for f in fs_done:
