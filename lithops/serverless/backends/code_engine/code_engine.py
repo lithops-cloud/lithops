@@ -88,14 +88,14 @@ class CodeEngineBackend:
         logger.info("{} - Region: {}".format(msg, self.region))
 
     def _format_jobdef_name(self, runtime_name, runtime_memory):
-        runtime_name = runtime_name.replace('/', '--').replace(':', '--')
-        return '{}--{}mb'.format(runtime_name, runtime_memory)
+        if runtime_name.count('/') == 2:
+            # it contains the docker registry
+            runtime_name = runtime_name.split('/', 1)[1]
 
-    def _unformat_jobdef_name(self, service_name):
-        runtime_name, memory = service_name.rsplit('--', 1)
-        image_name = runtime_name.replace('--', '/', 1)
-        image_name = image_name.replace('--', ':', -1)
-        return image_name, int(memory.replace('mb', ''))
+        runtime_name = runtime_name.replace('.', '')
+        runtime_name = runtime_name.replace('/', '--')
+        runtime_name = runtime_name.replace(':', '--')
+        return '{}--{}mb'.format(runtime_name, runtime_memory)
 
     def _get_default_runtime_image_name(self):
         docker_user = self.code_engine_config.get('docker_user')
@@ -255,15 +255,17 @@ class CodeEngineBackend:
                                     namespace=self.namespace,
                                     plural="jobdefinitions")
         except ApiException as e:
-            logger.warning("List all jobdefinitions failed with {} {}".format(e.status, e.reason))
+            logger.debug("List all jobdefinitions failed with {} {}".format(e.status, e.reason))
             return runtimes
 
         for jobdef in jobdefs['items']:
             try:
                 if jobdef['metadata']['labels']['type'] == 'lithops-runtime':
                     runtime_name = jobdef['metadata']['name']
-                    image_name, memory = self._unformat_jobdef_name(runtime_name)
-                    if docker_image_name == image_name or docker_image_name == 'all':
+                    container = jobdef['spec']['template']['containers'][0]
+                    image_name = container['image']
+                    memory = container['resources']['requests']['memory'].replace('Mi', '')
+                    if docker_image_name in image_name or docker_image_name == 'all':
                         runtimes.append((image_name, memory))
             except Exception:
                 # It is not a lithops runtime
