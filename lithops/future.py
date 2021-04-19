@@ -231,7 +231,7 @@ class ResponseFuture:
                 return None
 
         for key in self._call_status:
-            if any(ss in key for ss in ['time', 'tstamp', 'count', 'size']):
+            if any(ss in key for ss in ['time', 'tstamp', 'count', 'size', 'container']):
                 self.stats[key] = self._call_status[key]
 
         self.stats['worker_exec_time'] = round(self.stats['worker_end_tstamp'] - self.stats['worker_start_tstamp'], 8)
