@@ -20,6 +20,7 @@ import re
 import sys
 import json
 import logging
+import urllib3
 import copy
 import time
 import yaml
@@ -33,6 +34,9 @@ from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
 from . import config as ce_config
 from lithops.storage.utils import StorageNoSuchKeyError
 
+
+urllib3.disable_warnings()
+
 logger = logging.getLogger(__name__)
 
 
@@ -44,6 +48,7 @@ class CodeEngineBackend:
     def __init__(self, code_engine_config, internal_storage):
         logger.debug("Creating IBM Code Engine client")
         self.name = 'code_engine'
+        self.type = 'batch'
         self.code_engine_config = code_engine_config
         self.internal_storage = internal_storage
 
@@ -83,14 +88,14 @@ class CodeEngineBackend:
         logger.info("{} - Region: {}".format(msg, self.region))
 
     def _format_jobdef_name(self, runtime_name, runtime_memory):
-        runtime_name = runtime_name.replace('/', '--').replace(':', '--')
-        return '{}--{}mb'.format(runtime_name, runtime_memory)
+        if runtime_name.count('/') == 2:
+            # it contains the docker registry
+            runtime_name = runtime_name.split('/', 1)[1]
 
-    def _unformat_jobdef_name(self, service_name):
-        runtime_name, memory = service_name.rsplit('--', 1)
-        image_name = runtime_name.replace('--', '/', 1)
-        image_name = image_name.replace('--', ':', -1)
-        return image_name, int(memory.replace('mb', ''))
+        runtime_name = runtime_name.replace('.', '')
+        runtime_name = runtime_name.replace('/', '--')
+        runtime_name = runtime_name.replace(':', '--')
+        return '{}--{}mb'.format(runtime_name, runtime_memory)
 
     def _get_default_runtime_image_name(self):
         docker_user = self.code_engine_config.get('docker_user')
@@ -199,8 +204,8 @@ class CodeEngineBackend:
                 body=client.V1DeleteOptions(),
             )
         except ApiException as e:
-            logger.warning("Deleting a jobrun failed with {} {}"
-                           .format(e.status, e.reason))
+            logger.debug("Deleting a jobrun failed with {} {}"
+                         .format(e.status, e.reason))
 
     def _job_def_cleanup(self, jobdef_id):
         logger.info("Deleting runtime: {}".format(jobdef_id))
@@ -214,8 +219,8 @@ class CodeEngineBackend:
                 body=client.V1DeleteOptions(),
             )
         except ApiException as e:
-            logger.warning("Deleting a jobdef failed with {} {}"
-                           .format(e.status, e.reason))
+            logger.debug("Deleting a jobdef failed with {} {}"
+                         .format(e.status, e.reason))
 
     def clean(self):
         """
@@ -250,15 +255,17 @@ class CodeEngineBackend:
                                     namespace=self.namespace,
                                     plural="jobdefinitions")
         except ApiException as e:
-            logger.warning("List all jobdefinitions failed with {} {}".format(e.status, e.reason))
+            logger.debug("List all jobdefinitions failed with {} {}".format(e.status, e.reason))
             return runtimes
 
         for jobdef in jobdefs['items']:
             try:
                 if jobdef['metadata']['labels']['type'] == 'lithops-runtime':
                     runtime_name = jobdef['metadata']['name']
-                    image_name, memory = self._unformat_jobdef_name(runtime_name)
-                    if docker_image_name == image_name or docker_image_name == 'all':
+                    container = jobdef['spec']['template']['containers'][0]
+                    image_name = container['image']
+                    memory = container['resources']['requests']['memory'].replace('Mi', '')
+                    if docker_image_name in image_name or docker_image_name == 'all':
                         runtimes.append((image_name, memory))
             except Exception:
                 # It is not a lithops runtime
@@ -277,15 +284,13 @@ class CodeEngineBackend:
                 self._delete_config_map(jobrun_name)
             except Exception as e:
                 logger.debug("Deleting a jobrun failed with: {}".format(e))
+        self.jobs = []
 
     def invoke(self, docker_image_name, runtime_memory, job_payload):
         """
         Invoke -- return information about this invocation
         For array jobs only remote_invocator is allowed
         """
-        job_payload.pop('remote_invoker')
-        job_payload.pop('invokers')
-
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
 
@@ -462,7 +467,7 @@ class CodeEngineBackend:
 
         retry = int(1)
         found = False
-        while retry < 20 and not found:
+        while retry < 10 and not found:
             try:
                 logger.debug("Retry attempt {} to read {}".format(retry, status_key))
                 json_str = self.internal_storage.get_data(key=status_key)
@@ -472,7 +477,7 @@ class CodeEngineBackend:
             except StorageNoSuchKeyError:
                 logger.debug("{} not found in attempt {}. Sleep before retry".format(status_key, retry))
                 retry = retry + 1
-                time.sleep(5)
+                time.sleep(10)
 
         if not found:
             raise Exception("Unable to extract Python preinstalled modules from the runtime")
@@ -504,17 +509,21 @@ class CodeEngineBackend:
         field_manager = 'lithops'
 
         try:
-            logger.debug("Generate ConfigMap {} for namespace {}".format(config_name, self.namespace))
+            logger.debug("Generate ConfigMap {} for namespace {}"
+                         .format(config_name, self.namespace))
             self.coreV1Api.create_namespaced_config_map(namespace=self.namespace,
                                                         body=cmap,
                                                         field_manager=field_manager)
-            logger.debug("ConfigMap {} for namespace {} created".format(config_name, self.namespace))
+            logger.debug("ConfigMap {} for namespace {} created"
+                         .format(config_name, self.namespace))
         except ApiException as e:
             if (e.status != 409):
-                logger.warning("Exception when calling CoreV1Api->create_namespaced_config_map: %s\n" % e)
+                logger.debug("Creating a configmap failed with {} {}"
+                             .format(e.status, e.reason))
                 raise Exception('Failed to create ConfigMap')
             else:
-                logger.debug("ConfigMap {} for namespace {} already exists".format(config_name, self.namespace))
+                logger.debug("ConfigMap {} for namespace {} already exists"
+                             .format(config_name, self.namespace))
 
         return config_name
 
@@ -525,9 +534,11 @@ class CodeEngineBackend:
         config_name = '{}-configmap'.format(jobrun_name)
         grace_period_seconds = 0
         try:
-            logger.debug("Deleting ConfigMap {} for namespace {}".format(config_name, self.namespace))
-            api_response = self.coreV1Api.delete_namespaced_config_map(name=config_name,
-                                                                       namespace=self.namespace,
-                                                                       grace_period_seconds=grace_period_seconds)
+            logger.debug("Deleting ConfigMap {} for namespace {}"
+                         .format(config_name, self.namespace))
+            self.coreV1Api.delete_namespaced_config_map(name=config_name,
+                                                        namespace=self.namespace,
+                                                        grace_period_seconds=grace_period_seconds)
         except ApiException as e:
-            logger.warning("Exception when calling CoreV1Api->delete_namespaced_config_map: %s\n" % e)
+            logger.debug("Deleting a configmap failed with {} {}"
+                         .format(e.status, e.reason))

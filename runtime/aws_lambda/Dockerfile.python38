@@ -29,7 +29,7 @@ RUN pip install \
         numpy \
         scipy \
         pandas \
-        pika==0.13.1 \
+        pika \
         kafka-python \
         cloudpickle \
         ps-mem \

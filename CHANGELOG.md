@@ -1,6 +1,18 @@
 # Changelog
 
-## [v2.3.1.dev2]
+## [v2.3.2.dev0]
+
+### Added
+- 
+
+### Changed
+- [Core] Deleted strong dependency to pika==0.13.1
+
+### Fixes
+- [Cli] Fixed serverless runtime lifecycle methods
+
+
+## [v2.3.1]
 
 ### Added
 - [Core] Allow Support for Python 3.9
