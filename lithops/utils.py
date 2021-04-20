@@ -20,7 +20,6 @@
 import io
 import re
 import os
-import pika
 import uuid
 import json
 import shutil
@@ -31,10 +30,8 @@ import lithops
 import zipfile
 import platform
 import logging.config
-import threading
 import subprocess as sp
 
-from lithops.storage.utils import create_job_key
 from lithops.constants import LOGGER_FORMAT, LOGGER_LEVEL, LOGGER_STREAM
 
 logger = logging.getLogger(__name__)
@@ -72,54 +69,6 @@ def iterchunks(lst, n):
     """Yield successive n-sized chunks from lst."""
     for i in range(0, len(lst), n):
         yield lst[i:i + n]
-
-
-def create_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id):
-    """
-    Creates RabbitMQ queues and exchanges of a given job in a thread.
-    Called when a job is created.
-    """
-    logger.debug('ExecutorID {} | JobID {} - Creating RabbitMQ resources'.format(executor_id, job_id))
-
-    def create_resources(rabbit_amqp_url, executor_id, job_id):
-        job_key = create_job_key(executor_id, job_id)
-        exchange = 'lithops-{}'.format(job_key)
-        queue_0 = '{}-0'.format(exchange)  # For waiting
-        queue_1 = '{}-1'.format(exchange)  # For invoker
-
-        params = pika.URLParameters(rabbit_amqp_url)
-        connection = pika.BlockingConnection(params)
-        channel = connection.channel()
-        channel.exchange_declare(exchange=exchange, exchange_type='fanout', auto_delete=True)
-        channel.queue_declare(queue=queue_0, auto_delete=True)
-        channel.queue_bind(exchange=exchange, queue=queue_0)
-        channel.queue_declare(queue=queue_1, auto_delete=True)
-        channel.queue_bind(exchange=exchange, queue=queue_1)
-        connection.close()
-
-    th = threading.Thread(target=create_resources, args=(rabbit_amqp_url, executor_id, job_id))
-    th.daemon = True
-    th.start()
-
-
-def delete_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id):
-    """
-    Deletes RabbitMQ queues and exchanges of a given job.
-    Only called when an exception is produced, otherwise resources are
-    automatically deleted.
-    """
-    job_key = create_job_key(executor_id, job_id)
-    exchange = 'lithops-{}'.format(job_key)
-    queue_0 = '{}-0'.format(exchange)  # For waiting
-    queue_1 = '{}-1'.format(exchange)  # For invoker
-
-    params = pika.URLParameters(rabbit_amqp_url)
-    connection = pika.BlockingConnection(params)
-    channel = connection.channel()
-    channel.queue_delete(queue=queue_0)
-    channel.queue_delete(queue=queue_1)
-    channel.exchange_delete(exchange=exchange)
-    connection.close()
 
 
 def agg_data(data_strs):

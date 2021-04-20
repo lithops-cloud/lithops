@@ -29,7 +29,7 @@ from pydoc import locate
 from distutils.util import strtobool
 
 from lithops.storage import Storage
-from lithops.wait import wait_storage
+from lithops.wait import wait
 from lithops.future import ResponseFuture
 from lithops.utils import sizeof_fmt, is_object_processing_function
 from lithops.utils import WrappedStreamingBodyPartition
@@ -107,7 +107,7 @@ class TaskRunner:
     def _wait_futures(self, data):
         logger.info('Reduce function: waiting for map results')
         fut_list = data['results']
-        wait_storage(fut_list, self.internal_storage, download_results=True)
+        wait(fut_list, self.internal_storage, download_results=True)
         results = [f.result() for f in fut_list if f.done and not f.futures]
         fut_list.clear()
         data['results'] = results

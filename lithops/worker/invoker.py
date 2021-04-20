@@ -22,7 +22,7 @@ from types import SimpleNamespace
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.serverless import ServerlessHandler
-from lithops.invokers import JobMonitor
+from lithops.monitor import JobMonitor
 from lithops.storage import InternalStorage
 from lithops.version import __version__
 from lithops.utils import iterchunks

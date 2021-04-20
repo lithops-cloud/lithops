@@ -248,7 +248,7 @@ class CallStatus:
 
     def __init__(self, lithops_config, internal_storage):
         self.config = lithops_config
-        self.rabbitmq_monitor = self.config['lithops'].get('rabbitmq_monitor', False)
+        self.monitoring = self.config['lithops']['monitoring']
         self.store_status = strtobool(os.environ.get('__LITHOPS_STORE_STATUS', 'True'))
         self.internal_storage = internal_storage
         self.response = {
@@ -260,9 +260,9 @@ class CallStatus:
     def send(self, event_type):
         self.response['type'] = event_type
         if self.store_status:
-            if self.rabbitmq_monitor:
+            if self.monitoring == 'rabbitmq':
                 self._send_status_rabbitmq()
-            if not self.rabbitmq_monitor or event_type == '__end__':
+            if not self.monitoring == 'rabbitmq' or event_type == '__end__':
                 self._send_status_os()
 
     def _send_status_os(self):
@@ -300,22 +300,21 @@ class CallStatus:
         output_query_count = 0
         params = pika.URLParameters(rabbit_amqp_url)
         job_key = create_job_key(executor_id, job_id)
-        exchange = 'lithops-{}'.format(job_key)
+        queue = 'lithops-{}'.format(job_key)
 
         while not status_sent and output_query_count < 5:
             output_query_count = output_query_count + 1
             try:
                 connection = pika.BlockingConnection(params)
                 channel = connection.channel()
-                channel.exchange_declare(exchange=exchange, exchange_type='fanout', auto_delete=True)
-                channel.basic_publish(exchange=exchange, routing_key='',
-                                      body=dmpd_response_status)
+                channel.basic_publish(exchange='', routing_key=queue, body=dmpd_response_status)
+                channel.close()
                 connection.close()
                 logger.info("Execution status sent to rabbitmq - Size: {}".format(drs))
                 status_sent = True
             except Exception as e:
-                logger.error("Unable to send status to rabbitmq")
-                logger.error(str(e))
+                logger.info("Unable to send status to rabbitmq")
+                logger.info(str(e))
                 logger.info('Retrying to send status to rabbitmq')
                 time.sleep(0.2)
 

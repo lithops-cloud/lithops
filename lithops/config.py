@@ -169,6 +169,9 @@ def default_config(config_data=None, config_overwrite={}):
     if 'worker_processes' not in config_data['lithops']:
         config_data['lithops']['worker_processes'] = constants.WORKER_PROCESSES_DEFAULT
 
+    if 'monitoring' not in config_data['lithops']:
+        config_data['lithops']['monitoring'] = constants.MONITORING_DEFAULT
+
     # overwrite values provided by the user
     if 'lithops' in config_overwrite:
         config_data['lithops'].update(config_overwrite['lithops'])

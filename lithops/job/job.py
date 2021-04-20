@@ -23,7 +23,6 @@ import pickle
 import logging
 from lithops import utils
 from lithops.job.partitioner import create_partitions
-from lithops.utils import is_object_processing_function, sizeof_fmt, b64str_to_bytes
 from lithops.storage.utils import create_func_key, create_agg_data_key,\
     create_job_key
 from lithops.job.serialize import SerializeIndependent, create_module_data
@@ -54,13 +53,9 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function,
     host_job_meta = {'host_job_create_tstamp': time.time()}
     map_iterdata = utils.verify_args(map_function, iterdata, extra_args)
 
-    if config['lithops'].get('rabbitmq_monitor', False):
-        rabbit_amqp_url = config['rabbitmq'].get('amqp_url')
-        utils.create_rabbitmq_resources(rabbit_amqp_url, executor_id, job_id)
-
     # Object processing functionality
     ppo = None
-    if is_object_processing_function(map_function):
+    if utils.is_object_processing_function(map_function):
         create_partitions_start = time.time()
         # Create partitions according chunk_size or chunk_number
         logger.debug('ExecutorID {} | JobID {} - Calling map on partitions '
@@ -168,7 +163,7 @@ def _store_func_and_modules(func_key, func_str, module_data):
             full_filename = os.path.join(to_make, os.path.basename(m_filename))
 
             with open(full_filename, 'wb') as fid:
-                fid.write(b64str_to_bytes(m_data))
+                fid.write(utils.b64str_to_bytes(m_data))
 
     logger.debug("Finished storing function and modules")
 
@@ -257,7 +252,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
 
     if data_limit and data_size_bytes > data_limit*1024**2:
         log_msg = ('ExecutorID {} | JobID {} - Total data exceeded maximum size '
-                   'of {}'.format(executor_id, job_id, sizeof_fmt(data_limit*1024**2)))
+                   'of {}'.format(executor_id, job_id, utils.sizeof_fmt(data_limit*1024**2)))
         raise Exception(log_msg)
 
     logger.info('ExecutorID {} | JobID {} - Uploading function and data '

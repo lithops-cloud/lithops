@@ -61,6 +61,7 @@ class AWSLambdaBackend:
         logger.debug('Creating AWS Lambda client')
 
         self.name = 'aws_lambda'
+        self.type = 'faas'
         self.aws_lambda_config = aws_lambda_config
 
         self.user_key = aws_lambda_config['access_key_id'][-4:]

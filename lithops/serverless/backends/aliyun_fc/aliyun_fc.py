@@ -39,6 +39,7 @@ class AliyunFunctionComputeBackend:
         logger.debug("Creating Aliyun Function Compute client")
         self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'aliyun_fc'
+        self.type = 'faas'
         self.config = aliyun_fc_config
         self.is_lithops_worker = is_lithops_worker()
         self.version = 'lithops_{}'.format(__version__)
