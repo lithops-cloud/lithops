@@ -51,7 +51,7 @@ pickling_support.install()
 logger = logging.getLogger(__name__)
 
 
-class ShutdownSentinel():
+class ShutdownSentinel:
     """Put an instance of this class on the queue to shut it down"""
     pass
 
@@ -154,6 +154,12 @@ def run_task(task, internal_storage):
     call_status.response['call_id'] = task.id
     call_status.response['job_id'] = task.job_id
     call_status.response['executor_id'] = task.executor_id
+
+    if strtobool(os.environ.get('LITHOPS_CONTAINER', 'False')):
+        call_status.response['warm_container'] = True
+    else:
+        call_status.response['warm_container'] = False
+        os.environ['LITHOPS_CONTAINER'] = 'True'
 
     show_memory_peak = strtobool(os.environ.get('SHOW_MEMORY_PEAK', 'False'))
 

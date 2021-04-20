@@ -3,7 +3,7 @@
 ## [v2.3.2.dev0]
 
 ### Added
-- 
+- [Core] New "warm_container" and "func_result_size" call statistics
 
 ### Changed
 - [Core] New monitoring system
