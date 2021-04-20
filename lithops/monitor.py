@@ -304,10 +304,12 @@ class StorageMonitor(Monitor):
                 break
             callids_running, callids_done = \
                 self.internal_storage.get_job_status(self.job.executor_id, self.job.job_id)
-            logger.debug('ExecutorID {} | JobID {} - Found {} activations done, {} pending'
+            _callids_running = set([call_id for call_id, _ in callids_running])
+            logger.debug('ExecutorID {} | JobID {} - Pending: {} - Running: {} - Done: {}'
                          .format(self.job.executor_id, self.job.job_id,
-                                 min(len(callids_done), len(self.job.futures)),
-                                 max(self.job.total_calls - len(callids_done), 0)))
+                                 max(self.job.total_calls - len(_callids_running), 0),
+                                 len(_callids_running - callids_done),
+                                 min(len(callids_done), len(self.job.futures))))
             self._generate_tokens(callids_running, callids_done)
             self._tag_future_as_running(callids_running)
             self._tag_future_as_ready(callids_done)
