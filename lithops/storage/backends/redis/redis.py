@@ -18,6 +18,7 @@
 import io
 import redis
 import logging
+import time
 from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.constants import STORAGE_CLI_MSG
 
@@ -70,7 +71,10 @@ class RedisBackend:
 
         # set actual key
         pipeline.set(redis_key, data)
+        t0 = time.time()
         pipeline.execute()
+        t1 = time.time()
+        logger.debug('Redis Put object - {} - {} - {} - {}'.format(t0, t1, t1 - t0, len(data)))
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
         """
@@ -84,13 +88,15 @@ class RedisBackend:
 
         redis_key = self._format_key(bucket_name, key)
         try:
+            t0 = time.time()
             if 'Range' in extra_get_args:  # expected format: Range='bytes=L-H'
                 bytes_range = extra_get_args.pop('Range')[6:]
                 start, end = self._parse_range(bytes_range)
                 data = self._client.getrange(redis_key, start, end)
             else:
                 data = self._client.get(redis_key)
-
+            t1 = time.time()
+            logger.debug('Redis Get object - {} - {} - {} - {}'.format(t0, t1, t1 - t0, len(data)))
         except redis.exceptions.ResponseError:
             raise StorageNoSuchKeyError(bucket_name, key)
 
