@@ -96,13 +96,13 @@ class RedisBackend:
             else:
                 data = self._client.get(redis_key)
             t1 = time.time()
-            logger.debug('Redis Get object - {} - {} - {} - {}'.format(t0, t1, t1 - t0, len(data)))
         except redis.exceptions.ResponseError:
             raise StorageNoSuchKeyError(bucket_name, key)
 
         if data is None:
             raise StorageNoSuchKeyError(bucket_name, key)
 
+        logger.debug('Redis Get object - {} - {} - {} - {}'.format(t0, t1, t1 - t0, len(data)))
         if stream:
             return io.BytesIO(data)
         else:
