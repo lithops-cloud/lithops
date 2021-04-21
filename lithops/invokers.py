@@ -75,7 +75,7 @@ class Invoker:
             logger.debug('ExecutorID {} - Total available workers: {}'
                          .format(self.executor_id, self.workers))
 
-        prom_enabled = self.config['lithops'].get('monitoring', False)
+        prom_enabled = self.config['lithops'].get('telemetry', False)
         prom_config = self.config.get('prometheus', {})
         self.prometheus = PrometheusExporter(prom_enabled, prom_config)
 

@@ -69,7 +69,7 @@ class TaskRunner:
         self.stats = stats(self.task.stats_file)
 
         # Setup prometheus for live metrics
-        prom_enabled = self.lithops_config['lithops'].get('monitoring')
+        prom_enabled = self.lithops_config['lithops'].get('telemetry')
         prom_config = self.lithops_config.get('prometheus', {})
         self.prometheus = PrometheusExporter(prom_enabled, prom_config)
 
