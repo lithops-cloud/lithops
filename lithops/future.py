@@ -133,7 +133,7 @@ class ResponseFuture:
             return True
         return False
 
-    def status(self, throw_except=True, internal_storage=None):
+    def status(self, throw_except=True, internal_storage=None, check_only=False):
         """
         Return the status returned by the call.
         If the call raised an exception, this method will raise the same exception
@@ -164,6 +164,9 @@ class ResponseFuture:
             check_storage_path(internal_storage.get_storage_config(), self._storage_path)
             self._call_status = internal_storage.get_call_status(self.executor_id, self.job_id, self.call_id)
             self._status_query_count += 1
+
+            if check_only:
+                return self._call_status
 
             while self._call_status is None:
                 time.sleep(self.GET_RESULT_SLEEP_SECS)
