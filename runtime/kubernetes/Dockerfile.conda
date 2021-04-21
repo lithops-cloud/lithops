@@ -45,8 +45,3 @@ WORKDIR $APP_HOME
 
 COPY lithops_k8s.zip .
 RUN unzip lithops_k8s.zip && rm lithops_k8s.zip
-
-# Add your Conda required packages here. Ensure "conda clean --all" at 
-# the end to remove temporary data. One "RUN" line is better than multiple
-# ones in terms of image size. For example:
-#RUN conda install -c conda-forge opencv && conda install sortedcontainers gevent-websocket && conda clean --all
