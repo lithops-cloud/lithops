@@ -9,3 +9,4 @@ Choose your compute backend:
 5. [Google Cloud Functions](gcp_functions/)
 6. [Google Cloud Run](gcp_cloudrun/)
 7. [Knative](knative/)
+8. [Kubernetes](kubernetes/)

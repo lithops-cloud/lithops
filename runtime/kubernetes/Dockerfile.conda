@@ -1,0 +1,47 @@
+# Python 3.6
+FROM continuumio/miniconda3:4.5.4 
+
+# Python 3.7
+#FROM continuumio/miniconda3:4.7.12 
+
+# Python 3.8
+#FROM continuumio/miniconda3:4.9.2
+
+# YOU MUST PIN THE PYTHON VERSION TO PREVENT IT TO BE UPDATED
+# For python 3.6 use "python==3.6.5"
+# For python 3.7 use "python==3.7.4"
+# For python 3.8 use "python==3.8.5"
+RUN echo "python==3.6.5" >> /opt/conda/conda-meta/pinned
+
+RUN apt-get update && apt-get install -y \
+        zip \
+        && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --upgrade setuptools six pip \
+    && pip install --no-cache-dir \
+        flask \
+        pika \
+        glob2 \
+        ibm-cos-sdk \
+        redis \
+        requests \
+        PyYAML \
+        kubernetes \
+        numpy \
+        cloudpickle \
+        ps-mem \
+        tblib
+
+# Add your Conda required packages here. Ensure "conda clean --all" at 
+# the end to remove temporary data. One "RUN" line is better than multiple
+# ones in terms of image size. For example:
+#RUN conda install -c conda-forge opencv && conda install sortedcontainers gevent-websocket && conda clean --all
+
+ENV PYTHONUNBUFFERED TRUE
+
+# Copy Lithops proxy and lib to the container image.
+ENV APP_HOME /lithops
+WORKDIR $APP_HOME
+
+COPY lithops_k8s.zip .
+RUN unzip lithops_k8s.zip && rm lithops_k8s.zip
