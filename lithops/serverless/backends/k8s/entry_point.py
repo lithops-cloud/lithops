@@ -20,6 +20,7 @@ import uuid
 import json
 import logging
 import flask
+import time
 import requests
 from functools import partial
 
@@ -49,6 +50,8 @@ def get_id(jobkey):
         JOB_INDEXES[jobkey] = 0
     else:
         JOB_INDEXES[jobkey] += 1
+
+    print(str(JOB_INDEXES[jobkey]), flask.request.remote_addr)
 
     return str(JOB_INDEXES[jobkey])
 
@@ -81,8 +84,13 @@ def run_job(encoded_payload):
 
     job_key = payload['job_key']
     idgiver_ip = os.environ['IDGIVER_POD_IP']
-    res = requests.get('http://{}:{}/getid/{}'.format(idgiver_ip, IDGIVER_PORT, job_key))
-    job_index = int(res.text)
+    job_index = None
+    while job_index is None:
+        try:
+            res = requests.get('http://{}:{}/getid/{}'.format(idgiver_ip, IDGIVER_PORT, job_key))
+            job_index = int(res.text)
+        except Exception:
+            time.sleep(0.1)
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
