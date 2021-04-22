@@ -56,36 +56,6 @@ In this step you are required to install IBM Cloud CLI tool, Code Engine plugin 
    ```bash
    docker login
    ```
-
-### Lithops using Knative API of Code Engine
-
-The only requirement to make it working is to have the KUBECONFIG file properly configured.
-
-
-#### Edit your lithops config and add the following keys:
-
-   ```yaml
-   serverless:
-       backend: knative
-   ```
-
-#### Summary of configuration keys for Knative:
-
-|Group|Key|Default|Mandatory|Additional info|
-|---|---|---|---|---|
-|knative | kubecfg_path | |no | Path to kubecfg file. Mandatory if config file not in `~/.kube/config` or KUBECONFIG env var not present|
-|knative | container_registry |  docker.io | no | container registry url|
-|knative | docker_user | |no | Docker hub username |
-|knative | docker_token | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
-|knative | git_url | |no | Git repository to build the image |
-|knative | git_rev | |no | Git revision to build the image |
-|knative | min_instances | 0 |no | Minimum number of parallel runtimes |
-|knative | max_instances | 250 |no | Maximum number of parallel runtimes |
-|knative | cpu | 1 |no | CPU limit. Default 1vCPU  |
-|knative | concurrency | 1 |no | Number of workers per runtime instance |
-|knative | runtime |  |no | Docker image name.|
-
-
 ### Lithops using Kubernetes Job API of Code Engine
 
 To work with Code Engine there is need to use dedicated runtime. You can either use default runtime that we maintain or alternatively create new runtime with required dependencies.
@@ -125,6 +95,36 @@ If you need to create new runtime, please follow [Building and managing Lithops 
 |code_engine | container_registry |  docker.io | no | container registry url|
 |code_engine | runtime |  |no | Docker image name.|
 
+
+### Lithops using Knative API of Code Engine
+
+The only requirement to make it working is to have the KUBECONFIG file properly configured.
+
+
+#### Edit your lithops config and add the following keys:
+
+   ```yaml
+   serverless:
+       backend: knative
+   ```
+
+#### Summary of configuration keys for Knative:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|knative | kubecfg_path | |no | Path to kubecfg file. Mandatory if config file not in `~/.kube/config` or KUBECONFIG env var not present|
+|knative | container_registry |  docker.io | no | container registry url|
+|knative | docker_user | |no | Docker hub username |
+|knative | docker_token | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
+|knative | git_url | |no | Git repository to build the image |
+|knative | git_rev | |no | Git revision to build the image |
+|knative | min_instances | 0 |no | Minimum number of parallel runtimes |
+|knative | max_instances | 250 |no | Maximum number of parallel runtimes |
+|knative | cpu | 1 |no | CPU limit. Default 1vCPU  |
+|knative | concurrency | 1 |no | Number of workers per runtime instance |
+|knative | runtime |  |no | Docker image name.|
+
+
 ### Usage Example
 
 ```python
@@ -142,3 +142,15 @@ if __name__ == '__main__':
     lt.map(add_value,  iterdata)
     print (lt.get_result())
 ```
+
+###  Faults and what to do about them
+
+#### Fault
+Lithops throws exception with 'Missing access token parameter'
+
+##### Cause / Remedy
+This likely occurs when you were logout from ibmcloud or the kubectl token can't re-generate new authentication token. To resolve this login into ibmcloud and re-create kubectl file
+
+    ibmcloud login
+    ibmcloud target -g <GROUP> -o <ORG>
+    ibmcloud ce project select --name <CPROJECT NAME> --kubecfg
