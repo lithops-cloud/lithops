@@ -29,7 +29,7 @@ ALL_COMPLETED = 1
 ANY_COMPLETED = 2
 ALWAYS = 3
 
-THREADPOOL_SIZE = 128
+THREADPOOL_SIZE = 64
 WAIT_DUR_SEC = 1
 
 logger = logging.getLogger(__name__)
@@ -109,22 +109,22 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
         if return_when == ALL_COMPLETED:
             while not _all_done(fs, download_results):
                 for job_data in jobs:
-                    _get_job_data(fs, job_data, pbar=pbar,
-                                  throw_except=throw_except,
-                                  download_results=download_results,
-                                  threadpool_size=threadpool_size,
-                                  job_monitor=job_monitor)
-                time.sleep(sleep_sec)
+                    new_data = _get_job_data(fs, job_data, pbar=pbar,
+                                             throw_except=throw_except,
+                                             download_results=download_results,
+                                             threadpool_size=threadpool_size,
+                                             job_monitor=job_monitor)
+                time.sleep(0 if new_data else sleep_sec)
 
         elif return_when == ANY_COMPLETED:
             while not _any_done(fs, download_results):
                 for job_data in jobs:
-                    _get_job_data(fs, job_data, pbar=pbar,
-                                  throw_except=throw_except,
-                                  download_results=download_results,
-                                  threadpool_size=threadpool_size,
-                                  job_monitor=job_monitor)
-                time.sleep(sleep_sec)
+                    new_data = _get_job_data(fs, job_data, pbar=pbar,
+                                             throw_except=throw_except,
+                                             download_results=download_results,
+                                             threadpool_size=threadpool_size,
+                                             job_monitor=job_monitor)
+                time.sleep(0 if new_data else sleep_sec)
 
         elif return_when == ALWAYS:
             for job_data in jobs:
@@ -264,11 +264,11 @@ def _get_job_data(fs, job_data, download_results, throw_except, threadpool_size,
         not_done_futures = [f for f in job.futures if not (f.ready or f.done)]
 
     not_done_call_ids = set([(f.executor_id, f.job_id, f.call_id) for f in not_done_futures])
-    done_call_ids = not_done_call_ids.intersection(callids_done)
+    new_callids_done = not_done_call_ids.intersection(callids_done)
 
     fs_to_wait_on = []
     for f in job.futures:
-        if (f.executor_id, f.job_id, f.call_id) in done_call_ids:
+        if (f.executor_id, f.job_id, f.call_id) in new_callids_done:
             fs_to_wait_on.append(f)
 
     def get_result(f):
@@ -308,3 +308,5 @@ def _get_job_data(fs, job_data, download_results, throw_except, threadpool_size,
             jobs = _create_jobs_from_futures(new_futures, internal_storage)
             for job_data in jobs:
                 job_monitor.create(**job_data).start()
+
+    return len(new_callids_done)

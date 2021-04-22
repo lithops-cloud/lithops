@@ -251,6 +251,7 @@ class StorageMonitor(Monitor):
         """
         not_ready_futures = [f for f in self.job.futures if not f._call_status_ready]
         callids_done_to_process = callids_done - self.callids_done_processed_status
+
         for f in not_ready_futures:
             if (f.executor_id, f.job_id, f.call_id) in callids_done_to_process:
                 f._call_status_ready = True
@@ -263,7 +264,8 @@ class StorageMonitor(Monitor):
         extra_call_ids = set()
         fs_to_query = []
 
-        if len(self.job.futures) - len(callids_done) > 10:
+        ten_percent = int(len(self.job.futures) * (10 / 100))
+        if len(self.job.futures) - len(callids_done) > max(10, ten_percent):
             return extra_call_ids
 
         not_ready_futures = [f for f in self.job.futures if not f._call_status_ready]
@@ -275,12 +277,17 @@ class StorageMonitor(Monitor):
         def get_status(f):
             cs = self.internal_storage.get_call_status(f.executor_id, f.job_id, f.call_id)
             f._call_status = cs
-            return (f.executor_id, f.job_id, f.call_id)
+            return (f.executor_id, f.job_id, f.call_id) if cs else None
 
         if len(fs_to_query) > 0:
             pool = cf.ThreadPoolExecutor(max_workers=min(64, len(fs_to_query)))
             extra_call_ids = set(pool.map(get_status, fs_to_query))
             pool.shutdown()
+
+        try:
+            extra_call_ids.remove(None)
+        except Exception:
+            pass
 
         return extra_call_ids
 
@@ -338,7 +345,7 @@ class StorageMonitor(Monitor):
             callids_done = callids_done.union(extra_callids_done)
 
             # verify if there are new callids_done and reduce or increase the sleep
-            new_callids_done = callids_done - self.callids_done_processed
+            new_callids_done = callids_done - self.callids_done_processed_status
             if len(new_callids_done) > 0:
                 self.WAIT_DUR_SEC = 0.5
             else:
@@ -346,12 +353,14 @@ class StorageMonitor(Monitor):
 
             # Format call_ids running, pending and done
             actual_callids_running = set([call_id for call_id, _ in callids_running])
-            logger.debug('ExecutorID {} | JobID {} - Pending: {} - Running: {} - Done: {} (new: {} - extra: {})'
-                         .format(self.job.executor_id, self.job.job_id,
-                                 max(self.job.total_calls - len(actual_callids_running), 0),
-                                 len(actual_callids_running - callids_done),
-                                 min(len(callids_done), len(self.job.futures)), 
-                                 len(new_callids_done), len(extra_callids_done)))
+            logger.debug('ExecutorID {} | JobID {} - Pending: {} - Running: {}'
+                         ' - Done: {} (new: {} - extra: {})' .format(
+                           self.job.executor_id, self.job.job_id,
+                           max(self.job.total_calls - len(actual_callids_running), 0),
+                           len(actual_callids_running - callids_done),
+                           min(len(callids_done), len(self.job.futures)),
+                           max(len(new_callids_done) - len(extra_callids_done), 0),
+                           len(extra_callids_done)))
 
             # generate tokens and mark futures as runiing/done
             self._generate_tokens(callids_running, callids_done)
