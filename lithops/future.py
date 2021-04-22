@@ -73,7 +73,6 @@ class ResponseFuture:
         self._return_val = None
         self._new_futures = None
         self._traceback = None
-        self._call_status_ready = False
         self._call_status = None
         self._call_output = None
         self._status_query_count = 0
@@ -108,13 +107,7 @@ class ResponseFuture:
 
     @property
     def ready(self):
-        if self._state in [ResponseFuture.State.Ready,
-                           ResponseFuture.State.Success,
-                           ResponseFuture.State.Done,
-                           ResponseFuture.State.Futures,
-                           ResponseFuture.State.Error]:
-            return True
-        return False
+        return self._state == ResponseFuture.State.Ready
 
     @property
     def error(self):
@@ -131,7 +124,6 @@ class ResponseFuture:
     @property
     def success(self):
         if self._state in [ResponseFuture.State.Success,
-                           ResponseFuture.State.Futures,
                            ResponseFuture.State.Error]:
             return True
         return False
