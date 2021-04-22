@@ -255,21 +255,13 @@ def _get_job_data(fs, job_data, download_results, throw_except, threadpool_size,
     job = job_data['job']
     internal_storage = job_data['internal_storage']
 
-    callids_done = [(f.executor_id, f.job_id, f.call_id)
-                    for f in job.futures if f._call_status_ready]
-
+    futures_ready = set([f for f in job.futures if f.ready])
     if download_results:
-        not_done_futures = [f for f in job.futures if not f.done]
+        not_done_futures = set([f for f in job.futures if not f.done])
     else:
-        not_done_futures = [f for f in job.futures if not (f.ready or f.done)]
+        not_done_futures = set([f for f in job.futures if not (f.success or f.done)])
 
-    not_done_call_ids = set([(f.executor_id, f.job_id, f.call_id) for f in not_done_futures])
-    new_callids_done = not_done_call_ids.intersection(callids_done)
-
-    fs_to_wait_on = []
-    for f in job.futures:
-        if (f.executor_id, f.job_id, f.call_id) in new_callids_done:
-            fs_to_wait_on.append(f)
+    fs_to_wait_on = not_done_futures.intersection(futures_ready)
 
     def get_result(f):
         f.result(throw_except=throw_except, internal_storage=internal_storage)
@@ -287,7 +279,7 @@ def _get_job_data(fs, job_data, download_results, throw_except, threadpool_size,
     if pbar:
         for f in fs_to_wait_on:
             if (download_results and f.done) or \
-               (not download_results and (f.ready or f.done)):
+               (not download_results and (f.sucess or f.done)):
                 pbar.update(1)
         pbar.refresh()
 
@@ -309,4 +301,4 @@ def _get_job_data(fs, job_data, download_results, throw_except, threadpool_size,
             for job_data in jobs:
                 job_monitor.create(**job_data).start()
 
-    return len(new_callids_done)
+    return len(fs_to_wait_on)
