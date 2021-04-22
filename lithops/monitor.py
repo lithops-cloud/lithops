@@ -24,8 +24,12 @@ import sys
 import queue
 import threading
 import concurrent.futures as cf
+from tblib import pickling_support
 
 from lithops.utils import is_lithops_worker
+
+
+pickling_support.install()
 
 logger = logging.getLogger(__name__)
 
@@ -44,38 +48,50 @@ class Monitor(threading.Thread):
         self.config = config
         self.daemon = not is_lithops_worker()
 
-        # vars for _mark_status_as_running
-        self.running_futures = set()
-
         # vars for _generate_tokens
         self.workers = {}
         self.workers_done = []
         self.callids_done_worker = {}
 
-    def _future_timeout_checker(self, running_futures):
+    def _all_ready(self):
+        """
+        Checks if all futures are ready, success or done
+        """
+        return all([f.ready or f.success or f.done for f in self.job.futures])
+
+    def _future_timeout_checker(self, futures):
         """
         Checks if running futures exceeded the timeout
         """
         current_time = time.time()
-        for fut in running_futures:
-            if fut.running and fut._call_status and fut._call_status['type'] == '__init__':
-                try:
-                    fut_timeout = fut._call_status['start_time'] + fut.execution_timeout + 5
-                    if current_time > fut_timeout:
-                        msg = 'The function did not run as expected.'
-                        raise TimeoutError('HANDLER', msg)
-                except TimeoutError:
-                    # generate fake TimeoutError call status
-                    pickled_exception = str(pickle.dumps(sys.exc_info()))
-                    call_status = {'type': '__end__',
-                                   'exception': True,
-                                   'exc_info': pickled_exception,
-                                   'executor_id': fut.executor_id,
-                                   'job_id': fut.job_id,
-                                   'call_id': fut.call_id,
-                                   'activation_id': fut.activation_id}
-                    fut._call_status = call_status
-                    fut._call_status_ready = True
+        futures_running = [f for f in futures if f.running]
+        for fut in futures_running:
+            try:
+                start_tstamp = fut._call_status['worker_start_tstamp']
+                fut_timeout = start_tstamp + fut.execution_timeout + 5
+                if current_time > fut_timeout:
+                    msg = 'The function did not run as expected.'
+                    raise TimeoutError('HANDLER', msg)
+            except TimeoutError:
+                # generate fake TimeoutError call status
+                pickled_exception = str(pickle.dumps(sys.exc_info()))
+                call_status = {'type': '__end__',
+                               'exception': True,
+                               'exc_info': pickled_exception,
+                               'executor_id': fut.executor_id,
+                               'job_id': fut.job_id,
+                               'call_id': fut.call_id,
+                               'activation_id': fut.activation_id}
+                fut._set_ready(call_status)
+
+    def _print_status_log(self):
+        """prints a debug log showing the status of the job"""
+        callids_pending = len([f for f in self.job.futures if f.invoked])
+        callids_running = len([f for f in self.job.futures if f.running])
+        callids_done = len([f for f in self.job.futures if f.ready or f.success or f.done])
+        logger.debug('ExecutorID {} | JobID {} - Pending: {} - Running: {} - Done: {}'
+                     .format(self.job.executor_id, self.job.job_id,
+                             callids_pending, callids_running, callids_done))
 
 
 class RabbitmqMonitor(Monitor):
@@ -116,20 +132,13 @@ class RabbitmqMonitor(Monitor):
         self.should_run = False
         self._delete_resources()
 
-    def _all_ready(self):
-        """
-        Checks if all futures are ready or done
-        """
-        return all([f._call_status_ready for f in self.job.futures])
-
     def _tag_future_as_running(self, call_status):
         """
         Assigns a call_status to its future
         """
         for f in self.job.futures:
             if f.call_id == call_status['call_id']:
-                f._call_status = call_status
-                self.running_futures.add(f)
+                f._set_running(call_status)
 
     def _tag_future_as_ready(self, call_status):
         """
@@ -137,8 +146,7 @@ class RabbitmqMonitor(Monitor):
         """
         for f in self.job.futures:
             if f.call_id == call_status['call_id']:
-                f._call_status = call_status
-                f._call_status_ready = True
+                f._set_ready(call_status)
 
         if 'new_futures' in call_status['call_id']:
             # do not stop thread, wait until new futures
@@ -184,6 +192,7 @@ class RabbitmqMonitor(Monitor):
             if self._all_ready() or not self.should_run:
                 ch.stop_consuming()
                 ch.close()
+                self._print_status_log()
                 logger.debug('ExecutorID {} | JobID {} - RabbitMQ job monitor finished'
                              .format(self.job.executor_id, self.job.job_id))
 
@@ -191,8 +200,10 @@ class RabbitmqMonitor(Monitor):
         threading.Thread(target=channel.start_consuming, daemon=True).start()
 
         while not total_callids_done == self.job.total_calls and self.should_run:
-            self._future_timeout_checker(self.running_futures)
-            time.sleep(5)
+            # Format call_ids running, pending and done
+            self._print_status_log()
+            self._future_timeout_checker(self.job.futures)
+            time.sleep(2)
 
 
 class StorageMonitor(Monitor):
@@ -219,42 +230,34 @@ class StorageMonitor(Monitor):
         """
         self.should_run = False
 
-    def _all_ready(self):
-        """
-        Checks if all futures are ready or done
-        """
-        return all([f._call_status_ready for f in self.job.futures])
-
     def _tag_future_as_running(self, callids_running):
         """
         Mark which futures are in running status based on callids_running
         """
         current_time = time.time()
-        not_done_futures = [f for f in self.job.futures if not (f.ready or f.done)]
+        not_done_futures = [f for f in self.job.futures if not (f.success or f.done)]
         callids_running_to_process = callids_running - self.callids_running_processed_timeout
         for f in not_done_futures:
             for call in callids_running_to_process:
-                if (f.executor_id, f.job_id, f.call_id) == call[0]:
-                    if f.invoked and f not in self.running_futures:
-                        f.activation_id = call[1]
-                        f._call_status = {'type': '__init__',
-                                          'activation_id': call[1],
-                                          'start_time': current_time}
-                        f.status(internal_storage=self.internal_storage)
-                        self.running_futures.add(f)
+                if f.invoked and (f.executor_id, f.job_id, f.call_id) == call[0]:
+                    call_status = {'type': '__init__',
+                                   'activation_id': call[1],
+                                   'worker_start_tstamp': current_time}
+                    f._set_running(call_status)
+
         self.callids_running_processed_timeout.update(callids_running_to_process)
-        self._future_timeout_checker(self.running_futures)
+        self._future_timeout_checker(self.job.futures)
 
     def _tag_future_as_ready(self, callids_done):
         """
         Mark which futures has a call_status ready to be downloaded
         """
-        not_ready_futures = [f for f in self.job.futures if not f._call_status_ready]
+        not_ready_futures = [f for f in self.job.futures if not (f.success or f.done)]
         callids_done_to_process = callids_done - self.callids_done_processed_status
 
         for f in not_ready_futures:
             if (f.executor_id, f.job_id, f.call_id) in callids_done_to_process:
-                f._call_status_ready = True
+                f._set_ready()
         self.callids_done_processed_status.update(callids_done_to_process)
 
     def _check_extra_calls_done(self, callids_done):
@@ -268,7 +271,7 @@ class StorageMonitor(Monitor):
         if len(self.job.futures) - len(callids_done) > max(10, ten_percent):
             return extra_call_ids
 
-        not_ready_futures = [f for f in self.job.futures if not f._call_status_ready]
+        not_ready_futures = [f for f in self.job.futures if not (f.ready or f.success or f.done)]
 
         for f in not_ready_futures:
             if (f.executor_id, f.job_id, f.call_id) not in callids_done:
@@ -276,8 +279,11 @@ class StorageMonitor(Monitor):
 
         def get_status(f):
             cs = self.internal_storage.get_call_status(f.executor_id, f.job_id, f.call_id)
-            f._call_status = cs
-            return (f.executor_id, f.job_id, f.call_id) if cs else None
+            if cs:
+                f._set_ready(cs)
+                return (f.executor_id, f.job_id, f.call_id)
+            else:
+                return None
 
         if len(fs_to_query) > 0:
             pool = cf.ThreadPoolExecutor(max_workers=min(64, len(fs_to_query)))
@@ -334,7 +340,6 @@ class StorageMonitor(Monitor):
                      .format(self.job.executor_id, self.job.job_id))
 
         while self.should_run and not self._all_ready():
-            time.sleep(self.WAIT_DUR_SEC)
             if not self.should_run:
                 break
             callids_running, callids_done = \
@@ -365,7 +370,9 @@ class StorageMonitor(Monitor):
             # generate tokens and mark futures as runiing/done
             self._generate_tokens(callids_running, callids_done)
             self._tag_future_as_running(callids_running)
-            self._tag_future_as_ready(callids_done)
+            self._tag_future_as_ready(callids_done - extra_callids_done)
+
+            time.sleep(self.WAIT_DUR_SEC)
 
         logger.debug('ExecutorID {} | JobID {} - Storage job monitor finished'
                      .format(self.job.executor_id, self.job.job_id))
@@ -392,6 +399,8 @@ class JobMonitor:
         """
         Checks if a job monitor is alive
         """
+        if job_key not in self.monitors:
+            return False
         return self.monitors[job_key].is_alive()
 
     def get_active_jobs(self):

@@ -46,6 +46,7 @@ class ResponseFuture:
         Success = "Success"
         Futures = "Futures"
         Error = "Error"
+        Done = "Done"
 
     GET_RESULT_SLEEP_SECS = 1
     GET_RESULT_MAX_RETRIES = 10
@@ -72,7 +73,6 @@ class ResponseFuture:
         self._return_val = None
         self._new_futures = None
         self._traceback = None
-        self._call_status_ready = False
         self._call_status = None
         self._call_output = None
         self._status_query_count = 0
@@ -106,6 +106,10 @@ class ResponseFuture:
         return self._state == ResponseFuture.State.Running
 
     @property
+    def ready(self):
+        return self._state == ResponseFuture.State.Ready
+
+    @property
     def error(self):
         return self._state == ResponseFuture.State.Error
 
@@ -118,20 +122,34 @@ class ResponseFuture:
         return self._state == ResponseFuture.State.Futures
 
     @property
-    def done(self):
+    def success(self):
         if self._state in [ResponseFuture.State.Success,
-                           ResponseFuture.State.Futures,
                            ResponseFuture.State.Error]:
             return True
         return False
 
     @property
-    def ready(self):
-        if self._state in [ResponseFuture.State.Ready,
+    def done(self):
+        if self._state in [ResponseFuture.State.Done,
                            ResponseFuture.State.Futures,
                            ResponseFuture.State.Error]:
             return True
         return False
+
+    def _set_invoked(self):
+        """ Set the future as invoked"""
+        self._state = ResponseFuture.State.Invoked
+
+    def _set_running(self, call_status):
+        """ Set the future as running"""
+        self._call_status = call_status
+        self.activation_id = self._call_status.pop('activation_id', None)
+        self._state = ResponseFuture.State.Running
+
+    def _set_ready(self, call_status=None):
+        """ Set the future as running"""
+        self._call_status = call_status
+        self._state = ResponseFuture.State.Ready
 
     def status(self, throw_except=True, internal_storage=None, check_only=False):
         """
@@ -149,18 +167,13 @@ class ResponseFuture:
         if self._state == ResponseFuture.State.New:
             raise ValueError("task not yet invoked")
 
-        if self._state in [ResponseFuture.State.Ready,
-                           ResponseFuture.State.Success]:
+        if self.success or self.done:
             return self._call_status
-
-        if self._call_status and self._call_status_ready \
-           and self._call_status['type'] == '__init__':
-            self._call_status = None
 
         if internal_storage is None:
             internal_storage = InternalStorage(self._storage_config)
 
-        if self._call_status is None:
+        if self._call_status is None or self.running:
             check_storage_path(internal_storage.get_storage_config(), self._storage_path)
             self._call_status = internal_storage.get_call_status(self.executor_id, self.job_id, self.call_id)
             self._status_query_count += 1
@@ -176,10 +189,6 @@ class ResponseFuture:
         self.stats['host_status_done_tstamp'] = time.time()
         self.stats['host_status_query_count'] = self._status_query_count
         self.activation_id = self._call_status.pop('activation_id', None)
-
-        if self._call_status['type'] == '__init__':
-            self._set_state(ResponseFuture.State.Running)
-            return self._call_status
 
         if 'logs' in self._call_status:
             self.logs = zlib.decompress(base64.b64decode(self._call_status['logs'].encode())).decode()
@@ -253,13 +262,13 @@ class ResponseFuture:
                                                       self.activation_id,
                                                       str(total_time)))
         logger.debug(log_msg)
-        self._set_state(ResponseFuture.State.Ready)
+        self._set_state(ResponseFuture.State.Success)
 
         if not self._call_status['result']:
             self._produce_output = False
 
         if not self._produce_output:
-            self._set_state(ResponseFuture.State.Success)
+            self._set_state(ResponseFuture.State.Done)
 
         if 'new_futures' in self._call_status:
             self.result(throw_except=throw_except, internal_storage=internal_storage)
@@ -279,12 +288,12 @@ class ResponseFuture:
         :raises TimeoutError: If job is not complete after `timeout` seconds.
         """
         if not self._produce_output:
-            self._set_state(ResponseFuture.State.Success)
+            self._set_state(ResponseFuture.State.Done)
 
         if self._state == ResponseFuture.State.New:
             raise ValueError("task not yet invoked")
 
-        if self._state == ResponseFuture.State.Success:
+        if self._state == ResponseFuture.State.Done:
             return self._return_val
 
         if self._state == ResponseFuture.State.Futures:
@@ -295,7 +304,7 @@ class ResponseFuture:
 
         self.status(throw_except=throw_except, internal_storage=internal_storage)
 
-        if self._state == ResponseFuture.State.Success:
+        if self._state == ResponseFuture.State.Done:
             return self._return_val
 
         if self._state == ResponseFuture.State.Futures:
@@ -335,5 +344,5 @@ class ResponseFuture:
 
         else:
             self._return_val = function_result
-            self._set_state(ResponseFuture.State.Success)
+            self._set_state(ResponseFuture.State.Done)
             return self._return_val

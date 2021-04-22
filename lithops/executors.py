@@ -395,8 +395,8 @@ class FunctionExecutor:
             fs_done = [f for f in futures if f.done]
             fs_notdone = [f for f in futures if not f.done]
         else:
-            fs_done = [f for f in futures if f.ready or f.done]
-            fs_notdone = [f for f in futures if not f.ready and not f.done]
+            fs_done = [f for f in futures if f.success or f.done]
+            fs_notdone = [f for f in futures if not f.success and not f.done]
 
         return fs_done, fs_notdone
 
@@ -451,7 +451,7 @@ class FunctionExecutor:
         if type(ftrs) != list:
             ftrs = [ftrs]
 
-        ftrs_to_plot = [f for f in ftrs if (f.ready or f.done) and not f.error]
+        ftrs_to_plot = [f for f in ftrs if (f.success or f.done) and not f.error]
 
         if not ftrs_to_plot:
             logger.debug('ExecutorID {} - No futures ready to plot'
