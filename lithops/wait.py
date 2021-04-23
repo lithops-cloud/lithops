@@ -291,12 +291,12 @@ def _get_job_data(fs, job_data, download_results, throw_except, threadpool_size,
         pbar.refresh()
 
     # Check for new futures
-    for f in fs_to_wait_on:
-        if f._new_futures and not f.success:
-            fs.extend(f._new_futures)
-            job.futures.extend(f._new_futures)
-            if pbar:
-                pbar.total = pbar.total + len(f._new_futures)
-                pbar.refresh()
+    new_futures = list(chain(*[f._new_futures for f in fs_to_wait_on if f._new_futures]))
+    if new_futures:
+        fs.extend(f._new_futures)
+        job.futures.extend(f._new_futures)
+        if pbar:
+            pbar.total = pbar.total + len(new_futures)
+            pbar.refresh()
 
     return len(fs_to_wait_on)

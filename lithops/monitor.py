@@ -356,8 +356,9 @@ class StorageMonitor(Monitor):
             self._tag_future_as_ready(callids_done)
             self._print_status_log()
 
-            time.sleep(self.WAIT_DUR_SEC)
-            self.WAIT_DUR_SEC = 2
+            if not self._all_ready():
+                time.sleep(self.WAIT_DUR_SEC)
+                self.WAIT_DUR_SEC = 2
 
         logger.debug('ExecutorID {} | JobID {} - Storage job monitor finished'
                      .format(self.job.executor_id, self.job.job_id))

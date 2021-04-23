@@ -186,6 +186,33 @@ def get_runtime_preinstalls():
     return runtime_meta
 
 
+def memory_monitor_worker(mm_conn, delay=0.01):
+    """
+    Monitor that checks the current memory usage
+    """
+    peak = 0
+
+    logger.debug("Starting memory monitor")
+
+    def make_measurement(peak):
+        mem = get_memory_usage(formatted=False) + 5*1024**2
+        if mem > peak:
+            peak = mem
+        return peak
+
+    while not mm_conn.poll(delay):
+        try:
+            peak = make_measurement(peak)
+        except Exception:
+            break
+
+    try:
+        peak = make_measurement(peak)
+    except Exception as e:
+        logger.error('Memory monitor: {}'.format(e))
+    mm_conn.send(peak)
+
+
 @contextmanager
 def custom_redirection(fileobj):
     old_stdout = sys.stdout

@@ -40,7 +40,7 @@ from lithops.constants import JOBS_PREFIX
 logger = logging.getLogger(__name__)
 
 
-class stats:
+class JobStats:
 
     def __init__(self, stats_filename):
         self.stats_filename = stats_filename
@@ -54,7 +54,7 @@ class stats:
         self.stats_fid.close()
 
 
-class TaskRunner:
+class JobRunner:
 
     def __init__(self, task, jobrunner_conn, internal_storage):
         self.task = task
@@ -66,7 +66,7 @@ class TaskRunner:
                                             self.task.job_id, self.task.id)
 
         # Setup stats class
-        self.stats = stats(self.task.stats_file)
+        self.stats = JobStats(self.task.stats_file)
 
         # Setup prometheus for live metrics
         prom_enabled = self.lithops_config['lithops'].get('telemetry')
