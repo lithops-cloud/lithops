@@ -149,6 +149,7 @@ class ResponseFuture:
     def _set_ready(self, call_status=None):
         """ Set the future as running"""
         self._call_status = call_status
+        self._host_status_done_tstamp = time.time() if call_status else None
         self._state = ResponseFuture.State.Ready
 
     def status(self, throw_except=True, internal_storage=None, check_only=False):
@@ -185,8 +186,9 @@ class ResponseFuture:
                 time.sleep(self.GET_RESULT_SLEEP_SECS)
                 self._call_status = internal_storage.get_call_status(self.executor_id, self.job_id, self.call_id)
                 self._status_query_count += 1
+            self._host_status_done_tstamp = time.time()
 
-        self.stats['host_status_done_tstamp'] = time.time()
+        self.stats['host_status_done_tstamp'] = self._host_status_done_tstamp
         self.stats['host_status_query_count'] = self._status_query_count
         self.activation_id = self._call_status.pop('activation_id', None)
 
