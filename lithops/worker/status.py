@@ -112,12 +112,12 @@ class RabbitmqCallStatus(StorageCallStatus):
                 connection = pika.BlockingConnection(params)
                 channel = connection.channel()
                 channel.basic_publish(exchange='', routing_key=queue, body=dmpd_response_status)
+                channel.close()
+                connection.close()
                 logger.info("Execution status sent to RabbitMQ - Size: {}".format(drs))
                 status_sent = True
             except Exception:
                 time.sleep(0.2)
-            channel.close()
-            connection.close()
 
         if self.status['type'] == '__end__':
             super()._send()
