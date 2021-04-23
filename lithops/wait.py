@@ -291,21 +291,12 @@ def _get_job_data(fs, job_data, download_results, throw_except, threadpool_size,
         pbar.refresh()
 
     # Check for new futures
-    new_futures = list(chain(*[f.result() for f in fs_to_wait_on if f.futures]))
+    new_futures = list(chain(*[f._new_futures for f in fs_to_wait_on if f._new_futures]))
     if new_futures:
-        fs.extend(new_futures)
+        fs.extend(f._new_futures)
+        job.futures.extend(f._new_futures)
         if pbar:
             pbar.total = pbar.total + len(new_futures)
             pbar.refresh()
-
-        if job_monitor.backend == 'storage':
-            job.futures.extend(new_futures)
-            if not job_monitor.is_alive(job.job_key):
-                # this is only for storage monitor
-                job_monitor.create(**job_data).start()
-        else:
-            jobs = _create_jobs_from_futures(new_futures, internal_storage)
-            for job_data in jobs:
-                job_monitor.create(**job_data).start()
 
     return len(fs_to_wait_on)

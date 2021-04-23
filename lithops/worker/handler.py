@@ -19,7 +19,6 @@
 import os
 import sys
 import zlib
-import pika
 import time
 import json
 import queue
@@ -31,20 +30,18 @@ import multiprocessing as mp
 from threading import Thread
 from multiprocessing import Process, Pipe
 from multiprocessing.managers import SyncManager
-from distutils.util import strtobool
 from tblib import pickling_support
 from types import SimpleNamespace
 
 from lithops.version import __version__
 from lithops.config import extract_storage_config
 from lithops.storage import InternalStorage
-from lithops.worker.taskrunner import TaskRunner
-from lithops.worker.utils import get_memory_usage, LogStream, custom_redirection,\
+from lithops.worker.jobrunner import JobRunner
+from lithops.worker.utils import LogStream, custom_redirection,\
     get_function_and_modules, get_function_data
 from lithops.constants import JOBS_PREFIX, LITHOPS_TEMP_DIR
 from lithops.utils import sizeof_fmt, setup_lithops_logger, is_unix_system
-from lithops.storage.utils import create_status_key, create_job_key,\
-    create_init_key
+from lithops.worker.status import create_call_status
 
 pickling_support.install()
 
@@ -109,78 +106,58 @@ def process_runner(job_queue, internal_storage):
         if isinstance(event, ShutdownSentinel):
             break
 
-        task, task_id, data = event
-        task.id = task_id
-        task.data = data
+        job, task_id, data = event
+        job.id = task_id
+        job.data = data
 
-        bucket = task.config['lithops']['storage_bucket']
-        task.task_dir = os.path.join(LITHOPS_TEMP_DIR, bucket, JOBS_PREFIX, task.job_key, task_id)
-        task.log_file = os.path.join(task.task_dir, 'execution.log')
-        os.makedirs(task.task_dir, exist_ok=True)
+        bucket = job.config['lithops']['storage_bucket']
+        job.task_dir = os.path.join(LITHOPS_TEMP_DIR, bucket, JOBS_PREFIX, job.job_key, task_id)
+        job.log_file = os.path.join(job.task_dir, 'execution.log')
+        os.makedirs(job.task_dir, exist_ok=True)
 
-        with open(task.log_file, 'a') as log_strem:
-            task.log_stream = LogStream(log_strem)
-            with custom_redirection(task.log_stream):
-                run_task(task, internal_storage)
+        with open(job.log_file, 'a') as log_strem:
+            job.log_stream = LogStream(log_strem)
+            with custom_redirection(job.log_stream):
+                run_job(job, internal_storage)
 
 
-def run_task(task, internal_storage):
+def run_job(job, internal_storage):
     """
     Runs a single job within a separate process
     """
-    start_tstamp = time.time()
-    setup_lithops_logger(task.log_level)
+    call_status = create_call_status(job, internal_storage)
+    setup_lithops_logger(job.log_level)
 
     backend = os.environ.get('__LITHOPS_BACKEND', '')
     logger.info("Lithops v{} - Starting {} execution".format(__version__, backend))
-    logger.info("Execution ID: {}/{}".format(task.job_key, task.id))
+    logger.info("Execution ID: {}/{}".format(job.job_key, job.id))
 
-    if task.runtime_memory:
+    if job.runtime_memory:
         logger.debug('Runtime: {} - Memory: {}MB - Timeout: {} seconds'
-                     .format(task.runtime_name, task.runtime_memory, task.execution_timeout))
+                     .format(job.runtime_name, job.runtime_memory, job.execution_timeout))
     else:
-        logger.debug('Runtime: {} - Timeout: {} seconds'.format(task.runtime_name, task.execution_timeout))
+        logger.debug('Runtime: {} - Timeout: {} seconds'.format(job.runtime_name, job.execution_timeout))
 
-    env = task.extra_env
+    env = job.extra_env
     env['LITHOPS_WORKER'] = 'True'
     env['PYTHONUNBUFFERED'] = 'True'
-    env['LITHOPS_CONFIG'] = json.dumps(task.config)
-    env['__LITHOPS_SESSION_ID'] = '-'.join([task.job_key, task.id])
+    env['LITHOPS_CONFIG'] = json.dumps(job.config)
+    env['__LITHOPS_SESSION_ID'] = '-'.join([job.job_key, job.id])
     os.environ.update(env)
-
-    call_status = CallStatus(task.config, internal_storage)
-    call_status.response['worker_start_tstamp'] = start_tstamp
-    call_status.response['host_submit_tstamp'] = task.host_submit_tstamp
-    call_status.response['call_id'] = task.id
-    call_status.response['job_id'] = task.job_id
-    call_status.response['executor_id'] = task.executor_id
-
-    if strtobool(os.environ.get('LITHOPS_CONTAINER', 'False')):
-        call_status.response['warm_container'] = True
-    else:
-        call_status.response['warm_container'] = False
-        os.environ['LITHOPS_CONTAINER'] = 'True'
-
-    show_memory_peak = strtobool(os.environ.get('SHOW_MEMORY_PEAK', 'False'))
 
     try:
         # send init status event
-        call_status.send('__init__')
+        call_status.send_init_event()
 
-        if show_memory_peak:
-            mm_handler_conn, mm_conn = Pipe()
-            memory_monitor = Thread(target=memory_monitor_worker, args=(mm_conn, ))
-            memory_monitor.start()
-
-        task.stats_file = os.path.join(task.task_dir, 'task_stats.txt')
+        job.stats_file = os.path.join(job.task_dir, 'job_stats.txt')
         handler_conn, jobrunner_conn = Pipe()
-        taskrunner = TaskRunner(task, jobrunner_conn, internal_storage)
-        logger.debug('Starting TaskRunner process')
+        taskrunner = JobRunner(job, jobrunner_conn, internal_storage)
+        logger.debug('Starting JobRunner process')
         jrp = Process(target=taskrunner.run) if is_unix_system() else Thread(target=taskrunner.run)
         jrp.start()
 
-        jrp.join(task.execution_timeout)
-        logger.debug('TaskRunner process finished')
+        jrp.join(job.execution_timeout)
+        logger.debug('JobRunner process finished')
 
         if jrp.is_alive():
             # If process is still alive after jr.join(job_max_runtime), kill it
@@ -190,15 +167,8 @@ def run_task(task, internal_storage):
                 # thread does not have terminate method
                 pass
             msg = ('Function exceeded maximum time of {} seconds and was '
-                   'killed'.format(task.execution_timeout))
+                   'killed'.format(job.execution_timeout))
             raise TimeoutError('HANDLER', msg)
-
-        if show_memory_peak:
-            mm_handler_conn.send('STOP')
-            memory_monitor.join()
-            peak_memory_usage = int(mm_handler_conn.recv())
-            logger.info("Peak memory usage: {}".format(sizeof_fmt(peak_memory_usage)))
-            call_status.response['peak_memory_usage'] = peak_memory_usage
 
         if not handler_conn.poll():
             logger.error('No completion message received from JobRunner process')
@@ -209,141 +179,42 @@ def run_task(task, internal_storage):
             msg = 'Function exceeded maximum memory and was killed'
             raise MemoryError('HANDLER', msg)
 
-        if os.path.exists(task.stats_file):
-            with open(task.stats_file, 'r') as fid:
+        if os.path.exists(job.stats_file):
+            with open(job.stats_file, 'r') as fid:
                 for l in fid.readlines():
                     key, value = l.strip().split(" ", 1)
                     try:
-                        call_status.response[key] = float(value)
+                        call_status.add(key, float(value))
                     except Exception:
-                        call_status.response[key] = value
-                    if key in ['exception', 'exc_pickle_fail', 'result', 'new_futures']:
-                        call_status.response[key] = eval(value)
+                        call_status.add(key, value)
+                    if key in ['exception', 'exc_pickle_fail', 'result']:
+                        call_status.add(key, eval(value))
 
     except Exception:
         # internal runtime exceptions
         print('----------------------- EXCEPTION !-----------------------')
         traceback.print_exc(file=sys.stdout)
         print('----------------------------------------------------------')
-        call_status.response['exception'] = True
+        call_status.add('exception', True)
 
         pickled_exc = pickle.dumps(sys.exc_info())
         pickle.loads(pickled_exc)  # this is just to make sure they can be unpickled
-        call_status.response['exc_info'] = str(pickled_exc)
+        call_status.add('exc_info', str(pickled_exc))
 
     finally:
-        call_status.response['worker_end_tstamp'] = time.time()
+        call_status.add('worker_end_tstamp', time.time())
 
         # Flush log stream and save it to the call status
-        task.log_stream.flush()
-        with open(task.log_file, 'rb') as lf:
+        job.log_stream.flush()
+        with open(job.log_file, 'rb') as lf:
             log_str = base64.b64encode(zlib.compress(lf.read())).decode()
-            call_status.response['logs'] = log_str
+            call_status.add('logs', log_str)
 
-        call_status.send('__end__')
+        call_status.send_finish_event()
 
         # Unset specific env vars
-        for key in task.extra_env:
+        for key in job.extra_env:
             os.environ.pop(key, None)
         os.environ.pop('__LITHOPS_TOTAL_EXECUTORS', None)
 
         logger.info("Finished")
-
-
-class CallStatus:
-
-    def __init__(self, lithops_config, internal_storage):
-        self.config = lithops_config
-        self.monitoring = self.config['lithops']['monitoring']
-        self.store_status = strtobool(os.environ.get('__LITHOPS_STORE_STATUS', 'True'))
-        self.internal_storage = internal_storage
-        self.response = {
-            'exception': False,
-            'activation_id': os.environ.get('__LITHOPS_ACTIVATION_ID'),
-            'python_version': os.environ.get("PYTHON_VERSION")
-        }
-
-    def send(self, event_type):
-        self.response['type'] = event_type
-        if self.store_status:
-            if self.monitoring == 'rabbitmq':
-                self._send_status_rabbitmq()
-            if not self.monitoring == 'rabbitmq' or event_type == '__end__':
-                self._send_status_os()
-
-    def _send_status_os(self):
-        """
-        Send the status event to the Object Storage
-        """
-        executor_id = self.response['executor_id']
-        job_id = self.response['job_id']
-        call_id = self.response['call_id']
-        act_id = self.response['activation_id']
-
-        if self.response['type'] == '__init__':
-            init_key = create_init_key(JOBS_PREFIX, executor_id, job_id, call_id, act_id)
-            self.internal_storage.put_data(init_key, '')
-
-        elif self.response['type'] == '__end__':
-            status_key = create_status_key(JOBS_PREFIX, executor_id, job_id, call_id)
-            dmpd_response_status = json.dumps(self.response)
-            drs = sizeof_fmt(len(dmpd_response_status))
-            logger.info("Storing execution stats - Size: {}".format(drs))
-            self.internal_storage.put_data(status_key, dmpd_response_status)
-
-    def _send_status_rabbitmq(self):
-        """
-        Send the status event to RabbitMQ
-        """
-        dmpd_response_status = json.dumps(self.response)
-        drs = sizeof_fmt(len(dmpd_response_status))
-
-        executor_id = self.response['executor_id']
-        job_id = self.response['job_id']
-
-        rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
-        status_sent = False
-        output_query_count = 0
-        params = pika.URLParameters(rabbit_amqp_url)
-        job_key = create_job_key(executor_id, job_id)
-        queue = 'lithops-{}'.format(job_key)
-
-        while not status_sent and output_query_count < 5:
-            output_query_count = output_query_count + 1
-            try:
-                connection = pika.BlockingConnection(params)
-                channel = connection.channel()
-                channel.basic_publish(exchange='', routing_key=queue, body=dmpd_response_status)
-                channel.close()
-                connection.close()
-                logger.info("Execution status sent to rabbitmq - Size: {}".format(drs))
-                status_sent = True
-            except Exception as e:
-                logger.info("Unable to send status to rabbitmq")
-                logger.info(str(e))
-                logger.info('Retrying to send status to rabbitmq')
-                time.sleep(0.2)
-
-
-def memory_monitor_worker(mm_conn, delay=0.01):
-    peak = 0
-
-    logger.debug("Starting memory monitor")
-
-    def make_measurement(peak):
-        mem = get_memory_usage(formatted=False) + 5*1024**2
-        if mem > peak:
-            peak = mem
-        return peak
-
-    while not mm_conn.poll(delay):
-        try:
-            peak = make_measurement(peak)
-        except Exception:
-            break
-
-    try:
-        peak = make_measurement(peak)
-    except Exception as e:
-        logger.error('Memory monitor: {}'.format(e))
-    mm_conn.send(peak)

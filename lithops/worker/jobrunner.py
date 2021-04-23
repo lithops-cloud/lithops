@@ -40,7 +40,7 @@ from lithops.constants import JOBS_PREFIX
 logger = logging.getLogger(__name__)
 
 
-class stats:
+class JobStats:
 
     def __init__(self, stats_filename):
         self.stats_filename = stats_filename
@@ -54,7 +54,7 @@ class stats:
         self.stats_fid.close()
 
 
-class TaskRunner:
+class JobRunner:
 
     def __init__(self, task, jobrunner_conn, internal_storage):
         self.task = task
@@ -66,7 +66,7 @@ class TaskRunner:
                                             self.task.job_id, self.task.id)
 
         # Setup stats class
-        self.stats = stats(self.task.stats_file)
+        self.stats = JobStats(self.task.stats_file)
 
         # Setup prometheus for live metrics
         prom_enabled = self.lithops_config['lithops'].get('telemetry')
@@ -213,16 +213,18 @@ class TaskRunner:
 
             # Check for new futures
             if result is not None:
-                self.stats.write("result", True)
                 if isinstance(result, ResponseFuture) or \
                    (type(result) == list and len(result) > 0 and isinstance(result[0], ResponseFuture)):
-                    self.stats.write('new_futures', True)
+                    self.stats.write('new_futures', pickle.dumps(result))
+                    result = None
+                else:
+                    self.stats.write("result", True)
+                    logger.debug("Pickling result")
+                    output_dict = {'result': result}
+                    pickled_output = pickle.dumps(output_dict)
+                    self.stats.write('func_result_size', len(pickled_output))
 
-                logger.debug("Pickling result")
-                output_dict = {'result': result}
-                pickled_output = pickle.dumps(output_dict)
-                self.stats.write('func_result_size', len(pickled_output))
-            else:
+            if result is None:
                 logger.debug("No result to store")
                 self.stats.write("result", False)
                 self.stats.write('func_result_size', 0)
