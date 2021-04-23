@@ -59,6 +59,18 @@ class Monitor(threading.Thread):
         """
         return all([f.ready or f.success or f.done for f in self.job.futures])
 
+    def _check_new_futures(self, call_status, f):
+        """Checks if a functions returned new futures to track"""
+        if 'new_futures' not in call_status:
+            return False
+
+        f.status(internal_storage=self.internal_storage)
+        self.job.futures.extend(f._new_futures)
+        logger.debug('ExecutorID {} | JobID {} - Got {} new futures to track'
+                     .format(self.job.executor_id, self.job.job_id, len(f._new_futures)))
+
+        return True
+
     def _future_timeout_checker(self, futures):
         """
         Checks if running futures exceeded the timeout
@@ -147,10 +159,7 @@ class RabbitmqMonitor(Monitor):
         for f in self.job.futures:
             if f.call_id == call_status['call_id']:
                 f._set_ready(call_status)
-
-        if 'new_futures' in call_status['call_id']:
-            # do not stop thread, wait until new futures
-            pass
+                self._check_new_futures(call_status, f)
 
     def _generate_tokens(self, call_status):
         """
@@ -253,7 +262,7 @@ class StorageMonitor(Monitor):
         """
         Mark which futures has a call_status ready to be downloaded
         """
-        not_ready_futures = [f for f in self.job.futures if not (f.success or f.done)]
+        not_ready_futures = [f for f in self.job.futures if not (f.success or f.done) and not f._new_futures]
         callids_done_to_process = callids_done - self.callids_done_processed_status
         fs_to_query = []
 
@@ -271,7 +280,8 @@ class StorageMonitor(Monitor):
         def get_status(f):
             cs = self.internal_storage.get_call_status(f.executor_id, f.job_id, f.call_id)
             if cs:
-                f._set_ready(cs)
+                if not self._check_new_futures(cs, f):
+                    f._set_ready(cs)
                 return (f.executor_id, f.job_id, f.call_id)
             else:
                 return None
@@ -338,7 +348,7 @@ class StorageMonitor(Monitor):
             # verify if there are new callids_done and reduce the sleep
             new_callids_done = callids_done - self.callids_done_processed_status
             if len(new_callids_done) > 0:
-                self.WAIT_DUR_SEC = 0
+                self.WAIT_DUR_SEC = 0.5
 
             # generate tokens and mark futures as runiing/done
             self._generate_tokens(callids_running, callids_done)

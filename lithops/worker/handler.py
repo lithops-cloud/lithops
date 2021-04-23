@@ -217,7 +217,7 @@ def run_task(task, internal_storage):
                         call_status.response[key] = float(value)
                     except Exception:
                         call_status.response[key] = value
-                    if key in ['exception', 'exc_pickle_fail', 'result', 'new_futures']:
+                    if key in ['exception', 'exc_pickle_fail', 'result']:
                         call_status.response[key] = eval(value)
 
     except Exception:

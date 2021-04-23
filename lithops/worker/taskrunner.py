@@ -213,16 +213,18 @@ class TaskRunner:
 
             # Check for new futures
             if result is not None:
-                self.stats.write("result", True)
                 if isinstance(result, ResponseFuture) or \
                    (type(result) == list and len(result) > 0 and isinstance(result[0], ResponseFuture)):
-                    self.stats.write('new_futures', True)
+                    self.stats.write('new_futures', pickle.dumps(result))
+                    result = None
+                else:
+                    self.stats.write("result", True)
+                    logger.debug("Pickling result")
+                    output_dict = {'result': result}
+                    pickled_output = pickle.dumps(output_dict)
+                    self.stats.write('func_result_size', len(pickled_output))
 
-                logger.debug("Pickling result")
-                output_dict = {'result': result}
-                pickled_output = pickle.dumps(output_dict)
-                self.stats.write('func_result_size', len(pickled_output))
-            else:
+            if result is None:
                 logger.debug("No result to store")
                 self.stats.write("result", False)
                 self.stats.write('func_result_size', 0)
