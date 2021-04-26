@@ -7,10 +7,10 @@
 
 ### Changed
 - [Core] New monitoring system
-- [Core] New invoker system
 - [Core] Deleted strong dependency to pika==0.13.1
 
 ### Fixes
+- [Partitioner] Fixed partitioner when obj url contains more than one subfolder
 - [Cli] Fixed serverless runtime lifecycle methods
 
 
