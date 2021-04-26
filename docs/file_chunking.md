@@ -90,7 +90,7 @@ Later on, each thread is aggregating (unpickling) from the cloud relevant data a
 its own chunk (in run() of lithops/worker/taskrunner.py), which contains aforementioned byte ranges. 
 Amongst other aggregated objects, a data_stream object that handles the line integrity is initialized and appended.
 finally, taskrunner.py passes it all forwards to the map function (the very reason the function in the example receives a parameter).    
-When users wish to read the chunks, they may do so by calling the read function (the overriding version of lithops/worker/utils.py),
+When users wish to read the chunks, they may do so by calling the read function (the overriding version of lithops/utils.py),
 which is implemented in the following way: 
 
 1. Store the first byte of the current chunk, unless the chunk in matter is the first / only chunk in the mapping job. 
