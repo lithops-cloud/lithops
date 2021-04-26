@@ -295,7 +295,7 @@ def split_object_url(obj_url):
     bucket, full_key = path.split('/', 1) if '/' in path else (path, '')
 
     if full_key.endswith('/'):
-        prefix = full_key.replace('/', '')
+        prefix = ''.join(full_key.rsplit('/', 1))
         obj_name = ''
     elif full_key:
         prefix, obj_name = full_key.rsplit('/', 1) if '/' in full_key else ('', full_key)
