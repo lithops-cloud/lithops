@@ -143,7 +143,7 @@ class ResponseFuture:
     def _set_running(self, call_status):
         """ Set the future as running"""
         self._call_status = call_status
-        self.activation_id = self._call_status.pop('activation_id', None)
+        self.activation_id = self._call_status['activation_id']
         self._state = ResponseFuture.State.Running
 
     def _set_ready(self, call_status=None):
@@ -171,10 +171,14 @@ class ResponseFuture:
         if self.success or self.done:
             return self._call_status
 
+        if self.ready and self._new_futures:
+            self._set_state(ResponseFuture.State.Done)
+            return self._call_status
+
         if internal_storage is None:
             internal_storage = InternalStorage(self._storage_config)
 
-        if self._call_status is None or self.running:
+        if self._call_status is None or self._call_status['type'] == '__init__':
             check_storage_path(internal_storage.get_storage_config(), self._storage_path)
             self._call_status = internal_storage.get_call_status(self.executor_id, self.job_id, self.call_id)
             self._status_query_count += 1
@@ -188,9 +192,9 @@ class ResponseFuture:
                 self._status_query_count += 1
             self._host_status_done_tstamp = time.time()
 
-        self.stats['host_status_done_tstamp'] = self._host_status_done_tstamp
+        self.stats['host_status_done_tstamp'] = self._host_status_done_tstamp or time.time()
         self.stats['host_status_query_count'] = self._status_query_count
-        self.activation_id = self._call_status.pop('activation_id', None)
+        self.activation_id = self._call_status['activation_id']
 
         if 'logs' in self._call_status:
             self.logs = zlib.decompress(base64.b64decode(self._call_status['logs'].encode())).decode()
@@ -257,13 +261,12 @@ class ResponseFuture:
         self.stats['worker_exec_time'] = round(self.stats['worker_end_tstamp'] - self.stats['worker_start_tstamp'], 8)
         total_time = format(round(self.stats['worker_exec_time'], 2), '.2f')
 
-        log_msg = ('ExecutorID {} | JobID {} - Got status from call {} - Activation '
-                   'ID: {} - Time: {} seconds'.format(self.executor_id,
-                                                      self.job_id,
-                                                      self.call_id,
-                                                      self.activation_id,
-                                                      str(total_time)))
-        logger.debug(log_msg)
+        logger.debug('ExecutorID {} | JobID {} - Got status from call {} - Activation '
+                     'ID: {} - Time: {} seconds'.format(self.executor_id,
+                                                        self.job_id,
+                                                        self.call_id,
+                                                        self.activation_id,
+                                                        str(total_time)))
 
         self._set_state(ResponseFuture.State.Success)
 

@@ -316,11 +316,11 @@ class TestLithops(unittest.TestCase):
         fexec.map(TestMethods.lithops_inside_lithops_map_function, range(1, 5))
         result = fexec.get_result()
         self.assertEqual(result, [list(range(i)) for i in range(1, 5)])
- 
+
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.call_async(TestMethods.lithops_return_futures_map_function1, 3)
         fexec.get_result()
-# 
+
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.call_async(TestMethods.lithops_return_futures_map_function2, 3)
         fexec.get_result()
