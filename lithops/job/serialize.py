@@ -18,13 +18,18 @@
 
 import os
 import glob
+import importlib
 import logging
+import inspect
+import cloudpickle
 from pathlib import Path
-from io import BytesIO as StringIO
-from lithops.utils import bytes_to_b64str
-from lithops.libs.cloudpickle import CloudPickler
-from lithops.libs.multyvac.module_dependency import ModuleDependencyAnalyzer
+from dis import Bytecode
+from functools import reduce
+from importlib import import_module
+from types import CodeType, FunctionType, ModuleType
 
+from lithops.utils import bytes_to_b64str
+from lithops.libs.multyvac.module_dependency import ModuleDependencyAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -46,38 +51,30 @@ class SerializeIndependent:
         if not include_modules:
             self._modulemgr.ignore(exclude_modules)
 
-        cps = []
         strs = []
+        mods = []
         for obj in list_of_objs:
-            file = StringIO()
-            try:
-                cp = CloudPickler(file)
-                cp.dump(obj)
-                cps.append(cp)
-                strs.append(file.getvalue())
-            finally:
-                file.close()
+            mods.extend(self._module_inspect(obj))
+            strs.append(cloudpickle.dumps(obj))
 
         # Add modules
         direct_modules = set()
-        for cp in cps:
-            for module in cp.modules:
-                try:
-                    direct_modules.add(module.__file__)
-                except Exception:
-                    pass
-                self._modulemgr.add(module.__name__)
+        for module_name in mods:
+            if module_name == '__main__':
+                continue
+            origin = importlib.util.find_spec(module_name).origin
+            direct_modules.add(origin if origin != 'built-in' else module_name)
+            self._modulemgr.add(module_name)
 
-        logger.debug("Referenced modules: {}"
-                     .format(None if not direct_modules else direct_modules))
-
+        logger.debug("Referenced modules: {}".format(None if not direct_modules
+                                                     else ", ".join(direct_modules)))
         mod_paths = set()
         if include_modules is not None:
             tent_mod_paths = self._modulemgr.get_and_clear_paths()
             if include_modules:
                 logger.debug("Tentative modules to transmit: {}"
-                             .format(None if not tent_mod_paths else tent_mod_paths))
-                logger.debug("Filtering modules: {}".format(include_modules))
+                             .format(None if not tent_mod_paths else ", ".join(tent_mod_paths)))
+                logger.debug("Include modules: {}".format(", ".join(include_modules)))
                 for im in include_modules:
                     for mp in tent_mod_paths:
                         if im in mp:
@@ -87,9 +84,85 @@ class SerializeIndependent:
                 mod_paths = tent_mod_paths
 
         logger.debug("Modules to transmit: {}"
-                     .format(None if not mod_paths else mod_paths))
+                     .format(None if not mod_paths else ", ".join(mod_paths)))
 
         return (strs, mod_paths)
+
+    def _inner_module_inspect(self, inst):
+        """
+        get interesting modules refernced within an object
+        """
+        if inst.opname == "IMPORT_NAME":
+            path = inst.argval.split(".")
+            path[0] = [import_module(path[0])]
+            result = reduce(lambda x, a: x + [getattr(x[-1], a)], path)
+            return ("modules", result)
+        if inst.opname == "LOAD_GLOBAL":
+            if inst.argval in globals() and type(globals()[inst.argval]) in [CodeType, FunctionType]:
+                return ("code", globals()[inst.argval])
+            if inst.argval in globals() and type(globals()[inst.argval]) == ModuleType:
+                return ("modules", [globals()[inst.argval]])
+            else:
+                return None
+        if "LOAD_" in inst.opname and type(inst.argval) in [CodeType, FunctionType]:
+            return ("code", inst.argval)
+        return None
+
+    def _module_inspect(self, obj):
+        """
+        inspect objects for module dependencies
+        """
+        worklist = []
+        codeworklist = []
+
+        if inspect.isfunction(obj):
+            worklist.append(obj)
+        elif inspect.iscode(obj):
+            codeworklist.append(obj)
+
+        seen = set()
+        mods = set()
+        for fn in worklist:
+            mods.add(fn.__module__)
+            codeworklist.append(fn)
+            cvs = inspect.getclosurevars(fn)
+
+            for k, v in cvs.nonlocals.items():
+                if inspect.ismodule(v):
+                    mods.add(v.__name__)
+                elif inspect.isfunction(v) and id(v) not in seen:
+                    seen.add(id(v))
+                    mods.add(v.__module__)
+                    worklist.append(v)
+                elif hasattr(v, "__module__"):
+                    mods.add(v.__module__)
+
+            for k, v in cvs.globals.items():
+                if inspect.ismodule(v):
+                    mods.add(v.__name__)
+                elif inspect.isfunction(v) and id(v) not in seen:
+                    seen.add(id(v))
+                    mods.add(v.__module__)
+                    worklist.append(v)
+                elif hasattr(v, "__module__"):
+                    mods.add(v.__module__)
+
+        for block in codeworklist:
+            for (k, v) in [self._inner_module_inspect(inst) for inst in Bytecode(block) if self._inner_module_inspect(inst)]:
+                if k == "modules":
+                    newmods = [mod.__name__ for mod in v if hasattr(mod, "__name__")]
+                    mods.update(set(newmods))
+                elif k == "code" and id(v) not in seen:
+                    seen.add(id(v))
+                    if hasattr(v, "__module__"):
+                        mods.add(v.__module__)
+                if(inspect.isfunction(v)):
+                    worklist.append(v)
+                elif(inspect.iscode(v)):
+                    codeworklist.append(v)
+
+        result = list(mods)
+        return result
 
 
 def create_module_data(mod_paths):
