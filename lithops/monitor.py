@@ -64,8 +64,11 @@ class Monitor(threading.Thread):
         if 'new_futures' not in call_status:
             return False
 
+        f._call_status = call_status
+        f._host_status_done_tstamp = time.time()
         f.status(internal_storage=self.internal_storage)
         self.job.futures.extend(f._new_futures)
+        f._set_ready(call_status)
         logger.debug('ExecutorID {} | JobID {} - Got {} new futures to track'
                      .format(self.job.executor_id, self.job.job_id, len(f._new_futures)))
 
@@ -157,9 +160,10 @@ class RabbitmqMonitor(Monitor):
         tags a future as ready based on call_status
         """
         for f in self.job.futures:
-            if f.call_id == call_status['call_id']:
-                f._set_ready(call_status)
-                self._check_new_futures(call_status, f)
+            calljob_id = (call_status['executor_id'], call_status['job_id'], call_status['call_id'])
+            if (f.executor_id, f.job_id, f.call_id) == calljob_id:
+                if not self._check_new_futures(call_status, f):
+                    f._set_ready(call_status)
 
     def _generate_tokens(self, call_status):
         """

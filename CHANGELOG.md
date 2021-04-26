@@ -4,6 +4,7 @@
 
 ### Added
 - [Core] New "warm_container" and "func_result_size" in future statistics
+- [Core] New logic to detect referenced modules/libs
 
 ### Changed
 - [Core] New monitoring system
@@ -13,6 +14,8 @@
 - [Partitioner] Fixed partitioner when obj url contains more than one subfolder
 - [Cli] Fixed serverless runtime lifecycle methods
 
+### Deleted
+- [Core] Removed cloudpickle from lithops.libs
 
 ## [v2.3.1]
 
