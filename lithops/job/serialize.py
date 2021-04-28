@@ -88,6 +88,74 @@ class SerializeIndependent:
 
         return (strs, mod_paths)
 
+    def _module_inspect(self, obj):
+        """
+        inspect objects for module dependencies
+        """
+        worklist = []
+        seen = set()
+        mods = set()
+
+        if type(obj) == dict:
+            # the obj is the user's iterdata
+            # TODO: Add deeper analysis
+            to_anayze = list(obj.values())
+            for param in to_anayze:
+                if type(param).__module__ != "__builtin__":
+                    if inspect.isfunction(param):
+                        # it is a user defined function
+                        worklist.append(param)
+                    else:
+                        # it is a user defined class
+                        members = inspect.getmembers(param)
+                        for k, v in members:
+                            if inspect.ismethod(v):
+                                worklist.append(v)
+                    try:
+                        mods.add(param.__module__)
+                    except Exception:
+                        pass
+        else:
+            # The obj is the user's function
+            worklist.append(obj)
+
+        # The worklist is only used for analyzing functions
+        for fn in worklist:
+            mods.add(fn.__module__)
+            codeworklist = [fn]
+
+            cvs = inspect.getclosurevars(fn)
+            modules = list(cvs.nonlocals.items())
+            modules.extend(list(cvs.globals.items()))
+            for k, v in modules:
+                if inspect.ismodule(v):
+                    mods.add(v.__name__)
+                elif inspect.isfunction(v) and id(v) not in seen:
+                    seen.add(id(v))
+                    mods.add(v.__module__)
+                    worklist.append(v)
+                elif hasattr(v, "__module__"):
+                    mods.add(v.__module__)
+
+            for block in codeworklist:
+                for (k, v) in [self._inner_module_inspect(inst)
+                               for inst in Bytecode(block)
+                               if self._inner_module_inspect(inst)]:
+                    if k == "modules":
+                        newmods = [mod.__name__ for mod in v if hasattr(mod, "__name__")]
+                        mods.update(set(newmods))
+                    elif k == "code" and id(v) not in seen:
+                        seen.add(id(v))
+                        if hasattr(v, "__module__"):
+                            mods.add(v.__module__)
+                    if inspect.isfunction(v):
+                        worklist.append(v)
+                    elif inspect.iscode(v):
+                        codeworklist.append(v)
+
+        result = list(mods)
+        return result
+
     def _inner_module_inspect(self, inst):
         """
         get interesting modules refernced within an object
@@ -107,62 +175,6 @@ class SerializeIndependent:
         if "LOAD_" in inst.opname and type(inst.argval) in [CodeType, FunctionType]:
             return ("code", inst.argval)
         return None
-
-    def _module_inspect(self, obj):
-        """
-        inspect objects for module dependencies
-        """
-        worklist = []
-        codeworklist = []
-
-        if inspect.isfunction(obj):
-            worklist.append(obj)
-        elif inspect.iscode(obj):
-            codeworklist.append(obj)
-
-        seen = set()
-        mods = set()
-        for fn in worklist:
-            mods.add(fn.__module__)
-            codeworklist.append(fn)
-            cvs = inspect.getclosurevars(fn)
-
-            for k, v in cvs.nonlocals.items():
-                if inspect.ismodule(v):
-                    mods.add(v.__name__)
-                elif inspect.isfunction(v) and id(v) not in seen:
-                    seen.add(id(v))
-                    mods.add(v.__module__)
-                    worklist.append(v)
-                elif hasattr(v, "__module__"):
-                    mods.add(v.__module__)
-
-            for k, v in cvs.globals.items():
-                if inspect.ismodule(v):
-                    mods.add(v.__name__)
-                elif inspect.isfunction(v) and id(v) not in seen:
-                    seen.add(id(v))
-                    mods.add(v.__module__)
-                    worklist.append(v)
-                elif hasattr(v, "__module__"):
-                    mods.add(v.__module__)
-
-        for block in codeworklist:
-            for (k, v) in [self._inner_module_inspect(inst) for inst in Bytecode(block) if self._inner_module_inspect(inst)]:
-                if k == "modules":
-                    newmods = [mod.__name__ for mod in v if hasattr(mod, "__name__")]
-                    mods.update(set(newmods))
-                elif k == "code" and id(v) not in seen:
-                    seen.add(id(v))
-                    if hasattr(v, "__module__"):
-                        mods.add(v.__module__)
-                if(inspect.isfunction(v)):
-                    worklist.append(v)
-                elif(inspect.iscode(v)):
-                    codeworklist.append(v)
-
-        result = list(mods)
-        return result
 
 
 def create_module_data(mod_paths):

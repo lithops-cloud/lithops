@@ -39,8 +39,8 @@ from lithops.storage import InternalStorage
 from lithops.worker.jobrunner import JobRunner
 from lithops.worker.utils import LogStream, custom_redirection,\
     get_function_and_modules, get_function_data
-from lithops.constants import JOBS_PREFIX, LITHOPS_TEMP_DIR
-from lithops.utils import sizeof_fmt, setup_lithops_logger, is_unix_system
+from lithops.constants import JOBS_PREFIX, LITHOPS_TEMP_DIR, MODULES_DIR
+from lithops.utils import setup_lithops_logger, is_unix_system
 from lithops.worker.status import create_call_status
 
 pickling_support.install()
@@ -95,6 +95,11 @@ def function_handler(payload):
             runner.join()
 
         manager.shutdown()
+
+    # Delete modules path from syspath
+    module_path = os.path.join(MODULES_DIR, job.job_key)
+    if module_path in sys.path:
+        sys.path.remove(module_path)
 
 
 def process_runner(job_queue, internal_storage):

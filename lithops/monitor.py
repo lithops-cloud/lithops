@@ -26,8 +26,6 @@ import threading
 import concurrent.futures as cf
 from tblib import pickling_support
 
-from lithops.utils import is_lithops_worker
-
 
 pickling_support.install()
 
@@ -46,7 +44,7 @@ class Monitor(threading.Thread):
         self.token_bucket_q = token_bucket_q
         self.generate_tokens = generate_tokens
         self.config = config
-        self.daemon = not is_lithops_worker()
+        self.daemon = True
 
         # vars for _generate_tokens
         self.workers = {}
@@ -64,11 +62,8 @@ class Monitor(threading.Thread):
         if 'new_futures' not in call_status:
             return False
 
-        f._call_status = call_status
-        f._host_status_done_tstamp = time.time()
-        f.status(internal_storage=self.internal_storage)
+        f._set_futures(call_status)
         self.job.futures.extend(f._new_futures)
-        f._set_ready(call_status)
         logger.debug('ExecutorID {} | JobID {} - Got {} new futures to track'
                      .format(self.job.executor_id, self.job.job_id, len(f._new_futures)))
 
@@ -125,8 +120,8 @@ class RabbitmqMonitor(Monitor):
         logger.debug('ExecutorID {} | JobID {} - Creating RabbitMQ resources'
                      .format(self.job.executor_id, self.job.job_id))
 
-        params = pika.URLParameters(self.rabbit_amqp_url)
-        self.connection = pika.BlockingConnection(params)
+        self.pikaparams = pika.URLParameters(self.rabbit_amqp_url)
+        self.connection = pika.BlockingConnection(self.pikaparams)
         channel = self.connection.channel()
         channel.queue_declare(queue=self.queue, auto_delete=True)
         channel.close()
@@ -135,10 +130,11 @@ class RabbitmqMonitor(Monitor):
         """
         Deletes RabbitMQ queues and exchanges of a given job.
         """
-        channel = self.connection.channel()
+        connection = pika.BlockingConnection(self.pikaparams)
+        channel = connection.channel()
         channel.queue_delete(queue=self.queue)
         channel.close()
-        self.connection.close()
+        connection.close()
 
     def stop(self):
         """
@@ -151,15 +147,18 @@ class RabbitmqMonitor(Monitor):
         """
         Assigns a call_status to its future
         """
-        for f in self.job.futures:
-            if f.call_id == call_status['call_id']:
+        not_running_futures = [f for f in self.job.futures if not (f.running or f.ready or f.success or f.done)]
+        for f in not_running_futures:
+            calljob_id = (call_status['executor_id'], call_status['job_id'], call_status['call_id'])
+            if (f.executor_id, f.job_id, f.call_id) == calljob_id:
                 f._set_running(call_status)
 
     def _tag_future_as_ready(self, call_status):
         """
         tags a future as ready based on call_status
         """
-        for f in self.job.futures:
+        not_ready_futures = [f for f in self.job.futures if not (f.ready or f.success or f.done)]
+        for f in not_ready_futures:
             calljob_id = (call_status['executor_id'], call_status['job_id'], call_status['call_id'])
             if (f.executor_id, f.job_id, f.call_id) == calljob_id:
                 if not self._check_new_futures(call_status, f):
@@ -187,11 +186,9 @@ class RabbitmqMonitor(Monitor):
     def run(self):
         logger.debug('ExecutorID {} | JobID {} - Starting RabbitMQ job monitor'
                      .format(self.job.executor_id, self.job.job_id))
-        total_callids_done = 0
         channel = self.connection.channel()
 
         def callback(ch, method, properties, body):
-            nonlocal total_callids_done
             call_status = json.loads(body.decode("utf-8"))
 
             if call_status['type'] == '__init__':
@@ -200,7 +197,6 @@ class RabbitmqMonitor(Monitor):
             elif call_status['type'] == '__end__':
                 self._generate_tokens(call_status)
                 self._tag_future_as_ready(call_status)
-                total_callids_done += 1
 
             if self._all_ready() or not self.should_run:
                 ch.stop_consuming()
@@ -212,7 +208,7 @@ class RabbitmqMonitor(Monitor):
         channel.basic_consume(self.queue, callback, auto_ack=True)
         threading.Thread(target=channel.start_consuming, daemon=True).start()
 
-        while not total_callids_done == self.job.total_calls and self.should_run:
+        while not self._all_ready() and self.should_run:
             # Format call_ids running, pending and done
             self._print_status_log()
             self._future_timeout_checker(self.job.futures)
@@ -249,9 +245,9 @@ class StorageMonitor(Monitor):
         Mark which futures are in running status based on callids_running
         """
         current_time = time.time()
-        not_done_futures = [f for f in self.job.futures if not (f.success or f.done)]
+        not_running_futures = [f for f in self.job.futures if not (f.running or f.ready or f.success or f.done)]
         callids_running_to_process = callids_running - self.callids_running_processed_timeout
-        for f in not_done_futures:
+        for f in not_running_futures:
             for call in callids_running_to_process:
                 if f.invoked and (f.executor_id, f.job_id, f.call_id) == call[0]:
                     call_status = {'type': '__init__',
@@ -266,7 +262,7 @@ class StorageMonitor(Monitor):
         """
         Mark which futures has a call_status ready to be downloaded
         """
-        not_ready_futures = [f for f in self.job.futures if not (f.success or f.done) and not f._new_futures]
+        not_ready_futures = [f for f in self.job.futures if not (f.ready or f.success or f.done)]
         callids_done_to_process = callids_done - self.callids_done_processed_status
         fs_to_query = []
 

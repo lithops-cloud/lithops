@@ -11,6 +11,7 @@ from lithops.storage.utils import create_status_key, create_job_key,\
     create_init_key
 from lithops.constants import JOBS_PREFIX
 from distutils.util import strtobool
+from contextlib import contextmanager
 
 pickling_support.install()
 
@@ -89,6 +90,25 @@ class StorageCallStatus(CallStatus):
 
 class RabbitmqCallStatus(StorageCallStatus):
 
+    def __init__(self, job, internal_storage):
+        super().__init__(job, internal_storage)
+
+        rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
+        self.pikaparams = pika.URLParameters(rabbit_amqp_url)
+
+    @contextmanager
+    def _create_channel(self):
+        """
+        Creates a rabbitmq channel
+        """
+        self.connection = pika.BlockingConnection(self.pikaparams)
+        self.channel = self.connection.channel()
+        try:
+            yield self.channel
+        finally:
+            self.channel.close()
+            self.connection.close()
+
     def _send(self):
         """
         Send the status event to RabbitMQ
@@ -96,24 +116,21 @@ class RabbitmqCallStatus(StorageCallStatus):
         dmpd_response_status = json.dumps(self.status)
         drs = sizeof_fmt(len(dmpd_response_status))
 
-        executor_id = self.status['executor_id']
-        job_id = self.status['job_id']
-
-        rabbit_amqp_url = self.config['rabbitmq'].get('amqp_url')
         status_sent = False
         output_query_count = 0
-        params = pika.URLParameters(rabbit_amqp_url)
-        job_key = create_job_key(executor_id, job_id)
-        queue = 'lithops-{}'.format(job_key)
+
+        queues = []
+        job_keys = self.job.job_key.split('-')
+        for k in range(int(len(job_keys)/3)):
+            qname = 'lithops-{}'.format('-'.join(job_keys[0:k*3+3]))
+            queues.append(qname)
 
         while not status_sent and output_query_count < 5:
             output_query_count = output_query_count + 1
             try:
-                connection = pika.BlockingConnection(params)
-                channel = connection.channel()
-                channel.basic_publish(exchange='', routing_key=queue, body=dmpd_response_status)
-                channel.close()
-                connection.close()
+                with self._create_channel() as ch:
+                    for queue in queues:
+                        ch.basic_publish(exchange='', routing_key=queue, body=dmpd_response_status)
                 logger.info("Execution status sent to RabbitMQ - Size: {}".format(drs))
                 status_sent = True
             except Exception:

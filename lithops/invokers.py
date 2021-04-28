@@ -253,6 +253,7 @@ class FaaSInvoker(Invoker):
         self.ongoing_activations = 0
         self.pending_calls_q = queue.Queue()
         self.should_run = False
+        self.sync = is_lithops_worker()
 
         logger.debug('ExecutorID {} - Serverless invoker created'.format(self.executor_id))
 
@@ -366,10 +367,15 @@ class FaaSInvoker(Invoker):
             def _callback(future):
                 future.result()
 
+            invoke_futures = []
             executor = ThreadPoolExecutor(job.invoke_pool_threads)
             for call_ids_range in iterchunks(callids_to_invoke_direct, job.chunksize):
                 future = executor.submit(self._invoke_task, job, call_ids_range)
                 future.add_done_callback(_callback)
+                invoke_futures.append(future)
+
+            if self.sync:
+                [f.result() for f in invoke_futures]
 
             # Put into the queue the rest of the callids to invoke within the process
             if callids_to_invoke_nondirect:

@@ -104,7 +104,7 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
             job_monitor = JobMonitor(backend='storage')
             [job_monitor.create(**job_data).start() for job_data in jobs]
 
-        sleep_sec = wait_dur_sec if job_monitor.backend == 'storage' else 0.2
+        sleep_sec = wait_dur_sec if job_monitor.backend == 'storage' else 0.3
 
         if return_when == ALL_COMPLETED:
             while not _all_done(fs, download_results):
@@ -293,8 +293,8 @@ def _get_job_data(fs, job_data, download_results, throw_except, threadpool_size,
     # Check for new futures
     new_futures = list(chain(*[f._new_futures for f in fs_to_wait_on if f._new_futures]))
     if new_futures:
-        fs.extend(f._new_futures)
-        job.futures.extend(f._new_futures)
+        fs.extend(new_futures)
+        job.futures.extend(new_futures)
         if pbar:
             pbar.total = pbar.total + len(new_futures)
             pbar.refresh()
