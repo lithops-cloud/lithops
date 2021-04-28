@@ -98,7 +98,8 @@ def function_handler(payload):
 
     # Delete modules path from syspath
     module_path = os.path.join(MODULES_DIR, job.job_key)
-    sys.path.remove(module_path)
+    if module_path in sys.path:
+        sys.path.remove(module_path)
 
 
 def process_runner(job_queue, internal_storage):

@@ -147,7 +147,8 @@ class RabbitmqMonitor(Monitor):
         """
         Assigns a call_status to its future
         """
-        for f in self.job.futures:
+        not_running_futures = [f for f in self.job.futures if not (f.running or f.ready or f.success or f.done)]
+        for f in not_running_futures:
             calljob_id = (call_status['executor_id'], call_status['job_id'], call_status['call_id'])
             if (f.executor_id, f.job_id, f.call_id) == calljob_id:
                 f._set_running(call_status)
@@ -156,7 +157,8 @@ class RabbitmqMonitor(Monitor):
         """
         tags a future as ready based on call_status
         """
-        for f in self.job.futures:
+        not_ready_futures = [f for f in self.job.futures if not (f.ready or f.success or f.done)]
+        for f in not_ready_futures:
             calljob_id = (call_status['executor_id'], call_status['job_id'], call_status['call_id'])
             if (f.executor_id, f.job_id, f.call_id) == calljob_id:
                 if not self._check_new_futures(call_status, f):
@@ -243,9 +245,9 @@ class StorageMonitor(Monitor):
         Mark which futures are in running status based on callids_running
         """
         current_time = time.time()
-        not_done_futures = [f for f in self.job.futures if not (f.success or f.done)]
+        not_running_futures = [f for f in self.job.futures if not (f.running or f.ready or f.success or f.done)]
         callids_running_to_process = callids_running - self.callids_running_processed_timeout
-        for f in not_done_futures:
+        for f in not_running_futures:
             for call in callids_running_to_process:
                 if f.invoked and (f.executor_id, f.job_id, f.call_id) == call[0]:
                     call_status = {'type': '__init__',
@@ -260,7 +262,7 @@ class StorageMonitor(Monitor):
         """
         Mark which futures has a call_status ready to be downloaded
         """
-        not_ready_futures = [f for f in self.job.futures if not (f.success or f.done) and not f._new_futures]
+        not_ready_futures = [f for f in self.job.futures if not (f.ready or f.success or f.done)]
         callids_done_to_process = callids_done - self.callids_done_processed_status
         fs_to_query = []
 
