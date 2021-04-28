@@ -75,6 +75,7 @@ class ResponseFuture:
         self._traceback = None
         self._call_status = None
         self._call_output = None
+        self._host_status_done_tstamp = None
         self._status_query_count = 0
         self._output_query_count = 0
 
@@ -107,7 +108,8 @@ class ResponseFuture:
 
     @property
     def ready(self):
-        return self._state == ResponseFuture.State.Ready
+        return self._state in [ResponseFuture.State.Ready,
+                               ResponseFuture.State.Futures]
 
     @property
     def error(self):
@@ -131,7 +133,6 @@ class ResponseFuture:
     @property
     def done(self):
         if self._state in [ResponseFuture.State.Done,
-                           ResponseFuture.State.Futures,
                            ResponseFuture.State.Error]:
             return True
         return False
@@ -146,11 +147,17 @@ class ResponseFuture:
         self.activation_id = self._call_status['activation_id']
         self._state = ResponseFuture.State.Running
 
-    def _set_ready(self, call_status=None):
+    def _set_ready(self, call_status):
         """ Set the future as running"""
         self._call_status = call_status
-        self._host_status_done_tstamp = time.time() if call_status else None
+        self._host_status_done_tstamp = time.time()
         self._state = ResponseFuture.State.Ready
+
+    def _set_futures(self, call_status):
+        """ Set the future as running"""
+        self._call_status = call_status
+        self._host_status_done_tstamp = time.time()
+        self.status(throw_except=False)
 
     def status(self, throw_except=True, internal_storage=None, check_only=False):
         """
@@ -175,10 +182,9 @@ class ResponseFuture:
             self._set_state(ResponseFuture.State.Done)
             return self._call_status
 
-        if internal_storage is None:
-            internal_storage = InternalStorage(self._storage_config)
-
         if self._call_status is None or self._call_status['type'] == '__init__':
+            if internal_storage is None:
+                internal_storage = InternalStorage(self._storage_config)
             check_storage_path(internal_storage.get_storage_config(), self._storage_path)
             self._call_status = internal_storage.get_call_status(self.executor_id, self.job_id, self.call_id)
             self._status_query_count += 1
@@ -279,7 +285,7 @@ class ResponseFuture:
         if 'new_futures' in self._call_status and not self._new_futures:
             new_futures = pickle.loads(eval(self._call_status['new_futures']))
             self._new_futures = [new_futures] if type(new_futures) == ResponseFuture else new_futures
-            self._set_state(ResponseFuture.State.Ready)
+            self._set_state(ResponseFuture.State.Futures)
 
         return self._call_status
 
