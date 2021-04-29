@@ -240,14 +240,13 @@ class FaaSInvoker(Invoker):
     """
     Module responsible to perform the invocations against the FaaS backends
     """
-
-    REMOTE_INVOKER_MEMORY = 2048
     ASYNC_INVOKERS = 2
 
     def __init__(self, config, executor_id, internal_storage, compute_handler, job_monitor):
         super().__init__(config, executor_id, internal_storage, compute_handler, job_monitor)
 
-        self.remote_invoker = self.config['serverless'].get('remote_invoker', False)
+        remote_invoker = self.config['serverless'].get('remote_invoker', False)
+        self.remote_invoker = remote_invoker if not is_lithops_worker() else False
 
         self.invokers = []
         self.ongoing_activations = 0
@@ -271,11 +270,11 @@ class FaaSInvoker(Invoker):
                 while self.should_run:
                     try:
                         self.job_monitor.token_bucket_q.get()
-                        job, call_id = self.pending_calls_q.get()
+                        job, call_ids_range = self.pending_calls_q.get()
                     except KeyboardInterrupt:
                         break
                     if self.should_run:
-                        executor.submit(self._invoke_task, job, call_id)
+                        executor.submit(self._invoke_task, job, call_ids_range)
                     else:
                         break
 
@@ -337,11 +336,37 @@ class FaaSInvoker(Invoker):
                      ' ID: {}'.format(job.executor_id, job.job_id, ', '.join(call_ids),
                                       resp_time, activation_id))
 
+    def _invoke_job_remote(self, job):
+        """
+        Logic for invoking a job using a remote function
+        """
+        start = time.time()
+        payload = {}
+        payload['config'] = self.config
+        payload['log_level'] = self.log_level
+        payload['runtime_name'] = job.runtime_name
+        payload['runtime_memory'] = job.runtime_memory
+        payload['remote_invoker'] = True
+        payload['job'] = job.__dict__
+
+        activation_id = self.compute_handler.invoke(payload)
+        roundtrip = time.time() - start
+        resp_time = format(round(roundtrip, 3), '.3f')
+
+        if activation_id:
+            logger.debug('ExecutorID {} | JobID {} - Remote invoker call done ({}s) - Activation'
+                         ' ID: {}'.format(job.executor_id, job.job_id, resp_time, activation_id))
+        else:
+            raise Exception('Unable to spawn remote invoker')
+
     def _invoke_job(self, job):
         """
         Normal Invocation
         Use local threads to perform all the function invocations
         """
+        if self.remote_invoker:
+            return self._invoke_job_remote(job)
+
         if self.should_run is False:
             self.running_workers = 0
             self.should_run = True
@@ -397,8 +422,7 @@ class FaaSInvoker(Invoker):
         """
         Run a job
         """
-        job_monitor = self.job_monitor.create(job, self.internal_storage,
-                                              generate_tokens=True)
+        job_monitor = self.job_monitor.create(job, self.internal_storage, generate_tokens=True)
         futures = Invoker.run_job(self, job)
         job_monitor.start()
 
