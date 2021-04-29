@@ -147,7 +147,7 @@ class Invoker:
 
         return payload
 
-    def run_job(self, job):
+    def _run_job(self, job):
         """
         Run a job
         """
@@ -230,7 +230,7 @@ class BatchInvoker(Invoker):
         Run a job
         """
         job_monitor = self.job_monitor.create(job, self.internal_storage)
-        futures = Invoker.run_job(self, job)
+        futures = self._run_job(job)
         job_monitor.start()
 
         return futures
@@ -423,7 +423,7 @@ class FaaSInvoker(Invoker):
         Run a job
         """
         job_monitor = self.job_monitor.create(job, self.internal_storage, generate_tokens=True)
-        futures = Invoker.run_job(self, job)
+        futures = self._run_job(job)
         job_monitor.start()
 
         return futures
