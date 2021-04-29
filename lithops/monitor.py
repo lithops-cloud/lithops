@@ -372,14 +372,22 @@ class JobMonitor:
         self.monitors = {}
         self.token_bucket_q = queue.Queue()
 
-    def stop(self):
+    def stop(self, job_keys=None):
         """
-        Stops all job monitors
+        Stops job monitors
         """
-        for job_key in self.monitors:
-            self.monitors[job_key].stop()
-
-        self.monitors = {}
+        if job_keys:
+            for job_key in job_keys:
+                if job_key in self.monitors:
+                    if self.monitors[job_key].is_alive():
+                        self.monitors[job_key].stop()
+                    del self.monitors[job_key]
+        else:
+            # Stop all
+            for job_key in self.monitors:
+                if self.monitors[job_key].is_alive():
+                    self.monitors[job_key].stop()
+            self.monitors = {}
 
     def is_alive(self, job_key):
         """

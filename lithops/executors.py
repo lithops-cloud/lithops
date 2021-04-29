@@ -365,7 +365,6 @@ class FunctionExecutor:
             futures = [futures]
 
         # Start waiting for results
-        error = False
         try:
             wait(fs=futures,
                  internal_storage=self.internal_storage,
@@ -378,18 +377,18 @@ class FunctionExecutor:
                  wait_dur_sec=wait_dur_sec)
 
         except Exception as e:
-            error = True
+            self.invoker.stop()
+            if not fs and is_notebook():
+                del self.futures[len(self.futures) - len(futures):]
             if self.data_cleaner and not self.is_lithops_worker:
                 self.clean(clean_cloudobjects=False, force=True)
             raise e
 
         finally:
-            self.invoker.stop()
-            self.job_monitor.stop()
+            present_jobs = {f.job_key for f in futures}
+            self.job_monitor.stop(present_jobs)
             if self.data_cleaner and not self.is_lithops_worker:
                 self.clean(clean_cloudobjects=False)
-            if not fs and error and is_notebook():
-                del self.futures[len(self.futures) - len(futures):]
 
         if download_results:
             fs_done = [f for f in futures if f.done]
@@ -587,7 +586,7 @@ class FunctionExecutor:
 
         else:  # calc_cost() doesn't exist for chosen computational backend.
             logger.warning("Could not log job: {} backend isn't supported by this function."
-                           .format(self.self.compute_handler.backend.name))
+                           .format(self.compute_handler.backend.name))
             return
         logger.info("View log file logs at {}".format(self.log_path))
 
