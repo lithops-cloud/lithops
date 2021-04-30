@@ -96,7 +96,11 @@ class SerializeIndependent:
         seen = set()
         mods = set()
 
-        if type(obj) == dict:
+        if inspect.isfunction(obj):
+            # The obj is the user's function
+            worklist.append(obj)
+
+        elif type(obj) == dict:
             # the obj is the user's iterdata
             # TODO: Add deeper analysis
             to_anayze = list(obj.values())
@@ -111,13 +115,17 @@ class SerializeIndependent:
                         for k, v in members:
                             if inspect.ismethod(v):
                                 worklist.append(v)
-                    try:
-                        mods.add(param.__module__)
-                    except Exception:
-                        pass
         else:
-            # The obj is the user's function
-            worklist.append(obj)
+            # The obj is the user's function but in form of a class
+            members = inspect.getmembers(obj)
+            found_methods = []
+            for k, v in members:
+                if inspect.ismethod(v):
+                    found_methods.append(k)
+                    worklist.append(v)
+            if "__call__" not in found_methods:
+                raise Exception('The class you passed as the function to '
+                                'run must contain the "__call__" method')
 
         # The worklist is only used for analyzing functions
         for fn in worklist:
