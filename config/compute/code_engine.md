@@ -72,6 +72,7 @@ To work with Code Engine there is need to use dedicated runtime. You can either 
 |ibmfunctions/lithops-ce-v385:230 | 3.8 | [included](../../runtime/code_engine/requirements.txt) | 2.3.0 |
 |ibmfunctions/lithops-ce-v370:230 | 3.7 | [included](../../runtime/code_engine/requirements.txt) | 2.3.0 |
 |ibmfunctions/lithops-ce-v385:232 | 3.8 | [included](../../runtime/code_engine/requirements.txt) | 2.3.2 |
+|ibmfunctions/lithops-ce-v385:233 | 3.8 | [included](../../runtime/code_engine/requirements.txt) | 2.3.3 |
 
 If you need to create new runtime, please follow [Building and managing Lithops runtimes to run the functions](../../runtime/)
 
