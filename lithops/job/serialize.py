@@ -96,7 +96,7 @@ class SerializeIndependent:
         seen = set()
         mods = set()
 
-        if inspect.isfunction(obj):
+        if inspect.isfunction(obj) or inspect.ismethod(obj):
             # The obj is the user's function
             worklist.append(obj)
 
