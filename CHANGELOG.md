@@ -3,7 +3,7 @@
 ## [v2.3.4.dev0]
 
 ### Added
-- 
+- [Core] Allow to execute a Class (__call__) as lithops function
 
 ### Changed
 - 

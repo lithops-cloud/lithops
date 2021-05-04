@@ -17,10 +17,13 @@
 #
 
 import os
-import hashlib
 import time
+import hashlib
+import inspect
 import pickle
 import logging
+from types import SimpleNamespace
+
 from lithops import utils
 from lithops.job.partitioner import create_partitions
 from lithops.storage.utils import create_func_key, create_agg_data_key,\
@@ -28,7 +31,6 @@ from lithops.storage.utils import create_func_key, create_agg_data_key,\
 from lithops.job.serialize import SerializeIndependent, create_module_data
 from lithops.constants import MAX_AGG_DATA_SIZE, JOBS_PREFIX, LOCALHOST,\
     SERVERLESS, STANDALONE, LITHOPS_TEMP_DIR
-from types import SimpleNamespace
 
 
 logger = logging.getLogger(__name__)
@@ -189,7 +191,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     job.job_id = job_id
     job.job_key = create_job_key(job.executor_id, job.job_id)
     job.extra_env = ext_env
-    job.function_name = func.__name__
+    job.function_name = func.__name__ if inspect.isfunction(func) or inspect.ismethod(func) else type(func).__name__
     job.total_calls = len(iterdata)
 
     mode = config['lithops']['mode']
