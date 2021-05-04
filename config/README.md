@@ -149,7 +149,7 @@ rabbitmq:
     amqp_url: <AMQP_URL>  # amqp://
 ```
 
-In addition, activate the monitoring service by setting *rabbitmq_monitor : True* in the configuration (Lithops section):
+In addition, activate the monitoring service by setting *monitoring : rabbitmq* in the configuration (Lithops section):
 
 ```yaml
 lithops:
@@ -159,7 +159,7 @@ lithops:
 or in the executor by:
 
 ```python
-fexec = lithops.FunctionExecutor(rabbitmq_monitor=True)
+fexec = lithops.FunctionExecutor(monitoring='rabbitmq')
 ```
 
 
