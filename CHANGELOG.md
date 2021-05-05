@@ -3,10 +3,11 @@
 ## [v2.3.4.dev0]
 
 ### Added
-- [Core] Allow to execute a Class (__call__) as lithops function
+- [Core] Allow to execute a Class as lithops function
+- [CE] Allow to use IBM IAM API key
 
 ### Changed
-- 
+- [CE] CPU and memory values must match predefined flavors
 
 ### Fixes
 - 

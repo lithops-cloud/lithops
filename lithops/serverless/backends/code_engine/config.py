@@ -159,6 +159,9 @@ def load_config(config_data):
     if 'container_registry' not in config_data['code_engine']:
         config_data['code_engine']['container_registry'] = CONTAINER_REGISTRY
 
+    if 'ibm' in config_data and config_data['ibm'] is not None:
+        config_data['code_engine'].update(config_data['ibm'])
+
     # shared keys
     if 'runtime' in config_data['code_engine']:
         config_data['serverless']['runtime'] = config_data['code_engine']['runtime']
