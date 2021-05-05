@@ -228,7 +228,7 @@ class StandaloneHandler:
         """
         self.backend.clean()
 
-    def clear(self):
+    def clear(self, job_keys=None):
         """
         Clear all the backend resources.
         clear method is executed after the results are get,
@@ -243,7 +243,7 @@ class StandaloneHandler:
             self.backend.master.del_ssh_client()
         except Exception:
             pass
-        self.backend.clear()
+        self.backend.clear(job_keys)
 
     def get_runtime_key(self, runtime_name, *args):
         """

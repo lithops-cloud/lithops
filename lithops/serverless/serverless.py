@@ -84,12 +84,12 @@ class ServerlessHandler:
         """
         self.backend.clean()
 
-    def clear(self):
+    def clear(self, job_keys=None):
         """
         Wrapper method to clear the compute backend
         """
         if hasattr(self.backend, 'clear'):
-            self.backend.clear()
+            self.backend.clear(job_keys)
 
     def list_runtimes(self, runtime_name='all'):
         """

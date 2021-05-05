@@ -397,7 +397,7 @@ class IBMVPCBackend:
         # self._delete_subnet(vpc_data)
         # self._delete_vpc(vpc_data)
 
-    def clear(self):
+    def clear(self, job_keys=None):
         """
         Delete all the workers
         """

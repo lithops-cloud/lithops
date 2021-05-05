@@ -10,7 +10,7 @@
 - [CE] CPU and memory values must match predefined flavors
 
 ### Fixes
-- 
+- [Core] Clear only present jobs instead of all after wait() or get_result()
 
 
 ## [v2.3.3]
