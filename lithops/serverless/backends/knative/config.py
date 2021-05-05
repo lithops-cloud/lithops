@@ -31,7 +31,7 @@ BUILD_GIT_URL = 'https://github.com/lithops-cloud/lithops'
 DOCKER_PATH = shutil.which('docker')
 RUNTIME_TIMEOUT = 600  # 10 minutes
 RUNTIME_MEMORY = 256  # 256Mi
-RUNTIME_CPU = 1  # 1 vCPU
+RUNTIME_CPU = 0.5  # 0.5 vCPU
 RUNTIME_MIN_INSTANCES = 0
 RUNTIME_MAX_INSTANCES = 250
 RUNTIME_CONCURRENCY = 1
@@ -220,8 +220,6 @@ def load_config(config_data):
     if 'container_registry' not in config_data['knative']:
         config_data['knative']['container_registry'] = CONTAINER_REGISTRY
 
-    if 'cpu' not in config_data['knative']:
-        config_data['knative']['cpu'] = RUNTIME_CPU
     if 'concurrency' not in config_data['knative']:
         config_data['knative']['concurrency'] = RUNTIME_CONCURRENCY
     if 'min_instances' not in config_data['knative']:
@@ -229,14 +227,19 @@ def load_config(config_data):
     if 'max_instances' not in config_data['knative']:
         config_data['knative']['max_instances'] = RUNTIME_MAX_INSTANCES
 
+    if 'runtime' in config_data['knative']:
+        config_data['serverless']['runtime'] = config_data['knative']['runtime']
+    if 'runtime_memory' in config_data['knative']:
+        config_data['serverless']['runtime_memory'] = config_data['knative']['runtime_memory']
+    if 'runtime_timeout' in config_data['knative']:
+        config_data['serverless']['runtime_timeout'] = config_data['knative']['runtime_timeout']
+
+    if 'runtime_cpu' not in config_data['knative']:
+        config_data['knative']['runtime_cpu'] = RUNTIME_CPU
     if 'runtime_memory' not in config_data['serverless']:
         config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY
     if 'runtime_timeout' not in config_data['serverless']:
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT
-
-    if 'runtime' in config_data['knative']:
-        config_data['serverless']['runtime'] = config_data['knative']['runtime']
-
     if 'runtime' not in config_data['serverless']:
         if not DOCKER_PATH:
             raise Exception('docker command not found. Install docker or use '

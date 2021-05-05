@@ -66,9 +66,11 @@ Note that Lithops automatically builds the default runtime the first time you ru
 |knative | git_rev | |no | Git revision to build the image |
 |knative | min_instances | 0 |no | Minimum number of parallel runtimes |
 |knative | max_instances | 250 |no | Maximum number of parallel runtimes |
-|knative | cpu | 1 |no | CPU limit. Default 1vCPU |
 |knative | concurrency | 1 |no | Number of workers per runtime instance |
-|knative | runtime |  |no | Docker image name.|
+|knative | runtime |  |no | Docker image name|
+|knative | runtime_cpu | 0.5 |no | CPU limit. Default 0.5vCPU |
+|knative | runtime_memory | 256 |no | Memory limit in MB. Default 256Mi |
+|knative | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
 
 
 ### Verify

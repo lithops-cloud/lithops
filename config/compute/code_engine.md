@@ -93,9 +93,11 @@ If you need to create new runtime, please follow [Building and managing Lithops 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |code_engine | kubecfg_path | |no | Path to kubecfg file. Mandatory if config file not in `~/.kube/config` or KUBECONFIG env var not present|
-|code_engine | cpu | 1 |no | CPU limit. Default 1vCPU |
 |code_engine | container_registry |  docker.io | no | container registry url|
 |code_engine | runtime |  |no | Docker image name.|
+|code_engine | runtime_cpu | 0.125 |no | CPU limit. Default 0.125vCPU. See [valid combinations](https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo) |
+|code_engine | runtime_memory | 256 |no | Memory limit in MB. Default 256Mi. See [valid combinations](https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo) |
+|knative | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
 
 
 ### Lithops using Knative API of Code Engine
@@ -122,10 +124,11 @@ The only requirement to make it working is to have the KUBECONFIG file properly 
 |knative | git_rev | |no | Git revision to build the image |
 |knative | min_instances | 0 |no | Minimum number of parallel runtimes |
 |knative | max_instances | 250 |no | Maximum number of parallel runtimes |
-|knative | cpu | 1 |no | CPU limit. Default 1vCPU  |
 |knative | concurrency | 1 |no | Number of workers per runtime instance |
 |knative | runtime |  |no | Docker image name.|
-
+|knative | runtime_cpu | 0.125 |no | CPU limit. Default 0.125 vCPU. See [valid combinations](https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo) |
+|knative | runtime_memory | 256 |no | Memory limit in GB. Default 256Mi. See [valid combinations](https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo) |
+|knative | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
 
 ### Usage Example
 
@@ -138,14 +141,12 @@ def add_value(name):
     return 'Hello ' + name
 
 if __name__ == '__main__':
-    lt = lithops.FunctionExecutor(mode="serverless",
-            backend='code_engine',
-            runtime='ibmfunctions/lithops-ce-v38:2216')
+    lt = lithops.FunctionExecutor(backend='code_engine', runtime='ibmfunctions/lithops-ce-v385:233')
     lt.map(add_value,  iterdata)
-    print (lt.get_result())
+    print(lt.get_result())
 ```
 
-###  Faults and what to do about them
+###  Troubleshooting
 
 #### Fault
 Lithops throws exception with 'Missing access token parameter'
@@ -153,6 +154,6 @@ Lithops throws exception with 'Missing access token parameter'
 ##### Cause / Remedy
 This likely occurs when you were logout from ibmcloud or the kubectl token can't re-generate new authentication token. To resolve this login into ibmcloud and re-create kubectl file
 
-    ibmcloud login
+    ibmcloud login -r <CE Project Region>
     ibmcloud target -g <GROUP> -o <ORG>
     ibmcloud ce project select --name <CPROJECT NAME> --kubecfg

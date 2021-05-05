@@ -301,8 +301,6 @@ class CodeEngineBackend:
         chunksize = job_payload['chunksize']
         array_size = total_calls // chunksize + (total_calls % chunksize > 0)
 
-        runtime_memory = job_payload['runtime_memory']
-
         jobdef_name = self._format_jobdef_name(docker_image_name, runtime_memory)
         logger.debug("Job definition id {}".format(jobdef_name))
         if not self._job_def_exists(jobdef_name):
@@ -324,8 +322,8 @@ class CodeEngineBackend:
         config_map = self._create_config_map(job_payload, activation_id)
         container['env'][1]['valueFrom']['configMapKeyRef']['name'] = config_map
 
-        container['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory)
-        container['resources']['requests']['cpu'] = str(self.code_engine_config['cpu'])
+        container['resources']['requests']['memory'] = '{}G'.format(runtime_memory/1024)
+        container['resources']['requests']['cpu'] = str(self.code_engine_config['runtime_cpu'])
 
         # logger.debug("request - {}".format(jobrun_res)
 
@@ -360,8 +358,8 @@ class CodeEngineBackend:
         container['image'] = '/'.join([self.code_engine_config['container_registry'], image_name])
         container['name'] = jobdef_name
         container['env'][0]['value'] = 'run'
-        container['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory)
-        container['resources']['requests']['cpu'] = str(self.code_engine_config['cpu'])
+        container['resources']['requests']['memory'] = '{}G'.format(runtime_memory/1024)
+        container['resources']['requests']['cpu'] = str(self.code_engine_config['runtime_cpu'])
 
         try:
             res = self.capi.delete_namespaced_custom_object(
