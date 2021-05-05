@@ -26,6 +26,7 @@ import time
 import yaml
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
+from kubernetes.client.configuration import Configuration
 
 from lithops.utils import version_str, dict_to_b64str
 from lithops.version import __version__
@@ -33,6 +34,7 @@ from lithops.utils import create_handler_zip
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
 from . import config as ce_config
 from lithops.storage.utils import StorageNoSuchKeyError
+from lithops.util.ibm_token_manager import IBMTokenManager
 
 
 urllib3.disable_warnings()
@@ -54,6 +56,7 @@ class CodeEngineBackend:
 
         self.kubecfg_path = code_engine_config.get('kubecfg_path')
         self.user_agent = code_engine_config['user_agent']
+        self.iam_api_key = code_engine_config.get('iam_api_key', None)
 
         try:
             config.load_kube_config(config_file=self.kubecfg_path)
@@ -76,6 +79,18 @@ class CodeEngineBackend:
 
         self.capi = client.CustomObjectsApi()
         self.coreV1Api = client.CoreV1Api()
+
+        if self.iam_api_key:
+            token = self.code_engine_config.get('token', None)
+            token_expiry_time = self.code_engine_config.get('token_expiry_time', None)
+            self.ibm_token_manager = IBMTokenManager(self.iam_api_key,
+                                                     'IAM', token,
+                                                     token_expiry_time)
+            token, token_expiry_time = self.ibm_token_manager.get_token()
+            self.code_engine_config['token'] = token
+            self.code_engine_config['token_expiry_time'] = token_expiry_time
+            self.capi.api_client.configuration.api_key['authorization'] = 'Bearer ' + token
+            self.coreV1Api.api_client.configuration.api_key['authorization'] = 'Bearer ' + token
 
         try:
             self.region = self.cluster.split('//')[1].split('.')[1]
