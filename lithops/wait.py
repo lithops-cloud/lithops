@@ -69,13 +69,11 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
         msg = 'ExecutorID {} - Getting results from functions'.format(fs[0].executor_id)
         fs_done = [f for f in fs if f.done]
         fs_not_done = [f for f in fs if not f.done]
-        # fs_not_ready = [f for f in futures if not f.ready and not f.done]
 
     else:
         msg = 'ExecutorID {} - Waiting for functions to complete'.format(fs[0].executor_id)
-        fs_done = [f for f in fs if f.ready or f.done]
-        fs_not_done = [f for f in fs if not (f.ready or f.done)]
-        # fs_not_ready = [f for f in futures if not f.ready and not f.done]
+        fs_done = [f for f in fs if f.success or f.done]
+        fs_not_done = [f for f in fs if not (f.success or f.done)]
 
     logger.info(msg)
 
@@ -138,7 +136,7 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
         if download_results:
             not_dones_call_ids = [(f.job_id, f.call_id) for f in fs if not f.done]
         else:
-            not_dones_call_ids = [(f.job_id, f.call_id) for f in fs if not f.ready and not f.done]
+            not_dones_call_ids = [(f.job_id, f.call_id) for f in fs if not f.success and not f.done]
         msg = ('Cancelled - Total Activations not done: {}'.format(len(not_dones_call_ids)))
         if pbar:
             pbar.close()
@@ -161,8 +159,8 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
         fs_done = [f for f in fs if f.done]
         fs_notdone = [f for f in fs if not f.done]
     else:
-        fs_done = [f for f in fs if f.ready or f.done]
-        fs_notdone = [f for f in fs if not f.ready and not f.done]
+        fs_done = [f for f in fs if f.success or f.done]
+        fs_notdone = [f for f in fs if not f.success and not f.done]
 
     return fs_done, fs_notdone
 

@@ -26,7 +26,6 @@ import time
 import yaml
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
-from kubernetes.client.configuration import Configuration
 
 from lithops.utils import version_str, dict_to_b64str
 from lithops.version import __version__
@@ -276,7 +275,6 @@ class CodeEngineBackend:
         for jobdef in jobdefs['items']:
             try:
                 if jobdef['metadata']['labels']['type'] == 'lithops-runtime':
-                    runtime_name = jobdef['metadata']['name']
                     container = jobdef['spec']['template']['containers'][0]
                     image_name = container['image']
                     memory = container['resources']['requests']['memory'].replace('Mi', '')
@@ -288,18 +286,29 @@ class CodeEngineBackend:
 
         return runtimes
 
-    def clear(self):
+    def clear(self, job_keys=None):
         """
         Clean all completed jobruns in the current executor
         """
-        for job_key in self.jobs:
-            jobrun_name = 'lithops-{}'.format(job_key.lower())
-            try:
-                self._job_run_cleanup(jobrun_name)
-                self._delete_config_map(jobrun_name)
-            except Exception as e:
-                logger.debug("Deleting a jobrun failed with: {}".format(e))
-        self.jobs = []
+        if job_keys:
+            for job_key in job_keys:
+                if job_key in self.jobs:
+                    jobrun_name = 'lithops-{}'.format(job_key.lower())
+                    try:
+                        self._job_run_cleanup(jobrun_name)
+                        self._delete_config_map(jobrun_name)
+                    except Exception as e:
+                        logger.debug("Deleting a jobrun failed with: {}".format(e))
+                    self.jobs.remove(job_key)
+        else:
+            for job_key in self.jobs:
+                jobrun_name = 'lithops-{}'.format(job_key.lower())
+                try:
+                    self._job_run_cleanup(jobrun_name)
+                    self._delete_config_map(jobrun_name)
+                except Exception as e:
+                    logger.debug("Deleting a jobrun failed with: {}".format(e))
+            self.jobs = []
 
     def invoke(self, docker_image_name, runtime_memory, job_payload):
         """

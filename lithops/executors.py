@@ -387,6 +387,7 @@ class FunctionExecutor:
         finally:
             present_jobs = {f.job_key for f in futures}
             self.job_monitor.stop(present_jobs)
+            self.compute_handler.clear(present_jobs)
             if self.data_cleaner and not self.is_lithops_worker:
                 self.clean(clean_cloudobjects=False)
 
@@ -504,8 +505,6 @@ class FunctionExecutor:
                     'storage_config': self.internal_storage.get_storage_config()}
             save_data_to_clean(data)
             self.cleaned_jobs.update(jobs_to_clean)
-
-            self.compute_handler.clear()
 
         if (jobs_to_clean or cs) and spawn_cleaner:
             log_file = open(CLEANER_LOG_FILE, 'a')

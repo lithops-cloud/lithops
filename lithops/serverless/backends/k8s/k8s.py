@@ -202,20 +202,33 @@ class KubernetesBackend:
         except ApiException:
             pass
 
-    def clear(self):
+    def clear(self, job_keys=None):
         """
         Delete only completed jobs
         """
-        for job_key in self.jobs:
-            job_name = 'lithops-{}'.format(job_key.lower())
-            logger.debug('Deleting job {}'.format(job_name))
-            try:
-                self.batch_api.delete_namespaced_job(name=job_name,
-                                                     namespace=self.namespace,
-                                                     propagation_policy='Background')
-            except Exception:
-                pass
-        self.jobs = []
+        if job_keys:
+            for job_key in job_keys:
+                if job_key in self.jobs:
+                    job_name = 'lithops-{}'.format(job_key.lower())
+                    logger.debug('Deleting job {}'.format(job_name))
+                    try:
+                        self.batch_api.delete_namespaced_job(name=job_name,
+                                                             namespace=self.namespace,
+                                                             propagation_policy='Background')
+                    except Exception:
+                        pass
+                    self.jobs.remove(job_key)
+        else:
+            for job_key in self.jobs:
+                job_name = 'lithops-{}'.format(job_key.lower())
+                logger.debug('Deleting job {}'.format(job_name))
+                try:
+                    self.batch_api.delete_namespaced_job(name=job_name,
+                                                         namespace=self.namespace,
+                                                         propagation_policy='Background')
+                except Exception:
+                    pass
+            self.jobs = []
 
     def list_runtimes(self, docker_image_name='all'):
         """
