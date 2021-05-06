@@ -39,6 +39,8 @@ FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_codeengine.zip')
 VALID_CPU_VALUES = [0.125, 0.25, 0.5, 1, 2, 4, 6, 8]
 VALID_MEMORY_VALUES = [256, 512, 1024, 2048, 4096, 8192, 12288, 16384, 24576, 32768]
 
+CLUSTER_URL = 'https://proxy.{}.codeengine.cloud.ibm.com'
+
 DOCKERFILE_DEFAULT = """
 RUN apt-get update && apt-get install -y \
         zip \
