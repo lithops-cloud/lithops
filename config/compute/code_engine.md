@@ -123,7 +123,7 @@ If you need to create custom runtime, please follow [Building and managing Litho
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |code_engine | namespace |  |no | Namespace name|
-|code_engine | region |  | no | Cluster region|
+|code_engine | region |  | no | Cluster region. One of *us-south*, *jp-tok*, *eu-de*, *eu-gb* |
 |code_engine | kubecfg_path | |no | Path to kubecfg file. Mandatory if config file not in `~/.kube/config` or KUBECONFIG env var not present|
 |code_engine | container_registry |  docker.io | no | container registry url|
 |code_engine | runtime |  |no | Docker image name.|
