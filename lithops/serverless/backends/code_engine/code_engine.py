@@ -64,14 +64,7 @@ class CodeEngineBackend:
             self.cluster = ce_config.CLUSTER_URL.format(self.region)
             configuration = client.Configuration()
             configuration.host = self.cluster
-            token = self.code_engine_config.get('token', None)
-            token_expiry_time = self.code_engine_config.get('token_expiry_time', None)
-            self.ibm_token_manager = IBMTokenManager(self.iam_api_key,
-                                                     'IAM', token,
-                                                     token_expiry_time)
-            token, token_expiry_time = self.ibm_token_manager.get_token()
-            self.code_engine_config['token'] = token
-            self.code_engine_config['token_expiry_time'] = token_expiry_time
+            token = self._get_iam_token()
             configuration.api_key = {"authorization": "Bearer " + token}
             client.Configuration.set_default(configuration)
 
@@ -84,13 +77,18 @@ class CodeEngineBackend:
                 self.cluster = current_context.get('cluster')
                 self.code_engine_config['namespace'] = self.namespace
                 self.code_engine_config['cluster'] = self.cluster
-                self.is_incluster = False
+
+                if self.iam_api_key:
+                    configuration = client.Configuration.get_default_copy()
+                    token = self._get_iam_token()
+                    configuration.api_key = {"authorization": "Bearer " + token}
+                    client.Configuration.set_default(configuration)
+
             except Exception:
                 logger.debug('Loading incluster config')
                 config.load_incluster_config()
                 self.namespace = self.code_engine_config.get('namespace')
                 self.cluster = self.code_engine_config.get('cluster')
-                self.is_incluster = True
 
         logger.debug("Set namespace to {}".format(self.namespace))
         logger.debug("Set cluster to {}".format(self.cluster))
@@ -107,6 +105,19 @@ class CodeEngineBackend:
 
         msg = COMPUTE_CLI_MSG.format('IBM Code Engine')
         logger.info("{} - Region: {}".format(msg, self.region))
+
+    def _get_iam_token(self):
+        """ Requests and IBM IAM token """
+        token = self.code_engine_config.get('token', None)
+        token_expiry_time = self.code_engine_config.get('token_expiry_time', None)
+        self.ibm_token_manager = IBMTokenManager(self.iam_api_key,
+                                                 'IAM', token,
+                                                 token_expiry_time)
+        token, token_expiry_time = self.ibm_token_manager.get_token()
+        self.code_engine_config['token'] = token
+        self.code_engine_config['token_expiry_time'] = token_expiry_time
+
+        return token
 
     def _format_jobdef_name(self, runtime_name, runtime_memory):
         if runtime_name.count('/') == 2:

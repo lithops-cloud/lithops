@@ -52,9 +52,15 @@ In this step you are required to install IBM Cloud CLI tool, Code Engine plugin 
 
 3. Copy the generated IAM API key (You can only see the key the first time you create it, so make sure to copy it).
 
-4. Locate your project namespace name.
+4. Locate the kubernetes config file using the IBM CLoud CLI:
 
-5. Edit your lithops config and add the following keys:
+   ```bash
+   ibmcloud ce project current
+   ```
+
+5. Print the content of the kubernetes config file and copy the `namespace` value under the context section.
+
+6. Edit your lithops config and add the following keys:
     ```yaml
     serverless:
         backend: code_engine
