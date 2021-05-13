@@ -34,5 +34,7 @@ Lithops with kubernetes as serverless compute backend.
 |k8s | container_registry |  docker.io | no | container registry url|
 |k8s | docker_user | |no | Docker hub username |
 |k8s | docker_token | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
-|k8s | cpu | 1 |no | CPU limit. Default 1vCPU |
 |k8s | runtime |  |no | Docker image name.|
+|k8s | runtime_cpu | 0.5 |no | CPU limit. Default 0.5vCPU |
+|k8s | runtime_memory | 256 |no | Memory limit in MB. Default 256Mi. See [valid combinations](https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo) |
+|k8s | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |

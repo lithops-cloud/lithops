@@ -28,7 +28,7 @@ DOCKER_PATH = shutil.which('docker')
 
 RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
 RUNTIME_MEMORY = 256  # Default memory: 256 MB
-RUNTIME_CPU = 1  # 1 vCPU
+RUNTIME_CPU = 0.5  # 0.5 vCPU
 MAX_CONCURRENT_WORKERS = 1000
 INVOKE_POOL_THREADS_DEFAULT = 4
 
@@ -116,12 +116,10 @@ def load_config(config_data):
     if 'k8s' not in config_data:
         config_data['k8s'] = {}
 
-    if 'cpu' not in config_data['k8s']:
-        config_data['k8s']['cpu'] = RUNTIME_CPU
-
     if 'container_registry' not in config_data['k8s']:
         config_data['k8s']['container_registry'] = CONTAINER_REGISTRY
-
+    if 'runtime_cpu' not in config_data['k8s']:
+        config_data['k8s']['runtime_cpu'] = RUNTIME_CPU
     if 'runtime_memory' not in config_data['serverless']:
         config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY
     if 'runtime_timeout' not in config_data['serverless']:
