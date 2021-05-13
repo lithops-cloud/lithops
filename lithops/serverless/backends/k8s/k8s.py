@@ -312,9 +312,9 @@ class KubernetesBackend:
         container['env'][2]['value'] = idgiver_ip
 
         container['resources']['requests']['memory'] = '{}Mi'.format(job_payload['runtime_memory'])
-        container['resources']['requests']['cpu'] = str(self.k8s_config['cpu'])
+        container['resources']['requests']['cpu'] = str(self.k8s_config['runtime_cpu'])
         container['resources']['limits']['memory'] = '{}Mi'.format(job_payload['runtime_memory'])
-        container['resources']['limits']['cpu'] = str(self.k8s_config['cpu'])
+        container['resources']['limits']['cpu'] = str(self.k8s_config['runtime_cpu'])
 
         logger.debug('ExecutorID {} | JobID {} - Going '
                      'to run {} activations in {} workers'

@@ -156,16 +156,12 @@ def load_config(config_data):
         print('"cpu" variable in code_engine config is deprecated, use "runtime_cpu" instead')
         config_data['code_engine']['runtime_cpu'] = config_data['code_engine']['cpu']
 
-    if 'runtime_cpu' not in config_data['code_engine']:
-        config_data['code_engine']['runtime_cpu'] = RUNTIME_CPU
-
     if 'container_registry' not in config_data['code_engine']:
         config_data['code_engine']['container_registry'] = CONTAINER_REGISTRY
 
     if 'ibm' in config_data and config_data['ibm'] is not None:
         config_data['code_engine'].update(config_data['ibm'])
 
-    # shared keys
     if 'runtime' in config_data['code_engine']:
         config_data['serverless']['runtime'] = config_data['code_engine']['runtime']
     if 'runtime_memory' in config_data['code_engine']:
