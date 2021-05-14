@@ -192,19 +192,21 @@ spec:
       containerConcurrency: 1
       timeoutSeconds: 600
       containers:
-      - image: IMAGE
-        env:
-          - name: CONCURRENCY
-            value: "1"
-          - name: TIMEOUT
-            value: "600"
-        resources:
-          limits:
-            memory: "256Mi"
-            cpu: "1"
-          requests:
-            memory: "256Mi"
-            cpu: "1"
+        - image: IMAGE
+          env:
+            - name: CONCURRENCY
+              value: "1"
+            - name: TIMEOUT
+              value: "600"
+          resources:
+            limits:
+              memory: "256Mi"
+              cpu: "1"
+            requests:
+              memory: "256Mi"
+              cpu: "1"
+      imagePullSecrets:
+        - name: lithops-regcred
 """
 
 

@@ -112,6 +112,8 @@ spec:
         requests:
           cpu: '1'
           memory: 128Mi
+    imagePullSecrets:
+      - name: lithops-regcred
 """
 
 

@@ -163,7 +163,7 @@ class KnativeServingBackend:
         """
         logger.debug("Creating Tekton account resources: Secret and ServiceAccount")
         string_data = {'username': self.knative_config['docker_user'],
-                       'password': self.knative_config['docker_token']}
+                       'password': self.knative_config['docker_password']}
         secret_res = yaml.safe_load(kconfig.secret_res)
         secret_res['stringData'] = string_data
 
@@ -258,8 +258,8 @@ class KnativeServingBackend:
 
         logger.debug("Building default Lithops runtime from git with Tekton")
 
-        if not {"docker_user", "docker_token"} <= set(self.knative_config):
-            raise Exception("You must provide 'docker_user' and 'docker_token'"
+        if not all(key in ["docker_user", "docker_password"] for key in self.knative_config):
+            raise Exception("You must provide 'docker_user' and 'docker_password'"
                             " to build the default runtime")
 
         task_run = yaml.safe_load(kconfig.task_run)

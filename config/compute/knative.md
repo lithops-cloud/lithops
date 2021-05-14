@@ -61,7 +61,7 @@ Note that Lithops automatically builds the default runtime the first time you ru
 |knative | kubecfg_path | |no | Path to kubecfg file. Mandatory if config file not in `~/.kube/config` or KUBECONFIG env var not present|
 |knative | container_registry |  docker.io | no | container registry url|
 |knative | docker_user | |no | Docker hub username |
-|knative | docker_token | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
+|knative | docker_password | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
 |knative | git_url | |no | Git repository to build the image |
 |knative | git_rev | |no | Git revision to build the image |
 |knative | min_instances | 0 |no | Minimum number of parallel runtimes |
