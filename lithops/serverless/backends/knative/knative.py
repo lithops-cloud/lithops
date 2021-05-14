@@ -366,7 +366,7 @@ class KnativeServingBackend:
         Create the container registry secret in the cluster
         (only if credentials are present in config)
         """
-        if not all(key in self.code_engine_config for key in ["docker_user", "docker_password"]):
+        if not all(key in self.knative_config for key in ["docker_user", "docker_password"]):
             return
 
         logger.debug('Creating container registry secret')
