@@ -262,7 +262,7 @@ class KnativeServingBackend:
 
         logger.debug("Building default Lithops runtime from git with Tekton")
 
-        if not all(key in self.code_engine_config for key in ["docker_user", "docker_password"]):
+        if not all(key in self.knative_config for key in ["docker_user", "docker_password"]):
             raise Exception("You must provide 'docker_user' and 'docker_password'"
                             " to build the default runtime")
 
@@ -370,9 +370,9 @@ class KnativeServingBackend:
             return
 
         logger.debug('Creating container registry secret')
-        docker_server = self.code_engine_config.get('docker_server', 'https://index.docker.io/v1/')
-        docker_user = self.code_engine_config.get('docker_user')
-        docker_password = self.code_engine_config.get('docker_password')
+        docker_server = self.knative_config.get('docker_server', 'https://index.docker.io/v1/')
+        docker_user = self.knative_config.get('docker_user')
+        docker_password = self.knative_config.get('docker_password')
 
         cred_payload = {
             "auths": {
