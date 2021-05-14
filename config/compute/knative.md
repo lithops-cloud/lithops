@@ -59,7 +59,8 @@ Note that Lithops automatically builds the default runtime the first time you ru
 |---|---|---|---|---|
 |knative | istio_endpoint | |no | Istio IngressGateway Endpoint. Make sure to use http:// prefix |
 |knative | kubecfg_path | |no | Path to kubecfg file. Mandatory if config file not in `~/.kube/config` or KUBECONFIG env var not present|
-|knative | container_registry |  docker.io | no | container registry url|
+|knative | container_registry |  docker.io | no | container registry name|
+|knative | docker_server | https://index.docker.io/v1/ |no | Docker server URL |
 |knative | docker_user | |no | Docker hub username |
 |knative | docker_password | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
 |knative | git_url | |no | Git repository to build the image |

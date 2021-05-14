@@ -20,6 +20,7 @@ import sys
 import ssl
 import json
 import time
+import base64
 import yaml
 import urllib3
 import logging
@@ -27,12 +28,15 @@ import requests
 import http.client
 from urllib.parse import urlparse
 from kubernetes import client, config, watch
+from kubernetes.client.rest import ApiException
+
 from lithops.utils import version_str
 from lithops.version import __version__
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.constants import CACHE_DIR
 from lithops.utils import create_handler_zip
 from lithops.constants import COMPUTE_CLI_MSG
+
 from . import config as kconfig
 
 urllib3.disable_warnings()
@@ -258,7 +262,7 @@ class KnativeServingBackend:
 
         logger.debug("Building default Lithops runtime from git with Tekton")
 
-        if not all(key in ["docker_user", "docker_password"] for key in self.knative_config):
+        if not all(key in self.code_engine_config for key in ["docker_user", "docker_password"]):
             raise Exception("You must provide 'docker_user' and 'docker_password'"
                             " to build the default runtime")
 
@@ -356,6 +360,48 @@ class KnativeServingBackend:
         else:
             # Build default runtime using Tekton
             self._build_default_runtime_from_git(default_runtime_img_name)
+
+    def _create_container_registry_secret(self):
+        """
+        Create the container registry secret in the cluster
+        (only if credentials are present in config)
+        """
+        if not all(key in self.code_engine_config for key in ["docker_user", "docker_password"]):
+            return
+
+        logger.debug('Creating container registry secret')
+        docker_server = self.code_engine_config.get('docker_server', 'https://index.docker.io/v1/')
+        docker_user = self.code_engine_config.get('docker_user')
+        docker_password = self.code_engine_config.get('docker_password')
+
+        cred_payload = {
+            "auths": {
+                docker_server: {
+                    "Username": docker_user,
+                    "Password": docker_password
+                }
+            }
+        }
+
+        data = {
+            ".dockerconfigjson": base64.b64encode(
+                json.dumps(cred_payload).encode()
+            ).decode()
+        }
+
+        secret = client.V1Secret(
+            api_version="v1",
+            data=data,
+            kind="Secret",
+            metadata=dict(name="lithops-regcred", namespace=self.namespace),
+            type="kubernetes.io/dockerconfigjson",
+        )
+
+        try:
+            self.coreV1Api.create_namespaced_secret(self.namespace, secret)
+        except ApiException as e:
+            if e.status != 409:
+                raise e
 
     def _create_service(self, docker_image_name, runtime_memory, timeout):
         """
@@ -472,6 +518,7 @@ class KnativeServingBackend:
             docker_image_name = default_runtime_img_name
             self._build_default_runtime(default_runtime_img_name)
 
+        self._create_container_registry_secret()
         self._create_service(docker_image_name, memory, timeout)
         runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
 

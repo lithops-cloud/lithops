@@ -131,7 +131,8 @@ If you need to create custom runtime, please follow [Building and managing Litho
 |code_engine | namespace |  |no | Namespace name|
 |code_engine | region |  | no | Cluster region. One of *us-south*, *jp-tok*, *eu-de*, *eu-gb* |
 |code_engine | kubecfg_path | |no | Path to kubecfg file. Mandatory if config file not in `~/.kube/config` or KUBECONFIG env var not present|
-|code_engine | container_registry |  docker.io | no | container registry url|
+|code_engine | container_registry |  docker.io | no | container registry name|
+|code_engine | docker_server | https://index.docker.io/v1/ |no | Docker server URL |
 |code_engine | docker_user | |no | Docker hub username |
 |code_engine | docker_password | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
 |code_engine | runtime |  |no | Docker image name.|
@@ -157,7 +158,8 @@ The only requirement to make it working is to have the KUBECONFIG file properly 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |knative | kubecfg_path | |no | Path to kubecfg file. Mandatory if config file not in `~/.kube/config` or KUBECONFIG env var not present|
-|knative | container_registry |  docker.io | no | container registry url|
+|knative | container_registry |  docker.io | no | container registry name|
+|knative | docker_server | https://index.docker.io/v1/ |no | Docker server URL |
 |knative | docker_user | |no | Docker hub username |
 |knative | docker_password | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
 |knative | git_url | |no | Git repository to build the image |

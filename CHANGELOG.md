@@ -5,6 +5,9 @@
 ### Added
 - [Core] Allow to execute a Class as lithops function
 - [CE] Allow to to run code engine without kubecfg file
+- [CE] Allow private container registries
+- [k8s] Allow private container registries
+- [knative] Allow private container registries
 
 ### Changed
 - [CE] CPU and memory values must match predefined flavors

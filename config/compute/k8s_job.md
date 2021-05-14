@@ -32,6 +32,7 @@ Lithops with kubernetes as serverless compute backend.
 |---|---|---|---|---|
 |k8s | kubecfg_path | |no | Path to kubecfg file. Mandatory if config file not in `~/.kube/config` or KUBECONFIG env var not present|
 |k8s | container_registry |  docker.io | no | container registry url|
+|k8s | docker_server | https://index.docker.io/v1/ |no | Docker server URL |
 |k8s | docker_user | |no | Docker hub username |
 |k8s | docker_password | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
 |k8s | runtime |  |no | Docker image name.|
