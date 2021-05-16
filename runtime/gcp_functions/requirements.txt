@@ -13,7 +13,7 @@ idna
 jmespath
 kafka-python
 lxml
-pika==0.13.0
+pika
 python-dateutil
 redis
 requests

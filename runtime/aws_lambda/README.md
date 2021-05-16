@@ -10,13 +10,13 @@ come with already preinstalled modules. A *layer* is a set of packaged dependenc
 deployed as a layer, so if multiple runtimes are created with different memory values, they can mount the same layer containing the dependencies, instead
 of deploying them separately for each runtime.
 
-Here you can find which modules are preinstalled by default in a AWS Lambda Python runtime:  
+Here you can find which modules are preinstalled by default in an AWS Lambda Python runtime:  
 
 | Runtime name | Python version | Packages included |
-| ----| ----| ---- |
-| python3.6 | 3.6 | [list of packages](https://gist.github.com/gene1wood/4a052f39490fae00e0c3#gistcomment-3131227) |
-| python3.7 | 3.7 | [list of packages](https://gist.github.com/gene1wood/4a052f39490fae00e0c3#gistcomment-3131227) |
-| python3.8 | 3.8 | [list of packages](https://gist.github.com/gene1wood/4a052f39490fae00e0c3#gistcomment-3131227) |
+| ---- | ---- | ---- |
+| python36 | 3.6 | [list of packages](https://gist.github.com/gene1wood/4a052f39490fae00e0c3#gistcomment-3131227) |
+| python37 | 3.7 | [list of packages](https://gist.github.com/gene1wood/4a052f39490fae00e0c3#gistcomment-3131227) |
+| python38 | 3.8 | [list of packages](https://gist.github.com/gene1wood/4a052f39490fae00e0c3#gistcomment-3131227) |
 
 Lithops runtime also ships with the following packages:
 ```
@@ -24,8 +24,11 @@ httplib2
 kafka-python
 requests
 Pillow
+pandas
+numpy
+scipy
 redis
-pika==0.13.1
+pika
 cloudpickle
 ps-mem
 tblib
@@ -59,21 +62,12 @@ pw = lithops.FunctionExecutor(runtime_memory=512)
 
 If you need some Python modules which are not included in the default runtime, it is possible to build your own Lithops runtime with all of them.
 
-To build your own runtime, you have to collect all necessary modules in a `requirements.txt` file.
+To build your own runtime, you have to collect all extra modules in a `requirements.txt` file.
 
 For example, we want to add module `matplotlib` to our runtime, since it is not provided in the default runtime.
 
-First, we need to extend the default `requirements.txt` file provided with Lithops with all the modules we need. For our example, the `requirements.txt` will contain the following modules:
+First, we need to build a `requirements.txt` file with all the extra modules we need. For our example, the `requirements.txt` will contain the following modules:
 ```
-httplib2
-kafka-python
-requests
-Pillow
-redis
-pika==0.13.1
-cloudpickle
-ps-mem
-tblib
 matplotlib
 ```
 
@@ -106,24 +100,14 @@ If we are running Lithops, for example, with Python 3.8, `my_matplotlib_runtime`
 It is also possible to run a containerized runtime on AWS Lambda. This is useful to package, not only Python modules but also system libraries
 so that they can be used in the Lambda code.
 
-To build your own runtime, first install the [Docker CE](https://docs.docker.com/get-docker/) version and [AWS CLI](https://aws.amazon.com/cli/) in your client machine.
-
-Login to your Docker hub account by running in a terminal the next command.
-```
-$ docker login
-```
-
-Login to your AWS account on the CLI using your Access Key ID and Secret Access Key:
-```
-$ aws configure
-``` 
+To build your own runtime, first install [Docker CE](https://docs.docker.com/get-docker/) in your client machine.
 
 Update the [template Dockerfile](Dockerfile.python38) that better fits to your requirements with your required system packages and Python modules.
-You can add a container layer (`RUN ...`) to install additional Python modules
-using `pip` or system libraries using `apt`, or even change Python version to a different one.
+You can add a container layer (`RUN ...`) to install additional Python modules using `pip` or system libraries using `apt`, or even change Python version to a older/newer one.
 
 Then, to build the custom runtime, use `lithops runtime build` CLI specifying the modified `Dockerfile` file and a runtime name.
-Note that the runtime name must be a Docker image name, that is, `your Docker username / container image name`:
+Note that the runtime name must be a Docker image name, that is, `docker_username/container_image_name`:
+
 ```
 $ lithops runtime build -f MyDockerfile docker_username/my_container_runtime -b aws_lambda
 ```

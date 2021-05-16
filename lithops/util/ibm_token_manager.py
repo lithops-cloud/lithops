@@ -39,7 +39,7 @@ class IBMTokenManager:
 
     def _get_token_minutes_diff(self):
         expiry_time = self._token_manager._expiry_time
-        return int((expiry_time - datetime.now(timezone.utc)).total_seconds() / 60.0)
+        return max(0, int((expiry_time - datetime.now(timezone.utc)).total_seconds() / 60.0))
 
     def _generate_new_token(self):
         self._token_manager._token = None
@@ -53,7 +53,7 @@ class IBMTokenManager:
         """ Gets a new token within a mutex block to prevent multiple threads
         requesting new tokens at the same time.
         """
-        if (self._token_manager._is_expired() or self._get_token_minutes_diff() < 11) \
+        if (self._token_manager._is_expired() or self._get_token_minutes_diff() < 1) \
            and not is_lithops_worker():
             logger.debug("Token expired. Requesting new token".format(self.api_key_type))
             self._generate_new_token()

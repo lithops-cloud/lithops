@@ -1,6 +1,43 @@
 # Changelog
 
-## [v2.3.1.dev2]
+## [v2.3.4.dev0]
+
+### Added
+- [Core] Allow to execute a Class as lithops function
+- [CE] Allow to to run code engine without kubecfg file
+
+### Changed
+- [CE] CPU and memory values must match predefined flavors
+
+### Fixes
+- [Core] Clear only present jobs instead of all after wait() or get_result()
+
+
+## [v2.3.3]
+
+### Fixes
+- [Core] Allow to execute class methods as lithops function
+
+
+## [v2.3.2]
+
+### Added
+- [Core] New "warm_container" and "func_result_size" in future statistics
+- [Core] New logic to detect referenced modules/libs
+
+### Changed
+- [Core] New monitoring system
+- [Core] Deleted strong dependency to pika==0.13.1
+
+### Fixes
+- [Partitioner] Fixed partitioner when obj url contains more than one subfolder
+- [Cli] Fixed serverless runtime lifecycle methods
+
+### Deleted
+- [Core] Removed cloudpickle from lithops.libs
+
+
+## [v2.3.1]
 
 ### Added
 - [Core] Allow Support for Python 3.9

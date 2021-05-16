@@ -47,6 +47,7 @@ class KubernetesBackend:
     def __init__(self, k8s_config, internal_storage):
         logger.debug("Creating Kubernetes Job client")
         self.name = 'k8s'
+        self.type = 'batch'
         self.k8s_config = k8s_config
         self.internal_storage = internal_storage
 
@@ -201,19 +202,33 @@ class KubernetesBackend:
         except ApiException:
             pass
 
-    def clear(self):
+    def clear(self, job_keys=None):
         """
         Delete only completed jobs
         """
-        for job_key in self.jobs:
-            job_name = 'lithops-{}'.format(job_key.lower())
-            logger.debug('Deleting job {}'.format(job_name))
-            try:
-                self.batch_api.delete_namespaced_job(name=job_name,
-                                                     namespace=self.namespace,
-                                                     propagation_policy='Background')
-            except Exception:
-                pass
+        if job_keys:
+            for job_key in job_keys:
+                if job_key in self.jobs:
+                    job_name = 'lithops-{}'.format(job_key.lower())
+                    logger.debug('Deleting job {}'.format(job_name))
+                    try:
+                        self.batch_api.delete_namespaced_job(name=job_name,
+                                                             namespace=self.namespace,
+                                                             propagation_policy='Background')
+                    except Exception:
+                        pass
+                    self.jobs.remove(job_key)
+        else:
+            for job_key in self.jobs:
+                job_name = 'lithops-{}'.format(job_key.lower())
+                logger.debug('Deleting job {}'.format(job_name))
+                try:
+                    self.batch_api.delete_namespaced_job(name=job_name,
+                                                         namespace=self.namespace,
+                                                         propagation_policy='Background')
+                except Exception:
+                    pass
+            self.jobs = []
 
     def list_runtimes(self, docker_image_name='all'):
         """
@@ -267,11 +282,7 @@ class KubernetesBackend:
         Invoke -- return information about this invocation
         For array jobs only remote_invocator is allowed
         """
-
         idgiver_ip = self._start_id_giver(docker_image_name)
-
-        job_payload.pop('remote_invoker')
-        job_payload.pop('invokers')
 
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
@@ -301,9 +312,9 @@ class KubernetesBackend:
         container['env'][2]['value'] = idgiver_ip
 
         container['resources']['requests']['memory'] = '{}Mi'.format(job_payload['runtime_memory'])
-        container['resources']['requests']['cpu'] = str(self.k8s_config['cpu'])
+        container['resources']['requests']['cpu'] = str(self.k8s_config['runtime_cpu'])
         container['resources']['limits']['memory'] = '{}Mi'.format(job_payload['runtime_memory'])
-        container['resources']['limits']['cpu'] = str(self.k8s_config['cpu'])
+        container['resources']['limits']['cpu'] = str(self.k8s_config['runtime_cpu'])
 
         logger.debug('ExecutorID {} | JobID {} - Going '
                      'to run {} activations in {} workers'

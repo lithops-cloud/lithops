@@ -47,6 +47,7 @@ class KnativeServingBackend:
 
     def __init__(self, knative_config, internal_storage):
         self.name = 'knative'
+        self.type = 'faas'
         self.knative_config = knative_config
         self.istio_endpoint = self.knative_config.get('istio_endpoint')
         self.kubecfg_path = self.knative_config.get('kubecfg_path')
@@ -380,9 +381,9 @@ class KnativeServingBackend:
         svc_res['spec']['template']['spec']['containers'][0]['env'][0] = conc_env
         svc_res['spec']['template']['spec']['containers'][0]['env'][1] = tout_env
         svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['memory'] = '{}Mi'.format(runtime_memory)
-        svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['cpu'] = str(self.knative_config['cpu'])
+        svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['cpu'] = str(self.knative_config['runtime_cpu'])
         svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory)
-        svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['cpu'] = str(self.knative_config['cpu'])
+        svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['cpu'] = str(self.knative_config['runtime_cpu'])
 
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/minScale'] = str(self.knative_config['min_instances'])
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = str(self.knative_config['max_instances'])

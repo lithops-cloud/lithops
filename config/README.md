@@ -138,7 +138,7 @@ if __name__ == '__main__':
     print(fexec.get_result())
 ```
 
-## Using RabbitMQ to monitor function activations (optional)
+## Lithops Monitoring
 
 By default, Lithops uses the storage backend to monitor function activations: Each function activation stores a file named *{id}/status.json* to the Object Storage when it finishes its execution. This file contains some statistics about the execution, including if the function activation ran successfully or not. Having these files, the default monitoring approach is based on polling the Object Store each X seconds to know which function activations have finished and which not.
 
@@ -149,17 +149,17 @@ rabbitmq:
     amqp_url: <AMQP_URL>  # amqp://
 ```
 
-In addition, activate the monitoring service by setting *rabbitmq_monitor : True* in the configuration (Lithops section):
+In addition, activate the monitoring service by setting *monitoring : rabbitmq* in the configuration (Lithops section):
 
 ```yaml
 lithops:
-   rabbitmq_monitor: True
+   monitoring: rabbitmq
 ```
 
 or in the executor by:
 
 ```python
-fexec = lithops.FunctionExecutor(rabbitmq_monitor=True)
+fexec = lithops.FunctionExecutor(monitoring='rabbitmq')
 ```
 
 
@@ -171,7 +171,7 @@ fexec = lithops.FunctionExecutor(rabbitmq_monitor=True)
 |lithops | storage | ibm_cos | no | Storage backend implementation. IBM Cloud Object Storage is the default |
 |lithops| data_cleaner | True | no |If set to True, then the cleaner will automatically delete all the temporary data that was written into `storage_bucket/lithops.jobs`|
 |lithops | mode | serverless | no | Execution mode. One of: **localhost**, **serverless** or **standalone** |
-|lithops | rabbitmq_monitor | False | no | Activate the rabbitmq monitoring feature |
+|lithops | monitoring | storage | no | Monitoring system implementation. One of: **storage** or **rabbitmq** |
 |lithops | workers | Depends on the compute backend | no | Max number of concurrent workers |
 |lithops| data_limit | 4 | no | Max (iter)data size (in MB). Set to False for unlimited size |
 |lithops| execution_timeout | 1800 | no | Functions will be automatically killed if they exceed this execution time (in seconds). Alternatively, it can be set in the `call_async()`, `map()` or `map_reduce()` calls with the `timeout` parameter.|

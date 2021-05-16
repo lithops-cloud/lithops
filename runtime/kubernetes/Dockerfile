@@ -16,12 +16,10 @@ RUN apt-get update && apt-get install -y \
 
 RUN pip install --upgrade setuptools six pip \
     && pip install --no-cache-dir \
-        wheel \
-        gunicorn \
-        pika \
         flask \
-        gevent \
+        pika \
         glob2 \
+        ibm-cos-sdk \
         redis \
         requests \
         PyYAML \
@@ -29,19 +27,13 @@ RUN pip install --upgrade setuptools six pip \
         numpy \
         cloudpickle \
         ps-mem \
-        tblib \
-        cryptography \
-        httplib2 \
-        google-cloud-storage \
-        google-api-python-client \
-        gcsfs \
-        google-auth
+        tblib
+
+ENV PYTHONUNBUFFERED TRUE
 
 # Copy Lithops proxy and lib to the container image.
 ENV APP_HOME /lithops
 WORKDIR $APP_HOME
 
-COPY lithops_cloudrun.zip .
-RUN unzip lithops_cloudrun.zip && rm lithops_cloudrun.zip
-
-CMD exec gunicorn --bind :$PORT lithopsproxy:proxy
+COPY lithops_k8s.zip .
+RUN unzip lithops_k8s.zip && rm lithops_k8s.zip

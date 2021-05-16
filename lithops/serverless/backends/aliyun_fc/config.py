@@ -39,7 +39,7 @@ FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_aliyunfc.zip')
 REQUIREMENTS_FILE = """
 aliyun-fc2
 oss2
-pika==0.13.1
+pika
 flask
 gevent
 glob2

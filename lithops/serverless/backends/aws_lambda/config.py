@@ -22,28 +22,16 @@ from lithops.utils import version_str
 
 logger = logging.getLogger(__name__)
 
-
-# TODO get ARNs for all regions
-NUMERICS_LAYERS = {
-    'us-east-1': '668099181075',
-    'us-east-2': '259788987135',
-    'us-west-1': '325793726646',
-    'us-west-2': '420165488524',
-    'eu-central-1': '292169987271',
-    'eu-west-1': '399891621064',
-    'eu-west-2': '142628438157',
-    'eu-west-3': '959311844005',
-    'eu-north-1': '642425348156'
-}
-
 DEFAULT_REQUIREMENTS = [
     'httplib2',
     'kafka-python',
     'requests',
     'Pillow',
     'pandas',
+    'numpy',
+    'scipy',
     'redis',
-    'pika==0.13.1',
+    'pika',
     'cloudpickle',
     'ps-mem',
     'tblib'
@@ -51,7 +39,9 @@ DEFAULT_REQUIREMENTS = [
 
 DOCKER_PATH = shutil.which('docker')
 
-DEFAULT_RUNTIMES = ['python3.6', 'python3.7', 'python3.8']
+LAMBDA_PYTHON_VER_KEY = 'python{}'.format(version_str(sys.version_info))
+DEFAULT_RUNTIME = LAMBDA_PYTHON_VER_KEY.replace('.', '')
+DEFAULT_RUNTIMES = ['python36', 'python37', 'python38']
 
 USER_RUNTIME_PREFIX = 'lithops.user_runtimes'
 
@@ -90,7 +80,10 @@ def load_config(config_data):
     if 'runtime' in config_data['aws_lambda']:
         config_data['serverless']['runtime'] = config_data['aws_lambda']['runtime']
     if 'runtime' not in config_data['serverless']:
-        config_data['serverless']['runtime'] = 'python{}'.format(version_str(sys.version_info))
+        if DEFAULT_RUNTIME not in DEFAULT_RUNTIMES:
+            raise Exception('Python version "{}" is not available for AWS Lambda, '
+                            'please use one of {}'.format(LAMBDA_PYTHON_VER_KEY, DEFAULT_RUNTIMES))
+        config_data['serverless']['runtime'] = DEFAULT_RUNTIME
 
     if 'workers' not in config_data['lithops']:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS

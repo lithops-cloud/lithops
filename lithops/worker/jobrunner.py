@@ -29,7 +29,7 @@ from pydoc import locate
 from distutils.util import strtobool
 
 from lithops.storage import Storage
-from lithops.wait import wait_storage
+from lithops.wait import wait
 from lithops.future import ResponseFuture
 from lithops.utils import sizeof_fmt, is_object_processing_function
 from lithops.utils import WrappedStreamingBodyPartition
@@ -40,7 +40,7 @@ from lithops.constants import JOBS_PREFIX
 logger = logging.getLogger(__name__)
 
 
-class stats:
+class JobStats:
 
     def __init__(self, stats_filename):
         self.stats_filename = stats_filename
@@ -54,7 +54,7 @@ class stats:
         self.stats_fid.close()
 
 
-class TaskRunner:
+class JobRunner:
 
     def __init__(self, task, jobrunner_conn, internal_storage):
         self.task = task
@@ -66,10 +66,10 @@ class TaskRunner:
                                             self.task.job_id, self.task.id)
 
         # Setup stats class
-        self.stats = stats(self.task.stats_file)
+        self.stats = JobStats(self.task.stats_file)
 
         # Setup prometheus for live metrics
-        prom_enabled = self.lithops_config['lithops'].get('monitoring')
+        prom_enabled = self.lithops_config['lithops'].get('telemetry')
         prom_config = self.lithops_config.get('prometheus', {})
         self.prometheus = PrometheusExporter(prom_enabled, prom_config)
 
@@ -107,7 +107,7 @@ class TaskRunner:
     def _wait_futures(self, data):
         logger.info('Reduce function: waiting for map results')
         fut_list = data['results']
-        wait_storage(fut_list, self.internal_storage, download_results=True)
+        wait(fut_list, self.internal_storage, download_results=True)
         results = [f.result() for f in fut_list if f.done and not f.futures]
         fut_list.clear()
         data['results'] = results
@@ -173,28 +173,31 @@ class TaskRunner:
         result = None
         exception = False
         try:
-            function = pickle.loads(self.task.func)
+            func = pickle.loads(self.task.func)
             data = pickle.loads(self.task.data)
 
             if strtobool(os.environ.get('__LITHOPS_REDUCE_JOB', 'False')):
                 self._wait_futures(data)
-            elif is_object_processing_function(function):
+            elif is_object_processing_function(func):
                 self._load_object(data)
 
-            self._fill_optional_args(function, data)
+            self._fill_optional_args(func, data)
+
+            fn_name = func.__name__ if inspect.isfunction(func) \
+                or inspect.ismethod(func) else type(func).__name__
 
             self.prometheus.send_metric(name='function_start',
                                         value=time.time(),
                                         labels=(
                                             ('job_id', self.task.job_id),
                                             ('call_id', self.task.id),
-                                            ('function_name', function.__name__)
+                                            ('function_name', fn_name)
                                         ))
 
-            logger.info("Going to execute '{}()'".format(str(function.__name__)))
+            logger.info("Going to execute '{}()'".format(str(fn_name)))
             print('---------------------- FUNCTION LOG ----------------------')
             function_start_tstamp = time.time()
-            result = function(**data)
+            result = func(**data)
             function_end_tstamp = time.time()
             print('----------------------------------------------------------')
             logger.info("Success function execution")
@@ -204,7 +207,7 @@ class TaskRunner:
                                         labels=(
                                             ('job_id', self.task.job_id),
                                             ('call_id', self.task.id),
-                                            ('function_name', function.__name__)
+                                            ('function_name', fn_name)
                                         ))
 
             self.stats.write('worker_func_start_tstamp', function_start_tstamp)
@@ -213,18 +216,21 @@ class TaskRunner:
 
             # Check for new futures
             if result is not None:
-                self.stats.write("result", True)
                 if isinstance(result, ResponseFuture) or \
                    (type(result) == list and len(result) > 0 and isinstance(result[0], ResponseFuture)):
-                    self.stats.write('new_futures', True)
+                    self.stats.write('new_futures', pickle.dumps(result))
+                    result = None
+                else:
+                    self.stats.write("result", True)
+                    logger.debug("Pickling result")
+                    output_dict = {'result': result}
+                    pickled_output = pickle.dumps(output_dict)
+                    self.stats.write('func_result_size', len(pickled_output))
 
-                logger.debug("Pickling result")
-                output_dict = {'result': result}
-                pickled_output = pickle.dumps(output_dict)
-
-            else:
+            if result is None:
                 logger.debug("No result to store")
                 self.stats.write("result", False)
+                self.stats.write('func_result_size', 0)
 
             # self.stats.write('worker_jobrunner_end_tstamp', time.time())
 
