@@ -23,7 +23,7 @@ import shutil
 
 import lithops
 from lithops import Storage
-from lithops.scripts.tests import print_help, run_tests
+from lithops.tests.tests_main import print_test_functions, print_test_groups, run_tests
 from lithops.utils import setup_lithops_logger, verify_runtime_name, sizeof_fmt
 from lithops.config import get_mode, default_config, extract_storage_config, \
     extract_serverless_config, extract_standalone_config, \
@@ -96,36 +96,6 @@ def clean(config, mode, backend, storage, debug):
     shutil.rmtree(CACHE_DIR, ignore_errors=True)
 
 
-@lithops_cli.command('test')
-@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
-@click.option('--mode', '-m', default=None,
-              type=click.Choice([SERVERLESS, LOCALHOST, STANDALONE], case_sensitive=True),
-              help='execution mode')
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--storage', '-s', default=None, help='storage backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
-def test_function(config, mode, backend, storage, debug):
-    if config:
-        config = load_yaml_config(config)
-
-    log_level = logging.INFO if not debug else logging.DEBUG
-    setup_lithops_logger(log_level)
-
-    def hello(name):
-        return 'Hello {}!'.format(name)
-
-    fexec = lithops.FunctionExecutor(config=config, mode=mode,
-                                     backend=backend, storage=storage)
-    fexec.call_async(hello, 'World')
-    result = fexec.get_result()
-    print()
-    if result == 'Hello World!':
-        print(result, 'Lithops is working as expected :)')
-    else:
-        print(result, 'Something went wrong :(')
-    print()
-
-
 @lithops_cli.command('verify')
 @click.option('--test', '-t', default='all', help='run a specific test, type "-t help" for tests list')
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
@@ -136,16 +106,39 @@ def test_function(config, mode, backend, storage, debug):
 @click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 def verify(test, config, mode, backend, storage, debug):
+    print('Command "lithops verify" is deprecated. Use "lithops test" instead')
+
+
+@lithops_cli.command('test')
+@click.option('--tester', '-t', default='all', help='run a specific tester. To avoid running similarly named tests '
+                                                    'you may prefix the tester with its test class,'
+                                                    'e.g. TestClass.test_name.'
+                                                    'Type "-t help" for the complete tests list')
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--mode', '-m', default=None,
+              type=click.Choice([SERVERLESS, LOCALHOST, STANDALONE], case_sensitive=True),
+              help='execution mode')
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--group', '-g', default=None, help='run all testers belonging to a specific group.'
+                                                  ' type "-g help" for groups list')
+@click.option('--storage', '-s', default=None, help='storage backend')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def test(tester, config, mode, backend, group, storage, debug):
     if config:
         config = load_yaml_config(config)
 
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
 
-    if test == 'help':
-        print_help()
+    if tester != 'all' and group:
+        print("please choose either a single test or a single group")
+    elif tester == 'help':
+        print_test_functions()
+    elif group == 'help':
+        print_test_groups()
+
     else:
-        run_tests(test, config, mode, backend, storage)
+        run_tests(tester, config, mode, group, backend, storage)
 
 
 # /---------------------------------------------------------------------------/

@@ -330,7 +330,7 @@ class InternalStorage:
 
     def put_runtime_meta(self, key, runtime_meta):
         """
-        Puit the metadata given a runtime config.
+        Put the metadata given a runtime config.
         :param runtime: name of the runtime
         :param runtime_meta metadata
         """
@@ -352,7 +352,7 @@ class InternalStorage:
 
     def delete_runtime_meta(self, key):
         """
-        Puit the metadata given a runtime config.
+        Put the metadata given a runtime config.
         :param runtime: name of the runtime
         :param runtime_meta metadata
         """
