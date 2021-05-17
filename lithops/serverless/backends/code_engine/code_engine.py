@@ -507,8 +507,6 @@ class CodeEngineBackend:
         jobrun_res = yaml.safe_load(ce_config.JOBRUN_DEFAULT)
 
         jobdef_name = self._format_jobdef_name(docker_image_name, memory)
-        
-        print(jobdef_name)
 
         payload = copy.deepcopy(self.internal_storage.storage.storage_config)
         payload['log_level'] = logger.getEffectiveLevel()
