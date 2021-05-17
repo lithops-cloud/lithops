@@ -180,5 +180,5 @@ class DefaultEnv:
         copyfile(src_handler, RUNNER)
 
     def get_execution_cmd(self, runtime):
-        cmd = '{} {}'.format(self.runtime, RUNNER)
+        cmd = '"{} {}"'.format(self.runtime, RUNNER)
         return cmd
