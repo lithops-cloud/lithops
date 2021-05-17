@@ -121,10 +121,6 @@ class CodeEngineBackend:
         return token
 
     def _format_jobdef_name(self, runtime_name, runtime_memory):
-        if runtime_name.count('/') == 2:
-            # it contains the docker registry
-            runtime_name = runtime_name.split('/', 1)[1]
-
         runtime_name = runtime_name.replace('.', '')
         runtime_name = runtime_name.replace('/', '--')
         runtime_name = runtime_name.replace(':', '--')
@@ -441,7 +437,9 @@ class CodeEngineBackend:
         jobdef_res = yaml.safe_load(ce_config.JOBDEF_DEFAULT)
         jobdef_res['metadata']['name'] = jobdef_name
         container = jobdef_res['spec']['template']['containers'][0]
-        container['image'] = '/'.join([self.code_engine_config['container_registry'], image_name])
+
+        cr = self.code_engine_config['container_registry']
+        container['image'] = '/'.join([cr, image_name]) if cr not in image_name else image_name
         container['name'] = jobdef_name
         container['env'][0]['value'] = 'run'
         container['resources']['requests']['memory'] = '{}G'.format(runtime_memory/1024)
@@ -509,6 +507,8 @@ class CodeEngineBackend:
         jobrun_res = yaml.safe_load(ce_config.JOBRUN_DEFAULT)
 
         jobdef_name = self._format_jobdef_name(docker_image_name, memory)
+        
+        print(jobdef_name)
 
         payload = copy.deepcopy(self.internal_storage.storage.storage_config)
         payload['log_level'] = logger.getEffectiveLevel()

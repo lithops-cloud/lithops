@@ -420,16 +420,15 @@ class KnativeServingBackend:
         svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
         svc_res['spec']['template']['spec']['containerConcurrency'] = self.knative_config['concurrency']
 
-        full_docker_image_name = '/'.join([self.knative_config['container_registry'], docker_image_name])
-        svc_res['spec']['template']['spec']['containers'][0]['image'] = full_docker_image_name
-        conc_env = {'name': 'CONCURRENCY', 'value': str(self.knative_config['concurrency'])}
-        tout_env = {'name': 'TIMEOUT', 'value': str(timeout)}
-        svc_res['spec']['template']['spec']['containers'][0]['env'][0] = conc_env
-        svc_res['spec']['template']['spec']['containers'][0]['env'][1] = tout_env
-        svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['memory'] = '{}Mi'.format(runtime_memory)
-        svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['cpu'] = str(self.knative_config['runtime_cpu'])
-        svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory)
-        svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['cpu'] = str(self.knative_config['runtime_cpu'])
+        container = svc_res['spec']['template']['spec']['containers'][0]
+        cr = self.knative_config['container_registry']
+        container['image'] = '/'.join([cr, docker_image_name]) if cr not in docker_image_name else docker_image_name
+        container['env'][0] = {'name': 'CONCURRENCY', 'value': str(self.knative_config['concurrency'])}
+        container['env'][1] = {'name': 'TIMEOUT', 'value': str(timeout)}
+        container['resources']['limits']['memory'] = '{}Mi'.format(runtime_memory)
+        container['resources']['limits']['cpu'] = str(self.knative_config['runtime_cpu'])
+        container['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory)
+        container['resources']['requests']['cpu'] = str(self.knative_config['runtime_cpu'])
 
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/minScale'] = str(self.knative_config['min_instances'])
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = str(self.knative_config['max_instances'])
