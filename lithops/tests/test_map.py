@@ -19,7 +19,9 @@ import unittest
 import logging
 import lithops
 from lithops.tests import main_util
-from lithops.tests.util_func.map_util import simple_map_function, hello_world
+from lithops.tests.util_func.map_util import simple_map_function, hello_world, lithops_inside_lithops_map_function, \
+    lithops_return_futures_map_function1, lithops_return_futures_map_function3, lithops_return_futures_map_function2, \
+    concat
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +75,7 @@ class TestMap(unittest.TestCase):
 
         fexec = lithops.FunctionExecutor(config=CONFIG)
         set_iterdata = [["a", "b"], ["c", "d"]]
-        fexec.map(lambda x: " ".join(x), set_iterdata)
+        fexec.map(concat, set_iterdata)
         result = fexec.get_result()
         self.assertEqual(result, ["a b", "c d"])
 
@@ -104,19 +106,19 @@ class TestMap(unittest.TestCase):
     # def test_internal_executions(self):
     #     logger.info('Testing internal executions')
     #     fexec = lithops.FunctionExecutor(config=CONFIG)
-    #     fexec.map(TestMethods.lithops_inside_lithops_map_function, range(1, 5))
+    #     fexec.map(lithops_inside_lithops_map_function, range(1, 5))
     #     result = fexec.get_result()
     #     self.assertEqual(result, [list(range(i)) for i in range(1, 5)])
     #
     #     fexec = lithops.FunctionExecutor(config=CONFIG)
-    #     fexec.call_async(TestMethods.lithops_return_futures_map_function1, 3)
+    #     fexec.call_async(lithops_return_futures_map_function1, 3)
     #     fexec.get_result()
     #
     #     fexec = lithops.FunctionExecutor(config=CONFIG)
-    #     fexec.call_async(TestMethods.lithops_return_futures_map_function2, 3)
+    #     fexec.call_async(lithops_return_futures_map_function2, 3)
     #     fexec.get_result()
     #
     #     fexec = lithops.FunctionExecutor(config=CONFIG)
-    #     fexec.call_async(TestMethods.lithops_return_futures_map_function3, 3)
+    #     fexec.call_async(lithops_return_futures_map_function3, 3)
     #     fexec.wait()
     #     fexec.get_result()

@@ -3,8 +3,13 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 def simple_map_function(x, y):
     return x + y
+
+
+def concat(lst):
+    return " ".join(lst)
 
 
 def hello_world(param):
