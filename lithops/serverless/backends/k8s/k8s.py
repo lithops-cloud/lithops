@@ -195,6 +195,11 @@ class KubernetesBackend:
             metadata=dict(name="lithops-regcred", namespace=self.namespace),
             type="kubernetes.io/dockerconfigjson",
         )
+        
+        try:
+            self.coreV1Api.delete_namespaced_secret("lithops-regcred", self.namespace)
+        except ApiException as e:
+            pass
 
         try:
             self.coreV1Api.create_namespaced_secret(self.namespace, secret)
@@ -349,8 +354,7 @@ class KubernetesBackend:
         job_res['spec']['parallelism'] = total_workers
 
         container = job_res['spec']['template']['spec']['containers'][0]
-        cr = self.k8s_config['container_registry']
-        container['image'] = '/'.join([cr, docker_image_name]) if cr not in docker_image_name else docker_image_name
+        container['image'] = docker_image_name
 
         container['env'][0]['value'] = 'run'
         container['env'][1]['value'] = dict_to_b64str(job_payload)

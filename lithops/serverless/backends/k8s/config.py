@@ -23,7 +23,6 @@ from lithops.version import __version__
 
 RUNTIME_NAME = 'lithops-k8sjob'
 
-CONTAINER_REGISTRY = 'docker.io'
 DOCKER_PATH = shutil.which('docker')
 
 RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
@@ -118,9 +117,6 @@ def load_config(config_data):
     if 'k8s' not in config_data:
         config_data['k8s'] = {}
 
-    if 'container_registry' not in config_data['k8s']:
-        config_data['k8s']['container_registry'] = CONTAINER_REGISTRY
-
     if 'runtime' in config_data['k8s']:
         config_data['serverless']['runtime'] = config_data['k8s']['runtime']
     if 'runtime_memory' in config_data['k8s']:
@@ -148,13 +144,6 @@ def load_config(config_data):
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         runtime_name = '{}/{}-v{}:{}'.format(docker_user, RUNTIME_NAME, python_version, revision)
         config_data['serverless']['runtime'] = runtime_name
-
-    else:
-        if config_data['serverless']['runtime'].count('/') > 1:
-            # container registry is in the provided runtime name
-            cr, rn = config_data['serverless']['runtime'].split('/', 1)
-            config_data['k8s']['container_registry'] = cr
-            config_data['serverless']['runtime'] = rn
 
     if 'workers' not in config_data['lithops'] or \
        config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:

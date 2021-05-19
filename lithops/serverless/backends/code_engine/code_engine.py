@@ -248,6 +248,7 @@ class CodeEngineBackend:
                 body=client.V1DeleteOptions(),
             )
         except ApiException as e:
+            print(e)
             logger.debug("Deleting a jobdef failed with {} {}"
                          .format(e.status, e.reason))
 
@@ -292,7 +293,8 @@ class CodeEngineBackend:
                 if jobdef['metadata']['labels']['type'] == 'lithops-runtime':
                     container = jobdef['spec']['template']['containers'][0]
                     image_name = container['image']
-                    memory = container['resources']['requests']['memory'].replace('Mi', '')
+                    memory = container['resources']['requests']['memory'].replace('M', '')
+                    memory = int(int(memory)/1000*1024)
                     if docker_image_name in image_name or docker_image_name == 'all':
                         runtimes.append((image_name, memory))
             except Exception:
@@ -442,9 +444,7 @@ class CodeEngineBackend:
         jobdef_res = yaml.safe_load(ce_config.JOBDEF_DEFAULT)
         jobdef_res['metadata']['name'] = jobdef_name
         container = jobdef_res['spec']['template']['containers'][0]
-
-        cr = self.code_engine_config['container_registry']
-        container['image'] = '/'.join([cr, image_name]) if cr not in image_name else image_name
+        container['image'] = image_name
         container['name'] = jobdef_name
         container['env'][0]['value'] = 'run'
         container['resources']['requests']['memory'] = '{}G'.format(runtime_memory/1024)

@@ -398,6 +398,11 @@ class KnativeServingBackend:
         )
 
         try:
+            self.coreV1Api.delete_namespaced_secret("lithops-regcred", self.namespace)
+        except ApiException as e:
+            pass
+
+        try:
             self.coreV1Api.create_namespaced_secret(self.namespace, secret)
         except ApiException as e:
             if e.status != 409:
@@ -421,8 +426,7 @@ class KnativeServingBackend:
         svc_res['spec']['template']['spec']['containerConcurrency'] = self.knative_config['concurrency']
 
         container = svc_res['spec']['template']['spec']['containers'][0]
-        cr = self.knative_config['container_registry']
-        container['image'] = '/'.join([cr, docker_image_name]) if cr not in docker_image_name else docker_image_name
+        container['image'] = docker_image_name
         container['env'][0] = {'name': 'CONCURRENCY', 'value': str(self.knative_config['concurrency'])}
         container['env'][1] = {'name': 'TIMEOUT', 'value': str(timeout)}
         container['resources']['limits']['memory'] = '{}Mi'.format(runtime_memory)
