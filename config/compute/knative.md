@@ -56,25 +56,25 @@ Note that Lithops automatically builds the default runtime the first time you ru
 ### Configure a private container registry for your runtime
 
 #### Configure Docker hub
-To configure Lithops to access a private repository in your docker hub account, you need to extend the Knative config and ad the following keys:
+To configure Lithops to access a private repository in your docker hub account, you need to extend the Knative config and add the following keys:
 
-    ```yaml
-    knative:
-        ....
-        docker_user      : <Docker hub Username>
-        docker_password  : <DOcker hub access TOEKN>
-    ```
+```yaml
+knative:
+    ....
+    docker_user      : <Docker hub Username>
+    docker_password  : <DOcker hub access TOEKN>
+```
 
 #### Configure IBM Container Registry
-To configure Lithops to access to a private repository in your IBM Container Registry, you need to extend the Knative config and ad the following keys:
+To configure Lithops to access to a private repository in your IBM Container Registry, you need to extend the Knative config and add the following keys:
 
-    ```yaml
-    knative:
-        ....
-        docker_server    : us.icr.io
-        docker_user      : iamapikey
-        docker_password  : <IBM IAM API KEY>
-    ```
+```yaml
+knative:
+    ....
+    docker_server    : us.icr.io
+    docker_user      : iamapikey
+    docker_password  : <IBM IAM API KEY>
+```
 
 #### Summary of configuration keys for Knative:
 

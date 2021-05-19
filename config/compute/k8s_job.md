@@ -29,25 +29,25 @@ Lithops with kubernetes as serverless compute backend.
 ### Configure a private container registry for your runtime
 
 #### Configure Docker hub
-To configure Lithops to access a private repository in your docker hub account, you need to extend the kubernetes config and ad the following keys:
+To configure Lithops to access a private repository in your docker hub account, you need to extend the kubernetes config and add the following keys:
 
-    ```yaml
-    k8s:
-        ....
-        docker_user      : <Docker hub Username>
-        docker_password  : <DOcker hub access TOEKN>
-    ```
+```yaml
+k8s:
+    ....
+    docker_user      : <Docker hub Username>
+    docker_password  : <DOcker hub access TOEKN>
+```
 
 #### Configure IBM Container Registry
-To configure Lithops to access to a private repository in your IBM Container Registry, you need to extend the kubernetes config and ad the following keys:
+To configure Lithops to access to a private repository in your IBM Container Registry, you need to extend the kubernetes config and add the following keys:
 
-    ```yaml
-    k8s:
-        ....
-        docker_server    : us.icr.io
-        docker_user      : iamapikey
-        docker_password  : <IBM IAM API KEY>
-    ```
+```yaml
+k8s:
+    ....
+    docker_server    : us.icr.io
+    docker_user      : iamapikey
+    docker_password  : <IBM IAM API KEY>
+```
 
 #### Summary of configuration keys for kubernetes:
 

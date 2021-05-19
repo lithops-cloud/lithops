@@ -134,25 +134,25 @@ If you need to create a runtime with custom system packages and libraries, pleas
 ### Configure a private container registry for your runtime
 
 #### Configure Docker hub
-To configure Lithops to access a private repository in your docker hub account, you need to extend the Code Engine config and ad the following keys:
+To configure Lithops to access a private repository in your docker hub account, you need to extend the Code Engine config and add the following keys:
 
-    ```yaml
-    code_engine:
-        ....
-        docker_user      : <Docker hub username>
-        docker_password  : <DOcker hub access TOEKN>
-    ```
+```yaml
+code_engine:
+    ....
+    docker_user      : <Docker hub username>
+    docker_password  : <DOcker hub access TOEKN>
+```
 
 #### Configure IBM Container Registry
-To configure Lithops to access to a private repository in your IBM Container Registry, you need to extend the Code Engine config and ad the following keys:
+To configure Lithops to access to a private repository in your IBM Container Registry, you need to extend the Code Engine config and add the following keys:
 
-    ```yaml
-    code_engine:
-        ....
-        docker_server    : us.icr.io  # Change-me if you have the CR in another region
-        docker_user      : iamapikey
-        docker_password  : <IBM IAM API KEY>
-    ```
+```yaml
+code_engine:
+    ....
+    docker_server    : us.icr.io  # Change-me if you have the CR in another region
+    docker_user      : iamapikey
+    docker_password  : <IBM IAM API KEY>
+```
 
 ### Summary of configuration keys for Job API:
 
