@@ -17,6 +17,7 @@
 import os
 import re
 import sys
+import base64
 import json
 import logging
 import copy
@@ -159,6 +160,53 @@ class KubernetesBackend:
             raise Exception('docker command not found. Install docker or use '
                             'an already built runtime')
 
+    def _create_container_registry_secret(self):
+        """
+        Create the container registry secret in the cluster
+        (only if credentials are present in config)
+        """
+        if not all(key in self.k8s_config for key in ["docker_user", "docker_password"]):
+            return
+
+        logger.debug('Creating container registry secret')
+        docker_server = self.k8s_config.get('docker_server', 'https://index.docker.io/v1/')
+        docker_user = self.k8s_config.get('docker_user')
+        docker_password = self.k8s_config.get('docker_password')
+
+        cred_payload = {
+            "auths": {
+                docker_server: {
+                    "Username": docker_user,
+                    "Password": docker_password
+                }
+            }
+        }
+
+        data = {
+            ".dockerconfigjson": base64.b64encode(
+                json.dumps(cred_payload).encode()
+            ).decode()
+        }
+
+        secret = client.V1Secret(
+            api_version="v1",
+            data=data,
+            kind="Secret",
+            metadata=dict(name="lithops-regcred", namespace=self.namespace),
+            type="kubernetes.io/dockerconfigjson",
+        )
+
+        try:
+            self.core_api.delete_namespaced_secret("lithops-regcred", self.namespace)
+        except ApiException as e:
+            pass
+
+        try:
+            self.core_api.create_namespaced_secret(self.namespace, secret)
+        except ApiException as e:
+            if e.status != 409:
+                raise e
+
     def create_runtime(self, docker_image_name, memory, timeout):
         """
         Creates a new runtime from an already built Docker image
@@ -170,6 +218,7 @@ class KubernetesBackend:
             docker_image_name = default_runtime_img_name
             self._build_default_runtime(default_runtime_img_name)
 
+        self._create_container_registry_secret()
         runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
 
         return runtime_meta
@@ -343,7 +392,8 @@ class KubernetesBackend:
         job_res['metadata']['namespace'] = self.namespace
 
         container = job_res['spec']['template']['spec']['containers'][0]
-        container['image'] = docker_image_name
+        cr = self.k8s_config['container_registry']
+        container['image'] = '/'.join([cr, docker_image_name]) if cr not in docker_image_name else docker_image_name
         container['env'][0]['value'] = 'preinstalls'
         container['env'][1]['value'] = dict_to_b64str(payload)
 
