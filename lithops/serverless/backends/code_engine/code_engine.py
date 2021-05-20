@@ -94,8 +94,8 @@ class CodeEngineBackend:
         logger.debug("Set namespace to {}".format(self.namespace))
         logger.debug("Set cluster to {}".format(self.cluster))
 
-        self.capi = client.CustomObjectsApi()
-        self.coreV1Api = client.CoreV1Api()
+        self.custom_api = client.CustomObjectsApi()
+        self.core_api = client.CoreV1Api()
 
         try:
             self.region = self.cluster.split('//')[1].split('.')[1]
@@ -224,7 +224,7 @@ class CodeEngineBackend:
     def _job_run_cleanup(self, jobrun_name):
         logger.debug("Deleting jobrun {}".format(jobrun_name))
         try:
-            self.capi.delete_namespaced_custom_object(
+            self.custom_api.delete_namespaced_custom_object(
                 group=ce_config.DEFAULT_GROUP,
                 version=ce_config.DEFAULT_VERSION,
                 name=jobrun_name,
@@ -239,7 +239,7 @@ class CodeEngineBackend:
     def _job_def_cleanup(self, jobdef_id):
         logger.info("Deleting runtime: {}".format(jobdef_id))
         try:
-            self.capi.delete_namespaced_custom_object(
+            self.custom_api.delete_namespaced_custom_object(
                 group=ce_config.DEFAULT_GROUP,
                 version=ce_config.DEFAULT_VERSION,
                 name=jobdef_id,
@@ -248,7 +248,6 @@ class CodeEngineBackend:
                 body=client.V1DeleteOptions(),
             )
         except ApiException as e:
-            print(e)
             logger.debug("Deleting a jobdef failed with {} {}"
                          .format(e.status, e.reason))
 
@@ -262,14 +261,15 @@ class CodeEngineBackend:
             self.delete_runtime(docker_image_name, memory)
 
         logger.debug('Deleting all lithops configmaps')
-        configmaps = self.coreV1Api.list_namespaced_config_map(namespace=self.namespace)
+        configmaps = self.core_api.list_namespaced_config_map(namespace=self.namespace)
         for configmap in configmaps.items:
             config_name = configmap.metadata.name
             if config_name.startswith('lithops'):
                 logger.debug('Deleting configmap {}'.format(config_name))
-                self.coreV1Api.delete_namespaced_config_map(name=config_name,
-                                                            namespace=self.namespace,
-                                                            grace_period_seconds=0)
+                self.core_api.delete_namespaced_config_map(
+                    name=config_name,
+                    namespace=self.namespace,
+                    grace_period_seconds=0)
 
     def list_runtimes(self, docker_image_name='all'):
         """
@@ -279,11 +279,11 @@ class CodeEngineBackend:
 
         runtimes = []
         try:
-            jobdefs = self.capi.list_namespaced_custom_object(
-                                    group=ce_config.DEFAULT_GROUP,
-                                    version=ce_config.DEFAULT_VERSION,
-                                    namespace=self.namespace,
-                                    plural="jobdefinitions")
+            jobdefs = self.custom_api.list_namespaced_custom_object(
+                            group=ce_config.DEFAULT_GROUP,
+                            version=ce_config.DEFAULT_VERSION,
+                            namespace=self.namespace,
+                            plural="jobdefinitions")
         except ApiException as e:
             logger.debug("List all jobdefinitions failed with {} {}".format(e.status, e.reason))
             return runtimes
@@ -343,7 +343,7 @@ class CodeEngineBackend:
         array_size = total_calls // chunksize + (total_calls % chunksize > 0)
 
         jobdef_name = self._format_jobdef_name(docker_image_name, runtime_memory)
-        logger.debug("Job definition id {}".format(jobdef_name))
+
         if not self._job_def_exists(jobdef_name):
             jobdef_name = self._create_job_definition(docker_image_name, runtime_memory, jobdef_name)
 
@@ -373,7 +373,7 @@ class CodeEngineBackend:
                      .format(executor_id, job_id, total_calls, array_size))
 
         try:
-            res = self.capi.create_namespaced_custom_object(
+            res = self.custom_api.create_namespaced_custom_object(
                 group=ce_config.DEFAULT_GROUP,
                 version=ce_config.DEFAULT_VERSION,
                 namespace=self.namespace,
@@ -424,12 +424,12 @@ class CodeEngineBackend:
         )
 
         try:
-            self.coreV1Api.delete_namespaced_secret("lithops-regcred", self.namespace)
+            self.core_api.delete_namespaced_secret("lithops-regcred", self.namespace)
         except ApiException as e:
             pass
 
         try:
-            self.coreV1Api.create_namespaced_secret(self.namespace, secret)
+            self.core_api.create_namespaced_secret(self.namespace, secret)
         except ApiException as e:
             if e.status != 409:
                 raise e
@@ -451,7 +451,7 @@ class CodeEngineBackend:
         container['resources']['requests']['cpu'] = str(self.code_engine_config['runtime_cpu'])
 
         try:
-            res = self.capi.delete_namespaced_custom_object(
+            res = self.custom_api.delete_namespaced_custom_object(
                 group=ce_config.DEFAULT_GROUP,
                 version=ce_config.DEFAULT_VERSION,
                 namespace=self.namespace,
@@ -462,7 +462,7 @@ class CodeEngineBackend:
             pass
 
         try:
-            res = self.capi.create_namespaced_custom_object(
+            res = self.custom_api.create_namespaced_custom_object(
                 group=ce_config.DEFAULT_GROUP,
                 version=ce_config.DEFAULT_VERSION,
                 namespace=self.namespace,
@@ -491,7 +491,7 @@ class CodeEngineBackend:
     def _job_def_exists(self, jobdef_name):
         logger.debug("Check if job_definition {} exists".format(jobdef_name))
         try:
-            self.capi.get_namespaced_custom_object(
+            self.custom_api.get_namespaced_custom_object(
                 group=ce_config.DEFAULT_GROUP,
                 version=ce_config.DEFAULT_VERSION,
                 namespace=self.namespace,
@@ -501,7 +501,7 @@ class CodeEngineBackend:
         except ApiException as e:
             # swallow error
             if (e.status == 404):
-                logger.info("Job definition {} not found (404)".format(jobdef_name))
+                logger.debug("Job definition {} not found (404)".format(jobdef_name))
                 return False
         logger.debug("Job definition {} found".format(jobdef_name))
         return True
@@ -528,7 +528,7 @@ class CodeEngineBackend:
         container['env'][1]['valueFrom']['configMapKeyRef']['name'] = config_map
 
         try:
-            self.capi.delete_namespaced_custom_object(
+            self.custom_api.delete_namespaced_custom_object(
                 group=ce_config.DEFAULT_GROUP,
                 version=ce_config.DEFAULT_VERSION,
                 namespace=self.namespace,
@@ -539,7 +539,7 @@ class CodeEngineBackend:
             pass
 
         try:
-            self.capi.create_namespaced_custom_object(
+            self.custom_api.create_namespaced_custom_object(
                 group=ce_config.DEFAULT_GROUP,
                 version=ce_config.DEFAULT_VERSION,
                 namespace=self.namespace,
@@ -570,7 +570,7 @@ class CodeEngineBackend:
             raise Exception("Unable to extract Python preinstalled modules from the runtime")
 
         try:
-            self.capi.delete_namespaced_custom_object(
+            self.custom_api.delete_namespaced_custom_object(
                 group=ce_config.DEFAULT_GROUP,
                 version=ce_config.DEFAULT_VERSION,
                 namespace=self.namespace,
@@ -598,9 +598,10 @@ class CodeEngineBackend:
         try:
             logger.debug("Generate ConfigMap {} for namespace {}"
                          .format(config_name, self.namespace))
-            self.coreV1Api.create_namespaced_config_map(namespace=self.namespace,
-                                                        body=cmap,
-                                                        field_manager=field_manager)
+            self.core_api.create_namespaced_config_map(
+                namespace=self.namespace,
+                body=cmap,
+                field_manager=field_manager)
             logger.debug("ConfigMap {} for namespace {} created"
                          .format(config_name, self.namespace))
         except ApiException as e:
@@ -623,9 +624,10 @@ class CodeEngineBackend:
         try:
             logger.debug("Deleting ConfigMap {} for namespace {}"
                          .format(config_name, self.namespace))
-            self.coreV1Api.delete_namespaced_config_map(name=config_name,
-                                                        namespace=self.namespace,
-                                                        grace_period_seconds=grace_period_seconds)
+            self.core_api.delete_namespaced_config_map(
+                name=config_name,
+                namespace=self.namespace,
+                grace_period_seconds=grace_period_seconds)
         except ApiException as e:
             logger.debug("Deleting a configmap failed with {} {}"
                          .format(e.status, e.reason))
