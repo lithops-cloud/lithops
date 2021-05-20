@@ -164,8 +164,7 @@ class Invoker:
         self.prometheus.send_metric(name='job_total_calls',
                                     value=job.total_calls,
                                     labels=(
-                                        ('executor_id', job.executor_id),
-                                        ('job_id', job.job_id),
+                                        ('job_id', '-'.join([job.executor_id, job.job_id])),
                                         ('function_name', job.function_name)
                                     ))
 

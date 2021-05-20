@@ -56,17 +56,17 @@ class JobStats:
 
 class JobRunner:
 
-    def __init__(self, task, jobrunner_conn, internal_storage):
-        self.task = task
+    def __init__(self, job, jobrunner_conn, internal_storage):
+        self.job = job
         self.jobrunner_conn = jobrunner_conn
         self.internal_storage = internal_storage
-        self.lithops_config = task.config
+        self.lithops_config = job.config
 
-        self.output_key = create_output_key(JOBS_PREFIX, self.task.executor_id,
-                                            self.task.job_id, self.task.id)
+        self.output_key = create_output_key(JOBS_PREFIX, self.job.executor_id,
+                                            self.job.job_id, self.job.id)
 
         # Setup stats class
-        self.stats = JobStats(self.task.stats_file)
+        self.stats = JobStats(self.job.stats_file)
 
         # Setup prometheus for live metrics
         prom_enabled = self.lithops_config['lithops'].get('telemetry')
@@ -102,7 +102,7 @@ class JobRunner:
                 raise Exception('Cannot create the rabbitmq client: missing configuration')
 
         if 'id' in func_sig.parameters:
-            data['id'] = int(self.task.id)
+            data['id'] = int(self.job.id)
 
     def _wait_futures(self, data):
         logger.info('Reduce function: waiting for map results')
@@ -173,8 +173,8 @@ class JobRunner:
         result = None
         exception = False
         try:
-            func = pickle.loads(self.task.func)
-            data = pickle.loads(self.task.data)
+            func = pickle.loads(self.job.func)
+            data = pickle.loads(self.job.data)
 
             if strtobool(os.environ.get('__LITHOPS_REDUCE_JOB', 'False')):
                 self._wait_futures(data)
@@ -189,8 +189,8 @@ class JobRunner:
             self.prometheus.send_metric(name='function_start',
                                         value=time.time(),
                                         labels=(
-                                            ('job_id', self.task.job_id),
-                                            ('call_id', self.task.id),
+                                            ('job_id', '-'.join([self.job.executor_id, self.job.job_id])),
+                                            ('call_id', self.job.id),
                                             ('function_name', fn_name)
                                         ))
 
@@ -205,8 +205,8 @@ class JobRunner:
             self.prometheus.send_metric(name='function_end',
                                         value=time.time(),
                                         labels=(
-                                            ('job_id', self.task.job_id),
-                                            ('call_id', self.task.id),
+                                            ('job_id', '-'.join([self.job.executor_id, self.job.job_id])),
+                                            ('call_id', self.job.id),
                                             ('function_name', fn_name)
                                         ))
 
