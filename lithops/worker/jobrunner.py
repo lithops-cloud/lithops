@@ -118,18 +118,9 @@ class JobRunner:
         """
         extra_get_args = {}
 
-        if 'url' in data:
-            url = data['url']
-            logger.info('Getting dataset from {}'.format(url.path))
-            if url.data_byte_range is not None:
-                range_str = 'bytes={}-{}'.format(*url.data_byte_range)
-                extra_get_args['Range'] = range_str
-                logger.info('Chunk: {} - Range: {}'.format(url.part, extra_get_args['Range']))
-            resp = requests.get(url.path, headers=extra_get_args, stream=True)
-            url.data_stream = resp.raw
+        obj = data['obj']
 
-        if 'obj' in data:
-            obj = data['obj']
+        if hasattr(obj, 'bucket'):
             logger.info('Getting dataset from {}://{}/{}'.format(obj.backend, obj.bucket, obj.key))
 
             if obj.backend == self.internal_storage.backend:
@@ -148,6 +139,18 @@ class JobRunner:
                 sb = storage.get_object(obj.bucket, obj.key, stream=True,
                                         extra_get_args=extra_get_args)
                 obj.data_stream = sb
+
+        elif hasattr(obj, 'url'):
+            logger.info('Getting dataset from {}'.format(obj.url))
+            if obj.data_byte_range is not None:
+                range_str = 'bytes={}-{}'.format(*obj.data_byte_range)
+                extra_get_args['Range'] = range_str
+                logger.info('Chunk: {} - Range: {}'.format(obj.part, extra_get_args['Range']))
+            resp = requests.get(obj.url, headers=extra_get_args, stream=True)
+            obj.data_stream = resp.raw
+
+        elif hasattr(obj, 'path'):
+            pass
 
     # Decorator to execute pre-run and post-run functions provided via environment variables
     def prepost(func):

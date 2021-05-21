@@ -3,7 +3,7 @@ Simple Lithops example using the map_reduce method which
 counts the number of words inside each object specified
 in 'iterdata' variable.
 
-This example processes some objects which are in public URLs.
+This example processes some objects which are in a localhost path.
 
 As in this case you are processing objects from COS, the
 map_reduce() method will first launch a partitioner to split
@@ -21,11 +21,14 @@ from where you can access to the partial results.
 import lithops
 
 # Dataset from: https://archive.ics.uci.edu/ml/datasets/bag+of+words
-iterdata = ['https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.enron.txt',
-            'https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.kos.txt',
-            'https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.nips.txt',
-            'https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.nytimes.txt',
-            'https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.pubmed.txt']
+DATA_URLS = ['https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.enron.txt',
+             'https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.kos.txt',
+             'https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.nips.txt',
+             'https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.nytimes.txt',
+             'https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.pubmed.txt']
+
+iterdata = ['/tmp/vocab.enron.txt', '/tmpvocab.kos.txt', '/tmp/vocab.nips.txt',
+            '/tmp/vocab.nytimes.txt', '/tmp/vocab.pubmed.txt']
 
 
 def my_map_function(obj):
@@ -57,7 +60,7 @@ def my_reduce_function(results):
 
 
 if __name__ == "__main__":
-    fexec = lithops.FunctionExecutor(log_level='INFO')
+    fexec = lithops.FunctionExecutor(backend='localhost', storage='localhost', log_level='INFO')
     fexec.map_reduce(my_map_function, iterdata, my_reduce_function)
     result = fexec.get_result()
     print("Done!")

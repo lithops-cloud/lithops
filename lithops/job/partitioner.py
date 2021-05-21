@@ -41,12 +41,16 @@ def create_partitions(config, internal_storage, map_iterdata, obj_chunk_size, ob
     prefixes = set()
     obj_names = set()
     urls = set()
+    paths = set()
 
     logger.debug("Parsing input data")
+
     for elem in map_iterdata:
-        if 'url' in elem:
-            urls.add(elem['url'])
-        elif 'obj' in elem:
+        if elem['obj'].startswith('http'):
+            urls.add(elem['obj'])
+        elif elem['obj'].startswith('/'):
+            paths.add(elem['obj'])
+        else:
             if type(elem['obj']) == CloudObject:
                 elem['obj'] = '{}://{}/{}'.format(elem['obj'].backend,
                                                   elem['obj'].bucket,
@@ -264,7 +268,7 @@ def _split_objects_from_urls(map_func_args_list, chunk_size, chunk_number):
 
     def _split(entry):
         obj_size = None
-        object_url = entry['url']
+        object_url = entry['obj']
         metadata = requests.head(object_url)
 
         if 'content-length' in metadata.headers:
@@ -289,17 +293,17 @@ def _split_objects_from_urls(map_func_args_list, chunk_size, chunk_number):
         ci = obj_size
         cz = obj_chunk_size
         parts = ci // cz + (ci % cz > 0)
-        logger.debug('Creating {} partitions from object {} ({})'.format(parts, object_url, sizeof_fmt(obj_size)))
+        logger.debug('Creating {} partitions from url {} ({})'.format(parts, object_url, sizeof_fmt(obj_size)))
 
         while size < obj_size:
             brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
             brange = None if obj_size == obj_chunk_size else brange
 
             partition = entry.copy()
-            partition['url'] = CloudObjectUrl(object_url)
-            partition['url'].data_byte_range = brange
-            partition['url'].chunk_size = obj_chunk_size
-            partition['url'].part = total_partitions
+            partition['obj'] = CloudObjectUrl(object_url)
+            partition['obj'].data_byte_range = brange
+            partition['obj'].chunk_size = obj_chunk_size
+            partition['obj'].part = total_partitions
             partitions.append(partition)
 
             total_partitions += 1
@@ -307,7 +311,7 @@ def _split_objects_from_urls(map_func_args_list, chunk_size, chunk_number):
 
         parts_per_object.append(total_partitions)
 
-    with ThreadPoolExecutor(128) as ex:
+    with ThreadPoolExecutor(64) as ex:
         ex.map(_split, map_func_args_list)
 
     return partitions, parts_per_object
