@@ -53,15 +53,38 @@ Note that Lithops automatically builds the default runtime the first time you ru
         backend: knative
     ```
 
+### Configure a private container registry for your runtime
+
+#### Configure Docker hub
+To configure Lithops to access a private repository in your docker hub account, you need to extend the Knative config and add the following keys:
+
+```yaml
+knative:
+    ....
+    docker_user      : <Docker hub Username>
+    docker_password  : <DOcker hub access TOEKN>
+```
+
+#### Configure IBM Container Registry
+To configure Lithops to access to a private repository in your IBM Container Registry, you need to extend the Knative config and add the following keys:
+
+```yaml
+knative:
+    ....
+    docker_server    : us.icr.io
+    docker_user      : iamapikey
+    docker_password  : <IBM IAM API KEY>
+```
+
 #### Summary of configuration keys for Knative:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |knative | istio_endpoint | |no | Istio IngressGateway Endpoint. Make sure to use http:// prefix |
 |knative | kubecfg_path | |no | Path to kubecfg file. Mandatory if config file not in `~/.kube/config` or KUBECONFIG env var not present|
-|knative | container_registry |  docker.io | no | container registry url|
+|knative | docker_server | https://index.docker.io/v1/ |no | Docker server URL |
 |knative | docker_user | |no | Docker hub username |
-|knative | docker_token | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
+|knative | docker_password | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
 |knative | git_url | |no | Git repository to build the image |
 |knative | git_rev | |no | Git revision to build the image |
 |knative | min_instances | 0 |no | Minimum number of parallel runtimes |
