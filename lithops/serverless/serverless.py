@@ -49,7 +49,7 @@ class ServerlessHandler:
         """
         pass
 
-    def invoke(self, job_payload):
+    def invoke(self, job_payload, workers):
         """
         Invoke -- return information about this invocation
         """
