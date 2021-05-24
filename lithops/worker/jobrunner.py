@@ -16,6 +16,7 @@
 #
 
 import os
+import io
 import sys
 import pika
 import time
@@ -150,7 +151,15 @@ class JobRunner:
             obj.data_stream = resp.raw
 
         elif hasattr(obj, 'path'):
-            pass
+            logger.info('Getting dataset from {}'.format(obj.path))
+            with open(obj.path, "rb") as f:
+                if obj.data_byte_range is not None:
+                    first_byte, last_byte = obj.data_byte_range
+                    f.seek(first_byte)
+                    buffer = io.BytesIO(f.read(last_byte-first_byte+1))
+                else:
+                    buffer = io.BytesIO(f.read())
+            obj.data_stream = buffer
 
     # Decorator to execute pre-run and post-run functions provided via environment variables
     def prepost(func):

@@ -18,7 +18,10 @@ In the reduce function there will be always one parameter
 from where you can access to the partial results.
 """
 
+import os
 import lithops
+import requests
+from urllib.parse import urlparse
 
 # Dataset from: https://archive.ics.uci.edu/ml/datasets/bag+of+words
 DATA_URLS = ['https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.enron.txt',
@@ -27,12 +30,9 @@ DATA_URLS = ['https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-w
              'https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.nytimes.txt',
              'https://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.pubmed.txt']
 
-iterdata = ['/tmp/vocab.enron.txt', '/tmpvocab.kos.txt', '/tmp/vocab.nips.txt',
-            '/tmp/vocab.nytimes.txt', '/tmp/vocab.pubmed.txt']
-
 
 def my_map_function(obj):
-    print('I am processing the object from {}'.format(obj.url))
+    print('I am processing the object from {}'.format(obj.path))
     counter = {}
 
     data = obj.data_stream.read()
@@ -60,7 +60,18 @@ def my_reduce_function(results):
 
 
 if __name__ == "__main__":
-    fexec = lithops.FunctionExecutor(backend='localhost', storage='localhost', log_level='INFO')
-    fexec.map_reduce(my_map_function, iterdata, my_reduce_function)
+    iterdata = []
+
+    for url in DATA_URLS:
+        print('Downloading data from {}'.format(url))
+        a = urlparse(url)
+        file_path = '/tmp/{}'.format(os.path.basename(a.path))
+        iterdata.append(file_path)
+        if not os.path.isfile(file_path):
+            r = requests.get(url, allow_redirects=True)
+            open(file_path, 'wb').write(r.content)
+
+    fexec = lithops.FunctionExecutor(backend='localhost', storage='localhost', log_level='DEBUG')
+    fexec.map_reduce(my_map_function, iterdata, my_reduce_function, obj_chunk_number=2)
     result = fexec.get_result()
     print("Done!")

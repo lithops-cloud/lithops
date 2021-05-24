@@ -233,8 +233,8 @@ def default_config(config_data=None, config_overwrite={}):
         verify_runtime_name(config_data[constants.STANDALONE]['runtime'])
 
     elif config_data['lithops']['mode'] == constants.LOCALHOST:
-        config_data['lithops']['workers'] = 1
-        config_data['lithops']['worker_processes'] = CPU_COUNT
+        if 'workers' not in config_data['lithops']:
+            config_data['lithops']['workers'] = CPU_COUNT
         if constants.LOCALHOST not in config_data or \
            config_data[constants.LOCALHOST] is None:
             config_data[constants.LOCALHOST] = {}
