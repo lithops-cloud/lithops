@@ -193,8 +193,12 @@ def is_lithops_worker():
 
 
 def is_object_processing_function(map_function):
+    """
+    Checks if a function contains the obj parameter, which means
+    the user wants to activate the data processing logic.
+    """
     func_sig = inspect.signature(map_function)
-    return {'obj', 'url'} & set(func_sig.parameters)
+    return {'obj'} & set(func_sig.parameters)
 
 
 def is_notebook():
@@ -360,7 +364,7 @@ def verify_args(func, iterdata, extra_args):
     data = format_data(iterdata, extra_args)
 
     # Verify parameters
-    non_verify_args = ['ibm_cos', 'swift', 'storage', 'id', 'rabbitmq']
+    non_verify_args = ['ibm_cos', 'storage', 'id', 'rabbitmq']
     func_sig = inspect.signature(func)
 
     new_parameters = list()
@@ -382,12 +386,6 @@ def verify_args(func, iterdata, extra_args):
                                  .format(list(elem.keys()),
                                          list(new_func_sig.parameters.keys())))
         elif type(elem) == tuple:
-            new_elem = dict(new_func_sig.bind(*list(elem)).arguments)
-            new_data.append(new_elem)
-        elif type(elem) == list and len(elem) == len(new_func_sig.parameters):
-            print("WARNING: Using a list in iteradata to enclose multiple "
-                  "args of a function is deprecated and will be removed in "
-                  "future releases. Please use a tuple")
             new_elem = dict(new_func_sig.bind(*list(elem)).arguments)
             new_data.append(new_elem)
         else:
@@ -505,7 +503,7 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
         first_row_start_pos = 0
 
         if self.first_byte != b'\n' and self.plusbytes == 1:
-            logger.info('Discarding first partial row')
+            logger.debug('Discarding first partial row')
             # Previous byte is not \n
             # This means that we have to discard first row because it is cut
             first_row_start_pos = retval.find(b'\n')+1

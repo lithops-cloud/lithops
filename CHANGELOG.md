@@ -8,6 +8,7 @@
 - [CE] Allow private container registries
 - [k8s] Allow private container registries
 - [knative] Allow private container registries
+- [Localhost] Allow the partitioner to process local files
 
 ### Changed
 - [CE] CPU and memory values must match predefined flavors
