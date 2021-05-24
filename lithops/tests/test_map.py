@@ -103,22 +103,22 @@ class TestMap(unittest.TestCase):
         self.assertEqual(result1, [2, 4])
         self.assertEqual(result2, [6, 8])
 
-    # def test_internal_executions(self):
-    #     logger.info('Testing internal executions')
-    #     fexec = lithops.FunctionExecutor(config=CONFIG)
-    #     fexec.map(lithops_inside_lithops_map_function, range(1, 5))
-    #     result = fexec.get_result()
-    #     self.assertEqual(result, [list(range(i)) for i in range(1, 5)])
-    #
-    #     fexec = lithops.FunctionExecutor(config=CONFIG)
-    #     fexec.call_async(lithops_return_futures_map_function1, 3)
-    #     fexec.get_result()
-    #
-    #     fexec = lithops.FunctionExecutor(config=CONFIG)
-    #     fexec.call_async(lithops_return_futures_map_function2, 3)
-    #     fexec.get_result()
-    #
-    #     fexec = lithops.FunctionExecutor(config=CONFIG)
-    #     fexec.call_async(lithops_return_futures_map_function3, 3)
-    #     fexec.wait()
-    #     fexec.get_result()
+    def test_internal_executions(self):
+        logger.info('Testing internal executions')
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        fexec.map(lithops_inside_lithops_map_function, range(1, 5))
+        result = fexec.get_result()
+        self.assertEqual(result, [list(range(i)) for i in range(1, 5)])
+
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        fexec.call_async(lithops_return_futures_map_function1, 3)
+        fexec.get_result()
+
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        fexec.call_async(lithops_return_futures_map_function2, 3)
+        fexec.get_result()
+
+        fexec = lithops.FunctionExecutor(config=CONFIG)
+        fexec.call_async(lithops_return_futures_map_function3, 3)
+        fexec.wait()
+        fexec.get_result()

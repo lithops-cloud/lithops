@@ -56,24 +56,21 @@ def get_tests_of_class(class_name):
 
 def print_test_functions():
     """responds to '-t help' from CLI by printing the test functions within the various test_modules"""
-    print("Available test functions:")
+    print("\nAvailable test functions:")
     init_test_variables()
 
-    func_names = []
-    for test_class in TEST_GROUPS.values():
-        func_names.extend(get_tests_of_class(test_class))
-    for func_name in func_names:
-        print(f'-> {func_name}')
+    for test_group in sorted(TEST_GROUPS.keys()):
+        print(f'\n{test_group}:')
+        for test in get_tests_of_class(TEST_GROUPS[test_group]):
+            print(f'    ->{test}')
 
 
 def print_test_groups():
     """responds to '-g help' from CLI by printing test groups within the various test_modules, e.g. storage/map etc. """
-    print("Available test groups:\n")
+    print("\nAvailable test groups:")
     init_test_variables()
     for test_group in sorted(TEST_GROUPS.keys()):
-        print(f'{test_group}:')
-        for test in get_tests_of_class(TEST_GROUPS[test_group]):
-            print(f'->{test}')
+        print(f'{test_group} \n-----------------')
 
 
 def register_test_groups():
@@ -81,6 +78,7 @@ def register_test_groups():
     global TEST_GROUPS
     for module in TEST_MODULES:
         group_name = str(module).split('test_')[1].split('\'')[0]
+        # A test group is created for every module that contains a class inheriting from unittest.TestCase.
         for member in inspect.getmembers(module, inspect.isclass):
             if issubclass(member[1], unittest.TestCase):
                 TEST_GROUPS[group_name] = member[1]
@@ -170,10 +168,6 @@ def run_tests(test_to_run, config=None, mode=None, group=None, backend=None, sto
     runner.run(suite)
     clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)  # removes test files previously uploaded to your storage
 
-    # suite.addTest(unittest.makeSuite(TestTest2))
-    # suite.addTest(unittest.makeSuite(TestTest3))
-    # suite.addTest(unittest.makeSuite(test_call_async.TestAsync))
-    # suite.addTest(unittest.makeSuite(test_map.TestMap))
 
 # if __name__ == '__main__':
 #     parser = argparse.ArgumentParser(description="test all Lithops's functionality",
@@ -225,3 +219,10 @@ def run_tests(test_to_run, config=None, mode=None, group=None, backend=None, sto
 #     index = str(test_class).rfind("Test")
 #     group_name = str(test_class)[index + 4:-2]
 #     TEST_GROUPS[group_name] = test_class
+
+
+    # func_names = []
+    # for test_class in TEST_GROUPS.values():
+    #     func_names.extend(get_tests_of_class(test_class))
+    # for func_name in func_names:
+    #     print(f'-> {func_name}')
