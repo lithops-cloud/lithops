@@ -371,6 +371,7 @@ class _NanomsgConnection(_ConnectionBase):
         super().__init__(handle, readable, writable)
         self._client = util.get_redis_client()
         self._subhandle = get_subhandle(handle)
+        self._subhandle_addr = None
         self._connect()
 
     def _connect(self):
@@ -440,24 +441,23 @@ class _NanomsgConnection(_ConnectionBase):
     def _send_bytes(self, buf):
         if self._req is None:
             self._req = pynng.Req0()
-
-        logger.debug('Get address from directory for handle %s', self._subhandle)
-        addr = self._client.get(self._subhandle)
-
-        retry = 15
-        retry_sleep = 1
-        while addr is None:
-            time.sleep(retry_sleep)
-            retry_sleep += 0.5
+            logger.debug('Get address from directory for handle %s', self._subhandle)
             addr = self._client.get(self._subhandle)
-            retry -= 1
-            if retry == 0:
-                raise Exception('Server address could not be fetched for handle {}'.format(self._subhandle))
 
-        addr = addr.decode('utf-8')
-        logger.debug('Dialing %s', addr)
-        self._req.dial(addr)
-        logger.debug('Send %i B to %s', len(buf), addr)
+            retry = 15
+            retry_sleep = 1
+            while addr is None:
+                time.sleep(retry_sleep)
+                retry_sleep += 0.5
+                addr = self._client.get(self._subhandle)
+                retry -= 1
+                if retry == 0:
+                    raise Exception('Server address could not be fetched for handle {}'.format(self._subhandle))
+
+            self._subhandle_addr = addr.decode('utf-8')
+            logger.debug('Dialing %s', self._subhandle_addr)
+            self._req.dial(self._subhandle_addr)
+        logger.debug('Send %i B to %s', len(buf), self._subhandle_addr)
         self._req.send(buf)
         res = self._req.recv()
         # logger.debug(res)
