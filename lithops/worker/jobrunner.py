@@ -154,12 +154,15 @@ class JobRunner:
             logger.info('Getting dataset from {}'.format(obj.path))
             with open(obj.path, "rb") as f:
                 if obj.data_byte_range is not None:
+                    extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
+                    logger.info('Chunk: {} - Range: {}'.format(obj.part, extra_get_args['Range']))
                     first_byte, last_byte = obj.data_byte_range
                     f.seek(first_byte)
                     buffer = io.BytesIO(f.read(last_byte-first_byte+1))
+                    sb = WrappedStreamingBodyPartition(buffer, obj.chunk_size, obj.data_byte_range)
                 else:
-                    buffer = io.BytesIO(f.read())
-            obj.data_stream = buffer
+                    sb = io.BytesIO(f.read())
+            obj.data_stream = sb
 
     # Decorator to execute pre-run and post-run functions provided via environment variables
     def prepost(func):

@@ -503,7 +503,7 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
         first_row_start_pos = 0
 
         if self.first_byte != b'\n' and self.plusbytes == 1:
-            logger.info('Discarding first partial row')
+            logger.debug('Discarding first partial row')
             # Previous byte is not \n
             # This means that we have to discard first row because it is cut
             first_row_start_pos = retval.find(b'\n')+1
