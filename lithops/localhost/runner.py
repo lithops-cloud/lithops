@@ -64,9 +64,6 @@ def run():
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
     os.environ['__LITHOPS_BACKEND'] = 'Localhost'
 
-    wp = job_payload['worker_processes']
-    wn = job_payload['config']['lithops']['workers']
-    job_payload['worker_processes'] = wp * wn
     function_handler(job_payload)
 
     done = os.path.join(JOBS_DIR, job_key+'.done')
