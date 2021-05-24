@@ -67,7 +67,7 @@ def print_test_functions():
 
 def print_test_groups():
     """responds to '-g help' from CLI by printing test groups within the various test_modules, e.g. storage/map etc. """
-    print("\nAvailable test groups:")
+    print("\nAvailable test groups:\n")
     init_test_variables()
     for test_group in sorted(TEST_GROUPS.keys()):
         print(f'{test_group} \n-----------------')
