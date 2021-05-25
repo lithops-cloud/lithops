@@ -392,8 +392,7 @@ class KubernetesBackend:
         job_res['metadata']['namespace'] = self.namespace
 
         container = job_res['spec']['template']['spec']['containers'][0]
-        cr = self.k8s_config['container_registry']
-        container['image'] = '/'.join([cr, docker_image_name]) if cr not in docker_image_name else docker_image_name
+        container['image'] = docker_image_name
         container['env'][0]['value'] = 'preinstalls'
         container['env'][1]['value'] = dict_to_b64str(payload)
 
