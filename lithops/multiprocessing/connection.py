@@ -15,17 +15,18 @@ import threading
 import random
 import io
 import logging
-
 import cloudpickle
 
 from multiprocessing.context import BufferTooShort
 
+try:
+    import pynng
+except ModuleNotFoundError:
+    pass
+
 from . import util
 from . import config as mp_config
 from queue import Queue
-
-if mp_config.get_parameter(mp_config.PIPE_CONNECTION_TYPE) == 'nanomsg':
-    import pynng
 
 logger = logging.getLogger(__name__)
 
@@ -379,6 +380,7 @@ class _NanomsgConnection(_ConnectionBase):
         self._rep = pynng.Rep0()
 
         bind = False
+        addr = None
         while not bind:
             try:
                 addr = 'tcp://' + util.get_network_ip() + ':' + str(random.randrange(MIN_PORT, MAX_PORT))
