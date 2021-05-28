@@ -21,7 +21,7 @@ RUN mkdir -p ${FUNCTION_DIR}
 # Install the function's dependencies
 RUN pip install \
     --target ${FUNCTION_DIR} \
-        awslambdaric \
+        awslambdaric==1.0.0 \
         boto3 \
         redis \
         httplib2 \
