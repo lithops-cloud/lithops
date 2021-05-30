@@ -30,8 +30,8 @@ serverless:
     #hard_dismantle_timeout: 3600
     #soft_dismantle_timeout: 300
 
-#ibm:
-    #iam_api_key: <IAM KEY>
+ibm:
+    iam_api_key: Up845O0-oEp4YiMhbPAmYFnElNzKLslDd-Fh4ZrYUMpJ
 
 #ibm_cf:
     #endpoint    : <REGION_ENDPOINT>
@@ -41,9 +41,16 @@ serverless:
     #runtime: <RUNTIME_NAME>
 
 code_engine:
-    kubecfg_path: /Users/omercohen/.bluemix/plugins/code-engine/tester-testing-the-test-9c20a1cd-e0aa-4ec6-b50e-e682c2645018.yaml
-    runtime: cohenjomer/lithops-ce-v385:234dev2
-
+    namespace  : 75nd5iv9zir
+    region     : us-south
+    docker_server: us.icr.io
+    docker_user: iamapikey
+    docker_password: Up845O0-oEp4YiMhbPAmYFnElNzKLslDd-Fh4ZrYUMpJ
+    runtime: us.icr.io/omer-test/lithops-ce:234dev2
+    # kubecfg_path: /Users/omercohen/.bluemix/plugins/code-engine/tester-testing-the-test-9c20a1cd-e0aa-4ec6-b50e-e682c2645018.yaml
+    # runtime: cohenjomer/lithops-ce-v385:234dev1
+    #runtime: us.icr.io/omer-test/lithops-ce-v385:234dev1
+    #runtime: us.icr.io/omer-test/lithops-ce-pr657-v385
 
 ibm_cos:
     region : eu-de
@@ -88,7 +95,7 @@ ibm_cos:
    #runtime: <RUNTIME_NAME>
 
 #docker:
-    #host: <HOST_IP>
+    #host: <HOST_IP> https://
     #ssh_user: <SSH_USER>
     #ssh_password: <SSH_PASSWORD>
 
