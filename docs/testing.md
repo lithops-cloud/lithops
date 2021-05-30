@@ -1,7 +1,7 @@
 # Lithops Testing Guidelines
 
 ## Verify Installation:
-run ``` lithops test``` to run an extensive inspection, which simulates your lithops installation on a variety of tests.
+Run ``` lithops test``` to run an extensive inspection, which simulates your lithops installation on a variety of tests.
  - Get all available options by running ```lithops test --help```  
  - Get all available test functions by running ```lithops test -t help``` to get a list of the available tests. 
    <br/> Run all test instances named <test name>, via ```lithops test -t <test name>```.
@@ -9,6 +9,7 @@ run ``` lithops test``` to run an extensive inspection, which simulates your lit
  - To get all available groups, run ```lithops test -g help```.
     <br/> Run a single group of tests via ```lithops test -g <group name>```.
    
+Alternatively you may run "python3 -m lithops.tests.test_main" followed by aforementioned flags.   
 
 ## Contribute:
 

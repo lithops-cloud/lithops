@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-
+import argparse
+import os
 from importlib import import_module
 import inspect
 import pathlib
@@ -25,10 +25,11 @@ import urllib.request
 from os import walk
 
 from lithops.storage import Storage
-from lithops.config import get_mode, default_config, extract_storage_config
+from lithops.config import get_mode, default_config, extract_storage_config, load_yaml_config
 from concurrent.futures import ThreadPoolExecutor
 from lithops.tests import main_util
 from lithops.tests.util_func.storage_util import clean_tests
+from lithops.utils import setup_lithops_logger
 
 TEST_MODULES = None
 TEST_GROUPS = {}
@@ -169,37 +170,39 @@ def run_tests(test_to_run, config=None, mode=None, group=None, backend=None, sto
     clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)  # removes test files previously uploaded to your storage
 
 
-# if __name__ == '__main__':
-#     parser = argparse.ArgumentParser(description="test all Lithops's functionality",
-#                                      usage='python -m lithops.scripts.tests [-c CONFIG] [-t TESTNAME] ...')
-#     parser.add_argument('-c', '--config', metavar='', default=None,
-#                         help="'path to yaml config file")
-#     parser.add_argument('-t', '--test', metavar='', default='all',
-#                         help='run a specific test, type "-t help" for tests list')
-#     parser.add_argument('-m', '--mode', metavar='', default=None,
-#                         help='serverless, standalone or localhost')
-#     parser.add_argument('-b', '--backend', metavar='', default=None,
-#                         help='compute backend')
-#     parser.add_argument('-s', '--storage', metavar='', default=None,
-#                         help='storage backend')
-#     parser.add_argument('-d', '--debug', action='store_true', default=False,
-#                         help='activate debug logging')
-#     args = parser.parse_args()
-#
-#     if args.config:
-#         if os.path.exists(args.config):
-#             args.config = load_yaml_config(args.config)
-#         else:
-#             raise FileNotFoundError("Provided config file '{}' does not exist".format(args.config))
-#
-#     log_level = logging.INFO if not args.debug else logging.DEBUG
-#     setup_lithops_logger(log_level)
-#
-#     if args.test == 'help':
-#         print_help()
-#     else:
-#         run_tests(args.test, args.config, args.mode, args.backend, args.storage)
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="test all Lithops's functionality",
+                                     usage='python -m lithops.scripts.tests [-c CONFIG] [-t TESTNAME] ...')
+    parser.add_argument('-c', '--config', metavar='', default=None,
+                        help="'path to yaml config file")
+    parser.add_argument('-t', '--test', metavar='', default='all',
+                        help='run a specific test, type "-t help" for tests list')
+    parser.add_argument('-g', '--group', metavar='', default='',
+                        help='run all testers belonging to a specific group.'
+                             ' type "-g help" for groups list')
+    parser.add_argument('-m', '--mode', metavar='', default=None,
+                        help='serverless, standalone or localhost')
+    parser.add_argument('-b', '--backend', metavar='', default=None,
+                        help='compute backend')
+    parser.add_argument('-s', '--storage', metavar='', default=None,
+                        help='storage backend')
+    parser.add_argument('-d', '--debug', action='store_true', default=False,
+                        help='activate debug logging')
+    args = parser.parse_args()
 
+    if args.config:
+        if os.path.exists(args.config):
+            args.config = load_yaml_config(args.config)
+        else:
+            raise FileNotFoundError("Provided config file '{}' does not exist".format(args.config))
+
+    log_level = logging.INFO if not args.debug else logging.DEBUG
+    setup_lithops_logger(log_level)
+
+    if args.test == 'help':
+        print_test_functions()
+    else:
+        run_tests(args.test, args.config, args.mode, args.backend, args.storage)
 
 # global TEST_CLASSES
 #
@@ -221,8 +224,8 @@ def run_tests(test_to_run, config=None, mode=None, group=None, backend=None, sto
 #     TEST_GROUPS[group_name] = test_class
 
 
-    # func_names = []
-    # for test_class in TEST_GROUPS.values():
-    #     func_names.extend(get_tests_of_class(test_class))
-    # for func_name in func_names:
-    #     print(f'-> {func_name}')
+# func_names = []
+# for test_class in TEST_GROUPS.values():
+#     func_names.extend(get_tests_of_class(test_class))
+# for func_name in func_names:
+#     print(f'-> {func_name}')
