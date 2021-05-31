@@ -30,4 +30,4 @@ jobs:
         run: |
           python3 setup.py develop
       - name: Run Python tests
-        run: python3 -m lithops.tests.tests_main.py -t test_map -c lithops/tests/lithops_config.yaml
+        run: python3 -m lithops.tests.tests_main -t test_map -c lithops/tests/lithops_config.yaml

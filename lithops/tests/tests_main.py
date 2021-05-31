@@ -172,7 +172,7 @@ def run_tests(test_to_run, config=None, mode=None, group=None, backend=None, sto
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="test all Lithops's functionality",
-                                     usage='python -m lithops.scripts.tests [-c CONFIG] [-t TESTNAME] ...')
+                                     usage='python -m lithops.tests.tests_main [-c CONFIG] [-t TESTNAME] ...')
     parser.add_argument('-c', '--config', metavar='', default=None,
                         help="'path to yaml config file")
     parser.add_argument('-t', '--test', metavar='', default='all',
