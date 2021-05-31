@@ -1,0 +1,33 @@
+name: "build"
+
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - '**/**.md'
+  pull_request:
+    branches:
+      - master
+    paths-ignore:
+      - '**/**.md'
+
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Lithops repository
+        uses: actions/checkout@v2
+      - name: Install Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+          architecture: x64
+      - name: Install dependencies
+        run: |
+          python3.8 setup.py
+      - name: Run Python tests
+        run: python3 -m lithops.tests.tests_main.py -t test_map -c lithops/tests/lithops_config.yaml
