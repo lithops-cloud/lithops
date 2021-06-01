@@ -43,11 +43,7 @@ ibm:
 code_engine:
     namespace  : 75nd5iv9zir
     region     : us-south
-    docker_server: us.icr.io
-    docker_user: iamapikey
-    docker_password: <iamapikey>
-    runtime: us.icr.io/omer-test/lithops-ce:234dev2
-
+    runtime: cohenjomer/lithops-ce-v385:234dev2
 
 ibm_cos:
     region : eu-de
