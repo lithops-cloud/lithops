@@ -32,7 +32,7 @@ jobs:
       - name: install secrets in lithops config
         run: python3 ./lithops/scripts/config_fill_secrets.py "${{ secrets.IAMAPIKEY }}" "${{ secrets.COS_API_KEY }}"
       - name: build new runtime
-        run: echo pwd
+        run: echo ls -la
         shell: bash
 #      - name: Run Python tests
 #        run: python3 -m lithops.tests.tests_main -t test_map -c lithops/tests/lithops_config.yaml
