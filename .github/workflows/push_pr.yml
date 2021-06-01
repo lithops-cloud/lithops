@@ -33,7 +33,8 @@ jobs:
         run: python3 ./lithops/scripts/config_fill_secrets.py "${{ secrets.IAMAPIKEY }}" "${{ secrets.COS_API_KEY }}"
       - name: build new runtime
         env:
-           LITHOPS_CONFIG_FILE: "${PWD}/tests/lithops_config.yaml"
+#           LITHOPS_CONFIG_FILE: "${PWD}" + "/tests/lithops_config.yaml"
+            LITHOPS_CONFIG_FILE: format('{0} {1} ', '${PWD}', '/tests/lithops_config.yaml')
         run: |
           docker login -u cohenjomer -p "${{ secrets.DOCKER_TOKEN }}"
           cd runtime/code_engine
