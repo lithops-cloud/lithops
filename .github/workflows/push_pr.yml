@@ -1,4 +1,4 @@
-name: "build"
+name: "Push or PR git-action"
 
 on:
   push:
@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Lithops repository
+      - name: Clone Lithops repository
         uses: actions/checkout@v2
       - name: Install Python 3.8
         uses: actions/setup-python@v2
