@@ -34,13 +34,16 @@ jobs:
       - name: build new runtime
         env:
              LITHOPS_CONFIG_FILE: lithops/tests/lithops_config.yaml
-#            LITHOPS_CONFIG_FILE: /home/runner/work/lithops_test/lithops/tests/lithops_config.yaml
+#            LITHOPS_CONFIG_FILE: /home/runner/work/lithops/lithops/tests/lithops_config.yaml
 ##           LITHOPS_CONFIG_FILE: "${PWD}" + "/tests/lithops_config.yaml"
 
         run: |
           pwd
           docker login -u cohenjomer -p "${{ secrets.DOCKER_TOKEN }}"
           cd runtime/code_engine
+          pwd
+          cd /home/runner/work/lithops/lithops/tests
+          ls -la
           lithops runtime build cohenjomer/lithops-ce-user:234dev2 -b code_engine
 
 #      - name: Run Python tests
