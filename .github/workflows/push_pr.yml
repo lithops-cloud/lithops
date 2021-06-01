@@ -39,6 +39,7 @@ jobs:
 
         run: |
          docker login -u cohenjomer -p "${{ secrets.DOCKER_TOKEN }}"
+         cd runtime/code_engine
          lithops runtime build cohenjomer/lithops-ce-user:234dev2 -b code_engine
 
 #      - name: Run Python tests
