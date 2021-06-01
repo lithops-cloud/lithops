@@ -1,7 +1,7 @@
 import sys
 
 if __name__ == '__main__':
-    iamapikey, cos_api_key = sys.argv
+    iamapikey, cos_api_key = sys.argv[1:]
 
     with open('lithops/scripts/config_fill_secrets.py', 'r') as file:
         filedata = file.read()
