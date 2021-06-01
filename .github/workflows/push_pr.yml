@@ -28,8 +28,8 @@ jobs:
           architecture: x64
       - name: Install dependencies
         run: |
-          $PATH
-          $PWD
+          "${PWD}"
+
 #          python3 setup.py develop
 #      - name: install secrets in lithops config
 #        run: python3 ./lithops/scripts/config_fill_secrets.py "${{ secrets.IAMAPIKEY }}" "${{ secrets.COS_API_KEY }}"
