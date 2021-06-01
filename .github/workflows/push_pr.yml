@@ -30,4 +30,5 @@ jobs:
         run: |
           python3 setup.py develop
       - name: Run Python tests
-        run: python3 -m lithops.tests.tests_main -t test_map -c lithops/tests/lithops_config.yaml
+        run: ./lithops.tests.tests_main "${{ secrets.IAMAPIKEY }}" "${{ secrets.COS_API_KEY }}"
+        #run: python3 -m lithops.tests.tests_main -t test_map -c lithops/tests/lithops_config2.yaml
