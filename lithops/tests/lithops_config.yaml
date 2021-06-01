@@ -43,7 +43,7 @@ ibm:
 code_engine:
     namespace  : 75nd5iv9zir
     region     : us-south
-    runtime: cohenjomer/lithops-ce-v385:234dev2
+    runtime: cohenjomer/lithops-ce-user:234dev2
 
 ibm_cos:
     region : eu-de
