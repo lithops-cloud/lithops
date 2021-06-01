@@ -3,56 +3,13 @@ import sys
 
 if __name__ == '__main__':
     iamapikey, cos_api_key = sys.argv[1:]
-    config_file = 'lithops/tests/lithops_config2.yaml'
+    config_file = 'lithops/tests/lithops_config.yaml'
 
     with open(config_file, 'r') as file:
         filedata = file.read()
 
-    # Replace the target string
-    filedata = filedata.replace('<iamapikey>', iamapikey)
-    filedata = filedata.replace('<cos_api_key>', cos_api_key)
+    filedata = filedata.replace('<iamapikey>', iamapikey).replace('<cos_api_key>', cos_api_key)
 
     with open(config_file, 'w') as file:
         file.write(filedata)
 
-
-# if __name__ == '__main__':
-#     iamapikey, cos_api_key = sys.argv[1:]
-#     config_file = 'lithops/tests/lithops_config2.yaml'
-#     # print(iamapikey[2:8])
-#     # print(cos_api_key[2:8])
-#
-#     with open(config_file, 'r') as file:
-#         filedata = file.read()
-#
-#     # Replace the target string
-#     filedata = filedata.replace('<iamapikey>', iamapikey)
-#     filedata = filedata.replace('<cos_api_key>', cos_api_key)
-#
-#     with open(config_file, 'w') as file:
-#         file.write(filedata)
-#
-#     with open(config_file, 'r') as file:
-#         print(file.read())
-
-
-
-# import argparse
-#
-# if __name__ == '__main__':
-#     parser = argparse.ArgumentParser(description="Append secrets to lithops config file",
-#                                      usage='python -m lithops.scripts.config_fill_secrets [-c CONFIG] [-t TESTNAME] ...')
-#     parser.add_argument('-c', '--config', metavar='', default=None,
-#                         help="'path to yaml config file")
-#
-#     args = parser.parse_args()
-#
-#     with open('lithops/scripts/config_fill_secrets.py', 'r') as file:
-#         filedata = file.read()
-#
-#     # Replace the target string
-#     filedata = filedata.replace('<iamapikey>', 'abcd')
-#
-#     # Write the file out again
-#     with open('file.txt', 'w') as file:
-#         file.write(filedata)

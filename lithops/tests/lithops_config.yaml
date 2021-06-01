@@ -31,7 +31,7 @@ serverless:
     #soft_dismantle_timeout: 300
 
 ibm:
-    iam_api_key: Up845O0-oEp4YiMhbPAmYFnElNzKLslDd-Fh4ZrYUMpJ
+    iam_api_key: <iamapikey>
 
 #ibm_cf:
     #endpoint    : <REGION_ENDPOINT>
@@ -45,18 +45,15 @@ code_engine:
     region     : us-south
     docker_server: us.icr.io
     docker_user: iamapikey
-    docker_password: Up845O0-oEp4YiMhbPAmYFnElNzKLslDd-Fh4ZrYUMpJ
+    docker_password: <iamapikey>
     runtime: us.icr.io/omer-test/lithops-ce:234dev2
-    # kubecfg_path: /Users/omercohen/.bluemix/plugins/code-engine/tester-testing-the-test-9c20a1cd-e0aa-4ec6-b50e-e682c2645018.yaml
-    # runtime: cohenjomer/lithops-ce-v385:234dev1
-    #runtime: us.icr.io/omer-test/lithops-ce-v385:234dev1
-    #runtime: us.icr.io/omer-test/lithops-ce-pr657-v385
+
 
 ibm_cos:
     region : eu-de
     endpoint    : https://s3.eu-de.cloud-object-storage.appdomain.cloud
     private_endpoint: https://s3.private.eu-de.cloud-object-storage.appdomain.cloud
-    api_key     : piPD2NT2tOcqLVoEDxwpSvOwyvqyUmcMqIH3YbkIGVmT
+    api_key     : <cos_api_key>
     #access_key : <ACCESS_KEY>  # Optional
     #secret_key : <SECRET_KEY>  # Optional
 

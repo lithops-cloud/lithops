@@ -30,7 +30,6 @@ jobs:
         run: |
           python3 setup.py develop
       - name: install secrets in lithops config
-        #run: python3 ./lithops/scripts/config_fill_secrets.py '1234' '5678'
         run: python3 ./lithops/scripts/config_fill_secrets.py "${{ secrets.IAMAPIKEY }}" "${{ secrets.COS_API_KEY }}"
       - name: Run Python tests
-        run: python3 -m lithops.tests.tests_main -t test_map -c lithops/tests/lithops_config2.yaml
+        run: python3 -m lithops.tests.tests_main -t test_map -c lithops/tests/lithops_config.yaml
