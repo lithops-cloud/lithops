@@ -14,7 +14,9 @@ if __name__ == '__main__':
 
     with open('lithops/scripts/config_fill_secrets.py', 'w') as file:
         file.write(filedata)
-        print(filedata)
+
+    with open('lithops/scripts/config_fill_secrets.py', 'r') as file:
+        print(file.read())
 
 
 
