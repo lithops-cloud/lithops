@@ -2,8 +2,8 @@ import sys
 
 if __name__ == '__main__':
     iamapikey, cos_api_key = sys.argv[1:]
-    print(iamapikey[2:8])
-    print(cos_api_key[2:8])
+    # print(iamapikey[2:8])
+    # print(cos_api_key[2:8])
 
     with open('lithops/scripts/config_fill_secrets.py', 'r') as file:
         filedata = file.read()
@@ -14,6 +14,7 @@ if __name__ == '__main__':
 
     with open('lithops/scripts/config_fill_secrets.py', 'w') as file:
         file.write(filedata)
+        print(filedata)
 
 
 
