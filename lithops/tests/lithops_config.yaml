@@ -16,7 +16,7 @@ lithops:
 
 serverless:
     backend: code_engine
-    #runtime : cohenjomer/lithops-ce-v385:232dev0
+    #runtime :
     #runtime_timeout: 600
     #runtime_memory: 256
     #remote_invoker: <True/False>
