@@ -26,20 +26,21 @@ jobs:
         with:
           python-version: 3.8
           architecture: x64
-      - name: Install dependencies
-        run: |
-          python3 setup.py develop
-      - name: install secrets in lithops config
-        run: python3 ./lithops/scripts/config_fill_secrets.py "${{ secrets.IAMAPIKEY }}" "${{ secrets.COS_API_KEY }}"
+#      - name: Install dependencies
+#        run: |
+#          python3 setup.py develop
+#      - name: install secrets in lithops config
+#        run: python3 ./lithops/scripts/config_fill_secrets.py "${{ secrets.IAMAPIKEY }}" "${{ secrets.COS_API_KEY }}"
       - name: build new runtime
-        env:
-             LITHOPS_CONFIG_FILE: /home/runner/work/lithops_test/lithops/tests/lithops_config.yaml
+#        env:
+#             LITHOPS_CONFIG_FILE: /home/runner/work/lithops_test/lithops/tests/lithops_config.yaml
 ##           LITHOPS_CONFIG_FILE: "${PWD}" + "/tests/lithops_config.yaml"
 
         run: |
-          docker login -u cohenjomer -p "${{ secrets.DOCKER_TOKEN }}"
-          cd runtime/code_engine
-          lithops runtime build cohenjomer/lithops-ce-user:234dev2 -b code_engine
+          pwd
+#          docker login -u cohenjomer -p "${{ secrets.DOCKER_TOKEN }}"
+#          cd runtime/code_engine
+#          lithops runtime build cohenjomer/lithops-ce-user:234dev2 -b code_engine
 
 #      - name: Run Python tests
 #        run: python3 -m lithops.tests.tests_main -t test_map -c lithops/tests/lithops_config.yaml
