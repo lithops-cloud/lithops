@@ -77,7 +77,7 @@ def run_worker(master_ip, job_key):
 
         pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
         localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
-        localhost_handler.run_job(job_payload)
+        localhost_handler.invoke(job_payload)
 
         wait_job_completed(job_key)
 

@@ -156,10 +156,10 @@ class TestMethods:
         return counter
 
     @staticmethod
-    def my_map_function_url(url):
-        print('I am processing the object from {}'.format(url.path))
+    def my_map_function_url(obj):
+        print('I am processing the object from {}'.format(obj.url))
         counter = {}
-        data = url.data_stream.read()
+        data = obj.data_stream.read()
         for line in data.splitlines():
             for word in line.decode('utf-8').split():
                 if word not in counter:

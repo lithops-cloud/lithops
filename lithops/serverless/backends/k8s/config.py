@@ -23,12 +23,11 @@ from lithops.version import __version__
 
 RUNTIME_NAME = 'lithops-k8sjob'
 
-CONTAINER_REGISTRY = 'docker.io'
 DOCKER_PATH = shutil.which('docker')
 
 RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
 RUNTIME_MEMORY = 256  # Default memory: 256 MB
-RUNTIME_CPU = 1  # 1 vCPU
+RUNTIME_CPU = 0.5  # 0.5 vCPU
 MAX_CONCURRENT_WORKERS = 1000
 INVOKE_POOL_THREADS_DEFAULT = 4
 
@@ -84,31 +83,33 @@ spec:
     spec:
       restartPolicy: Never
       containers:
-      - name: "lithops"
-        image: "<INPUT>"
-        command: ["python3"]
-        args:
-        - "/lithops/lithopsentry.py"
-        - "$(ACTION)"
-        - "$(PAYLOAD)"
-        env:
-        - name: ACTION
-          value: ''
-        - name: PAYLOAD
-          value: ''
-        - name: IDGIVER_POD_IP
-          value: ''
-        - name: POD_IP
-          valueFrom:
-            fieldRef:
-              fieldPath: status.podIP
-        resources:
-          requests:
-            cpu: '0.2'
-            memory: 128Mi
-          limits:
-            cpu: '0.2'
-            memory: 128Mi
+        - name: "lithops"
+          image: "<INPUT>"
+          command: ["python3"]
+          args:
+            - "/lithops/lithopsentry.py"
+            - "$(ACTION)"
+            - "$(PAYLOAD)"
+          env:
+            - name: ACTION
+              value: ''
+            - name: PAYLOAD
+              value: ''
+            - name: IDGIVER_POD_IP
+              value: ''
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          resources:
+            requests:
+              cpu: '0.2'
+              memory: 128Mi
+            limits:
+              cpu: '0.2'
+              memory: 128Mi
+      imagePullSecrets:
+        - name: lithops-regcred
 """
 
 
@@ -116,19 +117,19 @@ def load_config(config_data):
     if 'k8s' not in config_data:
         config_data['k8s'] = {}
 
-    if 'cpu' not in config_data['k8s']:
-        config_data['k8s']['cpu'] = RUNTIME_CPU
+    if 'runtime' in config_data['k8s']:
+        config_data['serverless']['runtime'] = config_data['k8s']['runtime']
+    if 'runtime_memory' in config_data['k8s']:
+        config_data['serverless']['runtime_memory'] = config_data['k8s']['runtime_memory']
+    if 'runtime_timeout' in config_data['k8s']:
+        config_data['serverless']['runtime_timeout'] = config_data['k8s']['runtime_timeout']
 
-    if 'container_registry' not in config_data['k8s']:
-        config_data['k8s']['container_registry'] = CONTAINER_REGISTRY
-
+    if 'runtime_cpu' not in config_data['k8s']:
+        config_data['k8s']['runtime_cpu'] = RUNTIME_CPU
     if 'runtime_memory' not in config_data['serverless']:
         config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY
     if 'runtime_timeout' not in config_data['serverless']:
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT
-
-    if 'runtime' in config_data['k8s']:
-        config_data['serverless']['runtime'] = config_data['k8s']['runtime']
     if 'runtime' not in config_data['serverless']:
         if not DOCKER_PATH:
             raise Exception('docker command not found. Install docker or use '
@@ -143,15 +144,6 @@ def load_config(config_data):
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         runtime_name = '{}/{}-v{}:{}'.format(docker_user, RUNTIME_NAME, python_version, revision)
         config_data['serverless']['runtime'] = runtime_name
-
-    else:
-        if config_data['serverless']['runtime'].count('/') > 1:
-            # container registry is in the provided runtime name
-            cr, rn = config_data['serverless']['runtime'].split('/', 1)
-            config_data['k8s']['container_registry'] = cr
-            config_data['serverless']['runtime'] = rn
-
-    config_data['serverless']['remote_invoker'] = True
 
     if 'workers' not in config_data['lithops'] or \
        config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:

@@ -47,9 +47,8 @@ def create_timeline(fs, dst):
 
     fields = [('host submit', stats_df.host_submit_tstamp - host_job_create_tstamp),
               ('call start', stats_df.worker_start_tstamp - host_job_create_tstamp),
-              ('call done', stats_df.worker_end_tstamp - host_job_create_tstamp)]
-
-    fields.append(('status fetched', stats_df.host_status_done_tstamp - host_job_create_tstamp))
+              ('call done', stats_df.worker_end_tstamp - host_job_create_tstamp),
+              ('status fetched', stats_df.host_status_done_tstamp - host_job_create_tstamp)]
 
     if 'host_result_done_tstamp' in stats_df:
         fields.append(('results fetched', stats_df.host_result_done_tstamp - host_job_create_tstamp))

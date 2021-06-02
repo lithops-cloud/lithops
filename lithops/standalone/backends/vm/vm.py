@@ -31,7 +31,7 @@ class VMBackend:
     def clean(self):
         pass
 
-    def clear(self):
+    def clear(self, job_keys=None):
         pass
 
     def dismantle(self):

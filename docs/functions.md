@@ -12,9 +12,9 @@ Reserved parameters
 
 - **ibm_cos**: To get a ready-to use [ibm_boto3.Client()](https://ibm.github.io/ibm-cos-sdk-python/reference/services/s3.html#client) instance. This allows you to access your IBM COS account from any function in an easy way, for example: [ibmcos_arg.py](../examples/ibmcos_arg.py)
 
-- **rabbitmq**: To get a ready-to use [pika.BlockingConnection()](https://pika.readthedocs.io/en/0.13.1/modules/adapters/blocking.html) instance (AMQP URL must be set in the [configuration](config/) to make it working). This allows you to access the RabbitMQ service from any function in an easy way, for example: [rabbitmq_arg.py](../examples/rabbitmq_arg.py)
+- **rabbitmq**: To get a ready-to use [pika.BlockingConnection()](https://pika.readthedocs.io/en/latest/modules/adapters/blocking.html) instance (AMQP URL must be set in the [configuration](config/) to make it working). This allows you to access the RabbitMQ service from any function in an easy way, for example: [rabbitmq_arg.py](../examples/rabbitmq_arg.py)
 
-- **obj** & **url**: These two parameter activate internal logic that allows to process data objects stored in the object store or public URLs in a transparent way. See [data-processing](../docs/data-processing.md) documentation for more details and instructions on how to use this built-in data-processing logic.
+- **obj**: This parameter is used to activate the internal logic that allows to process data objects stored in the object store or public URLs in a transparent way. See [data processing](../docs/data_processing.md) documentation for more details and instructions on how to use this built-in data-processing logic.
 
 
 Parameters in the call_async() method 

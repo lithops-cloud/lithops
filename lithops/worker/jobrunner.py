@@ -16,6 +16,7 @@
 #
 
 import os
+import io
 import sys
 import pika
 import time
@@ -29,7 +30,7 @@ from pydoc import locate
 from distutils.util import strtobool
 
 from lithops.storage import Storage
-from lithops.wait import wait_storage
+from lithops.wait import wait
 from lithops.future import ResponseFuture
 from lithops.utils import sizeof_fmt, is_object_processing_function
 from lithops.utils import WrappedStreamingBodyPartition
@@ -40,7 +41,7 @@ from lithops.constants import JOBS_PREFIX
 logger = logging.getLogger(__name__)
 
 
-class stats:
+class JobStats:
 
     def __init__(self, stats_filename):
         self.stats_filename = stats_filename
@@ -54,22 +55,22 @@ class stats:
         self.stats_fid.close()
 
 
-class TaskRunner:
+class JobRunner:
 
-    def __init__(self, task, jobrunner_conn, internal_storage):
-        self.task = task
+    def __init__(self, job, jobrunner_conn, internal_storage):
+        self.job = job
         self.jobrunner_conn = jobrunner_conn
         self.internal_storage = internal_storage
-        self.lithops_config = task.config
+        self.lithops_config = job.config
 
-        self.output_key = create_output_key(JOBS_PREFIX, self.task.executor_id,
-                                            self.task.job_id, self.task.id)
+        self.output_key = create_output_key(JOBS_PREFIX, self.job.executor_id,
+                                            self.job.job_id, self.job.id)
 
         # Setup stats class
-        self.stats = stats(self.task.stats_file)
+        self.stats = JobStats(self.job.stats_file)
 
         # Setup prometheus for live metrics
-        prom_enabled = self.lithops_config['lithops'].get('monitoring')
+        prom_enabled = self.lithops_config['lithops'].get('telemetry')
         prom_config = self.lithops_config.get('prometheus', {})
         self.prometheus = PrometheusExporter(prom_enabled, prom_config)
 
@@ -102,12 +103,12 @@ class TaskRunner:
                 raise Exception('Cannot create the rabbitmq client: missing configuration')
 
         if 'id' in func_sig.parameters:
-            data['id'] = int(self.task.id)
+            data['id'] = int(self.job.id)
 
     def _wait_futures(self, data):
         logger.info('Reduce function: waiting for map results')
         fut_list = data['results']
-        wait_storage(fut_list, self.internal_storage, download_results=True)
+        wait(fut_list, self.internal_storage, download_results=True)
         results = [f.result() for f in fut_list if f.done and not f.futures]
         fut_list.clear()
         data['results'] = results
@@ -118,18 +119,9 @@ class TaskRunner:
         """
         extra_get_args = {}
 
-        if 'url' in data:
-            url = data['url']
-            logger.info('Getting dataset from {}'.format(url.path))
-            if url.data_byte_range is not None:
-                range_str = 'bytes={}-{}'.format(*url.data_byte_range)
-                extra_get_args['Range'] = range_str
-                logger.info('Chunk: {} - Range: {}'.format(url.part, extra_get_args['Range']))
-            resp = requests.get(url.path, headers=extra_get_args, stream=True)
-            url.data_stream = resp.raw
+        obj = data['obj']
 
-        if 'obj' in data:
-            obj = data['obj']
+        if hasattr(obj, 'bucket'):
             logger.info('Getting dataset from {}://{}/{}'.format(obj.backend, obj.bucket, obj.key))
 
             if obj.backend == self.internal_storage.backend:
@@ -148,6 +140,29 @@ class TaskRunner:
                 sb = storage.get_object(obj.bucket, obj.key, stream=True,
                                         extra_get_args=extra_get_args)
                 obj.data_stream = sb
+
+        elif hasattr(obj, 'url'):
+            logger.info('Getting dataset from {}'.format(obj.url))
+            if obj.data_byte_range is not None:
+                range_str = 'bytes={}-{}'.format(*obj.data_byte_range)
+                extra_get_args['Range'] = range_str
+                logger.info('Chunk: {} - Range: {}'.format(obj.part, extra_get_args['Range']))
+            resp = requests.get(obj.url, headers=extra_get_args, stream=True)
+            obj.data_stream = resp.raw
+
+        elif hasattr(obj, 'path'):
+            logger.info('Getting dataset from {}'.format(obj.path))
+            with open(obj.path, "rb") as f:
+                if obj.data_byte_range is not None:
+                    extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
+                    logger.info('Chunk: {} - Range: {}'.format(obj.part, extra_get_args['Range']))
+                    first_byte, last_byte = obj.data_byte_range
+                    f.seek(first_byte)
+                    buffer = io.BytesIO(f.read(last_byte-first_byte+1))
+                    sb = WrappedStreamingBodyPartition(buffer, obj.chunk_size, obj.data_byte_range)
+                else:
+                    sb = io.BytesIO(f.read())
+            obj.data_stream = sb
 
     # Decorator to execute pre-run and post-run functions provided via environment variables
     def prepost(func):
@@ -173,28 +188,31 @@ class TaskRunner:
         result = None
         exception = False
         try:
-            function = pickle.loads(self.task.func)
-            data = pickle.loads(self.task.data)
+            func = pickle.loads(self.job.func)
+            data = pickle.loads(self.job.data)
 
             if strtobool(os.environ.get('__LITHOPS_REDUCE_JOB', 'False')):
                 self._wait_futures(data)
-            elif is_object_processing_function(function):
+            elif is_object_processing_function(func):
                 self._load_object(data)
 
-            self._fill_optional_args(function, data)
+            self._fill_optional_args(func, data)
+
+            fn_name = func.__name__ if inspect.isfunction(func) \
+                or inspect.ismethod(func) else type(func).__name__
 
             self.prometheus.send_metric(name='function_start',
                                         value=time.time(),
                                         labels=(
-                                            ('job_id', self.task.job_id),
-                                            ('call_id', self.task.id),
-                                            ('function_name', function.__name__)
+                                            ('job_id', '-'.join([self.job.executor_id, self.job.job_id])),
+                                            ('call_id', self.job.id),
+                                            ('function_name', fn_name)
                                         ))
 
-            logger.info("Going to execute '{}()'".format(str(function.__name__)))
+            logger.info("Going to execute '{}()'".format(str(fn_name)))
             print('---------------------- FUNCTION LOG ----------------------')
             function_start_tstamp = time.time()
-            result = function(**data)
+            result = func(**data)
             function_end_tstamp = time.time()
             print('----------------------------------------------------------')
             logger.info("Success function execution")
@@ -202,9 +220,9 @@ class TaskRunner:
             self.prometheus.send_metric(name='function_end',
                                         value=time.time(),
                                         labels=(
-                                            ('job_id', self.task.job_id),
-                                            ('call_id', self.task.id),
-                                            ('function_name', function.__name__)
+                                            ('job_id', '-'.join([self.job.executor_id, self.job.job_id])),
+                                            ('call_id', self.job.id),
+                                            ('function_name', fn_name)
                                         ))
 
             self.stats.write('worker_func_start_tstamp', function_start_tstamp)
@@ -213,20 +231,21 @@ class TaskRunner:
 
             # Check for new futures
             if result is not None:
-                self.stats.write("result", True)
                 if isinstance(result, ResponseFuture) or \
                    (type(result) == list and len(result) > 0 and isinstance(result[0], ResponseFuture)):
-                    self.stats.write('new_futures', True)
+                    self.stats.write('new_futures', pickle.dumps(result))
+                    result = None
+                else:
+                    self.stats.write("result", True)
+                    logger.debug("Pickling result")
+                    output_dict = {'result': result}
+                    pickled_output = pickle.dumps(output_dict)
+                    self.stats.write('func_result_size', len(pickled_output))
 
-                logger.debug("Pickling result")
-                output_dict = {'result': result}
-                pickled_output = pickle.dumps(output_dict)
-                self.stats.write('worker_func_result_size', len(pickled_output))
-
-            else:
+            if result is None:
                 logger.debug("No result to store")
                 self.stats.write("result", False)
-                self.stats.write('worker_func_result_size', 0)
+                self.stats.write('func_result_size', 0)
 
             # self.stats.write('worker_jobrunner_end_tstamp', time.time())
 

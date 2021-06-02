@@ -135,7 +135,7 @@ class StandaloneHandler:
         raise Exception('Lithops service readiness probe expired on {}'
                         .format(self.backend.master))
 
-    def run_job(self, job_payload):
+    def invoke(self, job_payload, workers):
         """
         Run the job description against the selected environment
         """
@@ -192,7 +192,7 @@ class StandaloneHandler:
 
         self.jobs.append(job_payload['job_key'])
 
-    def create_runtime(self, runtime):
+    def create_runtime(self, runtime_name, *args):
         """
         Installs the proxy and extracts the runtime metadata and
         preinstalled modules
@@ -207,7 +207,7 @@ class StandaloneHandler:
         self._wait_master_service_ready()
 
         logger.debug('Extracting runtime metadata information')
-        payload = {'runtime': runtime, 'pull_runtime': self.pull_runtime}
+        payload = {'runtime': runtime_name, 'pull_runtime': self.pull_runtime}
         cmd = ('curl http://127.0.0.1:8080/preinstalls -d {} '
                '-H \'Content-Type: application/json\' -X GET'
                .format(shlex.quote(json.dumps(payload))))
@@ -228,7 +228,7 @@ class StandaloneHandler:
         """
         self.backend.clean()
 
-    def clear(self):
+    def clear(self, job_keys=None):
         """
         Clear all the backend resources.
         clear method is executed after the results are get,
@@ -243,15 +243,21 @@ class StandaloneHandler:
             self.backend.master.del_ssh_client()
         except Exception:
             pass
-        self.backend.clear()
+        self.backend.clear(job_keys)
 
-    def get_runtime_key(self, runtime_name):
+    def get_runtime_key(self, runtime_name, *args):
         """
         Wrapper method that returns a formated string that represents the
         runtime key. Each backend has its own runtime key format. Used to
         store modules preinstalls into the storage
         """
         return self.backend.get_runtime_key(runtime_name)
+
+    def get_backend_type(self):
+        """
+        Wrapper method that returns the type of the backend (Batch or FaaS)
+        """
+        return 'batch'
 
     def _setup_master_service(self):
         """

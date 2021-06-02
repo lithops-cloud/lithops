@@ -17,6 +17,7 @@
 import os
 import re
 import sys
+import base64
 import json
 import logging
 import copy
@@ -47,6 +48,7 @@ class KubernetesBackend:
     def __init__(self, k8s_config, internal_storage):
         logger.debug("Creating Kubernetes Job client")
         self.name = 'k8s'
+        self.type = 'batch'
         self.k8s_config = k8s_config
         self.internal_storage = internal_storage
 
@@ -158,6 +160,53 @@ class KubernetesBackend:
             raise Exception('docker command not found. Install docker or use '
                             'an already built runtime')
 
+    def _create_container_registry_secret(self):
+        """
+        Create the container registry secret in the cluster
+        (only if credentials are present in config)
+        """
+        if not all(key in self.k8s_config for key in ["docker_user", "docker_password"]):
+            return
+
+        logger.debug('Creating container registry secret')
+        docker_server = self.k8s_config.get('docker_server', 'https://index.docker.io/v1/')
+        docker_user = self.k8s_config.get('docker_user')
+        docker_password = self.k8s_config.get('docker_password')
+
+        cred_payload = {
+            "auths": {
+                docker_server: {
+                    "Username": docker_user,
+                    "Password": docker_password
+                }
+            }
+        }
+
+        data = {
+            ".dockerconfigjson": base64.b64encode(
+                json.dumps(cred_payload).encode()
+            ).decode()
+        }
+
+        secret = client.V1Secret(
+            api_version="v1",
+            data=data,
+            kind="Secret",
+            metadata=dict(name="lithops-regcred", namespace=self.namespace),
+            type="kubernetes.io/dockerconfigjson",
+        )
+
+        try:
+            self.core_api.delete_namespaced_secret("lithops-regcred", self.namespace)
+        except ApiException as e:
+            pass
+
+        try:
+            self.core_api.create_namespaced_secret(self.namespace, secret)
+        except ApiException as e:
+            if e.status != 409:
+                raise e
+
     def create_runtime(self, docker_image_name, memory, timeout):
         """
         Creates a new runtime from an already built Docker image
@@ -169,6 +218,7 @@ class KubernetesBackend:
             docker_image_name = default_runtime_img_name
             self._build_default_runtime(default_runtime_img_name)
 
+        self._create_container_registry_secret()
         runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
 
         return runtime_meta
@@ -201,19 +251,33 @@ class KubernetesBackend:
         except ApiException:
             pass
 
-    def clear(self):
+    def clear(self, job_keys=None):
         """
         Delete only completed jobs
         """
-        for job_key in self.jobs:
-            job_name = 'lithops-{}'.format(job_key.lower())
-            logger.debug('Deleting job {}'.format(job_name))
-            try:
-                self.batch_api.delete_namespaced_job(name=job_name,
-                                                     namespace=self.namespace,
-                                                     propagation_policy='Background')
-            except Exception:
-                pass
+        if job_keys:
+            for job_key in job_keys:
+                if job_key in self.jobs:
+                    job_name = 'lithops-{}'.format(job_key.lower())
+                    logger.debug('Deleting job {}'.format(job_name))
+                    try:
+                        self.batch_api.delete_namespaced_job(name=job_name,
+                                                             namespace=self.namespace,
+                                                             propagation_policy='Background')
+                    except Exception:
+                        pass
+                    self.jobs.remove(job_key)
+        else:
+            for job_key in self.jobs:
+                job_name = 'lithops-{}'.format(job_key.lower())
+                logger.debug('Deleting job {}'.format(job_name))
+                try:
+                    self.batch_api.delete_namespaced_job(name=job_name,
+                                                         namespace=self.namespace,
+                                                         propagation_policy='Background')
+                except Exception:
+                    pass
+            self.jobs = []
 
     def list_runtimes(self, docker_image_name='all'):
         """
@@ -267,11 +331,7 @@ class KubernetesBackend:
         Invoke -- return information about this invocation
         For array jobs only remote_invocator is allowed
         """
-
         idgiver_ip = self._start_id_giver(docker_image_name)
-
-        job_payload.pop('remote_invoker')
-        job_payload.pop('invokers')
 
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
@@ -301,9 +361,9 @@ class KubernetesBackend:
         container['env'][2]['value'] = idgiver_ip
 
         container['resources']['requests']['memory'] = '{}Mi'.format(job_payload['runtime_memory'])
-        container['resources']['requests']['cpu'] = str(self.k8s_config['cpu'])
+        container['resources']['requests']['cpu'] = str(self.k8s_config['runtime_cpu'])
         container['resources']['limits']['memory'] = '{}Mi'.format(job_payload['runtime_memory'])
-        container['resources']['limits']['cpu'] = str(self.k8s_config['cpu'])
+        container['resources']['limits']['cpu'] = str(self.k8s_config['runtime_cpu'])
 
         logger.debug('ExecutorID {} | JobID {} - Going '
                      'to run {} activations in {} workers'

@@ -23,12 +23,11 @@ from lithops.version import __version__
 
 RUNTIME_NAME = 'lithops-codeengine'
 
-CONTAINER_REGISTRY = 'docker.io'
 DOCKER_PATH = shutil.which('docker')
 
 RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
 RUNTIME_MEMORY = 256  # Default memory: 256 MB
-RUNTIME_CPU = 1  # 1 vCPU
+RUNTIME_CPU = 0.125  # 0.125 vCPU
 MAX_CONCURRENT_WORKERS = 1000
 INVOKE_POOL_THREADS_DEFAULT = 4
 DEFAULT_GROUP = "codeengine.cloud.ibm.com"
@@ -36,6 +35,11 @@ DEFAULT_VERSION = "v1beta1"
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_codeengine.zip')
 
+VALID_CPU_VALUES = [0.125, 0.25, 0.5, 1, 2, 4, 6, 8]
+VALID_MEMORY_VALUES = [256, 512, 1024, 2048, 4096, 8192, 12288, 16384, 24576, 32768]
+VALID_REGIONS = ['us-south', 'jp-tok', 'eu-de', 'eu-gb']
+
+CLUSTER_URL = 'https://proxy.{}.codeengine.cloud.ibm.com'
 
 DOCKERFILE_DEFAULT = """
 RUN apt-get update && apt-get install -y \
@@ -107,6 +111,8 @@ spec:
         requests:
           cpu: '1'
           memory: 128Mi
+    imagePullSecrets:
+      - name: lithops-regcred
 """
 
 
@@ -144,22 +150,29 @@ def load_config(config_data):
         config_data['code_engine'] = {}
 
     if 'kubectl_config' in config_data['code_engine']:
-        print('"kubectl_config" variable in config is deprecated, use "kubecfg_path" instead')
+        print('"kubectl_config" variable in code_engine config is deprecated, use "kubecfg_path" instead')
         config_data['code_engine']['kubecfg_path'] = config_data['code_engine']['kubectl_config']
 
-    if 'cpu' not in config_data['code_engine']:
-        config_data['code_engine']['cpu'] = RUNTIME_CPU
+    if 'cpu' in config_data['code_engine']:
+        print('"cpu" variable in code_engine config is deprecated, use "runtime_cpu" instead')
+        config_data['code_engine']['runtime_cpu'] = config_data['code_engine']['cpu']
 
-    if 'container_registry' not in config_data['code_engine']:
-        config_data['code_engine']['container_registry'] = CONTAINER_REGISTRY
+    if 'ibm' in config_data and config_data['ibm'] is not None:
+        config_data['code_engine'].update(config_data['ibm'])
 
+    if 'runtime' in config_data['code_engine']:
+        config_data['serverless']['runtime'] = config_data['code_engine']['runtime']
+    if 'runtime_memory' in config_data['code_engine']:
+        config_data['serverless']['runtime_memory'] = config_data['code_engine']['runtime_memory']
+    if 'runtime_timeout' in config_data['code_engine']:
+        config_data['serverless']['runtime_timeout'] = config_data['code_engine']['runtime_timeout']
+
+    if 'runtime_cpu' not in config_data['code_engine']:
+        config_data['code_engine']['runtime_cpu'] = RUNTIME_CPU
     if 'runtime_memory' not in config_data['serverless']:
         config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY
     if 'runtime_timeout' not in config_data['serverless']:
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT
-
-    if 'runtime' in config_data['code_engine']:
-        config_data['serverless']['runtime'] = config_data['code_engine']['runtime']
     if 'runtime' not in config_data['serverless']:
         if not DOCKER_PATH:
             raise Exception('docker command not found. Install docker or use '
@@ -175,14 +188,20 @@ def load_config(config_data):
         runtime_name = '{}/{}-v{}:{}'.format(docker_user, RUNTIME_NAME, python_version, revision)
         config_data['serverless']['runtime'] = runtime_name
 
-    else:
-        if config_data['serverless']['runtime'].count('/') > 1:
-            # container registry is in the provided runtime name
-            cr, rn = config_data['serverless']['runtime'].split('/', 1)
-            config_data['code_engine']['container_registry'] = cr
-            config_data['serverless']['runtime'] = rn
+    runtime_cpu = config_data['code_engine']['runtime_cpu']
+    if runtime_cpu not in VALID_CPU_VALUES:
+        raise Exception('{} is an invalid runtime cpu value. Set one of: '
+                        '{}'.format(runtime_cpu, VALID_CPU_VALUES))
 
-    config_data['serverless']['remote_invoker'] = True
+    runtime_memory = config_data['serverless']['runtime_memory']
+    if runtime_memory not in VALID_MEMORY_VALUES:
+        raise Exception('{} is an invalid runtime memory value in MB. Set one of: '
+                        '{}'.format(runtime_memory, VALID_MEMORY_VALUES))
+
+    region = config_data['code_engine'].get('region')
+    if region and region not in VALID_REGIONS:
+        raise Exception('{} is an invalid region name. Set one of: '
+                        '{}'.format(region, VALID_REGIONS))
 
     if 'workers' not in config_data['lithops'] or \
        config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:

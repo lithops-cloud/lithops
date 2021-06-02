@@ -186,6 +186,33 @@ def get_runtime_preinstalls():
     return runtime_meta
 
 
+def memory_monitor_worker(mm_conn, delay=0.01):
+    """
+    Monitor that checks the current memory usage
+    """
+    peak = 0
+
+    logger.debug("Starting memory monitor")
+
+    def make_measurement(peak):
+        mem = get_memory_usage(formatted=False) + 5*1024**2
+        if mem > peak:
+            peak = mem
+        return peak
+
+    while not mm_conn.poll(delay):
+        try:
+            peak = make_measurement(peak)
+        except Exception:
+            break
+
+    try:
+        peak = make_measurement(peak)
+    except Exception as e:
+        logger.error('Memory monitor: {}'.format(e))
+    mm_conn.send(peak)
+
+
 @contextmanager
 def custom_redirection(fileobj):
     old_stdout = sys.stdout
@@ -202,16 +229,22 @@ def custom_redirection(fileobj):
 class LogStream:
 
     def __init__(self, stream):
-        self._old_stdout = sys.stdout
+        self._stdout = sys.stdout
         self._stream = stream
 
     def write(self, log):
-        self._old_stdout.write(log)
-        self._stream.write(log)
-        self.flush()
+        self._stdout.write(log)
+        try:
+            self._stream.write(log)
+            self.flush()
+        except ValueError:
+            pass
 
     def flush(self):
-        self._stream.flush()
+        try:
+            self._stream.flush()
+        except ValueError:
+            pass
 
     def fileno(self):
-        return self._old_stdout.fileno()
+        return self._stdout.fileno()

@@ -57,11 +57,11 @@ class LocalhostHandler:
 
     def init(self):
         """
-        Init taks for localhost
+        Init tasks for localhost
         """
         pass
 
-    def run_job(self, job_payload):
+    def invoke(self, job_payload, workers):
         """
         Run the job description against the selected environment
         """
@@ -73,8 +73,9 @@ class LocalhostHandler:
         total_calls = len(job_payload['call_ids'])
 
         logger.debug('ExecutorID {} | JobID {} - Going '
-                     'to run {} activations in localhost'
-                     .format(executor_id, job_id, total_calls))
+                     'to run {} activations in {} workers'
+                     .format(executor_id, job_id, total_calls,
+                             min(total_calls, workers)))
 
         if not os.path.isfile(RUNNER):
             self.env.setup(runtime)
@@ -100,20 +101,20 @@ class LocalhostHandler:
             sp.Popen(exec_command+' run '+job_filename, shell=True,
                      stdout=log_file, stderr=log_file, universal_newlines=True)
 
-    def create_runtime(self, runtime):
+    def create_runtime(self, runtime_name, *args):
         """
         Extract the runtime metadata and preinstalled modules
         """
-        logger.info("Extracting preinstalled Python modules from {}".format(runtime))
-        self.env.setup(runtime)
-        exec_command = self.env.get_execution_cmd(runtime)
+        logger.info("Extracting preinstalled Python modules from {}".format(runtime_name))
+        self.env.setup(runtime_name)
+        exec_command = self.env.get_execution_cmd(runtime_name)
         process = sp.run(exec_command+' preinstalls', shell=True, check=True,
                          stdout=sp.PIPE, universal_newlines=True)
         runtime_meta = json.loads(process.stdout.strip())
 
         return runtime_meta
 
-    def get_runtime_key(self, runtime_name):
+    def get_runtime_key(self, runtime_name, *args):
         """
         Generate the runtime key that identifies the runtime
         """
@@ -121,10 +122,16 @@ class LocalhostHandler:
 
         return runtime_key
 
+    def get_backend_type(self):
+        """
+        Wrapper method that returns the type of the backend (Batch or FaaS)
+        """
+        return 'batch'
+
     def clean(self):
         pass
 
-    def clear(self):
+    def clear(self, job_keys=None):
         pass
 
 
@@ -174,5 +181,5 @@ class DefaultEnv:
         copyfile(src_handler, RUNNER)
 
     def get_execution_cmd(self, runtime):
-        cmd = '{} {}'.format(self.runtime, RUNNER)
+        cmd = '"{}" "{}"'.format(self.runtime, RUNNER)
         return cmd

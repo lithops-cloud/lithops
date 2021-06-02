@@ -37,7 +37,10 @@ SCOPES = ('https://www.googleapis.com/auth/cloud-platform',)
 
 
 class GCPCloudRunBackend:
+
     def __init__(self, cloudrun_config, internal_storage):
+        self.name = 'cloudrun'
+        self.type = 'faas'
         self.credentials_path = cloudrun_config['credentials_path']
         self.service_account = cloudrun_config['service_account']
         self.project_name = cloudrun_config['project_name']
@@ -345,6 +348,7 @@ class GCPCloudRunBackend:
 
     def get_runtime_key(self, runtime_name, memory):
         service_name = self._format_service_name(runtime_name, memory)
-        runtime_key = os.path.join(self.project_name, service_name)
+        runtime_key = os.path.join(self.name, self.project_name, service_name)
+        logger.debug('Runtime key: {}'.format(runtime_key))
 
         return runtime_key

@@ -21,7 +21,6 @@ import shutil
 from lithops.version import __version__
 from lithops.utils import version_str, get_docker_username
 
-CONTAINER_REGISTRY = 'docker.io'
 RUNTIME_NAME = 'lithops-knative'
 
 DEFAULT_GROUP = "serving.knative.dev"
@@ -31,7 +30,7 @@ BUILD_GIT_URL = 'https://github.com/lithops-cloud/lithops'
 DOCKER_PATH = shutil.which('docker')
 RUNTIME_TIMEOUT = 600  # 10 minutes
 RUNTIME_MEMORY = 256  # 256Mi
-RUNTIME_CPU = 1  # 1 vCPU
+RUNTIME_CPU = 0.5  # 0.5 vCPU
 RUNTIME_MIN_INSTANCES = 0
 RUNTIME_MAX_INSTANCES = 250
 RUNTIME_CONCURRENCY = 1
@@ -192,19 +191,21 @@ spec:
       containerConcurrency: 1
       timeoutSeconds: 600
       containers:
-      - image: IMAGE
-        env:
-          - name: CONCURRENCY
-            value: "1"
-          - name: TIMEOUT
-            value: "600"
-        resources:
-          limits:
-            memory: "256Mi"
-            cpu: "1"
-          requests:
-            memory: "256Mi"
-            cpu: "1"
+        - image: IMAGE
+          env:
+            - name: CONCURRENCY
+              value: "1"
+            - name: TIMEOUT
+              value: "600"
+          resources:
+            limits:
+              memory: "256Mi"
+              cpu: "1"
+            requests:
+              memory: "256Mi"
+              cpu: "1"
+      imagePullSecrets:
+        - name: lithops-regcred
 """
 
 
@@ -217,11 +218,7 @@ def load_config(config_data):
     if 'git_rev' not in config_data['knative']:
         revision = 'master' if 'dev' in __version__ else __version__
         config_data['knative']['git_rev'] = revision
-    if 'container_registry' not in config_data['knative']:
-        config_data['knative']['container_registry'] = CONTAINER_REGISTRY
 
-    if 'cpu' not in config_data['knative']:
-        config_data['knative']['cpu'] = RUNTIME_CPU
     if 'concurrency' not in config_data['knative']:
         config_data['knative']['concurrency'] = RUNTIME_CONCURRENCY
     if 'min_instances' not in config_data['knative']:
@@ -229,14 +226,19 @@ def load_config(config_data):
     if 'max_instances' not in config_data['knative']:
         config_data['knative']['max_instances'] = RUNTIME_MAX_INSTANCES
 
+    if 'runtime' in config_data['knative']:
+        config_data['serverless']['runtime'] = config_data['knative']['runtime']
+    if 'runtime_memory' in config_data['knative']:
+        config_data['serverless']['runtime_memory'] = config_data['knative']['runtime_memory']
+    if 'runtime_timeout' in config_data['knative']:
+        config_data['serverless']['runtime_timeout'] = config_data['knative']['runtime_timeout']
+
+    if 'runtime_cpu' not in config_data['knative']:
+        config_data['knative']['runtime_cpu'] = RUNTIME_CPU
     if 'runtime_memory' not in config_data['serverless']:
         config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY
     if 'runtime_timeout' not in config_data['serverless']:
         config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT
-
-    if 'runtime' in config_data['knative']:
-        config_data['serverless']['runtime'] = config_data['knative']['runtime']
-
     if 'runtime' not in config_data['serverless']:
         if not DOCKER_PATH:
             raise Exception('docker command not found. Install docker or use '
@@ -251,12 +253,6 @@ def load_config(config_data):
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         runtime_name = '{}/{}-v{}:{}'.format(docker_user, RUNTIME_NAME, python_version, revision)
         config_data['serverless']['runtime'] = runtime_name
-    else:
-        if config_data['serverless']['runtime'].count('/') > 1:
-            # container registry is in the provided runtime name
-            cr, rn = config_data['serverless']['runtime'].split('/', 1)
-            config_data['knative']['container_registry'] = cr
-            config_data['serverless']['runtime'] = rn
 
     if 'workers' not in config_data['lithops']:
         max_instances = config_data['knative']['max_instances']

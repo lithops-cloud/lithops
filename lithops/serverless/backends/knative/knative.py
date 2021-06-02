@@ -20,6 +20,7 @@ import sys
 import ssl
 import json
 import time
+import base64
 import yaml
 import urllib3
 import logging
@@ -27,12 +28,15 @@ import requests
 import http.client
 from urllib.parse import urlparse
 from kubernetes import client, config, watch
+from kubernetes.client.rest import ApiException
+
 from lithops.utils import version_str
 from lithops.version import __version__
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.constants import CACHE_DIR
 from lithops.utils import create_handler_zip
 from lithops.constants import COMPUTE_CLI_MSG
+
 from . import config as kconfig
 
 urllib3.disable_warnings()
@@ -47,6 +51,7 @@ class KnativeServingBackend:
 
     def __init__(self, knative_config, internal_storage):
         self.name = 'knative'
+        self.type = 'faas'
         self.knative_config = knative_config
         self.istio_endpoint = self.knative_config.get('istio_endpoint')
         self.kubecfg_path = self.knative_config.get('kubecfg_path')
@@ -71,12 +76,12 @@ class KnativeServingBackend:
         logger.debug("Set namespace to {}".format(self.namespace))
         logger.debug("Set cluster to {}".format(self.cluster))
 
-        self.api = client.CustomObjectsApi()
-        self.v1 = client.CoreV1Api()
+        self.custom_api = client.CustomObjectsApi()
+        self.core_api = client.CoreV1Api()
 
         if self.istio_endpoint is None:
             try:
-                ingress = self.v1.read_namespaced_service('istio-ingressgateway', 'istio-system')
+                ingress = self.core_api.read_namespaced_service('istio-ingressgateway', 'istio-system')
                 http_port = list(filter(lambda port: port.port == 80, ingress.spec.ports))[0].node_port
                 # https_port = list(filter(lambda port: port.port == 443, ingress.spec.ports))[0].node_port
 
@@ -85,7 +90,7 @@ class KnativeServingBackend:
                     ip = ingress.status.load_balancer.ingress[0].ip
                 else:
                     # for minikube or a baremetal cluster that has no external load balancer
-                    node = self.v1.list_node()
+                    node = self.core_api.list_node()
                     ip = node.items[0].status.addresses[0].address
 
                 if ip and http_port:
@@ -135,7 +140,7 @@ class KnativeServingBackend:
         """
         logger.debug('Getting service host for: {}'.format(service_name))
         try:
-            svc = self.api.get_namespaced_custom_object(
+            svc = self.custom_api.get_namespaced_custom_object(
                         group=kconfig.DEFAULT_GROUP,
                         version=kconfig.DEFAULT_VERSION,
                         name=service_name,
@@ -162,26 +167,30 @@ class KnativeServingBackend:
         """
         logger.debug("Creating Tekton account resources: Secret and ServiceAccount")
         string_data = {'username': self.knative_config['docker_user'],
-                       'password': self.knative_config['docker_token']}
+                       'password': self.knative_config['docker_password']}
         secret_res = yaml.safe_load(kconfig.secret_res)
         secret_res['stringData'] = string_data
 
-        if self.knative_config['container_registry'] != kconfig.CONTAINER_REGISTRY:
-            secret_res['metadata']['annotations']['tekton.dev/docker-0'] = self.knative_config['container_registry']
+        secret_res['metadata']['annotations']['tekton.dev/docker-0'] = "docker.io"
 
         account_res = yaml.safe_load(kconfig.account_res)
         secret_res_name = secret_res['metadata']['name']
         account_res_name = account_res['metadata']['name']
 
         try:
-            self.v1.delete_namespaced_secret(secret_res_name, self.namespace)
-            self.v1.delete_namespaced_service_account(account_res_name, self.namespace)
+            self.core_api.delete_namespaced_secret(secret_res_name, self.namespace)
         except Exception:
             # account resource Not Found - Not deleted
             pass
 
-        self.v1.create_namespaced_secret(self.namespace, secret_res)
-        self.v1.create_namespaced_service_account(self.namespace, account_res)
+        try:
+            self.core_api.delete_namespaced_service_account(account_res_name, self.namespace)
+        except Exception:
+            # account resource Not Found - Not deleted
+            pass
+
+        self.core_api.create_namespaced_secret(self.namespace, secret_res)
+        self.core_api.create_namespaced_service_account(self.namespace, account_res)
 
     def _create_build_resources(self):
         logger.debug("Creating Tekton build resources: PipelineResource and Task")
@@ -200,7 +209,7 @@ class KnativeServingBackend:
         logger.debug('Setting git rev to: {}'.format(self.knative_config['git_rev']))
 
         try:
-            self.api.delete_namespaced_custom_object(
+            self.custom_api.delete_namespaced_custom_object(
                     group="tekton.dev",
                     version="v1alpha1",
                     name=task_name,
@@ -213,7 +222,7 @@ class KnativeServingBackend:
             pass
 
         try:
-            self.api.delete_namespaced_custom_object(
+            self.custom_api.delete_namespaced_custom_object(
                     group="tekton.dev",
                     version="v1alpha1",
                     name=git_res_name,
@@ -225,7 +234,7 @@ class KnativeServingBackend:
             # ksvc resource Not Found - Not deleted
             pass
 
-        self.api.create_namespaced_custom_object(
+        self.custom_api.create_namespaced_custom_object(
                 group="tekton.dev",
                 version="v1alpha1",
                 namespace=self.namespace,
@@ -233,7 +242,7 @@ class KnativeServingBackend:
                 body=git_res
             )
 
-        self.api.create_namespaced_custom_object(
+        self.custom_api.create_namespaced_custom_object(
                 group="tekton.dev",
                 version="v1alpha1",
                 namespace=self.namespace,
@@ -245,9 +254,16 @@ class KnativeServingBackend:
         """
         Builds the default runtime and pushes it to the docker container registry
         """
-        image_name, revision = docker_image_name.split(':')
+        if docker_image_name.count('/') > 1:
+            # container registry is in the provided runtime name
+            cr, rn = docker_image_name.split('/', 1)
+        else:
+            cr = 'docker.io'
+            rn = docker_image_name
 
-        if self.knative_config['container_registry'] == 'docker.io' and revision != 'latest':
+        image_name, revision = rn.split(':')
+
+        if cr == 'docker.io' and revision != 'latest':
             resp = requests.get('https://index.docker.io/v1/repositories/{}/tags/{}'
                                 .format(docker_image_name, revision))
             if resp.status_code == 200:
@@ -257,8 +273,8 @@ class KnativeServingBackend:
 
         logger.debug("Building default Lithops runtime from git with Tekton")
 
-        if not {"docker_user", "docker_token"} <= set(self.knative_config):
-            raise Exception("You must provide 'docker_user' and 'docker_token'"
+        if not all(key in self.knative_config for key in ["docker_user", "docker_password"]):
+            raise Exception("You must provide 'docker_user' and 'docker_password'"
                             " to build the default runtime")
 
         task_run = yaml.safe_load(kconfig.task_run)
@@ -268,7 +284,7 @@ class KnativeServingBackend:
                               'value': 'lithops/compute/backends/knative/tekton/Dockerfile.python{}'.format(python_version)}
         task_run['spec']['inputs']['params'].append(path_to_dockerfile)
         image_url = {'name': 'imageUrl',
-                     'value': '/'.join([self.knative_config['container_registry'], image_name])}
+                     'value': '/'.join([cr, image_name])}
         task_run['spec']['inputs']['params'].append(image_url)
         image_tag = {'name': 'imageTag',
                      'value':  revision}
@@ -279,7 +295,7 @@ class KnativeServingBackend:
 
         task_run_name = task_run['metadata']['name']
         try:
-            self.api.delete_namespaced_custom_object(
+            self.custom_api.delete_namespaced_custom_object(
                     group="tekton.dev",
                     version="v1alpha1",
                     name=task_run_name,
@@ -290,7 +306,7 @@ class KnativeServingBackend:
         except Exception:
             pass
 
-        self.api.create_namespaced_custom_object(
+        self.custom_api.create_namespaced_custom_object(
                     group="tekton.dev",
                     version="v1alpha1",
                     namespace=self.namespace,
@@ -301,7 +317,7 @@ class KnativeServingBackend:
         logger.debug("Building runtime...")
         pod_name = None
         w = watch.Watch()
-        for event in w.stream(self.api.list_namespaced_custom_object, namespace=self.namespace,
+        for event in w.stream(self.custom_api.list_namespaced_custom_object, namespace=self.namespace,
                               group="tekton.dev", version="v1alpha1", plural="taskruns",
                               field_selector="metadata.name={0}".format(task_run_name)):
             if event['object'].get('status'):
@@ -312,7 +328,7 @@ class KnativeServingBackend:
             raise Exception('Unable to get the pod name from the task that is building the runtime')
 
         w = watch.Watch()
-        for event in w.stream(self.v1.list_namespaced_pod, namespace=self.namespace,
+        for event in w.stream(self.core_api.list_namespaced_pod, namespace=self.namespace,
                               field_selector="metadata.name={0}".format(pod_name)):
             if event['object'].status.phase == "Succeeded":
                 w.stop()
@@ -321,14 +337,15 @@ class KnativeServingBackend:
                 logger.debug('Something went wrong building the default Lithops runtime with Tekton')
                 for container in event['object'].status.container_statuses:
                     if container.state.terminated.reason == 'Error':
-                        logs = self.v1.read_namespaced_pod_log(name=pod_name,
-                                                               container=container.name,
-                                                               namespace=self.namespace)
+                        logs = self.core_api.read_namespaced_pod_log(
+                                    name=pod_name,
+                                    container=container.name,
+                                    namespace=self.namespace)
                         logger.debug("Tekton container '{}' failed: {}".format(container.name, logs.strip()))
 
                 raise Exception('Unable to build the default Lithops runtime with Tekton')
 
-        self.api.delete_namespaced_custom_object(
+        self.custom_api.delete_namespaced_custom_object(
                     group="tekton.dev",
                     version="v1alpha1",
                     name=task_run_name,
@@ -356,6 +373,53 @@ class KnativeServingBackend:
             # Build default runtime using Tekton
             self._build_default_runtime_from_git(default_runtime_img_name)
 
+    def _create_container_registry_secret(self):
+        """
+        Create the container registry secret in the cluster
+        (only if credentials are present in config)
+        """
+        if not all(key in self.knative_config for key in ["docker_user", "docker_password"]):
+            return
+
+        logger.debug('Creating container registry secret')
+        docker_server = self.knative_config.get('docker_server', 'https://index.docker.io/v1/')
+        docker_user = self.knative_config.get('docker_user')
+        docker_password = self.knative_config.get('docker_password')
+
+        cred_payload = {
+            "auths": {
+                docker_server: {
+                    "Username": docker_user,
+                    "Password": docker_password
+                }
+            }
+        }
+
+        data = {
+            ".dockerconfigjson": base64.b64encode(
+                json.dumps(cred_payload).encode()
+            ).decode()
+        }
+
+        secret = client.V1Secret(
+            api_version="v1",
+            data=data,
+            kind="Secret",
+            metadata=dict(name="lithops-regcred", namespace=self.namespace),
+            type="kubernetes.io/dockerconfigjson",
+        )
+
+        try:
+            self.coreV1Api.delete_namespaced_secret("lithops-regcred", self.namespace)
+        except ApiException as e:
+            pass
+
+        try:
+            self.coreV1Api.create_namespaced_secret(self.namespace, secret)
+        except ApiException as e:
+            if e.status != 409:
+                raise e
+
     def _create_service(self, docker_image_name, runtime_memory, timeout):
         """
         Creates a service in knative based on the docker_image_name and the memory provided
@@ -373,16 +437,14 @@ class KnativeServingBackend:
         svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
         svc_res['spec']['template']['spec']['containerConcurrency'] = self.knative_config['concurrency']
 
-        full_docker_image_name = '/'.join([self.knative_config['container_registry'], docker_image_name])
-        svc_res['spec']['template']['spec']['containers'][0]['image'] = full_docker_image_name
-        conc_env = {'name': 'CONCURRENCY', 'value': str(self.knative_config['concurrency'])}
-        tout_env = {'name': 'TIMEOUT', 'value': str(timeout)}
-        svc_res['spec']['template']['spec']['containers'][0]['env'][0] = conc_env
-        svc_res['spec']['template']['spec']['containers'][0]['env'][1] = tout_env
-        svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['memory'] = '{}Mi'.format(runtime_memory)
-        svc_res['spec']['template']['spec']['containers'][0]['resources']['limits']['cpu'] = str(self.knative_config['cpu'])
-        svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory)
-        svc_res['spec']['template']['spec']['containers'][0]['resources']['requests']['cpu'] = str(self.knative_config['cpu'])
+        container = svc_res['spec']['template']['spec']['containers'][0]
+        container['image'] = docker_image_name
+        container['env'][0] = {'name': 'CONCURRENCY', 'value': str(self.knative_config['concurrency'])}
+        container['env'][1] = {'name': 'TIMEOUT', 'value': str(timeout)}
+        container['resources']['limits']['memory'] = '{}Mi'.format(runtime_memory)
+        container['resources']['limits']['cpu'] = str(self.knative_config['runtime_cpu'])
+        container['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory)
+        container['resources']['requests']['cpu'] = str(self.knative_config['runtime_cpu'])
 
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/minScale'] = str(self.knative_config['min_instances'])
         svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = str(self.knative_config['max_instances'])
@@ -390,7 +452,7 @@ class KnativeServingBackend:
 
         try:
             # delete the service resource if exists
-            self.api.delete_namespaced_custom_object(
+            self.custom_api.delete_namespaced_custom_object(
                     group=kconfig.DEFAULT_GROUP,
                     version=kconfig.DEFAULT_VERSION,
                     name=service_name,
@@ -403,7 +465,7 @@ class KnativeServingBackend:
             pass
 
         # create the service resource
-        self.api.create_namespaced_custom_object(
+        self.custom_api.create_namespaced_custom_object(
                 group=kconfig.DEFAULT_GROUP,
                 version=kconfig.DEFAULT_VERSION,
                 namespace=self.namespace,
@@ -412,7 +474,7 @@ class KnativeServingBackend:
             )
 
         w = watch.Watch()
-        for event in w.stream(self.api.list_namespaced_custom_object,
+        for event in w.stream(self.custom_api.list_namespaced_custom_object,
                               namespace=self.namespace, group=kconfig.DEFAULT_GROUP,
                               version=kconfig.DEFAULT_VERSION, plural="services",
                               field_selector="metadata.name={0}".format(service_name),
@@ -471,6 +533,7 @@ class KnativeServingBackend:
             docker_image_name = default_runtime_img_name
             self._build_default_runtime(default_runtime_img_name)
 
+        self._create_container_registry_secret()
         self._create_service(docker_image_name, memory, timeout)
         runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
 
@@ -524,7 +587,7 @@ class KnativeServingBackend:
         service_name = self._format_service_name(docker_image_name, memory)
         logger.info('Deleting runtime: {}'.format(service_name))
         try:
-            self.api.delete_namespaced_custom_object(
+            self.custom_api.delete_namespaced_custom_object(
                     group=kconfig.DEFAULT_GROUP,
                     version=kconfig.DEFAULT_VERSION,
                     name=service_name,
@@ -548,7 +611,7 @@ class KnativeServingBackend:
         List all the runtimes deployed in knative
         return: list of tuples [docker_image_name, memory]
         """
-        knative_services = self.api.list_namespaced_custom_object(
+        knative_services = self.custom_api.list_namespaced_custom_object(
                                 group=kconfig.DEFAULT_GROUP,
                                 version=kconfig.DEFAULT_VERSION,
                                 namespace=self.namespace,
