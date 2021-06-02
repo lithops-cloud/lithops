@@ -203,6 +203,9 @@ class CloudProcess:
         finally:
             if self._remote_logger:
                 self._remote_logger.stop()
+
+            util.export_execution_details([self._future], self._executor)
+
             if exception:
                 raise exception
 

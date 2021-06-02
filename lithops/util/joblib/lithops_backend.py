@@ -1,5 +1,5 @@
 #
-# (C) Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2021
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,44 +17,23 @@
 import os
 import gc
 import logging
-from numpy import ndarray
+import pickle
+import diskcache
 
 from joblib._parallel_backends import ParallelBackendBase, PoolManagerMixin
+from joblib.parallel import register_parallel_backend
+from numpy import ndarray
+from concurrent.futures import ThreadPoolExecutor
 
-from lithops.multiprocessing import Pool, Manager
-from lithops.multiprocessing.managers import _builtin_types
-from lithops.storage.cloud_proxy import os as cloudfs
-from lithops.multiprocessing.managers import SyncManager, BaseProxy
+from lithops.multiprocessing import Pool
+from lithops.storage import Storage
 
 logger = logging.getLogger(__name__)
 
 
-class CloudValueProxy(BaseProxy):
-    def __init__(self, typecode='Any', value=None, lock=True):
-        super().__init__('CloudValue({})'.format(typecode))
-        if value is not None:
-            self.set(value)
-
-        cloudfs.delete = lambda *x: [cloudfs.remove(path=xi) for xi in x]
-        # Override redis client with a storage client
-        self._client = self._ref._client = cloudfs
-        self._ref.managed = True
-
-    def get(self):
-        with self._client.open(self._oid, 'rb') as obj:
-            serialized = obj.read()
-            return self._pickler.loads(serialized)
-
-    def set(self, value):
-        with self._client.open(self._oid, 'wb') as obj:
-            serialized = self._pickler.dumps(value)
-            obj.write(serialized)
-
-    value = property(get, set)
-
-
-_builtin_types.add('CloudValue')
-SyncManager.register('CloudValue', CloudValueProxy)
+def register_lithops():
+    """ Register Lithops Backend to be called with parallel_backend("lithops"). """
+    register_parallel_backend("lithops", LithopsBackend)
 
 
 class LithopsBackend(ParallelBackendBase, PoolManagerMixin):
@@ -103,7 +82,7 @@ class LithopsBackend(ParallelBackendBase, PoolManagerMixin):
 
         # Make sure to free as much memory as possible before forking
         gc.collect()
-        self._pool = Pool(**self.__pool_kwargs)
+        self._pool = Pool()
         self.parallel = parallel
 
         return n_jobs
@@ -119,19 +98,13 @@ class LithopsBackend(ParallelBackendBase, PoolManagerMixin):
 
     def apply_async(self, func, callback=None):
         """Schedule a func to be run"""
-        #return self._get_pool().map_async(handle_call, func.items, callback=callback) # bypass
+        # return self._get_pool().map_async(handle_call, func.items, callback=callback) # bypass
 
-        manager = Manager()
-        manager.start()
-        mem_opt_calls = find_shared_objects(func.items, manager)
-
-        return self._get_pool().starmap_async(
-            handle_call,
-            mem_opt_calls,
-            callback=Then(callback, manager.shutdown))
+        mem_opt_calls = find_shared_objects(func.items)
+        return self._get_pool().starmap_async(handle_call, mem_opt_calls)
 
 
-def find_shared_objects(calls, manager):
+def find_shared_objects(calls):
     # find and annotate repeated arguments
     record = {}
     for i, call in enumerate(calls):
@@ -151,29 +124,37 @@ def find_shared_objects(calls, manager):
     # store it in shared memory, pass a proxy as a value
     calls = [list(item) for item in calls]
 
-    for positions in record.values():
+    storage = Storage()
+    thread_pool = ThreadPoolExecutor(max_workers=len(record))
+
+    def put_arg_obj(positions):
         obj = positions.pop(0)
         if len(positions) > 1 and consider_sharing(obj):
-            #shared_object = manager.Value(obj.__class__.__name__) # redis
-            shared_object = manager.CloudValue(obj.__class__.__name__)
-            logger.debug('proxying: ' + repr(shared_object))
-            shared_object.value = obj
+            logger.debug('Proxying {}'.format(type(obj)))
+            obj_bin = pickle.dumps(obj)
+            cloud_object = storage.put_cloudobject(obj_bin)
 
             for pos in positions:
                 call_n, idx_or_key = pos
                 call = calls[call_n]
 
                 if isinstance(idx_or_key, str):
-                    call[2][idx_or_key] = shared_object
+                    call[2][idx_or_key] = cloud_object
                 else:
                     args_as_list = list(call[1])
-                    args_as_list[idx_or_key] = shared_object
+                    args_as_list[idx_or_key] = cloud_object
                     call[1] = tuple(args_as_list)
 
                 try:
                     call[3].append(idx_or_key)
                 except IndexError:
                     call.append([idx_or_key])
+
+    fut = []
+    for positions in record.values():
+        f = thread_pool.submit(put_arg_obj, positions)
+        fut.append(f)
+    [f.result() for f in fut]
 
     return [tuple(item) for item in calls]
 
@@ -187,25 +168,39 @@ def handle_call(func, args, kwargs, proxy_positions=[]):
 
 def replace_with_values(args, kwargs, proxy_positions):
     args_as_list = list(args)
-    for idx_or_key in proxy_positions:
+    thread_pool = ThreadPoolExecutor(max_workers=len(proxy_positions))
+    cache = diskcache.Cache('/tmp/lithops/cache')
+
+    def get_arg_obj(idx_or_key):
         if isinstance(idx_or_key, str):
-            kwargs[idx_or_key] = kwargs[idx_or_key].value
+            obj_id = kwargs[idx_or_key]
         else:
-            args_as_list[idx_or_key] = args_as_list[idx_or_key].value
+            obj_id = args_as_list[idx_or_key]
+
+        if obj_id in cache:
+            logger.debug('Get {} (arg {}) from cache'.format(obj_id, idx_or_key))
+            obj = cache[obj_id]
+        else:
+            logger.debug('Get {} (arg {}) from storage'.format(obj_id, idx_or_key))
+            storage = Storage()
+            obj_bin = storage.get_cloudobject(obj_id)
+            obj = pickle.loads(obj_bin)
+            cache[obj_id] = obj
+
+        if isinstance(idx_or_key, str):
+            kwargs[idx_or_key] = obj
+        else:
+            args_as_list[idx_or_key] = obj
+
+    fut = []
+    for idx_or_key in proxy_positions:
+        f = thread_pool.submit(get_arg_obj, idx_or_key)
+        fut.append(f)
+    [f.result() for f in fut]
     return args_as_list, kwargs
 
 
 def consider_sharing(obj):
-    if isinstance(obj, (ndarray, list)):    #TODO: some heuristic
+    if isinstance(obj, (ndarray, list)):  # TODO: some heuristic
         return True
     return False
-
-
-class Then:
-    def __init__(self, func, then):
-        self.func = func
-        self.then = then
-
-    def __call__(self, *args, **kwargs):
-        self.func(*args, **kwargs)
-        self.then()

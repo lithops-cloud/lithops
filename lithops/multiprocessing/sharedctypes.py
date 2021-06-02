@@ -100,17 +100,34 @@ class SynchronizedValueProxy(RawValueProxy, SynchronizedSharedCTypeProxy):
 class RawArrayProxy(SharedCTypeProxy):
     def __init__(self, ctype, *args, **kwargs):
         super().__init__(ctype)
+        self._it = 0
 
     def _append(self, value):
         obj = cloudpickle.dumps(value)
         self._client.rpush(self._oid, obj)
 
+    def _extend(self, arr):
+        objs = [cloudpickle.dumps(obj) for obj in arr]
+        self._client.rpush(self._oid, *objs)
+
     def __len__(self):
         return self._client.llen(self._oid)
+
+    def __iter__(self):
+        self._it = 0
+        return self
+
+    def __next__(self):
+        if self._it >= self.__len__():
+            raise StopIteration()
+        elem = self.__getitem__(self._it)
+        self._it += 1
+        return elem
 
     def __getitem__(self, i):
         if isinstance(i, slice):
             start, stop, step = i.indices(self.__len__())
+            stop -= 1
             logger.debug('Requested get list slice from %i to %i', start, stop)
             objl = self._client.lrange(self._oid, start, stop)
             self._client.expire(self._oid, mp_config.get_parameter(mp_config.REDIS_EXPIRY_TIME))
@@ -123,8 +140,12 @@ class RawArrayProxy(SharedCTypeProxy):
     def __setitem__(self, i, value):
         if isinstance(i, slice):
             start, stop, step = i.indices(self.__len__())
+            logger.debug('Requested set slice from %i to %i', start, stop)
+            pipeline = self._client.pipeline()
             for i, val in enumerate(value):
-                self[i + start] = val
+                obj = cloudpickle.dumps(val)
+                pipeline.lset(self._oid, i + start, obj)
+            pipeline.execute()
         else:
             obj = cloudpickle.dumps(value)
             logger.debug('Requested set list index %i of size %i B', i, len(obj))
@@ -237,8 +258,7 @@ def Array(typecode_or_type, size_or_initializer, *, lock=True, ctx=None):
         obj = SynchronizedArrayProxy(type_)
 
     if isinstance(size_or_initializer, list) or isinstance(size_or_initializer, bytes):
-        for elem in size_or_initializer:
-            obj._append(elem)
+        obj._extend(size_or_initializer)
     elif isinstance(size_or_initializer, int):
         for _ in range(size_or_initializer):
             obj._append(0)
