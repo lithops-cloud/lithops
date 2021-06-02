@@ -9,9 +9,12 @@
 - [k8s] Allow private container registries
 - [knative] Allow private container registries
 - [Localhost] Allow the partitioner to process local files
+- [joblib] Added `joblib` entry in extras_require for joblib backend dependencies
 
 ### Changed
 - [CE] CPU and memory values must match predefined flavors
+- [multiprocessing] Improved nanomsg Pipe implementation
+- [joblib] Optimized joblib backend (concurrent args data upload/download)
 
 ### Fixes
 - [Core] Clear only present jobs instead of all after wait() or get_result()
