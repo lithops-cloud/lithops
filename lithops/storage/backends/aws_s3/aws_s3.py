@@ -63,7 +63,6 @@ class S3Backend:
             t0 = time.time()
             res = self.s3_client.put_object(Bucket=bucket_name, Key=key, Body=data)
             t1 = time.time()
-            logger.debug('S3 Put object - {} - {} - {} - {}'.format(t0, t1, t1 - t0, len(data)))
             status = 'OK' if res['ResponseMetadata']['HTTPStatusCode'] == 200 else 'Error'
             try:
                 logger.debug('PUT Object {} - Size: {} - {}'.format(key, len(data), status))
@@ -90,7 +89,6 @@ class S3Backend:
                 data = r['Body']
             else:
                 data = r['Body'].read()
-                logger.debug('S3 Get object - {} - {} - {} - {}'.format(t0, t1, t1 - t0, len(data)))
             return data
         except botocore.exceptions.ClientError as e:
             if e.response['Error']['Code'] == 'NoSuchKey':

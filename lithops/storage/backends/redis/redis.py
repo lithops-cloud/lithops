@@ -74,7 +74,6 @@ class RedisBackend:
         t0 = time.time()
         pipeline.execute()
         t1 = time.time()
-        logger.debug('Redis Put object - {} - {} - {} - {}'.format(t0, t1, t1 - t0, len(data)))
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
         """
@@ -102,7 +101,6 @@ class RedisBackend:
         if data is None:
             raise StorageNoSuchKeyError(bucket_name, key)
 
-        logger.debug('Redis Get object - {} - {} - {} - {}'.format(t0, t1, t1 - t0, len(data)))
         if stream:
             return io.BytesIO(data)
         else:

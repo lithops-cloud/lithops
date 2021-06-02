@@ -345,13 +345,13 @@ class _RedisConnection(_ConnectionBase):
         t0 = time.time()
         self._write(self._subhandle, buf)
         t1 = time.time()
-        logger.debug('Redis Pipe send - {} - {} - {} - {}'.format(t0, t1, t1 - t0, len(buf)))
+        # logger.debug('Redis Pipe send - {} - {} - {} - {}'.format(t0, t1, t1 - t0, len(buf)))
 
     def _recv_bytes(self, maxsize=None):
         t0 = time.time()
         msg = self._read(self._handle)
         t1 = time.time()
-        logger.debug('Redis Pipe recv - {} - {} - {} - {}'.format(t0, t1, t1 - t0, len(msg)))
+        # logger.debug('Redis Pipe recv - {} - {} - {} - {}'.format(t0, t1, t1 - t0, len(msg)))
         return msg
 
     def _poll(self, timeout):
@@ -403,7 +403,7 @@ class _NanomsgConnection(_ConnectionBase):
         while True:
             try:
                 msg = self._rep.recv()
-                logger.debug('Message received of size %i B', len(msg))
+                # logger.debug('Message received of size %i B', len(msg))
             except pynng.exceptions.Closed:
                 break
             self._buff.put(msg)
@@ -459,7 +459,7 @@ class _NanomsgConnection(_ConnectionBase):
             self._subhandle_addr = addr.decode('utf-8')
             logger.debug('Dialing %s', self._subhandle_addr)
             self._req.dial(self._subhandle_addr)
-        logger.debug('Send %i B to %s', len(buf), self._subhandle_addr)
+        # logger.debug('Send %i B to %s', len(buf), self._subhandle_addr)
         self._req.send(buf)
         res = self._req.recv()
         # logger.debug(res)
