@@ -18,6 +18,7 @@
 
 ### Fixes
 - [Core] Clear only present jobs instead of all after wait() or get_result()
+- [multiprocessing] Fix put/get slice to/from mp.Array or mp.RawArray
 
 
 ## [v2.3.3]
