@@ -133,8 +133,6 @@ def find_shared_objects(calls):
             logger.debug('Proxying {}'.format(type(obj)))
             obj_bin = pickle.dumps(obj)
             cloud_object = storage.put_cloudobject(obj_bin)
-            import time
-            time.sleep(1)
 
             for pos in positions:
                 call_n, idx_or_key = pos
