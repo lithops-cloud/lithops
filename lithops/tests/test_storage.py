@@ -57,6 +57,7 @@ class TestStorage(unittest.TestCase):
         fexec.map_reduce(my_map_function_storage, iterdata,
                          my_reduce_function)
         result = fexec.get_result()
+
         self.assertNotEqual(result, self.__class__.words_in_cos_files)
 
     def test_cloudobject(self):
