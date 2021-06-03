@@ -1,4 +1,4 @@
-name: "Push or PR git-action"
+name: "Push or PR git-action "
 
 on:
   push:
