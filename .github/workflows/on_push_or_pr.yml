@@ -1,9 +1,9 @@
-name: "Push or PR git-action "
+name: "Push or PR git-action"
 
 on:
   push:
-  branches:
-    - master
+    branches:
+      - master
     paths-ignore:
       - '**/**.md'
   pull_request:
