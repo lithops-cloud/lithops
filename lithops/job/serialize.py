@@ -169,10 +169,13 @@ class SerializeIndependent:
         get interesting modules refernced within an object
         """
         if inst.opname == "IMPORT_NAME":
-            path = inst.argval.split(".")
-            path[0] = [import_module(path[0])]
-            result = reduce(lambda x, a: x + [getattr(x[-1], a)], path)
-            return ("modules", result)
+            try:
+                path = inst.argval.split(".")
+                path[0] = [import_module(path[0])]
+                result = reduce(lambda x, a: x + [getattr(x[-1], a)], path)
+                return ("modules", result)
+            except Exception:
+                return None
         if inst.opname == "LOAD_GLOBAL":
             if inst.argval in globals() and type(globals()[inst.argval]) in [CodeType, FunctionType]:
                 return ("code", globals()[inst.argval])
