@@ -43,4 +43,9 @@ jobs:
          lithops runtime build cohenjomer/lithops-ce-user:234dev2 -b code_engine
 
       - name: Run Python tests
-        run: python3 -m lithops.tests.tests_main -t test_map -c lithops/tests/lithops_config.yaml
+        run: |
+        #python3 -m lithops.tests.tests_main -t test_map -c lithops/tests/lithops_config.yaml
+        python3 -m lithops.tests.tests_main -t test_storage_handler -c lithops/tests/lithops_config.yaml
+        python3 -m lithops.tests.tests_main -t test_internal_executions -c lithops/tests/lithops_config.yaml
+
+
