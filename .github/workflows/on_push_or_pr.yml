@@ -2,10 +2,10 @@ name: "Push or PR git-action"
 
 on:
   push:
-  branches:
-    - master
-  paths-ignore:
-    - '**/**.md'
+    branches:
+      - master
+    paths-ignore:
+      - '**/**.md'
   pull_request:
     branches:
       - master
@@ -46,6 +46,6 @@ jobs:
         run: |
           #python3 -m lithops.tests.tests_main -t test_map -c lithops/tests/lithops_config.yaml
           python3 -m lithops.tests.tests_main -t test_storage_handler -c lithops/tests/lithops_config.yaml
-          python3 -m lithops.tests.tests_main -t test_internal_executions -c lithops/tests/lithops_config.yaml
+          #python3 -m lithops.tests.tests_main -t test_internal_executions -c lithops/tests/lithops_config.yaml
 
 
