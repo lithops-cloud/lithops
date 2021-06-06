@@ -40,7 +40,7 @@ PREFIX = '__lithops.test'
 DATASET_PREFIX = PREFIX + '/dataset'
 TEST_FILES_URLS = ["https://www.gutenberg.org/files/60/60-0.txt",
                    "https://www.gutenberg.org/files/215/215-0.txt",
-                   "https://www.gutenberg.org/cache/epub/18464/pg18464.txt"]
+                   "https://www.gutenberg.org/files/2892/2892-0.txt"]
 logger = logging.getLogger(__name__)
 
 
@@ -118,6 +118,7 @@ def upload_data_sets():
         results = list(pool.map(up, enumerate(TEST_FILES_URLS)))
     result_to_compare = sum(results)
     return result_to_compare
+
 
 def run_tests(test_to_run, config=None, mode=None, group=None, backend=None, storage=None):
     global CONFIG, STORAGE_CONFIG, STORAGE
