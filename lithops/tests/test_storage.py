@@ -50,6 +50,11 @@ class TestStorage(unittest.TestCase):
     def setUp(cls):
         print('\n-------------------------------------------------------------\n')
 
+
+    def test_01(self):
+        print("in test_01")
+        self.assertEqual(1,2)
+
     def test_storage_handler(self):
         logger.info('Testing "storage" function arg')
         iterdata = [(key, STORAGE_CONFIG['bucket']) for key in list_dataset_keys(STORAGE, STORAGE_CONFIG)]
