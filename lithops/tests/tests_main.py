@@ -209,7 +209,7 @@ if __name__ == '__main__':
     if args.test == 'help':
         print_test_functions()
     else:
-        run_tests(args.test, args.config, args.mode, args.backend, args.storage)
+        run_tests(args.test, args.config, args.group, args.mode, args.backend, args.storage)
 
 # global TEST_CLASSES
 #
