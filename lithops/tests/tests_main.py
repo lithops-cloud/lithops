@@ -119,7 +119,6 @@ def upload_data_sets():
     result_to_compare = sum(results)
     return result_to_compare
 
-
 def run_tests(test_to_run, config=None, mode=None, group=None, backend=None, storage=None):
     global CONFIG, STORAGE_CONFIG, STORAGE
     test_found = False
@@ -138,10 +137,13 @@ def run_tests(test_to_run, config=None, mode=None, group=None, backend=None, sto
     suite = unittest.TestSuite()
 
     if group:
-        if group not in TEST_GROUPS:
+        groups_list = group.split(',')
+        if all(test_group in TEST_GROUPS for test_group in groups_list):
+            for test_group in groups_list:
+                suite.addTest(unittest.makeSuite(TEST_GROUPS[test_group]))
+        else:
             print('unknown test group, use: "test -g help" to get a list of the available test groups')
             sys.exit()
-        suite.addTest(unittest.makeSuite(TEST_GROUPS[group]))
 
     elif test_to_run == 'all':
         for tester in TEST_GROUPS.values():
@@ -166,8 +168,12 @@ def run_tests(test_to_run, config=None, mode=None, group=None, backend=None, sto
     words_in_data_set = upload_data_sets()
     main_util.init_config(CONFIG, STORAGE, STORAGE_CONFIG, words_in_data_set, TEST_FILES_URLS)
     runner = unittest.TextTestRunner(verbosity=2)
-    runner.run(suite)
-    clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)  # removes test files previously uploaded to your storage
+    tests_results = runner.run(suite)
+
+    if not tests_results.wasSuccessful():
+        raise Exception("--------Test procedure failed. Abort merge--------")
+
+    clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)  # removes test files previously uploaded to storage
 
 
 if __name__ == '__main__':
@@ -202,7 +208,7 @@ if __name__ == '__main__':
     if args.test == 'help':
         print_test_functions()
     else:
-        run_tests(args.test, args.config, args.mode, args.backend, args.storage)
+        run_tests(args.test, args.config, args.mode, args.group, args.backend, args.storage)
 
 # global TEST_CLASSES
 #
