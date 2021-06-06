@@ -119,7 +119,6 @@ def upload_data_sets():
     result_to_compare = sum(results)
     return result_to_compare
 
-
 def run_tests(test_to_run, config=None, mode=None, group=None, backend=None, storage=None):
     global CONFIG, STORAGE_CONFIG, STORAGE
     test_found = False
@@ -209,7 +208,7 @@ if __name__ == '__main__':
     if args.test == 'help':
         print_test_functions()
     else:
-        run_tests(args.test, args.config, args.group, args.mode, args.backend, args.storage)
+        run_tests(args.test, args.config, args.mode, args.group, args.backend, args.storage)
 
 # global TEST_CLASSES
 #
