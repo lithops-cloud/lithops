@@ -69,10 +69,10 @@ def my_map_function_obj(obj, id):
     return counter
 
 
-def my_map_function_url(url):
-    print('I am processing the object from {}'.format(url.path))
+def my_map_function_url(obj):
+    print('I am processing the object from {}'.format(obj.path))
     counter = {}
-    data = url.data_stream.read()
+    data = obj.data_stream.read()
     for line in data.splitlines():
         for word in line.decode('utf-8').split():
             if word not in counter:
