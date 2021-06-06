@@ -64,6 +64,10 @@ class TestFeatureName(unittest.TestCase):  # Mandatory,unittest test classes are
 
 # ------------------------------------ Incorporate your test function here ---------------------------------------------
 
+    def test_01(self):
+        print("in test_01")
+        self.assertEqual(1,2)
+
     # def test_tester_name(self):  # unittest's function naming convention requires functions to be named as demonstrated.
     #     """A simple test function using memory against a lithop's map function."""
     #
