@@ -1,6 +1,17 @@
 # Changelog
 
-## [v2.3.4.dev0]
+## [v2.3.5.dev0]
+
+### Added
+- 
+
+### Changed
+- 
+
+### Fixes
+- 
+
+## [v2.3.4]
 
 ### Added
 - [Core] Allow to execute a Class as lithops function
@@ -17,6 +28,7 @@
 - [joblib] Optimized joblib backend (concurrent args data upload/download)
 
 ### Fixes
+- [Core] Fixed module analyzer
 - [Core] Clear only present jobs instead of all after wait() or get_result()
 - [multiprocessing] Fix put/get slice to/from mp.Array or mp.RawArray
 

@@ -59,7 +59,7 @@ Storage Backends
 <tr>
 <td>
 
-- [Remote Virtual Machine](compute/remote_vm.md)
+- [Remote Virtual Machine](compute/vm.md)
 - [IBM Virtual Private Cloud](compute/ibm_vpc.md)
 
 </td>

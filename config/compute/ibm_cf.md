@@ -29,7 +29,7 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
 
 10. Copy the "current namespace" name and the API key.
 
-11. Navigate [here](https://cloud.ibm.com/docs/openwhisk?topic=openwhisk-cloudfunctions_regions#cloud-functions-endpoints) and copy your functions endpoint. It must be in the same region where you created the namespace.
+11. Navigate [here](https://cloud.ibm.com/docs/openwhisk?topic=openwhisk-cloudfunctions_regions#cloudfunctions_endpoints) and copy your functions endpoint. It must be in the same region where you created the namespace.
 
 12. Edit your lithops config and add the following keys:
     ```yaml
