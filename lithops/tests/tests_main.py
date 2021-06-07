@@ -120,7 +120,7 @@ def upload_data_sets():
     return result_to_compare
 
 
-def config_suit(suite, tests, groups):
+def config_suite(suite, tests, groups):
     """ Loads tests into unittest's test-suite according to input.  """
 
     if groups:  # user specified the name(s) of a test group(s)
