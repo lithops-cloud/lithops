@@ -72,7 +72,7 @@ class Invoker:
 
         self.workers = self.config['lithops'].get('workers')
         if self.workers:
-            logger.debug('ExecutorID {} - Total available workers: {}'
+            logger.debug('ExecutorID {} - Total workers: {}'
                          .format(self.executor_id, self.workers))
 
         prom_enabled = self.config['lithops'].get('telemetry', False)
@@ -217,7 +217,7 @@ class BatchInvoker(Invoker):
         payload['call_ids'] = ["{:05d}".format(i) for i in range(job.total_calls)]
 
         start = time.time()
-        activation_id = self.compute_handler.invoke(payload)
+        activation_id = self.compute_handler.invoke(payload, self.workers)
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 

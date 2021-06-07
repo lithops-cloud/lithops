@@ -59,7 +59,7 @@ class TestMapReduce(unittest.TestCase):
     def test_map_reduce_obj_bucket(self):
         logger.info('Testing map_reduce() over a bucket')
         sb = STORAGE_CONFIG['backend']
-        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
+        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + DATASET_PREFIX + '/'
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map_reduce(my_map_function_obj, data_prefix,
                          my_reduce_function)
@@ -69,7 +69,7 @@ class TestMapReduce(unittest.TestCase):
     def test_map_reduce_obj_bucket_one_reducer_per_object(self):
         logger.info('Testing map_reduce() over a bucket with one reducer per object')
         sb = STORAGE_CONFIG['backend']
-        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
+        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + DATASET_PREFIX + '/'
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map_reduce(my_map_function_obj, data_prefix,
                          my_reduce_function,
@@ -120,7 +120,7 @@ class TestMapReduce(unittest.TestCase):
         activations = 0
 
         sb = STORAGE_CONFIG['backend']
-        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
+        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + DATASET_PREFIX + '/'
 
         fexec = lithops.FunctionExecutor(config=CONFIG)
         futures = fexec.map_reduce(my_map_function_obj, data_prefix,
@@ -154,7 +154,7 @@ class TestMapReduce(unittest.TestCase):
         activations = 0
 
         sb = STORAGE_CONFIG['backend']
-        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
+        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + DATASET_PREFIX + '/'
 
         fexec = lithops.FunctionExecutor(config=CONFIG)
         futures = fexec.map_reduce(my_map_function_obj, data_prefix,

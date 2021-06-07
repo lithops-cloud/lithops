@@ -21,7 +21,6 @@ install_requires = [
     'kubernetes',
     'ibm-cos-sdk',
     'redis',
-    'joblib',
     'ibm-vpc',
     'cloudpickle',
     'tblib',
@@ -51,6 +50,11 @@ extras_require = {
     ],
     'multiprocessing': [
         'pynng'
+    ],
+    'joblib': [
+        'joblib',
+        'diskcache',
+        'numpy'
     ]
 }
 

@@ -40,7 +40,7 @@ PREFIX = '__lithops.test'
 DATASET_PREFIX = PREFIX + '/dataset'
 TEST_FILES_URLS = ["https://www.gutenberg.org/files/60/60-0.txt",
                    "https://www.gutenberg.org/files/215/215-0.txt",
-                   "https://www.gutenberg.org/files/1661/1661-0.txt"]
+                   "https://www.gutenberg.org/files/2892/2892-0.txt"]
 logger = logging.getLogger(__name__)
 
 
@@ -138,10 +138,13 @@ def run_tests(test_to_run, config=None, mode=None, group=None, backend=None, sto
     suite = unittest.TestSuite()
 
     if group:
-        if group not in TEST_GROUPS:
+        groups_list = group.split(',')
+        if all(test_group in TEST_GROUPS for test_group in groups_list):
+            for test_group in groups_list:
+                suite.addTest(unittest.makeSuite(TEST_GROUPS[test_group]))
+        else:
             print('unknown test group, use: "test -g help" to get a list of the available test groups')
             sys.exit()
-        suite.addTest(unittest.makeSuite(TEST_GROUPS[group]))
 
     elif test_to_run == 'all':
         for tester in TEST_GROUPS.values():
@@ -166,13 +169,17 @@ def run_tests(test_to_run, config=None, mode=None, group=None, backend=None, sto
     words_in_data_set = upload_data_sets()
     main_util.init_config(CONFIG, STORAGE, STORAGE_CONFIG, words_in_data_set, TEST_FILES_URLS)
     runner = unittest.TextTestRunner(verbosity=2)
-    runner.run(suite)
-    clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)  # removes test files previously uploaded to your storage
+    tests_results = runner.run(suite)
+
+    if not tests_results.wasSuccessful():
+        raise Exception("--------Test procedure failed. Abort merge--------")
+
+    clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)  # removes test files previously uploaded to storage
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="test all Lithops's functionality",
-                                     usage='python -m lithops.scripts.tests [-c CONFIG] [-t TESTNAME] ...')
+                                     usage='python -m lithops.tests.tests_main [-c CONFIG] [-t TESTNAME] ...')
     parser.add_argument('-c', '--config', metavar='', default=None,
                         help="'path to yaml config file")
     parser.add_argument('-t', '--test', metavar='', default='all',
@@ -202,30 +209,4 @@ if __name__ == '__main__':
     if args.test == 'help':
         print_test_functions()
     else:
-        run_tests(args.test, args.config, args.mode, args.backend, args.storage)
-
-# global TEST_CLASSES
-#
-# for module in TEST_MODULES:
-#     for member in inspect.getmembers(module, inspect.isclass):
-#         if issubclass(member[1], unittest.TestCase):
-#             TEST_CLASSES.append(member[1])
-
-
-# def register_test_groups():
-#     """initializes the TEST_GROUPS variable"""
-#     global TEST_GROUPS
-#     for module in [str(x) for x in TEST_MODULES]:
-#         group_name = module.split('test_')[1].split('\'')[0]
-
-# for test_class in TEST_CLASSES:
-#     index = str(test_class).rfind("Test")
-#     group_name = str(test_class)[index + 4:-2]
-#     TEST_GROUPS[group_name] = test_class
-
-
-# func_names = []
-# for test_class in TEST_GROUPS.values():
-#     func_names.extend(get_tests_of_class(test_class))
-# for func_name in func_names:
-#     print(f'-> {func_name}')
+        run_tests(args.test, args.config, args.mode, args.group, args.backend, args.storage)
