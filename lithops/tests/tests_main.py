@@ -31,8 +31,8 @@ from lithops.tests import main_util
 from lithops.tests.util_func.storage_util import clean_tests
 from lithops.utils import setup_lithops_logger
 
-TEST_MODULES = None
-TEST_GROUPS = {}
+TEST_MODULES = None  # test files, e.g. test_map
+TEST_GROUPS = {}  # dict of test classes in the format: {test class names:test class objects}
 CONFIG = None
 STORAGE_CONFIG = None
 STORAGE = None
@@ -40,15 +40,15 @@ PREFIX = '__lithops.test'
 DATASET_PREFIX = PREFIX + '/dataset'
 TEST_FILES_URLS = ["https://www.gutenberg.org/files/60/60-0.txt",
                    "https://www.gutenberg.org/files/215/215-0.txt",
-                   "https://www.gutenberg.org/files/2892/2892-0.txt"]
+                   "https://www.gutenberg.org/files/2892/2892-0.txt"]  # currently datasets are gutenberg's books
 logger = logging.getLogger(__name__)
 
 
-def get_tests_of_class(class_name):
-    """returns a list of all test methods of a given class """
+def get_tests_of_class(class_obj):
+    """returns a list of all test methods of a given test class """
     method_list = []
-    for attribute in dir(class_name):
-        attribute_value = getattr(class_name, attribute)
+    for attribute in dir(class_obj):
+        attribute_value = getattr(class_obj, attribute)
         if callable(attribute_value):
             if attribute.startswith('test'):
                 method_list.append(attribute)
@@ -120,9 +120,45 @@ def upload_data_sets():
     return result_to_compare
 
 
-def run_tests(test_to_run, config=None, mode=None, group=None, backend=None, storage=None):
+def config_suit(suite, tests, groups):
+    """ Loads tests into unittest's test-suite according to input.  """
+
+    if groups:  # user specified the name(s) of a test group(s)
+        groups_list = groups.split(',')
+        for test_group in groups_list:
+            if test_group in TEST_GROUPS:
+                suite.addTest(unittest.makeSuite(TEST_GROUPS[test_group]))
+            else:
+                terminate('group', test_group)
+
+    elif tests == 'all':
+        for test_class in TEST_GROUPS.values():  # values of TEST_GROUPS are test class objects.
+            suite.addTest(unittest.makeSuite(test_class))
+
+    else:  # user specified specific test/s
+        tests_list = tests.split(',')
+        for test in tests_list:
+            test_found = False
+
+            if test.find('.') != -1:  # user specified a test class along with the tester, i.e <TestClass.tester_name>
+                test_class = TEST_GROUPS.get(test.split('.')[0])
+                test_name = test.split('.')[1]
+                if test_name in get_tests_of_class(test_class):
+                    suite.addTest(test_class(test_name))
+                    test_found = True
+
+            else:                      # user simply specified a test function, i.e <tester_name>
+                for test_class in TEST_GROUPS.values():
+                    if test in get_tests_of_class(test_class):
+                        suite.addTest(test_class(test))
+                        test_found = True
+
+            if not test_found:
+                terminate('test', test)
+
+
+def run_tests(tests, config=None, mode=None, group=None, backend=None, storage=None):
     global CONFIG, STORAGE_CONFIG, STORAGE
-    test_found = False
 
     mode = mode or get_mode(backend, config)
     config_ow = {'lithops': {'mode': mode}}
@@ -136,45 +172,25 @@ def run_tests(test_to_run, config=None, mode=None, group=None, backend=None, sto
     init_test_variables()
 
     suite = unittest.TestSuite()
-
-    if group:
-        groups_list = group.split(',')
-        if all(test_group in TEST_GROUPS for test_group in groups_list):
-            for test_group in groups_list:
-                suite.addTest(unittest.makeSuite(TEST_GROUPS[test_group]))
-        else:
-            print('unknown test group, use: "test -g help" to get a list of the available test groups')
-            sys.exit()
-
-    elif test_to_run == 'all':
-        for tester in TEST_GROUPS.values():
-            suite.addTest(unittest.makeSuite(tester))
-
-    else:  # user specified a single test
-        if test_to_run.find('.') != -1:  # user specified a test class along with the tester, i.e TestClass.tester_name
-            classes_to_search = [TEST_GROUPS.get(test_to_run.split('.')[0])]
-            test_to_run = test_to_run.split('.')[1]
-        else:
-            classes_to_search = TEST_GROUPS.values()
-
-        for test_class in classes_to_search:
-            if test_to_run in get_tests_of_class(test_class):
-                suite.addTest(test_class(test_to_run))
-                test_found = True
-
-        if not test_found:
-            print('unknown test, use: "test -t help" to get a list of the available testers ')
-            sys.exit()
+    config_suit(suite, tests, group)
 
     words_in_data_set = upload_data_sets()
     main_util.init_config(CONFIG, STORAGE, STORAGE_CONFIG, words_in_data_set, TEST_FILES_URLS)
     runner = unittest.TextTestRunner(verbosity=2)
     tests_results = runner.run(suite)
 
-    if not tests_results.wasSuccessful():
-        raise Exception("--------Test procedure failed. Abort merge--------")
+    if not tests_results.wasSuccessful():  # Fails github workflow action to reject merge
+        raise Exception("--------Test procedure failed. Merge rejected--------")
 
     clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)  # removes test files previously uploaded to storage
+
+
+def terminate(msg_type, failed_input):
+    if msg_type == 'group':
+        print(f'unknown test group: {failed_input}, use: "test -g help" to get a list of the available test groups')
+    else:  # test not fount
+        print(f'unknown test: {failed_input}, use: "test -t help" to get a list of the available testers ')
+    sys.exit()
 
 
 if __name__ == '__main__':

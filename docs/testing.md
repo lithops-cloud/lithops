@@ -4,10 +4,12 @@
 Run ``` lithops test``` to run an extensive inspection, which simulates your lithops installation on a variety of tests.
  - Get all available options by running ```lithops test --help```  
  - Get all available test functions by running ```lithops test -t help``` to get a list of the available tests. 
-   <br/> Run all test instances named <test name>, via ```lithops test -t <test name>```.
-   <br/> Run a specific test by prefixing the test name in the following way: ```lithops test -t <test group>.<test name>```. 
+ - Run all test instances named ```<test name>```, via ```lithops test -t <test name>```.
+   <br/> Run a test from a specific class by prefixing the test name in the following way: ```lithops test -t <test group>.<test name>```.
+   <br/> Run multiple tests by separating them with a comma, e.g. ```lithops test -t <test name1>,<test name2>```
  - To get all available groups, run ```lithops test -g help```.
-    <br/> Run a single group of tests via ```lithops test -g <group name>```.
+ - Run a single group of tests via ```lithops test -g <group name>```.
+    <br/> Run multiple tests by separating them with a comma, e.g. ```lithops test -g <test group1>,<test group2>```
  - Get a complete list of the available flags by running ```lithops test --help```.
    
 Alternatively, you may run the tests via "python3 -m lithops.tests.tests_main", followed by aforementioned flags.   
