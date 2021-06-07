@@ -135,7 +135,7 @@ class StandaloneHandler:
         raise Exception('Lithops service readiness probe expired on {}'
                         .format(self.backend.master))
 
-    def invoke(self, job_payload):
+    def invoke(self, job_payload, workers):
         """
         Run the job description against the selected environment
         """

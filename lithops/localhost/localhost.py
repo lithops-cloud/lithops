@@ -61,7 +61,7 @@ class LocalhostHandler:
         """
         pass
 
-    def invoke(self, job_payload):
+    def invoke(self, job_payload, workers):
         """
         Run the job description against the selected environment
         """
@@ -73,8 +73,9 @@ class LocalhostHandler:
         total_calls = len(job_payload['call_ids'])
 
         logger.debug('ExecutorID {} | JobID {} - Going '
-                     'to run {} activations in localhost'
-                     .format(executor_id, job_id, total_calls))
+                     'to run {} activations in {} workers'
+                     .format(executor_id, job_id, total_calls,
+                             min(total_calls, workers)))
 
         if not os.path.isfile(RUNNER):
             self.env.setup(runtime)
@@ -180,5 +181,5 @@ class DefaultEnv:
         copyfile(src_handler, RUNNER)
 
     def get_execution_cmd(self, runtime):
-        cmd = '"{} {}"'.format(self.runtime, RUNNER)
+        cmd = '"{}" "{}"'.format(self.runtime, RUNNER)
         return cmd

@@ -157,24 +157,13 @@ def default_config(config_data=None, config_overwrite={}):
     if 'lithops' not in config_data or not config_data['lithops']:
         config_data['lithops'] = {}
 
-    if 'mode' not in config_data['lithops']:
-        config_data['lithops']['mode'] = constants.MODE_DEFAULT
-
-    if 'execution_timeout' not in config_data['lithops']:
-        config_data['lithops']['execution_timeout'] = constants.EXECUTION_TIMEOUT_DEFAULT
-
-    if 'chunksize' not in config_data['lithops']:
-        config_data['lithops']['chunksize'] = constants.CHUNKSIZE_DEFAULT
-
-    if 'worker_processes' not in config_data['lithops']:
-        config_data['lithops']['worker_processes'] = constants.WORKER_PROCESSES_DEFAULT
-
-    if 'monitoring' not in config_data['lithops']:
-        config_data['lithops']['monitoring'] = constants.MONITORING_DEFAULT
-
     # overwrite values provided by the user
     if 'lithops' in config_overwrite:
         config_data['lithops'].update(config_overwrite['lithops'])
+
+    if 'mode' not in config_data['lithops']:
+        config_data['lithops']['mode'] = constants.MODE_DEFAULT
+    mode = config_data['lithops']['mode']
 
     if constants.LOCALHOST in config_overwrite:
         if constants.LOCALHOST not in config_data or \
@@ -194,7 +183,7 @@ def default_config(config_data=None, config_overwrite={}):
             config_data[constants.STANDALONE] = {}
         config_data[constants.STANDALONE].update(config_overwrite[constants.STANDALONE])
 
-    if config_data['lithops']['mode'] == constants.SERVERLESS:
+    if mode == constants.SERVERLESS:
         if constants.SERVERLESS not in config_data or \
            config_data[constants.SERVERLESS] is None:
             config_data[constants.SERVERLESS] = {}
@@ -209,7 +198,7 @@ def default_config(config_data=None, config_overwrite={}):
 
         verify_runtime_name(config_data[constants.SERVERLESS]['runtime'])
 
-    elif config_data['lithops']['mode'] == constants.STANDALONE:
+    elif mode == constants.STANDALONE:
         if constants.STANDALONE not in config_data or \
            config_data[constants.STANDALONE] is None:
             config_data[constants.STANDALONE] = {}
@@ -232,21 +221,32 @@ def default_config(config_data=None, config_overwrite={}):
 
         verify_runtime_name(config_data[constants.STANDALONE]['runtime'])
 
-    elif config_data['lithops']['mode'] == constants.LOCALHOST:
+    elif mode == constants.LOCALHOST:
         config_data['lithops']['workers'] = 1
-        config_data['lithops']['worker_processes'] = CPU_COUNT
+        if 'worker_processes' not in config_data['lithops']:
+            config_data['lithops']['worker_processes'] = CPU_COUNT
         if constants.LOCALHOST not in config_data or \
            config_data[constants.LOCALHOST] is None:
             config_data[constants.LOCALHOST] = {}
         if 'runtime' not in config_data[constants.LOCALHOST]:
             config_data[constants.LOCALHOST]['runtime'] = constants.LOCALHOST_RUNTIME_DEFAULT
         logger.debug("Loading compute backend module: localhost")
-
         verify_runtime_name(config_data[constants.LOCALHOST]['runtime'])
 
-    mode = config_data['lithops']['mode']
     if mode in config_overwrite and 'runtime' in config_overwrite[mode]:
         config_data[mode]['runtime'] = config_overwrite[mode]['runtime']
+
+    if 'execution_timeout' not in config_data['lithops']:
+        config_data['lithops']['execution_timeout'] = constants.EXECUTION_TIMEOUT_DEFAULT
+
+    if 'chunksize' not in config_data['lithops']:
+        config_data['lithops']['chunksize'] = constants.CHUNKSIZE_DEFAULT
+
+    if 'worker_processes' not in config_data['lithops']:
+        config_data['lithops']['worker_processes'] = constants.WORKER_PROCESSES_DEFAULT
+
+    if 'monitoring' not in config_data['lithops']:
+        config_data['lithops']['monitoring'] = constants.MONITORING_DEFAULT
 
     return default_storage_config(config_data)
 
