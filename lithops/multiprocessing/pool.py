@@ -15,6 +15,9 @@
 import queue
 import itertools
 import logging
+import json
+import os
+import traceback
 
 from lithops import FunctionExecutor
 
@@ -242,6 +245,8 @@ class ApplyResult(object):
 
         if self._callback is not None:
             self._callback(self._value)
+
+        util.export_execution_details(self._futures, self._executor)
 
         return self._value
 

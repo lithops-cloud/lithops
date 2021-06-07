@@ -62,6 +62,8 @@ def run():
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
+    os.environ['__LITHOPS_BACKEND'] = 'Localhost'
+
     function_handler(job_payload)
 
     done = os.path.join(JOBS_DIR, job_key+'.done')

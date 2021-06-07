@@ -55,8 +55,16 @@ class CloudObject:
 
 
 class CloudObjectUrl:
-    def __init__(self, url_path):
-        self.path = url_path
+    def __init__(self, url):
+        self.url = url
+
+    def __str__(self):
+        return '<CloudObject at {}>'.format(self.url)
+
+
+class CloudObjectLocal:
+    def __init__(self, path):
+        self.path = path
 
     def __str__(self):
         return '<CloudObject at {}>'.format(self.path)

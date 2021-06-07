@@ -254,9 +254,16 @@ class KnativeServingBackend:
         """
         Builds the default runtime and pushes it to the docker container registry
         """
-        image_name, revision = docker_image_name.split(':')
+        if docker_image_name.count('/') > 1:
+            # container registry is in the provided runtime name
+            cr, rn = docker_image_name.split('/', 1)
+        else:
+            cr = 'docker.io'
+            rn = docker_image_name
 
-        if self.knative_config['container_registry'] == 'docker.io' and revision != 'latest':
+        image_name, revision = rn.split(':')
+
+        if cr == 'docker.io' and revision != 'latest':
             resp = requests.get('https://index.docker.io/v1/repositories/{}/tags/{}'
                                 .format(docker_image_name, revision))
             if resp.status_code == 200:
@@ -277,7 +284,7 @@ class KnativeServingBackend:
                               'value': 'lithops/compute/backends/knative/tekton/Dockerfile.python{}'.format(python_version)}
         task_run['spec']['inputs']['params'].append(path_to_dockerfile)
         image_url = {'name': 'imageUrl',
-                     'value': '/'.join([self.knative_config['container_registry'], image_name])}
+                     'value': '/'.join([cr, image_name])}
         task_run['spec']['inputs']['params'].append(image_url)
         image_tag = {'name': 'imageTag',
                      'value':  revision}

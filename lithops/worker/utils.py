@@ -229,16 +229,22 @@ def custom_redirection(fileobj):
 class LogStream:
 
     def __init__(self, stream):
-        self._old_stdout = sys.stdout
+        self._stdout = sys.stdout
         self._stream = stream
 
     def write(self, log):
-        self._old_stdout.write(log)
-        self._stream.write(log)
-        self.flush()
+        self._stdout.write(log)
+        try:
+            self._stream.write(log)
+            self.flush()
+        except ValueError:
+            pass
 
     def flush(self):
-        self._stream.flush()
+        try:
+            self._stream.flush()
+        except ValueError:
+            pass
 
     def fileno(self):
-        return self._old_stdout.fileno()
+        return self._stdout.fileno()
