@@ -14,7 +14,7 @@ on:
 
 
 jobs:
-  build:
+  test_pr:
 
     runs-on: ubuntu-latest
 
@@ -29,9 +29,6 @@ jobs:
       - name: Install dependencies
         run: |
           python3 setup.py develop
-      - name: Clean COS
-        run: |
-          lithops clean
       - name: install secrets in lithops config
         run: python3 ./lithops/scripts/config_fill_secrets.py "${{ secrets.IAMAPIKEY }}" "${{ secrets.COS_API_KEY }}"
 
@@ -46,6 +43,10 @@ jobs:
       - name: Run Python tests
         run: |
          python3 -m lithops.tests.tests_main -c lithops/tests/lithops_config.yaml
+
+      - name: Clean COS
+        run: |
+          lithops clean
 
 
 
