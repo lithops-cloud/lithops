@@ -8,8 +8,9 @@ Run ``` lithops test``` to run an extensive inspection, which simulates your lit
    <br/> Run a specific test by prefixing the test name in the following way: ```lithops test -t <test group>.<test name>```. 
  - To get all available groups, run ```lithops test -g help```.
     <br/> Run a single group of tests via ```lithops test -g <group name>```.
+ - Get a complete list of the available flags by running ```lithops test --help```.
    
-Alternatively you may run "python3 -m lithops.tests.test_main" followed by aforementioned flags.   
+Alternatively, you may run the tests via "python3 -m lithops.tests.tests_main", followed by aforementioned flags.   
 
 ## Contribute:
 

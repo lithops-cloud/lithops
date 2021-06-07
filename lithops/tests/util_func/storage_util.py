@@ -47,7 +47,9 @@ def my_map_function_storage(key_i, bucket_name, storage):
 
 
 def get_dataset_key_size(storage, storage_config, key_prefix=DATASET_PREFIX):
-    """return a list of file sizes in bytes belonging to files starting with key_prefix """
+    """return a list of file sizes in bytes, belonging to files whose names are
+    prefixed by 'key_prefix' """
+
     sizes = []
     bucket_name = storage_config['bucket']
     keys = list_dataset_keys(storage, storage_config, key_prefix)

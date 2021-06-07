@@ -110,19 +110,19 @@ def verify(test, config, mode, backend, storage, debug):
 
 
 @lithops_cli.command('test')
-@click.option('--tester', '-t', default='all', help='run a specific tester. To avoid running similarly named tests '
-                                                    'you may prefix the tester with its test class,'
-                                                    'e.g. TestClass.test_name.'
+@click.option('--tester', '-t', default='all', help='Run a specific tester. To avoid running similarly named tests '
+                                                    'you may prefix the tester with its test class, '
+                                                    'e.g. TestClass.test_name. '
                                                     'Type "-t help" for the complete tests list')
-@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--config', '-c', default=None, help='Path to yaml config file', type=click.Path(exists=True))
 @click.option('--mode', '-m', default=None,
               type=click.Choice([SERVERLESS, LOCALHOST, STANDALONE], case_sensitive=True),
               help='execution mode')
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--group', '-g', default=None, help='run all testers belonging to a specific group.'
+@click.option('--backend', '-b', default=None, help='Compute backend')
+@click.option('--group', '-g', default=None, help='Run all testers belonging to a specific group.'
                                                   ' type "-g help" for groups list')
-@click.option('--storage', '-s', default=None, help='storage backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
+@click.option('--storage', '-s', default=None, help='Storage backend')
+@click.option('--debug', '-d', is_flag=True, help='Debug mode')
 def test(tester, config, mode, backend, group, storage, debug):
     if config:
         config = load_yaml_config(config)
@@ -131,7 +131,7 @@ def test(tester, config, mode, backend, group, storage, debug):
     setup_lithops_logger(log_level)
 
     if tester != 'all' and group:
-        print("please choose either a single test or a single group")
+        print("Please choose either a single test or a single group")
     elif tester == 'help':
         print_test_functions()
     elif group == 'help':

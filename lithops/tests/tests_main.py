@@ -91,7 +91,7 @@ def import_test_modules():
     TEST_MODULES = [import_module(module) for module in ["lithops.tests." + file[:-3]
                                                          for file in
                                                          next(walk(pathlib.Path(__file__).parent.absolute()))[2]
-                                                         if file.startswith("test_")]]
+                                                         if file.startswith("test_")]]  # and 'template' not in file
 
 
 def init_test_variables():
@@ -172,7 +172,7 @@ def run_tests(test_to_run, config=None, mode=None, group=None, backend=None, sto
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="test all Lithops's functionality",
-                                     usage='python -m lithops.scripts.tests [-c CONFIG] [-t TESTNAME] ...')
+                                     usage='python -m lithops.tests.tests_main [-c CONFIG] [-t TESTNAME] ...')
     parser.add_argument('-c', '--config', metavar='', default=None,
                         help="'path to yaml config file")
     parser.add_argument('-t', '--test', metavar='', default='all',
@@ -203,6 +203,14 @@ if __name__ == '__main__':
         print_test_functions()
     else:
         run_tests(args.test, args.config, args.mode, args.backend, args.storage)
+
+
+
+
+
+
+
+
 
 # global TEST_CLASSES
 #

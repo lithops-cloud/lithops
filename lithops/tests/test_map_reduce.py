@@ -132,7 +132,7 @@ class TestMapReduce(unittest.TestCase):
         for size in get_dataset_key_size(STORAGE, STORAGE_CONFIG):
             activations += math.ceil(size / OBJ_CHUNK_SIZE)
 
-        self.assertEqual(len(futures), activations + 1)  # +1 for the reduce
+        self.assertEqual(len(futures), activations + 1)  # +1 due to the reduce function
 
         fexec = lithops.FunctionExecutor(config=CONFIG)
         futures = fexec.map_reduce(my_map_function_obj, data_prefix,
