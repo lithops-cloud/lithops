@@ -193,8 +193,12 @@ def is_lithops_worker():
 
 
 def is_object_processing_function(map_function):
+    """
+    Checks if a function contains the obj parameter, which means
+    the user wants to activate the data processing logic.
+    """
     func_sig = inspect.signature(map_function)
-    return {'obj', 'url'} & set(func_sig.parameters)
+    return {'obj'} & set(func_sig.parameters)
 
 
 def is_notebook():
@@ -360,7 +364,7 @@ def verify_args(func, iterdata, extra_args):
     data = format_data(iterdata, extra_args)
 
     # Verify parameters
-    non_verify_args = ['ibm_cos', 'swift', 'storage', 'id', 'rabbitmq']
+    non_verify_args = ['ibm_cos', 'storage', 'id', 'rabbitmq']
     func_sig = inspect.signature(func)
 
     new_parameters = list()
@@ -382,12 +386,6 @@ def verify_args(func, iterdata, extra_args):
                                  .format(list(elem.keys()),
                                          list(new_func_sig.parameters.keys())))
         elif type(elem) == tuple:
-            new_elem = dict(new_func_sig.bind(*list(elem)).arguments)
-            new_data.append(new_elem)
-        elif type(elem) == list and len(elem) == len(new_func_sig.parameters):
-            print("WARNING: Using a list in iteradata to enclose multiple "
-                  "args of a function is deprecated and will be removed in "
-                  "future releases. Please use a tuple")
             new_elem = dict(new_func_sig.bind(*list(elem)).arguments)
             new_data.append(new_elem)
         else:
@@ -482,51 +480,51 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
         # Range of the chunk
         self.range = byterange
         # The first chunk does not contain plusbyte
-        self.plusbytes = 0 if not self.range or self.range[0] == 0 else 1
+        self._plusbytes = 0 if not self.range or self.range[0] == 0 else 1
         # To store the first byte of this chunk, which actually is the last byte of previous chunk
-        self.first_byte = None
+        self._first_byte = None
         # Flag that indicates the end of the file
-        self.eof = False
+        self._eof = False
+        # special logic the first time the stream is read
+        self._first_read = True
 
     def read(self, n=None):
-        if self.eof:
-            raise EOFError()
+        if self._eof:
+            return b''
         # Data always contain one byte from the previous chunk,
         # so l'ets check if it is a \n or not
-        if self.plusbytes != 0:
-            self.first_byte = self.sb.read(self.plusbytes)
+        if not self._first_byte and self._plusbytes == 1:
+            self._first_byte = self.sb.read(self._plusbytes)
 
         retval = self.sb.read(n)
-
-        if retval == "":
-            raise EOFError()
 
         self.pos += len(retval)
         first_row_start_pos = 0
 
-        if self.first_byte != b'\n' and self.plusbytes == 1:
-            logger.info('Discarding first partial row')
+        if self._first_read and self._first_byte != b'\n' and self._plusbytes == 1:
+            logger.debug('Discarding first partial row')
             # Previous byte is not \n
             # This means that we have to discard first row because it is cut
             first_row_start_pos = retval.find(b'\n')+1
+            self._first_read = False
 
         last_row_end_pos = self.pos
         # Find end of the line in threshold
         if self.pos > self.chunk_size:
-            buf = io.BytesIO(retval[self.chunk_size-self.plusbytes:])
+            buf = io.BytesIO(retval[self.chunk_size-self._plusbytes:])
             buf.readline()
-            last_row_end_pos = self.chunk_size-self.plusbytes+buf.tell()
-            self.eof = True
+            last_row_end_pos = self.chunk_size-self._plusbytes+buf.tell()
+            self._eof = True
 
         return retval[first_row_start_pos:last_row_end_pos]
 
     def readline(self):
-        if self.eof:
-            raise EOFError()
+        if self._eof:
+            return b''
 
-        if not self.first_byte and self.plusbytes != 0:
-            self.first_byte = self.sb.read(self.plusbytes)
-            if self.first_byte != b'\n':
+        if not self._first_byte and self._plusbytes == 1:
+            self._first_byte = self.sb.read(self._plusbytes)
+            if self._first_byte != b'\n':
                 logger.debug('Discarding first partial row')
                 self.sb._raw_stream.readline()
         try:
@@ -536,6 +534,6 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
         self.pos += len(retval)
 
         if self.pos >= self.chunk_size:
-            self.eof = True
+            self._eof = True
 
         return retval

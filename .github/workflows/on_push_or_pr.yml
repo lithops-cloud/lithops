@@ -42,7 +42,7 @@ jobs:
 
       - name: Run Python tests
         run: |
-         python3 -m lithops.tests.tests_main -t test_storage_handler -c lithops/tests/lithops_config.yaml
+         python3 -m lithops.tests.tests_main -c lithops/tests/lithops_config.yaml
 
       - name: Clean COS
         run: |

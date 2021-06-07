@@ -10,23 +10,23 @@
 #
 
 import time
-import socket
 import selectors
 import threading
 import random
 import io
 import logging
-
 import cloudpickle
 
 from multiprocessing.context import BufferTooShort
 
+try:
+    import pynng
+except ModuleNotFoundError:
+    pass
+
 from . import util
 from . import config as mp_config
 from queue import Queue
-
-if mp_config.get_parameter(mp_config.PIPE_CONNECTION_TYPE) == 'nanomsg':
-    import pynng
 
 logger = logging.getLogger(__name__)
 
@@ -96,13 +96,6 @@ def _validate_address(address):
         raise ValueError("address '{}' is not of any known type ({}, {})".format(address,
                                                                                  REDIS_LIST_CONN,
                                                                                  REDIS_PUBSUB_CONN))
-
-
-def get_network_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    s.connect(('<broadcast>', 0))
-    return s.getsockname()[0]
 
 
 #
@@ -179,7 +172,6 @@ class _ConnectionBase:
         self._check_closed()
         self._check_writable()
         obj_bin = cloudpickle.dumps(obj)
-        logger.debug('Connection send %i B', len(obj_bin))
         self._send_bytes(obj_bin)
 
     def send_bytes(self, buf, offset=0, size=None):
@@ -253,7 +245,6 @@ class _ConnectionBase:
         self._check_closed()
         self._check_readable()
         buf = self._recv_bytes()
-        logger.debug('Connection received %i B', len(buf))
         return cloudpickle.loads(buf)
 
     def poll(self, timeout=0.0):
@@ -351,10 +342,16 @@ class _RedisConnection(_ConnectionBase):
         raise NotImplementedError('Connection._recv() on Redis')
 
     def _send_bytes(self, buf):
+        t0 = time.time()
         self._write(self._subhandle, buf)
+        t1 = time.time()
+        # logger.debug('Redis Pipe send - {} - {} - {} - {}'.format(t0, t1, t1 - t0, len(buf)))
 
     def _recv_bytes(self, maxsize=None):
+        t0 = time.time()
         msg = self._read(self._handle)
+        t1 = time.time()
+        # logger.debug('Redis Pipe recv - {} - {} - {} - {}'.format(t0, t1, t1 - t0, len(msg)))
         return msg
 
     def _poll(self, timeout):
@@ -375,6 +372,7 @@ class _NanomsgConnection(_ConnectionBase):
         super().__init__(handle, readable, writable)
         self._client = util.get_redis_client()
         self._subhandle = get_subhandle(handle)
+        self._subhandle_addr = None
         self._connect()
 
     def _connect(self):
@@ -382,9 +380,10 @@ class _NanomsgConnection(_ConnectionBase):
         self._rep = pynng.Rep0()
 
         bind = False
+        addr = None
         while not bind:
             try:
-                addr = 'tcp://' + get_network_ip() + ':' + str(random.randrange(MIN_PORT, MAX_PORT))
+                addr = 'tcp://' + util.get_network_ip() + ':' + str(random.randrange(MIN_PORT, MAX_PORT))
                 self._rep.listen(addr)
                 logger.debug('Assigned server address is %s', addr)
                 bind = True
@@ -404,7 +403,7 @@ class _NanomsgConnection(_ConnectionBase):
         while True:
             try:
                 msg = self._rep.recv()
-                logger.debug('Message received of size %i B', len(msg))
+                # logger.debug('Message received of size %i B', len(msg))
             except pynng.exceptions.Closed:
                 break
             self._buff.put(msg)
@@ -444,27 +443,26 @@ class _NanomsgConnection(_ConnectionBase):
     def _send_bytes(self, buf):
         if self._req is None:
             self._req = pynng.Req0()
-
-        logger.debug('Get address from directory for handle %s', self._subhandle)
-        addr = self._client.get(self._subhandle)
-
-        retry = 15
-        retry_sleep = 1
-        while addr is None:
-            time.sleep(retry_sleep)
-            retry_sleep += 0.5
+            logger.debug('Get address from directory for handle %s', self._subhandle)
             addr = self._client.get(self._subhandle)
-            retry -= 1
-            if retry == 0:
-                raise Exception('Server address could not be fetched for handle {}'.format(self._subhandle))
 
-        addr = addr.decode('utf-8')
-        logger.debug('Dialing %s', addr)
-        self._req.dial(addr)
-        logger.debug('Send %i B to %s', len(buf), addr)
+            retry = 15
+            retry_sleep = 1
+            while addr is None:
+                time.sleep(retry_sleep)
+                retry_sleep += 0.5
+                addr = self._client.get(self._subhandle)
+                retry -= 1
+                if retry == 0:
+                    raise Exception('Server address could not be fetched for handle {}'.format(self._subhandle))
+
+            self._subhandle_addr = addr.decode('utf-8')
+            logger.debug('Dialing %s', self._subhandle_addr)
+            self._req.dial(self._subhandle_addr)
+        # logger.debug('Send %i B to %s', len(buf), self._subhandle_addr)
         self._req.send(buf)
         res = self._req.recv()
-        logger.debug(res)
+        # logger.debug(res)
 
     def _recv_bytes(self, maxsize=None):
         chunk = self._buff.get()

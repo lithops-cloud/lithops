@@ -18,6 +18,7 @@
 LITHOPS_CONFIG = 'LITHOPS_CONFIG'  # Override lithops configuration
 STREAM_STDOUT = 'STREAM_STDOUT'  # Enable remote logging
 ENV_VARS = 'ENV_VARS'  # Processes environment variables
+EXPORT_EXECUTION_DETAILS = 'EXPORT_EXECUTION_DETAILS'  # Path to save execution details, False to disable
 
 # Middleware configuration parameters
 PIPE_CONNECTION_TYPE = 'PIPE_CONNECTION_TYPE'  # Pipe/Queue connection type
@@ -30,7 +31,8 @@ _DEFAULT_CONFIG = {
     STREAM_STDOUT: False,
     REDIS_EXPIRY_TIME: 3600,  # 1 hour
     PIPE_CONNECTION_TYPE: 'redislist',
-    ENV_VARS: {}
+    ENV_VARS: {},
+    EXPORT_EXECUTION_DETAILS: False
 }
 
 _config = _DEFAULT_CONFIG
