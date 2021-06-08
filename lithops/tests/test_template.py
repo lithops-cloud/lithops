@@ -12,8 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
+import subprocess
 import unittest  # Mandatory. Required to incorporate the test class into the test framework
 import lithops  # Mandatory, unless test class is confined to storage testing
 from lithops.tests import main_util  # required to initialize config variables and other constants below.
@@ -64,7 +63,8 @@ class TestFeatureName(unittest.TestCase):  # Mandatory,unittest test classes are
 
 # ------------------------------------ Incorporate your test function here ---------------------------------------------
 
-
+    # @unittest.skipIf(subprocess.getoutput("lithops --version") >= "2.3.4.dev2",
+    #                  "Test isn't applicable to running lithops version.") # conditionally skip a test
     # def test_tester_name(self):  # unittest's function naming convention requires functions to be named as demonstrated.
     #     """A simple test function using memory against a lithop's map function."""
     #

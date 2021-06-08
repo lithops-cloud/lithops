@@ -131,30 +131,31 @@ def config_suite(suite, tests, groups):
             else:
                 terminate('group', test_group)
 
-    if tests == 'all':
-        for test_class in TEST_GROUPS.values():  # values of TEST_GROUPS are test class objects.
-            suite.addTest(unittest.makeSuite(test_class))
+    if tests:
+        if tests == 'all':
+            for test_class in TEST_GROUPS.values():  # values of TEST_GROUPS are test class objects.
+                suite.addTest(unittest.makeSuite(test_class))
 
-    elif tests:  # user specified specific test/s
-        tests_list = tests.split(',')
-        for test in tests_list:
-            test_found = False
+        else:  # user specified specific test/s
+            tests_list = tests.split(',')
+            for test in tests_list:
+                test_found = False
 
-            if test.find('.') != -1:  # user specified a test class along with the tester, i.e <TestClass.tester_name>
-                test_class = TEST_GROUPS.get(test.split('.')[0])
-                test_name = test.split('.')[1]
-                if test_name in get_tests_of_class(test_class):
-                    suite.addTest(test_class(test_name))
-                    test_found = True
-
-            else:  # user simply specified a test function, i.e <tester_name>
-                for test_class in TEST_GROUPS.values():
-                    if test in get_tests_of_class(test_class):
-                        suite.addTest(test_class(test))
+                if test.find('.') != -1:  # user specified a test class along with the tester, i.e <TestClass.tester_name>
+                    test_class = TEST_GROUPS.get(test.split('.')[0])
+                    test_name = test.split('.')[1]
+                    if test_name in get_tests_of_class(test_class):
+                        suite.addTest(test_class(test_name))
                         test_found = True
 
-            if not test_found:
-                terminate('test', test)
+                else:  # user simply specified a test function, i.e <tester_name>
+                    for test_class in TEST_GROUPS.values():
+                        if test in get_tests_of_class(test_class):
+                            suite.addTest(test_class(test))
+                            test_found = True
+
+                if not test_found:
+                    terminate('test', test)
 
 
 def run_tests(tests, config=None, mode=None, group=None, backend=None, storage=None, fail_fast=False):
@@ -186,9 +187,9 @@ def run_tests(tests, config=None, mode=None, group=None, backend=None, storage=N
 
 
 def terminate(msg_type, failed_input):
-    if msg_type == 'group':  # group not fount
+    if msg_type == 'group':  # group not found
         print(f'unknown test group: {failed_input}, use: "test -g help" to get a list of the available test groups')
-    else:  # test not fount
+    else:                    # test not found
         print(f'unknown test: {failed_input}, use: "test -t help" to get a list of the available testers ')
     sys.exit()
 
