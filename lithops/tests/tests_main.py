@@ -121,7 +121,7 @@ def upload_data_sets():
 
 
 def config_suite(suite, tests, groups):
-    """ Loads tests into unittest's test-suite according to input.  """
+    """ Loads tests into unittest's test-suite according to user input.  """
 
     if groups:  # user specified the name(s) of a test group(s)
         groups_list = groups.split(',')
@@ -131,11 +131,11 @@ def config_suite(suite, tests, groups):
             else:
                 terminate('group', test_group)
 
-    elif tests == 'all':
+    if tests == 'all':
         for test_class in TEST_GROUPS.values():  # values of TEST_GROUPS are test class objects.
             suite.addTest(unittest.makeSuite(test_class))
 
-    else:  # user specified specific test/s
+    elif tests:  # user specified specific test/s
         tests_list = tests.split(',')
         for test in tests_list:
             test_found = False
@@ -147,7 +147,7 @@ def config_suite(suite, tests, groups):
                     suite.addTest(test_class(test_name))
                     test_found = True
 
-            else:                      # user simply specified a test function, i.e <tester_name>
+            else:  # user simply specified a test function, i.e <tester_name>
                 for test_class in TEST_GROUPS.values():
                     if test in get_tests_of_class(test_class):
                         suite.addTest(test_class(test))
@@ -157,7 +157,7 @@ def config_suite(suite, tests, groups):
                 terminate('test', test)
 
 
-def run_tests(tests, config=None, mode=None, group=None, backend=None, storage=None):
+def run_tests(tests, config=None, mode=None, group=None, backend=None, storage=None, fail_fast=False):
     global CONFIG, STORAGE_CONFIG, STORAGE
 
     mode = mode or get_mode(backend, config)
@@ -172,21 +172,21 @@ def run_tests(tests, config=None, mode=None, group=None, backend=None, storage=N
     init_test_variables()
 
     suite = unittest.TestSuite()
-    config_suit(suite, tests, group)
-
+    config_suite(suite, tests, group)
     words_in_data_set = upload_data_sets()
     main_util.init_config(CONFIG, STORAGE, STORAGE_CONFIG, words_in_data_set, TEST_FILES_URLS)
-    runner = unittest.TextTestRunner(verbosity=2)
+
+    runner = unittest.TextTestRunner(verbosity=2, failfast=fail_fast)
     tests_results = runner.run(suite)
 
-    if not tests_results.wasSuccessful():  # Fails github workflow action to reject merge
+    if not tests_results.wasSuccessful():  # Fails github workflow action to reject merge to repository
         raise Exception("--------Test procedure failed. Merge rejected--------")
 
     clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)  # removes test files previously uploaded to storage
 
 
 def terminate(msg_type, failed_input):
-    if msg_type == 'group':
+    if msg_type == 'group':  # group not fount
         print(f'unknown test group: {failed_input}, use: "test -g help" to get a list of the available test groups')
     else:  # test not fount
         print(f'unknown test: {failed_input}, use: "test -t help" to get a list of the available testers ')
@@ -198,9 +198,9 @@ if __name__ == '__main__':
                                      usage='python -m lithops.tests.tests_main [-c CONFIG] [-t TESTNAME] ...')
     parser.add_argument('-c', '--config', metavar='', default=None,
                         help="'path to yaml config file")
-    parser.add_argument('-t', '--test', metavar='', default='all',
+    parser.add_argument('-t', '--testers', metavar='', default='all',
                         help='run a specific test, type "-t help" for tests list')
-    parser.add_argument('-g', '--group', metavar='', default='',
+    parser.add_argument('-g', '--groups', metavar='', default='',
                         help='run all testers belonging to a specific group.'
                              ' type "-g help" for groups list')
     parser.add_argument('-m', '--mode', metavar='', default=None,
@@ -211,6 +211,8 @@ if __name__ == '__main__':
                         help='storage backend')
     parser.add_argument('-d', '--debug', action='store_true', default=False,
                         help='activate debug logging')
+    parser.add_argument('-f', '--fail_fast', action='store_true', default=False,
+                        help='Stops test run upon first occurrence of a failed test')
     args = parser.parse_args()
 
     if args.config:
@@ -222,7 +224,12 @@ if __name__ == '__main__':
     log_level = logging.INFO if not args.debug else logging.DEBUG
     setup_lithops_logger(log_level)
 
-    if args.test == 'help':
+    if args.groups and args.testers == 'all':  # if user specified test a group(s) avoid running all tests.
+        args.testers = ''
+
+    if args.groups == 'help':
+        print_test_groups()
+    elif args.testers == 'help':
         print_test_functions()
     else:
-        run_tests(args.test, args.config, args.mode, args.group, args.backend, args.storage)
+        run_tests(args.testers, args.config, args.mode, args.groups, args.backend, args.storage, args.fail_fast)

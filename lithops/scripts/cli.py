@@ -110,7 +110,7 @@ def verify(test, config, mode, backend, storage, debug):
 
 
 @lithops_cli.command('test')
-@click.option('--tester', '-t', default='all', help='Run a specific tester. To avoid running similarly named tests '
+@click.option('--testers', '-t', default='all', help='Run a specific tester. To avoid running similarly named tests '
                                                     'you may prefix the tester with its test class, '
                                                     'e.g. TestClass.test_name. '
                                                     'Type "-t help" for the complete tests list')
@@ -119,26 +119,28 @@ def verify(test, config, mode, backend, storage, debug):
               type=click.Choice([SERVERLESS, LOCALHOST, STANDALONE], case_sensitive=True),
               help='execution mode')
 @click.option('--backend', '-b', default=None, help='Compute backend')
-@click.option('--group', '-g', default=None, help='Run all testers belonging to a specific group.'
+@click.option('--groups', '-g', default=None, help='Run all testers belonging to a specific group.'
                                                   ' type "-g help" for groups list')
 @click.option('--storage', '-s', default=None, help='Storage backend')
 @click.option('--debug', '-d', is_flag=True, help='Debug mode')
-def test(tester, config, mode, backend, group, storage, debug):
+@click.option('--fail_fast', '-f', is_flag=True, help='Stops test run upon first occurrence of a failed test')
+def test(testers, config, mode, backend, groups, storage, debug, fail_fast):
     if config:
         config = load_yaml_config(config)
 
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
 
-    if tester != 'all' and group:
-        print("Please choose either a single test or a single group")
-    elif tester == 'help':
+    if groups and testers == 'all':  # if user specified test a group(s) avoid running all tests.
+        testers = ''
+
+    if testers == 'help':
         print_test_functions()
-    elif group == 'help':
+    elif groups == 'help':
         print_test_groups()
 
     else:
-        run_tests(tester, config, mode, group, backend, storage)
+        run_tests(testers, config, mode, groups, backend, storage, fail_fast)
 
 
 # /---------------------------------------------------------------------------/
