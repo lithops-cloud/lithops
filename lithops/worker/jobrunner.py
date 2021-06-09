@@ -152,6 +152,8 @@ class JobRunner:
 
         elif hasattr(obj, 'path'):
             logger.info('Getting dataset from {}'.format(obj.path))
+            obj.key = os.path.basename(obj.path)
+            obj.bucket = os.path.dirname(obj.path)
             with open(obj.path, "rb") as f:
                 if obj.data_byte_range is not None:
                     extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)
