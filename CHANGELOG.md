@@ -6,7 +6,7 @@
 - 
 
 ### Changed
-- 
+- Add 'key' and 'bucket' attrs in localhost partitioner for compatibility with OS
 
 ### Fixes
 - 
