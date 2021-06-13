@@ -15,7 +15,7 @@
 
 
 import unittest  # Mandatory. Required to incorporate the test class into the test framework
-import lithops  # Mandatory, unless confined to storage testing
+import lithops  # Mandatory, unless test class is confined to storage testing
 from lithops.tests import main_util  # required to initialize config variables and other constants below.
 
 
