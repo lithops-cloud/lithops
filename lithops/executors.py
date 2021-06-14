@@ -387,8 +387,8 @@ class FunctionExecutor:
         finally:
             present_jobs = {f.job_key for f in futures}
             self.job_monitor.stop(present_jobs)
-            self.compute_handler.clear(present_jobs)
             if self.data_cleaner and not self.is_lithops_worker:
+                self.compute_handler.clear(present_jobs)
                 self.clean(clean_cloudobjects=False)
 
         if download_results:
