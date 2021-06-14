@@ -8,7 +8,7 @@ install_requires = [
     'pandas',
     'PyYAML',
     'python-dateutil',
-    'pika==0.13.1',
+    'pika',
     'glob2',
     'tqdm',
     'lxml',
