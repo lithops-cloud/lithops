@@ -3,10 +3,10 @@
 ## [v2.3.5.dev0]
 
 ### Added
-- 
+- [AWS Lambda] Add 'account_id' parameter in config (used if present instead of querying STS).
 
 ### Changed
-- Add 'key' and 'bucket' attrs in localhost partitioner for compatibility with OS
+- [Core] Add 'key' and 'bucket' attrs in localhost partitioner for compatibility with OS
 
 ### Fixes
 - 
