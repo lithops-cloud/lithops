@@ -3,7 +3,7 @@
 ## [v2.3.5.dev0]
 
 ### Added
-- 
+- [Core] ob.data_stream when using the partitioner it is also an iterator
 
 ### Changed
 - Add 'key' and 'bucket' attrs in localhost partitioner for compatibility with OS

@@ -470,6 +470,12 @@ class WrappedStreamingBody:
         else:
             return getattr(self.sb, attr)
 
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return self.read(64*1024)
+
 
 class WrappedStreamingBodyPartition(WrappedStreamingBody):
 
