@@ -76,8 +76,11 @@ class AWSLambdaBackend:
 
         self.internal_storage = internal_storage
 
-        sts_client = self.aws_session.client('sts', region_name=self.region_name)
-        self.account_id = sts_client.get_caller_identity()["Account"]
+        if self.aws_lambda_config['account_id']:
+            self.account_id = self.aws_lambda_config['account_id']
+        else:
+            sts_client = self.aws_session.client('sts', region_name=self.region_name)
+            self.account_id = sts_client.get_caller_identity()["Account"]
 
         self.ecr_client = self.aws_session.client('ecr', region_name=self.region_name)
 

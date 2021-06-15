@@ -410,11 +410,11 @@ class FaaSInvoker(Invoker):
                 for call_ids_range in iterchunks(callids_to_invoke_nondirect, job.chunksize):
                     self.pending_calls_q.put((job, call_ids_range))
         else:
-            logger.debug('ExecutorID {} | JobID {} - Reached maximun {} '
+            logger.debug('ExecutorID {} | JobID {} - Reached maximum {} '
                          'workers, queuing {} function activations'
                          .format(job.executor_id, job.job_id,
                                  self.workers, job.total_calls))
-            for call_ids_range in iterchunks(job.total_calls, job.chunksize):
+            for call_ids_range in iterchunks(range(job.total_calls), job.chunksize):
                 self.pending_calls_q.put((job, call_ids_range))
 
     def run_job(self, job):

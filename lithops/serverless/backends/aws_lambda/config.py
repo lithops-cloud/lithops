@@ -88,12 +88,12 @@ def load_config(config_data):
     if 'workers' not in config_data['lithops']:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
 
-    # Put credential keys to 'aws_lambda' dict entry
-    config_data['aws_lambda'] = {**config_data['aws_lambda'], **config_data['aws']}
-
     # Auth, role and region config
     if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
         raise Exception("'access_key_id' and 'secret_access_key' are mandatory under 'aws' section")
+
+    if 'account_id' not in config_data['aws']:
+        config_data['aws']['account_id'] = None
 
     if not {'execution_role', 'region_name'}.issubset(set(config_data['aws_lambda'])):
         raise Exception("'execution_role' and 'region_name' are mandatory under 'aws_lambda' section")
@@ -130,3 +130,6 @@ def load_config(config_data):
     if 'invoke_pool_threads' not in config_data['aws_lambda']:
         config_data['aws_lambda']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
     config_data['serverless']['invoke_pool_threads'] = config_data['aws_lambda']['invoke_pool_threads']
+
+    # Put credential keys to 'aws_lambda' dict entry
+    config_data['aws_lambda'] = {**config_data['aws_lambda'], **config_data['aws']}

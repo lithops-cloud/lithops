@@ -12,13 +12,34 @@ $ python3 -m pip install lithops[aws]
 
 2. [Login](https://console.aws.amazon.com/?nc2=h_m_mc) to Amazon Web Services Console (or signup if you don't have an account)
  
-3. Navigate to *IAM > Roles*. Click on *Create Role*.
- 
-4. Select *Lambda* and then click *Next: Permissions*.
- 
-5. Type `s3` at the search bar and select *AmazonS3FullAccess*. Type `lambda` at the search bar and select *AWSLambdaFullAccess*. Click on *Next: Tags* and then *Next: Review*.
- 
-6. Type a role name, for example `lithops-execution-role`. Click on *Create Role*.
+3. Navigate to **IAM > Policies**. Click on **Create policy**.
+
+4. Select **JSON** tab and paste the following JSON policy:
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "VisualEditor0",
+            "Effect": "Allow",
+            "Action": [
+                "s3:*",
+                "lambda:*",
+                "ec2:*",
+                "ecr:*",
+                "sts:GetCallerIdentity"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+5. Click **Next: Tags** and **Next: Review**. Fill the policy name field (you can name it `lithops-policy` or simmilar) and create the policy.
+
+6. Go back to **IAM** and navigate to **Roles** tab. Click **Create role**.
+
+7. Choose **Lambda** on the use case list and click **Next: Permissions**. Select the policy created before (`lithops-policy`). Click **Next: Tags** and **Next: Review**. Type a role name, for example `lithops-execution-role`. Click on *Create Role*.
 
 ### Configuration
 
@@ -31,6 +52,7 @@ $ python3 -m pip install lithops[aws]
     aws:
         access_key_id: <ACCESS_KEY_ID>
         secret_access_key: <SECRET_ACCESS_KEY>
+        #account_id: <ACCOUNT_ID>  # Optional
 
     aws_lambda:
         execution_role: <EXECUTION_ROLE_ARN>
@@ -40,7 +62,7 @@ $ python3 -m pip install lithops[aws]
  - `access_key_id` and `secret_access_key`: Account access keys to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one.
  - `region_name`: Region where the S3 bucket is located and where Lambda functions will be invoked (e.g. `us-east-1`).
  - `execution_role`: ARN of the execution role created at step 3. You can find it in the Role page at the *Roles* list in the *IAM* section (e.g. `arn:aws:iam::1234567890:role/lithops-role`).
- - `runtime`: Runtime name already deployed in the service
+ - `account_id`: *Optional*. This field will be used if present to retrieve the account ID instead of using AWS STS. The account ID is used to format full image names for container runtimes.
  
 #### Additional configuration
 
