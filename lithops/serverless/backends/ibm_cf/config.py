@@ -33,82 +33,42 @@ UNIT_PRICE = 0.000017
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_ibmcf.zip')
 
+SECTION = 'ibm_cf'
+PARAMS_0 = ['endpoint', 'namespace']
+OPT_PARAMS_1 = ['api_key']
+OPT_PARAMS_2 = ['namespace_id', 'iam_api_key']
+
 
 def load_config(config_data):
-    if 'runtime_memory' not in config_data['serverless']:
-        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
-    if 'runtime_timeout' not in config_data['serverless']:
-        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+    if SECTION not in config_data:
+        raise Exception("{} section is mandatory in the configuration".format(SECTION))
 
-    if 'runtime' in config_data['ibm_cf']:
-        config_data['serverless']['runtime'] = config_data['ibm_cf']['runtime']
+    for param in PARAMS_0:
+        if param not in config_data[SECTION]:
+            msg = '{} is mandatory in {} section of the configuration'.format(PARAMS_0, SECTION)
+            raise Exception(msg)
 
-    if 'runtime' not in config_data['serverless']:
+    if 'ibm' in config_data:
+        config_data[SECTION].update(config_data['ibm'])
+
+    if not all(elem in config_data[SECTION] for elem in OPT_PARAMS_1) and \
+       not all(elem in config_data[SECTION] for elem in OPT_PARAMS_2):
+        raise Exception('You must provide either {}, or {} in {} section of the configuration'
+                        .format(OPT_PARAMS_1, OPT_PARAMS_2, SECTION))
+
+    if 'runtime_memory' not in config_data[SECTION]:
+        config_data[SECTION]['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
+    if 'runtime_timeout' not in config_data[SECTION]:
+        config_data[SECTION]['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+    if 'invoke_pool_threads' not in config_data[SECTION]:
+        config_data[SECTION]['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
+    if 'runtime' not in config_data[SECTION]:
         python_version = version_str(sys.version_info)
         try:
-            config_data['serverless']['runtime'] = RUNTIME_DEFAULT[python_version]
+            config_data[SECTION]['runtime'] = RUNTIME_DEFAULT[python_version]
         except KeyError:
             raise Exception('Unsupported Python version: {}'.format(python_version))
 
     if 'workers' not in config_data['lithops'] or \
        config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
-
-    if 'ibm_cf' not in config_data:
-        raise Exception("ibm_cf section is mandatory in the configuration")
-
-    required_parameters_0 = ('endpoint', 'namespace')
-    required_parameters_1 = ('endpoint', 'namespace', 'api_key')
-    required_parameters_2 = ('endpoint', 'namespace', 'namespace_id', 'ibm:iam_api_key')
-
-    # Check old format. Convert to new format
-    if set(required_parameters_0) <= set(config_data['ibm_cf']):
-        endpoint = config_data['ibm_cf'].pop('endpoint')
-
-        if not endpoint.startswith('https'):
-            raise Exception('IBM CF Endpoint must start with https://')
-
-        namespace = config_data['ibm_cf'].pop('namespace')
-        api_key = config_data['ibm_cf'].pop('api_key', None)
-        namespace_id = config_data['ibm_cf'].pop('namespace_id', None)
-        region = endpoint.split('//')[1].split('.')[0]
-
-        for k in list(config_data['ibm_cf']):
-            # Delete unnecessary keys
-            del config_data['ibm_cf'][k]
-
-        config_data['ibm_cf']['regions'] = {}
-        config_data['serverless']['region'] = region
-        config_data['ibm_cf']['regions'][region] = {'endpoint': endpoint, 'namespace': namespace}
-        if api_key:
-            config_data['ibm_cf']['regions'][region]['api_key'] = api_key
-        if namespace_id:
-            config_data['ibm_cf']['regions'][region]['namespace_id'] = namespace_id
-    # -------------------
-
-    if 'ibm' in config_data and config_data['ibm'] is not None:
-        config_data['ibm_cf'].update(config_data['ibm'])
-
-    for region in config_data['ibm_cf']['regions']:
-        if not set(required_parameters_1) <= set(config_data['ibm_cf']['regions'][region]) \
-           and (not set(required_parameters_0) <= set(config_data['ibm_cf']['regions'][region])
-           or 'namespace_id' not in config_data['ibm_cf']['regions'][region] or 'iam_api_key' not in config_data['ibm_cf']):
-            raise Exception('You must provide {} or {} to access to IBM Cloud '
-                            'Functions'.format(required_parameters_1, required_parameters_2))
-
-    cbr = config_data['serverless'].get('region')
-    if type(cbr) == list:
-        for region in cbr:
-            if region not in config_data['ibm_cf']['regions']:
-                raise Exception('Invalid Compute backend region: {}'.format(region))
-    else:
-        if cbr is None:
-            cbr = list(config_data['ibm_cf']['regions'].keys())[0]
-            config_data['lithops']['compute_backend_region'] = cbr
-
-        if cbr not in config_data['ibm_cf']['regions']:
-            raise Exception('Invalid Compute backend region: {}'.format(cbr))
-
-    if 'invoke_pool_threads' not in config_data['ibm_cf']:
-        config_data['ibm_cf']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
-    config_data['serverless']['invoke_pool_threads'] = config_data['ibm_cf']['invoke_pool_threads']
