@@ -45,12 +45,12 @@ class IBMCloudFunctionsBackend:
         self.is_lithops_worker = is_lithops_worker()
 
         self.user_agent = ibm_cf_config['user_agent']
-        self.region = ibm_cf_config['region']
-        self.endpoint = ibm_cf_config['regions'][self.region]['endpoint']
-        self.namespace = ibm_cf_config['regions'][self.region]['namespace']
-        self.namespace_id = ibm_cf_config['regions'][self.region].get('namespace_id', None)
-        self.api_key = ibm_cf_config['regions'][self.region].get('api_key', None)
+        self.endpoint = ibm_cf_config['endpoint']
+        self.namespace = ibm_cf_config['namespace']
+        self.namespace_id = ibm_cf_config.get('namespace_id', None)
+        self.api_key = ibm_cf_config.get('api_key', None)
         self.iam_api_key = ibm_cf_config.get('iam_api_key', None)
+        self.region = self.endpoint.split('//')[1].split('.')[0]
 
         logger.debug("Set IBM CF Namespace to {}".format(self.namespace))
         logger.debug("Set IBM CF Endpoint to {}".format(self.endpoint))
