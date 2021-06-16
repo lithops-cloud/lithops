@@ -160,20 +160,13 @@ def load_config(config_data):
     if 'ibm' in config_data and config_data['ibm'] is not None:
         config_data['code_engine'].update(config_data['ibm'])
 
-    if 'runtime' in config_data['code_engine']:
-        config_data['serverless']['runtime'] = config_data['code_engine']['runtime']
-    if 'runtime_memory' in config_data['code_engine']:
-        config_data['serverless']['runtime_memory'] = config_data['code_engine']['runtime_memory']
-    if 'runtime_timeout' in config_data['code_engine']:
-        config_data['serverless']['runtime_timeout'] = config_data['code_engine']['runtime_timeout']
-
     if 'runtime_cpu' not in config_data['code_engine']:
         config_data['code_engine']['runtime_cpu'] = RUNTIME_CPU
-    if 'runtime_memory' not in config_data['serverless']:
-        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY
-    if 'runtime_timeout' not in config_data['serverless']:
-        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT
-    if 'runtime' not in config_data['serverless']:
+    if 'runtime_memory' not in config_data['code_engine']:
+        config_data['code_engine']['runtime_memory'] = RUNTIME_MEMORY
+    if 'runtime_timeout' not in config_data['code_engine']:
+        config_data['code_engine']['runtime_timeout'] = RUNTIME_TIMEOUT
+    if 'runtime' not in config_data['code_engine']:
         if not DOCKER_PATH:
             raise Exception('docker command not found. Install docker or use '
                             'an already built runtime')
@@ -186,14 +179,14 @@ def load_config(config_data):
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         runtime_name = '{}/{}-v{}:{}'.format(docker_user, RUNTIME_NAME, python_version, revision)
-        config_data['serverless']['runtime'] = runtime_name
+        config_data['code_engine']['runtime'] = runtime_name
 
     runtime_cpu = config_data['code_engine']['runtime_cpu']
     if runtime_cpu not in VALID_CPU_VALUES:
         raise Exception('{} is an invalid runtime cpu value. Set one of: '
                         '{}'.format(runtime_cpu, VALID_CPU_VALUES))
 
-    runtime_memory = config_data['serverless']['runtime_memory']
+    runtime_memory = config_data['code_engine']['runtime_memory']
     if runtime_memory not in VALID_MEMORY_VALUES:
         raise Exception('{} is an invalid runtime memory value in MB. Set one of: '
                         '{}'.format(runtime_memory, VALID_MEMORY_VALUES))
@@ -206,7 +199,3 @@ def load_config(config_data):
     if 'workers' not in config_data['lithops'] or \
        config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
-
-    if 'invoke_pool_threads' not in config_data['code_engine']:
-        config_data['code_engine']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
-    config_data['serverless']['invoke_pool_threads'] = config_data['code_engine']['invoke_pool_threads']
