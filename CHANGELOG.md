@@ -3,6 +3,7 @@
 ## [v2.3.5.dev0]
 
 ### Added
+- [Core] ob.data_stream when using the partitioner it is also an iterator
 - [AWS Lambda] Add 'account_id' parameter in config (used if present instead of querying STS).
 
 ### Changed

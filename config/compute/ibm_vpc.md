@@ -53,11 +53,10 @@ ibm_vpc:
   security_group_id: <SECURITY_GROUP_ID>
   subnet_id: <SUBNET_ID>
   key_id: <PUBLIC_KEY_ID>
-  image_id: <IMAGE_ID_FOR_VMs> #Either VPC defaults or custom image
-  zone_name: <ZONE_NAME_VPC>
 
   #optional
-
+  # Either VPC defaults or custom image
+  image_id: <IMAGE_ID_FOR_VMs>
   # SSH user to access VPC.
   ssh_user : <SSH_USER_FOR_VPC> # Default is 'root'
   #Path to the ssh key file provided to create the VM.

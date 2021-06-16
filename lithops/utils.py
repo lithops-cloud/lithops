@@ -470,6 +470,12 @@ class WrappedStreamingBody:
         else:
             return getattr(self.sb, attr)
 
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return self.read(64*1024)
+
 
 class WrappedStreamingBodyPartition(WrappedStreamingBody):
 
@@ -511,9 +517,8 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
         last_row_end_pos = self.pos
         # Find end of the line in threshold
         if self.pos > self.chunk_size:
-            buf = io.BytesIO(retval[self.chunk_size-self._plusbytes:])
-            buf.readline()
-            last_row_end_pos = self.chunk_size-self._plusbytes+buf.tell()
+            last_byte_pos = retval[self.chunk_size:].find(b'\n')+1
+            last_row_end_pos = self.chunk_size+last_byte_pos
             self._eof = True
 
         return retval[first_row_start_pos:last_row_end_pos]
