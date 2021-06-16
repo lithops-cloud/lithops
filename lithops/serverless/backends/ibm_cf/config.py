@@ -33,41 +33,40 @@ UNIT_PRICE = 0.000017
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_ibmcf.zip')
 
-SECTION = 'ibm_cf'
-PARAMS_0 = ['endpoint', 'namespace']
+REQ_PARAMS = ['endpoint', 'namespace']
 OPT_PARAMS_1 = ['api_key']
 OPT_PARAMS_2 = ['namespace_id', 'iam_api_key']
 
 
 def load_config(config_data):
-    if SECTION not in config_data:
-        raise Exception("{} section is mandatory in the configuration".format(SECTION))
+    if 'ibm_cf' not in config_data:
+        raise Exception("'ibm_cf' section is mandatory in the configuration")
 
-    for param in PARAMS_0:
-        if param not in config_data[SECTION]:
-            msg = '{} is mandatory in {} section of the configuration'.format(PARAMS_0, SECTION)
+    for param in REQ_PARAMS:
+        if param not in config_data['ibm_cf']:
+            msg = "{} is mandatory in 'ibm_cf' section of the configuration".format(REQ_PARAMS)
             raise Exception(msg)
 
-    if 'ibm' in config_data:
-        config_data[SECTION].update(config_data['ibm'])
+    if 'ibm' in config_data and config_data['ibm'] is not None:
+        config_data['ibm_cf'].update(config_data['ibm'])
 
-    if not all(elem in config_data[SECTION] for elem in OPT_PARAMS_1) and \
-       not all(elem in config_data[SECTION] for elem in OPT_PARAMS_2):
+    if not all(elem in config_data['ibm_cf'] for elem in OPT_PARAMS_1) and \
+       not all(elem in config_data['ibm_cf'] for elem in OPT_PARAMS_2):
         raise Exception('You must provide either {}, or {} in {} section of the configuration'
-                        .format(OPT_PARAMS_1, OPT_PARAMS_2, SECTION))
+                        .format(OPT_PARAMS_1, OPT_PARAMS_2, 'ibm_cf'))
 
-    if 'runtime_memory' not in config_data[SECTION]:
-        config_data[SECTION]['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
-    if 'runtime_timeout' not in config_data[SECTION]:
-        config_data[SECTION]['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
-    if 'invoke_pool_threads' not in config_data[SECTION]:
-        config_data[SECTION]['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
-    if 'runtime' not in config_data[SECTION]:
+    if 'runtime_memory' not in config_data['ibm_cf']:
+        config_data['ibm_cf']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
+    if 'runtime_timeout' not in config_data['ibm_cf']:
+        config_data['ibm_cf']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+    if 'runtime' not in config_data['ibm_cf']:
         python_version = version_str(sys.version_info)
         try:
-            config_data[SECTION]['runtime'] = RUNTIME_DEFAULT[python_version]
+            config_data['ibm_cf']['runtime'] = RUNTIME_DEFAULT[python_version]
         except KeyError:
             raise Exception('Unsupported Python version: {}'.format(python_version))
+    if 'invoke_pool_threads' not in config_data['ibm_cf']:
+        config_data['ibm_cf']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
 
     if 'workers' not in config_data['lithops'] or \
        config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
