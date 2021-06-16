@@ -30,11 +30,11 @@ from lithops.invokers import create_invoker
 from lithops.storage import InternalStorage
 from lithops.wait import wait, ALL_COMPLETED, THREADPOOL_SIZE, WAIT_DUR_SEC
 from lithops.job import create_map_job, create_reduce_job
-from lithops.config import get_mode, default_config, \
+from lithops.config import default_config, \
     extract_localhost_config, extract_standalone_config, \
     extract_serverless_config, get_log_info, extract_storage_config
-from lithops.constants import LOCALHOST, SERVERLESS, STANDALONE, CLEANER_DIR, \
-    CLEANER_LOG_FILE
+from lithops.constants import LOCALHOST, CLEANER_DIR, \
+    CLEANER_LOG_FILE, SERVERLESS_BACKENDS, STANDALONE_BACKENDS
 from lithops.utils import is_notebook, setup_lithops_logger, \
     is_lithops_worker, create_executor_id
 from lithops.localhost.localhost import LocalhostHandler
@@ -53,13 +53,18 @@ class FunctionExecutor:
     for the Localhost, Serverless and Standalone executors
     """
 
-    def __init__(self, mode=None, config=None, backend=None, storage=None,
-                 runtime=None, runtime_memory=None, monitoring=None,
-                 workers=None, remote_invoker=None, log_level=False):
+    def __init__(self,
+                 config=None,
+                 backend=None,
+                 storage=None,
+                 runtime=None,
+                 runtime_memory=None,
+                 monitoring=None,
+                 workers=None,
+                 remote_invoker=None,
+                 log_level=False,
+                 *args, **kwargs):
         """ Create a FunctionExecutor Class """
-        if mode and mode not in [LOCALHOST, SERVERLESS, STANDALONE]:
-            raise Exception("Function executor mode must be one of '{}', '{}' "
-                            "or '{}'".format(LOCALHOST, SERVERLESS, STANDALONE))
 
         self.is_lithops_worker = is_lithops_worker()
 
@@ -72,26 +77,23 @@ class FunctionExecutor:
                 # Set default logging from config
                 setup_lithops_logger(*get_log_info(config))
 
-        # load mode of execution
-        mode = mode or get_mode(backend, config)
-        config_ow = {'lithops': {'mode': mode}, mode: {}}
-
         # overwrite user-provided parameters
+        config_ow = {'lithops': {}}
         if runtime is not None:
-            config_ow[mode]['runtime'] = runtime
-        if backend is not None:
-            config_ow[mode]['backend'] = backend
+            config_ow['runtime'] = runtime
         if runtime_memory is not None:
-            config_ow[mode]['runtime_memory'] = int(runtime_memory)
-        if remote_invoker is not None:
-            config_ow[mode]['remote_invoker'] = remote_invoker
+            config_ow['runtime_memory'] = int(runtime_memory)
 
+        if backend is not None:
+            config_ow['lithops']['backend'] = backend
         if storage is not None:
             config_ow['lithops']['storage'] = storage
         if workers is not None:
             config_ow['lithops']['workers'] = workers
         if monitoring is not None:
             config_ow['lithops']['monitoring'] = monitoring
+        if remote_invoker is not None:
+            config_ow['lithops']['remote_invoker'] = remote_invoker
 
         self.config = default_config(copy.deepcopy(config), config_ow)
 
@@ -112,13 +114,14 @@ class FunctionExecutor:
         self.total_jobs = 0
         self.last_call = None
 
-        if mode == LOCALHOST:
+        backend = self.config['lithops']['backend']
+        if backend == LOCALHOST:
             localhost_config = extract_localhost_config(self.config)
             self.compute_handler = LocalhostHandler(localhost_config)
-        elif mode == SERVERLESS:
+        elif backend in SERVERLESS_BACKENDS:
             serverless_config = extract_serverless_config(self.config)
             self.compute_handler = ServerlessHandler(serverless_config, self.internal_storage)
-        elif mode == STANDALONE:
+        elif backend in STANDALONE_BACKENDS:
             standalone_config = extract_standalone_config(self.config)
             self.compute_handler = StandaloneHandler(standalone_config)
 
@@ -134,8 +137,7 @@ class FunctionExecutor:
                                       self.compute_handler,
                                       self.job_monitor)
 
-        logger.info('{} Executor created with ID: {}'
-                    .format(mode.capitalize(), self.executor_id))
+        logger.info('FunctionExecutor created with ID: {}'.format(self.executor_id))
 
         self.log_path = None
 
@@ -175,8 +177,10 @@ class FunctionExecutor:
 
         runtime_meta = self.invoker.select_runtime(job_id, runtime_memory)
 
-        job = create_map_job(self.config, self.internal_storage,
-                             self.executor_id, job_id,
+        job = create_map_job(config=self.config,
+                             internal_storage=self.internal_storage,
+                             executor_id=self.executor_id,
+                             job_id=job_id,
                              map_function=func,
                              iterdata=[data],
                              runtime_meta=runtime_meta,
@@ -226,8 +230,10 @@ class FunctionExecutor:
 
         runtime_meta = self.invoker.select_runtime(job_id, runtime_memory)
 
-        job = create_map_job(self.config, self.internal_storage,
-                             self.executor_id, job_id,
+        job = create_map_job(config=self.config,
+                             internal_storage=self.internal_storage,
+                             executor_id=self.executor_id,
+                             job_id=job_id,
                              map_function=map_function,
                              iterdata=map_iterdata,
                              chunksize=chunksize,
@@ -289,8 +295,10 @@ class FunctionExecutor:
 
         runtime_meta = self.invoker.select_runtime(map_job_id, map_runtime_memory)
 
-        map_job = create_map_job(self.config, self.internal_storage,
-                                 self.executor_id, map_job_id,
+        map_job = create_map_job(config=self.config,
+                                 internal_storage=self.internal_storage,
+                                 executor_id=self.executor_id,
+                                 job_id=map_job_id,
                                  map_function=map_function,
                                  iterdata=map_iterdata,
                                  chunksize=chunksize,
@@ -318,9 +326,13 @@ class FunctionExecutor:
 
         runtime_meta = self.invoker.select_runtime(reduce_job_id, reduce_runtime_memory)
 
-        reduce_job = create_reduce_job(self.config, self.internal_storage,
-                                       self.executor_id, reduce_job_id,
-                                       reduce_function, map_job, map_futures,
+        reduce_job = create_reduce_job(config=self.config,
+                                       internal_storage=self.internal_storage,
+                                       executor_id=self.executor_id,
+                                       reduce_job_id=reduce_job_id,
+                                       reduce_function=reduce_function,
+                                       map_job=map_job,
+                                       map_futures=map_futures,
                                        runtime_meta=runtime_meta,
                                        runtime_memory=reduce_runtime_memory,
                                        reducer_one_per_object=reducer_one_per_object,
@@ -592,8 +604,13 @@ class FunctionExecutor:
 
 class LocalhostExecutor(FunctionExecutor):
 
-    def __init__(self, config=None, runtime=None, workers=None,
-                 storage=None, monitoring=None, log_level=False):
+    def __init__(self,
+                 config=None,
+                 runtime=None,
+                 workers=None,
+                 storage=None,
+                 monitoring=None,
+                 log_level=False):
         """
         Initialize a LocalhostExecutor class.
 
@@ -606,17 +623,27 @@ class LocalhostExecutor(FunctionExecutor):
 
         :return `LocalhostExecutor` object.
         """
-        super().__init__(mode=LOCALHOST, config=config,
-                         runtime=runtime, storage=storage,
-                         log_level=log_level, workers=workers,
+        super().__init__(backend=LOCALHOST,
+                         config=config,
+                         runtime=runtime,
+                         storage=storage,
+                         log_level=log_level,
+                         workers=workers,
                          monitoring=monitoring)
 
 
 class ServerlessExecutor(FunctionExecutor):
 
-    def __init__(self, config=None, runtime=None, runtime_memory=None,
-                 backend=None, storage=None, workers=None, monitoring=None,
-                 remote_invoker=None, log_level=False):
+    def __init__(self,
+                 config=None,
+                 runtime=None,
+                 runtime_memory=None,
+                 backend=None,
+                 storage=None,
+                 workers=None,
+                 monitoring=None,
+                 remote_invoker=None,
+                 log_level=False):
         """
         Initialize a ServerlessExecutor class.
 
@@ -631,17 +658,30 @@ class ServerlessExecutor(FunctionExecutor):
 
         :return `ServerlessExecutor` object.
         """
-        super().__init__(mode=SERVERLESS, config=config, runtime=runtime,
-                         runtime_memory=runtime_memory, backend=backend,
-                         storage=storage, workers=workers,
-                         monitoring=monitoring, log_level=log_level,
+
+        backend = backend or constants.SERVERLESS_BACKENDS[0]
+
+        super().__init__(config=config,
+                         runtime=runtime,
+                         runtime_memory=runtime_memory,
+                         backend=backend,
+                         storage=storage,
+                         workers=workers,
+                         monitoring=monitoring,
+                         log_level=log_level,
                          remote_invoker=remote_invoker)
 
 
 class StandaloneExecutor(FunctionExecutor):
 
-    def __init__(self, config=None, backend=None, runtime=None, storage=None,
-                 workers=None, monitoring=None, log_level=False):
+    def __init__(self,
+                 config=None,
+                 backend=None,
+                 runtime=None,
+                 storage=None,
+                 workers=None,
+                 monitoring=None,
+                 log_level=False):
         """
         Initialize a StandaloneExecutor class.
 
@@ -655,9 +695,16 @@ class StandaloneExecutor(FunctionExecutor):
 
         :return `StandaloneExecutor` object.
         """
-        super().__init__(mode=STANDALONE, config=config, runtime=runtime,
-                         backend=backend, storage=storage, workers=workers,
-                         monitoring=monitoring, log_level=log_level)
+
+        backend = backend or constants.STANDALONE_BACKENDS[0]
+
+        super().__init__(config=config,
+                         runtime=runtime,
+                         backend=backend,
+                         storage=storage,
+                         workers=workers,
+                         monitoring=monitoring,
+                         log_level=log_level)
 
     def create(self):
         runtime_key, runtime_meta = self.compute_handler.create()
