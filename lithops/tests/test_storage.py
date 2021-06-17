@@ -62,7 +62,7 @@ class TestStorage(unittest.TestCase):
     def test_cloudobject(self):
         logger.info('Testing cloudobjects')
         sb = STORAGE_CONFIG['backend']
-        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + PREFIX + '/'
+        data_prefix = sb + '://' + STORAGE_CONFIG['bucket'] + '/' + DATASET_PREFIX + '/'
         with lithops.FunctionExecutor(config=CONFIG) as fexec:
             fexec.map(my_cloudobject_put, data_prefix)
             cloudobjects = fexec.get_result()

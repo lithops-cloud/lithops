@@ -12,8 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
+import subprocess
 import unittest  # Mandatory. Required to incorporate the test class into the test framework
 import lithops  # Mandatory, unless test class is confined to storage testing
 from lithops.tests import main_util  # required to initialize config variables and other constants below.
@@ -64,14 +63,15 @@ class TestFeatureName(unittest.TestCase):  # Mandatory,unittest test classes are
 
 # ------------------------------------ Incorporate your test function here ---------------------------------------------
 
+    @unittest.skipIf(subprocess.getoutput("lithops --version") >= "2.3.4.dev2",
+                     "This test function isn't a part of the test procedure.") # conditionally skip a test
+    def test_example_function(self):  # unittest's function naming convention requires functions to be named as demonstrated.
+        """A simple test function using memory against a lithop's map function."""
 
-    # def test_tester_name(self):  # unittest's function naming convention requires functions to be named as demonstrated.
-    #     """A simple test function using memory against a lithop's map function."""
-    #
-    #     from lithops.tests.util_func import map_util
-    #     logger.info('Testing test_tester_name()')
-    #
-    #     fexec = lithops.FunctionExecutor(config=CONFIG) # Passing the config parameter to allow your test function to work on users that provided a path to the config file via a flag
-    #     fexec.map(map_util.simple_map_function,[(1, 1), (2, 2), (3, 3), (4, 4)])
-    #     result = fexec.get_result()
-    #     self.assertEqual(result, [2, 4, 6, 8])
+        from lithops.tests.util_func import map_util
+        logger.info('Testing test_tester_name()')
+
+        fexec = lithops.FunctionExecutor(config=CONFIG) # Passing the config parameter to allow your test function to work on users that provided a path to the config file via a flag
+        fexec.map(map_util.simple_map_function,[(1, 1), (2, 2), (3, 3), (4, 4)])
+        result = fexec.get_result()
+        self.assertEqual(result, [2, 4, 6, 8])

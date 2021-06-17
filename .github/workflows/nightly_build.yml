@@ -1,16 +1,10 @@
-name: "Push or PR git-action"
+name: "Nightly Build"
 
 on:
-  push:
-    branches:
-      - master
-    paths-ignore:
-      - '**/**.md'
-  pull_request:
-    branches:
-      - master
-    paths-ignore:
-      - '**/**.md'
+  workflow_dispatch:
+  schedule:
+#    - cron: '0 0 * * *'
+    - cron: '56 12 * * *'
 
 
 jobs:
@@ -42,7 +36,7 @@ jobs:
 
       - name: Run Python tests
         run: |
-         python3 -m lithops.tests.tests_main -c lithops/tests/lithops_config.yaml -t test_storage_handler
+         lithops test -t test_storage_handler -c lithops/tests/lithops_config.yaml
 
       - name: Clean COS
         run: |
