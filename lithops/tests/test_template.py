@@ -63,15 +63,15 @@ class TestFeatureName(unittest.TestCase):  # Mandatory,unittest test classes are
 
 # ------------------------------------ Incorporate your test function here ---------------------------------------------
 
-    # @unittest.skipIf(subprocess.getoutput("lithops --version") >= "2.3.4.dev2",
-    #                  "Test isn't applicable to running lithops version.") # conditionally skip a test
-    # def test_tester_name(self):  # unittest's function naming convention requires functions to be named as demonstrated.
-    #     """A simple test function using memory against a lithop's map function."""
-    #
-    #     from lithops.tests.util_func import map_util
-    #     logger.info('Testing test_tester_name()')
-    #
-    #     fexec = lithops.FunctionExecutor(config=CONFIG) # Passing the config parameter to allow your test function to work on users that provided a path to the config file via a flag
-    #     fexec.map(map_util.simple_map_function,[(1, 1), (2, 2), (3, 3), (4, 4)])
-    #     result = fexec.get_result()
-    #     self.assertEqual(result, [2, 4, 6, 8])
+    @unittest.skipIf(subprocess.getoutput("lithops --version") >= "2.3.4.dev2",
+                     "This test function isn't a part of the test procedure.") # conditionally skip a test
+    def test_example_function(self):  # unittest's function naming convention requires functions to be named as demonstrated.
+        """A simple test function using memory against a lithop's map function."""
+
+        from lithops.tests.util_func import map_util
+        logger.info('Testing test_tester_name()')
+
+        fexec = lithops.FunctionExecutor(config=CONFIG) # Passing the config parameter to allow your test function to work on users that provided a path to the config file via a flag
+        fexec.map(map_util.simple_map_function,[(1, 1), (2, 2), (3, 3), (4, 4)])
+        result = fexec.get_result()
+        self.assertEqual(result, [2, 4, 6, 8])
