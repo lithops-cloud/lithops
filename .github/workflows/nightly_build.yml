@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
   schedule:
 #    - cron: '0 0 * * *'
-    - cron: '56 12 * * *'
+    - cron: '09 13 * * *'
 
 
 jobs:
-  test_pr:
+  nightly-build:
 
     runs-on: ubuntu-latest
 
