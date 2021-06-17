@@ -36,7 +36,7 @@ from lithops.config import default_config, \
 from lithops.constants import LOCALHOST, CLEANER_DIR, \
     CLEANER_LOG_FILE, SERVERLESS_BACKENDS, STANDALONE_BACKENDS
 from lithops.utils import is_notebook, setup_lithops_logger, \
-    is_lithops_worker, create_executor_id
+    is_lithops_worker, create_executor_id, get_mode, get_backend
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
 from lithops.serverless.serverless import ServerlessHandler
@@ -54,6 +54,7 @@ class FunctionExecutor:
     """
 
     def __init__(self,
+                 mode=None,
                  config=None,
                  backend=None,
                  storage=None,
@@ -62,9 +63,13 @@ class FunctionExecutor:
                  monitoring=None,
                  workers=None,
                  remote_invoker=None,
-                 log_level=False,
-                 *args, **kwargs):
+                 log_level=False):
         """ Create a FunctionExecutor Class """
+
+        if mode and not backend:
+            backend = get_backend(mode)
+        if backend:
+            mode = get_mode(backend)
 
         self.is_lithops_worker = is_lithops_worker()
 
@@ -84,6 +89,8 @@ class FunctionExecutor:
         if runtime_memory is not None:
             config_ow['runtime_memory'] = int(runtime_memory)
 
+        if mode is not None:
+            config_ow['lithops']['mode'] = mode
         if backend is not None:
             config_ow['lithops']['backend'] = backend
         if storage is not None:
@@ -137,7 +144,8 @@ class FunctionExecutor:
                                       self.compute_handler,
                                       self.job_monitor)
 
-        logger.info('FunctionExecutor created with ID: {}'.format(self.executor_id))
+        logger.info('Function executor for {} created with ID: {}'
+                    .format(backend, self.executor_id))
 
         self.log_path = None
 
@@ -659,7 +667,7 @@ class ServerlessExecutor(FunctionExecutor):
         :return `ServerlessExecutor` object.
         """
 
-        backend = backend or constants.SERVERLESS_BACKENDS[0]
+        backend = backend or constants.SERVERLESS_BACKEND_DEFAULT
 
         super().__init__(config=config,
                          runtime=runtime,
@@ -696,7 +704,7 @@ class StandaloneExecutor(FunctionExecutor):
         :return `StandaloneExecutor` object.
         """
 
-        backend = backend or constants.STANDALONE_BACKENDS[0]
+        backend = backend or constants.STANDALONE_BACKEND_DEFAULT
 
         super().__init__(config=config,
                          runtime=runtime,

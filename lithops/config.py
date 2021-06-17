@@ -94,7 +94,8 @@ def load_config(log=True):
         # Set to Localhost mode
         if log:
             logger.debug("Config not found. Setting Lithops to localhost mode")
-        config_data = {'lithops': {'backend': constants.LOCALHOST,
+        config_data = {'lithops': {'mode': constants.LOCALHOST,
+                                   'backend': constants.LOCALHOST,
                                    'storage': constants.LOCALHOST}}
 
     return config_data
@@ -138,18 +139,44 @@ def default_config(config_data=None, config_overwrite={}):
     if 'lithops' in config_overwrite:
         config_data['lithops'].update(config_overwrite['lithops'])
 
-    # set default backend if not present
-    if 'backend' not in config_data['lithops']:
-        config_data['lithops']['backend'] = constants.SERVERLESS_BACKEND_DEFAULT
-    backend = config_data['lithops']['backend']
+    if 'mode' not in config_data['lithops']:
+        config_data['lithops']['mode'] = constants.MODE_DEFAULT
 
-    if backend in constants.SERVERLESS_BACKENDS:
+    if 'backend' not in config_data['lithops']:
+        mode = config_data['lithops']['mode']
+        if mode in config_data and 'backend' in config_data[mode]:
+            config_data['lithops']['backend'] = config_data[mode]['backend']
+        elif mode == constants.LOCALHOST:
+            config_data['lithops']['backend'] = constants.LOCALHOST
+        elif mode == constants.SERVERLESS:
+            config_data['lithops']['backend'] = constants.SERVERLESS_BACKEND_DEFAULT
+        elif mode == constants.STANDALONE:
+            config_data['lithops']['backend'] = constants.STANDALONE_BACKEND_DEFAULT
+
+    backend = config_data['lithops']['backend']
+    if backend == constants.LOCALHOST:
+        logger.debug("Loading compute backend module: localhost")
+        config_data['lithops']['workers'] = 1
+        if 'worker_processes' not in config_data['lithops']:
+            config_data['lithops']['worker_processes'] = CPU_COUNT
+        if constants.LOCALHOST not in config_data or \
+           config_data[constants.LOCALHOST] is None:
+            config_data[constants.LOCALHOST] = {}
+
+        if 'runtime' not in config_data[constants.LOCALHOST]:
+            config_data[constants.LOCALHOST]['runtime'] = constants.LOCALHOST_RUNTIME_DEFAULT
+
+        verify_runtime_name(config_data[backend]['runtime'])
+
+    elif backend in constants.SERVERLESS_BACKENDS:
         logger.debug("Loading Serverless backend module: {}".format(backend))
         cb_config = importlib.import_module('lithops.serverless.backends.{}.config'.format(backend))
         cb_config.load_config(config_data)
 
         if 'runtime_memory' in config_overwrite:
             config_data[backend]['runtime_memory'] = config_overwrite['runtime_memory']
+
+        verify_runtime_name(config_data[backend]['runtime'])
 
     elif backend in constants.STANDALONE_BACKENDS:
         if constants.STANDALONE not in config_data or \
@@ -168,22 +195,9 @@ def default_config(config_data=None, config_overwrite={}):
         sb_config.load_config(config_data)
 
         if 'runtime' not in config_data[backend]:
-            config_data[backend]['runtime'] = constants.STANDALONE_RUNTIME_DEFAULT
+            config_data[constants.STANDALONE]['runtime'] = constants.STANDALONE_RUNTIME_DEFAULT
 
-    elif backend == constants.LOCALHOST:
-        config_data['lithops']['workers'] = 1
-        if 'worker_processes' not in config_data['lithops']:
-            config_data['lithops']['worker_processes'] = CPU_COUNT
-        if constants.LOCALHOST not in config_data or \
-           config_data[constants.LOCALHOST] is None:
-            config_data[constants.LOCALHOST] = {}
-        if 'runtime' not in config_data[constants.LOCALHOST]:
-            config_data[constants.LOCALHOST]['runtime'] = constants.LOCALHOST_RUNTIME_DEFAULT
-        logger.debug("Loading compute backend module: localhost")
-
-    if 'runtime' in config_overwrite:
-        config_data[backend]['runtime'] = config_overwrite['runtime']
-    verify_runtime_name(config_data[backend]['runtime'])
+        verify_runtime_name(config_data[constants.STANDALONE]['runtime'])
 
     if 'execution_timeout' not in config_data['lithops']:
         config_data['lithops']['execution_timeout'] = constants.EXECUTION_TIMEOUT_DEFAULT
@@ -249,30 +263,30 @@ def extract_storage_config(config):
 
 
 def extract_localhost_config(config):
-    localhost_config = {}
+    lh_config = {}
     sb = constants.LOCALHOST
-    localhost_config['backend'] = sb
-    localhost_config[sb] = config[sb] if sb in config and config[sb] else {}
-    localhost_config[sb]['user_agent'] = 'lithops/{}'.format(__version__)
+    lh_config['backend'] = sb
+    lh_config[sb] = config[sb] if sb in config and config[sb] else {}
+    lh_config[sb]['user_agent'] = 'lithops/{}'.format(__version__)
 
-    return localhost_config
+    return lh_config
 
 
 def extract_serverless_config(config):
-    serverless_config = {}
+    sl_config = {}
     sb = config['lithops']['backend']
-    serverless_config['backend'] = sb
-    serverless_config[sb] = config[sb] if sb in config and config[sb] else {}
-    serverless_config[sb]['user_agent'] = 'lithops/{}'.format(__version__)
+    sl_config['backend'] = sb
+    sl_config[sb] = config[sb] if sb in config and config[sb] else {}
+    sl_config[sb]['user_agent'] = 'lithops/{}'.format(__version__)
 
-    return serverless_config
+    return sl_config
 
 
 def extract_standalone_config(config):
-    standalone_config = config[constants.STANDALONE].copy()
+    sa_config = config[constants.STANDALONE].copy()
     sb = config[constants.STANDALONE]['backend']
-    standalone_config['runtime'] = config[sb]['runtime']
-    standalone_config[sb] = config[sb] if sb in config and config[sb] else {}
-    standalone_config[sb]['user_agent'] = 'lithops/{}'.format(__version__)
+    sa_config[sb] = config[sb] if sb in config and config[sb] else {}
+    sa_config[sb]['runtime'] = sa_config['runtime']
+    sa_config[sb]['user_agent'] = 'lithops/{}'.format(__version__)
 
-    return standalone_config
+    return sa_config

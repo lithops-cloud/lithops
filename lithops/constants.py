@@ -31,7 +31,8 @@ LOCALHOST = 'localhost'
 SERVERLESS = 'serverless'
 STANDALONE = 'standalone'
 
-MODE_DEFAULT = SERVERLESS
+MODE_DEFAULT = 'serverless'
+
 SERVERLESS_BACKEND_DEFAULT = 'ibm_cf'
 STANDALONE_BACKEND_DEFAULT = 'ibm_vpc'
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
