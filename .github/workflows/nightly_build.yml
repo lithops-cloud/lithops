@@ -1,10 +1,8 @@
 name: "Nightly Build"
 
 on:
-  workflow_dispatch:
   schedule:
-#    - cron: '0 0 * * *'
-    - cron: '20 13 * * *'
+    - cron: '29 13 * * *'
 
 
 jobs:
