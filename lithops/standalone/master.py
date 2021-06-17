@@ -265,8 +265,11 @@ def run():
     if exec_mode == 'consume':
         # Consume mode runs the job locally
         pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
-        localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
-        localhost_handler.invoke(job_payload)
+        try:
+            localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
+            localhost_handler.invoke(job_payload, workers=1)
+        except Exception as e:
+            logger.info(e)
 
     elif exec_mode == 'create':
         # Create mode runs the job in worker VMs

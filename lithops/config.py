@@ -142,8 +142,9 @@ def default_config(config_data=None, config_overwrite={}):
     if 'mode' not in config_data['lithops']:
         config_data['lithops']['mode'] = constants.MODE_DEFAULT
 
+    mode = config_data['lithops']['mode']
+
     if 'backend' not in config_data['lithops']:
-        mode = config_data['lithops']['mode']
         if mode in config_data and 'backend' in config_data[mode]:
             config_data['lithops']['backend'] = config_data[mode]['backend']
         elif mode == constants.LOCALHOST:
@@ -153,8 +154,7 @@ def default_config(config_data=None, config_overwrite={}):
         elif mode == constants.STANDALONE:
             config_data['lithops']['backend'] = constants.STANDALONE_BACKEND_DEFAULT
 
-    backend = config_data['lithops']['backend']
-    if backend == constants.LOCALHOST:
+    if mode == constants.LOCALHOST:
         logger.debug("Loading compute backend module: localhost")
         config_data['lithops']['workers'] = 1
         if 'worker_processes' not in config_data['lithops']:
@@ -166,9 +166,10 @@ def default_config(config_data=None, config_overwrite={}):
         if 'runtime' not in config_data[constants.LOCALHOST]:
             config_data[constants.LOCALHOST]['runtime'] = constants.LOCALHOST_RUNTIME_DEFAULT
 
-        verify_runtime_name(config_data[backend]['runtime'])
+        verify_runtime_name(config_data[constants.LOCALHOST]['runtime'])
 
-    elif backend in constants.SERVERLESS_BACKENDS:
+    elif mode == constants.SERVERLESS:
+        backend = config_data['lithops']['backend']
         logger.debug("Loading Serverless backend module: {}".format(backend))
         cb_config = importlib.import_module('lithops.serverless.backends.{}.config'.format(backend))
         cb_config.load_config(config_data)
@@ -178,7 +179,8 @@ def default_config(config_data=None, config_overwrite={}):
 
         verify_runtime_name(config_data[backend]['runtime'])
 
-    elif backend in constants.STANDALONE_BACKENDS:
+    elif mode == constants.STANDALONE:
+        backend = config_data['lithops']['backend']
         if constants.STANDALONE not in config_data or \
            config_data[constants.STANDALONE] is None:
             config_data[constants.STANDALONE] = {}
@@ -194,7 +196,7 @@ def default_config(config_data=None, config_overwrite={}):
         sb_config = importlib.import_module('lithops.standalone.backends.{}.config'.format(backend))
         sb_config.load_config(config_data)
 
-        if 'runtime' not in config_data[backend]:
+        if 'runtime' not in config_data[constants.STANDALONE]:
             config_data[constants.STANDALONE]['runtime'] = constants.STANDALONE_RUNTIME_DEFAULT
 
         verify_runtime_name(config_data[constants.STANDALONE]['runtime'])
@@ -263,13 +265,9 @@ def extract_storage_config(config):
 
 
 def extract_localhost_config(config):
-    lh_config = {}
-    sb = constants.LOCALHOST
-    lh_config['backend'] = sb
-    lh_config[sb] = config[sb] if sb in config and config[sb] else {}
-    lh_config[sb]['user_agent'] = 'lithops/{}'.format(__version__)
+    localhost_config = config[constants.LOCALHOST].copy()
 
-    return lh_config
+    return localhost_config
 
 
 def extract_serverless_config(config):
