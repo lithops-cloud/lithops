@@ -4,10 +4,10 @@ import sys
 
 
 def get_config_files():
-    path = 'lithops/tests/config_files'
+    path = 'lithops/tests/config_files/'
     for file in os.listdir(path):
         if file.endswith('yaml'):
-            yield file
+            yield path + file
 
 
 if __name__ == '__main__':
