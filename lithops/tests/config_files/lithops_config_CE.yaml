@@ -1,0 +1,34 @@
+lithops:
+    storage: ibm_cos
+    storage_bucket: test-bucket-te
+    mode: serverless
+    #rabbitmq_monitor: <True/False>
+    data_cleaner: False
+    #workers: <MAX_NUM_OF_WORKERS>
+    #data_limit: 4  # in MiB
+    #execution_timeout: 1800
+    #include_modules: <LIST_OF_MODULES>
+    #exclude_modules: <LIST_OF_MODULES>
+    #log_level: INFO
+    #log_format: "%(asctime)s [%(levelname)s] %(name)s -- %(message)s"
+    #log_stream: ext://sys.stdout
+    #log_filename <path_to_a_file>
+
+serverless:
+    backend: code_engine
+
+
+ibm:
+    iam_api_key: <iamapikey>
+
+
+code_engine:
+    namespace  : 75nd5iv9zir
+    region     : us-south
+    runtime: cohenjomer/lithops-ce-user:234dev2
+
+ibm_cos:
+    region : eu-de
+    endpoint    : https://s3.eu-de.cloud-object-storage.appdomain.cloud
+    private_endpoint: https://s3.private.eu-de.cloud-object-storage.appdomain.cloud
+    api_key     : <cos_api_key>

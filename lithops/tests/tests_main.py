@@ -183,7 +183,7 @@ def run_tests(tests, config=None, mode=None, group=None, backend=None, storage=N
     if not tests_results.wasSuccessful():  # Fails github workflow action to reject merge to repository
         raise Exception("--------Test procedure failed. Merge rejected--------")
 
-    clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)  # removes test files previously uploaded to storage
+    #clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)  # removes test files previously uploaded to storage
 
 
 def terminate(msg_type, failed_input):
