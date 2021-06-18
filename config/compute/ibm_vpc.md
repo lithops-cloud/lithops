@@ -33,18 +33,16 @@ Edit your lithops config and add the relevant keys:
 
 ```yaml
 lithops:
-  mode: standalone
+  backend: ibm_vpc
 
 ibm:
   iam_api_key: <iam-api-key>
 
 standalone:
-  backend: ibm_vpc
   exec_mode: create
-
   #optional
   # Use False for custom image that contains Lithops runtime
-  pull_runtime: <True/False>
+  #pull_runtime: <True/False>
 
 ibm_vpc:
   endpoint: <REGION_ENDPOINT>
@@ -53,18 +51,6 @@ ibm_vpc:
   security_group_id: <SECURITY_GROUP_ID>
   subnet_id: <SUBNET_ID>
   key_id: <PUBLIC_KEY_ID>
-
-  #optional
-  # Either VPC defaults or custom image
-  image_id: <IMAGE_ID_FOR_VMs>
-  # SSH user to access VPC.
-  ssh_user : <SSH_USER_FOR_VPC> # Default is 'root'
-  #Path to the ssh key file provided to create the VM.
-  ssh_key_filename : <PATH_TO_SSH_KEYFILE> # Default path in OS
-  #Profile name for the worker VMs
-  profile_name: <PROFILE_NAME> # Default is 'cx2-2x4'
-  #Profile name for the master VM
-  master_profile_name:  <PROFILE_NAME> # Default is 'cx2-2x4'
 
 ```
 
@@ -107,11 +93,10 @@ This will create 4 different VM instance and execute `my_map_function` in the ea
 3.	The first time you deplopy Lithops job in the auto create mode it is advised to navigate to dashboard of IBM VPC and verify that VM is being created and deleted.
 4. If running Lithops over Gen2 fails with error message that decode() in pyJWT need `algorithms` then please make sure pyJWT is version `1.7.1` installed. If needed execute `pip install -U PyJWT==1.7.1`
 
-### Summary of the configuration keys for the auto create mode
+### Summary of the configuration keys for the create mode
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|standalone| pull_runtime| True | No | If True, Lithops will pull runtime from container registry|
 |ibm_vpc | endpoint | |yes | Endpoint of your subnet region |
 |ibm_vpc | vpc_id | | yes | VPC id |
 |ibm_vpc | resource_group_id | | yes | Resource group id |
@@ -121,12 +106,10 @@ This will create 4 different VM instance and execute `my_map_function` in the ea
 |ibm_vpc | ssh_user | root |no | Username to access the VPC |
 |ibm_vpc | ssh_key_filename | | no | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
 |ibm_vpc | image_id | | no | Virtual machine image id |
-|ibm_vpc | zone_name | | no | Zone name |
 |ibm_vpc | volume_tier_name | general-purpose | no | Virtual machine volume tier |
 |ibm_vpc | profile_name | cx2-2x4 | no | Profile name for the worker VMs |
 |ibm_vpc | master_profile_name | cx2-2x4 | no | Profile name for the master VM |
 |ibm_vpc | delete_on_dismantle | True | no | Delete the worekr VMs when they are stopped |
-
 
 ## Lithops and the VSI consume mode
 
@@ -189,7 +172,6 @@ If you need to create new VM, then follow the steps to create and update Lithops
 |ibm_vpc | ip_address | | yes | Floatting IP address atached to your Vm instance|
 |ibm_vpc | ssh_key_filename | | no | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
 |ibm_vpc | delete_on_dismantle | False| no | Delete the VM when it is stopped |
-
 
 ## Viewing the execution logs
 

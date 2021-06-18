@@ -96,3 +96,6 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
 |ibm_cf| api_key |  | no | **Mandatory** if using Cloud Foundry-based namespace. Value of 'KEY' from [here](https://cloud.ibm.com/functions/namespace-settings)|
 |ibm_cf| namespace_id |  |no | **Mandatory** if using IAM-based namespace with IAM API Key. Value of 'GUID' from [here](https://cloud.ibm.com/functions/namespace-settings)|
 |ibm_cf| runtime |  |no | Docker image name.|
+|ibm_cf | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
+|ibm_cf | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
+|ibm_cf | invoke_pool_threads | 500 |no | Number of concurrent threads used for invocation |

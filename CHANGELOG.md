@@ -8,7 +8,6 @@
 
 ### Changed
 - [Core] Add 'key' and 'bucket' attrs in localhost partitioner for compatibility with OS
-- [Serverless] runtime, runtime_memory and runtime_timeout can only be set at backend level
 
 ### Fixes
 - [Standalone] Fix execution

@@ -103,11 +103,6 @@ To work with Code Engine there is need to use dedicated runtime. You can use a p
 
 |Default runtime name| Python version | What is included | Lithops version |
 |----|-----|----|-----|
-|ibmfunctions/lithops-ce-3.7.5-2.2.0:1.0.0 | 3.7 | [included](../../runtime/code_engine/requirements.txt) | 2.2.0 |
-|ibmfunctions/lithops-ce-3.8.5-2.2.2:1.0.0 | 3.8 | [included](../../runtime/code_engine/requirements.txt) | 2.2.2 |
-|ibmfunctions/lithops-ce-3.8.5-2.2.9:1.0.0 | 3.8 | [included](../../runtime/code_engine/requirements.txt) | 2.2.9 |
-|ibmfunctions/lithops-codeengine-v38:2213 | 3.8 | [included](../../runtime/code_engine/requirements.txt) | 2.2.13 |
-|ibmfunctions/lithops-codeengine-v37-1:2213 | 3.7 | [included](../../runtime/code_engine/requirements.txt) | 2.2.13 |
 |ibmfunctions/lithops-ce-v37:2216 | 3.7 | [included](../../runtime/code_engine/requirements.txt) | 2.2.16 |
 |ibmfunctions/lithops-ce-v38:2216 | 3.8 | [included](../../runtime/code_engine/requirements.txt) | 2.2.16 |
 |ibmfunctions/lithops-ce-v385:230 | 3.8 | [included](../../runtime/code_engine/requirements.txt) | 2.3.0 |
