@@ -3,14 +3,16 @@
 ## [v2.3.5.dev0]
 
 ### Added
-- [Core] ob.data_stream when using the partitioner it is also an iterator
+- [Core] make ob.data_stream an iterator when using the partitioner
 - [AWS Lambda] Add 'account_id' parameter in config (used if present instead of querying STS).
 
 ### Changed
 - [Core] Add 'key' and 'bucket' attrs in localhost partitioner for compatibility with OS
+- [Serverless] runtime, runtime_memory and runtime_timeout can only be set at backend level
 
 ### Fixes
-- 
+- [Standalone] Fix execution
+- [Core] Avoid loading the config file twice
 
 ## [v2.3.4]
 

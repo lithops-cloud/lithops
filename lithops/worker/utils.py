@@ -24,7 +24,7 @@ from contextlib import contextmanager
 
 from lithops.version import __version__ as lithops_ver
 from lithops.utils import sizeof_fmt, is_unix_system, b64str_to_bytes
-from lithops.constants import LITHOPS_TEMP_DIR, MODULES_DIR, SERVERLESS_BACKENDS
+from lithops.constants import LITHOPS_TEMP_DIR, MODULES_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +40,11 @@ def get_function_and_modules(job, internal_storage):
     """
     logger.debug("Getting function and modules")
 
-    backend = job.config['lithops']['backend']
-    customized_runtime = job.config['lithops'].get('customized_runtime', False)
+    mode = job.config['lithops']['mode']
+    customized_runtime = job.config[mode].get('customized_runtime', False)
 
     func_obj = None
-    if backend in SERVERLESS_BACKENDS and customized_runtime:
+    if customized_runtime:
         func_path = '/'.join([LITHOPS_TEMP_DIR, job.func_key])
         with open(func_path, "rb") as f:
             func_obj = f.read()
