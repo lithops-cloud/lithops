@@ -30,7 +30,7 @@ from lithops.storage.utils import create_func_key, create_agg_data_key,\
     create_job_key
 from lithops.job.serialize import SerializeIndependent, create_module_data
 from lithops.constants import MAX_AGG_DATA_SIZE, JOBS_PREFIX, LOCALHOST,\
-    LITHOPS_TEMP_DIR, SERVERLESS_BACKENDS, STANDALONE_BACKENDS
+    LITHOPS_TEMP_DIR, SERVERLESS, STANDALONE
 
 
 logger = logging.getLogger(__name__)
@@ -194,22 +194,23 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     job.function_name = func.__name__ if inspect.isfunction(func) or inspect.ismethod(func) else type(func).__name__
     job.total_calls = len(iterdata)
 
+    mode = config['lithops']['mode']
     backend = config['lithops']['backend']
 
-    if backend in SERVERLESS_BACKENDS:
-        job.invoke_pool_threads = invoke_pool_threads or config[backend].get('invoke_pool_threads', 1)
+    if mode == SERVERLESS:
+        job.invoke_pool_threads = invoke_pool_threads or config[SERVERLESS].get('invoke_pool_threads', 1)
         job.runtime_memory = runtime_memory or config[backend]['runtime_memory']
         job.runtime_timeout = config[backend]['runtime_timeout']
         if job.execution_timeout >= job.runtime_timeout:
             job.execution_timeout = job.runtime_timeout - 5
 
-    elif backend in STANDALONE_BACKENDS:
+    elif mode in STANDALONE:
         job.runtime_memory = None
-        runtime_timeout = config['standalone']['hard_dismantle_timeout']
+        runtime_timeout = config[STANDALONE]['hard_dismantle_timeout']
         if job.execution_timeout >= runtime_timeout:
             job.execution_timeout = runtime_timeout - 10
 
-    elif backend == LOCALHOST:
+    elif mode == LOCALHOST:
         job.runtime_memory = None
         job.runtime_timeout = execution_timeout
 
@@ -273,7 +274,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     func_upload_start = time.time()
 
     # Upload function and modules
-    if config['lithops'].get('customized_runtime'):
+    if config[mode].get('customized_runtime', False):
         # Prepare function and modules locally to store in the runtime image later
         function_file = func.__code__.co_filename
         function_hash = hashlib.md5(open(function_file, 'rb').read()).hexdigest()[:16]
