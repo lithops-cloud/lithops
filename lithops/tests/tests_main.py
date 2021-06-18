@@ -174,7 +174,8 @@ def run_tests(tests, config=None, mode=None, group=None, backend=None, storage=N
 
     suite = unittest.TestSuite()
     config_suite(suite, tests, group)
-    words_in_data_set = upload_data_sets()
+    clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)  # removes test files previously uploaded to storage
+    words_in_data_set = upload_data_sets()  # uploads datasets and returns word count
     main_util.init_config(CONFIG, STORAGE, STORAGE_CONFIG, words_in_data_set, TEST_FILES_URLS)
 
     runner = unittest.TextTestRunner(verbosity=2, failfast=fail_fast)
@@ -183,7 +184,7 @@ def run_tests(tests, config=None, mode=None, group=None, backend=None, storage=N
     if not tests_results.wasSuccessful():  # Fails github workflow action to reject merge to repository
         raise Exception("--------Test procedure failed. Merge rejected--------")
 
-    #clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)  # removes test files previously uploaded to storage
+
 
 
 def terminate(msg_type, failed_input):
