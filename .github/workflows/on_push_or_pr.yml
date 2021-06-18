@@ -42,7 +42,7 @@ jobs:
 
       - name: Run Python tests
         run: |
-         lithops test -t test_storage_handler -c lithops/tests/config_files/lithops_config_CE.yaml
+         lithops test -c lithops/tests/config_files/lithops_config_CE.yaml
 
       - name: Clean COS
         run: |
@@ -76,7 +76,7 @@ jobs:
 
       - name: Run Python tests
         run: |
-          lithops test -t test_cloudobject -c lithops/tests/config_files/lithops_config_CF.yaml
+          lithops test -c lithops/tests/config_files/lithops_config_CF.yaml
 
       - name: Clean COS
         run: |
