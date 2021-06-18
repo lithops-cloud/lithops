@@ -19,6 +19,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: print-CE
+        run: echo "${{ github.job }}"
+
       - name: Clone Lithops repository
         uses: actions/checkout@v2
       - name: Install Python 3.8
@@ -53,6 +56,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: print-CF
+        run: echo "${{ github.job }}"
       - name: Clone Lithops repository
         uses: actions/checkout@v2
       - name: Install Python 3.8
@@ -76,7 +81,7 @@ jobs:
 
       - name: Run Python tests
         run: |
-          lithops test -t test_cloudobject -c lithops/tests/config_files/lithops_config_CF.yaml
+          lithops test -t test_storage_handler -c lithops/tests/config_files/lithops_config_CF.yaml
 
       - name: Clean COS
         run: |
