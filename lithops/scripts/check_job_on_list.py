@@ -1,11 +1,17 @@
 import sys
 
 if __name__ == '__main__':
-    # workflow = sys.argv[1]  # nightly_build or PR
-    # job_to_test = sys.argv[2]
-    job_to_test = sys.argv[1]
+    workflow = sys.argv[1]  # nightly_build or PR
+    #workflow = 'Push or PR git-action'
 
-    with open(".github/workflows/jobs_to_run.txt", 'r') as file:
+    path = ".github/workflows/jobs_to_run.txt"
+    #path_demo = '/Users/omercohen/dev1/lithops_test/.github/workflows/jobs_to_run.txt'
+
+    with open(path, 'r') as file:
         filedata = file.read()
 
-    print(True) if job_to_test in filedata else print(False)
+
+    if workflow == 'Push or PR git-action':
+        print(filedata[filedata.find(':')+1:filedata.find('nightly_build')])
+
+    #print(True) if job_to_test in filedata else print(False)
