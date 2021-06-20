@@ -21,7 +21,14 @@ jobs:
     outputs:
       run_ce: ${{ steps.script.outputs.bool }}
     steps:
-      - name: Run the python script
+      - name: Clone Lithops repository
+        uses: actions/checkout@v2
+      - name: Install Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+          architecture: x64
+      - name: Determine which jobs to run
         id: script
         run: |
           value=$(python3 ./lithops/scripts/check_job_on_list.py "CE_COS" )
