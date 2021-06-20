@@ -11,6 +11,6 @@ if __name__ == '__main__':
         filedata = file.read()
 
     if workflow == 'Push or PR git-action':
-        print(filedata[filedata.find(':') + 1:filedata.find('nightly_build')].replace('\n', ' ').split(" "))
+        print(filedata[filedata.find(':') + 1:filedata.find('nightly_build')].replace('\n', ' '))
 
     # print(True) if job_to_test in filedata else print(False)
