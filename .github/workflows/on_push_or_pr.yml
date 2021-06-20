@@ -40,13 +40,11 @@ jobs:
     runs-on: ubuntu-latest
 
     needs: Determine_Runnable_Jobs
-    if: contains(needs.Determine_Runnable_Jobs.outputs.jobs_to_run,'CE_COS' ) #${{github.job}}
+    if: contains(needs.Determine_Runnable_Jobs.outputs.jobs_to_run,'CE_COS') #${{github.job}}
 
     steps:
-      - name: print-output-variable
-        run: echo "${{ needs.Determine_Runnable_Jobs.outputs.run_ce }}"
-      - name: print-github.job
-        run: echo "${{github.job}}"
+      - name: print-GITHUB_ACTOR
+        run: echo "${{GITHUB_ACTOR}}"
 
       - name: Clone Lithops repository
         uses: actions/checkout@v2
@@ -84,8 +82,6 @@ jobs:
     if: contains(needs.Determine_Runnable_Jobs.outputs.jobs_to_run,'CF_COS' ) #${{github.job}}
 
     steps:
-      - name: print-CF
-        run: echo "${{ github.job }}"
       - name: Clone Lithops repository
         uses: actions/checkout@v2
       - name: Install Python 3.8
