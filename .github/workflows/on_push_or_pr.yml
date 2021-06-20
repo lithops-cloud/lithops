@@ -37,8 +37,6 @@ jobs:
     if: contains(needs.Determine_Runnable_Jobs.outputs.jobs_to_run,'CE_COS') #${{github.job}}
 
     steps:
-      - name: print-GITHUB_WORKSPACE
-        run: echo $GITHUB_WORKSPACE
       - name: Clone Lithops repository
         uses: actions/checkout@v2
       - name: Install Python 3.8
@@ -54,7 +52,7 @@ jobs:
 
       - name: build new runtime
         env:
-            LITHOPS_CONFIG_FILE: /home/runner/work/lithops/lithops/lithops/tests/config_files/lithops_config_CE_COS.yaml
+            LITHOPS_CONFIG_FILE: $GITHUB_WORKSPACE/lithops/tests/config_files/lithops_config_CE_COS.yaml
         run: |
          docker login -u cohenjomer -p "${{ secrets.DOCKER_TOKEN }}"
          cd runtime/code_engine
@@ -88,7 +86,7 @@ jobs:
 
       - name: build new runtime
         env:
-          LITHOPS_CONFIG_FILE: /home/runner/work/lithops/lithops/lithops/tests/config_files/lithops_config_CF_COS.yaml
+          LITHOPS_CONFIG_FILE: $GITHUB_WORKSPACE/lithops/tests/config_files/lithops_config_CF_COS.yaml
         run: |
           docker login -u cohenjomer -p "${{ secrets.DOCKER_TOKEN }}"
           cd runtime/ibm_cf
