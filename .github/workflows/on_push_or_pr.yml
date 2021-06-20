@@ -64,8 +64,8 @@ jobs:
 
       - name: Run Python tests
         run: |
-        #lithops test -c lithops/tests/config_files/lithops_config_CE_COS.yaml
          lithops test -t test_storage_handler -c lithops/tests/config_files/lithops_config_CE_COS.yaml
+        # lithops test -c lithops/tests/config_files/lithops_config_CE_COS.yaml
 
 
   CF_COS:
