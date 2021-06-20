@@ -25,7 +25,7 @@ jobs:
         id: script
         run: |
           value=$(python3 lithops/scripts/check_job_on_list.py "CE_COS" )
-          echo "::set-output name=bool::$value" # set the value as output
+          echo "::set-output name=bool::$value"
           echo ${{Determine_Runnable_Jobs.outputs.run_ce}}
 
 
@@ -33,7 +33,7 @@ jobs:
 
     runs-on: ubuntu-latest
     needs: Determine_Runnable_Jobs
-    if ${{ needs.Determine_Runnable_Jobs.outputs.run_ce == "true" }}
+    if: needs.Determine_Runnable_Jobs.outputs.run_ce == "true"
     steps:
       - name: print-CE
         run: echo "${{ github.job }}"
