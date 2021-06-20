@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
 
     needs: Determine_Runnable_Jobs
-    if: contains(needs.Determine_Runnable_Jobs.outputs.run_ce,'CE_COS' ) #${{github.job}}
+    if: contains(needs.Determine_Runnable_Jobs.outputs.jobs_to_run,'CE_COS' ) #${{github.job}}
 
     steps:
       - name: print-output-variable
@@ -81,7 +81,7 @@ jobs:
     runs-on: ubuntu-latest
 
     needs: Determine_Runnable_Jobs
-    if: contains(needs.Determine_Runnable_Jobs.outputs.run_ce,'CF_COS' ) #${{github.job}}
+    if: contains(needs.Determine_Runnable_Jobs.outputs.jobs_to_run,'CF_COS' ) #${{github.job}}
 
     steps:
       - name: print-CF
