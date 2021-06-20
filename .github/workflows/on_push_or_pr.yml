@@ -57,7 +57,7 @@ jobs:
         run: |
           python3 setup.py develop
       - name: install secrets in lithops config
-        run: python3 ./lithops/scripts/config_fill_secrets.py "CE_COS" "${{ secrets.IAMAPIKEY }}" "${{ secrets.COS_API_KEY }}"
+        run: python3 ./lithops/scripts/config_fill_secrets.py "CE_COS" "${{github.actor}}" "${{secrets.IAMAPIKEY }}" "${{secrets.COS_API_KEY }}"
 
       - name: build new runtime
         env:
@@ -65,7 +65,7 @@ jobs:
         run: |
          docker login -u cohenjomer -p "${{ secrets.DOCKER_TOKEN }}"
          cd runtime/code_engine
-         lithops runtime build cohenjomer/lithops-ce-user:234dev2 -b code_engine
+         lithops runtime build cohenjomer/lithops-ce-"${{github.actor}}" -b code_engine
 
       - name: Run Python tests
         run: |
@@ -79,7 +79,7 @@ jobs:
     runs-on: ubuntu-latest
 
     needs: Determine_Runnable_Jobs
-    if: contains(needs.Determine_Runnable_Jobs.outputs.jobs_to_run,'CF_COS' ) #${{github.job}}
+    if: contains(needs.Determine_Runnable_Jobs.outputs.jobs_to_run,'CF_COS') #${{github.job}}
 
     steps:
       - name: Clone Lithops repository
@@ -93,7 +93,7 @@ jobs:
         run: |
           python3 setup.py develop
       - name: install secrets in lithops config
-        run: python3 ./lithops/scripts/config_fill_secrets.py "CF_COS" "${{ secrets.IAMAPIKEY }}" "${{ secrets.COS_API_KEY }}" "${{ secrets.CF_API_KEY }}"
+        run: python3 ./lithops/scripts/config_fill_secrets.py "CF_COS" "${{github.actor}}" "${{ secrets.IAMAPIKEY }}" "${{ secrets.COS_API_KEY }}" "${{ secrets.CF_API_KEY }}"
 
       - name: build new runtime
         env:
@@ -101,7 +101,7 @@ jobs:
         run: |
           docker login -u cohenjomer -p "${{ secrets.DOCKER_TOKEN }}"
           cd runtime/ibm_cf
-          lithops runtime build -f Dockerfile.python38 cohenjomer/lithops-cf-user:234dev2
+          lithops runtime build -f Dockerfile.python38 cohenjomer/lithops-cf-"${{github.actor}}"
 
       - name: Run Python tests
         run: |
