@@ -25,7 +25,11 @@ jobs:
       - name: Print GitHub event action
         run: |
           echo "${{ github.event.action }}"
-          echo "${{ github.event }}"
+      - name: check GitHub context
+      env:
+        GITHUB_CONTEXT: ${{ toJson(github) }}
+      run: |
+        echo "$GITHUB_CONTEXT"
 
       - name: Clone Lithops repository
         uses: actions/checkout@v2
