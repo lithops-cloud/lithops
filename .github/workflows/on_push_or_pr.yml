@@ -44,7 +44,7 @@ jobs:
 
     steps:
       - name: print-GITHUB_ACTOR
-        run: echo "${{GITHUB_ACTOR}}"
+        run: echo "${{github.actor}}"
 
       - name: Clone Lithops repository
         uses: actions/checkout@v2
