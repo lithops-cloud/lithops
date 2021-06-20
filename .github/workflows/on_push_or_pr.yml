@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       run_ce: ${{ steps.script.outputs.bool }}
-      run_cf: ${{ steps.script.outputs.bool }}
+      #run_cf: ${{ steps.script.outputs.bool }}
     steps:
       - name: Clone Lithops repository
         uses: actions/checkout@v2
@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: Determine_Runnable_Jobs
     #if: ${{ needs.Determine_Runnable_Jobs.outputs.run_ce == 'False' }}
-    if: contains(needs.Determine_Runnable_Jobs.outputs.run_ce, ${{github.job}})
+    if: contains(needs.Determine_Runnable_Jobs.outputs.run_ce, github.job)
     steps:
       - name: print-output-variable
         run: echo "${{ needs.Determine_Runnable_Jobs.outputs.run_ce }}"
