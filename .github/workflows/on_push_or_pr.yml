@@ -1,16 +1,17 @@
 name: "Push or PR git-action"
 
 on:
-  push:
-    branches:
-      - master
-    paths-ignore:
-      - '**/**.md'
+#  push:
+#    branches:
+#      - master
+#    paths-ignore:
+#      - '**/**.md'
   pull_request:
     branches:
       - master
     paths-ignore:
       - '**/**.md'
+      - '**/**.txt'
 
 
 jobs:
@@ -21,6 +22,10 @@ jobs:
     steps:
       - name: print-CE
         run: echo "${{ github.job }}"
+      - name: Print GitHub event action
+        run: |
+          echo "${{ github.event.action }}"
+          echo "${{ github.event }}"
 
       - name: Clone Lithops repository
         uses: actions/checkout@v2
