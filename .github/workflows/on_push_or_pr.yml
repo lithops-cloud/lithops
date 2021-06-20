@@ -1,11 +1,6 @@
 name: "Push or PR git-action"
 
 on:
-#  push:
-#    branches:
-#      - master
-#    paths-ignore:
-#      - '**/**.md'
   pull_request:
     branches:
       - master
@@ -69,8 +64,8 @@ jobs:
 
       - name: Run Python tests
         run: |
-         lithops test -c lithops/tests/config_files/lithops_config_CE_COS.yaml
-        #  lithops test -t test_storage_handler -c lithops/tests/config_files/lithops_config_CE_COS.yaml
+        #lithops test -c lithops/tests/config_files/lithops_config_CE_COS.yaml
+         lithops test -t test_storage_handler -c lithops/tests/config_files/lithops_config_CE_COS.yaml
 
 
   CF_COS:
@@ -103,8 +98,8 @@ jobs:
 
       - name: Run Python tests
         run: |
-          lithops test -c lithops/tests/config_files/lithops_config_CF_COS.yaml
-        # lithops test -t test_cloudobject -c lithops/tests/config_files/lithops_config_CF_COS.yaml
+        #lithops test -c lithops/tests/config_files/lithops_config_CF_COS.yaml
+          lithops test -t test_cloudobject -c lithops/tests/config_files/lithops_config_CF_COS.yaml
 
 
 
