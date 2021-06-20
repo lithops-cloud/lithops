@@ -8,4 +8,4 @@ if __name__ == '__main__':
     with open(".github/workflows/jobs_to_run.txt", 'r') as file:
         filedata = file.read()
 
-    print("true") if job_to_test in filedata else print("false")
+    print(True) if job_to_test in filedata else print(False)
