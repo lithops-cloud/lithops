@@ -2,17 +2,7 @@ lithops:
     storage: ibm_cos
     storage_bucket: test-bucket-te
     mode: serverless
-    #rabbitmq_monitor: <True/False>
     data_cleaner: False
-    #workers: <MAX_NUM_OF_WORKERS>
-    #data_limit: 4  # in MiB
-    #execution_timeout: 1800
-    #include_modules: <LIST_OF_MODULES>
-    #exclude_modules: <LIST_OF_MODULES>
-    #log_level: INFO
-    #log_format: "%(asctime)s [%(levelname)s] %(name)s -- %(message)s"
-    #log_stream: ext://sys.stdout
-    #log_filename <path_to_a_file>
 
 serverless:
     backend: code_engine
@@ -25,7 +15,7 @@ ibm:
 code_engine:
     namespace  : 75nd5iv9zir
     region     : us-south
-    runtime: cohenjomer/lithops-ce-user:234dev2
+    runtime: cohenjomer/lithops-ce-<git-actor>
 
 ibm_cos:
     region : eu-de
