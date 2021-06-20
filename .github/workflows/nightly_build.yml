@@ -1,10 +1,9 @@
 name: "Nightly Build"
 
 on:
+  workflow_dispatch:
   schedule:
-    - cron: '*/5 * * * *'
-    #- cron: '0 21 * * *'  # 21:00 UTC == 24:00 Israel time
-
+    - cron: '0 21 * * *'  # 21:00 UTC == 24:00 Israel time
 
 
 jobs:
