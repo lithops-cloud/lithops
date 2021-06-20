@@ -1,8 +1,10 @@
 
 on_PR:
-CF_COS
+
+CE_COS
 LOCALHOST
 
 
 nightly_build:
 CF_COS
+CE_COS
