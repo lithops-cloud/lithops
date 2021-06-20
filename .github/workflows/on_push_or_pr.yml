@@ -24,7 +24,7 @@ jobs:
       - name: Run the python script
         id: script
         run: |
-          value=$(python3 lithops/scripts/check_job_on_list.py "CE_COS" )
+          value=$(python3 ./lithops/scripts/check_job_on_list.py "CE_COS" )
           echo "::set-output name=bool::$value"
 
 
