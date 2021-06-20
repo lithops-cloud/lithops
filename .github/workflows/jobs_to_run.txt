@@ -1,0 +1,6 @@
+on_PR:
+CF_COS
+
+
+nightly_build:
+CF_COS

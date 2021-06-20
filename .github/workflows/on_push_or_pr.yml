@@ -15,21 +15,34 @@ on:
 
 
 jobs:
+
+  Determine_Runnable_Jobs:
+    runs-on: ubuntu-latest
+    outputs:
+      run_ce: ${{ steps.script.outputs.bool }}
+    steps:
+      - name: Run the python script
+        id: script
+        run: |
+          value=$(python3 lithops/scripts/check_job_on_list.py "CE_COS" )
+          echo "::set-output name=bool::$value" # set the value as output
+          echo ${{Determine_Runnable_Jobs.outputs.run_ce}}
+
+
   CE_COS:
 
     runs-on: ubuntu-latest
-
+    needs: Determine_Runnable_Jobs
+    if ${{ ${{needs.Determine_Runnable_Jobs.outputs.run_ce}} == "true" }}
     steps:
       - name: print-CE
         run: echo "${{ github.job }}"
       - name: Print GitHub event action
         run: |
           echo "${{ github.event.action }}"
-      - name: check GitHub context
-        env:
-          GITHUB_CONTEXT: ${{ toJson(github) }}
+      - name: print current workflow
         run: |
-          echo "$GITHUB_CONTEXT"
+          echo "${GITHUB_WORKFLOW}"
 
       - name: Clone Lithops repository
         uses: actions/checkout@v2
@@ -63,7 +76,6 @@ jobs:
   CF_COS:
 
     runs-on: ubuntu-latest
-
     steps:
       - name: print-CF
         run: echo "${{ github.job }}"
