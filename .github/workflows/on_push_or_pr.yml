@@ -45,6 +45,8 @@ jobs:
     steps:
       - name: print-output-variable
         run: echo "${{ needs.Determine_Runnable_Jobs.outputs.run_ce }}"
+      - name: print-github.job
+        run: echo "${{github.job}}"
 
 #      - name: print-CE
 #        run: echo "${{ github.job }}"
