@@ -15,7 +15,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       jobs_to_run: ${{ steps.script.outputs.string }}
-      downcase_repo: ${{ steps.downcase.outputs.lower }}
     steps:
       - name: Clone Lithops repository
         uses: actions/checkout@v2
@@ -29,11 +28,6 @@ jobs:
         run: |
           value=$(python3 ./lithops/scripts/check_job_on_list.py "${GITHUB_WORKFLOW}")
           echo "::set-output name=string::$value"
-      - name: downcase_REPO
-        id: downcase
-        run: |
-          value=${GITHUB_ACTOR,,}
-          echo "::set-output name=lower::$value"
 
   CE_COS:
 
@@ -43,8 +37,8 @@ jobs:
     if: contains(needs.Determine_Runnable_Jobs.outputs.jobs_to_run,'CE_COS') #${{github.job}}
 
     steps:
-      - name: print downcase repo
-        run: echo "${{needs.Determine_Runnable_Jobs.outputs.downcase_repo}}"
+      - name: print-github.action_path
+        run: echo ${{ github.action_path }}
       - name: Clone Lithops repository
         uses: actions/checkout@v2
       - name: Install Python 3.8
