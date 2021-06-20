@@ -174,7 +174,7 @@ def run_tests(tests, config=None, mode=None, group=None, backend=None, storage=N
 
     suite = unittest.TestSuite()
     config_suite(suite, tests, group)
-    clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)  # removes test files previously uploaded to storage
+    #clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)  # removes test files previously uploaded to storage
     words_in_data_set = upload_data_sets()  # uploads datasets and returns word count
     main_util.init_config(CONFIG, STORAGE, STORAGE_CONFIG, words_in_data_set, TEST_FILES_URLS)
 
