@@ -71,9 +71,6 @@ jobs:
         run: |
          lithops test -t test_storage_handler -c lithops/tests/config_files/lithops_config_CE_COS.yaml
 
-      - name: Clean COS
-        run: |
-          lithops clean
 
   CF_COS:
     runs-on: ubuntu-latest
@@ -107,9 +104,6 @@ jobs:
         run: |
           lithops test -t test_cloudobject -c lithops/tests/config_files/lithops_config_CF_COS.yaml
 
-      - name: Clean COS
-        run: |
-          lithops clean
 
 
 
