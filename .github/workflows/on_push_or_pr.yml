@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       jobs_to_run: ${{ steps.script.outputs.string }}
+      downcase_repo: ${{ steps.downcase.outputs.lower }}
     steps:
       - name: Clone Lithops repository
         uses: actions/checkout@v2
@@ -28,7 +29,11 @@ jobs:
         run: |
           value=$(python3 ./lithops/scripts/check_job_on_list.py "${GITHUB_WORKFLOW}")
           echo "::set-output name=string::$value"
-
+      - name: downcase_REPO
+        id: downcase
+        run: |
+          value=${GITHUB_ACTOR,,}
+          echo "::set-output name=lower::$value"
 
   CE_COS:
 
@@ -38,9 +43,8 @@ jobs:
     if: contains(needs.Determine_Runnable_Jobs.outputs.jobs_to_run,'CE_COS') #${{github.job}}
 
     steps:
-      - name: print-GITHUB_ACTOR
-        run: echo "${{github.actor}}"
-
+      - name: print downcase repo
+        run: echo "${{needs.Determine_Runnable_Jobs.outputs.downcase_repo}}"
       - name: Clone Lithops repository
         uses: actions/checkout@v2
       - name: Install Python 3.8
@@ -52,7 +56,7 @@ jobs:
         run: |
           python3 setup.py develop
       - name: install secrets in lithops config
-        run: python3 ./lithops/scripts/config_fill_secrets.py "CE_COS" "${{github.actor}}" "${{secrets.IAMAPIKEY }}" "${{secrets.COS_API_KEY }}"
+        run: python3 ./lithops/scripts/config_fill_secrets.py "CE_COS" "${GITHUB_ACTOR,,}" "${{secrets.IAMAPIKEY }}" "${{secrets.COS_API_KEY }}"
 
       - name: build new runtime
         env:
@@ -60,7 +64,7 @@ jobs:
         run: |
          docker login -u cohenjomer -p "${{ secrets.DOCKER_TOKEN }}"
          cd runtime/code_engine
-         lithops runtime build cohenjomer/lithops-ce-"${{github.actor}}" -b code_engine
+         lithops runtime build cohenjomer/lithops-ce-"${GITHUB_ACTOR,,}" -b code_engine
 
       - name: Run Python tests
         run: |
@@ -86,7 +90,7 @@ jobs:
         run: |
           python3 setup.py develop
       - name: install secrets in lithops config
-        run: python3 ./lithops/scripts/config_fill_secrets.py "CF_COS" "${{github.actor}}" "${{ secrets.IAMAPIKEY }}" "${{ secrets.COS_API_KEY }}" "${{ secrets.CF_API_KEY }}"
+        run: python3 ./lithops/scripts/config_fill_secrets.py "CF_COS" "${GITHUB_ACTOR,,}" "${{ secrets.IAMAPIKEY }}" "${{ secrets.COS_API_KEY }}" "${{ secrets.CF_API_KEY }}"
 
       - name: build new runtime
         env:
@@ -94,7 +98,7 @@ jobs:
         run: |
           docker login -u cohenjomer -p "${{ secrets.DOCKER_TOKEN }}"
           cd runtime/ibm_cf
-          lithops runtime build -f Dockerfile.python38 cohenjomer/lithops-cf-"${{github.actor}}"
+          lithops runtime build -f Dockerfile.python38 cohenjomer/lithops-cf-"${GITHUB_ACTOR,,}"
 
       - name: Run Python tests
         run: |
