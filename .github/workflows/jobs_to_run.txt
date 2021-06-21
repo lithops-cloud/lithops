@@ -7,4 +7,4 @@ LOCALHOST
 
 nightly_build:
 CF_COS
-CE_COS
+
