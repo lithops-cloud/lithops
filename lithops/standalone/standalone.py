@@ -79,8 +79,8 @@ class StandaloneHandler:
         """
         Waits until the VM instance is ready to receive ssh connections
         """
-        logger.debug('Waiting {} to become ready'
-                     .format(self.backend.master))
+        logger.info('Waiting {} to become ready'
+                    .format(self.backend.master))
 
         start = time.time()
         while(time.time() - start < self.start_timeout):

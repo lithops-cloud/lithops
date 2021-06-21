@@ -36,7 +36,7 @@ if is_unix_system():
 
 def get_function_and_modules(job, internal_storage):
     """
-    Gets the function and the modules from storage
+    Gets the function and modules from storage
     """
     logger.debug("Getting function and modules")
 

@@ -16,8 +16,6 @@
 # limitations under the License.
 #
 
-
-import io
 import re
 import os
 import uuid
@@ -32,7 +30,7 @@ import platform
 import logging.config
 import subprocess as sp
 
-from lithops.constants import LOGGER_FORMAT, LOGGER_LEVEL, LOGGER_STREAM
+from lithops import constants
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +69,32 @@ def iterchunks(lst, n):
         yield lst[i:i + n]
 
 
+def get_backend(mode):
+    """ Return lithops execution backend """
+
+    if mode == constants.LOCALHOST:
+        return constants.LOCALHOST
+    elif mode == constants.SERVERLESS:
+        return constants.SERVERLESS_BACKEND_DEFAULT
+    elif mode == constants.STANDALONE:
+        return constants.STANDALONE_BACKEND_DEFAULT
+    elif mode:
+        raise Exception("Unknown exeution mode: {}".format(mode))
+
+
+def get_mode(backend):
+    """ Return lithops execution mode """
+
+    if backend == constants.LOCALHOST:
+        return constants.LOCALHOST
+    elif backend in constants.SERVERLESS_BACKENDS:
+        return constants.SERVERLESS
+    elif backend in constants.STANDALONE_BACKENDS:
+        return constants.STANDALONE
+    elif backend:
+        raise Exception("Unknown compute backend: {}".format(backend))
+
+
 def agg_data(data_strs):
     """Auxiliary function that aggregates data of a job to a single
     byte string.
@@ -84,15 +108,15 @@ def agg_data(data_strs):
     return b"".join(data_strs), ranges
 
 
-def setup_lithops_logger(log_level=LOGGER_LEVEL,
-                         log_format=LOGGER_FORMAT,
+def setup_lithops_logger(log_level=constants.LOGGER_LEVEL,
+                         log_format=constants.LOGGER_FORMAT,
                          stream=None, filename=None):
     """Setup logging for lithops."""
     if log_level is None or str(log_level).lower() == 'none':
         return
 
     if stream is None:
-        stream = LOGGER_STREAM
+        stream = constants.LOGGER_STREAM
 
     if filename is None:
         filename = os.devnull

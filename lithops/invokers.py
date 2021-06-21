@@ -28,8 +28,8 @@ from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config
 from lithops.version import __version__ as lithops_version
 from lithops.utils import version_str, is_lithops_worker, iterchunks
-from lithops.constants import LOGGER_LEVEL, LITHOPS_TEMP_DIR, LOGS_DIR, SERVERLESS,\
-    STANDALONE, LOCALHOST
+from lithops.constants import LOGGER_LEVEL, LITHOPS_TEMP_DIR, LOGS_DIR,\
+    LOCALHOST, SERVERLESS, STANDALONE
 from lithops.util.metrics import PrometheusExporter
 
 logger = logging.getLogger(__name__)
@@ -43,8 +43,8 @@ def create_invoker(config, executor_id, internal_storage,
     if compute_handler.get_backend_type() == 'batch':
         return BatchInvoker(config, executor_id, internal_storage,
                             compute_handler, job_monitor)
-    else:
-        if config[SERVERLESS].get('customized_runtime'):
+    elif compute_handler.get_backend_type() == 'faas':
+        if config['lithops'].get('customized_runtime'):
             return CustomRuntimeFaaSInvoker(config, executor_id, internal_storage,
                                             compute_handler, job_monitor)
         else:
@@ -80,17 +80,22 @@ class Invoker:
         self.prometheus = PrometheusExporter(prom_enabled, prom_config)
 
         self.mode = self.config['lithops']['mode']
-        self.runtime_name = self.config[self.mode]['runtime']
+        self.backend = self.config['lithops']['backend']
+        self.runtime_name = self.config[self.backend]['runtime']
 
     def select_runtime(self, job_id, runtime_memory):
         """
         Return the runtime metadata
         """
-        runtime_memory = runtime_memory or self.config[self.mode].get('runtime_memory')
-        runtime_timeout = self.config[self.mode].get('runtime_timeout')
-
-        if self.mode == STANDALONE or self.mode == LOCALHOST:
+        if self.mode == SERVERLESS:
+            runtime_memory = runtime_memory or self.config[self.backend].get('runtime_memory')
+            runtime_timeout = self.config[self.backend].get('runtime_timeout')
+        elif self.mode == STANDALONE:
             runtime_memory = None
+            runtime_timeout = self.config[STANDALONE]['hard_dismantle_timeout']
+        elif self.mode == LOCALHOST:
+            runtime_memory = None
+            runtime_timeout = None
 
         msg = ('ExecutorID {} | JobID {} - Selected Runtime: {} '
                .format(self.executor_id, job_id, self.runtime_name))
@@ -244,7 +249,7 @@ class FaaSInvoker(Invoker):
     def __init__(self, config, executor_id, internal_storage, compute_handler, job_monitor):
         super().__init__(config, executor_id, internal_storage, compute_handler, job_monitor)
 
-        remote_invoker = self.config['serverless'].get('remote_invoker', False)
+        remote_invoker = self.config[SERVERLESS].get('remote_invoker', False)
         self.remote_invoker = remote_invoker if not is_lithops_worker() else False
 
         self.invokers = []

@@ -27,7 +27,7 @@ import lithops
 import urllib.request
 
 from lithops.storage import Storage
-from lithops.config import get_mode, default_config, extract_storage_config, load_yaml_config
+from lithops.config import default_config, extract_storage_config, load_yaml_config
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.storage.utils import StorageNoSuchKeyError
@@ -532,17 +532,16 @@ def print_help():
         print(f'-> {func_name}')
 
 
-def run_tests(test_to_run, config=None, mode=None, backend=None, storage=None):
+def run_tests(test_to_run, config=None, backend=None, storage=None):
     global CONFIG, STORAGE_CONFIG, STORAGE
 
-    mode = mode or get_mode(backend, config)
-    config_ow = {'lithops': {'mode': mode}}
+    config_ow = {'lithops': {}}
     if storage:
         config_ow['lithops']['storage'] = storage
     if backend:
-        config_ow[mode] = {'backend': backend}
+        config_ow['lithops']['backend'] = backend
+    
     CONFIG = default_config(config, config_ow)
-
     STORAGE_CONFIG = extract_storage_config(CONFIG)
     STORAGE = Storage(storage_config=STORAGE_CONFIG)
 
@@ -567,8 +566,6 @@ if __name__ == '__main__':
                         help="'path to yaml config file")
     parser.add_argument('-t', '--test', metavar='', default='all',
                         help='run a specific test, type "-t help" for tests list')
-    parser.add_argument('-m', '--mode', metavar='', default=None,
-                        help='serverless, standalone or localhost')
     parser.add_argument('-b', '--backend', metavar='', default=None,
                         help='compute backend')
     parser.add_argument('-s', '--storage', metavar='', default=None,
@@ -589,4 +586,4 @@ if __name__ == '__main__':
     if args.test == 'help':
         print_help()
     else:
-        run_tests(args.test, args.config, args.mode, args.backend, args.storage)
+        run_tests(args.test, args.config, args.backend, args.storage)
