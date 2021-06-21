@@ -116,7 +116,8 @@ jobs:
         run: lithops clean
 
       - name: Remove test files
-        run: python -c "import lithops/tests/tests_main.py; tests_main.clean()"
+        run: |
+          python3 -c "from lithops/tests/tests_main.py import clean; tests_main.clean()"
 
       - name: Remove docker images
         run: |

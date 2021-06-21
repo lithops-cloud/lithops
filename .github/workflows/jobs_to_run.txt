@@ -1,7 +1,7 @@
 
 on_PR:
 CF_COS
-CE_COS
+
 LOCALHOST
 
 
