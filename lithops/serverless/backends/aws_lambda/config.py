@@ -60,30 +60,30 @@ def load_config(config_data):
         raise Exception("'aws' and 'aws_lambda' sections are mandatory in the configuration")
 
     # Generic serverless config
-    if 'runtime_memory' not in config_data['serverless']:
-        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
-    if config_data['serverless']['runtime_memory'] % 64 != 0:     # Adjust 64 MB memory increments restriction
-        mem = config_data['serverless']['runtime_memory']
-        config_data['serverless']['runtime_memory'] = (mem + (64 - (mem % 64)))
-    if config_data['serverless']['runtime_memory'] > RUNTIME_MEMORY_MAX:
+    if 'invoke_pool_threads' not in config_data['aws_lambda']:
+        config_data['aws_lambda']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
+    if 'runtime_memory' not in config_data['aws_lambda']:
+        config_data['aws_lambda']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
+    if config_data['aws_lambda']['runtime_memory'] % 64 != 0:     # Adjust 64 MB memory increments restriction
+        mem = config_data['aws_lambda']['runtime_memory']
+        config_data['aws_lambda']['runtime_memory'] = (mem + (64 - (mem % 64)))
+    if config_data['aws_lambda']['runtime_memory'] > RUNTIME_MEMORY_MAX:
         logger.warning("Memory set to {} - {} exceeds "
-                       "the maximum amount".format(RUNTIME_MEMORY_MAX, config_data['serverless']['runtime_memory']))
-        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_MAX
+                       "the maximum amount".format(RUNTIME_MEMORY_MAX, config_data['aws_lambda']['runtime_memory']))
+        config_data['aws_lambda']['runtime_memory'] = RUNTIME_MEMORY_MAX
 
-    if 'runtime_timeout' not in config_data['serverless']:
-        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
-    if config_data['serverless']['runtime_timeout'] > RUNTIME_MEMORY_MAX:
+    if 'runtime_timeout' not in config_data['aws_lambda']:
+        config_data['aws_lambda']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+    if config_data['aws_lambda']['runtime_timeout'] > RUNTIME_MEMORY_MAX:
         logger.warning("Timeout set to {} - {} exceeds the "
-                       "maximum amount".format(RUNTIME_TIMEOUT_MAX, config_data['serverless']['runtime_timeout']))
-        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_MAX
+                       "maximum amount".format(RUNTIME_TIMEOUT_MAX, config_data['aws_lambda']['runtime_timeout']))
+        config_data['aws_lambda']['runtime_memory'] = RUNTIME_MEMORY_MAX
 
-    if 'runtime' in config_data['aws_lambda']:
-        config_data['serverless']['runtime'] = config_data['aws_lambda']['runtime']
-    if 'runtime' not in config_data['serverless']:
+    if 'runtime' not in config_data['aws_lambda']:
         if DEFAULT_RUNTIME not in DEFAULT_RUNTIMES:
             raise Exception('Python version "{}" is not available for AWS Lambda, '
                             'please use one of {}'.format(LAMBDA_PYTHON_VER_KEY, DEFAULT_RUNTIMES))
-        config_data['serverless']['runtime'] = DEFAULT_RUNTIME
+        config_data['aws_lambda']['runtime'] = DEFAULT_RUNTIME
 
     if 'workers' not in config_data['lithops']:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
@@ -126,10 +126,6 @@ def load_config(config_data):
 
     if not all([efs_conf['mount_path'].startswith('/mnt') for efs_conf in config_data['aws_lambda']['efs']]):
         raise Exception("All mount paths must start with '/mnt' on 'aws_lambda/efs/*/mount_path' section")
-
-    if 'invoke_pool_threads' not in config_data['aws_lambda']:
-        config_data['aws_lambda']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
-    config_data['serverless']['invoke_pool_threads'] = config_data['aws_lambda']['invoke_pool_threads']
 
     # Put credential keys to 'aws_lambda' dict entry
     config_data['aws_lambda'] = {**config_data['aws_lambda'], **config_data['aws']}

@@ -219,27 +219,20 @@ def load_config(config_data):
         revision = 'master' if 'dev' in __version__ else __version__
         config_data['knative']['git_rev'] = revision
 
-    if 'concurrency' not in config_data['knative']:
-        config_data['knative']['concurrency'] = RUNTIME_CONCURRENCY
-    if 'min_instances' not in config_data['knative']:
-        config_data['knative']['min_instances'] = RUNTIME_MIN_INSTANCES
-    if 'max_instances' not in config_data['knative']:
-        config_data['knative']['max_instances'] = RUNTIME_MAX_INSTANCES
-
-    if 'runtime' in config_data['knative']:
-        config_data['serverless']['runtime'] = config_data['knative']['runtime']
-    if 'runtime_memory' in config_data['knative']:
-        config_data['serverless']['runtime_memory'] = config_data['knative']['runtime_memory']
-    if 'runtime_timeout' in config_data['knative']:
-        config_data['serverless']['runtime_timeout'] = config_data['knative']['runtime_timeout']
+    if 'runtime_concurrency' not in config_data['knative']:
+        config_data['knative']['runtime_concurrency'] = RUNTIME_CONCURRENCY
+    if 'runtime_min_instances' not in config_data['knative']:
+        config_data['knative']['runtime_min_instances'] = RUNTIME_MIN_INSTANCES
+    if 'runtime_max_instances' not in config_data['knative']:
+        config_data['knative']['runtime_max_instances'] = RUNTIME_MAX_INSTANCES
 
     if 'runtime_cpu' not in config_data['knative']:
         config_data['knative']['runtime_cpu'] = RUNTIME_CPU
-    if 'runtime_memory' not in config_data['serverless']:
-        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY
-    if 'runtime_timeout' not in config_data['serverless']:
-        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT
-    if 'runtime' not in config_data['serverless']:
+    if 'runtime_memory' not in config_data['knative']:
+        config_data['knative']['runtime_memory'] = RUNTIME_MEMORY
+    if 'runtime_timeout' not in config_data['knative']:
+        config_data['knative']['runtime_timeout'] = RUNTIME_TIMEOUT
+    if 'runtime' not in config_data['knative']:
         if not DOCKER_PATH:
             raise Exception('docker command not found. Install docker or use '
                             'an already built runtime')
@@ -252,13 +245,12 @@ def load_config(config_data):
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         runtime_name = '{}/{}-v{}:{}'.format(docker_user, RUNTIME_NAME, python_version, revision)
-        config_data['serverless']['runtime'] = runtime_name
+        config_data['knative']['runtime'] = runtime_name
 
     if 'workers' not in config_data['lithops']:
         max_instances = config_data['knative']['max_instances']
-        concurrency = config_data['knative']['concurrency']
+        concurrency = config_data['knative']['runtime_concurrency']
         config_data['lithops']['workers'] = int(max_instances * concurrency)
 
     if 'invoke_pool_threads' not in config_data['knative']:
         config_data['knative']['invoke_pool_threads'] = config_data['lithops']['workers']
-    config_data['serverless']['invoke_pool_threads'] = config_data['knative']['invoke_pool_threads']
