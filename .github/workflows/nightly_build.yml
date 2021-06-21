@@ -51,7 +51,7 @@ jobs:
 
       - name: build new runtime
         env:
-            LITHOPS_CONFIG_FILE: /home/runner/work/lithops/lithops/lithops/tests/config_files/lithops_config_CE_COS.yaml
+            LITHOPS_CONFIG_FILE: ${{ github.workspace }}/lithops/tests/config_files/lithops_config_CE_COS.yaml
         run: |
          docker login -u cohenjomer -p "${{ secrets.DOCKER_TOKEN }}"
          cd runtime/code_engine
@@ -84,7 +84,7 @@ jobs:
 
       - name: build new runtime
         env:
-          LITHOPS_CONFIG_FILE: /home/runner/work/lithops/lithops/lithops/tests/config_files/lithops_config_CF_COS.yaml
+          LITHOPS_CONFIG_FILE: ${{ github.workspace }}/lithops/tests/config_files/lithops_config_CF_COS.yaml
         run: |
           docker login -u cohenjomer -p "${{ secrets.DOCKER_TOKEN }}"
           cd runtime/ibm_cf
@@ -112,9 +112,20 @@ jobs:
         run: |
           python3 setup.py develop
 
-      - name: Clean
+      - name: Clean storage
+        run: lithops clean
+
+      - name: Remove test files
+        run: python -c "import lithops/tests/tests_main.py; tests_main.clean()"
+
+      - name: Remove docker images
         run: |
-          lithops clean
+          docker rm -vf $(docker ps -a -q)
+          docker rmi -f $(docker images -a -q)
+
+
+
+
 
 
 

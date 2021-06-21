@@ -40,7 +40,7 @@ PREFIX = '__lithops.test'
 DATASET_PREFIX = PREFIX + '/dataset'
 TEST_FILES_URLS = ["https://www.gutenberg.org/files/60/60-0.txt",
                    "https://www.gutenberg.org/files/215/215-0.txt",
-                   "https://www.gutenberg.org/files/2892/2892-0.txt"]  # currently datasets are gutenberg's books
+                   "https://www.gutenberg.org/files/2892/2892-0.txt"]  # datasets are gutenberg's books
 logger = logging.getLogger(__name__)
 
 
@@ -141,7 +141,8 @@ def config_suite(suite, tests, groups):
             for test in tests_list:
                 test_found = False
 
-                if test.find('.') != -1:  # user specified a test class along with the tester, i.e <TestClass.tester_name>
+                if test.find(
+                        '.') != -1:  # user specified a test class along with the tester, i.e <TestClass.tester_name>
                     test_class = TEST_GROUPS.get(test.split('.')[0])
                     test_name = test.split('.')[1]
                     if test_name in get_tests_of_class(test_class):
@@ -174,7 +175,7 @@ def run_tests(tests, config=None, mode=None, group=None, backend=None, storage=N
 
     suite = unittest.TestSuite()
     config_suite(suite, tests, group)
-    #clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)  # removes test files previously uploaded to storage
+    # clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)  # removes test files previously uploaded to storage
     words_in_data_set = upload_data_sets()  # uploads datasets and returns word count
     main_util.init_config(CONFIG, STORAGE, STORAGE_CONFIG, words_in_data_set, TEST_FILES_URLS)
 
@@ -185,14 +186,16 @@ def run_tests(tests, config=None, mode=None, group=None, backend=None, storage=N
         raise Exception("--------Test procedure failed. Merge rejected--------")
 
 
-
-
 def terminate(msg_type, failed_input):
     if msg_type == 'group':  # group not found
         print(f'unknown test group: {failed_input}, use: "test -g help" to get a list of the available test groups')
-    else:                    # test not found
+    else:  # test not found
         print(f'unknown test: {failed_input}, use: "test -t help" to get a list of the available testers ')
     sys.exit()
+
+
+def clean():
+    clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)  # removes test files previously uploaded to storage
 
 
 if __name__ == '__main__':

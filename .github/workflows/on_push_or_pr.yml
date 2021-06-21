@@ -29,6 +29,12 @@ jobs:
           value=$(python3 ./lithops/scripts/check_job_on_list.py "${GITHUB_WORKFLOW}")
           echo "::set-output name=string::$value"
 
+      - name: print LITHOPS_CONFIG_FILE
+        env:
+          LITHOPS_CONFIG_FILE: ${{ github.workspace }}/lithops/tests/config_files/lithops_config_CE_COS.yaml
+        run: |
+          echo "$LITHOPS_CONFIG_FILE"
+
   CE_COS:
 
     runs-on: ubuntu-latest
@@ -38,7 +44,7 @@ jobs:
 
     steps:
       - name: print-github.action_path
-        run: echo ${{ github.action_path }}
+        run: echo $GITHUB_WORKSPACE
       - name: Clone Lithops repository
         uses: actions/checkout@v2
       - name: Install Python 3.8
@@ -54,7 +60,7 @@ jobs:
 
       - name: build new runtime
         env:
-            LITHOPS_CONFIG_FILE: /home/runner/work/lithops/lithops/lithops/tests/config_files/lithops_config_CE_COS.yaml
+            LITHOPS_CONFIG_FILE: ${{ github.workspace }}/lithops/tests/config_files/lithops_config_CE_COS.yaml
         run: |
          docker login -u cohenjomer -p "${{ secrets.DOCKER_TOKEN }}"
          cd runtime/code_engine
@@ -88,7 +94,7 @@ jobs:
 
       - name: build new runtime
         env:
-          LITHOPS_CONFIG_FILE: /home/runner/work/lithops/lithops/lithops/tests/config_files/lithops_config_CF_COS.yaml
+          LITHOPS_CONFIG_FILE: ${{ github.workspace }}/lithops/tests/config_files/lithops_config_CF_COS.yaml
         run: |
           docker login -u cohenjomer -p "${{ secrets.DOCKER_TOKEN }}"
           cd runtime/ibm_cf
