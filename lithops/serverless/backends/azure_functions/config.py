@@ -30,7 +30,7 @@ DOCKER_PATH = shutil.which('docker')
 
 RUNTIME_NAME = 'lithops-runtime'
 FUNCTIONS_VERSION = 3
-RUNTIME_TIMEOUT = 600    # Default: 600 s => 10 minutes
+RUNTIME_TIMEOUT = 300    # Default: 600 s => 10 minutes
 RUNTIME_MEMORY = 1536       # Default memory: 1.5 GB
 MAX_CONCURRENT_WORKERS = 200
 INVOKE_POOL_THREADS_DEFAULT = 100
@@ -164,26 +164,29 @@ RUN mkdir -p /home/site/wwwroo \
 """
 
 
-def load_config(config_data=None):
+def load_config(config_data):
 
     python_version = version_str(sys.version_info)
     if python_version not in SUPPORTED_PYTHON:
         raise Exception('Python {} is not supported'.format(python_version))
-
-    if 'runtime_memory' not in config_data['serverless']:
-        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY
-
-    if 'runtime_timeout' not in config_data['serverless']:
-        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT
-
-    if 'workers' not in config_data['lithops']:
-        config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
 
     if 'azure_storage' not in config_data:
         raise Exception("azure_storage section is mandatory in the configuration")
 
     if 'azure_functions' not in config_data:
         raise Exception("azure_functions section is mandatory in the configuration")
+
+    if 'runtime_memory' not in config_data['azure_functions']:
+        config_data['azure_functions']['runtime_memory'] = RUNTIME_MEMORY
+
+    if 'runtime_timeout' not in config_data['azure_functions']:
+        config_data['azure_functions']['runtime_timeout'] = RUNTIME_TIMEOUT
+
+    if 'invoke_pool_threads' not in config_data['azure_functions']:
+        config_data['azure_functions']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
+
+    if 'workers' not in config_data['lithops']:
+        config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
 
     for key in REQUIRED_AZURE_STORAGE_PARAMS:
         if key not in config_data['azure_storage']:
@@ -198,17 +201,11 @@ def load_config(config_data=None):
     if 'invocation_type' not in config_data['azure_functions']:
         config_data['azure_functions']['invocation_type'] = INVOCATION_TYPE_DEFAULT
 
-    if 'runtime' in config_data['azure_functions']:
-        config_data['serverless']['runtime'] = config_data['azure_functions']['runtime']
-    if 'runtime' not in config_data['serverless']:
+    if 'runtime' not in config_data['azure_functions']:
         config_data['azure_functions']['functions_version'] = FUNCTIONS_VERSION
         storage_account_name = config_data['azure_functions']['storage_account_name']
         py_version = python_version.replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         inv_type = config_data['azure_functions']['invocation_type']
         runtime_name = '{}-{}-v{}-{}-{}'.format(storage_account_name, RUNTIME_NAME, py_version, revision, inv_type)
-        config_data['serverless']['runtime'] = runtime_name
-
-    if 'invoke_pool_threads' not in config_data['azure_functions']:
-        config_data['azure_functions']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
-    config_data['serverless']['invoke_pool_threads'] = config_data['azure_functions']['invoke_pool_threads']
+        config_data['azure_functions']['runtime'] = runtime_name
