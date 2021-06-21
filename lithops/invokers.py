@@ -87,10 +87,10 @@ class Invoker:
         """
         Return the runtime metadata
         """
-        if self.mode in SERVERLESS:
+        if self.mode == SERVERLESS:
             runtime_memory = runtime_memory or self.config[self.backend].get('runtime_memory')
             runtime_timeout = self.config[self.backend].get('runtime_timeout')
-        elif self.mode in STANDALONE:
+        elif self.mode == STANDALONE:
             runtime_memory = None
             runtime_timeout = self.config[STANDALONE]['hard_dismantle_timeout']
         elif self.mode == LOCALHOST:

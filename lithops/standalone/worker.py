@@ -80,7 +80,7 @@ def run_worker(master_ip, job_key):
             localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
             localhost_handler.invoke(job_payload, workers=1)
         except Exception as e:
-            logger.info(e)
+            logger.error(e)
 
         wait_job_completed(job_key)
 

@@ -198,7 +198,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     backend = config['lithops']['backend']
 
     if mode == SERVERLESS:
-        job.invoke_pool_threads = invoke_pool_threads or config[SERVERLESS].get('invoke_pool_threads', 1)
+        job.invoke_pool_threads = invoke_pool_threads or config[backend].get('invoke_pool_threads', 1)
         job.runtime_memory = runtime_memory or config[backend]['runtime_memory']
         job.runtime_timeout = config[backend]['runtime_timeout']
         if job.execution_timeout >= job.runtime_timeout:

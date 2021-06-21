@@ -88,7 +88,8 @@ class FunctionExecutor:
             config_ow['runtime'] = runtime
         if runtime_memory is not None:
             config_ow['runtime_memory'] = int(runtime_memory)
-
+        if remote_invoker is not None:
+            config_ow['remote_invoker'] = remote_invoker
         if mode is not None:
             config_ow['lithops']['mode'] = mode
         if backend is not None:
@@ -99,8 +100,7 @@ class FunctionExecutor:
             config_ow['lithops']['workers'] = workers
         if monitoring is not None:
             config_ow['lithops']['monitoring'] = monitoring
-        if remote_invoker is not None:
-            config_ow['lithops']['remote_invoker'] = remote_invoker
+        
 
         self.config = default_config(copy.deepcopy(config), config_ow)
 
@@ -614,7 +614,6 @@ class LocalhostExecutor(FunctionExecutor):
     def __init__(self,
                  config=None,
                  runtime=None,
-                 workers=None,
                  storage=None,
                  monitoring=None,
                  log_level=False):
@@ -624,7 +623,6 @@ class LocalhostExecutor(FunctionExecutor):
         :param config: Settings passed in here will override those in config file.
         :param runtime: Runtime name to use.
         :param storage: Name of the storage backend to use.
-        :param workers: Max number of concurrent workers.
         :param monitoring: monitoring system.
         :param log_level: log level to use during the execution.
 
@@ -633,9 +631,8 @@ class LocalhostExecutor(FunctionExecutor):
         super().__init__(backend=LOCALHOST,
                          config=config,
                          runtime=runtime,
-                         storage=storage,
+                         storage=storage or LOCALHOST,
                          log_level=log_level,
-                         workers=workers,
                          monitoring=monitoring)
 
 

@@ -182,6 +182,9 @@ def default_config(config_data=None, config_overwrite={}):
         if 'runtime_memory' in config_overwrite:
             config_data[backend]['runtime_memory'] = config_overwrite['runtime_memory']
 
+        if 'remote_invoker' in config_overwrite:
+            config_data[constants.SERVERLESS]['remote_invoker'] = config_overwrite['remote_invoker']
+
         verify_runtime_name(config_data[backend]['runtime'])
 
     elif mode == constants.STANDALONE:

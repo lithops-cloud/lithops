@@ -110,14 +110,20 @@ def test_function(config, backend, storage, debug):
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
 
+    try:
+        import getpass
+        username = getpass.getuser()
+    except Exception:
+        username = 'World'
+
     def hello(name):
         return 'Hello {}!'.format(name)
 
     fexec = lithops.FunctionExecutor(config=config, backend=backend, storage=storage)
-    fexec.call_async(hello, 'World')
+    fexec.call_async(hello, username)
     result = fexec.get_result()
     print()
-    if result == 'Hello World!':
+    if result == 'Hello {}!'.format(username):
         print(result, 'Lithops is working as expected :)')
     else:
         print(result, 'Something went wrong :(')

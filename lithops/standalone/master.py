@@ -269,7 +269,7 @@ def run():
             localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
             localhost_handler.invoke(job_payload, workers=1)
         except Exception as e:
-            logger.info(e)
+            logger.error(e)
 
     elif exec_mode == 'create':
         # Create mode runs the job in worker VMs
