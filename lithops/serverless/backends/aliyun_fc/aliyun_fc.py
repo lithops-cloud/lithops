@@ -37,7 +37,6 @@ class AliyunFunctionComputeBackend:
 
     def __init__(self, aliyun_fc_config, storage_config):
         logger.debug("Creating Aliyun Function Compute client")
-        self.log_active = logger.getEffectiveLevel() != logging.WARNING
         self.name = 'aliyun_fc'
         self.type = 'faas'
         self.config = aliyun_fc_config
@@ -75,8 +74,7 @@ class AliyunFunctionComputeBackend:
         return image_name, int(memory.replace('MB', ''))
 
     def _get_default_runtime_image_name(self):
-        python_version = version_str(sys.version_info)
-        return aliyunfc_config.RUNTIME_DEFAULT[python_version]
+        return 'python3'
 
     def _delete_function_handler_zip(self):
         os.remove(aliyunfc_config.FH_ZIP_LOCATION)
@@ -240,8 +238,10 @@ class AliyunFunctionComputeBackend:
 
         logger.info("Invoking 'extract-preinstalls' function")
         try:
-            res = self.fc_client.invoke_function(self.service_name, function_name,
-                headers={'x-fc-invocation-type': 'Sync'})
+            res = self.fc_client.invoke_function(
+                self.service_name, function_name,
+                headers={'x-fc-invocation-type': 'Sync'}
+            )
             runtime_meta = json.loads(res.data)
 
         except Exception:
