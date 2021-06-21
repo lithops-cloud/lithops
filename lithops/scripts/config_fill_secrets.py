@@ -1,5 +1,4 @@
 import os
-
 import sys
 
 
@@ -26,11 +25,3 @@ if __name__ == '__main__':
     with open(config_file, 'w') as file:
         file.write(filedata)
 
-# filedata = filedata.replace('<iamapikey>', iamapikey).replace('<cos_api_key>', cos_api_key).\
-#     replace('<cf_api_key>', cf_api_key)
-
-# def get_config_files():
-#     path = 'lithops/tests/config_files/'
-#     for file in os.listdir(path):
-#         if file.endswith('yaml'):
-#             yield path + file

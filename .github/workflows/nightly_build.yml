@@ -115,11 +115,6 @@ jobs:
       - name: Clean storage
         run: lithops clean
 
-      - name: Remove docker images
-        run: |
-          docker login -u cohenjomer -p "${{ secrets.DOCKER_TOKEN }}"
-          docker rm -vf $(docker ps -a -q)
-          docker rmi -f $(docker images -a -q)
 
 
 

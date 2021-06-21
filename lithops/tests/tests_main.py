@@ -175,12 +175,13 @@ def run_tests(tests, config=None, mode=None, group=None, backend=None, storage=N
 
     suite = unittest.TestSuite()
     config_suite(suite, tests, group)
-    # clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)  # removes test files previously uploaded to storage
     words_in_data_set = upload_data_sets()  # uploads datasets and returns word count
     main_util.init_config(CONFIG, STORAGE, STORAGE_CONFIG, words_in_data_set, TEST_FILES_URLS)
 
     runner = unittest.TextTestRunner(verbosity=2, failfast=fail_fast)
     tests_results = runner.run(suite)
+    # clean_tests removes test files uploaded to storage. creates a race condition in github workflow.
+    # clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)
 
     if not tests_results.wasSuccessful():  # Fails github workflow action to reject merge to repository
         raise Exception("--------Test procedure failed. Merge rejected--------")
@@ -192,13 +193,6 @@ def terminate(msg_type, failed_input):
     else:  # test not found
         print(f'unknown test: {failed_input}, use: "test -t help" to get a list of the available testers ')
     sys.exit()
-
-
-def clean():
-    """a wrapper function meant to be run by github nightly build workflow, to clean test files uploaded to storage.
-    can't not be implemented directly due to race conditions that may rise when github jobs run simultaneously.
-    could also be utilized a user locally to remove test files from storage. """
-    clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)  # removes test files previously uploaded to storage
 
 
 if __name__ == '__main__':
