@@ -195,6 +195,9 @@ def terminate(msg_type, failed_input):
 
 
 def clean():
+    """a wrapper function meant to be run by github nightly build workflow, to clean test files uploaded to storage.
+    can't not be implemented directly due to race conditions that may rise when github jobs run simultaneously.
+    could also be utilized a user locally to remove test files from storage. """
     clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)  # removes test files previously uploaded to storage
 
 
