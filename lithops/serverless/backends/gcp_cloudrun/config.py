@@ -29,7 +29,7 @@ DEFAULT_RUNTIME_NAME = 'python' + version_str(sys.version_info)
 RUNTIME_TIMEOUT_DEFAULT = 300  # 5 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # 256Mi
 RUNTIME_CPU_DEFAULT = 1  # 1 vCPU
-RUNTIME_CONTAINER_CONCURRENCY_DEFAULT = 1  # 1 request per container
+RUNTIME_CONCURRENCY_DEFAULT = 1  # 1 request per container
 
 MAX_CONCURRENT_WORKERS = 1000
 MAX_RUNTIME_MEMORY = 8192  # 8 GiB
@@ -86,26 +86,26 @@ def load_config(config_data):
     if config_data is None:
         config_data = {}
 
-    if 'runtime_memory' not in config_data['serverless']:
-        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
-    if 'runtime_timeout' not in config_data['serverless']:
-        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
-    if 'runtime' not in config_data['serverless']:
-        config_data['serverless']['runtime'] = DEFAULT_RUNTIME_NAME
+    if 'runtime_memory' not in config_data['gcp_cloudrun']:
+        config_data['gcp_cloudrun']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
+    if 'runtime_timeout' not in config_data['gcp_cloudrun']:
+        config_data['gcp_cloudrun']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+    if 'runtime' not in config_data['gcp_cloudrun']:
+        config_data['gcp_cloudrun']['runtime'] = DEFAULT_RUNTIME_NAME
 
     if 'workers' not in config_data['lithops']:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
 
-    if config_data['serverless']['runtime_memory'] > MAX_RUNTIME_MEMORY:
+    if config_data['gcp_cloudrun']['runtime_memory'] > MAX_RUNTIME_MEMORY:
         logger.warning('Runtime memory {} exceeds maximum - '
-                       'Runtime memory set to {}'.format(config_data['serverless']['runtime_memory'],
+                       'Runtime memory set to {}'.format(config_data['gcp_cloudrun']['runtime_memory'],
                                                          MAX_RUNTIME_MEMORY))
-        config_data['serverless']['runtime_memory'] = MAX_RUNTIME_MEMORY
-    if config_data['serverless']['runtime_timeout'] > MAX_RUNTIME_TIMEOUT:
+        config_data['gcp_cloudrun']['runtime_memory'] = MAX_RUNTIME_MEMORY
+    if config_data['gcp_cloudrun']['runtime_timeout'] > MAX_RUNTIME_TIMEOUT:
         logger.warning('Runtime timeout {} exceeds maximum - '
-                       'Runtime timeout set to {}'.format(config_data['serverless']['runtime_memory'],
+                       'Runtime timeout set to {}'.format(config_data['gcp_cloudrun']['runtime_memory'],
                                                           MAX_RUNTIME_TIMEOUT))
-        config_data['serverless']['runtime_timeout'] = MAX_RUNTIME_TIMEOUT
+        config_data['gcp_cloudrun']['runtime_timeout'] = MAX_RUNTIME_TIMEOUT
 
     if 'gcp' not in config_data:
         raise Exception("'gcp' section is mandatory in the configuration")
@@ -121,24 +121,27 @@ def load_config(config_data):
 
     if 'gcp_cloudrun' not in config_data:
         config_data['gcp_cloudrun'] = {
-            'runtime_cpus': RUNTIME_CPU_DEFAULT,
-            'container_concurrency': RUNTIME_CONTAINER_CONCURRENCY_DEFAULT
+            'runtime_cpu': RUNTIME_CPU_DEFAULT,
+            'runtime_concurrency': RUNTIME_CONCURRENCY_DEFAULT
         }
 
-    if 'runtime_cpus' in config_data['gcp_cloudrun']:
-        if config_data['gcp_cloudrun']['runtime_cpus'] not in AVAILABLE_RUNTIME_CPUS:
+    if 'runtime_cpu' in config_data['gcp_cloudrun']:
+        if config_data['gcp_cloudrun']['runtime_cpu'] not in AVAILABLE_RUNTIME_CPUS:
             raise Exception('{} vCPUs is not available - '
-                            'choose one from {} vCPUs'.format(config_data['gcp_cloudrun']['runtime_cpus'],
+                            'choose one from {} vCPUs'.format(config_data['gcp_cloudrun']['runtime_cpu'],
                                                               AVAILABLE_RUNTIME_CPUS))
-        if config_data['gcp_cloudrun']['runtime_cpus'] == 4 and config_data['serverless']['runtime_memory'] < 4096:
-            raise Exception('For {} vCPUs, runtime memory '
-                            'must be at least 4096 MiB'.format(config_data['gcp_cloudrun']['runtime_cpus']))
+        if config_data['gcp_cloudrun']['runtime_cpu'] == 4 and config_data['gcp_cloudrun']['runtime_memory'] < 4096:
+            raise Exception('For {} vCPUs, runtime memory must be at least 4096 MiB'
+                            .format(config_data['gcp_cloudrun']['runtime_cpus']))
     else:
-        config_data['gcp_cloudrun']['runtime_cpus'] = RUNTIME_CPU_DEFAULT
+        config_data['gcp_cloudrun']['runtime_cpu'] = RUNTIME_CPU_DEFAULT
 
-    if 'container_concurrency' not in config_data['gcp_cloudrun']:
-        config_data['gcp_cloudrun']['container_concurrency'] = RUNTIME_CONTAINER_CONCURRENCY_DEFAULT
+    if 'runtime_concurrency' not in config_data['gcp_cloudrun']:
+        config_data['gcp_cloudrun']['runtime_concurrency'] = RUNTIME_CONCURRENCY_DEFAULT
 
     config_data['gcp_cloudrun']['workers'] = config_data['lithops']['workers']
+
+    if 'invoke_pool_threads' not in config_data['gcp_cloudrun']:
+        config_data['gcp_cloudrun']['invoke_pool_threads'] = config_data['lithops']['workers']
 
     config_data['gcp_cloudrun'].update(config_data['gcp'])
