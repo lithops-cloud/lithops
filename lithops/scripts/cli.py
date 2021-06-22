@@ -124,7 +124,9 @@ def verify(test, config, mode, backend, storage, debug):
 @click.option('--storage', '-s', default=None, help='Storage backend')
 @click.option('--debug', '-d', is_flag=True, help='Debug mode')
 @click.option('--fail_fast', '-f', is_flag=True, help='Stops test run upon first occurrence of a failed test')
-def test(testers, config, mode, backend, groups, storage, debug, fail_fast):
+@click.option('--remove_datasets', '-r', is_flag=True, help='removes datasets from storage after the test run.'
+                                                            'WARNING: do not use flag in github workflow.')
+def test(testers, config, mode, backend, groups, storage, debug, fail_fast,remove_datasets):
     if config:
         config = load_yaml_config(config)
 
@@ -140,7 +142,8 @@ def test(testers, config, mode, backend, groups, storage, debug, fail_fast):
         print_test_groups()
 
     else:
-        run_tests(testers, config, mode, groups, backend, storage, fail_fast)
+        run_tests(testers, config, mode, groups, backend, storage,
+                  fail_fast,remove_datasets)
 
 
 # /---------------------------------------------------------------------------/

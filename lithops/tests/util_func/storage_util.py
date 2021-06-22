@@ -7,6 +7,7 @@ DATASET_PREFIX = PREFIX + '/dataset'
 
 
 def clean_tests(storage, storage_config, prefix=PREFIX):
+    """removes datasets from storage"""
     def _list_test_keys(storage, storage_config, prefix):
         return storage.list_keys(bucket=storage_config['bucket'], prefix=prefix + '/')
 

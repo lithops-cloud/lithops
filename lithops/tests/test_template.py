@@ -63,7 +63,7 @@ class TestFeatureName(unittest.TestCase):  # Mandatory,unittest test classes are
 
 # ------------------------------------ Incorporate your test function here ---------------------------------------------
 
-    @unittest.skipIf(subprocess.getoutput("lithops --version") >= "2.3.4.dev2",
+    @unittest.skipIf(subprocess.getoutput("lithops --version").split()[2] >= "2.3.4",
                      "This test function isn't a part of the test procedure.") # conditionally skip a test
     def test_example_function(self):  # unittest's function naming convention requires functions to be named as demonstrated.
         """A simple test function using memory against a lithop's map function."""

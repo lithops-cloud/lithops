@@ -159,7 +159,8 @@ def config_suite(suite, tests, groups):
                     terminate('test', test)
 
 
-def run_tests(tests, config=None, mode=None, group=None, backend=None, storage=None, fail_fast=False):
+def run_tests(tests, config=None, mode=None, group=None, backend=None, storage=None, fail_fast=False,
+              remove_datasets=False):
     global CONFIG, STORAGE_CONFIG, STORAGE
 
     mode = mode or get_mode(backend, config)
@@ -180,8 +181,10 @@ def run_tests(tests, config=None, mode=None, group=None, backend=None, storage=N
 
     runner = unittest.TextTestRunner(verbosity=2, failfast=fail_fast)
     tests_results = runner.run(suite)
-    # clean_tests removes test files uploaded to storage. creates a race condition in github workflow.
-    # clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)
+
+    # removes datasets from storage. creates a race condition when used in a github workflow.
+    if remove_datasets:
+        clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)
 
     if not tests_results.wasSuccessful():  # Fails github workflow action to reject merge to repository
         raise Exception("--------Test procedure failed. Merge rejected--------")
@@ -191,7 +194,7 @@ def terminate(msg_type, failed_input):
     if msg_type == 'group':  # group not found
         print(f'unknown test group: {failed_input}, use: "test -g help" to get a list of the available test groups')
     else:  # test not found
-        print(f'unknown test: {failed_input}, use: "test -t help" to get a list of the available testers ')
+        print(f'unknown test: {failed_input}, use: "test -t help" to get a list of the available testers')
     sys.exit()
 
 
@@ -215,6 +218,9 @@ if __name__ == '__main__':
                         help='activate debug logging')
     parser.add_argument('-f', '--fail_fast', action='store_true', default=False,
                         help='Stops test run upon first occurrence of a failed test')
+    parser.add_argument('-r', '--remove_datasets', action='store_true', default=False,
+                        help='removes datasets from storage after the test run.'
+                             'WARNING: do not use flag in github workflow.')
     args = parser.parse_args()
 
     if args.config:
@@ -234,4 +240,5 @@ if __name__ == '__main__':
     elif args.testers == 'help':
         print_test_functions()
     else:
-        run_tests(args.testers, args.config, args.mode, args.groups, args.backend, args.storage, args.fail_fast)
+        run_tests(args.testers, args.config, args.mode, args.groups, args.backend,
+                  args.storage, args.fail_fast, args.remove_datasets)
