@@ -286,16 +286,22 @@ class StorageMonitor(Monitor):
             else:
                 return None
 
-        pool = cf.ThreadPoolExecutor(max_workers=self.THREADPOOL_SIZE)
-        call_ids_processed = set(pool.map(get_status, fs_to_query))
-        pool.shutdown()
+        try:
+            pool = cf.ThreadPoolExecutor(max_workers=self.THREADPOOL_SIZE)
+            call_ids_processed = set(pool.map(get_status, fs_to_query))
+            pool.shutdown()
+        except Exception:
+            pass
 
         try:
             call_ids_processed.remove(None)
         except Exception:
             pass
 
-        self.callids_done_processed_status.update(call_ids_processed)
+        try:
+            self.callids_done_processed_status.update(call_ids_processed)
+        except Exception:
+            pass
 
     def _generate_tokens(self, callids_running, callids_done):
         """
