@@ -26,9 +26,6 @@ jobs:
           value=$(python3 ./lithops/scripts/check_job_on_list.py "${GITHUB_WORKFLOW}")
           echo "::set-output name=string::$value"
 
-      - name: Install dependencies
-        run: python3 setup.py develop
-
 
 
   CE_COS:
