@@ -19,11 +19,13 @@ import logging
 import time
 import concurrent.futures as cf
 from functools import partial
-from lithops.utils import is_unix_system, timeout_handler, is_notebook, is_lithops_worker
+from lithops.utils import is_unix_system, timeout_handler, \
+    is_notebook, is_lithops_worker, FuturesList
 from lithops.storage import InternalStorage
 from lithops.monitor import JobMonitor
 from types import SimpleNamespace
 from itertools import chain
+
 
 ALL_COMPLETED = 1
 ANY_COMPLETED = 2
@@ -62,7 +64,7 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
     if not fs:
         return
 
-    if type(fs) != list:
+    if type(fs) != list and type(fs) != FuturesList:
         fs = [fs]
 
     if download_results:
@@ -177,7 +179,7 @@ def get_result(fs, throw_except=True, timeout=None,
     :param WAIT_DUR_SEC: Time interval between each check.
     :return: The result of the future/s
     """
-    if type(fs) != list:
+    if type(fs) != list and type(fs) != FuturesList:
         fs = [fs]
 
     fs_done, _ = wait(fs=fs, throw_except=throw_except,
