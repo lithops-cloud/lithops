@@ -100,7 +100,6 @@ class FunctionExecutor:
             config_ow['lithops']['workers'] = workers
         if monitoring is not None:
             config_ow['lithops']['monitoring'] = monitoring
-        
 
         self.config = default_config(copy.deepcopy(config), config_ow)
 

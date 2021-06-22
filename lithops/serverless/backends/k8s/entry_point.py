@@ -37,7 +37,7 @@ logger = logging.getLogger('lithops.worker')
 
 proxy = flask.Flask(__name__)
 
-IDGIVER_PORT = 8080
+MASTER_PORT = 8080
 
 JOB_INDEXES = {}
 
@@ -51,13 +51,16 @@ def get_id(jobkey):
     else:
         JOB_INDEXES[jobkey] += 1
 
-    print(str(JOB_INDEXES[jobkey]), flask.request.remote_addr)
+    call_id = str(JOB_INDEXES[jobkey])
+    remote_host = flask.request.remote_addr
+    proxy.logger.info('Sending ID {} to Host {}'.format(call_id, remote_host))
 
     return str(JOB_INDEXES[jobkey])
 
 
-def id_giver():
-    proxy.run(debug=True, host='0.0.0.0', port=IDGIVER_PORT)
+def master():
+    proxy.logger.setLevel(logging.DEBUG)
+    proxy.run(debug=True, host='0.0.0.0', port=MASTER_PORT)
 
 
 def extract_runtime_meta(encoded_payload):
@@ -83,11 +86,11 @@ def run_job(encoded_payload):
     setup_lithops_logger(payload['log_level'])
 
     job_key = payload['job_key']
-    idgiver_ip = os.environ['IDGIVER_POD_IP']
+    master_ip = os.environ['MASTER_POD_IP']
     job_index = None
     while job_index is None:
         try:
-            res = requests.get('http://{}:{}/getid/{}'.format(idgiver_ip, IDGIVER_PORT, job_key))
+            res = requests.get('http://{}:{}/getid/{}'.format(master_ip, MASTER_PORT, job_key))
             job_index = int(res.text)
         except Exception:
             time.sleep(0.1)
@@ -116,7 +119,7 @@ if __name__ == '__main__':
     switcher = {
         'preinstalls': partial(extract_runtime_meta, encoded_payload),
         'run': partial(run_job, encoded_payload),
-        'id_giver': id_giver
+        'master': master
 
     }
 

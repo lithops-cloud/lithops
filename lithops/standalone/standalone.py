@@ -144,7 +144,7 @@ class StandaloneHandler:
         total_calls = job_payload['total_calls']
         chunksize = job_payload['chunksize']
 
-        total_workers = total_calls // chunksize + (total_calls % chunksize > 0) \
+        total_workers = workers or total_calls // chunksize + (total_calls % chunksize > 0) \
             if self.exec_mode == 'create' else 1
 
         def start_master_instance(wait=True):
@@ -160,14 +160,13 @@ class StandaloneHandler:
                     worker_id = "{:04d}".format(vm_n)
                     name = 'lithops-{}-{}-{}'.format(executor_id, job_id, worker_id)
                     ex.submit(self.backend.create_worker, name)
-
             logger.debug("Total worker VM instances created: {}/{}"
                          .format(len(self.backend.workers), total_workers))
+            total_workers = len(self.backend.workers)
 
-        logger.debug('ExecutorID {} | JobID {} - Going '
-                     'to run {} activations in {} workers'
-                     .format(executor_id, job_id,
-                             total_calls, len(self.backend.workers)))
+        logger.debug('ExecutorID {} | JobID {} - Going to run {} activations '
+                     'in {} workers'.format(executor_id, job_id, total_calls,
+                                            total_workers))
 
         logger.debug("Checking if {} is ready".format(self.backend.master))
         start_master_instance(wait=True)

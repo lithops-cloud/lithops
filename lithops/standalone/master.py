@@ -138,7 +138,7 @@ def setup_worker(worker_info, work_queue, job_key):
     script = get_worker_setup_script(STANDALONE_CONFIG, vm_data)
     vm.get_ssh_client().run_remote_command(script, run_async=True)
     vm.del_ssh_client()
-    logger.info('Installation process finished on {}'.format(vm))
+    logger.info('Installation script submitted to {}'.format(vm))
 
 
 def stop_job_process(job_key):

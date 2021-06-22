@@ -110,8 +110,7 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
                     new_data = _get_job_data(fs, job_data, pbar=pbar,
                                              throw_except=throw_except,
                                              download_results=download_results,
-                                             threadpool_size=threadpool_size,
-                                             job_monitor=job_monitor)
+                                             threadpool_size=threadpool_size)
                 time.sleep(0 if new_data else sleep_sec)
 
         elif return_when == ANY_COMPLETED:
@@ -120,8 +119,7 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
                     new_data = _get_job_data(fs, job_data, pbar=pbar,
                                              throw_except=throw_except,
                                              download_results=download_results,
-                                             threadpool_size=threadpool_size,
-                                             job_monitor=job_monitor)
+                                             threadpool_size=threadpool_size)
                 time.sleep(0 if new_data else sleep_sec)
 
         elif return_when == ALWAYS:
@@ -129,8 +127,7 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
                 _get_job_data(fs, job_data, pbar=pbar,
                               throw_except=throw_except,
                               download_results=download_results,
-                              threadpool_size=threadpool_size,
-                              job_monitor=job_monitor)
+                              threadpool_size=threadpool_size)
 
     except KeyboardInterrupt as e:
         if download_results:
@@ -246,7 +243,7 @@ def _any_done(fs, download_results):
         return any([f.success or f.done for f in fs])
 
 
-def _get_job_data(fs, job_data, download_results, throw_except, threadpool_size, pbar, job_monitor):
+def _get_job_data(fs, job_data, download_results, throw_except, threadpool_size, pbar):
     """
     Downloads all status/results from ready futures
     """
