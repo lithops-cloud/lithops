@@ -47,23 +47,26 @@ class TestFeatureName(unittest.TestCase):  # Mandatory,unittest test classes are
         cls.words_in_cos_files = main_util.get_words_in_files()  # get number of words in test files for testing.
 
     # called once, after the tests are run.
-    @classmethod
-    def tearDownClass(cls):
-        print('--------- All tests in template have been completed ---------')
+
+    # @classmethod
+    # def tearDownClass(cls):
+    #     print('--------- All tests in template have been completed ---------')
 
     # Method called automatically before every single test method.
-    @classmethod
-    def setUp(cls):
-        print('\n-------------------------------------------------------------\n')
+
+    # @classmethod
+    # def setUp(cls):
+    #     print('\n-------------------------------------------------------------\n')
 
     # Method called automatically after every single test method.
-    @classmethod
-    def tearDown(cls):
-        print('--------- A test in template has been completed ---------')
+
+    # @classmethod
+    # def tearDown(cls):
+    #     print('--------- A test in template has been completed ---------')
 
 # ------------------------------------ Incorporate your test function here ---------------------------------------------
 
-    @unittest.skipIf(subprocess.getoutput("lithops --version") >= "2.3.4.dev2",
+    @unittest.skipIf(subprocess.getoutput("lithops --version").split()[2] >= "2.3.4",
                      "This test function isn't a part of the test procedure.") # conditionally skip a test
     def test_example_function(self):  # unittest's function naming convention requires functions to be named as demonstrated.
         """A simple test function using memory against a lithop's map function."""

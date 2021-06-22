@@ -1,17 +1,17 @@
 import sys
 
 if __name__ == '__main__':
-    workflow = sys.argv[1]  # nightly_build or PR
-    #workflow = 'Push or PR git-action'
+    workflow = sys.argv[1]  # PR or nightly_build
 
-    path = ".github/workflows/jobs_to_run.txt"
-    #path_demo = '/Users/omercohen/dev1/lithops_test/.github/workflows/jobs_to_run.txt'
+    with open(".github/workflows/jobs_to_run.txt", 'r') as file:
+        filedata = file.read().split('\n')
 
-    with open(path, 'r') as file:
-        filedata = file.read()
+    filedata = [item for item in filedata if '#' not in item and item != '']
 
-    if workflow == 'Push or PR git-action':
-        print(filedata[filedata.find(':') + 1:filedata.find('nightly_build')].replace('\n', ' '))  # replace is needed because output must be a one liner.
+    if workflow == 'PR git-action':
+        print(filedata[filedata.index('on_PR:') + 1:filedata.index('nightly_build:')])
+
     else:  # workflow == 'Nightly Build'
-        print(filedata[filedata.rfind(':') + 1:].replace('\n', ' '))
+        print(filedata[filedata.index('nightly_build:') + 1:])
+
 
