@@ -102,6 +102,10 @@ class TestMapReduce(unittest.TestCase):
         self.assertEqual(sum(result), self.__class__.words_in_cos_files)
 
     def test_map_reduce_url(self):
+        # skips test at runtime if backend is localhost.
+        if CONFIG['lithops']['mode'] == 'localhost':
+            self.skipTest("This test function currently doesn't work on Local_Host.")
+
         logger.info('Testing map_reduce() over URLs')
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map_reduce(my_map_function_url, TEST_FILES_URLS,

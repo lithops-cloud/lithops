@@ -1,0 +1,24 @@
+lithops:
+    storage: ibm_cos
+    storage_bucket: test-bucket-te
+    mode: serverless
+    data_cleaner: False
+
+serverless:
+    backend: code_engine
+
+
+ibm:
+    iam_api_key: <iamapikey>
+
+
+code_engine:
+    namespace  : 75nd5iv9zir
+    region     : us-south
+    runtime: cohenjomer/lithops-ce-<git-actor>
+
+ibm_cos:
+    region : eu-de
+    endpoint    : https://s3.eu-de.cloud-object-storage.appdomain.cloud
+    private_endpoint: https://s3.private.eu-de.cloud-object-storage.appdomain.cloud
+    api_key     : <cos_api_key>
