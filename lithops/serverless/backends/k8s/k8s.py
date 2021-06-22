@@ -288,17 +288,18 @@ class KubernetesBackend:
         logger.debug('Note that k8s job backend does not manage runtimes')
         return []
 
-    def _start_id_giver(self, docker_image_name):
+    def _start_master(self, docker_image_name):
 
-        job_name = 'lithops-idgiver'
+        job_name = 'lithops-master'
 
-        idgiver_pods = self.core_api.list_namespaced_pod(
+        master_pods = self.core_api.list_namespaced_pod(
             namespace=self.namespace, label_selector="job-name={}".format(job_name)
             )
 
-        if len(idgiver_pods.items) > 0:
-            return idgiver_pods.items[0].status.pod_ip
+        if len(master_pods.items) > 0:
+            return master_pods.items[0].status.pod_ip
 
+        logger.debug('Starting Lithops master Pod')
         try:
             self.batch_api.delete_namespaced_job(name=job_name,
                                                  namespace=self.namespace,
@@ -312,7 +313,7 @@ class KubernetesBackend:
         job_res['metadata']['namespace'] = self.namespace
         container = job_res['spec']['template']['spec']['containers'][0]
         container['image'] = docker_image_name
-        container['env'][0]['value'] = 'id_giver'
+        container['env'][0]['value'] = 'master'
 
         try:
             self.batch_api.create_namespaced_job(namespace=self.namespace,
@@ -331,7 +332,7 @@ class KubernetesBackend:
         Invoke -- return information about this invocation
         For array jobs only remote_invocator is allowed
         """
-        idgiver_ip = self._start_id_giver(docker_image_name)
+        master_ip = self._start_master(docker_image_name)
 
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
@@ -358,7 +359,7 @@ class KubernetesBackend:
 
         container['env'][0]['value'] = 'run'
         container['env'][1]['value'] = dict_to_b64str(job_payload)
-        container['env'][2]['value'] = idgiver_ip
+        container['env'][2]['value'] = master_ip
 
         container['resources']['requests']['memory'] = '{}Mi'.format(job_payload['runtime_memory'])
         container['resources']['requests']['cpu'] = str(self.k8s_config['runtime_cpu'])

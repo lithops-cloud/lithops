@@ -2,22 +2,22 @@ import datetime
 
 SECTION = 'ibm_vpc'
 
-MANDATORY_PARAMETERS_1 = ['endpoint',
+MANDATORY_PARAMETERS_1 = ('endpoint',
                           'vpc_name',
                           'resource_group_id',
-                          'key_id']
+                          'key_id')
 
-MANDATORY_PARAMETERS_2 = ['endpoint',
+MANDATORY_PARAMETERS_2 = ('endpoint',
                           'vpc_id',
                           'resource_group_id',
                           'key_id',
                           'subnet_id',
-                          'security_group_id']
+                          'security_group_id')
 
 
-MANDATORY_PARAMETERS_3 = ['endpoint',
+MANDATORY_PARAMETERS_3 = ('endpoint',
                           'instance_id',
-                          'ip_address']
+                          'ip_address')
 
 
 IMAGE_ID_DEFAULT = 'r014-b7da49af-b46a-4099-99a4-c183d2d40ea8'  # ubuntu 20.04

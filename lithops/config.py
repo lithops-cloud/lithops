@@ -163,6 +163,9 @@ def default_config(config_data=None, config_overwrite={}):
            config_data[constants.LOCALHOST] is None:
             config_data[constants.LOCALHOST] = {}
 
+        if 'runtime' in config_overwrite:
+            config_data[constants.LOCALHOST]['runtime'] = config_overwrite['runtime']
+
         if 'runtime' not in config_data[constants.LOCALHOST]:
             config_data[constants.LOCALHOST]['runtime'] = constants.LOCALHOST_RUNTIME_DEFAULT
 
@@ -175,12 +178,15 @@ def default_config(config_data=None, config_overwrite={}):
            config_data[constants.SERVERLESS] is None:
             config_data[constants.SERVERLESS] = {}
 
-        logger.debug("Loading Serverless backend module: {}".format(backend))
-        cb_config = importlib.import_module('lithops.serverless.backends.{}.config'.format(backend))
-        cb_config.load_config(config_data)
+        if 'runtime' in config_overwrite:
+            config_data[backend]['runtime'] = config_overwrite['runtime']
 
         if 'runtime_memory' in config_overwrite:
             config_data[backend]['runtime_memory'] = config_overwrite['runtime_memory']
+
+        logger.debug("Loading Serverless backend module: {}".format(backend))
+        cb_config = importlib.import_module('lithops.serverless.backends.{}.config'.format(backend))
+        cb_config.load_config(config_data)
 
         if 'remote_invoker' in config_overwrite:
             config_data[constants.SERVERLESS]['remote_invoker'] = config_overwrite['remote_invoker']
@@ -200,6 +206,9 @@ def default_config(config_data=None, config_overwrite={}):
             config_data[constants.STANDALONE]['soft_dismantle_timeout'] = constants.STANDALONE_SOFT_DISMANTLE_TIMEOUT_DEFAULT
         if 'hard_dismantle_timeout' not in config_data[constants.STANDALONE]:
             config_data[constants.STANDALONE]['hard_dismantle_timeout'] = constants.STANDALONE_HARD_DISMANTLE_TIMEOUT_DEFAULT
+
+        if 'runtime' in config_overwrite:
+            config_data[constants.STANDALONE]['runtime'] = config_overwrite['runtime']
 
         logger.debug("Loading Standalone backend module: {}".format(backend))
         sb_config = importlib.import_module('lithops.standalone.backends.{}.config'.format(backend))

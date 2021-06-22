@@ -28,7 +28,7 @@ DOCKER_PATH = shutil.which('docker')
 RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
 RUNTIME_MEMORY = 256  # Default memory: 256 MB
 RUNTIME_CPU = 0.5  # 0.5 vCPU
-MAX_CONCURRENT_WORKERS = 1000
+MAX_CONCURRENT_WORKERS = 200
 INVOKE_POOL_THREADS_DEFAULT = 4
 
 DEFAULT_GROUP = "batch"
@@ -85,6 +85,7 @@ spec:
       containers:
         - name: "lithops"
           image: "<INPUT>"
+          imagePullPolicy: IfNotPresent
           command: ["python3"]
           args:
             - "/lithops/lithopsentry.py"
@@ -95,7 +96,7 @@ spec:
               value: ''
             - name: PAYLOAD
               value: ''
-            - name: IDGIVER_POD_IP
+            - name: MASTER_POD_IP
               value: ''
             - name: POD_IP
               valueFrom:

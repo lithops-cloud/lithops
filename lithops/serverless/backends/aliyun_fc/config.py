@@ -49,18 +49,17 @@ ps-mem
 tblib
 """
 
-SECTION = 'aliyun_fc'
-REQ_PARAMS = ['public_endpoint', 'access_key_id', 'access_key_secret']
+REQ_PARAMS = ('public_endpoint', 'access_key_id', 'access_key_secret')
 
 
 def load_config(config_data=None):
 
-    if SECTION not in config_data:
-        raise Exception("{} section is mandatory in the configuration".fomrat(SECTION))
+    if 'aliyun_fc' not in config_data:
+        raise Exception("{} 'aliyun_fc' is mandatory in the configuration".fomrat('aliyun_fc'))
 
     for param in REQ_PARAMS:
-        if param not in config_data[SECTION]:
-            msg = '{} is mandatory in {} section of the configuration'.format(REQ_PARAMS, SECTION)
+        if param not in config_data['aliyun_fc']:
+            msg = '{} is mandatory in {} "aliyun_fc" of the configuration'.format(REQ_PARAMS, 'aliyun_fc')
             raise Exception(msg)
 
     this_version_str = version_str(sys.version_info)
@@ -69,23 +68,23 @@ def load_config(config_data=None):
                         ' only supports Python version 3.6 and the local Python'
                         'version is {}'.format(this_version_str))
 
-    if 'invoke_pool_threads' not in config_data[SECTION]:
-        config_data[SECTION]['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
+    if 'invoke_pool_threads' not in config_data['aliyun_fc']:
+        config_data['aliyun_fc']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
 
-    if 'runtime' not in config_data[SECTION]:
-        config_data[SECTION]['runtime'] = 'default'
+    if 'runtime' not in config_data['aliyun_fc']:
+        config_data['aliyun_fc']['runtime'] = 'default'
 
-    if 'runtime_memory' in config_data[SECTION]:
-        if config_data[SECTION]['runtime_memory'] > RUNTIME_MEMORY_MAX:
-            config_data[SECTION]['runtime_memory'] = RUNTIME_MEMORY_MAX
+    if 'runtime_memory' in config_data['aliyun_fc']:
+        if config_data['aliyun_fc']['runtime_memory'] > RUNTIME_MEMORY_MAX:
+            config_data['aliyun_fc']['runtime_memory'] = RUNTIME_MEMORY_MAX
     else:
-        config_data[SECTION]['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
+        config_data['aliyun_fc']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
 
-    if 'runtime_timeout' in config_data[SECTION]:
-        if config_data[SECTION]['runtime_timeout'] > RUNTIME_TIMEOUT_MAX:
-            config_data[SECTION]['runtime_timeout'] = RUNTIME_TIMEOUT_MAX
+    if 'runtime_timeout' in config_data['aliyun_fc']:
+        if config_data['aliyun_fc']['runtime_timeout'] > RUNTIME_TIMEOUT_MAX:
+            config_data['aliyun_fc']['runtime_timeout'] = RUNTIME_TIMEOUT_MAX
     else:
-        config_data[SECTION]['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+        config_data['aliyun_fc']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
 
     if 'workers' in config_data['lithops']:
         if config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
