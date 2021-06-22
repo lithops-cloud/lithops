@@ -11,6 +11,8 @@ Run ``` lithops test``` to run an extensive inspection, which simulates your lit
  - Run a single group of tests via ```lithops test -g <group name>```.
     <br/> Run multiple tests by separating them with a comma, e.g. ```lithops test -g <test group1>,<test group2>```.
  - To stop the test procedure upon first encountering a failed test, add the -f flag, e.g. ```lithops test -f```.
+ - To remove datasets, uploaded during the test procedure, use the -r flag,  ```lithops test -r```.
+   <br/> WARNING - do not use this flag on a github workflow, due to race condition issues. 
  - Get a complete list of the available flags by running ```lithops test --help```.
  - A summarizing example:  ```lithops test -t test_map,storage.test_cloudobject -g call_async -f```.
    

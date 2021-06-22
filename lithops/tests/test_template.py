@@ -47,19 +47,22 @@ class TestFeatureName(unittest.TestCase):  # Mandatory,unittest test classes are
         cls.words_in_cos_files = main_util.get_words_in_files()  # get number of words in test files for testing.
 
     # called once, after the tests are run.
-    @classmethod
-    def tearDownClass(cls):
-        print('--------- All tests in template have been completed ---------')
+
+    # @classmethod
+    # def tearDownClass(cls):
+    #     print('--------- All tests in template have been completed ---------')
 
     # Method called automatically before every single test method.
-    @classmethod
-    def setUp(cls):
-        print('\n-------------------------------------------------------------\n')
+
+    # @classmethod
+    # def setUp(cls):
+    #     print('\n-------------------------------------------------------------\n')
 
     # Method called automatically after every single test method.
-    @classmethod
-    def tearDown(cls):
-        print('--------- A test in template has been completed ---------')
+
+    # @classmethod
+    # def tearDown(cls):
+    #     print('--------- A test in template has been completed ---------')
 
 # ------------------------------------ Incorporate your test function here ---------------------------------------------
 
