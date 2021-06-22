@@ -66,7 +66,7 @@ jobs:
     runs-on: ubuntu-latest
 
     needs: Determine_Runnable_Jobs
-    if: contains(needs.Determine_Runnable_Jobs.outputs.jobs_to_run,'CF_COS') #${{github.job}}
+    if: contains(needs.Determine_Runnable_Jobs.outputs.jobs_to_run,'CF_COS')
 
     steps:
       - name: Clone Lithops repository
@@ -137,8 +137,13 @@ jobs:
         run: |
           python3 setup.py develop
 
-      - name: Clean storage
-        run: lithops clean
+      - name: Clean CE_COS
+        if: needs.CE_COS.result=='success'
+        run: lithops clean -c lithops/tests/config_files/lithops_config_CE_COS.yaml
+
+      - name: Clean CF_COS
+        if: needs.CF_COS.result=='success'
+        run: lithops clean -c lithops/tests/config_files/lithops_config_CF_COS.yaml
 
 
 
