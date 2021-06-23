@@ -425,6 +425,9 @@ def format_data(iterdata, extra_args):
 
 def verify_args(func, iterdata, extra_args):
 
+    if isinstance(iterdata, FuturesList):
+        return [{'future': f} for f in iterdata]
+
     data = format_data(iterdata, extra_args)
 
     # Verify parameters
