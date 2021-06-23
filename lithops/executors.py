@@ -36,12 +36,14 @@ from lithops.config import default_config, \
 from lithops.constants import LOCALHOST, CLEANER_DIR, \
     CLEANER_LOG_FILE, SERVERLESS, STANDALONE
 from lithops.utils import is_notebook, setup_lithops_logger, \
-    is_lithops_worker, create_executor_id, get_mode, get_backend
+    is_lithops_worker, create_executor_id, get_mode, get_backend,\
+    create_futures_list
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
 from lithops.serverless.serverless import ServerlessHandler
 from lithops.storage.utils import create_job_key
 from lithops.monitor import JobMonitor
+from lithops.utils import FuturesList
 
 
 logger = logging.getLogger(__name__)
@@ -100,7 +102,6 @@ class FunctionExecutor:
             config_ow['lithops']['workers'] = workers
         if monitoring is not None:
             config_ow['lithops']['monitoring'] = monitoring
-        
 
         self.config = default_config(copy.deepcopy(config), config_ow)
 
@@ -144,7 +145,7 @@ class FunctionExecutor:
                                       self.job_monitor)
 
         logger.info('Function executor for {} created with ID: {}'
-                    .format(backend, self.executor_id))
+                    .format(self.config['lithops']['backend'], self.executor_id))
 
         self.log_path = None
 
@@ -235,6 +236,9 @@ class FunctionExecutor:
         job_id = self._create_job_id('M')
         self.last_call = 'map'
 
+        if isinstance(map_iterdata, FuturesList):
+            self.wait(map_iterdata)
+
         runtime_meta = self.invoker.select_runtime(job_id, runtime_memory)
 
         job = create_map_job(config=self.config,
@@ -261,7 +265,7 @@ class FunctionExecutor:
         futures = self.invoker.run_job(job)
         self.futures.extend(futures)
 
-        return futures
+        return create_futures_list(futures, self)
 
     def map_reduce(self, map_function, map_iterdata, reduce_function, chunksize=None,
                    worker_processes=None, extra_args=None, extra_env=None,
@@ -300,6 +304,9 @@ class FunctionExecutor:
         self.last_call = 'map_reduce'
         map_job_id = self._create_job_id('M')
 
+        if isinstance(map_iterdata, FuturesList):
+            self.wait(map_iterdata)
+
         runtime_meta = self.invoker.select_runtime(map_job_id, map_runtime_memory)
 
         map_job = create_map_job(config=self.config,
@@ -327,7 +334,7 @@ class FunctionExecutor:
         self.futures.extend(map_futures)
 
         if reducer_wait_local:
-            wait(fs=map_futures, internal_storage=self.internal_storage, job_monitor=self.job_monitor)
+            self.wait(map_futures)
 
         reduce_job_id = map_job_id.replace('M', 'R')
 
@@ -353,7 +360,7 @@ class FunctionExecutor:
         for f in map_futures:
             f._produce_output = False
 
-        return map_futures + reduce_futures
+        return create_futures_list(map_futures + reduce_futures, self)
 
     def wait(self, fs=None, throw_except=True, return_when=ALL_COMPLETED,
              download_results=False, timeout=None, threadpool_size=THREADPOOL_SIZE,
@@ -380,7 +387,7 @@ class FunctionExecutor:
         :rtype: 2-tuple of list
         """
         futures = fs or self.futures
-        if type(futures) != list:
+        if type(futures) != list and type(futures) != FuturesList:
             futures = [futures]
 
         # Start waiting for results
@@ -417,7 +424,7 @@ class FunctionExecutor:
             fs_done = [f for f in futures if f.success or f.done]
             fs_notdone = [f for f in futures if not f.success and not f.done]
 
-        return fs_done, fs_notdone
+        return create_futures_list(fs_done, self), create_futures_list(fs_notdone, self)
 
     def get_result(self, fs=None, throw_except=True, timeout=None,
                    threadpool_size=THREADPOOL_SIZE, wait_dur_sec=WAIT_DUR_SEC):

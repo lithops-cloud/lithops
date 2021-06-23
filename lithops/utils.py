@@ -69,6 +69,59 @@ def iterchunks(lst, n):
         yield lst[i:i + n]
 
 
+def agg_data(data_strs):
+    """Auxiliary function that aggregates data of a job to a single
+    byte string.
+    """
+    ranges = []
+    pos = 0
+    for datum in data_strs:
+        datum_len = len(datum)
+        ranges.append((pos, pos+datum_len-1))
+        pos += datum_len
+    return b"".join(data_strs), ranges
+
+
+def create_futures_list(futures, executor):
+    """creates a new FuturesList an initiates its attrs"""
+    fl = FuturesList(futures)
+    fl.config = executor.config
+    fl.executor = executor
+
+    return fl
+
+
+class FuturesList(list):
+
+    def _create_executor(self):
+        from lithops import FunctionExecutor
+        self.executor = FunctionExecutor(config=self.config)
+
+    def map(self, map_function, **kwargs):
+        if not self.executor:
+            self._create_executor()
+        return self.executor.map(map_function, self, **kwargs)
+
+    def map_reduce(self, map_function, reduce_function, **kwargs):
+        if not self.executor:
+            self._create_executor()
+        return self.executor.map_reduce(map_function, self, reduce_function, **kwargs)
+
+    def wait(self, **kwargs):
+        if not self.executor:
+            self._create_executor()
+        return self.executor.wait(self, **kwargs)
+
+    def get_result(self, **kwargs):
+        if not self.executor:
+            self._create_executor()
+        return self.executor.get_result(self, **kwargs)
+
+    def __reduce__(self):
+        self.executor = None
+        return super().__reduce__()
+
+
 def get_backend(mode):
     """ Return lithops execution backend """
 
@@ -93,19 +146,6 @@ def get_mode(backend):
         return constants.STANDALONE
     elif backend:
         raise Exception("Unknown compute backend: {}".format(backend))
-
-
-def agg_data(data_strs):
-    """Auxiliary function that aggregates data of a job to a single
-    byte string.
-    """
-    ranges = []
-    pos = 0
-    for datum in data_strs:
-        datum_len = len(datum)
-        ranges.append((pos, pos+datum_len-1))
-        pos += datum_len
-    return b"".join(data_strs), ranges
 
 
 def setup_lithops_logger(log_level=constants.LOGGER_LEVEL,
@@ -355,7 +395,7 @@ def format_data(iterdata, extra_args):
     # Format iterdata in a proper way
     if type(iterdata) in [range, set]:
         data = list(iterdata)
-    elif type(iterdata) != list:
+    elif type(iterdata) != list and type(iterdata) != FuturesList:
         data = [iterdata]
     else:
         data = iterdata
@@ -384,6 +424,9 @@ def format_data(iterdata, extra_args):
 
 
 def verify_args(func, iterdata, extra_args):
+
+    if isinstance(iterdata, FuturesList):
+        return [{'future': f} for f in iterdata]
 
     data = format_data(iterdata, extra_args)
 

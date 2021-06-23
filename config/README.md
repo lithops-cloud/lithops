@@ -167,10 +167,10 @@ fexec = lithops.FunctionExecutor(monitoring='rabbitmq')
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|lithops|storage_bucket | |yes | Any bucket that exists in your COS account. This will be used by Lithops for intermediate data |
-|lithops | storage | ibm_cos | no | Storage backend implementation. IBM Cloud Object Storage is the default |
-|lithops| data_cleaner | True | no |If set to True, then the cleaner will automatically delete all the temporary data that was written into `storage_bucket/lithops.jobs`|
 |lithops | mode | serverless | no | Execution mode. One of: **localhost**, **serverless** or **standalone** |
+|lithops | storage | ibm_cos | no | Storage backend implementation. IBM Cloud Object Storage is the default |
+|lithops|storage_bucket | |yes | Any bucket that exists in your COS account. This will be used by Lithops for intermediate data |
+|lithops| data_cleaner | True | no |If set to True, then the cleaner will automatically delete all the temporary data that was written into `storage_bucket/lithops.jobs`|
 |lithops | monitoring | storage | no | Monitoring system implementation. One of: **storage** or **rabbitmq** |
 |lithops | workers | Depends on the compute backend | no | Max number of concurrent workers |
 |lithops| data_limit | 4 | no | Max (iter)data size (in MB). Set to False for unlimited size |
@@ -183,19 +183,16 @@ fexec = lithops.FunctionExecutor(monitoring='rabbitmq')
 |lithops|log_filename |  |no | Path to a file. log_filename has preference over log_stream. |
 
 
-## Summary of configuration keys for Serverless
+
+### Summary of configuration keys for Servverless
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |serverless | backend | ibm_cf |no | Serverless compute backend implementation. IBM Cloud Functions is the default |
-|serverless | runtime | Depends on the backend | no | Runtime name to run the functions. |
-|serverless | runtime_memory | 256 | no | Default runtime memory (in MB) |
-|serverless | runtime_timeout | 600 | no |  Default serveless backend runtime timeout (in seconds) |
 |serverless | remote_invoker | False | no |  Activate the remote invoker feature that uses one cloud function to spawn all the actual `map()` activations |
 |serverless | customized_runtime | False | no | Enables early preparation of Lithops workers with the map function and custom Lithops runtime already deployed, and ready to be used in consequent computations |
 
-
-## Summary of configuration keys for Standalone
+### Summary of configuration keys for Standalone
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
@@ -204,5 +201,5 @@ fexec = lithops.FunctionExecutor(monitoring='rabbitmq')
 |standalone | auto_dismantle | True |no | If False then the VM is not stopped automatically. Run **exec.dismantle()** explicitly to stop the VM. |
 |standalone | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |standalone | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
-|standalone | exec_mode | consume | no | If set to  **create** standalone backend will automatically create VMs based on the standalone backend|
-|standalone | pull_runtime | false | no | If set to true, lithops will execute the command `docker pull <runtime_name>` in each VSI before execution the a job|
+|standalone | exec_mode | consume | yes | If set to  **create**, Lithops will automatically create VMs based on iterdata|
+|standalone | pull_runtime | False | no | If set to True, Lithops will execute the command `docker pull <runtime_name>` in each VSI before executing the a job|

@@ -123,11 +123,11 @@ from lithops import Storage
 
 if __name__ == "__main__":
     storage = Storage()
-    storage.put_object(bucket='my-bucket',
+    storage.put_object(bucket='mybucket',
                        key='test.txt',
                        body='Hello World')
-    ...
-    print(storage.get_object(bucket='my-bucket',
+
+    print(storage.get_object(bucket='mybucket',
                              key='test.txt'))
 ```
 </td>
