@@ -7,7 +7,7 @@ Function chaining is a pattern where multiple functions are called on the same e
 
 This patter is specially useful when the output of one invocation is the input of another invocation. In this case, Lithops does not download the intermediate results to the local client, instead, the intermediate results are directly read from the next function.
 
-It currently works with the [Futures API](api_futures.md), and you can chain the `map()`, `map_reuce()`, `wait()` and `get_result()` methods. View the next examples:
+It currently works with the [Futures API](api_futures.md), and you can chain the `map()`, `map_reuce()`, `wait()` and `get_result()` methods. Note that the returning value of one function must match the signature of the next function when chaining multiple `map()` calls. View the next examples:
 
 
 Getting the result from a single `map()` call:
@@ -45,7 +45,7 @@ res = fexec.map(my_func1, iterdata).map(my_func2).get_result()
 print(res)
 ```
 
-There is no limit in the number of map() calls than can be chained:
+There is no limit in the number of map() calls that can be chained:
 
 ```python
 def my_func1(x):
@@ -63,7 +63,7 @@ def my_func3(x, y, z):
 iterdata = [1, 2, 3]
 
 fexec = lithops.FunctionExecutor()
-res = fexec.map(my_func1, data).map(my_func2).map(my_func3).get_result()
+res = fexec.map(my_func1, iterdata).map(my_func2).map(my_func3).get_result()
 print(res)
 ```
 
