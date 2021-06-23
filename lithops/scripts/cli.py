@@ -24,7 +24,7 @@ import shutil
 import lithops
 from lithops import Storage
 from lithops.scripts.tests import print_help, run_tests
-from lithops.utils import setup_lithops_logger, verify_runtime_name, sizeof_fmt
+from lithops.utils import get_mode, setup_lithops_logger, verify_runtime_name, sizeof_fmt
 from lithops.config import default_config, extract_storage_config, \
     extract_serverless_config, extract_standalone_config, \
     extract_localhost_config, load_yaml_config
@@ -40,12 +40,13 @@ from lithops.localhost.localhost import LocalhostHandler
 logger = logging.getLogger(__name__)
 
 
-def set_config_ow(backend, storage):
+def set_config_ow(backend, storage=None):
     config_ow = {'lithops': {}}
     if storage:
         config_ow['lithops']['storage'] = storage
     if backend:
         config_ow['lithops']['backend'] = backend
+        config_ow['lithops']['mode'] = get_mode(backend)
 
     return config_ow
 
@@ -368,7 +369,7 @@ def build(name, file, config, backend):
 
     setup_lithops_logger(logging.DEBUG)
 
-    config_ow = set_config_ow(backend, storage)
+    config_ow = set_config_ow(backend)
     config = default_config(config, config_ow)
 
     if not name:
