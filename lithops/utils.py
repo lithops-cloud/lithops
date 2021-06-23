@@ -97,25 +97,25 @@ class FuturesList(list):
         from lithops import FunctionExecutor
         self.executor = FunctionExecutor(config=self.config)
 
-    def map(self, map_function):
+    def map(self, map_function, **kwargs):
         if not self.executor:
             self._create_executor()
-        return self.executor.map(map_function, self)
+        return self.executor.map(map_function, self, **kwargs)
 
-    def map_reduce(self, map_function, reduce_function):
+    def map_reduce(self, map_function, reduce_function, **kwargs):
         if not self.executor:
             self._create_executor()
-        return self.executor.map_reduce(map_function, self, reduce_function)
+        return self.executor.map_reduce(map_function, self, reduce_function, **kwargs)
 
-    def wait(self):
+    def wait(self, **kwargs):
         if not self.executor:
             self._create_executor()
-        return self.executor.wait(self)
+        return self.executor.wait(self, **kwargs)
 
-    def get_result(self):
+    def get_result(self, **kwargs):
         if not self.executor:
             self._create_executor()
-        return self.executor.get_result(self)
+        return self.executor.get_result(self, **kwargs)
 
     def __reduce__(self):
         self.executor = None
