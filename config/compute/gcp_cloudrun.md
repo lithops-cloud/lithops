@@ -54,6 +54,8 @@ $ python3 -m install lithops[gcp]
 |gcp | region | |yes | Region of the bucket created at step 8. Functions and pub/sub queue will be created in the same region (e.g. `us-east1`) |
 
 #### Google Cloud Run
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
 |gcp_cloudrun | runtime |  |no | Docker image name|
 |gcp_cloudrun | runtime_cpu | 1 |no | CPU limit. Default 1vCPU |
 |gcp_cloudrun | runtime_memory | 256 |no | Memory limit in MB. Default 256Mi |

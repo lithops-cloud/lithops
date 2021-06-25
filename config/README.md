@@ -184,7 +184,7 @@ fexec = lithops.FunctionExecutor(monitoring='rabbitmq')
 
 
 
-### Summary of configuration keys for Servverless
+### Summary of configuration keys for Serverless
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|

@@ -61,6 +61,8 @@ $ python3 -m install lithops[gcp]
 |gcp | region | |yes | Region of the bucket created at step 8. Functions and pub/sub queue will be created in the same region (e.g. `us-east1`) |
 
 #### Google Cloud Functions
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
 |gcp_functions | runtime |  |no | Runtime name already deployed in the service |
 |gcp_functions | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
 |gcp_functions | runtime_timeout | 90 |no | Runtime timeout in seconds. Default 1:30 minutes |
