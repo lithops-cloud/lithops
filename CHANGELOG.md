@@ -3,7 +3,7 @@
 ## [v2.3.5.dev0]
 
 ### Added
-- [Core] Add function chaining patter in the Futures API
+- [Core] Add function chaining pattern in the Futures API
 - [Core] ob.data_stream is now also an iterator when using the partitioner
 - [AWS Lambda] Add 'account_id' parameter in config (used if present instead of querying STS).
 
