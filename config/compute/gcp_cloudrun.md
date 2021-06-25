@@ -42,7 +42,21 @@ $ python3 -m install lithops[gcp]
         region : <REGION_NAME>
 ```
 
- - `project_name`: Project name introduced in step 3 (e.g. `lithops`)
- - `service_account`: Service account email of the service account created on step 5 (e.g. `lithops-executor@lithops.iam.gserviceaccount.com`)
- - `credentials_path`: **Absolute** path of your JSON key file downloaded in step 7 (e.g. `/home/myuser/lithops-invoker1234567890.json`)
- - `region`: Region of the bucket created at step 8. Functions and pub/sub queue will be created in the same region (e.g. `us-east1`)
+### Summary of configuration keys for Google:
+
+#### Google Cloud Platform:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|gcp | project_name | |yes | Project name introduced in step 3 (e.g. `lithops`) |
+|gcp | service_account | |yes | Service account email of the service account created on step 5 (e.g. `lithops-executor@lithops.iam.gserviceaccount.com`) |
+|gcp | credentials_path | |yes | **Absolute** path of your JSON key file downloaded in step 7 (e.g. `/home/myuser/lithops-invoker1234567890.json`) |
+|gcp | region | |yes | Region of the bucket created at step 8. Functions and pub/sub queue will be created in the same region (e.g. `us-east1`) |
+
+#### Google Cloud Run
+|gcp_cloudrun | runtime |  |no | Docker image name|
+|gcp_cloudrun | runtime_cpu | 1 |no | CPU limit. Default 1vCPU |
+|gcp_cloudrun | runtime_memory | 256 |no | Memory limit in MB. Default 256Mi |
+|gcp_cloudrun | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
+|gcp_cloudrun | runtime_concurrency | 1 |no | Number of workers inside a single runtime instance |
+|gcp_cloudrun | invoke_pool_threads | {lithops.workers} |no | Number of concurrent threads used for invocation |
