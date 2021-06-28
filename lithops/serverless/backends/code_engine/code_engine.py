@@ -583,6 +583,8 @@ class CodeEngineBackend:
         except Exception:
             pass
 
+        self._delete_config_map(jobdef_name)
+
         if failed:
             raise Exception("Unable to extract Python preinstalled modules from the runtime")
 
@@ -590,7 +592,6 @@ class CodeEngineBackend:
         json_str = self.internal_storage.get_data(key=status_key)
         runtime_meta = json.loads(json_str.decode("ascii"))
 
-        self._delete_config_map(jobdef_name)
         return runtime_meta
 
     def _create_config_map(self, payload, jobrun_name):
