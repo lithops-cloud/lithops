@@ -550,16 +550,24 @@ class CodeEngineBackend:
 
         logger.debug("Waiting for runtime metadata")
 
-        w = watch.Watch()
-        for event in w.stream(self.custom_api.list_namespaced_custom_object,
-                              namespace=self.namespace, group=ce_config.DEFAULT_GROUP,
-                              version=ce_config.DEFAULT_VERSION, plural="jobruns",
-                              field_selector="metadata.name={0}".format(jobrun_name)):
-            failed = int(event['object'].get('status')['failed'])
-            done = int(event['object'].get('status')['succeeded'])
-            logger.debug('...')
-            if done or failed:
-                w.stop()
+        done = False
+        failed = False
+
+        while not done or failed:
+            try:
+                w = watch.Watch()
+                for event in w.stream(self.custom_api.list_namespaced_custom_object,
+                                      namespace=self.namespace, group=ce_config.DEFAULT_GROUP,
+                                      version=ce_config.DEFAULT_VERSION, plural="jobruns",
+                                      field_selector="metadata.name={0}".format(jobrun_name),
+                                      timeout_seconds=10):
+                    failed = int(event['object'].get('status')['failed'])
+                    done = int(event['object'].get('status')['succeeded'])
+                    logger.debug('...')
+                    if done or failed:
+                        w.stop()
+            except Exception:
+                pass
 
         if done:
             logger.debug("Runtime metadata generated successfully")
