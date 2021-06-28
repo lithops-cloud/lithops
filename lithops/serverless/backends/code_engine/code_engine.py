@@ -23,9 +23,8 @@ import json
 import logging
 import urllib3
 import copy
-import time
 import yaml
-from kubernetes import client, config
+from kubernetes import client, config, watch
 from kubernetes.client.rest import ApiException
 
 from lithops.utils import version_str, dict_to_b64str
@@ -33,7 +32,6 @@ from lithops.version import __version__
 from lithops.utils import create_handler_zip
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
 from . import config as ce_config
-from lithops.storage.utils import StorageNoSuchKeyError
 from lithops.util.ibm_token_manager import IBMTokenManager
 
 
@@ -512,12 +510,13 @@ class CodeEngineBackend:
         jobrun_res = yaml.safe_load(ce_config.JOBRUN_DEFAULT)
 
         jobdef_name = self._format_jobdef_name(docker_image_name, memory)
+        jobrun_name = 'lithops-runtime-preinstalls'
 
         payload = copy.deepcopy(self.internal_storage.storage.storage_config)
         payload['log_level'] = logger.getEffectiveLevel()
         payload['runtime_name'] = jobdef_name
 
-        jobrun_res['metadata']['name'] = 'lithops-runtime-preinstalls'
+        jobrun_res['metadata']['name'] = jobrun_name
         jobrun_res['metadata']['namespace'] = self.namespace
         jobrun_res['spec']['jobDefinitionRef'] = str(jobdef_name)
         container = jobrun_res['spec']['jobDefinitionSpec']['template']['containers'][0]
@@ -533,7 +532,7 @@ class CodeEngineBackend:
                 version=ce_config.DEFAULT_VERSION,
                 namespace=self.namespace,
                 plural="jobruns",
-                name='lithops-runtime-preinstalls'
+                name=jobrun_name
             )
         except Exception:
             pass
@@ -549,25 +548,21 @@ class CodeEngineBackend:
         except Exception:
             pass
 
-        # we need to read runtime metadata from COS in retry
-        status_key = '/'.join([JOBS_PREFIX, jobdef_name+'.meta'])
+        logger.debug("Waiting for runtime metadata")
 
-        retry = int(1)
-        found = False
-        while retry < 10 and not found:
-            try:
-                logger.debug("Retry attempt {} to read {}".format(retry, status_key))
-                json_str = self.internal_storage.get_data(key=status_key)
-                logger.debug("Found in attempt {} to read {}".format(retry, status_key))
-                runtime_meta = json.loads(json_str.decode("ascii"))
-                found = True
-            except StorageNoSuchKeyError:
-                logger.debug("{} not found in attempt {}. Sleep before retry".format(status_key, retry))
-                retry = retry + 1
-                time.sleep(10)
+        w = watch.Watch()
+        for event in w.stream(self.custom_api.list_namespaced_custom_object,
+                              namespace=self.namespace, group=ce_config.DEFAULT_GROUP,
+                              version=ce_config.DEFAULT_VERSION, plural="jobruns",
+                              field_selector="metadata.name={0}".format(jobrun_name)):
+            failed = int(event['object'].get('status')['failed'])
+            done = int(event['object'].get('status')['succeeded'])
+            logger.debug('...')
+            if done or failed:
+                w.stop()
 
-        if not found:
-            raise Exception("Unable to extract Python preinstalled modules from the runtime")
+        if done:
+            logger.debug("Runtime metadata generated successfully")
 
         try:
             self.custom_api.delete_namespaced_custom_object(
@@ -575,10 +570,17 @@ class CodeEngineBackend:
                 version=ce_config.DEFAULT_VERSION,
                 namespace=self.namespace,
                 plural="jobruns",
-                name='lithops-runtime-preinstalls'
+                name=jobrun_name
             )
         except Exception:
             pass
+
+        if failed:
+            raise Exception("Unable to extract Python preinstalled modules from the runtime")
+
+        status_key = '/'.join([JOBS_PREFIX, jobdef_name+'.meta'])
+        json_str = self.internal_storage.get_data(key=status_key)
+        runtime_meta = json.loads(json_str.decode("ascii"))
 
         self._delete_config_map(jobdef_name)
         return runtime_meta
