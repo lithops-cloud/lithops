@@ -25,6 +25,8 @@ PROFILE_NAME_DEFAULT = 'cx2-2x4'
 VOLUME_TIER_NAME_DEFAULT = 'general-purpose'
 SSH_USER = 'root'
 SSH_PASSWD = 'lithops'
+MAX_WORKERS = 100
+
 
 CLOUD_CONFIG = """
 #cloud-config
@@ -83,3 +85,7 @@ def load_config(config_data):
 
     if 'delete_on_dismantle' not in config_data[SECTION]:
         config_data[SECTION]['delete_on_dismantle'] = True
+
+    if 'workers' not in config_data['lithops'] or \
+       config_data['lithops']['workers'] > MAX_WORKERS:
+        config_data['lithops']['workers'] = MAX_WORKERS

@@ -145,8 +145,8 @@ class StandaloneHandler:
         chunksize = job_payload['chunksize']
         workers = job_payload['workers']
 
-        total_workers = workers or total_calls // chunksize + (total_calls % chunksize > 0) \
-            if self.exec_mode == 'create' else 1
+        total_workers = min(workers, total_calls // chunksize + (total_calls % chunksize > 0)
+                            if self.exec_mode == 'create' else 1)
 
         def start_master_instance(wait=True):
             if not self._is_master_service_ready():
