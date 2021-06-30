@@ -143,6 +143,7 @@ class Invoker:
                    'executor_id': job.executor_id,
                    'job_id': job.job_id,
                    'job_key': job.job_key,
+                   'workers': self.workers,
                    'call_ids': None,
                    'host_submit_tstamp': time.time(),
                    'lithops_version': lithops_version,
@@ -222,7 +223,7 @@ class BatchInvoker(Invoker):
         payload['call_ids'] = ["{:05d}".format(i) for i in range(job.total_calls)]
 
         start = time.time()
-        activation_id = self.compute_handler.invoke(payload, self.workers)
+        activation_id = self.compute_handler.invoke(payload)
         roundtrip = time.time() - start
         resp_time = format(round(roundtrip, 3), '.3f')
 

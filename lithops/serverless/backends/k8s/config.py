@@ -85,7 +85,7 @@ spec:
       containers:
         - name: "lithops"
           image: "<INPUT>"
-          imagePullPolicy: IfNotPresent
+          # imagePullPolicy: IfNotPresent
           command: ["python3"]
           args:
             - "/lithops/lithopsentry.py"
