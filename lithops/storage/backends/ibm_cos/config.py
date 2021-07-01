@@ -23,17 +23,19 @@ def load_config(config_data):
     if 'ibm_cos' not in config_data:
         raise Exception("ibm_cos section is mandatory in the configuration")
 
+    compute_backend = config_data['lithops'].get('backend')
+
     if 'region' in config_data['ibm_cos']:
         region = config_data['ibm_cos']['region']
         config_data['ibm_cos']['endpoint'] = PUBLIC_ENDPOINT.format(region)
 
-        if config_data['lithops']['backend'] == 'ibm_cf':
+        if compute_backend == 'ibm_cf':
             config_data['ibm_cos']['private_endpoint'] = PRIVATE_ENDPOINT.format(region)
 
-        elif config_data['lithops']['backend'] == 'ibm_vpc':
+        elif compute_backend == 'ibm_vpc':
             config_data['ibm_cos']['private_endpoint'] = DIRECT_ENDPOINT.format(region)
 
-    if config_data['lithops']['backend'] == 'ibm_cf':
+    if compute_backend == 'ibm_cf':
         # Private endpoint is mandatory when using IBM CF
         if 'private_endpoint' not in config_data['ibm_cos']:
             raise Exception('You must provide the private_endpoint to access to IBM COS')
@@ -42,7 +44,7 @@ def load_config(config_data):
         if not config_data['ibm_cos']['private_endpoint'].startswith('http'):
             raise Exception('IBM COS Private Endpoint must start with http:// or https://')
 
-    elif config_data['lithops']['backend'] == 'ibm_vpc':
+    elif compute_backend == 'ibm_vpc':
         if 'private_endpoint' not in config_data['ibm_cos']:
             raise Exception('You must provide the private_endpoint to access to IBM COS')
         elif 'direct' not in config_data['ibm_cos']['private_endpoint']:
