@@ -31,7 +31,6 @@ from lithops.utils import version_str, dict_to_b64str
 from lithops.version import __version__
 from lithops.utils import create_handler_zip
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
-from lithops.storage.utils import StorageNoSuchKeyError
 
 from . import config as k8s_config
 
