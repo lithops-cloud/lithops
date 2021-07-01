@@ -61,7 +61,7 @@ class LocalhostHandler:
         """
         pass
 
-    def invoke(self, job_payload, workers):
+    def invoke(self, job_payload):
         """
         Run the job description against the selected environment
         """
@@ -72,10 +72,9 @@ class LocalhostHandler:
         storage_bucket = job_payload['config']['lithops']['storage_bucket']
         total_calls = len(job_payload['call_ids'])
 
-        logger.debug('ExecutorID {} | JobID {} - Going '
-                     'to run {} activations in {} workers'
-                     .format(executor_id, job_id, total_calls,
-                             min(total_calls, workers)))
+        logger.debug('ExecutorID {} | JobID {} - Going to '
+                     'run {} activations in localhost worker'
+                     .format(executor_id, job_id, total_calls))
 
         if not os.path.isfile(RUNNER):
             self.env.setup(runtime)
