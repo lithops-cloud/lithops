@@ -135,7 +135,7 @@ class StandaloneHandler:
         raise Exception('Lithops service readiness probe expired on {}'
                         .format(self.backend.master))
 
-    def invoke(self, job_payload, workers):
+    def invoke(self, job_payload):
         """
         Run the job description against the selected environment
         """
@@ -143,9 +143,10 @@ class StandaloneHandler:
         job_id = job_payload['job_id']
         total_calls = job_payload['total_calls']
         chunksize = job_payload['chunksize']
+        workers = job_payload['workers']
 
-        total_workers = workers or total_calls // chunksize + (total_calls % chunksize > 0) \
-            if self.exec_mode == 'create' else 1
+        total_workers = min(workers, total_calls // chunksize + (total_calls % chunksize > 0)
+                            if self.exec_mode == 'create' else 1)
 
         def start_master_instance(wait=True):
             if not self._is_master_service_ready():
