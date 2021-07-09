@@ -126,7 +126,7 @@ def my_reduce_function(results):
         # Do some process
     return final_result
 
-iterdata = ['/home/user/data/my_file_1.csv/', '/home/user/data/my_file_2.csv'] 
+iterdata = ['/home/user/data/my_file_1.csv', '/home/user/data/my_file_2.csv'] 
 object_chunk_number= 2
 
 fexec = lithops.FunctionExecutor()
