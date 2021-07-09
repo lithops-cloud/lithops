@@ -20,13 +20,8 @@ Here you can find which modules are preinstalled by default in an AWS Lambda Pyt
 
 Lithops runtime also ships with the following packages:
 ```
-httplib2
-kafka-python
 requests
-Pillow
-pandas
 numpy
-scipy
 redis
 pika
 cloudpickle
@@ -62,42 +57,7 @@ pw = lithops.FunctionExecutor(runtime_memory=512)
 
 If you need some Python modules which are not included in the default runtime, it is possible to build your own Lithops runtime with all of them.
 
-To build your own runtime, you have to collect all extra modules in a `requirements.txt` file.
-
-For example, we want to add module `matplotlib` to our runtime, since it is not provided in the default runtime.
-
-First, we need to build a `requirements.txt` file with all the extra modules we need. For our example, the `requirements.txt` will contain the following modules:
-```
-matplotlib
-```
-
-Then, we will build the runtime, specifying the modified `requirements.txt` file and a runtime name:
-```
-$ lithops runtime build -f requirements.txt my_matplotlib_runtime -b aws_lambda
-```
-
-This command will add an extra runtime called `my_matplotlib_runtime` to the available AWS Lambda runtimes.
-
-Finally, we can specify this new runtime when creating a Lithops Function Executor:
-
-```python
-import lithops
-
-def test():
-    import matplotlib
-    return repr(matplotlib)
-
-lith = lithops.FunctionExecutor(runtime='my_matplotlib_runtime')
-lith.call_async(test, data=())
-res = lith.get_result()
-print(res)  # Prints <module 'matplotlib' from '/opt/python/matplotlib/__init__.py'>
-```
-
-If we are running Lithops, for example, with Python 3.8, `my_matplotlib_runtime` will be a Python 3.8 runtime with the extra modules specified installed.
-
-### Custom container runtime
-
-It is also possible to run a containerized runtime on AWS Lambda. This is useful to package, not only Python modules but also system libraries
+AWS Lambda allows using container images as runtime for the Lambda functions. This is useful to package, not only Python modules but also system libraries
 so that they can be used in the Lambda code.
 
 To build your own runtime, first install [Docker CE](https://docs.docker.com/get-docker/) in your client machine.

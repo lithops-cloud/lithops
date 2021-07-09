@@ -23,15 +23,10 @@ from lithops.utils import version_str
 logger = logging.getLogger(__name__)
 
 DEFAULT_REQUIREMENTS = [
-    'httplib2',
-    'kafka-python',
     'requests',
-    'Pillow',
-    'pandas',
-    'numpy',
-    'scipy',
     'redis',
     'pika',
+    'numpy',
     'cloudpickle',
     'ps-mem',
     'tblib'
@@ -41,7 +36,7 @@ DOCKER_PATH = shutil.which('docker')
 
 LAMBDA_PYTHON_VER_KEY = 'python{}'.format(version_str(sys.version_info))
 DEFAULT_RUNTIME = LAMBDA_PYTHON_VER_KEY.replace('.', '')
-DEFAULT_RUNTIMES = ['python36', 'python37', 'python38']
+AVAILABLE_RUNTIMES = ['python36', 'python37', 'python38']
 
 USER_RUNTIME_PREFIX = 'lithops.user_runtimes'
 
@@ -80,9 +75,9 @@ def load_config(config_data):
         config_data['aws_lambda']['runtime_memory'] = RUNTIME_MEMORY_MAX
 
     if 'runtime' not in config_data['aws_lambda']:
-        if DEFAULT_RUNTIME not in DEFAULT_RUNTIMES:
+        if DEFAULT_RUNTIME not in AVAILABLE_RUNTIMES:
             raise Exception('Python version "{}" is not available for AWS Lambda, '
-                            'please use one of {}'.format(LAMBDA_PYTHON_VER_KEY, DEFAULT_RUNTIMES))
+                            'please use one of {}'.format(LAMBDA_PYTHON_VER_KEY, AVAILABLE_RUNTIMES))
         config_data['aws_lambda']['runtime'] = DEFAULT_RUNTIME
 
     if 'workers' not in config_data['lithops']:

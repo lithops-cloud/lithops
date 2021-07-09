@@ -16,6 +16,9 @@
 - [Standalone] Fix execution
 - [Core] Avoid loading the config file twice
 
+### Deleted
+- [AWS Lambda] Using custom layer runtimes for AWS Lambda due to layer size limitations.
+
 ## [v2.3.4]
 
 ### Added
