@@ -318,6 +318,10 @@ def _split_objects_from_object_storage(map_func_args_list,
 
     def create_partition(bucket, key):
 
+        if key.endswith('/'):
+            logger.debug(f'Discarding object "{key}" as it is a prefix folder (0.0B)')
+            return
+
         obj_size = keys_dict[bucket][key]
 
         if chunk_number:
