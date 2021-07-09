@@ -444,7 +444,12 @@ class AWSLambdaBackend:
         # Check if layer/container image has to also be deleted
         if not self.list_runtimes(runtime_name):
             if self._is_container_runtime(runtime_name):
-                pass
+                if ':' in runtime_name:
+                    repo_name, _ = runtime_name.split(':')
+                else:
+                    repo_name = runtime_name
+                logger.debug('Going to delete ECR repository {}'.format(repo_name))
+                self.ecr_client.delete_repository(repositoryName=repo_name, force=True)
             else:
                 layer = self._format_layer_name(runtime_name)
                 self._delete_layer(layer)
@@ -489,7 +494,9 @@ class AWSLambdaBackend:
                     runtimes.append((rt_name, rt_memory))
 
         if runtime_name:
-            runtimes = [tup for tup in runtimes if runtime_name in tup[0]]
+            if self._is_container_runtime(runtime_name) and ':' not in runtime_name:
+                runtime_name = runtime_name + ':latest'
+            runtimes = [tup for tup in runtimes if tup[0] in runtime_name]
 
         logger.debug('Listed {} functions'.format(len(runtimes)))
         return runtimes
