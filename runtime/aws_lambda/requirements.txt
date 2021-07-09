@@ -1,9 +1,0 @@
-httplib2
-kafka-python
-requests
-Pillow
-redis
-pika
-cloudpickle
-ps-mem
-tblib
