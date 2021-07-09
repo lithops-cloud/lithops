@@ -252,6 +252,22 @@ class AWSLambdaBackend:
                 lithops_layers.append((layer['LayerName'], layer['LatestMatchingVersion']['LayerVersionArn']))
         return lithops_layers
 
+    def _delete_function(self, function_name):
+        try:
+            response = self.lambda_client.delete_function(
+                FunctionName=function_name
+            )
+        except botocore.exceptions.ClientError as err:
+            raise err
+
+        if response['ResponseMetadata']['HTTPStatusCode'] == 204:
+            logger.debug('OK --> Deleted function {}'.format(function_name))
+        elif response['ResponseMetadata']['HTTPStatusCode'] == 404:
+            logger.debug('OK --> Function {} does not exist'.format(function_name))
+        else:
+            msg = 'An error occurred creating/updating action {}: {}'.format(function_name, response)
+            raise Exception(msg)
+
     def build_runtime(self, runtime_name, runtime_file):
         """
         Build Lithops runtime for AWS lambda
@@ -433,20 +449,8 @@ class AWSLambdaBackend:
         """
         logger.debug('Deleting lambda runtime: {}'.format(runtime_name))
 
-        try:
-            response = self.lambda_client.delete_function(
-                FunctionName=runtime_name
-            )
-        except botocore.exceptions.ClientError as err:
-            raise err
-
-        if response['ResponseMetadata']['HTTPStatusCode'] == 204:
-            logger.debug('OK --> Deleted function {}'.format(runtime_name))
-        elif response['ResponseMetadata']['HTTPStatusCode'] == 404:
-            logger.debug('OK --> Function {} does not exist'.format(runtime_name))
-        else:
-            msg = 'An error occurred creating/updating action {}: {}'.format(runtime_name, response)
-            raise Exception(msg)
+        func_name = self._format_function_name(runtime_name, runtime_memory)
+        self._delete_function(func_name)
 
         if runtime_name not in lambda_config.DEFAULT_RUNTIMES:
             build_name, _ = self._unformat_function_name(runtime_name)
@@ -558,4 +562,8 @@ class AWSLambdaBackend:
         if 'lithops_version' in result:
             return result
         else:
+            logger.error('An error occurred: {}, cleaning up...'.format(result))
+            self.delete_runtime(runtime_name, runtime_memory)
+            layer_name = self._format_layer_name(runtime_name)
+            self._delete_layer(layer_name)
             raise Exception(result)

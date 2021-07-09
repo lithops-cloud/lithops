@@ -23,15 +23,10 @@ from lithops.utils import version_str
 logger = logging.getLogger(__name__)
 
 DEFAULT_REQUIREMENTS = [
-    'httplib2',
-    'kafka-python',
     'requests',
-    'Pillow',
-    'pandas',
-    'numpy',
-    'scipy',
     'redis',
     'pika',
+    'numpy',
     'cloudpickle',
     'ps-mem',
     'tblib'
