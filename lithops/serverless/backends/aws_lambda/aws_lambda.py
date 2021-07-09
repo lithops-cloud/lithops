@@ -107,6 +107,13 @@ class AWSLambdaBackend:
     def _is_container_runtime(runtime_name):
         return runtime_name not in lambda_config.AVAILABLE_RUNTIMES
 
+    def _format_repo_name(self, runtime_name):
+        if ':' in runtime_name:
+            base_image = runtime_name.split(':')[0]
+        else:
+            base_image = runtime_name
+        return '/'.join([self.package, base_image]).replace('.', '-').lower()
+
     @staticmethod
     def _create_handler_bin(remove=True):
         """
@@ -289,7 +296,7 @@ class AWSLambdaBackend:
         subprocess.check_call(cmd.split())
         os.remove(FUNCTION_ZIP)
 
-        ecr_repo = '{}.dkr.ecr.{}.amazonaws.com'.format(self.account_id, self.region_name)
+        registry = '{}.dkr.ecr.{}.amazonaws.com'.format(self.account_id, self.region_name)
 
         res = self.ecr_client.get_authorization_token()
         if res['ResponseMetadata']['HTTPStatusCode'] != 200:
@@ -298,23 +305,22 @@ class AWSLambdaBackend:
         auth_data = res['authorizationData'].pop()
         ecr_token = base64.b64decode(auth_data['authorizationToken']).split(b':')[1]
 
-        cmd = '{} login --username AWS --password-stdin {}'.format(lambda_config.DOCKER_PATH, ecr_repo)
+        cmd = '{} login --username AWS --password-stdin {}'.format(lambda_config.DOCKER_PATH, registry)
         subprocess.check_output(cmd.split(), input=ecr_token)
 
-        if ':' in image_name:
-            image_repo, tag = image_name.split(':')
-        else:
-            image_repo = image_name
+        repo_name = self._format_repo_name(image_name)
+
+        tag = 'latest' if ':' not in image_name else image_name.split(':')[1]
 
         try:
-            self.ecr_client.create_repository(repositoryName=image_repo)
+            self.ecr_client.create_repository(repositoryName=repo_name)
         except self.ecr_client.exceptions.RepositoryAlreadyExistsException as e:
-            logger.info('Repository {} already exists'.format(image_repo))
+            logger.info('Repository {} already exists'.format(repo_name))
 
-        cmd = '{} tag {} {}/{}'.format(lambda_config.DOCKER_PATH, image_name, ecr_repo, image_name)
+        cmd = '{} tag {} {}/{}:{}'.format(lambda_config.DOCKER_PATH, image_name, registry, repo_name, tag)
         subprocess.check_call(cmd.split())
 
-        cmd = '{} push {}/{}'.format(lambda_config.DOCKER_PATH, ecr_repo, image_name)
+        cmd = '{} push {}/{}:{}'.format(lambda_config.DOCKER_PATH, registry, repo_name, tag)
         subprocess.check_call(cmd.split())
 
         logger.info('Ok - Created runtime {}'.format(runtime_name))
@@ -335,20 +341,21 @@ class AWSLambdaBackend:
             image_name = runtime_name.split('/')[1]
 
             if ':' in image_name:
-                image_repo, tag = image_name.split(':')
+                image, tag = image_name.split(':')
             else:
-                image_repo, tag = image_name, 'latest'
+                image, tag = image_name, 'latest'
 
             try:
-                response = self.ecr_client.describe_images(repositoryName=image_repo)
+                repo_name = self._format_repo_name(image)
+                response = self.ecr_client.describe_images(repositoryName=repo_name)
                 images = response['imageDetails']
                 image = list(filter(lambda image: tag in image['imageTags'], images)).pop()
                 image_digest = image['imageDigest']
             except botocore.exceptions.ClientError:
-                raise Exception('Runtime {} is not deployed to ECR')
+                raise Exception('Runtime {} is not deployed to ECR'.format(runtime_name))
 
             image_uri = '{}.dkr.ecr.{}.amazonaws.com/{}@{}'.format(self.account_id, self.region_name,
-                                                                   image_repo, image_digest)
+                                                                   repo_name, image_digest)
 
             response = self.lambda_client.create_function(
                 FunctionName=function_name,
@@ -444,10 +451,7 @@ class AWSLambdaBackend:
         # Check if layer/container image has to also be deleted
         if not self.list_runtimes(runtime_name):
             if self._is_container_runtime(runtime_name):
-                if ':' in runtime_name:
-                    repo_name, _ = runtime_name.split(':')
-                else:
-                    repo_name = runtime_name
+                repo_name = self._format_repo_name(runtime_name)
                 logger.debug('Going to delete ECR repository {}'.format(repo_name))
                 self.ecr_client.delete_repository(repositoryName=repo_name, force=True)
             else:
