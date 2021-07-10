@@ -187,6 +187,7 @@ def run_tests(tests, config=None, mode=None, group=None, backend=None, storage=N
         clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)
 
     if not tests_results.wasSuccessful():  # Fails github workflow action to reject merge to repository
+        sys.tracebacklimit = 0  # avoid displaying redundant stack track-back info
         raise Exception("--------Test procedure failed. Merge rejected--------")
 
 
