@@ -26,7 +26,6 @@ DEFAULT_REQUIREMENTS = [
     'requests',
     'redis',
     'pika',
-    'numpy',
     'cloudpickle',
     'ps-mem',
     'tblib'
