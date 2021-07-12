@@ -159,16 +159,16 @@ def config_suite(suite, tests, groups):
                     terminate('test', test)
 
 
-def run_tests(tests, config=None, mode=None, group=None, backend=None, storage=None, fail_fast=False,
+def run_tests(tests, config=None, group=None, backend=None, storage=None, fail_fast=False,
               remove_datasets=False):
     global CONFIG, STORAGE_CONFIG, STORAGE
 
-    mode = mode or get_mode(backend, config)
-    config_ow = {'lithops': {'mode': mode}}
+    config_ow = {'lithops': {}}
     if storage:
         config_ow['lithops']['storage'] = storage
     if backend:
-        config_ow[mode] = {'backend': backend}
+        config_ow['lithops']['backend'] = backend
+
     CONFIG = default_config(config, config_ow)
     STORAGE_CONFIG = extract_storage_config(CONFIG)
     STORAGE = Storage(storage_config=STORAGE_CONFIG)
@@ -209,8 +209,6 @@ if __name__ == '__main__':
     parser.add_argument('-g', '--groups', metavar='', default='',
                         help='run all testers belonging to a specific group.'
                              ' type "-g help" for groups list')
-    parser.add_argument('-m', '--mode', metavar='', default=None,
-                        help='serverless, standalone or localhost')
     parser.add_argument('-b', '--backend', metavar='', default=None,
                         help='compute backend')
     parser.add_argument('-s', '--storage', metavar='', default=None,
