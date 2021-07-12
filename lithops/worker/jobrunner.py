@@ -125,7 +125,7 @@ class JobRunner:
 
         obj = data['obj']
 
-        if hasattr(obj, 'bucket'):
+        if hasattr(obj, 'bucket') and not hasattr(obj, 'path'):
             logger.info('Getting dataset from {}://{}/{}'.format(obj.backend, obj.bucket, obj.key))
 
             if obj.backend == self.internal_storage.backend:
@@ -156,8 +156,6 @@ class JobRunner:
 
         elif hasattr(obj, 'path'):
             logger.info('Getting dataset from {}'.format(obj.path))
-            obj.key = os.path.basename(obj.path)
-            obj.bucket = os.path.dirname(obj.path)
             with open(obj.path, "rb") as f:
                 if obj.data_byte_range is not None:
                     extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)

@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 
+import os
 import time
 import logging
 
@@ -65,6 +66,8 @@ class CloudObjectUrl:
 class CloudObjectLocal:
     def __init__(self, path):
         self.path = path
+        self.bucket = os.path.dirname(path)
+        self.key = os.path.basename(path)
 
     def __str__(self):
         return '<CloudObject at {}>'.format(self.path)

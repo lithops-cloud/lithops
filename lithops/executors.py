@@ -272,7 +272,7 @@ class FunctionExecutor:
                    map_runtime_memory=None, obj_chunk_size=None, obj_chunk_number=None,
                    reduce_runtime_memory=None, chunk_size=None, chunk_n=None,
                    timeout=None, invoke_pool_threads=None, reducer_one_per_object=False,
-                   reducer_wait_local=False, include_modules=[], exclude_modules=[]):
+                   reducer_wait_local=True, include_modules=[], exclude_modules=[]):
         """
         Map the map_function over the data and apply the reduce_function across all futures.
         This method is executed all within CF.
