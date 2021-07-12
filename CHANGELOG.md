@@ -1,6 +1,19 @@
 # Changelog
 
-## [v2.3.5.devX]
+
+## [v2.3.6.devX]
+
+### Added
+- 
+
+### Changed
+- 
+
+### Fixes
+- [Localhost] Fixed error when processing localhost objects
+
+
+## [v2.3.5]
 
 ### Added
 - [Core] Add function chaining pattern in the Futures API
