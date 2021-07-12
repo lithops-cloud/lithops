@@ -79,8 +79,8 @@ class StandaloneHandler:
         """
         Waits until the VM instance is ready to receive ssh connections
         """
-        logger.debug('Waiting {} to become ready'
-                     .format(self.backend.master))
+        logger.info('Waiting {} to become ready'
+                    .format(self.backend.master))
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
@@ -135,7 +135,7 @@ class StandaloneHandler:
         raise Exception('Lithops service readiness probe expired on {}'
                         .format(self.backend.master))
 
-    def invoke(self, job_payload, workers):
+    def invoke(self, job_payload):
         """
         Run the job description against the selected environment
         """
@@ -143,9 +143,10 @@ class StandaloneHandler:
         job_id = job_payload['job_id']
         total_calls = job_payload['total_calls']
         chunksize = job_payload['chunksize']
+        workers = job_payload['workers']
 
-        total_workers = total_calls // chunksize + (total_calls % chunksize > 0) \
-            if self.exec_mode == 'create' else 1
+        total_workers = min(workers, total_calls // chunksize + (total_calls % chunksize > 0)
+                            if self.exec_mode == 'create' else 1)
 
         def start_master_instance(wait=True):
             if not self._is_master_service_ready():
@@ -160,14 +161,13 @@ class StandaloneHandler:
                     worker_id = "{:04d}".format(vm_n)
                     name = 'lithops-{}-{}-{}'.format(executor_id, job_id, worker_id)
                     ex.submit(self.backend.create_worker, name)
-
             logger.debug("Total worker VM instances created: {}/{}"
                          .format(len(self.backend.workers), total_workers))
+            total_workers = len(self.backend.workers)
 
-        logger.debug('ExecutorID {} | JobID {} - Going '
-                     'to run {} activations in {} workers'
-                     .format(executor_id, job_id,
-                             total_calls, len(self.backend.workers)))
+        logger.debug('ExecutorID {} | JobID {} - Going to run {} activations '
+                     'in {} workers'.format(executor_id, job_id, total_calls,
+                                            total_workers))
 
         logger.debug("Checking if {} is ready".format(self.backend.master))
         start_master_instance(wait=True)

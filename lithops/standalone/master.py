@@ -138,7 +138,7 @@ def setup_worker(worker_info, work_queue, job_key):
     script = get_worker_setup_script(STANDALONE_CONFIG, vm_data)
     vm.get_ssh_client().run_remote_command(script, run_async=True)
     vm.del_ssh_client()
-    logger.info('Installation process finished on {}'.format(vm))
+    logger.info('Installation script submitted to {}'.format(vm))
 
 
 def stop_job_process(job_key):
@@ -265,8 +265,11 @@ def run():
     if exec_mode == 'consume':
         # Consume mode runs the job locally
         pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
-        localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
-        localhost_handler.invoke(job_payload)
+        try:
+            localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
+            localhost_handler.invoke(job_payload, workers=1)
+        except Exception as e:
+            logger.error(e)
 
     elif exec_mode == 'create':
         # Create mode runs the job in worker VMs

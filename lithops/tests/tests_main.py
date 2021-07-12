@@ -25,7 +25,7 @@ import urllib.request
 from os import walk
 
 from lithops.storage import Storage
-from lithops.config import get_mode, default_config, extract_storage_config, load_yaml_config
+from lithops.config import default_config, extract_storage_config, load_yaml_config
 from concurrent.futures import ThreadPoolExecutor
 from lithops.tests import main_util
 from lithops.tests.util_func.storage_util import clean_tests
@@ -159,16 +159,16 @@ def config_suite(suite, tests, groups):
                     terminate('test', test)
 
 
-def run_tests(tests, config=None, mode=None, group=None, backend=None, storage=None, fail_fast=False,
+def run_tests(tests, config=None, group=None, backend=None, storage=None, fail_fast=False,
               remove_datasets=False):
     global CONFIG, STORAGE_CONFIG, STORAGE
 
-    mode = mode or get_mode(backend, config)
-    config_ow = {'lithops': {'mode': mode}}
+    config_ow = {'lithops': {}}
     if storage:
         config_ow['lithops']['storage'] = storage
     if backend:
-        config_ow[mode] = {'backend': backend}
+        config_ow['lithops']['backend'] = backend
+
     CONFIG = default_config(config, config_ow)
     STORAGE_CONFIG = extract_storage_config(CONFIG)
     STORAGE = Storage(storage_config=STORAGE_CONFIG)
@@ -187,7 +187,7 @@ def run_tests(tests, config=None, mode=None, group=None, backend=None, storage=N
         clean_tests(STORAGE, STORAGE_CONFIG, PREFIX)
 
     if not tests_results.wasSuccessful():  # Fails github workflow action to reject merge to repository
-        sys.tracebacklimit = 0  # avoid displaying needless stack track-back info
+        sys.tracebacklimit = 0  # avoid displaying redundant stack track-back info
         raise Exception("--------Test procedure failed. Merge rejected--------")
 
 
@@ -209,8 +209,6 @@ if __name__ == '__main__':
     parser.add_argument('-g', '--groups', metavar='', default='',
                         help='run all testers belonging to a specific group.'
                              ' type "-g help" for groups list')
-    parser.add_argument('-m', '--mode', metavar='', default=None,
-                        help='serverless, standalone or localhost')
     parser.add_argument('-b', '--backend', metavar='', default=None,
                         help='compute backend')
     parser.add_argument('-s', '--storage', metavar='', default=None,

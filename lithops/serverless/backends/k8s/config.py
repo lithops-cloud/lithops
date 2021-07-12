@@ -28,7 +28,7 @@ DOCKER_PATH = shutil.which('docker')
 RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
 RUNTIME_MEMORY = 256  # Default memory: 256 MB
 RUNTIME_CPU = 0.5  # 0.5 vCPU
-MAX_CONCURRENT_WORKERS = 1000
+MAX_CONCURRENT_WORKERS = 200
 INVOKE_POOL_THREADS_DEFAULT = 4
 
 DEFAULT_GROUP = "batch"
@@ -85,6 +85,7 @@ spec:
       containers:
         - name: "lithops"
           image: "<INPUT>"
+          # imagePullPolicy: IfNotPresent
           command: ["python3"]
           args:
             - "/lithops/lithopsentry.py"
@@ -95,7 +96,7 @@ spec:
               value: ''
             - name: PAYLOAD
               value: ''
-            - name: IDGIVER_POD_IP
+            - name: MASTER_POD_IP
               value: ''
             - name: POD_IP
               valueFrom:
@@ -117,20 +118,13 @@ def load_config(config_data):
     if 'k8s' not in config_data:
         config_data['k8s'] = {}
 
-    if 'runtime' in config_data['k8s']:
-        config_data['serverless']['runtime'] = config_data['k8s']['runtime']
-    if 'runtime_memory' in config_data['k8s']:
-        config_data['serverless']['runtime_memory'] = config_data['k8s']['runtime_memory']
-    if 'runtime_timeout' in config_data['k8s']:
-        config_data['serverless']['runtime_timeout'] = config_data['k8s']['runtime_timeout']
-
     if 'runtime_cpu' not in config_data['k8s']:
         config_data['k8s']['runtime_cpu'] = RUNTIME_CPU
-    if 'runtime_memory' not in config_data['serverless']:
-        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY
-    if 'runtime_timeout' not in config_data['serverless']:
-        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT
-    if 'runtime' not in config_data['serverless']:
+    if 'runtime_memory' not in config_data['k8s']:
+        config_data['k8s']['runtime_memory'] = RUNTIME_MEMORY
+    if 'runtime_timeout' not in config_data['k8s']:
+        config_data['k8s']['runtime_timeout'] = RUNTIME_TIMEOUT
+    if 'runtime' not in config_data['k8s']:
         if not DOCKER_PATH:
             raise Exception('docker command not found. Install docker or use '
                             'an already built runtime')
@@ -143,12 +137,8 @@ def load_config(config_data):
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         runtime_name = '{}/{}-v{}:{}'.format(docker_user, RUNTIME_NAME, python_version, revision)
-        config_data['serverless']['runtime'] = runtime_name
+        config_data['k8s']['runtime'] = runtime_name
 
     if 'workers' not in config_data['lithops'] or \
        config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
-
-    if 'invoke_pool_threads' not in config_data['k8s']:
-        config_data['k8s']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
-    config_data['serverless']['invoke_pool_threads'] = config_data['k8s']['invoke_pool_threads']

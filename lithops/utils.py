@@ -16,8 +16,6 @@
 # limitations under the License.
 #
 
-
-import io
 import re
 import os
 import uuid
@@ -32,7 +30,7 @@ import platform
 import logging.config
 import subprocess as sp
 
-from lithops.constants import LOGGER_FORMAT, LOGGER_LEVEL, LOGGER_STREAM
+from lithops import constants
 
 logger = logging.getLogger(__name__)
 
@@ -84,15 +82,81 @@ def agg_data(data_strs):
     return b"".join(data_strs), ranges
 
 
-def setup_lithops_logger(log_level=LOGGER_LEVEL,
-                         log_format=LOGGER_FORMAT,
+def create_futures_list(futures, executor):
+    """creates a new FuturesList an initiates its attrs"""
+    fl = FuturesList(futures)
+    fl.config = executor.config
+    fl.executor = executor
+
+    return fl
+
+
+class FuturesList(list):
+
+    def _create_executor(self):
+        from lithops import FunctionExecutor
+        self.executor = FunctionExecutor(config=self.config)
+
+    def map(self, map_function, **kwargs):
+        if not self.executor:
+            self._create_executor()
+        return self.executor.map(map_function, self, **kwargs)
+
+    def map_reduce(self, map_function, reduce_function, **kwargs):
+        if not self.executor:
+            self._create_executor()
+        return self.executor.map_reduce(map_function, self, reduce_function, **kwargs)
+
+    def wait(self, **kwargs):
+        if not self.executor:
+            self._create_executor()
+        return self.executor.wait(self, **kwargs)
+
+    def get_result(self, **kwargs):
+        if not self.executor:
+            self._create_executor()
+        return self.executor.get_result(self, **kwargs)
+
+    def __reduce__(self):
+        self.executor = None
+        return super().__reduce__()
+
+
+def get_backend(mode):
+    """ Return lithops execution backend """
+
+    if mode == constants.LOCALHOST:
+        return constants.LOCALHOST
+    elif mode == constants.SERVERLESS:
+        return constants.SERVERLESS_BACKEND_DEFAULT
+    elif mode == constants.STANDALONE:
+        return constants.STANDALONE_BACKEND_DEFAULT
+    elif mode:
+        raise Exception("Unknown exeution mode: {}".format(mode))
+
+
+def get_mode(backend):
+    """ Return lithops execution mode """
+
+    if backend == constants.LOCALHOST:
+        return constants.LOCALHOST
+    elif backend in constants.SERVERLESS_BACKENDS:
+        return constants.SERVERLESS
+    elif backend in constants.STANDALONE_BACKENDS:
+        return constants.STANDALONE
+    elif backend:
+        raise Exception("Unknown compute backend: {}".format(backend))
+
+
+def setup_lithops_logger(log_level=constants.LOGGER_LEVEL,
+                         log_format=constants.LOGGER_FORMAT,
                          stream=None, filename=None):
     """Setup logging for lithops."""
     if log_level is None or str(log_level).lower() == 'none':
         return
 
     if stream is None:
-        stream = LOGGER_STREAM
+        stream = constants.LOGGER_STREAM
 
     if filename is None:
         filename = os.devnull
@@ -331,7 +395,7 @@ def format_data(iterdata, extra_args):
     # Format iterdata in a proper way
     if type(iterdata) in [range, set]:
         data = list(iterdata)
-    elif type(iterdata) != list:
+    elif type(iterdata) != list and type(iterdata) != FuturesList:
         data = [iterdata]
     else:
         data = iterdata
@@ -360,6 +424,9 @@ def format_data(iterdata, extra_args):
 
 
 def verify_args(func, iterdata, extra_args):
+
+    if isinstance(iterdata, FuturesList):
+        return [{'future': f} for f in iterdata]
 
     data = format_data(iterdata, extra_args)
 
@@ -470,6 +537,12 @@ class WrappedStreamingBody:
         else:
             return getattr(self.sb, attr)
 
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return self.read(64*1024)
+
 
 class WrappedStreamingBodyPartition(WrappedStreamingBody):
 
@@ -511,9 +584,8 @@ class WrappedStreamingBodyPartition(WrappedStreamingBody):
         last_row_end_pos = self.pos
         # Find end of the line in threshold
         if self.pos > self.chunk_size:
-            buf = io.BytesIO(retval[self.chunk_size-self._plusbytes:])
-            buf.readline()
-            last_row_end_pos = self.chunk_size-self._plusbytes+buf.tell()
+            last_byte_pos = retval[self.chunk_size:].find(b'\n')+1
+            last_row_end_pos = self.chunk_size+last_byte_pos
             self._eof = True
 
         return retval[first_row_start_pos:last_row_end_pos]

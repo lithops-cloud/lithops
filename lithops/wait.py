@@ -19,11 +19,13 @@ import logging
 import time
 import concurrent.futures as cf
 from functools import partial
-from lithops.utils import is_unix_system, timeout_handler, is_notebook, is_lithops_worker
+from lithops.utils import is_unix_system, timeout_handler, \
+    is_notebook, is_lithops_worker, FuturesList
 from lithops.storage import InternalStorage
 from lithops.monitor import JobMonitor
 from types import SimpleNamespace
 from itertools import chain
+
 
 ALL_COMPLETED = 1
 ANY_COMPLETED = 2
@@ -62,7 +64,7 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
     if not fs:
         return
 
-    if type(fs) != list:
+    if type(fs) != list and type(fs) != FuturesList:
         fs = [fs]
 
     if download_results:
@@ -110,8 +112,7 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
                     new_data = _get_job_data(fs, job_data, pbar=pbar,
                                              throw_except=throw_except,
                                              download_results=download_results,
-                                             threadpool_size=threadpool_size,
-                                             job_monitor=job_monitor)
+                                             threadpool_size=threadpool_size)
                 time.sleep(0 if new_data else sleep_sec)
 
         elif return_when == ANY_COMPLETED:
@@ -120,8 +121,7 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
                     new_data = _get_job_data(fs, job_data, pbar=pbar,
                                              throw_except=throw_except,
                                              download_results=download_results,
-                                             threadpool_size=threadpool_size,
-                                             job_monitor=job_monitor)
+                                             threadpool_size=threadpool_size)
                 time.sleep(0 if new_data else sleep_sec)
 
         elif return_when == ALWAYS:
@@ -129,8 +129,7 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
                 _get_job_data(fs, job_data, pbar=pbar,
                               throw_except=throw_except,
                               download_results=download_results,
-                              threadpool_size=threadpool_size,
-                              job_monitor=job_monitor)
+                              threadpool_size=threadpool_size)
 
     except KeyboardInterrupt as e:
         if download_results:
@@ -180,7 +179,7 @@ def get_result(fs, throw_except=True, timeout=None,
     :param WAIT_DUR_SEC: Time interval between each check.
     :return: The result of the future/s
     """
-    if type(fs) != list:
+    if type(fs) != list and type(fs) != FuturesList:
         fs = [fs]
 
     fs_done, _ = wait(fs=fs, throw_except=throw_except,
@@ -246,7 +245,7 @@ def _any_done(fs, download_results):
         return any([f.success or f.done for f in fs])
 
 
-def _get_job_data(fs, job_data, download_results, throw_except, threadpool_size, pbar, job_monitor):
+def _get_job_data(fs, job_data, download_results, throw_except, threadpool_size, pbar):
     """
     Downloads all status/results from ready futures
     """

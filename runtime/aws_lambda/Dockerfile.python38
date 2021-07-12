@@ -18,10 +18,13 @@ RUN apt-get update && \
 # Copy function code
 RUN mkdir -p ${FUNCTION_DIR}
 
+# Update pip
+RUN pip install -U pip wheel six setuptools
+
 # Install the function's dependencies
 RUN pip install \
     --target ${FUNCTION_DIR} \
-        awslambdaric==1.0.0 \
+        awslambdaric \
         boto3 \
         redis \
         httplib2 \
@@ -47,11 +50,14 @@ WORKDIR ${FUNCTION_DIR}
 COPY --from=build-image ${FUNCTION_DIR} ${FUNCTION_DIR}
 
 # Add Lithops
-RUN mkdir lithops
 COPY lithops_lambda.zip ${FUNCTION_DIR}
-RUN unzip lithops_lambda.zip && rm lithops_lambda.zip
+RUN unzip lithops_lambda.zip \
+    && rm lithops_lambda.zip \
+    && mkdir handler \
+    && touch handler/__init__.py \
+    && mv __main__.py handler/
 
 # Put your dependencies here, using RUN pip install... or RUN apt install...
 
 ENTRYPOINT [ "/usr/local/bin/python", "-m", "awslambdaric" ]
-CMD [ "__main__.lambda_handler" ]
+CMD [ "handler.__main__.lambda_handler" ]

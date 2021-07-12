@@ -19,12 +19,8 @@ import os
 from lithops.utils import version_str
 
 
-RUNTIME_DEFAULT = {'3.6': 'python3',
-                   '3.7': 'python3',
-                   '3': 'python3'}
-
-RUNTIME_TIMEOUT_DEFAULT = 600    # Default: 600 s => 10 minutes
-RUNTIME_TIMEOUT_MAX = 600        # Platform maximum
+RUNTIME_TIMEOUT_DEFAULT = 300    # Default: 5 minutes
+RUNTIME_TIMEOUT_MAX = 600        # Platform 10 min. maximum
 RUNTIME_MEMORY_DEFAULT = 256
 RUNTIME_MEMORY_MAX = 3072
 MAX_CONCURRENT_WORKERS = 300
@@ -53,47 +49,45 @@ ps-mem
 tblib
 """
 
+REQ_PARAMS = ('public_endpoint', 'access_key_id', 'access_key_secret')
+
 
 def load_config(config_data=None):
 
     if 'aliyun_fc' not in config_data:
-        raise Exception("aliyun_fc section is mandatory in the configuration")
+        raise Exception("{} 'aliyun_fc' is mandatory in the configuration".fomrat('aliyun_fc'))
 
-    required_parameters = ('public_endpoint', 'access_key_id', 'access_key_secret')
-
-    if set(required_parameters) > set(config_data['aliyun_fc']):
-        raise Exception('You must provide {} to access to Aliyun Function Compute '
-                        .format(required_parameters))
+    for param in REQ_PARAMS:
+        if param not in config_data['aliyun_fc']:
+            msg = '{} is mandatory in {} "aliyun_fc" of the configuration'.format(REQ_PARAMS, 'aliyun_fc')
+            raise Exception(msg)
 
     this_version_str = version_str(sys.version_info)
     if this_version_str != '3.6':
         raise Exception('The functions backend Aliyun Function Compute currently'
-                        ' only supports Python version 3.6.X and the local Python'
+                        ' only supports Python version 3.6 and the local Python'
                         'version is {}'.format(this_version_str))
 
-    if 'runtime' in config_data['aliyun_fc']:
-        config_data['serverless']['runtime'] = config_data['aliyun_fc']['runtime']
-    if 'runtime' not in config_data['serverless']:
-        config_data['serverless']['runtime'] = 'default'
+    if 'invoke_pool_threads' not in config_data['aliyun_fc']:
+        config_data['aliyun_fc']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
 
-    if 'runtime_memory' in config_data['serverless']:
-        if config_data['serverless']['runtime_memory'] > RUNTIME_MEMORY_MAX:
-            config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_MAX
-    else:
-        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
+    if 'runtime' not in config_data['aliyun_fc']:
+        config_data['aliyun_fc']['runtime'] = 'default'
 
-    if 'runtime_timeout' in config_data['serverless']:
-        if config_data['serverless']['runtime_timeout'] > RUNTIME_TIMEOUT_MAX:
-            config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_MAX
+    if 'runtime_memory' in config_data['aliyun_fc']:
+        if config_data['aliyun_fc']['runtime_memory'] > RUNTIME_MEMORY_MAX:
+            config_data['aliyun_fc']['runtime_memory'] = RUNTIME_MEMORY_MAX
     else:
-        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+        config_data['aliyun_fc']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
+
+    if 'runtime_timeout' in config_data['aliyun_fc']:
+        if config_data['aliyun_fc']['runtime_timeout'] > RUNTIME_TIMEOUT_MAX:
+            config_data['aliyun_fc']['runtime_timeout'] = RUNTIME_TIMEOUT_MAX
+    else:
+        config_data['aliyun_fc']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
 
     if 'workers' in config_data['lithops']:
         if config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
             config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
     else:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
-
-    if 'invoke_pool_threads' not in config_data['aliyun_fc']:
-        config_data['aliyun_fc']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
-    config_data['serverless']['invoke_pool_threads'] = config_data['aliyun_fc']['invoke_pool_threads']
