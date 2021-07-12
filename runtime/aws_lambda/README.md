@@ -51,9 +51,11 @@ import lithops
 pw = lithops.FunctionExecutor(runtime_memory=512)
 ```
 
-### Custom layer runtime
+## Using a Container Runtime
 
 **Build your own Lithops runtime for AWS Lambda**
+
+Layers maximum unzipped size is 250 MB. Counting Lithops dependencies, this limit leaves little room for extra modules.
 
 If you need some Python modules which are not included in the default runtime, it is possible to build your own Lithops runtime with all of them.
 
