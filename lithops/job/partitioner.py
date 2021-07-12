@@ -173,7 +173,8 @@ def _split_objects_from_paths(map_func_args_list,
             found_files = os.listdir(path)
             for filename in found_files:
                 full_path = os.path.join(path, filename)
-                if full_path in files:
+                if full_path in files or \
+                   not os.path.isfile(full_path):
                     continue
                 files.add(full_path)
                 new_elem = elem.copy()
