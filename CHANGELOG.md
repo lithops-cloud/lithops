@@ -7,6 +7,7 @@
 - [Core] ob.data_stream is now also an iterator when using the partitioner
 - [AWS Lambda] Add 'account_id' parameter in config (used if present instead of querying STS).
 - [k8s] Allow to set the maximum number of parallel workers
+- [Localhost] Allow the partitioner to process local directories
 
 ### Changed
 - [Core] Add 'key' and 'bucket' attrs in localhost partitioner for compatibility with OS

@@ -53,6 +53,7 @@ def create_partitions(config, internal_storage, map_iterdata, obj_chunk_size, ob
             paths.append(elem)
 
         else:
+            # assume iterdata contains buckets or object keys
             objects.append(elem)
 
     if urls:
@@ -316,7 +317,7 @@ def _split_objects_from_object_storage(map_func_args_list,
     partitions = []
     parts_per_object = []
 
-    def create_partition(bucket, key):
+    def create_partition(bucket, key, entry):
 
         if key.endswith('/'):
             logger.debug(f'Discarding object "{key}" as it is a prefix folder (0.0B)')
@@ -345,7 +346,7 @@ def _split_objects_from_object_storage(map_func_args_list,
             brange = (size, size+obj_chunk_size+CHUNK_THRESHOLD)
             brange = None if obj_size == obj_chunk_size else brange
 
-            partition = elem.copy()
+            partition = entry.copy()
             partition['obj'] = CloudObject(sb, bucket, key)
             partition['obj'].data_byte_range = brange
             partition['obj'].chunk_size = obj_chunk_size
@@ -357,17 +358,17 @@ def _split_objects_from_object_storage(map_func_args_list,
 
         parts_per_object.append(total_partitions)
 
-    for elem in map_func_args_list:
-        sb, bucket, prefix, obj_name = utils.split_object_url(elem['obj'])
+    for entry in map_func_args_list:
+        sb, bucket, prefix, obj_name = utils.split_object_url(entry['obj'])
 
         if obj_name:
             # each entry is an object key
             key = '/'.join([prefix, obj_name]) if prefix else obj_name
-            create_partition(bucket, key)
+            create_partition(bucket, key, entry)
 
         else:
             # each entry is a bucket
             for key in keys_dict[bucket]:
-                create_partition(bucket, key)
+                create_partition(bucket, key, entry)
 
     return partitions, parts_per_object
