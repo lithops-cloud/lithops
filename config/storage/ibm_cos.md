@@ -15,15 +15,19 @@ Lithops with IBM COS as storage backend.
 4. In the side navigation, click `Endpoints` to find your `region`, `API public` and `private endpoints`.
 
 ### Lithops COS Endpoint configuration
+
 #### Using region
-The easiest apporach is to let Lithops to choose the right endpoint by itself. To enable this, just configure Lithops with region name only, as follows
+The easiest apporach is to let Lithops to choose the right endpoint by itself. To enable this, just configure Lithops with the region name of your `storage_bucket`, as follows:
 
 ```yaml
     ibm_cos:
         region   : <REGION>
 ```
+
+Valid region names are: us-east, us-south, eu-gb, eu-de, etc..
+
 ### Using endpoints path
-Alternative to using region, you can configre public and private endpoints as follows
+Alternative to using region, you can configure the public and private endpoints as follows:
 
 ```yaml
     ibm_cos:

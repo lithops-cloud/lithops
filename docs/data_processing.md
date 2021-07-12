@@ -101,7 +101,7 @@ See a complete example in [map_reduce_url.py](../examples/map_reduce_url.py).
 
 *Note: This is only allowed when running Lithops in the localhost mode*
 
-For processing data from localhost files, the input data must be either a file path or a list file paths. As in the previous cases, if you set the *size of the chunk* or the *number of chunks*, the partitioner is activated inside Lithops and it is responsible to split the objects into smaller chunks, eventually spawning one function for each generated chunk. If *size of the chunk* and *number of chunks* are not set, chunk is an entire object, so one function activation is executed for each individual object.
+For processing data from localhost files, the input data must be either a directory path, a list of directory paths, a file path a list of file paths. As in the previous cases, if you set the *size of the chunk* or the *number of chunks*, the partitioner is activated inside Lithops and it is responsible to split the objects into smaller chunks, eventually spawning one function for each generated chunk. If *size of the chunk* and *number of chunks* are not set, chunk is an entire object, so one function activation is executed for each individual object.
 
 The **obj** parameter is a python class from where you can access all the information related to the object (or chunk) that the function is processing. For example, consider the following function that shows all the available attributes in **obj** when you are processing localhost files:
 
@@ -126,7 +126,7 @@ def my_reduce_function(results):
         # Do some process
     return final_result
 
-iterdata = ['/home/user/data/my_file_1.csv/', '/home/user/data/my_file_2.csv'] 
+iterdata = ['/home/user/data/my_file_1.csv', '/home/user/data/my_file_2.csv'] 
 object_chunk_number= 2
 
 fexec = lithops.FunctionExecutor()

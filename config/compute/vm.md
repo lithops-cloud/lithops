@@ -5,9 +5,7 @@ Lithops can run functions in a regular remote virtual machine by using processes
 
 ### Configuration
 
-1. Make sure port 8080 is open on your virtual machine.
-
-2. Edit your lithops config and add the following keys:
+1. Edit your lithops config and add the following keys:
 
 ```yaml
     lithops:
@@ -22,6 +20,15 @@ Lithops can run functions in a regular remote virtual machine by using processes
         ssh_password: <password>
 ```
 
+### Summary of configuration keys for a single Virtual Machine:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|vm | ip_address | |yes | IP Address of the VM |
+|vm | ssh_user   | | yes | SSH username for accessing the VM |
+|vm | ssh_password | | yes | SSH password for accessing the VM |
+
+
 ### Execution environments
 
 The remote virtual machine executor can run functions in multiple environments. Currently it supports the *default python3* and the *Docker* environments. The environment is automatically chosen depending on if you provided a Docker image as a runtime or not. 
@@ -35,6 +42,11 @@ $ lithops logs poll
 #### Default Environment
 The default environment runs the functions in the same *python3* interpreter that you ran the lithops script.
 It does not require any extra configuration. You must ensure that all the dependencies of your script are installed in your machine.
+
+```yaml
+    standalone:
+        runtime: python3
+```
 
 #### Docker Environment
 The Docker environment runs the functions within a Docker container. In this case you must [install the Docker CE version](https://docs.docker.com/get-docker/) in your machine. This environment is automatically activated when you provide a docker image as a runtime. For example, by adding the following keys in the config:

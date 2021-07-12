@@ -5,16 +5,17 @@ This document describes how to invoke functions based on the *iterdata* variable
 
 Reserved parameters
 -------------------
+Reserved parameters are only accessible when using the [Futures API](api_futures.md).
+
 
 - **id**: To get the call id. For instance, if you spawn 10 activations of a function, you will get here a number from 0 to 9, for example: [map.py](../examples/map.py)
 
+- **obj**: This parameter is used to activate the internal logic that allows to process data objects stored in the object store or public URLs in a transparent way. See [data processing](../docs/data_processing.md) documentation for more details and instructions on how to use this built-in data-processing logic.
+
 - **storage**: To get a ready-to use lithops.storage.Storage() instance. This allows you to access your storage backend defined in configuration from any function in an easy way, for example: [storage_arg.py](../examples/storage_arg.py)
 
-- **ibm_cos**: To get a ready-to use [ibm_boto3.Client()](https://ibm.github.io/ibm-cos-sdk-python/reference/services/s3.html#client) instance. This allows you to access your IBM COS account from any function in an easy way, for example: [ibmcos_arg.py](../examples/ibmcos_arg.py)
+- **rabbitmq**: To get a ready-to use [pika.BlockingConnection()](https://pika.readthedocs.io/en/latest/modules/adapters/blocking.html) instance (AMQP URL must be set in the [configuration](../config/) to make it working). This allows you to access the RabbitMQ service from any function in an easy way, for example: [rabbitmq_arg.py](../examples/rabbitmq_arg.py)
 
-- **rabbitmq**: To get a ready-to use [pika.BlockingConnection()](https://pika.readthedocs.io/en/latest/modules/adapters/blocking.html) instance (AMQP URL must be set in the [configuration](config/) to make it working). This allows you to access the RabbitMQ service from any function in an easy way, for example: [rabbitmq_arg.py](../examples/rabbitmq_arg.py)
-
-- **obj**: This parameter is used to activate the internal logic that allows to process data objects stored in the object store or public URLs in a transparent way. See [data processing](../docs/data_processing.md) documentation for more details and instructions on how to use this built-in data-processing logic.
 
 
 Parameters in the call_async() method 
@@ -102,7 +103,7 @@ fexec.call_async(sum_list_mult, kwargs)
 print (fexec.get_result())
 ```
 
-To test all of the previous examples run the [multiple_parameters_call_async.py](../examples/multiple_parameters_call_async.py) located in the `examples` folder.
+To test all of the previous examples run the [multiple_args_call_async.py](../examples/multiple_args_call_async.py) located in the `examples` folder.
 
 Parameters in the map() and map_reduce() methods 
 -------------------------------------
@@ -231,9 +232,9 @@ Sometimes, functions have common parameters for all the invocations. In this cas
     print(fexec.get_result())
     ```
 
-- Using `extra_args` parameter in the `map()` or `map_reduce()` calls. `extra_args` must be always a list or a dict, depending whether `iteradata` contains *args* or *kwargs*. 
+- Using `extra_args` parameter in the `map()` or `map_reduce()` calls. `extra_args` must be a **set* or a **dict**, depending on whether `iteradata` contains *args* or *kwargs*. 
 
-    If `iterdata` is a list:
+    If `iterdata` is a list of individual values or a list of sets:
 
     ```python
     import lithops
@@ -265,7 +266,7 @@ Sometimes, functions have common parameters for all the invocations. In this cas
     print(fexec.get_result())
     ```
     
-    If `iterdata` is a dict:
+    If `iterdata` is a list of dicts:
 
     ```python
     import lithops
@@ -303,4 +304,4 @@ Sometimes, functions have common parameters for all the invocations. In this cas
     print(fexec.get_result())
     ```
 
-To test all of the previous examples run the [multiple_parameters_map.py](../examples/multiple_parameters_map.py) located in the `examples/` folder.
+To test all of the previous examples run the [multiple_args_map.py](../examples/multiple_args_map.py) located in the `examples/` folder.

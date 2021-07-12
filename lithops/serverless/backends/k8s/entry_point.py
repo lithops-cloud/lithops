@@ -37,13 +37,13 @@ logger = logging.getLogger('lithops.worker')
 
 proxy = flask.Flask(__name__)
 
-IDGIVER_PORT = 8080
+MASTER_PORT = 8080
 
 JOB_INDEXES = {}
 
 
-@proxy.route('/getid/<jobkey>', methods=['GET'])
-def get_id(jobkey):
+@proxy.route('/getid/<jobkey>/<total_calls>', methods=['GET'])
+def get_id(jobkey, total_calls):
     global JOB_INDEXES
 
     if jobkey not in JOB_INDEXES:
@@ -51,13 +51,16 @@ def get_id(jobkey):
     else:
         JOB_INDEXES[jobkey] += 1
 
-    print(str(JOB_INDEXES[jobkey]), flask.request.remote_addr)
+    call_id = '-1' if JOB_INDEXES[jobkey] >= int(total_calls) else str(JOB_INDEXES[jobkey])
+    remote_host = flask.request.remote_addr
+    proxy.logger.info('Sending ID {} to Host {}'.format(call_id, remote_host))
 
-    return str(JOB_INDEXES[jobkey])
+    return call_id
 
 
-def id_giver():
-    proxy.run(debug=True, host='0.0.0.0', port=IDGIVER_PORT)
+def master():
+    proxy.logger.setLevel(logging.DEBUG)
+    proxy.run(debug=True, host='0.0.0.0', port=MASTER_PORT)
 
 
 def extract_runtime_meta(encoded_payload):
@@ -82,31 +85,42 @@ def run_job(encoded_payload):
     payload = b64str_to_dict(encoded_payload)
     setup_lithops_logger(payload['log_level'])
 
+    total_calls = payload['total_calls']
     job_key = payload['job_key']
-    idgiver_ip = os.environ['IDGIVER_POD_IP']
-    job_index = None
-    while job_index is None:
-        try:
-            res = requests.get('http://{}:{}/getid/{}'.format(idgiver_ip, IDGIVER_PORT, job_key))
-            job_index = int(res.text)
-        except Exception:
-            time.sleep(0.1)
-
-    act_id = str(uuid.uuid4()).replace('-', '')[:12]
-    os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
-    os.environ['__LITHOPS_BACKEND'] = 'k8s'
-
-    logger.info("Activation ID: {} - Job Index: {}".format(act_id, job_index))
+    master_ip = os.environ['MASTER_POD_IP']
 
     chunksize = payload['chunksize']
     call_ids_ranges = [call_ids_range for call_ids_range in iterchunks(payload['call_ids'], chunksize)]
-    call_ids = call_ids_ranges[job_index]
-    data_byte_ranges = [payload['data_byte_ranges'][int(call_id)] for call_id in call_ids]
+    data_byte_ranges = payload['data_byte_ranges']
 
-    payload['call_ids'] = call_ids
-    payload['data_byte_ranges'] = data_byte_ranges
+    job_finished = False
+    while not job_finished:
+        job_index = None
 
-    function_handler(payload)
+        while job_index is None:
+            try:
+                url = f'http://{master_ip}:{MASTER_PORT}/getid/{job_key}/{total_calls}'
+                res = requests.get(url)
+                job_index = int(res.text)
+            except Exception:
+                time.sleep(0.1)
+
+        if job_index == -1:
+            job_finished = True
+            continue
+
+        act_id = str(uuid.uuid4()).replace('-', '')[:12]
+        os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
+        os.environ['__LITHOPS_BACKEND'] = 'k8s'
+
+        logger.info("Activation ID: {} - Job Index: {}".format(act_id, job_index))
+
+        call_ids = call_ids_ranges[job_index]
+        dbr = [data_byte_ranges[int(call_id)] for call_id in call_ids]
+        payload['call_ids'] = call_ids
+        payload['data_byte_ranges'] = dbr
+
+        function_handler(payload)
 
 
 if __name__ == '__main__':
@@ -116,7 +130,7 @@ if __name__ == '__main__':
     switcher = {
         'preinstalls': partial(extract_runtime_meta, encoded_payload),
         'run': partial(run_job, encoded_payload),
-        'id_giver': id_giver
+        'master': master
 
     }
 
