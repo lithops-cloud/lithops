@@ -240,8 +240,7 @@ class ApplyResult(object):
         self._executor.wait(self._futures, download_results=False, timeout=timeout, throw_except=False)
 
     def get(self, timeout=None):
-        self.wait(timeout)
-        self._value = self._executor.get_result(self._futures)
+        self._value = self._executor.get_result(self._futures, timeout=timeout)
 
         if self._callback is not None:
             self._callback(self._value)

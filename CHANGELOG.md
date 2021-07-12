@@ -1,6 +1,25 @@
 # Changelog
 
-## [v2.3.4.dev0]
+## [v2.3.5.devX]
+
+### Added
+- [Core] Add function chaining pattern in the Futures API
+- [Core] ob.data_stream is now also an iterator when using the partitioner
+- [AWS Lambda] Add 'account_id' parameter in config (used if present instead of querying STS).
+- [k8s] Allow to set the maximum number of parallel workers
+
+### Changed
+- [Core] Add 'key' and 'bucket' attrs in localhost partitioner for compatibility with OS
+- [Serverless] runtime, runtime_memory and runtime_timeout can only be set at backend level
+
+### Fixes
+- [Standalone] Fix execution
+- [Core] Avoid loading the config file twice
+
+### Deleted
+- [AWS Lambda] Using custom layer runtimes for AWS Lambda due to layer size limitations.
+
+## [v2.3.4]
 
 ### Added
 - [Core] Allow to execute a Class as lithops function
@@ -17,6 +36,7 @@
 - [joblib] Optimized joblib backend (concurrent args data upload/download)
 
 ### Fixes
+- [Core] Fixed module analyzer
 - [Core] Clear only present jobs instead of all after wait() or get_result()
 - [multiprocessing] Fix put/get slice to/from mp.Array or mp.RawArray
 

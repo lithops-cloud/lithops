@@ -25,7 +25,7 @@ import urllib.request
 from os import walk
 
 from lithops.storage import Storage
-from lithops.config import get_mode, default_config, extract_storage_config, load_yaml_config
+from lithops.config import default_config, extract_storage_config, load_yaml_config
 from concurrent.futures import ThreadPoolExecutor
 from lithops.tests import main_util
 from lithops.tests.util_func.storage_util import clean_tests

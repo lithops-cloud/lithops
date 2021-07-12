@@ -31,7 +31,6 @@ from lithops.utils import version_str, dict_to_b64str
 from lithops.version import __version__
 from lithops.utils import create_handler_zip
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
-from lithops.storage.utils import StorageNoSuchKeyError
 
 from . import config as k8s_config
 
@@ -219,7 +218,7 @@ class KubernetesBackend:
             self._build_default_runtime(default_runtime_img_name)
 
         self._create_container_registry_secret()
-        runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
+        runtime_meta = self._generate_runtime_meta(docker_image_name)
 
         return runtime_meta
 
@@ -288,17 +287,18 @@ class KubernetesBackend:
         logger.debug('Note that k8s job backend does not manage runtimes')
         return []
 
-    def _start_id_giver(self, docker_image_name):
+    def _start_master(self, docker_image_name):
 
-        job_name = 'lithops-idgiver'
+        job_name = 'lithops-master'
 
-        idgiver_pods = self.core_api.list_namespaced_pod(
+        master_pods = self.core_api.list_namespaced_pod(
             namespace=self.namespace, label_selector="job-name={}".format(job_name)
             )
 
-        if len(idgiver_pods.items) > 0:
-            return idgiver_pods.items[0].status.pod_ip
+        if len(master_pods.items) > 0:
+            return master_pods.items[0].status.pod_ip
 
+        logger.debug('Starting Lithops master Pod')
         try:
             self.batch_api.delete_namespaced_job(name=job_name,
                                                  namespace=self.namespace,
@@ -312,7 +312,7 @@ class KubernetesBackend:
         job_res['metadata']['namespace'] = self.namespace
         container = job_res['spec']['template']['spec']['containers'][0]
         container['image'] = docker_image_name
-        container['env'][0]['value'] = 'id_giver'
+        container['env'][0]['value'] = 'master'
 
         try:
             self.batch_api.create_namespaced_job(namespace=self.namespace,
@@ -331,8 +331,9 @@ class KubernetesBackend:
         Invoke -- return information about this invocation
         For array jobs only remote_invocator is allowed
         """
-        idgiver_ip = self._start_id_giver(docker_image_name)
+        master_ip = self._start_master(docker_image_name)
 
+        workers = job_payload['workers']
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
 
@@ -341,7 +342,7 @@ class KubernetesBackend:
 
         total_calls = job_payload['total_calls']
         chunksize = job_payload['chunksize']
-        total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
+        total_workers = min(workers, total_calls // chunksize + (total_calls % chunksize > 0))
 
         job_res = yaml.safe_load(k8s_config.JOB_DEFAULT)
 
@@ -355,14 +356,16 @@ class KubernetesBackend:
 
         container = job_res['spec']['template']['spec']['containers'][0]
         container['image'] = docker_image_name
+        if not docker_image_name.endswith(':latest'):
+            container['imagePullPolicy'] = 'IfNotPresent'
 
         container['env'][0]['value'] = 'run'
         container['env'][1]['value'] = dict_to_b64str(job_payload)
-        container['env'][2]['value'] = idgiver_ip
+        container['env'][2]['value'] = master_ip
 
-        container['resources']['requests']['memory'] = '{}Mi'.format(job_payload['runtime_memory'])
+        container['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory)
         container['resources']['requests']['cpu'] = str(self.k8s_config['runtime_cpu'])
-        container['resources']['limits']['memory'] = '{}Mi'.format(job_payload['runtime_memory'])
+        container['resources']['limits']['memory'] = '{}Mi'.format(runtime_memory)
         container['resources']['limits']['cpu'] = str(self.k8s_config['runtime_cpu'])
 
         logger.debug('ExecutorID {} | JobID {} - Going '
@@ -377,8 +380,8 @@ class KubernetesBackend:
 
         return activation_id
 
-    def _generate_runtime_meta(self, docker_image_name, memory):
-        runtime_name = self._format_job_name(docker_image_name, 256)
+    def _generate_runtime_meta(self, docker_image_name):
+        runtime_name = self._format_job_name(docker_image_name, 128)
         modules_job_name = '{}-modules'.format(runtime_name)
 
         logger.info("Extracting Python modules from: {}".format(docker_image_name))
@@ -410,25 +413,28 @@ class KubernetesBackend:
             raise e
             pass
 
-        # we need to read runtime metadata from COS in retry
-        status_key = '/'.join([JOBS_PREFIX, runtime_name+'.meta'])
+        logger.debug("Waiting for runtime metadata")
 
-        retry = 1
-        found = False
-        while retry < 20 and not found:
+        done = False
+        failed = False
+
+        while not done or failed:
             try:
-                logger.debug("Retry attempt {} to read {}".format(retry, status_key))
-                json_str = self.internal_storage.get_data(key=status_key)
-                logger.debug("Found in attempt {} to read {}".format(retry, status_key))
-                runtime_meta = json.loads(json_str.decode("ascii"))
-                found = True
-            except StorageNoSuchKeyError:
-                logger.debug("{} not found in attempt {}. Sleep before retry".format(status_key, retry))
-                retry += 1
-                time.sleep(5)
+                w = watch.Watch()
+                for event in w.stream(self.batch_api.list_namespaced_job,
+                                      namespace=self.namespace,
+                                      field_selector="metadata.name={0}".format(modules_job_name),
+                                      timeout_seconds=10):
+                    failed = event['object'].status.failed
+                    done = event['object'].status.succeeded
+                    logger.debug('...')
+                    if done or failed:
+                        w.stop()
+            except Exception as e:
+                pass
 
-        if not found:
-            raise Exception("Unable to extract Python preinstalled modules from the runtime")
+        if done:
+            logger.debug("Runtime metadata generated successfully")
 
         try:
             self.batch_api.delete_namespaced_job(namespace=self.namespace,
@@ -436,6 +442,13 @@ class KubernetesBackend:
                                                  propagation_policy='Background')
         except Exception as e:
             pass
+
+        if failed:
+            raise Exception("Unable to extract Python preinstalled modules from the runtime")
+
+        status_key = '/'.join([JOBS_PREFIX, runtime_name+'.meta'])
+        json_str = self.internal_storage.get_data(key=status_key)
+        runtime_meta = json.loads(json_str.decode("ascii"))
 
         return runtime_meta
 

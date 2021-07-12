@@ -26,38 +26,36 @@ RUNTIME_DEFAULT = {'3.5': 'lithopscloud/ibmcf-python-v35',
 
 RUNTIME_TIMEOUT_DEFAULT = 300  # Default: 300 seconds => 5 minutes
 RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
-CONCURRENT_WORKERS_DEFAULT = 100
+MAX_CONCURRENT_WORKERS = 100
 INVOKE_POOL_THREADS_DEFAULT = 500
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_openwhisk.zip')
 
+REQ_PARAMS = ['endpoint', 'namespace', 'api_key']
+
 
 def load_config(config_data):
     if 'openwhisk' not in config_data:
-        raise Exception("openwhisk section is mandatory in configuration")
+        raise Exception("'openwhisk' section is mandatory in the configuration")
 
-    required_keys = ('endpoint', 'namespace', 'api_key')
-    if not set(required_keys) <= set(config_data['openwhisk']):
-        raise Exception('You must provide {} to access to openwhisk'.format(required_keys))
+    for param in REQ_PARAMS:
+        if param not in config_data['openwhisk']:
+            msg = "{} is mandatory in 'openwhisk' section of the configuration".format(REQ_PARAMS)
+            raise Exception(msg)
 
-    if 'runtime_memory' not in config_data['serverless']:
-        config_data['serverless']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
-    if 'runtime_timeout' not in config_data['serverless']:
-        config_data['serverless']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
-
-    if 'runtime' in config_data['openwhisk']:
-        config_data['serverless']['runtime'] = config_data['openwhisk']['runtime']
-
-    if 'runtime' not in config_data['serverless']:
+    if 'runtime_memory' not in config_data['openwhisk']:
+        config_data['openwhisk']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
+    if 'runtime_timeout' not in config_data['openwhisk']:
+        config_data['openwhisk']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+    if 'runtime' not in config_data['openwhisk']:
         python_version = version_str(sys.version_info)
         try:
-            config_data['serverless']['runtime'] = RUNTIME_DEFAULT[python_version]
+            config_data['openwhisk']['runtime'] = RUNTIME_DEFAULT[python_version]
         except KeyError:
             raise Exception('Unsupported Python version: {}'.format(python_version))
-
-    if 'workers' not in config_data['lithops']:
-        config_data['lithops']['workers'] = CONCURRENT_WORKERS_DEFAULT
-
     if 'invoke_pool_threads' not in config_data['openwhisk']:
         config_data['openwhisk']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
-    config_data['serverless']['invoke_pool_threads'] = config_data['openwhisk']['invoke_pool_threads']
+
+    if 'workers' not in config_data['lithops'] or \
+       config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
+        config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS

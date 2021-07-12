@@ -28,6 +28,7 @@
 8. [Lithops for big data analytics](data_processing.md)
    - [Processing data from a cloud object store](data_processing.md#processing-data-from-a-cloud-object-storage-service)
    - [Processing data from public URLs](data_processing.md#processing-data-from-public-urls)
+   - [Processing data from localhost files](data_processing.md#processing-data-from-localhost-files)
 
 9. [Run Lithops on Jupyter notebooks](../examples/hello_world.ipynb)
 

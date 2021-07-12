@@ -22,7 +22,15 @@ $ python3 -m pip install lithops[aliyun]
     access_key_secret : <ACCESS_KEY_SECRET>
 ```
 
-   - `public_endpoint`: public endpoint (URL) to the service. OSS and FC endpoints are different.
-   - `access_key_id`: Access Key Id.
-   - `access_key_secret`: Access Key Secret. 
-   - `runtime`: Runtime name already deployed in the service
+    
+### Summary of configuration keys for Alibaba Functions Compute:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|aliyun_fc | public_endpoint | |yes | public endpoint (URL) to the service. OSS and FC endpoints are different. |
+|aliyun_fc | access_key_id | |yes |  Account access key to Alibaba services. |
+|aliyun_fc | access_key_secret |  | yes | Account secret access key to Alibaba services.|
+|aliyun_fc | runtime |  |no | Docker image name.|
+|aliyun_fc | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
+|aliyun_fc | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
+|aliyun_fc | invoke_pool_threads | 500 |no | Number of concurrent threads used for invocation |

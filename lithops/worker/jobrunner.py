@@ -32,7 +32,7 @@ from distutils.util import strtobool
 from lithops.storage import Storage
 from lithops.wait import wait
 from lithops.future import ResponseFuture
-from lithops.utils import sizeof_fmt, is_object_processing_function
+from lithops.utils import sizeof_fmt, is_object_processing_function, verify_args
 from lithops.utils import WrappedStreamingBodyPartition
 from lithops.util.metrics import PrometheusExporter
 from lithops.storage.utils import create_output_key
@@ -79,6 +79,10 @@ class JobRunner:
         Fills in those reserved, optional parameters that might be write to the function signature
         """
         func_sig = inspect.signature(function)
+
+        if len(data) == 1 and 'future' in data:
+            out = [data.pop('future').result()]
+            data.update(verify_args(function, out, None)[0])
 
         if 'ibm_cos' in func_sig.parameters:
             if 'ibm_cos' in self.lithops_config:
@@ -152,6 +156,8 @@ class JobRunner:
 
         elif hasattr(obj, 'path'):
             logger.info('Getting dataset from {}'.format(obj.path))
+            obj.key = os.path.basename(obj.path)
+            obj.bucket = os.path.dirname(obj.path)
             with open(obj.path, "rb") as f:
                 if obj.data_byte_range is not None:
                     extra_get_args['Range'] = 'bytes={}-{}'.format(*obj.data_byte_range)

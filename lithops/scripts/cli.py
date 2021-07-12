@@ -24,12 +24,13 @@ import shutil
 import lithops
 from lithops import Storage
 from lithops.tests.tests_main import print_test_functions, print_test_groups, run_tests
-from lithops.utils import setup_lithops_logger, verify_runtime_name, sizeof_fmt
-from lithops.config import get_mode, default_config, extract_storage_config, \
+from lithops.utils import get_mode, setup_lithops_logger, verify_runtime_name, sizeof_fmt
+from lithops.config import default_config, extract_storage_config, \
     extract_serverless_config, extract_standalone_config, \
     extract_localhost_config, load_yaml_config
 from lithops.constants import CACHE_DIR, LITHOPS_TEMP_DIR, RUNTIMES_PREFIX, \
-    JOBS_PREFIX, LOCALHOST, SERVERLESS, STANDALONE, LOGS_DIR, FN_LOG_FILE
+    JOBS_PREFIX, LOCALHOST, LOGS_DIR, FN_LOG_FILE, SERVERLESS_BACKENDS, \
+    STANDALONE_BACKENDS
 from lithops.storage import InternalStorage
 from lithops.serverless import ServerlessHandler
 from lithops.storage.utils import clean_bucket
@@ -37,6 +38,17 @@ from lithops.standalone.standalone import StandaloneHandler
 from lithops.localhost.localhost import LocalhostHandler
 
 logger = logging.getLogger(__name__)
+
+
+def set_config_ow(backend, storage=None):
+    config_ow = {'lithops': {}}
+    if storage:
+        config_ow['lithops']['storage'] = storage
+    if backend:
+        config_ow['lithops']['backend'] = backend
+        config_ow['lithops']['mode'] = get_mode(backend)
+
+    return config_ow
 
 
 @click.group('lithops_cli')
@@ -47,13 +59,10 @@ def lithops_cli():
 
 @lithops_cli.command('clean')
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
-@click.option('--mode', '-m', default=None,
-              type=click.Choice([SERVERLESS, LOCALHOST, STANDALONE], case_sensitive=True),
-              help='execution mode')
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
-def clean(config, mode, backend, storage, debug):
+def clean(config, backend, storage, debug):
     if config:
         config = load_yaml_config(config)
 
@@ -61,25 +70,19 @@ def clean(config, mode, backend, storage, debug):
     setup_lithops_logger(log_level)
     logger.info('Cleaning all Lithops information')
 
-    mode = mode or get_mode(backend, config)
-    config_ow = {'lithops': {'mode': mode}}
-    if storage:
-        config_ow['lithops']['storage'] = storage
-    if backend:
-        config_ow[mode] = {'backend': backend}
+    config_ow = set_config_ow(backend, storage)
     config = default_config(config, config_ow)
-
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
 
-    mode = config['lithops']['mode'] if not mode else mode
-    if mode == LOCALHOST:
+    backend = config['lithops']['backend']
+    if backend == LOCALHOST:
         compute_config = extract_localhost_config(config)
         compute_handler = LocalhostHandler(compute_config)
-    elif mode == SERVERLESS:
+    elif backend in SERVERLESS_BACKENDS:
         compute_config = extract_serverless_config(config)
         compute_handler = ServerlessHandler(compute_config, internal_storage)
-    elif mode == STANDALONE:
+    elif backend == STANDALONE_BACKENDS:
         compute_config = extract_standalone_config(config)
         compute_handler = StandaloneHandler(compute_config)
 
@@ -94,19 +97,6 @@ def clean(config, mode, backend, storage, debug):
     shutil.rmtree(LITHOPS_TEMP_DIR, ignore_errors=True)
     # Clean local lithops cache
     shutil.rmtree(CACHE_DIR, ignore_errors=True)
-
-
-@lithops_cli.command('verify')
-@click.option('--test', '-t', default='all', help='run a specific test, type "-t help" for tests list')
-@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
-@click.option('--mode', '-m', default=None,
-              type=click.Choice([SERVERLESS, LOCALHOST, STANDALONE], case_sensitive=True),
-              help='execution mode')
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--storage', '-s', default=None, help='storage backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
-def verify(test, config, mode, backend, storage, debug):
-    print('Command "lithops verify" is deprecated. Use "lithops test" instead')
 
 
 @lithops_cli.command('test')
@@ -144,6 +134,19 @@ def test(testers, config, mode, backend, groups, storage, debug, fail_fast,remov
     else:
         run_tests(testers, config, mode, groups, backend, storage,
                   fail_fast,remove_datasets)
+
+
+@lithops_cli.command('verify')
+@click.option('--test', '-t', default='all', help='run a specific test, type "-t help" for tests list')
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--mode', '-m', default=None,
+              type=click.Choice([SERVERLESS, LOCALHOST, STANDALONE], case_sensitive=True),
+              help='execution mode')
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--storage', '-s', default=None, help='storage backend')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def verify(test, config, mode, backend, storage, debug):
+    print('Command "lithops verify" is deprecated. Use "lithops test" instead')
 
 
 # /---------------------------------------------------------------------------/
@@ -327,18 +330,14 @@ def create(name, storage, backend, memory, timeout, config):
 
     setup_lithops_logger(logging.DEBUG)
 
-    mode = SERVERLESS
-    config_ow = {'lithops': {'mode': mode}}
-    if storage:
-        config_ow['lithops']['storage'] = storage
-    if backend:
-        config_ow[mode] = {'backend': backend}
+    config_ow = set_config_ow(backend, storage)
     config = default_config(config, config_ow)
 
-    if name:
-        verify_runtime_name(name)
-    else:
-        name = config[mode]['runtime']
+    if not name:
+        backend = config['lithops']['backend']
+        name = config[backend]['runtime']
+
+    verify_runtime_name(name)
 
     logger.info('Creating new lithops runtime: {}'.format(name))
     storage_config = extract_storage_config(config)
@@ -369,16 +368,14 @@ def build(name, file, config, backend):
 
     setup_lithops_logger(logging.DEBUG)
 
-    mode = SERVERLESS
-    config_ow = {'lithops': {'mode': mode}}
-    if backend:
-        config_ow[mode] = {'backend': backend}
+    config_ow = set_config_ow(backend)
     config = default_config(config, config_ow)
 
-    if name:
-        verify_runtime_name(name)
-    else:
-        name = config[mode]['runtime']
+    if not name:
+        backend = config['lithops']['backend']
+        name = config[backend]['runtime']
+
+    verify_runtime_name(name)
 
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
@@ -400,18 +397,14 @@ def update(name, config, backend, storage):
 
     setup_lithops_logger(logging.DEBUG)
 
-    mode = SERVERLESS
-    config_ow = {'lithops': {'mode': mode}}
-    if storage:
-        config_ow['lithops']['storage'] = storage
-    if backend:
-        config_ow[mode] = {'backend': backend}
+    config_ow = set_config_ow(backend, storage)
     config = default_config(config, config_ow)
 
-    if name:
-        verify_runtime_name(name)
-    else:
-        name = config[mode]['runtime']
+    if not name:
+        backend = config['lithops']['backend']
+        name = config[backend]['runtime']
+
+    verify_runtime_name(name)
 
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
@@ -445,18 +438,14 @@ def delete(name, config, backend, storage):
 
     setup_lithops_logger(logging.DEBUG)
 
-    mode = SERVERLESS
-    config_ow = {'lithops': {'mode': mode}}
-    if storage:
-        config_ow['lithops']['storage'] = storage
-    if backend:
-        config_ow[mode] = {'backend': backend}
+    config_ow = set_config_ow(backend, storage)
     config = default_config(config, config_ow)
 
-    if name:
-        verify_runtime_name(name)
-    else:
-        name = config[mode]['runtime']
+    if not name:
+        backend = config['lithops']['backend']
+        name = config[backend]['runtime']
+
+    verify_runtime_name(name)
 
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
