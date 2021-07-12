@@ -26,6 +26,7 @@ import subprocess
 import lithops
 import botocore.exceptions
 import base64
+import requests
 
 from lithops.constants import TEMP as TEMP_PATH
 from lithops.constants import COMPUTE_CLI_MSG
@@ -139,6 +140,19 @@ class AWSLambdaBackend:
             os.remove(FUNCTION_ZIP)
 
         return action_bin
+
+    @staticmethod
+    def _get_numpy_layer_arn(region_name):
+        """
+        Gets last pre-built numpy layer ARN using Klayers API (https://github.com/keithrozario/Klayers) based on region
+        @return: Numpy Klayer ARN
+        """
+        res = requests.get('https://api.klayers.cloud/api/v1/layers/latest/{}/numpy'.format(region_name))
+        res_json = res.json()
+        logger.debug(res_json)
+        if not res_json or 'arn' not in res_json:
+            raise Exception('Could not get numpy layer ARN from Klayers - Response: {}'.format(res_json))
+        return res_json['arn']
 
     def _get_layer(self, runtime_name):
         """
@@ -397,7 +411,7 @@ class AWSLambdaBackend:
                 Description=self.package,
                 Timeout=timeout,
                 MemorySize=memory,
-                Layers=[layer_arn],
+                Layers=[layer_arn, self._get_numpy_layer_arn(self.region_name)],
                 VpcConfig={
                     'SubnetIds': self.aws_lambda_config['vpc']['subnets'],
                     'SecurityGroupIds': self.aws_lambda_config['vpc']['security_groups']
