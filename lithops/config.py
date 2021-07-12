@@ -176,7 +176,7 @@ def default_config(config_data=None, config_overwrite={}):
     elif mode == constants.SERVERLESS:
         backend = config_data['lithops']['backend']
 
-        if constants.LOCALHOST not in config_data or \
+        if constants.SERVERLESS not in config_data or \
            config_data[constants.SERVERLESS] is None:
             config_data[constants.SERVERLESS] = {}
 
