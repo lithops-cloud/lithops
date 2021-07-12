@@ -1,13 +1,13 @@
 # Changelog
 
 
-## [v2.3.6.devX]
+## [v2.3.6.dev0]
 
 ### Added
 - 
 
 ### Changed
-- 
+- [AWS Lambda] Use layer from Klayers API for pre-compiled Amazon Linux numpy binaries
 
 ### Fixes
 - [Localhost] Fixed error when processing localhost objects
