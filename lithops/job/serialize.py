@@ -16,7 +16,6 @@
 # limitations under the License.
 #
 
-import dis
 import os
 import glob
 import importlib
@@ -148,7 +147,7 @@ class SerializeIndependent:
                     mods.add(v.__module__)
 
             for block in codeworklist:
-                for (k, v) in [self._inner_module_inspect(inst, block)
+                for (k, v) in [self._inner_module_inspect(inst)
                                for inst in Bytecode(block)]:
                     if k is None:
                         continue
@@ -168,7 +167,7 @@ class SerializeIndependent:
         result = list(mods)
         return result
 
-    def _inner_module_inspect(self, inst, block):
+    def _inner_module_inspect(self, inst):
         """
         get interesting modules refernced within an object
         """
