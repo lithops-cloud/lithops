@@ -62,7 +62,8 @@ class SerializeIndependent:
         for module_name in mods:
             if module_name == '__main__':
                 continue
-            origin = importlib.util.find_spec(module_name).origin
+            mod_spec = importlib.util.find_spec(module_name)
+            origin = mod_spec.origin if mod_spec else None
             direct_modules.add(origin if origin not in ['built-in', None] else module_name)
             self._modulemgr.add(module_name)
 
