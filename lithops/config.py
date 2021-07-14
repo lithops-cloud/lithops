@@ -24,7 +24,7 @@ import multiprocessing as mp
 
 from lithops import constants
 from lithops.version import __version__
-from lithops.utils import verify_runtime_name, get_mode, get_backend
+from lithops.utils import verify_runtime_name, get_mode, get_default_backend
 from builtins import FileNotFoundError
 
 logger = logging.getLogger(__name__)
@@ -146,12 +146,12 @@ def default_config(config_data=None, config_overwrite={}):
         if mode in config_data and 'backend' in config_data[mode]:
             config_data['lithops']['backend'] = config_data[mode]['backend']
         else:
-            config_data['lithops']['backend'] = get_backend(mode)
+            config_data['lithops']['backend'] = get_default_backend(mode)
     elif backend:
         config_data['lithops']['mode'] = get_mode(backend)
     elif not backend and not mode:
-        config_data['lithops']['mode'] = get_mode(backend)
-        config_data['lithops']['backend'] = get_backend(mode)
+        mode = config_data['lithops']['mode'] = constants.MODE_DEFAULT
+        config_data['lithops']['backend'] = get_default_backend(mode)
 
     backend = config_data['lithops'].get('backend')
     mode = config_data['lithops'].get('mode')
