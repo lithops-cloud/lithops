@@ -25,8 +25,6 @@ jobs:
         run: |
           value=$(python3 ./lithops/scripts/check_job_on_list.py "${GITHUB_WORKFLOW}")
           echo "::set-output name=string::$value"
-          echo "${{secrets.CE_COS_API }}" | cut -c2-6
-          echo "${{ secrets.CF_COS_API }}" | cut -c2-6
 
 
   CE_COS:
