@@ -68,11 +68,6 @@ class FunctionExecutor:
                  log_level=False):
         """ Create a FunctionExecutor Class """
 
-        if mode and not backend:
-            backend = get_backend(mode)
-        if backend:
-            mode = get_mode(backend)
-
         self.is_lithops_worker = is_lithops_worker()
 
         # setup lithops logging
