@@ -104,7 +104,7 @@ class TestMapReduce(unittest.TestCase):
     def test_map_reduce_url(self):
         # skips test at runtime if backend is localhost.
         if CONFIG['lithops']['mode'] == 'localhost':
-            self.skipTest("This test function currently doesn't work on Local_Host.")
+            self.skipTest("This test function currently isn't supported on Local_Host mode.")
 
         logger.info('Testing map_reduce() over URLs')
         fexec = lithops.FunctionExecutor(config=CONFIG)

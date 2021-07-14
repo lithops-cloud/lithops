@@ -81,7 +81,8 @@ jobs:
           python3 setup.py develop
       - name: install secrets in lithops config
         run: python3 ./lithops/scripts/config_fill_secrets.py "CF_COS" "${GITHUB_ACTOR,,}" "${{ secrets.IAMAPIKEY }}" "${{ secrets.CF_COS_API }}" "${{ secrets.CF_API_KEY }}"
-
+      - name: Clean CF's dedicated bucket
+        run: lithops clean -c lithops/tests/config_files/lithops_config_CF_COS.yaml
       - name: build new runtime
         env:
           LITHOPS_CONFIG_FILE: ${{ github.workspace }}/lithops/tests/config_files/lithops_config_CF_COS.yaml
