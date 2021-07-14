@@ -204,10 +204,10 @@ if __name__ == '__main__':
                                      usage='python -m lithops.tests.tests_main [-c CONFIG] [-t TESTNAME] ...')
     parser.add_argument('-c', '--config', metavar='', default=None,
                         help="'path to yaml config file")
-    parser.add_argument('-t', '--testers', metavar='', default='all',
+    parser.add_argument('-t', '--test', metavar='', default='all',
                         help='run a specific test, type "-t help" for tests list')
     parser.add_argument('-g', '--groups', metavar='', default='',
-                        help='run all testers belonging to a specific group.'
+                        help='run all tests belonging to a specific group.'
                              ' type "-g help" for groups list')
     parser.add_argument('-b', '--backend', metavar='', default=None,
                         help='compute backend')
@@ -231,13 +231,13 @@ if __name__ == '__main__':
     log_level = logging.INFO if not args.debug else logging.DEBUG
     setup_lithops_logger(log_level)
 
-    if args.groups and args.testers == 'all':  # if user specified test a group(s) avoid running all tests.
-        args.testers = ''
+    if args.groups and args.test == 'all':  # if user specified test a group(s) avoid running all tests.
+        args.test = ''
 
     if args.groups == 'help':
         print_test_groups()
-    elif args.testers == 'help':
+    elif args.test == 'help':
         print_test_functions()
     else:
-        run_tests(args.testers, args.config, args.mode, args.groups, args.backend,
+        run_tests(args.test, args.config, args.groups, args.backend,
                   args.storage, args.fail_fast, args.remove_datasets)

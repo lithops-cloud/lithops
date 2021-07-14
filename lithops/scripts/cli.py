@@ -21,6 +21,7 @@ import click
 import logging
 import shutil
 
+import lithops
 from lithops import Storage
 from lithops.tests.tests_main import print_test_functions, print_test_groups, run_tests
 from lithops.utils import get_mode, setup_lithops_logger, verify_runtime_name, sizeof_fmt
@@ -98,8 +99,8 @@ def clean(config, backend, storage, debug):
     shutil.rmtree(CACHE_DIR, ignore_errors=True)
 
 
-@lithops_cli.command('test')
-@click.option('--testers', '-t', default='all', help='Run a specific tester. To avoid running similarly named tests '
+@lithops_cli.command('verify')
+@click.option('--test', '-t', default='all', help='Run a specific tester. To avoid running similarly named tests '
                                                      'you may prefix the tester with its test class, '
                                                      'e.g. TestClass.test_name. '
                                                      'Type "-t help" for the complete tests list')
@@ -112,33 +113,55 @@ def clean(config, backend, storage, debug):
 @click.option('--fail_fast', '-f', is_flag=True, help='Stops test run upon first occurrence of a failed test')
 @click.option('--remove_datasets', '-r', is_flag=True, help='removes datasets from storage after the test run.'
                                                             'WARNING: do not use flag in github workflow.')
-def test(testers, config, backend, groups, storage, debug, fail_fast, remove_datasets):
+def test(test, config, backend, groups, storage, debug, fail_fast, remove_datasets):
     if config:
         config = load_yaml_config(config)
 
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
 
-    if groups and testers == 'all':  # if user specified a group(s) avoid running all tests.
-        testers = ''
+    if groups and test == 'all':  # if user specified a group(s) avoid running all tests.
+        test = ''
 
-    if testers == 'help':
+    if test == 'help':
         print_test_functions()
     elif groups == 'help':
         print_test_groups()
 
     else:
-        run_tests(testers, config, groups, backend, storage, fail_fast, remove_datasets)
+        run_tests(test, config, groups, backend, storage, fail_fast, remove_datasets)
 
 
-@lithops_cli.command('verify')
-@click.option('--test', '-t', default='all', help='run a specific test, type "-t help" for tests list')
+@lithops_cli.command('test')
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
-def verify(test, config, backend, storage, debug):
-    print('Command "lithops verify" is deprecated. Use "lithops test" instead')
+def test_function(config, backend, storage, debug):
+    if config:
+        config = load_yaml_config(config)
+
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(log_level)
+
+    try:
+        import getpass
+        username = getpass.getuser()
+    except Exception:
+        username = 'World'
+
+    def hello(name):
+        return 'Hello {}!'.format(name)
+
+    fexec = lithops.FunctionExecutor(config=config, backend=backend, storage=storage)
+    fexec.call_async(hello, username)
+    result = fexec.get_result()
+    print()
+    if result == 'Hello {}!'.format(username):
+        print(result, 'Lithops is working as expected :)')
+    else:
+        print(result, 'Something went wrong :(')
+    print()
 
 
 # /---------------------------------------------------------------------------/

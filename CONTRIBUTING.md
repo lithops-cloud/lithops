@@ -24,25 +24,20 @@ To contribute a patch:
 Unit testing
 ------------
 
-To test that all is working as expected, use the command:
+To test that all is working as expected, run either:
 
 ```bash
-$ lithops test
+$ lithops verify
+```
+or 
+
+```bash
+$ python3 -m lithops.tests.tests_main
 ```
 
-Before adding new tests for existing / new features, please follow the guidelines in docs/testing.
+Notice that if you didn't set a local Lithops's config file, you need to provide it as a json file path via `-c <CONFIG>` flag.
 
+Before adding new tests for existing / new features, please follow the guidelines in docs/testing.md
 
-[comment]: <> (or)
-
-[comment]: <> (```bash)
-
-[comment]: <> ($ python3 -m lithops.scripts.tests)
-
-[comment]: <> (```)
-
-[comment]: <> (Notice that if you didn't set a local Lithops's config file, you need to provide it as a json file path by `-c <CONFIG>` flag.)
-
-[comment]: <> (For more information please refer to testing.md)
-
-[comment]: <> (Alternatively, for debugging purposes, you can run specific tests by `-t <TESTNAME>`. use `--help` flag to get more information about the test script.)
+Alternatively, for debugging purposes, you can run specific tests by `-t <TESTNAME>`.  
+For more options please check docs/testing.md or run `verify --help`.
