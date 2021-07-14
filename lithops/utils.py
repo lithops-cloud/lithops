@@ -122,7 +122,7 @@ class FuturesList(list):
         return super().__reduce__()
 
 
-def get_backend(mode):
+def get_default_backend(mode):
     """ Return lithops execution backend """
 
     if mode == constants.LOCALHOST:
@@ -138,7 +138,9 @@ def get_backend(mode):
 def get_mode(backend):
     """ Return lithops execution mode """
 
-    if backend == constants.LOCALHOST:
+    if backend is None:
+        return constants.MODE_DEFAULT
+    elif backend == constants.LOCALHOST:
         return constants.LOCALHOST
     elif backend in constants.SERVERLESS_BACKENDS:
         return constants.SERVERLESS
