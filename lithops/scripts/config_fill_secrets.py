@@ -3,7 +3,7 @@ import sys
 
 
 def get_config_file(backends_name):
-    """returns the lithops config file the contains given backends"""
+    """returns the lithops config file that contains given backends"""
 
     path = 'lithops/tests/config_files/'
     for file in os.listdir(path):
@@ -12,9 +12,9 @@ def get_config_file(backends_name):
 
 
 if __name__ == '__main__':
-    secrets_to_fill = [ '<git-actor>', '<iamapikey>', '<cos_api_key>', '<cf_api_key>']
-    config_file = get_config_file(sys.argv[1])
-    args = sys.argv[2:]  # insert version to the beginning of the args list
+    secrets_to_fill = ['<git-actor>', '<iamapikey>', '<cos_api_key>', '<cf_api_key>']
+    config_file = get_config_file(sys.argv[1])  # sys.argv[1] contains the workflow's name
+    args = sys.argv[2:]  # secrets received via a running workflow.
 
     with open(config_file, 'r') as file:
         filedata = file.read()
