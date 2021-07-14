@@ -141,12 +141,12 @@ jobs:
 
       - name: Clean CE_COS
         run: |
-          python3 ./lithops/scripts/config_fill_secrets.py "CE_COS" "${GITHUB_ACTOR,,}" "${{secrets.IAMAPIKEY }}" "${{secrets.COS_API_KEY }}"
+          python3 ./lithops/scripts/config_fill_secrets.py "CE_COS" "${GITHUB_ACTOR,,}" "${{secrets.IAMAPIKEY }}" "${{secrets.CE_COS_API}}"
           lithops clean -c lithops/tests/config_files/lithops_config_CE_COS.yaml
 
       - name: Clean CF_COS
         run: |
-          python3 ./lithops/scripts/config_fill_secrets.py "CF_COS" "${GITHUB_ACTOR,,}" "${{ secrets.IAMAPIKEY }}" "${{ secrets.COS_API_KEY }}" "${{ secrets.CF_API_KEY }}"
+          python3 ./lithops/scripts/config_fill_secrets.py "CF_COS" "${GITHUB_ACTOR,,}" "${{ secrets.IAMAPIKEY }}" "${{secrets.CF_COS_API}}" "${{ secrets.CF_API_KEY }}"
           lithops clean -c lithops/tests/config_files/lithops_config_CF_COS.yaml
 
 
