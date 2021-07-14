@@ -1,6 +1,6 @@
 lithops:
     storage: ibm_cos
-    storage_bucket: test-bucket-te
+    storage_bucket: ce-cos
     mode: serverless
     data_cleaner: False
 
@@ -19,6 +19,4 @@ code_engine:
 
 ibm_cos:
     region : eu-de
-    endpoint    : https://s3.eu-de.cloud-object-storage.appdomain.cloud
-    private_endpoint: https://s3.private.eu-de.cloud-object-storage.appdomain.cloud
     api_key     : <cos_api_key>
