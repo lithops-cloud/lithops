@@ -40,8 +40,7 @@ def get_function_and_modules(job, internal_storage):
     """
     logger.debug("Getting function and modules")
 
-    mode = job.config['lithops']['mode']
-    customized_runtime = job.config[mode].get('customized_runtime', False)
+    customized_runtime = job.config['lithops'].get('customized_runtime', False)
 
     func_obj = None
     if customized_runtime:

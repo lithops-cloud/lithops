@@ -287,7 +287,7 @@ def extract_localhost_config(config):
 
 
 def extract_serverless_config(config):
-    sl_config = {}
+    sl_config = config[constants.SERVERLESS].copy()
     sb = config['lithops']['backend']
     sl_config['backend'] = sb
     sl_config[sb] = config[sb] if sb in config and config[sb] else {}
@@ -298,7 +298,7 @@ def extract_serverless_config(config):
 
 def extract_standalone_config(config):
     sa_config = config[constants.STANDALONE].copy()
-    sb = config[constants.STANDALONE]['backend']
+    sb = config['lithops']['backend']
     sa_config[sb] = config[sb] if sb in config and config[sb] else {}
     sa_config[sb]['runtime'] = sa_config['runtime']
     sa_config[sb]['user_agent'] = 'lithops/{}'.format(__version__)

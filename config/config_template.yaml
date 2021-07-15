@@ -9,6 +9,7 @@
     #execution_timeout: 1800
     #include_modules: <LIST_OF_MODULES>
     #exclude_modules: <LIST_OF_MODULES>
+    #customized_runtime: <True/False>
     #log_level: INFO
     #log_format: "%(asctime)s [%(levelname)s] %(name)s -- %(message)s"
     #log_stream: ext://sys.stdout
@@ -20,7 +21,6 @@
 #serverless:
     #backend: ibm_cf
     #remote_invoker: <True/False>
-    #customized_runtime: <True/False>
 
 #standalone:
     #backend: ibm_vpc
