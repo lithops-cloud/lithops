@@ -88,7 +88,7 @@ Retrieves objects from the storage backend.
 |bucket | Name of the bucket (String)|
 |key |  Name of the object (String)|
 |stream | Get the object data or a file-like object (True/False) |
-|extra_get_args | Extra get arguments to be passed to the underlying backend implementation (dict). For example, to specify the byte-range to read.|
+|extra_get_args | Extra get arguments to be passed to the underlying backend implementation (dict). For example, to specify the byte-range to read: `extra_get_args={'Range': 'bytes=0-100'}`|
 
 * **Usage**:
 
