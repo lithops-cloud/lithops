@@ -229,7 +229,12 @@ def default_config(config_data=None, config_overwrite={}):
     if 'monitoring' not in config_data['lithops']:
         config_data['lithops']['monitoring'] = constants.MONITORING_DEFAULT
 
-    return default_storage_config(config_data)
+    config_data = default_storage_config(config_data)
+
+    if config_data['lithops']['storage'] == constants.LOCALHOST and mode != constants.LOCALHOST:
+        raise Exception('Localhost storage backend cannot be used in {} mode'.format(mode))
+
+    return config_data
 
 
 def default_storage_config(config_data=None, backend=None):
@@ -239,9 +244,6 @@ def default_storage_config(config_data=None, backend=None):
 
     if 'lithops' not in config_data or not config_data['lithops']:
         config_data['lithops'] = {}
-
-    if 'mode' not in config_data['lithops']:
-        config_data['lithops']['mode'] = constants.MODE_DEFAULT
 
     if 'storage' not in config_data['lithops']:
         config_data['lithops']['storage'] = constants.STORAGE_BACKEND_DEFAULT
@@ -255,11 +257,6 @@ def default_storage_config(config_data=None, backend=None):
         if 'storage_bucket' not in config_data['lithops']:
             raise Exception("storage_bucket is mandatory in "
                             "lithops section of the configuration")
-
-    mode = config_data['lithops']['mode']
-    storage = config_data['lithops']['storage']
-    if storage == constants.LOCALHOST and mode != constants.LOCALHOST:
-        raise Exception('Localhost storage backend cannot run in {} mode'.format(mode))
 
     sb = config_data['lithops']['storage']
     logger.debug("Loading Storage backend module: {}".format(sb))
