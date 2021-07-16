@@ -63,6 +63,7 @@ if __name__ == '__main__':
         # Apply async that times out
         res = pool.apply_async(sleep_seconds, (10,))
         try:
+            print('Waiting for the result...')
             print(res.get(timeout=3))
         except TimeoutError:
             print("Timed out!")

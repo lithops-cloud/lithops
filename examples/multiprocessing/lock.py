@@ -18,7 +18,8 @@ if __name__ == "__main__":
 
     n = 3
     with Pool() as p:
-        p.map_async(f, [[lock, q]] * n)
+        res = p.starmap_async(f, [(lock, q)] * n)
+        res.get()
 
         for _ in range(n):
             print(q.get())
