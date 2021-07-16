@@ -15,18 +15,14 @@
 import queue
 import itertools
 import logging
-import json
-import os
-import traceback
 
 from lithops import FunctionExecutor
 
 from . import util
 from . import config as mp_config
-from .process import CloudWorker, CloudProcess
+from .process import cloud_process_wrapper, CloudProcess
 
 logger = logging.getLogger(__name__)
-
 
 #
 # Constants representing the state of a pool
@@ -65,7 +61,8 @@ class Pool(object):
         self._maxtasksperchild = maxtasksperchild
         self._initializer = initializer
         self._initargs = initargs
-        self._remote_logger = None
+        self._remote_logger = {}
+        self._logger_stream = None
 
         if processes is not None and processes < 1:
             raise ValueError("Number of processes must be at least 1")
@@ -81,6 +78,8 @@ class Pool(object):
 
         if initializer is not None and not callable(initializer):
             raise TypeError('initializer must be a callable')
+
+        self._remote_logger, self._logger_stream = util.setup_log_streaming(self._executor)
 
     def apply(self, func, args=(), kwds={}):
         """
@@ -134,18 +133,22 @@ class Pool(object):
         if self._state != RUN:
             raise ValueError("Pool not running")
 
-        cloud_worker = CloudWorker(func=func, initializer=self._initializer, initargs=self._initargs)
-
-        if mp_config.get_parameter(mp_config.STREAM_STDOUT):
-            stream = self._executor.executor_id
-            logger.debug('Log streaming enabled, stream name: {}'.format(stream))
-            self._remote_logger = util.RemoteLoggingFeed(stream)
-            self._remote_logger.start()
-            cloud_worker.log_stream = stream
-
+        self._remote_logger, stream = util.setup_log_streaming(self._executor)
         extra_env = mp_config.get_parameter(mp_config.ENV_VARS)
 
-        futures = self._executor.call_async(cloud_worker, data={'args': args, 'kwargs': kwds}, extra_env=extra_env)
+        process_name = '-'.join([self._executor.executor_id, func.__name__])
+        futures = self._executor.call_async(cloud_process_wrapper,
+                                            data={'func': func,
+                                                  'data': {
+                                                      'args': args,
+                                                      'kwargs': kwds
+                                                  },
+                                                  'initializer': self._initializer,
+                                                  'initargs': self._initargs,
+                                                  'name': process_name,
+                                                  'log_stream': stream,
+                                                  'unpack_args': True},
+                                            extra_env=extra_env)
 
         result = ApplyResult(self._executor, [futures], callback, error_callback)
 
@@ -166,23 +169,25 @@ class Pool(object):
         if not hasattr(iterable, '__len__'):
             iterable = list(iterable)
 
-        cloud_worker = CloudWorker(func=func, initializer=self._initializer, initargs=self._initargs)
-
-        if not starmap:
-            fmt_args = [{'args': (args, ), 'kwargs': {}} for args in iterable]
-        else:
-            fmt_args = [{'args': args, 'kwargs': {}} for args in iterable]
-
-        if mp_config.get_parameter(mp_config.STREAM_STDOUT):
-            stream = self._executor.executor_id
-            logger.debug('Log streaming enabled, stream name: {}'.format(stream))
-            self._remote_logger = util.RemoteLoggingFeed(stream)
-            self._remote_logger.start()
-            cloud_worker.log_stream = stream
-
         extra_env = mp_config.get_parameter(mp_config.ENV_VARS)
+        extra_args = (
+            func,
+            self._initializer,
+            self._initargs,
+            '-'.join([self._executor.executor_id, func.__name__]),
+            self._logger_stream,
+            False
+        )
 
-        futures = self._executor.map(cloud_worker, fmt_args, extra_env=extra_env)
+        if starmap:
+            fmt_args = [(arg,) for arg in iterable]
+        else:
+            fmt_args = iterable
+
+        futures = self._executor.map(cloud_process_wrapper,
+                                     fmt_args,
+                                     extra_args=extra_args,
+                                     extra_env=extra_env)
 
         result = MapResult(self._executor, futures, callback, error_callback)
 
@@ -227,9 +232,10 @@ class ApplyResult(object):
         self._callback = callback
         self._error_callback = error_callback
         self._value = None
+        self._exception = None
 
     def ready(self):
-        return all(fut.ready for fut in self._futures)
+        return all(fut.done for fut in self._futures)
 
     def successful(self):
         if not self.ready():
@@ -237,9 +243,15 @@ class ApplyResult(object):
         return not any(fut.error for fut in self._futures)
 
     def wait(self, timeout=None):
-        self._executor.wait(self._futures, download_results=False, timeout=timeout, throw_except=False)
+        try:
+            self._executor.wait(self._futures, download_results=False, timeout=timeout)
+        except Exception as e:
+            self._exception = e
 
     def get(self, timeout=None):
+        if self._exception:
+            raise self._exception
+
         self._value = self._executor.get_result(self._futures, timeout=timeout)
 
         if self._callback is not None:

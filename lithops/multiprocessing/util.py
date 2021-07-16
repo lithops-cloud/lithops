@@ -181,6 +181,17 @@ class RemoteReference:
 # Remote logging
 #
 
+def setup_log_streaming(executor):
+    if mp_config.get_parameter(mp_config.STREAM_STDOUT):
+        stream = executor.executor_id
+        logger.debug('Log streaming enabled, stream name: {}'.format(stream))
+        remote_logger = RemoteLoggingFeed(stream)
+        remote_logger.start()
+        return remote_logger, stream
+    else:
+        return None, None
+
+
 class RemoteLogIOBuffer:
     def __init__(self, stream):
         self._feeder_thread = threading

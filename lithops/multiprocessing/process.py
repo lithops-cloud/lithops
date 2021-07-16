@@ -72,50 +72,50 @@ def parent_process():
 # Cloud worker
 #
 
-class CloudWorker:
-    def __init__(self, func, initializer=None, initargs=(), name=None, log_stream=None):
-        self._func = func
-        self._initializer = initializer
-        self._initargs = initargs
-        self._name = name or (type(self).__name__ + '-' + str(next(_process_counter)))
-        self.log_stream = None
+def cloud_process_wrapper(data, func, initializer=None, initargs=(), name=None, log_stream=None, unpack_args=False):
+    # Put worker name in envs to get it from within the function
+    os.environ['LITHOPS_MP_WORKER_NAME'] = 'test'
 
-    def __call__(self, *args, **kwargs):
-        # Put worker name in envs to get it from within the function
-        os.environ['LITHOPS_MP_WORKER_NAME'] = self._name
+    # Setup remote logger
+    if log_stream is not None:
+        remote_log_buff = util.RemoteLogIOBuffer(log_stream)
+        remote_log_buff.start()
+    else:
+        remote_log_buff = None
 
-        # Setup remote logger
-        if self.log_stream is not None:
-            remote_log_buff = util.RemoteLogIOBuffer(self.log_stream)
-            remote_log_buff.start()
+    # Execute worker initializer function
+    if initializer is not None:
+        initializer(*initargs)
+
+    try:
+        if unpack_args:
+            res = func(*data['args'], **data['kwargs'])
         else:
-            remote_log_buff = None
+            if isinstance(data, dict):
+                res = func(**data)
+            else:
+                if not isinstance(data, tuple) and not isinstance(data, list):
+                    data = (data,)
+                res = func(*data)
+        exception = None
+        return res
+    except Exception as e:
+        # Print exception stack trace to remote logging buffer
+        exception = e
+        header = "---------- {} at {} ({}) ----------".format(e.__class__.__name__,
+                                                              os.environ.get('LITHOPS_MP_WORKER_NAME'),
+                                                              os.environ.get('__LITHOPS_SESSION_ID'))
+        exception_body = traceback.format_exc()
+        footer = '-' * len(header)
+        if remote_log_buff:
+            remote_log_buff.write('\n'.join([header, exception_body, footer, '']))
+    finally:
+        if remote_log_buff:
+            remote_log_buff.flush()
+            remote_log_buff.stop()
 
-        # Execute worker initializer function
-        if self._initializer is not None:
-            self._initializer(*self._initargs)
-
-        try:
-            res = self._func(*kwargs['args'], **kwargs['kwargs'])
-            exception = None
-            return res
-        except Exception as e:
-            # Print exception stack trace to remote logging buffer
-            exception = e
-            header = "---------- {} at {} ({}) ----------".format(e.__class__.__name__,
-                                                                  os.environ.get('LITHOPS_MP_WORKER_NAME'),
-                                                                  os.environ.get('__LITHOPS_SESSION_ID'))
-            exception_body = traceback.format_exc()
-            footer = '-' * len(header)
-            if remote_log_buff:
-                remote_log_buff.write('\n'.join([header, exception_body, footer, '']))
-        finally:
-            if remote_log_buff:
-                remote_log_buff.flush()
-                remote_log_buff.stop()
-
-        if exception:
-            raise exception
+    if exception:
+        raise exception
 
     @property
     def __name__(self):
@@ -165,19 +165,22 @@ class CloudProcess:
         assert not self._pid, 'cannot start a process twice'
         assert self._parent_pid == os.getpid(), 'can only start a process object created by current process'
 
-        cloud_worker = CloudWorker(self._target, name=self._name)
-
-        if mp_config.get_parameter(mp_config.STREAM_STDOUT):
-            stream = self._executor.executor_id
-            logger.debug('Log streaming enabled, stream name: {}'.format(stream))
-            self._remote_logger = util.RemoteLoggingFeed(stream)
-            self._remote_logger.start()
-            cloud_worker.log_stream = stream
+        self._remote_logger, stream = util.setup_log_streaming(self._executor)
 
         extra_env = mp_config.get_parameter(mp_config.ENV_VARS)
 
-        self._future = self._executor.call_async(cloud_worker,
-                                                 {'args': self._args, 'kwargs': self._kwargs},
+        process_name = '-'.join(['CloudProcess', str(next(_process_counter)), self._target.__name__])
+        self._future = self._executor.call_async(cloud_process_wrapper,
+                                                 {'func': self._target,
+                                                  'data': {
+                                                      'args': self._args,
+                                                      'kwargs': self._kwargs
+                                                  },
+                                                  'initializer': None,
+                                                  'initargs': None,
+                                                  'name': process_name,
+                                                  'log_stream': stream,
+                                                  'unpack_args': True},
                                                  extra_env=extra_env)
         self._pid = '/'.join([self._future.executor_id, self._future.job_id, self._future.call_id])
         del self._target, self._args, self._kwargs
@@ -195,9 +198,9 @@ class CloudProcess:
         assert self._parent_pid == os.getpid(), 'can only join a child process'
         assert self._pid, 'can only join a started process'
 
+        exception = None
         try:
             self._executor.wait(fs=[self._future])
-            exception = None
         except Exception as e:
             exception = e
         finally:
