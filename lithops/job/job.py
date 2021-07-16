@@ -27,10 +27,10 @@ from types import SimpleNamespace
 from lithops import utils
 from lithops.job.partitioner import create_partitions
 from lithops.storage.utils import create_func_key, create_agg_data_key,\
-    create_job_key
+    create_job_key, func_key_suffix
 from lithops.job.serialize import SerializeIndependent, create_module_data
 from lithops.constants import MAX_AGG_DATA_SIZE, JOBS_PREFIX, LOCALHOST,\
-    LITHOPS_TEMP_DIR, SERVERLESS, STANDALONE
+    SERVERLESS, STANDALONE, CUSTOM_RUNTIME_DIR
 
 
 logger = logging.getLogger(__name__)
@@ -132,42 +132,6 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id,
                        exclude_modules=exclude_modules,
                        execution_timeout=execution_timeout,
                        host_job_meta=host_job_meta)
-
-
-def _store_func_and_modules(func_key, func_str, module_data):
-    ''' stores function and modules in temporary directory to be
-    used later in optimized runtime
-    '''
-    # save function
-    func_path = '/'.join([LITHOPS_TEMP_DIR, func_key])
-    os.makedirs(os.path.dirname(func_path), exist_ok=True)
-    with open(func_path, "wb") as f:
-        f.write(func_str)
-
-    if module_data:
-        logger.debug("Writing Function dependencies to local disk")
-
-        modules_path = '/'.join([os.path.dirname(func_path), 'modules'])
-
-        for m_filename, m_data in module_data.items():
-            m_path = os.path.dirname(m_filename)
-
-            if len(m_path) > 0 and m_path[0] == "/":
-                m_path = m_path[1:]
-            to_make = os.path.join(modules_path, m_path)
-            try:
-                os.makedirs(to_make)
-            except OSError as e:
-                if e.errno == 17:
-                    pass
-                else:
-                    raise e
-            full_filename = os.path.join(to_make, os.path.basename(m_filename))
-
-            with open(full_filename, 'wb') as fid:
-                fid.write(utils.b64str_to_bytes(m_data))
-
-    logger.debug("Finished storing function and modules")
 
 
 def _create_job(config, internal_storage, executor_id, job_id, func,
@@ -279,13 +243,11 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
         function_file = func.__code__.co_filename
         function_hash = hashlib.md5(open(function_file, 'rb').read()).hexdigest()[:16]
         mod_hash = hashlib.md5(repr(sorted(mod_paths)).encode('utf-8')).hexdigest()[:16]
+        func_key = func_key_suffix
+        job.ext_runtime_uuid = '{}{}'.format(function_hash, mod_hash)
+        job.local_tmp_dir = os.path.join(CUSTOM_RUNTIME_DIR, job.ext_runtime_uuid)
+        _store_func_and_modules(job.local_tmp_dir, func_key, func_str, module_data)
 
-        uuid = '{}{}'.format(function_hash, mod_hash)
-        func_key = create_func_key(JOBS_PREFIX, uuid, "")
-
-        _store_func_and_modules(func_key, func_str, module_data)
-
-        job.ext_runtime_uuid = uuid
     else:
         func_key = create_func_key(JOBS_PREFIX, executor_id, job_id)
         internal_storage.put_func(func_key, func_module_str)
@@ -300,3 +262,40 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     job.metadata = host_job_meta
 
     return job
+
+
+def _store_func_and_modules(job_tmp_dir, func_key, func_str, module_data):
+    ''' stores function and modules in temporary directory to be
+    used later in optimized runtime
+    '''
+    # save function
+    os.makedirs(job_tmp_dir, exist_ok=True)
+
+    with open(os.path.join(job_tmp_dir, func_key), "wb") as f:
+        pickle.dump({'func': func_str}, f, -1)
+
+    # save modules
+    if module_data:
+        logger.debug("Writing Function dependencies to local disk")
+
+        modules_path = '/'.join([job_tmp_dir, 'modules'])
+
+        for m_filename, m_data in module_data.items():
+            m_path = os.path.dirname(m_filename)
+
+            if len(m_path) > 0 and m_path[0] == "/":
+                m_path = m_path[1:]
+            to_make = os.path.join(modules_path, m_path)
+            try:
+                os.makedirs(to_make)
+            except OSError as e:
+                if e.errno == 17:
+                    pass
+                else:
+                    raise e
+            full_filename = os.path.join(to_make, os.path.basename(m_filename))
+
+            with open(full_filename, 'wb') as fid:
+                fid.write(utils.b64str_to_bytes(m_data))
+
+    logger.debug("Finished storing function and modules")

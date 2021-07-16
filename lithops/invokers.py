@@ -20,6 +20,7 @@ import sys
 import time
 import random
 import queue
+import shutil
 import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -28,7 +29,7 @@ from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config
 from lithops.version import __version__ as lithops_version
 from lithops.utils import version_str, is_lithops_worker, iterchunks
-from lithops.constants import LOGGER_LEVEL, LITHOPS_TEMP_DIR, LOGS_DIR,\
+from lithops.constants import LOGGER_LEVEL, LOGS_DIR,\
     LOCALHOST, SERVERLESS, STANDALONE
 from lithops.util.metrics import PrometheusExporter
 
@@ -41,15 +42,22 @@ def create_invoker(config, executor_id, internal_storage,
     Creates the appropriate invoker based on the backend type
     """
     if compute_handler.get_backend_type() == 'batch':
-        return BatchInvoker(config, executor_id, internal_storage,
-                            compute_handler, job_monitor)
+        return BatchInvoker(
+            config,
+            executor_id,
+            internal_storage,
+            compute_handler,
+            job_monitor
+        )
+
     elif compute_handler.get_backend_type() == 'faas':
-        if config['lithops'].get('customized_runtime'):
-            return CustomRuntimeFaaSInvoker(config, executor_id, internal_storage,
-                                            compute_handler, job_monitor)
-        else:
-            return FaaSInvoker(config, executor_id, internal_storage,
-                               compute_handler, job_monitor)
+        return FaaSInvoker(
+            config,
+            executor_id,
+            internal_storage,
+            compute_handler,
+            job_monitor
+        )
 
 
 class Invoker:
@@ -82,6 +90,8 @@ class Invoker:
         self.mode = self.config['lithops']['mode']
         self.backend = self.config['lithops']['backend']
         self.runtime_name = self.config[self.backend]['runtime']
+
+        self.customized_runtime = self.config[self.mode].get('customized_runtime', False)
 
     def select_runtime(self, job_id, runtime_memory):
         """
@@ -157,6 +167,13 @@ class Invoker:
         """
         Run a job
         """
+        if self.customized_runtime:
+            logger.debug('ExecutorID {} | JobID {} - Customized runtime activated'
+                         .format(job.executor_id, job.job_id))
+            job.runtime_name = self.runtime_name
+            extend_runtime(job, self.compute_handler, self.internal_storage)
+            self.runtime_name = job.runtime_name
+
         logger.info('ExecutorID {} | JobID {} - Starting function '
                     'invocation: {}() - Total: {} activations'
                     .format(job.executor_id, job.job_id,
@@ -434,81 +451,54 @@ class FaaSInvoker(Invoker):
         return futures
 
 
-class CustomRuntimeFaaSInvoker(FaaSInvoker):
+def extend_runtime(job, compute_handler, internal_storage):
     """
-    Module responsible to perform the invocations against the serverless
-    backend in realtime environments.
-
-    currently differs from ServerlessInvoker only by having one method that
-    provides extension of specified environment with map function and modules
-    to optimize performance in real time use cases by avoiding repeated data
-    transfers from storage to  action containers on each execution
+    This method is used when customized_runtime is active
     """
 
-    def run_job(self, job):
-        """
-        Extend runtime and run a job described in job_description
-        """
-        logger.warning("Warning, you are using customized runtime feature. "
-                       "Please, notice that the map function code and dependencies "
-                       "are stored and uploaded to docker registry. "
-                       "To protect your privacy, use a private docker registry "
-                       "instead of public docker hub.")
-        self._extend_runtime(job)
-        return FaaSInvoker.run_job(self, job)
+    base_docker_image = job.runtime_name
+    uuid = job.ext_runtime_uuid
+    ext_runtime_name = "{}:{}".format(base_docker_image.split(":")[0], uuid)
 
-    # If runtime not exists yet, build unique docker image and register runtime
-    def _extend_runtime(self, job):
-        runtime_memory = self.config['serverless']['runtime_memory']
+    # update job with new extended runtime name
+    job.runtime_name = ext_runtime_name
 
-        base_docker_image = self.runtime_name
-        uuid = job.ext_runtime_uuid
-        ext_runtime_name = "{}:{}".format(base_docker_image.split(":")[0], uuid)
+    runtime_key = compute_handler.get_runtime_key(job.runtime_name, job.runtime_memory)
+    runtime_meta = internal_storage.get_runtime_meta(runtime_key)
 
-        # update job with new extended runtime name
-        self.runtime_name = ext_runtime_name
+    if not runtime_meta:
+        logger.info('Creating runtime: {}, memory: {}MB'.format(ext_runtime_name, job.runtime_memory))
 
-        runtime_key = self.compute_handler.get_runtime_key(self.runtime_name, runtime_memory)
-        runtime_meta = self.internal_storage.get_runtime_meta(runtime_key)
+        ext_docker_file = '/'.join([job.local_tmp_dir, "Dockerfile"])
 
-        if not runtime_meta:
-            runtime_timeout = self.config['serverless']['runtime_timeout']
-            logger.debug('Creating runtime: {}, memory: {}MB'.format(ext_runtime_name, runtime_memory))
+        # Generate Dockerfile extended with function dependencies and function
+        with open(ext_docker_file, 'w') as df:
+            df.write('\n'.join([
+                'FROM {}'.format(base_docker_image),
+                'ENV PYTHONPATH=/tmp/lithops/modules:$PYTHONPATH',
+                # set python path to point to dependencies folder
+                'COPY . /tmp/lithops'
+            ]))
 
-            runtime_temorary_directory = '/'.join([LITHOPS_TEMP_DIR, os.path.dirname(job.func_key)])
-            modules_path = '/'.join([runtime_temorary_directory, 'modules'])
+        # Build new extended runtime tagged by function hash
+        cwd = os.getcwd()
+        os.chdir(job.local_tmp_dir)
+        compute_handler.build_runtime(ext_runtime_name, ext_docker_file)
+        os.chdir(cwd)
+        shutil.rmtree(job.local_tmp_dir, ignore_errors=True)
 
-            ext_docker_file = '/'.join([runtime_temorary_directory, "Dockerfile"])
+        runtime_meta = compute_handler.create_runtime(ext_runtime_name, job.runtime_memory, job.runtime_timeout)
+        runtime_meta['runtime_timeout'] = job.runtime_timeout
+        internal_storage.put_runtime_meta(runtime_key, runtime_meta)
 
-            # Generate Dockerfile extended with function dependencies and function
-            with open(ext_docker_file, 'w') as df:
-                df.write('\n'.join([
-                    'FROM {}'.format(base_docker_image),
-                    'ENV PYTHONPATH={}:${}'.format(modules_path, 'PYTHONPATH'),
-                    # set python path to point to dependencies folder
-                    'COPY . {}'.format(runtime_temorary_directory)
-                ]))
+    # Verify python version and lithops version
+    if lithops_version != runtime_meta['lithops_version']:
+        raise Exception("Lithops version mismatch. Host version: {} - Runtime version: {}"
+                        .format(lithops_version, runtime_meta['lithops_version']))
 
-            # Build new extended runtime tagged by function hash
-            cwd = os.getcwd()
-            os.chdir(runtime_temorary_directory)
-            self.compute_handler.build_runtime(ext_runtime_name, ext_docker_file)
-            os.chdir(cwd)
-
-            runtime_meta = self.compute_handler.create_runtime(ext_runtime_name, runtime_memory, runtime_timeout)
-            runtime_meta['runtime_timeout'] = runtime_timeout
-            self.internal_storage.put_runtime_meta(runtime_key, runtime_meta)
-
-        if lithops_version != runtime_meta['lithops_version']:
-            raise Exception("Lithops version mismatch. Host version: {} - Runtime version: {}"
-                            .format(lithops_version, runtime_meta['lithops_version']))
-
-        py_local_version = version_str(sys.version_info)
-        py_remote_version = runtime_meta['python_ver']
-
-        if py_local_version != py_remote_version:
-            raise Exception(("The indicated runtime '{}' is running Python {} and it "
-                             "is not compatible with the local Python version {}")
-                            .format(self.runtime_name, py_remote_version, py_local_version))
-
-        return runtime_meta
+    py_local_version = version_str(sys.version_info)
+    py_remote_version = runtime_meta['python_version']
+    if py_local_version != py_remote_version:
+        raise Exception(("The indicated runtime '{}' is running Python {} and it "
+                         "is not compatible with the local Python version {}")
+                        .format(job.runtime_name, py_remote_version, py_local_version))

@@ -183,7 +183,6 @@ fexec = lithops.FunctionExecutor(monitoring='rabbitmq')
 |lithops|log_filename |  |no | Path to a file. log_filename has preference over log_stream. |
 
 
-
 ### Summary of configuration keys for Serverless
 
 |Group|Key|Default|Mandatory|Additional info|
