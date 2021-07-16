@@ -36,8 +36,7 @@ from lithops.config import default_config, \
 from lithops.constants import LOCALHOST, CLEANER_DIR, \
     CLEANER_LOG_FILE, SERVERLESS, STANDALONE
 from lithops.utils import is_notebook, setup_lithops_logger, \
-    is_lithops_worker, create_executor_id, get_mode, get_backend,\
-    create_futures_list
+    is_lithops_worker, create_executor_id, create_futures_list
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
 from lithops.serverless.serverless import ServerlessHandler
@@ -67,11 +66,6 @@ class FunctionExecutor:
                  remote_invoker=None,
                  log_level=False):
         """ Create a FunctionExecutor Class """
-
-        if mode and not backend:
-            backend = get_backend(mode)
-        if backend:
-            mode = get_mode(backend)
 
         self.is_lithops_worker = is_lithops_worker()
 

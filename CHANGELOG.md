@@ -11,6 +11,8 @@
 
 ### Fixes
 - [Localhost] Fixed error when processing localhost objects
+- [Localhost] Allow to create a localhost storage instance when a config file exists with a cloud configuration
+- [Core] Fixed an unusual inconsistency in configuration between 'backend' and 'mode' parameters
 
 
 ## [v2.3.5]

@@ -103,7 +103,6 @@ class SerializeIndependent:
 
         elif type(obj) == dict:
             # the obj is the user's iterdata
-            # TODO: Add deeper analysis
             to_anayze = list(obj.values())
             for param in to_anayze:
                 if type(param).__module__ != "__builtin__":
@@ -136,6 +135,7 @@ class SerializeIndependent:
             cvs = inspect.getclosurevars(fn)
             modules = list(cvs.nonlocals.items())
             modules.extend(list(cvs.globals.items()))
+
             for k, v in modules:
                 if inspect.ismodule(v):
                     mods.add(v.__name__)
@@ -148,8 +148,9 @@ class SerializeIndependent:
 
             for block in codeworklist:
                 for (k, v) in [self._inner_module_inspect(inst)
-                               for inst in Bytecode(block)
-                               if self._inner_module_inspect(inst)]:
+                               for inst in Bytecode(block)]:
+                    if k is None:
+                        continue
                     if k == "modules":
                         newmods = [mod.__name__ for mod in v if hasattr(mod, "__name__")]
                         mods.update(set(newmods))
@@ -157,6 +158,7 @@ class SerializeIndependent:
                         seen.add(id(v))
                         if hasattr(v, "__module__"):
                             mods.add(v.__module__)
+
                     if inspect.isfunction(v):
                         worklist.append(v)
                     elif inspect.iscode(v):
@@ -176,17 +178,17 @@ class SerializeIndependent:
                 result = reduce(lambda x, a: x + [getattr(x[-1], a)], path)
                 return ("modules", result)
             except Exception:
-                return None
+                return (None, None)
         if inst.opname == "LOAD_GLOBAL":
             if inst.argval in globals() and type(globals()[inst.argval]) in [CodeType, FunctionType]:
                 return ("code", globals()[inst.argval])
             if inst.argval in globals() and type(globals()[inst.argval]) == ModuleType:
                 return ("modules", [globals()[inst.argval]])
             else:
-                return None
+                return (None, None)
         if "LOAD_" in inst.opname and type(inst.argval) in [CodeType, FunctionType]:
             return ("code", inst.argval)
-        return None
+        return (None, None)
 
 
 def create_module_data(mod_paths):
