@@ -100,7 +100,7 @@ def create_job_key(executor_id, job_id):
     :param job_id: Job's ID
     :return: exec id
     """
-    return '-'.join(filter(None, [executor_id, job_id]))
+    return '-'.join([executor_id, job_id])
 
 
 def create_func_key(prefix, executor_id, job_id):
