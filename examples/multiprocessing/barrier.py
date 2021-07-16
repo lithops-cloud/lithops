@@ -1,27 +1,28 @@
 import time
 
-from lithops.multiprocessing import Pool, Barrier, SimpleQueue, current_process
+from lithops.multiprocessing import Pool, Barrier, current_process
+# from multiprocessing import Pool, Barrier, current_process
 
 
-def f(b, q):
-    b.wait()
+def f():
+    print('waiting...')
+    barrier.wait()
     pid = current_process().pid
-    ts = time.time()
-    msg = 'process: {} - timestamp: {}'.format(pid, ts)
-    q.put(msg)
+    msg = 'process: {} - timestamp: {}'.format(pid, time.time())
+    return msg
 
 
 if __name__ == "__main__":
-    q = SimpleQueue()
-    n = 4
+    n = 2
     barrier = Barrier(n)
 
-    with Pool() as p:
-        p.map_async(f, [[barrier, q]] * (n - 1))  # all - 1
-
-        print('Result queue empty:', q.empty())
-
+    async_results = []
+    with Pool(processes=2) as p:
+        res = p.apply_async(f, ())
+        async_results.append(res)
         time.sleep(3)
-        p.apply_async(f, [barrier, q])
-        for _ in range(n):
-            print(q.get())
+        res = p.apply_async(f, ())
+        async_results.append(res)
+
+    for res in async_results:
+        print(res.get())
