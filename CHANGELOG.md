@@ -13,6 +13,8 @@
 - [Localhost] Fixed error when processing localhost objects
 - [Localhost] Allow to create a localhost storage instance when a config file exists with a cloud configuration
 - [Core] Fixed an unusual inconsistency in configuration between 'backend' and 'mode' parameters
+- [Core] Fixed customized_runtime feature
+- [Core] Fixed get_result() execution after wait() when throw_except is set to False
 
 
 ## [v2.3.5]

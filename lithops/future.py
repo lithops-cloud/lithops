@@ -308,7 +308,7 @@ class ResponseFuture:
         if self._state == ResponseFuture.State.New:
             raise ValueError("task not yet invoked")
 
-        if self._state == ResponseFuture.State.Done:
+        if self.done:
             return self._return_val
 
         if self._state == ResponseFuture.State.Futures:
@@ -319,7 +319,7 @@ class ResponseFuture:
 
         self.status(throw_except=throw_except, internal_storage=internal_storage)
 
-        if self._state == ResponseFuture.State.Done:
+        if self.done:
             return self._return_val
 
         if not self._call_output:
