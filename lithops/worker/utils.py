@@ -24,7 +24,7 @@ from contextlib import contextmanager
 
 from lithops.version import __version__ as lithops_ver
 from lithops.utils import sizeof_fmt, is_unix_system, b64str_to_bytes
-from lithops.constants import LITHOPS_TEMP_DIR, MODULES_DIR
+from lithops.constants import LITHOPS_TEMP_DIR, MODULES_DIR, JOBS_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -40,18 +40,21 @@ def get_function_and_modules(job, internal_storage):
     """
     logger.debug("Getting function and modules")
 
-    customized_runtime = job.config['lithops'].get('customized_runtime', False)
+    mode = job.config['lithops']['mode']
+    customized_runtime = job.config[mode].get('customized_runtime', False)
 
-    func_obj = None
     if customized_runtime:
+        logger.debug("Customized runtime feature activated. Loading "
+                     "function and modules from local runtime")
         func_path = '/'.join([LITHOPS_TEMP_DIR, job.func_key])
         with open(func_path, "rb") as f:
             func_obj = f.read()
     else:
         func_obj = internal_storage.get_func(job.func_key)
+
     loaded_func_all = pickle.loads(func_obj)
 
-    if loaded_func_all['module_data']:
+    if loaded_func_all.get('module_data'):
         module_path = os.path.join(MODULES_DIR, job.job_key)
         logger.debug("Writing function dependencies to {}".format(module_path))
         os.makedirs(module_path, exist_ok=True)
