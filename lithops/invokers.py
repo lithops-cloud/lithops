@@ -29,7 +29,7 @@ from lithops.future import ResponseFuture
 from lithops.config import extract_storage_config
 from lithops.version import __version__ as lithops_version
 from lithops.utils import version_str, is_lithops_worker, iterchunks
-from lithops.constants import LOGGER_LEVEL, JOBS_PREFIX, LOGS_DIR,\
+from lithops.constants import LOGGER_LEVEL, LOGS_DIR,\
     LOCALHOST, SERVERLESS, STANDALONE
 from lithops.util.metrics import PrometheusExporter
 

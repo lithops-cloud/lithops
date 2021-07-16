@@ -24,7 +24,7 @@ from contextlib import contextmanager
 
 from lithops.version import __version__ as lithops_ver
 from lithops.utils import sizeof_fmt, is_unix_system, b64str_to_bytes
-from lithops.constants import LITHOPS_TEMP_DIR, MODULES_DIR, JOBS_PREFIX
+from lithops.constants import LITHOPS_TEMP_DIR, MODULES_DIR
 
 logger = logging.getLogger(__name__)
 
