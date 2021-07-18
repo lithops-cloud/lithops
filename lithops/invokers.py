@@ -335,11 +335,17 @@ class FaaSInvoker(Invoker):
         compute backend.
         """
         # prepare payload
-        call_ids = ["{:05d}".format(i) for i in call_ids_range]
-        data_byte_ranges = [job.data_byte_ranges[int(call_id)] for call_id in call_ids]
         payload = self._create_payload(job)
+
+        call_ids = ["{:05d}".format(i) for i in call_ids_range]
         payload['call_ids'] = call_ids
-        payload['data_byte_ranges'] = data_byte_ranges
+
+        if job.data_key:
+            data_byte_ranges = [job.data_byte_ranges[int(call_id)] for call_id in call_ids]
+            payload['data_byte_ranges'] = data_byte_ranges
+        else:
+            del payload['data_byte_ranges']
+            payload['data_byte_strs'] = [job.data_byte_strs[int(call_id)] for call_id in call_ids]
 
         # do the invocation
         start = time.time()

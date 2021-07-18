@@ -203,7 +203,7 @@ class OpenWhiskClient:
 
         try:
             if is_ow_action:
-                resp = self.session.post(url, json=payload, verify=False)
+                resp = self.session.post(url, data=json.dumps(payload, default=str), verify=False)
                 resp_status = resp.status_code
                 data = resp.json()
             else:

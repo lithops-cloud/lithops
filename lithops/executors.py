@@ -227,11 +227,9 @@ class FunctionExecutor:
 
         :return: A list with size `len(iterdata)` of futures.
         """
+
         job_id = self._create_job_id('M')
         self.last_call = 'map'
-
-        if isinstance(map_iterdata, FuturesList):
-            self.wait(map_iterdata)
 
         runtime_meta = self.invoker.select_runtime(job_id, runtime_memory)
 
@@ -259,6 +257,10 @@ class FunctionExecutor:
         futures = self.invoker.run_job(job)
         self.futures.extend(futures)
 
+        if isinstance(map_iterdata, FuturesList):
+            for fut in map_iterdata:
+                fut._produce_output = False
+
         return create_futures_list(futures, self)
 
     def map_reduce(self, map_function, map_iterdata, reduce_function, chunksize=None,
@@ -266,7 +268,7 @@ class FunctionExecutor:
                    map_runtime_memory=None, obj_chunk_size=None, obj_chunk_number=None,
                    reduce_runtime_memory=None, chunk_size=None, chunk_n=None,
                    timeout=None, invoke_pool_threads=None, reducer_one_per_object=False,
-                   reducer_wait_local=True, include_modules=[], exclude_modules=[]):
+                   reducer_wait_local=False, include_modules=[], exclude_modules=[]):
         """
         Map the map_function over the data and apply the reduce_function across all futures.
         This method is executed all within CF.
@@ -298,9 +300,6 @@ class FunctionExecutor:
         self.last_call = 'map_reduce'
         map_job_id = self._create_job_id('M')
 
-        if isinstance(map_iterdata, FuturesList):
-            self.wait(map_iterdata)
-
         runtime_meta = self.invoker.select_runtime(map_job_id, map_runtime_memory)
 
         map_job = create_map_job(config=self.config,
@@ -326,6 +325,10 @@ class FunctionExecutor:
 
         map_futures = self.invoker.run_job(map_job)
         self.futures.extend(map_futures)
+
+        if isinstance(map_iterdata, FuturesList):
+            for fut in map_iterdata:
+                fut._produce_output = False
 
         if reducer_wait_local:
             self.wait(map_futures)
