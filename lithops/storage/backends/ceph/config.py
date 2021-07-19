@@ -24,7 +24,7 @@ def load_config(config_data):
 
     for param in REQ_PARAMS:
         if param not in config_data['ceph']:
-            msg = f"{REQ_PARAMS} is mandatory in 'ceph' section of the configuration"
+            msg = f"'{param}' is mandatory under 'ceph' section of the configuration"
             raise Exception(msg)
 
     if not config_data['ceph']['endpoint'].startswith('http'):

@@ -26,6 +26,6 @@ Lithops with MinIO storage backend.
         secret_key: <ACCESS_KEY>
 ```
 
-- `endpoint`: The host ip adress where you installed the Redis server.
+- `endpoint`: The host ip adress where you installed the MinIO server. Must start with http:// or https://
 - `access_key`, `secret_key`: Access Key and Secret key provided when you created the user
  
