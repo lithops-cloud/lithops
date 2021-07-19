@@ -138,8 +138,8 @@ class FunctionExecutor:
                                       self.compute_handler,
                                       self.job_monitor)
 
-        logger.info('Function executor for {} created with ID: {}'
-                    .format(self.config['lithops']['backend'], self.executor_id))
+        logger.debug('Function executor for {} created with ID: {}'
+                     .format(self.config['lithops']['backend'], self.executor_id))
 
         self.log_path = None
 
