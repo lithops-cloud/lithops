@@ -225,12 +225,12 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     logger.info('ExecutorID {} | JobID {} - Uploading function and data '
                 '- Total: {}'.format(executor_id, job_id, total_size))
 
-    # Upload iterdata to COS only if a single element is greater than 64KB
-    if len(str(data_strs[0])) * job.chunksize < 64*1204 and backend in FAAS_BACKENDS:
+    # Upload iterdata to COS only if a single element is greater than 8KB
+    if len(str(data_strs[0])) * job.chunksize < 8*1204 and backend in FAAS_BACKENDS:
         # pass iteradata as part of the invocation payload
-        logger.debug('ExecutorID {} | JobID {} - Args per activation are < '
-                     '{}, passing them through invocation payload'
-                     .format(executor_id, job_id, utils.sizeof_fmt(64*1024)))
+        logger.debug('ExecutorID {} | JobID {} - Data per activation is < '
+                     '{}. Passing data through invocation payload'
+                     .format(executor_id, job_id, utils.sizeof_fmt(8*1024)))
         job.data_key = None
         job.data_byte_ranges = None
         job.data_byte_strs = data_strs

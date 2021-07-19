@@ -121,6 +121,11 @@
     #access_key: <ACCESS_KEY>
     #secret_key: <ACCESS_KEY>
     
+#minio:
+    #endpoint: <ENDPOINT_URL>
+    #access_key: <ACCESS_KEY>
+    #secret_key: <ACCESS_KEY>
+    
 #redis:
     #host: <ENDPOINT_URL>
     #port: <ACCESS_KEY>

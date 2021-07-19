@@ -80,4 +80,5 @@ Currently, Lithops for Kubernetes and on-premise supports these backends:
 - [OpenStack Swift](https://docs.openstack.org/swift/latest/)
 - [Redis](https://redis.io/documentation)
 - [Ceph](https://docs.ceph.com/en/latest/)
+- [MinIO](https://docs.min.io/minio/baremetal/)
 - [Infinispan](https://infinispan.org/documentation/)
