@@ -86,6 +86,7 @@ Storage Backends
 - [Aliyun Object Storage Service](storage/aliyun_oss.md)
 - [Infinispan](storage/infinispan.md)
 - [Ceph](storage/ceph.md)
+- [MinIO](storage/minio.md)
 - [Redis](storage/redis.md)
 - [OpenStack Swift](storage/swift.md)
 

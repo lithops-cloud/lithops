@@ -1,5 +1,5 @@
 #
-# (C) Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2021
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,18 +14,17 @@
 # limitations under the License.
 #
 
-
 REQ_PARAMS = ['endpoint', 'secret_key', 'access_key']
 
 
 def load_config(config_data):
-    if 'ceph' not in config_data:
-        raise Exception("ceph section is mandatory in the configuration")
+    if 'minio' not in config_data:
+        raise Exception("minio section is mandatory in the configuration")
 
     for param in REQ_PARAMS:
-        if param not in config_data['ceph']:
-            msg = f"'{param}' is mandatory under 'ceph' section of the configuration"
+        if param not in config_data['minio']:
+            msg = f"'{param}' is mandatory under 'minio' section of the configuration"
             raise Exception(msg)
 
-    if not config_data['ceph']['endpoint'].startswith('http'):
-        raise Exception('Ceph endpoint must start with http:// or https://')
+    if not config_data['minio']['endpoint'].startswith('http'):
+        raise Exception('MinIO endpoint must start with http:// or https://')

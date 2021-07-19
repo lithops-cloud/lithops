@@ -1,5 +1,5 @@
 #
-# (C) Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2021
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,18 +27,18 @@ OBJ_REQ_RETRIES = 5
 CONN_READ_TIMEOUT = 10
 
 
-class CephStorageBackend:
+class MinioStorageBackend:
     """
-    A wrap-up around Ceph boto3 APIs.
+    A wrap-up around MinIO boto3 APIs.
     """
 
-    def __init__(self, ceph_config):
-        logger.debug("Creating Ceph client")
-        self.ceph_config = ceph_config
-        user_agent = ceph_config['user_agent']
-        service_endpoint = ceph_config['endpoint']
+    def __init__(self, minio_config):
+        logger.debug("Creating MinIO client")
+        self.minio_config = minio_config
+        user_agent = minio_config['user_agent']
+        service_endpoint = minio_config['endpoint']
 
-        logger.debug("Setting Ceph endpoint to {}".format(service_endpoint))
+        logger.debug("Setting MinIO endpoint to {}".format(service_endpoint))
 
         client_config = ibm_botocore.client.Config(
             max_pool_connections=128,
@@ -49,13 +49,13 @@ class CephStorageBackend:
         )
 
         self.cos_client = ibm_boto3.client(
-            's3', aws_access_key_id=ceph_config['access_key'],
-            aws_secret_access_key=ceph_config['secret_key'],
+            's3', aws_access_key_id=minio_config['access_key'],
+            aws_secret_access_key=minio_config['secret_key'],
             config=client_config,
             endpoint_url=service_endpoint
         )
 
-        msg = STORAGE_CLI_MSG.format('Ceph')
+        msg = STORAGE_CLI_MSG.format('MinIO')
         logger.info("{} - Endpoint: {}".format(msg, service_endpoint))
 
     def get_client(self):
@@ -97,7 +97,7 @@ class CephStorageBackend:
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
         """
-        Get object from Ceph with a key. Throws StorageNoSuchKeyError if the given key does not exist.
+        Get object from MinIO with a key. Throws StorageNoSuchKeyError if the given key does not exist.
         :param key: key of the object
         :return: Data of the object
         :rtype: str/bytes
@@ -125,7 +125,7 @@ class CephStorageBackend:
 
     def head_object(self, bucket_name, key):
         """
-        Head object from Ceph with a key. Throws StorageNoSuchKeyError if the given key does not exist.
+        Head object from MinIO with a key. Throws StorageNoSuchKeyError if the given key does not exist.
         :param key: key of the object
         :return: Data of the object
         :rtype: str/bytes
@@ -171,7 +171,7 @@ class CephStorageBackend:
 
     def head_bucket(self, bucket_name):
         """
-        Head bucket from Ceph with a name. Throws StorageNoSuchKeyError if the given bucket does not exist.
+        Head bucket from MinIO with a name. Throws StorageNoSuchKeyError if the given bucket does not exist.
         :param bucket_name: name of the bucket
         :return: Metadata of the bucket
         :rtype: str/bytes

@@ -1,11 +1,11 @@
-# Lithops on Ceph
+# Lithops on MinIO
 
-Lithops with Ceph storage backend.
+Lithops with MinIO storage backend.
 
 
 ### Installation
 
-1. Install Ceph.
+1. Install MinIO.
 
 2. Create a new user.
 
@@ -17,15 +17,15 @@ Lithops with Ceph storage backend.
 
 ```yaml
     lithops:
-        storage: ceph
+        storage: minio
         storage_bucket: <BUCKET_NAME>
 
-    ceph:
+    minio:
         endpoint: <ENDPOINT_URL>
         access_key: <ACCESS_KEY>
         secret_key: <ACCESS_KEY>
 ```
 
-- `endpoint`: The host ip adress where you installed the Ceph server. Must start with http:// or https://
+- `endpoint`: The host ip adress where you installed the MinIO server. Must start with http:// or https://
 - `access_key`, `secret_key`: Access Key and Secret key provided when you created the user
  
