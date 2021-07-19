@@ -30,7 +30,7 @@ from lithops.storage.utils import create_func_key, create_agg_data_key,\
     create_job_key, func_key_suffix
 from lithops.job.serialize import SerializeIndependent, create_module_data
 from lithops.constants import MAX_AGG_DATA_SIZE, JOBS_PREFIX, LOCALHOST,\
-    SERVERLESS, STANDALONE, CUSTOM_RUNTIME_DIR
+    SERVERLESS, STANDALONE, CUSTOM_RUNTIME_DIR, FAAS_BACKENDS
 
 
 logger = logging.getLogger(__name__)
@@ -225,19 +225,30 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     logger.info('ExecutorID {} | JobID {} - Uploading function and data '
                 '- Total: {}'.format(executor_id, job_id, total_size))
 
-    # Upload data
-    data_key = create_agg_data_key(JOBS_PREFIX, executor_id, job_id)
-    job.data_key = data_key
-    data_bytes, data_byte_ranges = utils.agg_data(data_strs)
-    job.data_byte_ranges = data_byte_ranges
-    data_upload_start = time.time()
-    internal_storage.put_data(data_key, data_bytes)
-    data_upload_end = time.time()
+    # Upload iterdata to COS only if a single element is greater than 64KB
+    if len(str(data_strs[0])) * job.chunksize < 64*1204 and backend in FAAS_BACKENDS:
+        # pass iteradata as part of the invocation payload
+        logger.debug('ExecutorID {} | JobID {} - Args per activation are < '
+                     '{}, passing them through invocation payload'
+                     .format(executor_id, job_id, utils.sizeof_fmt(64*1024)))
+        job.data_key = None
+        job.data_byte_ranges = None
+        job.data_byte_strs = data_strs
+        host_job_meta['host_data_upload_time'] = 0
 
-    host_job_meta['host_data_upload_time'] = round(data_upload_end-data_upload_start, 6)
-    func_upload_start = time.time()
+    else:
+        # pass_iteradata through an object storage file
+        data_key = create_agg_data_key(JOBS_PREFIX, executor_id, job_id)
+        job.data_key = data_key
+        data_bytes, data_byte_ranges = utils.agg_data(data_strs)
+        job.data_byte_ranges = data_byte_ranges
+        data_upload_start = time.time()
+        internal_storage.put_data(data_key, data_bytes)
+        data_upload_end = time.time()
+        host_job_meta['host_data_upload_time'] = round(data_upload_end-data_upload_start, 6)
 
     # Upload function and modules
+    func_upload_start = time.time()
     if config[mode].get('customized_runtime', False):
         # Prepare function and modules locally to store in the runtime image later
         function_file = func.__code__.co_filename
@@ -251,7 +262,6 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     else:
         func_key = create_func_key(JOBS_PREFIX, executor_id, job_id)
         internal_storage.put_func(func_key, func_module_str)
-
     job.func_key = func_key
     func_upload_end = time.time()
 

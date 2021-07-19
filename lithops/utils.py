@@ -94,27 +94,33 @@ def create_futures_list(futures, executor):
 class FuturesList(list):
 
     def _create_executor(self):
-        from lithops import FunctionExecutor
-        self.executor = FunctionExecutor(config=self.config)
+        if not self.executor:
+            from lithops import FunctionExecutor
+            self.executor = FunctionExecutor(config=self.config)
+
+    def _extend_futures(self, fs):
+        for fut in self:
+            fut._produce_output = False
+        self.extend(fs)
 
     def map(self, map_function, **kwargs):
-        if not self.executor:
-            self._create_executor()
-        return self.executor.map(map_function, self, **kwargs)
+        self._create_executor()
+        fs = self.executor.map(map_function, self, **kwargs)
+        self._extend_futures(fs)
+        return self
 
     def map_reduce(self, map_function, reduce_function, **kwargs):
-        if not self.executor:
-            self._create_executor()
-        return self.executor.map_reduce(map_function, self, reduce_function, **kwargs)
+        self._create_executor()
+        fs = self.executor.map_reduce(map_function, self, reduce_function, **kwargs)
+        self._extend_futures(fs)
+        return self
 
     def wait(self, **kwargs):
-        if not self.executor:
-            self._create_executor()
+        self._create_executor()
         return self.executor.wait(self, **kwargs)
 
     def get_result(self, **kwargs):
-        if not self.executor:
-            self._create_executor()
+        self._create_executor()
         return self.executor.get_result(self, **kwargs)
 
     def __reduce__(self):
@@ -426,9 +432,6 @@ def format_data(iterdata, extra_args):
 
 
 def verify_args(func, iterdata, extra_args):
-
-    if isinstance(iterdata, FuturesList):
-        return [{'future': f} for f in iterdata]
 
     data = format_data(iterdata, extra_args)
 
