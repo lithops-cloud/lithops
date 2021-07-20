@@ -15,7 +15,7 @@
 #
 
 
-REQ_PARAMS = ['secret_key', 'access_key']
+REQ_PARAMS = ['secret_access_key', 'access_key_id']
 
 
 def load_config(config_data):

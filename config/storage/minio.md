@@ -22,10 +22,10 @@ Lithops with MinIO storage backend.
 
     minio:
         endpoint: <ENDPOINT_URL>
-        access_key: <ACCESS_KEY>
-        secret_key: <ACCESS_KEY>
+        access_key_id: <ACCESS_KEY>
+        secret_access_key: <SECRET_ACCESS_KEY>
 ```
 
 - `endpoint`: The host ip adress where you installed the MinIO server. Must start with http:// or https://
-- `access_key`, `secret_key`: Access Key and Secret key provided when you created the user
+- `access_key_id`, `secret_access_key`: Access Key and Secret key provided when you created the user
  
