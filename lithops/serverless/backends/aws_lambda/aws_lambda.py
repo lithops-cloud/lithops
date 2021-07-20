@@ -532,7 +532,7 @@ class AWSLambdaBackend:
         response = self.lambda_client.invoke(
             FunctionName=function_name,
             InvocationType='Event',
-            Payload=json.dumps(payload)
+            Payload=json.dumps(payload, default=str)
         )
 
         if response['ResponseMetadata']['HTTPStatusCode'] == 202:

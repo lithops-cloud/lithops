@@ -336,8 +336,10 @@ class GCPFunctionsBackend:
     def invoke(self, runtime_name, runtime_memory, payload={}):
         topic_location = self._full_topic_location(self._format_topic_name(runtime_name, runtime_memory))
 
-        fut = self.publisher_client.publish(topic_location,
-                                            bytes(json.dumps(payload).encode('utf-8')))
+        fut = self.publisher_client.publish(
+            topic_location,
+            bytes(json.dumps(payload, default=str).encode('utf-8'))
+        )
         invocation_id = fut.result()
 
         return invocation_id

@@ -18,11 +18,10 @@ import os
 import logging
 import shutil
 import json
-import sys
 import lithops
 import fc2
 
-from lithops.utils import uuid_str, is_lithops_worker, version_str
+from lithops.utils import uuid_str, is_lithops_worker
 from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG, TEMP
 from . import config as aliyunfc_config
@@ -167,7 +166,7 @@ class AliyunFunctionComputeBackend:
 
         res = self.fc_client.invoke_function(serviceName=self.service_name,
                                              functionName=action_name,
-                                             payload=json.dumps(payload),
+                                             payload=json.dumps(payload, default=str),
                                              headers={'x-fc-invocation-type': 'Async'})
 
         return res.headers['X-Fc-Request-Id']

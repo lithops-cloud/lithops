@@ -19,6 +19,7 @@ import httplib2
 import os
 import sys
 import time
+import json
 
 from google.oauth2 import service_account
 from google_auth_httplib2 import AuthorizedHttp
@@ -181,7 +182,8 @@ class GCPCloudRunBackend:
         else:
             logger.debug('Invoking function')
 
-        res = sess.post(url=self._get_service_endpoint(runtime_name, memory) + route, json=payload)
+        url = self._get_service_endpoint(runtime_name, memory) + route
+        res = sess.post(url=url, data=json.dumps(payload, default=str))
 
         if res.status_code in (200, 202):
             data = res.json()
