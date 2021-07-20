@@ -276,7 +276,7 @@ class FaaSInvoker(Invoker):
         self.should_run = False
         self.sync = is_lithops_worker()
 
-        invoke_pool_threads = self.config[self.backend].get('invoke_pool_threads', 1)
+        invoke_pool_threads = self.config[self.backend].get('invoke_pool_threads', 64)
         self.executor = ThreadPoolExecutor(invoke_pool_threads)
 
         logger.debug('ExecutorID {} - Serverless invoker created'.format(self.executor_id))
