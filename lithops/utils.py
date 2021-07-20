@@ -101,27 +101,36 @@ class FuturesList(list):
     def _extend_futures(self, fs):
         for fut in self:
             fut._produce_output = False
+        if not hasattr(self, 'alt_list'):
+            self.alt_list = []
+            self.alt_list.extend(self)
+        self.alt_list.extend(fs)
+        self.clear()
         self.extend(fs)
 
-    def map(self, map_function, **kwargs):
+    def map(self, map_function, sync=False, **kwargs):
         self._create_executor()
+        if sync:
+            self.executor.wait(self)
         fs = self.executor.map(map_function, self, **kwargs)
         self._extend_futures(fs)
         return self
 
-    def map_reduce(self, map_function, reduce_function, **kwargs):
+    def map_reduce(self, map_function, reduce_function,  sync=False, **kwargs):
         self._create_executor()
+        if sync:
+            self.executor.wait(self)
         fs = self.executor.map_reduce(map_function, self, reduce_function, **kwargs)
         self._extend_futures(fs)
         return self
 
     def wait(self, **kwargs):
         self._create_executor()
-        return self.executor.wait(self, **kwargs)
+        return self.executor.wait(self.alt_list, **kwargs)
 
     def get_result(self, **kwargs):
         self._create_executor()
-        return self.executor.get_result(self, **kwargs)
+        return self.executor.get_result(self.alt_list, **kwargs)
 
     def __reduce__(self):
         self.executor = None
@@ -432,6 +441,10 @@ def format_data(iterdata, extra_args):
 
 
 def verify_args(func, iterdata, extra_args):
+
+    if isinstance(iterdata, FuturesList):
+        # this is required for function chaining
+        return [{'future': f} for f in iterdata]
 
     data = format_data(iterdata, extra_args)
 

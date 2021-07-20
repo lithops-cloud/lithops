@@ -49,8 +49,8 @@ class MinioStorageBackend:
         )
 
         self.cos_client = ibm_boto3.client(
-            's3', aws_access_key_id=minio_config['access_key'],
-            aws_secret_access_key=minio_config['secret_key'],
+            's3', aws_access_key_id=minio_config['access_key_id'],
+            aws_secret_access_key=minio_config['secret_access_key'],
             config=client_config,
             endpoint_url=service_endpoint
         )
