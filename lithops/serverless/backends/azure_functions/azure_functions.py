@@ -275,14 +275,14 @@ class AzureFunctionAppBackend:
 
             route = "/api/lithops_handler"
             if return_result:
-                conn.request("GET", route, body=json.dumps(payload))
+                conn.request("GET", route, body=json.dumps(payload, default=str))
                 resp = conn.getresponse()
                 data = json.loads(resp.read().decode("utf-8"))
                 conn.close()
                 return data
             else:
                 # logger.debug('Invoking calls {}'.format(', '.join(payload['call_ids'])))
-                conn.request("POST", route, body=json.dumps(payload))
+                conn.request("POST", route, body=json.dumps(payload, default=str))
                 resp = conn.getresponse()
                 if resp.status == 429:
                     time.sleep(0.2)

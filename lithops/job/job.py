@@ -206,37 +206,51 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     func_str = func_and_data_ser[0]
     func_module_str = pickle.dumps({'func': func_str, 'module_data': module_data}, -1)
     func_module_size_bytes = len(func_module_str)
-    total_size = utils.sizeof_fmt(data_size_bytes+func_module_size_bytes)
-    host_job_meta['host_job_serialize_time'] = round(time.time()-job_serialize_start, 6)
 
+    host_job_meta['host_job_serialize_time'] = round(time.time()-job_serialize_start, 6)
     host_job_meta['data_size_bytes'] = data_size_bytes
     host_job_meta['func_module_size_bytes'] = func_module_size_bytes
 
+    # Check data limit
     if 'data_limit' in config['lithops']:
         data_limit = config['lithops']['data_limit']
     else:
         data_limit = MAX_AGG_DATA_SIZE
-
     if data_limit and data_size_bytes > data_limit*1024**2:
         log_msg = ('ExecutorID {} | JobID {} - Total data exceeded maximum size '
                    'of {}'.format(executor_id, job_id, utils.sizeof_fmt(data_limit*1024**2)))
         raise Exception(log_msg)
 
-    logger.info('ExecutorID {} | JobID {} - Uploading function and data '
-                '- Total: {}'.format(executor_id, job_id, total_size))
+    # Upload function and data
+    upload_function = not config[mode].get('customized_runtime', False)
+    upload_data = not (len(str(data_strs[0])) * job.chunksize < 8*1204 and backend in FAAS_BACKENDS)
 
-    # Upload iterdata to COS only if a single element is greater than 8KB
-    if len(str(data_strs[0])) * job.chunksize < 8*1204 and backend in FAAS_BACKENDS:
-        # pass iteradata as part of the invocation payload
-        logger.debug('ExecutorID {} | JobID {} - Data per activation is < '
-                     '{}. Passing data through invocation payload'
-                     .format(executor_id, job_id, utils.sizeof_fmt(8*1024)))
-        job.data_key = None
-        job.data_byte_ranges = None
-        job.data_byte_strs = data_strs
-        host_job_meta['host_data_upload_time'] = 0
+    # Upload function and modules
+    if upload_function:
+        func_upload_start = time.time()
+        logger.debug('ExecutorID {} | JobID {} - Uploading function and modules '
+                     'to the storage backend'.format(executor_id, job_id))
+        job.func_key = create_func_key(JOBS_PREFIX, executor_id, job_id)
+        internal_storage.put_func(job.func_key, func_module_str)
+        func_upload_end = time.time()
+        host_job_meta['host_func_upload_time'] = round(func_upload_end - func_upload_start, 6)
 
     else:
+        # Prepare function and modules locally to store in the runtime image later
+        function_file = func.__code__.co_filename
+        function_hash = hashlib.md5(open(function_file, 'rb').read()).hexdigest()[:16]
+        mod_hash = hashlib.md5(repr(sorted(mod_paths)).encode('utf-8')).hexdigest()[:16]
+        job.func_key = func_key_suffix
+        job.ext_runtime_uuid = '{}{}'.format(function_hash, mod_hash)
+        job.local_tmp_dir = os.path.join(CUSTOM_RUNTIME_DIR, job.ext_runtime_uuid)
+        _store_func_and_modules(job.local_tmp_dir, job.func_key, func_str, module_data)
+        host_job_meta['host_func_upload_time'] = 0
+
+    # upload data
+    if upload_data:
+        # Upload iterdata to COS only if a single element is greater than 8KB
+        logger.debug('ExecutorID {} | JobID {} - Uploading data to the storage backend'
+                     .format(executor_id, job_id))
         # pass_iteradata through an object storage file
         data_key = create_agg_data_key(JOBS_PREFIX, executor_id, job_id)
         job.data_key = data_key
@@ -247,25 +261,15 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
         data_upload_end = time.time()
         host_job_meta['host_data_upload_time'] = round(data_upload_end-data_upload_start, 6)
 
-    # Upload function and modules
-    func_upload_start = time.time()
-    if config[mode].get('customized_runtime', False):
-        # Prepare function and modules locally to store in the runtime image later
-        function_file = func.__code__.co_filename
-        function_hash = hashlib.md5(open(function_file, 'rb').read()).hexdigest()[:16]
-        mod_hash = hashlib.md5(repr(sorted(mod_paths)).encode('utf-8')).hexdigest()[:16]
-        func_key = func_key_suffix
-        job.ext_runtime_uuid = '{}{}'.format(function_hash, mod_hash)
-        job.local_tmp_dir = os.path.join(CUSTOM_RUNTIME_DIR, job.ext_runtime_uuid)
-        _store_func_and_modules(job.local_tmp_dir, func_key, func_str, module_data)
-
     else:
-        func_key = create_func_key(JOBS_PREFIX, executor_id, job_id)
-        internal_storage.put_func(func_key, func_module_str)
-    job.func_key = func_key
-    func_upload_end = time.time()
-
-    host_job_meta['host_func_upload_time'] = round(func_upload_end - func_upload_start, 6)
+        # pass iteradata as part of the invocation payload
+        logger.debug('ExecutorID {} | JobID {} - Data per activation is < '
+                     '{}. Passing data through invocation payload'
+                     .format(executor_id, job_id, utils.sizeof_fmt(8*1024)))
+        job.data_key = None
+        job.data_byte_ranges = None
+        job.data_byte_strs = data_strs
+        host_job_meta['host_data_upload_time'] = 0
 
     host_job_meta['host_job_created_time'] = round(time.time() - host_job_meta['host_job_create_tstamp'], 6)
 
