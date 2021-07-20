@@ -24,7 +24,7 @@ from lithops.utils import version_str, get_docker_username
 logger = logging.getLogger(__name__)
 
 DOCKER_PATH = shutil.which('docker')
-DEFAULT_RUNTIME_NAME = 'lithops_aws-batch'
+DEFAULT_RUNTIME_NAME = 'default_runtime'
 
 ENV_TYPES = {'EC2', 'SPOT', 'FARGATE', 'FARGATE_SPOT'}
 DEFAULT_ENV_TYPE = 'FARGATE_SPOT'

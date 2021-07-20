@@ -48,6 +48,9 @@ class AWSBatchBackend:
         self.region_name = aws_batch_config['region_name']
         self.role_arn = aws_batch_config['service_role']
 
+        self._queue_name = '{}_job_queue'.format(self.package)
+        self._compute_env_name = '{}_compute_env'.format(self.package)
+
         logger.debug('Creating Boto3 AWS Session and Batch Client')
         self.aws_session = boto3.Session(aws_access_key_id=aws_batch_config['access_key_id'],
                                          aws_secret_access_key=aws_batch_config['secret_access_key'],
@@ -77,14 +80,12 @@ class AWSBatchBackend:
         full_image_name = runtime_name if ':' in runtime_name else '{}:latest'.format(runtime_name)
         registry = '{}.dkr.ecr.{}.amazonaws.com'.format(self.account_id, self.region_name)
         full_image_name = '/'.join([registry, self.package, full_image_name]).lower()
-        repo_name = full_image_name.split('/')[1:].pop().split(':')[0]
+        repo_name = full_image_name.split('/', 1)[1:].pop().split(':')[0]
         return full_image_name, registry, repo_name
 
     def _format_jobdef_name(self, runtime_name, runtime_memory):
-        runtime_name = runtime_name.replace('.', '')
-        runtime_name = runtime_name.replace('/', '--')
-        runtime_name = runtime_name.replace(':', '--')
-        return '{}--{}mb'.format(runtime_name, runtime_memory)
+        fmt_runtime_name = runtime_name.replace('.', '-').replace('/', '--').replace(':', '--')
+        return '{}-{}--{}mb'.format(self.package, fmt_runtime_name, runtime_memory)
 
     def _build_default_runtime(self, default_runtime_img_name):
         """
@@ -105,8 +106,8 @@ class AWSBatchBackend:
 
     def _create_compute_env(self):
         strategy = 'SPOT_CAPACITY_OPTIMIZED' if 'SPOT' in self.aws_batch_config['env_type'] else 'BEST_FIT'
-        self.batch_client.create_compute_environment(
-            computeEnvironmentName='_'.join([self.package, 'compute_env']),
+        res = self.batch_client.create_compute_environment(
+            computeEnvironmentName=self._compute_env_name,
             type='MANAGED',
             computeResources={
                 'type': self.aws_batch_config['env_type'],
@@ -114,7 +115,33 @@ class AWSBatchBackend:
                 'maxvCpus': self.aws_batch_config['max_cpus'],
                 'subnets': self.aws_batch_config['subnets'],
             },
-            serviceRole=self.aws_batch_config['role_arn']
+            serviceRole=self.aws_batch_config['service_role']
+        )
+        print(res)
+
+    def _create_queue(self):
+        res = self.batch_client.create_job_queue(
+            jobQueueName=self._queue_name,
+            priority=1,
+            computeEnvironmentOrder=[
+                {
+                    'order': 0,
+                    'computeEnvironment': self._compute_env_name
+                },
+            ],
+        )
+        print(res)
+
+    def _create_job_def(self, runtime_name, runtime_memory):
+        res = self.batch_client.register_job_definition(
+            jobDefinitionName=self._format_jobdef_name(runtime_name, runtime_memory),
+            type='container',
+            containerProperties={
+                'image': self._get_full_image_name(runtime_name),
+                'vcpus': 1,
+                'memory': runtime_memory,
+                'executionRoleArn': self.aws_batch_config['service_role']
+            }
         )
 
     def build_runtime(self, runtime_name, runtime_file):
@@ -182,6 +209,8 @@ class AWSBatchBackend:
                      'Docker image: {}'.format(docker_image_name))
 
         self._create_compute_env()
+        self._create_queue()
+        self._create_job_def()
         # self._create_job_definition(docker_image_name, memory, timeout)
         #
         # runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
