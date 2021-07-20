@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+import base64
 import os
 import sys
 import pkgutil
@@ -108,7 +108,7 @@ def get_function_data(job, internal_storage):
         else:
             loaded_data.append(data_obj)
     else:
-        loaded_data = [eval(byte_str) for byte_str in job.data_byte_strs]
+        loaded_data = [base64.b64decode(byte_str) for byte_str in job.data_byte_strs]
 
     return loaded_data
 

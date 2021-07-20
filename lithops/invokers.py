@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+import base64
 import os
 import sys
 import time
@@ -345,7 +345,7 @@ class FaaSInvoker(Invoker):
             payload['data_byte_ranges'] = data_byte_ranges
         else:
             del payload['data_byte_ranges']
-            payload['data_byte_strs'] = [job.data_byte_strs[int(call_id)] for call_id in call_ids]
+            payload['data_byte_strs'] = [base64.b64encode(job.data_byte_strs[int(call_id)]).decode('utf-8') for call_id in call_ids]
 
         # do the invocation
         start = time.time()
