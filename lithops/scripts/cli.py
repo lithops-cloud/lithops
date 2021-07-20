@@ -242,16 +242,22 @@ def list_bucket(prefix, bucket, backend, debug):
     logger.info('Listing objects in bucket {}'.format(bucket))
     objects = storage.list_objects(bucket, prefix=prefix)
 
-    width = max([len(obj['Key']) for obj in objects])
+    if objects:
+        width = max([len(obj['Key']) for obj in objects])
 
-    print('\n{:{width}} \t {} \t\t {:>9}'.format('Key', 'Last modified', 'Size', width=width))
-    print('-' * width, '\t', '-' * 20, '\t', '-' * 9)
-    for obj in objects:
-        key = obj['Key']
-        date = obj['LastModified'].strftime("%b %d %Y %H:%M:%S")
-        size = sizeof_fmt(obj['Size'])
-        print('{:{width}} \t {} \t {:>9}'.format(key, date, size, width=width))
-    print()
+        print('\n{:{width}} \t {} \t\t {:>9}'.format('Key', 'Last modified', 'Size', width=width))
+        print('-' * width, '\t', '-' * 20, '\t', '-' * 9)
+        for obj in objects:
+            key = obj['Key']
+            date = obj['LastModified'].strftime("%b %d %Y %H:%M:%S")
+            size = sizeof_fmt(obj['Size'])
+            print('{:{width}} \t {} \t {:>9}'.format(key, date, size, width=width))
+        print()
+    else:
+        width = 10
+        print('\n{:{width}} \t {} \t\t {:>9}'.format('Key', 'Last modified', 'Size', width=width))
+        print('-' * width, '\t', '-' * 20, '\t', '-' * 9)
+        print('\nThe bucket is empty')
 
 
 # /---------------------------------------------------------------------------/

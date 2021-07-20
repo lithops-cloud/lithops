@@ -18,6 +18,7 @@
 import os
 import time
 import logging
+from lithops.constants import JOBS_PREFIX
 
 
 logger = logging.getLogger(__name__)
@@ -103,18 +104,17 @@ def create_job_key(executor_id, job_id):
     return '-'.join([executor_id, job_id])
 
 
-def create_func_key(prefix, executor_id, job_id):
+def create_func_key(executor_id, function_hash):
     """
     Create function key
     :param prefix: prefix
     :param executor_id: callset's ID
     :return: function key
     """
-    job_key = create_job_key(executor_id, job_id)
-    return '/'.join([prefix, job_key, func_key_suffix])
+    return '/'.join([JOBS_PREFIX, executor_id, f'{function_hash}.{func_key_suffix}'])
 
 
-def create_agg_data_key(prefix, executor_id, job_id):
+def create_data_key(executor_id, job_id):
     """
     Create aggregate data key
     :param prefix: prefix
@@ -123,23 +123,10 @@ def create_agg_data_key(prefix, executor_id, job_id):
     :return: a key for aggregate data
     """
     job_key = create_job_key(executor_id, job_id)
-    return '/'.join([prefix, job_key, agg_data_key_suffix])
+    return '/'.join([JOBS_PREFIX, job_key, agg_data_key_suffix])
 
 
-def create_data_key(prefix, executor_id, job_id, call_id):
-    """
-    Create data key
-    :param prefix: prefix
-    :param executor_id: Executor's ID
-    :param job_id: Job's ID
-    :param call_id: call's ID
-    :return: data key
-    """
-    call_key = create_job_key(executor_id, job_id, call_id)
-    return '/'.join([prefix, call_key, data_key_suffix])
-
-
-def create_output_key(prefix, executor_id, job_id, call_id):
+def create_output_key(executor_id, job_id, call_id):
     """
     Create output key
     :param prefix: prefix
@@ -149,10 +136,10 @@ def create_output_key(prefix, executor_id, job_id, call_id):
     :return: output key
     """
     job_key = create_job_key(executor_id, job_id)
-    return '/'.join([prefix, job_key, call_id, output_key_suffix])
+    return '/'.join([JOBS_PREFIX, job_key, call_id, output_key_suffix])
 
 
-def create_status_key(prefix, executor_id, job_id, call_id):
+def create_status_key(executor_id, job_id, call_id):
     """
     Create status key
     :param prefix: prefix
@@ -162,10 +149,10 @@ def create_status_key(prefix, executor_id, job_id, call_id):
     :return: status key
     """
     job_key = create_job_key(executor_id, job_id)
-    return '/'.join([prefix, job_key, call_id, status_key_suffix])
+    return '/'.join([JOBS_PREFIX, job_key, call_id, status_key_suffix])
 
 
-def create_init_key(prefix, executor_id, job_id, call_id, act_id):
+def create_init_key(executor_id, job_id, call_id, act_id):
     """
     Create init key
     :param prefix: prefix
@@ -175,7 +162,7 @@ def create_init_key(prefix, executor_id, job_id, call_id, act_id):
     :return: output key
     """
     job_key = create_job_key(executor_id, job_id)
-    return '/'.join([prefix, job_key, call_id,
+    return '/'.join([JOBS_PREFIX, job_key, call_id,
                      '{}{}'.format(act_id, init_key_suffix)])
 
 

@@ -225,7 +225,7 @@ class Invoker:
 
 class BatchInvoker(Invoker):
     """
-    Module responsible to perform the invocations against the Standalone backend
+    Module responsible to perform the invocations against a batch backend
     """
 
     def __init__(self, config, executor_id, internal_storage, compute_handler, job_monitor):
@@ -260,7 +260,7 @@ class BatchInvoker(Invoker):
 
 class FaaSInvoker(Invoker):
     """
-    Module responsible to perform the invocations against the FaaS backends
+    Module responsible to perform the invocations against a FaaS backend
     """
     ASYNC_INVOKERS = 2
 
@@ -275,6 +275,9 @@ class FaaSInvoker(Invoker):
         self.pending_calls_q = queue.Queue()
         self.should_run = False
         self.sync = is_lithops_worker()
+
+        invoke_pool_threads = self.config[self.backend].get('invoke_pool_threads', 1)
+        self.executor = ThreadPoolExecutor(invoke_pool_threads)
 
         logger.debug('ExecutorID {} - Serverless invoker created'.format(self.executor_id))
 
@@ -421,9 +424,8 @@ class FaaSInvoker(Invoker):
                 future.result()
 
             invoke_futures = []
-            executor = ThreadPoolExecutor(job.invoke_pool_threads)
             for call_ids_range in iterchunks(callids_to_invoke_direct, job.chunksize):
-                future = executor.submit(self._invoke_task, job, call_ids_range)
+                future = self.executor.submit(self._invoke_task, job, call_ids_range)
                 future.add_done_callback(_callback)
                 invoke_futures.append(future)
 
