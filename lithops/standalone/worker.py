@@ -78,7 +78,7 @@ def run_worker(master_ip, job_key):
         pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
         try:
             localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
-            localhost_handler.invoke(job_payload, workers=1)
+            localhost_handler.invoke(job_payload)
         except Exception as e:
             logger.error(e)
 

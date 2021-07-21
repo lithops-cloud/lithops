@@ -36,7 +36,6 @@ def clean_executor_jobs(executor_id, executor_data):
 
     storage = None
     prefix = '/'.join([JOBS_PREFIX, executor_id])
-    objects_to_delete = []
 
     for file_data in executor_data:
         file_location = file_data['file_location']
@@ -50,12 +49,21 @@ def clean_executor_jobs(executor_id, executor_data):
         logger.info(f'Cleaning jobs {", ".join([job_key for job_key in data["jobs_to_clean"]])}')
 
         objects = storage.list_keys(storage.bucket, prefix)
-        objects_to_delete = [key for key in objects if key.split('/')[1] in data['jobs_to_clean']]
+        objects_to_delete = [
+                key for key in objects
+                if '-'.join(key.split('/')[1].split('-')[0:3])
+                in data['jobs_to_clean']
+        ]
+
         while objects_to_delete:
             storage.delete_objects(storage.bucket, objects_to_delete)
             time.sleep(5)
             objects = storage.list_keys(storage.bucket, prefix)
-            objects_to_delete = [key for key in objects if key.split('/')[1] in data['jobs_to_clean']]
+            objects_to_delete = [
+                key for key in objects
+                if '-'.join(key.split('/')[1].split('-')[0:3])
+                in data['jobs_to_clean']
+            ]
 
         if clean_cloudobjects:
             for job_key in data['jobs_to_clean']:
