@@ -119,9 +119,9 @@ class RabbitmqCallStatus(StorageCallStatus):
         output_query_count = 0
 
         queues = []
-        job_keys = self.job.job_key.split('-')
-        for k in range(int(len(job_keys)/3)):
-            qname = 'lithops-{}'.format('-'.join(job_keys[0:k*3+3]))
+        executor_keys = self.job.executor_id.split('-')
+        for k in range(int(len(executor_keys)/2)):
+            qname = 'lithops-{}'.format('-'.join(executor_keys[0:k*3+2]))
             queues.append(qname)
 
         while not status_sent and output_query_count < 5:

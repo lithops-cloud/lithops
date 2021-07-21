@@ -57,6 +57,17 @@ class Monitor(threading.Thread):
         self.workers = {}
         self.workers_done = []
         self.callids_done_worker = {}
+        self.job_chunksize = {}
+
+    def add_futures(self, fs, job_id=None, chunksize=None):
+        """
+        Extends the current thread list of futures to track
+        """
+        self.futures.extend(fs)
+
+        # this is required for FaaS backends and _generate_tokens
+        if job_id:
+            self.job_chunksize[job_id] = chunksize
 
     def _all_ready(self):
         """
@@ -182,8 +193,9 @@ class RabbitmqMonitor(Monitor):
             self.callids_done_worker[worker_id] = []
         self.callids_done_worker[worker_id].append(call_id)
 
+        chunksize = self.job_chunksize[call_status['job_id']]
         if worker_id not in self.workers_done and \
-           len(self.callids_done_worker[worker_id]) == self.job.chunksize:
+           len(self.callids_done_worker[worker_id]) == chunksize:
             self.workers_done.append(worker_id)
             if self.should_run:
                 self.token_bucket_q.put('#')
@@ -335,8 +347,10 @@ class StorageMonitor(Monitor):
                 self.callids_done_worker[worker_id].append(callid_done)
 
         for worker_id in self.callids_done_worker:
+            job_id = self.callids_done_worker[worker_id][0][1]
+            chunksize = self.job_chunksize[job_id]
             if worker_id not in self.workers_done and \
-               len(self.callids_done_worker[worker_id]) == 1:
+               len(self.callids_done_worker[worker_id]) == chunksize:
                 self.workers_done.append(worker_id)
                 if self.should_run:
                     self.token_bucket_q.put('#')
@@ -391,7 +405,7 @@ class JobMonitor:
             f'{self.backend.capitalize()}Monitor'
         )
 
-    def start(self, fs, generate_tokens=False):
+    def start(self, fs, job_id=None, chunksize=None, generate_tokens=False):
         if not self.monitor or not self.monitor.is_alive():
             self.monitor = self.MonitorClass(
                 executor_id=self.executor_id,
@@ -401,7 +415,7 @@ class JobMonitor:
                 config=self.config
             )
             self.monitor.start()
-        self.monitor.futures.extend(fs)
+        self.monitor.add_futures(fs, job_id, chunksize)
 
     def stop(self):
         if self.monitor and self.monitor.is_alive():

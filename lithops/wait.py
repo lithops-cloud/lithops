@@ -104,10 +104,10 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
         if not job_monitor:
             for executor_data in executors_data:
                 job_monitor = JobMonitor(
-                    executor_id=executor_data['executor_id'],
-                    internal_storage=executor_data['internal_storage'],
+                    executor_id=executor_data.executor_id,
+                    internal_storage=executor_data.internal_storage,
                     backend='storage')
-                job_monitor.start(fs=executor_data['futures'])
+                job_monitor.start(fs=executor_data.futures)
 
         sleep_sec = wait_dur_sec if job_monitor.backend == 'storage' else 0.3
 
@@ -210,13 +210,14 @@ def _create_executors_data_from_futures(fs, internal_storage):
     present_executors = {f.executor_id for f in fs}
 
     for executor_id in present_executors:
-        executor_data = {'executor_id': executor_id}
-        executor_data['futures'] = [f for f in fs if f.executor_id == executor_id]
-        f = executor_data['futures'][0]
+        executor_data = SimpleNamespace()
+        executor_data.executor_id = executor_id
+        executor_data.futures = [f for f in fs if f.executor_id == executor_id]
+        f = executor_data.futures[0]
         if internal_storage and internal_storage.backend == f._storage_config['backend']:
-            executor_data['internal_storage'] = internal_storage
+            executor_data.internal_storage = internal_storage
         else:
-            executor_data['internal_storage'] = InternalStorage(f._storage_config)
+            executor_data.internal_storage = InternalStorage(f._storage_config)
 
         executor_jobs.append(executor_data)
 
@@ -243,33 +244,31 @@ def _any_done(fs, download_results):
         return any([f.success or f.done for f in fs])
 
 
-def _get_executor_data(fs, executor_data, download_results, throw_except, threadpool_size, pbar):
+def _get_executor_data(fs, exec_data, download_results, throw_except, threadpool_size, pbar):
     """
     Downloads all status/results from ready futures
     """
-    futures = executor_data['futures']
-    internal_storage = executor_data['internal_storage']
 
     if download_results:
-        callids_done = [(f.executor_id, f.job_id, f.call_id) for f in futures if (f.ready or f.success)]
-        not_done_futures = [f for f in futures if not f.done]
+        callids_done = [(f.executor_id, f.job_id, f.call_id) for f in exec_data.futures if (f.ready or f.success)]
+        not_done_futures = [f for f in exec_data.futures if not f.done]
     else:
-        callids_done = [(f.executor_id, f.job_id, f.call_id) for f in futures if f.ready]
-        not_done_futures = [f for f in futures if not (f.success or f.done)]
+        callids_done = [(f.executor_id, f.job_id, f.call_id) for f in exec_data.futures if f.ready]
+        not_done_futures = [f for f in exec_data.futures if not (f.success or f.done)]
 
     not_done_call_ids = set([(f.executor_id, f.job_id, f.call_id) for f in not_done_futures])
     new_callids_done = not_done_call_ids.intersection(callids_done)
 
     fs_to_wait_on = []
-    for f in futures:
+    for f in exec_data.futures:
         if (f.executor_id, f.job_id, f.call_id) in new_callids_done:
             fs_to_wait_on.append(f)
 
     def get_result(f):
-        f.result(throw_except=throw_except, internal_storage=internal_storage)
+        f.result(throw_except=throw_except, internal_storage=exec_data.internal_storage)
 
     def get_status(f):
-        f.status(throw_except=throw_except, internal_storage=internal_storage)
+        f.status(throw_except=throw_except, internal_storage=exec_data.internal_storage)
 
     pool = cf.ThreadPoolExecutor(max_workers=threadpool_size)
     if download_results:
@@ -289,7 +288,7 @@ def _get_executor_data(fs, executor_data, download_results, throw_except, thread
     new_futures = list(chain(*[f._new_futures for f in fs_to_wait_on if f._new_futures]))
     if new_futures:
         fs.extend(new_futures)
-        futures.extend(new_futures)
+        exec_data.futures.extend(new_futures)
         if pbar:
             pbar.total = pbar.total + len(new_futures)
             pbar.refresh()
