@@ -24,8 +24,7 @@ from lithops.version import __version__
 from lithops.constants import CACHE_DIR, RUNTIMES_PREFIX, JOBS_PREFIX, TEMP_PREFIX
 from lithops.utils import is_lithops_worker
 from lithops.storage.utils import create_status_key, create_output_key, \
-    status_key_suffix, init_key_suffix, CloudObject, StorageNoSuchKeyError,\
-    create_job_key
+    status_key_suffix, init_key_suffix, CloudObject, StorageNoSuchKeyError
 from lithops.config import extract_storage_config, default_storage_config
 
 logger = logging.getLogger(__name__)

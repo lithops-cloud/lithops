@@ -339,16 +339,12 @@ class StorageMonitor(Monitor):
         callids_done_to_process = callids_done - self.callids_done_processed
 
         for call_id, worker_id in callids_running_to_process:
-            if call_id[1] not in self.present_jobs:
-                continue
             if worker_id not in self.workers:
                 self.workers[worker_id] = set()
             self.workers[worker_id].add(call_id)
             self.callids_running_worker[call_id] = worker_id
 
         for callid_done in callids_done_to_process:
-            if callid_done[1] not in self.present_jobs:
-                continue
             if callid_done in self.callids_running_worker:
                 worker_id = self.callids_running_worker[callid_done]
                 if worker_id not in self.callids_done_worker:
@@ -357,6 +353,8 @@ class StorageMonitor(Monitor):
 
         for worker_id in self.callids_done_worker:
             job_id = self.callids_done_worker[worker_id][0][1]
+            if job_id not in self.present_jobs:
+                continue
             chunksize = self.job_chunksize[job_id]
             if worker_id not in self.workers_done and \
                len(self.callids_done_worker[worker_id]) == chunksize:
