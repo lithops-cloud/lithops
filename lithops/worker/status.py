@@ -7,9 +7,8 @@ from tblib import pickling_support
 
 import lithops.worker
 from lithops.utils import sizeof_fmt
-from lithops.storage.utils import create_status_key, create_job_key,\
+from lithops.storage.utils import create_status_key, \
     create_init_key
-from lithops.constants import JOBS_PREFIX
 from distutils.util import strtobool
 from contextlib import contextmanager
 
@@ -77,11 +76,11 @@ class StorageCallStatus(CallStatus):
         act_id = self.status['activation_id']
 
         if self.status['type'] == '__init__':
-            init_key = create_init_key(JOBS_PREFIX, executor_id, job_id, call_id, act_id)
+            init_key = create_init_key(executor_id, job_id, call_id, act_id)
             self.internal_storage.put_data(init_key, '')
 
         elif self.status['type'] == '__end__':
-            status_key = create_status_key(JOBS_PREFIX, executor_id, job_id, call_id)
+            status_key = create_status_key(executor_id, job_id, call_id)
             dmpd_response_status = json.dumps(self.status)
             drs = sizeof_fmt(len(dmpd_response_status))
             logger.info("Storing execution stats - Size: {}".format(drs))

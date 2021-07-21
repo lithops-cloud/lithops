@@ -37,7 +37,6 @@ from lithops.utils import sizeof_fmt, is_object_processing_function, FuturesList
 from lithops.utils import WrappedStreamingBodyPartition
 from lithops.util.metrics import PrometheusExporter
 from lithops.storage.utils import create_output_key
-from lithops.constants import JOBS_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +63,7 @@ class JobRunner:
         self.internal_storage = internal_storage
         self.lithops_config = job.config
 
-        self.output_key = create_output_key(JOBS_PREFIX, self.job.executor_id,
-                                            self.job.job_id, self.job.id)
+        self.output_key = create_output_key(job.executor_id, job.job_id, job.id)
 
         # Setup stats class
         self.stats = JobStats(self.job.stats_file)

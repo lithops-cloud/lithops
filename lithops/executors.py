@@ -200,7 +200,7 @@ class FunctionExecutor:
     def map(self, map_function, map_iterdata, chunksize=None, worker_processes=None,
             extra_args=None, extra_env=None, runtime_memory=None, chunk_size=None,
             chunk_n=None, obj_chunk_size=None, obj_chunk_number=None, timeout=None,
-            invoke_pool_threads=None, include_modules=[], exclude_modules=[]):
+            include_modules=[], exclude_modules=[]):
         """
         For running multiple function executions asynchronously
 
@@ -220,7 +220,6 @@ class FunctionExecutor:
         :param remote_invocation: Enable or disable remote_invocation mechanism
         :param timeout: Time that the functions have to complete their execution
                         before raising a timeout
-        :param invoke_pool_threads: Number of threads to use to invoke
         :param include_modules: Explicitly pickle these dependencies
         :param exclude_modules: Explicitly keep these modules from pickled
                                 dependencies
@@ -251,8 +250,7 @@ class FunctionExecutor:
                              chunk_size=chunk_size,
                              chunk_n=chunk_n,
                              obj_chunk_size=obj_chunk_size,
-                             obj_chunk_number=obj_chunk_number,
-                             invoke_pool_threads=invoke_pool_threads)
+                             obj_chunk_number=obj_chunk_number)
 
         futures = self.invoker.run_job(job)
         self.futures.extend(futures)
@@ -267,8 +265,8 @@ class FunctionExecutor:
                    worker_processes=None, extra_args=None, extra_env=None,
                    map_runtime_memory=None, obj_chunk_size=None, obj_chunk_number=None,
                    reduce_runtime_memory=None, chunk_size=None, chunk_n=None,
-                   timeout=None, invoke_pool_threads=None, reducer_one_per_object=False,
-                   reducer_wait_local=False, include_modules=[], exclude_modules=[]):
+                   timeout=None, reducer_one_per_object=False, reducer_wait_local=False,
+                   include_modules=[], exclude_modules=[]):
         """
         Map the map_function over the data and apply the reduce_function across all futures.
         This method is executed all within CF.
@@ -291,7 +289,6 @@ class FunctionExecutor:
         :param timeout: Time that the functions have to complete their execution before raising a timeout.
         :param reducer_one_per_object: Set one reducer per object after running the partitioner
         :param reducer_wait_local: Wait for results locally
-        :param invoke_pool_threads: Number of threads to use to invoke.
         :param include_modules: Explicitly pickle these dependencies.
         :param exclude_modules: Explicitly keep these modules from pickled dependencies.
 
@@ -320,8 +317,7 @@ class FunctionExecutor:
                                  obj_chunk_number=obj_chunk_number,
                                  include_modules=include_modules,
                                  exclude_modules=exclude_modules,
-                                 execution_timeout=timeout,
-                                 invoke_pool_threads=invoke_pool_threads)
+                                 execution_timeout=timeout)
 
         map_futures = self.invoker.run_job(map_job)
         self.futures.extend(map_futures)

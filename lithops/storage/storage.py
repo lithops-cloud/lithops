@@ -268,7 +268,7 @@ class InternalStorage:
         :param call_id: call ID of the call
         :return: A dictionary containing call's status, or None if no updated status
         """
-        status_key = create_status_key(JOBS_PREFIX, executor_id, job_id, call_id)
+        status_key = create_status_key(executor_id, job_id, call_id)
         try:
             data = self.storage.get_object(self.bucket, status_key)
             return json.loads(data.decode('ascii'))
@@ -282,7 +282,7 @@ class InternalStorage:
         :param call_id: call ID of the call
         :return: Output of the call.
         """
-        output_key = create_output_key(JOBS_PREFIX, executor_id, job_id, call_id)
+        output_key = create_output_key(executor_id, job_id, call_id)
         try:
             return self.storage.get_object(self.bucket, output_key)
         except StorageNoSuchKeyError:

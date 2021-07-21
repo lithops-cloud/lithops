@@ -126,11 +126,13 @@ class FuturesList(list):
 
     def wait(self, **kwargs):
         self._create_executor()
-        return self.executor.wait(self.alt_list, **kwargs)
+        fs_tt = self.alt_list if hasattr(self, 'alt_list') else self
+        return self.executor.wait(fs_tt, **kwargs)
 
     def get_result(self, **kwargs):
         self._create_executor()
-        return self.executor.get_result(self.alt_list, **kwargs)
+        fs_tt = self.alt_list if hasattr(self, 'alt_list') else self
+        return self.executor.get_result(fs_tt, **kwargs)
 
     def __reduce__(self):
         self.executor = None
