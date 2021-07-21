@@ -116,30 +116,38 @@ class FunctionExecutor:
         self.total_jobs = 0
         self.last_call = None
 
-        if self.config['lithops']['mode'] == LOCALHOST:
+        self.backend = self.config['lithops']['backend']
+        self.mode = self.config['lithops']['mode']
+
+        if self.mode == LOCALHOST:
             localhost_config = extract_localhost_config(self.config)
             self.compute_handler = LocalhostHandler(localhost_config)
-        elif self.config['lithops']['mode'] == SERVERLESS:
+        elif self.mode == SERVERLESS:
             serverless_config = extract_serverless_config(self.config)
             self.compute_handler = ServerlessHandler(serverless_config, self.internal_storage)
-        elif self.config['lithops']['mode'] == STANDALONE:
+        elif self.mode == STANDALONE:
             standalone_config = extract_standalone_config(self.config)
             self.compute_handler = StandaloneHandler(standalone_config)
 
         # Create the monitoring system
         monitoring_backend = self.config['lithops']['monitoring'].lower()
-        monitoring_config = self.config.get(monitoring_backend)
-        self.job_monitor = JobMonitor(monitoring_backend, monitoring_config)
+        self.job_monitor = JobMonitor(
+            executor_id=self.executor_id,
+            internal_storage=self.internal_storage,
+            backend=monitoring_backend,
+            config=self.config.get(monitoring_backend)
+        )
 
-        # Create the invokder
-        self.invoker = create_invoker(self.config,
-                                      self.executor_id,
-                                      self.internal_storage,
-                                      self.compute_handler,
-                                      self.job_monitor)
+        # Create the invoker
+        self.invoker = create_invoker(
+            config=self.config,
+            executor_id=self.executor_id,
+            internal_storage=self.internal_storage,
+            compute_handler=self.compute_handler,
+            job_monitor=self.job_monitor
+        )
 
-        logger.debug('Function executor for {} created with ID: {}'
-                     .format(self.config['lithops']['backend'], self.executor_id))
+        logger.debug(f'Function executor for {self.backend} created with ID: {self.executor_id}')
 
         self.log_path = None
 
@@ -397,6 +405,7 @@ class FunctionExecutor:
 
         except Exception as e:
             self.invoker.stop()
+            self.job_monitor.stop()
             if not fs and is_notebook():
                 del self.futures[len(self.futures) - len(futures):]
             if self.data_cleaner and not self.is_lithops_worker:
@@ -405,7 +414,6 @@ class FunctionExecutor:
 
         finally:
             present_jobs = {f.job_key for f in futures}
-            self.job_monitor.stop(present_jobs)
             if self.data_cleaner and not self.is_lithops_worker:
                 self.compute_handler.clear(present_jobs)
                 self.clean(clean_cloudobjects=False)
@@ -449,8 +457,7 @@ class FunctionExecutor:
                                        internal_storage=self.internal_storage))
                 f._read = True
 
-        logger.debug("ExecutorID {} Finished getting results"
-                     .format(self.executor_id))
+        logger.debug(f'ExecutorID {self.executor_id} - Finished getting results')
 
         if len(result) == 1 and self.last_call != 'map':
             return result[0]
@@ -473,14 +480,13 @@ class FunctionExecutor:
         ftrs_to_plot = [f for f in ftrs if (f.success or f.done) and not f.error]
 
         if not ftrs_to_plot:
-            logger.debug('ExecutorID {} - No futures ready to plot'
-                         .format(self.executor_id))
+            logger.debug(f'ExecutorID {self.executor_id} - No futures ready to plot')
             return
 
         logging.getLogger('matplotlib').setLevel(logging.WARNING)
         from lithops.plots import create_timeline, create_histogram
 
-        logger.info('ExecutorID {} - Creating execution plots'.format(self.executor_id))
+        logger.info(f'ExecutorID {self.executor_id} - Creating execution plots')
 
         create_timeline(ftrs_to_plot, dst)
         create_histogram(ftrs_to_plot, dst)
@@ -517,8 +523,7 @@ class FunctionExecutor:
         jobs_to_clean = present_jobs - self.cleaned_jobs
 
         if jobs_to_clean:
-            logger.info("ExecutorID {} - Cleaning temporary data"
-                        .format(self.executor_id))
+            logger.info(f'ExecutorID {self.executor_id} - Cleaning temporary data')
             data = {'jobs_to_clean': jobs_to_clean,
                     'clean_cloudobjects': clean_cloudobjects,
                     'storage_config': self.internal_storage.get_storage_config()}
