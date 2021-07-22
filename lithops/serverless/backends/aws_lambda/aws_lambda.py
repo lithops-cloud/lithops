@@ -545,9 +545,15 @@ class AWSLambdaBackend:
             headers = {'Host': self.host, 'X-Amz-Invocation-Type': 'Event'}
             url = f'https://{self.host}/2015-03-31/functions/{function_name}/invocations'
             request = AWSRequest(method="POST", url=url, data=json.dumps(payload, default=str), headers=headers)
-            SigV4Auth(self.credentials, "lambda", "us-east-1").add_auth(request)
+            SigV4Auth(self.credentials, "lambda", self.region_name).add_auth(request)
 
-            r = self.session.send(request.prepare())
+            invoked = False
+            while not invoked:
+                try:
+                    r = self.session.send(request.prepare())
+                    invoked = True
+                except Exception:
+                    pass
 
             if r.status_code == 202:
                 return r.headers['x-amzn-RequestId']

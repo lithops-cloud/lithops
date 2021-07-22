@@ -39,6 +39,9 @@ def function_invoker(job_payload):
            '__LITHOPS_SESSION_ID': job.job_key}
     os.environ.update(env)
 
+    backend = config['lithops']['backend']
+    config[backend]['invoke_pool_threads'] = 128
+
     # Create the internal_storage handler
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
