@@ -240,7 +240,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
             FUNCTION_CACHE.add(job.func_key)
         else:
             logger.debug('ExecutorID {} | JobID {} - Function and modules '
-                         'in cache'.format(executor_id, job_id))
+                         'found in local cache'.format(executor_id, job_id))
             host_job_meta['host_func_upload_time'] = 0
 
     else:

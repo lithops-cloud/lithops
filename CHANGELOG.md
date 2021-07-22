@@ -6,9 +6,10 @@
 ### Added
 - [Storage] Added MinIO storage backend
 - [Core] Allow to pass function args as part of the invocation payload in FaaS backends
-- [Core] Optimize call_async() calls with an internal function cache system
+- [Core] Optimize call_async() calls with an internal function caching system
 
 ### Changed
+- [Core] Improved performance and efficiency of the lithops cleaner background process
 - [AWS Lambda] Use layer from Klayers API for pre-compiled Amazon Linux numpy binaries
 
 ### Fixes
@@ -19,6 +20,7 @@
 - [Core] Fixed get_result() execution after wait() when throw_except is set to False
 - [Core] Fixed internal executions
 - [Core] Fixed 'lithops storage list' CLI when a bucket is empty
+- [Standalone] Fixed execution
 
 ### Deleted
 - [Core] Deleted invoke_pool_threads param from map and map_reduce calls. Now it must be set at backend level in config

@@ -24,11 +24,13 @@ from lithops.version import __version__
 from lithops.constants import CACHE_DIR, RUNTIMES_PREFIX, JOBS_PREFIX, TEMP_PREFIX
 from lithops.utils import is_lithops_worker
 from lithops.storage.utils import create_status_key, create_output_key, \
-    status_key_suffix, init_key_suffix, CloudObject, StorageNoSuchKeyError,\
-    create_job_key
+    status_key_suffix, init_key_suffix, CloudObject, StorageNoSuchKeyError
 from lithops.config import extract_storage_config, default_storage_config
 
 logger = logging.getLogger(__name__)
+
+
+RUNTIME_META_CACHE = {}
 
 
 class Storage:
@@ -241,14 +243,13 @@ class InternalStorage:
         """
         return self.storage.get_object(self.bucket, key)
 
-    def get_job_status(self, executor_id, job_id):
+    def get_job_status(self, executor_id):
         """
         Get the status of a callset.
         :param executor_id: executor's ID
         :return: A list of call IDs that have updated status.
         """
-        job_key = create_job_key(executor_id, job_id)
-        callset_prefix = '/'.join([JOBS_PREFIX, job_key])
+        callset_prefix = '/'.join([JOBS_PREFIX, executor_id])
         keys = self.storage.list_keys(self.bucket, callset_prefix)
 
         running_keys = [k.split('/') for k in keys if init_key_suffix in k]
@@ -295,14 +296,22 @@ class InternalStorage:
         :return: runtime metadata
         """
 
+        global RUNTIME_META_CACHE
+
         path = [RUNTIMES_PREFIX, __version__,  key+".meta.json"]
         filename_local_path = os.path.join(CACHE_DIR, *path)
 
-        if not is_lithops_worker() and os.path.exists(filename_local_path):
-            logger.debug("Runtime metadata found in local cache")
+        if '/'.join(path) in RUNTIME_META_CACHE:
+            logger.debug("Runtime metadata found in local memory cache")
+            return RUNTIME_META_CACHE['/'.join(path)]
+
+        elif not is_lithops_worker() and os.path.exists(filename_local_path):
+            logger.debug("Runtime metadata found in local disk cache")
             with open(filename_local_path, "r") as f:
                 runtime_meta = json.loads(f.read())
+            RUNTIME_META_CACHE['/'.join(path)] = runtime_meta
             return runtime_meta
+
         else:
             logger.debug("Runtime metadata not found in local cache. Retrieving it from storage")
             try:
@@ -323,6 +332,7 @@ class InternalStorage:
                 except Exception as e:
                     logger.error("Could not save runtime meta to local cache: {}".format(e))
 
+                RUNTIME_META_CACHE['/'.join(path)] = runtime_meta
                 return runtime_meta
             except StorageNoSuchKeyError:
                 logger.debug('Runtime metadata not found in storage')
