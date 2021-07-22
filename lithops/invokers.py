@@ -452,9 +452,12 @@ class FaaSInvoker(Invoker):
         Run a job
         """
         futures = self._run_job(job)
-        self.job_monitor.start(futures, job_id=job.job_id,
-                               chunksize=job.chunksize,
-                               generate_tokens=True)
+        self.job_monitor.start(
+            fs=futures,
+            job_id=job.job_id,
+            chunksize=job.chunksize,
+            generate_tokens=True
+        )
 
         return futures
 
