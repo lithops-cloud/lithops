@@ -253,6 +253,7 @@ def list_bucket(prefix, bucket, backend, debug):
             size = sizeof_fmt(obj['Size'])
             print('{:{width}} \t {} \t {:>9}'.format(key, date, size, width=width))
         print()
+        print('Total objects: {}'.format(len(objects)))
     else:
         width = 10
         print('\n{:{width}} \t {} \t\t {:>9}'.format('Key', 'Last modified', 'Size', width=width))

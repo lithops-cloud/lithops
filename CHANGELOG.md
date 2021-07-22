@@ -1,12 +1,12 @@
 # Changelog
 
-
 ## [v2.3.6.dev0]
 
 ### Added
 - [Storage] Added MinIO storage backend
 - [Core] Allow to pass function args as part of the invocation payload in FaaS backends
 - [Core] Optimize call_async() calls with an internal function caching system
+- [AWS Lambda] New invoke method
 
 ### Changed
 - [Core] Improved performance and efficiency of the lithops cleaner background process
