@@ -28,6 +28,10 @@ import botocore.exceptions
 import base64
 import requests
 
+from botocore.httpsession import URLLib3Session
+from botocore.awsrequest import AWSRequest
+from botocore.auth import SigV4Auth
+
 from lithops.constants import TEMP as TEMP_PATH
 from lithops.constants import COMPUTE_CLI_MSG
 from . import config as lambda_config
@@ -63,6 +67,8 @@ class AWSLambdaBackend:
         self.name = 'aws_lambda'
         self.type = 'faas'
         self.aws_lambda_config = aws_lambda_config
+        self.internal_storage = internal_storage
+        self.beta_features = aws_lambda_config.get('beta_features', False)
 
         self.user_key = aws_lambda_config['access_key_id'][-4:]
         self.package = 'lithops_v{}_{}'.format(lithops.__version__, self.user_key)
@@ -70,12 +76,17 @@ class AWSLambdaBackend:
         self.role_arn = aws_lambda_config['execution_role']
 
         logger.debug('Creating Boto3 AWS Session and Lambda Client')
-        self.aws_session = boto3.Session(aws_access_key_id=aws_lambda_config['access_key_id'],
-                                         aws_secret_access_key=aws_lambda_config['secret_access_key'],
-                                         region_name=self.region_name)
+        self.aws_session = boto3.Session(
+            aws_access_key_id=aws_lambda_config['access_key_id'],
+            aws_secret_access_key=aws_lambda_config['secret_access_key'],
+            region_name=self.region_name
+        )
         self.lambda_client = self.aws_session.client('lambda', region_name=self.region_name)
 
-        self.internal_storage = internal_storage
+        if self.beta_features:
+            self.credentials = self.aws_session.get_credentials()
+            self.session = URLLib3Session()
+            self.host = f'lambda.{self.region_name}.amazonaws.com'
 
         if self.aws_lambda_config['account_id']:
             self.account_id = self.aws_lambda_config['account_id']
@@ -527,7 +538,22 @@ class AWSLambdaBackend:
         @param payload: invoke dict payload
         @return: invocation ID
         """
+
         function_name = self._format_function_name(runtime_name, runtime_memory)
+
+        if self.beta_features:
+            headers = {'Host': self.host, 'X-Amz-Invocation-Type': 'Event'}
+            url = f'https://{self.host}/2015-03-31/functions/{function_name}/invocations'
+            request = AWSRequest(method="POST", url=url, data=json.dumps(payload, default=str), headers=headers)
+            SigV4Auth(self.credentials, "lambda", "us-east-1").add_auth(request)
+
+            r = self.session.send(request.prepare())
+
+            if r.status_code == 202:
+                return r.headers['x-amzn-RequestId']
+            else:
+                logger.debug(r.text)
+                raise Exception(r.content)
 
         response = self.lambda_client.invoke(
             FunctionName=function_name,

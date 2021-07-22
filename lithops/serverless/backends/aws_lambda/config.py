@@ -121,5 +121,8 @@ def load_config(config_data):
     if not all([efs_conf['mount_path'].startswith('/mnt') for efs_conf in config_data['aws_lambda']['efs']]):
         raise Exception("All mount paths must start with '/mnt' on 'aws_lambda/efs/*/mount_path' section")
 
+    if config_data['aws_lambda'].get('beta_features', False):
+        config_data['aws_lambda']['invoke_pool_threads'] = 64
+
     # Put credential keys to 'aws_lambda' dict entry
-    config_data['aws_lambda'] = {**config_data['aws_lambda'], **config_data['aws']}
+    config_data['aws_lambda'].update(config_data['aws'])
