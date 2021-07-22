@@ -75,3 +75,6 @@ def load_config(config_data):
     if 'region' not in config_data['ibm_cos']:
         endpoint = config_data['ibm_cos']['endpoint']
         config_data['ibm_cos']['region'] = endpoint.split('//')[1].split('.')[1]
+
+    if 'storage_bucket' in config_data['ibm_cos']:
+        config_data['lithops']['storage_bucket'] = config_data['ibm_cos']['storage_bucket']

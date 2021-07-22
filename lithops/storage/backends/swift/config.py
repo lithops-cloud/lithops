@@ -14,13 +14,17 @@
 # limitations under the License.
 #
 
+REQ_PARAMS = ('auth_url', 'user_id', 'project_id', 'password', 'region')
+
+
 def load_config(config_data):
     if 'swift' not in config_data:
         raise Exception("swift section is mandatory in the configuration")
 
-    required_parameters = ('auth_url', 'user_id', 'project_id', 'password', 'region')
+    for param in REQ_PARAMS:
+        if param not in config_data['swift']:
+            msg = f"'{param}' is mandatory under 'swift' section of the configuration"
+            raise Exception(msg)
 
-    if set(required_parameters) <= set(config_data['swift']):
-        pass
-    else:
-        raise Exception('You must provide {} to access to Swift'.format(required_parameters))
+    if 'storage_bucket' in config_data['swift']:
+        config_data['lithops']['storage_bucket'] = config_data['swift']['storage_bucket']

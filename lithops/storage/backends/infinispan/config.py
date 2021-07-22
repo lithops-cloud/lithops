@@ -14,12 +14,16 @@
 # limitations under the License.
 #
 
+REQ_PARAMS = ('endpoint', 'username', 'password')
+
+
 def load_config(config_data):
     if 'infinispan' not in config_data:
         raise Exception("infinispan section is mandatory in the configuration")
 
-    required_keys_1 = ('endpoint', 'username', 'password')
+    for param in REQ_PARAMS:
+        if param not in config_data['infinispan']:
+            msg = f"'{param}' is mandatory under 'infinispan' section of the configuration"
+            raise Exception(msg)
 
-    if not set(required_keys_1) <= set(config_data['infinispan']):
-        raise Exception('You must provide {} to access to Infinispan'
-                        .format(required_keys_1))
+    config_data['lithops']['storage_bucket'] = 'storage'

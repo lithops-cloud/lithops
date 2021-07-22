@@ -15,7 +15,7 @@
 #
 
 
-REQ_PARAMS = ['secret_access_key', 'access_key_id']
+REQ_PARAMS = ('secret_access_key', 'access_key_id')
 
 
 def load_config(config_data):
@@ -35,3 +35,6 @@ def load_config(config_data):
 
     if not config_data['aws_s3']['endpoint'].startswith('http'):
         raise Exception('S3 endpoint must start with http:// or https://')
+
+    if 'storage_bucket' in config_data['aws_s3']:
+        config_data['lithops']['storage_bucket'] = config_data['aws_s3']['storage_bucket']

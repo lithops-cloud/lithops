@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-REQ_PARAMS = ['endpoint', 'secret_access_key', 'access_key_id']
+REQ_PARAMS = ('endpoint', 'secret_access_key', 'access_key_id')
 
 
 def load_config(config_data):
@@ -28,3 +28,6 @@ def load_config(config_data):
 
     if not config_data['minio']['endpoint'].startswith('http'):
         raise Exception('MinIO endpoint must start with http:// or https://')
+
+    if 'storage_bucket' in config_data['minio']:
+        config_data['lithops']['storage_bucket'] = config_data['minio']['storage_bucket']

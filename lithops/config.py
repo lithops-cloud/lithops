@@ -1,6 +1,6 @@
 #
-# (C) Copyright IBM Corp. 2019
-# (C) Copyright Cloudlab URV 2020
+# (C) Copyright IBM Corp. 2021
+# (C) Copyright Cloudlab URV 2021
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -159,6 +159,10 @@ def default_config(config_data=None, config_overwrite={}):
     if mode == constants.LOCALHOST:
         logger.debug("Loading compute backend module: localhost")
         config_data['lithops']['workers'] = 1
+
+        if 'storage' not in config_data['lithops']:
+            config_data['lithops']['storage'] = constants.LOCALHOST
+
         if 'worker_processes' not in config_data['lithops']:
             config_data['lithops']['worker_processes'] = CPU_COUNT
         if constants.LOCALHOST not in config_data or \
@@ -251,17 +255,14 @@ def default_storage_config(config_data=None, backend=None):
     if backend:
         config_data['lithops']['storage'] = backend
 
-    if config_data['lithops']['storage'] == constants.LOCALHOST:
-        config_data['lithops']['storage_bucket'] = 'storage'
-    else:
-        if 'storage_bucket' not in config_data['lithops']:
-            raise Exception("storage_bucket is mandatory in "
-                            "lithops section of the configuration")
-
     sb = config_data['lithops']['storage']
     logger.debug("Loading Storage backend module: {}".format(sb))
     sb_config = importlib.import_module('lithops.storage.backends.{}.config'.format(sb))
     sb_config.load_config(config_data)
+
+    if 'storage_bucket' not in config_data['lithops']:
+        raise Exception("storage_bucket is mandatory in "
+                        "lithops section of the configuration")
 
     return config_data
 

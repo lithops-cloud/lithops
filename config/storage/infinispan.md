@@ -15,7 +15,6 @@ Lithops with Infinispan as storage backend.
 ```yaml
     lithops:
         storage: infinispan
-        storage_bucket: storage
 
     infinispan:
         username   : <USER_NAME>
