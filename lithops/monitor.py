@@ -51,7 +51,6 @@ class Monitor(threading.Thread):
         self.generate_tokens = generate_tokens
         self.config = config
         self.daemon = True
-        self.lock = True
 
         # vars for _generate_tokens
         self.workers = {}
@@ -127,8 +126,8 @@ class Monitor(threading.Thread):
 
 class RabbitmqMonitor(Monitor):
 
-    def __init__(self, job, internal_storage, token_bucket_q, generate_tokens, config):
-        super().__init__(job, internal_storage, token_bucket_q, generate_tokens, config)
+    def __init__(self, executor_id, internal_storage, token_bucket_q, generate_tokens, config):
+        super().__init__(executor_id, internal_storage, token_bucket_q, generate_tokens, config)
 
         self.rabbit_amqp_url = config.get('amqp_url')
         self.queue = f'lithops-{self.executor_id}'
@@ -138,8 +137,7 @@ class RabbitmqMonitor(Monitor):
         """
         Creates RabbitMQ queues and exchanges of a given job
         """
-        logger.debug('ExecutorID {} | JobID {} - Creating RabbitMQ resources'
-                     .format(self.job.executor_id, self.job.job_id))
+        logger.debug(f'ExecutorID {self.executor_id} - Creating RabbitMQ queue {self.queue}')
 
         self.pikaparams = pika.URLParameters(self.rabbit_amqp_url)
         self.connection = pika.BlockingConnection(self.pikaparams)
@@ -198,16 +196,14 @@ class RabbitmqMonitor(Monitor):
             self.callids_done_worker[worker_id] = []
         self.callids_done_worker[worker_id].append(call_id)
 
-        chunksize = self.job_chunksize[call_status['job_id']]
         if worker_id not in self.workers_done and \
-           len(self.callids_done_worker[worker_id]) == chunksize:
+           len(self.callids_done_worker[worker_id]) == call_status['chunksize']:
             self.workers_done.append(worker_id)
             if self.should_run:
                 self.token_bucket_q.put('#')
 
     def run(self):
-        logger.debug('ExecutorID {} |  Starting RabbitMQ job monitor'
-                     .format(self.executor_id))
+        logger.debug(f'ExecutorID {self.executor_id} |  Starting RabbitMQ job monitor')
         channel = self.connection.channel()
 
         def callback(ch, method, properties, body):
@@ -224,8 +220,7 @@ class RabbitmqMonitor(Monitor):
                 ch.stop_consuming()
                 ch.close()
                 self._print_status_log()
-                logger.debug('ExecutorID {} | RabbitMQ job monitor finished'
-                             .format(self.job.executor_id, self.job.job_id))
+                logger.debug(f'ExecutorID {self.executor_id} | RabbitMQ job monitor finished')
 
         channel.basic_consume(self.queue, callback, auto_ack=True)
         threading.Thread(target=channel.start_consuming, daemon=True).start()

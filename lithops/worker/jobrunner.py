@@ -63,7 +63,7 @@ class JobRunner:
         self.internal_storage = internal_storage
         self.lithops_config = job.config
 
-        self.output_key = create_output_key(job.executor_id, job.job_id, job.id)
+        self.output_key = create_output_key(job.executor_id, job.job_id, job.call_id)
 
         # Setup stats class
         self.stats = JobStats(self.job.stats_file)
@@ -107,7 +107,7 @@ class JobRunner:
                 raise Exception('Cannot create the rabbitmq client: missing configuration')
 
         if 'id' in func_sig.parameters:
-            data['id'] = int(self.job.id)
+            data['id'] = int(self.job.call_id)
 
     def _wait_futures(self, data):
         logger.info('Reduce function: waiting for map results')
@@ -209,7 +209,7 @@ class JobRunner:
                                         value=time.time(),
                                         labels=(
                                             ('job_id', '-'.join([self.job.executor_id, self.job.job_id])),
-                                            ('call_id', self.job.id),
+                                            ('call_id', self.job.call_id),
                                             ('function_name', fn_name)
                                         ))
 
@@ -225,7 +225,7 @@ class JobRunner:
                                         value=time.time(),
                                         labels=(
                                             ('job_id', '-'.join([self.job.executor_id, self.job.job_id])),
-                                            ('call_id', self.job.id),
+                                            ('call_id', self.job.call_id),
                                             ('function_name', fn_name)
                                         ))
 

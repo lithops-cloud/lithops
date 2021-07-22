@@ -38,9 +38,10 @@ class CallStatus:
             'python_version': os.environ.get("PYTHON_VERSION"),
             'worker_start_tstamp': time.time(),
             'host_submit_tstamp': job.host_submit_tstamp,
-            'call_id': job.id,
+            'call_id': job.call_id,
             'job_id': job.job_id,
-            'executor_id': job.executor_id
+            'executor_id': job.executor_id,
+            'chunksize': job.chunksize
         }
 
         if strtobool(os.environ.get('WARM_CONTAINER', 'False')):

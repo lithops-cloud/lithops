@@ -403,7 +403,7 @@ class FunctionExecutor:
                  threadpool_size=threadpool_size,
                  wait_dur_sec=wait_dur_sec)
 
-        except Exception as e:
+        except (KeyboardInterrupt, Exception) as e:
             self.invoker.stop()
             self.job_monitor.stop()
             if not fs and is_notebook():
