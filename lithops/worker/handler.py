@@ -84,9 +84,9 @@ def function_handler(payload):
             p.start()
             logger.info('Worker process {} started'.format(runner_id))
 
-        for task_id in job.call_ids:
+        for call_id in job.call_ids:
             data = job_data.pop(0)
-            job_queue.put((job, task_id, data))
+            job_queue.put((job, call_id, data))
 
         for i in range(processes):
             job_queue.put(ShutdownSentinel())
@@ -111,12 +111,12 @@ def process_runner(job_queue, internal_storage):
         if isinstance(event, ShutdownSentinel):
             break
 
-        job, task_id, data = event
-        job.id = task_id
+        job, call_id, data = event
+        job.call_id = call_id
         job.data = data
 
         bucket = job.config['lithops']['storage_bucket']
-        job.task_dir = os.path.join(LITHOPS_TEMP_DIR, bucket, JOBS_PREFIX, job.job_key, task_id)
+        job.task_dir = os.path.join(LITHOPS_TEMP_DIR, bucket, JOBS_PREFIX, job.job_key, job.call_id)
         job.log_file = os.path.join(job.task_dir, 'execution.log')
         os.makedirs(job.task_dir, exist_ok=True)
 
@@ -135,7 +135,7 @@ def run_job(job, internal_storage):
 
     backend = os.environ.get('__LITHOPS_BACKEND', '')
     logger.info("Lithops v{} - Starting {} execution".format(__version__, backend))
-    logger.info("Execution ID: {}/{}".format(job.job_key, job.id))
+    logger.info("Execution ID: {}/{}".format(job.job_key, job.call_id))
 
     if job.runtime_memory:
         logger.debug('Runtime: {} - Memory: {}MB - Timeout: {} seconds'
@@ -147,7 +147,7 @@ def run_job(job, internal_storage):
     env['LITHOPS_WORKER'] = 'True'
     env['PYTHONUNBUFFERED'] = 'True'
     env['LITHOPS_CONFIG'] = json.dumps(job.config)
-    env['__LITHOPS_SESSION_ID'] = '-'.join([job.job_key, job.id])
+    env['__LITHOPS_SESSION_ID'] = '-'.join([job.job_key, job.call_id])
     os.environ.update(env)
 
     try:
