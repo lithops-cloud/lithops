@@ -26,7 +26,5 @@ def load_config(config_data=None):
             msg = f"'{param}' is mandatory under 'azure_storage' section of the configuration"
             raise Exception(msg)
 
-    config_data['azure_blob'] = config_data['azure_storage'].copy()
-
-    if 'storage_bucket' in config_data['azure_blob']:
-        config_data['lithops']['storage_bucket'] = config_data['azure_blob']['storage_bucket']
+    if 'storage_bucket' in config_data['azure_storage']:
+        config_data['lithops']['storage_bucket'] = config_data['azure_storage']['storage_bucket']

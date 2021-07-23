@@ -24,7 +24,11 @@ Lithops with Redis as storage backend.
         password: <REDIS_PASSWORD>
 ```
 
-- `host`: The host ip adress where you installed the Redis server.
-- `port`: The port where the redis server is listening (default: 6379)
-- `password`: The password you set in the Redis configuration file
  
+#### Summary of configuration keys for Redis:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|redis | host | |yes | The host ip adress where you installed the Redis server. |
+|redis | port | |no | The port where the redis server is listening (default: 6379) |
+|redis | password | |no | The password you set in the Redis configuration file (if any) |

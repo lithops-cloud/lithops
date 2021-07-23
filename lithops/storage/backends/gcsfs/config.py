@@ -19,7 +19,7 @@ REQ_PARAMS = ('project_id',)
 
 def load_config(config_data):
     if 'gcsfs' not in config_data:
-        raise Exception("'gcsfs' section is mandatory in the configuration")
+        raise Exception("gcsfs section is mandatory in the configuration")
 
     for param in REQ_PARAMS:
         if param not in config_data['gcsfs']:

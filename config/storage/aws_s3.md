@@ -32,5 +32,19 @@ Lithops with AWS S3 as storage backend.
         endpoint : <S3_ENDPOINT_URI>
     ```
 
- - `access_key_id` and `secret_access_key`: Account access keys to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one.
- - `endpoint`: Endpoint URL of the bucket (e.g. `https://s3.us-east-1.amazonaws.com`)
+ 
+### Summary of configuration keys for AWS:
+
+#### AWS:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|aws | access_key_id | |yes | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
+|aws | secret_access_key | |yes | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
+
+#### Summary of configuration keys for AWS S3:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|aws_s3 | endpoint | |yes | Endpoint to your COS account. Make sure to use the full path with 'https://' as prefix. e.g. `https://s3.us-east-1.amazonaws.com` |
+|aws_s3 | storage_bucket | | no | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. If set, this will overwrite the `storage_bucket` set in `lithops` section |
