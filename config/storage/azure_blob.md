@@ -64,7 +64,7 @@ $ python3 -m pip install lithops[azure]
       storage_account_key: <STORAGE_ACCOUNT_KEY>
 ```
 
-#### Summary of configuration keys for Azure:
+#### Summary of configuration keys for Azure Storage:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|

@@ -502,7 +502,6 @@ class FunctionExecutor:
         :param clean_cloudobjects: true/false
         :param spawn_cleaner true/false
         """
-
         os.makedirs(CLEANER_DIR, exist_ok=True)
 
         def save_data_to_clean(data):
@@ -510,8 +509,10 @@ class FunctionExecutor:
                 pickle.dump(data, temp)
 
         if cs:
-            data = {'cos_to_clean': list(cs),
-                    'storage_config': self.internal_storage.get_storage_config()}
+            data = {
+                'cos_to_clean': list(cs),
+                'storage_config': self.internal_storage.get_storage_config()
+            }
             save_data_to_clean(data)
             if not fs:
                 return
@@ -524,16 +525,17 @@ class FunctionExecutor:
 
         if jobs_to_clean:
             logger.info(f'ExecutorID {self.executor_id} - Cleaning temporary data')
-            data = {'jobs_to_clean': jobs_to_clean,
-                    'clean_cloudobjects': clean_cloudobjects,
-                    'storage_config': self.internal_storage.get_storage_config()}
+            data = {
+                'jobs_to_clean': jobs_to_clean,
+                'clean_cloudobjects': clean_cloudobjects,
+                'storage_config': self.internal_storage.get_storage_config()
+            }
             save_data_to_clean(data)
             self.cleaned_jobs.update(jobs_to_clean)
 
         if (jobs_to_clean or cs) and spawn_cleaner:
-            log_file = open(CLEANER_LOG_FILE, 'a')
             cmdstr = [sys.executable, '-m', 'lithops.scripts.cleaner']
-            sp.Popen(' '.join(cmdstr), shell=True, stdout=log_file, stderr=log_file)
+            sp.Popen(' '.join(cmdstr), shell=True)
 
     def job_summary(self, cloud_objects_n=0):
         """

@@ -15,6 +15,7 @@
 #
 
 import os
+import sys
 import time
 import pickle
 import logging
@@ -25,8 +26,13 @@ from lithops.storage.utils import clean_bucket
 from lithops.constants import JOBS_PREFIX, TEMP_PREFIX, CLEANER_DIR,\
     CLEANER_PID_FILE, CLEANER_LOG_FILE
 
+log_file_stream = open(CLEANER_LOG_FILE, 'a')
+sys.stdout = log_file_stream
+sys.stderr = log_file_stream
+
+
 logger = logging.getLogger('lithops')
-logging.basicConfig(filename=CLEANER_LOG_FILE, level=logging.INFO,
+logging.basicConfig(stream=log_file_stream, level=logging.INFO,
                     format=('%(asctime)s [%(levelname)s] %(module)s'
                             ' [%(threadName)s] - %(funcName)s: %(message)s'))
 logger.setLevel('DEBUG')
