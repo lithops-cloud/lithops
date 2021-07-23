@@ -7,7 +7,7 @@ Lithops with Redis as storage backend.
 
 1. Install Redis >= 5.
 
-2. Secure your installation by setting a password in the redis configuraion file.
+2. Secure your installation by setting a password in the redis configuration file.
 
 
 ### Configuration
@@ -17,7 +17,6 @@ Lithops with Redis as storage backend.
 ```yaml
     lithops:
         storage: redis
-        storage_bucket: storage
 
     redis:
         host : <REDIS_HOST_IP>
@@ -25,7 +24,11 @@ Lithops with Redis as storage backend.
         password: <REDIS_PASSWORD>
 ```
 
-- `host`: The host ip adress where you installed the Redis server.
-- `port`: The port where the redis server is listening (default: 6379)
-- `password`: The password you set in the Redis configuration file
  
+#### Summary of configuration keys for Redis:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|redis | host | |yes | The host ip adress where you installed the Redis server. |
+|redis | port | |no | The port where the redis server is listening (default: 6379) |
+|redis | password | |no | The password you set in the Redis configuration file (if any) |

@@ -27,10 +27,15 @@ Lithops with OpenStack Swift as storage backend.
         project_id : <SWIFT_PROJECT_ID>
         password   : <SWIFT_PASSWORD>
 ```
-
-- `auth_url`: The keystone endpoint for authenthication.
-- `region`: The region of your container
-- `user_id`: The user ID
-- `project_id`: The Project ID
-- `password`: The password
  
+
+#### Summary of configuration keys for Swift:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|swift | auth_url | |yes | The keystone endpoint for authenthication |
+|swift | region | |yes | The region of your container |
+|swift | project_id | |yes | The Project ID |
+|swift | user_id | |yes | The user ID |
+|swift | password | |yes | The password |
+|swift | storage_bucket | | no | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. If set, this will overwrite the `storage_bucket` set in `lithops` section |

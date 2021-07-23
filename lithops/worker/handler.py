@@ -1,5 +1,4 @@
 #
-# (C) Copyright PyWren Team 2018
 # (C) Copyright IBM Corp. 2020
 # (C) Copyright Cloudlab URV 2020
 #

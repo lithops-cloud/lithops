@@ -14,15 +14,17 @@
 # limitations under the License.
 #
 
-REQUIRED_AZURE_STORAGE_PARAMS = ['storage_account_name', 'storage_account_key']
+REQ_PARAMS = ('storage_account_name', 'storage_account_key')
 
 
 def load_config(config_data=None):
     if 'azure_storage' not in config_data:
         raise Exception("azure_storage section is mandatory in the configuration")
 
-    for key in REQUIRED_AZURE_STORAGE_PARAMS:
-        if key not in config_data['azure_storage']:
-            raise Exception('{} key is mandatory in azure section of the configuration'.format(key))
+    for param in REQ_PARAMS:
+        if param not in config_data['azure_storage']:
+            msg = f"'{param}' is mandatory under 'azure_storage' section of the configuration"
+            raise Exception(msg)
 
-    config_data['azure_blob'] = config_data['azure_storage']
+    if 'storage_bucket' in config_data['azure_storage']:
+        config_data['lithops']['storage_bucket'] = config_data['azure_storage']['storage_bucket']

@@ -15,7 +15,7 @@
 #
 
 
-REQ_PARAMS = ['endpoint', 'secret_access_key', 'access_key_id']
+REQ_PARAMS = ('endpoint', 'secret_access_key', 'access_key_id')
 
 
 def load_config(config_data):
@@ -29,3 +29,6 @@ def load_config(config_data):
 
     if not config_data['ceph']['endpoint'].startswith('http'):
         raise Exception('Ceph endpoint must start with http:// or https://')
+
+    if 'storage_bucket' in config_data['ceph']:
+        config_data['lithops']['storage_bucket'] = config_data['ceph']['storage_bucket']

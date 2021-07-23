@@ -15,7 +15,6 @@ Lithops with Infinispan as storage backend.
 ```yaml
     lithops:
         storage: infinispan
-        storage_bucket: storage
 
     infinispan:
         username   : <USER_NAME>
@@ -23,9 +22,13 @@ Lithops with Infinispan as storage backend.
         endpoint   : <INFINISPAN_SERVER_URL:PORT>
 ```
 
-- `username`: The username
-- `password`: The password
-- `endpoint`: The endpoint
-- `cache_name`: cahce name. # Optional 'default' in default value
-- `cache_type`: Type of the cache. # Optional 'default' in default value
  
+#### Summary of configuration keys for Infinispan:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|infinispan | endpoint | |yes | Endpoint to your Infinispan server |
+|infinispan | username | |yes | The username |
+|infinispan | password | |yes | The password |
+|infinispan | cache_name | | no | cahce name. # Optional 'default' in default value |
+|infinispan | cache_type | | no | Type of the cache. # Optional 'default' in default value |

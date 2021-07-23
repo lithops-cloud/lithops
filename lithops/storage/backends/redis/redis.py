@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 class RedisBackend:
     def __init__(self, config):
         logger.debug("Creating Redis storage client")
-        config.pop('user_agent', None)
+        self.user_agent = config.pop('user_agent')
         self.config = config
         self.host = self.config['host']
         self._client = redis.StrictRedis(**config)
