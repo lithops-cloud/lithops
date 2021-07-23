@@ -7,6 +7,7 @@
 - [Core] Allow to pass function args as part of the invocation payload in FaaS backends
 - [Core] Optimize call_async() calls with an internal function caching system
 - [AWS Lambda] New invoke method
+- [Core] Allow to set storage_bucket at storage backend level in config
 
 ### Changed
 - [Core] Improved performance and efficiency of the lithops cleaner background process

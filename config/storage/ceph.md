@@ -26,15 +26,12 @@ Lithops with Ceph storage backend.
         secret_access_key: <SECRET_ACCESS_KEY>
 ```
 
-- `endpoint`: The host ip adress where you installed the Ceph server. Must start with http:// or https://
-- `access_key_id`, `secret_access_key`: Access Key and Secret key provided when you created the user
-
  
 #### Summary of configuration keys for Ceph:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ceph | endpoint | |yes | Endpoint to your COS account. Make sure to use the full path with 'https://' as prefix. |
+|ceph | endpoint | |yes | The host ip adress where you installed the Ceph server. Must start with http:// or https:// |
 |ceph | access_key_id | |yes | Account user access key |
 |ceph | secret_access_key | |yes | Account user secret access key |
 |ceph | storage_bucket | | no | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. If set, this will overwrite the `storage_bucket` set in `lithops` section |

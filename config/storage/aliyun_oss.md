@@ -27,7 +27,7 @@ $ python3 -m pip install lithops[aliyun]
     access_key_secret: <ACCESS_KEY_SECRET>
 ```
 
-#### Summary of configuration keys for Azure:
+#### Summary of configuration keys for Aliyun Object Storage Service:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|

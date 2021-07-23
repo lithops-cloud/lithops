@@ -24,7 +24,7 @@ import subprocess as sp
 from shutil import copyfile
 
 from lithops.constants import TEMP, LITHOPS_TEMP_DIR, JOBS_PREFIX,\
-    RN_LOG_FILE, COMPUTE_CLI_MSG
+    COMPUTE_CLI_MSG
 from lithops.utils import is_unix_system
 
 logger = logging.getLogger(__name__)
@@ -52,6 +52,8 @@ class LocalhostHandler:
             self.env = DockerEnv(self.runtime, pull_runtime)
             self.env_type = 'docker'
 
+        self.jobs = {}  # dict to store executed jobs (job_keys) and PIDs
+
         msg = COMPUTE_CLI_MSG.format('Localhost compute')
         logger.info("{}".format(msg))
 
@@ -72,16 +74,15 @@ class LocalhostHandler:
         storage_bucket = job_payload['config']['lithops']['storage_bucket']
         total_calls = len(job_payload['call_ids'])
 
-        logger.debug('ExecutorID {} | JobID {} - Going to '
-                     'run {} activations in localhost worker'
-                     .format(executor_id, job_id, total_calls))
+        logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going to '
+                     f'run {total_calls} activations in localhost worker')
 
         if not os.path.isfile(RUNNER):
             self.env.setup(runtime)
 
         local_job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket, JOBS_PREFIX)
-        docker_job_dir = '/tmp/lithops/{}/{}'.format(storage_bucket, JOBS_PREFIX)
-        job_file = '{}-job.json'.format(job_key)
+        docker_job_dir = f'/tmp/lithops/{storage_bucket}/{JOBS_PREFIX}'
+        job_file = f'{job_key}-job.json'
 
         os.makedirs(local_job_dir, exist_ok=True)
         local_job_filename = os.path.join(local_job_dir, job_file)
@@ -96,15 +97,14 @@ class LocalhostHandler:
 
         exec_command = self.env.get_execution_cmd(runtime)
         logger.debug('cmd: '+exec_command+' run '+job_filename)
-        with open(RN_LOG_FILE, 'a') as log_file:
-            sp.Popen(exec_command+' run '+job_filename, shell=True,
-                     stdout=log_file, stderr=log_file, universal_newlines=True)
+        p = sp.Popen(exec_command+' run '+job_filename, shell=True)
+        self.jobs[job_key] = p
 
     def create_runtime(self, runtime_name, *args):
         """
         Extract the runtime metadata and preinstalled modules
         """
-        logger.info("Extracting preinstalled Python modules from {}".format(runtime_name))
+        logger.info(f"Extracting preinstalled Python modules from {runtime_name}")
         self.env.setup(runtime_name)
         exec_command = self.env.get_execution_cmd(runtime_name)
         process = sp.run(exec_command+' preinstalls', shell=True, check=True,
@@ -128,15 +128,26 @@ class LocalhostHandler:
         return 'batch'
 
     def clean(self):
+        """
+        Deletes all local runtimes
+        """
         pass
 
     def clear(self, job_keys=None):
-        pass
+        """
+        Kills all running jobs processes
+        """
+        for job_key in job_keys:
+            # None means alive
+            if self.jobs[job_key].poll() is not None:
+                continue
+            logger.debug(f'Killing job {job_key} with PID {self.jobs[job_key].pid}')
+            self.jobs[job_key].kill()
 
 
 class DockerEnv:
     def __init__(self, docker_image, pull_runtime):
-        logger.debug('Setting DockerEnv for {}'.format(docker_image, pull_runtime))
+        logger.debug(f'Setting DockerEnv for {docker_image}')
         self.runtime = docker_image
         self.pull_runtime = pull_runtime
 
@@ -156,18 +167,18 @@ class DockerEnv:
 
     def get_execution_cmd(self, runtime):
         if is_unix_system():
-            cmd = ('docker run --user $(id -u):$(id -g) --rm -v {}:/tmp --entrypoint '
-                   '"python3" {} /tmp/lithops/runner.py'.format(TEMP, self.runtime))
+            cmd = (f'docker run --user $(id -u):$(id -g) --rm -v {TEMP}:/tmp --entrypoint '
+                   f'"python3" {self.runtime} /tmp/lithops/runner.py')
         else:
-            cmd = ('docker run --rm -v {}:/tmp --entrypoint "python3" {} '
-                   '/tmp/lithops/runner.py'.format(TEMP, self.runtime))
+            cmd = (f'docker run --rm -v {TEMP}:/tmp --entrypoint "python3" '
+                   f'{self.runtime} /tmp/lithops/runner.py')
         return cmd
 
 
 class DefaultEnv:
     def __init__(self):
         self.runtime = sys.executable
-        logger.debug('Setting DefaultEnv for {}'.format(self.runtime))
+        logger.debug(f'Setting DefaultEnv for {self.runtime}')
 
     def setup(self, runtime):
         os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
