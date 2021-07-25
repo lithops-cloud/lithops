@@ -59,7 +59,7 @@ jobs:
 
       - name: Run Python tests
         run: |
-         lithops verify -c lithops/tests/config_files/lithops_config_CE_COS.yaml
+         lithops verify -k -c lithops/tests/config_files/lithops_config_CE_COS.yaml
 
 
   CF_COS:
@@ -92,7 +92,7 @@ jobs:
 
       - name: Run Python tests
         run: |
-          lithops verify -c lithops/tests/config_files/lithops_config_CF_COS.yaml
+          lithops verify -k -c lithops/tests/config_files/lithops_config_CF_COS.yaml
 
 
   LOCAL_HOST:
