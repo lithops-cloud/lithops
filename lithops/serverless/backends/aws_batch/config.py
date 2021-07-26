@@ -31,6 +31,10 @@ DEFAULT_ENV_TYPE = 'FARGATE_SPOT'
 
 ENV_MAX_CPUS_DEFAULT = 10
 
+AVAILABLE_MEM_FARGATE = [512] + [1024 * i for i in range(1, 31)]
+AVAILABLE_CPU_FARGATE = [0.25, 0.5, 1, 2, 4]
+
+
 RUNTIME_TIMEOUT_DEFAULT = 180  # Default timeout: 180 s == 3 min
 RUNTIME_TIMEOUT_MAX = 900  # Max. timeout: 900 s == 15 min
 RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
