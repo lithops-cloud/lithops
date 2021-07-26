@@ -16,6 +16,9 @@
 
 import os
 import logging
+import json
+
+from lithops.storage import InternalStorage
 from lithops.version import __version__
 from lithops.utils import setup_lithops_logger
 from lithops.worker import function_handler
@@ -24,21 +27,29 @@ from lithops.worker.utils import get_runtime_preinstalls
 
 logger = logging.getLogger('lithops.worker')
 
+if __name__ == '__main__':
+    print(os.environ)
+    action = os.getenv('LITHOPS_ACTION')
 
-def lambda_handler(event, context):
-    os.environ['__LITHOPS_ACTIVATION_ID'] = context.aws_request_id
-    os.environ['__LITHOPS_BACKEND'] = 'AWS Lambda'
+    os.environ['__LITHOPS_BACKEND'] = 'AWS Batch'
 
-    setup_lithops_logger(event.get('log_level', logging.INFO))
+    lithops_conf_json = os.environ['LITHOPS_CONFIG']
+    lithops_conf = json.loads(lithops_conf_json)
+    setup_lithops_logger(lithops_conf.get('log_level', logging.INFO))
 
-    if 'get_preinstalls' in event:
+    if action == 'get_preinstalls':
         logger.info("Lithops v{} - Generating metadata".format(__version__))
-        return get_runtime_preinstalls()
-    elif 'remote_invoker' in event:
-        logger.info("Lithops v{} - Starting AWS Lambda invoker".format(__version__))
-        function_invoker(event)
+        runtime_meta = get_runtime_preinstalls()
+        internal_storage = InternalStorage(lithops_conf)
+        status_key = lithops_conf['runtime_name'] + '.meta'
+        logger.info("Runtime metadata key {}".format(status_key))
+        runtime_meta_json = json.dumps(runtime_meta)
+        internal_storage.put_data(status_key, runtime_meta_json)
+    elif action == 'remote_invoker':
+        # logger.info("Lithops v{} - Starting AWS Lambda invoker".format(__version__))
+        # function_invoker(event)
+        print(action)
     else:
-        logger.info("Lithops v{} - Starting AWS Lambda execution".format(__version__))
-        function_handler(event)
-
-    return {"Execution": "Finished"}
+        print(action)
+        # logger.info("Lithops v{} - Starting AWS Lambda execution".format(__version__))
+        # function_handler(event)
