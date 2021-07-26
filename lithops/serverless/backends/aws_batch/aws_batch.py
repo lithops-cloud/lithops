@@ -14,18 +14,22 @@
 # limitations under the License.
 #
 import base64
+import copy
+import json
 import os
 import re
 import logging
 import subprocess
 import sys
-
+import time
 import boto3
+
 import lithops
 
 from . import config as batch_config
 from lithops.constants import COMPUTE_CLI_MSG
 from lithops.utils import create_handler_zip, version_str
+from lithops.storage.utils import StorageNoSuchKeyError
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +44,7 @@ class AWSBatchBackend:
         logger.debug('Creating AWS Lambda client')
 
         self.name = 'aws_batch'
-        self.type = 'faas'
+        self.type = 'batch'
         self.aws_batch_config = aws_batch_config
 
         self.user_key = aws_batch_config['access_key_id'][-4:]
@@ -48,8 +52,8 @@ class AWSBatchBackend:
         self.region_name = aws_batch_config['region_name']
         self.role_arn = aws_batch_config['service_role']
 
-        self._queue_name = '{}_job_queue'.format(self.package)
-        self._compute_env_name = '{}_compute_env'.format(self.package)
+        self._queue_name = '{}_job_queue'.format(self.package.replace('.', '-'))
+        self._compute_env_name = '{}_compute_env'.format(self.package.replace('.', '-'))
 
         logger.debug('Creating Boto3 AWS Session and Batch Client')
         self.aws_session = boto3.Session(aws_access_key_id=aws_batch_config['access_key_id'],
@@ -84,8 +88,8 @@ class AWSBatchBackend:
         return full_image_name, registry, repo_name
 
     def _format_jobdef_name(self, runtime_name, runtime_memory):
-        fmt_runtime_name = runtime_name.replace('.', '-').replace('/', '--').replace(':', '--')
-        return '{}-{}--{}mb'.format(self.package, fmt_runtime_name, runtime_memory)
+        fmt_runtime_name = runtime_name.replace('/', '--').replace(':', '--')
+        return '{}-{}--{}mb'.format(self.package.replace('.', '-'), fmt_runtime_name, runtime_memory)
 
     def _build_default_runtime(self, default_runtime_img_name):
         """
@@ -105,44 +109,140 @@ class AWSBatchBackend:
                             'an already built runtime')
 
     def _create_compute_env(self):
-        strategy = 'SPOT_CAPACITY_OPTIMIZED' if 'SPOT' in self.aws_batch_config['env_type'] else 'BEST_FIT'
-        res = self.batch_client.create_compute_environment(
-            computeEnvironmentName=self._compute_env_name,
-            type='MANAGED',
-            computeResources={
+        res = self.batch_client.describe_compute_environments()
+
+        if res['ResponseMetadata']['HTTPStatusCode'] != 200:
+            raise Exception(res)
+
+        compute_env_names = [compute_env['computeEnvironmentName'] for compute_env in res['computeEnvironments']]
+        if self._compute_env_name not in compute_env_names:
+            logger.debug('Creating new Compute Environment {}'.format(self._compute_env_name))
+            compute_resources_spec = {
                 'type': self.aws_batch_config['env_type'],
-                'allocationStrategy': strategy,
                 'maxvCpus': self.aws_batch_config['max_cpus'],
                 'subnets': self.aws_batch_config['subnets'],
-            },
-            serviceRole=self.aws_batch_config['service_role']
-        )
-        print(res)
+                'securityGroupIds': self.aws_batch_config['security_groups']
+            }
+
+            if self.aws_batch_config['env_type'] == 'SPOT':
+                compute_resources_spec['allocationStrategy'] = 'SPOT_CAPACITY_OPTIMIZED'
+
+            res = self.batch_client.create_compute_environment(
+                computeEnvironmentName=self._compute_env_name,
+                type='MANAGED',
+                computeResources=compute_resources_spec,
+                serviceRole=self.aws_batch_config['service_role']
+            )
+
+            if res['ResponseMetadata']['HTTPStatusCode'] != 200:
+                raise Exception(res)
+            logger.debug('Compute Environment {} successfully created'.format(self._compute_env_name))
+        else:
+            logger.debug('Using existing Compute Environment {}'.format(self._compute_env_name))
 
     def _create_queue(self):
-        res = self.batch_client.create_job_queue(
-            jobQueueName=self._queue_name,
-            priority=1,
-            computeEnvironmentOrder=[
-                {
-                    'order': 0,
-                    'computeEnvironment': self._compute_env_name
-                },
-            ],
-        )
-        print(res)
+        res = self.batch_client.describe_job_queues()
+
+        if res['ResponseMetadata']['HTTPStatusCode'] != 200:
+            raise Exception(res)
+
+        queue_names = [queue['jobQueueName'] for queue in res['jobQueues']]
+        if self._queue_name not in queue_names:
+            logger.debug('Creating new Queue {}'.format(self._queue_name))
+            res = self.batch_client.create_job_queue(
+                jobQueueName=self._queue_name,
+                priority=1,
+                computeEnvironmentOrder=[
+                    {
+                        'order': 0,
+                        'computeEnvironment': self._compute_env_name
+                    },
+                ],
+            )
+
+            if res['ResponseMetadata']['HTTPStatusCode'] != 200:
+                raise Exception(res)
+            logger.debug('Queue {} successfully created'.format(self._queue_name))
+        else:
+            logger.debug('Using existing Queue {}'.format(self._queue_name))
 
     def _create_job_def(self, runtime_name, runtime_memory):
-        res = self.batch_client.register_job_definition(
-            jobDefinitionName=self._format_jobdef_name(runtime_name, runtime_memory),
-            type='container',
-            containerProperties={
-                'image': self._get_full_image_name(runtime_name),
-                'vcpus': 1,
-                'memory': runtime_memory,
-                'executionRoleArn': self.aws_batch_config['service_role']
+        job_def_name = self._format_jobdef_name(runtime_name, runtime_memory)
+
+        res = self.batch_client.describe_job_definitions()
+
+        if res['ResponseMetadata']['HTTPStatusCode'] != 200:
+            raise Exception(res)
+
+        job_def_names = [job_def['jobDefinitionName'] for job_def in res['jobDefinitions']
+                         if job_def['status'] == 'ACTIVE']
+
+        if job_def_name not in job_def_names:
+            logger.debug('Creating new Job Definition {}'.format(job_def_name))
+            image_name, _, _ = self._get_full_image_name(runtime_name)
+            res = self.batch_client.register_job_definition(
+                jobDefinitionName=job_def_name,
+                type='container',
+                containerProperties={
+                    'image': image_name,
+                    'executionRoleArn': self.aws_batch_config['service_role'],
+                    'resourceRequirements': [
+                        {
+                            'value': '0.25',
+                            'type': 'VCPU'
+                        },
+                        {
+                            'value': '512',
+                            'type': 'MEMORY'
+                        }
+                    ]
+                },
+                platformCapabilities=['FARGATE']
+            )
+
+            if res['ResponseMetadata']['HTTPStatusCode'] != 200:
+                raise Exception(res)
+            logger.debug('Job Definition {} successfully created'.format(job_def_name))
+        else:
+            logger.debug('Using existing Job Definition {}'.format(job_def_name))
+
+    def _generate_runtime_meta(self, runtime_name, runtime_memory):
+        job_name = '{}_preinstalls'.format(self._format_jobdef_name(runtime_name, runtime_memory))
+
+        payload = copy.deepcopy(self.internal_storage.storage.storage_config)
+        payload['runtime_name'] = runtime_name
+        payload['log_level'] = logger.getEffectiveLevel()
+
+        res = self.batch_client.submit_job(
+            jobName=job_name,
+            jobQueue=self._queue_name,
+            jobDefinition=self._format_jobdef_name(runtime_name, runtime_memory),
+            containerOverrides={
+                'environment': [
+                    {
+                        'name': 'LITHOPS_ACTION',
+                        'value': 'get_preinstalls'
+                    },
+                    {
+                        'name': 'LITHOPS_CONFIG',
+                        'value': json.dumps(payload)
+                    }
+                ]
             }
         )
+
+        status_key = runtime_name + '.meta'
+        retry = 10
+        while retry > 10:
+            try:
+                runtime_meta_json = self.internal_storage.get_data(key=status_key)
+                runtime_meta = json.loads(runtime_meta_json)
+                print(runtime_meta)
+                return runtime_meta
+            except StorageNoSuchKeyError:
+                logger.debug('Get runtime meta retry {}...')
+                time.sleep(5)
+                retry -= 1
 
     def build_runtime(self, runtime_name, runtime_file):
         """
@@ -182,7 +282,8 @@ class AWSBatchBackend:
         subprocess.check_output(cmd.split(), input=ecr_token)
 
         try:
-            self.ecr_client.create_repository(repositoryName=repo_name)
+            self.ecr_client.create_repository(repositoryName=repo_name,
+                                              imageTagMutability='MUTABLE')
         except self.ecr_client.exceptions.RepositoryAlreadyExistsException as e:
             logger.info('Repository {} already exists'.format(repo_name))
 
@@ -190,11 +291,11 @@ class AWSBatchBackend:
         subprocess.check_call(cmd.split())
         logger.debug('Runtime {} built successfully'.format(runtime_name))
 
-    def create_runtime(self, runtime_name, memory=3008, timeout=900):
+    def create_runtime(self, runtime_name, runtime_memory, timeout=900):
         """
         Create a Lambda function with Lithops handler
         @param runtime_name: name of the runtime
-        @param memory: runtime memory in MB
+        @param runtime_memory: runtime memory in MB
         @param timeout: runtime timeout in seconds
         @return: runtime metadata
         """
@@ -202,20 +303,14 @@ class AWSBatchBackend:
         if runtime_name in ['default', default_runtime_img_name]:
             # We only build the default image. rest of images must already exist
             # in the docker registry.
-            docker_image_name = default_runtime_img_name
             self._build_default_runtime(default_runtime_img_name)
-
-        logger.debug('Creating new Lithops runtime based on '
-                     'Docker image: {}'.format(docker_image_name))
 
         self._create_compute_env()
         self._create_queue()
-        self._create_job_def()
-        # self._create_job_definition(docker_image_name, memory, timeout)
-        #
-        # runtime_meta = self._generate_runtime_meta(docker_image_name, memory)
-        #
-        # return runtime_meta
+        self._create_job_def(runtime_name, runtime_memory)
+
+        runtime_meta = self._generate_runtime_meta(runtime_name, runtime_memory)
+        return runtime_meta
 
     def delete_runtime(self, runtime_name, runtime_memory):
         """
