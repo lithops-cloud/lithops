@@ -49,7 +49,7 @@ Note that Lithops automatically builds the default runtime the first time you ru
 
 8. Edit your lithops config and add the following keys:
     ```yaml
-    serverless:
+    lithops:
         backend: knative
     ```
 

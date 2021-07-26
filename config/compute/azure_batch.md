@@ -59,7 +59,7 @@ $ python3 -m pip install lithops[azure]
 10. Edit your lithops config and add the following keys:
 
 ```yaml
-  serverless:
+  lithops:
       backend : azure_batch
 
   azure_storage:

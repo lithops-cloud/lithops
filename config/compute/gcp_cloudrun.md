@@ -32,7 +32,7 @@ $ python3 -m install lithops[gcp]
 1. Edit your lithops config and add the following keys:
 
 ```yaml
-    serverless:
+    lithops:
         backend: gcp_cloudrun
 
     gcp:

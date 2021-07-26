@@ -6,6 +6,8 @@ IBM Code Engine exposes both Knative and Kubernetes Job Descriptor API. Lithops 
 
 ###  Installation
 
+Choose one option:
+
 #### Option 1 (IBM CLoud Dashboard):
 1. Navigate to the [IBM Cloud Code Engine dashboard](https://cloud.ibm.com/codeengine/landing) and create a new project in your preferred region.
 
@@ -45,6 +47,8 @@ In this step you are required to install IBM Cloud CLI tool, Code Engine plugin 
   
 ### Configuration
 
+Choose one option:
+
 #### Option 1 (IBM IAM):
 1. If you don't have an IAM API key created, navigate to the [IBM IAM dashboard](https://cloud.ibm.com/iam/apikeys).
 
@@ -61,8 +65,9 @@ In this step you are required to install IBM Cloud CLI tool, Code Engine plugin 
 5. Print the content of the kubernetes config file and copy the `namespace` value under the context section.
 
 6. Edit your lithops config and add the following keys:
+
     ```yaml
-    serverless:
+    lithops:
         backend: code_engine
         
     ibm:
@@ -88,8 +93,9 @@ In this step you are required to install IBM Cloud CLI tool, Code Engine plugin 
    ```
 
 3. Edit your lithops config and add the following keys:
+
     ```yaml
-    serverless:
+    lithops:
         backend: code_engine
        
     code_engine:
@@ -107,6 +113,7 @@ To work with Code Engine there is need to use dedicated runtime. You can use a p
 |ibmfunctions/lithops-ce-v385:232 | 3.8 | [included](../../runtime/code_engine/requirements.txt) | 2.3.2 |
 |ibmfunctions/lithops-ce-v385:233 | 3.8 | [included](../../runtime/code_engine/requirements.txt) | 2.3.3 |
 |ibmfunctions/lithops-ce-v385:234 | 3.8 | [included](../../runtime/code_engine/requirements.txt) | 2.3.4 |
+|ibmfunctions/lithops-ce-v385:235 | 3.8 | [included](../../runtime/code_engine/requirements.txt) | 2.3.5 |
 
 #### Use your own runtime
 If a pre-built runtime is not provided, Lithops automatically builds the default runtime the first time you run a script. For this task it uses the **docker** command installed locally in your machine. To make this working, you need:
@@ -152,7 +159,7 @@ code_engine:
 |---|---|---|---|---|
 |code_engine | namespace |  |no | Namespace name|
 |code_engine | region |  | no | Cluster region. One of *us-south*, *jp-tok*, *eu-de*, *eu-gb* |
-|code_engine | kubecfg_path | |no | Path to kubecfg file. Mandatory if config file not in `~/.kube/config` or KUBECONFIG env var not present|
+|code_engine | kubecfg_path | |no | **Mandatory** if no namepsace and no region. Path to kubecfg file. Only set if config file not in `~/.kube/config` or KUBECONFIG env var not present|
 |code_engine | docker_server | https://index.docker.io/v1/ |no | Docker server URL |
 |code_engine | docker_user | |no | Docker hub username |
 |code_engine | docker_password | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
@@ -178,8 +185,8 @@ def add_value(name):
     return 'Hello ' + name
 
 if __name__ == '__main__':
-    lt = lithops.FunctionExecutor(backend='code_engine', runtime='ibmfunctions/lithops-ce-v385:233')
-    lt.map(add_value,  iterdata)
+    lt = lithops.FunctionExecutor(backend='code_engine', runtime='ibmfunctions/lithops-ce-v385:235')
+    lt.map(add_value, iterdata)
     print(lt.get_result())
 ```
 
