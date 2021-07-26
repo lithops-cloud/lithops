@@ -34,7 +34,7 @@ from lithops.config import default_config, \
     extract_localhost_config, extract_standalone_config, \
     extract_serverless_config, get_log_info, extract_storage_config
 from lithops.constants import LOCALHOST, CLEANER_DIR, \
-    CLEANER_LOG_FILE, SERVERLESS, STANDALONE
+    SERVERLESS, STANDALONE
 from lithops.utils import is_notebook, setup_lithops_logger, \
     is_lithops_worker, create_executor_id, create_futures_list
 from lithops.localhost.localhost import LocalhostHandler

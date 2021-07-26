@@ -13,9 +13,9 @@ class PrometheusExporter():
         self.apigateway = config.get('apigateway') if config else None
 
         self.job = 'lithops'
-        self.instance = os.environ['__LITHOPS_SESSION_ID']
+        self.instance = os.environ['__LITHOPS_SESSION_ID'].split('-')[0]
 
-    def send_metric(self, name, value, labels):
+    def send_metric(self, name, value, type, labels):
         """Send a metric to prometheus"""
 
         if self.enabled and self.apigateway:
@@ -23,9 +23,9 @@ class PrometheusExporter():
             for key, val in labels:
                 dim += '/%s/%s' % (key, val)
             url = '/'.join([self.apigateway, 'metrics', dim])
-            logger.debug('Sending metric "{} {}" to {}'.format(name, value, url))
+            logger.debug('Sending metric "{} {} ({})" to {}'.format(name, value, type, url))
+
             try:
-                requests.post(url, data='%s %s\n' % (name, value))
+                requests.post(url, data='# TYPE %s %s\n%s %s\n' % (name, type, name, value))
             except Exception as e:
                 logger.error(e)
-                pass
