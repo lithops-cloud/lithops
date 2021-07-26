@@ -18,9 +18,9 @@ Lithops with Ceph storage backend.
 ```yaml
     lithops:
         storage: ceph
-        storage_bucket: <BUCKET_NAME>
 
     ceph:
+        storage_bucket: <BUCKET_NAME>
         endpoint: <ENDPOINT_URL>
         access_key_id: <ACCESS_KEY>
         secret_access_key: <SECRET_ACCESS_KEY>
@@ -34,4 +34,4 @@ Lithops with Ceph storage backend.
 |ceph | endpoint | |yes | The host ip adress where you installed the Ceph server. Must start with http:// or https:// |
 |ceph | access_key_id | |yes | Account user access key |
 |ceph | secret_access_key | |yes | Account user secret access key |
-|ceph | storage_bucket | | no | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. If set, this will overwrite the `storage_bucket` set in `lithops` section |
+|ceph | storage_bucket | | yes | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. If set, this will overwrite the `storage_bucket` set in `lithops` section |
