@@ -121,13 +121,12 @@ Example of providing configuration keys for IBM Cloud Functions and IBM Cloud Ob
 ```python
 import lithops
 
-config = {'lithops' : {'storage_bucket' : 'BUCKET_NAME'},
-
-          'ibm_cf':  {'endpoint': 'ENDPOINT',
+config = {'ibm_cf':  {'endpoint': 'ENDPOINT',
                       'namespace': 'NAMESPACE',
                       'api_key': 'API_KEY'},
 
-          'ibm_cos': {'region': 'REGION',
+          'ibm_cos': {'storage_bucket': 'BUCKET_NAME',
+                      'region': 'REGION',
                       'api_key': 'API_KEY'}}
 
 def hello_world(name):

@@ -68,6 +68,11 @@ class FunctionExecutor:
         """ Create a FunctionExecutor Class """
 
         self.is_lithops_worker = is_lithops_worker()
+        self.executor_id = create_executor_id()
+        self.futures = []
+        self.cleaned_jobs = set()
+        self.total_jobs = 0
+        self.last_call = None
 
         # setup lithops logging
         if not self.is_lithops_worker:
@@ -99,8 +104,6 @@ class FunctionExecutor:
 
         self.config = default_config(copy.deepcopy(config), config_ow)
 
-        self.executor_id = create_executor_id()
-
         self.data_cleaner = self.config['lithops'].get('data_cleaner', True)
         if self.data_cleaner and not self.is_lithops_worker:
             spawn_cleaner = int(self.executor_id.split('-')[1]) == 0
@@ -110,11 +113,6 @@ class FunctionExecutor:
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
         self.storage = self.internal_storage.storage
-
-        self.futures = []
-        self.cleaned_jobs = set()
-        self.total_jobs = 0
-        self.last_call = None
 
         self.backend = self.config['lithops']['backend']
         self.mode = self.config['lithops']['mode']
