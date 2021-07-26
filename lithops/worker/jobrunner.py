@@ -205,13 +205,16 @@ class JobRunner:
             fn_name = func.__name__ if inspect.isfunction(func) \
                 or inspect.ismethod(func) else type(func).__name__
 
-            self.prometheus.send_metric(name='function_start',
-                                        value=time.time(),
-                                        labels=(
-                                            ('job_id', '-'.join([self.job.executor_id, self.job.job_id])),
-                                            ('call_id', self.job.call_id),
-                                            ('function_name', fn_name)
-                                        ))
+            self.prometheus.send_metric(
+                name='function_start',
+                value=time.time(),
+                type='gauge',
+                labels=(
+                    ('job_id', '-'.join([self.job.executor_id, self.job.job_id])),
+                    ('call_id', self.job.call_id),
+                    ('function_name', fn_name)
+                )
+            )
 
             logger.info("Going to execute '{}()'".format(str(fn_name)))
             print('---------------------- FUNCTION LOG ----------------------')
@@ -221,13 +224,16 @@ class JobRunner:
             print('----------------------------------------------------------')
             logger.info("Success function execution")
 
-            self.prometheus.send_metric(name='function_end',
-                                        value=time.time(),
-                                        labels=(
-                                            ('job_id', '-'.join([self.job.executor_id, self.job.job_id])),
-                                            ('call_id', self.job.call_id),
-                                            ('function_name', fn_name)
-                                        ))
+            self.prometheus.send_metric(
+                name='function_end',
+                value=time.time(),
+                type='gauge',
+                labels=(
+                    ('job_id', '-'.join([self.job.executor_id, self.job.job_id])),
+                    ('call_id', self.job.call_id),
+                    ('function_name', fn_name)
+                )
+            )
 
             self.stats.write('worker_func_start_tstamp', function_start_tstamp)
             self.stats.write('worker_func_end_tstamp', function_end_tstamp)

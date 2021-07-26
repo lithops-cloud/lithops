@@ -10,50 +10,21 @@ Lithops with IBM COS as storage backend.
 
 2. Crate a bucket in your desired region. Remember to update the corresponding Lithops config field with this bucket name.
 
-3. Login to IBM Cloud and open up your dashboard. Then navigate to your instance of Object Storage.
-
-4. In the side navigation, click `Endpoints` to find your `region`, `API public` and `private endpoints`.
-
-### Lithops COS Endpoint configuration
-
-#### Using region
-The easiest apporach is to let Lithops to choose the right endpoint by itself. To enable this, just configure Lithops with the region name of your `storage_bucket`, as follows:
-
-```yaml
-    ibm_cos:
-        region   : <REGION>
-```
-
-Valid region names are: us-east, us-south, eu-gb, eu-de, etc..
-
-### Using endpoints path
-Alternative to using region, you can configure the public and private endpoints as follows:
-
-```yaml
-    ibm_cos:
-        endpoint: https://s3.<region>.cloud-object-storage.appdomain.cloud
-        private_endpoint: https://s3.private.<region>.cloud-object-storage.appdomain.cloud 
-```
-
 ### Configuration
 
-1. Login to IBM Cloud and open up your dashboard. Then navigate to your instance of Object Storage.
-
-2. In the side navigation, click `Endpoints` to find your API endpoint. You must copy both public and private endpoints of the region where you created your bucket.
-
-3. Create the credentials to access to your COS account (Choose one option):
+1. Create the credentials to access to your COS account (Choose one option):
  
 #### Option 1 (COS API Key):
 
-4. In the side navigation, click `Service Credentials`.
+2. In the side navigation, click `Service Credentials`.
 
-5. Click `New credential +` and provide the necessary information.
+3. Click `New credential +` and provide the necessary information.
 
-6. Click `Add` to generate service credential.
+4. Click `Add` to generate service credential.
 
-7. Click `View credentials` and copy the *apikey* value.
+5. Click `View credentials` and copy the *apikey* value.
 
-8. Edit your lithops config file and add the following keys:
+6. Edit your lithops config file and add the following keys:
 
     ```yaml
     lithops:
@@ -67,17 +38,17 @@ Alternative to using region, you can configure the public and private endpoints 
 
 #### Option 2 (COS HMAC credentials):
 
-4. In the side navigation, click `Service Credentials`.
+2. In the side navigation, click `Service Credentials`.
 
-5. Click `New credential +`.
+3. Click `New credential +`.
 
-6. Click on advanced options and enable `Include HMAC Credential` button. 
+4. Click on advanced options and enable `Include HMAC Credential` button. 
 
-7. Click `Add` to generate service credential.
+5. Click `Add` to generate service credential.
 
-8. Click `View credentials` and copy the *access_key_id* and *secret_access_key* values.
+6. Click `View credentials` and copy the *access_key_id* and *secret_access_key* values.
 
-9. Edit your lithops config file and add the following keys:
+7. Edit your lithops config file and add the following keys:
 
     ```yaml
     lithops:
@@ -92,13 +63,13 @@ Alternative to using region, you can configure the public and private endpoints 
 
 #### Option 3 (IBM IAM API Key):
 
-4. If you don't have an IAM API key created, navigate to the [IBM IAM dashboard](https://cloud.ibm.com/iam/apikeys)
+2. If you don't have an IAM API key created, navigate to the [IBM IAM dashboard](https://cloud.ibm.com/iam/apikeys)
 
-5. Click `Create an IBM Cloud API Key` and provide the necessary information.
+3. Click `Create an IBM Cloud API Key` and provide the necessary information.
 
-6. Copy the generated IAM API key (You can only see the key the first time you create it, so make sure to copy it).
+4. Copy the generated IAM API key (You can only see the key the first time you create it, so make sure to copy it).
 
-7. Edit your lithops config file and add the following keys:
+5. Edit your lithops config file and add the following keys:
 
     ```yaml
     lithops:
@@ -111,6 +82,34 @@ Alternative to using region, you can configure the public and private endpoints 
         storage_bucket: <BUCKET_NAME>
         region : <REGION>
     ```
+
+
+### Lithops COS Endpoint configuration
+
+#### Using region
+The easiest apporach is to let Lithops to choose the right endpoint by itself. To enable this, just configure Lithops with the region name of your `storage_bucket`, as follows:
+
+```yaml
+    ibm_cos:
+        region   : <REGION>
+```
+
+Valid region names are: us-east, us-south, eu-gb, eu-de, etc..
+
+### Using endpoints path
+
+Alternative to using region, you can configure the public and private endpoints as follows:
+
+1. Login to IBM Cloud and open up your dashboard. Then navigate to your instance of Object Storage.
+
+2. In the side navigation, click `Endpoints` to find your COS endpoints. You must copy both `public` and `private` endpoints of the region where you created your bucket.
+
+```yaml
+    ibm_cos:
+        endpoint: https://s3.<region>.cloud-object-storage.appdomain.cloud
+        private_endpoint: https://s3.private.<region>.cloud-object-storage.appdomain.cloud 
+```
+
 
 ### Summary of configuration keys for IBM Cloud:
 

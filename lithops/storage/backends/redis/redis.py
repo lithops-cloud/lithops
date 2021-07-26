@@ -31,7 +31,7 @@ class RedisBackend:
         self.user_agent = config.pop('user_agent')
         self.config = config
         self.host = self.config['host']
-        self._client = redis.StrictRedis(**config)
+        self._client = redis.Redis(**config)
 
         msg = STORAGE_CLI_MSG.format('Redis')
         logger.info("{} - Host: {}".format(msg, self.host))
@@ -61,12 +61,12 @@ class RedisBackend:
 
         # create parent dirs
         for i in range(1, len(components) - 1):
-            dir = '/'.join(components[:i]) + '/'
-            pipeline.sadd(dir, components[i] + '/')
+            loc = '/'.join(components[:i]) + '/'
+            pipeline.sadd(loc, components[i] + '/')
 
         # add file to lowest dir
-        dir = '/'.join(components[:-1]) + '/'
-        pipeline.sadd(dir, components[-1])
+        loc = '/'.join(components[:-1]) + '/'
+        pipeline.sadd(loc, components[-1])
 
         # set actual key
         pipeline.set(redis_key, data)
@@ -104,7 +104,7 @@ class RedisBackend:
 
     def head_object(self, bucket_name, key):
         """
-        Head object from Redis with a key. 
+        Head object from Redis with a key.
         Throws StorageNoSuchKeyError if the given key does not exist.
         :param bucket_name: bucket name
         :param key: key of the object

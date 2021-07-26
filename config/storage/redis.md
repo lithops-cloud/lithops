@@ -29,6 +29,10 @@ Lithops with Redis as storage backend.
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|redis | host | |yes | The host ip adress where you installed the Redis server. |
-|redis | port | |no | The port where the redis server is listening (default: 6379) |
-|redis | password | |no | The password you set in the Redis configuration file (if any) |
+|redis | host | localhost |no | The host ip adress where you installed the Redis server. |
+|redis | port | 6379 |no | The port where the redis server is listening |
+|redis | username | None |no | The username (if any)|
+|redis | password | None |no | The password you set in the Redis configuration file (if any) |
+|redis | db | 0 |no | Number of database to use |
+|redis | ssl | False |no | Activate ssl conection |
+|redis | ... | |no |  All the parameters set in this lithops `redis` config section are directly passed to a [`reds.Redis()`](https://redis-py.readthedocs.io/en/stable/index.html#redis.Redis) instance, so you can set all the same parameters if necessary. |

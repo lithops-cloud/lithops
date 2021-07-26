@@ -184,12 +184,15 @@ class Invoker:
                      .format(job.executor_id, job.job_id,
                              job.chunksize, job.worker_processes))
 
-        self.prometheus.send_metric(name='job_total_calls',
-                                    value=job.total_calls,
-                                    labels=(
-                                        ('job_id', '-'.join([job.executor_id, job.job_id])),
-                                        ('function_name', job.function_name)
-                                    ))
+        self.prometheus.send_metric(
+            name='job_total_calls',
+            value=job.total_calls,
+            type='counter',
+            labels=(
+                ('job_id', '-'.join([job.executor_id, job.job_id])),
+                ('function_name', job.function_name)
+            )
+        )
 
         try:
             job.runtime_name = self.runtime_name

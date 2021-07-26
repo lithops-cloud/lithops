@@ -47,5 +47,5 @@ Lithops with AWS S3 as storage backend.
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |aws_s3 | storage_bucket | | yes | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. If set, this will overwrite the `storage_bucket` set in `lithops` section |
-|aws_s3 | region_name | |yes | region of your Bcuket. e.g us-east-1, eu-west-1, etc |
-|aws_s3 | endpoint | |yes | Endpoint to your Bcuket. Make sure to use the full path with 'https://' as prefix. e.g. `https://s3.us-east-1.amazonaws.com` |
+|aws_s3 | region_name | |no | **Mandatory** if no endpoint. Region of your Bcuket. e.g us-east-1, eu-west-1, etc |
+|aws_s3 | endpoint | |no | **Mandatory** if no region_name. Endpoint to your Bcuket. Make sure to use the full path with 'https://' as prefix. e.g. `https://s3.us-east-1.amazonaws.com` |
