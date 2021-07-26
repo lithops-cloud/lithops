@@ -29,8 +29,7 @@ from lithops.config import default_config, extract_storage_config, \
     extract_serverless_config, extract_standalone_config, \
     extract_localhost_config, load_yaml_config
 from lithops.constants import CACHE_DIR, LITHOPS_TEMP_DIR, RUNTIMES_PREFIX, \
-    JOBS_PREFIX, LOCALHOST, LOGS_DIR, FN_LOG_FILE, SERVERLESS_BACKENDS, \
-    STANDALONE_BACKENDS
+    JOBS_PREFIX, LOCALHOST, SERVERLESS, STANDALONE, LOGS_DIR, FN_LOG_FILE
 from lithops.storage import InternalStorage
 from lithops.serverless import ServerlessHandler
 from lithops.storage.utils import clean_bucket
@@ -75,14 +74,15 @@ def clean(config, backend, storage, debug):
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
 
-    backend = config['lithops']['backend']
-    if backend == LOCALHOST:
+    mode = config['lithops']['mode']
+
+    if mode == LOCALHOST:
         compute_config = extract_localhost_config(config)
         compute_handler = LocalhostHandler(compute_config)
-    elif backend in SERVERLESS_BACKENDS:
+    elif mode == SERVERLESS:
         compute_config = extract_serverless_config(config)
         compute_handler = ServerlessHandler(compute_config, internal_storage)
-    elif backend == STANDALONE_BACKENDS:
+    elif mode == STANDALONE:
         compute_config = extract_standalone_config(config)
         compute_handler = StandaloneHandler(compute_config)
 
