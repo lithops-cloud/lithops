@@ -18,9 +18,9 @@ Lithops with OpenStack Swift as storage backend.
 ```yaml
     lithops:
         storage: swift
-        storage_bucket: <BUCKET_NAME>
 
     swift:
+        storage_bucket: <BUCKET_NAME>
         auth_url   : <SWIFT_AUTH_URL>
         region     : <SWIFT_REGION>
         user_id    : <SWIFT_USER_ID>
@@ -33,9 +33,9 @@ Lithops with OpenStack Swift as storage backend.
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
+|swift | storage_bucket | | yes | The name of a container that exists in you account. This will be used by Lithops for intermediate data. If set, this will overwrite the `storage_bucket` set in `lithops` section |
 |swift | auth_url | |yes | The keystone endpoint for authenthication |
 |swift | region | |yes | The region of your container |
 |swift | project_id | |yes | The Project ID |
 |swift | user_id | |yes | The user ID |
 |swift | password | |yes | The password |
-|swift | storage_bucket | | no | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. If set, this will overwrite the `storage_bucket` set in `lithops` section |

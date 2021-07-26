@@ -35,13 +35,15 @@ $ python3 -m pip install lithops[gcp]
 ```yaml
     lithops:
         storage: gcp_storage
-        storage_bucket: <BUCKET_NAME>
 
     gcp:
         project_name : <PROJECT_NAME>
         service_account : <SERVICE_ACCOUNT_EMAIL>
         credentials_path : <FULL_PATH_TO_CREDENTIALS_JSON>
         region : <REGION_NAME>
+
+    gcp_storage:
+        storage_bucket: <BUCKET_NAME>
 ```
  
 ### Summary of configuration keys for Google:
@@ -58,5 +60,5 @@ $ python3 -m pip install lithops[gcp]
 #### Google Cloud Storage
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|gcp_storage | storage_bucket | | no | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. If set, this will overwrite the `storage_bucket` set in `lithops` section |
+|gcp_storage | storage_bucket | | yes | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. If set, this will overwrite the `storage_bucket` set in `lithops` section |
  
