@@ -46,7 +46,7 @@ $ python3 -m pip install lithops[aws]
 6. Edit your lithops config and add the following keys:
 
 ```yaml
-    serverless:
+    lithops:
         backend: aws_lambda
 
     aws:

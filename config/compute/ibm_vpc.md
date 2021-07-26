@@ -32,15 +32,15 @@ In this mode, Lithops will automatically create new worker VM instances in runti
 Edit your lithops config and add the relevant keys:
 
 ```yaml
+lithops:
+    mode: standalone
+
 ibm:
     iam_api_key: <iam-api-key>
 
 standalone:
     backend: ibm_vpc
     exec_mode: create
-    #optional
-    # Use False for custom image that contains Lithops runtime
-    #pull_runtime: <True/False>
 
 ibm_vpc:
     endpoint: <REGION_ENDPOINT>

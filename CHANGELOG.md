@@ -9,7 +9,7 @@
 - [AWS Lambda] New invoke method that reduces total invocation time
 - [Core] Allow to set the bucket name at storage backend level in config
 - [localhost] stop running jobs processes on ctrl-c or exception
-- [AWS Lambda] region_name parameter in config
+- [AWS S3] Added region_name parameter in config
 
 ### Changed
 - [Core] Improved performance and efficiency of the lithops cleaner background process

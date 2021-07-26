@@ -159,7 +159,7 @@ class StandaloneHandler:
                 ex.submit(start_master_instance, wait=False)
                 for vm_n in range(total_workers):
                     worker_id = "{:04d}".format(vm_n)
-                    name = 'lithops-{}-{}-{}'.format(executor_id, job_id, worker_id)
+                    name = 'lithops-worker-{}-{}-{}'.format(executor_id, job_id, worker_id)
                     ex.submit(self.backend.create_worker, name)
             logger.debug("Total worker VM instances created: {}/{}"
                          .format(len(self.backend.workers), total_workers))

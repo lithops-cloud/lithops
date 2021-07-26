@@ -8,7 +8,7 @@ Lithops with kubernetes as serverless compute backend.
 1. Edit your Lithops config and add the following keys:
 
 ```yaml
-  serverless:
+  lithops:
       backend : k8s
 ```
 

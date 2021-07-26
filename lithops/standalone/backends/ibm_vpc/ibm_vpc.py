@@ -300,8 +300,7 @@ class IBMVPCBackend:
             instances_to_delete = set()
             instances_info = self.ibm_vpc_client.list_instances().get_result()
             for ins in instances_info['instances']:
-                if ins['name'].startswith('lithops') and \
-                  'lithops-master' not in ins['name']:
+                if ins['name'].startswith('lithops-worker'):
                     ins_to_dlete = (ins['name'], ins['id'])
                     if ins_to_dlete not in deleted_instances:
                         instances_to_delete.add(ins_to_dlete)

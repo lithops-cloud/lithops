@@ -1,7 +1,7 @@
 #lithops: 
-    #mode: serverless
+    #backend: ibm_cf
     #storage: ibm_cos
-    #storage_bucket: <BUCKET_NAME>
+    #mode: serverless
     #data_cleaner: <True/False>
     #monitoring: storage
     #workers: <MAX_NUM_OF_WORKERS>

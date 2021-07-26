@@ -9,9 +9,6 @@ Lithops can run functions in a regular remote virtual machine by using processes
 
 ```yaml
     lithops:
-        mode: standalone
-    
-    standalone:
         backend: vm
         
     vm:
