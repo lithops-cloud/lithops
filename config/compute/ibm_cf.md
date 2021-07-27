@@ -6,7 +6,7 @@ Lithops with *IBM Cloud Functions* as compute backend.
 
 1. Login to IBM Cloud and open up your [dashboard](https://cloud.ibm.com/).
 
-**Note: If you have a free/student account, please choose Option 1 one and start from step 8**
+- **Important Note: If you have a free/student account, please choose Option 1 one and start from step 8**
  
 #### Option 1 (CloudFoundy-based namespace):
 
@@ -30,17 +30,7 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
 
 10. Copy the full **current namespace** name and the **API key**. Usually, namepsace names in free accounts looks like *your.name@myemail.com_dev*, e.g, *james.braun@gmail.com_dev*
 
-11. From the same page, check the **Location* of your namespace and select the appropriate endpoint from the following table:
-
-|Location| Endpoint|
-|---|---|
-|Washington DC | https://us-east.functions.cloud.ibm.com |
-|Dallas | https://us-south.functions.cloud.ibm.com |
-|London | https://eu-gb.functions.cloud.ibm.com |
-|Frankfur | https://eu-de.functions.cloud.ibm.com |
-|Tokyo | https://jp-tok.functions.cloud.ibm.com |
-|Sydney | https://au-syd.functions.cloud.ibm.com |
-
+11. From the same page, check the **Location** of your namespace and select the appropriate endpoint [from the table below](#ibm-cloud-functions-namespace-endpoints).
 
 12. Edit your lithops config and add the following keys:
 
@@ -69,16 +59,7 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
 
 7. From the same page, copy the **namespace name** and the **namespace GUID**.
 
-8. From the same page, check the **Location** of your namespace and select the appropriate endpoint from the following table:
-
-|Location| Endpoint|
-|---|---|
-|Washington DC | https://us-east.functions.cloud.ibm.com |
-|Dallas | https://us-south.functions.cloud.ibm.com |
-|London | https://eu-gb.functions.cloud.ibm.com |
-|Frankfur | https://eu-de.functions.cloud.ibm.com |
-|Tokyo | https://jp-tok.functions.cloud.ibm.com |
-|Sydney | https://au-syd.functions.cloud.ibm.com |
+8. From the same page, check the **Location** of your namespace and select the appropriate endpoint [from the table below](#ibm-cloud-functions-namespace-endpoints).
 
 9. If you don't have an IAM API key created, navigate to the [IBM IAM dashboard](https://cloud.ibm.com/iam/apikeys).
 
@@ -100,6 +81,18 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
         namespace    : <NAMESPACE>
         namespace_id : <GUID>
     ```
+    
+### IBM Cloud Functions Namespace Endpoints
+
+|Location| Endpoint|
+|---|---|
+|Washington DC | https://us-east.functions.cloud.ibm.com |
+|Dallas | https://us-south.functions.cloud.ibm.com |
+|London | https://eu-gb.functions.cloud.ibm.com |
+|Frankfur | https://eu-de.functions.cloud.ibm.com |
+|Tokyo | https://jp-tok.functions.cloud.ibm.com |
+|Sydney | https://au-syd.functions.cloud.ibm.com |
+
     
 ### Summary of configuration keys for IBM Cloud:
 
