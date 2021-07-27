@@ -1,6 +1,17 @@
 # Changelog
 
-## [v2.3.6.dev0]
+## [v2.4.1.dev0]
+
+### Added
+- 
+
+### Changed
+- 
+
+### Fixes
+- 
+
+## [v2.4.0]
 
 ### Added
 - [Storage] Added MinIO storage backend

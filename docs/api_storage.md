@@ -67,13 +67,21 @@ Adds an object to a bucket of the storage backend.
 |---|---|
 |bucket | Name of the bucket (String)|
 |key |  Name of the object (String)|
-|data| Object data (bytes or seekable file-like object)|
+|data| Object data (bytes/string or seekable file-like object)|
 
 * **Usage**:
 
     ```python
     storage = Storage()
+    # Bytes/string data
     storage.put_object('my_bucket', 'test.txt', 'Hello World')
+    ```
+        
+    ```python
+    storage = Storage()
+    # Seekable file-like object
+    with open('/tmp/my_big_file.csv', 'rb') as fl:
+        storage.put_object('my_bucket', 'my_big_file.csv', fl)
     ```
 
 
@@ -229,9 +237,9 @@ Adds objects to a bucket of the storage backend. Returns a **cloudobject** that 
 
 |Parameter | Description|
 |---|---|
-|body| Object data (bytes or seekable file-like object)|
-|bucket | Name of the bucket (String)|
-|key |  Name of the object (String)|
+|body| Object data (bytes/string or seekable file-like object)|
+|bucket | Name of the bucket (String). By default it uses the `storage_bucket`|
+|key |  Name of the object (String). By default it creates a random key|
 
 If `bucket` paramter is not provided, it will use the `storage_bucket` set in the lithops config. If `key` is not provided, it will create a random temporary key.
 
@@ -239,7 +247,15 @@ If `bucket` paramter is not provided, it will use the `storage_bucket` set in th
 
     ```python
     storage = Storage()
+    # Bytes/string
     cobj = storage.put_cloudobject('Hello World!')
+    ```
+    
+    ```python
+    storage = Storage()
+    # Seekable file-like object
+    with open('/tmp/my_big_file.csv', 'rb') as fl:
+        cobj = storage.put_cloudobject(fl)
     ```
 
 
