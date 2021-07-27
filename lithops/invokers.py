@@ -189,7 +189,7 @@ class Invoker:
             value=job.total_calls,
             type='counter',
             labels=(
-                ('job_id', '-'.join([job.executor_id, job.job_id])),
+                ('job_id_', job.job_key),
                 ('function_name', job.function_name)
             )
         )

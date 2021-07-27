@@ -75,7 +75,7 @@ class LocalhostHandler:
         total_calls = len(job_payload['call_ids'])
 
         logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going to '
-                     f'run {total_calls} activations in localhost worker')
+                     f'run {total_calls} activations in the localhost worker')
 
         if not os.path.isfile(RUNNER):
             self.env.setup(runtime)

@@ -210,8 +210,8 @@ class JobRunner:
                 value=time.time(),
                 type='gauge',
                 labels=(
-                    ('job_id', '-'.join([self.job.executor_id, self.job.job_id])),
-                    ('call_id', self.job.call_id),
+                    ('job_id', self.job.job_key),
+                    ('call_id', '-'.join([self.job.job_key, self.job.call_id])),
                     ('function_name', fn_name)
                 )
             )
@@ -229,8 +229,8 @@ class JobRunner:
                 value=time.time(),
                 type='gauge',
                 labels=(
-                    ('job_id', '-'.join([self.job.executor_id, self.job.job_id])),
-                    ('call_id', self.job.call_id),
+                    ('job_id', self.job.job_key),
+                    ('call_id', '-'.join([self.job.job_key, self.job.call_id])),
                     ('function_name', fn_name)
                 )
             )

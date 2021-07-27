@@ -73,6 +73,7 @@ Automated container deployment, scaling, and management Kubernetes, also known a
 Currently, Lithops for Kubernetes and on-premise supports these backends:
 
 ### Compute
+- [Kubernetes Jobs](https://kubernetes.io/docs/concepts/workloads/controllers/job/)
 - [Knative](https://knative.dev/)
 - [OpenWhisk](https://openwhisk.apache.org/)
 

@@ -117,6 +117,7 @@ def process_runner(job_queue, internal_storage):
         bucket = job.config['lithops']['storage_bucket']
         job.task_dir = os.path.join(LITHOPS_TEMP_DIR, bucket, JOBS_PREFIX, job.job_key, job.call_id)
         job.log_file = os.path.join(job.task_dir, 'execution.log')
+        job.stats_file = os.path.join(job.task_dir, 'job_stats.txt')
         os.makedirs(job.task_dir, exist_ok=True)
 
         with open(job.log_file, 'a') as log_strem:
@@ -153,13 +154,11 @@ def run_job(job, internal_storage):
         # send init status event
         call_status.send_init_event()
 
-        job.stats_file = os.path.join(job.task_dir, 'job_stats.txt')
         handler_conn, jobrunner_conn = Pipe()
-        taskrunner = JobRunner(job, jobrunner_conn, internal_storage)
+        jobrunner = JobRunner(job, jobrunner_conn, internal_storage)
         logger.debug('Starting JobRunner process')
-        jrp = Process(target=taskrunner.run) if is_unix_system() else Thread(target=taskrunner.run)
+        jrp = Process(target=jobrunner.run) if is_unix_system() else Thread(target=jobrunner.run)
         jrp.start()
-
         jrp.join(job.execution_timeout)
         logger.debug('JobRunner process finished')
 
