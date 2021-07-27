@@ -60,7 +60,7 @@ class SerializeIndependent:
         # Add modules
         direct_modules = set()
         for module_name in mods:
-            if module_name == '__main__':
+            if module_name in ['__main__', None]:
                 continue
             try:
                 mod_spec = importlib.util.find_spec(module_name)
