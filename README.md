@@ -25,6 +25,7 @@ Lithops provides value for a great variety of uses cases like big data analytics
    ```bash
    $ lithops test
    ```
+   For more information regarding testing, please refer to docs/testing.md.
 
 ## Move to the Cloud
 Lithops provides an extensible backend architecture (compute, storage) that is designed to work with different Cloud providers and on-premise backends. In this sense, you can code in python and run it unmodified in IBM Cloud, AWS, Azure, Google Cloud and Alibaba Aliyun. Moreover, it provides support for some kubernetes serverless frameworks such as Knative.
