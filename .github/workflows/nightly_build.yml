@@ -3,7 +3,7 @@ name: "Nightly Build"
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 21 * * *'  # 21:00 UTC
+    - cron: '0 21 * * 0'  # 21:00 UTC on Sunday
 
 
 jobs:
@@ -28,9 +28,7 @@ jobs:
           echo "::set-output name=string::$value"
 
 
-
   CE_COS:
-    if: github.repository_owner = 'lithops-cloud'
     runs-on: ubuntu-latest
 
     needs: Determine_Runnable_Jobs
@@ -65,7 +63,6 @@ jobs:
 
 
   CF_COS:
-    if: github.repository_owner = 'lithops-cloud'
     runs-on: ubuntu-latest
 
     needs: Determine_Runnable_Jobs
@@ -100,7 +97,6 @@ jobs:
 
 
   LOCAL_HOST:
-    if: github.repository_owner = 'lithops-cloud'
     runs-on: ubuntu-latest
 
     needs: Determine_Runnable_Jobs
@@ -126,7 +122,6 @@ jobs:
 
 
   Clean:
-    if: github.repository_owner = 'lithops-cloud'
     runs-on: ubuntu-latest
     if: always()  # this job will run regardless of the above job's status.
     needs: [CE_COS,CF_COS]
