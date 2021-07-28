@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - master
+  
+  workflow_dispatch: 
+  # this allows to run the workflow manually through the github dashboard
+
+
+jobs:
+
+  CE_COS:
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: print-github.action_path
+        run: echo $GITHUB_WORKSPACE
+
+      - name: Clone Lithops repository
+        uses: actions/checkout@v2
+
+      - name: Install Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+          architecture: x64
+      
+      - name: Install dependencies
+        run: |
+          python3 setup.py install
+      
+      - name: Install Lithops config
+        run: |
+          echo -n -e "${{ secrets.LITHOPS_CONFIG_CE_COS }}" > /tmp/lithops_config_CE_COS.yaml
+      
+      - name: Clean CE's dedicated bucket
+        run: |
+          lithops clean -c /tmp/lithops_config_CE_COS.yaml
+      
+      - name: Build new runtime
+        env:
+            LITHOPS_CONFIG_FILE: /tmp/lithops_config_CE_COS.yaml
+        run: |
+          docker login -u "${{ secrets.DOCKER_USER }}" -p "${{ secrets.DOCKER_TOKEN }}"
+          cd runtime/code_engine
+          lithops runtime build "${{ secrets.DOCKER_USER }}"/lithops-ce-gihub-ci:latest -b code_engine
+          sed -i '/runtime:/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-ce-gihub-ci:latest' /tmp/lithops_config_CE_COS.yaml
+
+      - name: Run lithops tests
+        run: |
+          lithops verify -k -c /tmp/lithops_config_CE_COS.yaml
+      
+      - name: Clean CE's dedicated bucket
+        run: |
+          lithops clean -c /tmp/lithops_config_CE_COS.yaml
+
+
+  CF_COS:
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone Lithops repository
+        uses: actions/checkout@v2
+
+      - name: Install Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+          architecture: x64
+      
+      - name: Install dependencies
+        run: |
+          python3 setup.py install
+      
+      - name: Install Lithops config
+        run: |
+          echo -n -e "${{ secrets.LITHOPS_CONFIG_CF_COS }}" > /tmp/lithops_config_CF_COS.yaml
+      
+      - name: Clean CF's dedicated bucket
+        run: |
+          lithops clean -c /tmp/lithops_config_CF_COS.yaml
+        
+      - name: Build new runtime
+        env:
+          LITHOPS_CONFIG_FILE: /tmp/lithops_config_CF_COS.yaml
+        run: |
+          docker login -u "${{ secrets.DOCKER_USER }}" -p "${{ secrets.DOCKER_TOKEN }}"
+          cd runtime/ibm_cf
+          lithops runtime build -f Dockerfile.python38 "${{ secrets.DOCKER_USER }}"/lithops-cf-gihub-ci:latest -b ibm_cf
+          sed -i '/runtime:/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-cf-gihub-ci:latest' /tmp/lithops_config_CF_COS.yaml
+
+      - name: Run Lithops tests
+        run: |
+          lithops verify -k -c /tmp/lithops_config_CF_COS.yaml
+     
+      - name: Clean CF's dedicated bucket
+        run: |
+          lithops clean -c /tmp/lithops_config_CF_COS.yaml
+
+
+  LOCALHOST:
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clone Lithops repository
+        uses: actions/checkout@v2
+      
+      - name: Install Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+          architecture: x64
+      
+      - name: Install dependencies
+        run: |
+          python3 setup.py install
+
+      - name: Run Lithops tests
+        run: |
+          lithops verify -b localhost -s localhost

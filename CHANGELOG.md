@@ -6,7 +6,7 @@
 - 
 
 ### Changed
-- 
+- [Tests] Update CI github workflow
 
 ### Fixes
 - 
