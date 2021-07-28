@@ -9,6 +9,7 @@ on:
 jobs:
 
   Determine_Runnable_Jobs:
+    if: github.repository_owner = 'lithops-cloud'
     runs-on: ubuntu-latest
     outputs:
       jobs_to_run: ${{ steps.script.outputs.string }}
@@ -28,6 +29,7 @@ jobs:
 
 
   CE_COS:
+    if: github.repository_owner = 'lithops-cloud'
     runs-on: ubuntu-latest
     needs: Determine_Runnable_Jobs
     if: contains(needs.Determine_Runnable_Jobs.outputs.jobs_to_run,'CE_COS')
@@ -63,6 +65,7 @@ jobs:
 
 
   CF_COS:
+    if: github.repository_owner = 'lithops-cloud'
     runs-on: ubuntu-latest
     needs: Determine_Runnable_Jobs
     if: contains(needs.Determine_Runnable_Jobs.outputs.jobs_to_run,'CF_COS')
@@ -96,6 +99,7 @@ jobs:
 
 
   LOCAL_HOST:
+    if: github.repository_owner = 'lithops-cloud'
     runs-on: ubuntu-latest
     needs: Determine_Runnable_Jobs
     if: contains(needs.Determine_Runnable_Jobs.outputs.jobs_to_run,'LOCAL_HOST')
@@ -117,8 +121,3 @@ jobs:
           LITHOPS_CONFIG_FILE: ${{ github.workspace }}/lithops/tests/config_files/lithops_config_LOCAL.yaml
         run: |
           lithops verify
-
-
-
-
-
