@@ -75,7 +75,7 @@ class LocalhostHandler:
         total_calls = len(job_payload['call_ids'])
 
         logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going to '
-                     f'run {total_calls} activations in localhost worker')
+                     f'run {total_calls} activations in the localhost worker')
 
         if not os.path.isfile(RUNNER):
             self.env.setup(runtime)
@@ -139,7 +139,7 @@ class LocalhostHandler:
         """
         for job_key in job_keys:
             # None means alive
-            if self.jobs[job_key].poll() is not None:
+            if job_key not in self.jobs or self.jobs[job_key].poll() is not None:
                 continue
             logger.debug(f'Killing job {job_key} with PID {self.jobs[job_key].pid}')
             self.jobs[job_key].kill()

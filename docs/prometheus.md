@@ -1,4 +1,4 @@
-#Prometheus Monitoring (Experimental)
+# Prometheus Telemetry (Experimental)
 
 **!! NOTE: This is an experimental feature and everything related to it can change rapidly**
 
@@ -21,10 +21,10 @@ For testing purposes, the easiest way to get everything up is to use an Ubuntu V
 ```
 
 ## Configuration
-Edit your config and enable the monitoring system by including the *monitoring* key in the lithops section:
+Edit your config and enable the telemetry system by including the *telemetry* key in the lithops section:
 ```yaml
 lithops:
-    monitoring: true
+    telemetry: true
 ```
 
 Add in your config a new section called *prometheus* with the following keys:
@@ -37,4 +37,4 @@ prometheus:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|prometheus | apigateway | |yes | Prometheus apigateway endpointt. Make sure to use http:// prefix and corresponding port. For example: http://localhost:9091 |
+|prometheus | apigateway | |yes | Prometheus apigateway endpoint. Make sure to use http:// prefix and corresponding port. For example: http://localhost:9091 |

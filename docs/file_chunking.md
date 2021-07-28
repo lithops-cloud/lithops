@@ -1,10 +1,11 @@
-# Lithops' file "chunking":
+# Lithops' file "chunking"
+
 When using the Lithop's map function to run a single function over a rather large file, one might consider breaking the
 workload to smaller portions, handing each portion to a separate thread. We refer to said portions as chunks.
 
 Hereinafter is an example for using a map function to read a csv. file, stored in COS, split to pre-determined sized chunks: 
 
-```
+```python
 def line_counter_in_chunk(obj):
     counter = {}
     data = obj.data_stream.read()
@@ -28,9 +29,11 @@ if __name__ == "__main__":
     with open('logs/map_output', 'w') as f:
     	f.write(str(res).replace('{','\n{'))
 ```
+
 - To take full advantage of the test above (for the next topic), use a file with a K number of rows repeating themselves 
   as a routine. You may create a csv. example file using the following function:
-  ```  
+
+    ```python  
     def create_routine_file():
         """ creates a ~17MB csv. file consisting of 5 lines repeating routine.  """
     
@@ -47,7 +50,7 @@ if __name__ == "__main__":
                 f.write(str_routine)
                 if i < ITERATIONS - 1:
                     f.write('\n')
-     ```
+    ```
 
 - Alternatively, One may exchange the obj_chunk_size with the obj_chunk_number parameter to split the file into a known
   number of chunks. 
@@ -56,7 +59,8 @@ if __name__ == "__main__":
   running a map function of your choosing, but, As written in the documentation, chunk size must be upwards of 1 MIB. 
 
  
-## Keeping line integrity in mind:
+## Keeping line integrity in mind
+
 One important feat implemented as a part of the chunking functionality, is dividing input file into chunks while making 
 sure no chunk contains partial lines.
 Thus, running the test above with any (legal) configuration of parameters, will output a file consisting of entire rows solely.
@@ -64,8 +68,7 @@ Thus, running the test above with any (legal) configuration of parameters, will 
 In case you opted to adhere to the recommendation above (regarding the file contents) you may verify line integrity quickly
 by exchanging the call to the map function with the following map_reduce and adding the map_function below:
 
-
-```
+```python
 def count_total_matching_lines(results):
     final_result = {}
     for count in results:
@@ -79,8 +82,9 @@ def count_total_matching_lines(results):
 
 fexec.map_reduce(line_counter_in_chunk, data_location, count_total_matching_lines, obj_chunk_size=size)
 ```
-The next part covers the main details of the chunking procedure, as it's implemented in the Lithops project. 
-### The Algorithm behind the curtains:
+
+## The Algorithm behind the scenes
+
 As map or map_reduce is being called, a new job is created (in lithops/job/job.py). The relevant part of the algorithm 
 begins when create_partitions(in lithops/job/partitioner.py) is called, and the job's chunks are associated with byte range.
 in this stage of the algorithm each chunk simply gets its fair share + a fixed threshold, whose purpose will become apparent shortly. 
@@ -103,4 +107,5 @@ which is implemented in the following way:
 4. Due to the fact that each chunk received an extra amount of bytes, i.e. the threshold previously mentioned 
    (for the very purpose mentioned in clause 3), every chunk, apart from the last one, has to rid itself from excessive rows,
    by moving last_row_end_pos to the beginning of the next row within the threshold.
-5. finally, retval[first_row_start_pos : last_row_end_pos], which contains a chunk free from any split lines, is returned.   
+5. finally, retval[first_row_start_pos : last_row_end_pos], which contains a chunk free from any split lines, is returned.  
+ 

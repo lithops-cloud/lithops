@@ -191,7 +191,7 @@ class AWSLambdaBackend:
         @param runtime_name: runtime name from which to create the layer
         @return: ARN of the created layer
         """
-        logger.debug('Creating lambda layer for runtime {}'.format(runtime_name))
+        logger.info('Creating default lambda layer for runtime {}'.format(runtime_name))
 
         if self.internal_storage.backend != "aws_s3":
             raise Exception('"aws_s3" is required as storage backend for publishing the lambda layer. '
@@ -209,10 +209,14 @@ class AWSLambdaBackend:
 
         # Install and build modules to target directory
         dependencies = [dependency.strip().replace(' ', '') for dependency in lambda_config.DEFAULT_REQUIREMENTS]
-        logger.info('Going to download and build {} modules to {}...'.format(len(dependencies), LAYER_DIR_PATH))
+        logger.debug('Going to download and build {} modules to {}'.format(len(dependencies), LAYER_DIR_PATH))
         command = [sys.executable, '-m', 'pip', 'install', '-t', LAYER_DIR_PATH]
         command.extend(dependencies)
-        subprocess.check_call(command)
+
+        if logger.getEffectiveLevel() != logging.DEBUG:
+            subprocess.check_call(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            subprocess.check_call(command)
 
         # Compress modules
         with zipfile.ZipFile(LAYER_ZIP_PATH, 'w') as layer_zip:
