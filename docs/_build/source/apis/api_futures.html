@@ -1,0 +1,837 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+    <title>Lithops Futures API Details &#8212; Lithops  documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css" />
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section class="tex2jax_ignore mathjax_ignore" id="lithops-futures-api-details">
+<h1>Lithops Futures API Details<a class="headerlink" href="#lithops-futures-api-details" title="Permalink to this headline">¶</a></h1>
+<section id="executor">
+<h2>Executor<a class="headerlink" href="#executor" title="Permalink to this headline">¶</a></h2>
+<p>The primary object in Lithops is the executor. The standard way to get everything set up is to import <code class="docutils literal notranslate"><span class="pre">lithops</span></code>, and create an instance of one of the available modes of executions.</p>
+<p>Lithops is shipped with 3 modes of execution: <strong>Localhost</strong>, <strong>Serverless</strong> and <strong>Standalone</strong>. In this sense, each mode of execution has its own executor class:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">lithops.LocalhostExecutor()</span></code>: Executor that uses local processes to run jobs in the local machine.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">lithops.ServerlessExecutor()</span></code>: Executor to run jobs in one of the available serverless compute backends.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">lithops.StandaloneExecutor()</span></code>: Executor to run jobs in one of the available standalone compute backends.</p></li>
+</ul>
+<p>Additionally, Lithops includes a top-level function executor, which encompasses all three previous executors:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">lithops.FunctionExecutor()</span></code>: Generic executor that will use the configuration to determine its mode of execution, i.e., based on the configuration it will be <strong>localhost</strong>, <strong>serverless</strong> or <strong>standalone</strong>.</p></li>
+</ul>
+<p>By default, the executor load the configuration from the config file. Alternatively, you can pass the configuration with a python dictionary. In any case, note that all the parameters set in the executor will overwrite those set in the configuration.</p>
+<p>The available calls within an executor are:</p>
+<table class="colwidths-auto docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>API Call</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><a class="reference external" href="api_futures.md#executorcall_async">call_async()</a></p></td>
+<td><p>Async.</p></td>
+<td><p>Method used to spawn one function activation</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference external" href="api_futures.md#executormap">map()</a></p></td>
+<td><p>Async.</p></td>
+<td><p>Method used to spawn multiple function activations</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference external" href="api_futures.md#executormap_reduce">map_reduce()</a></p></td>
+<td><p>Async.</p></td>
+<td><p>Method used to spawn multiple function activations with one (or multiple) reducers</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference external" href="api_futures.md#executorwait">wait()</a></p></td>
+<td><p>Sync.</p></td>
+<td><p>Wait for the function activations to complete. It blocks the local execution until all the function activations finished their execution (configurable)</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference external" href="api_futures.md#executorget_result">get_result()</a></p></td>
+<td><p>Sync.</p></td>
+<td><p>Method used to retrieve the results of all function activations. The results are returned within an ordered list, where each element of the list is the result of one activation</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference external" href="api_futures.md#executorplot">plot()</a></p></td>
+<td><p>Sync.</p></td>
+<td><p>Method used to create execution plots</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference external" href="api_futures.md#jobsummary">job_summary()</a></p></td>
+<td><p>Sync.</p></td>
+<td><p>Method used to create a summary file of the executed jobs. It includes times and money</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference external" href="api_futures.md#executorclean">clean()</a></p></td>
+<td><p>Async.</p></td>
+<td><p>Method used to clean the temporary data generated by Lithops</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>LocalhostExecutor(**kwargs)</strong></p>
+<p>Initialize and return Localhost executor object.</p>
+<table class="colwidths-auto docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>config</p></td>
+<td><p>None</p></td>
+<td><p>Settings passed in here will override those in lithops_config</p></td>
+</tr>
+<tr class="row-odd"><td><p>runtime</p></td>
+<td><p>None</p></td>
+<td><p>Name of the docker image to run the functions</p></td>
+</tr>
+<tr class="row-even"><td><p>workers</p></td>
+<td><p>cpu_count</p></td>
+<td><p>Max number of parallel workers</p></td>
+</tr>
+<tr class="row-odd"><td><p>storage</p></td>
+<td><p>localhost</p></td>
+<td><p>Storage backend to store temp data</p></td>
+</tr>
+<tr class="row-even"><td><p>monitoring</p></td>
+<td><p>storage</p></td>
+<td><p>Monitoring system implementation. One of: storage, rabbitmq</p></td>
+</tr>
+<tr class="row-odd"><td><p>log_level</p></td>
+<td><p>INFO</p></td>
+<td><p>Log level printing (INFO, DEBUG, …). Set it to None to hide all logs. If this is param is set, all logging params in config are disabled</p></td>
+</tr>
+</tbody>
+</table>
+<p>Usage:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">lithops</span>
+<span class="n">fexec</span> <span class="o">=</span> <span class="n">lithops</span><span class="o">.</span><span class="n">LocalhostExecutor</span><span class="p">()</span>
+</pre></div>
+</div>
+<p><strong>ServerlessExecutor(**kwargs)</strong></p>
+<p>Initialize and return a Serverless executor object.</p>
+<table class="colwidths-auto docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>config</p></td>
+<td><p>None</p></td>
+<td><p>Settings passed in here will override those in lithops_config</p></td>
+</tr>
+<tr class="row-odd"><td><p>backend</p></td>
+<td><p>ibm_cf</p></td>
+<td><p>Serverless compute backend to run the functions</p></td>
+</tr>
+<tr class="row-even"><td><p>runtime</p></td>
+<td><p>None</p></td>
+<td><p>Name of the docker image to run the functions</p></td>
+</tr>
+<tr class="row-odd"><td><p>runtime_memory</p></td>
+<td><p>256</p></td>
+<td><p>Memory (in MB) to use to run the functions</p></td>
+</tr>
+<tr class="row-even"><td><p>storage</p></td>
+<td><p>ibm_cos</p></td>
+<td><p>Storage backend to store temp data</p></td>
+</tr>
+<tr class="row-odd"><td><p>workers</p></td>
+<td><p><em>depends of the backend</em></p></td>
+<td><p>Max number of parallel workers</p></td>
+</tr>
+<tr class="row-even"><td><p>monitoring</p></td>
+<td><p>storage</p></td>
+<td><p>Monitoring system implementation. One of: storage, rabbitmq</p></td>
+</tr>
+<tr class="row-odd"><td><p>remote_invoker</p></td>
+<td><p>False</p></td>
+<td><p>Spawn a function that will perform the actual job invocation (True/False)</p></td>
+</tr>
+<tr class="row-even"><td><p>log_level</p></td>
+<td><p>INFO</p></td>
+<td><p>Log level printing (INFO, DEBUG, …). Set it to None to hide all logs. If this is param is set, all logging params in config are disabled</p></td>
+</tr>
+</tbody>
+</table>
+<p>Usage:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">lithops</span>
+<span class="n">fexec</span> <span class="o">=</span> <span class="n">lithops</span><span class="o">.</span><span class="n">ServerlessExecutor</span><span class="p">()</span>
+</pre></div>
+</div>
+<p><strong>StandaloneExecutor(**kwargs)</strong></p>
+<p>Initialize and return an Standalone executor object.</p>
+<table class="colwidths-auto docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>config</p></td>
+<td><p>None</p></td>
+<td><p>Settings passed in here will override those in lithops_config</p></td>
+</tr>
+<tr class="row-odd"><td><p>backend</p></td>
+<td><p>ibm_vpc</p></td>
+<td><p>Standalone compute backend to run the functions</p></td>
+</tr>
+<tr class="row-even"><td><p>runtime</p></td>
+<td><p>python3</p></td>
+<td><p>Name of the runtime to run the functions. It can be a docker image or <em>python3</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>workers</p></td>
+<td><p>cpu_count</p></td>
+<td><p>Max number of parallel workers</p></td>
+</tr>
+<tr class="row-even"><td><p>storage</p></td>
+<td><p>ibm_cos</p></td>
+<td><p>Storage backend to store temp data</p></td>
+</tr>
+<tr class="row-odd"><td><p>monitoring</p></td>
+<td><p>storage</p></td>
+<td><p>Monitoring system implementation. One of: storage, rabbitmq</p></td>
+</tr>
+<tr class="row-even"><td><p>log_level</p></td>
+<td><p>INFO</p></td>
+<td><p>Log level printing (INFO, DEBUG, …). Set it to None to hide all logs. If this is param is set, all logging params in config are disabled</p></td>
+</tr>
+</tbody>
+</table>
+<p>Usage:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">lithops</span>
+<span class="n">fexec</span> <span class="o">=</span> <span class="n">lithops</span><span class="o">.</span><span class="n">StandaloneExecutor</span><span class="p">()</span>
+</pre></div>
+</div>
+<p><strong>FunctionExecutor(**kwargs)</strong></p>
+<p>Initialize and return a generic function executor.</p>
+<table class="colwidths-auto docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>mode</p></td>
+<td><p>serverless</p></td>
+<td><p>Execution mode. One of: localhost, serverless or standalone</p></td>
+</tr>
+<tr class="row-odd"><td><p>config</p></td>
+<td><p>None</p></td>
+<td><p>Settings passed in here will override those in lithops_config</p></td>
+</tr>
+<tr class="row-even"><td><p>backend</p></td>
+<td><p>None</p></td>
+<td><p>Compute backend to run the functions</p></td>
+</tr>
+<tr class="row-odd"><td><p>runtime</p></td>
+<td><p>None</p></td>
+<td><p>Name of the runtime to run the functions.</p></td>
+</tr>
+<tr class="row-even"><td><p>runtime_memory</p></td>
+<td><p>None</p></td>
+<td><p>Memory (in MB) to use to run the functions</p></td>
+</tr>
+<tr class="row-odd"><td><p>workers</p></td>
+<td><p>None</p></td>
+<td><p>Max number of parallel workers</p></td>
+</tr>
+<tr class="row-even"><td><p>storage</p></td>
+<td><p>ibm_cos</p></td>
+<td><p>Storage backend to store temp data</p></td>
+</tr>
+<tr class="row-odd"><td><p>monitoring</p></td>
+<td><p>storage</p></td>
+<td><p>Monitoring system implementation. One of: storage, rabbitmq</p></td>
+</tr>
+<tr class="row-even"><td><p>remote_invoker</p></td>
+<td><p>False</p></td>
+<td><p>Spawn a function that will perform the actual job invocation (True/False)</p></td>
+</tr>
+<tr class="row-odd"><td><p>log_level</p></td>
+<td><p>INFO</p></td>
+<td><p>Log level printing (INFO, DEBUG, …). Set it to None to hide all logs. If this is param is set, all logging params in config are disabled</p></td>
+</tr>
+</tbody>
+</table>
+<p>Usage:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">lithops</span>
+<span class="n">fexec</span> <span class="o">=</span> <span class="n">lithops</span><span class="o">.</span><span class="n">FunctionExecutor</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="executor-call-async">
+<h2>Executor.call_async()<a class="headerlink" href="#executor-call-async" title="Permalink to this headline">¶</a></h2>
+<p>Spawn only one function activation.</p>
+<p><strong>call_async</strong>(func, data, **kwargs)</p>
+<table class="colwidths-auto docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>func</p></td>
+<td><p></p></td>
+<td><p>The function to map over the data</p></td>
+</tr>
+<tr class="row-odd"><td><p>data</p></td>
+<td><p></p></td>
+<td><p>A single value of data</p></td>
+</tr>
+<tr class="row-even"><td><p>extra_env</p></td>
+<td><p>None</p></td>
+<td><p>Additional environment variables for CF environment</p></td>
+</tr>
+<tr class="row-odd"><td><p>runtime_memory</p></td>
+<td><p>256</p></td>
+<td><p>Memory (in MB) to use to run the functions</p></td>
+</tr>
+<tr class="row-even"><td><p>timeout</p></td>
+<td><p>600</p></td>
+<td><p>Max time per function activation (seconds)</p></td>
+</tr>
+<tr class="row-odd"><td><p>include_modules</p></td>
+<td><p>[]</p></td>
+<td><p>Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None</p></td>
+</tr>
+<tr class="row-even"><td><p>exclude_modules</p></td>
+<td><p>[]</p></td>
+<td><p>Explicitly keep these modules from pickled dependencies. It is not taken into account if you set include_modules</p></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><p><strong>Returns</strong>: One future for each job (Futures are also internally stored by Lithops).</p></li>
+<li><p><strong>Usage</strong>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">future</span> <span class="o">=</span> <span class="n">fexec</span><span class="o">.</span><span class="n">call_async</span><span class="p">(</span><span class="n">foo</span><span class="p">,</span> <span class="n">data</span><span class="p">)</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Code example</strong>: <span class="xref myst">call_async.py</span></p></li>
+</ul>
+</section>
+<section id="executor-map">
+<h2>Executor.map()<a class="headerlink" href="#executor-map" title="Permalink to this headline">¶</a></h2>
+<p>Spawn multiple function activations based on the items of an input list.</p>
+<p><strong>map</strong>(map_function, map_iterdata, **kwargs)</p>
+<table class="colwidths-auto docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>map_function</p></td>
+<td><p></p></td>
+<td><p>The function to map over the data</p></td>
+</tr>
+<tr class="row-odd"><td><p>map_iterdata</p></td>
+<td><p></p></td>
+<td><p>An iterable of input data (e.g python list)</p></td>
+</tr>
+<tr class="row-even"><td><p>chunksize</p></td>
+<td><p>1</p></td>
+<td><p>Split map_iteradata in chunks of this size. Lithops spawns 1 worker per resulting chunk</p></td>
+</tr>
+<tr class="row-odd"><td><p>worker_processes</p></td>
+<td><p>1</p></td>
+<td><p>Number of concurrent/parallel processes in each worker</p></td>
+</tr>
+<tr class="row-even"><td><p>extra_args</p></td>
+<td><p>None</p></td>
+<td><p>Additional arguments to pass to each map_function activation</p></td>
+</tr>
+<tr class="row-odd"><td><p>extra_env</p></td>
+<td><p>None</p></td>
+<td><p>Additional environment variables for CF environment</p></td>
+</tr>
+<tr class="row-even"><td><p>runtime_memory</p></td>
+<td><p>256</p></td>
+<td><p>Memory (in MB) to use to run the functions</p></td>
+</tr>
+<tr class="row-odd"><td><p>timeout</p></td>
+<td><p>600</p></td>
+<td><p>Max time per function activation (seconds)</p></td>
+</tr>
+<tr class="row-even"><td><p>include_modules</p></td>
+<td><p>[]</p></td>
+<td><p>Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None</p></td>
+</tr>
+<tr class="row-odd"><td><p>exclude_modules</p></td>
+<td><p>[]</p></td>
+<td><p>Explicitly keep these modules from pickled dependencies. It is not taken into account if you set include_modules</p></td>
+</tr>
+<tr class="row-even"><td><p>obj_chunk_size</p></td>
+<td><p>None</p></td>
+<td><p>Used for data_processing. Chunk size to split each object in bytes. Must be &gt;= 1MiB. ‘None’ for processing the whole file in one function activation</p></td>
+</tr>
+<tr class="row-odd"><td><p>obj_chunk_number</p></td>
+<td><p>None</p></td>
+<td><p>Used for data_processing. Number of chunks to split each object. ‘None’ for processing the whole file in one function activation. chunk_n has prevalence over chunk_size if both parameters are set</p></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><p><strong>Returns</strong>: A list with size  len(map_iterdata) of futures for each job (Futures are also internally stored by Lithops).</p></li>
+<li><p><strong>Usage</strong>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">iterdata</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span>
+<span class="n">futures</span> <span class="o">=</span> <span class="n">fexec</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">foo</span><span class="p">,</span> <span class="n">iterdata</span><span class="p">)</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Code example</strong>: <span class="xref myst">map.py</span></p></li>
+</ul>
+</section>
+<section id="executor-map-reduce">
+<h2>Executor.map_reduce()<a class="headerlink" href="#executor-map-reduce" title="Permalink to this headline">¶</a></h2>
+<p>Spawn multiple <em>map_function</em> activations,  based on the items of an input list,  eventually spawning one (or multiple) <em>reduce_function</em> activations over the results of the map phase.</p>
+<p><strong>map_reduce</strong>(map_function, map_iterdata, reduce_function, **kwargs)</p>
+<table class="colwidths-auto docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>map_function</p></td>
+<td><p></p></td>
+<td><p>The function to map over the data</p></td>
+</tr>
+<tr class="row-odd"><td><p>map_iterdata</p></td>
+<td><p></p></td>
+<td><p>An iterable of input data (e.g python list)</p></td>
+</tr>
+<tr class="row-even"><td><p>chunksize</p></td>
+<td><p>1</p></td>
+<td><p>Split map_iteradata in chunks of this size. Lithops spawns 1 worker per resulting chunk</p></td>
+</tr>
+<tr class="row-odd"><td><p>worker_processes</p></td>
+<td><p>1</p></td>
+<td><p>Number of concurrent/parallel processes in each worker</p></td>
+</tr>
+<tr class="row-even"><td><p>extra_args</p></td>
+<td><p>None</p></td>
+<td><p>Additional arguments to pass to each map_function activation</p></td>
+</tr>
+<tr class="row-odd"><td><p>reduce_function</p></td>
+<td><p></p></td>
+<td><p>The function to map over the results of map_function</p></td>
+</tr>
+<tr class="row-even"><td><p>reducer_wait_local</p></td>
+<td><p>False</p></td>
+<td><p>Wait locally for map results</p></td>
+</tr>
+<tr class="row-odd"><td><p>extra_env</p></td>
+<td><p>None</p></td>
+<td><p>Additional environment variables for CF environment</p></td>
+</tr>
+<tr class="row-even"><td><p>map_runtime_memory</p></td>
+<td><p>256</p></td>
+<td><p>Memory (in MB) to use to run the map_function</p></td>
+</tr>
+<tr class="row-odd"><td><p>reduce_runtime_memory</p></td>
+<td><p>256</p></td>
+<td><p>Memory (in MB) to use to run the reduce_function</p></td>
+</tr>
+<tr class="row-even"><td><p>timeout</p></td>
+<td><p>600</p></td>
+<td><p>Max time per function activation (seconds)</p></td>
+</tr>
+<tr class="row-odd"><td><p>include_modules</p></td>
+<td><p>[]</p></td>
+<td><p>Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None</p></td>
+</tr>
+<tr class="row-even"><td><p>exclude_modules</p></td>
+<td><p>[]</p></td>
+<td><p>Explicitly keep these modules from pickled dependencies. It is not taken into account if you set include_modules</p></td>
+</tr>
+<tr class="row-odd"><td><p>obj_chunk_size</p></td>
+<td><p>None</p></td>
+<td><p>Used for data_processing. Chunk size to split each object in bytes. Must be &gt;= 1MiB. ‘None’ for processing the whole file in one function activation</p></td>
+</tr>
+<tr class="row-even"><td><p>obj_chunk_number</p></td>
+<td><p>None</p></td>
+<td><p>Used for data_processing. Number of chunks to split each object. ‘None’ for processing the whole file in one function activation. chunk_n has prevalence over chunk_size if both parameters are set</p></td>
+</tr>
+<tr class="row-odd"><td><p>reducer_one_per_object</p></td>
+<td><p>False</p></td>
+<td><p>Used for data_processing. Set one reducer per object after running the partitioner (reduce-by-key)</p></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><p><strong>Returns</strong>: A list with size  len(map_iterdata)  of futures for each job (Futures are also internally stored by Lithops).</p></li>
+<li><p><strong>Usage</strong>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">iterdata</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span>
+<span class="n">futures</span> <span class="o">=</span> <span class="n">fexec</span><span class="o">.</span><span class="n">map_reduce</span><span class="p">(</span><span class="n">foo</span><span class="p">,</span> <span class="n">iterdata</span><span class="p">,</span> <span class="n">bar</span><span class="p">)</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Code example</strong>: <span class="xref myst">map_reduce.py</span></p></li>
+</ul>
+<p>By default, the <em>reduce_function</em> is immediately spawned, and then it waits remotely to get all the results from the map phase. It should be note that, although faster, this approach consumes CPU time in Cloud Functions. You can change this behavior and make <em>reduce_function</em> to wait locally for the results by setting the <code class="docutils literal notranslate"><span class="pre">reducer_wait_local</span></code> parameter to <code class="docutils literal notranslate"><span class="pre">True</span></code>. However, it has the tradeoff of greater data transfers, because it has to download all the results to the local machine and then upload them again to the cloud for processing with the <em>reduce_function</em>.</p>
+</section>
+<section id="executor-wait">
+<h2>Executor.wait()<a class="headerlink" href="#executor-wait" title="Permalink to this headline">¶</a></h2>
+<p>Waits for the function activations to finish.</p>
+<p><strong>wait</strong>(**kwargs)</p>
+<table class="colwidths-auto docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>fs</p></td>
+<td><p>None</p></td>
+<td><p>List of futures to wait. If None, Lithops uses the internally stored futures</p></td>
+</tr>
+<tr class="row-odd"><td><p>throw_except</p></td>
+<td><p>True</p></td>
+<td><p>Re-raise exception if call raised</p></td>
+</tr>
+<tr class="row-even"><td><p>return_when</p></td>
+<td><p>‘ALL_COMPLETED’</p></td>
+<td><p>One of ‘ALL_COMPLETED’, ‘ANY_COMPLETED’, ‘ALWAYS’</p></td>
+</tr>
+<tr class="row-odd"><td><p>download_results</p></td>
+<td><p>False</p></td>
+<td><p>Whether or not download the results while monitoring activations</p></td>
+</tr>
+<tr class="row-even"><td><p>timeout</p></td>
+<td><p>None</p></td>
+<td><p>Timeout of waiting for results (in seconds)</p></td>
+</tr>
+<tr class="row-odd"><td><p>THREADPOOL_SIZE</p></td>
+<td><p>128</p></td>
+<td><p>Number of threads to use waiting for results</p></td>
+</tr>
+<tr class="row-even"><td><p>WAIT_DUR_SEC</p></td>
+<td><p>1</p></td>
+<td><p>Time interval between each check (seconds) if no rabbitmq_monitor activated</p></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><p><strong>Returns</strong>: <code class="docutils literal notranslate"><span class="pre">(fs_done,</span> <span class="pre">fs_notdone)</span></code> where <code class="docutils literal notranslate"><span class="pre">fs_done</span></code> is a list of futures that have completed and <code class="docutils literal notranslate"><span class="pre">fs_notdone</span></code> is a list of futures that have not completed.</p></li>
+<li><p><strong>Usage</strong>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">iterdata</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span>
+<span class="n">futures</span> <span class="o">=</span> <span class="n">fexec</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">foo</span><span class="p">,</span> <span class="n">iterdata</span><span class="p">)</span>
+<span class="n">fexec</span><span class="o">.</span><span class="n">wait</span><span class="p">()</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Code example</strong>: <span class="xref myst">wait.py</span></p></li>
+</ul>
+</section>
+<section id="executor-get-result">
+<h2>Executor.get_result()<a class="headerlink" href="#executor-get-result" title="Permalink to this headline">¶</a></h2>
+<p>Gets the results from all the function activations. It internally makes use of the <code class="docutils literal notranslate"><span class="pre">Executor.wait()</span></code> method.</p>
+<p><strong>get_result</strong>(**kwargs)</p>
+<table class="colwidths-auto docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>fs</p></td>
+<td><p>None</p></td>
+<td><p>List of futures to get the results. If None, Lithops uses the internally stored futures</p></td>
+</tr>
+<tr class="row-odd"><td><p>throw_except</p></td>
+<td><p>True</p></td>
+<td><p>Re-raise exception if call raised</p></td>
+</tr>
+<tr class="row-even"><td><p>timeout</p></td>
+<td><p>None</p></td>
+<td><p>Timeout of waiting for results (in seconds)</p></td>
+</tr>
+<tr class="row-odd"><td><p>THREADPOOL_SIZE</p></td>
+<td><p>128</p></td>
+<td><p>Number of threads to use waiting for results</p></td>
+</tr>
+<tr class="row-even"><td><p>WAIT_DUR_SEC</p></td>
+<td><p>1</p></td>
+<td><p>Time interval between each check (seconds) if no rabbitmq_monitor activated</p></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><p><strong>Returns</strong>: The results are returned within an ordered list, where each element of the list is the result of one activation.</p></li>
+<li><p><strong>Usage</strong>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">iterdata</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span>
+<span class="n">futures</span> <span class="o">=</span> <span class="n">fexec</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">foo</span><span class="p">,</span> <span class="n">iterdata</span><span class="p">)</span>
+<span class="n">results</span> <span class="o">=</span> <span class="n">fexec</span><span class="o">.</span><span class="n">get_result</span><span class="p">()</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Code example</strong>: <span class="xref myst">call_async.py</span>, <span class="xref myst">map.py</span>, <span class="xref myst">map_reduce.py</span></p></li>
+</ul>
+</section>
+<section id="executor-plot">
+<h2>Executor.plot()<a class="headerlink" href="#executor-plot" title="Permalink to this headline">¶</a></h2>
+<p>Creates 2 detailed execution plots: A timeline plot and a histogram plot.</p>
+<p><strong>plot</strong>(**kwargs)</p>
+<table class="colwidths-auto docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>fs</p></td>
+<td><p>None</p></td>
+<td><p>List of futures to plot. If None, Lithops uses the internally stored futures</p></td>
+</tr>
+<tr class="row-odd"><td><p>dst</p></td>
+<td><p>None</p></td>
+<td><p>Path to destination file, either absolute or relative. If set, you must specify the path + the file prefix (see example below), then lithops will generate the <em>prefix</em>_histogram.png and <em>prefix</em>_timeline.png files. If None, Lithops will create a new folder called <em>plots</em> in the current directory and use the current timestamp as file <em>prefix</em></p></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><p><strong>Returns</strong>: <em>Nothing</em>. It stores 2 different plots in the selected <code class="docutils literal notranslate"><span class="pre">dst</span></code> path.</p></li>
+<li><p><strong>Usage</strong>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">iterdata</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span>
+<span class="n">fexec</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">foo</span><span class="p">,</span> <span class="n">iterdata</span><span class="p">)</span>
+<span class="n">results</span> <span class="o">=</span> <span class="n">fexec</span><span class="o">.</span><span class="n">get_result</span><span class="p">()</span>  <span class="c1"># or fexec.wait()</span>
+<span class="c1"># The next command will generate test_timeline.png and test_histogram.png in ~/lithops_plots</span>
+<span class="n">fexec</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">dst</span><span class="o">=</span><span class="s1">&#39;~/lithops_plots/test&#39;</span><span class="p">)</span> 
+</pre></div>
+</div>
+</li>
+<li><p><strong>Example</strong>:</p></li>
+</ul>
+<p align="center">
+  <img width="48%" src="../images/timeline.png"></img>
+  <img width="48%" src="../images/histogram.png"></img>
+</p>
+</section>
+<section id="executor-clean">
+<h2>Executor.clean()<a class="headerlink" href="#executor-clean" title="Permalink to this headline">¶</a></h2>
+<p>Cleans the temporary data generated by Lithops in IBM COS. This process runs asynchronously to the main execution since Lithops starts another process to do the task. If <code class="docutils literal notranslate"><span class="pre">data_cleaner=True</span></code> (default), this method is executed automatically after calling <code class="docutils literal notranslate"><span class="pre">get_result()</span></code>.</p>
+<p><strong>clean</strong>(**kwargs)</p>
+<table class="colwidths-auto docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>fs</p></td>
+<td><p>None</p></td>
+<td><p>List of futures to clean temp data. If None, Lithops uses the internally stored futures</p></td>
+</tr>
+<tr class="row-odd"><td><p>cs</p></td>
+<td><p>None</p></td>
+<td><p>List of cloudobjects to clean</p></td>
+</tr>
+<tr class="row-even"><td><p>clean_cloudobjects</p></td>
+<td><p>True</p></td>
+<td><p>Clean or not the cloudobjects generated in the executor</p></td>
+</tr>
+<tr class="row-odd"><td><p>spawn_cleaner</p></td>
+<td><p>True</p></td>
+<td><p>Spawn cleaner process. If false it stores the data to be cleaned in a tmp dir</p></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><p><strong>Returns</strong>: <em>Nothing</em>.</p></li>
+<li><p><strong>Usage</strong>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">iterdata</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">4</span><span class="p">]</span>
+<span class="n">futures</span> <span class="o">=</span> <span class="n">fexec</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">foo</span><span class="p">,</span> <span class="n">iterdata</span><span class="p">)</span>
+<span class="n">results</span> <span class="o">=</span> <span class="n">fexec</span><span class="o">.</span><span class="n">get_result</span><span class="p">()</span>
+<span class="n">fexec</span><span class="o">.</span><span class="n">clean</span><span class="p">()</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Code example</strong>: <span class="xref myst">map.py</span></p></li>
+</ul>
+</section>
+</section>
+<section class="tex2jax_ignore mathjax_ignore" id="function-chaining">
+<h1>Function chaining<a class="headerlink" href="#function-chaining" title="Permalink to this headline">¶</a></h1>
+<p>Function chaining is a pattern where multiple functions are called on the same executor consecutively. Using the same <code class="docutils literal notranslate"><span class="pre">lithops.FunctionExecutor</span></code> object reference, multiple functions can be invoked. It increases the readability of the code and means less redundancy. This means we chain multiple functions together with the same element reference. It’s not necessary to attach the <code class="docutils literal notranslate"><span class="pre">lithops.FunctionExecutor</span></code> reference multiple times for each function call.</p>
+<p>This patter is specially useful when the output of one invocation is the input of another invocation. In this case, Lithops does not download the intermediate results to the local client, instead, the intermediate results are directly read from the next function.</p>
+<p>It currently works with the Futures API, and you can chain the <code class="docutils literal notranslate"><span class="pre">map()</span></code>, <code class="docutils literal notranslate"><span class="pre">map_reuce()</span></code>, <code class="docutils literal notranslate"><span class="pre">wait()</span></code> and <code class="docutils literal notranslate"><span class="pre">get_result()</span></code> methods. Note that the returning value of one function must match the signature of the next function when chaining multiple <code class="docutils literal notranslate"><span class="pre">map()</span></code> calls. View the next examples:</p>
+<p>Getting the result from a single <code class="docutils literal notranslate"><span class="pre">map()</span></code> call:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">lithops</span>
+
+<span class="k">def</span> <span class="nf">my_func1</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">x</span><span class="o">*</span><span class="mi">2</span>
+
+<span class="n">iterdata</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+
+<span class="n">fexec</span> <span class="o">=</span> <span class="n">lithops</span><span class="o">.</span><span class="n">FunctionExecutor</span><span class="p">()</span>
+<span class="n">res</span> <span class="o">=</span> <span class="n">fexec</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">my_func1</span><span class="p">,</span> <span class="n">iterdata</span><span class="p">)</span><span class="o">.</span><span class="n">get_result</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Chain multiple map() calls and get the final result:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">lithops</span>
+
+
+<span class="k">def</span> <span class="nf">my_func1</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">x</span><span class="o">*</span><span class="mi">2</span><span class="p">,</span> <span class="mi">5</span>
+    
+<span class="k">def</span> <span class="nf">my_func2</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">x</span><span class="o">+</span><span class="n">y</span>
+
+<span class="n">iterdata</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+
+<span class="n">fexec</span> <span class="o">=</span> <span class="n">lithops</span><span class="o">.</span><span class="n">FunctionExecutor</span><span class="p">()</span>
+<span class="n">res</span> <span class="o">=</span> <span class="n">fexec</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">my_func1</span><span class="p">,</span> <span class="n">iterdata</span><span class="p">)</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">my_func2</span><span class="p">)</span><span class="o">.</span><span class="n">get_result</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>There is no limit in the number of map() calls that can be chained:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">my_func1</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">x</span><span class="o">+</span><span class="mi">2</span><span class="p">,</span> <span class="mi">5</span>
+
+
+<span class="k">def</span> <span class="nf">my_func2</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">x</span><span class="o">+</span><span class="n">y</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">2</span>
+
+
+<span class="k">def</span> <span class="nf">my_func3</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">x</span><span class="o">+</span><span class="n">y</span><span class="o">+</span><span class="n">z</span>
+
+
+<span class="n">iterdata</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+
+<span class="n">fexec</span> <span class="o">=</span> <span class="n">lithops</span><span class="o">.</span><span class="n">FunctionExecutor</span><span class="p">()</span>
+<span class="n">res</span> <span class="o">=</span> <span class="n">fexec</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">my_func1</span><span class="p">,</span> <span class="n">iterdata</span><span class="p">)</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">my_func2</span><span class="p">)</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">my_func3</span><span class="p">)</span><span class="o">.</span><span class="n">get_result</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">res</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Alternatively, you can pass the <code class="docutils literal notranslate"><span class="pre">futures</span></code> generated in a <code class="docutils literal notranslate"><span class="pre">map()</span></code> or <code class="docutils literal notranslate"><span class="pre">map_reduce()</span></code> call to the <code class="docutils literal notranslate"><span class="pre">iterdata</span></code> parameter with the same effect. Not that in this case you will only get the results of the last <code class="docutils literal notranslate"><span class="pre">map()</span></code> execution. Results of intermediate <code class="docutils literal notranslate"><span class="pre">map()</span></code>s are never downloaded:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">my_func1</span><span class="p">(</span><span class="n">x</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">x</span><span class="o">+</span><span class="mi">2</span><span class="p">,</span> <span class="mi">5</span>
+
+
+<span class="k">def</span> <span class="nf">my_func2</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">x</span><span class="o">+</span><span class="n">y</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">2</span>
+
+
+<span class="k">def</span> <span class="nf">my_func3</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">x</span><span class="o">+</span><span class="n">y</span><span class="o">+</span><span class="n">z</span>
+
+
+<span class="n">iterdata</span> <span class="o">=</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]</span>
+
+<span class="n">fexec</span> <span class="o">=</span> <span class="n">lithops</span><span class="o">.</span><span class="n">FunctionExecutor</span><span class="p">()</span>
+<span class="n">futures1</span> <span class="o">=</span> <span class="n">fexec</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">my_func1</span><span class="p">,</span> <span class="n">iterdata</span><span class="p">)</span>
+<span class="n">futures2</span> <span class="o">=</span> <span class="n">fexec</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">my_func2</span><span class="p">,</span> <span class="n">futures1</span><span class="p">)</span>
+<span class="n">futures3</span> <span class="o">=</span> <span class="n">fexec</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="n">my_func3</span><span class="p">,</span> <span class="n">futures2</span><span class="p">)</span>
+<span class="n">final_result</span> <span class="o">=</span> <span class="n">fexec</span><span class="o">.</span><span class="n">get_result</span><span class="p">()</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">final_result</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">Lithops</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../design.html">Lithops Design</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Josep Sampé, Gil Vernik.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 4.1.2</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="../../_sources/source/apis/api_futures.md.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

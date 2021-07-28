@@ -1,0 +1,174 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+    <title>User Guide &#8212; Lithops  documentation</title>
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../_static/alabaster.css" />
+    <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section class="tex2jax_ignore mathjax_ignore" id="user-guide">
+<h1>User Guide<a class="headerlink" href="#user-guide" title="Permalink to this headline">¶</a></h1>
+<ol class="simple">
+<li><p><a class="reference internal" href="design.html"><span class="doc std std-doc">Lithops design overview</span></a></p></li>
+<li><p><a class="reference internal" href="supported_clouds.html"><span class="doc std std-doc">Supported Clouds</span></a></p></li>
+<li><p>High-level Compute and Storage APIs</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="api_futures.html"><span class="doc std std-doc">Futures API</span></a></p></li>
+<li><p><a class="reference internal" href="api_multiprocessing.html"><span class="doc std std-doc">Multiprocessing API</span></a></p></li>
+<li><p><a class="reference internal" href="api_storage.html"><span class="doc std std-doc">Storage API</span></a></p></li>
+<li><p><a class="reference internal" href="api_storage_os.html"><span class="doc std std-doc">Storage OS API</span></a></p></li>
+</ul>
+</li>
+<li><p>Execution Modes</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="mode_localhost.html"><span class="doc std std-doc">Localhost mode</span></a></p></li>
+<li><p><a class="reference internal" href="mode_serverless.html"><span class="doc std std-doc">Serverless mode</span></a></p></li>
+<li><p><a class="reference internal" href="mode_standalone.html"><span class="doc std std-doc">Standalone mode</span></a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="functions.html"><span class="doc std std-doc">Functions design and parameters</span></a></p>
+<ul class="simple">
+<li><p><a class="reference external" href="functions.md#reserved-parameters">Reserved parameters</a></p></li>
+<li><p><a class="reference external" href="functions.md#parameters-in-the-call_async-method">Parameters format for a <em>single</em> call</a></p></li>
+<li><p><a class="reference external" href="functions.md#parameters-in-the-map-and-map_reduce-methods">Parameters format for a <em>map</em> call</a></p></li>
+<li><p><a class="reference external" href="functions.md#common-parameters-across-functions-invocations">Common parameters across functions</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="dso.html"><span class="doc std std-doc">Distributed shared objects across function activations</span></a></p></li>
+<li><p><a class="reference internal" href="sklearn_joblib.html"><span class="doc std std-doc">Distributed Scikit-learn / Joblib</span></a></p></li>
+<li><p><a class="reference internal" href="data_processing.html"><span class="doc std std-doc">Lithops for big data analytics</span></a></p>
+<ul class="simple">
+<li><p><a class="reference external" href="data_processing.md#processing-data-from-a-cloud-object-storage-service">Processing data from a cloud object store</a></p></li>
+<li><p><a class="reference external" href="data_processing.md#processing-data-from-public-urls">Processing data from public URLs</a></p></li>
+<li><p><a class="reference external" href="data_processing.md#processing-data-from-localhost-files">Processing data from localhost files</a></p></li>
+</ul>
+</li>
+<li><p><span class="xref myst">Run Lithops on Jupyter notebooks</span></p></li>
+<li><p><a class="reference external" href="https://github.com/lithops-cloud/airflow-plugin">Execute Airflow workflows using Lithops</a></p></li>
+<li><p><a class="reference external" href="https://github.com/lithops-cloud/applications">Lithops end-to-end Applications</a></p></li>
+<li><p><span class="xref myst">Build and manage custom runtimes to run the functions</span></p></li>
+</ol>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../index.html">Lithops</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Lithops Core</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="design.html">Lithops Design</a></li>
+<li class="toctree-l1"><a class="reference internal" href="supported_clouds.html">Lithops Supported Clouds</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Lithops Futures API</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api_futures.html">Lithops Futures API Details</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_futures.html#function-chaining">Function chaining</a></li>
+<li class="toctree-l1"><a class="reference internal" href="functions.html">Lithops Functions and Parameters</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Storage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api_storage.html">Lithops Storage API Details</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api_storage_os.html">Lithops Storage OS API Details</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Data Processing</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="data_processing.html">Using Lithops to process data from a Cloud Object Storage service and public URLs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="file_chunking.html">Lithops’ file “chunking”:</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Execution Modes</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="mode_localhost.html">Lithops Localhost Execution Mode</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mode_serverless.html">Lithops Serverless Execution Mode</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mode_standalone.html">Lithops Standalone Execution Mode</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Experimental</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="api_multiprocessing.html">Lithops Multiprocessing API Details</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dso.html">Distributed shared objects across function activations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sklearn_joblib.html">Distributed Scikit-learn / Joblib (beta)</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2021, Josep Sampé, Gil Vernik.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 4.1.2</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="../_sources/source/user_guide.md.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
