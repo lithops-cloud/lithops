@@ -9,7 +9,7 @@ on:
 jobs:
 
   Determine_Runnable_Jobs:
-    if: github.repository_owner = 'lithops-cloud'
+    if: github.repository_owner == 'lithops-cloud'
     runs-on: ubuntu-latest
     outputs:
       jobs_to_run: ${{ steps.script.outputs.string }}
