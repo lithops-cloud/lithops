@@ -194,6 +194,16 @@ class Invoker:
             )
         )
 
+        self.prometheus.send_metric(
+            name='job_runtime_memory',
+            value=job.runtime_memory or 0,
+            type='counter',
+            labels=(
+                ('job_id_', job.job_key),
+                ('function_name', job.function_name)
+            )
+        )
+
         try:
             job.runtime_name = self.runtime_name
             self._invoke_job(job)
