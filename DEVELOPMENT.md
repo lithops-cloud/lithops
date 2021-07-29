@@ -40,3 +40,8 @@ To update any other runtime, navigate into `runtime` folder and execute:
 To update all deployed runtimes at a time, navigate into `runtime` folder and execute:
 
 	# lithops runtime update all
+
+
+## Contributing
+
+Follow [contributing](CONTRIBUTING.md) instructions if you want to publish your changes to the Lithops master branch.
