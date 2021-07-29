@@ -43,8 +43,8 @@ jobs:
         run: |
           docker login -u "${{ secrets.DOCKER_USER }}" -p "${{ secrets.DOCKER_TOKEN }}"
           cd runtime/code_engine
-          lithops runtime build -f Dockerfile.githubci "${{ secrets.DOCKER_USER }}"/lithops-ce-gihub-ci:latest -b code_engine
-          sed -i '/runtime: lithops-ce/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-ce-gihub-ci:latest' /tmp/lithops_config.yaml
+          lithops runtime build -f Dockerfile.githubci "${{ secrets.DOCKER_USER }}"/lithops-ce-github-ci:latest -b code_engine
+          sed -i '/runtime: lithops-ce/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-ce-github-ci:latest' /tmp/lithops_config.yaml
 
       - name: Run lithops tests
         run: |
@@ -78,8 +78,8 @@ jobs:
         run: |
           docker login -u "${{ secrets.DOCKER_USER }}" -p "${{ secrets.DOCKER_TOKEN }}"
           cd runtime/ibm_cf
-          lithops runtime build -f Dockerfile.githubci "${{ secrets.DOCKER_USER }}"/lithops-cf-gihub-ci:latest -b ibm_cf
-          sed -i '/runtime: lithops-cf/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-cf-gihub-ci:latest' /tmp/lithops_config.yaml
+          lithops runtime build -f Dockerfile.githubci "${{ secrets.DOCKER_USER }}"/lithops-cf-github-ci:latest -b ibm_cf
+          sed -i '/runtime: lithops-cf/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-cf-github-ci:latest' /tmp/lithops_config.yaml
 
       - name: Run Lithops tests
         run: |
