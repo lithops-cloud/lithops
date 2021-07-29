@@ -168,7 +168,6 @@ If you need to create new VM, then follow the steps to create and update Lithops
 |ibm_vpc | instance_id | | yes | virtual server instance ID |
 |ibm_vpc | ip_address | | yes | Floatting IP address atached to your Vm instance|
 |ibm_vpc | ssh_key_filename | | no | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
-|ibm_vpc | delete_on_dismantle | False| no | Delete the VM when it is stopped |
 
 ## Viewing the execution logs
 
