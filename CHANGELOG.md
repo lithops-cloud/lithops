@@ -9,7 +9,7 @@
 - [Tests] Update CI github workflow
 
 ### Fixes
-- 
+- [IBM VPC] Fixed a data inconsistency on consume mode
 
 ## [v2.4.0]
 

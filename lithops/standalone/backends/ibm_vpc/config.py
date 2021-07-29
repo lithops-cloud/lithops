@@ -59,6 +59,8 @@ def load_config(config_data):
             msg = "{} is mandatory in 'ibm_vpc' section of the configuration".format(param)
             raise Exception(msg)
 
+    config_data['ibm_vpc']['endpoint'] = config_data['ibm_vpc']['endpoint'].replace('/v1', '')
+
     if 'version' not in config_data:
         # it is not safe to use version as today() due to timezone differences. may fail at midnight. better use yesterday
         yesterday = datetime.date.today() - datetime.timedelta(days=1)

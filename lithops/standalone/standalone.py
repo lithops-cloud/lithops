@@ -202,7 +202,6 @@ class StandaloneHandler:
             logger.debug('{} not ready'.format(self.backend.master))
             self.backend.master.create(check_if_exists=True, start=True)
             self._wait_master_instance_ready()
-
         self._setup_master_service()
         self._wait_master_service_ready()
 

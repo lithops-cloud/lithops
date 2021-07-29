@@ -44,6 +44,8 @@ class IBMVPCBackend:
         self.region = self.endpoint.split('//')[1].split('.')[0]
         self.vpc_name = self.config.get('vpc_name')
 
+        logger.debug('Setting VPC endpoint to: {}'.format(self.endpoint))
+
         self.master = None
         self.workers = []
 
@@ -230,51 +232,57 @@ class IBMVPCBackend:
         Initialize the VPC
         """
         vpc_data_filename = os.path.join(CACHE_DIR, self.name, 'data')
-        vpc_data = load_yaml_config(vpc_data_filename)
+        self.vpc_data = load_yaml_config(vpc_data_filename)
 
         if self.mode == 'consume':
             logger.debug('Initializing IBM VPC backend (Consume mode)')
-            if 'instance_name' not in vpc_data:
+
+            if not self.vpc_data or (self.vpc_data and self.config['instance_id'] != self.vpc_data['instance_id']):
                 instance_data = self.ibm_vpc_client.get_instance(self.config['instance_id'])
                 name = instance_data.get_result()['name']
-                vpc_data = {'instance_name': name}
-                dump_yaml_config(vpc_data_filename, vpc_data)
-            self.master = IBMVPCInstance(vpc_data['instance_name'], self.config,
+                self.vpc_data = {'instance_id': self.config['instance_id'],
+                                 'instance_name': name,
+                                 'floating_ip': self.config['ip_address']}
+                dump_yaml_config(vpc_data_filename, self.vpc_data)
+
+            self.master = IBMVPCInstance(self.vpc_data['instance_name'], self.config,
                                          self.ibm_vpc_client, public=True)
             self.master.instance_id = self.config['instance_id']
             self.master.public_ip = self.config['ip_address']
             self.master.delete_on_dismantle = False
-            return
 
-        logger.debug('Initializing IBM VPC backend (Create mode)')
-        # Create the VPC if not exists
-        self._create_vpc(vpc_data)
-        # Set the prefix used for the VPC resources
-        self.vpc_key = self.config['vpc_id'].split('-')[2]
-        # Create a new gateway if not exists
-        self._create_gateway(vpc_data)
-        # Create a new subnaet if not exists
-        self._create_subnet(vpc_data)
-        # Create a new floating IP if not exists
-        self._create_floating_ip(vpc_data)
+        else:  # create mode
+            logger.debug('Initializing IBM VPC backend (Create mode)')
+            # Create the VPC if not exists
+            self._create_vpc(self.vpc_data)
+            # Set the prefix used for the VPC resources
+            self.vpc_key = self.config['vpc_id'].split('-')[2]
+            # Create a new gateway if not exists
+            self._create_gateway(self.vpc_data)
+            # Create a new subnaet if not exists
+            self._create_subnet(self.vpc_data)
+            # Create a new floating IP if not exists
+            self._create_floating_ip(self.vpc_data)
 
-        vpc_data = {
-            'vpc_id': self.config['vpc_id'],
-            'subnet_id': self.config['subnet_id'],
-            'security_group_id': self.config['security_group_id'],
-            'floating_ip': self.config['floating_ip'],
-            'floating_ip_id': self.config['floating_ip_id'],
-            'gateway_id': self.config['gateway_id']
-        }
+            # create the master VM insatnce
+            name = 'lithops-master-{}'.format(self.vpc_key)
+            self.master = IBMVPCInstance(name, self.config, self.ibm_vpc_client, public=True)
+            self.master.public_ip = self.config['floating_ip']
+            self.master.profile_name = self.config['master_profile_name']
+            self.master.delete_on_dismantle = False
 
-        dump_yaml_config(vpc_data_filename, vpc_data)
+            self.vpc_data = {
+                'instance_id': 0,
+                'instance_name': self.master.name,
+                'vpc_id': self.config['vpc_id'],
+                'subnet_id': self.config['subnet_id'],
+                'security_group_id': self.config['security_group_id'],
+                'floating_ip': self.config['floating_ip'],
+                'floating_ip_id': self.config['floating_ip_id'],
+                'gateway_id': self.config['gateway_id']
+            }
 
-        # create the master VM insatnce
-        name = 'lithops-master-{}'.format(self.vpc_key)
-        self.master = IBMVPCInstance(name, self.config, self.ibm_vpc_client, public=True)
-        self.master.public_ip = self.config['floating_ip']
-        self.master.profile_name = self.config['master_profile_name']
-        self.master.delete_on_dismantle = False
+            dump_yaml_config(vpc_data_filename, self.vpc_data)
 
     def _delete_vm_instances(self):
         """
@@ -344,7 +352,6 @@ class IBMVPCBackend:
         if 'gateway_id' not in vpc_data:
             gateways_info = self.ibm_vpc_client.list_public_gateways().get_result()
 
-            print(gateways_info)
             for gw in gateways_info['public_gateways']:
                 if ['name'] == gateway_name:
                     vpc_data['gateway_id'] = gw['id']
@@ -411,6 +418,10 @@ class IBMVPCBackend:
                 ex.map(lambda worker: worker.stop(), self.workers)
             self.workers = []
 
+        if self.mode == 'consume':
+            # in consume mode master VM is a worker
+            self.master.stop()
+
     def get_vm(self, name):
         """
         Returns a VM class instance.
@@ -428,7 +439,7 @@ class IBMVPCBackend:
 
     def get_runtime_key(self, runtime_name):
         name = runtime_name.replace('/', '-').replace(':', '-')
-        runtime_key = '/'.join([self.name, name])
+        runtime_key = '/'.join([self.name, self.vpc_data['instance_id'], name])
         return runtime_key
 
 
