@@ -33,20 +33,28 @@ jobs:
           python3 setup.py install
       
       - name: Install Lithops config
+        id: config
         run: |
           echo -n -e "${{ secrets.LITHOPS_CONFIG }}" > /tmp/lithops_config.yaml
-      
-      
+          if grep -Fxq "code_engie:" /tmp/lithops_config.yaml
+          then
+            echo "::set-output name=code_engie::true"
+          else
+            echo "::set-output name=code_engie::false"
+          fi
+
       - name: Build new runtime
+        if: steps.config.outputs.code_engie == 'true'
         env:
             LITHOPS_CONFIG_FILE: /tmp/lithops_config.yaml
         run: |
           docker login -u "${{ secrets.DOCKER_USER }}" -p "${{ secrets.DOCKER_TOKEN }}"
           cd runtime/code_engine
-          lithops runtime build -f Dockerfile.githubci "${{ secrets.DOCKER_USER }}"/lithops-ce-gihub-ci:latest -b code_engine
-          sed -i '/runtime: lithops-ce/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-ce-gihub-ci:latest' /tmp/lithops_config.yaml
+          lithops runtime build -f Dockerfile.githubci ${{ secrets.DOCKER_USER }}/lithops-ce-gihub-ci:${{ github.run_id }} -b code_engine
+          sed -i '/runtime: lithops-ce/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-ce-gihub-ci:'${{ github.run_id }} /tmp/lithops_config.yaml
 
       - name: Run lithops tests
+        if: steps.config.outputs.code_engie == 'true'
         run: |
           lithops verify -b code_engine -s ibm_cos -k -c /tmp/lithops_config.yaml
  
@@ -69,19 +77,28 @@ jobs:
           python3 setup.py install
       
       - name: Install Lithops config
+        id: config
         run: |
           echo -n -e "${{ secrets.LITHOPS_CONFIG }}" > /tmp/lithops_config.yaml
+          if grep -Fxq "ibm_cf:" /tmp/lithops_config.yaml
+          then
+            echo "::set-output name=ibm_cf::true"
+          else
+            echo "::set-output name=ibm_cf::false"
+          fi
        
       - name: Build new runtime
+        if: steps.config.outputs.ibm_cf == 'true'
         env:
           LITHOPS_CONFIG_FILE: /tmp/lithops_config.yaml
         run: |
-          docker login -u "${{ secrets.DOCKER_USER }}" -p "${{ secrets.DOCKER_TOKEN }}"
+          docker login -u ${{ secrets.DOCKER_USER }} -p ${{ secrets.DOCKER_TOKEN }}
           cd runtime/ibm_cf
-          lithops runtime build -f Dockerfile.githubci "${{ secrets.DOCKER_USER }}"/lithops-cf-gihub-ci:latest -b ibm_cf
-          sed -i '/runtime: lithops-cf/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-cf-gihub-ci:latest' /tmp/lithops_config.yaml
+          lithops runtime build -f Dockerfile.githubci ${{ secrets.DOCKER_USER }}/lithops-cf-gihub-ci:${{ github.run_id }} -b ibm_cf
+          sed -i '/runtime: lithops-cf/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-cf-gihub-ci:'${{ github.run_id }} /tmp/lithops_config.yaml
 
       - name: Run Lithops tests
+        if: steps.config.outputs.ibm_cf == 'true'
         run: |
           lithops verify -b ibm_cf -s ibm_cos -k -c /tmp/lithops_config.yaml
 
@@ -108,6 +125,28 @@ jobs:
       - name: Install Lithops config
         run: |
           echo -n -e "${{ secrets.LITHOPS_CONFIG }}" > /tmp/lithops_config.yaml
+
+      - name: Delete Lithops CE runtime
+        env:
+          LITHOPS_CONFIG_FILE: /tmp/lithops_config.yaml
+        run: |
+          if grep -Fxq "code_engine:" /tmp/lithops_config.yaml
+          then
+            lithops runtime delete ${{ secrets.DOCKER_USER }}/lithops-ce-gihub-ci:${{ github.run_id }} -b code_engine -s ibm_cos
+          else
+            echo "Code engine config not present. Skipping"
+          fi
+
+      - name: Delete Lithops CF runtime
+        env:
+          LITHOPS_CONFIG_FILE: /tmp/lithops_config.yaml
+        run: |
+          if grep -Fxq "ibm_cf:" /tmp/lithops_config.yaml
+          then
+            lithops runtime delete ${{ secrets.DOCKER_USER }}/lithops-cf-gihub-ci:${{ github.run_id }} -b ibm_cf -s ibm_cos
+          else
+            echo "Cloud Functions config not present. Skipping"
+          fi
 
       - name: Clean COS Data
         env:

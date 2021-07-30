@@ -1,4 +1,4 @@
-FROM ibmfunctions/lithops-ce-v385:235
+FROM jsampe/lithops-codeengine-v38:latest
 
 # Copy Lithops proxy and lib to the container image.
 ENV APP_HOME /lithops

@@ -234,13 +234,18 @@ class IBMVPCBackend:
         vpc_data_filename = os.path.join(CACHE_DIR, self.name, 'data')
         self.vpc_data = load_yaml_config(vpc_data_filename)
 
+        cahced_mode = self.vpc_data.get('mode')
+        cahced_instance_id = self.vpc_data.get('instance_id')
+
         if self.mode == 'consume':
             logger.debug('Initializing IBM VPC backend (Consume mode)')
 
-            if not self.vpc_data or (self.vpc_data and self.config['instance_id'] != self.vpc_data['instance_id']):
-                instance_data = self.ibm_vpc_client.get_instance(self.config['instance_id'])
+            if self.mode != cahced_mode or self.config['instance_id'] != cahced_instance_id:
+                ins_id = self.config['instance_id']
+                instance_data = self.ibm_vpc_client.get_instance(ins_id)
                 name = instance_data.get_result()['name']
-                self.vpc_data = {'instance_id': self.config['instance_id'],
+                self.vpc_data = {'mode': 'consume',
+                                 'instance_id': self.config['instance_id'],
                                  'instance_name': name,
                                  'floating_ip': self.config['ip_address']}
                 dump_yaml_config(vpc_data_filename, self.vpc_data)
@@ -251,8 +256,13 @@ class IBMVPCBackend:
             self.master.public_ip = self.config['ip_address']
             self.master.delete_on_dismantle = False
 
-        else:  # create mode
+        elif self.mode == 'create':
             logger.debug('Initializing IBM VPC backend (Create mode)')
+
+            if self.mode != cahced_mode:
+                # invalidate cached data
+                self.vpc_data = {}
+
             # Create the VPC if not exists
             self._create_vpc(self.vpc_data)
             # Set the prefix used for the VPC resources
@@ -272,7 +282,8 @@ class IBMVPCBackend:
             self.master.delete_on_dismantle = False
 
             self.vpc_data = {
-                'instance_id': 0,
+                'mode': 'consume',
+                'instance_id': '0af1',
                 'instance_name': self.master.name,
                 'vpc_id': self.config['vpc_id'],
                 'subnet_id': self.config['subnet_id'],
@@ -407,9 +418,11 @@ class IBMVPCBackend:
         """
         Delete all the workers
         """
-        self.dismantle()
+        # clear() is automatically called after get_result(),
+        # so no need to stop the master VM.
+        self.dismantle(include_master=False)
 
-    def dismantle(self):
+    def dismantle(self, include_master=True):
         """
         Stop all worker VM instances
         """
@@ -418,7 +431,7 @@ class IBMVPCBackend:
                 ex.map(lambda worker: worker.stop(), self.workers)
             self.workers = []
 
-        if self.mode == 'consume':
+        if include_master and self.mode == 'consume':
             # in consume mode master VM is a worker
             self.master.stop()
 
