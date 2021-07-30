@@ -33,31 +33,30 @@ jobs:
           python3 setup.py install
       
       - name: Install Lithops config
+        id: config
         run: |
           echo -n -e "${{ secrets.LITHOPS_CONFIG }}" > /tmp/lithops_config.yaml
+          if grep -Fxq "code_engie:" /tmp/lithops_config.yaml
+          then
+            echo "::set-output name=code_engie::true"
+          else
+            echo "::set-output name=code_engie::false"
+          fi
 
       - name: Build new runtime
+        if: steps.config.outputs.code_engie == 'true'
         env:
             LITHOPS_CONFIG_FILE: /tmp/lithops_config.yaml
         run: |
-          if grep -Fxq "code_engine:" /tmp/lithops_config.yaml
-          then
-            docker login -u "${{ secrets.DOCKER_USER }}" -p "${{ secrets.DOCKER_TOKEN }}"
-            cd runtime/code_engine
-            lithops runtime build -f Dockerfile.githubci ${{ secrets.DOCKER_USER }}/lithops-ce-gihub-ci:${{ github.run_id }} -b code_engine
-            sed -i '/runtime: lithops-ce/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-ce-gihub-ci:'${{ github.run_id }} /tmp/lithops_config.yaml
-          else
-            echo "Code engine config not present. Skipping build"
-          fi
+          docker login -u "${{ secrets.DOCKER_USER }}" -p "${{ secrets.DOCKER_TOKEN }}"
+          cd runtime/code_engine
+          lithops runtime build -f Dockerfile.githubci ${{ secrets.DOCKER_USER }}/lithops-ce-gihub-ci:${{ github.run_id }} -b code_engine
+          sed -i '/runtime: lithops-ce/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-ce-gihub-ci:'${{ github.run_id }} /tmp/lithops_config.yaml
 
       - name: Run lithops tests
+        if: steps.config.outputs.code_engie == 'true'
         run: |
-          if grep -Fxq "code_engine:" /tmp/lithops_config.yaml
-          then
-            lithops verify -b code_engine -s ibm_cos -k -c /tmp/lithops_config.yaml
-          else
-            echo "Code engine config not present. Skipping tests"
-          fi
+          lithops verify -b code_engine -s ibm_cos -k -c /tmp/lithops_config.yaml
  
   CF_COS:
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
@@ -78,33 +77,30 @@ jobs:
           python3 setup.py install
       
       - name: Install Lithops config
+        id: config
         run: |
           echo -n -e "${{ secrets.LITHOPS_CONFIG }}" > /tmp/lithops_config.yaml
+          if grep -Fxq "ibm_cf:" /tmp/lithops_config.yaml
+          then
+            echo "::set-output name=ibm_cf::true"
+          else
+            echo "::set-output name=ibm_cf::false"
+          fi
        
       - name: Build new runtime
-        #shell: bash -x -e -o pipefail -l {0}
+        if: steps.config.outputs.ibm_cf == 'true'
         env:
           LITHOPS_CONFIG_FILE: /tmp/lithops_config.yaml
         run: |
-          if grep -Fxq "ibm_cf:" /tmp/lithops_config.yaml
-          then
-            docker login -u ${{ secrets.DOCKER_USER }} -p ${{ secrets.DOCKER_TOKEN }}
-            cd runtime/ibm_cf
-            lithops runtime build -f Dockerfile.githubci ${{ secrets.DOCKER_USER }}/lithops-cf-gihub-ci:${{ github.run_id }} -b ibm_cf
-            sed -i '/runtime: lithops-cf/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-cf-gihub-ci:'${{ github.run_id }} /tmp/lithops_config.yaml
-          else
-            echo "Cloud Functions config not present. Skipping build"
-          fi
+          docker login -u ${{ secrets.DOCKER_USER }} -p ${{ secrets.DOCKER_TOKEN }}
+          cd runtime/ibm_cf
+          lithops runtime build -f Dockerfile.githubci ${{ secrets.DOCKER_USER }}/lithops-cf-gihub-ci:${{ github.run_id }} -b ibm_cf
+          sed -i '/runtime: lithops-cf/c\    runtime: '${{ secrets.DOCKER_USER }}'/lithops-cf-gihub-ci:'${{ github.run_id }} /tmp/lithops_config.yaml
 
       - name: Run Lithops tests
-        #shell: bash -x -e -o pipefail -l {0}
+        if: steps.config.outputs.ibm_cf == 'true'
         run: |
-          if grep -Fxq "ibm_cf:" /tmp/lithops_config.yaml
-          then
-            lithops verify -b ibm_cf -s ibm_cos -k -c /tmp/lithops_config.yaml
-          else
-            echo "Cloud Functions config not present. Skipping tests"
-          fi
+          lithops verify -b ibm_cf -s ibm_cos -k -c /tmp/lithops_config.yaml
 
   Clean:
     if: always()  # this job will run regardless of the above job's status.
@@ -156,7 +152,7 @@ jobs:
         env:
           LITHOPS_CONFIG_FILE: /tmp/lithops_config.yaml
         run: |
-          lithops clean -b localhost -s ibm_cos
+          lithops clean -b localhost
 
   LOCALHOST:
     if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'

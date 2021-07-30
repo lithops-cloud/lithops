@@ -234,13 +234,13 @@ class IBMVPCBackend:
         vpc_data_filename = os.path.join(CACHE_DIR, self.name, 'data')
         self.vpc_data = load_yaml_config(vpc_data_filename)
 
-        mode = self.vpc_data.get('mode')
-        instance_id = self.vpc_data.get('instance_id')
+        cahced_mode = self.vpc_data.get('mode')
+        cahced_instance_id = self.vpc_data.get('instance_id')
 
         if self.mode == 'consume':
             logger.debug('Initializing IBM VPC backend (Consume mode)')
 
-            if self.mode != mode or self.config['instance_id'] != instance_id:
+            if self.mode != cahced_mode or self.config['instance_id'] != cahced_instance_id:
                 ins_id = self.config['instance_id']
                 instance_data = self.ibm_vpc_client.get_instance(ins_id)
                 name = instance_data.get_result()['name']
@@ -259,7 +259,7 @@ class IBMVPCBackend:
         elif self.mode == 'create':
             logger.debug('Initializing IBM VPC backend (Create mode)')
 
-            if self.mode != mode:
+            if self.mode != cahced_mode:
                 # invalidate cached data
                 self.vpc_data = {}
 
