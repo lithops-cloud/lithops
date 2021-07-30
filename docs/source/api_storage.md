@@ -1,4 +1,4 @@
-# Lithops Storage API Details
+# Storage API Details
 
 Lithops allows to create a **Storage** instance and abstract away the backend implementation details. The standard way to get a Storage object set up is to import the lithops `Storage` class and create an instance.
 
@@ -27,7 +27,7 @@ Alternatively, you can pass the lithops configuration through a dictionary. In t
 ```python
 from lithops import Storage
 
-config = {'lithops' : {'storage' : 'ibm_cos'},
+config = {'lithops' : {'storage_config' : 'ibm_cos'},
           'ibm_cos': {'region': 'REGION', 'api_key': 'API_KEY'}}
 
 storage = Storage(config=config)
@@ -46,7 +46,7 @@ or:
 ```python
 from lithops import Storage
 
-config = {'lithops' : {'storage' : 'ibm_cos'},
+config = {'lithops' : {'storage_config' : 'ibm_cos'},
           'ibm_cos': {'region': 'REGION', 'api_key': 'API_KEY'}}
           'redis': {'host': 'HOST', 'port':'PORT'}}
 

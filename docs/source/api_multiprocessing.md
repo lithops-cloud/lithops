@@ -1,8 +1,8 @@
-# Lithops Multiprocessing API Details
+# Multiprocessing API
 
 Lithops allows to use the standard Python [multiprocessing](https://docs.python.org/3/library/multiprocessing.html) High-level API to run functions by using a cloud compute backend.
 
-### Table of contents
+## Table of contents
 
   * [Process](#process)
   * [Pool](#pool)
@@ -188,7 +188,7 @@ Return whether the call completed without raising an exception. Will raise `Valu
 Python's `multiprocessing` module provides several shared state and synchronization primitives to communicate processes.
 
 This is accomplished by accessing a remote [Redis](https://redis.io/download) instance.
-Redis configuration must be set up in [`~/home/.lithops/config`](../../config/README.md) file, under `redis` section:
+Redis configuration must be set up in [`~/home/.lithops/config`](install.rst) file, under `redis` section:
 
 ```yaml
 redis:

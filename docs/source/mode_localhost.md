@@ -1,4 +1,4 @@
-# Lithops Localhost Execution Mode
+# Localhost Execution Mode
 
 Lithops uses local processes to run functions by default. In this mode of execution it is not necessary to provide any kind of configuration or create a configuration file. 
 
@@ -27,10 +27,10 @@ If in contrast you already have a config file/dict, you must set the next keys i
 ```yaml
 lithops:
     mode: localhost
-    storage: localhost  # You can also point it to a public storage backend, such as aws_s3 or ibm_cos
+    storage: localhost  # You can also point it to a public storage_config backend, such as aws_s3 or ibm_cos
 ```
 
-### Default Environment
+## Default Environment
 The default environment runs the functions in the same *python3* interpreter that you ran the lithops script.
 It does not require any extra configuration. You must ensure that all the dependencies of your script are installed in your machine and then crate one of the availabe function executors.
 
@@ -47,7 +47,7 @@ or alternatively, you can force the serverless mode with:
 ```
 
 
-### Docker Environment
+## Docker Environment
 The Docker environment runs the functions within a Docker container. In this case you must [install the Docker CE version](https://docs.docker.com/get-docker/) in your machine. This environment is automatically activated when you provide a docker image as a runtime. For example, by adding the following keys in the config:
 
 ```yaml

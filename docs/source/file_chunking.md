@@ -1,4 +1,4 @@
-# Lithops' file "chunking":
+# File "chunking":
 When using the Lithop's map function to run a single function over a rather large file, one might consider breaking the
 workload to smaller portions, handing each portion to a separate thread. We refer to said portions as chunks.
 

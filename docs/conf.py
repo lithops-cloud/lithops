@@ -17,7 +17,7 @@
 
 # -- Project information -----------------------------------------------------
 
-project = 'Lithops'
+project = 'Lithops: Lightweight Optimized Serverless Processing'
 copyright = '2021, Josep Sampé, Gil Vernik'
 author = 'Josep Sampé, Gil Vernik'
 
@@ -27,7 +27,8 @@ author = 'Josep Sampé, Gil Vernik'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    'myst_parser'
+    'myst_parser',
+    'sphinxemoji.sphinxemoji'
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -49,26 +50,26 @@ source_suffix = {
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'sphinx_material'
+html_theme = 'karma_sphinx_theme'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
-html_theme_options = {
-    'base_url': 'https://lithops.cloud',
-    'repo_url': 'https://github.com/lithops-cloud/lithops',
-    'repo_name': 'Lithops',
-    'repo_type': 'github',
-    'html_minify': True,
-    'css_minify': True,
-    'nav_title': 'Lithops Documentation',
-    # 'logo_icon': '&#e2bd',
-    'globaltoc_depth': -1,
-    'color_primary': 'white',
-    'color_accent': 'light-blue'
-}
+# html_theme_options = {
+#     'base_url': 'https://lithops.cloud',
+#     'repo_url': 'https://github.com/lithops-cloud/lithops',
+#     'repo_name': 'Lithops',
+#     'repo_type': 'github',
+#     'html_minify': True,
+#     'css_minify': True,
+#     'nav_title': 'Lithops Documentation',
+#     # 'logo_icon': '&#e2bd',
+#     'globaltoc_depth': -1,
+#     'color_primary': 'white',
+#     'color_accent': 'light-blue'
+# }
 
 html_sidebars = {
     "**": ["logo-text.html", "globaltoc.html", "localtoc.html", "searchbox.html"]

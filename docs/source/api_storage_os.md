@@ -1,4 +1,4 @@
-# Lithops Storage OS API Details
+# Storage OS API Details
 
 Lithops provides a transparent way to interact with the storage backend.
 
@@ -20,7 +20,7 @@ In this case, it will load the storage backend set in the `storage` key of the `
 ```python
 from lithops.storage.cloud_proxy import CloudStorage, CloudFileProxy
 
-config = {'lithops' : {'storage' : 'ibm_cos'},
+config = {'lithops' : {'storage_config' : 'ibm_cos'},
           'ibm_cos': {'region': 'REGION', 'api_key': 'API_KEY'}}
 
 cloud_storage = CloudStorage(config)

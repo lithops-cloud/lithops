@@ -1,4 +1,4 @@
-# Lithops Standalone Execution Mode
+# Standalone Execution Mode
 
 This mode allows to run functions by using a Virtual machine (VM). In the VM, functions run using parallel processes. This mode of executions is similar to the localhost mode, but using remote machines. In this case, it is not needed to install anything in the remote VMs since Lithops does this process automatically the first time you use them. 
 
@@ -10,7 +10,7 @@ In both cases, you can view the executions logs in your local machine using the 
 $ lithops logs poll
 ```
 
-### Default Environment
+## Default Environment
 The default environment runs the functions in the same *python3* interpreter that you ran the lithops script.
 It does not require any extra configuration. You must ensure that all the dependencies of your script are installed in your machine.
 
@@ -27,7 +27,7 @@ or alternatively you can force the standalone mode with:
 ```
 
 
-### Docker Environment
+## Docker Environment
 The Docker environment runs the functions within a Docker container. This environment is automatically activated when you provide a docker image as a runtime. For example, by adding the following keys in the config:
 
 ```yaml

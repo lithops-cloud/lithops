@@ -1,0 +1,4 @@
+Group;Key;Default;Mandatory;Additional info
+serverless;backend;``ibm_cf``;no;Serverless compute backend implementation. IBM Cloud Functions is the default. If set it will overwrite the `backend` set in lithops section
+serverless;remote_invoker;``False``;no;Activate the remote invoker feature that uses one cloud function to spawn all the actual `map()` activations
+serverless;customized_runtime;``False``;no;Enables early preparation of Lithops workers with the map function and custom Lithops runtime already deployed, and ready to be used in consequent computations

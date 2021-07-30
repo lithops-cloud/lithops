@@ -2,7 +2,7 @@
 
 *Notice:* Currently it only works with IBM Cloud Functions.
 
-### Usage
+## Usage
 
 1. Deploy a custom runtime as follows:
 

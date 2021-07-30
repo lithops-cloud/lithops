@@ -1,4 +1,4 @@
-# Lithops Design
+# Architecture Design
 
 ## Overview
 The chart below presents the main components of the architecture of Lithops. The components are largely divided into three sets: 

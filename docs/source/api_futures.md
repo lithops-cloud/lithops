@@ -1,4 +1,4 @@
-# Lithops Futures API Details
+# Futures API Details
 
 ## Executor
 The primary object in Lithops is the executor. The standard way to get everything set up is to import `lithops`, and create an instance of one of the available modes of executions.

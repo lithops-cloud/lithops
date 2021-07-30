@@ -1,4 +1,4 @@
-# Lithops Testing Guidelines
+# Testing Guidelines
 
 ## Verify Installation:
 Run ``` lithops verify``` to run an extensive inspection, which simulates your lithops installation on a variety of tests.

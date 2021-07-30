@@ -1,4 +1,4 @@
-# Lithops Serverless Execution Mode
+# Serverless Execution Mode
 
 This mode allows to run functions by using one or multiple function-as-a-service (FaaS) Serverless compute backends.  In this mode of execution, each function invocation equals to a parallel task running in the cloud in an isolated environment.
 
