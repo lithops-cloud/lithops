@@ -1,11 +1,22 @@
+<p align="center">
+  <a href="http://lithops.cloud">
+    <h1 id='lithops' align="center"><img src="docs/images/lithops_logo_readme.png" alt="Lithops" title="Lightweight Optimized Processing"/></h1>
+  </a>
+</p>
 
-<p align="center"> <img src="docs/images/lithops_flat_cloud_1.png" alt="Lithops"
-      width='500' title="Lightweight Optimized Processing"/></p>
+<p align="center">
+  <a aria-label="License" href="https://github.com/lithops-cloud/lithops/blob/master/LICENSE">
+    <img alt="" src="https://img.shields.io/github/license/lithops-cloud/lithops?style=for-the-badge&labelColor=000000">
+  </a>
+  <a aria-label="PyPi" href="https://pypi.org/project/lithops/">
+    <img alt="" src="https://img.shields.io/pypi/v/lithops?style=for-the-badge&labelColor=000000">
+  </a>
+  <a aria-label="Python" href="#lithops">
+    <img alt="" src="https://img.shields.io/pypi/pyversions/lithops?style=for-the-badge&labelColor=000000">
+  </a>
+</p>
 
-![GitHub](https://img.shields.io/github/license/lithops-cloud/lithops)
-![PyPI](https://img.shields.io/pypi/v/lithops)
-![PyPI - Python Version](https://img.shields.io/pypi/pyversions/lithops)
-
+## Getting started
 Lithops is a Python multi-cloud distributed computing framework. It allows to run unmodified local python code at massive scale in the main
 serverless computing platforms. Lithops delivers the user’s code into the cloud without requiring knowledge of how it is deployed and run. Moreover, its multicloud-agnostic architecture ensures portability across cloud providers, overcoming vendor lock-in.
 
@@ -20,14 +31,13 @@ Lithops provides value for a great variety of uses cases like big data analytics
     $ pip install lithops
     ```
 
-2. Test Lithops by simply running the next command:
+2. Test a *Hello World* function by running the next command:
   
    ```bash
    $ lithops test
    ```
-   For more information regarding testing, please refer to docs/testing.md.
 
-## Move to the Cloud
+## Configuration
 Lithops provides an extensible backend architecture (compute, storage) that is designed to work with different Cloud providers and on-premise backends. In this sense, you can code in python and run it unmodified in IBM Cloud, AWS, Azure, Google Cloud and Alibaba Aliyun. Moreover, it provides support for some kubernetes serverless frameworks such as Knative.
 
 - [Follow these instructions to configure your compute and storage backends](config/)
