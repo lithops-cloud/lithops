@@ -16,8 +16,6 @@
   </a>
 </p>
 
-**Lithops is for Big Data analytics and embarrassingly parallel jobs.**
-
 Lithops is a Python multi-cloud distributed computing framework. It allows to run unmodified local python code at massive scale in the main
 serverless computing platforms. Lithops delivers the user’s code into the cloud without requiring knowledge of how it is deployed and run. Moreover, its multicloud-agnostic architecture ensures portability across cloud providers, overcoming vendor lock-in.
 
@@ -39,7 +37,7 @@ Lithops is specially suited for highly-parallel programs with little or no need 
    ```
 
 ## Configuration
-Lithops provides an extensible backend architecture (compute, storage) that is designed to work with different Cloud providers and on-premise backends. In this sense, you can code in python and run it unmodified in IBM Cloud, AWS, Azure, Google Cloud and Alibaba Aliyun. Moreover, it provides support for some kubernetes serverless frameworks such as Knative.
+Lithops provides an extensible backend architecture (compute, storage) that is designed to work with different Cloud providers and on-premise backends. In this sense, you can code in python and run it unmodified in IBM Cloud, AWS, Azure, Google Cloud and Alibaba Aliyun. Moreover, it provides support for running jobs on vanilla kubernetes, or by using a kubernetes serverless framework like Knative or OpenWhisk.
 
 - [Follow these instructions to configure your compute and storage backends](config/)
 
