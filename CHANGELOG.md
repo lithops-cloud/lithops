@@ -1,12 +1,18 @@
 # Changelog
 
-## [v2.4.1.dev0]
+
+## [v2.4.2.dev0]
 
 ### Added
 - 
 
 ### Changed
-- [Tests] Update CI github workflow
+- 
+
+### Fixes
+- 
+
+## [v2.4.1]
 
 ### Fixes
 - [IBM VPC] Fixed a data inconsistency on consume mode
