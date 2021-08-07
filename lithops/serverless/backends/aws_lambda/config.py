@@ -68,10 +68,10 @@ def load_config(config_data):
 
     if 'runtime_timeout' not in config_data['aws_lambda']:
         config_data['aws_lambda']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
-    if config_data['aws_lambda']['runtime_timeout'] > RUNTIME_MEMORY_MAX:
+    if config_data['aws_lambda']['runtime_timeout'] > RUNTIME_TIMEOUT_DEFAULT:
         logger.warning("Timeout set to {} - {} exceeds the "
                        "maximum amount".format(RUNTIME_TIMEOUT_MAX, config_data['aws_lambda']['runtime_timeout']))
-        config_data['aws_lambda']['runtime_memory'] = RUNTIME_MEMORY_MAX
+        config_data['aws_lambda']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
 
     if 'runtime' not in config_data['aws_lambda']:
         if DEFAULT_RUNTIME not in AVAILABLE_RUNTIMES:
