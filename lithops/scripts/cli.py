@@ -385,25 +385,19 @@ def create(name, storage, backend, memory, timeout, config):
 @click.option('--backend', '-b', default=None, help='compute backend')
 def build(name, file, config, backend):
     """ build a serverless runtime. """
+
+    verify_runtime_name(name)
+
     if config:
         config = load_yaml_config(config)
 
     setup_lithops_logger(logging.DEBUG)
 
     config_ow = set_config_ow(backend)
-    config = default_config(config, config_ow)
-
-    if not name:
-        backend = config['lithops']['backend']
-        name = config[backend]['runtime']
-
-    verify_runtime_name(name)
-
-    storage_config = extract_storage_config(config)
-    internal_storage = InternalStorage(storage_config)
+    config = default_config(config, config_ow, load_storage_config=False)
 
     compute_config = extract_serverless_config(config)
-    compute_handler = ServerlessHandler(compute_config, internal_storage)
+    compute_handler = ServerlessHandler(compute_config, None)
     compute_handler.build_runtime(name, file)
 
 
