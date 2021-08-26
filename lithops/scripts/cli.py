@@ -348,8 +348,7 @@ def runtime(ctx):
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 def create(name, storage, backend, memory, timeout, config, debug):
     """ Create a serverless runtime """
-    log_level = logging.INFO if not debug else logging.DEBUG
-    setup_lithops_logger(log_level)
+    setup_lithops_logger(logging.DEBUG)
 
     verify_runtime_name(name)
 
@@ -387,7 +386,6 @@ def create(name, storage, backend, memory, timeout, config, debug):
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 def build(name, file, config, backend, debug):
     """ build a serverless runtime. """
-    log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(logging.DEBUG)
 
     verify_runtime_name(name)
@@ -454,8 +452,7 @@ def list_runtimes(config, backend, debug):
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 def update(name, config, backend, storage, debug):
     """ Update a serverless runtime """
-    log_level = logging.INFO if not debug else logging.DEBUG
-    setup_lithops_logger(log_level)
+    setup_lithops_logger(logging.DEBUG)
 
     verify_runtime_name(name)
 
@@ -496,8 +493,7 @@ def update(name, config, backend, storage, debug):
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
 def delete(name, config, backend, storage, debug):
     """ delete a serverless runtime """
-    log_level = logging.INFO if not debug else logging.DEBUG
-    setup_lithops_logger(log_level)
+    setup_lithops_logger(logging.DEBUG)
 
     verify_runtime_name(name)
 
