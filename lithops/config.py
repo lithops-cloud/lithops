@@ -93,7 +93,7 @@ def load_config(log=True):
     if not config_data:
         # Set to Localhost mode
         if log:
-            logger.debug("Config not found. Setting Lithops to localhost mode")
+            logger.debug("Config file not found")
         config_data = {'lithops': {'mode': constants.LOCALHOST,
                                    'backend': constants.LOCALHOST,
                                    'storage': constants.LOCALHOST}}
@@ -122,7 +122,7 @@ def get_log_info(config_data=None):
     return cl['log_level'], cl['log_format'], cl['log_stream'], cl['log_filename']
 
 
-def default_config(config_data=None, config_overwrite={}):
+def default_config(config_data=None, config_overwrite={}, load_storage_config=True):
     """
     First checks .lithops_config
     then checks LITHOPS_CONFIG_FILE environment variable
@@ -233,10 +233,11 @@ def default_config(config_data=None, config_overwrite={}):
     if 'monitoring' not in config_data['lithops']:
         config_data['lithops']['monitoring'] = constants.MONITORING_DEFAULT
 
-    config_data = default_storage_config(config_data)
+    if load_storage_config:
+        config_data = default_storage_config(config_data)
 
-    if config_data['lithops']['storage'] == constants.LOCALHOST and mode != constants.LOCALHOST:
-        raise Exception('Localhost storage backend cannot be used in {} mode'.format(mode))
+        if config_data['lithops']['storage'] == constants.LOCALHOST and mode != constants.LOCALHOST:
+            raise Exception('Localhost storage backend cannot be used in {} mode'.format(mode))
 
     return config_data
 
