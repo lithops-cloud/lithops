@@ -345,21 +345,22 @@ def runtime(ctx):
 @click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--memory', default=None, help='memory used by the runtime', type=int)
 @click.option('--timeout', default=None, help='runtime timeout', type=int)
-def create(name, storage, backend, memory, timeout, config):
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def create(name, storage, backend, memory, timeout, config, debug):
     """ Create a serverless runtime """
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(log_level)
+
+    verify_runtime_name(name)
+
     if config:
         config = load_yaml_config(config)
-
-    setup_lithops_logger(logging.DEBUG)
 
     config_ow = set_config_ow(backend, storage)
     config = default_config(config, config_ow)
 
-    if not name:
-        backend = config['lithops']['backend']
-        name = config[backend]['runtime']
-
-    verify_runtime_name(name)
+    if config['lithops']['mode'] != SERVERLESS:
+        raise Exception('"lithops runtime create" command is only valid for serverless backends')
 
     logger.info('Creating new lithops runtime: {}'.format(name))
     storage_config = extract_storage_config(config)
@@ -383,22 +384,66 @@ def create(name, storage, backend, memory, timeout, config):
 @click.option('--file', '-f', default=None, help='file needed to build the runtime')
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
-def build(name, file, config, backend):
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def build(name, file, config, backend, debug):
     """ build a serverless runtime. """
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(logging.DEBUG)
 
     verify_runtime_name(name)
 
     if config:
         config = load_yaml_config(config)
 
-    setup_lithops_logger(logging.DEBUG)
-
     config_ow = set_config_ow(backend)
     config = default_config(config, config_ow, load_storage_config=False)
+
+    if config['lithops']['mode'] != SERVERLESS:
+        raise Exception('"lithops build" command is only valid for serverless backends')
 
     compute_config = extract_serverless_config(config)
     compute_handler = ServerlessHandler(compute_config, None)
     compute_handler.build_runtime(name, file)
+
+
+@runtime.command('list')
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def list_runtimes(config, backend, debug):
+    """ list all deployed serverless runtime. """
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(log_level)
+
+    if config:
+        config = load_yaml_config(config)
+
+    config_ow = set_config_ow(backend)
+    config = default_config(config, config_ow, load_storage_config=False)
+
+    if config['lithops']['mode'] != SERVERLESS:
+        raise Exception('"lithops runtime list" command is only valid for serverless backends')
+
+    compute_config = extract_serverless_config(config)
+    compute_handler = ServerlessHandler(compute_config, None)
+    runtimes = compute_handler.list_runtimes()
+
+    if runtimes:
+        width = max([len(runtime[0]) for runtime in runtimes])
+
+        print('\n{:{width}} \t {}'.format('Runtime Name', 'Memory Size (MB)', width=width))
+        print('-' * width, '\t', '-' * 20)
+        for runtime in runtimes:
+            name = runtime[0]
+            mem = runtime[1]
+            print('{:{width}} \t {}'.format(name, mem, width=width))
+        print()
+        print('Total runtimes: {}'.format(len(runtimes)))
+    else:
+        width = 10
+        print('\n{:{width}} \t {}'.format('Runtime Name', 'Memory Size (MB)', width=width))
+        print('-' * width, '\t', '-' * 20)
+        print('\nNo runtimes deployed')
 
 
 @runtime.command('update')
@@ -406,21 +451,22 @@ def build(name, file, config, backend):
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--storage', '-s', default=None, help='storage backend')
-def update(name, config, backend, storage):
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def update(name, config, backend, storage, debug):
     """ Update a serverless runtime """
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(log_level)
+
+    verify_runtime_name(name)
+
     if config:
         config = load_yaml_config(config)
-
-    setup_lithops_logger(logging.DEBUG)
 
     config_ow = set_config_ow(backend, storage)
     config = default_config(config, config_ow)
 
-    if not name:
-        backend = config['lithops']['backend']
-        name = config[backend]['runtime']
-
-    verify_runtime_name(name)
+    if config['lithops']['mode'] != SERVERLESS:
+        raise Exception('"lithops runtime update" command is only valid for serverless backends')
 
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
@@ -447,8 +493,14 @@ def update(name, config, backend, storage):
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--storage', '-s', default=None, help='storage backend')
-def delete(name, config, backend, storage):
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def delete(name, config, backend, storage, debug):
     """ delete a serverless runtime """
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(log_level)
+
+    verify_runtime_name(name)
+
     if config:
         config = load_yaml_config(config)
 
@@ -457,11 +509,8 @@ def delete(name, config, backend, storage):
     config_ow = set_config_ow(backend, storage)
     config = default_config(config, config_ow)
 
-    if not name:
-        backend = config['lithops']['backend']
-        name = config[backend]['runtime']
-
-    verify_runtime_name(name)
+    if config['lithops']['mode'] != SERVERLESS:
+        raise Exception('"lithops runtime delete" command is only valid for serverless backends')
 
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
