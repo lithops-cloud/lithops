@@ -166,7 +166,7 @@ class CodeEngineBackend:
         res = os.system(cmd)
         if res != 0:
             raise Exception('There was an error pushing the runtime to the container registry')
-        logger.info('Building done!')
+        logger.debug('Building done!')
 
     def _build_default_runtime(self, default_runtime_img_name):
         """
