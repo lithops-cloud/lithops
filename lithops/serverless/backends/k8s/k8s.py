@@ -82,14 +82,11 @@ class KubernetesBackend:
         logger.info("{} - Namespace: {}".format(msg, self.namespace))
 
     def _format_job_name(self, runtime_name, runtime_memory):
-        runtime_name = runtime_name.replace('/', '--').replace(':', '--')
+        runtime_name = runtime_name.replace('/', '--')
+        runtime_name = runtime_name.replace(':', '--')
+        runtime_name = runtime_name.replace('.', '')
+        runtime_name = runtime_name.replace('_', '-')
         return '{}--{}mb'.format(runtime_name, runtime_memory)
-
-    def _unformat_job_name(self, service_name):
-        runtime_name, memory = service_name.rsplit('--', 1)
-        image_name = runtime_name.replace('--', '/', 1)
-        image_name = image_name.replace('--', ':', -1)
-        return image_name, int(memory.replace('mb', ''))
 
     def _get_default_runtime_image_name(self):
         docker_user = self.k8s_config.get('docker_user')
@@ -106,13 +103,6 @@ class KubernetesBackend:
         """
         logger.debug('Building new docker image from Dockerfile')
         logger.debug('Docker image name: {}'.format(docker_image_name))
-
-        expression = '^([a-z0-9]+)/([-a-z0-9]+)(:[a-z0-9]+)?'
-        result = re.match(expression, docker_image_name)
-
-        if not result or result.group() != docker_image_name:
-            raise Exception("Invalid docker image name: All letters must be "
-                            "lowercase and '.' or '_' characters are not allowed")
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
         create_handler_zip(k8s_config.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')
