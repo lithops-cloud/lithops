@@ -39,13 +39,15 @@ from lithops.localhost.localhost import LocalhostHandler
 logger = logging.getLogger(__name__)
 
 
-def set_config_ow(backend, storage=None):
+def set_config_ow(backend, storage=None, runtime_name=None):
     config_ow = {'lithops': {}}
     if storage:
         config_ow['lithops']['storage'] = storage
     if backend:
         config_ow['lithops']['backend'] = backend
         config_ow['lithops']['mode'] = get_mode(backend)
+    if runtime_name:
+        config_ow['runtime'] = runtime_name
 
     return config_ow
 
@@ -355,7 +357,7 @@ def create(name, storage, backend, memory, timeout, config, debug):
     if config:
         config = load_yaml_config(config)
 
-    config_ow = set_config_ow(backend, storage)
+    config_ow = set_config_ow(backend, storage, runtime_name=name)
     config = default_config(config, config_ow)
 
     if config['lithops']['mode'] != SERVERLESS:
@@ -393,7 +395,7 @@ def build(name, file, config, backend, debug):
     if config:
         config = load_yaml_config(config)
 
-    config_ow = set_config_ow(backend)
+    config_ow = set_config_ow(backend, runtime_name=name)
     config = default_config(config, config_ow, load_storage_config=False)
 
     if config['lithops']['mode'] != SERVERLESS:
@@ -416,7 +418,7 @@ def list_runtimes(config, backend, debug):
     if config:
         config = load_yaml_config(config)
 
-    config_ow = set_config_ow(backend)
+    config_ow = set_config_ow(backend, runtime_name='None')
     config = default_config(config, config_ow, load_storage_config=False)
 
     if config['lithops']['mode'] != SERVERLESS:
@@ -459,7 +461,7 @@ def update(name, config, backend, storage, debug):
     if config:
         config = load_yaml_config(config)
 
-    config_ow = set_config_ow(backend, storage)
+    config_ow = set_config_ow(backend, storage, runtime_name=name)
     config = default_config(config, config_ow)
 
     if config['lithops']['mode'] != SERVERLESS:
@@ -502,7 +504,7 @@ def delete(name, config, backend, storage, debug):
 
     setup_lithops_logger(logging.DEBUG)
 
-    config_ow = set_config_ow(backend, storage)
+    config_ow = set_config_ow(backend, storage, runtime_name=name)
     config = default_config(config, config_ow)
 
     if config['lithops']['mode'] != SERVERLESS:

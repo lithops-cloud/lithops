@@ -16,7 +16,6 @@
 #
 
 import os
-import re
 import sys
 import base64
 import json
