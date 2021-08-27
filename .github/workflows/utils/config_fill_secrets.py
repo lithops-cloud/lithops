@@ -5,7 +5,7 @@ import sys
 def get_config_file(backends_name):
     """returns the lithops config file that contains given backends"""
 
-    path = 'lithops/tests/config_files/'
+    path = '.github/workflows/utils/config_files/'
     for file in os.listdir(path):
         if file.endswith('yaml') and backends_name in file:
             return path + file

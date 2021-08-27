@@ -15,7 +15,6 @@
 #
 
 import os
-import re
 import sys
 import base64
 import json
@@ -117,7 +116,7 @@ class KubernetesBackend:
         if logger.getEffectiveLevel() != logging.DEBUG:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
 
-        logger.info('Building default runtime')
+        logger.info('Building runtime')
         res = os.system(cmd)
         if res != 0:
             raise Exception('There was an error building the runtime')
@@ -130,7 +129,7 @@ class KubernetesBackend:
         res = os.system(cmd)
         if res != 0:
             raise Exception('There was an error pushing the runtime to the container registry')
-        logger.debug('Done!')
+        logger.debug('Building done!')
 
     def _build_default_runtime(self, default_runtime_img_name):
         """

@@ -182,6 +182,9 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
            config_data[constants.SERVERLESS] is None:
             config_data[constants.SERVERLESS] = {}
 
+        if 'runtime' in config_overwrite:
+            config_data[backend]['runtime'] = config_overwrite['runtime']
+
         logger.debug("Loading Serverless backend module: {}".format(backend))
         cb_config = importlib.import_module('lithops.serverless.backends.{}.config'.format(backend))
         cb_config.load_config(config_data)
