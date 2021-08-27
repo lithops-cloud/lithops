@@ -119,9 +119,10 @@ class CodeEngineBackend:
         return token
 
     def _format_jobdef_name(self, runtime_name, runtime_memory):
-        runtime_name = runtime_name.replace('.', '')
         runtime_name = runtime_name.replace('/', '--')
         runtime_name = runtime_name.replace(':', '--')
+        runtime_name = runtime_name.replace('.', '')
+        runtime_name = runtime_name.replace('_', '-')
         return '{}--{}mb'.format(runtime_name, runtime_memory)
 
     def _get_default_runtime_image_name(self):
@@ -140,13 +141,6 @@ class CodeEngineBackend:
         logger.debug('Building new docker image from Dockerfile')
         logger.debug('Docker image name: {}'.format(docker_image_name))
 
-        expression = '^([a-z0-9]+)/([-a-z0-9]+)(:[a-z0-9]+)?'
-        result = re.match(expression, docker_image_name)
-
-        if not result or result.group() != docker_image_name:
-            raise Exception("Invalid docker image name: All letters must be "
-                            "lowercase and '.' or '_' characters are not allowed")
-
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
         create_handler_zip(ce_config.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')
 
@@ -160,7 +154,7 @@ class CodeEngineBackend:
         if logger.getEffectiveLevel() != logging.DEBUG:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
 
-        logger.info('Building default runtime')
+        logger.info('Building runtime')
         res = os.system(cmd)
         if res != 0:
             raise Exception('There was an error building the runtime')
@@ -173,7 +167,7 @@ class CodeEngineBackend:
         res = os.system(cmd)
         if res != 0:
             raise Exception('There was an error pushing the runtime to the container registry')
-        logger.debug('Done!')
+        logger.info('Building done!')
 
     def _build_default_runtime(self, default_runtime_img_name):
         """
@@ -254,8 +248,8 @@ class CodeEngineBackend:
         Deletes all runtimes from all packages
         """
         self.clear()
-        jobdefs = self.list_runtimes()
-        for docker_image_name, memory in jobdefs:
+        runtimes = self.list_runtimes()
+        for docker_image_name, memory in runtimes:
             self.delete_runtime(docker_image_name, memory)
 
         logger.debug('Deleting all lithops configmaps')

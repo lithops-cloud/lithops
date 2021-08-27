@@ -128,6 +128,7 @@ class IBMCloudFunctionsBackend:
         res = os.system(cmd)
         if res != 0:
             raise Exception('There was an error pushing the runtime to the container registry')
+        logger.info('Building done!')
 
     def create_runtime(self, docker_image_name, memory, timeout):
         """
