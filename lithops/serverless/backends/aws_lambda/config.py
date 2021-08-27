@@ -28,7 +28,8 @@ DEFAULT_REQUIREMENTS = [
     'pika',
     'cloudpickle',
     'ps-mem',
-    'tblib'
+    'tblib',
+    "numpy"
 ]
 
 DOCKER_PATH = shutil.which('docker')

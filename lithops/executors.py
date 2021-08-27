@@ -22,7 +22,7 @@ import logging
 import atexit
 import pickle
 import tempfile
-import numpy as np
+
 import subprocess as sp
 from datetime import datetime
 from lithops import constants
@@ -544,7 +544,7 @@ class FunctionExecutor:
         :param cloud_objects_n: number of cloud object used in COS, declared by user.
         """
         import pandas as pd
-
+        import numpy as np
         def init():
             headers = ['Job_ID', 'Function', 'Invocations', 'Memory(MB)', 'AvgRuntime', 'Cost', 'CloudObjects']
             pd.DataFrame([], columns=headers).to_csv(self.log_path, index=False)

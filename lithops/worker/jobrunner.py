@@ -25,7 +25,6 @@ import logging
 import inspect
 import requests
 import traceback
-import numpy as np
 from pydoc import locate
 from distutils.util import strtobool
 

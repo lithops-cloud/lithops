@@ -432,7 +432,7 @@ class AWSLambdaBackend:
                 Description=self.package,
                 Timeout=timeout,
                 MemorySize=memory,
-                Layers=[layer_arn, self._get_numpy_layer_arn(self.region_name)],
+                Layers=[layer_arn],
                 VpcConfig={
                     'SubnetIds': self.aws_lambda_config['vpc']['subnets'],
                     'SecurityGroupIds': self.aws_lambda_config['vpc']['security_groups']
