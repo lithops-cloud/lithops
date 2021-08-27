@@ -146,7 +146,7 @@ class AWSLambdaBackend:
             module_location = os.path.dirname(os.path.abspath(lithops.__file__))
             main_file = os.path.join(current_location, 'entry_point.py')
             lithops_zip.write(main_file,
-                              '__main__.py',
+                              'main.py',
                               zipfile.ZIP_DEFLATED)
             add_directory_to_zip(lithops_zip, module_location, sub_dir='lithops')
 
@@ -425,7 +425,7 @@ class AWSLambdaBackend:
                 FunctionName=function_name,
                 Runtime=lambda_config.LAMBDA_PYTHON_VER_KEY,
                 Role=self.role_arn,
-                Handler='__main__.lambda_handler',
+                Handler='main.lambda_handler',
                 Code={
                     'ZipFile': code
                 },
