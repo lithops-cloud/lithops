@@ -146,7 +146,7 @@ class StandaloneHandler:
         workers = job_payload['workers']
 
         total_workers = min(workers, total_calls // chunksize + (total_calls % chunksize > 0)
-                            if self.exec_mode == 'create' else 1)
+                            if self.exec_mode in ['create', 'reuse'] else 1)
 
         def start_master_instance(wait=True):
             if not self._is_master_service_ready():
@@ -154,7 +154,18 @@ class StandaloneHandler:
                 if wait:
                     self._wait_master_service_ready()
 
-        if self.exec_mode == 'create':
+        def get_workers_on_master():
+            workers_on_master = []
+            try:
+                cmd = (f'curl -X GET http://127.0.0.1:{STANDALONE_SERVICE_PORT}/workers -H \'Content-Type: application/json\'')
+                workers_on_master = json.loads(self.backend.master.get_ssh_client().run_remote_command(cmd))
+                self.backend.master.del_ssh_client()
+            except Exception:
+                pass
+
+            return workers_on_master
+
+        if self.exec_mode == 'create' or (self.exec_mode == 'reuse' and len(get_workers_on_master()) == 0):
             with ThreadPoolExecutor(total_workers+1) as ex:
                 ex.submit(start_master_instance, wait=False)
                 for vm_n in range(total_workers):
@@ -165,6 +176,10 @@ class StandaloneHandler:
                          .format(len(self.backend.workers), total_workers))
             total_workers = len(self.backend.workers)
 
+        elif self.exec_mode == 'reuse':
+            logger.debug("In reuse mode")
+
+
         logger.debug('ExecutorID {} | JobID {} - Going to run {} activations '
                      'in {} workers'.format(executor_id, job_id, total_calls,
                                             total_workers))
@@ -172,10 +187,13 @@ class StandaloneHandler:
         logger.debug("Checking if {} is ready".format(self.backend.master))
         start_master_instance(wait=True)
 
-        if self.exec_mode == 'create':
+        if self.exec_mode == 'create' or (self.exec_mode == 'reuse' and len(get_workers_on_master()) == 0):
             worker_instances = [(inst.name, inst.ip_address, inst.instance_id)
                                 for inst in self.backend.workers]
-            job_payload['worker_instances'] = worker_instances
+        else:
+            worker_instances = []
+
+        job_payload['worker_instances'] = worker_instances
 
         if self.is_lithops_worker:
             url = "http://127.0.0.1:{}/run".format(STANDALONE_SERVICE_PORT)

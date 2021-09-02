@@ -256,8 +256,8 @@ class IBMVPCBackend:
             self.master.public_ip = self.config['ip_address']
             self.master.delete_on_dismantle = False
 
-        elif self.mode == 'create':
-            logger.debug('Initializing IBM VPC backend (Create mode)')
+        elif self.mode in ['create', 'reuse']:
+            logger.debug(f'Initializing IBM VPC backend ({self.mode} mode)')
 
             if self.mode != cahced_mode:
                 # invalidate cached data

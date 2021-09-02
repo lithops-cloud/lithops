@@ -81,7 +81,8 @@ class BudgetKeeper(threading.Thread):
                 if jobs_running:
                     jobs_running = False
                     self.last_usage_time = time.time()
-                    time_since_last_usage = time.time() - self.last_usage_time
+
+                time_since_last_usage = time.time() - self.last_usage_time
 
                 time_to_dismantle = int(self.soft_dismantle_timeout - time_since_last_usage)
             else:

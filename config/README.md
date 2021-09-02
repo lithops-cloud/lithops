@@ -196,5 +196,5 @@ fexec = lithops.FunctionExecutor(monitoring='rabbitmq')
 |standalone | auto_dismantle | True |no | If False then the VM is not stopped automatically. Run **exec.dismantle()** explicitly to stop the VM. |
 |standalone | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |standalone | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
-|standalone | exec_mode | consume | no | One of: **consume** or **create**. If set to  **create**, Lithops will automatically create VMs based on the number of elements in iterdata |
+|standalone | exec_mode | consume | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create VMs based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
 |standalone | pull_runtime | False | no | If set to True, Lithops will execute the command `docker pull <runtime_name>` in each VSI before executing the a job|
