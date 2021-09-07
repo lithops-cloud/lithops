@@ -159,7 +159,6 @@ class StandaloneHandler:
             try:
                 cmd = (f'curl -X GET http://127.0.0.1:{STANDALONE_SERVICE_PORT}/workers -H \'Content-Type: application/json\'')
                 workers_on_master = json.loads(self.backend.master.get_ssh_client().run_remote_command(cmd))
-                self.backend.master.del_ssh_client()
             except Exception:
                 pass
 
