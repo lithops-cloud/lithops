@@ -15,15 +15,15 @@ $ lithops logs poll
 This is the default mode of execution, this means no extra configuration is required to make it working. So once you have your compute backend configured, you can create an executor with:
 
 ```python
-    # As we use the default FunctionExecutor(), mode must be set to serverless in config (it set by default)
-    fexec = lithops.FunctionExecutor()
+# As we use the default FunctionExecutor(), mode must be set to serverless in config (it set by default)
+fexec = lithops.FunctionExecutor()
 ```
 
 or alternatively, you can force the serverless mode with:
 
 ```python
-    # As we use/force the ServerlessExecutor(), mode does not need to be set to serverless in config
-    fexec = lithops.ServerlessExecutor()
+# As we use/force the ServerlessExecutor(), mode does not need to be set to serverless in config
+fexec = lithops.ServerlessExecutor()
 ```
 
 ## Dynamic runtime customization

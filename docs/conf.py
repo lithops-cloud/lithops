@@ -9,16 +9,16 @@
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-#
-# import os
-# import sys
-# sys.path.insert(0, os.path.abspath('.'))
+
+import os
+import sys
+sys.path.insert(0, os.path.abspath('.'))
 
 
 # -- Project information -----------------------------------------------------
 
-project = 'Lithops: Lightweight Optimized Serverless Processing'
-copyright = '2021, Josep Sampé, Gil Vernik'
+project = 'Lithops'
+copyright = '2021, IBM Corp., Cloudlab URV'
 author = 'Josep Sampé, Gil Vernik'
 
 # -- General configuration ---------------------------------------------------
@@ -28,8 +28,14 @@ author = 'Josep Sampé, Gil Vernik'
 # ones.
 extensions = [
     'myst_parser',
-    'sphinxemoji.sphinxemoji'
+    'sphinx.ext.autodoc',
+    'sphinx.ext.todo',
+    'sphinx_copybutton',
+    'nbsphinx'
 ]
+
+todo_include_todos = True
+nbsphinx_allow_errors = False
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -45,32 +51,53 @@ source_suffix = {
     '.md': 'markdown',
 }
 
+# -- Autodoc options ---------------------------------------------------------
+
+autodoc_typehints = 'description'
+
+
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-#
-html_theme = 'karma_sphinx_theme'
+
+# html_theme = 'furo'
+html_theme = 'sphinx_material'
+# html_theme = 'karma_sphinx_theme'
+
+html_logo = "source/images/lithops_flat_cloud_1_white_w.png"
+
+# material theme options
+
+html_theme_options = {
+    'base_url': 'https://lithops.cloud',
+    'repo_url': 'https://github.com/lithops-cloud/lithops',
+    'repo_name': 'Lithops',
+    'repo_type': 'github',
+    'html_minify': True,
+    'css_minify': True,
+    'nav_title': ' ',
+    'globaltoc_depth': -1,
+    'color_primary': 'blue',
+}
+
+html_sidebars = {
+    "**": ["logo-text.html", "globaltoc.html", "localtoc.html", "searchbox.html"]
+}
+
+# furo theme options
+
+# html_theme_options = {
+#     "sidebar_hide_name": True,
+#     "light_logo": "lithops_logo_black.png",
+#     "dark_logo": "lithops_logo_white.png",
+#     "light_css_variables": {
+#         "font-stack": "Lato, sans-serif",
+#         "font-stack--monospace": "JetBrains Mono, Courier, monospace",
+#     },
+# }
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
-
-# html_theme_options = {
-#     'base_url': 'https://lithops.cloud',
-#     'repo_url': 'https://github.com/lithops-cloud/lithops',
-#     'repo_name': 'Lithops',
-#     'repo_type': 'github',
-#     'html_minify': True,
-#     'css_minify': True,
-#     'nav_title': 'Lithops Documentation',
-#     # 'logo_icon': '&#e2bd',
-#     'globaltoc_depth': -1,
-#     'color_primary': 'white',
-#     'color_accent': 'light-blue'
-# }
-
-html_sidebars = {
-    "**": ["logo-text.html", "globaltoc.html", "localtoc.html", "searchbox.html"]
-}

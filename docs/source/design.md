@@ -22,7 +22,7 @@ The `ComputeBackend` pseudo-interface represents a backend medium in which Litho
 
 The `StorageBackend` pseudo-interface represents a backend medium which Lithops uses for communicating between the client and the workers. When a client invokes a job, which is then passed to multiple workers for execution, the job data and specific call data is stored in this medium. Upon a worker completing a call, results are also stored in this medium. A specific storage backend is selected through Lithops configuration - IBM Cloud Object Storage, OpenStack Swift or local laptop's file-system. All storage usage in Lithops adheres to object storage semantics, including objects, buckets, writing each object once, etc. 
 
-## Computation in Lithops - Main Flow
+## Computation flow
 In Lithops, each map or reduce computation is executed as a separate compute _job_. This means that calling a `FunctionExecutor.map()` results in one job, and calling `FunctionExecutor.map_reduce()` results in two jobs, one of `map()` and one of `reduce()`, executed one after the other.
 
 As mentioned above, the `FunctionExecutor` class is responsible for orchestrating the computation in Lithops. One `FunctionExecutor` object is instantiated prior to any use of Lithops. Its initialization includes these important steps:

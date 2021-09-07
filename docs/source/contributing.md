@@ -10,8 +10,8 @@ You can post questions or issues or feedback through the following channels:
 2. [GitHub Issues](https://github.com/lithops-cloud/lithops/issues): For bug reports and feature requests.
 
 
-To contribute a patch:
-----------------------
+To contribute a patch
+---------------------
 
 1. Break your work into small, single-purpose patches if possible. It's much
    harder to merge in a large change with a lot of disjoint features.

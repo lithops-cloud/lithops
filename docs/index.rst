@@ -5,21 +5,28 @@ What is Lithops?
    :align: center
    :width: 500
 
+------------
+
 **Lithops is a Python multi-cloud serverless computing framework. It allows to run unmodified local python code at massive scale in the main serverless computing platforms.**
 
 Lithops delivers the user’s code into the cloud without requiring knowledge of how it is deployed and run.
 Moreover, its multicloud-agnostic architecture ensures portability across cloud providers, overcoming vendor lock-in.
 
+------------
+
 **Lithops provides great value for data-intensive applications like Big Data analytics and embarrassingly parallel jobs.**
 
 It is specially suited for highly-parallel programs with little or no need for communication between processes.
+
+Examples of applications that run with Lithops include Monte Carlo simulations, deep learning and machine learning processes, metabolomics computations, and geospatial
+analytics, to name a few.
+
+------------
 
 **Lithops facilitates consuming data from object storage (like AWS S3, GCP Storage or IBM Cloud Object Storage) by providing automatic partitioning and data discovery for common data formats like CSV.**
 
 Lithops abstracts away the underlying cloud-specific APIs for accessing storage and provides an intuitive and easy to use interface to process high volumes of data.
 
-Examples of applications that run with Lithops include Monte Carlo simulations, deep learning and machine learning processes, metabolomics computations, and geospatial
-analytics, to name a few.
 
 Quick Start
 ***********
@@ -66,8 +73,8 @@ Lithops ships with 3 different modes of execution. The execution mode allows you
      - Run functions by using public FaaS services, such as IBM Cloud Functions or Amazon Lambda. In this mode of execution, each function invocation equals to a parallel task running in the cloud in an isolated environment.
      - Run functions by using one or multiple Virtual machines (VM), either in a private cluster or in the cloud. In each VM, functions run using parallel processes.
 
-Where does Lithops fit?
-***********************
+What is Lithops used for?
+*************************
 .. list-table::
    :header-rows: 1
 
@@ -105,8 +112,8 @@ Blogs and Talks
 Papers
 ------
 * `Towards Multicloud Access Transparency in Serverless Computing <https://www.computer.org/csdl/magazine/so/5555/01/09218932/1nMMkpZ8Ko8>`_ - IEEE Software 2021
-* `Primula: a Practical Shuffle/Sort Operator for Serverless Computing <https://dl.acm.org/doi/10.1145/3429357.3430522>`_ - ACM/IFIP International Middleware Conference 2020. `See presentation here <https://www.youtube.com/watch?v=v698iu5YfWM>`_
-* `Bringing scaling transparency to Proteomics applications with serverless computing <https://dl.acm.org/doi/abs/10.1145/3429880.3430101>`_ - 6th International Workshop on Serverless Computing (WoSC6) 2020. `See presentation here <https://www.serverlesscomputing.org/wosc6/#p10>`_
+* `Primula: a Practical Shuffle/Sort Operator for Serverless Computing <https://dl.acm.org/doi/10.1145/3429357.3430522>`_ - ACM/IFIP International Middleware Conference 2020. `See Primula presentation here <https://www.youtube.com/watch?v=v698iu5YfWM>`_
+* `Bringing scaling transparency to Proteomics applications with serverless computing <https://dl.acm.org/doi/abs/10.1145/3429880.3430101>`_ - 6th International Workshop on Serverless Computing (WoSC6) 2020. `See Workshop presentation here <https://www.serverlesscomputing.org/wosc6/#p10>`_
 * `Serverless data analytics in the IBM Cloud <https://dl.acm.org/citation.cfm?id=3284029>`_ - ACM/IFIP International Middleware Conference 2018
 
 Acknowledgements
@@ -116,6 +123,10 @@ Acknowledgements
 
 This project has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreement No 825184.
 
+.. toctree::
+   :hidden:
+
+   self
 
 .. toctree::
    :hidden:
@@ -131,7 +142,7 @@ This project has received funding from the European Union's Horizon 2020 researc
    :maxdepth: -1
    :caption: Install and configure Lithops
 
-   source/install.rst
+   source/install_lithops.rst
    source/general_config.rst
    source/backends_config.md
 
@@ -140,8 +151,9 @@ This project has received funding from the European Union's Horizon 2020 researc
    :maxdepth: -1
    :caption: Lithops Futures API
 
-   source/api_futures.md
-   source/functions.md
+   source/api_futures.rst
+   source/notebooks/functions.ipynb
+   source/notebooks/function_chaining.md
 
 .. toctree::
    :hidden:
@@ -150,6 +162,13 @@ This project has received funding from the European Union's Horizon 2020 researc
 
    source/api_storage.md
    source/api_storage_os.md
+
+.. toctree::
+   :hidden:
+   :maxdepth: -1
+   :caption: Tutorials
+
+   source/notebooks/hello_world.ipynb
 
 .. toctree::
    :hidden:
@@ -171,19 +190,12 @@ This project has received funding from the European Union's Horizon 2020 researc
 .. toctree::
    :hidden:
    :maxdepth: -1
-   :caption: Miscellaneous
-
-   source/changelog.md
-   source/metrics.md
-
-.. toctree::
-   :hidden:
-   :maxdepth: -1
    :caption: Experimental Features
 
-   source/api_multiprocessing.md
-   source/dso.md
-   source/sklearn_joblib.md
+   source/api_multiprocessing.rst
+   source/metrics.rst
+   source/dso.rst
+   source/sklearn_joblib.rst
 
 .. toctree::
    :hidden:
@@ -193,3 +205,4 @@ This project has received funding from the European Union's Horizon 2020 researc
    source/development.md
    source/contributing.md
    source/testing.md
+   source/changelog.md

@@ -1,11 +1,11 @@
-# Using Lithops to process data from a Cloud Object Storage service and public URLs
+# Processing data from a Cloud Object Storage
 
 Lithops has built-in logic for processing data objects from public URLs and object storage services. This logic is automatically activated with the reseverd parameter named **obj**. When you write in the parameters of a function the parameter name **obj**, you are telling to Lithops that you want to process objects located in an object storage service, public urls, or localhost files.
 
 Additionally, the built-in data-processing logic integrates a **data partitioner** system that allows to automatically split the dataset in smallest chunks. Splitting a file into smaller chunks permit to leverage the parallelism provided by the compute backends to process the data. We designed the partitioner within the `map()` and `map_reduce()` API calls, an it is configurable by specifying the *size of the chunk*, or the *number of chunks* to split each file. The current implementation of the data partitioner supports to split files that contain multiple lines (or rows) ended by '\n', for example, a .txt book or a common .csv file among others. More data-types will be supported in future releases.
 
 
-## Processing data from a Cloud Object Storage service.
+## Cloud Object Storage
 For processing data from a cloud object storage service, the input data must be either a list of buckets, a list of buckets with object prefix, or a list of data objects. If you set the *size of the chunk* or the *number of chunks*, the partitioner is activated inside Lithops and it is responsible to split the objects into smaller chunks, eventually running one function activation for each generated chunk. If *size of the chunk* and *number of chunks* are not set, chunk is an entire object, so one function activation is executed for each individual object.
 
 The **obj** parameter is a python class from where you can access all the information related to the object (or chunk) that the function is processing. For example, consider the following function that shows all the available attributes in **obj** when you are processing objects from an object store:

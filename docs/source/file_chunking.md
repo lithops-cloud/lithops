@@ -1,4 +1,4 @@
-# File "chunking":
+# File "chunking"
 When using the Lithop's map function to run a single function over a rather large file, one might consider breaking the
 workload to smaller portions, handing each portion to a separate thread. We refer to said portions as chunks.
 
@@ -56,7 +56,7 @@ if __name__ == "__main__":
   running a map function of your choosing, but, As written in the documentation, chunk size must be upwards of 1 MIB. 
 
  
-## Keeping line integrity in mind:
+## Keeping line integrity in mind
 One important feat implemented as a part of the chunking functionality, is dividing input file into chunks while making 
 sure no chunk contains partial lines.
 Thus, running the test above with any (legal) configuration of parameters, will output a file consisting of entire rows solely.
@@ -80,7 +80,7 @@ def count_total_matching_lines(results):
 fexec.map_reduce(line_counter_in_chunk, data_location, count_total_matching_lines, obj_chunk_size=size)
 ```
 The next part covers the main details of the chunking procedure, as it's implemented in the Lithops project. 
-### The Algorithm behind the curtains:
+### The Algorithm behind the curtains
 As map or map_reduce is being called, a new job is created (in lithops/job/job.py). The relevant part of the algorithm 
 begins when create_partitions(in lithops/job/partitioner.py) is called, and the job's chunks are associated with byte range.
 in this stage of the algorithm each chunk simply gets its fair share + a fixed threshold, whose purpose will become apparent shortly. 

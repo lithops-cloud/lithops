@@ -15,15 +15,15 @@ The default environment runs the functions in the same *python3* interpreter tha
 It does not require any extra configuration. You must ensure that all the dependencies of your script are installed in your machine.
 
 ```python
-    # As we use the default FunctionExecutor(), mode must be set to standalone in config
-    fexec = lithops.FunctionExecutor()
+# As we use the default FunctionExecutor(), mode must be set to standalone in config
+fexec = lithops.FunctionExecutor()
 ```
 
 or alternatively you can force the standalone mode with:
 
 ```python
-    # As we use/force the StandaloneExecutor(), mode does not need to be set to standalone in config
-    fexec = lithops.StandaloneExecutor()
+# As we use/force the StandaloneExecutor(), mode does not need to be set to standalone in config
+fexec = lithops.StandaloneExecutor()
 ```
 
 
@@ -31,20 +31,20 @@ or alternatively you can force the standalone mode with:
 The Docker environment runs the functions within a Docker container. This environment is automatically activated when you provide a docker image as a runtime. For example, by adding the following keys in the config:
 
 ```yaml
-    standalone:
-        runtime: ibmfunctions/action-python-v3.6
+standalone:
+    runtime: ibmfunctions/action-python-v3.6
 ```
 
 or by using the *runtime* param in a function executor:
 
 ```python
-    # As we use the default FunctionExecutor(), mode must be set to standalone in config
-    fexec = lithops.FunctionExecutor(runtime='jsampe/action-python-v3.8')
+# As we use the default FunctionExecutor(), mode must be set to standalone in config
+fexec = lithops.FunctionExecutor(runtime='jsampe/action-python-v3.8')
 ```
 
 ```python
-    # As we use/force the StandaloneExecutor(), mode does not need to be set to standalone in config
-    fexec = lithops.StandaloneExecutor(runtime='jsampe/action-python-v3.8')
+# As we use/force the StandaloneExecutor(), mode does not need to be set to standalone in config
+fexec = lithops.StandaloneExecutor(runtime='jsampe/action-python-v3.8')
 ```
 
 
