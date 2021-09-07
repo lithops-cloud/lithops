@@ -4,7 +4,8 @@ from jpype import java
 import lithops
 import os
 
-dso=os.environ.get('DSO')
+dso = os.environ.get('DSO')
+
 
 def my_map_function(id, x):
     client = Client(dso)
@@ -13,6 +14,7 @@ def my_map_function(id, x):
     b = client.getCyclicBarrier("b", len(iterdata))
     b.waiting()
     return c.tally()
+
 
 if __name__ == "__main__":
     f = Client(dso)
