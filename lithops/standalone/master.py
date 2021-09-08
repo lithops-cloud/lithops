@@ -223,8 +223,6 @@ def get_workers():
             # delete worker in case it is not available. may cover edge cases when for some reason keeper not started on worker
             vm.delete()
 
-    workers = [w for w in WORKERS]
-
     response = flask.jsonify(workers)
     response.status_code = 200
 
