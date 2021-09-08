@@ -259,7 +259,9 @@ class StandaloneHandler:
             self.backend.master.del_ssh_client()
         except Exception:
             pass
-        self.backend.clear(job_keys)
+
+        if self.exec_mode != 'reuse':
+            self.backend.clear(job_keys)
 
     def get_runtime_key(self, runtime_name, *args):
         """
