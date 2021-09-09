@@ -49,7 +49,7 @@ def load_config(config_data):
         config_data['ibm_vpc'].update(config_data['ibm'])
 
     if 'exec_mode' in config_data['standalone'] \
-       and config_data['standalone']['exec_mode'] == 'create':
+       and config_data['standalone']['exec_mode'] in ['create', 'reuse']:
         params_to_check = MANDATORY_PARAMETERS_2
     else:
         params_to_check = MANDATORY_PARAMETERS_3

@@ -82,7 +82,10 @@ class LocalhostHandler:
 
         local_job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket, JOBS_PREFIX)
         docker_job_dir = f'/tmp/lithops/{storage_bucket}/{JOBS_PREFIX}'
-        job_file = f'{job_key}-job.json'
+
+        # resolves race condition in case multiple separate calls of a same job arrive to same worker,
+        # the file would have same name for all tasks and would be deleted by runner after first would complete
+        job_file = f'{job_key}-{job_payload["call_ids"][0]}job.json'
 
         os.makedirs(local_job_dir, exist_ok=True)
         local_job_filename = os.path.join(local_job_dir, job_file)

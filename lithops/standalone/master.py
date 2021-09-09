@@ -51,6 +51,8 @@ MASTER_IP = None
 
 MP_MANAGER = mp.Manager()
 
+EXEC_MODE = 'consume'
+WORKERS = MP_MANAGER.list()
 
 def is_worker_instance_ready(vm):
     """
@@ -85,12 +87,13 @@ def wait_worker_instance_ready(vm):
     raise TimeoutError(msg)
 
 
-def setup_worker(worker_info, work_queue, job_key):
+def setup_worker(worker_info, work_queue, job_key, workers):
     """
     Run worker process
     Install all the Lithops dependencies into the worker.
     Runs the job
     """
+
     instance_name, ip_address, instance_id = worker_info
     logger.info('Starting setup for VM instance {}'.format(instance_name))
 
@@ -139,6 +142,8 @@ def setup_worker(worker_info, work_queue, job_key):
     vm.get_ssh_client().run_remote_command(script, run_async=True)
     vm.del_ssh_client()
     logger.info('Installation script submitted to {}'.format(vm))
+    logger.debug(f'Appending to WORKERS {vm_data}')
+    workers.append(vm_data)
 
 
 def stop_job_process(job_key):
@@ -156,7 +161,7 @@ def stop_job_process(job_key):
     del JOB_PROCESSES[job_key]
 
 
-def run_job_process(job_payload, work_queue):
+def run_job_process(job_payload, work_queue, workers_list):
     """
     Process responsible to wait for workers to become ready, and
     submit individual tasks of the job to them
@@ -175,11 +180,13 @@ def run_job_process(job_payload, work_queue):
 
     logger.info("Total tasks in {} work queue: {}".format(job_key, work_queue.qsize()))
 
-    with ThreadPoolExecutor(len(workers)) as executor:
-        for worker_info in workers:
-            executor.submit(setup_worker, worker_info, work_queue, job_key)
+    # run setup only in case not reusing old workers
+    if workers:
+        with ThreadPoolExecutor(len(workers)) as executor:
+            for worker_info in workers:
+                executor.submit(setup_worker, worker_info, work_queue, job_key, workers_list)
 
-    logger.info('All workers set up for job {}'.format(job_key))
+        logger.info('All workers set up for job {}'.format(job_key))
 
     while not work_queue.empty():
         time.sleep(1)
@@ -189,12 +196,37 @@ def run_job_process(job_payload, work_queue):
 
     logger.info('Finished job {} invocation.'.format(job_key))
 
-
 def error(msg):
     response = flask.jsonify({'error': msg})
     response.status_code = 404
     return response
 
+@app.route('/workers', methods=['GET'])
+def get_workers():
+    """
+    Returns the number of spawned workers
+
+    Currently returns only spawned workers metadata
+    TODO - add support to list only available workers when each worker updates itself in WORKERS via POST
+    TODO - job.done for master is not same as job.done for worker, can be improved by touch on master from worker instead of touch on master
+    """
+    logger.debug(f'in get_workers, workers = {WORKERS}')
+
+    workers = []
+    for w in WORKERS:
+        vm = STANDALONE_HANDLER.backend.get_vm(w['instance_name'])
+        vm.ip_address = w['ip_address']
+        vm.instance_id = w['instance_id']
+        if is_worker_instance_ready(vm):
+            workers.append(w)
+        else:
+            # delete worker in case it is not available. may cover edge cases when for some reason keeper not started on worker
+            vm.delete()
+
+    response = flask.jsonify(workers)
+    response.status_code = 200
+
+    return response
 
 @app.route('/get-task/<job_key>', methods=['GET'])
 def get_task(job_key):
@@ -205,14 +237,15 @@ def get_task(job_key):
     global JOB_PROCESSES
 
     try:
-        task_payload = WORK_QUEUES[job_key].get(timeout=0.1)
+        task_payload = WORK_QUEUES.setdefault(job_key, MP_MANAGER.Queue()).get(timeout=0.1)
         response = flask.jsonify(task_payload)
         response.status_code = 200
         logger.info('Calls {} invoked on {}'
                     .format(', '.join(task_payload['call_ids']),
                             flask.request.remote_addr))
     except queue.Empty:
-        stop_job_process(job_key)
+        if EXEC_MODE != 'reuse':
+            stop_job_process(job_key)
         response = ('', 204)
     return response
 
@@ -243,6 +276,10 @@ def run():
     global WORK_QUEUES
     global JOB_PROCESSES
 
+    global WORKERS
+
+    global EXEC_MODE
+
     job_payload = flask.request.get_json(force=True, silent=True)
     if job_payload and not isinstance(job_payload, dict):
         return error('The action did not receive a dictionary as an argument.')
@@ -261,6 +298,7 @@ def run():
     BUDGET_KEEPER.jobs[job_key] = 'running'
 
     exec_mode = job_payload['config']['standalone'].get('exec_mode', 'consume')
+    EXEC_MODE = exec_mode
 
     if exec_mode == 'consume':
         # Consume mode runs the job locally
@@ -275,10 +313,21 @@ def run():
         # Create mode runs the job in worker VMs
         work_queue = MP_MANAGER.Queue()
         WORK_QUEUES[job_key] = work_queue
-        jp = mp.Process(target=run_job_process, args=(job_payload, work_queue))
+        jp = mp.Process(target=run_job_process, args=(job_payload, work_queue, WORKERS))
         jp.daemon = True
         jp.start()
         JOB_PROCESSES[job_key] = jp
+    elif exec_mode == 'reuse':
+        # Reuse mode runs the job on running workers
+        # TODO: Consider to add support to manage pull of available workers
+        # TODO: Spawn only the missing delta of workers
+        work_queue = WORK_QUEUES.setdefault('all', MP_MANAGER.Queue())
+
+        jp = mp.Process(target=run_job_process, args=(job_payload, work_queue, WORKERS))
+        jp.daemon = True
+        jp.start()
+        JOB_PROCESSES[job_key] = jp
+
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     response = flask.jsonify({'activationId': act_id})
