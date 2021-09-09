@@ -58,13 +58,11 @@ class CodeEngineBackend:
         self.namespace = code_engine_config.get('namespace', None)
         self.region = code_engine_config.get('region', None)
 
+        self.ibm_token_manager = None
+
         if self.namespace and self.region and self.iam_api_key:
             self.cluster = ce_config.CLUSTER_URL.format(self.region)
-            configuration = client.Configuration()
-            configuration.host = self.cluster
-            token = self._get_iam_token()
-            configuration.api_key = {"authorization": "Bearer " + token}
-            client.Configuration.set_default(configuration)
+            self._get_iam_token()
 
         else:
             try:
@@ -77,10 +75,7 @@ class CodeEngineBackend:
                 self.code_engine_config['cluster'] = self.cluster
 
                 if self.iam_api_key:
-                    configuration = client.Configuration.get_default_copy()
-                    token = self._get_iam_token()
-                    configuration.api_key = {"authorization": "Bearer " + token}
-                    client.Configuration.set_default(configuration)
+                    self._get_iam_token()
 
             except Exception:
                 logger.debug('Loading incluster config')
@@ -105,17 +100,24 @@ class CodeEngineBackend:
         logger.info("{} - Region: {}".format(msg, self.region))
 
     def _get_iam_token(self):
-        """ Requests and IBM IAM token """
-        token = self.code_engine_config.get('token', None)
-        token_expiry_time = self.code_engine_config.get('token_expiry_time', None)
-        self.ibm_token_manager = IBMTokenManager(self.iam_api_key,
-                                                 'IAM', token,
-                                                 token_expiry_time)
+        """ Requests an IBM IAM token """
+        configuration = client.Configuration.get_default_copy()
+        if self.namespace and self.region:
+            configuration.host = self.cluster
+
+        if not self.ibm_token_manager:
+            token = self.code_engine_config.get('token', None)
+            token_expiry_time = self.code_engine_config.get('token_expiry_time', None)
+            self.ibm_token_manager = IBMTokenManager(self.iam_api_key,
+                                                     'IAM', token,
+                                                     token_expiry_time)
+
         token, token_expiry_time = self.ibm_token_manager.get_token()
         self.code_engine_config['token'] = token
         self.code_engine_config['token_expiry_time'] = token_expiry_time
 
-        return token
+        configuration.api_key = {"authorization": "Bearer " + token}
+        client.Configuration.set_default(configuration)
 
     def _format_jobdef_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '--')
@@ -298,6 +300,12 @@ class CodeEngineBackend:
         """
         Clean all completed jobruns in the current executor
         """
+        if self.iam_api_key:
+            # try to refresh the token
+            self._get_iam_token()
+            self.custom_api = client.CustomObjectsApi()
+            self.core_api = client.CoreV1Api()
+
         if job_keys:
             for job_key in job_keys:
                 if job_key in self.jobs:
@@ -323,6 +331,12 @@ class CodeEngineBackend:
         Invoke -- return information about this invocation
         For array jobs only remote_invocator is allowed
         """
+        if self.iam_api_key:
+            # try to refresh the token
+            self._get_iam_token()
+            self.custom_api = client.CustomObjectsApi()
+            self.core_api = client.CoreV1Api()
+
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
 
@@ -364,7 +378,7 @@ class CodeEngineBackend:
                      .format(executor_id, job_id, total_calls, array_size))
 
         try:
-            res = self.custom_api.create_namespaced_custom_object(
+            self.custom_api.create_namespaced_custom_object(
                 group=ce_config.DEFAULT_GROUP,
                 version=ce_config.DEFAULT_VERSION,
                 namespace=self.namespace,
@@ -442,7 +456,7 @@ class CodeEngineBackend:
         container['resources']['requests']['cpu'] = str(self.code_engine_config['runtime_cpu'])
 
         try:
-            res = self.custom_api.delete_namespaced_custom_object(
+            self.custom_api.delete_namespaced_custom_object(
                 group=ce_config.DEFAULT_GROUP,
                 version=ce_config.DEFAULT_VERSION,
                 namespace=self.namespace,
@@ -453,7 +467,7 @@ class CodeEngineBackend:
             pass
 
         try:
-            res = self.custom_api.create_namespaced_custom_object(
+            self.custom_api.create_namespaced_custom_object(
                 group=ce_config.DEFAULT_GROUP,
                 version=ce_config.DEFAULT_VERSION,
                 namespace=self.namespace,

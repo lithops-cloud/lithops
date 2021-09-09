@@ -37,7 +37,16 @@ class IBMTokenManager:
                          format(self._token_manager._expiry_time,
                                 self._get_token_minutes_diff()))
 
+    def _is_token_expired(self):
+        """
+        Checks if a token already expired
+        """
+        return self._get_token_minutes_diff() < 1
+
     def _get_token_minutes_diff(self):
+        """
+        Gets the remaining minutes in which the current token is valid
+        """
         expiry_time = self._token_manager._expiry_time
         return max(0, int((expiry_time - datetime.now(timezone.utc)).total_seconds() / 60.0))
 
@@ -48,12 +57,16 @@ class IBMTokenManager:
         token_data['token'] = self._token_manager._token
         token_data['token_expiry_time'] = self._token_manager._expiry_time.strftime('%Y-%m-%d %H:%M:%S.%f%z')
         dump_yaml_config(self._token_filename, token_data)
+        logger.debug("Token expiry time: {} - Minutes left: {}".
+                     format(self._token_manager._expiry_time,
+                            self._get_token_minutes_diff()))
 
     def get_token(self):
-        """ Gets a new token within a mutex block to prevent multiple threads
+        """
+        Gets a new token within a mutex block to prevent multiple threads
         requesting new tokens at the same time.
         """
-        if (self._token_manager._is_expired() or self._get_token_minutes_diff() < 1) \
+        if (self._token_manager._is_expired() or self._is_token_expired()) \
            and not is_lithops_worker():
             logger.debug("Token expired. Requesting new token".format(self.api_key_type))
             self._generate_new_token()
