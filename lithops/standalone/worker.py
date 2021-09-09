@@ -38,11 +38,13 @@ def wait_job_completed(job_key):
     """
     Waits unitl the current job is completed
     """
+    global BUDGET_KEEPER
+
     done = os.path.join(JOBS_DIR, job_key+'.done')
     while True:
         if os.path.isfile(done):
-# deleting the file prevents keeper detect job finish
-#            os.remove(done)
+            BUDGET_KEEPER.jobs[job_key] = 'done'
+            os.remove(done)
             break
         time.sleep(1)
 
@@ -60,7 +62,6 @@ def run_worker(master_ip, job_key):
 
         if resp.status_code != 200:
             if STANDALONE_CONFIG.get('exec_mode') == 'reuse':
-                logger.debug('All tasks completed, waiting for new tasks'.format(url))
                 time.sleep(1)
                 continue
             else:
