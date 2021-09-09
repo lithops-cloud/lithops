@@ -45,14 +45,18 @@ RUN apt-get --allow-releaseinfo-change update \
 
 # install additional python modules
 COPY requirements.txt requirements.txt
-RUN pip install --upgrade pip setuptools six && pip install --no-cache-dir -r requirements.txt
-        
-# create action working directory
-RUN mkdir -p /action \
-    && mkdir -p /actionProxy \
-    && mkdir -p /pythonAction
+RUN pip install --upgrade pip setuptools six gevent && pip install --no-cache-dir -r requirements.txt
 
-ADD https://raw.githubusercontent.com/apache/openwhisk-runtime-docker/8b2e205c39d84ed5ede6b1b08cccf314a2b13105/core/actionProxy/actionproxy.py /actionProxy/actionproxy.py
-ADD https://raw.githubusercontent.com/apache/openwhisk-runtime-python/3%401.0.3/core/pythonAction/pythonrunner.py /pythonAction/pythonrunner.py
+ENV PORT 8080
+ENV CONCURRENCY 4
+ENV TIMEOUT 600
+ENV PYTHONUNBUFFERED TRUE
 
-CMD ["/bin/bash", "-c", "cd /pythonAction && python -u pythonrunner.py"]
+# Copy Lithops proxy and lib to the container image.
+ENV APP_HOME /lithops
+WORKDIR $APP_HOME
+
+COPY lithops_codeengine.zip .
+RUN unzip lithops_codeengine.zip && rm lithops_codeengine.zip
+
+CMD exec gunicorn --bind :$PORT --workers $CONCURRENCY --timeout $TIMEOUT lithopsentry:proxy
