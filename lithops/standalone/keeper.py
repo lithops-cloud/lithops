@@ -70,6 +70,11 @@ class BudgetKeeper(threading.Thread):
             time_since_last_usage = time.time() - self.last_usage_time
             check_interval = self.soft_dismantle_timeout / 10
 
+            for job_key in self.jobs.keys():
+                done = os.path.join(JOBS_DIR, job_key+'.done')
+                if os.path.isfile(done):
+                    self.jobs[job_key] = 'done'
+
             logger.debug(f"self.jobs: {self.jobs}")
 
             if len(self.jobs) > 0 and all(value == 'done' for value in self.jobs.values()) \
