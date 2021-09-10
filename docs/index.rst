@@ -136,6 +136,7 @@ This project has received funding from the European Union's Horizon 2020 researc
    source/design.md
    source/supported_clouds.md
    source/comparing_lithops.rst
+   source/execution_modes.rst
 
 .. toctree::
    :hidden:
@@ -177,15 +178,6 @@ This project has received funding from the European Union's Horizon 2020 researc
 
    source/data_processing.md
    source/file_chunking.md
-
-.. toctree::
-   :hidden:
-   :maxdepth: -1
-   :caption: Execution Modes
-
-   source/mode_localhost.md
-   source/mode_serverless.md
-   source/mode_standalone.md
 
 .. toctree::
    :hidden:

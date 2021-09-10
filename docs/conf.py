@@ -14,6 +14,10 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath('.'))
 
+sys.path.insert(0, os.path.abspath("../"))
+
+import lithops
+
 
 # -- Project information -----------------------------------------------------
 
@@ -62,28 +66,30 @@ autodoc_typehints = 'description'
 # a list of builtin themes.
 
 # html_theme = 'furo'
-html_theme = 'sphinx_material'
+# html_theme = 'sphinx_material'
 # html_theme = 'karma_sphinx_theme'
+html_theme = 'sphinx_book_theme'
 
-html_logo = "source/images/lithops_flat_cloud_1_white_w.png"
+# html_logo = "source/images/lithops_flat_cloud_1_white_w.png"
+html_logo = "source/images/lithops_flat_cloud_1.png"
 
 # material theme options
 
-html_theme_options = {
-    'base_url': 'https://lithops.cloud',
-    'repo_url': 'https://github.com/lithops-cloud/lithops',
-    'repo_name': 'Lithops',
-    'repo_type': 'github',
-    'html_minify': True,
-    'css_minify': True,
-    'nav_title': ' ',
-    'globaltoc_depth': -1,
-    'color_primary': 'blue',
-}
-
-html_sidebars = {
-    "**": ["logo-text.html", "globaltoc.html", "localtoc.html", "searchbox.html"]
-}
+# html_theme_options = {
+#     'base_url': 'https://lithops.cloud',
+#     'repo_url': 'https://github.com/lithops-cloud/lithops',
+#     'repo_name': 'Lithops',
+#     'repo_type': 'github',
+#     'html_minify': True,
+#     'css_minify': True,
+#     'nav_title': ' ',
+#     'globaltoc_depth': -1,
+#     'color_primary': 'blue',
+# }
+#
+# html_sidebars = {
+#     "**": ["logo-text.html", "globaltoc.html", "localtoc.html", "searchbox.html"]
+# }
 
 # furo theme options
 
@@ -96,6 +102,32 @@ html_sidebars = {
 #         "font-stack--monospace": "JetBrains Mono, Courier, monospace",
 #     },
 # }
+
+# book theme options
+
+# html_theme_options = {
+#     'repository_url': 'https://github.com/lithops-cloud/lithops',
+#     'repository_branch': 'master',
+#     'use_issues_button': True,
+#     'use_download_button': True,
+#     'use_fullscreen_button': False,
+#     'use_repository_button': True,
+#     'launch_buttons': False,
+#     'home_page_in_toc': True,
+#     'logo_only': True
+# }
+
+html_theme_options = {
+    'repository_url': 'https://github.com/lithops-cloud/lithops',
+    'repository_branch': 'master',
+    'use_issues_button': True,
+    'use_download_button': True,
+    'use_fullscreen_button': False,
+    'use_repository_button': True,
+    'show_navbar_depth': 0,
+}
+
+html_title = f"Lithops v{lithops.__version__}"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
