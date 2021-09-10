@@ -26,7 +26,7 @@ import yaml
 from kubernetes import client, config, watch
 from kubernetes.client.rest import ApiException
 
-from lithops.utils import version_str, dict_to_b64str
+from lithops.utils import version_str, dict_to_b64str, is_lithops_worker
 from lithops.version import __version__
 from lithops.utils import create_handler_zip
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
@@ -59,30 +59,32 @@ class CodeEngineBackend:
         self.region = code_engine_config.get('region', None)
 
         self.ibm_token_manager = None
+        self.is_lithops_worker = is_lithops_worker()
 
-        if self.namespace and self.region and self.iam_api_key:
+        if self.namespace and self.region:
             self.cluster = ce_config.CLUSTER_URL.format(self.region)
+
+        if self.iam_api_key and not self.is_lithops_worker:
             self._get_iam_token()
 
         else:
             try:
                 config.load_kube_config(config_file=self.kubecfg_path)
+                logger.debug("Loading kubecfg file")
                 contexts = config.list_kube_config_contexts(config_file=self.kubecfg_path)
                 current_context = contexts[1].get('context')
                 self.namespace = current_context.get('namespace')
                 self.cluster = current_context.get('cluster')
-                self.code_engine_config['namespace'] = self.namespace
-                self.code_engine_config['cluster'] = self.cluster
 
                 if self.iam_api_key:
                     self._get_iam_token()
 
             except Exception:
-                logger.debug('Loading incluster config')
+                logger.debug('Loading incluster kubecfg')
                 config.load_incluster_config()
-                self.namespace = self.code_engine_config.get('namespace')
-                self.cluster = self.code_engine_config.get('cluster')
 
+        self.code_engine_config['namespace'] = self.namespace
+        self.code_engine_config['cluster'] = self.cluster
         logger.debug("Set namespace to {}".format(self.namespace))
         logger.debug("Set cluster to {}".format(self.cluster))
 
@@ -300,7 +302,7 @@ class CodeEngineBackend:
         """
         Clean all completed jobruns in the current executor
         """
-        if self.iam_api_key:
+        if self.iam_api_key and not self.is_lithops_worker:
             # try to refresh the token
             self._get_iam_token()
             self.custom_api = client.CustomObjectsApi()
@@ -331,7 +333,7 @@ class CodeEngineBackend:
         Invoke -- return information about this invocation
         For array jobs only remote_invocator is allowed
         """
-        if self.iam_api_key:
+        if self.iam_api_key and not self.is_lithops_worker:
             # try to refresh the token
             self._get_iam_token()
             self.custom_api = client.CustomObjectsApi()
