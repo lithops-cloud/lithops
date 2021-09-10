@@ -5,12 +5,14 @@
 
 ### Added
 - [CLI] Add new command in cli to list deployed runtimes
+- [Standalone] Add reuse mode that allows to reuse the same VMs for all the maps
 
 ### Changed
 - [CE] Deleted docker naming restrictions in CE and k8s backends
 - [CLI] Prevent loading storage config when using 'lithops runtime build' command
 
 ### Fixes
+- [CE] Create a new token when it expires after 20 minutes when using the same FunctionExecutor
 - [CE] Prevent exception when detecting the docker username in k8s and CE backends
 - [Core] Fix minor issue in jobrunner
 - [AWS Lambda] Fixed aws config max timeout check
