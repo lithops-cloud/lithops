@@ -42,6 +42,7 @@ USER_RUNTIME_PREFIX = 'lithops.user_runtimes'
 RUNTIME_TIMEOUT_DEFAULT = 180  # Default timeout: 180 s == 3 min
 RUNTIME_TIMEOUT_MAX = 900  # Max. timeout: 900 s == 15 min
 RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
+RUNTIME_MEMORY_MIN = 128  # Max. memory: 128 MB
 RUNTIME_MEMORY_MAX = 10240  # Max. memory: 10240 MB
 
 MAX_CONCURRENT_WORKERS = 1000
@@ -58,14 +59,14 @@ def load_config(config_data):
         config_data['aws_lambda']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
     if 'runtime_memory' not in config_data['aws_lambda']:
         config_data['aws_lambda']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
-    if config_data['aws_lambda']['runtime_memory'] % 64 != 0:     # Adjust 64 MB memory increments restriction
-        mem = config_data['aws_lambda']['runtime_memory']
-        config_data['aws_lambda']['runtime_memory'] = (mem + (64 - (mem % 64)))
     if config_data['aws_lambda']['runtime_memory'] > RUNTIME_MEMORY_MAX:
         logger.warning("Memory set to {} - {} exceeds "
                        "the maximum amount".format(RUNTIME_MEMORY_MAX, config_data['aws_lambda']['runtime_memory']))
         config_data['aws_lambda']['runtime_memory'] = RUNTIME_MEMORY_MAX
-
+    if config_data['aws_lambda']['runtime_memory'] < RUNTIME_MEMORY_MIN:
+        logger.warning("Memory set to {} - {} is lower than "
+                       "the minimum amount".format(RUNTIME_MEMORY_MIN, config_data['aws_lambda']['runtime_memory']))
+        config_data['aws_lambda']['runtime_memory'] = RUNTIME_MEMORY_MIN
     if 'runtime_timeout' not in config_data['aws_lambda']:
         config_data['aws_lambda']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
     if config_data['aws_lambda']['runtime_timeout'] > RUNTIME_TIMEOUT_DEFAULT:
