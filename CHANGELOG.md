@@ -8,6 +8,7 @@
 - [Standalone] Add reuse mode that allows to reuse the same VMs for all the maps
 
 ### Changed
+- [Core] worker_processes parameter has been moved from map() to FunctionExecutor()
 - [CE] Deleted docker naming restrictions in CE and k8s backends
 - [CLI] Prevent loading storage config when using 'lithops runtime build' command
 

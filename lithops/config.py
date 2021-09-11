@@ -227,11 +227,11 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
     if 'execution_timeout' not in config_data['lithops']:
         config_data['lithops']['execution_timeout'] = constants.EXECUTION_TIMEOUT_DEFAULT
 
-    if 'chunksize' not in config_data['lithops']:
-        config_data['lithops']['chunksize'] = constants.CHUNKSIZE_DEFAULT
-
     if 'worker_processes' not in config_data['lithops']:
         config_data['lithops']['worker_processes'] = constants.WORKER_PROCESSES_DEFAULT
+
+    if 'chunksize' not in config_data['lithops']:
+        config_data['lithops']['chunksize'] = config_data['lithops']['worker_processes']
 
     if 'monitoring' not in config_data['lithops']:
         config_data['lithops']['monitoring'] = constants.MONITORING_DEFAULT

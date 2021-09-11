@@ -63,6 +63,7 @@ class FunctionExecutor:
                  runtime_memory=None,
                  monitoring=None,
                  workers=None,
+                 worker_processes=None,
                  remote_invoker=None,
                  log_level=False):
         """ Create a FunctionExecutor Class """
@@ -101,6 +102,8 @@ class FunctionExecutor:
             config_ow['lithops']['workers'] = workers
         if monitoring is not None:
             config_ow['lithops']['monitoring'] = monitoring
+        if worker_processes is not None:
+            config_ow['lithops']['worker_processes'] = worker_processes
 
         self.config = default_config(copy.deepcopy(config), config_ow)
 
@@ -163,8 +166,14 @@ class FunctionExecutor:
         self.total_jobs += 1
         return '{}{}'.format(call_type, job_id)
 
-    def call_async(self, func, data, extra_env=None, runtime_memory=None,
-                   timeout=None, include_modules=[], exclude_modules=[]):
+    def call_async(self,
+                   func,
+                   data,
+                   extra_env=None,
+                   runtime_memory=None,
+                   timeout=None,
+                   include_modules=[],
+                   exclude_modules=[]):
         """
         For running one function execution asynchronously
 
@@ -203,10 +212,18 @@ class FunctionExecutor:
 
         return futures[0]
 
-    def map(self, map_function, map_iterdata, chunksize=None, worker_processes=None,
-            extra_args=None, extra_env=None, runtime_memory=None, chunk_size=None,
-            chunk_n=None, obj_chunk_size=None, obj_chunk_number=None, timeout=None,
-            include_modules=[], exclude_modules=[]):
+    def map(self,
+            map_function,
+            map_iterdata,
+            chunksize=None,
+            extra_args=None,
+            extra_env=None,
+            runtime_memory=None,
+            obj_chunk_size=None,
+            obj_chunk_number=None,
+            timeout=None,
+            include_modules=[],
+            exclude_modules=[]):
         """
         For running multiple function executions asynchronously
 
@@ -214,7 +231,6 @@ class FunctionExecutor:
         :param map_iterdata: An iterable of input data
         :param chunksize: Split map_iteradata in chunks of this size.
                           Lithops spawns 1 worker per resulting chunk. Default 1
-        :param worker_processes: Number of concurrent/parallel processes in each worker. Default 1
         :param extra_args: Additional args to pass to the function activations
         :param extra_env: Additional env variables for action environment
         :param runtime_memory: Memory to use to run the function
@@ -245,7 +261,6 @@ class FunctionExecutor:
                              map_function=map_function,
                              iterdata=map_iterdata,
                              chunksize=chunksize,
-                             worker_processes=worker_processes,
                              runtime_meta=runtime_meta,
                              runtime_memory=runtime_memory,
                              extra_env=extra_env,
@@ -253,8 +268,6 @@ class FunctionExecutor:
                              exclude_modules=exclude_modules,
                              execution_timeout=timeout,
                              extra_args=extra_args,
-                             chunk_size=chunk_size,
-                             chunk_n=chunk_n,
                              obj_chunk_size=obj_chunk_size,
                              obj_chunk_number=obj_chunk_number)
 
@@ -267,12 +280,22 @@ class FunctionExecutor:
 
         return create_futures_list(futures, self)
 
-    def map_reduce(self, map_function, map_iterdata, reduce_function, chunksize=None,
-                   worker_processes=None, extra_args=None, extra_env=None,
-                   map_runtime_memory=None, obj_chunk_size=None, obj_chunk_number=None,
-                   reduce_runtime_memory=None, chunk_size=None, chunk_n=None,
-                   timeout=None, reducer_one_per_object=False, reducer_wait_local=False,
-                   include_modules=[], exclude_modules=[]):
+    def map_reduce(self,
+                   map_function,
+                   map_iterdata,
+                   reduce_function,
+                   chunksize=None,
+                   extra_args=None,
+                   extra_env=None,
+                   map_runtime_memory=None,
+                   obj_chunk_size=None,
+                   obj_chunk_number=None,
+                   reduce_runtime_memory=None,
+                   timeout=None,
+                   reducer_one_per_object=False,
+                   reducer_wait_local=False,
+                   include_modules=[],
+                   exclude_modules=[]):
         """
         Map the map_function over the data and apply the reduce_function across all futures.
         This method is executed all within CF.
@@ -312,13 +335,10 @@ class FunctionExecutor:
                                  map_function=map_function,
                                  iterdata=map_iterdata,
                                  chunksize=chunksize,
-                                 worker_processes=worker_processes,
                                  runtime_meta=runtime_meta,
                                  runtime_memory=map_runtime_memory,
                                  extra_args=extra_args,
                                  extra_env=extra_env,
-                                 chunk_size=chunk_size,
-                                 chunk_n=chunk_n,
                                  obj_chunk_size=obj_chunk_size,
                                  obj_chunk_number=obj_chunk_number,
                                  include_modules=include_modules,
@@ -620,6 +640,7 @@ class LocalhostExecutor(FunctionExecutor):
                  config=None,
                  runtime=None,
                  storage=None,
+                 worker_processes=None,
                  monitoring=None,
                  log_level=False):
         """
@@ -638,7 +659,8 @@ class LocalhostExecutor(FunctionExecutor):
                          runtime=runtime,
                          storage=storage or LOCALHOST,
                          log_level=log_level,
-                         monitoring=monitoring)
+                         monitoring=monitoring,
+                         worker_processes=worker_processes)
 
 
 class ServerlessExecutor(FunctionExecutor):
@@ -650,6 +672,7 @@ class ServerlessExecutor(FunctionExecutor):
                  backend=None,
                  storage=None,
                  workers=None,
+                 worker_processes=None,
                  monitoring=None,
                  remote_invoker=None,
                  log_level=False):
@@ -676,6 +699,7 @@ class ServerlessExecutor(FunctionExecutor):
                          backend=backend,
                          storage=storage,
                          workers=workers,
+                         worker_processes=worker_processes,
                          monitoring=monitoring,
                          log_level=log_level,
                          remote_invoker=remote_invoker)
@@ -689,6 +713,7 @@ class StandaloneExecutor(FunctionExecutor):
                  runtime=None,
                  storage=None,
                  workers=None,
+                 worker_processes=None,
                  monitoring=None,
                  log_level=False):
         """
@@ -712,5 +737,6 @@ class StandaloneExecutor(FunctionExecutor):
                          backend=backend,
                          storage=storage,
                          workers=workers,
+                         worker_processes=worker_processes,
                          monitoring=monitoring,
                          log_level=log_level)
