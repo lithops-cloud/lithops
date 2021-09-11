@@ -33,6 +33,8 @@ STANDALONE = 'standalone'
 
 MODE_DEFAULT = SERVERLESS
 
+MONITORING_DEFAULT = 'storage'
+
 SERVERLESS_BACKEND_DEFAULT = 'ibm_cf'
 STANDALONE_BACKEND_DEFAULT = 'ibm_vpc'
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
@@ -57,6 +59,8 @@ STANDALONE_SSH_CREDNTIALS = {'username': 'root', 'password': 'lithops'}
 STANDALONE_CONFIG_FILE = os.path.join(STANDALONE_INSTALL_DIR, 'config')
 
 MAX_AGG_DATA_SIZE = 4  # 4MiB
+
+WORKER_PROCESSES_DEFAULT = 1
 
 TEMP = os.path.realpath(tempfile.gettempdir())
 LITHOPS_TEMP_DIR = os.path.join(TEMP, 'lithops')
@@ -104,8 +108,3 @@ BATCH_BACKENDS = ['ibm_vpc',
                   'k8s',
                   'code_engine'
                   'vm']
-
-CHUNKSIZE_DEFAULT = 1
-WORKER_PROCESSES_DEFAULT = 1
-
-MONITORING_DEFAULT = 'storage'
