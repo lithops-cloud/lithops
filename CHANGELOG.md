@@ -11,6 +11,7 @@
 - [CLI] Prevent loading storage config when using 'lithops runtime build' command
 - [AWS Lambda] Moved layer build to a lambda, solves OS related errors when compiling libraries
 - [AWS Lambda] Adjusted new memory configurations (128 MB minimum and removed 64 MB increments check)
+- [AWS Lambda] Add support for Python3.9
 
 ### Fixes
 - [CE] Prevent exception when detecting the docker username in k8s and CE backends
