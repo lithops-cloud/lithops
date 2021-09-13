@@ -25,7 +25,7 @@ import requests
 import atexit
 from shutil import copyfile
 
-from lithops.constants import TEMP, LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG
+from lithops.constants import TEMP, LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG, RN_LOG_FILE
 from lithops.utils import is_unix_system
 
 logger = logging.getLogger(__name__)
@@ -166,7 +166,10 @@ class BaseEnv():
 
     def stop(self):
         if self.runner_service:
-            requests.post(f'{self.address}/shutdown')
+            try:
+                requests.post(f'{self.address}/shutdown')
+            except Exception:
+                pass
 
     def get_address(self):
         return self.address
@@ -224,8 +227,10 @@ class DefaultEnv(BaseEnv):
 
     def start(self):
         logger.debug(f'Starting runtime {self.runtime}')
-        cmd = f'"{self.runtime}" "{RUNNER}" {RUNNER_PORT} &'
-        self.runner_service = sp.run(cmd, shell=True)
+        cmd = f'"{self.runtime}" "{RUNNER}" {RUNNER_PORT}'
+
+        log_file_stream = open(RN_LOG_FILE, 'a')
+        self.runner_service = sp.Popen(cmd, shell=True, stdout=log_file_stream, stderr=log_file_stream)
         self.address = f'http://127.0.0.1:{RUNNER_PORT}'
         while True:
             try:

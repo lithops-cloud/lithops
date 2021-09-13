@@ -123,12 +123,12 @@ def shutdown():
     return ('', 204)
 
 
-def run():
+def run(job_queue):
     sys.stdout = log_file_stream
     sys.stderr = log_file_stream
 
     while True:
-        job_payload = JOB_QUEUE.get()
+        job_payload = job_queue.get()
 
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
@@ -162,7 +162,7 @@ def main():
     manager.start()
     JOB_QUEUE = manager.Queue()
 
-    RUNER_PROCESS = mp.Process(target=run)
+    RUNER_PROCESS = mp.Process(target=run, args=(JOB_QUEUE, ))
     RUNER_PROCESS.start()
 
     port = int(sys.argv[1])
