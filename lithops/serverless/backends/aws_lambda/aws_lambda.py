@@ -127,7 +127,7 @@ class AWSLambdaBackend:
         """
         current_location = os.path.dirname(os.path.abspath(__file__))
         main_file = os.path.join(current_location, 'entry_point.py')
-        utils.create_handler_zip(LITHOPS_FUNCTION_ZIP, main_file, '__main__.py')
+        utils.create_handler_zip(LITHOPS_FUNCTION_ZIP, main_file, 'entry_point.py')
 
         with open(LITHOPS_FUNCTION_ZIP, 'rb') as action_zip:
             action_bin = action_zip.read()
@@ -407,7 +407,7 @@ class AWSLambdaBackend:
                 FunctionName=function_name,
                 Runtime=lambda_config.LAMBDA_PYTHON_VER_KEY,
                 Role=self.role_arn,
-                Handler='__main__.lambda_handler',
+                Handler='entry_point.lambda_handler',
                 Code={
                     'ZipFile': code
                 },

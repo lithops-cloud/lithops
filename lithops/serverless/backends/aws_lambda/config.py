@@ -36,7 +36,7 @@ DOCKER_PATH = shutil.which('docker')
 
 LAMBDA_PYTHON_VER_KEY = 'python{}'.format(version_str(sys.version_info))
 DEFAULT_RUNTIME = LAMBDA_PYTHON_VER_KEY.replace('.', '')
-AVAILABLE_RUNTIMES = ['python36', 'python37', 'python38']
+AVAILABLE_RUNTIMES = ['python36', 'python37', 'python38', 'python39']
 
 USER_RUNTIME_PREFIX = 'lithops.user_runtimes'
 
