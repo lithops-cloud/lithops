@@ -32,6 +32,7 @@ logger = logging.getLogger('lithops.standalone.worker')
 
 STANDALONE_CONFIG = None
 BUDGET_KEEPER = None
+LOCALHOST_HANDLER = {}
 
 
 def wait_job_completed(job_key):
@@ -54,6 +55,7 @@ def run_worker(master_ip, job_key):
     Run a job
     """
     global BUDGET_KEEPER
+    global LOCALHOST_HANDLER
 
     while True:
         url = 'http://{}:{}/get-task/{}'.format(master_ip, STANDALONE_SERVICE_PORT, job_key)
@@ -82,10 +84,12 @@ def run_worker(master_ip, job_key):
         BUDGET_KEEPER.update_config(job_payload['config']['standalone'])
         BUDGET_KEEPER.jobs[job_payload['job_key']] = 'running'
 
-        pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
         try:
-            localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
-            localhost_handler.invoke(job_payload)
+            if runtime not in LOCALHOST_HANDLER:
+                pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
+                LOCALHOST_HANDLER[runtime] = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
+                LOCALHOST_HANDLER[runtime].init()
+            LOCALHOST_HANDLER[runtime].invoke(job_payload)
         except Exception as e:
             logger.error(e)
 

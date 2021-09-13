@@ -16,21 +16,25 @@
 
 import os
 import sys
-import json
+import time
 import lithops
 import logging
 import shutil
 import subprocess as sp
+import requests
+import atexit
 from shutil import copyfile
 
-from lithops.constants import TEMP, LITHOPS_TEMP_DIR, JOBS_PREFIX,\
-    COMPUTE_CLI_MSG
+from lithops.constants import TEMP, LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG
 from lithops.utils import is_unix_system
 
 logger = logging.getLogger(__name__)
 
 RUNNER = os.path.join(LITHOPS_TEMP_DIR, 'runner.py')
 LITHOPS_LOCATION = os.path.dirname(os.path.abspath(lithops.__file__))
+
+
+RUNNER_PORT = 51563
 
 
 class LocalhostHandler:
@@ -54,6 +58,8 @@ class LocalhostHandler:
 
         self.jobs = {}  # dict to store executed jobs (job_keys) and PIDs
 
+        atexit.register(self.env.stop)
+
         msg = COMPUTE_CLI_MSG.format('Localhost compute')
         logger.info("{}".format(msg))
 
@@ -61,7 +67,24 @@ class LocalhostHandler:
         """
         Init tasks for localhost
         """
-        pass
+        self.env.setup()
+
+    def create_runtime(self, runtime_name, *args):
+        """
+        Extract the runtime metadata and preinstalled modules
+        """
+        logger.info(f"Extracting preinstalled Python modules from {runtime_name}")
+
+        if not self.env.is_started():
+            self.env.start()
+
+        service_address = self.env.get_address()
+
+        r = requests.get(f'{service_address}/preinstalls')
+        assert r.status_code == 200, 'Failed to get preinstalled modules'
+        runtime_metadata = r.json()
+
+        return runtime_metadata
 
     def invoke(self, job_payload):
         """
@@ -69,52 +92,17 @@ class LocalhostHandler:
         """
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
-        job_key = job_payload['job_key']
-        runtime = job_payload['runtime_name']
-        storage_bucket = job_payload['config']['lithops']['storage_bucket']
         total_calls = len(job_payload['call_ids'])
 
         logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going to '
                      f'run {total_calls} activations in the localhost worker')
 
-        if not os.path.isfile(RUNNER):
-            self.env.setup(runtime)
+        if not self.env.is_started():
+            self.env.start()
 
-        local_job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket, JOBS_PREFIX)
-        docker_job_dir = f'/tmp/lithops/{storage_bucket}/{JOBS_PREFIX}'
-
-        # resolves race condition in case multiple separate calls of a same job arrive to same worker,
-        # the file would have same name for all tasks and would be deleted by runner after first would complete
-        job_file = f'{job_key}-{job_payload["call_ids"][0]}job.json'
-
-        os.makedirs(local_job_dir, exist_ok=True)
-        local_job_filename = os.path.join(local_job_dir, job_file)
-
-        with open(local_job_filename, 'w') as jl:
-            json.dump(job_payload, jl, default=str)
-
-        if self.env_type == 'docker':
-            job_filename = '{}/{}'.format(docker_job_dir, job_file)
-        else:
-            job_filename = local_job_filename
-
-        exec_command = self.env.get_execution_cmd(runtime)
-        logger.debug('cmd: '+exec_command+' run '+job_filename)
-        p = sp.Popen(exec_command+' run '+job_filename, shell=True)
-        self.jobs[job_key] = p
-
-    def create_runtime(self, runtime_name, *args):
-        """
-        Extract the runtime metadata and preinstalled modules
-        """
-        logger.info(f"Extracting preinstalled Python modules from {runtime_name}")
-        self.env.setup(runtime_name)
-        exec_command = self.env.get_execution_cmd(runtime_name)
-        process = sp.run(exec_command+' preinstalls', shell=True, check=True,
-                         stdout=sp.PIPE, universal_newlines=True)
-        runtime_meta = json.loads(process.stdout.strip())
-
-        return runtime_meta
+        service_address = self.env.get_address()
+        r = requests.post(f'{service_address}/submit', json=job_payload)
+        assert r.status_code == 202, 'Failed to submit the job'
 
     def get_runtime_key(self, runtime_name, *args):
         """
@@ -140,21 +128,28 @@ class LocalhostHandler:
         """
         Kills all running jobs processes
         """
-        for job_key in job_keys:
-            # None means alive
-            if job_key not in self.jobs or self.jobs[job_key].poll() is not None:
-                continue
-            logger.debug(f'Killing job {job_key} with PID {self.jobs[job_key].pid}')
-            self.jobs[job_key].kill()
+        service_address = self.env.get_address()
+        r = requests.post(f'{service_address}/clear')
+        assert r.status_code == 204, 'Failed to clear the jobs'
 
 
-class DockerEnv:
-    def __init__(self, docker_image, pull_runtime):
-        logger.debug(f'Setting DockerEnv for {docker_image}')
-        self.runtime = docker_image
-        self.pull_runtime = pull_runtime
+class BaseEnv():
+    """
+    Base environment class for shared methods
+    """
+    def is_started(self):
+        if not self.runner_service:
+            return False
 
-    def setup(self, runtime):
+        try:
+            r = requests.get(f'{self.address}/ping')
+            is_started = True if r.status_code == 200 else False
+        except Exception:
+            is_started = False
+
+        return is_started
+
+    def _copy_lithops_to_tmp(self):
         os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
         try:
             shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
@@ -163,36 +158,79 @@ class DockerEnv:
         shutil.copytree(LITHOPS_LOCATION, os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
         src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'runner.py')
         copyfile(src_handler, RUNNER)
+
+    def restart(self):
+        self.stop()
+        time.sleep(1)
+        self.start()
+
+    def stop(self):
+        if self.runner_service:
+            requests.post(f'{self.address}/shutdown')
+
+    def get_address(self):
+        return self.address
+
+
+class DockerEnv(BaseEnv):
+    """
+    Docker environment uses a docker runtime image
+    """
+    def __init__(self, docker_image, pull_runtime):
+        logger.debug(f'Setting DockerEnv for {docker_image}')
+        self.runtime = docker_image
+        self.pull_runtime = pull_runtime
+        self.runner_service = None
+
+    def setup(self):
+        self._copy_lithops_to_tmp()
         if self.pull_runtime:
             logger.debug('Pulling Docker runtime {}'.format(self.runtime))
             sp.run('docker pull {}'.format(self.runtime), shell=True, check=True,
                    stdout=sp.PIPE, universal_newlines=True)
 
-    def get_execution_cmd(self, runtime):
+    def start(self):
+        logger.debug(f'Starting runtime {self.runtime}')
+        cmd = 'docker run -d '
+
         if is_unix_system():
-            cmd = (f'docker run --user $(id -u):$(id -g) --rm -v {TEMP}:/tmp --entrypoint '
-                   f'"python3" {self.runtime} /tmp/lithops/runner.py')
-        else:
-            cmd = (f'docker run --rm -v {TEMP}:/tmp --entrypoint "python3" '
-                   f'{self.runtime} /tmp/lithops/runner.py')
-        return cmd
+            cmd += '--user $(id -u):$(id -g) '
+
+        cmd += (f'--rm -v {TEMP}:/tmp -p {RUNNER_PORT}:8085 '
+                f'--entrypoint "python3" {self.runtime} /tmp/lithops/runner.py 8085')
+
+        self.runner_service = sp.run(cmd, shell=True, check=True, stdout=sp.DEVNULL)
+        self.address = f'http://127.0.0.1:{RUNNER_PORT}'
+        while True:
+            try:
+                r = requests.get(f'{self.address}/ping')
+                if r.status_code == 200:
+                    return
+            except Exception:
+                time.sleep(0.1)
 
 
-class DefaultEnv:
+class DefaultEnv(BaseEnv):
+    """
+    Default environment uses current python3 installation
+    """
     def __init__(self):
         self.runtime = sys.executable
         logger.debug(f'Setting DefaultEnv for {self.runtime}')
+        self.runner_service = None
 
-    def setup(self, runtime):
-        os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
-        try:
-            shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
-        except FileNotFoundError:
-            pass
-        shutil.copytree(LITHOPS_LOCATION, os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
-        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'runner.py')
-        copyfile(src_handler, RUNNER)
+    def setup(self):
+        self._copy_lithops_to_tmp()
 
-    def get_execution_cmd(self, runtime):
-        cmd = '"{}" "{}"'.format(self.runtime, RUNNER)
-        return cmd
+    def start(self):
+        logger.debug(f'Starting runtime {self.runtime}')
+        cmd = f'"{self.runtime}" "{RUNNER}" {RUNNER_PORT} &'
+        self.runner_service = sp.run(cmd, shell=True)
+        self.address = f'http://127.0.0.1:{RUNNER_PORT}'
+        while True:
+            try:
+                r = requests.get(f'{self.address}/ping')
+                if r.status_code == 200:
+                    return
+            except Exception:
+                pass
