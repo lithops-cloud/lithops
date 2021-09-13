@@ -11,7 +11,6 @@ install_requires = [
     'pika',
     'glob2',
     'tqdm',
-    'flask',
     'lxml',
     'tblib',
     'docker',

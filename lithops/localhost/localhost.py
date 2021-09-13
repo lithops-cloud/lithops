@@ -21,7 +21,6 @@ import lithops
 import logging
 import shutil
 import subprocess as sp
-import requests
 import atexit
 from shutil import copyfile
 from multiprocessing.connection import Client
@@ -36,6 +35,7 @@ LITHOPS_LOCATION = os.path.dirname(os.path.abspath(lithops.__file__))
 
 
 RUNNER_PORT = 51563
+RUNNER_START_TIMEOUT = 30
 
 
 class LocalhostHandler:
@@ -160,13 +160,20 @@ class BaseEnv():
 
     def _connect(self):
         is_ready = False
-        while not is_ready:
+
+        start = time.time()
+        while(time.time() - start < RUNNER_START_TIMEOUT):
+            time.sleep(0.05)
             try:
-                self.conn = Client(('localhost', RUNNER_PORT))
-            except ConnectionRefusedError:
+                self.conn = Client(('127.0.0.1', RUNNER_PORT))
+                self.conn.send('ping')
+                is_ready = True if self.conn.recv() == 'pong' else False
+                if is_ready:
+                    return True
+            except Exception:
                 continue
-            self.conn.send('ping')
-            is_ready = True if self.conn.recv() == 'pong' else False
+        self.stop()
+        raise Exception('Readiness probe expired on localhost runner service')
 
     def preinstalls(self):
         try:
@@ -190,11 +197,13 @@ class BaseEnv():
 
     def stop(self):
         if self.runner_service:
-            self.conn.send('shutdown')
-            self.conn.close()
-
-    def get_address(self):
-        return self.address
+            try:
+                self.conn.send('shutdown')
+                self.conn.close()
+            except Exception:
+                pass
+            if self.runner_service.poll() is None:
+                self.runner_service.kill()
 
 
 class DockerEnv(BaseEnv):
@@ -220,10 +229,11 @@ class DockerEnv(BaseEnv):
         if is_unix_system():
             cmd += '--user $(id -u):$(id -g) '
 
-        cmd += (f'--rm -v {TEMP}:/tmp -p {RUNNER_PORT}:8085 '
+        cmd += (f'--rm -v {TEMP}:/tmp -p 127.0.0.1:{RUNNER_PORT}:8085 '
                 f'--entrypoint "python3" {self.runtime} /tmp/lithops/runner.py 8085')
 
-        self.runner_service = sp.run(cmd, shell=True, check=True, stdout=sp.DEVNULL)
+        log = open(RN_LOG_FILE, 'a')
+        self.runner_service = sp.run(cmd, shell=True, stdout=log, stderr=log)
         self._connect()
 
 

@@ -26,15 +26,13 @@ from multiprocessing.connection import Listener
 from lithops.worker import function_handler
 from lithops.worker.utils import get_runtime_preinstalls
 from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DIR, LOGS_DIR,\
-    RN_LOG_FILE, LOGGER_FORMAT
-
-
-log_file_stream = open(RN_LOG_FILE, 'a')
+    LOGGER_FORMAT, RN_LOG_FILE
 
 os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
 os.makedirs(JOBS_DIR, exist_ok=True)
 os.makedirs(LOGS_DIR, exist_ok=True)
 
+log_file_stream = open(RN_LOG_FILE, 'a')
 logging.basicConfig(stream=log_file_stream,
                     level=logging.INFO,
                     format=LOGGER_FORMAT)
@@ -47,8 +45,8 @@ if platform.system() == 'Darwin':
 
 
 def run(job_queue):
-    sys.stdout = log_file_stream
-    sys.stderr = log_file_stream
+
+    logger.info('Starting runner sub-process')
 
     while True:
         job_payload = job_queue.get()
@@ -77,36 +75,46 @@ def run(job_queue):
 
 
 def main():
+
+    port = sys.argv[1]
+    logger.info(f'Starting runner service on port {port}')
+
     job_queue = mp.Queue()
 
     runner_process = mp.Process(target=run, args=(job_queue, ))
     runner_process.start()
 
-    listener = Listener(('localhost', int(sys.argv[1])))
+    listener = Listener(('0.0.0.0', int(port)))
     running = True
+
     while running:
         conn = listener.accept()
-        logger.debug('connection accepted from', listener.last_accepted)
+        logger.info('connection accepted from', listener.last_accepted)
         while True:
-            msg = conn.recv()
-            logger.debug(f'Received command: {msg}')
-            if msg == 'run':
-                logger.debug('Received new job payload')
+            command = conn.recv()
+            logger.info(f'Received command: {command}')
+
+            if command == 'run':
+                logger.info('Receiving new job payload')
                 job_payload = conn.recv()
                 job_queue.put(job_payload)
-            if msg == 'preinstalls':
-                logger.debug('Extracting python preinstalled modules')
+
+            elif command == 'preinstalls':
+                logger.info('Extracting python preinstalled modules')
                 runtime_meta = get_runtime_preinstalls()
                 conn.send(runtime_meta)
-            if msg == 'ping':
-                logger.debug('Pinging service')
+
+            elif command == 'ping':
+                logger.info('Pinging service')
                 conn.send('pong')
-            if msg == 'close':
-                logger.debug('Closing client connection')
+
+            elif command == 'close':
+                logger.info('Closing client connection')
                 conn.close()
                 break
-            if msg == 'shutdown':
-                logger.debug('Shutting down service')
+
+            elif command == 'shutdown':
+                logger.info('Shutting down service')
                 conn.close()
                 running = False
                 break
