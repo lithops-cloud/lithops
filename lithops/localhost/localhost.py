@@ -24,6 +24,7 @@ import subprocess as sp
 import requests
 import atexit
 from shutil import copyfile
+from multiprocessing.connection import Client
 
 from lithops.constants import TEMP, LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG, RN_LOG_FILE
 from lithops.utils import is_unix_system
@@ -78,11 +79,7 @@ class LocalhostHandler:
         if not self.env.is_started():
             self.env.start()
 
-        service_address = self.env.get_address()
-
-        r = requests.get(f'{service_address}/preinstalls')
-        assert r.status_code == 200, 'Failed to get preinstalled modules'
-        runtime_metadata = r.json()
+        runtime_metadata = self.env.preinstalls()
 
         return runtime_metadata
 
@@ -100,9 +97,7 @@ class LocalhostHandler:
         if not self.env.is_started():
             self.env.start()
 
-        service_address = self.env.get_address()
-        r = requests.post(f'{service_address}/submit', json=job_payload)
-        assert r.status_code == 202, 'Failed to submit the job'
+        self.env.run(job_payload)
 
     def get_runtime_key(self, runtime_name, *args):
         """
@@ -128,22 +123,26 @@ class LocalhostHandler:
         """
         Kills all running jobs processes
         """
-        service_address = self.env.get_address()
-        r = requests.post(f'{service_address}/clear')
-        assert r.status_code == 204, 'Failed to clear the jobs'
+        if job_keys is None:
+            self.env.stop()
 
 
 class BaseEnv():
     """
     Base environment class for shared methods
     """
+    def __init__(self, runtime):
+        self.runtime = runtime
+        self.runner_service = None
+        self.conn = None
+
     def is_started(self):
-        if not self.runner_service:
+        if not self.conn:
             return False
 
         try:
-            r = requests.get(f'{self.address}/ping')
-            is_started = True if r.status_code == 200 else False
+            self.conn.send('ping')
+            is_started = True if self.conn.recv() == 'pong' else False
         except Exception:
             is_started = False
 
@@ -159,6 +158,31 @@ class BaseEnv():
         src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'runner.py')
         copyfile(src_handler, RUNNER)
 
+    def _connect(self):
+        is_ready = False
+        while not is_ready:
+            try:
+                self.conn = Client(('localhost', RUNNER_PORT))
+            except ConnectionRefusedError:
+                continue
+            self.conn.send('ping')
+            is_ready = True if self.conn.recv() == 'pong' else False
+
+    def preinstalls(self):
+        try:
+            self.conn.send('preinstalls')
+            runtime_metadata = self.conn.recv()
+        except Exception:
+            raise Exception('Failed to extract preinstalled python modules')
+        return runtime_metadata
+
+    def run(self, job_payload):
+        try:
+            self.conn.send('run')
+            self.conn.send(job_payload)
+        except Exception:
+            raise Exception('Failed to submit the job')
+
     def restart(self):
         self.stop()
         time.sleep(1)
@@ -166,10 +190,8 @@ class BaseEnv():
 
     def stop(self):
         if self.runner_service:
-            try:
-                requests.post(f'{self.address}/shutdown')
-            except Exception:
-                pass
+            self.conn.send('shutdown')
+            self.conn.close()
 
     def get_address(self):
         return self.address
@@ -181,9 +203,8 @@ class DockerEnv(BaseEnv):
     """
     def __init__(self, docker_image, pull_runtime):
         logger.debug(f'Setting DockerEnv for {docker_image}')
-        self.runtime = docker_image
+        super().__init__(runtime=docker_image)
         self.pull_runtime = pull_runtime
-        self.runner_service = None
 
     def setup(self):
         self._copy_lithops_to_tmp()
@@ -193,7 +214,7 @@ class DockerEnv(BaseEnv):
                    stdout=sp.PIPE, universal_newlines=True)
 
     def start(self):
-        logger.debug(f'Starting runtime {self.runtime}')
+        logger.debug(f'Starting localhost runner service on {self.runtime}')
         cmd = 'docker run -d '
 
         if is_unix_system():
@@ -203,14 +224,7 @@ class DockerEnv(BaseEnv):
                 f'--entrypoint "python3" {self.runtime} /tmp/lithops/runner.py 8085')
 
         self.runner_service = sp.run(cmd, shell=True, check=True, stdout=sp.DEVNULL)
-        self.address = f'http://127.0.0.1:{RUNNER_PORT}'
-        while True:
-            try:
-                r = requests.get(f'{self.address}/ping')
-                if r.status_code == 200:
-                    return
-            except Exception:
-                time.sleep(0.1)
+        self._connect()
 
 
 class DefaultEnv(BaseEnv):
@@ -218,24 +232,15 @@ class DefaultEnv(BaseEnv):
     Default environment uses current python3 installation
     """
     def __init__(self):
-        self.runtime = sys.executable
-        logger.debug(f'Setting DefaultEnv for {self.runtime}')
-        self.runner_service = None
+        logger.debug(f'Setting DefaultEnv for {sys.executable}')
+        super().__init__(runtime=sys.executable)
 
     def setup(self):
         self._copy_lithops_to_tmp()
 
     def start(self):
-        logger.debug(f'Starting runtime {self.runtime}')
+        logger.debug(f'Starting localhost runner service with {self.runtime}')
         cmd = f'"{self.runtime}" "{RUNNER}" {RUNNER_PORT}'
-
-        log_file_stream = open(RN_LOG_FILE, 'a')
-        self.runner_service = sp.Popen(cmd, shell=True, stdout=log_file_stream, stderr=log_file_stream)
-        self.address = f'http://127.0.0.1:{RUNNER_PORT}'
-        while True:
-            try:
-                r = requests.get(f'{self.address}/ping')
-                if r.status_code == 200:
-                    return
-            except Exception:
-                pass
+        log = open(RN_LOG_FILE, 'a')
+        self.runner_service = sp.Popen(cmd, shell=True, stdout=log, stderr=log)
+        self._connect()

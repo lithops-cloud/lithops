@@ -16,20 +16,18 @@
 
 import os
 import sys
-import json
-import flask
 import platform
 import logging
 import uuid
-import multiprocessing as mp
-from multiprocessing.managers import SyncManager
 from pathlib import Path
+import multiprocessing as mp
+from multiprocessing.connection import Listener
 
 from lithops.worker import function_handler
 from lithops.worker.utils import get_runtime_preinstalls
 from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DIR, LOGS_DIR,\
     RN_LOG_FILE, LOGGER_FORMAT
-from gevent.pywsgi import WSGIServer
+
 
 log_file_stream = open(RN_LOG_FILE, 'a')
 
@@ -46,81 +44,6 @@ logger = logging.getLogger('lithops.localhost.runner')
 # Change spawn method for MacOS
 if platform.system() == 'Darwin':
     mp.set_start_method("fork")
-
-
-app = flask.Flask(__name__)
-
-
-RUNNER_PROCESS = None
-JOB_QUEUE = None
-SERVER = None
-RECEIVED_JOBS = {}
-
-
-def error(msg):
-    response = flask.jsonify({'error': msg})
-    response.status_code = 404
-    return response
-
-
-@app.route('/submit', methods=['POST'])
-def submit_job():
-    """
-    Submits a job
-    """
-    job_payload = flask.request.get_json(force=True, silent=True)
-    if job_payload and not isinstance(job_payload, dict):
-        return error('The action did not receive a dictionary as an argument.')
-
-    JOB_QUEUE.put(job_payload)
-
-    return ('', 202)
-
-
-@app.route('/preinstalls', methods=['GET'])
-def preinstalls():
-    """
-    Generates runtime preinstalled modules dictionary
-    """
-    runtime_meta = get_runtime_preinstalls()
-
-    return json.dumps(runtime_meta)
-
-
-@app.route('/ping', methods=['GET'])
-def ping():
-    """
-    Pings the current service to chek if it is alive
-    """
-    response = flask.jsonify({'response': 'pong'})
-    response.status_code = 200
-    return response
-
-
-@app.route('/clear', methods=['POST'])
-def clear():
-    """
-    Stops received jobs
-    """
-    global RECEIVED_JOBS
-
-    return ('', 204)
-
-
-@app.route('/shutdown', methods=['POST'])
-def shutdown():
-    """
-    Shutdowns the current proxy server
-    """
-    global RUNER_PROCESS
-    global SERVER
-
-    RUNER_PROCESS.kill()
-
-    SERVER.stop()
-    SERVER.close()
-
-    return ('', 204)
 
 
 def run(job_queue):
@@ -154,20 +77,42 @@ def run(job_queue):
 
 
 def main():
-    global RUNER_PROCESS
-    global JOB_QUEUE
-    global SERVER
+    job_queue = mp.Queue()
 
-    manager = SyncManager()
-    manager.start()
-    JOB_QUEUE = manager.Queue()
+    runner_process = mp.Process(target=run, args=(job_queue, ))
+    runner_process.start()
 
-    RUNER_PROCESS = mp.Process(target=run, args=(JOB_QUEUE, ))
-    RUNER_PROCESS.start()
+    listener = Listener(('localhost', int(sys.argv[1])))
+    running = True
+    while running:
+        conn = listener.accept()
+        logger.debug('connection accepted from', listener.last_accepted)
+        while True:
+            msg = conn.recv()
+            logger.debug(f'Received command: {msg}')
+            if msg == 'run':
+                logger.debug('Received new job payload')
+                job_payload = conn.recv()
+                job_queue.put(job_payload)
+            if msg == 'preinstalls':
+                logger.debug('Extracting python preinstalled modules')
+                runtime_meta = get_runtime_preinstalls()
+                conn.send(runtime_meta)
+            if msg == 'ping':
+                logger.debug('Pinging service')
+                conn.send('pong')
+            if msg == 'close':
+                logger.debug('Closing client connection')
+                conn.close()
+                break
+            if msg == 'shutdown':
+                logger.debug('Shutting down service')
+                conn.close()
+                running = False
+                break
 
-    port = int(sys.argv[1])
-    SERVER = WSGIServer(('127.0.0.1', port), app, log=app.logger)
-    SERVER.serve_forever()
+    listener.close()
+    runner_process.kill()
 
 
 if __name__ == '__main__':
