@@ -23,6 +23,7 @@ from lithops.utils import version_str
 logger = logging.getLogger(__name__)
 
 DEFAULT_REQUIREMENTS = [
+    'numpy',
     'requests',
     'redis',
     'pika',
