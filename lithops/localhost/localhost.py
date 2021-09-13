@@ -159,8 +159,6 @@ class BaseEnv():
         copyfile(src_handler, RUNNER)
 
     def _connect(self):
-        is_ready = False
-
         start = time.time()
         while(time.time() - start < RUNNER_START_TIMEOUT):
             time.sleep(0.05)

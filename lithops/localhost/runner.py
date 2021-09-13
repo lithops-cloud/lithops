@@ -89,7 +89,7 @@ def main():
 
     while running:
         conn = listener.accept()
-        logger.info('connection accepted from', listener.last_accepted)
+        logger.info(f'connection accepted from {listener.last_accepted}')
         while True:
             command = conn.recv()
             logger.info(f'Received command: {command}')
