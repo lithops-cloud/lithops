@@ -221,7 +221,11 @@ class AWSLambdaBackend:
             },
             CompatibleRuntimes=[lambda_config.LAMBDA_PYTHON_VER_KEY]
         )
-        self.internal_storage.storage.delete_object(self.internal_storage.bucket, layer_name)
+
+        try:
+            self.internal_storage.storage.delete_object(self.internal_storage.bucket, layer_name)
+        except Exception as e:
+            logger.warning(e)
 
         if response['ResponseMetadata']['HTTPStatusCode'] == 201:
             logger.debug('OK --> Layer {} created'.format(layer_name))
