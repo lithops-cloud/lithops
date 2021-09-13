@@ -156,8 +156,17 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
     backend = config_data['lithops'].get('backend')
     mode = config_data['lithops'].get('mode')
 
+    if mode in config_data and 'worker_processes' in config_data[mode] \
+       and 'worker_processes' not in config_overwrite['lithops']:
+        config_data['lithops']['worker_processes'] = config_data[mode]['worker_processes']
+
     if mode == constants.LOCALHOST:
         logger.debug("Loading compute backend module: localhost")
+
+        if constants.LOCALHOST not in config_data or \
+           config_data[constants.LOCALHOST] is None:
+            config_data[constants.LOCALHOST] = {}
+
         config_data['lithops']['workers'] = 1
 
         if 'storage' not in config_data['lithops']:
@@ -165,9 +174,6 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
 
         if 'worker_processes' not in config_data['lithops']:
             config_data['lithops']['worker_processes'] = CPU_COUNT
-        if constants.LOCALHOST not in config_data or \
-           config_data[constants.LOCALHOST] is None:
-            config_data[constants.LOCALHOST] = {}
 
         if 'runtime' in config_overwrite:
             config_data[constants.LOCALHOST]['runtime'] = config_overwrite['runtime']

@@ -20,6 +20,7 @@ import platform
 import logging
 import uuid
 from pathlib import Path
+from threading import Thread
 import multiprocessing as mp
 from multiprocessing.connection import Listener
 
@@ -44,50 +45,24 @@ if platform.system() == 'Darwin':
     mp.set_start_method("fork")
 
 
-def run(job_queue):
-
-    logger.info('Starting runner sub-process')
-
-    while True:
-        job_payload = job_queue.get()
-
-        executor_id = job_payload['executor_id']
-        job_id = job_payload['job_id']
-        job_key = job_payload['job_key']
-
-        logger.info('ExecutorID {} | JobID {} - Starting execution'
-                    .format(executor_id, job_id))
-
-        act_id = str(uuid.uuid4()).replace('-', '')[:12]
-        os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
-        os.environ['__LITHOPS_BACKEND'] = 'Localhost'
-
-        try:
-            function_handler(job_payload)
-        except KeyboardInterrupt:
-            pass
-
-        done = os.path.join(JOBS_DIR, job_key+'.done')
-        Path(done).touch()
-
-        logger.info('ExecutorID {} | JobID {} - Execution Finished'
-                    .format(executor_id, job_id))
+class ShutdownSentinel:
+    """Put an instance of this class on the queue to shut it down"""
+    pass
 
 
-def main():
+SHOULD_RUN = True
+
+
+def service(job_queue):
+    global SHOULD_RUN
 
     port = sys.argv[1]
-    logger.info(f'Starting runner service on port {port}')
+    ip_address = '0.0.0.0' if 'IS_DOCKER_CONTAINER' in os.environ else '127.0.0.1'
+    logger.info(f'Starting runner service on {ip_address}:{port}')
 
-    job_queue = mp.Queue()
+    listener = Listener((ip_address, int(port)))
 
-    runner_process = mp.Process(target=run, args=(job_queue, ))
-    runner_process.start()
-
-    listener = Listener(('0.0.0.0', int(port)))
-    running = True
-
-    while running:
+    while SHOULD_RUN:
         conn = listener.accept()
         logger.info(f'connection accepted from {listener.last_accepted}')
         while True:
@@ -105,7 +80,7 @@ def main():
                 conn.send(runtime_meta)
 
             elif command == 'ping':
-                logger.info('Pinging service')
+                logger.info('Signaling service')
                 conn.send('pong')
 
             elif command == 'close':
@@ -114,13 +89,57 @@ def main():
                 break
 
             elif command == 'shutdown':
-                logger.info('Shutting down service')
+                logger.info('Stopping runner service')
                 conn.close()
-                running = False
+                SHOULD_RUN = False
+                job_queue.put(ShutdownSentinel())
                 break
 
     listener.close()
-    runner_process.kill()
+    logger.info('Runner service stopped')
+
+
+def run(job_queue):
+    """
+    Wrapper function that reads jobs from the queue and executes them
+    """
+    while SHOULD_RUN:
+        event = job_queue.get()
+
+        if isinstance(event, ShutdownSentinel):
+            break
+
+        executor_id = event['executor_id']
+        job_id = event['job_id']
+        job_key = event['job_key']
+
+        logger.info('ExecutorID {} | JobID {} - Starting execution'
+                    .format(executor_id, job_id))
+
+        act_id = str(uuid.uuid4()).replace('-', '')[:12]
+        os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
+        os.environ['__LITHOPS_BACKEND'] = 'Localhost'
+
+        function_handler(event)
+
+        done = os.path.join(JOBS_DIR, job_key+'.done')
+        Path(done).touch()
+
+        logger.info('ExecutorID {} | JobID {} - Execution Finished'
+                    .format(executor_id, job_id))
+
+
+def main():
+    """
+    The runner service is a super-lightweight, low-level, service that acts as
+    an interface/wrapper (or entry_point) to the actual lithops execution.
+    """
+    logger.info('Starting main service')
+    job_queue = mp.Queue()
+    service_process = Thread(target=service, args=(job_queue, ), daemon=True)
+    service_process.start()
+    run(job_queue)
+    logger.info('Exiting main service')
 
 
 if __name__ == '__main__':

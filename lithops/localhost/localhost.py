@@ -17,6 +17,7 @@
 import os
 import sys
 import time
+import socket
 import lithops
 import logging
 import shutil
@@ -33,8 +34,6 @@ logger = logging.getLogger(__name__)
 RUNNER = os.path.join(LITHOPS_TEMP_DIR, 'runner.py')
 LITHOPS_LOCATION = os.path.dirname(os.path.abspath(lithops.__file__))
 
-
-RUNNER_PORT = 51563
 RUNNER_START_TIMEOUT = 30
 
 
@@ -133,6 +132,7 @@ class BaseEnv():
     """
     def __init__(self, runtime):
         self.runtime = runtime
+        self.port = None
         self.runner_service = None
         self.conn = None
 
@@ -163,7 +163,7 @@ class BaseEnv():
         while(time.time() - start < RUNNER_START_TIMEOUT):
             time.sleep(0.05)
             try:
-                self.conn = Client(('127.0.0.1', RUNNER_PORT))
+                self.conn = Client(('127.0.0.1', self.port))
                 self.conn.send('ping')
                 is_ready = True if self.conn.recv() == 'pong' else False
                 if is_ready:
@@ -172,6 +172,11 @@ class BaseEnv():
                 continue
         self.stop()
         raise Exception('Readiness probe expired on localhost runner service')
+
+    def _get_free_port(self):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(("", 0))
+        return s.getsockname()[1]
 
     def preinstalls(self):
         try:
@@ -197,11 +202,17 @@ class BaseEnv():
         if self.runner_service:
             try:
                 self.conn.send('shutdown')
+            except Exception:
+                pass
+            try:
                 self.conn.close()
             except Exception:
                 pass
-            if self.runner_service.poll() is None:
+            try:
                 self.runner_service.kill()
+            except Exception:
+                pass
+            self.runner_service = None
 
 
 class DockerEnv(BaseEnv):
@@ -222,12 +233,14 @@ class DockerEnv(BaseEnv):
 
     def start(self):
         logger.debug(f'Starting localhost runner service on {self.runtime}')
-        cmd = 'docker run -d '
+        cmd = 'docker run -d --env IS_DOCKER_CONTAINER=True '
+
+        self.port = self._get_free_port()
 
         if is_unix_system():
             cmd += '--user $(id -u):$(id -g) '
 
-        cmd += (f'--rm -v {TEMP}:/tmp -p 127.0.0.1:{RUNNER_PORT}:8085 '
+        cmd += (f'--rm -v {TEMP}:/tmp -p 127.0.0.1:{self.port}:8085 '
                 f'--entrypoint "python3" {self.runtime} /tmp/lithops/runner.py 8085')
 
         log = open(RN_LOG_FILE, 'a')
@@ -247,8 +260,9 @@ class DefaultEnv(BaseEnv):
         self._copy_lithops_to_tmp()
 
     def start(self):
-        logger.debug(f'Starting localhost runner service with {self.runtime}')
-        cmd = f'"{self.runtime}" "{RUNNER}" {RUNNER_PORT}'
+        logger.debug(f'Starting localhost runner service on {self.runtime}')
+        self.port = self._get_free_port()
+        cmd = f'"{self.runtime}" "{RUNNER}" {self.port}'
         log = open(RN_LOG_FILE, 'a')
         self.runner_service = sp.Popen(cmd, shell=True, stdout=log, stderr=log)
         self._connect()
