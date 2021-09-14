@@ -20,6 +20,7 @@ import json
 import logging
 import itertools
 import importlib
+from typing import Optional, List, Union, Tuple, Dict, Any, TextIO, BinaryIO
 from lithops.version import __version__
 from lithops.constants import CACHE_DIR, RUNTIMES_PREFIX, JOBS_PREFIX, TEMP_PREFIX
 from lithops.utils import is_lithops_worker
@@ -43,7 +44,6 @@ class Storage:
 
         :param config: lithops configuration dict
         :param backend: storage backend name
-
         :return: Storage instance.
         """
 
@@ -69,50 +69,126 @@ class Storage:
 
         self._created_cobjects_n = itertools.count()
 
-    def get_client(self):
+    def get_client(self) -> object:
         """
         Retrieves the underlying storage client.
-        :return: storage backend client
+
+        :return: Storage backend client
         """
         return self.storage_handler.get_client()
 
-    def get_storage_config(self):
+    def get_storage_config(self) -> Dict:
         """
         Retrieves the configuration of this storage handler.
-        :return: storage configuration
+
+        :return: Storage configuration
         """
         return self.storage_config
 
-    def put_object(self, bucket, key, body):
+    def put_object(self, bucket: str, key: str, body: Union[str, bytes, TextIO, BinaryIO]):
+        """
+        Adds an object to a bucket of the storage backend.
+
+        :param bucket: Name of the bucket
+        :param key: Key of the object
+        :param body: Object data
+        """
         return self.storage_handler.put_object(bucket, key, body)
 
-    def get_object(self, bucket, key, stream=False, extra_get_args={}):
+    def get_object(self, bucket: str, key: str,
+                   stream: Optional[bool] = False,
+                   extra_get_args: Optional[Dict] = {}) -> Union[str, bytes, TextIO, BinaryIO]:
+        """
+        Retrieves objects from the storage backend.
+
+        :param bucket: Name of the bucket
+        :param key: Key of the object
+        :param stream: Get the object data or a file-like object
+        :param extra_get_args: Extra get arguments to be passed to the underlying backend implementation (dict).
+        For example, to specify the byte-range to read: `extra_get_args={'Range': 'bytes=0-100'}`
+
+        :return: Object, as a binary array or as a file-like stream if parameter `stream` is enabled
+        """
         return self.storage_handler.get_object(bucket, key, stream, extra_get_args)
 
-    def head_object(self, bucket, key):
+    def head_object(self, bucket: str, key: str) -> Dict:
+        """
+        The HEAD operation retrieves metadata from an object without returning the object itself. This operation is
+        useful if you're only interested in an object's metadata.
+
+        :param bucket: Name of the bucket
+        :param key: Key of the object
+
+        :return: Object metadata
+        """
         return self.storage_handler.head_object(bucket, key)
 
-    def delete_object(self, bucket, key):
+    def delete_object(self, bucket: str, key: str):
+        """
+        Removes objects from the storage backend.
+
+        :param bucket: Name of the bucket
+        :param key: Key of the object
+        """
         return self.storage_handler.delete_object(bucket, key)
 
-    def delete_objects(self, bucket, key_list):
+    def delete_objects(self, bucket: str, key_list: List[str]):
+        """
+        This operation enables you to delete multiple objects from a bucket using a single HTTP request.
+        If you know the object keys that you want to delete, then this operation provides a suitable alternative
+        to sending individual delete requests, reducing per-request overhead.
+
+        :param bucket: Name of the bucket
+        :param key_list: List of object keys
+        """
         return self.storage_handler.delete_objects(bucket, key_list)
 
-    def head_bucket(self, bucket):
+    def head_bucket(self, bucket: str) -> Dict:
+        """
+        This operation is useful to determine if a bucket exists and you have permission to access it.
+        The operation returns a 200 OK if the bucket exists and you have permission to access it.
+        Otherwise, the operation might return responses such as 404 Not Found and 403 Forbidden.
+
+        :param bucket: Name of the bucket
+
+        :return: Request response
+        """
         return self.storage_handler.head_bucket(bucket)
 
-    def list_objects(self, bucket, prefix=None):
+    def list_objects(self, bucket: str, prefix: Optional[str] = None) -> List[Tuple[str, int]]:
+        """
+        Returns all of the object keys in a bucket. For each object, the list contains the name
+        of the object (key) and the size.
+
+        :param bucket: Name of the bucket
+        :param prefix: Key prefix for filtering
+
+        :return: List of tuples containing the object key and size in bytes
+        """
+
         return self.storage_handler.list_objects(bucket, prefix)
 
-    def list_keys(self, bucket, prefix=None):
+    def list_keys(self, bucket, prefix=None) -> List[str]:
+        """
+        Similar to list_objects(), it returns all of the object keys in a bucket.
+        For each object, the list contains only the names of the objects (keys).
+
+        :param bucket: Name of the bucket
+        :param prefix: Key prefix for filtering
+
+        :return: List of object keys
+        """
         return self.storage_handler.list_keys(bucket, prefix)
 
-    def put_cloudobject(self, body, bucket=None, key=None):
+    def put_cloudobject(self, body: Union[str, bytes, TextIO, BinaryIO],
+                        bucket: Optional[str] = None, key: Optional[str] = None) -> CloudObject:
         """
-        Put CloudObject into storage.
-        :param body: data content
-        :param bucket: destination bucket
-        :param key: destination key
+        Put a CloudObject into storage.
+
+        :param body: Data content, can be a string or byte array or a text/bytes file-like object
+        :param bucket: Destination bucket
+        :param key: Destination key
+
         :return: CloudObject instance
         """
         prefix = os.environ.get('__LITHOPS_SESSION_ID', '')
@@ -125,13 +201,15 @@ class Storage:
 
         return CloudObject(self.backend, bucket, key)
 
-    def get_cloudobject(self, cloudobject, stream=False):
+    def get_cloudobject(self, cloudobject: CloudObject,
+                        stream: Optional[bool] = False) -> Union[str, bytes, TextIO, BinaryIO]:
         """
-        Get CloudObject from storage.
+        Get a CloudObject's content from storage.
+
         :param cloudobject: CloudObject instance
-        :param bucket: destination bucket
-        :param key: destination key
-        :return: body text
+        :param stream: Get the object data or a file-like object
+
+        :return: Cloud object content
         """
         if cloudobject.backend == self.backend:
             bucket = cloudobject.bucket
@@ -140,13 +218,11 @@ class Storage:
         else:
             raise Exception("CloudObject: Invalid Storage backend")
 
-    def delete_cloudobject(self, cloudobject):
+    def delete_cloudobject(self, cloudobject: CloudObject):
         """
-        Get CloudObject from storage.
+        Delete a CloudObject from storage.
+
         :param cloudobject: CloudObject instance
-        :param bucket: destination bucket
-        :param key: destination key
-        :return: body text
         """
         if cloudobject.backend == self.backend:
             bucket = cloudobject.bucket
@@ -155,13 +231,11 @@ class Storage:
         else:
             raise Exception("CloudObject: Invalid Storage backend")
 
-    def delete_cloudobjects(self, cloudobjects):
+    def delete_cloudobjects(self, cloudobjects: List[CloudObject]):
         """
-        Get CloudObject from storage.
-        :param cloudobject: CloudObject instance
-        :param bucket: destination bucket
-        :param key: destination key
-        :return: body text
+        Delete multiple CloudObjects from storage.
+
+        :param cloudobjects: List of CloudObject instances
         """
         cobjs = {}
         for co in cloudobjects:
