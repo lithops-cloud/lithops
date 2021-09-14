@@ -24,6 +24,9 @@ import pickle
 import tempfile
 import numpy as np
 import subprocess as sp
+from typing import Optional, List, Union, Tuple, Dict, Any
+from collections.abc import Callable
+from future import ResponseFuture
 from datetime import datetime
 from lithops import constants
 from lithops.invokers import create_invoker
@@ -40,7 +43,7 @@ from lithops.utils import is_notebook, setup_lithops_logger, \
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import StandaloneHandler
 from lithops.serverless.serverless import ServerlessHandler
-from lithops.storage.utils import create_job_key
+from lithops.storage.utils import create_job_key, CloudObject
 from lithops.monitor import JobMonitor
 from lithops.utils import FuturesList
 
@@ -50,24 +53,33 @@ logger = logging.getLogger(__name__)
 
 class FunctionExecutor:
     """
-    Executor abstract class that contains the common logic
-    for the Localhost, Serverless and Standalone executors
+    Executor abstract class that contains the common logic for the Localhost, Serverless and Standalone executors
+
+    :param mode: Execution mode. One of: localhost, serverless or standalone
+    :param config: Settings passed in here will override those in lithops_config
+    :param backend: Compute backend to run the functions
+    :param storage: Storage backend to store Lithops data
+    :param runtime: Name of the runtime to run the functions
+    :param runtime_memory: Memory (in MB) to use to run the functions
+    :param monitoring: Monitoring system implementation. One of: storage, rabbitmq
+    :param workers: Max number of parallel workers
+    :param worker_processes: Worker granularity, number of concurrent/parallel processes in each worker
+    :param remote_invoker: Spawn a function that will perform the actual job invocation (True/False)
+    :param log_level: Log level printing (INFO, DEBUG, ...). Set it to None to hide all logs. If this is param is set, all logging params in config are disabled
     """
 
     def __init__(self,
-                 mode=None,
-                 config=None,
-                 backend=None,
-                 storage=None,
-                 runtime=None,
-                 runtime_memory=None,
-                 monitoring=None,
-                 workers=None,
-                 worker_processes=None,
-                 remote_invoker=None,
-                 log_level=False):
-        """ Create a FunctionExecutor Class """
-
+                 mode: Optional[str] = None,
+                 config: Optional[Dict[str, Any]] = None,
+                 backend: Optional[str] = None,
+                 storage: Optional[str] = None,
+                 runtime: Optional[str] = None,
+                 runtime_memory: Optional[int] = None,
+                 monitoring: Optional[str] = None,
+                 workers: Optional[int] = None,
+                 worker_processes: Optional[int] = None,
+                 remote_invoker: Optional[bool] = None,
+                 log_level: Optional[str] = False):
         self.is_lithops_worker = is_lithops_worker()
         self.executor_id = create_executor_id()
         self.futures = []
@@ -167,27 +179,25 @@ class FunctionExecutor:
         return '{}{}'.format(call_type, job_id)
 
     def call_async(self,
-                   func,
-                   data,
-                   extra_env=None,
-                   runtime_memory=None,
-                   timeout=None,
-                   include_modules=[],
-                   exclude_modules=[]):
+                   func: Callable,
+                   data: Union[List[Any], Tuple[Any, ...], Dict[str, Any]],
+                   extra_env: Optional[Dict] = None,
+                   runtime_memory: Optional[int] = None,
+                   timeout: Optional[int] = None,
+                   include_modules: Optional[List] = [],
+                   exclude_modules: Optional[List] = []) -> ResponseFuture:
         """
-        For running one function execution asynchronously
+        For running one function execution asynchronously.
 
-        :param func: the function to map over the data
-        :param data: input data
-        :param extra_env: Additional env variables for action environment
-        :param runtime_memory: Memory to use to run the function
-        :param timeout: Time that the functions have to complete their
-                        execution before raising a timeout
-        :param include_modules: Explicitly pickle these dependencies
-        :param exclude_modules: Explicitly keep these modules from pickled
-                                dependencies
+        :param func: The function to map over the data.
+        :param data: Input data. Arguments can be passed as a list or tuple, or as a dictionary for keyword arguments.
+        :param extra_env: Additional env variables for function environment.
+        :param runtime_memory: Memory to use to run the function.
+        :param timeout: Time that the function has to complete its execution before raising a timeout.
+        :param include_modules: Explicitly pickle these dependencies.
+        :param exclude_modules: Explicitly keep these modules from pickled dependencies.
 
-        :return: future object.
+        :return: Response future.
         """
         job_id = self._create_job_id('A')
         self.last_call = 'call_async'
@@ -213,40 +223,33 @@ class FunctionExecutor:
         return futures[0]
 
     def map(self,
-            map_function,
-            map_iterdata,
-            chunksize=None,
-            extra_args=None,
-            extra_env=None,
-            runtime_memory=None,
-            obj_chunk_size=None,
-            obj_chunk_number=None,
-            timeout=None,
-            include_modules=[],
-            exclude_modules=[]):
+            map_function: Callable,
+            map_iterdata: List[Union[List[Any], Tuple[Any, ...], Dict[str, Any]]],
+            chunksize: Optional[int] = None,
+            extra_args: Optional[Union[List[Any], Tuple[Any, ...], Dict[str, Any]]] = None,
+            extra_env: Optional[Dict[str, str]] = None,
+            runtime_memory: Optional[int] = None,
+            obj_chunk_size: Optional[int] = None,
+            obj_chunk_number: Optional[int] = None,
+            timeout: Optional[int] = None,
+            include_modules: Optional[List[str]] = [],
+            exclude_modules: Optional[List[str]] = []) -> FuturesList:
         """
-        For running multiple function executions asynchronously
+        Spawn multiple function activations based on the items of an input list.
 
-        :param map_function: the function to map over the data
-        :param map_iterdata: An iterable of input data
-        :param chunksize: Split map_iteradata in chunks of this size.
-                          Lithops spawns 1 worker per resulting chunk. Default 1
-        :param extra_args: Additional args to pass to the function activations
-        :param extra_env: Additional env variables for action environment
-        :param runtime_memory: Memory to use to run the function
-        :param obj_chunk_size: the size of the data chunks to split each object.
-                           'None' for processing the whole file in one function
-                           activation.
-        :param obj_chunk_number: Number of chunks to split each object. 'None' for
-                                 processing the whole file in one function activation
-        :param remote_invocation: Enable or disable remote_invocation mechanism
-        :param timeout: Time that the functions have to complete their execution
-                        before raising a timeout
-        :param include_modules: Explicitly pickle these dependencies
-        :param exclude_modules: Explicitly keep these modules from pickled
-                                dependencies
+        :param map_function: The function to map over the data
+        :param map_iterdata: An iterable of input data (e.g python list).
+        :param chunksize: Split map_iteradata in chunks of this size. Lithops spawns 1 worker per resulting chunk
+        :param extra_args: Additional arguments to pass to each map_function activation
+        :param extra_env: Additional environment variables for function environment
+        :param runtime_memory: Memory (in MB) to use to run the functions
+        :param obj_chunk_size: Used for data processing. Chunk size to split each object in bytes. Must be >= 1MiB. 'None' for processing the whole file in one function activation
+        :param obj_chunk_number: Used for data processing. Number of chunks to split each object. 'None' for processing the whole file in one function activation. chunk_n has prevalence over chunk_size if both parameters are set
+        :param timeout: Max time per function activation (seconds)
+        :param include_modules: Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None
+        :param exclude_modules: Explicitly keep these modules from pickled dependencies. It is not taken into account if you set include_modules.
 
-        :return: A list with size `len(iterdata)` of futures.
+        :return: A list with size `len(map_iterdata)` of futures for each job (Futures are also internally stored by Lithops).
         """
 
         job_id = self._create_job_id('M')
@@ -281,41 +284,35 @@ class FunctionExecutor:
         return create_futures_list(futures, self)
 
     def map_reduce(self,
-                   map_function,
-                   map_iterdata,
-                   reduce_function,
-                   chunksize=None,
-                   extra_args=None,
-                   extra_env=None,
-                   map_runtime_memory=None,
-                   obj_chunk_size=None,
-                   obj_chunk_number=None,
-                   reduce_runtime_memory=None,
-                   timeout=None,
-                   reducer_one_per_object=False,
-                   reducer_wait_local=False,
-                   include_modules=[],
-                   exclude_modules=[]):
+                   map_function: Callable,
+                   map_iterdata: List[Union[List[Any], Tuple[Any, ...], Dict[str, Any]]],
+                   reduce_function: Callable,
+                   chunksize: Optional[int] = None,
+                   extra_args: Optional[Union[List[Any], Tuple[Any, ...], Dict[str, Any]]] = None,
+                   extra_env: Optional[Dict[str, str]] = None,
+                   map_runtime_memory: Optional[int] = None,
+                   reduce_runtime_memory: Optional[int] = None,
+                   obj_chunk_size: Optional[int] = None,
+                   obj_chunk_number: Optional[int] = None,
+                   timeout: Optional[int] = None,
+                   reducer_one_per_object: Optional[bool] = False,
+                   reducer_wait_local: Optional[bool] = False,
+                   include_modules: Optional[List[str]] = [],
+                   exclude_modules: Optional[List[str]] = []) -> FuturesList:
         """
         Map the map_function over the data and apply the reduce_function across all futures.
-        This method is executed all within CF.
 
-        :param map_function: the function to map over the data
-        :param map_iterdata:  An iterable of input data
-        :param chunksize: Split map_iteradata in chunks of this size.
-                          Lithops spawns 1 worker per resulting chunk. Default 1
-        :param worker_processes: Number of concurrent/parallel processes in each worker Default 1
-        :param reduce_function:  the function to reduce over the futures
-        :param extra_env: Additional environment variables for action environment. Default None.
-        :param extra_args: Additional arguments to pass to function activation. Default None.
-        :param map_runtime_memory: Memory to use to run the map function. Default None (loaded from config).
-        :param reduce_runtime_memory: Memory to use to run the reduce function. Default None (loaded from config).
-        :param obj_chunk_size: the size of the data chunks to split each object. 'None' for processing
-                               the whole file in one function activation.
-        :param obj_chunk_number: Number of chunks to split each object. 'None' for processing the whole
-                                 file in one function activation.
-        :param remote_invocation: Enable or disable remote_invocation mechanism. Default 'False'
-        :param timeout: Time that the functions have to complete their execution before raising a timeout.
+        :param map_function: The function to map over the data
+        :param map_iterdata: An iterable of input data
+        :param reduce_function: The function to reduce over the futures
+        :param chunksize: Split map_iteradata in chunks of this size. Lithops spawns 1 worker per resulting chunk. Default 1
+        :param extra_args: Additional arguments to pass to function activation. Default None
+        :param extra_env: Additional environment variables for action environment. Default None
+        :param map_runtime_memory: Memory to use to run the map function. Default None (loaded from config)
+        :param reduce_runtime_memory: Memory to use to run the reduce function. Default None (loaded from config)
+        :param obj_chunk_size: the size of the data chunks to split each object. 'None' for processing the whole file in one function activation
+        :param obj_chunk_number: Number of chunks to split each object. 'None' for processing the whole file in one function activation
+        :param timeout: Time that the functions have to complete their execution before raising a timeout
         :param reducer_one_per_object: Set one reducer per object after running the partitioner
         :param reducer_wait_local: Wait for results locally
         :param include_modules: Explicitly pickle these dependencies.
@@ -381,9 +378,14 @@ class FunctionExecutor:
 
         return create_futures_list(map_futures + reduce_futures, self)
 
-    def wait(self, fs=None, throw_except=True, return_when=ALL_COMPLETED,
-             download_results=False, timeout=None, threadpool_size=THREADPOOL_SIZE,
-             wait_dur_sec=WAIT_DUR_SEC):
+    def wait(self,
+             fs: Optional[Union[ResponseFuture, FuturesList, List[ResponseFuture]]] = None,
+             throw_except: Optional[bool] = True,
+             return_when: Optional[Any] = ALL_COMPLETED,
+             download_results: Optional[bool] = False,
+             timeout: Optional[int] = None,
+             threadpool_size: Optional[int] = THREADPOOL_SIZE,
+             wait_dur_sec: Optional[int] = WAIT_DUR_SEC) -> Tuple[FuturesList, FuturesList]:
         """
         Wait for the Future instances (possibly created by different Executor instances)
         given by fs to complete. Returns a named 2-tuple of sets. The first set, named done,
@@ -393,17 +395,14 @@ class FunctionExecutor:
         seconds to wait before returning.
 
         :param fs: Futures list. Default None
-        :param throw_except: Re-raise exception if call raised. Default True.
+        :param throw_except: Re-raise exception if call raised. Default True
         :param return_when: One of `ALL_COMPLETED`, `ANY_COMPLETED`, `ALWAYS`
         :param download_results: Download results. Default false (Only get statuses)
-        :param timeout: Timeout of waiting for results.
+        :param timeout: Timeout of waiting for results
         :param threadpool_size: Number of threads to use. Default 64
-        :param wait_dur_sec: Time interval between each check.
+        :param wait_dur_sec: Time interval between each check
 
-        :return: `(fs_done, fs_notdone)`
-            where `fs_done` is a list of futures that have completed
-            and `fs_notdone` is a list of futures that have not completed.
-        :rtype: 2-tuple of list
+        :return: `(fs_done, fs_notdone)` where `fs_done` is a list of futures that have completed and `fs_notdone` is a list of futures that have not completed.
         """
         futures = fs or self.futures
         if type(futures) != list and type(futures) != FuturesList:
@@ -445,17 +444,20 @@ class FunctionExecutor:
 
         return create_futures_list(fs_done, self), create_futures_list(fs_notdone, self)
 
-    def get_result(self, fs=None, throw_except=True, timeout=None,
-                   threadpool_size=THREADPOOL_SIZE, wait_dur_sec=WAIT_DUR_SEC):
+    def get_result(self,
+                   fs: Optional[Union[ResponseFuture, FuturesList, List[ResponseFuture]]] = None,
+                   throw_except: Optional[bool] = True,
+                   timeout: Optional[int] = None,
+                   threadpool_size: Optional[int] = THREADPOOL_SIZE,
+                   wait_dur_sec: Optional[int] = WAIT_DUR_SEC):
         """
         For getting the results from all function activations
 
         :param fs: Futures list. Default None
         :param throw_except: Reraise exception if call raised. Default True.
-        :param verbose: Shows some information prints. Default False
         :param timeout: Timeout for waiting for results.
-        :param THREADPOOL_SIZE: Number of threads to use. Default 128
-        :param WAIT_DUR_SEC: Time interval between each check.
+        :param threadpool_size: Number of threads to use. Default 128
+        :param wait_dur_sec: Time interval between each check.
         :return: The result of the future/s
         """
         fs_done, _ = self.wait(fs=fs, throw_except=throw_except,
@@ -482,13 +484,14 @@ class FunctionExecutor:
 
         return result
 
-    def plot(self, fs=None, dst=None):
+    def plot(self,
+             fs: Optional[Union[ResponseFuture, List[ResponseFuture]]] = None,
+             dst: Optional[str] = None):
         """
         Creates timeline and histogram of the current execution in dst_dir.
 
-        :param dst_dir: destination folder to save .png plots.
-        :param dst_file_name: prefix name of the file.
         :param fs: list of futures.
+        :param dst: destination path to save .png plots.
         """
         ftrs = self.futures if not fs else fs
 
@@ -509,16 +512,22 @@ class FunctionExecutor:
         create_timeline(ftrs_to_plot, dst)
         create_histogram(ftrs_to_plot, dst)
 
-    def clean(self, fs=None, cs=None, clean_cloudobjects=True, spawn_cleaner=True, force=False):
+    def clean(self,
+              fs: Optional[Union[ResponseFuture, List[ResponseFuture]]] = None,
+              cs: Optional[List[CloudObject]] = None,
+              clean_cloudobjects: Optional[bool] = True,
+              spawn_cleaner: Optional[bool] = True,
+              force: Optional[bool] = False):
         """
         Deletes all the temp files from storage. These files include the function,
         the data serialization and the function invocation results. It can also clean
         cloudobjects.
 
-        :param fs: list of futures to clean
-        :param cs: list of cloudobjects to clean
-        :param clean_cloudobjects: true/false
-        :param spawn_cleaner true/false
+        :param fs: List of futures to clean
+        :param cs: List of cloudobjects to clean
+        :param clean_cloudobjects: Delete all cloudobjects created with this executor
+        :param spawn_cleaner: Spawn cleaner background process
+        :param force: Clean all future objects even if they have not benn completed
         """
         os.makedirs(CLEANER_DIR, exist_ok=True)
 
@@ -555,11 +564,11 @@ class FunctionExecutor:
             cmdstr = [sys.executable, '-m', 'lithops.scripts.cleaner']
             sp.Popen(' '.join(cmdstr), shell=True)
 
-    def job_summary(self, cloud_objects_n=0):
+    def job_summary(self,
+                    cloud_objects_n: Optional[int] = 0):
         """
-        logs information of a job executed by the calling function executor.
+        Logs information of a job executed by the calling function executor.
         currently supports: code_engine, ibm_vpc and ibm_cf.
-        on future commits, support will extend to code_engine and ibm_vpc :
 
         :param cloud_objects_n: number of cloud object used in COS, declared by user.
         """
@@ -635,25 +644,25 @@ class FunctionExecutor:
 
 
 class LocalhostExecutor(FunctionExecutor):
+    """
+    Initialize a LocalhostExecutor class.
+
+    :param config: Settings passed in here will override those in config file.
+    :param runtime: Runtime name to use.
+    :param storage: Name of the storage backend to use.
+    :param worker_processes: Worker granularity, number of concurrent/parallel processes in each worker
+    :param monitoring: monitoring system.
+    :param log_level: log level to use during the execution.
+    """
 
     def __init__(self,
-                 config=None,
-                 runtime=None,
-                 storage=None,
-                 worker_processes=None,
-                 monitoring=None,
-                 log_level=False):
-        """
-        Initialize a LocalhostExecutor class.
+                 config: Optional[Dict[str, Any]] = None,
+                 runtime: Optional[int] = None,
+                 storage: Optional[str] = None,
+                 worker_processes: Optional[int] = None,
+                 monitoring: Optional[str] = None,
+                 log_level: Optional[str] = False):
 
-        :param config: Settings passed in here will override those in config file.
-        :param runtime: Runtime name to use.
-        :param storage: Name of the storage backend to use.
-        :param monitoring: monitoring system.
-        :param log_level: log level to use during the execution.
-
-        :return `LocalhostExecutor` object.
-        """
         super().__init__(backend=LOCALHOST,
                          config=config,
                          runtime=runtime,
@@ -664,32 +673,32 @@ class LocalhostExecutor(FunctionExecutor):
 
 
 class ServerlessExecutor(FunctionExecutor):
+    """
+    Initialize a ServerlessExecutor class.
+
+    :param config: Settings passed in here will override those in config file
+    :param runtime: Runtime name to use
+    :param runtime_memory: memory to use in the runtime
+    :param backend: Name of the serverless compute backend to use
+    :param storage: Name of the storage backend to use
+    :param workers: Max number of concurrent workers
+    :param worker_processes: Worker granularity, number of concurrent/parallel processes in each worker
+    :param monitoring: monitoring system
+    :param remote_invoker: Spawn a function that will perform the actual job invocation (True/False)
+    :param log_level: log level to use during the execution
+    """
 
     def __init__(self,
-                 config=None,
-                 runtime=None,
-                 runtime_memory=None,
-                 backend=None,
-                 storage=None,
-                 workers=None,
-                 worker_processes=None,
-                 monitoring=None,
-                 remote_invoker=None,
-                 log_level=False):
-        """
-        Initialize a ServerlessExecutor class.
-
-        :param config: Settings passed in here will override those in config file.
-        :param runtime: Runtime name to use.
-        :param runtime_memory: memory to use in the runtime.
-        :param backend: Name of the serverless compute backend to use.
-        :param storage: Name of the storage backend to use.
-        :param workers: Max number of concurrent workers.
-        :param monitoring: monitoring system.
-        :param log_level: log level to use during the execution.
-
-        :return `ServerlessExecutor` object.
-        """
+                 config: Optional[Dict[str, Any]] = None,
+                 runtime: Optional[str] = None,
+                 runtime_memory: Optional[int] = None,
+                 backend: Optional[str] = None,
+                 storage: Optional[str] = None,
+                 workers: Optional[int] = None,
+                 worker_processes: Optional[int] = None,
+                 monitoring: Optional[str] = None,
+                 remote_invoker: Optional[bool] = None,
+                 log_level: Optional[str] = False):
 
         backend = backend or constants.SERVERLESS_BACKEND_DEFAULT
 
@@ -706,29 +715,28 @@ class ServerlessExecutor(FunctionExecutor):
 
 
 class StandaloneExecutor(FunctionExecutor):
+    """
+    Initialize a StandaloneExecutor class.
+
+    :param config: Settings passed in here will override those in config file
+    :param runtime: Runtime name to use
+    :param backend: Name of the standalone compute backend to use
+    :param storage: Name of the storage backend to use
+    :param workers: Max number of concurrent workers
+    :param worker_processes: Worker granularity, number of concurrent/parallel processes in each worker
+    :param monitoring: monitoring system
+    :param log_level: log level to use during the execution
+    """
 
     def __init__(self,
-                 config=None,
-                 backend=None,
-                 runtime=None,
-                 storage=None,
-                 workers=None,
-                 worker_processes=None,
-                 monitoring=None,
-                 log_level=False):
-        """
-        Initialize a StandaloneExecutor class.
-
-        :param config: Settings passed in here will override those in config file.
-        :param runtime: Runtime name to use.
-        :param backend: Name of the standalone compute backend to use.
-        :param storage: Name of the storage backend to use.
-        :param workers: Max number of concurrent workers.
-        :param monitoring: monitoring system.
-        :param log_level: log level to use during the execution.
-
-        :return `StandaloneExecutor` object.
-        """
+                 config: Optional[Dict[str, Any]] = None,
+                 runtime: Optional[str] = None,
+                 backend: Optional[str] = None,
+                 storage: Optional[str] = None,
+                 workers: Optional[int] = None,
+                 worker_processes: Optional[int] = None,
+                 monitoring: Optional[str] = None,
+                 log_level: Optional[str] = False):
 
         backend = backend or constants.STANDALONE_BACKEND_DEFAULT
 
