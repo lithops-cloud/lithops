@@ -178,7 +178,6 @@ class StandaloneHandler:
         elif self.exec_mode == 'reuse':
             logger.debug("In reuse mode")
 
-
         logger.debug('ExecutorID {} | JobID {} - Going to run {} activations '
                      'in {} workers'.format(executor_id, job_id, total_calls,
                                             total_workers))

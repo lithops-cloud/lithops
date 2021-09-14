@@ -37,15 +37,15 @@ LOCALHOST_HANDLER = {}
 
 def wait_job_completed(job_key):
     """
-    Waits unitl the current job is completed
+    Waits until the current job is completed
     """
     global BUDGET_KEEPER
 
     done = os.path.join(JOBS_DIR, job_key+'.done')
     while True:
         if os.path.isfile(done):
-            BUDGET_KEEPER.jobs[job_key] = 'done'
             os.remove(done)
+            BUDGET_KEEPER.jobs[job_key] = 'done'
             break
         time.sleep(1)
 
@@ -55,7 +55,10 @@ def run_worker(master_ip, job_key):
     Run a job
     """
     global BUDGET_KEEPER
-    global LOCALHOST_HANDLER
+
+    pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
+    localhos_handler = LocalhostHandler({'pull_runtime': pull_runtime})
+    localhos_handler.init()
 
     while True:
         url = 'http://{}:{}/get-task/{}'.format(master_ip, STANDALONE_SERVICE_PORT, job_key)
@@ -85,11 +88,7 @@ def run_worker(master_ip, job_key):
         BUDGET_KEEPER.jobs[job_payload['job_key']] = 'running'
 
         try:
-            if runtime not in LOCALHOST_HANDLER:
-                pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
-                LOCALHOST_HANDLER[runtime] = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
-                LOCALHOST_HANDLER[runtime].init()
-            LOCALHOST_HANDLER[runtime].invoke(job_payload)
+            localhos_handler.invoke(job_payload)
         except Exception as e:
             logger.error(e)
 
