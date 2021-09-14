@@ -89,7 +89,7 @@ class LocalhostHandler:
             else:
                 pull_runtime = self.config.get('pull_runtime', False)
                 env = DockerEnv(runtime_name, pull_runtime)
-
+            env.setup()
             self.env[runtime_name] = env
 
         return self.env[runtime_name]
@@ -241,7 +241,7 @@ class DockerEnv(BaseEnv):
 
     def run(self, job_payload, job_filename):
         """
-        Run the job description against the selected environment
+        Runs a job
         """
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
@@ -270,7 +270,7 @@ class DefaultEnv(BaseEnv):
         super().__init__(runtime=sys.executable)
 
     def setup(self):
-        logger.debug(f'Setting up default environment')
+        logger.debug(f'Setting up Default environment')
         self._copy_lithops_to_tmp()
 
     def preinstalls(self):
@@ -283,7 +283,7 @@ class DefaultEnv(BaseEnv):
 
     def run(self, job_payload, job_filename):
         """
-        Runs a job payload
+        Runs a job
         """
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']

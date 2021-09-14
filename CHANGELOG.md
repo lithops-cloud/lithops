@@ -6,6 +6,9 @@
 ### Added
 - [CLI] Add new command in cli to list deployed runtimes
 - [Standalone] Add reuse mode that allows to reuse the same VMs for all the maps
+- [Config] alow to configure worker_processes parameter in serverless and standalone sections
+- [Localhost] Prevent multiple jobs in the same executor to run at the same time
+- [Standalone] Prevent multiple jobs submitted to the same master VM to run at the same time
 
 ### Changed
 - [Core] worker_processes parameter has been moved from map() to FunctionExecutor()
