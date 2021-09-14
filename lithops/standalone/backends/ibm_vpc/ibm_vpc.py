@@ -531,14 +531,14 @@ class IBMVPCInstance:
             'security_groups': [security_group_identity_model]
         }
 
-        boot_volume_profile = {
-            'capacity': 100,
+        boot_volume_data = {
+            'capacity': self.config['boot_volume_capacity'],
             'name': '{}-boot'.format(self.name),
-            'profile': {'name': self.config['volume_tier_name']}}
+            'profile': {'name': self.config['boot_volume_profile']}}
 
         boot_volume_attachment = {
             'delete_volume_on_instance_delete': True,
-            'volume': boot_volume_profile
+            'volume': boot_volume_data
         }
 
         key_identity_model = {'id': self.config['key_id']}
@@ -567,8 +567,8 @@ class IBMVPCInstance:
                 logger.debug("Create VM instance {} failed due to quota limit"
                              .format(self.name))
             else:
-                logger.debug("Create VM instance {} failed with status code {}"
-                             .format(self.name, str(e.code)))
+                logger.debug("Create VM instance {} failed with status code {}: {}"
+                             .format(self.name, str(e.code), e.message))
             raise e
 
         logger.debug("VM instance {} created successfully ".format(self.name))

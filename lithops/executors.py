@@ -26,9 +26,10 @@ import numpy as np
 import subprocess as sp
 from typing import Optional, List, Union, Tuple, Dict, Any
 from collections.abc import Callable
-from future import ResponseFuture
 from datetime import datetime
+
 from lithops import constants
+from lithops.future import ResponseFuture
 from lithops.invokers import create_invoker
 from lithops.storage import InternalStorage
 from lithops.wait import wait, ALL_COMPLETED, THREADPOOL_SIZE, WAIT_DUR_SEC

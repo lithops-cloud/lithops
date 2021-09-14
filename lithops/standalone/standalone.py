@@ -175,6 +175,9 @@ class StandaloneHandler:
                          .format(len(self.backend.workers), total_workers))
             total_workers = len(self.backend.workers)
 
+            if total_workers == 0:
+                raise Exception('It was not possible to create any worker')
+
         elif self.exec_mode == 'reuse':
             logger.debug("In reuse mode")
 

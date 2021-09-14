@@ -40,7 +40,8 @@ MANDATORY_PARAMETERS_3 = ('endpoint',
 
 IMAGE_ID_DEFAULT = 'r014-b7da49af-b46a-4099-99a4-c183d2d40ea8'  # ubuntu 20.04
 PROFILE_NAME_DEFAULT = 'cx2-2x4'
-VOLUME_TIER_NAME_DEFAULT = 'general-purpose'
+BOOT_VOLUME_PROFILE_DEFAULT = 'general-purpose'
+BOOT_VOLUME_CAPACITY_DEFAULT = 100  # GB
 DEFAULT_VM_USER = 'root'
 MAX_WORKERS = 100
 
@@ -52,9 +53,6 @@ bootcmd:
     - sed -i '/PasswordAuthentication no/c\PasswordAuthentication yes' /etc/ssh/sshd_config
     - echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
 runcmd:
-    - echo '{0}:{1}' | chpasswd
-    - sed -i '/PasswordAuthentication no/c\PasswordAuthentication yes' /etc/ssh/sshd_config
-    - echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
     - systemctl restart sshd
 """
 
@@ -87,17 +85,20 @@ def load_config(config_data):
     if 'ssh_password' not in config_data['ibm_vpc']:
         config_data['ibm_vpc']['ssh_password'] = str(uuid.uuid4())
 
-    if 'volume_tier_name' not in config_data['ibm_vpc']:
-        config_data['ibm_vpc']['volume_tier_name'] = VOLUME_TIER_NAME_DEFAULT
+    if 'image_id' not in config_data['ibm_vpc']:
+        config_data['ibm_vpc']['image_id'] = IMAGE_ID_DEFAULT
+
+    if 'boot_volume_profile' not in config_data['ibm_vpc']:
+        config_data['ibm_vpc']['boot_volume_profile'] = BOOT_VOLUME_PROFILE_DEFAULT
+
+    if 'boot_volume_capacity' not in config_data['ibm_vpc']:
+        config_data['ibm_vpc']['boot_volume_capacity'] = BOOT_VOLUME_CAPACITY_DEFAULT
 
     if 'profile_name' not in config_data['ibm_vpc']:
         config_data['ibm_vpc']['profile_name'] = PROFILE_NAME_DEFAULT
 
     if 'master_profile_name' not in config_data['ibm_vpc']:
         config_data['ibm_vpc']['master_profile_name'] = PROFILE_NAME_DEFAULT
-
-    if 'image_id' not in config_data['ibm_vpc']:
-        config_data['ibm_vpc']['image_id'] = IMAGE_ID_DEFAULT
 
     region = config_data['ibm_vpc']['endpoint'].split('//')[1].split('.')[0]
     if 'zone_name' not in config_data['ibm_vpc']:
