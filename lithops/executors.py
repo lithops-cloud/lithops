@@ -160,6 +160,7 @@ class FunctionExecutor:
         """ Context manager method """
         self.job_monitor.stop()
         self.invoker.stop()
+        self.compute_handler.clear()
 
     def _create_job_id(self, call_type):
         job_id = str(self.total_jobs).zfill(3)

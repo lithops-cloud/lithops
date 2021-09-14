@@ -56,7 +56,7 @@ def function_handler(payload):
     job = SimpleNamespace(**payload)
     processes = min(job.worker_processes, len(job.call_ids))
 
-    logger.info('Tasks received: {} - Concurrent workers: {}'
+    logger.info('Tasks received: {} - Concurrent processes: {}'
                 .format(len(job.call_ids), processes))
 
     storage_config = extract_storage_config(job.config)
@@ -106,7 +106,11 @@ def process_runner(job_queue, internal_storage):
     Listens the job_queue and executes the jobs
     """
     while True:
-        event = job_queue.get(block=True)
+        try:
+            event = job_queue.get(block=True)
+        except BrokenPipeError:
+            break
+
         if isinstance(event, ShutdownSentinel):
             break
 
@@ -130,6 +134,7 @@ def run_job(job, internal_storage):
     """
     Runs a single job within a separate process
     """
+    job_interruped = False
     call_status = create_call_status(job, internal_storage)
     setup_lithops_logger(job.log_level)
 
@@ -193,6 +198,10 @@ def run_job(job, internal_storage):
                     if key in ['exception', 'exc_pickle_fail', 'result']:
                         call_status.add(key, eval(value))
 
+    except KeyboardInterrupt:
+        job_interruped = True
+        logger.debug("Job interrupted")
+
     except Exception:
         # internal runtime exceptions
         print('----------------------- EXCEPTION !-----------------------')
@@ -205,15 +214,17 @@ def run_job(job, internal_storage):
         call_status.add('exc_info', str(pickled_exc))
 
     finally:
-        call_status.add('worker_end_tstamp', time.time())
+        if not job_interruped:
+            call_status.add('worker_end_tstamp', time.time())
 
-        # Flush log stream and save it to the call status
-        job.log_stream.flush()
-        with open(job.log_file, 'rb') as lf:
-            log_str = base64.b64encode(zlib.compress(lf.read())).decode()
-            call_status.add('logs', log_str)
+            # Flush log stream and save it to the call status
+            job.log_stream.flush()
+            if os.path.isfile(job.log_file):
+                with open(job.log_file, 'rb') as lf:
+                    log_str = base64.b64encode(zlib.compress(lf.read())).decode()
+                    call_status.add('logs', log_str)
 
-        call_status.send_finish_event()
+            call_status.send_finish_event()
 
         # Unset specific env vars
         for key in job.extra_env:

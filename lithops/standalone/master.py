@@ -48,11 +48,12 @@ BUDGET_KEEPER = None
 JOB_PROCESSES = {}
 WORK_QUEUES = {}
 MASTER_IP = None
-
+LOCALHOST_HANDLER = {}
 MP_MANAGER = mp.Manager()
 
 EXEC_MODE = 'consume'
 WORKERS = MP_MANAGER.list()
+
 
 def is_worker_instance_ready(vm):
     """
@@ -196,10 +197,12 @@ def run_job_process(job_payload, work_queue, workers_list):
 
     logger.info('Finished job {} invocation.'.format(job_key))
 
+
 def error(msg):
     response = flask.jsonify({'error': msg})
     response.status_code = 404
     return response
+
 
 @app.route('/workers', methods=['GET'])
 def get_workers():
@@ -227,6 +230,7 @@ def get_workers():
     response.status_code = 200
 
     return response
+
 
 @app.route('/get-task/<job_key>', methods=['GET'])
 def get_task(job_key):
@@ -275,10 +279,9 @@ def run():
     global BUDGET_KEEPER
     global WORK_QUEUES
     global JOB_PROCESSES
-
     global WORKERS
-
     global EXEC_MODE
+    global LOCALHOST_HANDLER
 
     job_payload = flask.request.get_json(force=True, silent=True)
     if job_payload and not isinstance(job_payload, dict):
@@ -302,10 +305,12 @@ def run():
 
     if exec_mode == 'consume':
         # Consume mode runs the job locally
-        pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
         try:
-            localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
-            localhost_handler.invoke(job_payload)
+            if runtime not in LOCALHOST_HANDLER:
+                pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
+                LOCALHOST_HANDLER[runtime] = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
+                LOCALHOST_HANDLER[runtime].init()
+            LOCALHOST_HANDLER[runtime].invoke(job_payload)
         except Exception as e:
             logger.error(e)
 
@@ -328,7 +333,6 @@ def run():
         jp.start()
         JOB_PROCESSES[job_key] = jp
 
-
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     response = flask.jsonify({'activationId': act_id})
     response.status_code = 202
@@ -345,6 +349,7 @@ def ping():
 
 @app.route('/preinstalls', methods=['GET'])
 def preinstalls():
+    global LOCALHOST_HANDLER
 
     payload = flask.request.get_json(force=True, silent=True)
     if payload and not isinstance(payload, dict):
@@ -356,9 +361,12 @@ def preinstalls():
     except Exception as e:
         return error(str(e))
 
-    pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
-    localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
-    runtime_meta = localhost_handler.create_runtime(runtime)
+    if runtime not in LOCALHOST_HANDLER:
+        pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
+        LOCALHOST_HANDLER[runtime] = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
+        LOCALHOST_HANDLER[runtime].init()
+    runtime_meta = LOCALHOST_HANDLER[runtime].create_runtime(runtime)
+
     response = flask.jsonify(runtime_meta)
     response.status_code = 200
 
