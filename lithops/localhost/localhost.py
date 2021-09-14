@@ -233,6 +233,10 @@ class DockerEnv(BaseEnv):
 
     def start(self):
         logger.debug(f'Starting localhost runner service on {self.runtime}')
+
+        if not os.path.isfile(RUNNER):
+            self.setup()
+
         cmd = 'docker run -d --env IS_DOCKER_CONTAINER=True '
 
         self.port = self._get_free_port()
@@ -261,6 +265,10 @@ class DefaultEnv(BaseEnv):
 
     def start(self):
         logger.debug(f'Starting localhost runner service on {self.runtime}')
+
+        if not os.path.isfile(RUNNER):
+            self.setup()
+
         self.port = self._get_free_port()
         cmd = f'"{self.runtime}" "{RUNNER}" {self.port}'
         log = open(RN_LOG_FILE, 'a')
