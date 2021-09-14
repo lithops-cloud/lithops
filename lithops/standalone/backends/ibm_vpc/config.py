@@ -1,5 +1,21 @@
-import datetime
+#
+# Copyright Cloudlab URV 2021
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 
+import datetime
+import uuid
 
 MANDATORY_PARAMETERS_1 = ('endpoint',
                           'vpc_name',
@@ -25,8 +41,7 @@ MANDATORY_PARAMETERS_3 = ('endpoint',
 IMAGE_ID_DEFAULT = 'r014-b7da49af-b46a-4099-99a4-c183d2d40ea8'  # ubuntu 20.04
 PROFILE_NAME_DEFAULT = 'cx2-2x4'
 VOLUME_TIER_NAME_DEFAULT = 'general-purpose'
-SSH_USER = ''
-SSH_PASSWD = ''
+DEFAULT_VM_USER = 'root'
 MAX_WORKERS = 100
 
 
@@ -41,7 +56,7 @@ runcmd:
     - sed -i '/PasswordAuthentication no/c\PasswordAuthentication yes' /etc/ssh/sshd_config
     - echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
     - systemctl restart sshd
-""".format(SSH_USER, SSH_PASSWD)
+"""
 
 
 def load_config(config_data):
@@ -66,8 +81,11 @@ def load_config(config_data):
         yesterday = datetime.date.today() - datetime.timedelta(days=1)
         config_data['ibm_vpc']['version'] = yesterday.strftime('%Y-%m-%d')
 
-    if 'ssh_user' not in config_data['ibm_vpc']:
-        config_data['ibm_vpc']['ssh_user'] = SSH_USER
+    if 'ssh_username' not in config_data['ibm_vpc']:
+        config_data['ibm_vpc']['ssh_username'] = DEFAULT_VM_USER
+
+    if 'ssh_password' not in config_data['ibm_vpc']:
+        config_data['ibm_vpc']['ssh_password'] = str(uuid.uuid4())
 
     if 'volume_tier_name' not in config_data['ibm_vpc']:
         config_data['ibm_vpc']['volume_tier_name'] = VOLUME_TIER_NAME_DEFAULT

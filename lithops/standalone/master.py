@@ -48,8 +48,9 @@ BUDGET_KEEPER = None
 JOB_PROCESSES = {}
 WORK_QUEUES = {}
 MASTER_IP = None
-LOCALHOST_HANDLER = {}
+LOCALHOST_HANDLERS = {}
 MP_MANAGER = mp.Manager()
+LOCALHOST_MANAGER_PROCESS = None
 
 EXEC_MODE = 'consume'
 WORKERS = MP_MANAGER.list()
@@ -162,7 +163,43 @@ def stop_job_process(job_key):
     del JOB_PROCESSES[job_key]
 
 
-def run_job_process(job_payload, work_queue, workers_list):
+def run_job_local(work_queue):
+    """
+    Localhost jobs manager for consume mode
+    """
+    global LOCALHOST_HANDLERS
+
+    def wait_job_completed(job_key):
+        """
+        Waits until the current job_key job is completed
+        """
+        logger.info(f'Waiting job {job_key} to finish')
+        done = os.path.join(JOBS_DIR, job_key+'.done')
+        while True:
+            if os.path.isfile(done):
+                BUDGET_KEEPER.jobs[job_key] = 'done'
+                break
+            time.sleep(0.6)
+
+    try:
+        while True:
+            job_payload = work_queue.get()
+            job_key = job_payload['job_key']
+            runtime = job_payload['runtime_name']
+            logger.info(f"Going to process job {job_key} on {runtime}")
+            if runtime not in LOCALHOST_HANDLERS:
+                pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
+                LOCALHOST_HANDLERS[runtime] = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
+                LOCALHOST_HANDLERS[runtime].init()
+            LOCALHOST_HANDLERS[runtime].invoke(job_payload)
+
+            wait_job_completed(job_key)
+
+    except Exception as e:
+        logger.error(e)
+
+
+def run_job_worker(job_payload, work_queue, workers_list):
     """
     Process responsible to wait for workers to become ready, and
     submit individual tasks of the job to them
@@ -281,7 +318,7 @@ def run():
     global JOB_PROCESSES
     global WORKERS
     global EXEC_MODE
-    global LOCALHOST_HANDLER
+    global LOCALHOST_MANAGER_PROCESS
 
     job_payload = flask.request.get_json(force=True, silent=True)
     if job_payload and not isinstance(job_payload, dict):
@@ -300,35 +337,36 @@ def run():
     BUDGET_KEEPER.update_config(job_payload['config']['standalone'])
     BUDGET_KEEPER.jobs[job_key] = 'running'
 
-    exec_mode = job_payload['config']['standalone'].get('exec_mode', 'consume')
-    EXEC_MODE = exec_mode
+    EXEC_MODE = job_payload['config']['standalone'].get('exec_mode', 'consume')
 
-    if exec_mode == 'consume':
-        # Consume mode runs the job locally
-        try:
-            if runtime not in LOCALHOST_HANDLER:
-                pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
-                LOCALHOST_HANDLER[runtime] = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
-                LOCALHOST_HANDLER[runtime].init()
-            LOCALHOST_HANDLER[runtime].invoke(job_payload)
-        except Exception as e:
-            logger.error(e)
+    if EXEC_MODE == 'consume':
+        work_queue = WORK_QUEUES.setdefault('local', MP_MANAGER.Queue())
+        if not LOCALHOST_MANAGER_PROCESS:
+            logger.debug('Starting process for localhost jobs')
+            lmp = mp.Process(target=run_job_local, args=(work_queue,))
+            lmp.daemon = True
+            lmp.start()
+            LOCALHOST_MANAGER_PROCESS = lmp
+        logger.info(f'Putting job {job_key} into queue')
+        work_queue.put(job_payload)
 
-    elif exec_mode == 'create':
+    elif EXEC_MODE == 'create':
         # Create mode runs the job in worker VMs
+        logger.debug('fStarting process for {job_key} job')
         work_queue = MP_MANAGER.Queue()
         WORK_QUEUES[job_key] = work_queue
-        jp = mp.Process(target=run_job_process, args=(job_payload, work_queue, WORKERS))
+        jp = mp.Process(target=run_job_worker, args=(job_payload, work_queue, WORKERS))
         jp.daemon = True
         jp.start()
         JOB_PROCESSES[job_key] = jp
-    elif exec_mode == 'reuse':
+
+    elif EXEC_MODE == 'reuse':
         # Reuse mode runs the job on running workers
         # TODO: Consider to add support to manage pull of available workers
         # TODO: Spawn only the missing delta of workers
+        logger.debug('fStarting process for {job_key} job')
         work_queue = WORK_QUEUES.setdefault('all', MP_MANAGER.Queue())
-
-        jp = mp.Process(target=run_job_process, args=(job_payload, work_queue, WORKERS))
+        jp = mp.Process(target=run_job_worker, args=(job_payload, work_queue, WORKERS))
         jp.daemon = True
         jp.start()
         JOB_PROCESSES[job_key] = jp
@@ -361,12 +399,13 @@ def preinstalls():
     except Exception as e:
         return error(str(e))
 
-    if runtime not in LOCALHOST_HANDLER:
-        pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
-        LOCALHOST_HANDLER[runtime] = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
-        LOCALHOST_HANDLER[runtime].init()
-    runtime_meta = LOCALHOST_HANDLER[runtime].create_runtime(runtime)
+    pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
+    localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
+    localhost_handler.init()
+    runtime_meta = localhost_handler.create_runtime(runtime)
+    localhost_handler.clear()
 
+    logger.info(runtime_meta)
     response = flask.jsonify(runtime_meta)
     response.status_code = 200
 

@@ -37,7 +37,7 @@ LOCALHOST_HANDLER = {}
 
 def wait_job_completed(job_key):
     """
-    Waits unitl the current job is completed
+    Waits until the current job is completed
     """
     global BUDGET_KEEPER
 

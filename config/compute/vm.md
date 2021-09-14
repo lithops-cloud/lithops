@@ -13,7 +13,7 @@ Lithops can run functions in a regular remote virtual machine by using processes
         
     vm:
         ip_address: <ip>
-        ssh_user: <username>
+        ssh_username: <username>
         ssh_password: <password>
 ```
 
@@ -22,7 +22,7 @@ Lithops can run functions in a regular remote virtual machine by using processes
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |vm | ip_address | |yes | IP Address of the VM |
-|vm | ssh_user   | | yes | SSH username for accessing the VM |
+|vm | ssh_username   | | yes | SSH username for accessing the VM |
 |vm | ssh_password | | yes | SSH password for accessing the VM |
 
 
