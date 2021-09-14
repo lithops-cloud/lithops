@@ -48,7 +48,6 @@ BUDGET_KEEPER = None
 JOB_PROCESSES = {}
 WORK_QUEUES = {}
 MASTER_IP = None
-LOCALHOST_HANDLERS = {}
 MP_MANAGER = mp.Manager()
 LOCALHOST_MANAGER_PROCESS = None
 
@@ -165,35 +164,17 @@ def stop_job_process(job_key):
 
 def run_job_local(work_queue):
     """
-    Localhost jobs manager for consume mode
+    Localhost jobs manager process for consume mode
     """
-    global LOCALHOST_HANDLERS
-
-    def wait_job_completed(job_key):
-        """
-        Waits until the current job_key job is completed
-        """
-        logger.info(f'Waiting job {job_key} to finish')
-        done = os.path.join(JOBS_DIR, job_key+'.done')
-        while True:
-            if os.path.isfile(done):
-                BUDGET_KEEPER.jobs[job_key] = 'done'
-                break
-            time.sleep(0.6)
+    pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
 
     try:
+        localhos_handler = LocalhostHandler({'pull_runtime': pull_runtime})
+        localhos_handler.init()
+
         while True:
             job_payload = work_queue.get()
-            job_key = job_payload['job_key']
-            runtime = job_payload['runtime_name']
-            logger.info(f"Going to process job {job_key} on {runtime}")
-            if runtime not in LOCALHOST_HANDLERS:
-                pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
-                LOCALHOST_HANDLERS[runtime] = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
-                LOCALHOST_HANDLERS[runtime].init()
-            LOCALHOST_HANDLERS[runtime].invoke(job_payload)
-
-            wait_job_completed(job_key)
+            localhos_handler.invoke(job_payload)
 
     except Exception as e:
         logger.error(e)
@@ -342,17 +323,17 @@ def run():
     if EXEC_MODE == 'consume':
         work_queue = WORK_QUEUES.setdefault('local', MP_MANAGER.Queue())
         if not LOCALHOST_MANAGER_PROCESS:
-            logger.debug('Starting process for localhost jobs')
+            logger.debug('Starting manager process for localhost jobs')
             lmp = mp.Process(target=run_job_local, args=(work_queue,))
             lmp.daemon = True
             lmp.start()
             LOCALHOST_MANAGER_PROCESS = lmp
-        logger.info(f'Putting job {job_key} into queue')
+        logger.info(f'Putting job {job_key} into master queue')
         work_queue.put(job_payload)
 
     elif EXEC_MODE == 'create':
         # Create mode runs the job in worker VMs
-        logger.debug('fStarting process for {job_key} job')
+        logger.debug(f'Starting process for job {job_key}')
         work_queue = MP_MANAGER.Queue()
         WORK_QUEUES[job_key] = work_queue
         jp = mp.Process(target=run_job_worker, args=(job_payload, work_queue, WORKERS))
@@ -364,7 +345,7 @@ def run():
         # Reuse mode runs the job on running workers
         # TODO: Consider to add support to manage pull of available workers
         # TODO: Spawn only the missing delta of workers
-        logger.debug('fStarting process for {job_key} job')
+        logger.debug(f'Starting process for job {job_key}')
         work_queue = WORK_QUEUES.setdefault('all', MP_MANAGER.Queue())
         jp = mp.Process(target=run_job_worker, args=(job_payload, work_queue, WORKERS))
         jp.daemon = True
