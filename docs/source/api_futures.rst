@@ -1,3 +1,5 @@
+.. _futures-api:
+
 Lithops Futures API
 ===================
 

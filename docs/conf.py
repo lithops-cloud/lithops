@@ -59,6 +59,9 @@ source_suffix = {
 
 autodoc_typehints = 'description'
 
+# -- nbsphinx options --------------------------------------------------------
+
+jupyter_execute_notebooks = 'never'
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -71,7 +74,7 @@ autodoc_typehints = 'description'
 html_theme = 'sphinx_book_theme'
 
 # html_logo = "source/images/lithops_flat_cloud_1_white_w.png"
-html_logo = "source/images/lithops_flat_cloud_1.png"
+html_logo = "_static/lithops_logo_readme.png"
 
 # material theme options
 

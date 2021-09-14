@@ -106,7 +106,8 @@ class Storage:
         :param stream: Get the object data or a file-like object
         :param extra_get_args: Extra get arguments to be passed to the underlying backend implementation (dict).
         For example, to specify the byte-range to read: `extra_get_args={'Range': 'bytes=0-100'}`
-        :return: Object, as a binary array or as a file-like stream if parameter `stream` is enabled.
+
+        :return: Object, as a binary array or as a file-like stream if parameter `stream` is enabled
         """
         return self.storage_handler.get_object(bucket, key, stream, extra_get_args)
 
@@ -117,6 +118,7 @@ class Storage:
 
         :param bucket: Name of the bucket
         :param key: Key of the object
+
         :return: Object metadata
         """
         return self.storage_handler.head_object(bucket, key)
@@ -138,7 +140,6 @@ class Storage:
 
         :param bucket: Name of the bucket
         :param key_list: List of object keys
-        :return:
         """
         return self.storage_handler.delete_objects(bucket, key_list)
 
@@ -149,7 +150,8 @@ class Storage:
         Otherwise, the operation might return responses such as 404 Not Found and 403 Forbidden.
 
         :param bucket: Name of the bucket
-        :return: Request response.
+
+        :return: Request response
         """
         return self.storage_handler.head_bucket(bucket)
 
@@ -160,6 +162,7 @@ class Storage:
 
         :param bucket: Name of the bucket
         :param prefix: Key prefix for filtering
+
         :return: List of tuples containing the object key and size in bytes
         """
 
@@ -172,6 +175,7 @@ class Storage:
 
         :param bucket: Name of the bucket
         :param prefix: Key prefix for filtering
+
         :return: List of object keys
         """
         return self.storage_handler.list_keys(bucket, prefix)
@@ -184,6 +188,7 @@ class Storage:
         :param body: Data content, can be a string or byte array or a text/bytes file-like object
         :param bucket: Destination bucket
         :param key: Destination key
+
         :return: CloudObject instance
         """
         prefix = os.environ.get('__LITHOPS_SESSION_ID', '')
@@ -203,6 +208,7 @@ class Storage:
 
         :param cloudobject: CloudObject instance
         :param stream: Get the object data or a file-like object
+
         :return: Cloud object content
         """
         if cloudobject.backend == self.backend:

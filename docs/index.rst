@@ -154,7 +154,7 @@ This project has received funding from the European Union's Horizon 2020 researc
 
    source/api_futures.rst
    source/notebooks/functions.ipynb
-   source/notebooks/function_chaining.md
+   source/notebooks/function_chaining.ipynb
 
 .. toctree::
    :hidden:

@@ -109,11 +109,11 @@ To work with Code Engine there is need to use dedicated runtime. You can use a p
 
 |Default runtime name| Python version | What is included | Lithops version |
 |----|-----|----|-----|
-|ibmfunctions/lithops-ce-v385:230 | 3.8 | [included](../../../runtime/code_engine/requirements.txt) | 2.3.0 |
-|ibmfunctions/lithops-ce-v385:232 | 3.8 | [included](../../../runtime/code_engine/requirements.txt) | 2.3.2 |
-|ibmfunctions/lithops-ce-v385:233 | 3.8 | [included](../../../runtime/code_engine/requirements.txt) | 2.3.3 |
-|ibmfunctions/lithops-ce-v385:234 | 3.8 | [included](../../../runtime/code_engine/requirements.txt) | 2.3.4 |
-|ibmfunctions/lithops-ce-v385:235 | 3.8 | [included](../../../runtime/code_engine/requirements.txt) | 2.3.5 |
+|ibmfunctions/lithops-ce-v385:230 | 3.8 | [included](https://github.com/lithops-cloud/lithops/blob/master/runtime/code_engine/requirements.txt) | 2.3.0 |
+|ibmfunctions/lithops-ce-v385:232 | 3.8 | [included](https://github.com/lithops-cloud/lithops/blob/master/runtime/code_engine/requirements.txt) | 2.3.2 |
+|ibmfunctions/lithops-ce-v385:233 | 3.8 | [included](https://github.com/lithops-cloud/lithops/blob/master/runtime/code_engine/requirements.txt) | 2.3.3 |
+|ibmfunctions/lithops-ce-v385:234 | 3.8 | [included](https://github.com/lithops-cloud/lithops/blob/master/runtime/code_engine/requirements.txt) | 2.3.4 |
+|ibmfunctions/lithops-ce-v385:235 | 3.8 | [included](https://github.com/lithops-cloud/lithops/blob/master/runtime/code_engine/requirements.txt) | 2.3.5 |
 
 ### Use your own runtime
 If a pre-built runtime is not provided, Lithops automatically builds the default runtime the first time you run a script. For this task it uses the **docker** command installed locally in your machine. To make this working, you need:
@@ -127,7 +127,7 @@ If a pre-built runtime is not provided, Lithops automatically builds the default
 
 ### Custom runtime
 
-If you need to create a runtime with custom system packages and libraries, please follow [Building and managing Lithops runtimes to run the functions](../../runtime/code_engine/)
+If you need to create a runtime with custom system packages and libraries, please follow [Building and managing Lithops runtimes to run the functions](https://github.com/lithops-cloud/lithops/tree/master/runtime/code_engine)
 
 
 ## Configure a private container registry for your runtime

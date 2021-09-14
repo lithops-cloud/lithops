@@ -22,7 +22,7 @@ Any Virtual Service Instance (VSI) need to define the instance’s operating sys
 Lithops uses by default the Ubuntu 20.04 image. In this case, no further action are required and you can continue to the next step. Lithops will install all required dependencies in the VSI by itself. Notice this can consume about 3 min to complete all installations.
 
 ### Using a custom operating system image
-This is preferable approach, as using pre-built custom image will greatly improve time that of VSI creation for Lithops jobs. To benefit from this approach, navigate to [runtime/ibm_vpc](../../../runtime/ibm_vpc), and follow the instructions.
+This is preferable approach, as using pre-built custom image will greatly improve time that of VSI creation for Lithops jobs. To benefit from this approach, navigate to [runtime/ibm_vpc](https://github.com/lithops-cloud/lithops/tree/master/runtime/ibm_vpc), and follow the instructions.
 
 ## Lithops and the VSI auto create mode
 In this mode, Lithops will automatically create new worker VM instances in runtime, scale Lithops job against generated VMs, and automatically delete VMs when the job is completed.
