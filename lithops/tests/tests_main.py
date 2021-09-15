@@ -38,9 +38,13 @@ STORAGE_CONFIG = None
 STORAGE = None
 PREFIX = '__lithops.test'
 DATASET_PREFIX = PREFIX + '/dataset'
-TEST_FILES_URLS = ["https://www.gutenberg.org/files/60/60-0.txt",
-                   "https://www.gutenberg.org/files/215/215-0.txt",
-                   "https://www.gutenberg.org/files/2892/2892-0.txt"]  # datasets are gutenberg's books
+
+TEST_FILES_URLS = ["http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.enron.txt",
+                   "http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.kos.txt",
+                   "http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.nips.txt",
+                   "http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.nytimes.txt",
+                   "http://archive.ics.uci.edu/ml/machine-learning-databases/bag-of-words/vocab.pubmed.txt"]
+
 logger = logging.getLogger(__name__)
 
 
