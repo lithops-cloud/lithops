@@ -20,7 +20,7 @@ echo "-------------------------------------------------------"
 echo "--> Resizing ubuntu-20.04-server-cloudimg-amd64.img <--"
 echo "-------------------------------------------------------"
 cp ubuntu-20.04-server-cloudimg-amd64.img ubuntu-20.04-server-cloudimg-amd64-orig.img
-qemu-img resize ubuntu-20.04-server-cloudimg-amd64.img +5G
+qemu-img resize ubuntu-20.04-server-cloudimg-amd64.img +7.5G
 virt-resize --expand /dev/sda1 ubuntu-20.04-server-cloudimg-amd64-orig.img ubuntu-20.04-server-cloudimg-amd64.img
 rm ubuntu-20.04-server-cloudimg-amd64-orig.img
 virt-filesystems --long -h --all -a ubuntu-20.04-server-cloudimg-amd64.img
