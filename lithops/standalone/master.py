@@ -95,12 +95,13 @@ def setup_worker(worker_info, work_queue, job_key, workers):
     Runs the job
     """
 
-    instance_name, ip_address, instance_id = worker_info
+    instance_name, ip_address, instance_id, ssh_credentials = worker_info
     logger.info('Starting setup for VM instance {}'.format(instance_name))
 
     vm = STANDALONE_HANDLER.backend.get_vm(instance_name)
     vm.ip_address = ip_address
     vm.instance_id = instance_id
+    vm.ssh_credentials = ssh_credentials
 
     worker_ready = False
     retry = 0

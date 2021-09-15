@@ -164,22 +164,46 @@ class StandaloneHandler:
 
             return workers_on_master
 
-        if self.exec_mode == 'create' or (self.exec_mode == 'reuse' and len(get_workers_on_master()) == 0):
+        def create_workers():
+            current_workers_old = set(self.backend.workers)
             with ThreadPoolExecutor(total_workers+1) as ex:
                 ex.submit(start_master_instance, wait=False)
                 for vm_n in range(total_workers):
                     worker_id = "{:04d}".format(vm_n)
                     name = 'lithops-worker-{}-{}-{}'.format(executor_id, job_id, worker_id)
                     ex.submit(self.backend.create_worker, name)
+            current_workers_new = set(self.backend.workers)
+            new_workers = current_workers_new - current_workers_old
             logger.debug("Total worker VM instances created: {}/{}"
-                         .format(len(self.backend.workers), total_workers))
-            total_workers = len(self.backend.workers)
+                         .format(len(new_workers), total_workers))
 
-            if total_workers == 0:
-                raise Exception('It was not possible to create any worker')
+            return new_workers
+
+        if self.exec_mode == 'create':
+            workers = create_workers()
+            total_workers = len(workers)
+            worker_instances = [(inst.name,
+                                 inst.ip_address,
+                                 inst.instance_id,
+                                 inst.ssh_credentials)
+                                for inst in workers]
 
         elif self.exec_mode == 'reuse':
-            logger.debug("In reuse mode")
+            workers = get_workers_on_master()
+            total_workers = len(workers)
+            worker_instances = []
+            if total_workers == 0:
+                self.backend.workers = []
+                workers = create_workers()
+                total_workers = len(workers)
+                worker_instances = [(inst.name,
+                                     inst.ip_address,
+                                     inst.instance_id,
+                                     inst.ssh_credentials)
+                                    for inst in workers]
+
+        if total_workers == 0:
+            raise Exception('It was not possible to create any worker')
 
         logger.debug('ExecutorID {} | JobID {} - Going to run {} activations '
                      'in {} workers'.format(executor_id, job_id, total_calls,
@@ -187,12 +211,6 @@ class StandaloneHandler:
 
         logger.debug("Checking if {} is ready".format(self.backend.master))
         start_master_instance(wait=True)
-
-        if self.exec_mode == 'create' or (self.exec_mode == 'reuse' and len(get_workers_on_master()) == 0):
-            worker_instances = [(inst.name, inst.ip_address, inst.instance_id)
-                                for inst in self.backend.workers]
-        else:
-            worker_instances = []
 
         job_payload['worker_instances'] = worker_instances
 
