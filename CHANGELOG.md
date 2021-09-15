@@ -9,6 +9,7 @@
 - [Config] alow to configure worker_processes parameter in serverless and standalone sections
 - [Localhost] Prevent multiple jobs in the same executor to run at the same time
 - [Standalone] Prevent multiple jobs submitted to the same master VM to run at the same time
+- [CE] Added COS Direct endpoints for free bandwidth from/to CodeEngine
 
 ### Changed
 - [Core] worker_processes parameter has been moved from map() to FunctionExecutor()

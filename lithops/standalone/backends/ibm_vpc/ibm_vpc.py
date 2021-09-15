@@ -26,7 +26,7 @@ from concurrent.futures import ThreadPoolExecutor
 from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
-from .config import DEFAULT_VM_USER, CLOUD_CONFIG
+from .config import VM_USER_DEFAULT, CLOUD_CONFIG
 
 
 logger = logging.getLogger(__name__)
@@ -53,7 +53,7 @@ class IBMVPCBackend:
         self.custom_image = self.config.get('custom_lithops_image')
 
         authenticator = IAMAuthenticator(iam_api_key)
-        self.ibm_vpc_client = VpcV1('2021-01-19', authenticator=authenticator)
+        self.ibm_vpc_client = VpcV1('2021-08-31', authenticator=authenticator)
         self.ibm_vpc_client.set_service_url(self.config['endpoint'] + '/v1')
 
         user_agent_string = 'ibm_vpc_{}'.format(self.config['user_agent'])
@@ -492,7 +492,7 @@ class IBMVPCInstance:
         Creates an IBM VPC python-sdk instance
         """
         authenticator = IAMAuthenticator(self.iam_api_key)
-        ibm_vpc_client = VpcV1('2021-01-19', authenticator=authenticator)
+        ibm_vpc_client = VpcV1('2021-08-31', authenticator=authenticator)
         ibm_vpc_client.set_service_url(self.config['endpoint'] + '/v1')
 
         return ibm_vpc_client
@@ -531,14 +531,14 @@ class IBMVPCInstance:
             'security_groups': [security_group_identity_model]
         }
 
-        boot_volume_profile = {
-            'capacity': 100,
+        boot_volume_data = {
+            'capacity': self.config['boot_volume_capacity'],
             'name': '{}-boot'.format(self.name),
-            'profile': {'name': self.config['volume_tier_name']}}
+            'profile': {'name': self.config['boot_volume_profile']}}
 
         boot_volume_attachment = {
             'delete_volume_on_instance_delete': True,
-            'volume': boot_volume_profile
+            'volume': boot_volume_data
         }
 
         key_identity_model = {'id': self.config['key_id']}
@@ -556,7 +556,7 @@ class IBMVPCInstance:
 
         if not self.public:
             token = self.config['ssh_password']
-            instance_prototype['user_data'] = CLOUD_CONFIG.format(DEFAULT_VM_USER, token)
+            instance_prototype['user_data'] = CLOUD_CONFIG.format(VM_USER_DEFAULT, token)
 
         try:
             resp = self.ibm_vpc_client.create_instance(instance_prototype)
@@ -567,8 +567,8 @@ class IBMVPCInstance:
                 logger.debug("Create VM instance {} failed due to quota limit"
                              .format(self.name))
             else:
-                logger.debug("Create VM instance {} failed with status code {}"
-                             .format(self.name, str(e.code)))
+                logger.debug("Create VM instance {} failed with status code {}: {}"
+                             .format(self.name, str(e.code), e.message))
             raise e
 
         logger.debug("VM instance {} created successfully ".format(self.name))

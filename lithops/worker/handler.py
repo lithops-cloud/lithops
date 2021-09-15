@@ -59,6 +59,12 @@ def function_handler(payload):
     logger.info('Tasks received: {} - Concurrent processes: {}'
                 .format(len(job.call_ids), processes))
 
+    env = job.extra_env
+    env['LITHOPS_WORKER'] = 'True'
+    env['PYTHONUNBUFFERED'] = 'True'
+    env['LITHOPS_CONFIG'] = json.dumps(job.config)
+    os.environ.update(env)
+
     storage_config = extract_storage_config(job.config)
     internal_storage = InternalStorage(storage_config)
     job.func = get_function_and_modules(job, internal_storage)
@@ -148,12 +154,7 @@ def run_job(job, internal_storage):
     else:
         logger.debug('Runtime: {} - Timeout: {} seconds'.format(job.runtime_name, job.execution_timeout))
 
-    env = job.extra_env
-    env['LITHOPS_WORKER'] = 'True'
-    env['PYTHONUNBUFFERED'] = 'True'
-    env['LITHOPS_CONFIG'] = json.dumps(job.config)
-    env['__LITHOPS_SESSION_ID'] = '-'.join([job.job_key, job.call_id])
-    os.environ.update(env)
+    os.environ['__LITHOPS_SESSION_ID'] = '-'.join([job.job_key, job.call_id])
 
     try:
         # send init status event
