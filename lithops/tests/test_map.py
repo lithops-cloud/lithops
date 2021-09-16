@@ -36,7 +36,7 @@ class TestMap(unittest.TestCase):
     def setUpClass(cls):
         global CONFIG, STORAGE, STORAGE_CONFIG
 
-        CONFIG,STORAGE,STORAGE_CONFIG = main_util.get_config().values()
+        CONFIG, STORAGE, STORAGE_CONFIG = main_util.get_config().values()
 
     @classmethod
     def setUp(cls):

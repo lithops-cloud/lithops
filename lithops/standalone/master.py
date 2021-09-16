@@ -171,7 +171,6 @@ def run_job_local(work_queue):
 
     try:
         localhos_handler = LocalhostHandler({'pull_runtime': pull_runtime})
-        localhos_handler.init()
 
         while True:
             job_payload = work_queue.get()

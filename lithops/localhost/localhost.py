@@ -26,13 +26,12 @@ import subprocess as sp
 from shutil import copyfile
 
 from lithops.constants import TEMP, LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG, RN_LOG_FILE, JOBS_PREFIX
+from lithops.utils import is_lithops_worker
 
 logger = logging.getLogger(__name__)
 
 RUNNER = os.path.join(LITHOPS_TEMP_DIR, 'runner.py')
 LITHOPS_LOCATION = os.path.dirname(os.path.abspath(lithops.__file__))
-
-SHOULD_RUN = True
 
 
 class LocalhostHandler:
@@ -48,6 +47,8 @@ class LocalhostHandler:
         self.jobs = {}  # dict to store executed jobs (job_keys) and PIDs
         self.env = {}  # dict to store environments
         self.job_queue = queue.Queue()
+        self.job_manager = None
+        self.should_run = True
 
         msg = COMPUTE_CLI_MSG.format('Localhost compute')
         logger.info("{}".format(msg))
@@ -56,10 +57,18 @@ class LocalhostHandler:
         """
         Init tasks for localhost
         """
+        pass
+
+    def start_manager(self):
+        """
+        Starts manager thread to keep order in tasks
+        """
         def job_manager():
             logger.debug('Staring localhost job manager')
-            while SHOULD_RUN:
+            while self.should_run:
                 job_payload, job_filename = self.job_queue.get()
+                if job_payload is None and job_filename is None:
+                    break
                 executor_id = job_payload['executor_id']
                 job_id = job_payload['job_id']
                 job_key = job_payload['job_key']
@@ -69,9 +78,15 @@ class LocalhostHandler:
                 self.jobs[job_key] = process
                 process.communicate()  # blocks until the process finishes
                 logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Execution finished')
+                if self.job_queue.empty():
+                    self.should_run = False
+            self.job_manager = None
+            logger.debug("Localhost job manager stopped")
 
-        manager = threading.Thread(target=job_manager, daemon=True)
-        manager.start()
+        if not self.job_manager:
+            self.should_run = True
+            self.job_manager = threading.Thread(target=job_manager)
+            self.job_manager.start()
 
     def _get_env_type(self, runtime_name):
         """
@@ -115,6 +130,7 @@ class LocalhostHandler:
         runtime_name = job_payload['runtime_name']
         logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Putting job into localhost queue')
 
+        self.start_manager()
         env = self.get_env(runtime_name)
         job_filename = env._prepare_job_file(job_payload)
 
@@ -145,6 +161,12 @@ class LocalhostHandler:
         """
         Kills all running jobs processes
         """
+        while not self.job_queue.empty():
+            try:
+                self.pending_calls_q.get(False)
+            except Exception:
+                pass
+
         if job_keys:
             for job_key in job_keys:
                 try:
@@ -168,6 +190,10 @@ class LocalhostHandler:
                 except Exception:
                     pass
 
+        if self.job_manager:
+            self.shoud_run = False
+            self.job_queue.put((None, None))
+
 
 class BaseEnv():
     """
@@ -177,6 +203,8 @@ class BaseEnv():
         self.runtime = runtime
 
     def _copy_lithops_to_tmp(self):
+        if is_lithops_worker() and os.path.isfile(RUNNER):
+            return
         os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
         try:
             shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
@@ -257,7 +285,7 @@ class DockerEnv(BaseEnv):
                f'{self.runtime} /tmp/lithops/runner.py run {job_filename}')
 
         log = open(RN_LOG_FILE, 'a')
-        process = sp.Popen(cmd, shell=True, stdout=log, stderr=log)
+        process = sp.Popen(cmd, shell=True, stdout=log, stderr=log, start_new_session=True)
         return process
 
 
