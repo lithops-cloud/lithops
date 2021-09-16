@@ -28,9 +28,9 @@ import traceback
 import multiprocessing as mp
 from threading import Thread
 from multiprocessing import Process, Pipe
-from multiprocessing.managers import SyncManager
 from tblib import pickling_support
 from types import SimpleNamespace
+from multiprocessing.managers import SyncManager
 
 from lithops.version import __version__
 from lithops.config import extract_storage_config
@@ -63,7 +63,6 @@ def function_handler(payload):
     env = job.extra_env
     env['LITHOPS_WORKER'] = 'True'
     env['PYTHONUNBUFFERED'] = 'True'
-    env['LITHOPS_CONFIG'] = json.dumps(job.config)
     os.environ.update(env)
 
     storage_config = extract_storage_config(job.config)
@@ -73,9 +72,9 @@ def function_handler(payload):
 
     if processes == 1:
         job_queue = queue.Queue()
-        for task_id in job.call_ids:
+        for call_id in job.call_ids:
             data = job_data.pop(0)
-            job_queue.put((job, task_id, data))
+            job_queue.put((job, call_id, data))
         job_queue.put(ShutdownSentinel())
         process_runner(job_queue)
     else:
@@ -84,18 +83,18 @@ def function_handler(payload):
         job_queue = manager.Queue()
         job_runners = []
 
-        for runner_id in range(processes):
-            p = mp.Process(target=process_runner, args=(job_queue,))
-            job_runners.append(p)
-            p.start()
-            logger.info('Worker process {} started'.format(runner_id))
-
         for call_id in job.call_ids:
             data = job_data.pop(0)
             job_queue.put((job, call_id, data))
 
         for i in range(processes):
             job_queue.put(ShutdownSentinel())
+
+        for runner_id in range(processes):
+            p = mp.Process(target=process_runner, args=(job_queue,))
+            job_runners.append(p)
+            p.start()
+            logger.info('Worker process {} started'.format(runner_id))
 
         for runner in job_runners:
             runner.join()
@@ -106,6 +105,11 @@ def function_handler(payload):
     module_path = os.path.join(MODULES_DIR, job.job_key)
     if module_path in sys.path:
         sys.path.remove(module_path)
+
+    # Unset specific job env vars
+    for key in job.extra_env:
+        os.environ.pop(key, None)
+    os.environ.pop('__LITHOPS_TOTAL_EXECUTORS', None)
 
 
 def process_runner(job_queue):
@@ -122,6 +126,7 @@ def process_runner(job_queue):
             break
 
         job, call_id, data = event
+        job.start_tstamp = time.time()
         job.call_id = call_id
         job.data = data
 
@@ -141,15 +146,20 @@ def run_job(job):
     """
     Runs a single job within a separate process
     """
-    job_interruped = False
-    storage_config = extract_storage_config(job.config)
-    internal_storage = InternalStorage(storage_config)
-    call_status = create_call_status(job, internal_storage)
     setup_lithops_logger(job.log_level)
 
     backend = os.environ.get('__LITHOPS_BACKEND', '')
     logger.info("Lithops v{} - Starting {} execution".format(__version__, backend))
     logger.info("Execution ID: {}/{}".format(job.job_key, job.call_id))
+
+    env = job.extra_env
+    env['LITHOPS_CONFIG'] = json.dumps(job.config)
+    env['__LITHOPS_SESSION_ID'] = '-'.join([job.job_key, job.call_id])
+    os.environ.update(env)
+
+    storage_config = extract_storage_config(job.config)
+    internal_storage = InternalStorage(storage_config)
+    call_status = create_call_status(job, internal_storage)
 
     if job.runtime_memory:
         logger.debug('Runtime: {} - Memory: {}MB - Timeout: {} seconds'
@@ -157,9 +167,7 @@ def run_job(job):
     else:
         logger.debug('Runtime: {} - Timeout: {} seconds'.format(job.runtime_name, job.execution_timeout))
 
-    env = job.extra_env
-    env['__LITHOPS_SESSION_ID'] = '-'.join([job.job_key, job.call_id])
-    os.environ.update(env)
+    job_interruped = False
 
     try:
         # send init status event
@@ -231,10 +239,5 @@ def run_job(job):
                     call_status.add('logs', log_str)
 
             call_status.send_finish_event()
-
-        # Unset specific env vars
-        for key in job.extra_env:
-            os.environ.pop(key, None)
-        os.environ.pop('__LITHOPS_TOTAL_EXECUTORS', None)
 
         logger.info("Finished")

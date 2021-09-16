@@ -36,7 +36,7 @@ class CallStatus:
             'exception': False,
             'activation_id': os.environ.get('__LITHOPS_ACTIVATION_ID'),
             'python_version': os.environ.get("PYTHON_VERSION"),
-            'worker_start_tstamp': time.time(),
+            'worker_start_tstamp': job.start_tstamp,
             'host_submit_tstamp': job.host_submit_tstamp,
             'call_id': job.call_id,
             'job_id': job.job_id,
