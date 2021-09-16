@@ -1,5 +1,5 @@
 #
-# (C) Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2021
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -65,6 +65,8 @@ class LocalhostHandler:
         """
         def job_manager():
             logger.debug('Staring localhost job manager')
+            self.should_run = True
+
             while self.should_run:
                 job_payload, job_filename = self.job_queue.get()
                 if job_payload is None and job_filename is None:
@@ -79,12 +81,12 @@ class LocalhostHandler:
                 process.communicate()  # blocks until the process finishes
                 logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Execution finished')
                 if self.job_queue.empty():
-                    self.should_run = False
+                    break
+
             self.job_manager = None
             logger.debug("Localhost job manager stopped")
 
         if not self.job_manager:
-            self.should_run = True
             self.job_manager = threading.Thread(target=job_manager)
             self.job_manager.start()
 
@@ -161,9 +163,11 @@ class LocalhostHandler:
         """
         Kills all running jobs processes
         """
+        self.should_run = False
+
         while not self.job_queue.empty():
             try:
-                self.pending_calls_q.get(False)
+                self.job_queue.get(False)
             except Exception:
                 pass
 
@@ -191,7 +195,6 @@ class LocalhostHandler:
                     pass
 
         if self.job_manager:
-            self.shoud_run = False
             self.job_queue.put((None, None))
 
 
