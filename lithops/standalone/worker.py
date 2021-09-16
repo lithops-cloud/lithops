@@ -58,7 +58,6 @@ def run_worker(master_ip, job_key):
 
     pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
     localhos_handler = LocalhostHandler({'pull_runtime': pull_runtime})
-    localhos_handler.init()
 
     while True:
         url = 'http://{}:{}/get-task/{}'.format(master_ip, STANDALONE_SERVICE_PORT, job_key)

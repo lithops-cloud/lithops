@@ -367,7 +367,7 @@ class CodeEngineBackend:
         container['name'] = str(jobdef_name)
         container['env'][0]['value'] = 'run'
 
-        config_map = self._create_config_map(job_payload, activation_id)
+        config_map = self._create_config_map(activation_id, job_payload)
         container['env'][1]['valueFrom']['configMapKeyRef']['name'] = config_map
 
         container['resources']['requests']['memory'] = '{}G'.format(runtime_memory/1024)
@@ -521,9 +521,9 @@ class CodeEngineBackend:
         jobdef_name = self._format_jobdef_name(docker_image_name, memory)
         jobrun_name = 'lithops-runtime-preinstalls'
 
-        payload = copy.deepcopy(self.internal_storage.storage.storage_config)
-        payload['log_level'] = logger.getEffectiveLevel()
-        payload['runtime_name'] = jobdef_name
+        job_payload = copy.deepcopy(self.internal_storage.storage.storage_config)
+        job_payload['log_level'] = logger.getEffectiveLevel()
+        job_payload['runtime_name'] = jobdef_name
 
         jobrun_res['metadata']['name'] = jobrun_name
         jobrun_res['metadata']['namespace'] = self.namespace
@@ -532,8 +532,9 @@ class CodeEngineBackend:
         container['name'] = str(jobdef_name)
         container['env'][0]['value'] = 'preinstalls'
 
-        config_map = self._create_config_map(payload, jobdef_name)
-        container['env'][1]['valueFrom']['configMapKeyRef']['name'] = config_map
+        config_map_name = 'lithops-{}-preinstalls'.format(jobdef_name)
+        config_map_name = self._create_config_map(config_map_name, job_payload)
+        container['env'][1]['valueFrom']['configMapKeyRef']['name'] = config_map_name
 
         try:
             self.custom_api.delete_namespaced_custom_object(
@@ -592,7 +593,7 @@ class CodeEngineBackend:
         except Exception:
             pass
 
-        self._delete_config_map(jobdef_name)
+        self._delete_config_map(config_map_name)
 
         if failed:
             raise Exception("Unable to extract Python preinstalled modules from the runtime")
@@ -603,51 +604,44 @@ class CodeEngineBackend:
 
         return runtime_meta
 
-    def _create_config_map(self, payload, jobrun_name):
+    def _create_config_map(self, config_map_name, payload):
         """
         Creates a configmap
         """
-        config_name = '{}-configmap'.format(jobrun_name)
         cmap = client.V1ConfigMap()
-        cmap.metadata = client.V1ObjectMeta(name=config_name)
+        cmap.metadata = client.V1ObjectMeta(name=config_map_name)
         cmap.data = {}
         cmap.data["lithops.payload"] = dict_to_b64str(payload)
 
-        field_manager = 'lithops'
-
+        logger.debug("Creating ConfigMap {}".format(config_map_name))
         try:
-            logger.debug("Generate ConfigMap {} for namespace {}"
-                         .format(config_name, self.namespace))
             self.core_api.create_namespaced_config_map(
                 namespace=self.namespace,
                 body=cmap,
-                field_manager=field_manager)
-            logger.debug("ConfigMap {} for namespace {} created"
-                         .format(config_name, self.namespace))
+                field_manager='lithops'
+            )
         except ApiException as e:
             if (e.status != 409):
                 logger.debug("Creating a configmap failed with {} {}"
                              .format(e.status, e.reason))
                 raise Exception('Failed to create ConfigMap')
             else:
-                logger.debug("ConfigMap {} for namespace {} already exists"
-                             .format(config_name, self.namespace))
+                logger.debug("ConfigMap {} already exists".format(config_map_name))
 
-        return config_name
+        return config_map_name
 
-    def _delete_config_map(self, jobrun_name):
+    def _delete_config_map(self, config_map_name):
         """
         Deletes a configmap
         """
-        config_name = '{}-configmap'.format(jobrun_name)
         grace_period_seconds = 0
         try:
-            logger.debug("Deleting ConfigMap {} for namespace {}"
-                         .format(config_name, self.namespace))
+            logger.debug("Deleting ConfigMap {}".format(config_map_name))
             self.core_api.delete_namespaced_config_map(
-                name=config_name,
+                name=config_map_name,
                 namespace=self.namespace,
-                grace_period_seconds=grace_period_seconds)
+                grace_period_seconds=grace_period_seconds
+            )
         except ApiException as e:
             logger.debug("Deleting a configmap failed with {} {}"
                          .format(e.status, e.reason))

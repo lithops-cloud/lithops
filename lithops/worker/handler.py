@@ -154,7 +154,9 @@ def run_job(job, internal_storage):
     else:
         logger.debug('Runtime: {} - Timeout: {} seconds'.format(job.runtime_name, job.execution_timeout))
 
-    os.environ['__LITHOPS_SESSION_ID'] = '-'.join([job.job_key, job.call_id])
+    env = job.extra_env
+    env['__LITHOPS_SESSION_ID'] = '-'.join([job.job_key, job.call_id])
+    os.environ.update(env)
 
     try:
         # send init status event
