@@ -22,15 +22,30 @@ Lithops with AWS S3 as storage backend.
     ```yaml
     lithops:
         storage: aws_s3
-        storage_bucket: <BUCKET_NAME>
 
     aws:
         access_key_id : <ACCESS_KEY_ID>
         secret_access_key : <SECRET_ACCESS_KEY>
 
     aws_s3:
-        endpoint : <S3_ENDPOINT_URI>
+        storage_bucket: <BUCKET_NAME>
+        region_name : <S3_BUCKET_REGION>
     ```
 
- - `access_key_id` and `secret_access_key`: Account access keys to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one.
- - `endpoint`: Endpoint URL of the bucket (e.g. `https://s3.us-east-1.amazonaws.com`)
+ 
+### Summary of configuration keys for AWS:
+
+#### AWS:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|aws | access_key_id | |yes | Account access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
+|aws | secret_access_key | |yes | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
+
+#### Summary of configuration keys for AWS S3:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|aws_s3 | storage_bucket | | yes | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. If set, this will overwrite the `storage_bucket` set in `lithops` section |
+|aws_s3 | region_name | |no | **Mandatory** if no endpoint. Region of your Bcuket. e.g us-east-1, eu-west-1, etc |
+|aws_s3 | endpoint | |no | **Mandatory** if no region_name. Endpoint to your Bcuket. Make sure to use the full path with 'https://' as prefix. e.g. `https://s3.us-east-1.amazonaws.com` |

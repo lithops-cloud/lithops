@@ -7,9 +7,8 @@ from tblib import pickling_support
 
 import lithops.worker
 from lithops.utils import sizeof_fmt
-from lithops.storage.utils import create_status_key, create_job_key,\
+from lithops.storage.utils import create_status_key, \
     create_init_key
-from lithops.constants import JOBS_PREFIX
 from distutils.util import strtobool
 from contextlib import contextmanager
 
@@ -39,9 +38,10 @@ class CallStatus:
             'python_version': os.environ.get("PYTHON_VERSION"),
             'worker_start_tstamp': time.time(),
             'host_submit_tstamp': job.host_submit_tstamp,
-            'call_id': job.id,
+            'call_id': job.call_id,
             'job_id': job.job_id,
-            'executor_id': job.executor_id
+            'executor_id': job.executor_id,
+            'chunksize': job.chunksize
         }
 
         if strtobool(os.environ.get('WARM_CONTAINER', 'False')):
@@ -77,11 +77,11 @@ class StorageCallStatus(CallStatus):
         act_id = self.status['activation_id']
 
         if self.status['type'] == '__init__':
-            init_key = create_init_key(JOBS_PREFIX, executor_id, job_id, call_id, act_id)
+            init_key = create_init_key(executor_id, job_id, call_id, act_id)
             self.internal_storage.put_data(init_key, '')
 
         elif self.status['type'] == '__end__':
-            status_key = create_status_key(JOBS_PREFIX, executor_id, job_id, call_id)
+            status_key = create_status_key(executor_id, job_id, call_id)
             dmpd_response_status = json.dumps(self.status)
             drs = sizeof_fmt(len(dmpd_response_status))
             logger.info("Storing execution stats - Size: {}".format(drs))
@@ -120,9 +120,9 @@ class RabbitmqCallStatus(StorageCallStatus):
         output_query_count = 0
 
         queues = []
-        job_keys = self.job.job_key.split('-')
-        for k in range(int(len(job_keys)/3)):
-            qname = 'lithops-{}'.format('-'.join(job_keys[0:k*3+3]))
+        executor_keys = self.job.executor_id.split('-')
+        for k in range(int(len(executor_keys)/2)):
+            qname = 'lithops-{}'.format('-'.join(executor_keys[0:k*3+2]))
             queues.append(qname)
 
         while not status_sent and output_query_count < 5:

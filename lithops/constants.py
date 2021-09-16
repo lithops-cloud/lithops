@@ -33,6 +33,8 @@ STANDALONE = 'standalone'
 
 MODE_DEFAULT = SERVERLESS
 
+MONITORING_DEFAULT = 'storage'
+
 SERVERLESS_BACKEND_DEFAULT = 'ibm_cf'
 STANDALONE_BACKEND_DEFAULT = 'ibm_vpc'
 STORAGE_BACKEND_DEFAULT = 'ibm_cos'
@@ -58,6 +60,8 @@ STANDALONE_CONFIG_FILE = os.path.join(STANDALONE_INSTALL_DIR, 'config')
 
 MAX_AGG_DATA_SIZE = 4  # 4MiB
 
+WORKER_PROCESSES_DEFAULT = 1
+
 TEMP = os.path.realpath(tempfile.gettempdir())
 LITHOPS_TEMP_DIR = os.path.join(TEMP, 'lithops')
 JOBS_DIR = os.path.join(LITHOPS_TEMP_DIR, 'jobs')
@@ -77,12 +81,30 @@ CONFIG_DIR = os.path.join(HOME_DIR, '.lithops')
 CACHE_DIR = os.path.join(CONFIG_DIR, 'cache')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config')
 
-SERVERLESS_BACKENDS = ['ibm_cf', 'code_engine', 'knative', 'openwhisk',
-                       'aws_lambda', 'gcp_functions', 'cloudrun',
-                       'azure_functions', 'aliyun_fc', 'k8s']
-STANDALONE_BACKENDS = ['ibm_vpc', 'vm']
+SERVERLESS_BACKENDS = ['ibm_cf',
+                       'code_engine',
+                       'knative',
+                       'openwhisk',
+                       'aws_lambda',
+                       'gcp_functions',
+                       'cloudrun',
+                       'azure_functions',
+                       'aliyun_fc',
+                       'k8s']
 
-CHUNKSIZE_DEFAULT = 1
-WORKER_PROCESSES_DEFAULT = 1
+STANDALONE_BACKENDS = ['ibm_vpc',
+                       'vm']
 
-MONITORING_DEFAULT = 'storage'
+FAAS_BACKENDS = ['ibm_cf',
+                 'knative',
+                 'openwhisk',
+                 'aws_lambda',
+                 'gcp_functions',
+                 'cloudrun',
+                 'azure_functions',
+                 'aliyun_fc']
+
+BATCH_BACKENDS = ['ibm_vpc',
+                  'k8s',
+                  'code_engine'
+                  'vm']

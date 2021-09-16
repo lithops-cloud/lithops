@@ -173,8 +173,8 @@ def load_config(config_data):
         if 'docker_user' not in config_data['code_engine']:
             config_data['code_engine']['docker_user'] = get_docker_username()
         if not config_data['code_engine']['docker_user']:
-            raise Exception('You must provide "docker_user" param in config '
-                            'or execute "docker login"')
+            raise Exception('You must execute "docker login" or provide "docker_user" '
+                            'param in config under "code_engine" section')
         docker_user = config_data['code_engine']['docker_user']
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')

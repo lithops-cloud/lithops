@@ -39,19 +39,36 @@ def function_invoker(job_payload):
            '__LITHOPS_SESSION_ID': job.job_key}
     os.environ.update(env)
 
-    # Create the monitoring system
-    monitoring_backend = config['lithops']['monitoring'].lower()
-    monitoring_config = config.get(monitoring_backend)
-    job_monitor = JobMonitor(monitoring_backend, monitoring_config)
+    backend = config['lithops']['backend']
+    config[backend]['invoke_pool_threads'] = 128
 
+    # Create the internal_storage handler
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
 
+    # Create the compute handler
     serverless_config = extract_serverless_config(config)
     compute_handler = ServerlessHandler(serverless_config, storage_config)
 
-    # Create the invokder
-    invoker = FaaSRemoteInvoker(config, job.executor_id, internal_storage, compute_handler, job_monitor)
+    # Create the monitoring system
+    monitoring_backend = config['lithops']['monitoring'].lower()
+    monitoring_config = config.get(monitoring_backend)
+
+    job_monitor = JobMonitor(
+        executor_id=job.executor_id,
+        internal_storage=internal_storage,
+        backend=monitoring_backend,
+        config=monitoring_config
+    )
+
+    # Create the invoker
+    invoker = FaaSRemoteInvoker(
+        config,
+        job.executor_id,
+        internal_storage,
+        compute_handler,
+        job_monitor
+    )
     invoker.run_job(job)
 
 
@@ -64,14 +81,18 @@ class FaaSRemoteInvoker(FaaSInvoker):
         """
         Run a job
         """
-        job_monitor = self.job_monitor.create(job, self.internal_storage, generate_tokens=True)
-        self._run_job(job)
-        job_monitor.start()
+        futures = self._run_job(job)
+        self.job_monitor.start(
+            fs=futures,
+            job_id=job.job_id,
+            chunksize=job.chunksize,
+            generate_tokens=True
+        )
 
         while self.pending_calls_q.qsize() > 0:
             time.sleep(1)
 
-        job_monitor.stop()  # Stop job monitor thread
+        self.job_monitor.stop()  # Stop job monitor thread
         self.stop()  # Stop async invokers threads
         time.sleep(5)
 

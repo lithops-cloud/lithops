@@ -35,8 +35,9 @@ Lithops with *OpenWhisk* as serverless compute backend. Lithops can also run fun
 ### Configuration
 
 3. Edit your Lithops config and add the following keys:
+
    ```yaml
-    serverless:
+    lithops:
         backend: openwhisk
 
     openwhisk:
@@ -73,7 +74,7 @@ Lithops with *OpenWhisk* as serverless compute backend. Lithops can also run fun
 |openwhisk | namespace | |yes | Namespace |
 |openwhisk | api_key | |yes | API Auth|
 |openwhisk | insecure | |yes | Insecure access |
-|openwhisk| runtime |  |no | Docker image name.|
+|openwhisk | runtime |  |no | Docker image name |
 |openwhisk | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
-|openwhisk | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
+|openwhisk | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 10 minutes |
 |openwhisk | invoke_pool_threads | 500 |no | Number of concurrent threads used for invocation |

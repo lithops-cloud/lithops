@@ -46,7 +46,7 @@ $ python3 -m pip install lithops[aws]
 6. Edit your lithops config and add the following keys:
 
 ```yaml
-    serverless:
+    lithops:
         backend: aws_lambda
 
     aws:
@@ -78,6 +78,7 @@ $ python3 -m pip install lithops[aws]
 |aws_lambda | runtime |  |no | Docker image name|
 |aws_lambda | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
 |aws_lambda | runtime_timeout | 180 |no | Runtime timeout in seconds. Default 3 minutes |
+|aws_lambda | invoke_pool_threads | 64 |no | Number of concurrent threads used for invocation |
  
  
 ### Additional configuration

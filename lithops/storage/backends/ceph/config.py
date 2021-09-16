@@ -15,14 +15,20 @@
 #
 
 
+REQ_PARAMS = ('endpoint', 'secret_access_key', 'access_key_id')
+
+
 def load_config(config_data):
     if 'ceph' not in config_data:
         raise Exception("ceph section is mandatory in the configuration")
 
-    required_keys = ('endpoint', 'secret_key', 'access_key')
-
-    if not set(required_keys) <= set(config_data['ceph']):
-        raise Exception('You must provide {} to access to Ceph'.format(required_keys))
+    for param in REQ_PARAMS:
+        if param not in config_data['ceph']:
+            msg = f"'{param}' is mandatory under 'ceph' section of the configuration"
+            raise Exception(msg)
 
     if not config_data['ceph']['endpoint'].startswith('http'):
         raise Exception('Ceph endpoint must start with http:// or https://')
+
+    if 'storage_bucket' in config_data['ceph']:
+        config_data['lithops']['storage_bucket'] = config_data['ceph']['storage_bucket']

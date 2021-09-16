@@ -35,17 +35,30 @@ $ python3 -m pip install lithops[gcp]
 ```yaml
     lithops:
         storage: gcp_storage
-        storage_bucket: <BUCKET_NAME>
 
     gcp:
         project_name : <PROJECT_NAME>
         service_account : <SERVICE_ACCOUNT_EMAIL>
         credentials_path : <FULL_PATH_TO_CREDENTIALS_JSON>
         region : <REGION_NAME>
-```
 
- - `project_name`: Project name introduced in step 3 (e.g. `lithops`)
- - `service_account`: Service account email of the service account created on step 5 (e.g. `lithops-executor@lithops.iam.gserviceaccount.com`)
- - `credentials_path`: **Absolute** path of your JSON key file downloaded in step 7 (e.g. `/home/myuser/lithops-invoker1234567890.json`)
- - `region`: Region of the bucket created at step 8. Functions and pub/sub queue will be created in the same region (e.g. `us-east1`)
+    gcp_storage:
+        storage_bucket: <BUCKET_NAME>
+```
+ 
+### Summary of configuration keys for Google:
+
+#### Google Cloud Platform:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|gcp | project_name | |yes | Project name introduced in step 3 (e.g. `lithops`) |
+|gcp | service_account | |yes | Service account email of the service account created on step 5 (e.g. `lithops-executor@lithops.iam.gserviceaccount.com`) |
+|gcp | credentials_path | |yes | **Absolute** path of your JSON key file downloaded in step 7 (e.g. `/home/myuser/lithops-invoker1234567890.json`) |
+|gcp | region | |yes | Region of the bucket created at step 8. Functions and pub/sub queue will be created in the same region (e.g. `us-east1`) |
+
+#### Google Cloud Storage
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|gcp_storage | storage_bucket | | yes | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. If set, this will overwrite the `storage_bucket` set in `lithops` section |
  

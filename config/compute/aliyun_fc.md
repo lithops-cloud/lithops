@@ -13,13 +13,13 @@ $ python3 -m pip install lithops[aliyun]
 2. Edit your Lithops config and add the following keys:
 
 ```yaml
-  serverless:
-    backend : aliyun_fc
+  lithops:
+      backend : aliyun_fc
 
   aliyun_fc:
-    public_endpoint : <PUBLIC_ENDPOINT>
-    access_key_id : <ACCESS_KEY_ID>
-    access_key_secret : <ACCESS_KEY_SECRET>
+      public_endpoint : <PUBLIC_ENDPOINT>
+      access_key_id : <ACCESS_KEY_ID>
+      access_key_secret : <ACCESS_KEY_SECRET>
 ```
 
     

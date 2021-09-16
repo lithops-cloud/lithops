@@ -1,0 +1,12 @@
+
+on_PR:
+CF_COS
+CE_COS
+LOCAL_HOST
+
+
+nightly_build:
+CF_COS
+CE_COS
+LOCAL_HOST
+

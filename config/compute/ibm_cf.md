@@ -6,6 +6,7 @@ Lithops with *IBM Cloud Functions* as compute backend.
 
 1. Login to IBM Cloud and open up your [dashboard](https://cloud.ibm.com/).
 
+- **Important Note: If you have a free/student account, please choose Option 1 one and start from step 8**
  
 #### Option 1 (CloudFoundy-based namespace):
 
@@ -27,13 +28,14 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
 
 9. Choose your namespace from the "current namespace" dropdown menu. 
 
-10. Copy the "current namespace" name and the API key.
+10. Copy the full **current namespace** name and the **API key**. Usually, namepsace names in free accounts looks like *your.name@myemail.com_dev*, e.g, *james.braun@gmail.com_dev*
 
-11. Navigate [here](https://cloud.ibm.com/docs/openwhisk?topic=openwhisk-cloudfunctions_regions#cloudfunctions_endpoints) and copy your functions endpoint. It must be in the same region where you created the namespace.
+11. From the same page, check the **Location** of your namespace and select the appropriate endpoint [from the table below](#ibm-cloud-functions-namespace-endpoints).
 
 12. Edit your lithops config and add the following keys:
+
     ```yaml
-    serverless:
+    lithops:
         backend: ibm_cf
        
     ibm_cf:
@@ -55,9 +57,9 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
 
 6. Choose your new namespace from the "current namespace" dropdown menu.
 
-7. From this page copy the namespace name and the namespace GUID.
+7. From the same page, copy the **namespace name** and the **namespace GUID**.
 
-8. Navigate [here](https://cloud.ibm.com/docs/openwhisk?topic=openwhisk-cloudfunctions_regions#cloud-functions-endpoints) and choose your functions endpoint. It must be in the same region where you created the namespace.
+8. From the same page, check the **Location** of your namespace and select the appropriate endpoint [from the table below](#ibm-cloud-functions-namespace-endpoints).
 
 9. If you don't have an IAM API key created, navigate to the [IBM IAM dashboard](https://cloud.ibm.com/iam/apikeys).
 
@@ -66,8 +68,9 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
 11. Copy the generated IAM API key (You can only see the key the first time you create it, so make sure to copy it).
 
 12. Edit your lithops config and add the following keys:
+
     ```yaml
-    serverless:
+    lithops:
         backend: ibm_cf
         
     ibm:
@@ -78,6 +81,18 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
         namespace    : <NAMESPACE>
         namespace_id : <GUID>
     ```
+    
+### IBM Cloud Functions Namespace Endpoints
+
+|Location| Endpoint|
+|---|---|
+|Washington DC | https://us-east.functions.cloud.ibm.com |
+|Dallas | https://us-south.functions.cloud.ibm.com |
+|London | https://eu-gb.functions.cloud.ibm.com |
+|Frankfur | https://eu-de.functions.cloud.ibm.com |
+|Tokyo | https://jp-tok.functions.cloud.ibm.com |
+|Sydney | https://au-syd.functions.cloud.ibm.com |
+
     
 ### Summary of configuration keys for IBM Cloud:
 

@@ -99,37 +99,42 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
         pbar.update(len(fs_done))
 
     try:
-        jobs = _create_jobs_from_futures(fs, internal_storage)
+        executors_data = _create_executors_data_from_futures(fs, internal_storage)
+
         if not job_monitor:
-            job_monitor = JobMonitor(backend='storage')
-            [job_monitor.create(**job_data).start() for job_data in jobs]
+            for executor_data in executors_data:
+                job_monitor = JobMonitor(
+                    executor_id=executor_data.executor_id,
+                    internal_storage=executor_data.internal_storage,
+                    backend='storage')
+                job_monitor.start(fs=executor_data.futures)
 
         sleep_sec = wait_dur_sec if job_monitor.backend == 'storage' else 0.3
 
         if return_when == ALL_COMPLETED:
             while not _all_done(fs, download_results):
-                for job_data in jobs:
-                    new_data = _get_job_data(fs, job_data, pbar=pbar,
-                                             throw_except=throw_except,
-                                             download_results=download_results,
-                                             threadpool_size=threadpool_size)
+                for executor_data in executors_data:
+                    new_data = _get_executor_data(fs, executor_data, pbar=pbar,
+                                                  throw_except=throw_except,
+                                                  download_results=download_results,
+                                                  threadpool_size=threadpool_size)
                 time.sleep(0 if new_data else sleep_sec)
 
         elif return_when == ANY_COMPLETED:
             while not _any_done(fs, download_results):
-                for job_data in jobs:
-                    new_data = _get_job_data(fs, job_data, pbar=pbar,
-                                             throw_except=throw_except,
-                                             download_results=download_results,
-                                             threadpool_size=threadpool_size)
+                for executor_data in executors_data:
+                    new_data = _get_executor_data(fs, executor_data, pbar=pbar,
+                                                  throw_except=throw_except,
+                                                  download_results=download_results,
+                                                  threadpool_size=threadpool_size)
                 time.sleep(0 if new_data else sleep_sec)
 
         elif return_when == ALWAYS:
-            for job_data in jobs:
-                _get_job_data(fs, job_data, pbar=pbar,
-                              throw_except=throw_except,
-                              download_results=download_results,
-                              threadpool_size=threadpool_size)
+            for executor_data in executors_data:
+                _get_executor_data(fs, executor_data, pbar=pbar,
+                                   throw_except=throw_except,
+                                   download_results=download_results,
+                                   threadpool_size=threadpool_size)
 
     except KeyboardInterrupt as e:
         if download_results:
@@ -197,32 +202,26 @@ def get_result(fs, throw_except=True, timeout=None,
     return result
 
 
-def _create_jobs_from_futures(fs, internal_storage):
+def _create_executors_data_from_futures(fs, internal_storage):
     """
     Creates a dummy job necessary for the job monitor
     """
-    jobs = []
-    present_jobs = {f.job_key for f in fs}
+    executor_jobs = []
+    present_executors = {f.executor_id for f in fs}
 
-    for job_key in present_jobs:
-        job_data = {}
-        job = SimpleNamespace()
-        job.futures = [f for f in fs if f.job_key == job_key]
-        job.total_calls = len(job.futures)
-        f = job.futures[0]
-        job.executor_id = f.executor_id
-        job.job_id = f.job_id
-        job.job_key = f.job_key
-        job_data['job'] = job
-
+    for executor_id in present_executors:
+        executor_data = SimpleNamespace()
+        executor_data.executor_id = executor_id
+        executor_data.futures = [f for f in fs if f.executor_id == executor_id]
+        f = executor_data.futures[0]
         if internal_storage and internal_storage.backend == f._storage_config['backend']:
-            job_data['internal_storage'] = internal_storage
+            executor_data.internal_storage = internal_storage
         else:
-            job_data['internal_storage'] = InternalStorage(f._storage_config)
+            executor_data.internal_storage = InternalStorage(f._storage_config)
 
-        jobs.append(job_data)
+        executor_jobs.append(executor_data)
 
-    return jobs
+    return executor_jobs
 
 
 def _all_done(fs, download_results):
@@ -245,33 +244,31 @@ def _any_done(fs, download_results):
         return any([f.success or f.done for f in fs])
 
 
-def _get_job_data(fs, job_data, download_results, throw_except, threadpool_size, pbar):
+def _get_executor_data(fs, exec_data, download_results, throw_except, threadpool_size, pbar):
     """
     Downloads all status/results from ready futures
     """
-    job = job_data['job']
-    internal_storage = job_data['internal_storage']
 
     if download_results:
-        callids_done = [(f.executor_id, f.job_id, f.call_id) for f in job.futures if (f.ready or f.success)]
-        not_done_futures = [f for f in job.futures if not f.done]
+        callids_done = [(f.executor_id, f.job_id, f.call_id) for f in exec_data.futures if (f.ready or f.success)]
+        not_done_futures = [f for f in exec_data.futures if not f.done]
     else:
-        callids_done = [(f.executor_id, f.job_id, f.call_id) for f in job.futures if f.ready]
-        not_done_futures = [f for f in job.futures if not (f.success or f.done)]
+        callids_done = [(f.executor_id, f.job_id, f.call_id) for f in exec_data.futures if f.ready]
+        not_done_futures = [f for f in exec_data.futures if not (f.success or f.done)]
 
     not_done_call_ids = set([(f.executor_id, f.job_id, f.call_id) for f in not_done_futures])
     new_callids_done = not_done_call_ids.intersection(callids_done)
 
     fs_to_wait_on = []
-    for f in job.futures:
+    for f in exec_data.futures:
         if (f.executor_id, f.job_id, f.call_id) in new_callids_done:
             fs_to_wait_on.append(f)
 
     def get_result(f):
-        f.result(throw_except=throw_except, internal_storage=internal_storage)
+        f.result(throw_except=throw_except, internal_storage=exec_data.internal_storage)
 
     def get_status(f):
-        f.status(throw_except=throw_except, internal_storage=internal_storage)
+        f.status(throw_except=throw_except, internal_storage=exec_data.internal_storage)
 
     pool = cf.ThreadPoolExecutor(max_workers=threadpool_size)
     if download_results:
@@ -291,7 +288,7 @@ def _get_job_data(fs, job_data, download_results, throw_except, threadpool_size,
     new_futures = list(chain(*[f._new_futures for f in fs_to_wait_on if f._new_futures]))
     if new_futures:
         fs.extend(new_futures)
-        job.futures.extend(new_futures)
+        exec_data.futures.extend(new_futures)
         if pbar:
             pbar.total = pbar.total + len(new_futures)
             pbar.refresh()

@@ -10,9 +10,79 @@ Lithops with IBM COS as storage backend.
 
 2. Crate a bucket in your desired region. Remember to update the corresponding Lithops config field with this bucket name.
 
-3. Login to IBM Cloud and open up your dashboard. Then navigate to your instance of Object Storage.
+### Configuration
 
-4. In the side navigation, click `Endpoints` to find your `region`, `API public` and `private endpoints`.
+1. Create the credentials to access to your COS account (Choose one option):
+ 
+#### Option 1 (COS API Key):
+
+2. In the side navigation, click `Service Credentials`.
+
+3. Click `New credential +` and provide the necessary information.
+
+4. Click `Add` to generate service credential.
+
+5. Click `View credentials` and copy the *apikey* value.
+
+6. Edit your lithops config file and add the following keys:
+
+    ```yaml
+    lithops:
+        storage: ibm_cos
+       
+    ibm_cos:
+        storage_bucket: <BUCKET_NAME>
+        region   : <REGION>
+        api_key  : <API_KEY>
+    ```
+
+#### Option 2 (COS HMAC credentials):
+
+2. In the side navigation, click `Service Credentials`.
+
+3. Click `New credential +`.
+
+4. Click on advanced options and enable `Include HMAC Credential` button. 
+
+5. Click `Add` to generate service credential.
+
+6. Click `View credentials` and copy the *access_key_id* and *secret_access_key* values.
+
+7. Edit your lithops config file and add the following keys:
+
+    ```yaml
+    lithops:
+        storage: ibm_cos
+       
+    ibm_cos:
+        storage_bucket: <BUCKET_NAME>
+        region : <REGION>  
+        access_key  : <ACCESS_KEY_ID>
+        secret_key  : <SECRET_KEY_ID>
+    ```
+
+#### Option 3 (IBM IAM API Key):
+
+2. If you don't have an IAM API key created, navigate to the [IBM IAM dashboard](https://cloud.ibm.com/iam/apikeys)
+
+3. Click `Create an IBM Cloud API Key` and provide the necessary information.
+
+4. Copy the generated IAM API key (You can only see the key the first time you create it, so make sure to copy it).
+
+5. Edit your lithops config file and add the following keys:
+
+    ```yaml
+    lithops:
+        storage_backend: ibm_cos
+
+    ibm:
+        iam_api_key: <IAM_API_KEY>
+       
+    ibm_cos:
+        storage_bucket: <BUCKET_NAME>
+        region : <REGION>
+    ```
+
 
 ### Lithops COS Endpoint configuration
 
@@ -27,7 +97,12 @@ The easiest apporach is to let Lithops to choose the right endpoint by itself. T
 Valid region names are: us-east, us-south, eu-gb, eu-de, etc..
 
 ### Using endpoints path
+
 Alternative to using region, you can configure the public and private endpoints as follows:
+
+1. Login to IBM Cloud and open up your dashboard. Then navigate to your instance of Object Storage.
+
+2. In the side navigation, click `Endpoints` to find your COS endpoints. You must copy both `public` and `private` endpoints of the region where you created your bucket.
 
 ```yaml
     ibm_cos:
@@ -35,80 +110,6 @@ Alternative to using region, you can configure the public and private endpoints 
         private_endpoint: https://s3.private.<region>.cloud-object-storage.appdomain.cloud 
 ```
 
-### Configuration
-
-1. Login to IBM Cloud and open up your dashboard. Then navigate to your instance of Object Storage.
-
-2. In the side navigation, click `Endpoints` to find your API endpoint. You must copy both public and private endpoints of the region where you created your bucket.
-
-3. Create the credentials to access to your COS account (Choose one option):
- 
-#### Option 1 (COS API Key):
-
-4. In the side navigation, click `Service Credentials`.
-
-5. Click `New credential +` and provide the necessary information.
-
-6. Click `Add` to generate service credential.
-
-7. Click `View credentials` and copy the *apikey* value.
-
-8. Edit your lithops config file and add the following keys:
-
-    ```yaml
-    lithops:
-        storage: ibm_cos
-        storage_bucket: <BUCKET_NAME>
-       
-    ibm_cos:
-       region   : <REGION>
-       api_key    : <API_KEY>
-    ```
-
-#### Option 2 (COS HMAC credentials):
-
-4. In the side navigation, click `Service Credentials`.
-
-5. Click `New credential +`.
-
-6. Click on advanced options and enable `Include HMAC Credential` button. 
-
-7. Click `Add` to generate service credential.
-
-8. Click `View credentials` and copy the *access_key_id* and *secret_access_key* values.
-
-9. Edit your lithops config file and add the following keys:
-    ```yaml
-    lithops:
-        storage: ibm_cos
-        storage_bucket: <BUCKET_NAME>
-       
-    ibm_cos:
-       region   : <REGION>  
-       access_key    : <ACCESS_KEY_ID>
-       secret_key    : <SECRET_KEY_ID>
-    ```
-
-#### Option 3 (IBM IAM API Key):
-
-4. If you don't have an IAM API key created, navigate to the [IBM IAM dashboard](https://cloud.ibm.com/iam/apikeys)
-
-5. Click `Create an IBM Cloud API Key` and provide the necessary information.
-
-6. Copy the generated IAM API key (You can only see the key the first time you create it, so make sure to copy it).
-
-7. Edit your lithops config file and add the following keys:
-    ```yaml
-    lithops:
-        storage_backend: ibm_cos
-        storage_bucket: <BUCKET_NAME>
-        
-    ibm:
-        iam_api_key: <IAM_API_KEY>
-       
-    ibm_cos:
-        region   : <REGION>
-    ```
 
 ### Summary of configuration keys for IBM Cloud:
 
@@ -123,10 +124,10 @@ Alternative to using region, you can configure the public and private endpoints 
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
+|ibm_cos | storage_bucket | | yes | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. If set, this will overwrite the `storage_bucket` set in `lithops` section |
 |ibm_cos | region | |no | Region of your bucket. **Mandatory** if no endpoint. For example: us-east, us-south, eu-gb, eu-de, etc..|
 |ibm_cos | endpoint | |no | Endpoint to your COS account. **Mandatory** if no region. Make sure to use the full path with 'https://' as prefix. |
 |ibm_cos | private_endpoint | |no | Private endpoint to your COS account. **Mandatory** if no region. Make sure to use the full path with 'https://' or http:// as prefix. |
 |ibm_cos | api_key | |no | API Key to your COS account. **Mandatory** if no access_key and secret_key. Not needed if using IAM API Key|
 |ibm_cos | access_key | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key|
 |ibm_cos | secret_key | |no | HMAC Credentials. **Mandatory** if no api_key. Not needed if using IAM API Key|
-

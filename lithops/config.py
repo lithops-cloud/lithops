@@ -1,6 +1,6 @@
 #
-# (C) Copyright IBM Corp. 2019
-# (C) Copyright Cloudlab URV 2020
+# (C) Copyright IBM Corp. 2021
+# (C) Copyright Cloudlab URV 2021
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -93,7 +93,7 @@ def load_config(log=True):
     if not config_data:
         # Set to Localhost mode
         if log:
-            logger.debug("Config not found. Setting Lithops to localhost mode")
+            logger.debug("Config file not found")
         config_data = {'lithops': {'mode': constants.LOCALHOST,
                                    'backend': constants.LOCALHOST,
                                    'storage': constants.LOCALHOST}}
@@ -122,7 +122,7 @@ def get_log_info(config_data=None):
     return cl['log_level'], cl['log_format'], cl['log_stream'], cl['log_filename']
 
 
-def default_config(config_data=None, config_overwrite={}):
+def default_config(config_data=None, config_overwrite={}, load_storage_config=True):
     """
     First checks .lithops_config
     then checks LITHOPS_CONFIG_FILE environment variable
@@ -156,14 +156,24 @@ def default_config(config_data=None, config_overwrite={}):
     backend = config_data['lithops'].get('backend')
     mode = config_data['lithops'].get('mode')
 
+    if mode in config_data and 'worker_processes' in config_data[mode] \
+       and 'worker_processes' not in config_overwrite['lithops']:
+        config_data['lithops']['worker_processes'] = config_data[mode]['worker_processes']
+
     if mode == constants.LOCALHOST:
         logger.debug("Loading compute backend module: localhost")
-        config_data['lithops']['workers'] = 1
-        if 'worker_processes' not in config_data['lithops']:
-            config_data['lithops']['worker_processes'] = CPU_COUNT
+
         if constants.LOCALHOST not in config_data or \
            config_data[constants.LOCALHOST] is None:
             config_data[constants.LOCALHOST] = {}
+
+        config_data['lithops']['workers'] = 1
+
+        if 'storage' not in config_data['lithops']:
+            config_data['lithops']['storage'] = constants.LOCALHOST
+
+        if 'worker_processes' not in config_data['lithops']:
+            config_data['lithops']['worker_processes'] = CPU_COUNT
 
         if 'runtime' in config_overwrite:
             config_data[constants.LOCALHOST]['runtime'] = config_overwrite['runtime']
@@ -177,6 +187,9 @@ def default_config(config_data=None, config_overwrite={}):
         if constants.SERVERLESS not in config_data or \
            config_data[constants.SERVERLESS] is None:
             config_data[constants.SERVERLESS] = {}
+
+        if 'runtime' in config_overwrite:
+            config_data[backend]['runtime'] = config_overwrite['runtime']
 
         logger.debug("Loading Serverless backend module: {}".format(backend))
         cb_config = importlib.import_module('lithops.serverless.backends.{}.config'.format(backend))
@@ -220,19 +233,20 @@ def default_config(config_data=None, config_overwrite={}):
     if 'execution_timeout' not in config_data['lithops']:
         config_data['lithops']['execution_timeout'] = constants.EXECUTION_TIMEOUT_DEFAULT
 
-    if 'chunksize' not in config_data['lithops']:
-        config_data['lithops']['chunksize'] = constants.CHUNKSIZE_DEFAULT
-
     if 'worker_processes' not in config_data['lithops']:
         config_data['lithops']['worker_processes'] = constants.WORKER_PROCESSES_DEFAULT
+
+    if 'chunksize' not in config_data['lithops']:
+        config_data['lithops']['chunksize'] = config_data['lithops']['worker_processes']
 
     if 'monitoring' not in config_data['lithops']:
         config_data['lithops']['monitoring'] = constants.MONITORING_DEFAULT
 
-    config_data = default_storage_config(config_data)
+    if load_storage_config:
+        config_data = default_storage_config(config_data)
 
-    if config_data['lithops']['storage'] == constants.LOCALHOST and mode != constants.LOCALHOST:
-        raise Exception('Localhost storage backend cannot be used in {} mode'.format(mode))
+        if config_data['lithops']['storage'] == constants.LOCALHOST and mode != constants.LOCALHOST:
+            raise Exception('Localhost storage backend cannot be used in {} mode'.format(mode))
 
     return config_data
 
@@ -251,17 +265,14 @@ def default_storage_config(config_data=None, backend=None):
     if backend:
         config_data['lithops']['storage'] = backend
 
-    if config_data['lithops']['storage'] == constants.LOCALHOST:
-        config_data['lithops']['storage_bucket'] = 'storage'
-    else:
-        if 'storage_bucket' not in config_data['lithops']:
-            raise Exception("storage_bucket is mandatory in "
-                            "lithops section of the configuration")
-
     sb = config_data['lithops']['storage']
     logger.debug("Loading Storage backend module: {}".format(sb))
     sb_config = importlib.import_module('lithops.storage.backends.{}.config'.format(sb))
     sb_config.load_config(config_data)
+
+    if 'storage_bucket' not in config_data['lithops']:
+        raise Exception("storage_bucket is mandatory in "
+                        "lithops section of the configuration")
 
     return config_data
 

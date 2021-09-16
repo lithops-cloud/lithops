@@ -676,7 +676,7 @@ class KnativeServingBackend:
             else:
                 logger.debug('Invoking function')
 
-            conn.request("POST", route, body=json.dumps(payload), headers=headers)
+            conn.request("POST", route, body=json.dumps(payload, default=str), headers=headers)
 
             resp = conn.getresponse()
             headers = dict(resp.getheaders())

@@ -7,18 +7,12 @@ For running lithops on kubernetes, you need a runtime build on the docker hub (o
 If you don't have an already built runtime, the default runtime is built the first time you execute a function. Lithops automatically detects the Python version of your environment and deploys the default runtime based on it.
 
 
-By default, Lithops uses 256MB as runtime memory size. However, you can change it in the `config` or when you obtain the executor, for example:
-
-```python
-import lithops
-pw = lithops.FunctionExecutor(runtime_memory=512)
-```
-
-By default, Lithops uses 1vCPU for the kubernetes runtimes. However, you can change it in the `config` by setting the appropriate vCPU size:
+By default, Lithops uses 256MB as runtime memory size and 0.5vCPU for the kubernetes runtimes. However, you can change it in the `config` by setting the appropriate vCPU size:
 
 ```yaml
 k8s:
-    cpu: 0.5
+    runtime_memory=512
+    runtime_cpu: 1
 ```
 
 ## Custom runtime
@@ -39,27 +33,27 @@ k8s:
         $ docker login
 
     Update the Dockerfile that better fits to your requirements with your required system packages and Python modules.
-    If you need another Python version, for example Python 3.8, you must change the initial line of the Dockefile:
+    If you need another Python version, for example Python 3.9, you must change the initial line of the Dockefile:
 
         $ lithops runtime build -b k8s docker_username/runtimename:tag
 
-    Note that Docker hub image names look like *"docker_username/runtimename:tag"* and must be all lower case, and must not include '.' or '_', for example:
+    Note that Docker hub image names look like *"docker_username/runtimename:tag"* and must be all lower case, for example:
 
-        $ lithops runtime build -b k8s myaccount/lithops-kn-custom-v38:01
+        $ lithops runtime build -b k8s myaccount/lithops-kn-custom-v39:01
 
     By default the Dockerfile should be located in the same folder from where you execute the **lithops runtime** command. If your Dockerfile is located in another folder, or the Dockerfile has another name, you can specify its location with the **-f** parameter, for example:
 
-        $ lithops runtime build -b k8s -f kubernetes/Dockerfile.conda myaccount/lithops-k8s-custom-v38:01
+        $ lithops runtime build -b k8s -f kubernetes/Dockerfile.conda myaccount/lithops-k8s-custom-v39:01
 
     Once you have built your runtime with all of your necessary packages, you can already use it with Lithops.
     To do so, you have to specify the full docker image name in the configuration or when you create the **FunctionExecutor** instance, or directly in the config file, for example:
 
     ```python
     import lithops
-    fexec = lithops.FunctionExecutor(runtime='myaccount/lithops-k8s-custom-v38:01')
+    fexec = lithops.FunctionExecutor(runtime='myaccount/lithops-k8s-custom-v39:01')
     ```
 
-    *NOTE: In this previous example shows how to build a Docker image based on Python 3.8, this means that now you also need Python 3.8 in the client machine.*
+    *NOTE: In this previous example shows how to build a Docker image based on Python 3.9, this means that now you also need Python 3.9 in the client machine.*
 
 2. **Use an already built runtime from a public repository**
 
@@ -68,22 +62,22 @@ k8s:
 
     ```python
     import lithops
-    fexec = lithops.FunctionExecutor(runtime='lithopscloud/lithops-k8s-conda-v38:01')
+    fexec = lithops.FunctionExecutor(runtime='lithopscloud/lithops-k8s-conda-v39:01')
     ```
 
     Alternatively, you can create a Lithops runtime based on already built Docker image by executing the following command, which will deploy all the necessary information to use the runtime with your Lithops.
 
         $ lithops runtime create -b k8s docker_username/runtimename:tag
 
-    For example, you can use an already created runtime based on Python 3.8 and with the *matplotlib* and *nltk* libraries by running:
+    For example, you can use an already created runtime based on Python 3.9 and with the *matplotlib* and *nltk* libraries by running:
 
-        $ lithops runtime create -b k8s lithopscloud/lithops-k8s-matplotlib-v38:01
+        $ lithops runtime create -b k8s lithopscloud/lithops-k8s-matplotlib-v39:01
 
     Once finished, you can use the runtime in your Lithops code:
 
     ```python
     import lithops
-    fexec = lithops.FunctionExecutor(runtime='lithopscloud/lithops-k8s-matplotlib:v38:01')
+    fexec = lithops.FunctionExecutor(runtime='lithopscloud/lithops-k8s-matplotlib:v39:01')
     ```
 
 ## Runtime Management
@@ -100,9 +94,9 @@ k8s:
 
         $ lithops runtime update docker_username/runtimename:tag -b k8s
 
-    For example, you can update an already created runtime based on the Docker image `lithopscloud/lithops-k8s-matplotlib-v38:01` by:
+    For example, you can update an already created runtime based on the Docker image `lithopscloud/lithops-k8s-matplotlib-v39:01` by:
 
-        $ lithops runtime update lithopscloud/lithops-k8s-matplotlib-v38:01 -b k8s
+        $ lithops runtime update lithopscloud/lithops-k8s-matplotlib-v39:01 -b k8s
 
     Alternatively, you can update all the deployed runtimes at a time by:
 

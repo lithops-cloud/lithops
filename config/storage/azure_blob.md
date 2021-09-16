@@ -56,17 +56,18 @@ $ python3 -m pip install lithops[azure]
 
 ```yaml
   lithops:
-      storage : azure_blob
-      storage_bucket: <CONTAINER_NAME>
+      storage : azure_storage
 
   azure_storage:
       storage_account_name: <STORAGE_ACCOUNT_NAME>
       storage_account_key: <STORAGE_ACCOUNT_KEY>
+      storage_bucket: <CONTAINER_NAME>
 ```
 
-### Summary of configuration keys for Azure:
+#### Summary of configuration keys for Azure Storage:
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|azure_storage| storage_account_name | |yes |  The storage account name |
-|azure_storage| storage_account_key |  | yes |  An storage account key, found in *Storage Accounts* > `account_name` > *Settings* > *Access Keys*|
+|azure_storage | storage_account_name | |yes |  The storage account name |
+|azure_storage | storage_account_key |  | yes |  An storage account key, found in *Storage Accounts* > `account_name` > *Settings* > *Access Keys*|
+|azure_storage | storage_bucket | | yes | The name of a container that exists in you account. This will be used by Lithops for intermediate data. If set, this will overwrite the `storage_bucket` set in `lithops` section |

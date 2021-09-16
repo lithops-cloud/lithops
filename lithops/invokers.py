@@ -184,12 +184,25 @@ class Invoker:
                      .format(job.executor_id, job.job_id,
                              job.chunksize, job.worker_processes))
 
-        self.prometheus.send_metric(name='job_total_calls',
-                                    value=job.total_calls,
-                                    labels=(
-                                        ('job_id', '-'.join([job.executor_id, job.job_id])),
-                                        ('function_name', job.function_name)
-                                    ))
+        self.prometheus.send_metric(
+            name='job_total_calls',
+            value=job.total_calls,
+            type='counter',
+            labels=(
+                ('job_id_', job.job_key),
+                ('function_name', job.function_name)
+            )
+        )
+
+        self.prometheus.send_metric(
+            name='job_runtime_memory',
+            value=job.runtime_memory or 0,
+            type='counter',
+            labels=(
+                ('job_id_', job.job_key),
+                ('function_name', job.function_name)
+            )
+        )
 
         try:
             job.runtime_name = self.runtime_name
@@ -225,7 +238,7 @@ class Invoker:
 
 class BatchInvoker(Invoker):
     """
-    Module responsible to perform the invocations against the Standalone backend
+    Module responsible to perform the invocations against a batch backend
     """
 
     def __init__(self, config, executor_id, internal_storage, compute_handler, job_monitor):
@@ -251,16 +264,15 @@ class BatchInvoker(Invoker):
         """
         Run a job
         """
-        job_monitor = self.job_monitor.create(job, self.internal_storage)
         futures = self._run_job(job)
-        job_monitor.start()
+        self.job_monitor.start(futures)
 
         return futures
 
 
 class FaaSInvoker(Invoker):
     """
-    Module responsible to perform the invocations against the FaaS backends
+    Module responsible to perform the invocations against a FaaS backend
     """
     ASYNC_INVOKERS = 2
 
@@ -275,6 +287,9 @@ class FaaSInvoker(Invoker):
         self.pending_calls_q = queue.Queue()
         self.should_run = False
         self.sync = is_lithops_worker()
+
+        invoke_pool_threads = self.config[self.backend].get('invoke_pool_threads', 64)
+        self.executor = ThreadPoolExecutor(invoke_pool_threads)
 
         logger.debug('ExecutorID {} - Serverless invoker created'.format(self.executor_id))
 
@@ -335,11 +350,17 @@ class FaaSInvoker(Invoker):
         compute backend.
         """
         # prepare payload
-        call_ids = ["{:05d}".format(i) for i in call_ids_range]
-        data_byte_ranges = [job.data_byte_ranges[int(call_id)] for call_id in call_ids]
         payload = self._create_payload(job)
+
+        call_ids = ["{:05d}".format(i) for i in call_ids_range]
         payload['call_ids'] = call_ids
-        payload['data_byte_ranges'] = data_byte_ranges
+
+        if job.data_key:
+            data_byte_ranges = [job.data_byte_ranges[int(call_id)] for call_id in call_ids]
+            payload['data_byte_ranges'] = data_byte_ranges
+        else:
+            del payload['data_byte_ranges']
+            payload['data_byte_strs'] = [job.data_byte_strs[int(call_id)] for call_id in call_ids]
 
         # do the invocation
         start = time.time()
@@ -415,9 +436,8 @@ class FaaSInvoker(Invoker):
                 future.result()
 
             invoke_futures = []
-            executor = ThreadPoolExecutor(job.invoke_pool_threads)
             for call_ids_range in iterchunks(callids_to_invoke_direct, job.chunksize):
-                future = executor.submit(self._invoke_task, job, call_ids_range)
+                future = self.executor.submit(self._invoke_task, job, call_ids_range)
                 future.add_done_callback(_callback)
                 invoke_futures.append(future)
 
@@ -444,9 +464,13 @@ class FaaSInvoker(Invoker):
         """
         Run a job
         """
-        job_monitor = self.job_monitor.create(job, self.internal_storage, generate_tokens=True)
         futures = self._run_job(job)
-        job_monitor.start()
+        self.job_monitor.start(
+            fs=futures,
+            job_id=job.job_id,
+            chunksize=job.chunksize,
+            generate_tokens=True
+        )
 
         return futures
 

@@ -18,14 +18,20 @@ Lithops with Ceph storage backend.
 ```yaml
     lithops:
         storage: ceph
-        storage_bucket: <BUCKET_NAME>
 
     ceph:
+        storage_bucket: <BUCKET_NAME>
         endpoint: <ENDPOINT_URL>
-        access_key: <ACCESS_KEY>
-        secret_key: <ACCESS_KEY>
+        access_key_id: <ACCESS_KEY>
+        secret_access_key: <SECRET_ACCESS_KEY>
 ```
 
-- `endpoint`: The host ip adress where you installed the Redis server.
-- `access_key`, `secret_key`: Access KEy and Secret key provided when you created the user
  
+#### Summary of configuration keys for Ceph:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|ceph | endpoint | |yes | The host ip adress where you installed the Ceph server. Must start with http:// or https:// |
+|ceph | access_key_id | |yes | Account user access key |
+|ceph | secret_access_key | |yes | Account user secret access key |
+|ceph | storage_bucket | | yes | The name of a bucket that exists in you account. This will be used by Lithops for intermediate data. If set, this will overwrite the `storage_bucket` set in `lithops` section |

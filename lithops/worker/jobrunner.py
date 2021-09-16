@@ -32,11 +32,11 @@ from distutils.util import strtobool
 from lithops.storage import Storage
 from lithops.wait import wait
 from lithops.future import ResponseFuture
-from lithops.utils import sizeof_fmt, is_object_processing_function, verify_args
+from lithops.utils import sizeof_fmt, is_object_processing_function, FuturesList,\
+    verify_args
 from lithops.utils import WrappedStreamingBodyPartition
 from lithops.util.metrics import PrometheusExporter
 from lithops.storage.utils import create_output_key
-from lithops.constants import JOBS_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -63,8 +63,7 @@ class JobRunner:
         self.internal_storage = internal_storage
         self.lithops_config = job.config
 
-        self.output_key = create_output_key(JOBS_PREFIX, self.job.executor_id,
-                                            self.job.job_id, self.job.id)
+        self.output_key = create_output_key(job.executor_id, job.job_id, job.call_id)
 
         # Setup stats class
         self.stats = JobStats(self.job.stats_file)
@@ -81,7 +80,8 @@ class JobRunner:
         func_sig = inspect.signature(function)
 
         if len(data) == 1 and 'future' in data:
-            out = [data.pop('future').result()]
+            # Function chaining feature
+            out = [data.pop('future').result(internal_storage=self.internal_storage)]
             data.update(verify_args(function, out, None)[0])
 
         if 'ibm_cos' in func_sig.parameters:
@@ -107,7 +107,7 @@ class JobRunner:
                 raise Exception('Cannot create the rabbitmq client: missing configuration')
 
         if 'id' in func_sig.parameters:
-            data['id'] = int(self.job.id)
+            data['id'] = int(self.job.call_id)
 
     def _wait_futures(self, data):
         logger.info('Reduce function: waiting for map results')
@@ -191,6 +191,8 @@ class JobRunner:
         logger.debug("Process started")
         result = None
         exception = False
+        fn_name = None
+
         try:
             func = pickle.loads(self.job.func)
             data = pickle.loads(self.job.data)
@@ -205,13 +207,16 @@ class JobRunner:
             fn_name = func.__name__ if inspect.isfunction(func) \
                 or inspect.ismethod(func) else type(func).__name__
 
-            self.prometheus.send_metric(name='function_start',
-                                        value=time.time(),
-                                        labels=(
-                                            ('job_id', '-'.join([self.job.executor_id, self.job.job_id])),
-                                            ('call_id', self.job.id),
-                                            ('function_name', fn_name)
-                                        ))
+            self.prometheus.send_metric(
+                name='function_start',
+                value=time.time(),
+                type='gauge',
+                labels=(
+                    ('job_id', self.job.job_key),
+                    ('call_id', '-'.join([self.job.job_key, self.job.call_id])),
+                    ('function_name', fn_name or 'undefined')
+                )
+            )
 
             logger.info("Going to execute '{}()'".format(str(fn_name)))
             print('---------------------- FUNCTION LOG ----------------------')
@@ -221,22 +226,14 @@ class JobRunner:
             print('----------------------------------------------------------')
             logger.info("Success function execution")
 
-            self.prometheus.send_metric(name='function_end',
-                                        value=time.time(),
-                                        labels=(
-                                            ('job_id', '-'.join([self.job.executor_id, self.job.job_id])),
-                                            ('call_id', self.job.id),
-                                            ('function_name', fn_name)
-                                        ))
-
             self.stats.write('worker_func_start_tstamp', function_start_tstamp)
             self.stats.write('worker_func_end_tstamp', function_end_tstamp)
             self.stats.write('worker_func_exec_time', round(function_end_tstamp-function_start_tstamp, 8))
 
             # Check for new futures
             if result is not None:
-                if isinstance(result, ResponseFuture) or \
-                   (type(result) == list and len(result) > 0 and isinstance(result[0], ResponseFuture)):
+                if isinstance(result, ResponseFuture) or isinstance(result, FuturesList) \
+                   or (type(result) == list and len(result) > 0 and isinstance(result[0], ResponseFuture)):
                     self.stats.write('new_futures', pickle.dumps(result))
                     result = None
                 else:
@@ -282,6 +279,17 @@ class JobRunner:
                 self.stats.write("exc_info", str(pickled_exc))
 
         finally:
+            self.prometheus.send_metric(
+                name='function_end',
+                value=time.time(),
+                type='gauge',
+                labels=(
+                    ('job_id', self.job.job_key),
+                    ('call_id', '-'.join([self.job.job_key, self.job.call_id])),
+                    ('function_name', fn_name or 'undefined')
+                )
+            )
+
             store_result = strtobool(os.environ.get('STORE_RESULT', 'True'))
             if result is not None and store_result and not exception:
                 output_upload_start_tstamp = time.time()

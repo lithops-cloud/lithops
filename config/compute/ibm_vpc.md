@@ -32,15 +32,15 @@ In this mode, Lithops will automatically create new worker VM instances in runti
 Edit your lithops config and add the relevant keys:
 
 ```yaml
+lithops:
+    mode: standalone
+
 ibm:
     iam_api_key: <iam-api-key>
 
 standalone:
     backend: ibm_vpc
     exec_mode: create
-    #optional
-    # Use False for custom image that contains Lithops runtime
-    #pull_runtime: <True/False>
 
 ibm_vpc:
     endpoint: <REGION_ENDPOINT>
@@ -100,10 +100,12 @@ This will create 4 different VM instance and execute `my_map_function` in the ea
 |ibm_vpc | security_group_id | | yes | Security group id |
 |ibm_vpc | subnet_id | | yes | Subnet id |
 |ibm_vpc | key_id | | yes | Ssh public key id |
-|ibm_vpc | ssh_user | root |no | Username to access the VPC |
-|ibm_vpc | ssh_key_filename | | no | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
+|ibm_vpc | ssh_username | root |no | Username to access the VPC |
+|ibm_vpc | ssh_password | root |no | Password for accessing the worker VMs|
+|ibm_vpc | ssh_key_filename | | no | Path to the ssh key file provided to access the VPC. It will use the default path if not provided |
 |ibm_vpc | image_id | | no | Virtual machine image id |
-|ibm_vpc | volume_tier_name | general-purpose | no | Virtual machine volume tier |
+|ibm_vpc | boot_volume_profile | general-purpose | no | Virtual machine boot volume profile |
+|ibm_vpc | boot_volume_capacity | 100 | no | Virtual machine boot volume capacity in GB |
 |ibm_vpc | profile_name | cx2-2x4 | no | Profile name for the worker VMs |
 |ibm_vpc | master_profile_name | cx2-2x4 | no | Profile name for the master VM |
 |ibm_vpc | delete_on_dismantle | True | no | Delete the worekr VMs when they are stopped |
@@ -142,14 +144,6 @@ Edit your lithops config and add the relevant keys:
       endpoint   : <REGION_ENDPOINT>
       instance_id : <INSTANCE ID OF THE VM>
       ip_address  : <FLOATING IP ADDRESS OF THE VM>
-
-      #optional
-
-      # SSH user to access VPC.
-      ssh_user : <SSH_USER_FOR_VPC> # Default is 'root'
-      #Path to the ssh key file provided to create the VM.
-      ssh_key_filename : <PATH_TO_SSH_KEYFILE> # Default path in OS
-
    ```
 
 If you need to create new VM, then follow the steps to create and update Lithops configuration:
@@ -168,7 +162,6 @@ If you need to create new VM, then follow the steps to create and update Lithops
 |ibm_vpc | instance_id | | yes | virtual server instance ID |
 |ibm_vpc | ip_address | | yes | Floatting IP address atached to your Vm instance|
 |ibm_vpc | ssh_key_filename | | no | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
-|ibm_vpc | delete_on_dismantle | False| no | Delete the VM when it is stopped |
 
 ## Viewing the execution logs
 
