@@ -54,8 +54,9 @@ class ShutdownSentinel:
 
 def function_handler(payload):
     job = SimpleNamespace(**payload)
-    processes = min(job.worker_processes, len(job.call_ids))
+    setup_lithops_logger(job.log_level)
 
+    processes = min(job.worker_processes, len(job.call_ids))
     logger.info('Tasks received: {} - Concurrent processes: {}'
                 .format(len(job.call_ids), processes))
 
@@ -76,7 +77,7 @@ def function_handler(payload):
             data = job_data.pop(0)
             job_queue.put((job, task_id, data))
         job_queue.put(ShutdownSentinel())
-        process_runner(job_queue, internal_storage)
+        process_runner(job_queue)
     else:
         manager = SyncManager()
         manager.start()
@@ -84,7 +85,7 @@ def function_handler(payload):
         job_runners = []
 
         for runner_id in range(processes):
-            p = mp.Process(target=process_runner, args=(job_queue, internal_storage))
+            p = mp.Process(target=process_runner, args=(job_queue,))
             job_runners.append(p)
             p.start()
             logger.info('Worker process {} started'.format(runner_id))
@@ -107,7 +108,7 @@ def function_handler(payload):
         sys.path.remove(module_path)
 
 
-def process_runner(job_queue, internal_storage):
+def process_runner(job_queue):
     """
     Listens the job_queue and executes the jobs
     """
@@ -133,14 +134,16 @@ def process_runner(job_queue, internal_storage):
         with open(job.log_file, 'a') as log_strem:
             job.log_stream = LogStream(log_strem)
             with custom_redirection(job.log_stream):
-                run_job(job, internal_storage)
+                run_job(job)
 
 
-def run_job(job, internal_storage):
+def run_job(job):
     """
     Runs a single job within a separate process
     """
     job_interruped = False
+    storage_config = extract_storage_config(job.config)
+    internal_storage = InternalStorage(storage_config)
     call_status = create_call_status(job, internal_storage)
     setup_lithops_logger(job.log_level)
 

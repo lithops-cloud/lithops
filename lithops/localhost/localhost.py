@@ -288,7 +288,7 @@ class DockerEnv(BaseEnv):
                f'{self.runtime} /tmp/lithops/runner.py run {job_filename}')
 
         log = open(RN_LOG_FILE, 'a')
-        process = sp.Popen(cmd, shell=True, stdout=log, stderr=log, start_new_session=True)
+        process = sp.Popen(cmd, shell=True, stdout=log, stderr=log)
         return process
 
 
