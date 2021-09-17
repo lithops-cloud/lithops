@@ -1,7 +1,18 @@
 # Changelog
 
+## [v2.5.1.dev0]
 
-## [v2.4.2.dev0]
+### Added
+- 
+
+### Changed
+- 
+
+### Fixes
+- 
+
+
+## [v2.5.0]
 
 ### Added
 - [CLI] Add new command in cli to list deployed runtimes
