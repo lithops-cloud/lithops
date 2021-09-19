@@ -4,13 +4,14 @@ import json
 import time
 import logging
 from tblib import pickling_support
+from distutils.util import strtobool
+from contextlib import contextmanager
 
 import lithops.worker
 from lithops.utils import sizeof_fmt
 from lithops.storage.utils import create_status_key, \
     create_init_key
-from distutils.util import strtobool
-from contextlib import contextmanager
+
 
 pickling_support.install()
 

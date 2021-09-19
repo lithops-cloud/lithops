@@ -104,7 +104,6 @@ class TestMap(unittest.TestCase):
         self.assertEqual(result2, [6, 8])
 
     def test_internal_executions(self):
-        return
         logger.info('Testing internal executions')
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map(lithops_inside_lithops_map_function, range(1, 5))
