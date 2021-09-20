@@ -138,7 +138,22 @@ Deletes all runtimes created/deployed in the compute backend that matches the pr
 
 ## Logs management
 
+### `lithops logs poll`
+Prints to the screen the Lithops function logs as they are produced.
 
 
+* **Usage example**:
+   `lithops logs poll`
+
+### `lithops logs get <job-key>`
+Prints to the screen the Lithops function of a specific job.
+
+|Parameter | Description|
+|---|---|
+|<job-key>| Job key|
+
+
+* **Usage example**:
+   `lithops logs get fa6071-26-M000`
 
 ## Storage management
