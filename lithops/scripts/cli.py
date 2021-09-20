@@ -231,21 +231,6 @@ def delete_object(bucket, key, prefix, backend, debug):
         logger.info('Object deleted successfully')
 
 
-@storage.command('empty')
-@click.argument('bucket')
-@click.option('--backend', '-b', default=None, help='storage backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
-def empty_bucket(bucket, backend, debug):
-    log_level = logging.INFO if not debug else logging.DEBUG
-    setup_lithops_logger(log_level)
-    storage = Storage(backend=backend)
-    logger.info('Deleting all objects in bucket "{}"'.format(bucket))
-    keys = storage.list_keys(bucket)
-    logger.info('Total objects found: {}'.format(len(keys)))
-    storage.delete_objects(bucket, keys)
-    logger.info('All objects deleted successfully')
-
-
 @storage.command('list')
 @click.argument('bucket')
 @click.option('--prefix', '-p', default=None, help='key prefix')

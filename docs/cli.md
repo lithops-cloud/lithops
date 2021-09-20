@@ -156,4 +156,73 @@ Prints to the screen the Lithops function of a specific job.
 * **Usage example**:
    `lithops logs get fa6071-26-M000`
 
+
 ## Storage management
+Lithops storage tool can manage all your configured storage backends with the same set of commands.
+
+### `lithops storage put <filename> <bucket>`
+Uploads a local file to a bucket.
+
+|Parameter | Description|
+|---|---|
+|<filename>| Path of your local file|
+|<bucket>| Name of the destination bucket|
+|--config, -c | Path to your config file|
+|--backend, -b |  Storage backend name|
+|--debug, -d | Activate debug logs (Flag)|
+
+* **Usage example**:
+   `lithops storage put -b ibm_cos test.txt cloudbucket`
+
+
+### `lithops storage get <bucket> <key>`
+Downloads a remote object stored in a bucket to a local file.
+
+|Parameter | Description|
+|---|---|
+|<bucket>| Name of the source bucket|
+|<key>| Key of the object|
+|--config, -c | Path to your config file|
+|--backend, -b |  Storage backend name|
+|--debug, -d | Activate debug logs (Flag)|
+
+* **Usage example**:
+   `lithops storage get -b ibm_cos cloudbucket test.txt`
+
+
+### `lithops storage delete <bucket> <key>`
+Deletes objects from a given bucket.
+
+|Parameter | Description|
+|---|---|
+|<bucket> | Name of the source bucket|
+|<key> | Key of the object. Not mandatory|
+|--prefix, -p |  Prefix of the objects to delete|
+|--config, -c | Path to your config file|
+|--backend, -b |  Storage backend name|
+|--debug, -d | Activate debug logs (Flag)|
+
+* **Usage example**:
+   - To delete a given object:`lithops storage delete -b ibm_cos cloudbucket test.txt`
+   
+   - To delete all objects that start with given prefix :`lithops storage delete -b ibm_cos cloudbucket -p test/`
+   
+   - To delete all the objects (empty the bucket): `lithops storage delete -b ibm_cos cloudbucket`
+
+
+### `lithops storage list <bucket>`
+Deletes objects from a given bucket.
+
+|Parameter | Description|
+|---|---|
+|<bucket> | Name of the bucket|
+|--prefix, -p |  Prefix of the objects to list|
+|--config, -c | Path to your config file|
+|--backend, -b |  Storage backend name|
+|--debug, -d | Activate debug logs (Flag)|
+
+* **Usage example**:
+   - To list all the objects in a bucket:`lithops storage list -b ibm_cos cloudbucket`
+   
+   - To list all objects that start with given prefix :`lithops storage list -b ibm_cos cloudbucket -p test/`
+  
