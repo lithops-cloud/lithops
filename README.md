@@ -30,7 +30,7 @@ Lithops is specially suited for highly-parallel programs with little or no need 
     $ pip install lithops
     ```
 
-2. Execute a *Hello World* function by running the next command:
+2. Execute a *Hello World* test function:
   
    ```bash
    $ lithops test
@@ -39,11 +39,11 @@ Lithops is specially suited for highly-parallel programs with little or no need 
 ## Configuration
 Lithops provides an extensible backend architecture (compute, storage) that is designed to work with different Cloud providers and on-premise backends. In this sense, you can code in python and run it unmodified in IBM Cloud, AWS, Azure, Google Cloud and Alibaba Aliyun. Moreover, it provides support for running jobs on vanilla kubernetes, or by using a kubernetes serverless framework like Knative or OpenWhisk.
 
-- [Follow these instructions to configure your compute and storage backends](config/)
+[Follow these instructions to configure your compute and storage backends](config/)
 
 <p align="center">
 <a href="config/README.md#compute-and-storage-backends">
-<img src="docs/images/multicloud.jpg" alt="Multicloud Lithops" width='100%' title="Multicloud Lithops"/>
+<img src="docs/images/multicloud.jpg" alt="Multicloud Lithops" title="Multicloud Lithops"/>
 </a>
 </p>
 
