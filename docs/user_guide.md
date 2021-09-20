@@ -37,3 +37,6 @@
 11. [Lithops end-to-end Applications](https://github.com/lithops-cloud/applications)
 
 12. [Build and manage custom runtimes to run the functions](../runtime/)
+
+13. [Command Line Tool](cli.md)
+

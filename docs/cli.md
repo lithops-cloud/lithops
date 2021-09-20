@@ -62,7 +62,7 @@ Build a new runtime image. Depending of the compute backend, there must be a Doc
 
 |Parameter | Description|
 |---|---|
-|<runtime-name>| Name of your runtime|
+|runtime-name| Name of your runtime|
 |--file, -f | Path to Dockerfile/requirements|
 |--config, -c | Path to your config file|
 |--backend, -b |  Compute backend name|
@@ -78,7 +78,7 @@ Creates/deploy a new Lithops runtime based on a image built with the previous co
 
 |Parameter | Description|
 |---|---|
-|<runtime-name>| Name of your runtime|
+|runtime-name| Name of your runtime|
 |--config, -c | Path to your config file|
 |--backend, -b |  Compute backend name|
 |--storage, -s | Storage backend name|
@@ -96,7 +96,7 @@ Updates an already created/deployed runtime with the local lithops code. This co
 
 |Parameter | Description|
 |---|---|
-|<runtime-name>| Name of your runtime|
+|runtime-name| Name of your runtime|
 |--config, -c | Path to your config file|
 |--backend, -b |  Compute backend name|
 |--storage, -s | Storage backend name|
@@ -126,7 +126,7 @@ Deletes all runtimes created/deployed in the compute backend that matches the pr
 
 |Parameter | Description|
 |---|---|
-|<runtime-name>| Name of your runtime|
+|runtime-name| Name of your runtime|
 |--config, -c | Path to your config file|
 |--backend, -b |  Compute backend name|
 |--storage, -s | Storage backend name|
@@ -150,7 +150,7 @@ Prints to the screen the Lithops function of a specific job.
 
 |Parameter | Description|
 |---|---|
-|<job-key>| Job key|
+|job-key| Job key|
 
 
 * **Usage example**:
@@ -165,8 +165,8 @@ Uploads a local file to a bucket.
 
 |Parameter | Description|
 |---|---|
-|<filename>| Path of your local file|
-|<bucket>| Name of the destination bucket|
+|filename| Path of your local file|
+|bucket| Name of the destination bucket|
 |--config, -c | Path to your config file|
 |--backend, -b |  Storage backend name|
 |--debug, -d | Activate debug logs (Flag)|
@@ -180,8 +180,8 @@ Downloads a remote object stored in a bucket to a local file.
 
 |Parameter | Description|
 |---|---|
-|<bucket>| Name of the source bucket|
-|<key>| Key of the object|
+|bucket| Name of the source bucket|
+|key| Key of the object|
 |--config, -c | Path to your config file|
 |--backend, -b |  Storage backend name|
 |--debug, -d | Activate debug logs (Flag)|
@@ -195,8 +195,8 @@ Deletes objects from a given bucket.
 
 |Parameter | Description|
 |---|---|
-|<bucket> | Name of the source bucket|
-|<key> | Key of the object. Not mandatory|
+|bucket | Name of the source bucket|
+|key | Key of the object. Not mandatory|
 |--prefix, -p |  Prefix of the objects to delete|
 |--config, -c | Path to your config file|
 |--backend, -b |  Storage backend name|
@@ -215,7 +215,7 @@ Deletes objects from a given bucket.
 
 |Parameter | Description|
 |---|---|
-|<bucket> | Name of the bucket|
+|bucket | Name of the bucket|
 |--prefix, -p |  Prefix of the objects to list|
 |--config, -c | Path to your config file|
 |--backend, -b |  Storage backend name|
