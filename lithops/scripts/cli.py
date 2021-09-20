@@ -102,16 +102,16 @@ def clean(config, backend, storage, debug):
 
 
 @lithops_cli.command('verify')
+@click.option('--config', '-c', default=None, help='Path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='Compute backend')
+@click.option('--storage', '-s', default=None, help='Storage backend')
+@click.option('--debug', '-d', is_flag=True, help='Debug mode')
 @click.option('--test', '-t', default='all', help='Run a specific tester. To avoid running similarly named tests '
                                                   'you may prefix the tester with its test class, '
                                                   'e.g. TestClass.test_name. '
                                                   'Type "-t help" for the complete tests list')
-@click.option('--config', '-c', default=None, help='Path to yaml config file', type=click.Path(exists=True))
-@click.option('--backend', '-b', default=None, help='Compute backend')
 @click.option('--groups', '-g', default=None, help='Run all testers belonging to a specific group.'
                                                    ' type "-g help" for groups list')
-@click.option('--storage', '-s', default=None, help='Storage backend')
-@click.option('--debug', '-d', is_flag=True, help='Debug mode')
 @click.option('--fail_fast', '-f', is_flag=True, help='Stops test run upon first occurrence of a failed test')
 @click.option('--keep_datasets', '-k', is_flag=True, help='keeps datasets in storage after the test run. '
                                                           'Meant to serve some use-cases in github workflow.')
@@ -229,21 +229,6 @@ def delete_object(bucket, key, prefix, backend, debug):
         logger.info('Deleting {} objects with prefix "{}" from bucket "{}"'.format(len(objs), prefix, bucket))
         storage.delete_objects(bucket, objs)
         logger.info('Object deleted successfully')
-
-
-@storage.command('empty')
-@click.argument('bucket')
-@click.option('--backend', '-b', default=None, help='storage backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
-def empty_bucket(bucket, backend, debug):
-    log_level = logging.INFO if not debug else logging.DEBUG
-    setup_lithops_logger(log_level)
-    storage = Storage(backend=backend)
-    logger.info('Deleting all objects in bucket "{}"'.format(bucket))
-    keys = storage.list_keys(bucket)
-    logger.info('Total objects found: {}'.format(len(keys)))
-    storage.delete_objects(bucket, keys)
-    logger.info('All objects deleted successfully')
 
 
 @storage.command('list')

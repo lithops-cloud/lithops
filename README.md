@@ -132,23 +132,23 @@ with Pool() as pool:
 from lithops import Storage
 
 if __name__ == "__main__":
-    storage = Storage()
-    storage.put_object(bucket='mybucket',
-                       key='test.txt',
-                       body='Hello World')
+    st = Storage()
+    st.put_object(bucket='mybucket',
+                  key='test.txt',
+                  body='Hello World')
 
-    print(storage.get_object(bucket='mybucket',
-                             key='test.txt'))
+    print(st.get_object(bucket='mybucket',
+                        key='test.txt'))
 ```
 </td>
 <td>
 
 ```python
-from lithops.storage.cloud_proxy import open, os
+from lithops.storage.cloud_proxy import os
 
 if __name__ == "__main__":
     filepath = 'bar/foo.txt'
-    with open(filepath, 'w') as f:
+    with os.open(filepath, 'w') as f:
         f.write('Hello world!')
 
     dirname = os.path.dirname(filepath)

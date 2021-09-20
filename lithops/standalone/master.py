@@ -174,6 +174,7 @@ def run_job_local(work_queue):
 
         while True:
             job_payload = work_queue.get()
+            job_payload['config']['lithops']['backend'] = 'localhost'
             localhos_handler.invoke(job_payload)
 
     except Exception as e:
