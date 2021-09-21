@@ -35,7 +35,7 @@ Runs a *hello-world* test function.
 
 
 ### `lithops verify`
-Runs the unit testing suite.
+Runs the unit testing suite. For more instructions about testing [view this page](testing.md).
 
 |Parameter | Description|
 |---|---|
