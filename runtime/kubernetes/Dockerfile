@@ -21,6 +21,7 @@ RUN pip install --upgrade setuptools six pip \
         glob2 \
         ibm-cos-sdk \
         redis \
+        gevent \
         requests \
         PyYAML \
         kubernetes \
