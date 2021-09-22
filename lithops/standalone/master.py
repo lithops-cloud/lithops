@@ -258,8 +258,12 @@ def get_task(job_key):
     """
     global WORK_QUEUES
     global JOB_PROCESSES
+    global WORKERS_STATES
 
     try:
+        worker_ip = flask.request.remote_addr
+        
+
         task_payload = WORK_QUEUES.setdefault(job_key, MP_MANAGER.Queue()).get(timeout=0.1)
         response = flask.jsonify(task_payload)
         response.status_code = 200
