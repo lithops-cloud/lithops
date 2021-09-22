@@ -188,6 +188,9 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
            config_data[constants.SERVERLESS] is None:
             config_data[constants.SERVERLESS] = {}
 
+        if backend not in config_data or config_data[backend] is None:
+            config_data[backend] = {}
+
         if 'runtime' in config_overwrite:
             config_data[backend]['runtime'] = config_overwrite['runtime']
 
