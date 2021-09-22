@@ -39,7 +39,7 @@ FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_codeengine.zip')
 
 VALID_CPU_VALUES = [0.125, 0.25, 0.5, 1, 2, 4, 6, 8]
 VALID_MEMORY_VALUES = [256, 512, 1024, 2048, 4096, 8192, 12288, 16384, 24576, 32768]
-VALID_REGIONS = ['us-south', 'jp-tok', 'eu-de', 'eu-gb']
+VALID_REGIONS = ['us-south', 'ca-tor', 'eu-de', 'eu-gb', 'jp-osa', 'jp-tok']
 
 CLUSTER_URL = 'https://proxy.{}.codeengine.cloud.ibm.com'
 
@@ -194,7 +194,6 @@ def load_config(config_data):
                         '{}'.format(runtime_memory, VALID_MEMORY_VALUES))
 
     region = config_data['code_engine'].get('region')
-    get_ce_regions()
     if region and region not in VALID_REGIONS:
         raise Exception('{} is an invalid region name. Set one of: '
                         '{}'.format(region, VALID_REGIONS))
@@ -203,17 +202,3 @@ def load_config(config_data):
        config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
 
-
-def get_ce_regions():
-    """initializes a list of the available regions in which a user can create a code engine project"""
-    global VALID_REGIONS
-
-    try:
-        response = requests.get(
-            'https://globalcatalog.cloud.ibm.com/api/v1/814fb158-af9c-4d3c-a06b-c7da42392845/%2A').json()
-    except:
-        VALID_REGIONS = ['us-south', 'ca-tor', 'eu-de', 'eu-gb', 'jp-osa', 'jp-tok']
-        return
-
-    for resource in response['resources']:
-        VALID_REGIONS.append(resource['geo_tags'][0])
