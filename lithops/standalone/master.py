@@ -54,6 +54,10 @@ LOCALHOST_MANAGER_PROCESS = None
 EXEC_MODE = 'consume'
 WORKERS = MP_MANAGER.list()
 
+# worker heartbeat timeout in seconds. used in reuse mode. 
+# worker sends heartbeat by invoking get_tasks each ~1sec
+WORKER_HEARTBEAT = 20
+
 
 def is_worker_instance_ready(vm):
     """
@@ -239,7 +243,10 @@ def get_workers():
         vm = STANDALONE_HANDLER.backend.get_vm(w['instance_name'])
         vm.ip_address = w['ip_address']
         vm.instance_id = w['instance_id']
-        if is_worker_instance_ready(vm):
+
+        # either available via ssh, to cover case when worker service not running yet
+        # or via heartbeat
+        if is_worker_instance_ready(vm) or (time.time() - w['heartbeat'] < WORKER_HEARTBEAT):
             workers.append(w)
         else:
             # delete worker in case it is not available. may cover edge cases when for some reason keeper not started on worker
@@ -258,11 +265,13 @@ def get_task(job_key):
     """
     global WORK_QUEUES
     global JOB_PROCESSES
-    global WORKERS_STATES
+    global WORKERS
 
     try:
+        # track active workers
         worker_ip = flask.request.remote_addr
-        
+        w = next(worker for worker in WORKERS if worker['ip_address'] == worker_ip)
+        w['heartbeat'] = time.time()        
 
         task_payload = WORK_QUEUES.setdefault(job_key, MP_MANAGER.Queue()).get(timeout=0.1)
         response = flask.jsonify(task_payload)
