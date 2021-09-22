@@ -192,8 +192,9 @@ class StandaloneHandler:
 
         elif self.exec_mode == 'reuse':
             workers = get_workers_on_master()
-            total_workers = len(workers)
-            if total_workers == 0:
+            if workers:
+                total_workers = len(workers)
+            if not workers:
                 self.backend.workers = []
                 workers = create_workers()
                 total_workers = len(workers)
