@@ -54,10 +54,10 @@ LOCALHOST_MANAGER_PROCESS = None
 EXEC_MODE = 'consume'
 WORKERS = MP_MANAGER.list()
 
-# worker heartbeat timeout in seconds. used in reuse mode. 
+# worker heartbeat timeout in seconds. used in reuse mode.
 # worker sends heartbeat by invoking get_tasks each ~1sec
 WORKER_HEARTBEAT = 20
-
+WORKERS_STATE = {}
 
 def is_worker_instance_ready(vm):
     """
@@ -236,7 +236,8 @@ def get_workers():
     TODO - add support to list only available workers when each worker updates itself in WORKERS via POST
     TODO - job.done for master is not same as job.done for worker, can be improved by touch on master from worker instead of touch on master
     """
-    logger.debug(f'in get_workers, workers = {WORKERS}')
+
+    logger.debug(f'in get_workers, workers = {WORKERS}, workers state: {WORKERS_STATE}')
 
     workers = []
     for w in WORKERS:
@@ -246,7 +247,8 @@ def get_workers():
 
         # either available via ssh, to cover case when worker service not running yet
         # or via heartbeat
-        if is_worker_instance_ready(vm) or (time.time() - w['heartbeat'] < WORKER_HEARTBEAT):
+        hb = WORKERS_STATE[w['ip_address']]
+        if is_worker_instance_ready(vm) or (time.time() - hb < WORKER_HEARTBEAT):
             workers.append(w)
         else:
             # delete worker in case it is not available. may cover edge cases when for some reason keeper not started on worker
@@ -264,14 +266,13 @@ def get_task(job_key):
     Returns a task from the work queue
     """
     global WORK_QUEUES
-    global JOB_PROCESSES
-    global WORKERS
+    global WORKERS_STATE
 
     try:
         # track active workers
         worker_ip = flask.request.remote_addr
-        w = next(worker for worker in WORKERS if worker['ip_address'] == worker_ip)
-        w['heartbeat'] = time.time()        
+
+        WORKERS_STATE[worker_ip] = time.time()
 
         task_payload = WORK_QUEUES.setdefault(job_key, MP_MANAGER.Queue()).get(timeout=0.1)
         response = flask.jsonify(task_payload)
