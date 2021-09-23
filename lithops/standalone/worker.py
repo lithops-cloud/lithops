@@ -62,7 +62,12 @@ def run_worker(master_ip, job_key):
     while True:
         url = 'http://{}:{}/get-task/{}'.format(master_ip, STANDALONE_SERVICE_PORT, job_key)
         logger.info('Getting task from {}'.format(url))
-        resp = requests.get(url)
+
+        try:
+            resp = requests.get(url)
+        except:
+            time.sleep(1)
+            continue
 
         if resp.status_code != 200:
             if STANDALONE_CONFIG.get('exec_mode') == 'reuse':
