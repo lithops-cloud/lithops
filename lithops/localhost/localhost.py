@@ -17,6 +17,7 @@
 import os
 import sys
 import json
+import shlex
 import queue
 import lithops
 import logging
@@ -263,11 +264,15 @@ class DockerEnv(BaseEnv):
         if not os.path.isfile(RUNNER):
             self.setup()
 
-        cmd = 'docker run ' + '--user $(id -u):$(id -g) ' if is_unix_system() else ''
+        cmd = 'docker run '
+        if is_unix_system():
+            uid = os.getuid()
+            gid = os.getuid()
+            cmd += f'--user {uid}:{gid} '
         cmd += (f'--rm -v {TEMP}:/tmp --entrypoint "python3" {self.runtime} '
                 f'/tmp/lithops/runner.py preinstalls')
 
-        process = sp.run(cmd, shell=True, check=True, stdout=sp.PIPE, universal_newlines=True)
+        process = sp.run(shlex.split(cmd), check=True, stdout=sp.PIPE, universal_newlines=True)
         runtime_meta = json.loads(process.stdout.strip())
         return runtime_meta
 
@@ -285,11 +290,15 @@ class DockerEnv(BaseEnv):
         if not os.path.isfile(RUNNER):
             self.setup()
 
-        cmd = 'docker run ' + '--user $(id -u):$(id -g) ' if is_unix_system() else ''
+        cmd = 'docker run '
+        if is_unix_system():
+            uid = os.getuid()
+            gid = os.getuid()
+            cmd += f'--user {uid}:{gid} '
         cmd += (f'--rm -v {TEMP}:/tmp --entrypoint "python3" {self.runtime} '
                 f'/tmp/lithops/runner.py run {job_filename}')
 
-        process = sp.Popen(cmd, shell=True)
+        process = sp.Popen(shlex.split(cmd))
         return process
 
 
@@ -308,8 +317,8 @@ class DefaultEnv(BaseEnv):
     def preinstalls(self):
         if not os.path.isfile(RUNNER):
             self.setup()
-        cmd = f'"{self.runtime}" "{RUNNER}" preinstalls'
-        process = sp.run(cmd, shell=True, check=True, stdout=sp.PIPE, universal_newlines=True)
+        cmd = f'{self.runtime} {RUNNER} preinstalls'
+        process = sp.run(shlex.split(cmd), check=True, stdout=sp.PIPE, universal_newlines=True)
         runtime_meta = json.loads(process.stdout.strip())
         return runtime_meta
 
@@ -327,6 +336,6 @@ class DefaultEnv(BaseEnv):
         if not os.path.isfile(RUNNER):
             self.setup()
 
-        cmd = f'"{self.runtime}" "{RUNNER}" run {job_filename}'
-        process = sp.Popen(cmd, shell=True)
+        cmd = f'{self.runtime} {RUNNER} run {job_filename}'
+        process = sp.Popen(shlex.split(cmd))
         return process

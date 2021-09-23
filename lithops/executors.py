@@ -563,8 +563,7 @@ class FunctionExecutor:
             self.cleaned_jobs.update(jobs_to_clean)
 
         if (jobs_to_clean or cs) and spawn_cleaner:
-            cmdstr = [sys.executable, '-m', 'lithops.scripts.cleaner']
-            sp.Popen(' '.join(cmdstr), shell=True)
+            sp.Popen([sys.executable, '-m', 'lithops.scripts.cleaner'], start_new_session=True)
 
     def job_summary(self,
                     cloud_objects_n: Optional[int] = 0):
