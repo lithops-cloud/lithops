@@ -25,8 +25,8 @@ import threading
 import subprocess as sp
 from shutil import copyfile
 
-from lithops.constants import TEMP, LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG, RN_LOG_FILE, JOBS_PREFIX
-from lithops.utils import is_lithops_worker
+from lithops.constants import TEMP, LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG, JOBS_PREFIX
+from lithops.utils import is_lithops_worker, is_unix_system
 
 logger = logging.getLogger(__name__)
 
@@ -263,8 +263,9 @@ class DockerEnv(BaseEnv):
         if not os.path.isfile(RUNNER):
             self.setup()
 
-        cmd = (f'docker run --rm -v {TEMP}:/tmp --entrypoint "python3" '
-               f'{self.runtime} /tmp/lithops/runner.py preinstalls')
+        cmd = 'docker run ' + '--user $(id -u):$(id -g) ' if is_unix_system() else ''
+        cmd += (f'--rm -v {TEMP}:/tmp --entrypoint "python3" {self.runtime} '
+                f'/tmp/lithops/runner.py preinstalls')
 
         process = sp.run(cmd, shell=True, check=True, stdout=sp.PIPE, universal_newlines=True)
         runtime_meta = json.loads(process.stdout.strip())
@@ -284,11 +285,11 @@ class DockerEnv(BaseEnv):
         if not os.path.isfile(RUNNER):
             self.setup()
 
-        cmd = (f'docker run --rm -v {TEMP}:/tmp --entrypoint "python3" '
-               f'{self.runtime} /tmp/lithops/runner.py run {job_filename}')
+        cmd = 'docker run ' + '--user $(id -u):$(id -g) ' if is_unix_system() else ''
+        cmd += (f'--rm -v {TEMP}:/tmp --entrypoint "python3" {self.runtime} '
+                f'/tmp/lithops/runner.py run {job_filename}')
 
-        log = open(RN_LOG_FILE, 'a')
-        process = sp.Popen(cmd, shell=True, stdout=log, stderr=log)
+        process = sp.Popen(cmd, shell=True)
         return process
 
 
@@ -327,6 +328,5 @@ class DefaultEnv(BaseEnv):
             self.setup()
 
         cmd = f'"{self.runtime}" "{RUNNER}" run {job_filename}'
-        log = open(RN_LOG_FILE, 'a')
-        process = sp.Popen(cmd, shell=True, stdout=log, stderr=log)
+        process = sp.Popen(cmd, shell=True)
         return process

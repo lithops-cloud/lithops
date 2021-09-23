@@ -181,6 +181,8 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
         if 'runtime' not in config_data[constants.LOCALHOST]:
             config_data[constants.LOCALHOST]['runtime'] = constants.LOCALHOST_RUNTIME_DEFAULT
 
+        config_data['lithops']['execution_timeout'] = constants.EXECUTION_TIMEOUT_LOCALHOST_DEFAULT
+
         verify_runtime_name(config_data[constants.LOCALHOST]['runtime'])
 
     elif mode == constants.SERVERLESS:
