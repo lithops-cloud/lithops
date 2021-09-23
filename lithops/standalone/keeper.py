@@ -74,7 +74,9 @@ class BudgetKeeper(threading.Thread):
                 done = os.path.join(JOBS_DIR, job_key+'.done')
                 if os.path.isfile(done):
                     self.jobs[job_key] = 'done'
-                    os.remove(done)
+
+            logger.debug(f"self.jobs: {self.jobs}")
+
             if len(self.jobs) > 0 and all(value == 'done' for value in self.jobs.values()) \
                and self.auto_dismantle:
 
