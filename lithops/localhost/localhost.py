@@ -17,6 +17,7 @@
 import os
 import sys
 import json
+import shlex
 import queue
 import lithops
 import logging
@@ -25,8 +26,8 @@ import threading
 import subprocess as sp
 from shutil import copyfile
 
-from lithops.constants import TEMP, LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG, RN_LOG_FILE, JOBS_PREFIX
-from lithops.utils import is_lithops_worker
+from lithops.constants import TEMP, LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG, JOBS_PREFIX
+from lithops.utils import is_lithops_worker, is_unix_system
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,6 @@ class LocalhostHandler:
         logger.debug('Creating Localhost compute client')
         self.config = localhost_config
 
-        self.jobs = {}  # dict to store executed jobs (job_keys) and PIDs
         self.env = {}  # dict to store environments
         self.job_queue = queue.Queue()
         self.job_manager = None
@@ -73,11 +73,9 @@ class LocalhostHandler:
                     break
                 executor_id = job_payload['executor_id']
                 job_id = job_payload['job_id']
-                job_key = job_payload['job_key']
                 runtime_name = job_payload['runtime_name']
                 env = self.get_env(runtime_name)
                 process = env.run(job_payload, job_filename)
-                self.jobs[job_key] = process
                 process.communicate()  # blocks until the process finishes
                 logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Execution finished')
                 if self.job_queue.empty():
@@ -171,28 +169,8 @@ class LocalhostHandler:
             except Exception:
                 pass
 
-        if job_keys:
-            for job_key in job_keys:
-                try:
-                    # None means alive
-                    if job_key not in self.jobs or \
-                       self.jobs[job_key].poll() is not None:
-                        continue
-                    logger.debug(f'Killing job {job_key} with '
-                                 f'PID {self.jobs[job_key].pid}')
-                    self.jobs[job_key].kill()
-                except Exception:
-                    pass
-        else:
-            for job_key in self.jobs:
-                try:
-                    if self.jobs[job_key].poll() is not None:
-                        continue
-                    logger.debug(f'Killing job {job_key} with '
-                                 f'PID {self.jobs[job_key].pid}')
-                    self.jobs[job_key].kill()
-                except Exception:
-                    pass
+        for runtime_name in self.env:
+            self.env[runtime_name].stop(job_keys)
 
         if self.job_manager:
             self.job_queue.put((None, None))
@@ -204,6 +182,7 @@ class BaseEnv():
     """
     def __init__(self, runtime):
         self.runtime = runtime
+        self.jobs = {}  # dict to store executed jobs (job_keys) and PIDs
 
     def _copy_lithops_to_tmp(self):
         if is_lithops_worker() and os.path.isfile(RUNNER):
@@ -241,6 +220,34 @@ class BaseEnv():
 
         return job_filename
 
+    def stop(self, job_keys=None):
+        """
+        Stops running processes
+        """
+        if job_keys:
+            for job_key in job_keys:
+                try:
+                    # None means alive
+                    if job_key not in self.jobs or \
+                       self.jobs[job_key].poll() is not None:
+                        continue
+                    logger.debug(f'Killing job {job_key} with '
+                                 f'PID {self.jobs[job_key].pid}')
+                    self.jobs[job_key].kill()
+                    del self.jobs[job_key]
+                except Exception:
+                    pass
+        else:
+            for job_key in self.jobs.keys():
+                try:
+                    if self.jobs[job_key].poll() is not None:
+                        continue
+                    logger.debug(f'Killing job {job_key} with '
+                                 f'PID {self.jobs[job_key].pid}')
+                except Exception:
+                    pass
+            self.jobs = {}
+
 
 class DockerEnv(BaseEnv):
     """
@@ -250,23 +257,26 @@ class DockerEnv(BaseEnv):
         logger.debug(f'Starting Docker Environment for {docker_image}')
         super().__init__(runtime=docker_image)
         self.pull_runtime = pull_runtime
+        self.uid = os.getuid() if is_unix_system() else None
+        self.gid = os.getuid() if is_unix_system() else None
 
     def setup(self):
         logger.debug(f'Setting up Docker environment')
         self._copy_lithops_to_tmp()
         if self.pull_runtime:
             logger.debug('Pulling Docker runtime {}'.format(self.runtime))
-            sp.run('docker pull {}'.format(self.runtime), shell=True, check=True,
+            sp.run(shlex.split(f'docker pull {self.runtime}'), check=True,
                    stdout=sp.PIPE, universal_newlines=True)
 
     def preinstalls(self):
         if not os.path.isfile(RUNNER):
             self.setup()
 
-        cmd = (f'docker run --rm -v {TEMP}:/tmp --entrypoint "python3" '
-               f'{self.runtime} /tmp/lithops/runner.py preinstalls')
+        cmd = 'docker run ' + f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
+        cmd += (f'--rm -v {TEMP}:/tmp --entrypoint "python3" {self.runtime} '
+                f'/tmp/lithops/runner.py preinstalls')
 
-        process = sp.run(cmd, shell=True, check=True, stdout=sp.PIPE, universal_newlines=True)
+        process = sp.run(shlex.split(cmd), check=True, stdout=sp.PIPE, universal_newlines=True)
         runtime_meta = json.loads(process.stdout.strip())
         return runtime_meta
 
@@ -277,6 +287,7 @@ class DockerEnv(BaseEnv):
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
         total_calls = len(job_payload['call_ids'])
+        job_key = job_payload['job_key']
 
         logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going to '
                      f'run {total_calls} activations in the localhost worker')
@@ -284,12 +295,29 @@ class DockerEnv(BaseEnv):
         if not os.path.isfile(RUNNER):
             self.setup()
 
-        cmd = (f'docker run --rm -v {TEMP}:/tmp --entrypoint "python3" '
-               f'{self.runtime} /tmp/lithops/runner.py run {job_filename}')
+        name = f'lithops_{job_key}'
+        cmd = f'docker run --name {name} ' + f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
+        cmd += (f'--rm -v {TEMP}:/tmp --entrypoint "python3" {self.runtime} '
+                f'/tmp/lithops/runner.py run {job_filename}')
 
-        log = open(RN_LOG_FILE, 'a')
-        process = sp.Popen(cmd, shell=True, stdout=log, stderr=log)
+        process = sp.Popen(shlex.split(cmd))
+        self.jobs[job_key] = process
+
         return process
+
+    def stop(self, job_keys=None):
+        """
+        Stops running containers
+        """
+        if job_keys:
+            for job_key in job_keys:
+                sp.Popen(shlex.split(f'docker rm -f lithops_{job_key}'),
+                         stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+        else:
+            for job_key in self.jobs:
+                sp.Popen(shlex.split(f'docker rm -f lithops_{job_key}'),
+                         stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+        super().stop(job_keys)
 
 
 class DefaultEnv(BaseEnv):
@@ -307,8 +335,8 @@ class DefaultEnv(BaseEnv):
     def preinstalls(self):
         if not os.path.isfile(RUNNER):
             self.setup()
-        cmd = f'"{self.runtime}" "{RUNNER}" preinstalls'
-        process = sp.run(cmd, shell=True, check=True, stdout=sp.PIPE, universal_newlines=True)
+        cmd = f'{self.runtime} {RUNNER} preinstalls'
+        process = sp.run(shlex.split(cmd), check=True, stdout=sp.PIPE, universal_newlines=True)
         runtime_meta = json.loads(process.stdout.strip())
         return runtime_meta
 
@@ -319,6 +347,7 @@ class DefaultEnv(BaseEnv):
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
         total_calls = len(job_payload['call_ids'])
+        job_key = job_payload['job_key']
 
         logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going to '
                      f'run {total_calls} activations in the localhost worker')
@@ -326,7 +355,8 @@ class DefaultEnv(BaseEnv):
         if not os.path.isfile(RUNNER):
             self.setup()
 
-        cmd = f'"{self.runtime}" "{RUNNER}" run {job_filename}'
-        log = open(RN_LOG_FILE, 'a')
-        process = sp.Popen(cmd, shell=True, stdout=log, stderr=log)
+        cmd = f'{self.runtime} {RUNNER} run {job_filename}'
+        process = sp.Popen(shlex.split(cmd))
+        self.jobs[job_key] = process
+
         return process

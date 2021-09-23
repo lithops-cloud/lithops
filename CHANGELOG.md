@@ -3,13 +3,14 @@
 ## [v2.5.1.dev0]
 
 ### Added
-- 
+- [Localhost] Stop containers on ctrl-c
 
 ### Changed
-- 
+- [Localhost] Start container with user's uid:gid
+- [Localhost] Execute subprocesses without 'shell' flag
 
 ### Fixes
-- 
+- [Standalone] Fixed standalone execution on consume mode
 
 
 ## [v2.5.0]

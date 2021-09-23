@@ -234,7 +234,8 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
         verify_runtime_name(config_data[constants.STANDALONE]['runtime'])
 
     if 'execution_timeout' not in config_data['lithops']:
-        config_data['lithops']['execution_timeout'] = constants.EXECUTION_TIMEOUT_DEFAULT
+        config_data['lithops']['execution_timeout'] = constants.EXECUTION_TIMEOUT_LOCALHOST_DEFAULT \
+            if mode == constants.LOCALHOST else constants.EXECUTION_TIMEOUT_DEFAULT
 
     if 'worker_processes' not in config_data['lithops']:
         config_data['lithops']['worker_processes'] = constants.WORKER_PROCESSES_DEFAULT

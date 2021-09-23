@@ -168,7 +168,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
 
     elif mode == LOCALHOST:
         job.runtime_memory = None
-        job.runtime_timeout = execution_timeout
+        job.runtime_timeout = None
 
     exclude_modules_cfg = config['lithops'].get('exclude_modules', [])
     include_modules_cfg = config['lithops'].get('include_modules', [])
