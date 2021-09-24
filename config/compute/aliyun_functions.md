@@ -1,8 +1,8 @@
-# Lithops on Alibaba Cloud (Aliyun)
+# Lithops on Alibaba Cloud Function Compute (Aliyun)
 
 Lithops with *Aliyun Function Compute* as serverless compute backend.
 
-### Configuration
+### Installation
 
 1. Install Alibaba Cloud backend dependencies:
 
@@ -10,17 +10,32 @@ Lithops with *Aliyun Function Compute* as serverless compute backend.
 $ python3 -m pip install lithops[aliyun]
 ```
 
+1. Access to your [console](https://homenew-intl.console.aliyun.com/) and activate your Functions service instance.
+
+### Configuration
+
+1. [Access to your Function Compute dashboard](https://fc.console.aliyun.com/fc/overview), choose your preferred region, and copy the public endpoint.
+
 2. Edit your Lithops config and add the following keys:
 
 ```yaml
   lithops:
       backend : aliyun_fc
 
+  aliyun:
+    access_key_id: <ACCESS_KEY_ID>
+    access_key_secret: <ACCESS_KEY_SECRET>
+
   aliyun_fc:
       public_endpoint : <PUBLIC_ENDPOINT>
-      access_key_id : <ACCESS_KEY_ID>
-      access_key_secret : <ACCESS_KEY_SECRET>
 ```
+
+#### Summary of configuration keys for Aliyun
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|aliyun_oss | access_key_id | |yes |  Access Key Id |
+|aliyun_oss | access_key_secret | |yes | Access Key Secret |
 
     
 ### Summary of configuration keys for Alibaba Functions Compute:
@@ -28,8 +43,6 @@ $ python3 -m pip install lithops[aliyun]
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |aliyun_fc | public_endpoint | |yes | public endpoint (URL) to the service. OSS and FC endpoints are different. |
-|aliyun_fc | access_key_id | |yes |  Account access key to Alibaba services. |
-|aliyun_fc | access_key_secret |  | yes | Account secret access key to Alibaba services.|
 |aliyun_fc | runtime |  |no | Docker image name.|
 |aliyun_fc | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
 |aliyun_fc | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
