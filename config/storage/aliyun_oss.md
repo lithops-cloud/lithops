@@ -38,8 +38,8 @@ $ python3 -m pip install lithops[aliyun]
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|aliyun_oss | access_key_id | |yes |  Access Key Id |
-|aliyun_oss | access_key_secret | |yes | Access Key Secret |
+|aliyun | access_key_id | |yes |  Access Key Id |
+|aliyun | access_key_secret | |yes | Access Key Secret |
 
 #### Summary of configuration keys for Aliyun Object Storage Service:
 

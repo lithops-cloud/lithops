@@ -29,7 +29,7 @@ logger = logging.getLogger('lithops.worker')
 def main(event, context):
     args = json.loads(event)
     os.environ['__LITHOPS_ACTIVATION_ID'] = context.request_id
-    os.environ['__LITHOPS_BACKEND'] = 'Alibaba Function Compute'
+    os.environ['__LITHOPS_BACKEND'] = 'Aliyun Function Compute'
 
     setup_lithops_logger(args['log_level'])
 
