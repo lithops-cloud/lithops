@@ -52,6 +52,8 @@ class AliyunFunctionComputeBackend:
         self.endpoint = aliyun_fc_config['public_endpoint']
         self.access_key_id = aliyun_fc_config['access_key_id']
         self.access_key_secret = aliyun_fc_config['access_key_secret']
+        self.role_arn = aliyun_fc_config['role_arn']
+        self.region = self.endpoint.split('.')[1]
 
         logger.debug("Set Aliyun FC Service to {}".format(self.service_name))
         logger.debug("Set Aliyun FC Endpoint to {}".format(self.endpoint))
@@ -63,21 +65,15 @@ class AliyunFunctionComputeBackend:
         msg = COMPUTE_CLI_MSG.format('Aliyun Function Compute')
         logger.info("{}".format(msg))
 
-    def _format_action_name(self, runtime_name, runtime_memory):
+    def _format_function_name(self, runtime_name, runtime_memory):
         runtime_name = runtime_name.replace('/', '_').replace(':', '_')
         return '{}_{}MB'.format(runtime_name, runtime_memory)
 
-    def _unformat_action_name(self, action_name):
-        runtime_name, memory = action_name.rsplit('_', 1)
+    def _unformat_function_name(self, function_name):
+        runtime_name, memory = function_name.rsplit('_', 1)
         image_name = runtime_name.replace('_', '/', 1)
         image_name = image_name.replace('_', ':', -1)
         return image_name, int(memory.replace('MB', ''))
-
-    def _get_default_runtime_image_name(self):
-        return 'python3'
-
-    def _delete_function_handler_zip(self):
-        os.remove(aliyunfc_config.FH_ZIP_LOCATION)
 
     def create_runtime(self, runtime_name, memory=aliyunfc_config.RUNTIME_TIMEOUT_DEFAULT,
                        timeout=aliyunfc_config.RUNTIME_TIMEOUT_DEFAULT):
@@ -88,14 +84,18 @@ class AliyunFunctionComputeBackend:
 
         logger.info('Creating new Lithops runtime for Aliyun Function Compute')
 
-        res = self.fc_client.list_services(prefix=self.service_name).data
-
-        if len(res['services']) == 0:
+        services = self.fc_client.list_services(prefix=self.service_name).data['services']
+        service = None
+        for serv in services:
+            if serv['serviceName'] == self.service_name:
+                service = serv
+                break
+        if not service:
             logger.info("creating service {}".format(self.service_name))
-            self.fc_client.create_service(self.service_name)
+            self.fc_client.create_service(self.service_name, role=self.role_arn)
 
         if runtime_name == 'default':
-            runtime_name = self._get_default_runtime_image_name()
+            runtime_name = aliyunfc_config.RUNTIME_DEFAULT
             handler_path = aliyunfc_config.HANDLER_FOLDER_LOCATION
             is_custom = False
         elif os.path.isdir(runtime_name):
@@ -107,13 +107,13 @@ class AliyunFunctionComputeBackend:
 
         try:
             self._create_function_handler_folder(handler_path, is_custom=is_custom)
-            function_name = self._format_action_name(runtime_name, memory)
+            function_name = self._format_function_name(runtime_name, memory)
 
             try:
                 self.fc_client.create_function(
                     serviceName=self.service_name,
                     functionName=function_name,
-                    runtime=self._get_default_runtime_image_name(),
+                    runtime=aliyunfc_config.RUNTIME_DEFAULT,
                     handler='entry_point.main',
                     codeDir=handler_path,
                     memorySize=memory,
@@ -124,7 +124,7 @@ class AliyunFunctionComputeBackend:
                 self.fc_client.create_function(
                     serviceName=self.service_name,
                     functionName=function_name,
-                    runtime=self._get_default_runtime_image_name(),
+                    runtime=aliyunfc_config.RUNTIME_DEFAULT,
                     handler='entry_point.main',
                     codeDir=handler_path,
                     memorySize=memory,
@@ -144,19 +144,18 @@ class AliyunFunctionComputeBackend:
         Deletes a runtime
         """
         if runtime_name == 'default':
-            runtime_name = self._get_default_runtime_image_name()
-        function_name = self._format_action_name(runtime_name, memory)
+            runtime_name = aliyunfc_config.RUNTIME_DEFAULT
+        function_name = self._format_function_name(runtime_name, memory)
         self.fc_client.delete_function(self.service_name, function_name)
 
     def clean(self):
         """"
-        deletes all runtimes from the current service
+        Deletes all runtimes from the current service
         """
-        actions = self.fc_client.list_functions(self, self.service_name, prefix="lithops")
-        for action in actions:
-            self.fc_client.delete_function(self.service_name, action)
-        if self.service_name.startswith("lithops"):
-            self.fc_client.delete_service(self.service_name)
+        functions = self.fc_client.list_functions(self.service_name)
+        for function in functions:
+            self.fc_client.delete_function(self.service_name, function)
+        self.fc_client.delete_service(self.service_name)
 
     def list_runtimes(self, runtime_name='all'):
         """
@@ -164,15 +163,15 @@ class AliyunFunctionComputeBackend:
         return: list of tuples (docker_image_name, memory)
         """
         if runtime_name == 'default':
-            runtime_name = self._get_default_runtime_image_name()
+            runtime_name = aliyunfc_config.RUNTIME_DEFAULT
 
         runtimes = []
-        actions = self.fc_client.list_functions(self.service_name)
+        functions = self.fc_client.list_functions(self.service_name)
 
-        for action in actions:
-            action_image_name, memory = self._unformat_action_name(action['name'])
-            if runtime_name == action_image_name or runtime_name == 'all':
-                runtimes.append((action_image_name, memory))
+        for function in functions:
+            name, memory = self._unformat_function_name(function['name'])
+            if runtime_name == name or runtime_name == 'all':
+                runtimes.append((name, memory))
         return runtimes
 
     def invoke(self, runtime_name, memory=None, payload={}):
@@ -180,8 +179,8 @@ class AliyunFunctionComputeBackend:
         Invoke function
         """
         if runtime_name == 'default':
-            runtime_name = self._get_default_runtime_image_name()
-        function_name = self._format_action_name(runtime_name, memory)
+            runtime_name = aliyunfc_config.RUNTIME_DEFAULT
+        function_name = self._format_function_name(runtime_name, memory)
 
         try:
             res = self.fc_client.invoke_function(
@@ -201,8 +200,10 @@ class AliyunFunctionComputeBackend:
         Runtime keys are used to uniquely identify runtimes within the storage,
         in order to know which runtimes are installed and which not.
         """
-        action_name = self._format_action_name(runtime_name, runtime_memory)
-        runtime_key = os.path.join(self.name, self.config['public_endpoint'].split('.')[1], action_name)
+        if runtime_name == 'default':
+            runtime_name = aliyunfc_config.RUNTIME_DEFAULT
+        function_name = self._format_function_name(runtime_name, runtime_memory)
+        runtime_key = os.path.join(self.name, self.region, self.service_name, function_name)
 
         return runtime_key
 

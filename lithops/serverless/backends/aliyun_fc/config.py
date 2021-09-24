@@ -28,9 +28,9 @@ INVOKE_POOL_THREADS_DEFAULT = 500
 
 CONNECTION_POOL_SIZE = 30
 
-SERVICE_NAME = 'lithops-runtime'
+SERVICE_NAME = 'lithops'
+RUNTIME_DEFAULT = 'python3'
 HANDLER_FOLDER_LOCATION = os.path.join(os.getcwd(), 'lithops_handler_aliyun')
-FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_aliyunfc.zip')
 
 REQUIREMENTS_FILE = """
 aliyun-fc2
@@ -50,7 +50,7 @@ tblib
 """
 
 REQ_PARAMS_1 = ('access_key_id', 'access_key_secret')
-REQ_PARAMS_2 = ('public_endpoint',)
+REQ_PARAMS_2 = ('public_endpoint', 'role_arn')
 
 
 def load_config(config_data=None):

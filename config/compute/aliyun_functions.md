@@ -16,7 +16,9 @@ $ python3 -m pip install lithops[aliyun]
 
 1. [Access to your Function Compute dashboard](https://fc.console.aliyun.com/fc/overview), choose your preferred region, and copy the public endpoint.
 
-2. Edit your Lithops config and add the following keys:
+2. Access to the (Resource Access management (RAM) Roles](https://ram.console.aliyun.com/roles/) dashboard, and create a new Role that contains the `AliyunOSSFullAccess` permission. Alternatively you can use an already created Role that contains the `AliyunOSSFullAccess` permission.
+
+3. Edit your Lithops config and add the following keys:
 
 ```yaml
   lithops:
@@ -28,6 +30,7 @@ $ python3 -m pip install lithops[aliyun]
 
   aliyun_fc:
       public_endpoint : <PUBLIC_ENDPOINT>
+      role_arn: <ROLE_ARN>
 ```
 
 #### Summary of configuration keys for Aliyun
@@ -43,6 +46,7 @@ $ python3 -m pip install lithops[aliyun]
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
 |aliyun_fc | public_endpoint | |yes | public endpoint (URL) to the service. OSS and FC endpoints are different. |
+|aliyun_fc | role_arn | |yes | Role ARN. For example: `acs:ram::5244532493961771:role/aliyunfclogexecutionrole` |
 |aliyun_fc | runtime |  |no | Docker image name.|
 |aliyun_fc | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
 |aliyun_fc | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |

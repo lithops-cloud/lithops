@@ -68,7 +68,7 @@ Storage Backends
 - [Google Cloud Functions](compute/gcp_functions.md)
 - [Google Cloud Run](compute/gcp_cloudrun.md)
 - [Azure Functions](compute/azure_functions.md)
-- [Aliyun functions](compute/aliyun_fc.md)
+- [Aliyun functions](compute/aliyun_functions.md)
 
 </td>
 <td>
