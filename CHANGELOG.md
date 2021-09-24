@@ -7,10 +7,11 @@
 
 ### Changed
 - [Localhost] Start container with user's uid:gid
-- [Localhost] Execute subprocesses without 'shell' flag
+- [Localhost] Extended default execution timeout to 3600 seconds
 
 ### Fixes
 - [Standalone] Fixed standalone execution on consume mode
+- [Aliyun FC] Fixed Aliyun Function compute backend
 
 
 ## [v2.5.0]

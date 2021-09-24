@@ -28,9 +28,9 @@ INVOKE_POOL_THREADS_DEFAULT = 500
 
 CONNECTION_POOL_SIZE = 30
 
-SERVICE_NAME = 'lithops-runtime'
+SERVICE_NAME = 'lithops'
+RUNTIME_DEFAULT = 'python3'
 HANDLER_FOLDER_LOCATION = os.path.join(os.getcwd(), 'lithops_handler_aliyun')
-FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_aliyunfc.zip')
 
 REQUIREMENTS_FILE = """
 aliyun-fc2
@@ -49,17 +49,26 @@ ps-mem
 tblib
 """
 
-REQ_PARAMS = ('public_endpoint', 'access_key_id', 'access_key_secret')
+REQ_PARAMS_1 = ('access_key_id', 'access_key_secret')
+REQ_PARAMS_2 = ('public_endpoint', 'role_arn')
 
 
 def load_config(config_data=None):
 
-    if 'aliyun_fc' not in config_data:
-        raise Exception("{} 'aliyun_fc' is mandatory in the configuration".fomrat('aliyun_fc'))
+    if 'aliyun' not in config_data:
+        raise Exception("'aliyun' section is mandatory in the configuration")
 
-    for param in REQ_PARAMS:
+    if 'aliyun_fc' not in config_data:
+        raise Exception("'aliyun_fc' section is mandatory in the configuration")
+
+    for param in REQ_PARAMS_1:
+        if param not in config_data['aliyun']:
+            msg = f'"{param}" is mandatory in the "aliyun" section of the configuration'
+            raise Exception(msg)
+
+    for param in REQ_PARAMS_2:
         if param not in config_data['aliyun_fc']:
-            msg = '{} is mandatory in {} "aliyun_fc" of the configuration'.format(REQ_PARAMS, 'aliyun_fc')
+            msg = f'"{param}" is mandatory in the "aliyun_fc" section of the configuration'
             raise Exception(msg)
 
     this_version_str = version_str(sys.version_info)
@@ -67,6 +76,9 @@ def load_config(config_data=None):
         raise Exception('The functions backend Aliyun Function Compute currently'
                         ' only supports Python version 3.6 and the local Python'
                         'version is {}'.format(this_version_str))
+
+    pe = config_data['aliyun_fc']['public_endpoint'].replace('https://', '')
+    config_data['aliyun_fc']['public_endpoint'] = pe
 
     if 'invoke_pool_threads' not in config_data['aliyun_fc']:
         config_data['aliyun_fc']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
@@ -91,3 +103,6 @@ def load_config(config_data=None):
             config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
     else:
         config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
+
+    # Put credential keys to 'aws_lambda' dict entry
+    config_data['aliyun_fc'].update(config_data['aliyun'])
