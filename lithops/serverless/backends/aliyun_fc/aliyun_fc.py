@@ -22,8 +22,6 @@ import json
 import lithops
 import fc2
 
-from lithops.utils import is_lithops_worker
-from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG, TEMP
 from . import config as aliyunfc_config
 
@@ -40,20 +38,16 @@ class AliyunFunctionComputeBackend:
         self.name = 'aliyun_fc'
         self.type = 'faas'
         self.config = aliyun_fc_config
-        self.is_lithops_worker = is_lithops_worker()
-        self.version = 'lithops_{}'.format(__version__)
-
         self.user_agent = aliyun_fc_config['user_agent']
-        if 'service' in aliyun_fc_config:
-            self.service_name = aliyun_fc_config['service']
-        else:
-            self.service_name = aliyunfc_config.SERVICE_NAME
 
         self.endpoint = aliyun_fc_config['public_endpoint']
         self.access_key_id = aliyun_fc_config['access_key_id']
         self.access_key_secret = aliyun_fc_config['access_key_secret']
         self.role_arn = aliyun_fc_config['role_arn']
         self.region = self.endpoint.split('.')[1]
+
+        self.default_service_name = f'{aliyunfc_config.SERVICE_NAME}_{self.access_key_id[0:4].lower()}'
+        self.service_name = aliyun_fc_config.get('service', self.default_service_name)
 
         logger.debug("Set Aliyun FC Service to {}".format(self.service_name))
         logger.debug("Set Aliyun FC Endpoint to {}".format(self.endpoint))
@@ -84,15 +78,16 @@ class AliyunFunctionComputeBackend:
 
         logger.info('Creating new Lithops runtime for Aliyun Function Compute')
 
-        services = self.fc_client.list_services(prefix=self.service_name).data['services']
-        service = None
-        for serv in services:
-            if serv['serviceName'] == self.service_name:
-                service = serv
-                break
-        if not service:
-            logger.info("creating service {}".format(self.service_name))
-            self.fc_client.create_service(self.service_name, role=self.role_arn)
+        if self.service_name == self.default_service_name:
+            services = self.fc_client.list_services(prefix=self.service_name).data['services']
+            service = None
+            for serv in services:
+                if serv['serviceName'] == self.service_name:
+                    service = serv
+                    break
+            if not service:
+                logger.info("creating service {}".format(self.service_name))
+                self.fc_client.create_service(self.service_name, role=self.role_arn)
 
         if runtime_name == 'default':
             runtime_name = aliyunfc_config.RUNTIME_DEFAULT
