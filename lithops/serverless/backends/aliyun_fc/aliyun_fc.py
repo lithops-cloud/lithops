@@ -109,27 +109,20 @@ class AliyunFunctionComputeBackend:
             self._create_function_handler_folder(handler_path, is_custom=is_custom)
             function_name = self._format_function_name(runtime_name, memory)
 
-            try:
-                self.fc_client.create_function(
-                    serviceName=self.service_name,
-                    functionName=function_name,
-                    runtime=aliyunfc_config.RUNTIME_DEFAULT,
-                    handler='entry_point.main',
-                    codeDir=handler_path,
-                    memorySize=memory,
-                    timeout=timeout
-                )
-            except fc2.fc_exceptions.FcError:
-                self.delete_runtime(runtime_name, memory)
-                self.fc_client.create_function(
-                    serviceName=self.service_name,
-                    functionName=function_name,
-                    runtime=aliyunfc_config.RUNTIME_DEFAULT,
-                    handler='entry_point.main',
-                    codeDir=handler_path,
-                    memorySize=memory,
-                    timeout=timeout
-                )
+            functions = self.fc_client.list_functions(self.service_name).data['functions']
+            for function in functions:
+                if function['functionName'] == function_name:
+                    self.delete_runtime(runtime_name, memory)
+
+            self.fc_client.create_function(
+                serviceName=self.service_name,
+                functionName=function_name,
+                runtime=aliyunfc_config.RUNTIME_DEFAULT,
+                handler='entry_point.main',
+                codeDir=handler_path,
+                memorySize=memory,
+                timeout=timeout
+            )
 
             metadata = self._generate_runtime_meta(function_name)
 
@@ -152,9 +145,9 @@ class AliyunFunctionComputeBackend:
         """"
         Deletes all runtimes from the current service
         """
-        functions = self.fc_client.list_functions(self.service_name)
+        functions = self.fc_client.list_functions(self.service_name).data['functions']
         for function in functions:
-            self.fc_client.delete_function(self.service_name, function)
+            self.fc_client.delete_function(self.service_name, function['functionName'])
         self.fc_client.delete_service(self.service_name)
 
     def list_runtimes(self, runtime_name='all'):
@@ -166,10 +159,10 @@ class AliyunFunctionComputeBackend:
             runtime_name = aliyunfc_config.RUNTIME_DEFAULT
 
         runtimes = []
-        functions = self.fc_client.list_functions(self.service_name)
+        functions = self.fc_client.list_functions(self.service_name).data['functions']
 
         for function in functions:
-            name, memory = self._unformat_function_name(function['name'])
+            name, memory = self._unformat_function_name(function['functionName'])
             if runtime_name == name or runtime_name == 'all':
                 runtimes.append((name, memory))
         return runtimes

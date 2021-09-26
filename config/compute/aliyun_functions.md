@@ -16,7 +16,7 @@ $ python3 -m pip install lithops[aliyun]
 
 1. [Access to your Function Compute dashboard](https://fc.console.aliyun.com/fc/overview), choose your preferred region, and copy the public endpoint.
 
-2. Access to the (Resource Access management (RAM) Roles](https://ram.console.aliyun.com/roles/) dashboard, and create a new Role that contains the `AliyunOSSFullAccess` permission. Alternatively you can use an already created Role that contains the `AliyunOSSFullAccess` permission.
+2. Access to the [Resource Access Management (RAM) Roles dashboard](https://ram.console.aliyun.com/roles/), and create a new Role that contains the `AliyunOSSFullAccess` permission. Alternatively you can use an already created Role that contains the `AliyunOSSFullAccess` permission.
 
 3. Edit your Lithops config and add the following keys:
 
@@ -50,4 +50,4 @@ $ python3 -m pip install lithops[aliyun]
 |aliyun_fc | runtime |  |no | Docker image name.|
 |aliyun_fc | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
 |aliyun_fc | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
-|aliyun_fc | invoke_pool_threads | 500 |no | Number of concurrent threads used for invocation |
+|aliyun_fc | invoke_pool_threads | 300 |no | Number of concurrent threads used for invocation |

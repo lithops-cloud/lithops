@@ -172,7 +172,7 @@ class AliyunObjectStorageServiceBackend:
         # adapted to match ibm_cos method
         prefix = '' if prefix is None else prefix
         try:
-            res = bucket.list_objects(prefix=prefix)
+            res = bucket.list_objects(prefix=prefix, max_keys=1000)
             obj_list = [{'Key': obj.key, 'Size': obj.size} for obj in res.object_list]
             return obj_list
 
@@ -192,7 +192,7 @@ class AliyunObjectStorageServiceBackend:
         # adapted to match ibm_cos method
         prefix = '' if prefix is None else prefix
         try:
-            res = bucket.list_objects(prefix=prefix)
+            res = bucket.list_objects(prefix=prefix, max_keys=1000)
             keys = [obj.key for obj in res.object_list]
             return [] if keys is None else keys
 

@@ -24,29 +24,19 @@ RUNTIME_TIMEOUT_MAX = 600        # Platform 10 min. maximum
 RUNTIME_MEMORY_DEFAULT = 256
 RUNTIME_MEMORY_MAX = 3072
 MAX_CONCURRENT_WORKERS = 300
-INVOKE_POOL_THREADS_DEFAULT = 500
+INVOKE_POOL_THREADS_DEFAULT = 300
 
-CONNECTION_POOL_SIZE = 30
+CONNECTION_POOL_SIZE = 300
 
 SERVICE_NAME = 'lithops'
 RUNTIME_DEFAULT = 'python3'
 HANDLER_FOLDER_LOCATION = os.path.join(os.getcwd(), 'lithops_handler_aliyun')
 
 REQUIREMENTS_FILE = """
-aliyun-fc2
-oss2
 pika
-flask
-gevent
-glob2
-redis
-requests
-PyYAML
-kubernetes
-numpy
+tblib
 cloudpickle
 ps-mem
-tblib
 """
 
 REQ_PARAMS_1 = ('access_key_id', 'access_key_secret')
