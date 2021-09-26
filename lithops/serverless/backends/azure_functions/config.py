@@ -123,7 +123,6 @@ azure-storage-queue
 pika
 flask
 gevent
-glob2
 redis
 requests
 PyYAML
@@ -150,7 +149,6 @@ RUN pip install --upgrade setuptools six pip \
         pika \
         flask \
         gevent \
-        glob2 \
         redis \
         requests \
         PyYAML \
