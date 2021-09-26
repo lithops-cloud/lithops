@@ -154,6 +154,10 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
         config_data['lithops']['backend'] = get_default_backend(mode)
 
     backend = config_data['lithops'].get('backend')
+
+    # create empty backend section if not exist
+    config_data.setdefault(backend, {})
+
     mode = config_data['lithops'].get('mode')
 
     if mode in config_data and 'worker_processes' in config_data[mode] \
