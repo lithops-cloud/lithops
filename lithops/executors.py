@@ -22,7 +22,6 @@ import logging
 import atexit
 import pickle
 import tempfile
-import numpy as np
 import subprocess as sp
 from typing import Optional, List, Union, Tuple, Dict, Any
 from collections.abc import Callable
@@ -565,8 +564,7 @@ class FunctionExecutor:
         if (jobs_to_clean or cs) and spawn_cleaner:
             sp.Popen([sys.executable, '-m', 'lithops.scripts.cleaner'], start_new_session=True)
 
-    def job_summary(self,
-                    cloud_objects_n: Optional[int] = 0):
+    def job_summary(self, cloud_objects_n: Optional[int] = 0):
         """
         Logs information of a job executed by the calling function executor.
         currently supports: code_engine, ibm_vpc and ibm_cf.
@@ -574,6 +572,7 @@ class FunctionExecutor:
         :param cloud_objects_n: number of cloud object used in COS, declared by user.
         """
         import pandas as pd
+        import numpy as np
 
         def init():
             headers = ['Job_ID', 'Function', 'Invocations', 'Memory(MB)', 'AvgRuntime', 'Cost', 'CloudObjects']

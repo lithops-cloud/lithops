@@ -1,4 +1,4 @@
-# Lithops on Alibaba Cloud Object Storage Service (Aliyun)
+# Lithops on Aliyun Object Storage Service
 
 Lithops with Aliyun Object Storage Service as storage backend.
 

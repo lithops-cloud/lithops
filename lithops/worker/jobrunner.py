@@ -25,9 +25,13 @@ import logging
 import inspect
 import requests
 import traceback
-import numpy as np
 from pydoc import locate
 from distutils.util import strtobool
+
+try:
+    import numpy as np
+except ModuleNotFoundError:
+    pass
 
 from lithops.storage import Storage
 from lithops.wait import wait

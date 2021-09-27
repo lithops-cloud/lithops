@@ -10,7 +10,6 @@ cloudpickle
 ps-mem
 tblib
 PyYAML
-glob2
 kubernetes
 
 # default available packages for python3

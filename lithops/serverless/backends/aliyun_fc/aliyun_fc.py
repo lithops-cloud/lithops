@@ -22,8 +22,6 @@ import json
 import lithops
 import fc2
 
-from lithops.utils import is_lithops_worker
-from lithops.version import __version__
 from lithops.constants import COMPUTE_CLI_MSG, TEMP
 from . import config as aliyunfc_config
 
@@ -40,20 +38,16 @@ class AliyunFunctionComputeBackend:
         self.name = 'aliyun_fc'
         self.type = 'faas'
         self.config = aliyun_fc_config
-        self.is_lithops_worker = is_lithops_worker()
-        self.version = 'lithops_{}'.format(__version__)
-
         self.user_agent = aliyun_fc_config['user_agent']
-        if 'service' in aliyun_fc_config:
-            self.service_name = aliyun_fc_config['service']
-        else:
-            self.service_name = aliyunfc_config.SERVICE_NAME
 
         self.endpoint = aliyun_fc_config['public_endpoint']
         self.access_key_id = aliyun_fc_config['access_key_id']
         self.access_key_secret = aliyun_fc_config['access_key_secret']
         self.role_arn = aliyun_fc_config['role_arn']
         self.region = self.endpoint.split('.')[1]
+
+        self.default_service_name = f'{aliyunfc_config.SERVICE_NAME}_{self.access_key_id[0:4].lower()}'
+        self.service_name = aliyun_fc_config.get('service', self.default_service_name)
 
         logger.debug("Set Aliyun FC Service to {}".format(self.service_name))
         logger.debug("Set Aliyun FC Endpoint to {}".format(self.endpoint))
@@ -84,15 +78,16 @@ class AliyunFunctionComputeBackend:
 
         logger.info('Creating new Lithops runtime for Aliyun Function Compute')
 
-        services = self.fc_client.list_services(prefix=self.service_name).data['services']
-        service = None
-        for serv in services:
-            if serv['serviceName'] == self.service_name:
-                service = serv
-                break
-        if not service:
-            logger.info("creating service {}".format(self.service_name))
-            self.fc_client.create_service(self.service_name, role=self.role_arn)
+        if self.service_name == self.default_service_name:
+            services = self.fc_client.list_services(prefix=self.service_name).data['services']
+            service = None
+            for serv in services:
+                if serv['serviceName'] == self.service_name:
+                    service = serv
+                    break
+            if not service:
+                logger.info("creating service {}".format(self.service_name))
+                self.fc_client.create_service(self.service_name, role=self.role_arn)
 
         if runtime_name == 'default':
             runtime_name = aliyunfc_config.RUNTIME_DEFAULT
@@ -109,27 +104,20 @@ class AliyunFunctionComputeBackend:
             self._create_function_handler_folder(handler_path, is_custom=is_custom)
             function_name = self._format_function_name(runtime_name, memory)
 
-            try:
-                self.fc_client.create_function(
-                    serviceName=self.service_name,
-                    functionName=function_name,
-                    runtime=aliyunfc_config.RUNTIME_DEFAULT,
-                    handler='entry_point.main',
-                    codeDir=handler_path,
-                    memorySize=memory,
-                    timeout=timeout
-                )
-            except fc2.fc_exceptions.FcError:
-                self.delete_runtime(runtime_name, memory)
-                self.fc_client.create_function(
-                    serviceName=self.service_name,
-                    functionName=function_name,
-                    runtime=aliyunfc_config.RUNTIME_DEFAULT,
-                    handler='entry_point.main',
-                    codeDir=handler_path,
-                    memorySize=memory,
-                    timeout=timeout
-                )
+            functions = self.fc_client.list_functions(self.service_name).data['functions']
+            for function in functions:
+                if function['functionName'] == function_name:
+                    self.delete_runtime(runtime_name, memory)
+
+            self.fc_client.create_function(
+                serviceName=self.service_name,
+                functionName=function_name,
+                runtime=aliyunfc_config.RUNTIME_DEFAULT,
+                handler='entry_point.main',
+                codeDir=handler_path,
+                memorySize=memory,
+                timeout=timeout
+            )
 
             metadata = self._generate_runtime_meta(function_name)
 
@@ -152,9 +140,9 @@ class AliyunFunctionComputeBackend:
         """"
         Deletes all runtimes from the current service
         """
-        functions = self.fc_client.list_functions(self.service_name)
+        functions = self.fc_client.list_functions(self.service_name).data['functions']
         for function in functions:
-            self.fc_client.delete_function(self.service_name, function)
+            self.fc_client.delete_function(self.service_name, function['functionName'])
         self.fc_client.delete_service(self.service_name)
 
     def list_runtimes(self, runtime_name='all'):
@@ -166,10 +154,10 @@ class AliyunFunctionComputeBackend:
             runtime_name = aliyunfc_config.RUNTIME_DEFAULT
 
         runtimes = []
-        functions = self.fc_client.list_functions(self.service_name)
+        functions = self.fc_client.list_functions(self.service_name).data['functions']
 
         for function in functions:
-            name, memory = self._unformat_function_name(function['name'])
+            name, memory = self._unformat_function_name(function['functionName'])
             if runtime_name == name or runtime_name == 'all':
                 runtimes.append((name, memory))
         return runtimes
