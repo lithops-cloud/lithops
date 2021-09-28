@@ -7,6 +7,7 @@ wait locally for the results. Once the results be ready, it
 will launch the reduce function.
 """
 import lithops
+from lithops.wait import ALWAYS
 
 iterdata = [1, 2, 3, 4]
 
@@ -32,9 +33,9 @@ if __name__ == "__main__":
     print(fexec.get_result())
 
     """
-    Set 'reducer_wait_local=True' to wait for the results locally.
+    Set 'spawn_reducer=ALWAYS' to immediately spawn the reducers.
     """
     fexec = lithops.FunctionExecutor()
     fexec.map_reduce(my_map_function, iterdata, my_reduce_function,
-                     reducer_wait_local=True)
+                     spawn_reducer=ALWAYS)
     print(fexec.get_result())

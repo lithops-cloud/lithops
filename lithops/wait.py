@@ -26,10 +26,9 @@ from lithops.monitor import JobMonitor
 from types import SimpleNamespace
 from itertools import chain
 
-
-ALL_COMPLETED = 1
-ANY_COMPLETED = 2
-ALWAYS = 3
+ALWAYS = 0
+ANY_COMPLETED = 1
+ALL_COMPLETED = 100
 
 THREADPOOL_SIZE = 64
 WAIT_DUR_SEC = 1

@@ -31,7 +31,8 @@ from lithops import constants
 from lithops.future import ResponseFuture
 from lithops.invokers import create_invoker
 from lithops.storage import InternalStorage
-from lithops.wait import wait, ALL_COMPLETED, THREADPOOL_SIZE, WAIT_DUR_SEC
+from lithops.wait import wait, ALL_COMPLETED, THREADPOOL_SIZE, WAIT_DUR_SEC,\
+    ANY_COMPLETED, ALWAYS
 from lithops.job import create_map_job, create_reduce_job
 from lithops.config import default_config, \
     extract_localhost_config, extract_standalone_config, \
@@ -297,7 +298,7 @@ class FunctionExecutor:
                    obj_chunk_number: Optional[int] = None,
                    timeout: Optional[int] = None,
                    reducer_one_per_object: Optional[bool] = False,
-                   reducer_wait_local: Optional[bool] = False,
+                   spawn_reducer: Optional[int] = ANY_COMPLETED,
                    include_modules: Optional[List[str]] = [],
                    exclude_modules: Optional[List[str]] = []) -> FuturesList:
         """
@@ -315,7 +316,7 @@ class FunctionExecutor:
         :param obj_chunk_number: Number of chunks to split each object. 'None' for processing the whole file in one function activation
         :param timeout: Time that the functions have to complete their execution before raising a timeout
         :param reducer_one_per_object: Set one reducer per object after running the partitioner
-        :param reducer_wait_local: Wait for results locally
+        :param spawn_reducer: When to spawn the reducer function
         :param include_modules: Explicitly pickle these dependencies.
         :param exclude_modules: Explicitly keep these modules from pickled dependencies.
 
@@ -350,8 +351,8 @@ class FunctionExecutor:
             for fut in map_iterdata:
                 fut._produce_output = False
 
-        if reducer_wait_local:
-            self.wait(map_futures)
+        if spawn_reducer != ALWAYS:
+            self.wait(map_futures, return_when=spawn_reducer)
 
         reduce_job_id = map_job_id.replace('M', 'R')
 

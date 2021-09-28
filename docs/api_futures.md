@@ -192,7 +192,7 @@ Spawn multiple *map_function* activations,  based on the items of an input list,
 |worker_processes | 1 | Number of concurrent/parallel processes in each worker|
 |extra_args|  None | Additional arguments to pass to each map_function activation |
 |reduce_function|  |The function to map over the results of map_function |
-|reducer_wait_local| False |Wait locally for map results |
+|spawn_reducer| ANY_COMPLETED | When to spawn the reducer function. One of: ALWAYS, ANY_COMPLETED, ALL_COMPLETED |
 |extra_env| None | Additional environment variables for CF environment|
 |map_runtime_memory| 256 | Memory (in MB) to use to run the map_function|
 |reduce_runtime_memory| 256| Memory (in MB) to use to run the reduce_function|
@@ -215,7 +215,6 @@ Spawn multiple *map_function* activations,  based on the items of an input list,
 
 * **Code example**: [map_reduce.py](../examples/map_reduce.py)
 
-By default, the *reduce_function* is immediately spawned, and then it waits remotely to get all the results from the map phase. It should be note that, although faster, this approach consumes CPU time in Cloud Functions. You can change this behavior and make *reduce_function* to wait locally for the results by setting the `reducer_wait_local` parameter to `True`. However, it has the tradeoff of greater data transfers, because it has to download all the results to the local machine and then upload them again to the cloud for processing with the *reduce_function*.
 
 ## Executor.wait()
 
