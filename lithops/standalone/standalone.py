@@ -219,6 +219,10 @@ class StandaloneHandler:
             url = "http://127.0.0.1:{}/run".format(STANDALONE_SERVICE_PORT)
             requests.post(url, data=json.dumps(job_payload))
         else:
+            # delete ssh key
+            backend = job_payload['config']['lithops']['backend']
+            job_payload['config'][backend].pop('ssh_key_filename', None)
+
             cmd = ('curl http://127.0.0.1:{}/run -d {} '
                    '-H \'Content-Type: application/json\' -X POST'
                    .format(STANDALONE_SERVICE_PORT,
