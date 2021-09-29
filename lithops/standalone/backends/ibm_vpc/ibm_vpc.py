@@ -448,6 +448,7 @@ class IBMVPCBackend:
         """
         vm = IBMVPCInstance(name, self.config, self.ibm_vpc_client)
         vm.create(start=True)
+        vm.ssh_credentials.pop('key_filename', None)
         self.workers.append(vm)
 
     def get_runtime_key(self, runtime_name):
