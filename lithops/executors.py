@@ -298,7 +298,7 @@ class FunctionExecutor:
                    obj_chunk_number: Optional[int] = None,
                    timeout: Optional[int] = None,
                    reducer_one_per_object: Optional[bool] = False,
-                   spawn_reducer: Optional[int] = ANY_COMPLETED,
+                   spawn_reducer: Optional[int] = 20,
                    include_modules: Optional[List[str]] = [],
                    exclude_modules: Optional[List[str]] = []) -> FuturesList:
         """
@@ -316,7 +316,7 @@ class FunctionExecutor:
         :param obj_chunk_number: Number of chunks to split each object. 'None' for processing the whole file in one function activation
         :param timeout: Time that the functions have to complete their execution before raising a timeout
         :param reducer_one_per_object: Set one reducer per object after running the partitioner
-        :param spawn_reducer: When to spawn the reducer function
+        :param spawn_reducer: Percentage of done map functions before spawning the reduce function
         :param include_modules: Explicitly pickle these dependencies.
         :param exclude_modules: Explicitly keep these modules from pickled dependencies.
 
@@ -398,7 +398,7 @@ class FunctionExecutor:
 
         :param fs: Futures list. Default None
         :param throw_except: Re-raise exception if call raised. Default True
-        :param return_when: One of `ALL_COMPLETED`, `ANY_COMPLETED`, `ALWAYS`
+        :param return_when: Percentage of done futures
         :param download_results: Download results. Default false (Only get statuses)
         :param timeout: Timeout of waiting for results
         :param threadpool_size: Number of threads to use. Default 64
