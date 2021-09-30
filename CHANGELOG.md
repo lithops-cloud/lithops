@@ -1,6 +1,17 @@
 # Changelog
 
-## [v2.5.1.dev0]
+## [v2.5.2.dev0]
+
+### Added
+- [Core] Allow to spawn the reduce function in map_reduce() after a configurable percentage of completed map activations
+
+### Changed
+- 
+
+### Fixes
+- 
+
+## [v2.5.1]
 
 ### Added
 - [Localhost] Stop containers on ctrl-c
@@ -12,6 +23,7 @@
 ### Fixes
 - [Standalone] Fixed standalone execution on consume mode
 - [Aliyun FC] Fixed Aliyun Function compute backend
+- [Core] Fixed 'lithops runtime build' command when the backend is not configured in config
 
 
 ## [v2.5.0]
