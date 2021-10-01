@@ -16,13 +16,17 @@
 
 
 def load_config(config_data):
-    section = 'vm'
 
-    if 'ip_address' not in config_data[section]:
+    config_data['vm']['workers'] = 1
+
+    if 'worker_processes' not in config_data['vm']:
+        config_data['vm']['worker_processes'] = 1
+
+    if 'ip_address' not in config_data['vm']:
         msg = 'ip_address is mandatory in "vm" section of the configuration'
         raise Exception(msg)
 
-    if 'ssh_username' not in config_data[section]:
+    if 'ssh_username' not in config_data['vm']:
         msg = 'ssh_username is mandatory in "vm" section of the configuration'
         raise Exception(msg)
 
