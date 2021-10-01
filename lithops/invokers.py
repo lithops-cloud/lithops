@@ -276,7 +276,7 @@ class FaaSInvoker(Invoker):
     def __init__(self, config, executor_id, internal_storage, compute_handler, job_monitor):
         super().__init__(config, executor_id, internal_storage, compute_handler, job_monitor)
 
-        remote_invoker = self.config[SERVERLESS].get('remote_invoker', False)
+        remote_invoker = self.config[self.backend].get('remote_invoker', False)
         self.remote_invoker = remote_invoker if not is_lithops_worker() else False
 
         self.invokers = []
@@ -285,7 +285,7 @@ class FaaSInvoker(Invoker):
         self.should_run = False
         self.sync = is_lithops_worker()
 
-        invoke_pool_threads = self.config[self.backend].get('invoke_pool_threads', 64)
+        invoke_pool_threads = self.config[self.backend]['invoke_pool_threads']
         self.executor = ThreadPoolExecutor(invoke_pool_threads)
 
         logger.debug('ExecutorID {} - Serverless invoker created'.format(self.executor_id))

@@ -69,8 +69,7 @@ class AliyunFunctionComputeBackend:
         image_name = image_name.replace('_', ':', -1)
         return image_name, int(memory.replace('MB', ''))
 
-    def create_runtime(self, runtime_name, memory=aliyunfc_config.RUNTIME_TIMEOUT_DEFAULT,
-                       timeout=aliyunfc_config.RUNTIME_TIMEOUT_DEFAULT):
+    def create_runtime(self, runtime_name, memory, timeout):
         """
         Creates a new runtime into Aliyun Function Compute
         with the custom modules for lithops

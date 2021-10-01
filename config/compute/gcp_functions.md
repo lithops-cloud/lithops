@@ -61,5 +61,5 @@ $ python3 -m install lithops[gcp]
 |gcp_functions | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |gcp_functions | runtime |  |no | Runtime name already deployed in the service |
 |gcp_functions | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
-|gcp_functions | runtime_timeout | 90 |no | Runtime timeout in seconds. Default 1:30 minutes |
+|gcp_functions | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
 |gcp_functions | invoke_pool_threads | 1000 |no | Number of concurrent threads used for invocation |
