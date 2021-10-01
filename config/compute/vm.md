@@ -24,7 +24,7 @@ Lithops can run functions in a regular remote virtual machine by using processes
 |vm | ip_address | |yes | IP Address of the VM |
 |vm | ssh_username   | | yes | SSH username for accessing the VM |
 |vm | ssh_password | | yes | SSH password for accessing the VM |
-|vm | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to seti it with same number CPUs of the VM |
+|vm | worker_processes | 1 | no | Number of Lithops processes within the VM. This can be used to parallelize function activations within a worker. It is recommendable to set it with same number CPUs of the VM |
 |vm | runtime |  python3  |no | Docker image name |
 
 

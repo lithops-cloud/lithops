@@ -52,7 +52,7 @@ Storage Backends
 <tr>
 <td>
 
-- [Localhost](../docs/mode_localhost.md)
+- [Localhost](compute/localhost.md)
 - [Remote Virtual Machine](compute/vm.md)
 - [IBM Virtual Private Cloud](compute/ibm_vpc.md)
 
