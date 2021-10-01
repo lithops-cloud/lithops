@@ -31,8 +31,7 @@ DEFAULT_CONFIG_KEYS = {
     'runtime_memory': 256,  # Default memory: 256 MB
     'runtime_cpu': 0.5,  # 0.5 vCPU
     'workers': 200,
-    'worker_processes': 1,
-    'invoke_pool_threads': 4,
+    'worker_processes': 1
 }
 
 DEFAULT_GROUP = "batch"

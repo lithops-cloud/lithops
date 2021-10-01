@@ -26,7 +26,7 @@ from concurrent.futures import ThreadPoolExecutor
 from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
-from .config import VM_USER_DEFAULT, CLOUD_CONFIG
+from . import config as vpc_config
 
 
 logger = logging.getLogger(__name__)
@@ -556,8 +556,9 @@ class IBMVPCInstance:
         instance_prototype['primary_network_interface'] = primary_network_interface
 
         if not self.public:
+            user = self.config['ssh_username']
             token = self.config['ssh_password']
-            instance_prototype['user_data'] = CLOUD_CONFIG.format(VM_USER_DEFAULT, token)
+            instance_prototype['user_data'] = vpc_config.CLOUD_CONFIG.format(user, token)
 
         try:
             resp = self.ibm_vpc_client.create_instance(instance_prototype)

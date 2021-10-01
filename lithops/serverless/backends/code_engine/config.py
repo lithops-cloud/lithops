@@ -30,8 +30,7 @@ DEFAULT_CONFIG_KEYS = {
     'runtime_memory': 256,  # Default memory: 256 MB
     'runtime_cpu': 0.125,  # 0.125 vCPU
     'workers': 1000,
-    'worker_processes': 1,
-    'invoke_pool_threads': 4,
+    'worker_processes': 1
 }
 
 DEFAULT_GROUP = "codeengine.cloud.ibm.com"
