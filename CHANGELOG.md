@@ -6,10 +6,14 @@
 - [Core] Allow to spawn the reduce function in map_reduce() after a configurable percentage of completed map activations
 
 ### Changed
-- 
+- [Core] 'Workers' and 'worker_processess' must be set at backend level in config
 
 ### Fixes
 - 
+
+### Deleted
+- [Core] Deleted 'serverless' section from config
+
 
 ## [v2.5.1]
 

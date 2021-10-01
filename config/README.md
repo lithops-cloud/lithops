@@ -163,7 +163,7 @@ fexec = lithops.FunctionExecutor(monitoring='rabbitmq')
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|lithops | backend | ibm_cf | no | Compute backend implementation. IBM Cloud Functions is the default. If not set, Lithops will check the `mode` and use the `backend` set under the `serverless` or `standalone` sections described below |
+|lithops | backend | ibm_cf | no | Compute backend implementation. IBM Cloud Functions is the default. If not set, Lithops will check the `mode` and use the `backend` set under `standalone` section described below |
 |lithops | storage | ibm_cos | no | Storage backend implementation. IBM Cloud Object Storage is the default |
 |lithops | mode | serverless | no | Execution mode. One of: **localhost**, **serverless** or **standalone**. `backend` has priority over `mode`, i.e., `mode` is automatically inferred from `backend`, so you can avoid setting it. Alternatively, you can set `mode` here and then set the `backend` under the `serverless` or `standalone` sections described below |
 |lithops | data_cleaner | True | no |If set to True, then the cleaner will automatically delete all the temporary data that was written into `storage_bucket/lithops.jobs`|
@@ -176,15 +176,8 @@ fexec = lithops.FunctionExecutor(monitoring='rabbitmq')
 |lithops | log_format | "%(asctime)s [%(levelname)s] %(name)s -- %(message)s" |no | Logging format string |
 |lithops | log_stream | ext://sys.stderr |no | Logging stream. eg.: ext://sys.stderr,  ext://sys.stdout|
 |lithops | log_filename |  |no | Path to a file. log_filename has preference over log_stream. |
+|lithops | customized_runtime | False | no | Enables to build a new runtime with the map() function and its dependencies integrated. Only docker-based backends support this feature. |
 
-
-### Summary of configuration keys for Serverless
-
-|Group|Key|Default|Mandatory|Additional info|
-|---|---|---|---|---|
-|serverless | backend | ibm_cf |no | Serverless compute backend implementation. IBM Cloud Functions is the default. If set it will overwrite the `backend` set in lithops section |
-|serverless | remote_invoker | False | no |  Activate the remote invoker feature that uses one cloud function to spawn all the actual `map()` activations |
-|serverless | customized_runtime | False | no | Enables early preparation of Lithops workers with the map function and custom Lithops runtime already deployed, and ready to be used in consequent computations |
 
 ### Summary of configuration keys for Standalone
 

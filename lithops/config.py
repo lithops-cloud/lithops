@@ -181,10 +181,6 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
         verify_runtime_name(config_data[backend]['runtime'])
 
     elif mode == constants.SERVERLESS:
-        if constants.SERVERLESS not in config_data or \
-           config_data[constants.SERVERLESS] is None:
-            config_data[constants.SERVERLESS] = {}
-
         logger.debug("Loading Serverless backend module: {}".format(backend))
         cb_config = importlib.import_module('lithops.serverless.backends.{}.config'.format(backend))
         cb_config.load_config(config_data)
@@ -277,7 +273,7 @@ def extract_localhost_config(config):
 
 
 def extract_serverless_config(config):
-    sl_config = config[constants.SERVERLESS].copy()
+    sl_config = {}
     sb = config['lithops']['backend']
     sl_config['backend'] = sb
     sl_config[sb] = config[sb] if sb in config and config[sb] else {}

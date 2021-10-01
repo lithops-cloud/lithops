@@ -84,10 +84,10 @@ class Invoker:
 
         self.mode = self.config['lithops']['mode']
         self.backend = self.config['lithops']['backend']
+        self.customized_runtime = self.config['lithops'].get('customized_runtime', False)
 
         self.runtime_name = self.config[self.backend]['runtime']
         self.workers = self.config[self.backend].get('workers')
-        self.customized_runtime = self.config[self.mode].get('customized_runtime', False)
 
         logger.debug(f'ExecutorID {self.executor_id} - Invoker initialized.'
                      f' Max workers: {self.workers}')

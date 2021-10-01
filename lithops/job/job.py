@@ -214,7 +214,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
         raise Exception(log_msg)
 
     # Upload function and data
-    upload_function = not config[mode].get('customized_runtime', False)
+    upload_function = not config['lithops'].get('customized_runtime', False)
     upload_data = not (len(str(data_strs[0])) * job.chunksize < 8*1204 and backend in FAAS_BACKENDS)
 
     # Upload function and modules
