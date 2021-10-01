@@ -31,8 +31,7 @@ from lithops import constants
 from lithops.future import ResponseFuture
 from lithops.invokers import create_invoker
 from lithops.storage import InternalStorage
-from lithops.wait import wait, ALL_COMPLETED, THREADPOOL_SIZE, WAIT_DUR_SEC,\
-    ANY_COMPLETED, ALWAYS
+from lithops.wait import wait, ALL_COMPLETED, THREADPOOL_SIZE, WAIT_DUR_SEC, ALWAYS
 from lithops.job import create_map_job, create_reduce_job
 from lithops.config import default_config, \
     extract_localhost_config, extract_standalone_config, \
@@ -98,26 +97,28 @@ class FunctionExecutor:
                 setup_lithops_logger(*get_log_info(config))
 
         # overwrite user-provided parameters
-        config_ow = {'lithops': {}}
+        config_ow = {'lithops': {}, 'backend': {}}
         if runtime is not None:
-            config_ow['runtime'] = runtime
+            config_ow['backend']['runtime'] = runtime
         if runtime_memory is not None:
-            config_ow['runtime_memory'] = int(runtime_memory)
+            config_ow['backend']['runtime_memory'] = int(runtime_memory)
         if remote_invoker is not None:
-            config_ow['remote_invoker'] = remote_invoker
+            config_ow['backend']['remote_invoker'] = remote_invoker
+        if worker_processes is not None:
+            config_ow['backend']['worker_processes'] = worker_processes
+        if workers is not None:
+            config_ow['backend']['workers'] = workers
+
         if mode is not None:
             config_ow['lithops']['mode'] = mode
         if backend is not None:
             config_ow['lithops']['backend'] = backend
         if storage is not None:
             config_ow['lithops']['storage'] = storage
-        if workers is not None:
-            config_ow['lithops']['workers'] = workers
         if monitoring is not None:
             config_ow['lithops']['monitoring'] = monitoring
-        if worker_processes is not None:
-            config_ow['lithops']['worker_processes'] = worker_processes
 
+        # Load configuration
         self.config = default_config(copy.deepcopy(config), config_ow)
 
         self.data_cleaner = self.config['lithops'].get('data_cleaner', True)

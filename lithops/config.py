@@ -156,56 +156,38 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
     backend = config_data['lithops'].get('backend')
     mode = config_data['lithops'].get('mode')
 
-    if mode in config_data and 'worker_processes' in config_data[mode] \
-       and 'worker_processes' not in config_overwrite['lithops']:
-        config_data['lithops']['worker_processes'] = config_data[mode]['worker_processes']
+    if backend not in config_data or config_data[backend] is None:
+        config_data[backend] = {}
+
+    config_data[backend].update(config_overwrite['backend'])
 
     if mode == constants.LOCALHOST:
         logger.debug("Loading compute backend module: localhost")
 
-        if constants.LOCALHOST not in config_data or \
-           config_data[constants.LOCALHOST] is None:
-            config_data[constants.LOCALHOST] = {}
+        config_data[backend]['workers'] = 1
 
-        config_data['lithops']['workers'] = 1
+        if 'execution_timeout' not in config_data['lithops']:
+            config_data['lithops']['execution_timeout'] = constants.EXECUTION_TIMEOUT_LOCALHOST_DEFAULT
 
         if 'storage' not in config_data['lithops']:
             config_data['lithops']['storage'] = constants.LOCALHOST
 
-        if 'worker_processes' not in config_data['lithops']:
-            config_data['lithops']['worker_processes'] = CPU_COUNT
-
-        if 'runtime' in config_overwrite:
-            config_data[constants.LOCALHOST]['runtime'] = config_overwrite['runtime']
+        if 'worker_processes' not in config_data[constants.LOCALHOST]:
+            config_data[backend]['worker_processes'] = CPU_COUNT
 
         if 'runtime' not in config_data[constants.LOCALHOST]:
-            config_data[constants.LOCALHOST]['runtime'] = constants.LOCALHOST_RUNTIME_DEFAULT
+            config_data[backend]['runtime'] = constants.LOCALHOST_RUNTIME_DEFAULT
 
-        verify_runtime_name(config_data[constants.LOCALHOST]['runtime'])
+        verify_runtime_name(config_data[backend]['runtime'])
 
     elif mode == constants.SERVERLESS:
         if constants.SERVERLESS not in config_data or \
            config_data[constants.SERVERLESS] is None:
             config_data[constants.SERVERLESS] = {}
 
-        if backend not in config_data or config_data[backend] is None:
-            config_data[backend] = {}
-
-        if 'runtime' in config_overwrite:
-            config_data[backend]['runtime'] = config_overwrite['runtime']
-
         logger.debug("Loading Serverless backend module: {}".format(backend))
         cb_config = importlib.import_module('lithops.serverless.backends.{}.config'.format(backend))
         cb_config.load_config(config_data)
-
-        if 'runtime' in config_overwrite:
-            config_data[backend]['runtime'] = config_overwrite['runtime']
-
-        if 'runtime_memory' in config_overwrite:
-            config_data[backend]['runtime_memory'] = config_overwrite['runtime_memory']
-
-        if 'remote_invoker' in config_overwrite:
-            config_data[constants.SERVERLESS]['remote_invoker'] = config_overwrite['remote_invoker']
 
         verify_runtime_name(config_data[backend]['runtime'])
 
@@ -225,32 +207,25 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
         sb_config = importlib.import_module('lithops.standalone.backends.{}.config'.format(backend))
         sb_config.load_config(config_data)
 
-        if 'runtime' in config_overwrite:
-            config_data[constants.STANDALONE]['runtime'] = config_overwrite['runtime']
-
         if 'runtime' not in config_data[constants.STANDALONE]:
             config_data[constants.STANDALONE]['runtime'] = constants.STANDALONE_RUNTIME_DEFAULT
 
         verify_runtime_name(config_data[constants.STANDALONE]['runtime'])
 
-    if 'execution_timeout' not in config_data['lithops']:
-        config_data['lithops']['execution_timeout'] = constants.EXECUTION_TIMEOUT_LOCALHOST_DEFAULT \
-            if mode == constants.LOCALHOST else constants.EXECUTION_TIMEOUT_DEFAULT
-
-    if 'worker_processes' not in config_data['lithops']:
-        config_data['lithops']['worker_processes'] = constants.WORKER_PROCESSES_DEFAULT
-
-    if 'chunksize' not in config_data['lithops']:
-        config_data['lithops']['chunksize'] = config_data['lithops']['worker_processes']
-
     if 'monitoring' not in config_data['lithops']:
         config_data['lithops']['monitoring'] = constants.MONITORING_DEFAULT
 
+    if 'execution_timeout' not in config_data['lithops']:
+        config_data['lithops']['execution_timeout'] = constants.EXECUTION_TIMEOUT_DEFAULT
+
+    if 'chunksize' not in config_data['lithops']:
+        config_data['lithops']['chunksize'] = config_data[backend]['worker_processes']
+
     if load_storage_config:
         config_data = default_storage_config(config_data)
-
-        if config_data['lithops']['storage'] == constants.LOCALHOST and mode != constants.LOCALHOST:
-            raise Exception('Localhost storage backend cannot be used in {} mode'.format(mode))
+        if config_data['lithops']['storage'] == constants.LOCALHOST \
+           and backend != constants.LOCALHOST:
+            raise Exception(f'Localhost storage backend cannot be used with {backend}')
 
     return config_data
 

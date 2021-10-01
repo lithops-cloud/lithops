@@ -46,9 +46,7 @@ class GCPCloudRunBackend:
         self.service_account = cloudrun_config['service_account']
         self.project_name = cloudrun_config['project_name']
         self.region = cloudrun_config['region']
-
-        self.runtime_cpus = cloudrun_config['runtime_cpus']
-        self.container_runtime_concurrency = cloudrun_config['container_concurrency']
+        self.runtime_cpu = cloudrun_config['runtime_cpu']
         self.workers = cloudrun_config['workers']
 
         self._invoker_sess = None
@@ -261,7 +259,7 @@ class GCPCloudRunBackend:
                         }
                     },
                     "spec": {
-                        "containerConcurrency": self.container_runtime_concurrency,
+                        "containerConcurrency": 1,
                         "timeoutSeconds": timeout,
                         "serviceAccountName": self.service_account,
                         "containers": [

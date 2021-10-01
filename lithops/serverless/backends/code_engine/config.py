@@ -26,7 +26,7 @@ RUNTIME_NAME = 'lithops-codeengine'
 DOCKER_PATH = shutil.which('docker')
 
 DEFAULT_CONFIG_KEYS = {
-    'runtime_timeout': 600,  # Default: 600 seconds => 10 minutes
+    'runtime_timeout': 600,  # Default: 10 minutes
     'runtime_memory': 256,  # Default memory: 256 MB
     'runtime_cpu': 0.125,  # 0.125 vCPU
     'workers': 1000,

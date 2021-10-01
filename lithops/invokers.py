@@ -78,20 +78,19 @@ class Invoker:
         self.is_lithops_worker = is_lithops_worker()
         self.job_monitor = job_monitor
 
-        self.workers = self.config['lithops'].get('workers')
-        if self.workers:
-            logger.debug('ExecutorID {} - Total workers: {}'
-                         .format(self.executor_id, self.workers))
-
         prom_enabled = self.config['lithops'].get('telemetry', False)
         prom_config = self.config.get('prometheus', {})
         self.prometheus = PrometheusExporter(prom_enabled, prom_config)
 
         self.mode = self.config['lithops']['mode']
         self.backend = self.config['lithops']['backend']
-        self.runtime_name = self.config[self.backend]['runtime']
 
+        self.runtime_name = self.config[self.backend]['runtime']
+        self.workers = self.config[self.backend].get('workers')
         self.customized_runtime = self.config[self.mode].get('customized_runtime', False)
+
+        logger.debug(f'ExecutorID {self.executor_id} - Invoker initialized.'
+                     f' Max workers: {self.workers}')
 
     def select_runtime(self, job_id, runtime_memory):
         """
@@ -179,10 +178,8 @@ class Invoker:
                     .format(job.executor_id, job.job_id,
                             job.function_name, job.total_calls))
 
-        logger.debug('ExecutorID {} | JobID {} - Chunksize:'
-                     ' {} - Worker processes: {}'
-                     .format(job.executor_id, job.job_id,
-                             job.chunksize, job.worker_processes))
+        logger.debug('ExecutorID {} | JobID {} - Worker processes: {} - Chunksize: {}'
+                     .format(job.executor_id, job.job_id, job.worker_processes, job.chunksize))
 
         self.prometheus.send_metric(
             name='job_total_calls',
