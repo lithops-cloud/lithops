@@ -65,11 +65,16 @@ def load_config(config_data):
     if 'ibm' in config_data and config_data['ibm'] is not None:
         config_data['ibm_vpc'].update(config_data['ibm'])
 
+    for key in DEFAULT_CONFIG_KEYS:
+        if key not in config_data['ibm_vpc']:
+            config_data['ibm_vpc'][key] = DEFAULT_CONFIG_KEYS[key]
+
     if 'exec_mode' in config_data['standalone'] \
        and config_data['standalone']['exec_mode'] in ['create', 'reuse']:
         params_to_check = MANDATORY_PARAMETERS_2
     else:
         params_to_check = MANDATORY_PARAMETERS_3
+        config_data['ibm_vpc']['max_workers'] = 1
 
     for param in params_to_check:
         if param not in config_data['ibm_vpc']:
@@ -77,10 +82,6 @@ def load_config(config_data):
             raise Exception(msg)
 
     config_data['ibm_vpc']['endpoint'] = config_data['ibm_vpc']['endpoint'].replace('/v1', '')
-
-    for key in DEFAULT_CONFIG_KEYS:
-        if key not in config_data['ibm_vpc']:
-            config_data['ibm_vpc'][key] = DEFAULT_CONFIG_KEYS[key]
 
     if config_data['ibm_vpc']['image_id'] == DEFAULT_CONFIG_KEYS['image_id']:
         config_data['ibm_vpc']['boot_volume_capacity'] = BOOT_VOLUME_CAPACITY_DEFAULT

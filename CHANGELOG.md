@@ -12,7 +12,8 @@
 - [Core] 'serverless' section in config is no longer required
 
 ### Fixes
-- [CodeEngine] Fixed 'workers' parameter to limit the number of max workers per map invocation
+- [CodeEngine] Fixed 'max_workers' parameter to limit the number of max workers per map invocation
+- [IBM CF] Create the runtime if not deployed when invoked
 
 
 ## [v2.5.1]

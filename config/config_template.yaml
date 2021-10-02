@@ -36,7 +36,7 @@
     #runtime_timeout: 600
     #runtime_memory: 256
     #remote_invoker: <True/False>
-    #workers: <MAX_WORKERS> Default is 1200
+    #max_workers: <MAX_WORKERS> Default is 1200
     #worker_processes: <WORKER_GRANULARITY> Default is 1
 
 #code_engine:
@@ -50,7 +50,7 @@
     #runtime_timeout: 600
     #runtime_memory: 256
     #runtime_cpu : 0.125
-    #workers: <MAX_WORKERS> Default is 1000
+    #max_workers: <MAX_WORKERS> Default is 1000
     #worker_processes: <WORKER_GRANULARITY> Default is 1
 
 #standalone:
@@ -75,7 +75,7 @@
     #profile_name: <PROFILE_NAME> # Default is 'cx2-2x4'
     #master_profile_name:  <PROFILE_NAME> # Default is 'cx2-2x4'
     #delete_on_dismantle: <True/False> # Default is 'True
-    #workers: <MAX_WORKERS> Default is 100
+    #max_workers: <MAX_WORKERS> Default is 100
     #worker_processes: <WORKER_GRANULARITY> Default is 2
 
 #knative:
@@ -86,7 +86,7 @@
    #runtime_timeout: 600
    #runtime_memory: 256
    #runtime_cpu : 0.5
-   #workers: <MAX_WORKERS> Default is 250
+   #max_workers: <MAX_WORKERS> Default is 250
    #worker_processes: <WORKER_GRANULARITY> Default is 1
 
 #openwhisk:
@@ -97,7 +97,7 @@
     #runtime : <RUNTIME_NAME>
     #runtime_timeout: 600
     #runtime_memory: 256
-    #workers: <MAX_WORKERS> Default is 100
+    #max_workers: <MAX_WORKERS> Default is 100
     #worker_processes: <WORKER_GRANULARITY> Default is 1
 
 #ibm_cos:

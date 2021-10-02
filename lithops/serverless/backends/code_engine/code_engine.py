@@ -347,7 +347,7 @@ class CodeEngineBackend:
 
         total_calls = job_payload['total_calls']
         chunksize = job_payload['chunksize']
-        array_size = total_calls // chunksize + (total_calls % chunksize > 0)
+        total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
 
         jobdef_name = self._format_jobdef_name(docker_image_name, runtime_memory)
 
@@ -361,7 +361,7 @@ class CodeEngineBackend:
         jobrun_res['metadata']['name'] = activation_id
         jobrun_res['metadata']['namespace'] = self.namespace
         jobrun_res['spec']['jobDefinitionRef'] = str(jobdef_name)
-        jobrun_res['spec']['jobDefinitionSpec']['arraySpec'] = '0-' + str(array_size - 1)
+        jobrun_res['spec']['jobDefinitionSpec']['arraySpec'] = '0-' + str(total_workers - 1)
 
         container = jobrun_res['spec']['jobDefinitionSpec']['template']['containers'][0]
         container['name'] = str(jobdef_name)
@@ -375,9 +375,8 @@ class CodeEngineBackend:
 
         # logger.debug("request - {}".format(jobrun_res)
 
-        logger.debug('ExecutorID {} | JobID {} - Going '
-                     'to run {} activations in {} workers'
-                     .format(executor_id, job_id, total_calls, array_size))
+        logger.debug('ExecutorID {} | JobID {} - Going to run {} activations '
+                     '{} workers'.format(executor_id, job_id, total_calls, total_workers))
 
         try:
             self.custom_api.create_namespaced_custom_object(
