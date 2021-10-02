@@ -22,7 +22,7 @@ from lithops.utils import version_str
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 300,  # Default: 5 minutes
     'runtime_memory': 256,  # Default memory: 256 MB
-    'workers': 1000,
+    'max_workers': 1000,
     'worker_processes': 1,
     'invoke_pool_threads': 1000,
 }
@@ -84,7 +84,7 @@ def load_config(config_data=None):
         if key not in config_data['gcp_functions']:
             config_data['gcp_functions'][key] = DEFAULT_CONFIG_KEYS[key]
 
-    config_data['gcp_functions']['invoke_pool_threads'] = config_data['gcp_functions']['workers']
+    config_data['gcp_functions']['invoke_pool_threads'] = config_data['gcp_functions']['max_workers']
 
     if 'runtime' not in config_data['gcp_functions']:
         config_data['gcp_functions']['runtime'] = 'python' + version_str(sys.version_info)

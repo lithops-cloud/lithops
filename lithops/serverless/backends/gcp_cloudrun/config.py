@@ -32,7 +32,7 @@ DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 300,  # Default: 600 seconds => 10 minutes
     'runtime_memory': 256,  # Default memory: 256 MB
     'runtime_cpu': 1,  # 0.125 vCPU
-    'workers': 1000,
+    'max_workers': 1000,
     'worker_processes': 1,
     'invoke_pool_threads': 100,
 }
@@ -103,7 +103,7 @@ def load_config(config_data):
         if key not in config_data['gcp_cloudrun']:
             config_data['gcp_cloudrun'][key] = DEFAULT_CONFIG_KEYS[key]
 
-    config_data['gcp_cloudrun']['invoke_pool_threads'] = config_data['gcp_cloudrun']['workers']
+    config_data['gcp_cloudrun']['invoke_pool_threads'] = config_data['gcp_cloudrun']['max_workers']
 
     if 'runtime' not in config_data['gcp_cloudrun']:
         config_data['gcp_cloudrun']['runtime'] = DEFAULT_RUNTIME_NAME

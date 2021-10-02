@@ -20,7 +20,6 @@ import copy
 import json
 import importlib
 import logging
-import multiprocessing as mp
 
 from lithops import constants
 from lithops.version import __version__
@@ -33,7 +32,7 @@ os.makedirs(constants.LITHOPS_TEMP_DIR, exist_ok=True)
 os.makedirs(constants.JOBS_DIR, exist_ok=True)
 os.makedirs(constants.LOGS_DIR, exist_ok=True)
 
-CPU_COUNT = mp.cpu_count()
+CPU_COUNT = os.cpu_count()
 
 
 def load_yaml_config(config_filename):
@@ -164,7 +163,7 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
     if mode == constants.LOCALHOST:
         logger.debug("Loading compute backend module: localhost")
 
-        config_data[backend]['workers'] = 1
+        config_data[backend]['max_workers'] = 1
 
         if 'execution_timeout' not in config_data['lithops']:
             config_data['lithops']['execution_timeout'] = constants.EXECUTION_TIMEOUT_LOCALHOST_DEFAULT

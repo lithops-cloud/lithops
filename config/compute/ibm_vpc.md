@@ -109,7 +109,7 @@ This will create 4 different VM instance and execute `my_map_function` in the ea
 |ibm_vpc | profile_name | cx2-2x4 | no | Profile name for the worker VMs |
 |ibm_vpc | master_profile_name | cx2-2x4 | no | Profile name for the master VM |
 |ibm_vpc | delete_on_dismantle | True | no | Delete the worekr VMs when they are stopped |
-|ibm_vpc | workers | 100 | no | Max number of workers per `FunctionExecutor()`|
+|ibm_vpc | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
 |ibm_vpc | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of a worker VM. |
 
 ## Lithops and the VSI consume mode

@@ -57,7 +57,7 @@ $ python3 -m install lithops[gcp]
 #### Google Cloud Functions
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|gcp_functions | workers | 1000 | no | Max number of workers per `FunctionExecutor()`|
+|gcp_functions | max_workers | 1000 | no | Max number of workers per `FunctionExecutor()`|
 |gcp_functions | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |gcp_functions | runtime |  |no | Runtime name already deployed in the service |
 |gcp_functions | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |

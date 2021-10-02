@@ -1,4 +1,4 @@
-# Lithops on a Remote Virtual Machine
+# Lithops on a Virtual Machine
 
 Lithops can run functions in a regular remote virtual machine by using processes, either in the default interpreter or within a Docker container. For testing purposes, it is preferable to have an Ubuntu 20.04 VM.
 

@@ -29,7 +29,7 @@ RUNTIME_DEFAULT = {
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 300,  # Default: 600 seconds => 10 minutes
     'runtime_memory': 256,  # Default memory: 256 MB
-    'workers': 100,
+    'max_workers': 100,
     'worker_processes': 1,
     'invoke_pool_threads': 500,
 }

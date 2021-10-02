@@ -87,10 +87,10 @@ class Invoker:
         self.customized_runtime = self.config['lithops'].get('customized_runtime', False)
 
         self.runtime_name = self.config[self.backend]['runtime']
-        self.workers = self.config[self.backend].get('workers')
+        self.max_workers = self.config[self.backend].get('max_workers')
 
         logger.debug(f'ExecutorID {self.executor_id} - Invoker initialized.'
-                     f' Max workers: {self.workers}')
+                     f' Max workers: {self.max_workers}')
 
     def select_runtime(self, job_id, runtime_memory):
         """
@@ -152,7 +152,7 @@ class Invoker:
                    'executor_id': job.executor_id,
                    'job_id': job.job_id,
                    'job_key': job.job_key,
-                   'workers': self.workers,
+                   'max_workers': self.max_workers,
                    'call_ids': None,
                    'host_submit_tstamp': time.time(),
                    'lithops_version': lithops_version,
@@ -412,8 +412,8 @@ class FaaSInvoker(Invoker):
             self.should_run = True
             self._start_async_invokers()
 
-        if self.running_workers < self.workers:
-            free_workers = self.workers - self.running_workers
+        if self.running_workers < self.max_workers:
+            free_workers = self.max_workers - self.running_workers
             total_direct = free_workers * job.chunksize
             callids = range(job.total_calls)
             callids_to_invoke_direct = callids[:total_direct]
@@ -453,7 +453,7 @@ class FaaSInvoker(Invoker):
             logger.debug('ExecutorID {} | JobID {} - Reached maximum {} '
                          'workers, queuing {} function activations'
                          .format(job.executor_id, job.job_id,
-                                 self.workers, job.total_calls))
+                                 self.max_workers, job.total_calls))
             for call_ids_range in iterchunks(range(job.total_calls), job.chunksize):
                 self.pending_calls_q.put((job, call_ids_range))
 

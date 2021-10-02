@@ -22,7 +22,7 @@ from lithops.utils import version_str
 DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 600,  # Default: 5 minutes
     'runtime_memory': 256,  # Default memory: 256 MB
-    'workers': 300,
+    'max_workers': 300,
     'worker_processes': 1,
     'invoke_pool_threads': 300,
 }

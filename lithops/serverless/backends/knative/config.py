@@ -33,7 +33,7 @@ DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 600,  # Default: 600 seconds => 10 minutes
     'runtime_memory': 256,  # Default memory: 256 MB
     'runtime_cpu': 0.5,  # 0.125 vCPU
-    'workers': 250,
+    'max_workers': 250,
     'worker_processes': 1,
     'invoke_pool_threads': 250,
 }
@@ -217,7 +217,7 @@ def load_config(config_data):
         if key not in config_data['knative']:
             config_data['knative'][key] = DEFAULT_CONFIG_KEYS[key]
 
-    config_data['knative']['invoke_pool_threads'] = config_data['knative']['workers']
+    config_data['knative']['invoke_pool_threads'] = config_data['knative']['max_workers']
 
     if 'git_url' not in config_data['knative']:
         config_data['knative']['git_url'] = BUILD_GIT_URL

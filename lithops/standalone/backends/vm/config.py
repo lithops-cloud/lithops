@@ -17,7 +17,7 @@
 
 def load_config(config_data):
 
-    config_data['vm']['workers'] = 1
+    config_data['vm']['max_workers'] = 1
 
     if 'worker_processes' not in config_data['vm']:
         config_data['vm']['worker_processes'] = 1

@@ -163,9 +163,8 @@ fexec = lithops.FunctionExecutor(monitoring='rabbitmq')
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|lithops | backend | ibm_cf | no | Compute backend implementation. IBM Cloud Functions is the default. If not set, Lithops will check the `mode` and use the `backend` set under `standalone` section described below |
+|lithops | backend | ibm_cf | no | Compute backend implementation. IBM Cloud Functions is the default |
 |lithops | storage | ibm_cos | no | Storage backend implementation. IBM Cloud Object Storage is the default |
-|lithops | mode | serverless | no | Execution mode. One of: **localhost**, **serverless** or **standalone**. `backend` has priority over `mode`, i.e., `mode` is automatically inferred from `backend`, so you can avoid setting it. Alternatively, you can set `mode` here and then set the `backend` under the `serverless` or `standalone` sections described below |
 |lithops | data_cleaner | True | no |If set to True, then the cleaner will automatically delete all the temporary data that was written into `storage_bucket/lithops.jobs`|
 |lithops | monitoring | storage | no | Monitoring system implementation. One of: **storage** or **rabbitmq** |
 |lithops | data_limit | 4 | no | Max (iter)data size (in MB). Set to False for unlimited size |

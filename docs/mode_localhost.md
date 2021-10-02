@@ -26,7 +26,7 @@ If in contrast you already have a config file/dict, you must set the next keys i
 
 ```yaml
 lithops:
-    mode: localhost
+    backend: localhost
     storage: localhost  # You can also point it to a public storage backend, such as aws_s3 or ibm_cos
 ```
 
@@ -35,14 +35,14 @@ The default environment runs the functions in the same *python3* interpreter tha
 It does not require any extra configuration. You must ensure that all the dependencies of your script are installed in your machine and then crate one of the availabe function executors.
 
 ```python
-    # As we use the default FunctionExecutor(), mode must be set to localhost in config
+    # As we use the default FunctionExecutor(), backend must be set to localhost in config
     fexec = lithops.FunctionExecutor()
 ```
 
 or alternatively, you can force the serverless mode with:
 
 ```python
-    # As we use/force the LocalhostExecutor(), mode does not need to be set to localhost in config
+    # As we use/force the LocalhostExecutor(), backend does not need to be set to localhost in config
     fexec = lithops.LocalhostExecutor()
 ```
 

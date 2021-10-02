@@ -30,7 +30,7 @@ DEFAULT_CONFIG_KEYS = {
     'runtime_timeout': 600,  # Default: 10 minutes
     'runtime_memory': 256,  # Default memory: 256 MB
     'runtime_cpu': 0.5,  # 0.5 vCPU
-    'workers': 200,
+    'max_workers': 200,
     'worker_processes': 1
 }
 

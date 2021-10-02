@@ -45,7 +45,7 @@ DEFAULT_CONFIG_KEYS = {
     'profile_name': 'cx2-2x4',
     'boot_volume_profile': 'general-purpose',
     'ssh_username': 'root',
-    'workers': 100,
+    'max_workers': 100,
     'worker_processes': 2
 }
 
