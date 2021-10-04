@@ -25,8 +25,9 @@ import shutil
 import threading
 import subprocess as sp
 from shutil import copyfile
+from pathlib import Path
 
-from lithops.constants import TEMP, LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG, JOBS_PREFIX
+from lithops.constants import RN_LOG_FILE, TEMP, LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG, JOBS_PREFIX
 from lithops.utils import is_lithops_worker, is_unix_system
 
 logger = logging.getLogger(__name__)
@@ -261,7 +262,7 @@ class DockerEnv(BaseEnv):
         self.gid = os.getuid() if is_unix_system() else None
 
     def setup(self):
-        logger.debug(f'Setting up Docker environment')
+        logger.debug('Setting up Docker environment')
         self._copy_lithops_to_tmp()
         if self.pull_runtime:
             logger.debug('Pulling Docker runtime {}'.format(self.runtime))
@@ -272,12 +273,14 @@ class DockerEnv(BaseEnv):
         if not os.path.isfile(RUNNER):
             self.setup()
 
-        cmd = 'docker run ' + f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
-        cmd += (f'--rm -v {TEMP}:/tmp --entrypoint "python3" {self.runtime} '
-                f'/tmp/lithops/runner.py preinstalls')
+        tmp_path = Path(TEMP).as_posix()
+        cmd = 'docker run '
+        cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
+        cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" {self.runtime} /tmp/lithops/runner.py preinstalls'
 
         process = sp.run(shlex.split(cmd), check=True, stdout=sp.PIPE, universal_newlines=True)
         runtime_meta = json.loads(process.stdout.strip())
+        print(runtime_meta)
         return runtime_meta
 
     def run(self, job_payload, job_filename):
@@ -295,12 +298,13 @@ class DockerEnv(BaseEnv):
         if not os.path.isfile(RUNNER):
             self.setup()
 
-        name = f'lithops_{job_key}'
-        cmd = f'docker run --name {name} ' + f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
-        cmd += (f'--rm -v {TEMP}:/tmp --entrypoint "python3" {self.runtime} '
-                f'/tmp/lithops/runner.py run {job_filename}')
+        tmp_path = Path(TEMP).as_posix()
+        cmd = f'docker run --name lithops_{job_key} '
+        cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
+        cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" {self.runtime} /tmp/lithops/runner.py run {job_filename}'
 
-        process = sp.Popen(shlex.split(cmd))
+        log = open(RN_LOG_FILE, 'a')
+        process = sp.Popen(shlex.split(cmd), stdout=log, stderr=log)
         self.jobs[job_key] = process
 
         return process
@@ -329,14 +333,15 @@ class DefaultEnv(BaseEnv):
         super().__init__(runtime=sys.executable)
 
     def setup(self):
-        logger.debug(f'Setting up Default environment')
+        logger.debug('Setting up Default environment')
         self._copy_lithops_to_tmp()
 
     def preinstalls(self):
         if not os.path.isfile(RUNNER):
             self.setup()
-        cmd = f'{self.runtime} {RUNNER} preinstalls'
-        process = sp.run(shlex.split(cmd), check=True, stdout=sp.PIPE, universal_newlines=True)
+
+        cmd = [self.runtime, RUNNER, 'preinstalls']
+        process = sp.run(cmd, check=True, stdout=sp.PIPE, universal_newlines=True)
         runtime_meta = json.loads(process.stdout.strip())
         return runtime_meta
 
@@ -355,8 +360,9 @@ class DefaultEnv(BaseEnv):
         if not os.path.isfile(RUNNER):
             self.setup()
 
-        cmd = f'{self.runtime} {RUNNER} run {job_filename}'
-        process = sp.Popen(shlex.split(cmd))
+        cmd = [self.runtime, RUNNER, 'run', job_filename]
+        log = open(RN_LOG_FILE, 'a')
+        process = sp.Popen(cmd, stdout=log, stderr=log)
         self.jobs[job_key] = process
 
         return process
