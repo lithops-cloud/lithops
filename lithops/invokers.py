@@ -78,20 +78,19 @@ class Invoker:
         self.is_lithops_worker = is_lithops_worker()
         self.job_monitor = job_monitor
 
-        self.workers = self.config['lithops'].get('workers')
-        if self.workers:
-            logger.debug('ExecutorID {} - Total workers: {}'
-                         .format(self.executor_id, self.workers))
-
         prom_enabled = self.config['lithops'].get('telemetry', False)
         prom_config = self.config.get('prometheus', {})
         self.prometheus = PrometheusExporter(prom_enabled, prom_config)
 
         self.mode = self.config['lithops']['mode']
         self.backend = self.config['lithops']['backend']
-        self.runtime_name = self.config[self.backend]['runtime']
+        self.customized_runtime = self.config['lithops'].get('customized_runtime', False)
 
-        self.customized_runtime = self.config[self.mode].get('customized_runtime', False)
+        self.runtime_name = self.config[self.backend]['runtime']
+        self.max_workers = self.config[self.backend].get('max_workers')
+
+        logger.debug(f'ExecutorID {self.executor_id} - Invoker initialized.'
+                     f' Max workers: {self.max_workers}')
 
     def select_runtime(self, job_id, runtime_memory):
         """
@@ -153,7 +152,7 @@ class Invoker:
                    'executor_id': job.executor_id,
                    'job_id': job.job_id,
                    'job_key': job.job_key,
-                   'workers': self.workers,
+                   'max_workers': self.max_workers,
                    'call_ids': None,
                    'host_submit_tstamp': time.time(),
                    'lithops_version': lithops_version,
@@ -179,10 +178,8 @@ class Invoker:
                     .format(job.executor_id, job.job_id,
                             job.function_name, job.total_calls))
 
-        logger.debug('ExecutorID {} | JobID {} - Chunksize:'
-                     ' {} - Worker processes: {}'
-                     .format(job.executor_id, job.job_id,
-                             job.chunksize, job.worker_processes))
+        logger.debug('ExecutorID {} | JobID {} - Worker processes: {} - Chunksize: {}'
+                     .format(job.executor_id, job.job_id, job.worker_processes, job.chunksize))
 
         self.prometheus.send_metric(
             name='job_total_calls',
@@ -264,6 +261,12 @@ class BatchInvoker(Invoker):
         """
         Run a job
         """
+        # Ensure only self.max_workers are started
+        total_workers = job.total_calls // job.chunksize + (job.total_calls % job.chunksize > 0)
+        if self.max_workers < total_workers:
+            job.chunksize = job.total_calls // self.max_workers + (job.total_calls % self.max_workers > 0)
+
+        # Perform the invocation
         futures = self._run_job(job)
         self.job_monitor.start(futures)
 
@@ -279,7 +282,7 @@ class FaaSInvoker(Invoker):
     def __init__(self, config, executor_id, internal_storage, compute_handler, job_monitor):
         super().__init__(config, executor_id, internal_storage, compute_handler, job_monitor)
 
-        remote_invoker = self.config[SERVERLESS].get('remote_invoker', False)
+        remote_invoker = self.config[self.backend].get('remote_invoker', False)
         self.remote_invoker = remote_invoker if not is_lithops_worker() else False
 
         self.invokers = []
@@ -288,7 +291,7 @@ class FaaSInvoker(Invoker):
         self.should_run = False
         self.sync = is_lithops_worker()
 
-        invoke_pool_threads = self.config[self.backend].get('invoke_pool_threads', 64)
+        invoke_pool_threads = self.config[self.backend]['invoke_pool_threads']
         self.executor = ThreadPoolExecutor(invoke_pool_threads)
 
         logger.debug('ExecutorID {} - Serverless invoker created'.format(self.executor_id))
@@ -415,8 +418,8 @@ class FaaSInvoker(Invoker):
             self.should_run = True
             self._start_async_invokers()
 
-        if self.running_workers < self.workers:
-            free_workers = self.workers - self.running_workers
+        if self.running_workers < self.max_workers:
+            free_workers = self.max_workers - self.running_workers
             total_direct = free_workers * job.chunksize
             callids = range(job.total_calls)
             callids_to_invoke_direct = callids[:total_direct]
@@ -456,7 +459,7 @@ class FaaSInvoker(Invoker):
             logger.debug('ExecutorID {} | JobID {} - Reached maximum {} '
                          'workers, queuing {} function activations'
                          .format(job.executor_id, job.job_id,
-                                 self.workers, job.total_calls))
+                                 self.max_workers, job.total_calls))
             for call_ids_range in iterchunks(range(job.total_calls), job.chunksize):
                 self.pending_calls_q.put((job, call_ids_range))
 

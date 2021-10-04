@@ -82,6 +82,8 @@ $ python3 -m pip install lithops[azure]
 |---|---|---|---|---|
 |azure_functions| resource_group | |yes | Name of the resource group used in the step 5 of the installation. |
 |azure_functions| location |  |yes | The location of the consumption plan for the runtime. Use `az functionapp list-consumption-locations` to view the available locations.|
+|azure_functions | max_workers | 200 | no | Max number of workers per `FunctionExecutor()`|
+|azure_functions | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |azure_functions| runtime |  |no | Runtime name already deployed in the service|
 |azure_functions | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
 |azure_functions| invocation_type | http  | no | One of 'http' or 'event'|

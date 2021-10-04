@@ -435,20 +435,16 @@ class KnativeServingBackend:
         logger.debug("Namespace: {}".format(self.namespace))
 
         svc_res['spec']['template']['spec']['timeoutSeconds'] = timeout
-        svc_res['spec']['template']['spec']['containerConcurrency'] = self.knative_config['runtime_concurrency']
+        svc_res['spec']['template']['spec']['containerConcurrency'] = 1
 
         container = svc_res['spec']['template']['spec']['containers'][0]
         container['image'] = docker_image_name
-        container['env'][0] = {'name': 'CONCURRENCY', 'value': str(self.knative_config['runtime_concurrency'])}
+        container['env'][0] = {'name': 'CONCURRENCY', 'value': '1'}
         container['env'][1] = {'name': 'TIMEOUT', 'value': str(timeout)}
         container['resources']['limits']['memory'] = '{}Mi'.format(runtime_memory)
         container['resources']['limits']['cpu'] = str(self.knative_config['runtime_cpu'])
         container['resources']['requests']['memory'] = '{}Mi'.format(runtime_memory)
         container['resources']['requests']['cpu'] = str(self.knative_config['runtime_cpu'])
-
-        svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/minScale'] = str(self.knative_config['runtime_min_instances'])
-        svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/maxScale'] = str(self.knative_config['runtime_max_instances'])
-        svc_res['spec']['template']['metadata']['annotations']['autoscaling.knative.dev/target'] = str(self.knative_config['runtime_concurrency'])
 
         try:
             # delete the service resource if exists
@@ -519,7 +515,7 @@ class KnativeServingBackend:
 
         return runtime_meta
 
-    def create_runtime(self, docker_image_name, memory, timeout=kconfig.RUNTIME_TIMEOUT):
+    def create_runtime(self, docker_image_name, memory, timeout):
         """
         Creates a new runtime into the knative default namespace from an already built Docker image.
         As knative does not have a default image already published in a docker registry, lithops

@@ -75,7 +75,7 @@ class AzureFunctionAppBackend:
                                                 py_version, revision, self.invocation_type)
         return runtime_name
 
-    def create_runtime(self, docker_image_name, memory=None, timeout=az_config.RUNTIME_TIMEOUT):
+    def create_runtime(self, docker_image_name, memory, timeout):
         """
         Creates a new runtime into Azure Function Apps
         from the provided Linux image for consumption plan
@@ -170,8 +170,7 @@ class AzureFunctionAppBackend:
             os.remove(mod_dir+'/__init__.py')
             os.remove(az_config.FH_ZIP_LOCATION)
 
-    def _create_function(self, docker_image_name, memory=None,
-                         timeout=az_config.RUNTIME_TIMEOUT):
+    def _create_function(self, docker_image_name, memory, timeout):
         """
         Create and publish an Azure Functions
         """

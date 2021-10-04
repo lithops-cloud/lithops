@@ -106,11 +106,14 @@ By default, the IBM Cloud account provides an automatically created CloudFoundry
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|ibm_cf| endpoint | |yes | IBM Cloud Functions endpoint from [here](https://cloud.ibm.com/docs/openwhisk?topic=cloud-functions-cloudfunctions_regions#cloud-functions-endpoints). Make sure to use https:// prefix, for example: https://us-east.functions.cloud.ibm.com |
+|ibm_cf| endpoint | |yes | IBM Cloud Functions endpoint. Make sure to use https:// prefix, for example: https://us-east.functions.cloud.ibm.com |
 |ibm_cf| namespace | |yes | Value of CURRENT NAMESPACE from [here](https://cloud.ibm.com/functions/namespace-settings) |
 |ibm_cf| api_key |  | no | **Mandatory** if using Cloud Foundry-based namespace. Value of 'KEY' from [here](https://cloud.ibm.com/functions/namespace-settings)|
 |ibm_cf| namespace_id |  |no | **Mandatory** if using IAM-based namespace with IAM API Key. Value of 'GUID' from [here](https://cloud.ibm.com/functions/namespace-settings)|
+|ibm_cf | max_workers | 1200 | no | Max number of workers per `FunctionExecutor()`|
+|ibm_cf | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |ibm_cf| runtime |  |no | Docker image name.|
 |ibm_cf | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
 |ibm_cf | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
 |ibm_cf | invoke_pool_threads | 500 |no | Number of concurrent threads used for invocation |
+|ibm_cf | remote_invoker | False | no |  Activate the remote invoker feature that uses one cloud function to spawn all the actual `map()` activations |

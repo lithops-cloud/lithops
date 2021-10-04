@@ -140,9 +140,12 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
         ext_env = utils.convert_bools_to_string(ext_env)
         logger.debug("Extra environment vars {}".format(ext_env))
 
+    mode = config['lithops']['mode']
+    backend = config['lithops']['backend']
+
     job = SimpleNamespace()
     job.chunksize = chunksize or config['lithops']['chunksize']
-    job.worker_processes = config['lithops']['worker_processes']
+    job.worker_processes = config[backend]['worker_processes']
     job.execution_timeout = execution_timeout or config['lithops']['execution_timeout']
     job.executor_id = executor_id
     job.job_id = job_id
@@ -150,9 +153,6 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     job.extra_env = ext_env
     job.function_name = func.__name__ if inspect.isfunction(func) or inspect.ismethod(func) else type(func).__name__
     job.total_calls = len(iterdata)
-
-    mode = config['lithops']['mode']
-    backend = config['lithops']['backend']
 
     if mode == SERVERLESS:
         job.runtime_memory = runtime_memory or config[backend]['runtime_memory']
@@ -214,7 +214,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
         raise Exception(log_msg)
 
     # Upload function and data
-    upload_function = not config[mode].get('customized_runtime', False)
+    upload_function = not config['lithops'].get('customized_runtime', False)
     upload_data = not (len(str(data_strs[0])) * job.chunksize < 8*1204 and backend in FAAS_BACKENDS)
 
     # Upload function and modules

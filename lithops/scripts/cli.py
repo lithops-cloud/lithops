@@ -40,14 +40,16 @@ logger = logging.getLogger(__name__)
 
 
 def set_config_ow(backend, storage=None, runtime_name=None):
-    config_ow = {'lithops': {}}
+    config_ow = {'lithops': {}, 'backend': {}}
+
     if storage:
         config_ow['lithops']['storage'] = storage
     if backend:
         config_ow['lithops']['backend'] = backend
         config_ow['lithops']['mode'] = get_mode(backend)
+
     if runtime_name:
-        config_ow['runtime'] = runtime_name
+        config_ow['backend']['runtime'] = runtime_name
 
     return config_ow
 

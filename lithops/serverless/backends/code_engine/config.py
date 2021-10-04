@@ -18,8 +18,6 @@ import os
 import sys
 import shutil
 
-import requests
-
 from lithops.utils import version_str, get_docker_username
 from lithops.version import __version__
 
@@ -27,11 +25,14 @@ RUNTIME_NAME = 'lithops-codeengine'
 
 DOCKER_PATH = shutil.which('docker')
 
-RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
-RUNTIME_MEMORY = 256  # Default memory: 256 MB
-RUNTIME_CPU = 0.125  # 0.125 vCPU
-MAX_CONCURRENT_WORKERS = 1000
-INVOKE_POOL_THREADS_DEFAULT = 4
+DEFAULT_CONFIG_KEYS = {
+    'runtime_timeout': 600,  # Default: 10 minutes
+    'runtime_memory': 256,  # Default memory: 256 MB
+    'runtime_cpu': 0.125,  # 0.125 vCPU
+    'max_workers': 1000,
+    'worker_processes': 1
+}
+
 DEFAULT_GROUP = "codeengine.cloud.ibm.com"
 DEFAULT_VERSION = "v1beta1"
 
@@ -147,26 +148,14 @@ spec:
 
 
 def load_config(config_data):
-    if 'code_engine' not in config_data:
-        config_data['code_engine'] = {}
-
-    if 'kubectl_config' in config_data['code_engine']:
-        print('"kubectl_config" variable in code_engine config is deprecated, use "kubecfg_path" instead')
-        config_data['code_engine']['kubecfg_path'] = config_data['code_engine']['kubectl_config']
-
-    if 'cpu' in config_data['code_engine']:
-        print('"cpu" variable in code_engine config is deprecated, use "runtime_cpu" instead')
-        config_data['code_engine']['runtime_cpu'] = config_data['code_engine']['cpu']
 
     if 'ibm' in config_data and config_data['ibm'] is not None:
         config_data['code_engine'].update(config_data['ibm'])
 
-    if 'runtime_cpu' not in config_data['code_engine']:
-        config_data['code_engine']['runtime_cpu'] = RUNTIME_CPU
-    if 'runtime_memory' not in config_data['code_engine']:
-        config_data['code_engine']['runtime_memory'] = RUNTIME_MEMORY
-    if 'runtime_timeout' not in config_data['code_engine']:
-        config_data['code_engine']['runtime_timeout'] = RUNTIME_TIMEOUT
+    for key in DEFAULT_CONFIG_KEYS:
+        if key not in config_data['code_engine']:
+            config_data['code_engine'][key] = DEFAULT_CONFIG_KEYS[key]
+
     if 'runtime' not in config_data['code_engine']:
         if not DOCKER_PATH:
             raise Exception('docker command not found. Install docker or use '
@@ -196,8 +185,3 @@ def load_config(config_data):
     if region and region not in VALID_REGIONS:
         raise Exception('{} is an invalid region name. Set one of: '
                         '{}'.format(region, VALID_REGIONS))
-
-    if 'workers' not in config_data['lithops'] or \
-       config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
-        config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
-

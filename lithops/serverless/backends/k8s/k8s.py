@@ -322,7 +322,7 @@ class KubernetesBackend:
         """
         master_ip = self._start_master(docker_image_name)
 
-        workers = job_payload['workers']
+        workers = job_payload['max_workers']
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
 

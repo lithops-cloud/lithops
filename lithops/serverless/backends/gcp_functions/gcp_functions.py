@@ -69,7 +69,7 @@ class GCPFunctionsBackend:
             credentials = jwt.Credentials.from_service_account_info(service_account_info,
                                                                     audience=AUDIENCE)
             credentials_pub = credentials.with_claims(audience=AUDIENCE)
-        except:  # Get credentials from gcp function environment
+        except Exception:  # Get credentials from gcp function environment
             credentials_pub = None
         self.publisher_client = pubsub_v1.PublisherClient(credentials=credentials_pub)
 

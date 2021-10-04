@@ -19,12 +19,13 @@ import os
 from lithops.utils import version_str
 
 
-RUNTIME_TIMEOUT_DEFAULT = 300    # Default: 5 minutes
-RUNTIME_TIMEOUT_MAX = 600        # Platform 10 min. maximum
-RUNTIME_MEMORY_DEFAULT = 256
-RUNTIME_MEMORY_MAX = 3072
-MAX_CONCURRENT_WORKERS = 300
-INVOKE_POOL_THREADS_DEFAULT = 300
+DEFAULT_CONFIG_KEYS = {
+    'runtime_timeout': 600,  # Default: 5 minutes
+    'runtime_memory': 256,  # Default memory: 256 MB
+    'max_workers': 300,
+    'worker_processes': 1,
+    'invoke_pool_threads': 300,
+}
 
 CONNECTION_POOL_SIZE = 300
 
@@ -70,29 +71,12 @@ def load_config(config_data=None):
     pe = config_data['aliyun_fc']['public_endpoint'].replace('https://', '')
     config_data['aliyun_fc']['public_endpoint'] = pe
 
-    if 'invoke_pool_threads' not in config_data['aliyun_fc']:
-        config_data['aliyun_fc']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
+    for key in DEFAULT_CONFIG_KEYS:
+        if key not in config_data['aliyun_fc']:
+            config_data['aliyun_fc'][key] = DEFAULT_CONFIG_KEYS[key]
 
     if 'runtime' not in config_data['aliyun_fc']:
         config_data['aliyun_fc']['runtime'] = 'default'
 
-    if 'runtime_memory' in config_data['aliyun_fc']:
-        if config_data['aliyun_fc']['runtime_memory'] > RUNTIME_MEMORY_MAX:
-            config_data['aliyun_fc']['runtime_memory'] = RUNTIME_MEMORY_MAX
-    else:
-        config_data['aliyun_fc']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
-
-    if 'runtime_timeout' in config_data['aliyun_fc']:
-        if config_data['aliyun_fc']['runtime_timeout'] > RUNTIME_TIMEOUT_MAX:
-            config_data['aliyun_fc']['runtime_timeout'] = RUNTIME_TIMEOUT_MAX
-    else:
-        config_data['aliyun_fc']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
-
-    if 'workers' in config_data['lithops']:
-        if config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
-            config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
-    else:
-        config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
-
-    # Put credential keys to 'aws_lambda' dict entry
+    # Put credential keys to 'aliyun_fc' dict entry
     config_data['aliyun_fc'].update(config_data['aliyun'])

@@ -56,9 +56,10 @@ $ python3 -m install lithops[gcp]
 #### Google Cloud Run
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|gcp_cloudrun | runtime |  |no | Docker image name|
+|gcp_cloudrun | max_workers | 1000 | no | Max number of workers per `FunctionExecutor()`|
+|gcp_cloudrun | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the container. |
+|gcp_cloudrun | runtime |  |no | Container image name|
 |gcp_cloudrun | runtime_cpu | 1 |no | CPU limit. Default 1vCPU |
 |gcp_cloudrun | runtime_memory | 256 |no | Memory limit in MB. Default 256Mi |
 |gcp_cloudrun | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
-|gcp_cloudrun | runtime_concurrency | 1 |no | Number of workers inside a single runtime instance |
 |gcp_cloudrun | invoke_pool_threads | {lithops.workers} |no | Number of concurrent threads used for invocation |

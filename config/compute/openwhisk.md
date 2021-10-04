@@ -74,6 +74,8 @@ Lithops with *OpenWhisk* as serverless compute backend. Lithops can also run fun
 |openwhisk | namespace | |yes | Namespace |
 |openwhisk | api_key | |yes | API Auth|
 |openwhisk | insecure | |yes | Insecure access |
+|openwhisk | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
+|openwhisk | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |openwhisk | runtime |  |no | Docker image name |
 |openwhisk | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
 |openwhisk | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 10 minutes |

@@ -31,8 +31,7 @@ from lithops import constants
 from lithops.future import ResponseFuture
 from lithops.invokers import create_invoker
 from lithops.storage import InternalStorage
-from lithops.wait import wait, ALL_COMPLETED, THREADPOOL_SIZE, WAIT_DUR_SEC,\
-    ANY_COMPLETED, ALWAYS
+from lithops.wait import wait, ALL_COMPLETED, THREADPOOL_SIZE, WAIT_DUR_SEC, ALWAYS
 from lithops.job import create_map_job, create_reduce_job
 from lithops.config import default_config, \
     extract_localhost_config, extract_standalone_config, \
@@ -63,7 +62,7 @@ class FunctionExecutor:
     :param runtime: Name of the runtime to run the functions
     :param runtime_memory: Memory (in MB) to use to run the functions
     :param monitoring: Monitoring system implementation. One of: storage, rabbitmq
-    :param workers: Max number of parallel workers
+    :param max_workers: Max number of parallel workers
     :param worker_processes: Worker granularity, number of concurrent/parallel processes in each worker
     :param remote_invoker: Spawn a function that will perform the actual job invocation (True/False)
     :param log_level: Log level printing (INFO, DEBUG, ...). Set it to None to hide all logs. If this is param is set, all logging params in config are disabled
@@ -77,7 +76,7 @@ class FunctionExecutor:
                  runtime: Optional[str] = None,
                  runtime_memory: Optional[int] = None,
                  monitoring: Optional[str] = None,
-                 workers: Optional[int] = None,
+                 max_workers: Optional[int] = None,
                  worker_processes: Optional[int] = None,
                  remote_invoker: Optional[bool] = None,
                  log_level: Optional[str] = False):
@@ -98,26 +97,28 @@ class FunctionExecutor:
                 setup_lithops_logger(*get_log_info(config))
 
         # overwrite user-provided parameters
-        config_ow = {'lithops': {}}
+        config_ow = {'lithops': {}, 'backend': {}}
         if runtime is not None:
-            config_ow['runtime'] = runtime
+            config_ow['backend']['runtime'] = runtime
         if runtime_memory is not None:
-            config_ow['runtime_memory'] = int(runtime_memory)
+            config_ow['backend']['runtime_memory'] = int(runtime_memory)
         if remote_invoker is not None:
-            config_ow['remote_invoker'] = remote_invoker
+            config_ow['backend']['remote_invoker'] = remote_invoker
+        if worker_processes is not None:
+            config_ow['backend']['worker_processes'] = worker_processes
+        if max_workers is not None:
+            config_ow['backend']['max_workers'] = max_workers
+
         if mode is not None:
             config_ow['lithops']['mode'] = mode
         if backend is not None:
             config_ow['lithops']['backend'] = backend
         if storage is not None:
             config_ow['lithops']['storage'] = storage
-        if workers is not None:
-            config_ow['lithops']['workers'] = workers
         if monitoring is not None:
             config_ow['lithops']['monitoring'] = monitoring
-        if worker_processes is not None:
-            config_ow['lithops']['worker_processes'] = worker_processes
 
+        # Load configuration
         self.config = default_config(copy.deepcopy(config), config_ow)
 
         self.data_cleaner = self.config['lithops'].get('data_cleaner', True)
@@ -682,7 +683,7 @@ class ServerlessExecutor(FunctionExecutor):
     :param runtime_memory: memory to use in the runtime
     :param backend: Name of the serverless compute backend to use
     :param storage: Name of the storage backend to use
-    :param workers: Max number of concurrent workers
+    :param max_workers: Max number of concurrent workers
     :param worker_processes: Worker granularity, number of concurrent/parallel processes in each worker
     :param monitoring: monitoring system
     :param remote_invoker: Spawn a function that will perform the actual job invocation (True/False)
@@ -695,20 +696,19 @@ class ServerlessExecutor(FunctionExecutor):
                  runtime_memory: Optional[int] = None,
                  backend: Optional[str] = None,
                  storage: Optional[str] = None,
-                 workers: Optional[int] = None,
+                 max_workers: Optional[int] = None,
                  worker_processes: Optional[int] = None,
                  monitoring: Optional[str] = None,
                  remote_invoker: Optional[bool] = None,
                  log_level: Optional[str] = False):
 
-        backend = backend or constants.SERVERLESS_BACKEND_DEFAULT
-
         super().__init__(config=config,
+                         mode='serverless',
                          runtime=runtime,
                          runtime_memory=runtime_memory,
                          backend=backend,
                          storage=storage,
-                         workers=workers,
+                         max_workers=max_workers,
                          worker_processes=worker_processes,
                          monitoring=monitoring,
                          log_level=log_level,
@@ -723,7 +723,7 @@ class StandaloneExecutor(FunctionExecutor):
     :param runtime: Runtime name to use
     :param backend: Name of the standalone compute backend to use
     :param storage: Name of the storage backend to use
-    :param workers: Max number of concurrent workers
+    :param max_workers: Max number of concurrent workers
     :param worker_processes: Worker granularity, number of concurrent/parallel processes in each worker
     :param monitoring: monitoring system
     :param log_level: log level to use during the execution
@@ -734,18 +734,17 @@ class StandaloneExecutor(FunctionExecutor):
                  runtime: Optional[str] = None,
                  backend: Optional[str] = None,
                  storage: Optional[str] = None,
-                 workers: Optional[int] = None,
+                 max_workers: Optional[int] = None,
                  worker_processes: Optional[int] = None,
                  monitoring: Optional[str] = None,
                  log_level: Optional[str] = False):
 
-        backend = backend or constants.STANDALONE_BACKEND_DEFAULT
-
         super().__init__(config=config,
+                         mode='standalone',
                          runtime=runtime,
                          backend=backend,
                          storage=storage,
-                         workers=workers,
+                         max_workers=max_workers,
                          worker_processes=worker_processes,
                          monitoring=monitoring,
                          log_level=log_level)

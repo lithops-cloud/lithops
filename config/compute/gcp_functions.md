@@ -42,12 +42,6 @@ $ python3 -m install lithops[gcp]
         credentials_path : <FULL_PATH_TO_CREDENTIALS_JSON>
         region : <REGION_NAME>
 ```
-
- - `project_name`: Project name introduced in step 3 (e.g. `lithops`)
- - `service_account`: Service account email of the service account created on step 5 (e.g. `lithops-executor@lithops.iam.gserviceaccount.com`)
- - `credentials_path`: **Absolute** path of your JSON key file downloaded in step 7 (e.g. `/home/myuser/lithops-invoker1234567890.json`)
- - `region`: Region of the bucket created at step 8. Functions and pub/sub queue will be created in the same region (e.g. `us-east1`)
- - `runtime`: Runtime name already deployed in the service
  
 ### Summary of configuration keys for Google:
 
@@ -63,7 +57,9 @@ $ python3 -m install lithops[gcp]
 #### Google Cloud Functions
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
+|gcp_functions | max_workers | 1000 | no | Max number of workers per `FunctionExecutor()`|
+|gcp_functions | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker |
 |gcp_functions | runtime |  |no | Runtime name already deployed in the service |
 |gcp_functions | runtime_memory | 256 |no | Memory limit in MB. Default 256MB |
-|gcp_functions | runtime_timeout | 90 |no | Runtime timeout in seconds. Default 1:30 minutes |
+|gcp_functions | runtime_timeout | 300 |no | Runtime timeout in seconds. Default 5 minutes |
 |gcp_functions | invoke_pool_threads | 1000 |no | Number of concurrent threads used for invocation |

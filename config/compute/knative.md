@@ -87,13 +87,12 @@ knative:
 |knative | docker_password | |no | Login to your docker hub account and generate a new access token [here](https://hub.docker.com/settings/security)|
 |knative | git_url | |no | Git repository to build the image |
 |knative | git_rev | |no | Git revision to build the image |
+|knative | max_workers | 250 | no | Max number of workers per `FunctionExecutor()`|
+|knative | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the container. |
 |knative | runtime |  |no | Docker image name|
 |knative | runtime_cpu | 0.5 |no | CPU limit. Default 0.5vCPU |
 |knative | runtime_memory | 256 |no | Memory limit in MB. Default 256Mi |
 |knative | runtime_timeout | 600 |no | Runtime timeout in seconds. Default 600 seconds |
-|knative | runtime_min_instances | 0 |no | Minimum number of parallel runtime instances|
-|knative | runtime_max_instances | 250 |no | Maximum number of parallel runtime instances|
-|knative | runtime_concurrency | 1 |no | Number of workers inside a single runtime instance |
 |knative | invoke_pool_threads | {lithops.workers} |no | Number of concurrent threads used for invocation |
 
 
