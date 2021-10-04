@@ -6,14 +6,15 @@
 - [Core] Allow to spawn the reduce function in map_reduce() after a configurable percentage of completed map activations
 
 ### Changed
-- [Core] 'max_workers' and 'worker_processess' keys must be set at backend level in config
-- [Core] 'remote_invoker' key must be set at backend level in config
-- [Core] 'customized_runtime' key must be set at lithops level in config
-- [Core] 'serverless' section in config is no longer required
+- [Config] 'max_workers' and 'worker_processess' keys must be set at backend level in config
+- [Config] 'remote_invoker' key must be set at backend level in config
+- [Config] 'customized_runtime' key must be set at lithops level in config
+- [Config] 'serverless' section in config is no longer required
 
 ### Fixes
 - [CodeEngine] Fixed 'max_workers' parameter to limit the number of max workers per map invocation
 - [IBM CF] Create the runtime if not deployed when invoked
+- [Localhost] Fix localhost paths for windows hosts
 
 
 ## [v2.5.1]

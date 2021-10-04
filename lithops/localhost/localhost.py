@@ -19,6 +19,7 @@ import sys
 import json
 import shlex
 import queue
+import signal
 import lithops
 import logging
 import shutil
@@ -225,29 +226,24 @@ class BaseEnv():
         """
         Stops running processes
         """
-        if job_keys:
-            for job_key in job_keys:
-                try:
-                    # None means alive
-                    if job_key not in self.jobs or \
-                       self.jobs[job_key].poll() is not None:
-                        continue
-                    logger.debug(f'Killing job {job_key} with '
-                                 f'PID {self.jobs[job_key].pid}')
-                    self.jobs[job_key].kill()
-                    del self.jobs[job_key]
-                except Exception:
-                    pass
-        else:
-            for job_key in self.jobs.keys():
-                try:
-                    if self.jobs[job_key].poll() is not None:
-                        continue
-                    logger.debug(f'Killing job {job_key} with '
-                                 f'PID {self.jobs[job_key].pid}')
-                except Exception:
-                    pass
-            self.jobs = {}
+        def kill_job(job_key):
+            logger.debug(f'Killing job {job_key} with PID {self.jobs[job_key].pid}')
+            if self.jobs[job_key].poll() is None:
+                PID = self.jobs[job_key].pid
+                if is_unix_system():
+                    PGID = os.getpgid(PID)
+                    os.killpg(PGID, signal.SIGKILL)
+                else:
+                    os.kill(PID, signal.SIGTERM)
+            del self.jobs[job_key]
+
+        to_delete = job_keys if job_keys else self.jobs.keys()
+        for job_key in to_delete:
+            try:
+                if job_key in self.jobs:
+                    kill_job(job_key)
+            except Exception:
+                pass
 
 
 class DockerEnv(BaseEnv):
@@ -280,7 +276,7 @@ class DockerEnv(BaseEnv):
 
         process = sp.run(shlex.split(cmd), check=True, stdout=sp.PIPE, universal_newlines=True)
         runtime_meta = json.loads(process.stdout.strip())
-        print(runtime_meta)
+
         return runtime_meta
 
     def run(self, job_payload, job_filename):
