@@ -25,8 +25,9 @@ import shutil
 import threading
 import subprocess as sp
 from shutil import copyfile
+from pathlib import Path
 
-from lithops.constants import TEMP, LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG, JOBS_PREFIX
+from lithops.constants import RN_LOG_FILE, TEMP, LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG, JOBS_PREFIX
 from lithops.utils import is_lithops_worker, is_unix_system
 
 logger = logging.getLogger(__name__)
@@ -295,12 +296,15 @@ class DockerEnv(BaseEnv):
         if not os.path.isfile(RUNNER):
             self.setup()
 
+        job_path = Path(job_filename).as_posix()
+
         name = f'lithops_{job_key}'
         cmd = f'docker run --name {name} ' + f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
         cmd += (f'--rm -v {TEMP}:/tmp --entrypoint "python3" {self.runtime} '
-                f'/tmp/lithops/runner.py run {job_filename}')
+                f'/tmp/lithops/runner.py run {job_path}')
 
-        process = sp.Popen(shlex.split(cmd))
+        log = open(RN_LOG_FILE, 'a')
+        process = sp.Popen(shlex.split(cmd), stdout=log, stderr=log)
         self.jobs[job_key] = process
 
         return process
@@ -335,7 +339,12 @@ class DefaultEnv(BaseEnv):
     def preinstalls(self):
         if not os.path.isfile(RUNNER):
             self.setup()
-        cmd = f'{self.runtime} {RUNNER} preinstalls'
+
+        runtime_path = Path(self.runtime).as_posix()
+        runner_path = Path(RUNNER).as_posix()
+
+        cmd = f'{runtime_path} {runner_path} preinstalls'
+
         process = sp.run(shlex.split(cmd), check=True, stdout=sp.PIPE, universal_newlines=True)
         runtime_meta = json.loads(process.stdout.strip())
         return runtime_meta
@@ -355,8 +364,14 @@ class DefaultEnv(BaseEnv):
         if not os.path.isfile(RUNNER):
             self.setup()
 
-        cmd = f'{self.runtime} {RUNNER} run {job_filename}'
-        process = sp.Popen(shlex.split(cmd))
+        runtime_path = Path(self.runtime).as_posix()
+        runner_path = Path(RUNNER).as_posix()
+        job_path = Path(job_filename).as_posix()
+
+        cmd = f'{runtime_path} {runner_path} run {job_path}'
+
+        log = open(RN_LOG_FILE, 'a')
+        process = sp.Popen(shlex.split(cmd), stdout=log, stderr=log)
         self.jobs[job_key] = process
 
         return process
