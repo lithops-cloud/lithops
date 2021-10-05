@@ -236,7 +236,7 @@ class IBMCloudFunctionsBackend:
             if self.invoke_error == 404:
                 logger.debug('Runtime not found')
                 self.create_runtime(docker_image_name, runtime_memory,
-                                    payload['config']['ibm_cf']['runtime_timeout'])
+                                    self.config['runtime_timeout'])
                 self.invoke_error = None
             invoke_mutex.release()
             return self.invoke(docker_image_name, runtime_memory, payload)
