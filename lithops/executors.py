@@ -354,6 +354,8 @@ class FunctionExecutor:
 
         if spawn_reducer != ALWAYS:
             self.wait(map_futures, return_when=spawn_reducer)
+            logger.debug(f'ExecutorID {self.executor_id} | JobID {map_job_id} - '
+                         f'{spawn_reducer}% of map activations done. Spawning reduce stage')
 
         reduce_job_id = map_job_id.replace('M', 'R')
 
@@ -434,7 +436,8 @@ class FunctionExecutor:
 
         finally:
             present_jobs = {f.job_key for f in futures}
-            if self.data_cleaner and not self.is_lithops_worker:
+            if self.data_cleaner and not self.is_lithops_worker \
+               and return_when == ALL_COMPLETED:
                 self.compute_handler.clear(present_jobs)
                 self.clean(clean_cloudobjects=False)
 

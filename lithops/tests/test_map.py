@@ -50,7 +50,7 @@ class TestMap(unittest.TestCase):
         result = fexec.get_result()
         self.assertEqual(result, [2, 4, 6, 8])
 
-        fexec = lithops.FunctionExecutor(config=CONFIG, workers=1)
+        fexec = lithops.FunctionExecutor(config=CONFIG, max_workers=1)
         fexec.map(simple_map_function, iterdata)
         result = fexec.get_result()
         self.assertEqual(result, [2, 4, 6, 8])

@@ -72,7 +72,7 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
         fs_not_done = [f for f in fs if not f.done]
 
     else:
-        msg = 'ExecutorID {} - Waiting for functions to complete'.format(fs[0].executor_id)
+        msg = 'ExecutorID {} - Waiting for {}% of functions to complete'.format(fs[0].executor_id, return_when)
         fs_done = [f for f in fs if f.success or f.done]
         fs_not_done = [f for f in fs if not (f.success or f.done)]
 
