@@ -340,7 +340,7 @@ class KubernetesBackend:
         job_res['metadata']['name'] = activation_id
         job_res['metadata']['namespace'] = self.namespace
 
-        job_res['spec']['activeDeadlineSeconds'] = k8s_config.RUNTIME_TIMEOUT
+        job_res['spec']['activeDeadlineSeconds'] = k8s_config.DEFAULT_CONFIG_KEYS['runtime_timeout']
         job_res['spec']['parallelism'] = total_workers
 
         container = job_res['spec']['template']['spec']['containers'][0]

@@ -101,7 +101,7 @@ This will create 4 different VM instance and execute `my_map_function` in the ea
 |ibm_vpc | subnet_id | | yes | Subnet id |
 |ibm_vpc | key_id | | yes | Ssh public key id |
 |ibm_vpc | ssh_username | root |no | Username to access the VPC |
-|ibm_vpc | ssh_password | root |no | Password for accessing the worker VMs|
+|ibm_vpc | ssh_password |  |no | Password for accessing the worker VMs. If not provided, it is created randomly|
 |ibm_vpc | ssh_key_filename | | no | Path to the ssh key file provided to access the VPC. It will use the default path if not provided |
 |ibm_vpc | image_id | | no | Virtual machine image id |
 |ibm_vpc | boot_volume_profile | general-purpose | no | Virtual machine boot volume profile |
