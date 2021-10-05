@@ -425,21 +425,21 @@ class FunctionExecutor:
                  threadpool_size=threadpool_size,
                  wait_dur_sec=wait_dur_sec)
 
+            if self.data_cleaner and return_when == ALL_COMPLETED:
+                present_jobs = {f.job_key for f in futures}
+                self.compute_handler.clear(present_jobs)
+                self.clean(clean_cloudobjects=False)
+
         except (KeyboardInterrupt, Exception) as e:
             self.invoker.stop()
             self.job_monitor.stop()
             if not fs and is_notebook():
                 del self.futures[len(self.futures) - len(futures):]
-            if self.data_cleaner and not self.is_lithops_worker:
+            if self.data_cleaner:
+                present_jobs = {f.job_key for f in futures}
+                self.compute_handler.clear(present_jobs)
                 self.clean(clean_cloudobjects=False, force=True)
             raise e
-
-        finally:
-            present_jobs = {f.job_key for f in futures}
-            if self.data_cleaner and not self.is_lithops_worker \
-               and return_when == ALL_COMPLETED:
-                self.compute_handler.clear(present_jobs)
-                self.clean(clean_cloudobjects=False)
 
         if download_results:
             fs_done = [f for f in futures if f.done]
