@@ -159,7 +159,7 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
 
 
 def get_result(fs, throw_except=True, timeout=None,
-               threadpool_zise=THREADPOOL_SIZE,
+               threadpool_size=THREADPOOL_SIZE,
                wait_dur_sec=WAIT_DUR_SEC,
                internal_storage=None):
     """
@@ -179,7 +179,7 @@ def get_result(fs, throw_except=True, timeout=None,
     fs_done, _ = wait(fs=fs, throw_except=throw_except,
                       timeout=timeout, download_results=True,
                       internal_storage=internal_storage,
-                      threadpool_zise=threadpool_zise,
+                      threadpool_size=threadpool_size,
                       wait_dur_sec=wait_dur_sec)
     result = []
     fs_done = [f for f in fs_done if not f.futures and f._produce_output]
