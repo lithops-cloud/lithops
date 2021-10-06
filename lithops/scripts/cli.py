@@ -117,7 +117,7 @@ def clean(config, backend, storage, debug):
 @click.option('--fail_fast', '-f', is_flag=True, help='Stops test run upon first occurrence of a failed test')
 @click.option('--keep_datasets', '-k', is_flag=True, help='keeps datasets in storage after the test run. '
                                                           'Meant to serve some use-cases in github workflow.')
-def test(test, config, backend, groups, storage, debug, fail_fast, keep_datasets):
+def verify(test, config, backend, groups, storage, debug, fail_fast, keep_datasets):
     if config:
         config = load_yaml_config(config)
 

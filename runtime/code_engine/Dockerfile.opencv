@@ -30,7 +30,7 @@ RUN pip install --upgrade pip setuptools six \
         && pip install --no-cache-dir -r requirements.txt
 
 ENV PORT 8080
-ENV CONCURRENCY 4
+ENV CONCURRENCY 1
 ENV TIMEOUT 600
 ENV PYTHONUNBUFFERED TRUE
 

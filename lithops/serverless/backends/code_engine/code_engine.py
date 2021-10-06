@@ -308,25 +308,18 @@ class CodeEngineBackend:
             self.custom_api = client.CustomObjectsApi()
             self.core_api = client.CoreV1Api()
 
-        if job_keys:
-            for job_key in job_keys:
-                if job_key in self.jobs:
-                    jobrun_name = 'lithops-{}'.format(job_key.lower())
-                    try:
-                        self._job_run_cleanup(jobrun_name)
-                        self._delete_config_map(jobrun_name)
-                    except Exception as e:
-                        logger.debug("Deleting a jobrun failed with: {}".format(e))
-                    self.jobs.remove(job_key)
-        else:
-            for job_key in self.jobs:
-                jobrun_name = 'lithops-{}'.format(job_key.lower())
-                try:
-                    self._job_run_cleanup(jobrun_name)
-                    self._delete_config_map(jobrun_name)
-                except Exception as e:
-                    logger.debug("Deleting a jobrun failed with: {}".format(e))
-            self.jobs = []
+        jobs_to_delete = job_keys or self.jobs
+        for job_key in jobs_to_delete:
+            jobrun_name = 'lithops-{}'.format(job_key.lower())
+            try:
+                self._job_run_cleanup(jobrun_name)
+                self._delete_config_map(jobrun_name)
+            except Exception as e:
+                logger.debug("Deleting a jobrun failed with: {}".format(e))
+            try:
+                self.jobs.remove(job_key)
+            except ValueError:
+                pass
 
     def invoke(self, docker_image_name, runtime_memory, job_payload):
         """
@@ -597,9 +590,10 @@ class CodeEngineBackend:
         if failed:
             raise Exception("Unable to extract Python preinstalled modules from the runtime")
 
-        status_key = '/'.join([JOBS_PREFIX, jobdef_name+'.meta'])
-        json_str = self.internal_storage.get_data(key=status_key)
+        data_key = '/'.join([JOBS_PREFIX, jobdef_name+'.meta'])
+        json_str = self.internal_storage.get_data(key=data_key)
         runtime_meta = json.loads(json_str.decode("ascii"))
+        self.internal_storage.del_data(key=data_key)
 
         return runtime_meta
 

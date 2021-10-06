@@ -20,7 +20,7 @@ import json
 import logging
 import itertools
 import importlib
-from typing import Optional, List, Union, Tuple, Dict, Any, TextIO, BinaryIO
+from typing import Optional, List, Union, Tuple, Dict, TextIO, BinaryIO
 from lithops.version import __version__
 from lithops.constants import CACHE_DIR, RUNTIMES_PREFIX, JOBS_PREFIX, TEMP_PREFIX
 from lithops.utils import is_lithops_worker
@@ -315,6 +315,14 @@ class InternalStorage:
         :return: serialized function
         """
         return self.storage.get_object(self.bucket, key)
+
+    def del_data(self, key):
+        """
+        Deletes data from storage.
+        :param key: data key
+        :return: None
+        """
+        return self.storage.delete_object(self.bucket, key)
 
     def get_job_status(self, executor_id):
         """
