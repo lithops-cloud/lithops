@@ -27,12 +27,12 @@ For testing purposes, the easiest way to get everything up is to use an Ubuntu V
 Configuration
 -------------
 
-Edit your config and enable the monitoring system by including the *monitoring* key in the lithops section:
+Edit your config and enable the monitoring system by including the *telemetry* key in the lithops section:
 
 .. code:: yaml
 
     lithops:
-        monitoring: true
+        telemetry: true
 
 Add in your config a new section called *prometheus* with the following keys:
 

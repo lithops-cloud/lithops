@@ -15,7 +15,6 @@ Additionally, Lithops includes a top-level function executor, which encompasses 
 
 * `lithops.FunctionExecutor()`: Generic executor that will use the configuration to determine its mode of execution, i.e., based on the configuration it will be **localhost**, **serverless** or **standalone**.
 
-
 By default, the executor load the configuration from the config file. Alternatively, you can pass the configuration with a python dictionary. In any case, note that all the parameters set in the executor will overwrite those set in the configuration.
 
 Futures API Reference

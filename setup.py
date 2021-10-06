@@ -9,7 +9,6 @@ install_requires = [
     'PyYAML',
     'python-dateutil',
     'pika',
-    'glob2',
     'tqdm',
     'lxml',
     'tblib',

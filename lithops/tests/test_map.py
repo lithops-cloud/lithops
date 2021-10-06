@@ -36,7 +36,7 @@ class TestMap(unittest.TestCase):
     def setUpClass(cls):
         global CONFIG, STORAGE, STORAGE_CONFIG
 
-        CONFIG,STORAGE,STORAGE_CONFIG = main_util.get_config().values()
+        CONFIG, STORAGE, STORAGE_CONFIG = main_util.get_config().values()
 
     @classmethod
     def setUp(cls):
@@ -103,12 +103,7 @@ class TestMap(unittest.TestCase):
         self.assertEqual(result1, [2, 4])
         self.assertEqual(result2, [6, 8])
 
-
     def test_internal_executions(self):
-        # skips test at runtime if backend is code_engine.
-        if CONFIG['lithops']['mode'] == 'serverless':
-            self.skipTest("This test function currently runs solely on Local_Host mode.")
-
         logger.info('Testing internal executions')
         fexec = lithops.FunctionExecutor(config=CONFIG)
         fexec.map(lithops_inside_lithops_map_function, range(1, 5))

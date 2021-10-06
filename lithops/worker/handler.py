@@ -28,9 +28,9 @@ import traceback
 import multiprocessing as mp
 from threading import Thread
 from multiprocessing import Process, Pipe
-from multiprocessing.managers import SyncManager
 from tblib import pickling_support
 from types import SimpleNamespace
+from multiprocessing.managers import SyncManager
 
 from lithops.version import __version__
 from lithops.config import extract_storage_config
@@ -54,10 +54,16 @@ class ShutdownSentinel:
 
 def function_handler(payload):
     job = SimpleNamespace(**payload)
-    processes = min(job.worker_processes, len(job.call_ids))
+    setup_lithops_logger(job.log_level)
 
-    logger.info('Tasks received: {} - Concurrent workers: {}'
+    processes = min(job.worker_processes, len(job.call_ids))
+    logger.info('Tasks received: {} - Concurrent processes: {}'
                 .format(len(job.call_ids), processes))
+
+    env = job.extra_env
+    env['LITHOPS_WORKER'] = 'True'
+    env['PYTHONUNBUFFERED'] = 'True'
+    os.environ.update(env)
 
     storage_config = extract_storage_config(job.config)
     internal_storage = InternalStorage(storage_config)
@@ -66,22 +72,16 @@ def function_handler(payload):
 
     if processes == 1:
         job_queue = queue.Queue()
-        for task_id in job.call_ids:
+        for call_id in job.call_ids:
             data = job_data.pop(0)
-            job_queue.put((job, task_id, data))
+            job_queue.put((job, call_id, data))
         job_queue.put(ShutdownSentinel())
-        process_runner(job_queue, internal_storage)
+        process_runner(job_queue)
     else:
         manager = SyncManager()
         manager.start()
         job_queue = manager.Queue()
         job_runners = []
-
-        for runner_id in range(processes):
-            p = mp.Process(target=process_runner, args=(job_queue, internal_storage))
-            job_runners.append(p)
-            p.start()
-            logger.info('Worker process {} started'.format(runner_id))
 
         for call_id in job.call_ids:
             data = job_data.pop(0)
@@ -89,6 +89,12 @@ def function_handler(payload):
 
         for i in range(processes):
             job_queue.put(ShutdownSentinel())
+
+        for runner_id in range(processes):
+            p = mp.Process(target=process_runner, args=(job_queue,))
+            job_runners.append(p)
+            p.start()
+            logger.info('Worker process {} started'.format(runner_id))
 
         for runner in job_runners:
             runner.join()
@@ -100,41 +106,60 @@ def function_handler(payload):
     if module_path in sys.path:
         sys.path.remove(module_path)
 
+    # Unset specific job env vars
+    for key in job.extra_env:
+        os.environ.pop(key, None)
+    os.environ.pop('__LITHOPS_TOTAL_EXECUTORS', None)
 
-def process_runner(job_queue, internal_storage):
+
+def process_runner(job_queue):
     """
     Listens the job_queue and executes the jobs
     """
     while True:
-        event = job_queue.get(block=True)
+        try:
+            event = job_queue.get(block=True)
+        except BrokenPipeError:
+            break
+
         if isinstance(event, ShutdownSentinel):
             break
 
         job, call_id, data = event
+        job.start_tstamp = time.time()
         job.call_id = call_id
         job.data = data
 
         bucket = job.config['lithops']['storage_bucket']
         job.task_dir = os.path.join(LITHOPS_TEMP_DIR, bucket, JOBS_PREFIX, job.job_key, job.call_id)
         job.log_file = os.path.join(job.task_dir, 'execution.log')
+        job.stats_file = os.path.join(job.task_dir, 'job_stats.txt')
         os.makedirs(job.task_dir, exist_ok=True)
 
         with open(job.log_file, 'a') as log_strem:
             job.log_stream = LogStream(log_strem)
             with custom_redirection(job.log_stream):
-                run_job(job, internal_storage)
+                run_job(job)
 
 
-def run_job(job, internal_storage):
+def run_job(job):
     """
     Runs a single job within a separate process
     """
-    call_status = create_call_status(job, internal_storage)
     setup_lithops_logger(job.log_level)
 
     backend = os.environ.get('__LITHOPS_BACKEND', '')
     logger.info("Lithops v{} - Starting {} execution".format(__version__, backend))
     logger.info("Execution ID: {}/{}".format(job.job_key, job.call_id))
+
+    env = job.extra_env
+    env['LITHOPS_CONFIG'] = json.dumps(job.config)
+    env['__LITHOPS_SESSION_ID'] = '-'.join([job.job_key, job.call_id])
+    os.environ.update(env)
+
+    storage_config = extract_storage_config(job.config)
+    internal_storage = InternalStorage(storage_config)
+    call_status = create_call_status(job, internal_storage)
 
     if job.runtime_memory:
         logger.debug('Runtime: {} - Memory: {}MB - Timeout: {} seconds'
@@ -142,24 +167,17 @@ def run_job(job, internal_storage):
     else:
         logger.debug('Runtime: {} - Timeout: {} seconds'.format(job.runtime_name, job.execution_timeout))
 
-    env = job.extra_env
-    env['LITHOPS_WORKER'] = 'True'
-    env['PYTHONUNBUFFERED'] = 'True'
-    env['LITHOPS_CONFIG'] = json.dumps(job.config)
-    env['__LITHOPS_SESSION_ID'] = '-'.join([job.job_key, job.call_id])
-    os.environ.update(env)
+    job_interruped = False
 
     try:
         # send init status event
         call_status.send_init_event()
 
-        job.stats_file = os.path.join(job.task_dir, 'job_stats.txt')
         handler_conn, jobrunner_conn = Pipe()
-        taskrunner = JobRunner(job, jobrunner_conn, internal_storage)
+        jobrunner = JobRunner(job, jobrunner_conn, internal_storage)
         logger.debug('Starting JobRunner process')
-        jrp = Process(target=taskrunner.run) if is_unix_system() else Thread(target=taskrunner.run)
+        jrp = Process(target=jobrunner.run) if is_unix_system() else Thread(target=jobrunner.run)
         jrp.start()
-
         jrp.join(job.execution_timeout)
         logger.debug('JobRunner process finished')
 
@@ -194,6 +212,10 @@ def run_job(job, internal_storage):
                     if key in ['exception', 'exc_pickle_fail', 'result']:
                         call_status.add(key, eval(value))
 
+    except KeyboardInterrupt:
+        job_interruped = True
+        logger.debug("Job interrupted")
+
     except Exception:
         # internal runtime exceptions
         print('----------------------- EXCEPTION !-----------------------')
@@ -206,19 +228,16 @@ def run_job(job, internal_storage):
         call_status.add('exc_info', str(pickled_exc))
 
     finally:
-        call_status.add('worker_end_tstamp', time.time())
+        if not job_interruped:
+            call_status.add('worker_end_tstamp', time.time())
 
-        # Flush log stream and save it to the call status
-        job.log_stream.flush()
-        with open(job.log_file, 'rb') as lf:
-            log_str = base64.b64encode(zlib.compress(lf.read())).decode()
-            call_status.add('logs', log_str)
+            # Flush log stream and save it to the call status
+            job.log_stream.flush()
+            if os.path.isfile(job.log_file):
+                with open(job.log_file, 'rb') as lf:
+                    log_str = base64.b64encode(zlib.compress(lf.read())).decode()
+                    call_status.add('logs', log_str)
 
-        call_status.send_finish_event()
-
-        # Unset specific env vars
-        for key in job.extra_env:
-            os.environ.pop(key, None)
-        os.environ.pop('__LITHOPS_TOTAL_EXECUTORS', None)
+            call_status.send_finish_event()
 
         logger.info("Finished")

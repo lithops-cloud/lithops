@@ -25,11 +25,14 @@ RUNTIME_NAME = 'lithops-codeengine'
 
 DOCKER_PATH = shutil.which('docker')
 
-RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
-RUNTIME_MEMORY = 256  # Default memory: 256 MB
-RUNTIME_CPU = 0.125  # 0.125 vCPU
-MAX_CONCURRENT_WORKERS = 1000
-INVOKE_POOL_THREADS_DEFAULT = 4
+DEFAULT_CONFIG_KEYS = {
+    'runtime_timeout': 600,  # Default: 10 minutes
+    'runtime_memory': 256,  # Default memory: 256 MB
+    'runtime_cpu': 0.125,  # 0.125 vCPU
+    'max_workers': 1000,
+    'worker_processes': 1
+}
+
 DEFAULT_GROUP = "codeengine.cloud.ibm.com"
 DEFAULT_VERSION = "v1beta1"
 
@@ -37,7 +40,7 @@ FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_codeengine.zip')
 
 VALID_CPU_VALUES = [0.125, 0.25, 0.5, 1, 2, 4, 6, 8]
 VALID_MEMORY_VALUES = [256, 512, 1024, 2048, 4096, 8192, 12288, 16384, 24576, 32768]
-VALID_REGIONS = ['us-south', 'jp-tok', 'eu-de', 'eu-gb']
+VALID_REGIONS = ['us-south', 'ca-tor', 'eu-de', 'eu-gb', 'jp-osa', 'jp-tok']
 
 CLUSTER_URL = 'https://proxy.{}.codeengine.cloud.ibm.com'
 
@@ -52,7 +55,6 @@ RUN pip install --upgrade setuptools six pip \
         pika \
         flask \
         gevent \
-        glob2 \
         ibm-cos-sdk \
         redis \
         requests \
@@ -146,26 +148,14 @@ spec:
 
 
 def load_config(config_data):
-    if 'code_engine' not in config_data:
-        config_data['code_engine'] = {}
-
-    if 'kubectl_config' in config_data['code_engine']:
-        print('"kubectl_config" variable in code_engine config is deprecated, use "kubecfg_path" instead')
-        config_data['code_engine']['kubecfg_path'] = config_data['code_engine']['kubectl_config']
-
-    if 'cpu' in config_data['code_engine']:
-        print('"cpu" variable in code_engine config is deprecated, use "runtime_cpu" instead')
-        config_data['code_engine']['runtime_cpu'] = config_data['code_engine']['cpu']
 
     if 'ibm' in config_data and config_data['ibm'] is not None:
         config_data['code_engine'].update(config_data['ibm'])
 
-    if 'runtime_cpu' not in config_data['code_engine']:
-        config_data['code_engine']['runtime_cpu'] = RUNTIME_CPU
-    if 'runtime_memory' not in config_data['code_engine']:
-        config_data['code_engine']['runtime_memory'] = RUNTIME_MEMORY
-    if 'runtime_timeout' not in config_data['code_engine']:
-        config_data['code_engine']['runtime_timeout'] = RUNTIME_TIMEOUT
+    for key in DEFAULT_CONFIG_KEYS:
+        if key not in config_data['code_engine']:
+            config_data['code_engine'][key] = DEFAULT_CONFIG_KEYS[key]
+
     if 'runtime' not in config_data['code_engine']:
         if not DOCKER_PATH:
             raise Exception('docker command not found. Install docker or use '
@@ -173,8 +163,8 @@ def load_config(config_data):
         if 'docker_user' not in config_data['code_engine']:
             config_data['code_engine']['docker_user'] = get_docker_username()
         if not config_data['code_engine']['docker_user']:
-            raise Exception('You must provide "docker_user" param in config '
-                            'or execute "docker login"')
+            raise Exception('You must execute "docker login" or provide "docker_user" '
+                            'param in config under "code_engine" section')
         docker_user = config_data['code_engine']['docker_user']
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
@@ -195,7 +185,3 @@ def load_config(config_data):
     if region and region not in VALID_REGIONS:
         raise Exception('{} is an invalid region name. Set one of: '
                         '{}'.format(region, VALID_REGIONS))
-
-    if 'workers' not in config_data['lithops'] or \
-       config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
-        config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS

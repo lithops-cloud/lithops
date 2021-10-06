@@ -26,10 +26,9 @@ from lithops.monitor import JobMonitor
 from types import SimpleNamespace
 from itertools import chain
 
-
-ALL_COMPLETED = 1
-ANY_COMPLETED = 2
-ALWAYS = 3
+ALWAYS = 0
+ANY_COMPLETED = -1
+ALL_COMPLETED = 100
 
 THREADPOOL_SIZE = 64
 WAIT_DUR_SEC = 1
@@ -50,7 +49,7 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
 
     :param fs: Futures list. Default None
     :param throw_except: Re-raise exception if call raised. Default True.
-    :param return_when: One of `ALL_COMPLETED`, `ANY_COMPLETED`, `ALWAYS`
+    :param return_when: Percentage of done futures
     :param download_results: Download results. Default false (Only get statuses)
     :param timeout: Timeout of waiting for results.
     :param threadpool_zise: Number of threads to use. Default 64
@@ -111,30 +110,20 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
 
         sleep_sec = wait_dur_sec if job_monitor.backend == 'storage' else 0.3
 
-        if return_when == ALL_COMPLETED:
-            while not _all_done(fs, download_results):
-                for executor_data in executors_data:
-                    new_data = _get_executor_data(fs, executor_data, pbar=pbar,
-                                                  throw_except=throw_except,
-                                                  download_results=download_results,
-                                                  threadpool_size=threadpool_size)
-                time.sleep(0 if new_data else sleep_sec)
-
-        elif return_when == ANY_COMPLETED:
-            while not _any_done(fs, download_results):
-                for executor_data in executors_data:
-                    new_data = _get_executor_data(fs, executor_data, pbar=pbar,
-                                                  throw_except=throw_except,
-                                                  download_results=download_results,
-                                                  threadpool_size=threadpool_size)
-                time.sleep(0 if new_data else sleep_sec)
-
-        elif return_when == ALWAYS:
+        if return_when == ALWAYS:
             for executor_data in executors_data:
                 _get_executor_data(fs, executor_data, pbar=pbar,
                                    throw_except=throw_except,
                                    download_results=download_results,
                                    threadpool_size=threadpool_size)
+        else:
+            while not _check_done(fs, return_when, download_results):
+                for executor_data in executors_data:
+                    new_data = _get_executor_data(fs, executor_data, pbar=pbar,
+                                                  throw_except=throw_except,
+                                                  download_results=download_results,
+                                                  threadpool_size=threadpool_size)
+                time.sleep(0 if new_data else sleep_sec)
 
     except KeyboardInterrupt as e:
         if download_results:
@@ -170,7 +159,7 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
 
 
 def get_result(fs, throw_except=True, timeout=None,
-               threadpool_zise=THREADPOOL_SIZE,
+               threadpool_size=THREADPOOL_SIZE,
                wait_dur_sec=WAIT_DUR_SEC,
                internal_storage=None):
     """
@@ -190,7 +179,7 @@ def get_result(fs, throw_except=True, timeout=None,
     fs_done, _ = wait(fs=fs, throw_except=throw_except,
                       timeout=timeout, download_results=True,
                       internal_storage=internal_storage,
-                      threadpool_zise=threadpool_zise,
+                      threadpool_size=threadpool_size,
                       wait_dur_sec=wait_dur_sec)
     result = []
     fs_done = [f for f in fs_done if not f.futures and f._produce_output]
@@ -224,24 +213,20 @@ def _create_executors_data_from_futures(fs, internal_storage):
     return executor_jobs
 
 
-def _all_done(fs, download_results):
+def _check_done(fs, return_when, download_results):
     """
-    Checks if all futures are ready or done
-    """
-    if download_results:
-        return all([f.done for f in fs])
-    else:
-        return all([f.success or f.done for f in fs])
-
-
-def _any_done(fs, download_results):
-    """
-    Checks if any futures irs ready or done
+    Checks if return_when% of futures are ready or done
     """
     if download_results:
-        return any([f.done for f in fs])
+        total_done = [f.done for f in fs].count(True)
     else:
-        return any([f.success or f.done for f in fs])
+        total_done = [f.success or f.done for f in fs].count(True)
+
+    if return_when == ANY_COMPLETED:
+        return total_done >= 1
+    else:
+        done_percentage = int(total_done * 100 / len(fs))
+        return done_percentage >= return_when
 
 
 def _get_executor_data(fs, exec_data, download_results, throw_except, threadpool_size, pbar):

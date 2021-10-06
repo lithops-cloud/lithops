@@ -22,16 +22,16 @@ import logging
 import atexit
 import pickle
 import tempfile
-import numpy as np
 import subprocess as sp
 from typing import Optional, List, Union, Tuple, Dict, Any
 from collections.abc import Callable
-from future import ResponseFuture
 from datetime import datetime
+
 from lithops import constants
+from lithops.future import ResponseFuture
 from lithops.invokers import create_invoker
 from lithops.storage import InternalStorage
-from lithops.wait import wait, ALL_COMPLETED, THREADPOOL_SIZE, WAIT_DUR_SEC
+from lithops.wait import wait, ALL_COMPLETED, THREADPOOL_SIZE, WAIT_DUR_SEC, ALWAYS
 from lithops.job import create_map_job, create_reduce_job
 from lithops.config import default_config, \
     extract_localhost_config, extract_standalone_config, \
@@ -62,7 +62,7 @@ class FunctionExecutor:
     :param runtime: Name of the runtime to run the functions
     :param runtime_memory: Memory (in MB) to use to run the functions
     :param monitoring: Monitoring system implementation. One of: storage, rabbitmq
-    :param workers: Max number of parallel workers
+    :param max_workers: Max number of parallel workers
     :param worker_processes: Worker granularity, number of concurrent/parallel processes in each worker
     :param remote_invoker: Spawn a function that will perform the actual job invocation (True/False)
     :param log_level: Log level printing (INFO, DEBUG, ...). Set it to None to hide all logs. If this is param is set, all logging params in config are disabled
@@ -76,7 +76,7 @@ class FunctionExecutor:
                  runtime: Optional[str] = None,
                  runtime_memory: Optional[int] = None,
                  monitoring: Optional[str] = None,
-                 workers: Optional[int] = None,
+                 max_workers: Optional[int] = None,
                  worker_processes: Optional[int] = None,
                  remote_invoker: Optional[bool] = None,
                  log_level: Optional[str] = False):
@@ -97,26 +97,28 @@ class FunctionExecutor:
                 setup_lithops_logger(*get_log_info(config))
 
         # overwrite user-provided parameters
-        config_ow = {'lithops': {}}
+        config_ow = {'lithops': {}, 'backend': {}}
         if runtime is not None:
-            config_ow['runtime'] = runtime
+            config_ow['backend']['runtime'] = runtime
         if runtime_memory is not None:
-            config_ow['runtime_memory'] = int(runtime_memory)
+            config_ow['backend']['runtime_memory'] = int(runtime_memory)
         if remote_invoker is not None:
-            config_ow['remote_invoker'] = remote_invoker
+            config_ow['backend']['remote_invoker'] = remote_invoker
+        if worker_processes is not None:
+            config_ow['backend']['worker_processes'] = worker_processes
+        if max_workers is not None:
+            config_ow['backend']['max_workers'] = max_workers
+
         if mode is not None:
             config_ow['lithops']['mode'] = mode
         if backend is not None:
             config_ow['lithops']['backend'] = backend
         if storage is not None:
             config_ow['lithops']['storage'] = storage
-        if workers is not None:
-            config_ow['lithops']['workers'] = workers
         if monitoring is not None:
             config_ow['lithops']['monitoring'] = monitoring
-        if worker_processes is not None:
-            config_ow['lithops']['worker_processes'] = worker_processes
 
+        # Load configuration
         self.config = default_config(copy.deepcopy(config), config_ow)
 
         self.data_cleaner = self.config['lithops'].get('data_cleaner', True)
@@ -172,6 +174,7 @@ class FunctionExecutor:
         """ Context manager method """
         self.job_monitor.stop()
         self.invoker.stop()
+        self.compute_handler.clear()
 
     def _create_job_id(self, call_type):
         job_id = str(self.total_jobs).zfill(3)
@@ -296,7 +299,7 @@ class FunctionExecutor:
                    obj_chunk_number: Optional[int] = None,
                    timeout: Optional[int] = None,
                    reducer_one_per_object: Optional[bool] = False,
-                   reducer_wait_local: Optional[bool] = False,
+                   spawn_reducer: Optional[int] = 20,
                    include_modules: Optional[List[str]] = [],
                    exclude_modules: Optional[List[str]] = []) -> FuturesList:
         """
@@ -314,7 +317,7 @@ class FunctionExecutor:
         :param obj_chunk_number: Number of chunks to split each object. 'None' for processing the whole file in one function activation
         :param timeout: Time that the functions have to complete their execution before raising a timeout
         :param reducer_one_per_object: Set one reducer per object after running the partitioner
-        :param reducer_wait_local: Wait for results locally
+        :param spawn_reducer: Percentage of done map functions before spawning the reduce function
         :param include_modules: Explicitly pickle these dependencies.
         :param exclude_modules: Explicitly keep these modules from pickled dependencies.
 
@@ -349,8 +352,8 @@ class FunctionExecutor:
             for fut in map_iterdata:
                 fut._produce_output = False
 
-        if reducer_wait_local:
-            self.wait(map_futures)
+        if spawn_reducer != ALWAYS:
+            self.wait(map_futures, return_when=spawn_reducer)
 
         reduce_job_id = map_job_id.replace('M', 'R')
 
@@ -396,7 +399,7 @@ class FunctionExecutor:
 
         :param fs: Futures list. Default None
         :param throw_except: Re-raise exception if call raised. Default True
-        :param return_when: One of `ALL_COMPLETED`, `ANY_COMPLETED`, `ALWAYS`
+        :param return_when: Percentage of done futures
         :param download_results: Download results. Default false (Only get statuses)
         :param timeout: Timeout of waiting for results
         :param threadpool_size: Number of threads to use. Default 64
@@ -561,11 +564,9 @@ class FunctionExecutor:
             self.cleaned_jobs.update(jobs_to_clean)
 
         if (jobs_to_clean or cs) and spawn_cleaner:
-            cmdstr = [sys.executable, '-m', 'lithops.scripts.cleaner']
-            sp.Popen(' '.join(cmdstr), shell=True)
+            sp.Popen([sys.executable, '-m', 'lithops.scripts.cleaner'], start_new_session=True)
 
-    def job_summary(self,
-                    cloud_objects_n: Optional[int] = 0):
+    def job_summary(self, cloud_objects_n: Optional[int] = 0):
         """
         Logs information of a job executed by the calling function executor.
         currently supports: code_engine, ibm_vpc and ibm_cf.
@@ -573,6 +574,7 @@ class FunctionExecutor:
         :param cloud_objects_n: number of cloud object used in COS, declared by user.
         """
         import pandas as pd
+        import numpy as np
 
         def init():
             headers = ['Job_ID', 'Function', 'Invocations', 'Memory(MB)', 'AvgRuntime', 'Cost', 'CloudObjects']
@@ -681,7 +683,7 @@ class ServerlessExecutor(FunctionExecutor):
     :param runtime_memory: memory to use in the runtime
     :param backend: Name of the serverless compute backend to use
     :param storage: Name of the storage backend to use
-    :param workers: Max number of concurrent workers
+    :param max_workers: Max number of concurrent workers
     :param worker_processes: Worker granularity, number of concurrent/parallel processes in each worker
     :param monitoring: monitoring system
     :param remote_invoker: Spawn a function that will perform the actual job invocation (True/False)
@@ -694,20 +696,19 @@ class ServerlessExecutor(FunctionExecutor):
                  runtime_memory: Optional[int] = None,
                  backend: Optional[str] = None,
                  storage: Optional[str] = None,
-                 workers: Optional[int] = None,
+                 max_workers: Optional[int] = None,
                  worker_processes: Optional[int] = None,
                  monitoring: Optional[str] = None,
                  remote_invoker: Optional[bool] = None,
                  log_level: Optional[str] = False):
 
-        backend = backend or constants.SERVERLESS_BACKEND_DEFAULT
-
         super().__init__(config=config,
+                         mode='serverless',
                          runtime=runtime,
                          runtime_memory=runtime_memory,
                          backend=backend,
                          storage=storage,
-                         workers=workers,
+                         max_workers=max_workers,
                          worker_processes=worker_processes,
                          monitoring=monitoring,
                          log_level=log_level,
@@ -722,7 +723,7 @@ class StandaloneExecutor(FunctionExecutor):
     :param runtime: Runtime name to use
     :param backend: Name of the standalone compute backend to use
     :param storage: Name of the storage backend to use
-    :param workers: Max number of concurrent workers
+    :param max_workers: Max number of concurrent workers
     :param worker_processes: Worker granularity, number of concurrent/parallel processes in each worker
     :param monitoring: monitoring system
     :param log_level: log level to use during the execution
@@ -733,18 +734,17 @@ class StandaloneExecutor(FunctionExecutor):
                  runtime: Optional[str] = None,
                  backend: Optional[str] = None,
                  storage: Optional[str] = None,
-                 workers: Optional[int] = None,
+                 max_workers: Optional[int] = None,
                  worker_processes: Optional[int] = None,
                  monitoring: Optional[str] = None,
                  log_level: Optional[str] = False):
 
-        backend = backend or constants.STANDALONE_BACKEND_DEFAULT
-
         super().__init__(config=config,
+                         mode='standalone',
                          runtime=runtime,
                          backend=backend,
                          storage=storage,
-                         workers=workers,
+                         max_workers=max_workers,
                          worker_processes=worker_processes,
                          monitoring=monitoring,
                          log_level=log_level)

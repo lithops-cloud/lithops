@@ -1,5 +1,5 @@
 #
-# (C) Copyright Cloudlab URV 2020
+# (C) Copyright Cloudlab URV 2021
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,15 +17,19 @@
 import os
 import sys
 import json
+import shlex
+import queue
+import signal
 import lithops
 import logging
 import shutil
+import threading
 import subprocess as sp
 from shutil import copyfile
+from pathlib import Path
 
-from lithops.constants import TEMP, LITHOPS_TEMP_DIR, JOBS_PREFIX,\
-    COMPUTE_CLI_MSG
-from lithops.utils import is_unix_system
+from lithops.constants import RN_LOG_FILE, TEMP, LITHOPS_TEMP_DIR, COMPUTE_CLI_MSG, JOBS_PREFIX
+from lithops.utils import is_lithops_worker, is_unix_system
 
 logger = logging.getLogger(__name__)
 
@@ -42,17 +46,11 @@ class LocalhostHandler:
     def __init__(self, localhost_config):
         logger.debug('Creating Localhost compute client')
         self.config = localhost_config
-        self.runtime = self.config['runtime']
 
-        if '/' not in self.runtime:
-            self.env = DefaultEnv()
-            self.env_type = 'default'
-        else:
-            pull_runtime = self.config.get('pull_runtime', False)
-            self.env = DockerEnv(self.runtime, pull_runtime)
-            self.env_type = 'docker'
-
-        self.jobs = {}  # dict to store executed jobs (job_keys) and PIDs
+        self.env = {}  # dict to store environments
+        self.job_queue = queue.Queue()
+        self.job_manager = None
+        self.should_run = True
 
         msg = COMPUTE_CLI_MSG.format('Localhost compute')
         logger.info("{}".format(msg))
@@ -63,61 +61,89 @@ class LocalhostHandler:
         """
         pass
 
-    def invoke(self, job_payload):
+    def start_manager(self):
         """
-        Run the job description against the selected environment
+        Starts manager thread to keep order in tasks
         """
-        executor_id = job_payload['executor_id']
-        job_id = job_payload['job_id']
-        job_key = job_payload['job_key']
-        runtime = job_payload['runtime_name']
-        storage_bucket = job_payload['config']['lithops']['storage_bucket']
-        total_calls = len(job_payload['call_ids'])
+        def job_manager():
+            logger.debug('Staring localhost job manager')
+            self.should_run = True
 
-        logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going to '
-                     f'run {total_calls} activations in localhost worker')
+            while self.should_run:
+                job_payload, job_filename = self.job_queue.get()
+                if job_payload is None and job_filename is None:
+                    break
+                executor_id = job_payload['executor_id']
+                job_id = job_payload['job_id']
+                runtime_name = job_payload['runtime_name']
+                env = self.get_env(runtime_name)
+                process = env.run(job_payload, job_filename)
+                process.communicate()  # blocks until the process finishes
+                logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Execution finished')
+                if self.job_queue.empty():
+                    break
 
-        if not os.path.isfile(RUNNER):
-            self.env.setup(runtime)
+            self.job_manager = None
+            logger.debug("Localhost job manager stopped")
 
-        local_job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket, JOBS_PREFIX)
-        docker_job_dir = f'/tmp/lithops/{storage_bucket}/{JOBS_PREFIX}'
-        job_file = f'{job_key}-job.json'
+        if not self.job_manager:
+            self.job_manager = threading.Thread(target=job_manager)
+            self.job_manager.start()
 
-        os.makedirs(local_job_dir, exist_ok=True)
-        local_job_filename = os.path.join(local_job_dir, job_file)
+    def _get_env_type(self, runtime_name):
+        """
+        Gets the environment type based on the runtime name
+        """
+        return 'default' if '/' not in runtime_name else 'docker'
 
-        with open(local_job_filename, 'w') as jl:
-            json.dump(job_payload, jl, default=str)
+    def get_env(self, runtime_name):
+        """
+        Generates the proper runtime environment based on the runtime name
+        """
+        if runtime_name not in self.env:
+            if '/' not in runtime_name:
+                env = DefaultEnv()
+            else:
+                pull_runtime = self.config.get('pull_runtime', False)
+                env = DockerEnv(runtime_name, pull_runtime)
+            env.setup()
+            self.env[runtime_name] = env
 
-        if self.env_type == 'docker':
-            job_filename = '{}/{}'.format(docker_job_dir, job_file)
-        else:
-            job_filename = local_job_filename
-
-        exec_command = self.env.get_execution_cmd(runtime)
-        logger.debug('cmd: '+exec_command+' run '+job_filename)
-        p = sp.Popen(exec_command+' run '+job_filename, shell=True)
-        self.jobs[job_key] = p
+        return self.env[runtime_name]
 
     def create_runtime(self, runtime_name, *args):
         """
         Extract the runtime metadata and preinstalled modules
         """
         logger.info(f"Extracting preinstalled Python modules from {runtime_name}")
-        self.env.setup(runtime_name)
-        exec_command = self.env.get_execution_cmd(runtime_name)
-        process = sp.run(exec_command+' preinstalls', shell=True, check=True,
-                         stdout=sp.PIPE, universal_newlines=True)
-        runtime_meta = json.loads(process.stdout.strip())
 
-        return runtime_meta
+        env = self.get_env(runtime_name)
+
+        runtime_metadata = env.preinstalls()
+
+        return runtime_metadata
+
+    def invoke(self, job_payload):
+        """
+        Run the job description against the selected environment
+        """
+        executor_id = job_payload['executor_id']
+        job_id = job_payload['job_id']
+        runtime_name = job_payload['runtime_name']
+        logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Putting job into localhost queue')
+
+        self.start_manager()
+        env = self.get_env(runtime_name)
+        job_filename = env._prepare_job_file(job_payload)
+
+        self.job_queue.put((job_payload, job_filename))
 
     def get_runtime_key(self, runtime_name, *args):
         """
         Generate the runtime key that identifies the runtime
         """
-        runtime_key = os.path.join('localhost', self.env_type, runtime_name.strip("/"))
+        env_type = self._get_env_type(runtime_name)
+        runtime_key = os.path.join('localhost', env_type, runtime_name.strip("/"))
 
         return runtime_key
 
@@ -137,21 +163,32 @@ class LocalhostHandler:
         """
         Kills all running jobs processes
         """
-        for job_key in job_keys:
-            # None means alive
-            if self.jobs[job_key].poll() is not None:
-                continue
-            logger.debug(f'Killing job {job_key} with PID {self.jobs[job_key].pid}')
-            self.jobs[job_key].kill()
+        self.should_run = False
+
+        while not self.job_queue.empty():
+            try:
+                self.job_queue.get(False)
+            except Exception:
+                pass
+
+        for runtime_name in self.env:
+            self.env[runtime_name].stop(job_keys)
+
+        if self.job_manager:
+            self.job_queue.put((None, None))
 
 
-class DockerEnv:
-    def __init__(self, docker_image, pull_runtime):
-        logger.debug(f'Setting DockerEnv for {docker_image}')
-        self.runtime = docker_image
-        self.pull_runtime = pull_runtime
+class BaseEnv():
+    """
+    Base environment class for shared methods
+    """
+    def __init__(self, runtime):
+        self.runtime = runtime
+        self.jobs = {}  # dict to store executed jobs (job_keys) and PIDs
 
-    def setup(self, runtime):
+    def _copy_lithops_to_tmp(self):
+        if is_lithops_worker() and os.path.isfile(RUNNER):
+            return
         os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
         try:
             shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
@@ -160,36 +197,168 @@ class DockerEnv:
         shutil.copytree(LITHOPS_LOCATION, os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
         src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'runner.py')
         copyfile(src_handler, RUNNER)
+
+    def _prepare_job_file(self, job_payload):
+        """
+        Creates the job file that contains the job payload to be executed
+        """
+        job_key = job_payload['job_key']
+        storage_bucket = job_payload['config']['lithops']['storage_bucket']
+
+        local_job_dir = os.path.join(LITHOPS_TEMP_DIR, storage_bucket, JOBS_PREFIX)
+        docker_job_dir = f'/tmp/lithops/{storage_bucket}/{JOBS_PREFIX}'
+        job_file = f'{job_key}-job.json'
+
+        os.makedirs(local_job_dir, exist_ok=True)
+        local_job_filename = os.path.join(local_job_dir, job_file)
+
+        with open(local_job_filename, 'w') as jl:
+            json.dump(job_payload, jl, default=str)
+
+        if isinstance(self, DockerEnv):
+            job_filename = '{}/{}'.format(docker_job_dir, job_file)
+        else:
+            job_filename = local_job_filename
+
+        return job_filename
+
+    def stop(self, job_keys=None):
+        """
+        Stops running processes
+        """
+        def kill_job(job_key):
+            logger.debug(f'Killing job {job_key} with PID {self.jobs[job_key].pid}')
+            if self.jobs[job_key].poll() is None:
+                PID = self.jobs[job_key].pid
+                if is_unix_system():
+                    PGID = os.getpgid(PID)
+                    os.killpg(PGID, signal.SIGKILL)
+                else:
+                    os.kill(PID, signal.SIGTERM)
+            del self.jobs[job_key]
+
+        to_delete = job_keys if job_keys else self.jobs.keys()
+        for job_key in to_delete:
+            try:
+                if job_key in self.jobs:
+                    kill_job(job_key)
+            except Exception:
+                pass
+
+
+class DockerEnv(BaseEnv):
+    """
+    Docker environment uses a docker runtime image
+    """
+    def __init__(self, docker_image, pull_runtime):
+        logger.debug(f'Starting Docker Environment for {docker_image}')
+        super().__init__(runtime=docker_image)
+        self.pull_runtime = pull_runtime
+        self.uid = os.getuid() if is_unix_system() else None
+        self.gid = os.getuid() if is_unix_system() else None
+
+    def setup(self):
+        logger.debug('Setting up Docker environment')
+        self._copy_lithops_to_tmp()
         if self.pull_runtime:
             logger.debug('Pulling Docker runtime {}'.format(self.runtime))
-            sp.run('docker pull {}'.format(self.runtime), shell=True, check=True,
+            sp.run(shlex.split(f'docker pull {self.runtime}'), check=True,
                    stdout=sp.PIPE, universal_newlines=True)
 
-    def get_execution_cmd(self, runtime):
-        if is_unix_system():
-            cmd = (f'docker run --user $(id -u):$(id -g) --rm -v {TEMP}:/tmp --entrypoint '
-                   f'"python3" {self.runtime} /tmp/lithops/runner.py')
+    def preinstalls(self):
+        if not os.path.isfile(RUNNER):
+            self.setup()
+
+        tmp_path = Path(TEMP).as_posix()
+        cmd = 'docker run '
+        cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
+        cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" {self.runtime} /tmp/lithops/runner.py preinstalls'
+
+        process = sp.run(shlex.split(cmd), check=True, stdout=sp.PIPE, universal_newlines=True)
+        runtime_meta = json.loads(process.stdout.strip())
+
+        return runtime_meta
+
+    def run(self, job_payload, job_filename):
+        """
+        Runs a job
+        """
+        executor_id = job_payload['executor_id']
+        job_id = job_payload['job_id']
+        total_calls = len(job_payload['call_ids'])
+        job_key = job_payload['job_key']
+
+        logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going to '
+                     f'run {total_calls} activations in the localhost worker')
+
+        if not os.path.isfile(RUNNER):
+            self.setup()
+
+        tmp_path = Path(TEMP).as_posix()
+        cmd = f'docker run --name lithops_{job_key} '
+        cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
+        cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" {self.runtime} /tmp/lithops/runner.py run {job_filename}'
+
+        log = open(RN_LOG_FILE, 'a')
+        process = sp.Popen(shlex.split(cmd), stdout=log, stderr=log)
+        self.jobs[job_key] = process
+
+        return process
+
+    def stop(self, job_keys=None):
+        """
+        Stops running containers
+        """
+        if job_keys:
+            for job_key in job_keys:
+                sp.Popen(shlex.split(f'docker rm -f lithops_{job_key}'),
+                         stdout=sp.DEVNULL, stderr=sp.DEVNULL)
         else:
-            cmd = (f'docker run --rm -v {TEMP}:/tmp --entrypoint "python3" '
-                   f'{self.runtime} /tmp/lithops/runner.py')
-        return cmd
+            for job_key in self.jobs:
+                sp.Popen(shlex.split(f'docker rm -f lithops_{job_key}'),
+                         stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+        super().stop(job_keys)
 
 
-class DefaultEnv:
+class DefaultEnv(BaseEnv):
+    """
+    Default environment uses current python3 installation
+    """
     def __init__(self):
-        self.runtime = sys.executable
-        logger.debug(f'Setting DefaultEnv for {self.runtime}')
+        logger.debug(f'Starting Default Environment for {sys.executable}')
+        super().__init__(runtime=sys.executable)
 
-    def setup(self, runtime):
-        os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
-        try:
-            shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
-        except FileNotFoundError:
-            pass
-        shutil.copytree(LITHOPS_LOCATION, os.path.join(LITHOPS_TEMP_DIR, 'lithops'))
-        src_handler = os.path.join(LITHOPS_LOCATION, 'localhost', 'runner.py')
-        copyfile(src_handler, RUNNER)
+    def setup(self):
+        logger.debug('Setting up Default environment')
+        self._copy_lithops_to_tmp()
 
-    def get_execution_cmd(self, runtime):
-        cmd = '"{}" "{}"'.format(self.runtime, RUNNER)
-        return cmd
+    def preinstalls(self):
+        if not os.path.isfile(RUNNER):
+            self.setup()
+
+        cmd = [self.runtime, RUNNER, 'preinstalls']
+        process = sp.run(cmd, check=True, stdout=sp.PIPE, universal_newlines=True)
+        runtime_meta = json.loads(process.stdout.strip())
+        return runtime_meta
+
+    def run(self, job_payload, job_filename):
+        """
+        Runs a job
+        """
+        executor_id = job_payload['executor_id']
+        job_id = job_payload['job_id']
+        total_calls = len(job_payload['call_ids'])
+        job_key = job_payload['job_key']
+
+        logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going to '
+                     f'run {total_calls} activations in the localhost worker')
+
+        if not os.path.isfile(RUNNER):
+            self.setup()
+
+        cmd = [self.runtime, RUNNER, 'run', job_filename]
+        log = open(RN_LOG_FILE, 'a')
+        process = sp.Popen(cmd, stdout=log, stderr=log)
+        self.jobs[job_key] = process
+
+        return process

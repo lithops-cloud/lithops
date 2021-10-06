@@ -40,7 +40,7 @@ Once installed, follow :ref:`config` instructions to make Lithops running.
 Runtime
 -------
 
-The default runtime is automatically deployed the first time you execute an Lithops job (for more information about runtimes navigate to [runtime/](runtime/) folder). Then, every time you want to test your changes, you need to update the already deployed runtime(s). To do so, you have multiple options.
+The default runtime is automatically deployed the first time you execute an Lithops job (for more information about runtimes navigate to ``runtime`` folder). Then, every time you want to test your changes, you need to update the already deployed runtime(s). To do so, you have multiple options.
 
 To update the default runtime, navigate into ``runtime`` folder and execute:
 
@@ -60,3 +60,9 @@ To update all deployed runtimes at a time, navigate into ``runtime`` folder and 
 .. code::
 
     $ lithops runtime update all
+
+
+Contributing
+------------
+
+Follow :ref:`contributing` instructions if you want to publish your changes to the Lithops master branch.

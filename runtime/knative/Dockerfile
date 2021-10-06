@@ -20,7 +20,6 @@ RUN pip install --upgrade setuptools six pip \
         pika \
         flask \
         gevent \
-        glob2 \
         ibm-cos-sdk \
         google-cloud-storage \
         google-cloud-pubsub \

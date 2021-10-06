@@ -18,20 +18,25 @@ import sys
 from os.path import exists, isfile
 from lithops.utils import version_str
 
-RUNTIME_TIMEOUT_DEFAULT = 90  # 90 s == 1:30'
-RUNTIME_MEMORY_DEFAULT = 256  # 256 MB
+
+DEFAULT_CONFIG_KEYS = {
+    'runtime_timeout': 300,  # Default: 5 minutes
+    'runtime_memory': 256,  # Default memory: 256 MB
+    'max_workers': 1000,
+    'worker_processes': 1,
+    'invoke_pool_threads': 1000,
+}
+
 RUNTIME_MEMORY_MAX = 2048  # 2048 MB
 RUNTIME_MEMORY_OPTIONS = {128, 256, 512, 1024, 2048, 4096}
-
-MAX_CONCURRENT_WORKERS = 1000
-
-INVOKE_POOL_THREADS_DEFAULT = 1000
 
 RETRIES = 15
 RETRY_SLEEP = 45
 
 DEFAULT_RUNTIMES = ['python3.7', 'python3.8']
 USER_RUNTIMES_PREFIX = 'lithops.user_runtimes'
+
+REQ_PARAMS = ('project_name', 'service_account', 'credentials_path', 'region')
 
 DEFAULT_REQUIREMENTS = [
     'numpy',
@@ -64,21 +69,25 @@ DEFAULT_REQUIREMENTS = [
 
 
 def load_config(config_data=None):
-    if config_data is None:
-        config_data = {}
-
     if 'gcp' not in config_data:
         raise Exception("'gcp' section is mandatory in the configuration")
 
-    if 'runtime_memory' not in config_data['gcp_functions']:
-        config_data['gcp_functions']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
-    if 'runtime_timeout' not in config_data['gcp_functions']:
-        config_data['gcp_functions']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+    for param in REQ_PARAMS:
+        if param not in config_data['gcp']:
+            msg = "{} is mandatory under 'gcp' section of the configuration".format(REQ_PARAMS)
+            raise Exception(msg)
+
+    if not exists(config_data['gcp']['credentials_path']) or not isfile(config_data['gcp']['credentials_path']):
+        raise Exception("Path {} must be credentials JSON file.".format(config_data['gcp']['credentials_path']))
+
+    for key in DEFAULT_CONFIG_KEYS:
+        if key not in config_data['gcp_functions']:
+            config_data['gcp_functions'][key] = DEFAULT_CONFIG_KEYS[key]
+
+    config_data['gcp_functions']['invoke_pool_threads'] = config_data['gcp_functions']['max_workers']
+
     if 'runtime' not in config_data['gcp_functions']:
         config_data['gcp_functions']['runtime'] = 'python' + version_str(sys.version_info)
-
-    if 'invoke_pool_threads' not in config_data['gcp']:
-        config_data['gcp_functions']['invoke_pool_threads'] = config_data['lithops']['workers']
 
     if config_data['gcp_functions']['runtime_memory'] not in RUNTIME_MEMORY_OPTIONS:
         raise Exception('{} MB runtime is not available (Only one of {} MB is available)'.format(
@@ -86,22 +95,14 @@ def load_config(config_data=None):
 
     if config_data['gcp_functions']['runtime_memory'] > RUNTIME_MEMORY_MAX:
         config_data['gcp_functions']['runtime_memory'] = RUNTIME_MEMORY_MAX
-    if config_data['gcp_functions']['runtime_timeout'] > RUNTIME_TIMEOUT_DEFAULT:
-        config_data['gcp_functions']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
 
     config_data['gcp']['retries'] = RETRIES
     config_data['gcp']['retry_sleep'] = RETRY_SLEEP
-
-    if 'workers' not in config_data['lithops']:
-        config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
 
     required_parameters = ('project_name',
                            'service_account',
                            'credentials_path')
     if not set(required_parameters) <= set(config_data['gcp']):
         raise Exception("'project_name', 'service_account' and 'credentials_path' are mandatory under 'gcp' section")
-
-    if not exists(config_data['gcp']['credentials_path']) or not isfile(config_data['gcp']['credentials_path']):
-        raise Exception("Path {} must be credentials JSON file.".format(config_data['gcp']['credentials_path']))
 
     config_data['gcp_functions'].update(config_data['gcp'])

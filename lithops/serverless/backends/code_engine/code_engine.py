@@ -16,7 +16,6 @@
 #
 
 import os
-import re
 import sys
 import base64
 import json
@@ -27,7 +26,7 @@ import yaml
 from kubernetes import client, config, watch
 from kubernetes.client.rest import ApiException
 
-from lithops.utils import version_str, dict_to_b64str
+from lithops.utils import version_str, dict_to_b64str, is_lithops_worker
 from lithops.version import __version__
 from lithops.utils import create_handler_zip
 from lithops.constants import COMPUTE_CLI_MSG, JOBS_PREFIX
@@ -59,36 +58,33 @@ class CodeEngineBackend:
         self.namespace = code_engine_config.get('namespace', None)
         self.region = code_engine_config.get('region', None)
 
-        if self.namespace and self.region and self.iam_api_key:
+        self.ibm_token_manager = None
+        self.is_lithops_worker = is_lithops_worker()
+
+        if self.namespace and self.region:
             self.cluster = ce_config.CLUSTER_URL.format(self.region)
-            configuration = client.Configuration()
-            configuration.host = self.cluster
-            token = self._get_iam_token()
-            configuration.api_key = {"authorization": "Bearer " + token}
-            client.Configuration.set_default(configuration)
+
+        if self.iam_api_key and not self.is_lithops_worker:
+            self._get_iam_token()
 
         else:
             try:
                 config.load_kube_config(config_file=self.kubecfg_path)
+                logger.debug("Loading kubecfg file")
                 contexts = config.list_kube_config_contexts(config_file=self.kubecfg_path)
                 current_context = contexts[1].get('context')
                 self.namespace = current_context.get('namespace')
                 self.cluster = current_context.get('cluster')
-                self.code_engine_config['namespace'] = self.namespace
-                self.code_engine_config['cluster'] = self.cluster
 
                 if self.iam_api_key:
-                    configuration = client.Configuration.get_default_copy()
-                    token = self._get_iam_token()
-                    configuration.api_key = {"authorization": "Bearer " + token}
-                    client.Configuration.set_default(configuration)
+                    self._get_iam_token()
 
             except Exception:
-                logger.debug('Loading incluster config')
+                logger.debug('Loading incluster kubecfg')
                 config.load_incluster_config()
-                self.namespace = self.code_engine_config.get('namespace')
-                self.cluster = self.code_engine_config.get('cluster')
 
+        self.code_engine_config['namespace'] = self.namespace
+        self.code_engine_config['cluster'] = self.cluster
         logger.debug("Set namespace to {}".format(self.namespace))
         logger.debug("Set cluster to {}".format(self.cluster))
 
@@ -106,22 +102,30 @@ class CodeEngineBackend:
         logger.info("{} - Region: {}".format(msg, self.region))
 
     def _get_iam_token(self):
-        """ Requests and IBM IAM token """
-        token = self.code_engine_config.get('token', None)
-        token_expiry_time = self.code_engine_config.get('token_expiry_time', None)
-        self.ibm_token_manager = IBMTokenManager(self.iam_api_key,
-                                                 'IAM', token,
-                                                 token_expiry_time)
+        """ Requests an IBM IAM token """
+        configuration = client.Configuration.get_default_copy()
+        if self.namespace and self.region:
+            configuration.host = self.cluster
+
+        if not self.ibm_token_manager:
+            token = self.code_engine_config.get('token', None)
+            token_expiry_time = self.code_engine_config.get('token_expiry_time', None)
+            self.ibm_token_manager = IBMTokenManager(self.iam_api_key,
+                                                     'IAM', token,
+                                                     token_expiry_time)
+
         token, token_expiry_time = self.ibm_token_manager.get_token()
         self.code_engine_config['token'] = token
         self.code_engine_config['token_expiry_time'] = token_expiry_time
 
-        return token
+        configuration.api_key = {"authorization": "Bearer " + token}
+        client.Configuration.set_default(configuration)
 
     def _format_jobdef_name(self, runtime_name, runtime_memory):
-        runtime_name = runtime_name.replace('.', '')
         runtime_name = runtime_name.replace('/', '--')
         runtime_name = runtime_name.replace(':', '--')
+        runtime_name = runtime_name.replace('.', '')
+        runtime_name = runtime_name.replace('_', '-')
         return '{}--{}mb'.format(runtime_name, runtime_memory)
 
     def _get_default_runtime_image_name(self):
@@ -140,13 +144,6 @@ class CodeEngineBackend:
         logger.debug('Building new docker image from Dockerfile')
         logger.debug('Docker image name: {}'.format(docker_image_name))
 
-        expression = '^([a-z0-9]+)/([-a-z0-9]+)(:[a-z0-9]+)?'
-        result = re.match(expression, docker_image_name)
-
-        if not result or result.group() != docker_image_name:
-            raise Exception("Invalid docker image name: All letters must be "
-                            "lowercase and '.' or '_' characters are not allowed")
-
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
         create_handler_zip(ce_config.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')
 
@@ -160,7 +157,7 @@ class CodeEngineBackend:
         if logger.getEffectiveLevel() != logging.DEBUG:
             cmd = cmd + " >{} 2>&1".format(os.devnull)
 
-        logger.info('Building default runtime')
+        logger.info('Building runtime')
         res = os.system(cmd)
         if res != 0:
             raise Exception('There was an error building the runtime')
@@ -173,7 +170,7 @@ class CodeEngineBackend:
         res = os.system(cmd)
         if res != 0:
             raise Exception('There was an error pushing the runtime to the container registry')
-        logger.debug('Done!')
+        logger.debug('Building done!')
 
     def _build_default_runtime(self, default_runtime_img_name):
         """
@@ -254,8 +251,8 @@ class CodeEngineBackend:
         Deletes all runtimes from all packages
         """
         self.clear()
-        jobdefs = self.list_runtimes()
-        for docker_image_name, memory in jobdefs:
+        runtimes = self.list_runtimes()
+        for docker_image_name, memory in runtimes:
             self.delete_runtime(docker_image_name, memory)
 
         logger.debug('Deleting all lithops configmaps')
@@ -305,6 +302,12 @@ class CodeEngineBackend:
         """
         Clean all completed jobruns in the current executor
         """
+        if self.iam_api_key and not self.is_lithops_worker:
+            # try to refresh the token
+            self._get_iam_token()
+            self.custom_api = client.CustomObjectsApi()
+            self.core_api = client.CoreV1Api()
+
         if job_keys:
             for job_key in job_keys:
                 if job_key in self.jobs:
@@ -330,6 +333,12 @@ class CodeEngineBackend:
         Invoke -- return information about this invocation
         For array jobs only remote_invocator is allowed
         """
+        if self.iam_api_key and not self.is_lithops_worker:
+            # try to refresh the token
+            self._get_iam_token()
+            self.custom_api = client.CustomObjectsApi()
+            self.core_api = client.CoreV1Api()
+
         executor_id = job_payload['executor_id']
         job_id = job_payload['job_id']
 
@@ -338,7 +347,7 @@ class CodeEngineBackend:
 
         total_calls = job_payload['total_calls']
         chunksize = job_payload['chunksize']
-        array_size = total_calls // chunksize + (total_calls % chunksize > 0)
+        total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
 
         jobdef_name = self._format_jobdef_name(docker_image_name, runtime_memory)
 
@@ -352,13 +361,13 @@ class CodeEngineBackend:
         jobrun_res['metadata']['name'] = activation_id
         jobrun_res['metadata']['namespace'] = self.namespace
         jobrun_res['spec']['jobDefinitionRef'] = str(jobdef_name)
-        jobrun_res['spec']['jobDefinitionSpec']['arraySpec'] = '0-' + str(array_size - 1)
+        jobrun_res['spec']['jobDefinitionSpec']['arraySpec'] = '0-' + str(total_workers - 1)
 
         container = jobrun_res['spec']['jobDefinitionSpec']['template']['containers'][0]
         container['name'] = str(jobdef_name)
         container['env'][0]['value'] = 'run'
 
-        config_map = self._create_config_map(job_payload, activation_id)
+        config_map = self._create_config_map(activation_id, job_payload)
         container['env'][1]['valueFrom']['configMapKeyRef']['name'] = config_map
 
         container['resources']['requests']['memory'] = '{}G'.format(runtime_memory/1024)
@@ -366,12 +375,11 @@ class CodeEngineBackend:
 
         # logger.debug("request - {}".format(jobrun_res)
 
-        logger.debug('ExecutorID {} | JobID {} - Going '
-                     'to run {} activations in {} workers'
-                     .format(executor_id, job_id, total_calls, array_size))
+        logger.debug('ExecutorID {} | JobID {} - Going to run {} activations '
+                     '{} workers'.format(executor_id, job_id, total_calls, total_workers))
 
         try:
-            res = self.custom_api.create_namespaced_custom_object(
+            self.custom_api.create_namespaced_custom_object(
                 group=ce_config.DEFAULT_GROUP,
                 version=ce_config.DEFAULT_VERSION,
                 namespace=self.namespace,
@@ -449,7 +457,7 @@ class CodeEngineBackend:
         container['resources']['requests']['cpu'] = str(self.code_engine_config['runtime_cpu'])
 
         try:
-            res = self.custom_api.delete_namespaced_custom_object(
+            self.custom_api.delete_namespaced_custom_object(
                 group=ce_config.DEFAULT_GROUP,
                 version=ce_config.DEFAULT_VERSION,
                 namespace=self.namespace,
@@ -460,7 +468,7 @@ class CodeEngineBackend:
             pass
 
         try:
-            res = self.custom_api.create_namespaced_custom_object(
+            self.custom_api.create_namespaced_custom_object(
                 group=ce_config.DEFAULT_GROUP,
                 version=ce_config.DEFAULT_VERSION,
                 namespace=self.namespace,
@@ -512,9 +520,9 @@ class CodeEngineBackend:
         jobdef_name = self._format_jobdef_name(docker_image_name, memory)
         jobrun_name = 'lithops-runtime-preinstalls'
 
-        payload = copy.deepcopy(self.internal_storage.storage.storage_config)
-        payload['log_level'] = logger.getEffectiveLevel()
-        payload['runtime_name'] = jobdef_name
+        job_payload = copy.deepcopy(self.internal_storage.storage.storage_config)
+        job_payload['log_level'] = logger.getEffectiveLevel()
+        job_payload['runtime_name'] = jobdef_name
 
         jobrun_res['metadata']['name'] = jobrun_name
         jobrun_res['metadata']['namespace'] = self.namespace
@@ -523,8 +531,9 @@ class CodeEngineBackend:
         container['name'] = str(jobdef_name)
         container['env'][0]['value'] = 'preinstalls'
 
-        config_map = self._create_config_map(payload, jobdef_name)
-        container['env'][1]['valueFrom']['configMapKeyRef']['name'] = config_map
+        config_map_name = 'lithops-{}-preinstalls'.format(jobdef_name)
+        config_map_name = self._create_config_map(config_map_name, job_payload)
+        container['env'][1]['valueFrom']['configMapKeyRef']['name'] = config_map_name
 
         try:
             self.custom_api.delete_namespaced_custom_object(
@@ -583,7 +592,7 @@ class CodeEngineBackend:
         except Exception:
             pass
 
-        self._delete_config_map(jobdef_name)
+        self._delete_config_map(config_map_name)
 
         if failed:
             raise Exception("Unable to extract Python preinstalled modules from the runtime")
@@ -594,51 +603,44 @@ class CodeEngineBackend:
 
         return runtime_meta
 
-    def _create_config_map(self, payload, jobrun_name):
+    def _create_config_map(self, config_map_name, payload):
         """
         Creates a configmap
         """
-        config_name = '{}-configmap'.format(jobrun_name)
         cmap = client.V1ConfigMap()
-        cmap.metadata = client.V1ObjectMeta(name=config_name)
+        cmap.metadata = client.V1ObjectMeta(name=config_map_name)
         cmap.data = {}
         cmap.data["lithops.payload"] = dict_to_b64str(payload)
 
-        field_manager = 'lithops'
-
+        logger.debug("Creating ConfigMap {}".format(config_map_name))
         try:
-            logger.debug("Generate ConfigMap {} for namespace {}"
-                         .format(config_name, self.namespace))
             self.core_api.create_namespaced_config_map(
                 namespace=self.namespace,
                 body=cmap,
-                field_manager=field_manager)
-            logger.debug("ConfigMap {} for namespace {} created"
-                         .format(config_name, self.namespace))
+                field_manager='lithops'
+            )
         except ApiException as e:
             if (e.status != 409):
                 logger.debug("Creating a configmap failed with {} {}"
                              .format(e.status, e.reason))
                 raise Exception('Failed to create ConfigMap')
             else:
-                logger.debug("ConfigMap {} for namespace {} already exists"
-                             .format(config_name, self.namespace))
+                logger.debug("ConfigMap {} already exists".format(config_map_name))
 
-        return config_name
+        return config_map_name
 
-    def _delete_config_map(self, jobrun_name):
+    def _delete_config_map(self, config_map_name):
         """
         Deletes a configmap
         """
-        config_name = '{}-configmap'.format(jobrun_name)
         grace_period_seconds = 0
         try:
-            logger.debug("Deleting ConfigMap {} for namespace {}"
-                         .format(config_name, self.namespace))
+            logger.debug("Deleting ConfigMap {}".format(config_map_name))
             self.core_api.delete_namespaced_config_map(
-                name=config_name,
+                name=config_map_name,
                 namespace=self.namespace,
-                grace_period_seconds=grace_period_seconds)
+                grace_period_seconds=grace_period_seconds
+            )
         except ApiException as e:
             logger.debug("Deleting a configmap failed with {} {}"
                          .format(e.status, e.reason))

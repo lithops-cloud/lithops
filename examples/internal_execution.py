@@ -19,7 +19,7 @@ def my_function(x):
 
 
 if __name__ == '__main__':
-    fexec = lithops.FunctionExecutor(log_level='DEBUG')
+    fexec = lithops.FunctionExecutor(log_level='INFO')
     fexec.call_async(my_function, 3)
     fexec.wait()
     print(fexec.get_result())

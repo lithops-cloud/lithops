@@ -18,9 +18,9 @@ RUN pip install --upgrade setuptools six pip \
     && pip install --no-cache-dir \
         flask \
         pika \
-        glob2 \
         ibm-cos-sdk \
         redis \
+        gevent \
         requests \
         PyYAML \
         kubernetes \

@@ -86,11 +86,11 @@ Currently, Lithops for Kubernetes and On-Premise supports these backends:
 
    * - Compute
      - Storage
-   * - `Knative <https://knative.dev/>`_
+   * - `Kubernetes Jobs <https://kubernetes.io/docs/concepts/workloads/controllers/job/>`_
      - `OpenStack Swift <https://docs.openstack.org/swift/latest/>`_
-   * - `OpenWhisk <https://openwhisk.apache.org/>`_
+   * - `Knative <https://knative.dev/>`_
      - `Redis <https://redis.io/documentation>`_
-   * - `Kubernetes <https://kubernetes.io/>`_
+   * - `OpenWhisk <https://openwhisk.apache.org/>`_
      - `Ceph <https://docs.ceph.com/en/latest/>`_
    * -
      - `MinIO <https://docs.min.io/minio/baremetal/>`_

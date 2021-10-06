@@ -9,6 +9,8 @@ flask
 cloudpickle
 ps-mem
 tblib
+PyYAML
+kubernetes
 
 # default available packages for python3
 beautifulsoup4

@@ -137,6 +137,7 @@ This project has received funding from the European Union's Horizon 2020 researc
    source/supported_clouds.md
    source/comparing_lithops.rst
    source/execution_modes.rst
+   source/cli.md
 
 .. toctree::
    :hidden:
@@ -163,13 +164,6 @@ This project has received funding from the European Union's Horizon 2020 researc
 
    source/api_storage.md
    source/api_storage_os.md
-
-.. toctree::
-   :hidden:
-   :maxdepth: -1
-   :caption: Tutorials
-
-   source/notebooks/hello_world.ipynb
 
 .. toctree::
    :hidden:

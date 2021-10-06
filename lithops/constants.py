@@ -24,7 +24,7 @@ LOGGER_FORMAT = "%(asctime)s [%(levelname)s] %(name)s -- %(message)s"
 LOGGER_FORMAT_SHORT = "[%(levelname)s] %(filename)s -- %(message)s"
 LOGGER_LEVEL_CHOICES = ["debug", "info", "warning", "error", "critical"]
 
-STORAGE_CLI_MSG = '{} Storage client created'
+STORAGE_CLI_MSG = '{} client created'
 COMPUTE_CLI_MSG = '{} client created'
 
 LOCALHOST = 'localhost'
@@ -32,6 +32,8 @@ SERVERLESS = 'serverless'
 STANDALONE = 'standalone'
 
 MODE_DEFAULT = SERVERLESS
+
+MONITORING_DEFAULT = 'storage'
 
 SERVERLESS_BACKEND_DEFAULT = 'ibm_cf'
 STANDALONE_BACKEND_DEFAULT = 'ibm_vpc'
@@ -43,6 +45,7 @@ LOGS_PREFIX = "lithops.logs"
 RUNTIMES_PREFIX = "lithops.runtimes"
 
 EXECUTION_TIMEOUT_DEFAULT = 1800
+EXECUTION_TIMEOUT_LOCALHOST_DEFAULT = 3600
 
 LOCALHOST_RUNTIME_DEFAULT = os.path.basename(sys.executable)
 
@@ -57,6 +60,8 @@ STANDALONE_SSH_CREDNTIALS = {'username': 'root', 'password': 'lithops'}
 STANDALONE_CONFIG_FILE = os.path.join(STANDALONE_INSTALL_DIR, 'config')
 
 MAX_AGG_DATA_SIZE = 4  # 4MiB
+
+WORKER_PROCESSES_DEFAULT = 1
 
 TEMP = os.path.realpath(tempfile.gettempdir())
 LITHOPS_TEMP_DIR = os.path.join(TEMP, 'lithops')
@@ -82,6 +87,7 @@ SERVERLESS_BACKENDS = ['ibm_cf',
                        'knative',
                        'openwhisk',
                        'aws_lambda',
+                       'gcp_cloudrun',
                        'gcp_functions',
                        'cloudrun',
                        'azure_functions',
@@ -95,6 +101,7 @@ FAAS_BACKENDS = ['ibm_cf',
                  'knative',
                  'openwhisk',
                  'aws_lambda',
+                 'gcp_cloudrun',
                  'gcp_functions',
                  'cloudrun',
                  'azure_functions',
@@ -104,8 +111,3 @@ BATCH_BACKENDS = ['ibm_vpc',
                   'k8s',
                   'code_engine'
                   'vm']
-
-CHUNKSIZE_DEFAULT = 1
-WORKER_PROCESSES_DEFAULT = 1
-
-MONITORING_DEFAULT = 'storage'

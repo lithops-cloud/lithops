@@ -363,8 +363,11 @@ def get_docker_username():
         docker_user_info = sp.check_output(cmd, shell=True,
                                            encoding='UTF-8',
                                            stderr=sp.STDOUT)
-        docker_data = json.loads(docker_user_info)
-        user = docker_data['Username']
+        try:
+            docker_data = json.loads(docker_user_info)
+            user = docker_data['Username']
+        except Exception:
+            pass
 
     return user
 

@@ -20,7 +20,7 @@ echo "-------------------------------------------------------"
 echo "--> Resizing ubuntu-20.04-server-cloudimg-amd64.img <--"
 echo "-------------------------------------------------------"
 cp ubuntu-20.04-server-cloudimg-amd64.img ubuntu-20.04-server-cloudimg-amd64-orig.img
-qemu-img resize ubuntu-20.04-server-cloudimg-amd64.img +5G
+qemu-img resize ubuntu-20.04-server-cloudimg-amd64.img +7.5G
 virt-resize --expand /dev/sda1 ubuntu-20.04-server-cloudimg-amd64-orig.img ubuntu-20.04-server-cloudimg-amd64.img
 rm ubuntu-20.04-server-cloudimg-amd64-orig.img
 virt-filesystems --long -h --all -a ubuntu-20.04-server-cloudimg-amd64.img
@@ -65,11 +65,11 @@ sleep 5
 virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'rm /var/lib/apt/lists/* -vfR ' 
 virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'apt-get clean' 
 virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'apt-get update'
-virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'apt-get install unzip python3-pip apt-transport-https ca-certificates curl software-properties-common gnupg-agent -y'
+virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'apt-get install apt-transport-https ca-certificates curl software-properties-common gnupg-agent -y'
 virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -'
 virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"'
 virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'apt-get update'
-virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'apt-get install unzip python3-pip docker-ce docker-ce-cli containerd.io -y'
+virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'apt-get install unzip redis-server python3-pip docker-ce docker-ce-cli containerd.io -y'
 virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'pip3 install -U flask gevent lithops'
 virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'rm -rf /var/lib/apt/lists/*'
 virt-customize -a ubuntu-20.04-server-cloudimg-amd64.img  --run-command 'rm -rf /var/cache/apt/archives/*'

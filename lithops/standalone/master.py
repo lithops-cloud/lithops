@@ -48,9 +48,16 @@ BUDGET_KEEPER = None
 JOB_PROCESSES = {}
 WORK_QUEUES = {}
 MASTER_IP = None
-
 MP_MANAGER = mp.Manager()
+LOCALHOST_MANAGER_PROCESS = None
 
+EXEC_MODE = 'consume'
+WORKERS = MP_MANAGER.list()
+
+# worker heartbeat timeout in seconds. used in reuse mode.
+# worker sends heartbeat by invoking get_tasks each ~1sec
+WORKER_HEARTBEAT = 20
+WORKERS_STATE = {}
 
 def is_worker_instance_ready(vm):
     """
@@ -85,18 +92,20 @@ def wait_worker_instance_ready(vm):
     raise TimeoutError(msg)
 
 
-def setup_worker(worker_info, work_queue, job_key):
+def setup_worker(worker_info, work_queue, job_key, workers):
     """
     Run worker process
     Install all the Lithops dependencies into the worker.
     Runs the job
     """
-    instance_name, ip_address, instance_id = worker_info
+
+    instance_name, ip_address, instance_id, ssh_credentials = worker_info
     logger.info('Starting setup for VM instance {}'.format(instance_name))
 
     vm = STANDALONE_HANDLER.backend.get_vm(instance_name)
     vm.ip_address = ip_address
     vm.instance_id = instance_id
+    vm.ssh_credentials = ssh_credentials
 
     worker_ready = False
     retry = 0
@@ -139,6 +148,8 @@ def setup_worker(worker_info, work_queue, job_key):
     vm.get_ssh_client().run_remote_command(script, run_async=True)
     vm.del_ssh_client()
     logger.info('Installation script submitted to {}'.format(vm))
+    logger.debug(f'Appending to WORKERS {vm_data}')
+    workers.append(vm_data)
 
 
 def stop_job_process(job_key):
@@ -156,7 +167,25 @@ def stop_job_process(job_key):
     del JOB_PROCESSES[job_key]
 
 
-def run_job_process(job_payload, work_queue):
+def run_job_local(work_queue):
+    """
+    Localhost jobs manager process for consume mode
+    """
+    pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
+
+    try:
+        localhos_handler = LocalhostHandler({'pull_runtime': pull_runtime})
+
+        while True:
+            job_payload = work_queue.get()
+            job_payload['config']['lithops']['backend'] = 'localhost'
+            localhos_handler.invoke(job_payload)
+
+    except Exception as e:
+        logger.error(e)
+
+
+def run_job_worker(job_payload, work_queue, workers_list):
     """
     Process responsible to wait for workers to become ready, and
     submit individual tasks of the job to them
@@ -175,11 +204,13 @@ def run_job_process(job_payload, work_queue):
 
     logger.info("Total tasks in {} work queue: {}".format(job_key, work_queue.qsize()))
 
-    with ThreadPoolExecutor(len(workers)) as executor:
-        for worker_info in workers:
-            executor.submit(setup_worker, worker_info, work_queue, job_key)
+    # run setup only in case not reusing old workers
+    if workers:
+        with ThreadPoolExecutor(len(workers)) as executor:
+            for worker_info in workers:
+                executor.submit(setup_worker, worker_info, work_queue, job_key, workers_list)
 
-    logger.info('All workers set up for job {}'.format(job_key))
+        logger.info('All workers set up for job {}'.format(job_key))
 
     while not work_queue.empty():
         time.sleep(1)
@@ -196,23 +227,62 @@ def error(msg):
     return response
 
 
+@app.route('/workers', methods=['GET'])
+def get_workers():
+    """
+    Returns the number of spawned workers
+
+    Currently returns only spawned workers metadata
+    TODO - add support to list only available workers when each worker updates itself in WORKERS via POST
+    TODO - job.done for master is not same as job.done for worker, can be improved by touch on master from worker instead of touch on master
+    """
+
+    logger.debug(f'in get_workers, workers = {WORKERS}, workers state: {WORKERS_STATE}')
+
+    workers = []
+    for w in WORKERS:
+        vm = STANDALONE_HANDLER.backend.get_vm(w['instance_name'])
+        vm.ip_address = w['ip_address']
+        vm.instance_id = w['instance_id']
+
+        # either available via ssh, to cover case when worker service not running yet
+        # or via heartbeat
+        hb = WORKERS_STATE[w['ip_address']]
+        if is_worker_instance_ready(vm) or (time.time() - hb < WORKER_HEARTBEAT):
+            workers.append(w)
+        else:
+            # delete worker in case it is not available. may cover edge cases when for some reason keeper not started on worker
+            vm.delete()
+
+    response = flask.jsonify(workers)
+    response.status_code = 200
+
+    return response
+
+
 @app.route('/get-task/<job_key>', methods=['GET'])
 def get_task(job_key):
     """
     Returns a task from the work queue
     """
     global WORK_QUEUES
-    global JOB_PROCESSES
+    global WORKERS_STATE
 
     try:
-        task_payload = WORK_QUEUES[job_key].get(timeout=0.1)
+        # track active workers
+        worker_ip = flask.request.remote_addr
+
+        WORKERS_STATE[worker_ip] = time.time()
+
+        task_payload = WORK_QUEUES.setdefault(job_key, MP_MANAGER.Queue()).get(timeout=0.1)
         response = flask.jsonify(task_payload)
         response.status_code = 200
         logger.info('Calls {} invoked on {}'
                     .format(', '.join(task_payload['call_ids']),
                             flask.request.remote_addr))
     except queue.Empty:
-        stop_job_process(job_key)
+        if EXEC_MODE != 'reuse':
+            stop_job_process(job_key)
         response = ('', 204)
     return response
 
@@ -242,6 +312,9 @@ def run():
     global BUDGET_KEEPER
     global WORK_QUEUES
     global JOB_PROCESSES
+    global WORKERS
+    global EXEC_MODE
+    global LOCALHOST_MANAGER_PROCESS
 
     job_payload = flask.request.get_json(force=True, silent=True)
     if job_payload and not isinstance(job_payload, dict):
@@ -260,22 +333,36 @@ def run():
     BUDGET_KEEPER.update_config(job_payload['config']['standalone'])
     BUDGET_KEEPER.jobs[job_key] = 'running'
 
-    exec_mode = job_payload['config']['standalone'].get('exec_mode', 'consume')
+    EXEC_MODE = job_payload['config']['standalone'].get('exec_mode', 'consume')
 
-    if exec_mode == 'consume':
-        # Consume mode runs the job locally
-        pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
-        try:
-            localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
-            localhost_handler.invoke(job_payload)
-        except Exception as e:
-            logger.error(e)
+    if EXEC_MODE == 'consume':
+        work_queue = WORK_QUEUES.setdefault('local', MP_MANAGER.Queue())
+        if not LOCALHOST_MANAGER_PROCESS:
+            logger.debug('Starting manager process for localhost jobs')
+            lmp = mp.Process(target=run_job_local, args=(work_queue,))
+            lmp.daemon = True
+            lmp.start()
+            LOCALHOST_MANAGER_PROCESS = lmp
+        logger.info(f'Putting job {job_key} into master queue')
+        work_queue.put(job_payload)
 
-    elif exec_mode == 'create':
+    elif EXEC_MODE == 'create':
         # Create mode runs the job in worker VMs
+        logger.debug(f'Starting process for job {job_key}')
         work_queue = MP_MANAGER.Queue()
         WORK_QUEUES[job_key] = work_queue
-        jp = mp.Process(target=run_job_process, args=(job_payload, work_queue))
+        jp = mp.Process(target=run_job_worker, args=(job_payload, work_queue, WORKERS))
+        jp.daemon = True
+        jp.start()
+        JOB_PROCESSES[job_key] = jp
+
+    elif EXEC_MODE == 'reuse':
+        # Reuse mode runs the job on running workers
+        # TODO: Consider to add support to manage pull of available workers
+        # TODO: Spawn only the missing delta of workers
+        logger.debug(f'Starting process for job {job_key}')
+        work_queue = WORK_QUEUES.setdefault('all', MP_MANAGER.Queue())
+        jp = mp.Process(target=run_job_worker, args=(job_payload, work_queue, WORKERS))
         jp.daemon = True
         jp.start()
         JOB_PROCESSES[job_key] = jp
@@ -296,6 +383,7 @@ def ping():
 
 @app.route('/preinstalls', methods=['GET'])
 def preinstalls():
+    global LOCALHOST_HANDLER
 
     payload = flask.request.get_json(force=True, silent=True)
     if payload and not isinstance(payload, dict):
@@ -309,7 +397,11 @@ def preinstalls():
 
     pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
     localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
+    localhost_handler.init()
     runtime_meta = localhost_handler.create_runtime(runtime)
+    localhost_handler.clear()
+
+    logger.info(runtime_meta)
     response = flask.jsonify(runtime_meta)
     response.status_code = 200
 

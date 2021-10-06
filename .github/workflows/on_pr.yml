@@ -23,7 +23,7 @@ jobs:
       - name: Determine which jobs to run
         id: script
         run: |
-          value=$(python3 ./lithops/scripts/check_job_on_list.py "${GITHUB_WORKFLOW}")
+          value=$(python3 ./.github/workflows/utils/check_job_on_list.py "${GITHUB_WORKFLOW}")
           echo "::set-output name=string::$value"
 
 
@@ -46,12 +46,12 @@ jobs:
         run: |
           python3 setup.py develop
       - name: install secrets in lithops config
-        run: python3 ./lithops/scripts/config_fill_secrets.py "CE_COS" "${GITHUB_ACTOR,,}" "${{secrets.IAMAPIKEY }}" "${{secrets.CE_COS_API }}"
+        run: python3 ./.github/workflows/utils/config_fill_secrets.py "CE_COS" "${GITHUB_ACTOR,,}" "${{secrets.IAMAPIKEY }}" "${{secrets.CE_COS_API }}"
       - name: Clean CE's dedicated bucket
-        run: lithops clean -c lithops/tests/config_files/lithops_config_CE_COS.yaml
+        run: lithops clean -c .github/workflows/utils/config_files/lithops_config_CE_COS.yaml
       - name: build new runtime
         env:
-            LITHOPS_CONFIG_FILE: ${{ github.workspace }}/lithops/tests/config_files/lithops_config_CE_COS.yaml
+            LITHOPS_CONFIG_FILE: ${{ github.workspace }}/.github/workflows/utils/config_files/lithops_config_CE_COS.yaml
         run: |
          docker login -u cohenjomer -p "${{ secrets.DOCKER_TOKEN }}"
          cd runtime/code_engine
@@ -59,7 +59,7 @@ jobs:
 
       - name: Run Python tests
         run: |
-         lithops verify -k -c lithops/tests/config_files/lithops_config_CE_COS.yaml
+         lithops verify -k -c .github/workflows/utils/config_files/lithops_config_CE_COS.yaml
 
 
   CF_COS:
@@ -79,12 +79,12 @@ jobs:
         run: |
           python3 setup.py develop
       - name: install secrets in lithops config
-        run: python3 ./lithops/scripts/config_fill_secrets.py "CF_COS" "${GITHUB_ACTOR,,}" "${{ secrets.IAMAPIKEY }}" "${{ secrets.CF_COS_API }}" "${{ secrets.CF_API_KEY }}"
+        run: python3 ./.github/workflows/utils/config_fill_secrets.py "CF_COS" "${GITHUB_ACTOR,,}" "${{ secrets.IAMAPIKEY }}" "${{ secrets.CF_COS_API }}" "${{ secrets.CF_API_KEY }}"
       - name: Clean CF's dedicated bucket
-        run: lithops clean -c lithops/tests/config_files/lithops_config_CF_COS.yaml
+        run: lithops clean -c .github/workflows/utils/config_files/lithops_config_CF_COS.yaml
       - name: build new runtime
         env:
-          LITHOPS_CONFIG_FILE: ${{ github.workspace }}/lithops/tests/config_files/lithops_config_CF_COS.yaml
+          LITHOPS_CONFIG_FILE: ${{ github.workspace }}/.github/workflows/utils/config_files/lithops_config_CF_COS.yaml
         run: |
           docker login -u cohenjomer -p "${{ secrets.DOCKER_TOKEN }}"
           cd runtime/ibm_cf
@@ -92,7 +92,7 @@ jobs:
 
       - name: Run Python tests
         run: |
-          lithops verify -k -c lithops/tests/config_files/lithops_config_CF_COS.yaml
+          lithops verify -k -c .github/workflows/utils/config_files/lithops_config_CF_COS.yaml
 
 
   LOCAL_HOST:
@@ -114,7 +114,7 @@ jobs:
 
       - name: Run Python tests
         env:
-          LITHOPS_CONFIG_FILE: ${{ github.workspace }}/lithops/tests/config_files/lithops_config_LOCAL.yaml
+          LITHOPS_CONFIG_FILE: ${{ github.workspace }}/.github/workflows/utils/config_files/lithops_config_LOCAL.yaml
         run: |
           lithops verify
 

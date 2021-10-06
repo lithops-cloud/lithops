@@ -138,7 +138,7 @@ class CloudContext:
 
     def cpu_count(self):
         lithops_config = lithops.config.default_config()
-        return lithops_config['lithops']['workers']
+        return lithops_config['lithops']['max_workers']
 
     def get_context(self, method='cloud'):
         if method not in ['spawn', 'fork', 'forkserver', 'cloud']:

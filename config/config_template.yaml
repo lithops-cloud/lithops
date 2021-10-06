@@ -1,10 +1,8 @@
 #lithops: 
     #backend: ibm_cf
     #storage: ibm_cos
-    #mode: serverless
     #data_cleaner: <True/False>
     #monitoring: storage
-    #workers: <MAX_NUM_OF_WORKERS>
     #data_limit: 4  # in MiB
     #execution_timeout: 1800
     #include_modules: <LIST_OF_MODULES>
@@ -13,23 +11,18 @@
     #log_format: "%(asctime)s [%(levelname)s] %(name)s -- %(message)s"
     #log_stream: ext://sys.stdout
     #log_filename <path_to_a_file>
+    #customized_runtime: <True/False>
 
 #localhost:
     #runtime: python3
+    #worker_processes: CPU_COUNT
 
-#serverless:
-    #backend: ibm_cf
-    #remote_invoker: <True/False>
-    #customized_runtime: <True/False>
-
-#standalone:
-    #backend: ibm_vpc
-    #runtime: <RUNTIME_NAME>
-    #exec_mode: consume
-    #auto_dismantle: True
-    #pull_runtime: <false, true>
-    #hard_dismantle_timeout: 3600
-    #soft_dismantle_timeout: 300
+#vm:
+    #ip_address: <IP_ADDRESS>
+    #ssh_user: <SSH_USERNAME>
+    #ssh_password: <SSH_PASSWORD>
+    #runtime : <RUNTIME_NAME>
+    #worker_processes: <WORKER_GRANULARITY> Default is 1
 
 #ibm:
     #iam_api_key: <IAM KEY>
@@ -42,6 +35,9 @@
     #runtime : <RUNTIME_NAME>
     #runtime_timeout: 600
     #runtime_memory: 256
+    #remote_invoker: <True/False>
+    #max_workers: <MAX_WORKERS> Default is 1200
+    #worker_processes: <WORKER_GRANULARITY> Default is 1
 
 #code_engine:
     #namespace: <namespace id>
@@ -54,15 +50,17 @@
     #runtime_timeout: 600
     #runtime_memory: 256
     #runtime_cpu : 0.125
+    #max_workers: <MAX_WORKERS> Default is 1000
+    #worker_processes: <WORKER_GRANULARITY> Default is 1
 
-#ibm_cos:
-    #storage_bucket: <BUCKET_NAME>
-    #region : <REGION>
-    #endpoint    : <REGION_ENDPOINT>
-    #private_endpoint: <PRIVATE_REGION_ENDPOINT>
-    #api_key     : <API_KEY>
-    #access_key : <ACCESS_KEY>  # Optional
-    #secret_key : <SECRET_KEY>  # Optional
+#standalone:
+    #backend: ibm_vpc
+    #runtime: <RUNTIME_NAME>
+    #exec_mode: consume
+    #auto_dismantle: True
+    #pull_runtime: <false, true>
+    #hard_dismantle_timeout: 3600
+    #soft_dismantle_timeout: 300
 
 #ibm_vpc:
     #endpoint: <REGION_ENDPOINT>
@@ -77,14 +75,8 @@
     #profile_name: <PROFILE_NAME> # Default is 'cx2-2x4'
     #master_profile_name:  <PROFILE_NAME> # Default is 'cx2-2x4'
     #delete_on_dismantle: <True/False> # Default is 'True
-
-#vm:
-    #ip_address: <IP_ADDRESS>
-    #ssh_user: <SSH_USERNAME>
-    #ssh_password: <SSH_PASSWORD>
-
-#rabbitmq:
-    #amqp_url   : <RABBIT_AMQP_URL>  # amqp://
+    #max_workers: <MAX_WORKERS> Default is 100
+    #worker_processes: <WORKER_GRANULARITY> Default is 2
 
 #knative:
    #istio_endpoint  : <ISTIO_INGRESS_ENDPOINT>
@@ -93,7 +85,9 @@
    #runtime: <RUNTIME_NAME>
    #runtime_timeout: 600
    #runtime_memory: 256
-   #runtime_cpu : 0.125
+   #runtime_cpu : 0.5
+   #max_workers: <MAX_WORKERS> Default is 250
+   #worker_processes: <WORKER_GRANULARITY> Default is 1
 
 #openwhisk:
     #endpoint    : <OW_ENDPOINT>
@@ -103,6 +97,17 @@
     #runtime : <RUNTIME_NAME>
     #runtime_timeout: 600
     #runtime_memory: 256
+    #max_workers: <MAX_WORKERS> Default is 100
+    #worker_processes: <WORKER_GRANULARITY> Default is 1
+
+#ibm_cos:
+    #storage_bucket: <BUCKET_NAME>
+    #region : <REGION>
+    #endpoint    : <REGION_ENDPOINT>
+    #private_endpoint: <PRIVATE_REGION_ENDPOINT>
+    #api_key     : <API_KEY>
+    #access_key : <ACCESS_KEY>  # Optional
+    #secret_key : <SECRET_KEY>  # Optional
 
 #swift:
     #storage_bucket: <BUCKET_NAME>
@@ -134,3 +139,6 @@
     #host: <ENDPOINT_URL>
     #port: <ACCESS_KEY>
     #password: <ACCESS_KEY>
+
+#rabbitmq:
+    #amqp_url   : <RABBIT_AMQP_URL>  # amqp://

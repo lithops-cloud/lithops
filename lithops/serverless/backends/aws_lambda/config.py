@@ -23,6 +23,7 @@ from lithops.utils import version_str
 logger = logging.getLogger(__name__)
 
 DEFAULT_REQUIREMENTS = [
+    'numpy',
     'requests',
     'redis',
     'pika',
@@ -35,52 +36,52 @@ DOCKER_PATH = shutil.which('docker')
 
 LAMBDA_PYTHON_VER_KEY = 'python{}'.format(version_str(sys.version_info))
 DEFAULT_RUNTIME = LAMBDA_PYTHON_VER_KEY.replace('.', '')
-AVAILABLE_RUNTIMES = ['python36', 'python37', 'python38']
+AVAILABLE_RUNTIMES = ['python36', 'python37', 'python38', 'python39']
 
 USER_RUNTIME_PREFIX = 'lithops.user_runtimes'
 
-RUNTIME_TIMEOUT_DEFAULT = 180  # Default timeout: 180 s == 3 min
-RUNTIME_TIMEOUT_MAX = 900  # Max. timeout: 900 s == 15 min
-RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
-RUNTIME_MEMORY_MAX = 10240  # Max. memory: 10240 MB
+DEFAULT_CONFIG_KEYS = {
+    'runtime_timeout': 180,  # Default: 180 seconds => 3 minutes
+    'runtime_memory': 256,  # Default memory: 256 MB
+    'max_workers': 1000,
+    'worker_processes': 1,
+    'invoke_pool_threads': 64,
+}
 
-MAX_CONCURRENT_WORKERS = 1000
-INVOKE_POOL_THREADS_DEFAULT = 64
+RUNTIME_TIMEOUT_MAX = 900  # Max. timeout: 900 s == 15 min
+RUNTIME_MEMORY_MIN = 128  # Max. memory: 128 MB
+RUNTIME_MEMORY_MAX = 10240  # Max. memory: 10240 MB
 
 
 def load_config(config_data):
 
-    if 'aws' not in config_data and 'aws_lambda' not in config_data:
-        raise Exception("'aws' and 'aws_lambda' sections are mandatory in the configuration")
+    if 'aws' not in config_data:
+        raise Exception("'aws' section are mandatory in the configuration")
 
-    # Generic serverless config
-    if 'invoke_pool_threads' not in config_data['aws_lambda']:
-        config_data['aws_lambda']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
-    if 'runtime_memory' not in config_data['aws_lambda']:
-        config_data['aws_lambda']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
-    if config_data['aws_lambda']['runtime_memory'] % 64 != 0:     # Adjust 64 MB memory increments restriction
-        mem = config_data['aws_lambda']['runtime_memory']
-        config_data['aws_lambda']['runtime_memory'] = (mem + (64 - (mem % 64)))
+    for key in DEFAULT_CONFIG_KEYS:
+        if key not in config_data['aws_lambda']:
+            config_data['aws_lambda'][key] = DEFAULT_CONFIG_KEYS[key]
+
     if config_data['aws_lambda']['runtime_memory'] > RUNTIME_MEMORY_MAX:
         logger.warning("Memory set to {} - {} exceeds "
                        "the maximum amount".format(RUNTIME_MEMORY_MAX, config_data['aws_lambda']['runtime_memory']))
         config_data['aws_lambda']['runtime_memory'] = RUNTIME_MEMORY_MAX
 
-    if 'runtime_timeout' not in config_data['aws_lambda']:
-        config_data['aws_lambda']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
-    if config_data['aws_lambda']['runtime_timeout'] > RUNTIME_MEMORY_MAX:
+    if config_data['aws_lambda']['runtime_memory'] < RUNTIME_MEMORY_MIN:
+        logger.warning("Memory set to {} - {} is lower than "
+                       "the minimum amount".format(RUNTIME_MEMORY_MIN, config_data['aws_lambda']['runtime_memory']))
+        config_data['aws_lambda']['runtime_memory'] = RUNTIME_MEMORY_MIN
+
+    if config_data['aws_lambda']['runtime_timeout'] > RUNTIME_TIMEOUT_MAX:
         logger.warning("Timeout set to {} - {} exceeds the "
                        "maximum amount".format(RUNTIME_TIMEOUT_MAX, config_data['aws_lambda']['runtime_timeout']))
-        config_data['aws_lambda']['runtime_memory'] = RUNTIME_MEMORY_MAX
+        config_data['aws_lambda']['runtime_timeout'] = RUNTIME_TIMEOUT_MAX
 
     if 'runtime' not in config_data['aws_lambda']:
         if DEFAULT_RUNTIME not in AVAILABLE_RUNTIMES:
             raise Exception('Python version "{}" is not available for AWS Lambda, '
                             'please use one of {}'.format(LAMBDA_PYTHON_VER_KEY, AVAILABLE_RUNTIMES))
         config_data['aws_lambda']['runtime'] = DEFAULT_RUNTIME
-
-    if 'workers' not in config_data['lithops']:
-        config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
 
     # Auth, role and region config
     if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):

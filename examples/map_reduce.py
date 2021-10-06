@@ -3,15 +3,16 @@ Simple Lithops example using the map_reduce method.
 
 In this example the map_reduce() method will launch one
 map function for each entry in 'iterdata', and then it will
-wait locally for the results. Once the results be ready, it
-will launch the reduce function.
+wait locally for the reduce result.
 """
 import lithops
+import time
 
-iterdata = [1, 2, 3, 4]
+iterdata = [1, 2, 3, 4, 5]
 
 
 def my_map_function(x):
+    time.sleep(x*2)
     return x + 7
 
 
@@ -24,17 +25,25 @@ def my_reduce_function(results):
 
 if __name__ == "__main__":
     """
-    By default the reducer will be launched within a Cloud Function
-    when the local Lithops have all the results from the mappers.
+    By default the reducer is spawned when 20% of the map functions
+    are completed.
     """
     fexec = lithops.FunctionExecutor()
     fexec.map_reduce(my_map_function, iterdata, my_reduce_function)
     print(fexec.get_result())
 
     """
-    Set 'reducer_wait_local=True' to wait for the results locally.
+    Set 'spawn_reducer=0' to immediately spawn the reducer, without
+    waiting any map activation to be completed.
     """
     fexec = lithops.FunctionExecutor()
-    fexec.map_reduce(my_map_function, iterdata, my_reduce_function,
-                     reducer_wait_local=True)
+    fexec.map_reduce(my_map_function, iterdata, my_reduce_function, spawn_reducer=0)
+    print(fexec.get_result())
+
+    """
+    Set 'spawn_reducer=80' to spawn the reducer after 80% of completed map
+    activations.
+    """
+    fexec = lithops.FunctionExecutor()
+    fexec.map_reduce(my_map_function, iterdata, my_reduce_function, spawn_reducer=80)
     print(fexec.get_result())

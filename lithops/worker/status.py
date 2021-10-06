@@ -4,13 +4,14 @@ import json
 import time
 import logging
 from tblib import pickling_support
+from distutils.util import strtobool
+from contextlib import contextmanager
 
 import lithops.worker
 from lithops.utils import sizeof_fmt
 from lithops.storage.utils import create_status_key, \
     create_init_key
-from distutils.util import strtobool
-from contextlib import contextmanager
+
 
 pickling_support.install()
 
@@ -36,7 +37,7 @@ class CallStatus:
             'exception': False,
             'activation_id': os.environ.get('__LITHOPS_ACTIVATION_ID'),
             'python_version': os.environ.get("PYTHON_VERSION"),
-            'worker_start_tstamp': time.time(),
+            'worker_start_tstamp': job.start_tstamp,
             'host_submit_tstamp': job.host_submit_tstamp,
             'call_id': job.call_id,
             'job_id': job.job_id,

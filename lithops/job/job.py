@@ -41,19 +41,11 @@ FUNCTION_CACHE = set()
 def create_map_job(config, internal_storage, executor_id, job_id, map_function,
                    iterdata,  runtime_meta, runtime_memory, extra_env,
                    include_modules, exclude_modules, execution_timeout,
-                   chunksize=None, worker_processes=None, extra_args=None,
-                   obj_chunk_size=None, obj_chunk_number=None, chunk_size=None,
-                   chunk_n=None):
+                   chunksize=None, extra_args=None, obj_chunk_size=None,
+                   obj_chunk_number=None):
     """
     Wrapper to create a map job.  It integrates COS logic to process objects.
     """
-
-    if chunk_size or chunk_n:
-        print('>> WARNING: chunk_size and chunk_n parameters are deprecated'
-              'use obj_chunk_size and obj_chunk_number instead')
-        obj_chunk_size = chunk_size
-        obj_chunk_number = chunk_n
-
     host_job_meta = {'host_job_create_tstamp': time.time()}
     map_iterdata = utils.verify_args(map_function, iterdata, extra_args)
 
@@ -78,7 +70,6 @@ def create_map_job(config, internal_storage, executor_id, job_id, map_function,
                       func=map_function,
                       iterdata=map_iterdata,
                       chunksize=chunksize,
-                      worker_processes=worker_processes,
                       runtime_meta=runtime_meta,
                       runtime_memory=runtime_memory,
                       extra_env=extra_env,
@@ -138,7 +129,7 @@ def create_reduce_job(config, internal_storage, executor_id, reduce_job_id,
 def _create_job(config, internal_storage, executor_id, job_id, func,
                 iterdata,  runtime_meta, runtime_memory, extra_env,
                 include_modules, exclude_modules, execution_timeout,
-                host_job_meta, chunksize=None, worker_processes=None):
+                host_job_meta, chunksize=None):
     """
     Creates a new Job
     """
@@ -149,9 +140,12 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
         ext_env = utils.convert_bools_to_string(ext_env)
         logger.debug("Extra environment vars {}".format(ext_env))
 
+    mode = config['lithops']['mode']
+    backend = config['lithops']['backend']
+
     job = SimpleNamespace()
     job.chunksize = chunksize or config['lithops']['chunksize']
-    job.worker_processes = worker_processes or config['lithops']['worker_processes']
+    job.worker_processes = config[backend]['worker_processes']
     job.execution_timeout = execution_timeout or config['lithops']['execution_timeout']
     job.executor_id = executor_id
     job.job_id = job_id
@@ -159,9 +153,6 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
     job.extra_env = ext_env
     job.function_name = func.__name__ if inspect.isfunction(func) or inspect.ismethod(func) else type(func).__name__
     job.total_calls = len(iterdata)
-
-    mode = config['lithops']['mode']
-    backend = config['lithops']['backend']
 
     if mode == SERVERLESS:
         job.runtime_memory = runtime_memory or config[backend]['runtime_memory']
@@ -177,7 +168,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
 
     elif mode == LOCALHOST:
         job.runtime_memory = None
-        job.runtime_timeout = execution_timeout
+        job.runtime_timeout = None
 
     exclude_modules_cfg = config['lithops'].get('exclude_modules', [])
     include_modules_cfg = config['lithops'].get('include_modules', [])
@@ -223,7 +214,7 @@ def _create_job(config, internal_storage, executor_id, job_id, func,
         raise Exception(log_msg)
 
     # Upload function and data
-    upload_function = not config[mode].get('customized_runtime', False)
+    upload_function = not config['lithops'].get('customized_runtime', False)
     upload_data = not (len(str(data_strs[0])) * job.chunksize < 8*1204 and backend in FAAS_BACKENDS)
 
     # Upload function and modules

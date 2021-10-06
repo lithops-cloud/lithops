@@ -26,7 +26,7 @@ from concurrent.futures import ThreadPoolExecutor
 from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
-from .config import SSH_PASSWD, CLOUD_CONFIG
+from . import config as vpc_config
 
 
 logger = logging.getLogger(__name__)
@@ -44,6 +44,8 @@ class IBMVPCBackend:
         self.region = self.endpoint.split('//')[1].split('.')[0]
         self.vpc_name = self.config.get('vpc_name')
 
+        logger.debug('Setting VPC endpoint to: {}'.format(self.endpoint))
+
         self.master = None
         self.workers = []
 
@@ -51,7 +53,7 @@ class IBMVPCBackend:
         self.custom_image = self.config.get('custom_lithops_image')
 
         authenticator = IAMAuthenticator(iam_api_key)
-        self.ibm_vpc_client = VpcV1('2021-01-19', authenticator=authenticator)
+        self.ibm_vpc_client = VpcV1('2021-08-31', authenticator=authenticator)
         self.ibm_vpc_client.set_service_url(self.config['endpoint'] + '/v1')
 
         user_agent_string = 'ibm_vpc_{}'.format(self.config['user_agent'])
@@ -230,51 +232,68 @@ class IBMVPCBackend:
         Initialize the VPC
         """
         vpc_data_filename = os.path.join(CACHE_DIR, self.name, 'data')
-        vpc_data = load_yaml_config(vpc_data_filename)
+        self.vpc_data = load_yaml_config(vpc_data_filename)
+
+        cahced_mode = self.vpc_data.get('mode')
+        cahced_instance_id = self.vpc_data.get('instance_id')
 
         if self.mode == 'consume':
             logger.debug('Initializing IBM VPC backend (Consume mode)')
-            if 'instance_name' not in vpc_data:
-                instance_data = self.ibm_vpc_client.get_instance(self.config['instance_id'])
+
+            if self.mode != cahced_mode or self.config['instance_id'] != cahced_instance_id:
+                ins_id = self.config['instance_id']
+                instance_data = self.ibm_vpc_client.get_instance(ins_id)
                 name = instance_data.get_result()['name']
-                vpc_data = {'instance_name': name}
-                dump_yaml_config(vpc_data_filename, vpc_data)
-            self.master = IBMVPCInstance(vpc_data['instance_name'], self.config,
+                self.vpc_data = {'mode': 'consume',
+                                 'instance_id': self.config['instance_id'],
+                                 'instance_name': name,
+                                 'floating_ip': self.config['ip_address']}
+                dump_yaml_config(vpc_data_filename, self.vpc_data)
+
+            self.master = IBMVPCInstance(self.vpc_data['instance_name'], self.config,
                                          self.ibm_vpc_client, public=True)
             self.master.instance_id = self.config['instance_id']
             self.master.public_ip = self.config['ip_address']
             self.master.delete_on_dismantle = False
-            return
 
-        logger.debug('Initializing IBM VPC backend (Create mode)')
-        # Create the VPC if not exists
-        self._create_vpc(vpc_data)
-        # Set the prefix used for the VPC resources
-        self.vpc_key = self.config['vpc_id'].split('-')[2]
-        # Create a new gateway if not exists
-        self._create_gateway(vpc_data)
-        # Create a new subnaet if not exists
-        self._create_subnet(vpc_data)
-        # Create a new floating IP if not exists
-        self._create_floating_ip(vpc_data)
+        elif self.mode in ['create', 'reuse']:
+            logger.debug(f'Initializing IBM VPC backend ({self.mode} mode)')
 
-        vpc_data = {
-            'vpc_id': self.config['vpc_id'],
-            'subnet_id': self.config['subnet_id'],
-            'security_group_id': self.config['security_group_id'],
-            'floating_ip': self.config['floating_ip'],
-            'floating_ip_id': self.config['floating_ip_id'],
-            'gateway_id': self.config['gateway_id']
-        }
+            if self.mode != cahced_mode:
+                # invalidate cached data
+                self.vpc_data = {}
 
-        dump_yaml_config(vpc_data_filename, vpc_data)
+            # Create the VPC if not exists
+            self._create_vpc(self.vpc_data)
+            # Set the prefix used for the VPC resources
+            self.vpc_key = self.config['vpc_id'].split('-')[2]
+            # Create a new gateway if not exists
+            self._create_gateway(self.vpc_data)
+            # Create a new subnaet if not exists
+            self._create_subnet(self.vpc_data)
+            # Create a new floating IP if not exists
+            self._create_floating_ip(self.vpc_data)
 
-        # create the master VM insatnce
-        name = 'lithops-master-{}'.format(self.vpc_key)
-        self.master = IBMVPCInstance(name, self.config, self.ibm_vpc_client, public=True)
-        self.master.public_ip = self.config['floating_ip']
-        self.master.profile_name = self.config['master_profile_name']
-        self.master.delete_on_dismantle = False
+            # create the master VM insatnce
+            name = 'lithops-master-{}'.format(self.vpc_key)
+            self.master = IBMVPCInstance(name, self.config, self.ibm_vpc_client, public=True)
+            self.master.public_ip = self.config['floating_ip']
+            self.master.profile_name = self.config['master_profile_name']
+            self.master.delete_on_dismantle = False
+
+            self.vpc_data = {
+                'mode': 'consume',
+                'instance_id': '0af1',
+                'instance_name': self.master.name,
+                'vpc_id': self.config['vpc_id'],
+                'subnet_id': self.config['subnet_id'],
+                'security_group_id': self.config['security_group_id'],
+                'floating_ip': self.config['floating_ip'],
+                'floating_ip_id': self.config['floating_ip_id'],
+                'gateway_id': self.config['gateway_id']
+            }
+
+            dump_yaml_config(vpc_data_filename, self.vpc_data)
 
     def _delete_vm_instances(self):
         """
@@ -344,7 +363,6 @@ class IBMVPCBackend:
         if 'gateway_id' not in vpc_data:
             gateways_info = self.ibm_vpc_client.list_public_gateways().get_result()
 
-            print(gateways_info)
             for gw in gateways_info['public_gateways']:
                 if ['name'] == gateway_name:
                     vpc_data['gateway_id'] = gw['id']
@@ -400,9 +418,11 @@ class IBMVPCBackend:
         """
         Delete all the workers
         """
-        self.dismantle()
+        # clear() is automatically called after get_result(),
+        # so no need to stop the master VM.
+        self.dismantle(include_master=False)
 
-    def dismantle(self):
+    def dismantle(self, include_master=True):
         """
         Stop all worker VM instances
         """
@@ -410,6 +430,10 @@ class IBMVPCBackend:
             with ThreadPoolExecutor(len(self.workers)) as ex:
                 ex.map(lambda worker: worker.stop(), self.workers)
             self.workers = []
+
+        if include_master and self.mode == 'consume':
+            # in consume mode master VM is a worker
+            self.master.stop()
 
     def get_vm(self, name):
         """
@@ -424,11 +448,12 @@ class IBMVPCBackend:
         """
         vm = IBMVPCInstance(name, self.config, self.ibm_vpc_client)
         vm.create(start=True)
+        vm.ssh_credentials.pop('key_filename', None)
         self.workers.append(vm)
 
     def get_runtime_key(self, runtime_name):
         name = runtime_name.replace('/', '-').replace(':', '-')
-        runtime_key = '/'.join([self.name, name])
+        runtime_key = '/'.join([self.name, self.vpc_data['instance_id'], name])
         return runtime_key
 
 
@@ -455,8 +480,8 @@ class IBMVPCInstance:
         self.public_ip = None
 
         self.ssh_credentials = {
-            'username': self.config['ssh_user'],
-            'password': self.config.get('ssh_password', None if public else SSH_PASSWD),
+            'username': self.config['ssh_username'],
+            'password': self.config['ssh_password'],
             'key_filename': self.config.get('ssh_key_filename', None)
         }
 
@@ -468,7 +493,7 @@ class IBMVPCInstance:
         Creates an IBM VPC python-sdk instance
         """
         authenticator = IAMAuthenticator(self.iam_api_key)
-        ibm_vpc_client = VpcV1('2021-01-19', authenticator=authenticator)
+        ibm_vpc_client = VpcV1('2021-08-31', authenticator=authenticator)
         ibm_vpc_client.set_service_url(self.config['endpoint'] + '/v1')
 
         return ibm_vpc_client
@@ -507,14 +532,14 @@ class IBMVPCInstance:
             'security_groups': [security_group_identity_model]
         }
 
-        boot_volume_profile = {
-            'capacity': 100,
+        boot_volume_data = {
+            'capacity': self.config['boot_volume_capacity'],
             'name': '{}-boot'.format(self.name),
-            'profile': {'name': self.config['volume_tier_name']}}
+            'profile': {'name': self.config['boot_volume_profile']}}
 
         boot_volume_attachment = {
             'delete_volume_on_instance_delete': True,
-            'volume': boot_volume_profile
+            'volume': boot_volume_data
         }
 
         key_identity_model = {'id': self.config['key_id']}
@@ -531,7 +556,9 @@ class IBMVPCInstance:
         instance_prototype['primary_network_interface'] = primary_network_interface
 
         if not self.public:
-            instance_prototype['user_data'] = CLOUD_CONFIG
+            user = self.config['ssh_username']
+            token = self.config['ssh_password']
+            instance_prototype['user_data'] = vpc_config.CLOUD_CONFIG.format(user, token)
 
         try:
             resp = self.ibm_vpc_client.create_instance(instance_prototype)
@@ -542,8 +569,8 @@ class IBMVPCInstance:
                 logger.debug("Create VM instance {} failed due to quota limit"
                              .format(self.name))
             else:
-                logger.debug("Create VM instance {} failed with status code {}"
-                             .format(self.name, str(e.code)))
+                logger.debug("Create VM instance {} failed with status code {}: {}"
+                             .format(self.name, str(e.code), e.message))
             raise e
 
         logger.debug("VM instance {} created successfully ".format(self.name))

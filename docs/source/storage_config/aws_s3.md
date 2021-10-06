@@ -1,4 +1,4 @@
-# Lithops on AWS S3
+# AWS S3
 
 Lithops with AWS S3 as storage backend.
 

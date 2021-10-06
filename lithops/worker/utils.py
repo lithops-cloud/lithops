@@ -40,10 +40,7 @@ def get_function_and_modules(job, internal_storage):
     """
     logger.debug("Getting function and modules")
 
-    mode = job.config['lithops']['mode']
-    customized_runtime = job.config[mode].get('customized_runtime', False)
-
-    if customized_runtime:
+    if job.config['lithops'].get('customized_runtime'):
         logger.debug("Customized runtime feature activated. Loading "
                      "function and modules from local runtime")
         func_path = '/'.join([LITHOPS_TEMP_DIR, job.func_key])

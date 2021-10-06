@@ -25,9 +25,13 @@ import logging
 import inspect
 import requests
 import traceback
-import numpy as np
 from pydoc import locate
 from distutils.util import strtobool
+
+try:
+    import numpy as np
+except ModuleNotFoundError:
+    pass
 
 from lithops.storage import Storage
 from lithops.wait import wait
@@ -191,6 +195,8 @@ class JobRunner:
         logger.debug("Process started")
         result = None
         exception = False
+        fn_name = None
+
         try:
             func = pickle.loads(self.job.func)
             data = pickle.loads(self.job.data)
@@ -210,9 +216,9 @@ class JobRunner:
                 value=time.time(),
                 type='gauge',
                 labels=(
-                    ('job_id', '-'.join([self.job.executor_id, self.job.job_id])),
-                    ('call_id', self.job.call_id),
-                    ('function_name', fn_name)
+                    ('job_id', self.job.job_key),
+                    ('call_id', '-'.join([self.job.job_key, self.job.call_id])),
+                    ('function_name', fn_name or 'undefined')
                 )
             )
 
@@ -223,17 +229,6 @@ class JobRunner:
             function_end_tstamp = time.time()
             print('----------------------------------------------------------')
             logger.info("Success function execution")
-
-            self.prometheus.send_metric(
-                name='function_end',
-                value=time.time(),
-                type='gauge',
-                labels=(
-                    ('job_id', '-'.join([self.job.executor_id, self.job.job_id])),
-                    ('call_id', self.job.call_id),
-                    ('function_name', fn_name)
-                )
-            )
 
             self.stats.write('worker_func_start_tstamp', function_start_tstamp)
             self.stats.write('worker_func_end_tstamp', function_end_tstamp)
@@ -288,6 +283,17 @@ class JobRunner:
                 self.stats.write("exc_info", str(pickled_exc))
 
         finally:
+            self.prometheus.send_metric(
+                name='function_end',
+                value=time.time(),
+                type='gauge',
+                labels=(
+                    ('job_id', self.job.job_key),
+                    ('call_id', '-'.join([self.job.job_key, self.job.call_id])),
+                    ('function_name', fn_name or 'undefined')
+                )
+            )
+
             store_result = strtobool(os.environ.get('STORE_RESULT', 'True'))
             if result is not None and store_result and not exception:
                 output_upload_start_tstamp = time.time()
