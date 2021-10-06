@@ -71,10 +71,10 @@ class Pool(object):
 
         if processes is not None:
             self._processes = processes
-            self._executor = FunctionExecutor(workers=processes, **lithops_conf)
+            self._executor = FunctionExecutor(max_workers=processes, **lithops_conf)
         else:
             self._executor = FunctionExecutor(**lithops_conf)
-            self._processes = self._executor.invoker.workers
+            self._processes = self._executor.invoker.max_workers
 
         if initializer is not None and not callable(initializer):
             raise TypeError('initializer must be a callable')

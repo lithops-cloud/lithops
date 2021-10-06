@@ -66,7 +66,7 @@ RUN pip install --upgrade setuptools six pip \
         tblib
 
 ENV PORT 8080
-ENV CONCURRENCY 4
+ENV CONCURRENCY 1
 ENV TIMEOUT 600
 ENV PYTHONUNBUFFERED TRUE
 
