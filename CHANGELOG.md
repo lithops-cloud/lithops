@@ -1,6 +1,19 @@
 # Changelog
 
-## [v2.5.2.dev0]
+## [v2.5.3.dev0]
+
+### Added
+- 
+
+### Changed
+- 
+
+### Fixes
+- [Core] Fix for lithops.map_reduce() jobs
+- [Tests] Fix when running 'lithops verify' command
+
+
+## [v2.5.2]
 
 ### Added
 - [Core] Allow to spawn the reduce function in map_reduce() after a configurable percentage of completed map activations

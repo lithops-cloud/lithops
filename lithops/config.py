@@ -158,7 +158,8 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
     if backend not in config_data or config_data[backend] is None:
         config_data[backend] = {}
 
-    config_data[backend].update(config_overwrite['backend'])
+    if 'backend' in config_overwrite:
+        config_data[backend].update(config_overwrite['backend'])
 
     if mode == constants.LOCALHOST:
         logger.debug("Loading compute backend module: localhost")

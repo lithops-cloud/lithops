@@ -243,29 +243,23 @@ class KubernetesBackend:
         """
         Delete only completed jobs
         """
-        if job_keys:
-            for job_key in job_keys:
-                if job_key in self.jobs:
-                    job_name = 'lithops-{}'.format(job_key.lower())
-                    logger.debug('Deleting job {}'.format(job_name))
-                    try:
-                        self.batch_api.delete_namespaced_job(name=job_name,
-                                                             namespace=self.namespace,
-                                                             propagation_policy='Background')
-                    except Exception:
-                        pass
-                    self.jobs.remove(job_key)
-        else:
-            for job_key in self.jobs:
-                job_name = 'lithops-{}'.format(job_key.lower())
-                logger.debug('Deleting job {}'.format(job_name))
-                try:
-                    self.batch_api.delete_namespaced_job(name=job_name,
-                                                         namespace=self.namespace,
-                                                         propagation_policy='Background')
-                except Exception:
-                    pass
-            self.jobs = []
+        jobs_to_delete = job_keys or self.jobs
+
+        for job_key in jobs_to_delete:
+            job_name = 'lithops-{}'.format(job_key.lower())
+            logger.debug('Deleting job {}'.format(job_name))
+            try:
+                self.batch_api.delete_namespaced_job(
+                    name=job_name,
+                    namespace=self.namespace,
+                    propagation_policy='Background'
+                )
+            except Exception:
+                pass
+            try:
+                self.jobs.remove(job_key)
+            except ValueError:
+                pass
 
     def list_runtimes(self, docker_image_name='all'):
         """
@@ -435,9 +429,10 @@ class KubernetesBackend:
         if failed:
             raise Exception("Unable to extract Python preinstalled modules from the runtime")
 
-        status_key = '/'.join([JOBS_PREFIX, runtime_name+'.meta'])
-        json_str = self.internal_storage.get_data(key=status_key)
+        data_key = '/'.join([JOBS_PREFIX, runtime_name+'.meta'])
+        json_str = self.internal_storage.get_data(key=data_key)
         runtime_meta = json.loads(json_str.decode("ascii"))
+        self.internal_storage.del_data(key=data_key)
 
         return runtime_meta
 
