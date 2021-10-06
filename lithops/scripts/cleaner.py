@@ -111,7 +111,7 @@ def clean_functions(functions_data):
     logger.info(f'Going to clean functions from {executor_id}')
     storage_config = data['storage_config']
     storage = Storage(storage_config=storage_config)
-    prefix = '/'.join([JOBS_PREFIX, executor_id])
+    prefix = '/'.join([JOBS_PREFIX, executor_id])+'/'
     key_list = storage.list_keys(storage.bucket, prefix)
     storage.delete_objects(storage.bucket, key_list)
 
