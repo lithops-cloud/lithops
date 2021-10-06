@@ -49,6 +49,7 @@ from lithops.utils import FuturesList
 
 
 logger = logging.getLogger(__name__)
+CLEANER_PROCESS = None
 
 
 class FunctionExecutor:
@@ -123,9 +124,7 @@ class FunctionExecutor:
 
         self.data_cleaner = self.config['lithops'].get('data_cleaner', True)
         if self.data_cleaner and not self.is_lithops_worker:
-            spawn_cleaner = int(self.executor_id.split('-')[1]) == 0
-            atexit.register(self.clean, spawn_cleaner=spawn_cleaner,
-                            clean_cloudobjects=False)
+            atexit.register(self.clean, clean_cloudobjects=False)
 
         storage_config = extract_storage_config(self.config)
         self.internal_storage = InternalStorage(storage_config)
@@ -522,7 +521,6 @@ class FunctionExecutor:
               fs: Optional[Union[ResponseFuture, List[ResponseFuture]]] = None,
               cs: Optional[List[CloudObject]] = None,
               clean_cloudobjects: Optional[bool] = True,
-              spawn_cleaner: Optional[bool] = True,
               force: Optional[bool] = False):
         """
         Deletes all the temp files from storage. These files include the function,
@@ -535,7 +533,7 @@ class FunctionExecutor:
         :param spawn_cleaner: Spawn cleaner background process
         :param force: Clean all future objects even if they have not benn completed
         """
-        os.makedirs(CLEANER_DIR, exist_ok=True)
+        global CLEANER_PROCESS
 
         def save_data_to_clean(data):
             with tempfile.NamedTemporaryFile(dir=CLEANER_DIR, delete=False) as temp:
@@ -566,8 +564,11 @@ class FunctionExecutor:
             save_data_to_clean(data)
             self.cleaned_jobs.update(jobs_to_clean)
 
+        spawn_cleaner = not(CLEANER_PROCESS and CLEANER_PROCESS.poll() is None)
+
         if (jobs_to_clean or cs) and spawn_cleaner:
-            sp.Popen([sys.executable, '-m', 'lithops.scripts.cleaner'], start_new_session=True)
+            CLEANER_PROCESS = sp.Popen([sys.executable, '-m', 'lithops.scripts.cleaner'],
+                                       start_new_session=True)
 
     def job_summary(self, cloud_objects_n: Optional[int] = 0):
         """

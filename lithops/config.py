@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 os.makedirs(constants.LITHOPS_TEMP_DIR, exist_ok=True)
 os.makedirs(constants.JOBS_DIR, exist_ok=True)
 os.makedirs(constants.LOGS_DIR, exist_ok=True)
+os.makedirs(constants.CLEANER_DIR, exist_ok=True)
 
 CPU_COUNT = os.cpu_count()
 
