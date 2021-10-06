@@ -14,6 +14,7 @@
 - [Tests] Fix when running 'lithops verify' command
 - [CodeEngine] Delete jobruns and configmaps of internal executions
 - [k8s] Delete job definitions of internal executions
+- [Core] Ensure all temp data is cleaned from storage backend
 
 
 ## [v2.5.2]

@@ -55,6 +55,7 @@ def clean_executor_jobs(executor_id, executor_data):
         logger.info(f'Cleaning jobs {", ".join([job_key for job_key in data["jobs_to_clean"]])}')
 
         objects = storage.list_keys(storage.bucket, prefix)
+
         objects_to_delete = [
                 key for key in objects
                 if '-'.join(key.split('/')[1].split('-')[0:3])
@@ -102,11 +103,29 @@ def clean_cloudobjects(cloudobjects_data):
     logger.info('Finished')
 
 
+def clean_functions(functions_data):
+    file_location = functions_data['file_location']
+    data = functions_data['data']
+
+    executor_id = data['fn_to_clean']
+    logger.info(f'Going to clean functions from {executor_id}')
+    storage_config = data['storage_config']
+    storage = Storage(storage_config=storage_config)
+    prefix = '/'.join([JOBS_PREFIX, executor_id])
+    key_list = storage.list_keys(storage.bucket, prefix)
+    storage.delete_objects(storage.bucket, key_list)
+
+    if os.path.exists(file_location):
+        os.remove(file_location)
+    logger.info('Finished')
+
+
 def clean():
 
     while True:
         executor_jobs = {}
         cloudobjects = []
+        functions = []
 
         files_to_clean = os.listdir(CLEANER_DIR)
 
@@ -131,6 +150,9 @@ def clean():
             elif 'cos_to_clean' in data:
                 cloudobjects.append({'file_location': file_location, 'data': data})
 
+            elif 'fn_to_clean' in data:
+                functions.append({'file_location': file_location, 'data': data})
+
         if executor_jobs:
             with ThreadPoolExecutor(max_workers=32) as ex:
                 for executor_id in executor_jobs:
@@ -140,6 +162,11 @@ def clean():
             with ThreadPoolExecutor(max_workers=32) as ex:
                 for cloudobjects_data in cloudobjects:
                     ex.submit(clean_cloudobjects, cloudobjects_data)
+
+        if functions:
+            with ThreadPoolExecutor(max_workers=32) as ex:
+                for function_data in functions:
+                    ex.submit(clean_functions, function_data)
 
         time.sleep(5)
 
