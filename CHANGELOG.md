@@ -1,12 +1,19 @@
 # Changelog
 
-## [v2.5.3.dev0]
+
+## [v2.5.4.dev0]
 
 ### Added
 - 
 
 ### Changed
 - 
+
+### Fixes
+- 
+
+
+## [v2.5.3]
 
 ### Fixes
 - [Core] Fixed lithops.map_reduce() jobs. Sometimes jobs where not finishing
