@@ -193,6 +193,12 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
            config_data[constants.STANDALONE] is None:
             config_data[constants.STANDALONE] = {}
 
+        if 'exec_mode' not in config_data[constants.STANDALONE]:
+            config_data[constants.STANDALONE]['exec_mode'] = 'consume'
+        if 'start_timeout' not in config_data[constants.STANDALONE]:
+            config_data[constants.STANDALONE]['start_timeout'] = 300
+        if 'pull_runtime' not in config_data[constants.STANDALONE]:
+            config_data[constants.STANDALONE]['pull_runtime'] = False
         if 'auto_dismantle' not in config_data[constants.STANDALONE]:
             config_data[constants.STANDALONE]['auto_dismantle'] = constants.STANDALONE_AUTO_DISMANTLE_DEFAULT
         if 'soft_dismantle_timeout' not in config_data[constants.STANDALONE]:
