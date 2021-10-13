@@ -41,15 +41,9 @@ class StandaloneHandler:
     def __init__(self, standalone_config):
         self.config = standalone_config
         self.backend_name = self.config['backend']
-        self.runtime = self.config['runtime']
+        self.start_timeout = self.config['start_timeout']
+        self.exec_mode = self.config['exec_mode']
         self.is_lithops_worker = is_lithops_worker()
-
-        self.start_timeout = self.config.get('start_timeout', 300)
-        self.auto_dismantle = self.config.get('auto_dismantle')
-        self.hard_dismantle_timeout = self.config.get('hard_dismantle_timeout')
-        self.soft_dismantle_timeout = self.config.get('soft_dismantle_timeout')
-        self.pull_runtime = self.config.get('pull_runtime', True)
-        self.exec_mode = self.config.get('exec_mode', 'consume')
 
         module_location = 'lithops.standalone.backends.{}'.format(self.backend_name)
         sb_module = importlib.import_module(module_location)
@@ -248,7 +242,7 @@ class StandaloneHandler:
         self._wait_master_service_ready()
 
         logger.debug('Extracting runtime metadata information')
-        payload = {'runtime': runtime_name, 'pull_runtime': self.pull_runtime}
+        payload = {'runtime': runtime_name, 'pull_runtime': True}
         cmd = ('curl http://127.0.0.1:8080/preinstalls -d {} '
                '-H \'Content-Type: application/json\' -X GET'
                .format(shlex.quote(json.dumps(payload))))

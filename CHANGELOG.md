@@ -10,7 +10,7 @@
 - 
 
 ### Fixes
-- 
+- [Standalone] Avoid deleting the master VM on consume mode
 
 
 ## [v2.5.3]
