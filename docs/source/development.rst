@@ -7,29 +7,36 @@ Clone the repository and run the setup script:
 
 .. code::
 
-    git clone https://github.com/lithops-cloud/lithops
+    $ git clone https://github.com/lithops-cloud/lithops
 
 .. code::
 
-    git clone git@github.com:lithops-cloud/lithops.git
+    $ git clone git@github.com:lithops-cloud/lithops.git
 
 Navigate into ``lithops`` folder
 
 .. code::
 
-    cd lithops/
+    $ cd lithops/
 
 If you plan to develop code, stay in the master branch. Otherwise obtain the most recent stable release version from the ``release`` tab. For example, if release is ``v2.2.5`` then execute
 
 .. code::
 
-    git checkout v2.2.5
+    $ git checkout v2.2.5
 
-Build and install 
+It is highly recommended to use a Python virtual environment for development purposes. This way, the lithops development installation is only available when the virtual environment is activated, so the global installation of a lithops stable version is not affected by the changes.
 
 .. code::
 
-    python3 setup.py develop
+    $ python3 -m venv venv
+    $ source venv/bin/activate
+
+Build and install:
+
+.. code::
+
+    (venv) $ python3 setup.py develop
 
 Configuration
 -------------
@@ -65,4 +72,4 @@ To update all deployed runtimes at a time, navigate into ``runtime`` folder and 
 Contributing
 ------------
 
-Follow :ref:`contributing` instructions if you want to publish your changes to the Lithops master branch.
+Follow `contributing <https://github.com/lithops-cloud/lithops/blob/master/CONTRIBUTING.md>`_ instructions if you want to publish your changes to the Lithops master branch.

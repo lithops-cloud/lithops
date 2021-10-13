@@ -189,6 +189,4 @@ This project has received funding from the European Union's Horizon 2020 researc
    :caption: Developer Guide
 
    source/development.md
-   source/contributing.md
    source/testing.md
-   source/changelog.md
