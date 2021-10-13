@@ -1,13 +1,17 @@
 # Changelog
 
-
-## [v2.5.4.dev0]
+## [v2.5.5.dev0]
 
 ### Added
 - 
 
 ### Changed
 - 
+
+### Fixed
+- 
+
+## [v2.5.4.dev0]
 
 ### Fixes
 - [Standalone] Avoid deleting the master VM on consume mode
