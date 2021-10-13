@@ -1,6 +1,6 @@
 <p align="center">
   <a href="http://lithops.cloud">
-    <h1 id='lithops' align="center"><img src="docs/images/lithops_logo_readme.png" alt="Lithops" title="Lightweight Optimized Processing"/></h1>
+    <h1 id='lithops' align="center"><img src="docs/_static/lithops_logo_readme.png" alt="Lithops" title="Lightweight Optimized Processing"/></h1>
   </a>
 </p>
 
@@ -43,7 +43,7 @@ Lithops provides an extensible backend architecture (compute, storage) that is d
 
 <p align="center">
 <a href="config/README.md#compute-and-storage-backends">
-<img src="docs/images/multicloud.jpg" alt="Multicloud Lithops" title="Multicloud Lithops"/>
+<img src="docs/source/images/multicloud.jpg" alt="Multicloud Lithops" title="Multicloud Lithops"/>
 </a>
 </p>
 

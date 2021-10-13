@@ -104,8 +104,7 @@ class Storage:
         :param bucket: Name of the bucket
         :param key: Key of the object
         :param stream: Get the object data or a file-like object
-        :param extra_get_args: Extra get arguments to be passed to the underlying backend implementation (dict).
-        For example, to specify the byte-range to read: `extra_get_args={'Range': 'bytes=0-100'}`
+        :param extra_get_args: Extra get arguments to be passed to the underlying backend implementation (dict). For example, to specify the byte-range to read: ``extra_get_args={'Range': 'bytes=0-100'}``.
 
         :return: Object, as a binary array or as a file-like stream if parameter `stream` is enabled
         """

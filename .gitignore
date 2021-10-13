@@ -31,3 +31,6 @@ venv/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+
+# Doc built HTML files
+docs/_build
