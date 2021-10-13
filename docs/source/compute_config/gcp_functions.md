@@ -1,4 +1,4 @@
-# GCP Functions
+# Google Cloud Functions
 
 Lithops with *GCP Functions* as serverless compute backend.
 

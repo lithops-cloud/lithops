@@ -1,4 +1,4 @@
-# GCP Cloud Run
+# Google Cloud Run
 
 Lithops with *GCP Cloud Run* as serverless compute backend.
 
