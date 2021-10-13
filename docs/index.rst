@@ -127,10 +127,10 @@ Papers
    :caption: Overview of Lithops
 
    source/design.md
-   source/supported_clouds.md
+   source/supported_clouds.rst
    source/comparing_lithops.rst
    source/execution_modes.rst
-   source/cli.md
+   source/cli.rst
 
 .. toctree::
    :hidden:
@@ -139,7 +139,8 @@ Papers
 
    source/install_lithops.rst
    source/configuration.rst
-   source/backends_config.md
+   source/compute_backends.rst
+   source/storage_backends.rst
 
 .. toctree::
    :hidden:
