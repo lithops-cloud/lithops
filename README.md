@@ -222,6 +222,7 @@ If you are interested in contributing, see [CONTRIBUTING.md](./CONTRIBUTING.md) 
 ## Additional resources
 
 ### Blogs and Talks
+* [Simplify the developer experience with OpenShift for Big Data processing by using Lithops framework](https://medium.com/@gvernik/simplify-the-developer-experience-with-openshift-for-big-data-processing-by-using-lithops-framework-d62a795b5e1c)
 * [Serverless Without Constraints](https://www.ibm.com/cloud/blog/serverless-without-constraints)
 * [Lithops, a Multi-cloud Serverless Programming Framework](https://itnext.io/lithops-a-multi-cloud-serverless-programming-framework-fd97f0d5e9e4)
 * [CNCF Webinar - Toward Hybrid Cloud Serverless Transparency with Lithops Framework](https://www.youtube.com/watch?v=-uS-wi8CxBo)

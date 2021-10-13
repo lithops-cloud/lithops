@@ -1,6 +1,7 @@
 # Changelog
 
-## [v2.5.3.dev0]
+
+## [v2.5.4.dev0]
 
 ### Added
 - 
@@ -9,8 +10,18 @@
 - 
 
 ### Fixes
-- [Core] Fix for lithops.map_reduce() jobs
+- [Standalone] Avoid deleting the master VM on consume mode
+
+
+## [v2.5.3]
+
+### Fixes
+- [Core] Fixed lithops.map_reduce() jobs. Sometimes jobs where not finishing
+- [Core] Spawn lithops.cleaner only once in the same execution instance
 - [Tests] Fix when running 'lithops verify' command
+- [CodeEngine] Delete jobruns and configmaps of internal executions
+- [k8s] Delete job definitions of internal executions
+- [Core] Ensure all temp data is cleaned from storage backend
 
 
 ## [v2.5.2]

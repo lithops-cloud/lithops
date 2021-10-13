@@ -19,6 +19,11 @@ class BudgetKeeper(threading.Thread):
         self.last_usage_time = time.time()
 
         self.standalone_config = config
+        self.auto_dismantle = config['auto_dismantle']
+        self.soft_dismantle_timeout = config['soft_dismantle_timeout']
+        self.hard_dismantle_timeout = config['hard_dismantle_timeout']
+        self.exec_mode = config['exec_mode']
+
         self.jobs = {}
 
         vm_data_file = os.path.join(STANDALONE_INSTALL_DIR, 'access.data')
@@ -33,21 +38,18 @@ class BudgetKeeper(threading.Thread):
                     .format(self.instance_name, self.ip_address, self.instance_id))
 
         self.sh = StandaloneHandler(self.standalone_config)
-
-        self.auto_dismantle = self.sh.auto_dismantle
-        self.soft_dismantle_timeout = self.sh.soft_dismantle_timeout
-        self.hard_dismantle_timeout = self.sh.hard_dismantle_timeout
-
         self.vm = self.sh.backend.get_vm(self.instance_name)
         self.vm.ip_address = self.ip_address
         self.vm.instance_id = self.instance_id
-        self.vm.delete_on_dismantle = False if 'master' in self.instance_name else True
+        self.vm.delete_on_dismantle = False if 'master' in self.instance_name or \
+            self.exec_mode == 'consume' else True
 
     def update_config(self, config):
         self.standalone_config.update(config)
         self.auto_dismantle = config['auto_dismantle']
         self.soft_dismantle_timeout = config['soft_dismantle_timeout']
         self.hard_dismantle_timeout = config['hard_dismantle_timeout']
+        self.exec_mode = config['exec_mode']
 
     def run(self):
         runing = True

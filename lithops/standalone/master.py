@@ -59,6 +59,7 @@ WORKERS = MP_MANAGER.list()
 WORKER_HEARTBEAT = 20
 WORKERS_STATE = {}
 
+
 def is_worker_instance_ready(vm):
     """
     Checks if the VM instance is ready to receive ssh connections
