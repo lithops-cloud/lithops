@@ -63,7 +63,3 @@ Completion of a computation job in Lithops is detected in one of two techniques:
 **RabbitMQ**: A unique RabbitMQ topic is defined for each job. combining the executor id and job id. Each worker, once completes a call, posts a notification message on that topic (code in `function_handler()` in `handler` module, called from `entry_point` module of the worker). The `wait_rabbitmq()` function from `wait_rabbitmq` module, which is called from `FunctionExecutor.wait()`, consumes a number of messages on that topic equal to `total_calls` and determines completion.
 
 **Object Storage**: As explained above, each call persists its computation results in a specific object. Determining completion of a job is by the `FunctionExecutor.wait()` invoking the `wait_storage()` function from the `wait_storage` module. This function repeatedly, once per fixed period (controllable), polls the executor's bucket for status objects of a subset of calls that have still not completed. This allows control of resource usage and eventual detection of all calls.
- 
-## Acknowledgements
-This documentation has been contributed by IBM Research as part of the [CLASS](https://class-project.eu/) EU project. CLASS aims to develop latency-sensitive polyglot event-driven big-data analytics platform running on a compute continuum from the cloud to the edge. CLASS is funded by the European Union's Horizon 2020 Programme grant agreement No. 780622.
-
