@@ -1,6 +1,6 @@
 .. _config:
 
-General Configuration
+Configuration
 =====================
 
 To work with Lithops you must configure both compute and storage backends. Failing to configure them properly will
@@ -98,6 +98,24 @@ In addition, activate the monitoring service by setting ``monitoring: rabbitmq``
     fexec = lithops.FunctionExecutor(monitoring='rabbitmq')
 
 
+Dynamic runtime customization
+-----------------------------
+
+This new feature enables early preparation of Lithops workers with the map function and custom Lithops 
+runtime already deployed, and ready to be used in consequent computations. This can reduce overall map/reduce 
+computation latency significantly, especially when the computation overhead (pickle stage) is long compared to 
+the actual computation performed at the workers.
+
+To activate this mode, set to True the "customized_runtime" property under "serverless" section of the config file.
+
+Warning: to protect your privacy, use a private docker registry instead of public docker hub.
+
+.. code:: yaml
+
+    lithops:
+       customized_runtime: True
+
+
 .. _config-reference-label:
 
 Configuration Reference
@@ -108,16 +126,6 @@ Lithops Config Keys
 
 .. csv-table::
    :file: lithops_config_keys.csv
-   :delim: ;
-   :widths: 5 5 20 10 60
-   :header-rows: 1
-
-
-Serverless Config Keys
-~~~~~~~~~~~~~~~~~~~~~~
-
-.. csv-table::
-   :file: serverless_config_keys.csv
    :delim: ;
    :widths: 5 5 20 10 60
    :header-rows: 1

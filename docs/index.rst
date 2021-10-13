@@ -1,11 +1,9 @@
 What is Lithops?
 ****************
 
-.. image:: source/images/lithops_flat_cloud_1.png
+.. image:: source/images/lithops_logo_readme.png
    :align: center
-   :width: 500
 
-------------
 
 **Lithops is a Python multi-cloud serverless computing framework. It allows to run unmodified local python code at massive scale in the main serverless computing platforms.**
 
@@ -95,6 +93,7 @@ Additional resources
 
 Blogs and Talks
 ---------------
+* `Simplify the developer experience with OpenShift for Big Data processing by using Lithops framework <https://medium.com/@gvernik/simplify-the-developer-experience-with-openshift-for-big-data-processing-by-using-lithops-framework-d62a795b5e1c>`_
 * `Lithops, a Multi-cloud Serverless Programming Framework <https://itnext.io/lithops-a-multi-cloud-serverless-programming-framework-fd97f0d5e9e4>`_
 * `Speed-up your Python applications using Lithops and Serverless Cloud resources <https://itnext.io/speed-up-your-python-applications-using-lithops-and-serverless-cloud-resources-a64beb008bb5>`_
 * `Serverless Without Constraints <https://www.ibm.com/cloud/blog/serverless-without-constraints>`_
@@ -116,12 +115,6 @@ Papers
 * `Bringing scaling transparency to Proteomics applications with serverless computing <https://dl.acm.org/doi/abs/10.1145/3429880.3430101>`_ - 6th International Workshop on Serverless Computing (WoSC6) 2020. `See Workshop presentation here <https://www.serverlesscomputing.org/wosc6/#p10>`_
 * `Serverless data analytics in the IBM Cloud <https://dl.acm.org/citation.cfm?id=3284029>`_ - ACM/IFIP International Middleware Conference 2018
 
-Acknowledgements
-****************
-
-.. image:: https://user-images.githubusercontent.com/26366936/61350554-d62acf00-a85f-11e9-84b2-36312a35398e.png
-
-This project has received funding from the European Union's Horizon 2020 research and innovation programme under grant agreement No 825184.
 
 .. toctree::
    :hidden:
@@ -131,7 +124,7 @@ This project has received funding from the European Union's Horizon 2020 researc
 .. toctree::
    :hidden:
    :maxdepth: -1
-   :caption: Lithops Core
+   :caption: Overview of Lithops
 
    source/design.md
    source/supported_clouds.md
@@ -145,13 +138,13 @@ This project has received funding from the European Union's Horizon 2020 researc
    :caption: Install and configure Lithops
 
    source/install_lithops.rst
-   source/general_config.rst
+   source/configuration.rst
    source/backends_config.md
 
 .. toctree::
    :hidden:
    :maxdepth: -1
-   :caption: Lithops Futures API
+   :caption: Compute API
 
    source/api_futures.rst
    source/notebooks/functions.ipynb
@@ -160,7 +153,7 @@ This project has received funding from the European Union's Horizon 2020 researc
 .. toctree::
    :hidden:
    :maxdepth: -1
-   :caption: Storage
+   :caption: Storage API
 
    source/api_storage.md
    source/api_storage_os.md
@@ -188,5 +181,7 @@ This project has received funding from the European Union's Horizon 2020 researc
    :maxdepth: -1
    :caption: Developer Guide
 
-   source/development.md
-   source/testing.md
+   source/contributing.rst
+   source/testing.rst
+   source/changelog.md
+

@@ -17,7 +17,7 @@
 </p>
 
 Lithops is a Python multi-cloud distributed computing framework. It allows to run unmodified local python code at massive scale in the main
-serverless computing platforms. Lithops delivers the user’s code into the cloud without requiring knowledge of how it is deployed and run. Moreover, its multicloud-agnostic architecture ensures portability across cloud providers, overcoming vendor lock-in.
+serverless computing platforms. Lithops delivers the user’s code into the cloud without requiring knowledge of how it is deployed and run. Moreover, its multicloud-agnostic architecture ensures portability across cloud providers.
 
 Lithops is specially suited for highly-parallel programs with little or no need for communication between processes, but it also supports parallel applications that need to share state among processes. Examples of applications that run with Lithops include Monte Carlo simulations, deep learning and machine learning processes, metabolomics computations, and geospatial analytics, to name a few.
 
@@ -37,7 +37,7 @@ Lithops is specially suited for highly-parallel programs with little or no need 
    ```
 
 ## Configuration
-Lithops provides an extensible backend architecture (compute, storage) that is designed to work with different Cloud providers and on-premise backends. In this sense, you can code in python and run it unmodified in IBM Cloud, AWS, Azure, Google Cloud and Alibaba Aliyun. Moreover, it provides support for running jobs on vanilla kubernetes, or by using a kubernetes serverless framework like Knative or OpenWhisk.
+Lithops provides an extensible backend architecture (compute, storage) that is designed to work with different Cloud providers and on-premise backends. In this sense, you can code in python and run it unmodified in IBM Cloud, AWS, Azure, Google Cloud, Aliyun and Kubernetes or OpenShift.
 
 [Follow these instructions to configure your compute and storage backends](config/)
 
@@ -59,7 +59,7 @@ Lithops is shipped with 2 different high-level Compute APIs, and 2 high-level St
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="docs/api_futures.md">Futures API</a>
+<a href="https://lithops-cloud.github.io/docs/source/api_futures.html">Futures API</a>
 </small>
 </p>
 </th>
@@ -67,7 +67,7 @@ Lithops is shipped with 2 different high-level Compute APIs, and 2 high-level St
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="docs/api_multiprocessing.md">Multiprocessing API</a>
+<a href="https://lithops-cloud.github.io/docs/source/api_multiprocessing.html">Multiprocessing API</a>
 </small>
 </p>
 </th>
@@ -111,7 +111,7 @@ with Pool() as pool:
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="docs/api_storage.md">Storage API</a>
+<a href="https://lithops-cloud.github.io/docs/source/api_storage.html">Storage API</a>
 </small>
 </p>
 </th>
@@ -119,7 +119,7 @@ with Pool() as pool:
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="docs/api_storage_os.md">Storage OS API</a>
+<a href="https://lithops-cloud.github.io/docs/source/api_storage_os.html">Storage OS API</a>
 </small>
 </p>
 </th>
@@ -172,7 +172,7 @@ Lithops is shipped with 3 different modes of execution. The execution mode allow
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="docs/mode_localhost.md">Localhost Mode</a>
+Localhost Mode
 </small>
 </p>
 </th>
@@ -180,7 +180,7 @@ Lithops is shipped with 3 different modes of execution. The execution mode allow
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="docs/mode_serverless.md">Serverless Mode</a>
+Serverless Mode
 </small>
 </p>
 </th>
@@ -188,7 +188,7 @@ Lithops is shipped with 3 different modes of execution. The execution mode allow
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="docs/mode_standalone.md">Standalone Mode</a>
+Standalone Mode
 </small>
 </p>
 </th>
@@ -215,9 +215,9 @@ This mode allows to run functions by using one or multiple Virtual machines (VM)
 
 ## Documentation
 
-For documentation on using Lithops, see the [User guide](docs/user_guide.md).
+For documentation on using Lithops, see the [User guide](https://lithops-cloud.github.io/docs/).
 
-If you are interested in contributing, see [CONTRIBUTING.md](./CONTRIBUTING.md) and [DEVELOPMENT.md](./DEVELOPMENT.md).
+If you are interested in contributing, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## Additional resources
 
