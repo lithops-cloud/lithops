@@ -83,11 +83,12 @@ def load_config(config_data):
 
     config_data['ibm_vpc']['endpoint'] = config_data['ibm_vpc']['endpoint'].replace('/v1', '')
 
-    if config_data['ibm_vpc']['image_id'] == DEFAULT_CONFIG_KEYS['image_id']:
-        config_data['ibm_vpc']['boot_volume_capacity'] = BOOT_VOLUME_CAPACITY_DEFAULT
-    else:
-        # The image built by lithops script has 10GB boot device
-        config_data['ibm_vpc']['boot_volume_capacity'] = BOOT_VOLUME_CAPACITY_CUSTOM
+    if not config_data['ibm_vpc'].get('boot_volume_capacity'):
+        if config_data['ibm_vpc']['image_id'] == DEFAULT_CONFIG_KEYS['image_id']:
+            config_data['ibm_vpc']['boot_volume_capacity'] = BOOT_VOLUME_CAPACITY_DEFAULT
+        else:
+            # The image built by lithops script has 10GB boot device
+            config_data['ibm_vpc']['boot_volume_capacity'] = BOOT_VOLUME_CAPACITY_CUSTOM
 
     if 'ssh_password' not in config_data['ibm_vpc']:
         config_data['ibm_vpc']['ssh_password'] = str(uuid.uuid4())
