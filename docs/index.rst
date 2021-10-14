@@ -117,9 +117,8 @@ Papers
    :caption: Overview of Lithops
 
    source/design.md
-   source/supported_clouds.rst
    source/comparing_lithops.rst
-   source/install_lithops.rst
+   source/supported_clouds.rst
    source/execution_modes.rst
    source/cli.rst
 

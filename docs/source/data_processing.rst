@@ -1,6 +1,6 @@
 .. _data-processing:
 
-Processing data from a Cloud Object Storage
+Processing data from the Cloud
 ===========================================
 
 Lithops has built-in logic for processing data objects from public URLs and object storage services. This logic is automatically activated with the reseverd parameter named **obj**. When you write in the parameters of a function the parameter name **obj**, you are telling to Lithops that you want to process objects located in an object storage service, public urls, or localhost files.
@@ -108,7 +108,7 @@ See a complete example in `map_reduce_url.py <https://github.com/lithops-cloud/l
 Processing data from localhost files
 ------------------------------------
 
-.. note:: This is only allowed when running Lithops in the localhost mode
+.. note:: This is only allowed when running Lithops with the localhost backend
 
 For processing data from localhost files, the input data must be either a directory path, a list of directory paths, a file path a list of file paths. As in the previous cases, if you set the *size of the chunk* or the *number of chunks*, the partitioner is activated inside Lithops and it is responsible to split the objects into smaller chunks, eventually spawning one function for each generated chunk. If *size of the chunk* and *number of chunks* are not set, chunk is an entire object, so one function activation is executed for each individual object.
 

@@ -1,7 +1,7 @@
 .. _config:
 
 Configuration
-=====================
+=============
 
 To work with Lithops you must configure both compute and storage backends. Failing to configure them properly will
 prevent Lithops to submit workloads.
