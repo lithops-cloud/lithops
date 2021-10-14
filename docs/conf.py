@@ -73,8 +73,8 @@ jupyter_execute_notebooks = 'never'
 # html_theme = 'karma_sphinx_theme'
 html_theme = 'sphinx_book_theme'
 
-# html_logo = "source/images/lithops_flat_cloud_1_white_w.png"
 html_logo = "_static/lithops_logo_readme.png"
+html_favicon = '_static/favicon.png'
 
 # material theme options
 
@@ -123,7 +123,7 @@ html_logo = "_static/lithops_logo_readme.png"
 html_theme_options = {
     'repository_url': 'https://github.com/lithops-cloud/lithops',
     'repository_branch': 'master',
-    'use_issues_button': True,
+    'use_issues_button': False,
     'use_download_button': True,
     'use_fullscreen_button': False,
     'use_repository_button': True,
