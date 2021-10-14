@@ -1,5 +1,5 @@
-Distributed shared objects across function activations
-======================================================
+Distributed shared objects
+==========================
 
 .. warning:: This feature is experimental and as such is unstable. Using it in production is discouraged. Expect errors and API/functionality changes in future releases.
 

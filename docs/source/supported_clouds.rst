@@ -16,6 +16,8 @@ Currently, Lithops for IBM Cloud supports these backends:
      - `IBM Cloud Object Storage <https://cloud.ibm.com/docs/cloud-object-storage>`_
    * - `IBM Code Engine <https://cloud.ibm.com/docs/codeengine>`_
      -
+   * - `IBM Virtual Private Cloud (VPC) <https://cloud.ibm.com/docs/vpc>`_
+     -
 
 Amazon Web Services
 -------------------

@@ -2,6 +2,7 @@ What is Lithops?
 ****************
 
 .. image:: source/images/lithops_logo_readme.png
+   :alt: Lithops
    :align: center
 
 
@@ -55,21 +56,9 @@ Use any Cloud
 In this sense, you can code your application in Python and run it unmodified wherever your data is located at: IBM Cloud, AWS, Azure, Google Cloud and Alibaba Aliyun...
 
 .. image:: source/images/multicloud.jpg
+   :alt: Available backends
    :align: center
 
-Execution Modes
-***************
-Lithops ships with 3 different modes of execution. The execution mode allows you to decide where and how the functions are executed.
-
-.. list-table::
-   :header-rows: 1
-
-   * - Localhost Mode
-     - Serverless Mode
-     - Standalone Mode
-   * - Run functions in your local machine, by using processes. This is the default mode of execution if no configuration is provided.
-     - Run functions by using public FaaS services, such as IBM Cloud Functions or Amazon Lambda. In this mode of execution, each function invocation equals to a parallel task running in the cloud in an isolated environment.
-     - Run functions by using one or multiple Virtual machines (VM), either in a private cluster or in the cloud. In each VM, functions run using parallel processes.
 
 What is Lithops used for?
 *************************
@@ -121,30 +110,32 @@ Papers
 
    self
 
+
 .. toctree::
    :hidden:
-   :maxdepth: -1
+   :maxdepth: 0
    :caption: Overview of Lithops
 
    source/design.md
-   source/supported_clouds.md
    source/comparing_lithops.rst
+   source/supported_clouds.rst
    source/execution_modes.rst
-   source/cli.md
+   source/cli.rst
 
 .. toctree::
    :hidden:
-   :maxdepth: -1
-   :caption: Install and configure Lithops
+   :maxdepth: 0
+   :caption: Install and Configure Lithops
 
    source/install_lithops.rst
    source/configuration.rst
-   source/backends_config.md
+   source/compute_backends.rst
+   source/storage_backends.rst
 
 .. toctree::
    :hidden:
-   :maxdepth: -1
-   :caption: Compute API
+   :maxdepth: 0
+   :caption: Lithops Compute API
 
    source/api_futures.rst
    source/notebooks/functions.ipynb
@@ -152,36 +143,53 @@ Papers
 
 .. toctree::
    :hidden:
-   :maxdepth: -1
-   :caption: Storage API
+   :maxdepth: 0
+   :caption: Lithops Storage API
 
    source/api_storage.md
-   source/api_storage_os.md
 
 .. toctree::
    :hidden:
-   :maxdepth: -1
+   :maxdepth: 0
    :caption: Data Processing
 
    source/data_processing.md
-   source/file_chunking.md
+   source/data_partitioning.md
 
 .. toctree::
    :hidden:
-   :maxdepth: -1
-   :caption: Experimental Features
+   :maxdepth: 0
+   :caption: Integrations
 
    source/api_multiprocessing.rst
-   source/metrics.rst
-   source/dso.rst
+   source/api_storage_os.md
    source/sklearn_joblib.rst
+   source/airflow.rst
 
 .. toctree::
    :hidden:
-   :maxdepth: -1
+   :maxdepth: 0
+   :caption: Advanced Features
+
+   source/worker_granularity.rst
+   source/monitoring.rst
+   source/customized_runtime.rst
+
+
+.. toctree::
+   :hidden:
+   :maxdepth: 0
+   :caption: Experimental Features
+
+   source/metrics.rst
+   source/dso.rst
+
+
+.. toctree::
+   :hidden:
+   :maxdepth: 0
    :caption: Developer Guide
 
    source/contributing.rst
    source/testing.rst
    source/changelog.md
-
