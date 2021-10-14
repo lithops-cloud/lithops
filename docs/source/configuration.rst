@@ -1,37 +1,37 @@
-.. _config:
-
 Configuration
 =============
 
-By default, if no configuration is provided, Lithops will use the `Localhost <https://lithops-cloud.github.io/docs/source/compute_config/localhost.html>`_ backend to run the functions.
-To work with Lithops on the Cloud, you must configure at least one compute engine and one storage engine.
+By default, if no configuration is provided, Lithops will use the `Localhost <compute_config/localhost.html>`_ backend to run the functions.
+
+To work with Lithops on the Cloud, you must configure at least one compute backend and one storage backend.
+Lithops can work both with the leading cloud providers, and using on-premise or Kubernetes platforms.
 You have multiple options to choose compute and storage backends based on your needs.
-Lithops can work both with the leading cloud providers and using on-premise or Kubernetes platforms
 
-Lithops configuration can be provided either in **configuration file** or provided in runtime via a **python dictionary.**
+Lithops configuration can be provided either using a **configuration file**, or in runtime via a **python dictionary.**
 
-.. note::  After you choose your compute and storage engines, you must decide how you want to configure Lithops.
 
-Compute and Storage Engines
----------------------------
+Compute and Storage backends
+----------------------------
 
-+----------------------------------------------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------------+
-| Compute backends                                                                                               | Storage Backends                                                                                               |
-+================================================================================================================+================================================================================================================+
-|| `Localhost <https://lithops-cloud.github.io/docs/source/compute_config/localhost.html>`_                      || `IBM Cloud Object Storage <https://lithops-cloud.github.io/docs/source/storage_config/ibm_cos.html>`_         |
-|| `IBM Cloud Functions <https://lithops-cloud.github.io/docs/source/compute_config/ibm_cf.html>`_               || `AWS S3 <https://lithops-cloud.github.io/docs/source/storage_config/aws_s3.html>`_                            |
-|| `IBM Code Engine <https://lithops-cloud.github.io/docs/source/compute_config/code_engine.html>`_              || `Google Cloud Storage <https://lithops-cloud.github.io/docs/source/storage_config/gcp_storage.html>`_         |
-|| `AWS Lambda <https://lithops-cloud.github.io/docs/source/compute_config/aws_lambda.html>`_                    || `Azure Blob Storage <https://lithops-cloud.github.io/docs/source/storage_config/azure_blob.html>`_            |
-|| `Google Cloud Functions <https://lithops-cloud.github.io/docs/source/compute_config/gcp_functions.html>`_     || `Aliyun Object Storage Service <https://lithops-cloud.github.io/docs/source/storage_config/aliyun_oss.html>`_ |
-|| `Google Cloud Run <https://lithops-cloud.github.io/docs/source/compute_config/gcp_cloudrun.html>`_            || `Infinispan <https://lithops-cloud.github.io/docs/source/storage_config/infinispan.html>`_                    |
-|| `Azure Functions <https://lithops-cloud.github.io/docs/source/compute_config/azure_functions.html>`_          || `Ceph <https://lithops-cloud.github.io/docs/source/storage_config/ceph.html>`_                                |
-|| `Aliyun Function Compute <https://lithops-cloud.github.io/docs/source/compute_config/aliyun_functions.html>`_ || `MinIO <https://lithops-cloud.github.io/docs/source/storage_config/minio.html>`_                              |
-|| `Kubernetes Jobs <https://lithops-cloud.github.io/docs/source/compute_config/k8s_job.html>`_                  || `Redis <https://lithops-cloud.github.io/docs/source/storage_config/redis.html>`_                              |
-|| `Knative <https://lithops-cloud.github.io/docs/source/compute_config/knative.html>`_                          || `OpenStack Swift <https://lithops-cloud.github.io/docs/source/storage_config/swift.html>`_                    |
-|| `OpenWhisk <https://lithops-cloud.github.io/docs/source/compute_config/openwhisk.html>`_                      ||                                                                                                               |
-|| `Remote Host / Virtual Machine <https://lithops-cloud.github.io/docs/source/compute_config/vm.html>`_         ||                                                                                                               |
-|| `IBM Virtual Private Cloud <https://lithops-cloud.github.io/docs/source/compute_config/ibm_vpc.html>`_        ||                                                                                                               |
-+----------------------------------------------------------------------------------------------------------------+----------------------------------------------------------------------------------------------------------------+
+Choose your compute and storage engines from the table below:
+
++--------------------------------------------------------------------+--------------------------------------------------------------------+
+| Compute backends                                                   | Storage Backends                                                   |
++====================================================================+====================================================================+
+|| `Localhost <compute_config/localhost.html>`_                      || `IBM Cloud Object Storage <storage_config/ibm_cos.html>`_         |
+|| `IBM Cloud Functions <compute_config/ibm_cf.html>`_               || `AWS S3 <storage_config/aws_s3.html>`_                            |
+|| `IBM Code Engine <compute_config/code_engine.html>`_              || `Google Cloud Storage <storage_config/gcp_storage.html>`_         |
+|| `AWS Lambda <compute_config/aws_lambda.html>`_                    || `Azure Blob Storage <storage_config/azure_blob.html>`_            |
+|| `Google Cloud Functions <compute_config/gcp_functions.html>`_     || `Aliyun Object Storage Service <storage_config/aliyun_oss.html>`_ |
+|| `Google Cloud Run <compute_config/gcp_cloudrun.html>`_            || `Infinispan <storage_config/infinispan.html>`_                    |
+|| `Azure Functions <compute_config/azure_functions.html>`_          || `Ceph <storage_config/ceph.html>`_                                |
+|| `Aliyun Function Compute <compute_config/aliyun_functions.html>`_ || `MinIO <storage_config/minio.html>`_                              |
+|| `Kubernetes Jobs <compute_config/k8s_job.html>`_                  || `Redis <storage_config/redis.html>`_                              |
+|| `Knative <compute_config/knative.html>`_                          || `OpenStack Swift <storage_config/swift.html>`_                    |
+|| `OpenWhisk <compute_config/openwhisk.html>`_                      ||                                                                   |
+|| `Remote Host / Virtual Machine <compute_config/vm.html>`_         ||                                                                   |
+|| `IBM Virtual Private Cloud <compute_config/ibm_vpc.html>`_        ||                                                                   |
++--------------------------------------------------------------------+--------------------------------------------------------------------+
 
 Configuration File
 ------------------

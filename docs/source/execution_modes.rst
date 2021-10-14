@@ -3,8 +3,6 @@ Execution Modes
 
 Lithops compute backends can be classified in 3 different execution modes depending on the backend you choose.
 
-.. note:: Each execution mode has its own Python ``Executor()`` class so that you can combine them in a single Lithops application.
-
 
 Localhost mode
 --------------
@@ -37,6 +35,9 @@ Google cloud functions, Azure functions and Aliyun Functions use their own forma
     fexec = lithops.ServerlessExecutor()
 
 
+- Available backends: `IBM Cloud Functions <compute_config/ibm_cf.html>`_, `IBM Code Engine <compute_config/code_engine.html>`_, `AWS Lambda <compute_config/aws_lambda.html>`_, `Google Cloud Functions <compute_config/gcp_functions.html>`_, `Google Cloud Run <compute_config/gcp_cloudrun.html>`_, `Azure Functions <compute_config/azure_functions.html>`_, `Aliyun Function Compute <compute_config/aliyun_functions.html>`_, `Kubernetes Jobs <compute_config/k8s_job.html>`_, `Knative <compute_config/knative.html>`_, `OpenWhisk <compute_config/openwhisk.html>`_
+
+
 Standalone mode
 ---------------
 This mode allows to run functions by using a remote host or a cluster of virtual machines (VM).
@@ -44,7 +45,7 @@ In the VM, functions run using parallel processes. This mode of executions is si
 localhost mode, but using remote machines. In this case, it is not needed to install anything
 in the remote VMs since Lithops does this process automatically the first time you use them.
 
-.. note:: This is the preferable option if your application (or a part) requires a more powerful environment (in terms of CPU and Memory) than the ones provided by the Serverless backends.
+.. note:: This is the preferable option if your application (or a part) requires a more powerful environment than the ones provided by the Serverless backends (in terms of CPU and Memory).
 
 .. code:: python
 
