@@ -191,5 +191,6 @@ Papers
    :caption: Developer Guide
 
    source/contributing.rst
+   source/development.rst
    source/testing.rst
    source/changelog.md

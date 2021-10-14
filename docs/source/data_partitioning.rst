@@ -109,7 +109,7 @@ algorithm each chunk simply gets its fair share + a fixed threshold,
 whose purpose will become apparent shortly. Said byte ranges are pickled
 and stored in the cloud.
 
-| Later on, each thread is aggregating (unpickling) from the cloud
+Later on, each thread is aggregating (unpickling) from the cloud
 relevant data associated with its own chunk (in run() of
 lithops/worker/taskrunner.py), which contains aforementioned byte
 ranges. Amongst other aggregated objects, a data\_stream object that
@@ -120,22 +120,26 @@ reason the function in the example receives a parameter).
 function (the overriding version of lithops/utils.py), which is
 implemented in the following way:
 
-1. Store the first byte of the current chunk, unless the chunk in matter
+#. Store the first byte of the current chunk, unless the chunk in matter
    is the first / only chunk in the mapping job.
-2. Read the whole chunk and store it as a string in the variable
+
+#. Read the whole chunk and store it as a string in the variable
    "retval". Sum of bytes stored is regarded as the default
    last\_row\_end\_pos.
-3. Since the first byte is as a matter of fact the last byte of the
+
+#. Since the first byte is as a matter of fact the last byte of the
    former chunk, we inspect whether it's a new line ('') or not. in case
    of the latter, it means that the current chunk started from the midst
    on a line belonging in its entirety to the former chunk. In such
    case, position first\_row\_start\_pos at the beginning of the next
    line.
-4. Due to the fact that each chunk received an extra amount of bytes,
+
+#. Due to the fact that each chunk received an extra amount of bytes,
    i.e. the threshold previously mentioned (for the very purpose
    mentioned in clause 3), every chunk, apart from the last one, has to
    rid itself from excessive rows, by moving last\_row\_end\_pos to the
    beginning of the next row within the threshold.
-5. finally, retval[first\_row\_start\_pos : last\_row\_end\_pos], which
+
+#. finally, retval[first\_row\_start\_pos : last\_row\_end\_pos], which
    contains a chunk free from any split lines, is returned.
 

@@ -14,6 +14,7 @@ This is the default mode of execution if no configuration is provided.
 .. note:: This is the preferable option for starting with Lithops, and for testing (debugging) your applications.
 
 .. code:: python
+
     fexec = lithops.LocalhostExecutor()
 
 
@@ -32,6 +33,7 @@ and Kubernetes you must use a Docker image as execution environment. In contrast
 Google cloud functions, Azure functions and Aliyun Functions use their own formats of environments.
 
 .. code:: python
+
     fexec = lithops.ServerlessExecutor()
 
 
@@ -45,6 +47,7 @@ in the remote VMs since Lithops does this process automatically the first time y
 .. note:: This is the preferable option if your application (or a part) requires a more powerful environment (in terms of CPU and Memory) than the ones provided by the Serverless backends.
 
 .. code:: python
+
     fexec = lithops.StandaloneExecutor()
 
 - Available backends: `Remote host / Virtual Machine <compute_config/vm.md>`_, `IBM Virtual Private Cloud <compute_config/ibm_vpc.md>`_
