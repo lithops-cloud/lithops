@@ -1,8 +1,5 @@
-=============================================================
 Comparing Lithops with other distributed computing frameworks
 =============================================================
-
-.. todo:: Extend explanations
 
 In a nutshell, Lithops differs from other distributed computing frameworks in that Lithops leverages serverless
 functions to compute massively parallel computations.
@@ -13,7 +10,6 @@ from your serverless functions.
 Moreover, Lithops abstract design allows seamlessly portability between clouds and FaaS services, avoiding vendor
 lock-in.
 
-------
 PyWren
 ------
 
@@ -32,7 +28,6 @@ multiprocessing interface.
 
 You can read more about PyWren IBM Cloud at the Middleware'18 industry paper `Serverless Data Analytics in the IBM Cloud <https://dl.acm.org/doi/10.1145/3284028.3284029>`_.
 
-------------
 Ray and Dask
 ------------
 
@@ -53,7 +48,6 @@ they must keep a "head node" or "master" that controls the cluster and must be k
 
 In any case, the capacity and scalability of Ray or Dask in IaaS using virtual machines is not comparable to that of serverless functions.
 
--------
 PySpark
 -------
 
@@ -67,7 +61,6 @@ Spark is designed to work with a fixed-size node cluster, and it is typically us
 and analyze it using SparkSQL and Spark DataFrame.
 
 
---------------------
 Serverless Framework
 --------------------
 

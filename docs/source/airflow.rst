@@ -24,6 +24,7 @@ Define a function in a separate file (``my_functions.py``):
 Import the Lithops operator and the function, and create the DAG to execute:
 
 .. code:: python
+
     from airflow.operators.python_operator import PythonOperator
     from airflow.operators.lithops_airflow_plugin import LithopsMapOperator
     from my_functions import add
