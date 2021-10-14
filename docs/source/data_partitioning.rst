@@ -1,4 +1,4 @@
-Data Pertitioning
+Data Partitioning
 =================
 
 When using the Lithop's map function to run a single function over a
