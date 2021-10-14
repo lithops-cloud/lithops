@@ -1,5 +1,5 @@
-Install Lithops
-===============
+Installing Lithops
+==================
 
 You can install Lithops using ``pip``:
 

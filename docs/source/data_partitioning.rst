@@ -1,5 +1,5 @@
-File "chunking"
-===============
+Data Pertitioning
+=================
 
 When using the Lithop's map function to run a single function over a
 rather large file, one might consider breaking the workload to smaller
@@ -98,8 +98,8 @@ map\_function below:
 The next part covers the main details of the chunking procedure, as it's
 implemented in the Lithops project.
 
-The Algorithm behind the curtains
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The Algorithm behind the scenes
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 As map or map\_reduce is being called, a new job is created (in
 lithops/job/job.py). The relevant part of the algorithm begins when

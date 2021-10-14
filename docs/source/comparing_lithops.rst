@@ -82,17 +82,3 @@ or Azure.
 Although both Serverless Framework and Lithops use serverless functions, their objective is completely different:
 Serverless Framework aims to provide an easy-to-use tool to develop applications related to web services, like HTTP APIs,
 while Lithops aims to develop applications related to highly parallel scientific computation and Big Data processing.
-
-------
-Nuclio
-------
-
-.. image:: https://2s1gag2bo3i2drxim2czewz1-wpengine.netdna-ssl.com/wp-content/uploads/2018/05/nuclio-og.jpg
-   :align: center
-   :width: 250
-
-Nuclio is a high-performance "serverless" framework focused on data, I/O, and compute intensive workloads.
-Nuclio is a platform for running serverless applications, in that sense, it is more similar to other platforms such as
-Kubeless or OpenFaaS than to Lithops, which is a serverless computing framework. In fact, Lithops could run on top of
-Nuclio, so they are not opposing projects but they could complement each other.
-

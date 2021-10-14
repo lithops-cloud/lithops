@@ -1,8 +1,6 @@
 Distributed Scikit-learn / Joblib
 =================================
 
-.. warning:: This feature is experimental and as such is unstable. Using it in production is discouraged. Expect errors and API/functionality changes in future releases.
-
 Lithops supports running distributed scikit-learn programs by implementing a Lithops backend for joblib using Functions instead of local processes. This makes it easy to scale existing applications that use scikit-learn from a single node to a cluster.
 
 To get started, first install Lithops, then use from ``lithops.util.joblib import register_lithops`` and run ``register_lithops()``. This will register Lithops as a joblib backend for scikit-learn to use. Then run your original scikit-learn code inside with ``joblib.parallel_backend('lithops')``.

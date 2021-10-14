@@ -22,8 +22,8 @@ import lithops
 # -- Project information -----------------------------------------------------
 
 project = 'Lithops'
-copyright = '2021, IBM Corp., Cloudlab URV'
-author = 'Josep Sampé, Gil Vernik'
+copyright = '2021, The Lithops Team'
+author = 'The Lithops Team'
 
 # -- General configuration ---------------------------------------------------
 
