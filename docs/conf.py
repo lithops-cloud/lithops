@@ -16,13 +16,14 @@ sys.path.insert(0, os.path.abspath('.'))
 
 sys.path.insert(0, os.path.abspath("../"))
 
+from datetime import datetime
 import lithops
 
 
 # -- Project information -----------------------------------------------------
 
 project = 'Lithops'
-copyright = '2021, The Lithops Team'
+copyright = str(datetime.now().year) + ', The Lithops Team'
 author = 'The Lithops Team'
 
 # -- General configuration ---------------------------------------------------
@@ -75,6 +76,8 @@ html_theme = 'sphinx_book_theme'
 
 html_logo = "_static/lithops_logo_readme.png"
 html_favicon = '_static/favicon.png'
+
+language = 'en'
 
 # material theme options
 
