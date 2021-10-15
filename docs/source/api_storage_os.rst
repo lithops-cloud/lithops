@@ -1,5 +1,5 @@
-Storage OS API Details
-======================
+Storage OS API
+==============
 
 Lithops provides a transparent way to interact with the storage backend.
 
@@ -41,8 +41,7 @@ Cloud Proxy Storage API
 ``open()``
 ~~~~~~~~~~
 
-Similar to Python's built-in function
-```open()`` <https://docs.python.org/3/library/functions.html#open>`__.
+Similar to Python's built-in function `open() <https://docs.python.org/3/library/functions.html#open>`__.
 
 Manipulate an object stored in Cloud Object Storage.
 
@@ -54,57 +53,60 @@ Manipulate an object stored in Cloud Object Storage.
 | mode        | Specify the mode in which the file is opened (``'r'`` for read and ``'w'`` for write text, ``'b'`` for binary).   |
 +-------------+-------------------------------------------------------------------------------------------------------------------+
 
--  *Example* \`\`\`python with open('bar/foo.txt', 'w') as f:
-   f.write('Hello world!')
+.. code:: python
 
-with open('bar/foo.txt', 'r') as f: print(f.read()) # Prints
-``Hello world!`` \`\`\`
+   with open('bar/foo.txt', 'w') as f:
+       f.write('Hello world!')
+
 
 ``os``
 ~~~~~~
 
-Similar to Python's
-```os`` <https://docs.python.org/3/library/os.html>`__ library, except
-only file-related functionalities are implemented.
+Similar to Python's `os <https://docs.python.org/3/library/os.html>`__ library, except only file-related functionalities are implemented.
 
 ``os.listdir``
 ^^^^^^^^^^^^^^
 
 List all objects located in a directory.
 
-+----------------+----------------------------------------+-----------+
-| Parameter      | Description                            | Default   |
-+================+========================================+===========+
-| path           | File path. Must be an absolute path.   | -         |
-+----------------+----------------------------------------+-----------+
-| suffix\_dirs   | Append a slash to directories listes   | False     |
-+----------------+----------------------------------------+-----------+
++--------------+--------------------------------------+---------+
+| Parameter    | Description                          | Default |
++==============+======================================+=========+
+| path         | File path. Must be an absolute path. |         |
++--------------+--------------------------------------+---------+
+| suffix\_dirs | Append a slash to directories listes | False   |
++--------------+--------------------------------------+---------+
 
--  *Example* \`\`\`python with open('bar/foo.txt', 'w') as f:
-   f.write('Hello world!')
+.. code:: python
 
-files = os.listdir('/bar') print(files) # Prints ``['foo.txt']`` \`\`\`
+    with open('bar/foo.txt', 'w') as f:
+        f.write('Hello world!')
+
+    files = os.listdir('/bar') 
+    print(files)  # Prints ['foo.txt']
 
 ``os.walk``
 ^^^^^^^^^^^
 
 List recursively all files and directories in a root path.
 
-+-------------+-----------------------------------------------------+-----------+
-| Parameter   | Description                                         | Default   |
-+=============+=====================================================+===========+
-| path        | Root path. Must be an absolute path.                | -         |
-+-------------+-----------------------------------------------------+-----------+
-| topdown     | List directory tree top-down instead of bottom-up   | True      |
-+-------------+-----------------------------------------------------+-----------+
++-----------+---------------------------------------------------+---------+
+| Parameter | Description                                       | Default |
++===========+===================================================+=========+
+| path      | Root path. Must be an absolute path.              |         |
++-----------+---------------------------------------------------+---------+
+| topdown   | List directory tree top-down instead of bottom-up | True    |
++-----------+---------------------------------------------------+---------+
 
--  *Example* \`\`\`python files = ['/bar/foo.txt', '/bar/image.jpg',
-   '/bar/subdir/data.csv'] for file in files: with open(file, 'w') as f:
-   f.write('Hello world!')
+.. code:: python
 
-for root, dirs, files in os.walk('/'): print(root, dirs, files) # Prints
-'/' ['bar'] [], '/bar' ['subdir'] ['foo.txt', 'image.jpg'],
-'/bar/subdir' [] ['data.csv'] \`\`\`
+    files = ['/bar/foo.txt', '/bar/image.jpg', '/bar/subdir/data.csv']
+    for file in files:
+        with open(file, 'w') as f:
+            f.write('Hello world!')
+
+    for root, dirs, files in os.walk('/'): 
+        print(root, dirs, files)  # Prints '/' ['bar'] [], '/bar' ['subdir'] ['foo.txt', 'image.jpg'], '/bar/subdir' [] ['data.csv']
 
 ``os.remove``
 ^^^^^^^^^^^^^
@@ -112,58 +114,64 @@ for root, dirs, files in os.walk('/'): print(root, dirs, files) # Prints
 Delete a file. If the directory where the file is located is empty after
 the file is deleted, this directory it is also removed.
 
-+-------------+----------------------------------------+-----------+
-| Parameter   | Description                            | Default   |
-+=============+========================================+===========+
-| path        | File path. Must be an absolute path.   | -         |
-+-------------+----------------------------------------+-----------+
++-----------+--------------------------------------+---------+
+| Parameter | Description                          | Default |
++===========+======================================+=========+
+| path      | File path. Must be an absolute path. |         |
++-----------+--------------------------------------+---------+
 
--  *Example* \`\`\`python with open('bar/foo.txt', 'w') as f:
-   f.write('Hello world!')
+.. code:: python
 
-os.remove('/bar/foo.txt') files = os.listdir('/') print(files) # Prints
-``[]`` \`\`\`
+    with open('bar/foo.txt', 'w') as f:
+        f.write('Hello world!')
 
-os.path
-~~~~~~~
+    os.remove('/bar/foo.txt')
+    files = os.listdir('/')
+    print(files)  # Prints []
 
-Similar to Python's
-```os.path`` <https://docs.python.org/3/library/os.path.html>`__, except
-only file-realted functionalities are implemented.
+
+``os.path``
+~~~~~~~~~~~
+
+Similar to Python's `os.path <https://docs.python.org/3/library/os.path.html>`__, except only file-realted functionalities are implemented.
 
 ``os.path.isfile``
 ^^^^^^^^^^^^^^^^^^
 
-Retrun ``True`` if a path is a file.
+Return ``True`` if a path is a file.
 
-+-------------+----------------------------------------+-----------+
-| Parameter   | Description                            | Default   |
-+=============+========================================+===========+
-| path        | File path. Must be an absolute path.   | -         |
-+-------------+----------------------------------------+-----------+
++-----------+--------------------------------------+---------+
+| Parameter | Description                          | Default |
++===========+======================================+=========+
+| path      | File path. Must be an absolute path. |         |
++-----------+--------------------------------------+---------+
 
--  *Example* \`\`\`python with open('bar/foo.txt', 'w') as f:
-   f.write('Hello world!')
+.. code:: python
 
-print(os.path.isfile('/bar/foo.txt')) # Prints ``True``
-print(os.path.isfile('/bar')) # Prints ``False`` \`\`\`
+    with open('bar/foo.txt', 'w') as f:
+        f.write('Hello world!')
+
+    print(os.path.isfile('/bar/foo.txt'))  # Prints ``True``
+    print(os.path.isfile('/bar'))  # Prints ``False``
 
 ``os.path.isdir``
 ^^^^^^^^^^^^^^^^^
 
-Retrun ``True`` if a path is a directory.
+Return ``True`` if a path is a directory.
 
-+-------------+---------------------------------------------+-----------+
-| Parameter   | Description                                 | Default   |
-+=============+=============================================+===========+
-| path        | Directory path. Must be an absolute path.   | -         |
-+-------------+---------------------------------------------+-----------+
++-----------+-------------------------------------------+---------+
+| Parameter | Description                               | Default |
++===========+===========================================+=========+
+| path      | Directory path. Must be an absolute path. |         |
++-----------+-------------------------------------------+---------+
 
--  *Example* \`\`\`python with open('bar/foo.txt', 'w') as f:
-   f.write('Hello world!')
+.. code:: python
 
-print(os.path.isdir('/bar/foo.txt')) # Prints ``False``
-print(os.path.isdir('/bar')) # Prints ``True`` \`\`\`
+    with open('bar/foo.txt', 'w') as f:
+        f.write('Hello world!')
+
+    print(os.path.isdir('/bar/foo.txt'))  # Prints False
+    print(os.path.isdir('/bar'))  # Prints True
 
 ``os.path.exists``
 ^^^^^^^^^^^^^^^^^^
@@ -171,14 +179,16 @@ print(os.path.isdir('/bar')) # Prints ``True`` \`\`\`
 Retrun ``True`` if a path corresponds to an existing file or directory
 in Cloud Object Storage.
 
-+-------------+------------------------------------------+-----------+
-| Parameter   | Description                              | Default   |
-+=============+==========================================+===========+
-| path        | Target path. Must be an absolute path.   | -         |
-+-------------+------------------------------------------+-----------+
++-----------+----------------------------------------+---------+
+| Parameter | Description                            | Default |
++===========+========================================+=========+
+| path      | Target path. Must be an absolute path. |         |
++-----------+----------------------------------------+---------+
 
--  *Example* \`\`\`python with open('bar/foo.txt', 'w') as f:
-   f.write('Hello world!')
+.. code:: python
 
-print(os.path.exists('/bar/foo.txt')) # Prints ``True``
-print(os.path.exists('/baz/foo.txt')) # Prints ``False`` \`\`\`
+    with open('bar/foo.txt', 'w') as f:
+        f.write('Hello world!')
+
+    print(os.path.exists('/bar/foo.txt'))  # Prints True
+    print(os.path.exists('/baz/foo.txt'))  # Prints False

@@ -18,7 +18,12 @@
     make html
     ```
 
-4. The documentation HTML files are located in the _build folder.
+4. The documentation HTML files are located in the `_build` folder. Copy them to the website repo under `docs` folder:
+
+    ```bash
+    rm -R ../../lithops-cloud.github.io/docs/*
+    cp -R _build/html/* ../../lithops-cloud.github.io/docs/
+    ```
 
 5. To clean build files run:
 

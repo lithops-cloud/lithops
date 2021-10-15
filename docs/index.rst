@@ -83,7 +83,6 @@ Additional resources
 Blogs and Talks
 ---------------
 * `Simplify the developer experience with OpenShift for Big Data processing by using Lithops framework <https://medium.com/@gvernik/simplify-the-developer-experience-with-openshift-for-big-data-processing-by-using-lithops-framework-d62a795b5e1c>`_
-* `Lithops, a Multi-cloud Serverless Programming Framework <https://itnext.io/lithops-a-multi-cloud-serverless-programming-framework-fd97f0d5e9e4>`_
 * `Speed-up your Python applications using Lithops and Serverless Cloud resources <https://itnext.io/speed-up-your-python-applications-using-lithops-and-serverless-cloud-resources-a64beb008bb5>`_
 * `Serverless Without Constraints <https://www.ibm.com/cloud/blog/serverless-without-constraints>`_
 * `Lithops, a Multi-cloud Serverless Programming Framework <https://itnext.io/lithops-a-multi-cloud-serverless-programming-framework-fd97f0d5e9e4>`_
@@ -91,7 +90,6 @@ Blogs and Talks
 * `Using Serverless to Run Your Python Code on 1000 Cores by Changing Two Lines of Code <https://www.ibm.com/cloud/blog/using-serverless-to-run-your-python-code-on-1000-cores-by-changing-two-line-of-code>`_
 * `Decoding dark molecular matter in spatial metabolomics with IBM Cloud Functions <https://www.ibm.com/cloud/blog/decoding-dark-molecular-matter-in-spatial-metabolomics-with-ibm-cloud-functions>`_
 * `Your easy move to serverless computing and radically simplified data processing <https://www.slideshare.net/gvernik/your-easy-move-to-serverless-computing-and-radically-simplified-data-processing-238929020>`_ Strata Data Conference, NY 2019
-* `Ants, serverless computing, and simplified data processing <https://developer.ibm.com/blogs/2019/01/31/ants-serverless-computing-and-simplified-data-processing/>`_
 * `Speed up data pre-processing with Lithops in deep learning <https://developer.ibm.com/patterns/speed-up-data-pre-processing-with-pywren-in-deep-learning/>`_
 * `Predicting the future with Monte Carlo simulations over IBM Cloud Functions <https://www.ibm.com/cloud/blog/monte-carlo-simulations-with-ibm-cloud-functions>`_
 * `Process large data sets at massive scale with Lithops over IBM Cloud Functions <https://www.ibm.com/cloud/blog/process-large-data-sets-massive-scale-pywren-ibm-cloud-functions>`_
@@ -191,6 +189,5 @@ Papers
    :caption: Developer Guide
 
    source/contributing.rst
-   source/development.rst
    source/testing.rst
    source/changelog.md
