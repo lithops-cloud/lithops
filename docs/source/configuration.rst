@@ -1,19 +1,39 @@
-.. _config:
-
 Configuration
 =============
 
-To work with Lithops you must configure both compute and storage backends. Failing to configure them properly will
-prevent Lithops to submit workloads.
+By default, if no configuration is provided, Lithops will use the `Localhost <compute_config/localhost.html>`_ backend to run the functions.
 
-Lithops can work with almost any compute backend and storage any can be used with almost any cloud provider. You have
-multiple options to choose compute backend and storage backend based on your needs.
+To work with Lithops on the Cloud, you must configure at least one compute backend and one storage backend.
+Lithops can work both with the leading cloud providers, and using on-premise or Kubernetes platforms.
+You have multiple options to choose compute and storage backends based on your needs.
 
-After you choose your compute and storage engine, you need to configure Lithops so it can use chosen compute and
-storage. Lithops configuration can be provided either in configuration file or provided in runtime via Python
-dictionary.
+Lithops configuration can be provided either using a **configuration file**, or in runtime via a **python dictionary.**
 
-Configuration file
+
+Compute and Storage backends
+----------------------------
+
+Choose your compute and storage engines from the table below:
+
++--------------------------------------------------------------------+--------------------------------------------------------------------+
+| Compute backends                                                   | Storage Backends                                                   |
++====================================================================+====================================================================+
+|| `Localhost <compute_config/localhost.html>`_                      || `IBM Cloud Object Storage <storage_config/ibm_cos.html>`_         |
+|| `IBM Cloud Functions <compute_config/ibm_cf.html>`_               || `AWS S3 <storage_config/aws_s3.html>`_                            |
+|| `IBM Code Engine <compute_config/code_engine.html>`_              || `Google Cloud Storage <storage_config/gcp_storage.html>`_         |
+|| `AWS Lambda <compute_config/aws_lambda.html>`_                    || `Azure Blob Storage <storage_config/azure_blob.html>`_            |
+|| `Google Cloud Functions <compute_config/gcp_functions.html>`_     || `Aliyun Object Storage Service <storage_config/aliyun_oss.html>`_ |
+|| `Google Cloud Run <compute_config/gcp_cloudrun.html>`_            || `Infinispan <storage_config/infinispan.html>`_                    |
+|| `Azure Functions <compute_config/azure_functions.html>`_          || `Ceph <storage_config/ceph.html>`_                                |
+|| `Aliyun Function Compute <compute_config/aliyun_functions.html>`_ || `MinIO <storage_config/minio.html>`_                              |
+|| `Kubernetes Jobs <compute_config/k8s_job.html>`_                  || `Redis <storage_config/redis.html>`_                              |
+|| `Knative <compute_config/knative.html>`_                          || `OpenStack Swift <storage_config/swift.html>`_                    |
+|| `OpenWhisk <compute_config/openwhisk.html>`_                      ||                                                                   |
+|| `Remote Host / Virtual Machine <compute_config/vm.html>`_         ||                                                                   |
+|| `IBM Virtual Private Cloud <compute_config/ibm_vpc.html>`_        ||                                                                   |
++--------------------------------------------------------------------+--------------------------------------------------------------------+
+
+Configuration File
 ------------------
 
 To configure Lithops through a `configuration file <https://github.com/lithops-cloud/lithops/blob/master/config/config_template.yaml>`_
