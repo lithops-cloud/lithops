@@ -69,7 +69,7 @@ class AliyunFunctionComputeBackend:
         image_name = image_name.replace('_', ':', -1)
         return image_name, int(memory.replace('MB', ''))
 
-    def build_runtime(self, runtime_name, requirements_file, extra_args):
+    def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
         pass
 
     def create_runtime(self, runtime_name, memory, timeout):

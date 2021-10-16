@@ -293,7 +293,7 @@ class AWSLambdaBackend:
             msg = 'An error occurred creating/updating action {}: {}'.format(function_name, response)
             raise Exception(msg)
 
-    def build_runtime(self, runtime_name, runtime_file, extra_args):
+    def build_runtime(self, runtime_name, runtime_file, extra_args=[]):
         """
         Build Lithops container runtime for AWS lambda
         @param runtime_name: name of the runtime to be built

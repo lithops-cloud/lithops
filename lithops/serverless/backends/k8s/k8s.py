@@ -96,7 +96,7 @@ class KubernetesBackend:
     def _delete_function_handler_zip(self):
         os.remove(k8s_config.FH_ZIP_LOCATION)
 
-    def build_runtime(self, docker_image_name, dockerfile, extra_args):
+    def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
