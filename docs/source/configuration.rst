@@ -1,7 +1,7 @@
 Configuration
 =============
 
-By default, if no configuration is provided, Lithops will use the `Localhost <compute_config/localhost.html>`_ backend to run the functions.
+.. note:: By default, if no configuration is provided, Lithops will use the `Localhost <compute_config/localhost.html>`_ backend to run the functions.
 
 To work with Lithops on the Cloud, you must configure at least one compute backend and one storage backend.
 Lithops can work both with the leading cloud providers, and using on-premise or Kubernetes platforms.

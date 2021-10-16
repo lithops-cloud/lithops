@@ -3,15 +3,16 @@
 ## [v2.5.5.dev0]
 
 ### Added
-- 
+- [CLI] Allow to pass all availbe 'docker' parameter to 'lithops runtime build' command 
 
 ### Changed
 - 
 
 ### Fixed
-- 
+- [Localhost] Fixed minnor issue when deleting completed jobs
 
-## [v2.5.4.dev0]
+
+## [v2.5.4]
 
 ### Fixes
 - [Standalone] Avoid deleting the master VM on consume mode

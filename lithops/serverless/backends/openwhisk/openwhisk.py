@@ -24,7 +24,7 @@ from lithops.utils import is_lithops_worker
 from lithops.libs.openwhisk.client import OpenWhiskClient
 from lithops.utils import create_handler_zip
 from lithops.constants import COMPUTE_CLI_MSG
-from . import config as openwhisk_config
+from . import config as ow_config
 
 logger = logging.getLogger(__name__)
 
@@ -76,12 +76,12 @@ class OpenWhiskBackend:
 
     def _get_default_runtime_image_name(self):
         python_version = version_str(sys.version_info)
-        return openwhisk_config.RUNTIME_DEFAULT[python_version]
+        return ow_config.RUNTIME_DEFAULT[python_version]
 
     def _delete_function_handler_zip(self):
-        os.remove(openwhisk_config.FH_ZIP_LOCATION)
+        os.remove(ow_config.FH_ZIP_LOCATION)
 
-    def build_runtime(self, docker_image_name, dockerfile):
+    def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
@@ -89,18 +89,24 @@ class OpenWhiskBackend:
         logger.info('Docker image name: {}'.format(docker_image_name))
 
         if dockerfile:
-            cmd = 'docker build -t {} -f {} .'.format(docker_image_name, dockerfile)
+            cmd = '{} build -t {} -f {} . '.format(ow_config.DOCKER_PATH, docker_image_name, dockerfile)
         else:
-            cmd = 'docker build -t {} .'.format(docker_image_name)
+            cmd = '{} build -t {} . '.format(ow_config.DOCKER_PATH, docker_image_name)
+
+        cmd = cmd+' '.join(extra_args)
+
+        if logger.getEffectiveLevel() != logging.DEBUG:
+            cmd = cmd + " >{} 2>&1".format(os.devnull)
 
         res = os.system(cmd)
         if res != 0:
-            exit()
+            raise Exception('There was an error building the runtime')
 
         cmd = 'docker push {}'.format(docker_image_name)
         res = os.system(cmd)
         if res != 0:
-            exit()
+            raise Exception('There was an error pushing the runtime to the container registry')
+        logger.info('Building done!')
 
     def create_runtime(self, docker_image_name, memory, timeout):
         """
@@ -115,13 +121,15 @@ class OpenWhiskBackend:
         action_name = self._format_action_name(docker_image_name, memory)
 
         entry_point = os.path.join(os.path.dirname(__file__), 'entry_point.py')
-        create_handler_zip(openwhisk_config.FH_ZIP_LOCATION, entry_point, '__main__.py')
+        create_handler_zip(ow_config.FH_ZIP_LOCATION, entry_point, '__main__.py')
 
-        with open(openwhisk_config.FH_ZIP_LOCATION, "rb") as action_zip:
+        with open(ow_config.FH_ZIP_LOCATION, "rb") as action_zip:
             action_bin = action_zip.read()
         self.cf_client.create_action(self.package, action_name, docker_image_name, code=action_bin,
                                      memory=memory, is_binary=True, timeout=timeout*1000)
+
         self._delete_function_handler_zip()
+
         return self._generate_runtime_meta(docker_image_name, memory)
 
     def delete_runtime(self, docker_image_name, memory):

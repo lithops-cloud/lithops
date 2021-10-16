@@ -367,13 +367,13 @@ def create(name, storage, backend, memory, timeout, config, debug):
         raise ("Unable to upload 'preinstalled-modules' file into {}".format(internal_storage.backend))
 
 
-@runtime.command('build')
+@runtime.command('build', context_settings=dict(ignore_unknown_options=True, allow_extra_args=True))
 @click.argument('name', required=False)
 @click.option('--file', '-f', default=None, help='file needed to build the runtime')
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
-def build(name, file, config, backend, debug):
+@click.pass_context
+def build(ctx, name, file, config, backend):
     """ build a serverless runtime. """
     setup_lithops_logger(logging.DEBUG)
 
@@ -390,7 +390,7 @@ def build(name, file, config, backend, debug):
 
     compute_config = extract_serverless_config(config)
     compute_handler = ServerlessHandler(compute_config, None)
-    compute_handler.build_runtime(name, file)
+    compute_handler.build_runtime(name, file, ctx.args)
 
 
 @runtime.command('list')

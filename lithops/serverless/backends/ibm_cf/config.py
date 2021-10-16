@@ -16,7 +16,10 @@
 
 import os
 import sys
+import shutil
 from lithops.utils import version_str
+
+DOCKER_PATH = shutil.which('docker')
 
 RUNTIME_DEFAULT = {
     '3.5': 'lithopscloud/ibmcf-python-v35',

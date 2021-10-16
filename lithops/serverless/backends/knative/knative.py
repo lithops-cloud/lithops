@@ -538,7 +538,7 @@ class KnativeServingBackend:
     def _delete_function_handler_zip(self):
         os.remove(kconfig.FH_ZIP_LOCATION)
 
-    def build_runtime(self, docker_image_name, dockerfile):
+    def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
@@ -556,11 +556,13 @@ class KnativeServingBackend:
         create_handler_zip(kconfig.FH_ZIP_LOCATION, entry_point, 'lithopsproxy.py')
 
         if dockerfile:
-            cmd = '{} build -t {} -f {} .'.format(kconfig.DOCKER_PATH,
-                                                  docker_image_name,
-                                                  dockerfile)
+            cmd = '{} build -t {} -f {} . '.format(kconfig.DOCKER_PATH,
+                                                   docker_image_name,
+                                                   dockerfile)
         else:
-            cmd = '{} build -t {} .'.format(kconfig.DOCKER_PATH, docker_image_name)
+            cmd = '{} build -t {} .' .format(kconfig.DOCKER_PATH, docker_image_name)
+
+        cmd = cmd+' '.join(extra_args)
 
         logger.info('Building default runtime')
         if logger.getEffectiveLevel() != logging.DEBUG:
