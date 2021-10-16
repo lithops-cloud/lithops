@@ -111,7 +111,7 @@ class AzureFunctionAppBackend:
             raise Exception('docker command not found. Install docker or use '
                             'an already built runtime')
 
-    def build_runtime(self, runtime_name, requirements_file=None):
+    def build_runtime(self, runtime_name, requirements_file=None, extra_args=[]):
         try:
             shutil.rmtree(az_config.BUILD_DIR)
         except Exception:

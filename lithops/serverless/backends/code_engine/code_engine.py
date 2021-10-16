@@ -137,7 +137,7 @@ class CodeEngineBackend:
     def _delete_function_handler_zip(self):
         os.remove(ce_config.FH_ZIP_LOCATION)
 
-    def build_runtime(self, docker_image_name, dockerfile):
+    def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
@@ -148,11 +148,13 @@ class CodeEngineBackend:
         create_handler_zip(ce_config.FH_ZIP_LOCATION, entry_point, 'lithopsentry.py')
 
         if dockerfile:
-            cmd = '{} build -t {} -f {} .'.format(ce_config.DOCKER_PATH,
-                                                  docker_image_name,
-                                                  dockerfile)
+            cmd = '{} build -t {} -f {} . '.format(ce_config.DOCKER_PATH,
+                                                   docker_image_name,
+                                                   dockerfile)
         else:
-            cmd = '{} build -t {} .'.format(ce_config.DOCKER_PATH, docker_image_name)
+            cmd = '{} build -t {} . '.format(ce_config.DOCKER_PATH, docker_image_name)
+
+        cmd = cmd+' '.join(extra_args)
 
         if logger.getEffectiveLevel() != logging.DEBUG:
             cmd = cmd + " >{} 2>&1".format(os.devnull)

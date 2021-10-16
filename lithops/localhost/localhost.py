@@ -237,7 +237,7 @@ class BaseEnv():
                     os.kill(PID, signal.SIGTERM)
             del self.jobs[job_key]
 
-        to_delete = job_keys if job_keys else self.jobs.keys()
+        to_delete = job_keys or list(self.jobs.keys())
         for job_key in to_delete:
             try:
                 if job_key in self.jobs:

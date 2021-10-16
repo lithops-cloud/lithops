@@ -5,6 +5,7 @@ What is Lithops?
    :alt: Lithops
    :align: center
 
+|
 
 **Lithops is a Python multi-cloud serverless computing framework. It allows to run unmodified local python code at massive scale in the main serverless computing platforms.**
 
@@ -59,23 +60,7 @@ In this sense, you can code your application in Python and run it unmodified whe
    :alt: Available backends
    :align: center
 
-
-What is Lithops used for?
-*************************
-.. list-table::
-   :header-rows: 1
-
-   * - 👍 Lithops is good at...
-     - 👎 Lithops is bad at...
-   * - Embarrassingly parallel applications
-     - Micro-services (blocking request-response APIs)
-   * - Batch processing for Big Data analytics that consume data from object storage
-     - Stream processing
-   * - Elastic applications where optimal compute resources cannot be established beforehand
-     - Applications that require specialized hardware like GPUs
-   * - Stateful applications that make use of external services to mediate lightweight communication (like RabbitMQ or SQS)
-     - Applications that require heavy process to process communication (like MPI)
-
+|
 
 Additional resources
 ********************

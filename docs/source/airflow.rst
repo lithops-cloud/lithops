@@ -1,5 +1,5 @@
-Airflow
-=======
+Apache Airflow
+==============
 
 Airflow is a platform created by the community to programmatically author, schedule and monitor workflows.
 The Airflow/Lithops integration allows Airflow users to keep all of their Ray code in Python functions and

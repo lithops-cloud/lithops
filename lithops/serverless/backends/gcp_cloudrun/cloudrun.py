@@ -191,7 +191,7 @@ class GCPCloudRunBackend:
         else:
             raise Exception(res.text)
 
-    def build_runtime(self, runtime_name, dockerfile):
+    def build_runtime(self, runtime_name, dockerfile, extra_args):
         logger.debug('Building a new docker image from Dockerfile')
 
         image_name = self._format_image_name(runtime_name)
@@ -202,11 +202,13 @@ class GCPCloudRunBackend:
         create_handler_zip(kconfig.FH_ZIP_LOCATION, entry_point, 'lithopsproxy.py')
 
         if dockerfile:
-            cmd = '{} build -t {} -f {} .'.format(kconfig.DOCKER_PATH,
-                                                  image_name,
-                                                  dockerfile)
+            cmd = '{} build -t {} -f {} . '.format(kconfig.DOCKER_PATH,
+                                                   image_name,
+                                                   dockerfile)
         else:
-            cmd = '{} build -t {} .'.format(kconfig.DOCKER_PATH, image_name)
+            cmd = '{} build -t {} . '.format(kconfig.DOCKER_PATH, image_name)
+
+        cmd = cmd+' '.join(extra_args)
 
         logger.info('Building Docker image')
         if logger.getEffectiveLevel() != logging.DEBUG:
