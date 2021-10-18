@@ -148,14 +148,3 @@ if __name__ == '__main__':
 |lithops | log_stream | ext://sys.stderr |no | Logging stream. eg.: ext://sys.stderr,  ext://sys.stdout|
 |lithops | log_filename |  |no | Path to a file. log_filename has preference over log_stream. |
 |lithops | customized_runtime | False | no | Enables to build a new runtime with the map() function and its dependencies integrated. Only docker-based backends support this feature. |
-
-### Summary of configuration keys for Standalone
-
-|Group|Key|Default|Mandatory|Additional info|
-|---|---|---|---|---|
-|standalone | runtime | python3 | no | Runtime name to run the functions. Can be a Docker image name |
-|standalone | auto_dismantle | True |no | If False then the VM is not stopped automatically. Run **exec.dismantle()** explicitly to stop the VM. |
-|standalone | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
-|standalone | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
-|standalone | exec_mode | consume | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create VMs based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
-|standalone | pull_runtime | False | no | If set to True, Lithops will execute the command `docker pull <runtime_name>` in each VSI before executing the a job|

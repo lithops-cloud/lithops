@@ -94,13 +94,3 @@ Lithops Config Keys
    :delim: ;
    :widths: 5 5 20 10 60
    :header-rows: 1
-
-
-Standalone Config Keys
-~~~~~~~~~~~~~~~~~~~~~~
-
-.. csv-table::
-   :file: standalone_config_keys.csv
-   :delim: ;
-   :widths: 5 5 20 10 60
-   :header-rows: 1

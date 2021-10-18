@@ -174,6 +174,7 @@ Papers
    :maxdepth: 0
    :caption: Developer Guide
 
+   Applications <https://github.com/lithops-cloud/applications>
    source/contributing.rst
    source/testing.rst
    source/changelog.md
