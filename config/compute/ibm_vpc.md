@@ -33,13 +33,12 @@ Edit your lithops config and add the relevant keys:
 
 ```yaml
 lithops:
-    mode: standalone
+    backend: ibm_vpc
 
 ibm:
     iam_api_key: <iam-api-key>
 
 standalone:
-    backend: ibm_vpc
     exec_mode: create
 
 ibm_vpc:
@@ -134,13 +133,10 @@ Edit your lithops config and add the relevant keys:
 
    ```yaml
    lithops:
-	  mode: standalone
+	  backend: ibm_vpc
 
    ibm:
 	  iam_api_key: <iam-api-key>
-
-	standalone:
-	  backend: ibm_vpc
 
    ibm_vpc:
       endpoint   : <REGION_ENDPOINT>

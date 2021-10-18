@@ -131,30 +131,6 @@ if __name__ == '__main__':
     print(fexec.get_result())
 ```
 
-## Lithops Monitoring
-
-By default, Lithops uses the storage backend to monitor function activations: Each function activation stores a file named *{id}/status.json* to the Object Storage when it finishes its execution. This file contains some statistics about the execution, including if the function activation ran successfully or not. Having these files, the default monitoring approach is based on polling the Object Store each X seconds to know which function activations have finished and which not.
-
-As this default approach can slow-down the total application execution time, due to the number of requests it has to make against the object store, in Lithops we integrated a RabbitMQ service to monitor function activations in real-time. With RabbitMQ, the content of the *{id}/status.json* file is sent trough a queue. This speeds-up total application execution time, since Lithops only needs one connection to the messaging service to monitor all function activations. We currently support the AMQP protocol. To enable Lithops to use this service, add the *AMQP_URL* key into the *rabbitmq* section in the configuration, for example:
-
-```yaml
-rabbitmq:
-    amqp_url: <AMQP_URL>  # amqp://
-```
-
-In addition, activate the monitoring service by setting *monitoring : rabbitmq* in the configuration (Lithops section):
-
-```yaml
-lithops:
-   monitoring: rabbitmq
-```
-
-or in the executor by:
-
-```python
-fexec = lithops.FunctionExecutor(monitoring='rabbitmq')
-```
-
 ## Summary of configuration keys for Lithops
 
 |Group|Key|Default|Mandatory|Additional info|
@@ -177,7 +153,6 @@ fexec = lithops.FunctionExecutor(monitoring='rabbitmq')
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
-|standalone | backend | ibm_vpc |no | Standalone compute backend implementation. IBM VPC is the default. If set it will overwrite the `backend` set in lithops section|
 |standalone | runtime | python3 | no | Runtime name to run the functions. Can be a Docker image name |
 |standalone | auto_dismantle | True |no | If False then the VM is not stopped automatically. Run **exec.dismantle()** explicitly to stop the VM. |
 |standalone | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
