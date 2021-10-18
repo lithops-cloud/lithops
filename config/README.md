@@ -49,40 +49,40 @@ Storage Backends
 </p>
 </th>
 </tr>
-<tr style="vertical-align:top">
+<tr>
 <td>
 
-- [Localhost](https://lithops-cloud.github.io/docs/source/compute_config/localhost.html)
-- [Remote Host / Virtual Machine](https://lithops-cloud.github.io/docs/source/compute_config/vm.html)
-- [IBM Virtual Private Cloud](https://lithops-cloud.github.io/docs/source/compute_config/ibm_vpc.html)
+- [Localhost](../docs/source/compute_config/localhost.md)
+- [Remote Virtual Machine](../docs/source/compute_config/vm.md)
+- [IBM Virtual Private Cloud](../docs/source/compute_config/ibm_vpc.md)
 
 </td>
 <td>
 
-- [IBM Cloud Functions](https://lithops-cloud.github.io/docs/source/compute_config/ibm_cf.html)
-- [IBM Code Engine](https://lithops-cloud.github.io/docs/source/compute_config/code_engine.html)
-- [AWS Lambda](https://lithops-cloud.github.io/docs/source/compute_config/aws_lambda.html)
-- [Google Cloud Functions](https://lithops-cloud.github.io/docs/source/compute_config/gcp_functions.html)
-- [Google Cloud Run](https://lithops-cloud.github.io/docs/source/compute_config/gcp_cloudrun.html)
-- [Azure Functions](https://lithops-cloud.github.io/docs/source/compute_config/azure_functions.html)
-- [Aliyun functions](https://lithops-cloud.github.io/docs/source/compute_config/aliyun_functions.html)
-- [Kubernetes Jobs](https://lithops-cloud.github.io/docs/source/compute_config/k8s_job.html)
-- [Knative](https://lithops-cloud.github.io/docs/source/compute_config/knative.html)
-- [OpenWhisk](https://lithops-cloud.github.io/docs/source/compute_config/openwhisk.html)
+- [IBM Cloud Functions](../docs/source/compute_config/ibm_cf.md)
+- [IBM Code Engine](../docs/source/compute_config/code_engine.md)
+- [Kubernetes Jobs](../docs/source/compute_config/k8s_job.md)
+- [Knative](../docs/source/compute_config/knative.md)
+- [OpenWhisk](../docs/source/compute_config/openwhisk.md)
+- [AWS Lambda](../docs/source/compute_config/aws_lambda.md)
+- [Google Cloud Functions](../docs/source/compute_config/gcp_functions.md)
+- [Google Cloud Run](../docs/source/compute_config/gcp_cloudrun.md)
+- [Azure Functions](../docs/source/compute_config/azure_functions.md)
+- [Aliyun functions](../docs/source/compute_config/aliyun_functions.md)
 
 </td>
 <td>
 
-- [IBM Cloud Object Storage](https://lithops-cloud.github.io/docs/source/storage_config/ibm_cos.html)
-- [AWS S3](https://lithops-cloud.github.io/docs/source/storage_config/aws_s3.html)
-- [Google Cloud Storage](https://lithops-cloud.github.io/docs/source/storage_config/gcp_storage.html)
-- [Azure Blob Storage](https://lithops-cloud.github.io/docs/source/storage_config/azure_blob.html)
-- [Aliyun Object Storage Service](https://lithops-cloud.github.io/docs/source/storage_config/aliyun_oss.html)
-- [Infinispan](https://lithops-cloud.github.io/docs/source/storage_config/infinispan.html)
-- [Ceph](https://lithops-cloud.github.io/docs/source/storage_config/ceph.html)
-- [MinIO](https://lithops-cloud.github.io/docs/source/storage_config/minio.html)
-- [Redis](https://lithops-cloud.github.io/docs/source/storage_config/redis.html)
-- [OpenStack Swift](https://lithops-cloud.github.io/docs/source/storage_config/swift.html)
+- [IBM Cloud Object Storage](../docs/source/storage_config/ibm_cos.md)
+- [AWS S3](../docs/source/storage_config/aws_s3.md)
+- [Google Cloud Storage](../docs/source/storage_config/gcp_storage.md)
+- [Azure Blob Storage](../docs/source/storage_config/azure_blob.md)
+- [Aliyun Object Storage Service](../docs/source/storage_config/aliyun_oss.md)
+- [Infinispan](../docs/source/storage_config/infinispan.md)
+- [Ceph](../docs/source/storage_config/ceph.md)
+- [MinIO](../docs/source/storage_config/minio.md)
+- [Redis](../docs/source/storage_config/redis.md)
+- [OpenStack Swift](../docs/source/storage_config/swift.md)
 
 </td>
 </tr>
@@ -153,19 +153,6 @@ or in the executor by:
 
 ```python
 fexec = lithops.FunctionExecutor(monitoring='rabbitmq')
-```
-
-## Dynamic runtime customization
-
-This new feature enables early preparation of Lithops workers with the map function and custom Lithops runtime already deployed, and ready to be used in consequent computations. This can reduce overall map/reduce computation latency significantly, especially when the computation overhead (pickle stage) is long compared to the actual computation performed at the workers.
-
-To activate this mode, set to True the "customized_runtime" property under "serverless" section of the config file.
-
-Warning: to protect your privacy, use a private docker registry instead of public docker hub.
-
-```yaml
-lithops:
-    customized_runtime: True
 ```
 
 ## Summary of configuration keys for Lithops

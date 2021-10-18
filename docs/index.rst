@@ -121,7 +121,7 @@ Papers
    :caption: Lithops Compute API
 
    source/api_futures.rst
-   source/notebooks/functions.ipynb
+   source/functions.md
    source/notebooks/function_chaining.ipynb
 
 .. toctree::
@@ -156,6 +156,7 @@ Papers
 
    source/worker_granularity.rst
    source/monitoring.rst
+   Custom Runtime <https://github.com/lithops-cloud/lithops/tree/master/runtime>
    source/customized_runtime.rst
 
 

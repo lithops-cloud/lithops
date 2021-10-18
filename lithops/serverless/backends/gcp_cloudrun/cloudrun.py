@@ -191,7 +191,7 @@ class GCPCloudRunBackend:
         else:
             raise Exception(res.text)
 
-    def build_runtime(self, runtime_name, dockerfile, extra_args):
+    def build_runtime(self, runtime_name, dockerfile, extra_args=[]):
         logger.debug('Building a new docker image from Dockerfile')
 
         image_name = self._format_image_name(runtime_name)
