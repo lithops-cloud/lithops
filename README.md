@@ -59,7 +59,7 @@ Lithops is shipped with 2 different high-level Compute APIs, and 2 high-level St
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="https://lithops-cloud.github.io/docs/source/api_futures.html">Futures API</a>
+<a href="docs/api_futures.md">Futures API</a>
 </small>
 </p>
 </th>
@@ -67,7 +67,7 @@ Lithops is shipped with 2 different high-level Compute APIs, and 2 high-level St
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="https://lithops-cloud.github.io/docs/source/api_multiprocessing.html">Multiprocessing API</a>
+<a href="docs/source/api_multiprocessing.rst">Multiprocessing API</a>
 </small>
 </p>
 </th>
@@ -111,7 +111,7 @@ with Pool() as pool:
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="https://lithops-cloud.github.io/docs/source/api_storage.html">Storage API</a>
+<a href="docs/api_storage.md">Storage API</a>
 </small>
 </p>
 </th>
@@ -119,7 +119,7 @@ with Pool() as pool:
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="https://lithops-cloud.github.io/docs/source/api_storage_os.html">Storage OS API</a>
+<a href="docs/source/api_storage_os.rst">Storage OS API</a>
 </small>
 </p>
 </th>

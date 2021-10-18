@@ -35,4 +35,4 @@ or
 $ python3 -m lithops.tests.tests_main
 ```
 
-Please follow the guidelines in [docs/testing.md](docs/testing.md) for more details.
+Please follow the guidelines in [docs/testing.md](docs/source/testing.rst) for more details.
