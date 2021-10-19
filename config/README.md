@@ -6,7 +6,7 @@ By default Lithops works on Localhost if no configuration is provided. To run wo
 
 To configure Lithops through a [configuration file](config_template.yaml) you have multiple options:
 
-1. Create e new file called `config` in the `~/.lithops` folder.
+1. Create a new file called `config` in the `~/.lithops` folder.
 
 2. Create a new file called `.lithops_config` in the root directory of your project from where you will execute your Lithops scripts.
 

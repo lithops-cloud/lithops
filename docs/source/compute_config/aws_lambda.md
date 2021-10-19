@@ -107,7 +107,7 @@ To connect the Lithops lambda to a VPC, add the following configuration to the `
 - `subnets`: A list of VPC subnet IDs.
 - `security_groups`: A list of VPC security groups IDs.
 
-**Note:** To be able to create netwrok interfaces for Lambda functions, the role created in step 3 has to have permissions to do so, for example by adding the permission *EC2FullAccess*.
+**Note:** To be able to create network interfaces for Lambda functions, the role created in step 3 has to have permissions to do so, for example by adding the permission *EC2FullAccess*.
 
 For more information, check out [AWS documentation on VPCs](https://docs.aws.amazon.com/lambda/latest/dg/configuration-vpc.html).
 
