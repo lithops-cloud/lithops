@@ -126,7 +126,8 @@ language = 'en'
 html_theme_options = {
     'repository_url': 'https://github.com/lithops-cloud/lithops',
     'repository_branch': 'master',
-    'use_issues_button': False,
+    'google_analytics_id': 'UA-17598552-5',
+    'use_issues_button': True,
     'use_download_button': True,
     'use_fullscreen_button': False,
     'use_repository_button': True,

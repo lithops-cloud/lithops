@@ -2,12 +2,24 @@
 
 The IBM VPC client of Lithops can provide a truely serverless user experience on top of IBM VPC where Lithops creates new VSIs (Virtual Server Instance)  dynamically in runtime and scale Lithops jobs against generated VSIs. Alternatively Lithops can start and stop existing VSI instances.
 
+Note that IBM VPC is a **standalone backend**, and as such, you can configure extra parameters in the 'standalone' section of the configuration:
+
+|Group|Key|Default|Mandatory|Additional info|
+|---|---|---|---|---|
+|standalone | runtime | python3 | no | Runtime name to run the functions. Can be a Docker image name |
+|standalone | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
+|standalone | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
+|standalone | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
+|standalone | exec_mode | consume | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create VMs based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
+|standalone | pull_runtime | False | no | If set to True, Lithops will execute the command `docker pull <runtime_name>` in each VSI before executing the a job|
+
+
 ## IBM VPC
 The assumption that you already familiar with IBM Cloud, have your IBM IAM API key created (you can create new keys [here](https://cloud.ibm.com/iam/apikeys)), have valid IBM COS account, region and resource group.
 
 Follow [IBM VPC setup](https://cloud.ibm.com/vpc-ext/overview) if you need to create IBM Virtual Private Cloud. Decide the region for your VPC. The best practice is to use the same region both for VPC and IBM COS, hoewever there is no requirement to keep them in the same region.
 
-### The following is the minimum setup requirements
+### Minimum setup requirements
 
 1. Create new VPC if you don't have one already. More details [here](https://cloud.ibm.com/vpc-ext/network/vpcs)
 2. Create new subnet with public gateway and IP range and total count. More details [here](https://cloud.ibm.com/vpc-ext/network/subnets)
@@ -18,11 +30,10 @@ Follow [IBM VPC setup](https://cloud.ibm.com/vpc-ext/overview) if you need to cr
 ### Choose an operating system image for VSI
 Any Virtual Service Instance (VSI) need to define the instance’s operating system and version. Lithops support both standard operting system choices provided by the VPC or using pre-defined custom images that already contains all dependencies required by Lithops.
 
-### Using the standard operating system image
-Lithops uses by default the Ubuntu 20.04 image. In this case, no further action are required and you can continue to the next step. Lithops will install all required dependencies in the VSI by itself. Notice this can consume about 3 min to complete all installations.
+- Option 1: By default, Lithops uses an Ubuntu 20.04 image. In this case, no further action is required and you can continue to the next step. Lithops will install all required dependencies in the VSI by itself. Notice this can consume about 3 min to complete all installations.
 
-### Using a custom operating system image
-This is preferable approach, as using pre-built custom image will greatly improve time that of VSI creation for Lithops jobs. To benefit from this approach, navigate to [runtime/ibm_vpc](https://github.com/lithops-cloud/lithops/tree/master/runtime/ibm_vpc), and follow the instructions.
+- Option 2: Alternatively, you can use a pre-built custom image that will greatly improve VSI creation time for Lithops jobs. To benefit from this approach, navigate to [runtime/ibm_vpc](https://github.com/lithops-cloud/lithops/tree/master/runtime/ibm_vpc), and follow the instructions.
+
 
 ## Lithops and the VSI auto create mode
 In this mode, Lithops will automatically create new worker VM instances in runtime, scale Lithops job against generated VMs, and automatically delete VMs when the job is completed.
@@ -33,13 +44,12 @@ Edit your lithops config and add the relevant keys:
 
 ```yaml
 lithops:
-    mode: standalone
+    backend: ibm_vpc
 
 ibm:
     iam_api_key: <iam-api-key>
 
 standalone:
-    backend: ibm_vpc
     exec_mode: create
 
 ibm_vpc:
@@ -71,7 +81,7 @@ The fastest way to find all the required keys for `ibm_vpc` section as follows:
 To verify auto create mode is working, use the following example
 
 ```python
-iterdata = [1,2,3,4]
+iterdata = [1, 2, 3, 4]
 
 def my_map_function(x):
     return x + 7
@@ -79,7 +89,7 @@ def my_map_function(x):
 if __name__ == '__main__':
     fexec = lithops.FunctionExecutor()
     fexec.map(my_map_function, iterdata)
-    print (fexec.get_result())
+    print(fexec.get_result())
 ```
 
 This will create 4 different VM instance and execute `my_map_function` in the each of created VM. Upon completion, Lithops will delete the VMs.
@@ -114,19 +124,7 @@ This will create 4 different VM instance and execute `my_map_function` in the ea
 
 ## Lithops and the VSI consume mode
 
-In this mode, Lithops can start and stop existing VM and deploy an entire job to that VM. The partition logic in this scenario is different from the auto create mode, since entire job executed in the same VM. As example
-    
-```python
-iterdata = [1, 2, 3, 4]
-
-def my_map_function(x):
-    return x + 7
-
-if __name__ == '__main__':
-    fexec = lithops.FunctionExecutor()
-    fexec.map(my_map_function, iterdata)
-    print (fexec.get_result())
-```
+In this mode, Lithops can start and stop an existing VM, and deploy an entire job to that VM. The partition logic in this scenario is different from the auto create mode, since entire job executed in the same VM.
 
 ### Lithops configuration for the consume mode
 
@@ -134,13 +132,10 @@ Edit your lithops config and add the relevant keys:
 
    ```yaml
    lithops:
-	  mode: standalone
+	  backend: ibm_vpc
 
    ibm:
 	  iam_api_key: <iam-api-key>
-
-	standalone:
-	  backend: ibm_vpc
 
    ibm_vpc:
       endpoint   : <REGION_ENDPOINT>
@@ -168,8 +163,9 @@ If you need to create new VM, then follow the steps to create and update Lithops
 
 ## Viewing the execution logs
 
-You can view the executions logs in your local machine using the *lithops client*:
+You can view the function executions logs in your local machine using the *lithops client*:
 
 ```bash
 $ lithops logs poll
 ```
+

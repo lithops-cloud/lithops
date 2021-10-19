@@ -215,7 +215,7 @@ This mode allows to run functions by using one or multiple Virtual machines (VM)
 
 ## Documentation
 
-For documentation on using Lithops, see [last release documentation](https://lithops-cloud.github.io/docs/) or [current github docs](docs/user_guide.md).
+For documentation on using Lithops, see [latest release documentation](https://lithops-cloud.github.io/docs/) or [current github docs](docs/user_guide.md).
 
 If you are interested in contributing, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
