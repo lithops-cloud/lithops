@@ -16,7 +16,7 @@
   </a>
 </p>
 
-Lithops is a Python multi-cloud distributed computing framework. It allows to run unmodified local python code at massive scale in the main
+Lithops is a Python multi-cloud distributed computing framework. It allows you to run unmodified local python code at massive scale in the main
 serverless computing platforms. Lithops delivers the user’s code into the cloud without requiring knowledge of how it is deployed and run. Moreover, its multicloud-agnostic architecture ensures portability across cloud providers.
 
 Lithops is specially suited for highly-parallel programs with little or no need for communication between processes, but it also supports parallel applications that need to share state among processes. Examples of applications that run with Lithops include Monte Carlo simulations, deep learning and machine learning processes, metabolomics computations, and geospatial analytics, to name a few.
@@ -196,12 +196,12 @@ Standalone Mode
 <tr>
 <td>
 
-This mode allows to run functions in your local machine, by using processes. This is the default mode of execution if no configuration is provided.
+This mode allows you to run functions in your local machine, by using processes. This is the default mode of execution if no configuration is provided.
 
 </td>
 <td>
 
-This mode allows to run functions by using publicly accessible Serverless compute services, such as IBM Cloud Functions, Amazon Lambda or Google Cloud Functions, among others. In this mode of execution, each function invocation equals to a parallel task running in the cloud in an isolated environment.
+This mode allows you to run functions by using publicly accessible Serverless compute services, such as IBM Cloud Functions, Amazon Lambda or Google Cloud Functions, among others. In this mode of execution, each function invocation equals to a parallel task running in the cloud in an isolated environment.
 
 </td>
 
