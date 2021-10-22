@@ -30,6 +30,7 @@ if __name__ == '__main__':
 
     # Pool.map function MUST have only one argument
     pool.map(single_arg, [1, 2, 3])
+    pool.map(single_arg, (1, 2, 3))
 
     # You can pass multiple arguments to a map function
     # However, keep in mind that map function does not implicitly unpack arguments
