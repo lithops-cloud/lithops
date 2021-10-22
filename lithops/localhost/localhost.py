@@ -274,7 +274,8 @@ class DockerEnv(BaseEnv):
         cmd += f'--user {self.uid}:{self.gid} ' if is_unix_system() else ''
         cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" {self.runtime} /tmp/lithops/runner.py preinstalls'
 
-        process = sp.run(shlex.split(cmd), check=True, stdout=sp.PIPE, universal_newlines=True)
+        process = sp.run(shlex.split(cmd), check=True, stdout=sp.PIPE,
+                         universal_newlines=True, start_new_session=True)
         runtime_meta = json.loads(process.stdout.strip())
 
         return runtime_meta
@@ -300,7 +301,7 @@ class DockerEnv(BaseEnv):
         cmd += f'--rm -v {tmp_path}:/tmp --entrypoint "python3" {self.runtime} /tmp/lithops/runner.py run {job_filename}'
 
         log = open(RN_LOG_FILE, 'a')
-        process = sp.Popen(shlex.split(cmd), stdout=log, stderr=log)
+        process = sp.Popen(shlex.split(cmd), stdout=log, stderr=log, start_new_session=True)
         self.jobs[job_key] = process
 
         return process
@@ -337,7 +338,8 @@ class DefaultEnv(BaseEnv):
             self.setup()
 
         cmd = [self.runtime, RUNNER, 'preinstalls']
-        process = sp.run(cmd, check=True, stdout=sp.PIPE, universal_newlines=True)
+        process = sp.run(cmd, check=True, stdout=sp.PIPE, universal_newlines=True,
+                         start_new_session=True)
         runtime_meta = json.loads(process.stdout.strip())
         return runtime_meta
 
@@ -358,7 +360,7 @@ class DefaultEnv(BaseEnv):
 
         cmd = [self.runtime, RUNNER, 'run', job_filename]
         log = open(RN_LOG_FILE, 'a')
-        process = sp.Popen(cmd, stdout=log, stderr=log)
+        process = sp.Popen(cmd, stdout=log, stderr=log, start_new_session=True)
         self.jobs[job_key] = process
 
         return process
