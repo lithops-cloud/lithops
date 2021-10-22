@@ -72,7 +72,7 @@ def parent_process():
 # Cloud worker
 #
 
-def cloud_process_wrapper(data, func, initializer=None, initargs=(), name=None, log_stream=None, unpack_args=False):
+def cloud_process_wrapper(data, func, initializer=None, initargs=(), name=None, log_stream=None, op=None):
     # Put worker name in envs to get it from within the function
     os.environ['LITHOPS_MP_WORKER_NAME'] = 'test'
 
@@ -88,16 +88,15 @@ def cloud_process_wrapper(data, func, initializer=None, initargs=(), name=None, 
         initializer(*initargs)
 
     try:
-        if unpack_args:
+        if op == 'apply':
             res = func(*data['args'], **data['kwargs'])
+        elif op == 'map':
+            res = func(data,)
+        elif op == 'starmap':
+            res = func(*data)
         else:
-            if isinstance(data, dict):
-                res = func(**data)
-            else:
-                if not isinstance(data, tuple) and not isinstance(data, list):
-                    data = (data,)
-                res = func(*data)
-        exception = None
+            exception = Exception(op)
+            raise exception
         return res
     except Exception as e:
         # Print exception stack trace to remote logging buffer
@@ -180,7 +179,7 @@ class CloudProcess:
                                                   'initargs': None,
                                                   'name': process_name,
                                                   'log_stream': stream,
-                                                  'unpack_args': True},
+                                                  'op': 'apply'},
                                                  extra_env=extra_env)
         self._pid = '/'.join([self._future.executor_id, self._future.job_id, self._future.call_id])
         del self._target, self._args, self._kwargs
