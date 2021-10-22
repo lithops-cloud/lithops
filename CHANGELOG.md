@@ -3,13 +3,15 @@
 ## [v2.5.5.dev0]
 
 ### Added
-- [CLI] Allow to pass all availbe 'docker' parameter to 'lithops runtime build' command 
+- [CLI] Allow to pass all availbe 'docker' parameter to 'lithops runtime build' command
+- [Multiprocessing] Add example file with different argument passing examples for Pool and Process
 
 ### Changed
 - 
 
 ### Fixed
 - [Localhost] Fixed minnor issue when deleting completed jobs
+- [Multiprocessing] Fix args mismatch error when passing list of tuples to Pool.map
 
 
 ## [v2.5.4]

@@ -109,8 +109,8 @@ class Pool(object):
         """
         Asynchronous version of `starmap()` method.
         """
-        return self._map_async(func, iterable, chunksize=chunksize, callback=callback, error_callback=error_callback,
-                               starmap=True)
+        return self._map_async(func, iterable, chunksize=chunksize,
+                               callback=callback, error_callback=error_callback, starmap=True)
 
     def imap(self, func, iterable, chunksize=1):
         """
@@ -147,7 +147,7 @@ class Pool(object):
                                                   'initargs': self._initargs,
                                                   'name': process_name,
                                                   'log_stream': stream,
-                                                  'unpack_args': True},
+                                                  'op': 'apply'},
                                             extra_env=extra_env)
 
         result = ApplyResult(self._executor, [futures], callback, error_callback)
@@ -176,13 +176,10 @@ class Pool(object):
             self._initargs,
             '-'.join([self._executor.executor_id, func.__name__]),
             self._logger_stream,
-            False
+            'starmap' if starmap else 'map'
         )
 
-        if starmap:
-            fmt_args = [(arg,) for arg in iterable]
-        else:
-            fmt_args = iterable
+        fmt_args = [(arg,) for arg in iterable]
 
         futures = self._executor.map(cloud_process_wrapper,
                                      fmt_args,
