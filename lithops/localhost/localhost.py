@@ -337,7 +337,7 @@ class DefaultEnv(BaseEnv):
             self.setup()
 
         cmd = [self.runtime, RUNNER, 'preinstalls']
-        process = sp.run(cmd, check=True, stdout=sp.PIPE, universal_newlines=True)
+        process = sp.run(cmd, check=True, stdout=sp.PIPE, universal_newlines=True, start_new_session=True)
         runtime_meta = json.loads(process.stdout.strip())
         return runtime_meta
 
@@ -358,7 +358,7 @@ class DefaultEnv(BaseEnv):
 
         cmd = [self.runtime, RUNNER, 'run', job_filename]
         log = open(RN_LOG_FILE, 'a')
-        process = sp.Popen(cmd, stdout=log, stderr=log)
+        process = sp.Popen(cmd, stdout=log, stderr=log, start_new_session=True)
         self.jobs[job_key] = process
 
         return process
