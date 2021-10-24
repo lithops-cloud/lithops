@@ -161,7 +161,7 @@ class StandaloneHandler:
             current_workers_old = set(self.backend.workers)
             with ThreadPoolExecutor(total_workers+1) as ex:
                 ex.submit(start_master_instance, wait=False)
-                for vm_n in range(total_workers):
+                for vm_n in range(total_workers + 1):
                     worker_id = "{:04d}".format(vm_n)
                     name = 'lithops-worker-{}-{}-{}'.format(executor_id, job_id, worker_id)
                     ex.submit(self.backend.create_worker, name)
@@ -185,6 +185,7 @@ class StandaloneHandler:
 
         elif self.exec_mode == 'reuse':
             workers = get_workers_on_master()
+            logger.info(f"Found {len(workers)} workers connected to master {self.backend.master}")
             if workers:
                 total_workers = len(workers)
             if not workers:
