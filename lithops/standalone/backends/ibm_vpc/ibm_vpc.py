@@ -625,7 +625,7 @@ class IBMVPCInstance:
         """
         ip_address = None
         if self.instance_id:
-            while not ip_address:
+            while not ip_address or ip_address == '0.0.0.0':
                 instance_data = self.ibm_vpc_client.get_instance(self.instance_id).get_result()
                 ip_address = instance_data['primary_network_interface']['primary_ipv4_address']
         return ip_address
