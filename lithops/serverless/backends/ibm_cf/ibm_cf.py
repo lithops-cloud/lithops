@@ -29,7 +29,7 @@ from lithops.constants import COMPUTE_CLI_MSG
 from . import config as ibmcf_config
 
 logger = logging.getLogger(__name__)
-token_mutex = Lock()
+invoke_mutex = Lock()
 
 
 class IBMCloudFunctionsBackend:
@@ -51,6 +51,8 @@ class IBMCloudFunctionsBackend:
         self.api_key = ibm_cf_config.get('api_key', None)
         self.iam_api_key = ibm_cf_config.get('iam_api_key', None)
         self.region = self.endpoint.split('//')[1].split('.')[0]
+
+        self.invoke_error = None
 
         logger.debug("Set IBM CF Namespace to {}".format(self.namespace))
         logger.debug("Set IBM CF Endpoint to {}".format(self.endpoint))
@@ -108,7 +110,7 @@ class IBMCloudFunctionsBackend:
     def _delete_function_handler_zip(self):
         os.remove(ibmcf_config.FH_ZIP_LOCATION)
 
-    def build_runtime(self, docker_image_name, dockerfile):
+    def build_runtime(self, docker_image_name, dockerfile, extra_args=[]):
         """
         Builds a new runtime from a Docker file and pushes it to the Docker hub
         """
@@ -116,9 +118,14 @@ class IBMCloudFunctionsBackend:
         logger.info('Docker image name: {}'.format(docker_image_name))
 
         if dockerfile:
-            cmd = 'docker build -t {} -f {} .'.format(docker_image_name, dockerfile)
+            cmd = '{} build -t {} -f {} . '.format(ibmcf_config.DOCKER_PATH, docker_image_name, dockerfile)
         else:
-            cmd = 'docker build -t {} .'.format(docker_image_name)
+            cmd = '{} build -t {} . '.format(ibmcf_config.DOCKER_PATH, docker_image_name)
+
+        cmd = cmd+' '.join(extra_args)
+
+        if logger.getEffectiveLevel() != logging.DEBUG:
+            cmd = cmd + " >{} 2>&1".format(os.devnull)
 
         res = os.system(cmd)
         if res != 0:
@@ -128,6 +135,7 @@ class IBMCloudFunctionsBackend:
         res = os.system(cmd)
         if res != 0:
             raise Exception('There was an error pushing the runtime to the container registry')
+        logger.info('Building done!')
 
     def create_runtime(self, docker_image_name, memory, timeout):
         """
@@ -209,29 +217,36 @@ class IBMCloudFunctionsBackend:
         if activation_id == 401:
             # unauthorized. Probably token expired if using IAM auth
             if self.iam_api_key and not self.is_lithops_worker:
-                self._refresh_cf_client()
+                invoke_mutex.acquire()
+                token, token_expiry_time = self.ibm_token_manager.get_token()
+                if token != self.config['token']:
+                    self.config['token'] = token
+                    self.config['token_expiry_time'] = token_expiry_time
+                    auth = 'Bearer ' + token
+                    self.cf_client = OpenWhiskClient(endpoint=self.endpoint,
+                                                     namespace=self.namespace_id,
+                                                     auth=auth,
+                                                     user_agent=self.user_agent)
+                invoke_mutex.release()
                 return self.invoke(docker_image_name, runtime_memory, payload)
             else:
                 raise Exception('Unauthorized. Review your API key')
 
-        return activation_id
+        elif activation_id == 404:
+            # Runtime not deployed
+            if self.invoke_error is None:
+                self.invoke_error = 404
 
-    def _refresh_cf_client(self):
-        """ Recreates the OpenWhisk client with a new token.
-        This is only called by the invoke method when it receives
-        a 401 error.
-        """
-        token_mutex.acquire()
-        token, token_expiry_time = self.ibm_token_manager.get_token()
-        if token != self.config['token']:
-            self.config['token'] = token
-            self.config['token_expiry_time'] = token_expiry_time
-            auth = 'Bearer ' + token
-            self.cf_client = OpenWhiskClient(endpoint=self.endpoint,
-                                             namespace=self.namespace_id,
-                                             auth=auth,
-                                             user_agent=self.user_agent)
-        token_mutex.release()
+            invoke_mutex.acquire()
+            if self.invoke_error == 404:
+                logger.debug('Runtime not found')
+                self.create_runtime(docker_image_name, runtime_memory,
+                                    self.config['runtime_timeout'])
+                self.invoke_error = None
+            invoke_mutex.release()
+            return self.invoke(docker_image_name, runtime_memory, payload)
+
+        return activation_id
 
     def get_runtime_key(self, docker_image_name, runtime_memory):
         """

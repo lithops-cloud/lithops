@@ -69,7 +69,7 @@ class GCPFunctionsBackend:
             credentials = jwt.Credentials.from_service_account_info(service_account_info,
                                                                     audience=AUDIENCE)
             credentials_pub = credentials.with_claims(audience=AUDIENCE)
-        except:  # Get credentials from gcp function environment
+        except Exception:  # Get credentials from gcp function environment
             credentials_pub = None
         self.publisher_client = pubsub_v1.PublisherClient(credentials=credentials_pub)
 
@@ -229,7 +229,7 @@ class GCPFunctionsBackend:
         # Delete runtime bin archive from storage
         self.internal_storage.storage.delete_object(self.internal_storage.bucket, bin_name)
 
-    def build_runtime(self, runtime_name, requirements_file):
+    def build_runtime(self, runtime_name, requirements_file, extra_args=[]):
         if requirements_file is None:
             raise Exception('Please provide a `requirements.txt` file with the necessary modules')
         logger.info('Going to create runtime {} ({}) for GCP Functions...'.format(runtime_name, requirements_file))
@@ -336,8 +336,10 @@ class GCPFunctionsBackend:
     def invoke(self, runtime_name, runtime_memory, payload={}):
         topic_location = self._full_topic_location(self._format_topic_name(runtime_name, runtime_memory))
 
-        fut = self.publisher_client.publish(topic_location,
-                                            bytes(json.dumps(payload).encode('utf-8')))
+        fut = self.publisher_client.publish(
+            topic_location,
+            bytes(json.dumps(payload, default=str).encode('utf-8'))
+        )
         invocation_id = fut.result()
 
         return invocation_id

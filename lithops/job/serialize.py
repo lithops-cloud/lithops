@@ -60,12 +60,15 @@ class SerializeIndependent:
         # Add modules
         direct_modules = set()
         for module_name in mods:
-            if module_name == '__main__':
+            if module_name in ['__main__', None]:
                 continue
-            mod_spec = importlib.util.find_spec(module_name)
-            origin = mod_spec.origin if mod_spec else None
-            direct_modules.add(origin if origin not in ['built-in', None] else module_name)
-            self._modulemgr.add(module_name)
+            try:
+                mod_spec = importlib.util.find_spec(module_name)
+                origin = mod_spec.origin if mod_spec else None
+                direct_modules.add(origin if origin not in ['built-in', None] else module_name)
+                self._modulemgr.add(module_name)
+            except Exception:
+                pass
 
         logger.debug("Referenced modules: {}".format(None if not direct_modules
                                                      else ", ".join(direct_modules)))

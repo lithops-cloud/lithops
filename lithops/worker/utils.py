@@ -40,10 +40,7 @@ def get_function_and_modules(job, internal_storage):
     """
     logger.debug("Getting function and modules")
 
-    mode = job.config['lithops']['mode']
-    customized_runtime = job.config[mode].get('customized_runtime', False)
-
-    if customized_runtime:
+    if job.config['lithops'].get('customized_runtime'):
         logger.debug("Customized runtime feature activated. Loading "
                      "function and modules from local runtime")
         func_path = '/'.join([LITHOPS_TEMP_DIR, job.func_key])
@@ -88,24 +85,27 @@ def get_function_data(job, internal_storage):
     """
     logger.debug("Getting function data")
 
-    extra_get_args = {}
-    if job.data_byte_ranges is not None:
-        init_byte = job.data_byte_ranges[0][0]
-        last_byte = job.data_byte_ranges[-1][1]
-        range_str = 'bytes={}-{}'.format(init_byte, last_byte)
-        extra_get_args['Range'] = range_str
+    if job.data_key:
+        extra_get_args = {}
+        if job.data_byte_ranges is not None:
+            init_byte = job.data_byte_ranges[0][0]
+            last_byte = job.data_byte_ranges[-1][1]
+            range_str = 'bytes={}-{}'.format(init_byte, last_byte)
+            extra_get_args['Range'] = range_str
 
-    data_obj = internal_storage.get_data(job.data_key, extra_get_args=extra_get_args)
+        data_obj = internal_storage.get_data(job.data_key, extra_get_args=extra_get_args)
 
-    loaded_data = []
-    offset = 0
-    if job.data_byte_ranges is not None:
-        for dbr in job.data_byte_ranges:
-            length = dbr[1] - dbr[0] + 1
-            loaded_data.append(data_obj[offset:offset+length])
-            offset += length
+        loaded_data = []
+        offset = 0
+        if job.data_byte_ranges is not None:
+            for dbr in job.data_byte_ranges:
+                length = dbr[1] - dbr[0] + 1
+                loaded_data.append(data_obj[offset:offset+length])
+                offset += length
+        else:
+            loaded_data.append(data_obj)
     else:
-        loaded_data.append(data_obj)
+        loaded_data = [eval(byte_str) for byte_str in job.data_byte_strs]
 
     return loaded_data
 

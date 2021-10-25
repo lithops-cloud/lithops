@@ -28,12 +28,15 @@ DEFAULT_VERSION = "v1"
 
 BUILD_GIT_URL = 'https://github.com/lithops-cloud/lithops'
 DOCKER_PATH = shutil.which('docker')
-RUNTIME_TIMEOUT = 600  # 10 minutes
-RUNTIME_MEMORY = 256  # 256Mi
-RUNTIME_CPU = 0.5  # 0.5 vCPU
-RUNTIME_MIN_INSTANCES = 0
-RUNTIME_MAX_INSTANCES = 250
-RUNTIME_CONCURRENCY = 1
+
+DEFAULT_CONFIG_KEYS = {
+    'runtime_timeout': 600,  # Default: 600 seconds => 10 minutes
+    'runtime_memory': 256,  # Default memory: 256 MB
+    'runtime_cpu': 0.5,  # 0.125 vCPU
+    'max_workers': 250,
+    'worker_processes': 1,
+    'invoke_pool_threads': 250,
+}
 
 FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_knative.zip')
 
@@ -48,7 +51,6 @@ RUN pip install --upgrade setuptools six pip \
         pika \
         flask \
         gevent \
-        glob2 \
         ibm-cos-sdk \
         google-cloud-storage \
         google-cloud-pubsub \
@@ -186,7 +188,8 @@ spec:
       annotations:
         autoscaling.knative.dev/target: "1"
         autoscaling.knative.dev/minScale: "0"
-        autoscaling.knative.dev/maxScale: "250"
+        autoscaling.knative.dev/maxScale: "0"
+        autoscaling.knative.dev/scaleDownDelay: "5m"
     spec:
       containerConcurrency: 1
       timeoutSeconds: 600
@@ -210,8 +213,11 @@ spec:
 
 
 def load_config(config_data):
-    if 'knative' not in config_data or not config_data['knative']:
-        config_data['knative'] = {}
+    for key in DEFAULT_CONFIG_KEYS:
+        if key not in config_data['knative']:
+            config_data['knative'][key] = DEFAULT_CONFIG_KEYS[key]
+
+    config_data['knative']['invoke_pool_threads'] = config_data['knative']['max_workers']
 
     if 'git_url' not in config_data['knative']:
         config_data['knative']['git_url'] = BUILD_GIT_URL
@@ -219,19 +225,6 @@ def load_config(config_data):
         revision = 'master' if 'dev' in __version__ else __version__
         config_data['knative']['git_rev'] = revision
 
-    if 'runtime_concurrency' not in config_data['knative']:
-        config_data['knative']['runtime_concurrency'] = RUNTIME_CONCURRENCY
-    if 'runtime_min_instances' not in config_data['knative']:
-        config_data['knative']['runtime_min_instances'] = RUNTIME_MIN_INSTANCES
-    if 'runtime_max_instances' not in config_data['knative']:
-        config_data['knative']['runtime_max_instances'] = RUNTIME_MAX_INSTANCES
-
-    if 'runtime_cpu' not in config_data['knative']:
-        config_data['knative']['runtime_cpu'] = RUNTIME_CPU
-    if 'runtime_memory' not in config_data['knative']:
-        config_data['knative']['runtime_memory'] = RUNTIME_MEMORY
-    if 'runtime_timeout' not in config_data['knative']:
-        config_data['knative']['runtime_timeout'] = RUNTIME_TIMEOUT
     if 'runtime' not in config_data['knative']:
         if not DOCKER_PATH:
             raise Exception('docker command not found. Install docker or use '
@@ -246,11 +239,3 @@ def load_config(config_data):
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         runtime_name = '{}/{}-v{}:{}'.format(docker_user, RUNTIME_NAME, python_version, revision)
         config_data['knative']['runtime'] = runtime_name
-
-    if 'workers' not in config_data['lithops']:
-        max_instances = config_data['knative']['max_instances']
-        concurrency = config_data['knative']['runtime_concurrency']
-        config_data['lithops']['workers'] = int(max_instances * concurrency)
-
-    if 'invoke_pool_threads' not in config_data['knative']:
-        config_data['knative']['invoke_pool_threads'] = config_data['lithops']['workers']

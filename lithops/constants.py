@@ -24,7 +24,7 @@ LOGGER_FORMAT = "%(asctime)s [%(levelname)s] %(name)s -- %(message)s"
 LOGGER_FORMAT_SHORT = "[%(levelname)s] %(filename)s -- %(message)s"
 LOGGER_LEVEL_CHOICES = ["debug", "info", "warning", "error", "critical"]
 
-STORAGE_CLI_MSG = '{} Storage client created'
+STORAGE_CLI_MSG = '{} client created'
 COMPUTE_CLI_MSG = '{} client created'
 
 LOCALHOST = 'localhost'
@@ -32,6 +32,8 @@ SERVERLESS = 'serverless'
 STANDALONE = 'standalone'
 
 MODE_DEFAULT = SERVERLESS
+
+MONITORING_DEFAULT = 'storage'
 
 SERVERLESS_BACKEND_DEFAULT = 'ibm_cf'
 STANDALONE_BACKEND_DEFAULT = 'ibm_vpc'
@@ -43,20 +45,25 @@ LOGS_PREFIX = "lithops.logs"
 RUNTIMES_PREFIX = "lithops.runtimes"
 
 EXECUTION_TIMEOUT_DEFAULT = 1800
+EXECUTION_TIMEOUT_LOCALHOST_DEFAULT = 3600
 
 LOCALHOST_RUNTIME_DEFAULT = os.path.basename(sys.executable)
 
-STANDALONE_RUNTIME_DEFAULT = LOCALHOST_RUNTIME_DEFAULT
-STANDALONE_AUTO_DISMANTLE_DEFAULT = True
-STANDALONE_SOFT_DISMANTLE_TIMEOUT_DEFAULT = 300
-STANDALONE_HARD_DISMANTLE_TIMEOUT_DEFAULT = 3600
+STANDALONE_RUNTIME = LOCALHOST_RUNTIME_DEFAULT
+STANDALONE_EXEC_MODE = 'consume'
+STANDALONE_START_TIMEOUT = 300
+STANDALONE_PULL_RUNTIME = False
+STANDALONE_AUTO_DISMANTLE = True
+STANDALONE_SOFT_DISMANTLE_TIMEOUT = 300
+STANDALONE_HARD_DISMANTLE_TIMEOUT = 3600
 STANDALONE_INSTALL_DIR = '/opt/lithops'
 STANDALONE_LOG_FILE = '/tmp/lithops/service.log'
 STANDALONE_SERVICE_PORT = 8080
-STANDALONE_SSH_CREDNTIALS = {'username': 'root', 'password': 'lithops'}
 STANDALONE_CONFIG_FILE = os.path.join(STANDALONE_INSTALL_DIR, 'config')
 
 MAX_AGG_DATA_SIZE = 4  # 4MiB
+
+WORKER_PROCESSES_DEFAULT = 1
 
 TEMP = os.path.realpath(tempfile.gettempdir())
 LITHOPS_TEMP_DIR = os.path.join(TEMP, 'lithops')
@@ -77,12 +84,32 @@ CONFIG_DIR = os.path.join(HOME_DIR, '.lithops')
 CACHE_DIR = os.path.join(CONFIG_DIR, 'cache')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config')
 
-SERVERLESS_BACKENDS = ['ibm_cf', 'code_engine', 'knative', 'openwhisk',
-                       'aws_lambda', 'gcp_functions', 'cloudrun',
-                       'azure_functions', 'aliyun_fc', 'k8s']
-STANDALONE_BACKENDS = ['ibm_vpc', 'vm']
+SERVERLESS_BACKENDS = ['ibm_cf',
+                       'code_engine',
+                       'knative',
+                       'openwhisk',
+                       'aws_lambda',
+                       'gcp_cloudrun',
+                       'gcp_functions',
+                       'cloudrun',
+                       'azure_functions',
+                       'aliyun_fc',
+                       'k8s']
 
-CHUNKSIZE_DEFAULT = 1
-WORKER_PROCESSES_DEFAULT = 1
+STANDALONE_BACKENDS = ['ibm_vpc',
+                       'vm']
 
-MONITORING_DEFAULT = 'storage'
+FAAS_BACKENDS = ['ibm_cf',
+                 'knative',
+                 'openwhisk',
+                 'aws_lambda',
+                 'gcp_cloudrun',
+                 'gcp_functions',
+                 'cloudrun',
+                 'azure_functions',
+                 'aliyun_fc']
+
+BATCH_BACKENDS = ['ibm_vpc',
+                  'k8s',
+                  'code_engine'
+                  'vm']

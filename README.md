@@ -1,18 +1,28 @@
+<p align="center">
+  <a href="http://lithops.cloud">
+    <h1 id='lithops' align="center"><img src="docs/_static/lithops_logo_readme.png" alt="Lithops" title="Lightweight Optimized Processing"/></h1>
+  </a>
+</p>
 
-<p align="center"> <img src="docs/images/lithops_flat_cloud_1.png" alt="Lithops"
-      width='500' title="Lightweight Optimized Processing"/></p>
+<p align="center">
+  <a aria-label="License" href="https://github.com/lithops-cloud/lithops/blob/master/LICENSE">
+    <img alt="" src="https://img.shields.io/github/license/lithops-cloud/lithops?style=for-the-badge&labelColor=000000">
+  </a>
+  <a aria-label="PyPi" href="https://pypi.org/project/lithops/">
+    <img alt="" src="https://img.shields.io/pypi/v/lithops?style=for-the-badge&labelColor=000000">
+  </a>
+  <a aria-label="Python" href="#lithops">
+    <img alt="" src="https://img.shields.io/pypi/pyversions/lithops?style=for-the-badge&labelColor=000000">
+  </a>
+</p>
 
-![GitHub](https://img.shields.io/github/license/lithops-cloud/lithops)
-![PyPI](https://img.shields.io/pypi/v/lithops)
-![PyPI - Python Version](https://img.shields.io/pypi/pyversions/lithops)
+Lithops is a Python multi-cloud distributed computing framework. It allows you to run unmodified local python code at massive scale in the main
+serverless computing platforms. Lithops delivers the user’s code into the cloud without requiring knowledge of how it is deployed and run. Moreover, its multicloud-agnostic architecture ensures portability across cloud providers.
 
-Lithops is a Python multi-cloud distributed computing framework. It allows to run unmodified local python code at massive scale in the main
-serverless computing platforms. Lithops delivers the user’s code into the cloud without requiring knowledge of how it is deployed and run. Moreover, its multicloud-agnostic architecture ensures portability across cloud providers, overcoming vendor lock-in.
-
-Lithops provides value for a great variety of uses cases like big data analytics and embarrassingly parallel jobs. It is specially suited for highly-parallel programs with little or no need for communication between processes, but it also supports parallel applications that need to share state among processes. Examples of applications that run with Lithops include Monte Carlo simulations, deep learning and machine learning processes, metabolomics computations, and geospatial analytics, to name a few.
+Lithops is specially suited for highly-parallel programs with little or no need for communication between processes, but it also supports parallel applications that need to share state among processes. Examples of applications that run with Lithops include Monte Carlo simulations, deep learning and machine learning processes, metabolomics computations, and geospatial analytics, to name a few.
 
 
-## Quick Start
+## Installation
 
 1. Install Lithops from the PyPi repository:
 
@@ -20,20 +30,20 @@ Lithops provides value for a great variety of uses cases like big data analytics
     $ pip install lithops
     ```
 
-2. Test Lithops by simply running the next command:
+2. Execute a *Hello World* test function:
   
    ```bash
    $ lithops test
    ```
 
-## Move to the Cloud
-Lithops provides an extensible backend architecture (compute, storage) that is designed to work with different Cloud providers and on-premise backends. In this sense, you can code in python and run it unmodified in IBM Cloud, AWS, Azure, Google Cloud and Alibaba Aliyun. Moreover, it provides support for some kubernetes serverless frameworks such as Knative.
+## Configuration
+Lithops provides an extensible backend architecture (compute, storage) that is designed to work with different Cloud providers and on-premise backends. In this sense, you can code in python and run it unmodified in IBM Cloud, AWS, Azure, Google Cloud, Aliyun and Kubernetes or OpenShift.
 
-- [Follow these instructions to configure your compute and storage backends](config/)
+[Follow these instructions to configure your compute and storage backends](config/)
 
 <p align="center">
 <a href="config/README.md#compute-and-storage-backends">
-<img src="docs/images/multicloud.jpg" alt="Multicloud Lithops" width='100%' title="Multicloud Lithops"/>
+<img src="docs/source/images/multicloud.jpg" alt="Multicloud Lithops" title="Multicloud Lithops"/>
 </a>
 </p>
 
@@ -57,7 +67,7 @@ Lithops is shipped with 2 different high-level Compute APIs, and 2 high-level St
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="docs/api_multiprocessing.md">Multiprocessing API</a>
+<a href="docs/source/api_multiprocessing.rst">Multiprocessing API</a>
 </small>
 </p>
 </th>
@@ -109,7 +119,7 @@ with Pool() as pool:
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="docs/api_storage_os.md">Storage OS API</a>
+<a href="docs/source/api_storage_os.rst">Storage OS API</a>
 </small>
 </p>
 </th>
@@ -122,23 +132,23 @@ with Pool() as pool:
 from lithops import Storage
 
 if __name__ == "__main__":
-    storage = Storage()
-    storage.put_object(bucket='mybucket',
-                       key='test.txt',
-                       body='Hello World')
+    st = Storage()
+    st.put_object(bucket='mybucket',
+                  key='test.txt',
+                  body='Hello World')
 
-    print(storage.get_object(bucket='mybucket',
-                             key='test.txt'))
+    print(st.get_object(bucket='mybucket',
+                        key='test.txt'))
 ```
 </td>
 <td>
 
 ```python
-from lithops.storage.cloud_proxy import open, os
+from lithops.storage.cloud_proxy import os
 
 if __name__ == "__main__":
     filepath = 'bar/foo.txt'
-    with open(filepath, 'w') as f:
+    with os.open(filepath, 'w') as f:
         f.write('Hello world!')
 
     dirname = os.path.dirname(filepath)
@@ -162,7 +172,7 @@ Lithops is shipped with 3 different modes of execution. The execution mode allow
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="docs/mode_localhost.md">Localhost Mode</a>
+Localhost Mode
 </small>
 </p>
 </th>
@@ -170,7 +180,7 @@ Lithops is shipped with 3 different modes of execution. The execution mode allow
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="docs/mode_serverless.md">Serverless Mode</a>
+Serverless Mode
 </small>
 </p>
 </th>
@@ -178,7 +188,7 @@ Lithops is shipped with 3 different modes of execution. The execution mode allow
 <img width="441" height="1px">
 <p> 
 <small>
-<a href="docs/mode_standalone.md">Standalone Mode</a>
+Standalone Mode
 </small>
 </p>
 </th>
@@ -186,12 +196,12 @@ Lithops is shipped with 3 different modes of execution. The execution mode allow
 <tr>
 <td>
 
-This mode allows to run functions in your local machine, by using processes. This is the default mode of execution if no configuration is provided.
+This mode allows you to run functions in your local machine, by using processes. This is the default mode of execution if no configuration is provided.
 
 </td>
 <td>
 
-This mode allows to run functions by using publicly accessible Serverless compute services, such as IBM Cloud Functions, Amazon Lambda or Google Cloud Functions, among others. In this mode of execution, each function invocation equals to a parallel task running in the cloud in an isolated environment.
+This mode allows you to run functions by using publicly accessible Serverless compute services, such as IBM Cloud Functions, Amazon Lambda or Google Cloud Functions, among others. In this mode of execution, each function invocation equals to a parallel task running in the cloud in an isolated environment.
 
 </td>
 
@@ -205,13 +215,15 @@ This mode allows to run functions by using one or multiple Virtual machines (VM)
 
 ## Documentation
 
-For documentation on using Lithops, see the [User guide](docs/user_guide.md).
+For documentation on using Lithops, see [latest release documentation](https://lithops-cloud.github.io/docs/) or [current github docs](docs/user_guide.md).
 
-If you are interested in contributing, see [CONTRIBUTING.md](./CONTRIBUTING.md) and [DEVELOPMENT.md](./DEVELOPMENT.md).
+If you are interested in contributing, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## Additional resources
 
 ### Blogs and Talks
+* [Simplify the developer experience with OpenShift for Big Data processing by using Lithops framework](https://medium.com/@gvernik/simplify-the-developer-experience-with-openshift-for-big-data-processing-by-using-lithops-framework-d62a795b5e1c)
+* [Speed-up your Python applications using Lithops and Serverless Cloud resources](https://itnext.io/speed-up-your-python-applications-using-lithops-and-serverless-cloud-resources-a64beb008bb5)
 * [Serverless Without Constraints](https://www.ibm.com/cloud/blog/serverless-without-constraints)
 * [Lithops, a Multi-cloud Serverless Programming Framework](https://itnext.io/lithops-a-multi-cloud-serverless-programming-framework-fd97f0d5e9e4)
 * [CNCF Webinar - Toward Hybrid Cloud Serverless Transparency with Lithops Framework](https://www.youtube.com/watch?v=-uS-wi8CxBo)
@@ -219,7 +231,6 @@ If you are interested in contributing, see [CONTRIBUTING.md](./CONTRIBUTING.md) 
 * [Decoding dark molecular matter in spatial metabolomics with IBM Cloud Functions](https://www.ibm.com/cloud/blog/decoding-dark-molecular-matter-in-spatial-metabolomics-with-ibm-cloud-functions)
 * [Your easy move to serverless computing and radically simplified data processing](https://www.slideshare.net/gvernik/your-easy-move-to-serverless-computing-and-radically-simplified-data-processing-238929020) Strata Data Conference, NY 2019
   * See video of Lithops usage [here](https://www.youtube.com/watch?v=EYa95KyYEtg&list=PLpR7f3Www9KCjYisaG7AMaR0C2GqLUh2G&index=3&t=0s) and the example of Monte Carlo [here](https://www.youtube.com/watch?v=vF5HI2q5VKw&list=PLpR7f3Www9KCjYisaG7AMaR0C2GqLUh2G&index=2&t=0s)
-* [Ants, serverless computing, and simplified data processing](https://developer.ibm.com/blogs/2019/01/31/ants-serverless-computing-and-simplified-data-processing/)
 * [Speed up data pre-processing with Lithops in deep learning](https://developer.ibm.com/patterns/speed-up-data-pre-processing-with-pywren-in-deep-learning/)
 * [Predicting the future with Monte Carlo simulations over IBM Cloud Functions](https://www.ibm.com/cloud/blog/monte-carlo-simulations-with-ibm-cloud-functions)
 * [Process large data sets at massive scale with Lithops over IBM Cloud Functions](https://www.ibm.com/cloud/blog/process-large-data-sets-massive-scale-pywren-ibm-cloud-functions)

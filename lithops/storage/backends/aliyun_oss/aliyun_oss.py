@@ -29,10 +29,9 @@ logger = logging.getLogger(__name__)
 class AliyunObjectStorageServiceBackend:
 
     def __init__(self, config):
-        logger.debug("Creating Alibaba Object Storage client")
+        logger.debug("Creating Aliyun Object Storage Service client")
         self.config = config
         self.auth = oss2.Auth(self.config['access_key_id'], self.config['access_key_secret'])
-
 
         if is_lithops_worker():
             self.endpoint = self.config['internal_endpoint']
@@ -42,7 +41,7 @@ class AliyunObjectStorageServiceBackend:
         # Connection pool size in aliyun_oss must be updated to avoid "connection pool is full" type errors.
         oss2.defaults.connection_pool_size = CONNECTION_POOL_SIZE
 
-        msg = STORAGE_CLI_MSG.format('Alibaba Object Storage')
+        msg = STORAGE_CLI_MSG.format('Aliyun Object Storage Service')
         logger.info("{} - Endpoint: {}".format(msg, self.endpoint))
 
     def _connect_bucket(self, bucket_name):
@@ -99,7 +98,6 @@ class AliyunObjectStorageServiceBackend:
                         bytes_range[1] = object_length - 1
 
                 extra_get_args['byte_range'] = (int(bytes_range[0]), int(bytes_range[1]))
-
 
             data = bucket.get_object(key=key, **extra_get_args)
             if stream:
@@ -174,7 +172,7 @@ class AliyunObjectStorageServiceBackend:
         # adapted to match ibm_cos method
         prefix = '' if prefix is None else prefix
         try:
-            res = bucket.list_objects(prefix=prefix)
+            res = bucket.list_objects(prefix=prefix, max_keys=1000)
             obj_list = [{'Key': obj.key, 'Size': obj.size} for obj in res.object_list]
             return obj_list
 
@@ -194,7 +192,7 @@ class AliyunObjectStorageServiceBackend:
         # adapted to match ibm_cos method
         prefix = '' if prefix is None else prefix
         try:
-            res = bucket.list_objects(prefix=prefix)
+            res = bucket.list_objects(prefix=prefix, max_keys=1000)
             keys = [obj.key for obj in res.object_list]
             return [] if keys is None else keys
 

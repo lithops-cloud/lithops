@@ -9,7 +9,6 @@ install_requires = [
     'PyYAML',
     'python-dateutil',
     'pika',
-    'glob2',
     'tqdm',
     'lxml',
     'tblib',
@@ -93,5 +92,5 @@ setup(
         'Topic :: Scientific/Engineering',
         'Topic :: System :: Distributed Computing',
     ],
-    python_requires='>=3.5',
+    python_requires='>=3.6',
 )

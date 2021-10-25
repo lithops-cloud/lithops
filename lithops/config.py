@@ -1,6 +1,6 @@
 #
-# (C) Copyright IBM Corp. 2019
-# (C) Copyright Cloudlab URV 2020
+# (C) Copyright IBM Corp. 2021
+# (C) Copyright Cloudlab URV 2021
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,20 +20,20 @@ import copy
 import json
 import importlib
 import logging
-import multiprocessing as mp
 
-from lithops import constants
+from lithops import constants as c
 from lithops.version import __version__
 from lithops.utils import verify_runtime_name, get_mode, get_default_backend
 from builtins import FileNotFoundError
 
 logger = logging.getLogger(__name__)
 
-os.makedirs(constants.LITHOPS_TEMP_DIR, exist_ok=True)
-os.makedirs(constants.JOBS_DIR, exist_ok=True)
-os.makedirs(constants.LOGS_DIR, exist_ok=True)
+os.makedirs(c.LITHOPS_TEMP_DIR, exist_ok=True)
+os.makedirs(c.JOBS_DIR, exist_ok=True)
+os.makedirs(c.LOGS_DIR, exist_ok=True)
+os.makedirs(c.CLEANER_DIR, exist_ok=True)
 
-CPU_COUNT = mp.cpu_count()
+CPU_COUNT = os.cpu_count()
 
 
 def load_yaml_config(config_filename):
@@ -69,7 +69,7 @@ def get_default_config_filename():
         config_filename = os.path.abspath('.lithops_config')
 
     else:
-        config_filename = constants.CONFIG_FILE
+        config_filename = c.CONFIG_FILE
         if not os.path.exists(config_filename):
             return None
 
@@ -93,10 +93,10 @@ def load_config(log=True):
     if not config_data:
         # Set to Localhost mode
         if log:
-            logger.debug("Config not found. Setting Lithops to localhost mode")
-        config_data = {'lithops': {'mode': constants.LOCALHOST,
-                                   'backend': constants.LOCALHOST,
-                                   'storage': constants.LOCALHOST}}
+            logger.debug("Config file not found")
+        config_data = {'lithops': {'mode': c.LOCALHOST,
+                                   'backend': c.LOCALHOST,
+                                   'storage': c.LOCALHOST}}
 
     return config_data
 
@@ -111,18 +111,18 @@ def get_log_info(config_data=None):
     cl = config_data['lithops']
 
     if 'log_level' not in cl:
-        cl['log_level'] = constants.LOGGER_LEVEL
+        cl['log_level'] = c.LOGGER_LEVEL
     if 'log_format' not in cl:
-        cl['log_format'] = constants.LOGGER_FORMAT
+        cl['log_format'] = c.LOGGER_FORMAT
     if 'log_stream' not in cl:
-        cl['log_stream'] = constants.LOGGER_STREAM
+        cl['log_stream'] = c.LOGGER_STREAM
     if 'log_filename' not in cl:
         cl['log_filename'] = None
 
     return cl['log_level'], cl['log_format'], cl['log_stream'], cl['log_filename']
 
 
-def default_config(config_data=None, config_overwrite={}):
+def default_config(config_data=None, config_overwrite={}, load_storage_config=True):
     """
     First checks .lithops_config
     then checks LITHOPS_CONFIG_FILE environment variable
@@ -150,89 +150,88 @@ def default_config(config_data=None, config_overwrite={}):
     elif backend:
         config_data['lithops']['mode'] = get_mode(backend)
     elif not backend and not mode:
-        mode = config_data['lithops']['mode'] = constants.MODE_DEFAULT
+        mode = config_data['lithops']['mode'] = c.MODE_DEFAULT
         config_data['lithops']['backend'] = get_default_backend(mode)
 
     backend = config_data['lithops'].get('backend')
     mode = config_data['lithops'].get('mode')
 
-    if mode == constants.LOCALHOST:
+    if backend not in config_data or config_data[backend] is None:
+        config_data[backend] = {}
+
+    if 'backend' in config_overwrite:
+        config_data[backend].update(config_overwrite['backend'])
+
+    if mode == c.LOCALHOST:
         logger.debug("Loading compute backend module: localhost")
-        config_data['lithops']['workers'] = 1
-        if 'worker_processes' not in config_data['lithops']:
-            config_data['lithops']['worker_processes'] = CPU_COUNT
-        if constants.LOCALHOST not in config_data or \
-           config_data[constants.LOCALHOST] is None:
-            config_data[constants.LOCALHOST] = {}
 
-        if 'runtime' in config_overwrite:
-            config_data[constants.LOCALHOST]['runtime'] = config_overwrite['runtime']
+        config_data[backend]['max_workers'] = 1
 
-        if 'runtime' not in config_data[constants.LOCALHOST]:
-            config_data[constants.LOCALHOST]['runtime'] = constants.LOCALHOST_RUNTIME_DEFAULT
+        if 'execution_timeout' not in config_data['lithops']:
+            config_data['lithops']['execution_timeout'] = c.EXECUTION_TIMEOUT_LOCALHOST_DEFAULT
 
-        verify_runtime_name(config_data[constants.LOCALHOST]['runtime'])
+        if 'storage' not in config_data['lithops']:
+            config_data['lithops']['storage'] = c.LOCALHOST
 
-    elif mode == constants.SERVERLESS:
-        if constants.SERVERLESS not in config_data or \
-           config_data[constants.SERVERLESS] is None:
-            config_data[constants.SERVERLESS] = {}
+        if 'worker_processes' not in config_data[c.LOCALHOST]:
+            config_data[backend]['worker_processes'] = CPU_COUNT
 
+        if 'runtime' not in config_data[c.LOCALHOST]:
+            config_data[backend]['runtime'] = c.LOCALHOST_RUNTIME_DEFAULT
+
+        verify_runtime_name(config_data[backend]['runtime'])
+
+    elif mode == c.SERVERLESS:
         logger.debug("Loading Serverless backend module: {}".format(backend))
         cb_config = importlib.import_module('lithops.serverless.backends.{}.config'.format(backend))
         cb_config.load_config(config_data)
 
-        if 'runtime' in config_overwrite:
-            config_data[backend]['runtime'] = config_overwrite['runtime']
-
-        if 'runtime_memory' in config_overwrite:
-            config_data[backend]['runtime_memory'] = config_overwrite['runtime_memory']
-
-        if 'remote_invoker' in config_overwrite:
-            config_data[constants.SERVERLESS]['remote_invoker'] = config_overwrite['remote_invoker']
-
         verify_runtime_name(config_data[backend]['runtime'])
 
-    elif mode == constants.STANDALONE:
-        if constants.STANDALONE not in config_data or \
-           config_data[constants.STANDALONE] is None:
-            config_data[constants.STANDALONE] = {}
+    elif mode == c.STANDALONE:
+        if c.STANDALONE not in config_data or \
+           config_data[c.STANDALONE] is None:
+            config_data[c.STANDALONE] = {}
 
-        if 'auto_dismantle' not in config_data[constants.STANDALONE]:
-            config_data[constants.STANDALONE]['auto_dismantle'] = constants.STANDALONE_AUTO_DISMANTLE_DEFAULT
-        if 'soft_dismantle_timeout' not in config_data[constants.STANDALONE]:
-            config_data[constants.STANDALONE]['soft_dismantle_timeout'] = constants.STANDALONE_SOFT_DISMANTLE_TIMEOUT_DEFAULT
-        if 'hard_dismantle_timeout' not in config_data[constants.STANDALONE]:
-            config_data[constants.STANDALONE]['hard_dismantle_timeout'] = constants.STANDALONE_HARD_DISMANTLE_TIMEOUT_DEFAULT
+        if 'runtime' in config_data[backend]:
+            config_data[c.STANDALONE]['runtime'] = config_data[backend]['runtime']
+
+        if 'exec_mode' not in config_data[c.STANDALONE]:
+            config_data[c.STANDALONE]['exec_mode'] = c.STANDALONE_EXEC_MODE
+        if 'start_timeout' not in config_data[c.STANDALONE]:
+            config_data[c.STANDALONE]['start_timeout'] = c.STANDALONE_START_TIMEOUT
+        if 'pull_runtime' not in config_data[c.STANDALONE]:
+            config_data[c.STANDALONE]['pull_runtime'] = c.STANDALONE_PULL_RUNTIME
+        if 'auto_dismantle' not in config_data[c.STANDALONE]:
+            config_data[c.STANDALONE]['auto_dismantle'] = c.STANDALONE_AUTO_DISMANTLE
+        if 'soft_dismantle_timeout' not in config_data[c.STANDALONE]:
+            config_data[c.STANDALONE]['soft_dismantle_timeout'] = c.STANDALONE_SOFT_DISMANTLE_TIMEOUT
+        if 'hard_dismantle_timeout' not in config_data[c.STANDALONE]:
+            config_data[c.STANDALONE]['hard_dismantle_timeout'] = c.STANDALONE_HARD_DISMANTLE_TIMEOUT
 
         logger.debug("Loading Standalone backend module: {}".format(backend))
         sb_config = importlib.import_module('lithops.standalone.backends.{}.config'.format(backend))
         sb_config.load_config(config_data)
 
-        if 'runtime' in config_overwrite:
-            config_data[constants.STANDALONE]['runtime'] = config_overwrite['runtime']
+        if 'runtime' not in config_data[c.STANDALONE]:
+            config_data[c.STANDALONE]['runtime'] = c.STANDALONE_RUNTIME
 
-        if 'runtime' not in config_data[constants.STANDALONE]:
-            config_data[constants.STANDALONE]['runtime'] = constants.STANDALONE_RUNTIME_DEFAULT
-
-        verify_runtime_name(config_data[constants.STANDALONE]['runtime'])
-
-    if 'execution_timeout' not in config_data['lithops']:
-        config_data['lithops']['execution_timeout'] = constants.EXECUTION_TIMEOUT_DEFAULT
-
-    if 'chunksize' not in config_data['lithops']:
-        config_data['lithops']['chunksize'] = constants.CHUNKSIZE_DEFAULT
-
-    if 'worker_processes' not in config_data['lithops']:
-        config_data['lithops']['worker_processes'] = constants.WORKER_PROCESSES_DEFAULT
+        verify_runtime_name(config_data[c.STANDALONE]['runtime'])
 
     if 'monitoring' not in config_data['lithops']:
-        config_data['lithops']['monitoring'] = constants.MONITORING_DEFAULT
+        config_data['lithops']['monitoring'] = c.MONITORING_DEFAULT
 
-    config_data = default_storage_config(config_data)
+    if 'execution_timeout' not in config_data['lithops']:
+        config_data['lithops']['execution_timeout'] = c.EXECUTION_TIMEOUT_DEFAULT
 
-    if config_data['lithops']['storage'] == constants.LOCALHOST and mode != constants.LOCALHOST:
-        raise Exception('Localhost storage backend cannot be used in {} mode'.format(mode))
+    if 'chunksize' not in config_data['lithops']:
+        config_data['lithops']['chunksize'] = config_data[backend]['worker_processes']
+
+    if load_storage_config:
+        config_data = default_storage_config(config_data)
+        if config_data['lithops']['storage'] == c.LOCALHOST \
+           and backend != c.LOCALHOST:
+            raise Exception(f'Localhost storage backend cannot be used with {backend}')
 
     return config_data
 
@@ -246,22 +245,19 @@ def default_storage_config(config_data=None, backend=None):
         config_data['lithops'] = {}
 
     if 'storage' not in config_data['lithops']:
-        config_data['lithops']['storage'] = constants.STORAGE_BACKEND_DEFAULT
+        config_data['lithops']['storage'] = c.STORAGE_BACKEND_DEFAULT
 
     if backend:
         config_data['lithops']['storage'] = backend
-
-    if config_data['lithops']['storage'] == constants.LOCALHOST:
-        config_data['lithops']['storage_bucket'] = 'storage'
-    else:
-        if 'storage_bucket' not in config_data['lithops']:
-            raise Exception("storage_bucket is mandatory in "
-                            "lithops section of the configuration")
 
     sb = config_data['lithops']['storage']
     logger.debug("Loading Storage backend module: {}".format(sb))
     sb_config = importlib.import_module('lithops.storage.backends.{}.config'.format(sb))
     sb_config.load_config(config_data)
+
+    if 'storage_bucket' not in config_data['lithops']:
+        raise Exception("storage_bucket is mandatory in "
+                        "lithops section of the configuration")
 
     return config_data
 
@@ -281,26 +277,27 @@ def extract_storage_config(config):
 
 
 def extract_localhost_config(config):
-    localhost_config = config[constants.LOCALHOST].copy()
+    localhost_config = config[c.LOCALHOST].copy()
 
     return localhost_config
 
 
 def extract_serverless_config(config):
-    sl_config = config[constants.SERVERLESS].copy()
-    sb = config['lithops']['backend']
-    sl_config['backend'] = sb
-    sl_config[sb] = config[sb] if sb in config and config[sb] else {}
-    sl_config[sb]['user_agent'] = 'lithops/{}'.format(__version__)
+    sl_config = {}
+    backend = config['lithops']['backend']
+    sl_config['backend'] = backend
+    sl_config[backend] = config[backend] if backend in config and config[backend] else {}
+    sl_config[backend]['user_agent'] = 'lithops/{}'.format(__version__)
 
     return sl_config
 
 
 def extract_standalone_config(config):
-    sa_config = config[constants.STANDALONE].copy()
-    sb = config['lithops']['backend']
-    sa_config[sb] = config[sb] if sb in config and config[sb] else {}
-    sa_config[sb]['runtime'] = sa_config['runtime']
-    sa_config[sb]['user_agent'] = 'lithops/{}'.format(__version__)
+    sa_config = config[c.STANDALONE].copy()
+    backend = config['lithops']['backend']
+    sa_config['backend'] = backend
+    sa_config[backend] = config[backend] if backend in config and config[backend] else {}
+    sa_config[backend]['runtime'] = sa_config['runtime']
+    sa_config[backend]['user_agent'] = 'lithops/{}'.format(__version__)
 
     return sa_config

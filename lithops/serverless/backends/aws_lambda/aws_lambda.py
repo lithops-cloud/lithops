@@ -15,38 +15,28 @@
 #
 
 import os
-import shutil
 import logging
 import boto3
 import time
 import json
 import zipfile
-import sys
 import subprocess
 import lithops
 import botocore.exceptions
 import base64
-import requests
 
-from lithops.constants import TEMP as TEMP_PATH
+from botocore.httpsession import URLLib3Session
+from botocore.awsrequest import AWSRequest
+from botocore.auth import SigV4Auth
+
 from lithops.constants import COMPUTE_CLI_MSG
 from . import config as lambda_config
+from lithops import utils
 
 logger = logging.getLogger(__name__)
 
-LAYER_DIR_PATH = os.path.join(TEMP_PATH, 'modules', 'python')
-LAYER_ZIP_PATH = os.path.join(TEMP_PATH, 'lithops_layer.zip')
-FUNCTION_ZIP = 'lithops_lambda.zip'
-
-
-# Auxiliary function to recursively add a directory to a zip archive
-def add_directory_to_zip(zip_file, full_dir_path, sub_dir=''):
-    for file in os.listdir(full_dir_path):
-        full_path = os.path.join(full_dir_path, file)
-        if os.path.isfile(full_path):
-            zip_file.write(full_path, os.path.join(sub_dir, file), zipfile.ZIP_DEFLATED)
-        elif os.path.isdir(full_path) and '__pycache__' not in full_path:
-            add_directory_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
+LITHOPS_FUNCTION_ZIP = 'lithops_lambda.zip'
+BUILD_LAYER_FUNCTION_ZIP = 'build_layer.zip'
 
 
 class AWSLambdaBackend:
@@ -63,6 +53,8 @@ class AWSLambdaBackend:
         self.name = 'aws_lambda'
         self.type = 'faas'
         self.aws_lambda_config = aws_lambda_config
+        self.internal_storage = internal_storage
+        self.user_agent = aws_lambda_config['user_agent']
 
         self.user_key = aws_lambda_config['access_key_id'][-4:]
         self.package = 'lithops_v{}_{}'.format(lithops.__version__, self.user_key)
@@ -70,12 +62,23 @@ class AWSLambdaBackend:
         self.role_arn = aws_lambda_config['execution_role']
 
         logger.debug('Creating Boto3 AWS Session and Lambda Client')
-        self.aws_session = boto3.Session(aws_access_key_id=aws_lambda_config['access_key_id'],
-                                         aws_secret_access_key=aws_lambda_config['secret_access_key'],
-                                         region_name=self.region_name)
-        self.lambda_client = self.aws_session.client('lambda', region_name=self.region_name)
 
-        self.internal_storage = internal_storage
+        self.aws_session = boto3.Session(
+            aws_access_key_id=aws_lambda_config['access_key_id'],
+            aws_secret_access_key=aws_lambda_config['secret_access_key'],
+            region_name=self.region_name
+        )
+
+        self.lambda_client = self.aws_session.client(
+            'lambda', region_name=self.region_name,
+            config=botocore.client.Config(
+                user_agent_extra=self.user_agent
+            )
+        )
+
+        self.credentials = self.aws_session.get_credentials()
+        self.session = URLLib3Session()
+        self.host = f'lambda.{self.region_name}.amazonaws.com'
 
         if self.aws_lambda_config['account_id']:
             self.account_id = self.aws_lambda_config['account_id']
@@ -122,37 +125,17 @@ class AWSLambdaBackend:
         @param remove: True to delete the zip archive after building
         @return: Lithops handler function as zip bytes
         """
-        logger.debug('Creating function handler zip in {}'.format(FUNCTION_ZIP))
+        current_location = os.path.dirname(os.path.abspath(__file__))
+        main_file = os.path.join(current_location, 'entry_point.py')
+        utils.create_handler_zip(LITHOPS_FUNCTION_ZIP, main_file, 'entry_point.py')
 
-        with zipfile.ZipFile(FUNCTION_ZIP, 'w') as lithops_zip:
-            current_location = os.path.dirname(os.path.abspath(__file__))
-            module_location = os.path.dirname(os.path.abspath(lithops.__file__))
-            main_file = os.path.join(current_location, 'entry_point.py')
-            lithops_zip.write(main_file,
-                              '__main__.py',
-                              zipfile.ZIP_DEFLATED)
-            add_directory_to_zip(lithops_zip, module_location, sub_dir='lithops')
-
-        with open(FUNCTION_ZIP, 'rb') as action_zip:
+        with open(LITHOPS_FUNCTION_ZIP, 'rb') as action_zip:
             action_bin = action_zip.read()
 
         if remove:
-            os.remove(FUNCTION_ZIP)
+            os.remove(LITHOPS_FUNCTION_ZIP)
 
         return action_bin
-
-    @staticmethod
-    def _get_numpy_layer_arn(region_name):
-        """
-        Gets last pre-built numpy layer ARN using Klayers API (https://github.com/keithrozario/Klayers) based on region
-        @return: Numpy Klayer ARN
-        """
-        res = requests.get('https://api.klayers.cloud/api/v1/layers/latest/{}/numpy'.format(region_name))
-        res_json = res.json()
-        logger.debug(res_json)
-        if not res_json or 'arn' not in res_json:
-            raise Exception('Could not get numpy layer ARN from Klayers - Response: {}'.format(res_json))
-        return res_json['arn']
 
     def _get_layer(self, runtime_name):
         """
@@ -174,41 +157,61 @@ class AWSLambdaBackend:
         @param runtime_name: runtime name from which to create the layer
         @return: ARN of the created layer
         """
-        logger.debug('Creating lambda layer for runtime {}'.format(runtime_name))
+        logger.info('Creating default lambda layer for runtime {}'.format(runtime_name))
 
-        if self.internal_storage.backend != "aws_s3":
-            raise Exception('"aws_s3" is required as storage backend for publishing the lambda layer. '
-                            'You can use "aws_s3" to create the runtime and then change the storage backend afterwards.')
+        with zipfile.ZipFile(BUILD_LAYER_FUNCTION_ZIP, 'w') as build_layer_zip:
+            current_location = os.path.dirname(os.path.abspath(__file__))
+            build_layer_file = os.path.join(current_location, 'build_layer.py')
+            build_layer_zip.write(build_layer_file, 'build_layer.py', zipfile.ZIP_DEFLATED)
 
-        # Delete download and build target directory if it exists
-        if os.path.exists(LAYER_DIR_PATH):
-            if os.path.isdir(LAYER_DIR_PATH):
-                shutil.rmtree(LAYER_DIR_PATH)
-            elif os.path.isfile(LAYER_DIR_PATH):
-                os.remove(LAYER_DIR_PATH)
+        func_name = '_'.join([self.package, 'layer_builder']).replace('.', '-')
 
-        # Create target directory
-        os.makedirs(LAYER_DIR_PATH)
+        with open(BUILD_LAYER_FUNCTION_ZIP, 'rb') as build_layer_zip:
+            build_layer_zip_bin = build_layer_zip.read()
 
-        # Install and build modules to target directory
-        dependencies = [dependency.strip().replace(' ', '') for dependency in lambda_config.DEFAULT_REQUIREMENTS]
-        logger.info('Going to download and build {} modules to {}...'.format(len(dependencies), LAYER_DIR_PATH))
-        command = [sys.executable, '-m', 'pip', 'install', '-t', LAYER_DIR_PATH]
-        command.extend(dependencies)
-        subprocess.check_call(command)
+        logger.debug('Creating layer builder function')
 
-        # Compress modules
-        with zipfile.ZipFile(LAYER_ZIP_PATH, 'w') as layer_zip:
-            add_directory_to_zip(layer_zip, os.path.join(TEMP_PATH, 'modules'))
+        try:
+            self.lambda_client.create_function(
+                FunctionName=func_name,
+                Runtime=lambda_config.LAMBDA_PYTHON_VER_KEY,
+                Role=self.role_arn,
+                Handler='build_layer.lambda_handler',
+                Code={
+                    'ZipFile': build_layer_zip_bin
+                },
+                Timeout=120,
+                MemorySize=512
+            )
 
-        # Read zip as bytes
-        with open(LAYER_ZIP_PATH, 'rb') as layer_zip:
-            layer_bytes = layer_zip.read()
+            dependencies = [dependency.strip().replace(' ', '') for dependency in lambda_config.DEFAULT_REQUIREMENTS]
+            layer_name = self._format_layer_name(runtime_name)
+            payload = {
+                'dependencies': dependencies,
+                'bucket': self.internal_storage.bucket,
+                'key': layer_name
+            }
+
+            logger.debug('Invoking layer builder function')
+
+            response = self.lambda_client.invoke(
+                FunctionName=func_name,
+                Payload=json.dumps(payload)
+            )
+            if response['ResponseMetadata']['HTTPStatusCode'] == 200:
+                logger.debug('OK --> Layer {} built'.format(layer_name))
+            else:
+                msg = 'An error occurred creating layer {}: {}'.format(layer_name, response)
+                raise Exception(msg)
+        finally:
+            logger.debug('Deleting layer builder function')
+            self.lambda_client.delete_function(
+                FunctionName=func_name
+            )
+            os.remove(BUILD_LAYER_FUNCTION_ZIP)
 
         # Publish layer from S3
-        layer_name = self._format_layer_name(runtime_name)
         logger.debug('Creating layer {} ...'.format(layer_name))
-        self.internal_storage.put_data(layer_name, layer_bytes)
         response = self.lambda_client.publish_layer_version(
             LayerName=layer_name,
             Description=self.package,
@@ -218,7 +221,11 @@ class AWSLambdaBackend:
             },
             CompatibleRuntimes=[lambda_config.LAMBDA_PYTHON_VER_KEY]
         )
-        self.internal_storage.storage.delete_object(self.internal_storage.bucket, layer_name)
+
+        try:
+            self.internal_storage.storage.delete_object(self.internal_storage.bucket, layer_name)
+        except Exception as e:
+            logger.warning(e)
 
         if response['ResponseMetadata']['HTTPStatusCode'] == 201:
             logger.debug('OK --> Layer {} created'.format(layer_name))
@@ -286,7 +293,7 @@ class AWSLambdaBackend:
             msg = 'An error occurred creating/updating action {}: {}'.format(function_name, response)
             raise Exception(msg)
 
-    def build_runtime(self, runtime_name, runtime_file):
+    def build_runtime(self, runtime_name, runtime_file, extra_args=[]):
         """
         Build Lithops container runtime for AWS lambda
         @param runtime_name: name of the runtime to be built
@@ -301,14 +308,16 @@ class AWSLambdaBackend:
 
         self._create_handler_bin(remove=False)
         if runtime_file:
-            cmd = '{} build -t {} -f {} .'.format(lambda_config.DOCKER_PATH,
-                                                  image_name,
-                                                  runtime_file)
+            cmd = '{} build -t {} -f {} . '.format(lambda_config.DOCKER_PATH,
+                                                   image_name,
+                                                   runtime_file)
         else:
-            cmd = '{} build -t {} .'.format(lambda_config.DOCKER_PATH, image_name)
+            cmd = '{} build -t {} . '.format(lambda_config.DOCKER_PATH, image_name)
+
+        cmd = cmd+' '.join(extra_args)
 
         subprocess.check_call(cmd.split())
-        os.remove(FUNCTION_ZIP)
+        os.remove(LITHOPS_FUNCTION_ZIP)
 
         registry = '{}.dkr.ecr.{}.amazonaws.com'.format(self.account_id, self.region_name)
 
@@ -404,14 +413,14 @@ class AWSLambdaBackend:
                 FunctionName=function_name,
                 Runtime=lambda_config.LAMBDA_PYTHON_VER_KEY,
                 Role=self.role_arn,
-                Handler='__main__.lambda_handler',
+                Handler='entry_point.lambda_handler',
                 Code={
                     'ZipFile': code
                 },
                 Description=self.package,
                 Timeout=timeout,
                 MemorySize=memory,
-                Layers=[layer_arn, self._get_numpy_layer_arn(self.region_name)],
+                Layers=[layer_arn],
                 VpcConfig={
                     'SubnetIds': self.aws_lambda_config['vpc']['subnets'],
                     'SecurityGroupIds': self.aws_lambda_config['vpc']['security_groups']
@@ -527,24 +536,50 @@ class AWSLambdaBackend:
         @param payload: invoke dict payload
         @return: invocation ID
         """
+
         function_name = self._format_function_name(runtime_name, runtime_memory)
 
-        response = self.lambda_client.invoke(
-            FunctionName=function_name,
-            InvocationType='Event',
-            Payload=json.dumps(payload)
-        )
+        headers = {'Host': self.host, 'X-Amz-Invocation-Type': 'Event', 'User-Agent': self.user_agent}
+        url = f'https://{self.host}/2015-03-31/functions/{function_name}/invocations'
+        request = AWSRequest(method="POST", url=url, data=json.dumps(payload, default=str), headers=headers)
+        SigV4Auth(self.credentials, "lambda", self.region_name).add_auth(request)
 
-        if response['ResponseMetadata']['HTTPStatusCode'] == 202:
-            return response['ResponseMetadata']['RequestId']
+        invoked = False
+        while not invoked:
+            try:
+                r = self.session.send(request.prepare())
+                invoked = True
+            except Exception:
+                pass
+
+        if r.status_code == 202:
+            return r.headers['x-amzn-RequestId']
+        elif r.status_code == 401:
+            logger.debug(r.text)
+            raise Exception('Unauthorized - Invalid API Key')
+        elif r.status_code == 404:
+            logger.debug(r.text)
+            raise Exception('Lithops Runtime: {} not deployed'.format(runtime_name))
         else:
-            logger.debug(response)
-            if response['ResponseMetadata']['HTTPStatusCode'] == 401:
-                raise Exception('Unauthorized - Invalid API Key')
-            elif response['ResponseMetadata']['HTTPStatusCode'] == 404:
-                raise Exception('Lithops Runtime: {} not deployed'.format(runtime_name))
-            else:
-                raise Exception(response)
+            logger.debug(r.text)
+            raise Exception('Error {}: {}'.format(r.status_code, r.text))
+
+        # response = self.lambda_client.invoke(
+        #    FunctionName=function_name,
+        #     InvocationType='Event',
+        #     Payload=json.dumps(payload, default=str)
+        #  )
+
+        # if response['ResponseMetadata']['HTTPStatusCode'] == 202:
+        #     return response['ResponseMetadata']['RequestId']
+        # else:
+        #     logger.debug(response)
+        #     if response['ResponseMetadata']['HTTPStatusCode'] == 401:
+        #         raise Exception('Unauthorized - Invalid API Key')
+        #     elif response['ResponseMetadata']['HTTPStatusCode'] == 404:
+        #         raise Exception('Lithops Runtime: {} not deployed'.format(runtime_name))
+        #     else:
+        #         raise Exception(response)
 
     def get_runtime_key(self, runtime_name, runtime_memory):
         """

@@ -23,14 +23,13 @@ import shutil
 
 import lithops
 from lithops import Storage
-from lithops.scripts.tests import print_help, run_tests
+from lithops.tests.tests_main import print_test_functions, print_test_groups, run_tests
 from lithops.utils import get_mode, setup_lithops_logger, verify_runtime_name, sizeof_fmt
 from lithops.config import default_config, extract_storage_config, \
     extract_serverless_config, extract_standalone_config, \
     extract_localhost_config, load_yaml_config
 from lithops.constants import CACHE_DIR, LITHOPS_TEMP_DIR, RUNTIMES_PREFIX, \
-    JOBS_PREFIX, LOCALHOST, LOGS_DIR, FN_LOG_FILE, SERVERLESS_BACKENDS, \
-    STANDALONE_BACKENDS
+    JOBS_PREFIX, LOCALHOST, SERVERLESS, STANDALONE, LOGS_DIR, FN_LOG_FILE
 from lithops.storage import InternalStorage
 from lithops.serverless import ServerlessHandler
 from lithops.storage.utils import clean_bucket
@@ -40,13 +39,17 @@ from lithops.localhost.localhost import LocalhostHandler
 logger = logging.getLogger(__name__)
 
 
-def set_config_ow(backend, storage=None):
-    config_ow = {'lithops': {}}
+def set_config_ow(backend, storage=None, runtime_name=None):
+    config_ow = {'lithops': {}, 'backend': {}}
+
     if storage:
         config_ow['lithops']['storage'] = storage
     if backend:
         config_ow['lithops']['backend'] = backend
         config_ow['lithops']['mode'] = get_mode(backend)
+
+    if runtime_name:
+        config_ow['backend']['runtime'] = runtime_name
 
     return config_ow
 
@@ -75,14 +78,15 @@ def clean(config, backend, storage, debug):
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
 
-    backend = config['lithops']['backend']
-    if backend == LOCALHOST:
+    mode = config['lithops']['mode']
+
+    if mode == LOCALHOST:
         compute_config = extract_localhost_config(config)
         compute_handler = LocalhostHandler(compute_config)
-    elif backend in SERVERLESS_BACKENDS:
+    elif mode == SERVERLESS:
         compute_config = extract_serverless_config(config)
         compute_handler = ServerlessHandler(compute_config, internal_storage)
-    elif backend == STANDALONE_BACKENDS:
+    elif mode == STANDALONE:
         compute_config = extract_standalone_config(config)
         compute_handler = StandaloneHandler(compute_config)
 
@@ -97,6 +101,39 @@ def clean(config, backend, storage, debug):
     shutil.rmtree(LITHOPS_TEMP_DIR, ignore_errors=True)
     # Clean local lithops cache
     shutil.rmtree(CACHE_DIR, ignore_errors=True)
+
+
+@lithops_cli.command('verify')
+@click.option('--config', '-c', default=None, help='Path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='Compute backend')
+@click.option('--storage', '-s', default=None, help='Storage backend')
+@click.option('--debug', '-d', is_flag=True, help='Debug mode')
+@click.option('--test', '-t', default='all', help='Run a specific tester. To avoid running similarly named tests '
+                                                  'you may prefix the tester with its test class, '
+                                                  'e.g. TestClass.test_name. '
+                                                  'Type "-t help" for the complete tests list')
+@click.option('--groups', '-g', default=None, help='Run all testers belonging to a specific group.'
+                                                   ' type "-g help" for groups list')
+@click.option('--fail_fast', '-f', is_flag=True, help='Stops test run upon first occurrence of a failed test')
+@click.option('--keep_datasets', '-k', is_flag=True, help='keeps datasets in storage after the test run. '
+                                                          'Meant to serve some use-cases in github workflow.')
+def verify(test, config, backend, groups, storage, debug, fail_fast, keep_datasets):
+    if config:
+        config = load_yaml_config(config)
+
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(log_level)
+
+    if groups and test == 'all':  # if user specified a group(s) avoid running all tests.
+        test = ''
+
+    if test == 'help':
+        print_test_functions()
+    elif groups == 'help':
+        print_test_groups()
+
+    else:
+        run_tests(test, config, groups, backend, storage, fail_fast, keep_datasets)
 
 
 @lithops_cli.command('test')
@@ -129,25 +166,6 @@ def test_function(config, backend, storage, debug):
     else:
         print(result, 'Something went wrong :(')
     print()
-
-
-@lithops_cli.command('verify')
-@click.option('--test', '-t', default='all', help='run a specific test, type "-t help" for tests list')
-@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
-@click.option('--backend', '-b', default=None, help='compute backend')
-@click.option('--storage', '-s', default=None, help='storage backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
-def verify(test, config, backend, storage, debug):
-    if config:
-        config = load_yaml_config(config)
-
-    log_level = logging.INFO if not debug else logging.DEBUG
-    setup_lithops_logger(log_level)
-
-    if test == 'help':
-        print_help()
-    else:
-        run_tests(test, config, backend, storage)
 
 
 # /---------------------------------------------------------------------------/
@@ -215,21 +233,6 @@ def delete_object(bucket, key, prefix, backend, debug):
         logger.info('Object deleted successfully')
 
 
-@storage.command('empty')
-@click.argument('bucket')
-@click.option('--backend', '-b', default=None, help='storage backend')
-@click.option('--debug', '-d', is_flag=True, help='debug mode')
-def empty_bucket(bucket, backend, debug):
-    log_level = logging.INFO if not debug else logging.DEBUG
-    setup_lithops_logger(log_level)
-    storage = Storage(backend=backend)
-    logger.info('Deleting all objects in bucket "{}"'.format(bucket))
-    keys = storage.list_keys(bucket)
-    logger.info('Total objects found: {}'.format(len(keys)))
-    storage.delete_objects(bucket, keys)
-    logger.info('All objects deleted successfully')
-
-
 @storage.command('list')
 @click.argument('bucket')
 @click.option('--prefix', '-p', default=None, help='key prefix')
@@ -242,16 +245,23 @@ def list_bucket(prefix, bucket, backend, debug):
     logger.info('Listing objects in bucket {}'.format(bucket))
     objects = storage.list_objects(bucket, prefix=prefix)
 
-    width = max([len(obj['Key']) for obj in objects])
+    if objects:
+        width = max([len(obj['Key']) for obj in objects])
 
-    print('\n{:{width}} \t {} \t\t {:>9}'.format('Key', 'Last modified', 'Size', width=width))
-    print('-' * width, '\t', '-' * 20, '\t', '-' * 9)
-    for obj in objects:
-        key = obj['Key']
-        date = obj['LastModified'].strftime("%b %d %Y %H:%M:%S")
-        size = sizeof_fmt(obj['Size'])
-        print('{:{width}} \t {} \t {:>9}'.format(key, date, size, width=width))
-    print()
+        print('\n{:{width}} \t {} \t\t {:>9}'.format('Key', 'Last modified', 'Size', width=width))
+        print('-' * width, '\t', '-' * 20, '\t', '-' * 9)
+        for obj in objects:
+            key = obj['Key']
+            date = obj['LastModified'].strftime("%b %d %Y %H:%M:%S")
+            size = sizeof_fmt(obj['Size'])
+            print('{:{width}} \t {} \t {:>9}'.format(key, date, size, width=width))
+        print()
+        print('Total objects: {}'.format(len(objects)))
+    else:
+        width = 10
+        print('\n{:{width}} \t {} \t\t {:>9}'.format('Key', 'Last modified', 'Size', width=width))
+        print('-' * width, '\t', '-' * 20, '\t', '-' * 9)
+        print('\nThe bucket is empty')
 
 
 # /---------------------------------------------------------------------------/
@@ -324,21 +334,21 @@ def runtime(ctx):
 @click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--memory', default=None, help='memory used by the runtime', type=int)
 @click.option('--timeout', default=None, help='runtime timeout', type=int)
-def create(name, storage, backend, memory, timeout, config):
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def create(name, storage, backend, memory, timeout, config, debug):
     """ Create a serverless runtime """
+    setup_lithops_logger(logging.DEBUG)
+
+    verify_runtime_name(name)
+
     if config:
         config = load_yaml_config(config)
 
-    setup_lithops_logger(logging.DEBUG)
-
-    config_ow = set_config_ow(backend, storage)
+    config_ow = set_config_ow(backend, storage, runtime_name=name)
     config = default_config(config, config_ow)
 
-    if not name:
-        backend = config['lithops']['backend']
-        name = config[backend]['runtime']
-
-    verify_runtime_name(name)
+    if config['lithops']['mode'] != SERVERLESS:
+        raise Exception('"lithops runtime create" command is only valid for serverless backends')
 
     logger.info('Creating new lithops runtime: {}'.format(name))
     storage_config = extract_storage_config(config)
@@ -357,33 +367,70 @@ def create(name, storage, backend, memory, timeout, config):
         raise ("Unable to upload 'preinstalled-modules' file into {}".format(internal_storage.backend))
 
 
-@runtime.command('build')
+@runtime.command('build', context_settings=dict(ignore_unknown_options=True, allow_extra_args=True))
 @click.argument('name', required=False)
 @click.option('--file', '-f', default=None, help='file needed to build the runtime')
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
-def build(name, file, config, backend):
+@click.pass_context
+def build(ctx, name, file, config, backend):
     """ build a serverless runtime. """
-    if config:
-        config = load_yaml_config(config)
-
     setup_lithops_logger(logging.DEBUG)
-
-    config_ow = set_config_ow(backend)
-    config = default_config(config, config_ow)
-
-    if not name:
-        backend = config['lithops']['backend']
-        name = config[backend]['runtime']
 
     verify_runtime_name(name)
 
-    storage_config = extract_storage_config(config)
-    internal_storage = InternalStorage(storage_config)
+    if config:
+        config = load_yaml_config(config)
+
+    config_ow = set_config_ow(backend, runtime_name=name)
+    config = default_config(config, config_ow, load_storage_config=False)
+
+    if config['lithops']['mode'] != SERVERLESS:
+        raise Exception('"lithops build" command is only valid for serverless backends')
 
     compute_config = extract_serverless_config(config)
-    compute_handler = ServerlessHandler(compute_config, internal_storage)
-    compute_handler.build_runtime(name, file)
+    compute_handler = ServerlessHandler(compute_config, None)
+    compute_handler.build_runtime(name, file, ctx.args)
+
+
+@runtime.command('list')
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def list_runtimes(config, backend, debug):
+    """ list all deployed serverless runtime. """
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(log_level)
+
+    if config:
+        config = load_yaml_config(config)
+
+    config_ow = set_config_ow(backend, runtime_name='None')
+    config = default_config(config, config_ow, load_storage_config=False)
+
+    if config['lithops']['mode'] != SERVERLESS:
+        raise Exception('"lithops runtime list" command is only valid for serverless backends')
+
+    compute_config = extract_serverless_config(config)
+    compute_handler = ServerlessHandler(compute_config, None)
+    runtimes = compute_handler.list_runtimes()
+
+    if runtimes:
+        width = max([len(runtime[0]) for runtime in runtimes])
+
+        print('\n{:{width}} \t {}'.format('Runtime Name', 'Memory Size (MB)', width=width))
+        print('-' * width, '\t', '-' * 20)
+        for runtime in runtimes:
+            name = runtime[0]
+            mem = runtime[1]
+            print('{:{width}} \t {}'.format(name, mem, width=width))
+        print()
+        print('Total runtimes: {}'.format(len(runtimes)))
+    else:
+        width = 10
+        print('\n{:{width}} \t {}'.format('Runtime Name', 'Memory Size (MB)', width=width))
+        print('-' * width, '\t', '-' * 20)
+        print('\nNo runtimes deployed')
 
 
 @runtime.command('update')
@@ -391,21 +438,21 @@ def build(name, file, config, backend):
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--storage', '-s', default=None, help='storage backend')
-def update(name, config, backend, storage):
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def update(name, config, backend, storage, debug):
     """ Update a serverless runtime """
+    setup_lithops_logger(logging.DEBUG)
+
+    verify_runtime_name(name)
+
     if config:
         config = load_yaml_config(config)
 
-    setup_lithops_logger(logging.DEBUG)
-
-    config_ow = set_config_ow(backend, storage)
+    config_ow = set_config_ow(backend, storage, runtime_name=name)
     config = default_config(config, config_ow)
 
-    if not name:
-        backend = config['lithops']['backend']
-        name = config[backend]['runtime']
-
-    verify_runtime_name(name)
+    if config['lithops']['mode'] != SERVERLESS:
+        raise Exception('"lithops runtime update" command is only valid for serverless backends')
 
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)
@@ -432,21 +479,23 @@ def update(name, config, backend, storage):
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--storage', '-s', default=None, help='storage backend')
-def delete(name, config, backend, storage):
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def delete(name, config, backend, storage, debug):
     """ delete a serverless runtime """
+    setup_lithops_logger(logging.DEBUG)
+
+    verify_runtime_name(name)
+
     if config:
         config = load_yaml_config(config)
 
     setup_lithops_logger(logging.DEBUG)
 
-    config_ow = set_config_ow(backend, storage)
+    config_ow = set_config_ow(backend, storage, runtime_name=name)
     config = default_config(config, config_ow)
 
-    if not name:
-        backend = config['lithops']['backend']
-        name = config[backend]['runtime']
-
-    verify_runtime_name(name)
+    if config['lithops']['mode'] != SERVERLESS:
+        raise Exception('"lithops runtime delete" command is only valid for serverless backends')
 
     storage_config = extract_storage_config(config)
     internal_storage = InternalStorage(storage_config)

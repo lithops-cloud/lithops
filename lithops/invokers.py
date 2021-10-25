@@ -78,20 +78,19 @@ class Invoker:
         self.is_lithops_worker = is_lithops_worker()
         self.job_monitor = job_monitor
 
-        self.workers = self.config['lithops'].get('workers')
-        if self.workers:
-            logger.debug('ExecutorID {} - Total workers: {}'
-                         .format(self.executor_id, self.workers))
-
         prom_enabled = self.config['lithops'].get('telemetry', False)
         prom_config = self.config.get('prometheus', {})
         self.prometheus = PrometheusExporter(prom_enabled, prom_config)
 
         self.mode = self.config['lithops']['mode']
         self.backend = self.config['lithops']['backend']
-        self.runtime_name = self.config[self.backend]['runtime']
+        self.customized_runtime = self.config['lithops'].get('customized_runtime', False)
 
-        self.customized_runtime = self.config[self.mode].get('customized_runtime', False)
+        self.runtime_name = self.config[self.backend]['runtime']
+        self.max_workers = self.config[self.backend].get('max_workers')
+
+        logger.debug(f'ExecutorID {self.executor_id} - Invoker initialized.'
+                     f' Max workers: {self.max_workers}')
 
     def select_runtime(self, job_id, runtime_memory):
         """
@@ -153,7 +152,7 @@ class Invoker:
                    'executor_id': job.executor_id,
                    'job_id': job.job_id,
                    'job_key': job.job_key,
-                   'workers': self.workers,
+                   'max_workers': self.max_workers,
                    'call_ids': None,
                    'host_submit_tstamp': time.time(),
                    'lithops_version': lithops_version,
@@ -179,17 +178,28 @@ class Invoker:
                     .format(job.executor_id, job.job_id,
                             job.function_name, job.total_calls))
 
-        logger.debug('ExecutorID {} | JobID {} - Chunksize:'
-                     ' {} - Worker processes: {}'
-                     .format(job.executor_id, job.job_id,
-                             job.chunksize, job.worker_processes))
+        logger.debug('ExecutorID {} | JobID {} - Worker processes: {} - Chunksize: {}'
+                     .format(job.executor_id, job.job_id, job.worker_processes, job.chunksize))
 
-        self.prometheus.send_metric(name='job_total_calls',
-                                    value=job.total_calls,
-                                    labels=(
-                                        ('job_id', '-'.join([job.executor_id, job.job_id])),
-                                        ('function_name', job.function_name)
-                                    ))
+        self.prometheus.send_metric(
+            name='job_total_calls',
+            value=job.total_calls,
+            type='counter',
+            labels=(
+                ('job_id_', job.job_key),
+                ('function_name', job.function_name)
+            )
+        )
+
+        self.prometheus.send_metric(
+            name='job_runtime_memory',
+            value=job.runtime_memory or 0,
+            type='counter',
+            labels=(
+                ('job_id_', job.job_key),
+                ('function_name', job.function_name)
+            )
+        )
 
         try:
             job.runtime_name = self.runtime_name
@@ -225,7 +235,7 @@ class Invoker:
 
 class BatchInvoker(Invoker):
     """
-    Module responsible to perform the invocations against the Standalone backend
+    Module responsible to perform the invocations against a batch backend
     """
 
     def __init__(self, config, executor_id, internal_storage, compute_handler, job_monitor):
@@ -251,23 +261,28 @@ class BatchInvoker(Invoker):
         """
         Run a job
         """
-        job_monitor = self.job_monitor.create(job, self.internal_storage)
+        # Ensure only self.max_workers are started
+        total_workers = job.total_calls // job.chunksize + (job.total_calls % job.chunksize > 0)
+        if self.max_workers < total_workers:
+            job.chunksize = job.total_calls // self.max_workers + (job.total_calls % self.max_workers > 0)
+
+        # Perform the invocation
         futures = self._run_job(job)
-        job_monitor.start()
+        self.job_monitor.start(futures)
 
         return futures
 
 
 class FaaSInvoker(Invoker):
     """
-    Module responsible to perform the invocations against the FaaS backends
+    Module responsible to perform the invocations against a FaaS backend
     """
     ASYNC_INVOKERS = 2
 
     def __init__(self, config, executor_id, internal_storage, compute_handler, job_monitor):
         super().__init__(config, executor_id, internal_storage, compute_handler, job_monitor)
 
-        remote_invoker = self.config[SERVERLESS].get('remote_invoker', False)
+        remote_invoker = self.config[self.backend].get('remote_invoker', False)
         self.remote_invoker = remote_invoker if not is_lithops_worker() else False
 
         self.invokers = []
@@ -275,6 +290,9 @@ class FaaSInvoker(Invoker):
         self.pending_calls_q = queue.Queue()
         self.should_run = False
         self.sync = is_lithops_worker()
+
+        invoke_pool_threads = self.config[self.backend]['invoke_pool_threads']
+        self.executor = ThreadPoolExecutor(invoke_pool_threads)
 
         logger.debug('ExecutorID {} - Serverless invoker created'.format(self.executor_id))
 
@@ -335,11 +353,17 @@ class FaaSInvoker(Invoker):
         compute backend.
         """
         # prepare payload
-        call_ids = ["{:05d}".format(i) for i in call_ids_range]
-        data_byte_ranges = [job.data_byte_ranges[int(call_id)] for call_id in call_ids]
         payload = self._create_payload(job)
+
+        call_ids = ["{:05d}".format(i) for i in call_ids_range]
         payload['call_ids'] = call_ids
-        payload['data_byte_ranges'] = data_byte_ranges
+
+        if job.data_key:
+            data_byte_ranges = [job.data_byte_ranges[int(call_id)] for call_id in call_ids]
+            payload['data_byte_ranges'] = data_byte_ranges
+        else:
+            del payload['data_byte_ranges']
+            payload['data_byte_strs'] = [job.data_byte_strs[int(call_id)] for call_id in call_ids]
 
         # do the invocation
         start = time.time()
@@ -394,8 +418,8 @@ class FaaSInvoker(Invoker):
             self.should_run = True
             self._start_async_invokers()
 
-        if self.running_workers < self.workers:
-            free_workers = self.workers - self.running_workers
+        if self.running_workers < self.max_workers:
+            free_workers = self.max_workers - self.running_workers
             total_direct = free_workers * job.chunksize
             callids = range(job.total_calls)
             callids_to_invoke_direct = callids[:total_direct]
@@ -415,9 +439,8 @@ class FaaSInvoker(Invoker):
                 future.result()
 
             invoke_futures = []
-            executor = ThreadPoolExecutor(job.invoke_pool_threads)
             for call_ids_range in iterchunks(callids_to_invoke_direct, job.chunksize):
-                future = executor.submit(self._invoke_task, job, call_ids_range)
+                future = self.executor.submit(self._invoke_task, job, call_ids_range)
                 future.add_done_callback(_callback)
                 invoke_futures.append(future)
 
@@ -436,7 +459,7 @@ class FaaSInvoker(Invoker):
             logger.debug('ExecutorID {} | JobID {} - Reached maximum {} '
                          'workers, queuing {} function activations'
                          .format(job.executor_id, job.job_id,
-                                 self.workers, job.total_calls))
+                                 self.max_workers, job.total_calls))
             for call_ids_range in iterchunks(range(job.total_calls), job.chunksize):
                 self.pending_calls_q.put((job, call_ids_range))
 
@@ -444,9 +467,13 @@ class FaaSInvoker(Invoker):
         """
         Run a job
         """
-        job_monitor = self.job_monitor.create(job, self.internal_storage, generate_tokens=True)
         futures = self._run_job(job)
-        job_monitor.start()
+        self.job_monitor.start(
+            fs=futures,
+            job_id=job.job_id,
+            chunksize=job.chunksize,
+            generate_tokens=True
+        )
 
         return futures
 

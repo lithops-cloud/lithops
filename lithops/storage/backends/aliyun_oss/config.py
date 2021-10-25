@@ -14,12 +14,29 @@
 # limitations under the License.
 #
 
+REQ_PARAMS_1 = ('access_key_id', 'access_key_secret')
+REQ_PARAMS_2 = ('public_endpoint', 'internal_endpoint')
+
 
 def load_config(config_data=None):
+    if 'aliyun' not in config_data:
+        raise Exception("'aliyun' section is mandatory in the configuration")
+
     if 'aliyun_oss' not in config_data:
-        raise Exception("aliyun_oss section is mandatory in the configuration")
+        raise Exception("'aliyun_oss' section is mandatory in the configuration")
 
-    required_parameters = ('public_endpoint', 'internal_endpoint', 'access_key_id', 'access_key_secret')
+    for param in REQ_PARAMS_1:
+        if param not in config_data['aliyun']:
+            msg = f'"{param}" is mandatory under "aliyun" section of the configuration'
+            raise Exception(msg)
 
-    if set(required_parameters) > set(config_data['aliyun_oss']):
-        raise Exception('You must provide {} to access to Aliyun Object Storage Service'.format(required_parameters))
+    for param in REQ_PARAMS_2:
+        if param not in config_data['aliyun_oss']:
+            msg = f'"{param}" is mandatory under "aliyun_oss" section of the configuration'
+            raise Exception(msg)
+
+    # Put credential keys to 'aws_lambda' dict entry
+    config_data['aliyun_oss'].update(config_data['aliyun'])
+
+    if 'storage_bucket' in config_data['aliyun_oss']:
+        config_data['lithops']['storage_bucket'] = config_data['aliyun_oss']['storage_bucket']

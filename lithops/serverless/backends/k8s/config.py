@@ -25,11 +25,14 @@ RUNTIME_NAME = 'lithops-k8sjob'
 
 DOCKER_PATH = shutil.which('docker')
 
-RUNTIME_TIMEOUT = 600  # Default: 600 seconds => 10 minutes
-RUNTIME_MEMORY = 256  # Default memory: 256 MB
-RUNTIME_CPU = 0.5  # 0.5 vCPU
-MAX_CONCURRENT_WORKERS = 200
-INVOKE_POOL_THREADS_DEFAULT = 4
+
+DEFAULT_CONFIG_KEYS = {
+    'runtime_timeout': 600,  # Default: 10 minutes
+    'runtime_memory': 256,  # Default memory: 256 MB
+    'runtime_cpu': 0.5,  # 0.5 vCPU
+    'max_workers': 200,
+    'worker_processes': 1
+}
 
 DEFAULT_GROUP = "batch"
 DEFAULT_VERSION = "v1"
@@ -46,7 +49,6 @@ RUN pip install --upgrade setuptools six pip \
     && pip install --no-cache-dir \
         flask \
         pika \
-        glob2 \
         ibm-cos-sdk \
         redis \
         requests \
@@ -115,15 +117,10 @@ spec:
 
 
 def load_config(config_data):
-    if 'k8s' not in config_data:
-        config_data['k8s'] = {}
+    for key in DEFAULT_CONFIG_KEYS:
+        if key not in config_data['k8s']:
+            config_data['k8s'][key] = DEFAULT_CONFIG_KEYS[key]
 
-    if 'runtime_cpu' not in config_data['k8s']:
-        config_data['k8s']['runtime_cpu'] = RUNTIME_CPU
-    if 'runtime_memory' not in config_data['k8s']:
-        config_data['k8s']['runtime_memory'] = RUNTIME_MEMORY
-    if 'runtime_timeout' not in config_data['k8s']:
-        config_data['k8s']['runtime_timeout'] = RUNTIME_TIMEOUT
     if 'runtime' not in config_data['k8s']:
         if not DOCKER_PATH:
             raise Exception('docker command not found. Install docker or use '
@@ -131,14 +128,10 @@ def load_config(config_data):
         if 'docker_user' not in config_data['k8s']:
             config_data['k8s']['docker_user'] = get_docker_username()
         if not config_data['k8s']['docker_user']:
-            raise Exception('You must provide "docker_user" param in config '
-                            'or execute "docker login"')
+            raise Exception('You must execute "docker login" or provide "docker_user" '
+                            'param in config under "k8s" section')
         docker_user = config_data['k8s']['docker_user']
         python_version = version_str(sys.version_info).replace('.', '')
         revision = 'latest' if 'dev' in __version__ else __version__.replace('.', '')
         runtime_name = '{}/{}-v{}:{}'.format(docker_user, RUNTIME_NAME, python_version, revision)
         config_data['k8s']['runtime'] = runtime_name
-
-    if 'workers' not in config_data['lithops'] or \
-       config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
-        config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS

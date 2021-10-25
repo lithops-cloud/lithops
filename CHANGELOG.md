@@ -1,12 +1,112 @@
 # Changelog
 
-
-## [v2.3.6.dev0]
+## [v2.5.5.dev0]
 
 ### Added
-- 
+- [CLI] Allow to pass all availbe 'docker' parameter to 'lithops runtime build' command
+- [Multiprocessing] Add example file with different argument passing examples for Pool and Process
 
 ### Changed
+- 
+
+### Fixed
+- [Localhost] Fixed minnor issue when deleting completed jobs
+- [Multiprocessing] Fix args mismatch error when passing list of tuples to Pool.map
+
+
+## [v2.5.4]
+
+### Fixes
+- [Standalone] Avoid deleting the master VM on consume mode
+
+
+## [v2.5.3]
+
+### Fixes
+- [Core] Fixed lithops.map_reduce() jobs. Sometimes jobs where not finishing
+- [Core] Spawn lithops.cleaner only once in the same execution instance
+- [Tests] Fix when running 'lithops verify' command
+- [CodeEngine] Delete jobruns and configmaps of internal executions
+- [k8s] Delete job definitions of internal executions
+- [Core] Ensure all temp data is cleaned from storage backend
+
+
+## [v2.5.2]
+
+### Added
+- [Core] Allow to spawn the reduce function in map_reduce() after a configurable percentage of completed map activations
+
+### Changed
+- [Config] 'max_workers' and 'worker_processess' keys must be set at backend level in config
+- [Config] 'remote_invoker' key must be set at backend level in config
+- [Config] 'customized_runtime' key must be set at lithops level in config
+- [Config] 'serverless' section in config is no longer required
+
+### Fixes
+- [CodeEngine] Fixed 'max_workers' parameter to limit the number of max workers per map invocation
+- [IBM CF] Create the runtime if not deployed when invoked
+- [Localhost] Fix localhost paths for windows hosts
+
+
+## [v2.5.1]
+
+### Added
+- [Localhost] Stop containers on ctrl-c
+
+### Changed
+- [Localhost] Start container with user's uid:gid
+- [Localhost] Extended default execution timeout to 3600 seconds
+
+### Fixes
+- [Standalone] Fixed standalone execution on consume mode
+- [Aliyun FC] Fixed Aliyun Function compute backend
+- [Core] Fixed 'lithops runtime build' command when the backend is not configured in config
+
+
+## [v2.5.0]
+
+### Added
+- [CLI] Add new command in cli to list deployed runtimes
+- [Standalone] Add reuse mode that allows to reuse the same VMs for all the maps
+- [Config] alow to configure worker_processes parameter in serverless and standalone sections
+- [Localhost] Prevent multiple jobs in the same executor to run at the same time
+- [Standalone] Prevent multiple jobs submitted to the same master VM to run at the same time
+- [CE] Added COS Direct endpoints for free bandwidth from/to CodeEngine
+
+### Changed
+- [Core] worker_processes parameter has been moved from map() to FunctionExecutor()
+- [CE] Deleted docker naming restrictions in CE and k8s backends
+- [CLI] Prevent loading storage config when using 'lithops runtime build' command
+- [AWS Lambda] Moved layer build to a lambda, solves OS related errors when compiling libraries
+- [AWS Lambda] Adjusted new memory configurations (128 MB minimum and removed 64 MB increments check)
+- [AWS Lambda] Add support for Python3.9
+- [Standalone] ssh VM password is now a 37 chars random and dynamic password (for create and resue modes)
+
+### Fixes
+- [CE] Create a new token when it expires after 20 minutes when using the same FunctionExecutor
+- [CE] Prevent exception when detecting the docker username in k8s and CE backends
+- [Core] Fix minor issue in jobrunner
+- [AWS Lambda] Fixed aws config max timeout check
+- [Standalone] Fixed issue that prevents to run multiple maps() with the same FunctionExecutor (create mode)
+
+## [v2.4.1]
+
+### Fixes
+- [IBM VPC] Fixed a data inconsistency on consume mode
+
+## [v2.4.0]
+
+### Added
+- [Storage] Added MinIO storage backend
+- [Core] Allow to pass function args as part of the invocation payload in FaaS backends
+- [Core] Optimize call_async() calls with an internal function caching system
+- [AWS Lambda] New invoke method that reduces total invocation time
+- [Core] Allow to set the bucket name at storage backend level in config
+- [localhost] stop running jobs processes on ctrl-c or exception
+- [AWS S3] Added region_name parameter in config
+
+### Changed
+- [Core] Improved performance and efficiency of the lithops cleaner background process
 - [AWS Lambda] Use layer from Klayers API for pre-compiled Amazon Linux numpy binaries
 
 ### Fixes
@@ -15,6 +115,12 @@
 - [Core] Fixed an unusual inconsistency in configuration between 'backend' and 'mode' parameters
 - [Core] Fixed customized_runtime feature
 - [Core] Fixed get_result() execution after wait() when throw_except is set to False
+- [Core] Fixed internal executions
+- [Core] Fixed 'lithops storage list' CLI when a bucket is empty
+- [Standalone] Fixed execution
+
+### Deleted
+- [Core] Deleted invoke_pool_threads param from map and map_reduce calls. Now it must be set at backend level in config
 
 
 ## [v2.3.5]

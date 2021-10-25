@@ -19,6 +19,7 @@ import httplib2
 import os
 import sys
 import time
+import json
 
 from google.oauth2 import service_account
 from google_auth_httplib2 import AuthorizedHttp
@@ -45,10 +46,8 @@ class GCPCloudRunBackend:
         self.service_account = cloudrun_config['service_account']
         self.project_name = cloudrun_config['project_name']
         self.region = cloudrun_config['region']
-
-        self.runtime_cpus = cloudrun_config['runtime_cpus']
-        self.container_runtime_concurrency = cloudrun_config['container_concurrency']
-        self.workers = cloudrun_config['workers']
+        self.runtime_cpu = cloudrun_config['runtime_cpu']
+        self.workers = cloudrun_config['max_workers']
 
         self._invoker_sess = None
         self._invoker_sess_route = '/'
@@ -181,7 +180,8 @@ class GCPCloudRunBackend:
         else:
             logger.debug('Invoking function')
 
-        res = sess.post(url=self._get_service_endpoint(runtime_name, memory) + route, json=payload)
+        url = self._get_service_endpoint(runtime_name, memory) + route
+        res = sess.post(url=url, data=json.dumps(payload, default=str))
 
         if res.status_code in (200, 202):
             data = res.json()
@@ -191,7 +191,7 @@ class GCPCloudRunBackend:
         else:
             raise Exception(res.text)
 
-    def build_runtime(self, runtime_name, dockerfile):
+    def build_runtime(self, runtime_name, dockerfile, extra_args=[]):
         logger.debug('Building a new docker image from Dockerfile')
 
         image_name = self._format_image_name(runtime_name)
@@ -202,11 +202,13 @@ class GCPCloudRunBackend:
         create_handler_zip(kconfig.FH_ZIP_LOCATION, entry_point, 'lithopsproxy.py')
 
         if dockerfile:
-            cmd = '{} build -t {} -f {} .'.format(kconfig.DOCKER_PATH,
-                                                  image_name,
-                                                  dockerfile)
+            cmd = '{} build -t {} -f {} . '.format(kconfig.DOCKER_PATH,
+                                                   image_name,
+                                                   dockerfile)
         else:
-            cmd = '{} build -t {} .'.format(kconfig.DOCKER_PATH, image_name)
+            cmd = '{} build -t {} . '.format(kconfig.DOCKER_PATH, image_name)
+
+        cmd = cmd+' '.join(extra_args)
 
         logger.info('Building Docker image')
         if logger.getEffectiveLevel() != logging.DEBUG:
@@ -259,7 +261,7 @@ class GCPCloudRunBackend:
                         }
                     },
                     "spec": {
-                        "containerConcurrency": self.container_runtime_concurrency,
+                        "containerConcurrency": 1,
                         "timeoutSeconds": timeout,
                         "serviceAccountName": self.service_account,
                         "containers": [

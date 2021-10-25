@@ -32,6 +32,9 @@ def load_config(config_data):
         if compute_backend == 'ibm_cf':
             config_data['ibm_cos']['private_endpoint'] = PRIVATE_ENDPOINT.format(region)
 
+        elif compute_backend == 'code_engine':
+            config_data['ibm_cos']['private_endpoint'] = DIRECT_ENDPOINT.format(region)
+
         elif compute_backend == 'ibm_vpc':
             config_data['ibm_cos']['private_endpoint'] = DIRECT_ENDPOINT.format(region)
 
@@ -40,6 +43,15 @@ def load_config(config_data):
         if 'private_endpoint' not in config_data['ibm_cos']:
             raise Exception('You must provide the private_endpoint to access to IBM COS')
         elif 'private' not in config_data['ibm_cos']['private_endpoint']:
+            raise Exception('The private_endpoint you provided to access to IBM COS is not valid')
+        if not config_data['ibm_cos']['private_endpoint'].startswith('http'):
+            raise Exception('IBM COS Private Endpoint must start with http:// or https://')
+
+    elif compute_backend == 'code_engine':
+        # Private endpoint is mandatory when using IBM CF
+        if 'private_endpoint' not in config_data['ibm_cos']:
+            raise Exception('You must provide the private_endpoint to access to IBM COS')
+        elif 'direct' not in config_data['ibm_cos']['private_endpoint']:
             raise Exception('The private_endpoint you provided to access to IBM COS is not valid')
         if not config_data['ibm_cos']['private_endpoint'].startswith('http'):
             raise Exception('IBM COS Private Endpoint must start with http:// or https://')
@@ -75,3 +87,6 @@ def load_config(config_data):
     if 'region' not in config_data['ibm_cos']:
         endpoint = config_data['ibm_cos']['endpoint']
         config_data['ibm_cos']['region'] = endpoint.split('//')[1].split('.')[1]
+
+    if 'storage_bucket' in config_data['ibm_cos']:
+        config_data['lithops']['storage_bucket'] = config_data['ibm_cos']['storage_bucket']

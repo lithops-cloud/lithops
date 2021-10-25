@@ -22,26 +22,39 @@ from lithops.constants import STORAGE_CLI_MSG
 
 logger = logging.getLogger(__name__)
 
+OBJ_REQ_RETRIES = 5
+CONN_READ_TIMEOUT = 10
+
 
 class S3Backend:
     def __init__(self, s3_config):
         logger.debug("Creating S3 client")
-        service_endpoint = s3_config.get('endpoint').replace('http:', 'https:')
+        self.s3_config = s3_config
+        self.user_agent = s3_config['user_agent']
+        self.service_endpoint = s3_config['endpoint']
+        self.region = s3_config['region_name']
 
-        logger.debug('AWS S3 using access_key_id and secret_access_key')
+        if 'http:' in self.service_endpoint:
+            logger.warning('Endpoint {} is insecure - it is recommended '
+                           'to change this to https://'.format(self.service_endpoint))
 
-        client_config = botocore.client.Config(max_pool_connections=128,
-                                               user_agent_extra='cloudbutton',
-                                               connect_timeout=1)
+        client_config = botocore.client.Config(
+            max_pool_connections=128,
+            user_agent_extra=self.user_agent,
+            connect_timeout=CONN_READ_TIMEOUT,
+            read_timeout=CONN_READ_TIMEOUT,
+            retries={'max_attempts': OBJ_REQ_RETRIES}
+        )
 
-        self.s3_client = boto3.client('s3',
-                                      aws_access_key_id=s3_config['access_key_id'],
-                                      aws_secret_access_key=s3_config['secret_access_key'],
-                                      config=client_config,
-                                      endpoint_url=service_endpoint)
+        self.s3_client = boto3.client(
+            's3', aws_access_key_id=s3_config['access_key_id'],
+            aws_secret_access_key=s3_config['secret_access_key'],
+            config=client_config,
+            endpoint_url=self.service_endpoint
+        )
 
         msg = STORAGE_CLI_MSG.format('S3')
-        logger.info("{} - Endpoint: {}".format(msg, service_endpoint))
+        logger.info("{} - Region: {}".format(msg, self.region))
 
     def get_client(self):
         '''

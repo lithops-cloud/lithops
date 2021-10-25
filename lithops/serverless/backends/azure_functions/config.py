@@ -30,10 +30,14 @@ DOCKER_PATH = shutil.which('docker')
 
 RUNTIME_NAME = 'lithops-runtime'
 FUNCTIONS_VERSION = 3
-RUNTIME_TIMEOUT = 300    # Default: 600 s => 10 minutes
-RUNTIME_MEMORY = 1536       # Default memory: 1.5 GB
-MAX_CONCURRENT_WORKERS = 200
-INVOKE_POOL_THREADS_DEFAULT = 100
+
+DEFAULT_CONFIG_KEYS = {
+    'runtime_timeout': 300,  # Default: 600 seconds => 10 minutes
+    'runtime_memory': 256,  # Default memory: 256 MB
+    'max_workers': 200,
+    'worker_processes': 1,
+    'invoke_pool_threads': 100,
+}
 
 SUPPORTED_PYTHON = ['3.6', '3.7', '3.8', '3.9']
 
@@ -123,7 +127,6 @@ azure-storage-queue
 pika
 flask
 gevent
-glob2
 redis
 requests
 PyYAML
@@ -150,7 +153,6 @@ RUN pip install --upgrade setuptools six pip \
         pika \
         flask \
         gevent \
-        glob2 \
         redis \
         requests \
         PyYAML \
@@ -176,17 +178,9 @@ def load_config(config_data):
     if 'azure_functions' not in config_data:
         raise Exception("azure_functions section is mandatory in the configuration")
 
-    if 'runtime_memory' not in config_data['azure_functions']:
-        config_data['azure_functions']['runtime_memory'] = RUNTIME_MEMORY
-
-    if 'runtime_timeout' not in config_data['azure_functions']:
-        config_data['azure_functions']['runtime_timeout'] = RUNTIME_TIMEOUT
-
-    if 'invoke_pool_threads' not in config_data['azure_functions']:
-        config_data['azure_functions']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
-
-    if 'workers' not in config_data['lithops']:
-        config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
+    for key in DEFAULT_CONFIG_KEYS:
+        if key not in config_data['azure_functions']:
+            config_data['azure_functions'][key] = DEFAULT_CONFIG_KEYS[key]
 
     for key in REQUIRED_AZURE_STORAGE_PARAMS:
         if key not in config_data['azure_storage']:

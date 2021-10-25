@@ -28,11 +28,14 @@ from lithops.worker.utils import get_runtime_preinstalls
 from lithops.constants import LITHOPS_TEMP_DIR, JOBS_DIR, LOGS_DIR,\
     RN_LOG_FILE, LOGGER_FORMAT
 
+log_file_stream = open(RN_LOG_FILE, 'a')
+
 os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
 os.makedirs(JOBS_DIR, exist_ok=True)
 os.makedirs(LOGS_DIR, exist_ok=True)
 
-logging.basicConfig(filename=RN_LOG_FILE, level=logging.INFO,
+logging.basicConfig(stream=log_file_stream,
+                    level=logging.INFO,
                     format=LOGGER_FORMAT)
 logger = logging.getLogger('lithops.localhost.runner')
 
@@ -43,7 +46,6 @@ if platform.system() == 'Darwin':
 
 
 def run():
-    log_file_stream = open(RN_LOG_FILE, 'a')
     sys.stdout = log_file_stream
     sys.stderr = log_file_stream
 
@@ -64,7 +66,10 @@ def run():
     os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
     os.environ['__LITHOPS_BACKEND'] = 'Localhost'
 
-    function_handler(job_payload)
+    try:
+        function_handler(job_payload)
+    except KeyboardInterrupt:
+        pass
 
     done = os.path.join(JOBS_DIR, job_key+'.done')
     Path(done).touch()
@@ -74,7 +79,6 @@ def run():
 
     logger.info('ExecutorID {} | JobID {} - Execution Finished'
                 .format(executor_id, job_id))
-    log_file_stream.close()
 
 
 def extract_runtime_meta():
@@ -92,5 +96,5 @@ if __name__ == "__main__":
         'run': run
     }
 
-    func = switcher.get(command, lambda: "Invalid command")
-    func()
+    switcher.get(command, lambda: "Invalid command")()
+    log_file_stream.close()

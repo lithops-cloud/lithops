@@ -75,7 +75,7 @@ class AzureFunctionAppBackend:
                                                 py_version, revision, self.invocation_type)
         return runtime_name
 
-    def create_runtime(self, docker_image_name, memory=None, timeout=az_config.RUNTIME_TIMEOUT):
+    def create_runtime(self, docker_image_name, memory, timeout):
         """
         Creates a new runtime into Azure Function Apps
         from the provided Linux image for consumption plan
@@ -111,7 +111,7 @@ class AzureFunctionAppBackend:
             raise Exception('docker command not found. Install docker or use '
                             'an already built runtime')
 
-    def build_runtime(self, runtime_name, requirements_file=None):
+    def build_runtime(self, runtime_name, requirements_file=None, extra_args=[]):
         try:
             shutil.rmtree(az_config.BUILD_DIR)
         except Exception:
@@ -170,8 +170,7 @@ class AzureFunctionAppBackend:
             os.remove(mod_dir+'/__init__.py')
             os.remove(az_config.FH_ZIP_LOCATION)
 
-    def _create_function(self, docker_image_name, memory=None,
-                         timeout=az_config.RUNTIME_TIMEOUT):
+    def _create_function(self, docker_image_name, memory, timeout):
         """
         Create and publish an Azure Functions
         """
@@ -275,14 +274,14 @@ class AzureFunctionAppBackend:
 
             route = "/api/lithops_handler"
             if return_result:
-                conn.request("GET", route, body=json.dumps(payload))
+                conn.request("GET", route, body=json.dumps(payload, default=str))
                 resp = conn.getresponse()
                 data = json.loads(resp.read().decode("utf-8"))
                 conn.close()
                 return data
             else:
                 # logger.debug('Invoking calls {}'.format(', '.join(payload['call_ids'])))
-                conn.request("POST", route, body=json.dumps(payload))
+                conn.request("POST", route, body=json.dumps(payload, default=str))
                 resp = conn.getresponse()
                 if resp.status == 429:
                     time.sleep(0.2)

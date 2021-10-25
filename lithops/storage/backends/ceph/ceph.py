@@ -1,5 +1,4 @@
 #
-# (C) Copyright IBM Corp. 2020
 # (C) Copyright Cloudlab URV 2020
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -37,25 +36,24 @@ class CephStorageBackend:
         logger.debug("Creating Ceph client")
         self.ceph_config = ceph_config
         user_agent = ceph_config['user_agent']
+        service_endpoint = ceph_config['endpoint']
 
-        service_endpoint = ceph_config.get('endpoint')
+        logger.debug("Setting Ceph endpoint to {}".format(service_endpoint))
 
-        logger.debug("Seting Ceph endpoint to {}".format(service_endpoint))
-        logger.debug("Using access_key and secret_key")
+        client_config = ibm_botocore.client.Config(
+            max_pool_connections=128,
+            user_agent_extra=user_agent,
+            connect_timeout=CONN_READ_TIMEOUT,
+            read_timeout=CONN_READ_TIMEOUT,
+            retries={'max_attempts': OBJ_REQ_RETRIES}
+        )
 
-        access_key = ceph_config.get('access_key')
-        secret_key = ceph_config.get('secret_key')
-        client_config = ibm_botocore.client.Config(max_pool_connections=128,
-                                                   user_agent_extra=user_agent,
-                                                   connect_timeout=CONN_READ_TIMEOUT,
-                                                   read_timeout=CONN_READ_TIMEOUT,
-                                                   retries={'max_attempts': OBJ_REQ_RETRIES})
-
-        self.cos_client = ibm_boto3.client('s3',
-                                           aws_access_key_id=access_key,
-                                           aws_secret_access_key=secret_key,
-                                           config=client_config,
-                                           endpoint_url=service_endpoint)
+        self.cos_client = ibm_boto3.client(
+            's3', aws_access_key_id=ceph_config['access_key_id'],
+            aws_secret_access_key=ceph_config['secret_access_key'],
+            config=client_config,
+            endpoint_url=service_endpoint
+        )
 
         msg = STORAGE_CLI_MSG.format('Ceph')
         logger.info("{} - Endpoint: {}".format(msg, service_endpoint))

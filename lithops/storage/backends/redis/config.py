@@ -14,13 +14,16 @@
 # limitations under the License.
 #
 
+REQ_PARAMS = ('host',)
+
 
 def load_config(config_data=None):
     if 'redis' not in config_data:
         raise Exception("redis section is mandatory in the configuration")
 
-    # required_parameters = ('host', 'internal_endpoint', 'access_key_id', 'access_key_secret')
+    for param in REQ_PARAMS:
+        if param not in config_data['redis']:
+            msg = f"'{param}' is mandatory under 'redis' section of the configuration"
+            raise Exception(msg)
 
-    # if set(required_parameters) > set(config_data['aliyun_oss']):
-    #     raise Exception('You must provide {} to access to Aliyun Object Storage Service'.format(required_parameters))
-
+    config_data['lithops']['storage_bucket'] = 'storage'

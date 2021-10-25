@@ -19,47 +19,47 @@ import os
 from lithops.utils import version_str
 
 
-RUNTIME_TIMEOUT_DEFAULT = 300    # Default: 5 minutes
-RUNTIME_TIMEOUT_MAX = 600        # Platform 10 min. maximum
-RUNTIME_MEMORY_DEFAULT = 256
-RUNTIME_MEMORY_MAX = 3072
-MAX_CONCURRENT_WORKERS = 300
-INVOKE_POOL_THREADS_DEFAULT = 500
+DEFAULT_CONFIG_KEYS = {
+    'runtime_timeout': 600,  # Default: 5 minutes
+    'runtime_memory': 256,  # Default memory: 256 MB
+    'max_workers': 300,
+    'worker_processes': 1,
+    'invoke_pool_threads': 300,
+}
 
-CONNECTION_POOL_SIZE = 30
+CONNECTION_POOL_SIZE = 300
 
-SERVICE_NAME = 'lithops-runtime'
+SERVICE_NAME = 'lithops'
+RUNTIME_DEFAULT = 'python3'
 HANDLER_FOLDER_LOCATION = os.path.join(os.getcwd(), 'lithops_handler_aliyun')
-FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_aliyunfc.zip')
 
 REQUIREMENTS_FILE = """
-aliyun-fc2
-oss2
 pika
-flask
-gevent
-glob2
-redis
-requests
-PyYAML
-kubernetes
-numpy
+tblib
 cloudpickle
 ps-mem
-tblib
 """
 
-REQ_PARAMS = ('public_endpoint', 'access_key_id', 'access_key_secret')
+REQ_PARAMS_1 = ('access_key_id', 'access_key_secret')
+REQ_PARAMS_2 = ('public_endpoint', 'role_arn')
 
 
 def load_config(config_data=None):
 
-    if 'aliyun_fc' not in config_data:
-        raise Exception("{} 'aliyun_fc' is mandatory in the configuration".fomrat('aliyun_fc'))
+    if 'aliyun' not in config_data:
+        raise Exception("'aliyun' section is mandatory in the configuration")
 
-    for param in REQ_PARAMS:
+    if 'aliyun_fc' not in config_data:
+        raise Exception("'aliyun_fc' section is mandatory in the configuration")
+
+    for param in REQ_PARAMS_1:
+        if param not in config_data['aliyun']:
+            msg = f'"{param}" is mandatory in the "aliyun" section of the configuration'
+            raise Exception(msg)
+
+    for param in REQ_PARAMS_2:
         if param not in config_data['aliyun_fc']:
-            msg = '{} is mandatory in {} "aliyun_fc" of the configuration'.format(REQ_PARAMS, 'aliyun_fc')
+            msg = f'"{param}" is mandatory in the "aliyun_fc" section of the configuration'
             raise Exception(msg)
 
     this_version_str = version_str(sys.version_info)
@@ -68,26 +68,15 @@ def load_config(config_data=None):
                         ' only supports Python version 3.6 and the local Python'
                         'version is {}'.format(this_version_str))
 
-    if 'invoke_pool_threads' not in config_data['aliyun_fc']:
-        config_data['aliyun_fc']['invoke_pool_threads'] = INVOKE_POOL_THREADS_DEFAULT
+    pe = config_data['aliyun_fc']['public_endpoint'].replace('https://', '')
+    config_data['aliyun_fc']['public_endpoint'] = pe
+
+    for key in DEFAULT_CONFIG_KEYS:
+        if key not in config_data['aliyun_fc']:
+            config_data['aliyun_fc'][key] = DEFAULT_CONFIG_KEYS[key]
 
     if 'runtime' not in config_data['aliyun_fc']:
         config_data['aliyun_fc']['runtime'] = 'default'
 
-    if 'runtime_memory' in config_data['aliyun_fc']:
-        if config_data['aliyun_fc']['runtime_memory'] > RUNTIME_MEMORY_MAX:
-            config_data['aliyun_fc']['runtime_memory'] = RUNTIME_MEMORY_MAX
-    else:
-        config_data['aliyun_fc']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
-
-    if 'runtime_timeout' in config_data['aliyun_fc']:
-        if config_data['aliyun_fc']['runtime_timeout'] > RUNTIME_TIMEOUT_MAX:
-            config_data['aliyun_fc']['runtime_timeout'] = RUNTIME_TIMEOUT_MAX
-    else:
-        config_data['aliyun_fc']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
-
-    if 'workers' in config_data['lithops']:
-        if config_data['lithops']['workers'] > MAX_CONCURRENT_WORKERS:
-            config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
-    else:
-        config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
+    # Put credential keys to 'aliyun_fc' dict entry
+    config_data['aliyun_fc'].update(config_data['aliyun'])

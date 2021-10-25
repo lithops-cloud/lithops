@@ -36,9 +36,15 @@ class Monitor(threading.Thread):
     """
     Monitor base class
     """
-    def __init__(self, job, internal_storage, token_bucket_q, generate_tokens, config):
+    def __init__(self, executor_id,
+                 internal_storage,
+                 token_bucket_q,
+                 generate_tokens,
+                 config):
+
         super().__init__()
-        self.job = job
+        self.executor_id = executor_id
+        self.futures = []
         self.internal_storage = internal_storage
         self.should_run = True
         self.token_bucket_q = token_bucket_q
@@ -50,12 +56,28 @@ class Monitor(threading.Thread):
         self.workers = {}
         self.workers_done = []
         self.callids_done_worker = {}
+        self.job_chunksize = {}
+        self.present_jobs = set()
+
+    def add_futures(self, fs, job_id=None, chunksize=None):
+        """
+        Extends the current thread list of futures to track
+        """
+        self.futures.extend(fs)
+
+        # this is required for FaaS backends and _generate_tokens
+        if job_id:
+            self.job_chunksize[job_id] = chunksize
+
+        present_jobs = {f.job_id for f in fs}
+        for job_id in present_jobs:
+            self.present_jobs.add(job_id)
 
     def _all_ready(self):
         """
         Checks if all futures are ready, success or done
         """
-        return all([f.ready or f.success or f.done for f in self.job.futures])
+        return all([f.ready or f.success or f.done for f in self.futures])
 
     def _check_new_futures(self, call_status, f):
         """Checks if a functions returned new futures to track"""
@@ -63,9 +85,8 @@ class Monitor(threading.Thread):
             return False
 
         f._set_futures(call_status)
-        self.job.futures.extend(f._new_futures)
-        logger.debug('ExecutorID {} | JobID {} - Got {} new futures to track'
-                     .format(self.job.executor_id, self.job.job_id, len(f._new_futures)))
+        self.futures.extend(f._new_futures)
+        logger.debug(f'ExecutorID {self.executor_id} - Got {len(f._new_futures)} new futures to track')
 
         return True
 
@@ -96,29 +117,27 @@ class Monitor(threading.Thread):
 
     def _print_status_log(self):
         """prints a debug log showing the status of the job"""
-        callids_pending = len([f for f in self.job.futures if f.invoked])
-        callids_running = len([f for f in self.job.futures if f.running])
-        callids_done = len([f for f in self.job.futures if f.ready or f.success or f.done])
-        logger.debug('ExecutorID {} | JobID {} - Pending: {} - Running: {} - Done: {}'
-                     .format(self.job.executor_id, self.job.job_id,
-                             callids_pending, callids_running, callids_done))
+        callids_pending = len([f for f in self.futures if f.invoked])
+        callids_running = len([f for f in self.futures if f.running])
+        callids_done = len([f for f in self.futures if f.ready or f.success or f.done])
+        logger.debug(f'ExecutorID {self.executor_id} - Pending: {callids_pending} '
+                     f'- Running: {callids_running} - Done: {callids_done}')
 
 
 class RabbitmqMonitor(Monitor):
 
-    def __init__(self, job, internal_storage, token_bucket_q, generate_tokens, config):
-        super().__init__(job, internal_storage, token_bucket_q, generate_tokens, config)
+    def __init__(self, executor_id, internal_storage, token_bucket_q, generate_tokens, config):
+        super().__init__(executor_id, internal_storage, token_bucket_q, generate_tokens, config)
 
         self.rabbit_amqp_url = config.get('amqp_url')
-        self.queue = 'lithops-{}'.format(self.job.job_key)
+        self.queue = f'lithops-{self.executor_id}'
         self._create_resources()
 
     def _create_resources(self):
         """
         Creates RabbitMQ queues and exchanges of a given job
         """
-        logger.debug('ExecutorID {} | JobID {} - Creating RabbitMQ resources'
-                     .format(self.job.executor_id, self.job.job_id))
+        logger.debug(f'ExecutorID {self.executor_id} - Creating RabbitMQ queue {self.queue}')
 
         self.pikaparams = pika.URLParameters(self.rabbit_amqp_url)
         self.connection = pika.BlockingConnection(self.pikaparams)
@@ -147,7 +166,7 @@ class RabbitmqMonitor(Monitor):
         """
         Assigns a call_status to its future
         """
-        not_running_futures = [f for f in self.job.futures if not (f.running or f.ready or f.success or f.done)]
+        not_running_futures = [f for f in self.futures if not (f.running or f.ready or f.success or f.done)]
         for f in not_running_futures:
             calljob_id = (call_status['executor_id'], call_status['job_id'], call_status['call_id'])
             if (f.executor_id, f.job_id, f.call_id) == calljob_id:
@@ -157,7 +176,7 @@ class RabbitmqMonitor(Monitor):
         """
         tags a future as ready based on call_status
         """
-        not_ready_futures = [f for f in self.job.futures if not (f.ready or f.success or f.done)]
+        not_ready_futures = [f for f in self.futures if not (f.ready or f.success or f.done)]
         for f in not_ready_futures:
             calljob_id = (call_status['executor_id'], call_status['job_id'], call_status['call_id'])
             if (f.executor_id, f.job_id, f.call_id) == calljob_id:
@@ -178,14 +197,13 @@ class RabbitmqMonitor(Monitor):
         self.callids_done_worker[worker_id].append(call_id)
 
         if worker_id not in self.workers_done and \
-           len(self.callids_done_worker[worker_id]) == self.job.chunksize:
+           len(self.callids_done_worker[worker_id]) == call_status['chunksize']:
             self.workers_done.append(worker_id)
             if self.should_run:
                 self.token_bucket_q.put('#')
 
     def run(self):
-        logger.debug('ExecutorID {} | JobID {} - Starting RabbitMQ job monitor'
-                     .format(self.job.executor_id, self.job.job_id))
+        logger.debug(f'ExecutorID {self.executor_id} |  Starting RabbitMQ job monitor')
         channel = self.connection.channel()
 
         def callback(ch, method, properties, body):
@@ -202,17 +220,19 @@ class RabbitmqMonitor(Monitor):
                 ch.stop_consuming()
                 ch.close()
                 self._print_status_log()
-                logger.debug('ExecutorID {} | JobID {} - RabbitMQ job monitor finished'
-                             .format(self.job.executor_id, self.job.job_id))
+                logger.debug(f'ExecutorID {self.executor_id} | RabbitMQ job monitor finished')
 
         channel.basic_consume(self.queue, callback, auto_ack=True)
         threading.Thread(target=channel.start_consuming, daemon=True).start()
 
-        while not self._all_ready() and self.should_run:
+        while not self._all_ready() or not self.futures:
             # Format call_ids running, pending and done
             self._print_status_log()
-            self._future_timeout_checker(self.job.futures)
+            self._future_timeout_checker(self.futures)
             time.sleep(2)
+
+            if not self.should_run:
+                break
 
 
 class StorageMonitor(Monitor):
@@ -220,8 +240,8 @@ class StorageMonitor(Monitor):
     THREADPOOL_SIZE = 64
     WAIT_DUR_SEC = 2  # Check interval
 
-    def __init__(self, job, internal_storage, token_bucket_q, generate_tokens, config):
-        super().__init__(job, internal_storage, token_bucket_q, generate_tokens, config)
+    def __init__(self, executor_id, internal_storage, token_bucket_q, generate_tokens, config):
+        super().__init__(executor_id, internal_storage, token_bucket_q, generate_tokens, config)
 
         # vars for _generate_tokens
         self.callids_running_worker = {}
@@ -245,7 +265,7 @@ class StorageMonitor(Monitor):
         Mark which futures are in running status based on callids_running
         """
         current_time = time.time()
-        not_running_futures = [f for f in self.job.futures if not (f.running or f.ready or f.success or f.done)]
+        not_running_futures = [f for f in self.futures if not (f.running or f.ready or f.success or f.done)]
         callids_running_to_process = callids_running - self.callids_running_processed_timeout
         for f in not_running_futures:
             for call in callids_running_to_process:
@@ -256,18 +276,18 @@ class StorageMonitor(Monitor):
                     f._set_running(call_status)
 
         self.callids_running_processed_timeout.update(callids_running_to_process)
-        self._future_timeout_checker(self.job.futures)
+        self._future_timeout_checker(self.futures)
 
     def _tag_future_as_ready(self, callids_done):
         """
         Mark which futures has a call_status ready to be downloaded
         """
-        not_ready_futures = [f for f in self.job.futures if not (f.ready or f.success or f.done)]
+        not_ready_futures = [f for f in self.futures if not (f.ready or f.success or f.done)]
         callids_done_to_process = callids_done - self.callids_done_processed_status
         fs_to_query = []
 
-        ten_percent = int(len(self.job.futures) * (10 / 100))
-        if len(self.job.futures) - len(callids_done) <= max(10, ten_percent):
+        ten_percent = int(len(self.futures) * (10 / 100))
+        if len(self.futures) - len(callids_done) <= max(10, ten_percent):
             fs_to_query = not_ready_futures
         else:
             for f in not_ready_futures:
@@ -327,8 +347,12 @@ class StorageMonitor(Monitor):
                 self.callids_done_worker[worker_id].append(callid_done)
 
         for worker_id in self.callids_done_worker:
+            job_id = self.callids_done_worker[worker_id][0][1]
+            if job_id not in self.present_jobs:
+                continue
+            chunksize = self.job_chunksize[job_id]
             if worker_id not in self.workers_done and \
-               len(self.callids_done_worker[worker_id]) == self.job.chunksize:
+               len(self.callids_done_worker[worker_id]) == chunksize:
                 self.workers_done.append(worker_id)
                 if self.should_run:
                     self.token_bucket_q.put('#')
@@ -342,14 +366,17 @@ class StorageMonitor(Monitor):
         """
         Run method
         """
-        logger.debug('ExecutorID {} | JobID {} - Starting Storage job monitor'
-                     .format(self.job.executor_id, self.job.job_id))
+        logger.debug(f'ExecutorID {self.executor_id} - Starting Storage job monitor')
 
-        while self.should_run and not self._all_ready():
+        while not self._all_ready() or not self.futures:
+            time.sleep(self.WAIT_DUR_SEC)
+            self.WAIT_DUR_SEC = 2
+
             if not self.should_run:
                 break
+
             callids_running, callids_done = \
-                self.internal_storage.get_job_status(self.job.executor_id, self.job.job_id)
+                self.internal_storage.get_job_status(self.executor_id)
 
             # verify if there are new callids_done and reduce the sleep
             new_callids_done = callids_done - self.callids_done_processed_status
@@ -362,64 +389,36 @@ class StorageMonitor(Monitor):
             self._tag_future_as_ready(callids_done)
             self._print_status_log()
 
-            if not self._all_ready():
-                time.sleep(self.WAIT_DUR_SEC)
-                self.WAIT_DUR_SEC = 2
-
-        logger.debug('ExecutorID {} | JobID {} - Storage job monitor finished'
-                     .format(self.job.executor_id, self.job.job_id))
+        logger.debug(f'ExecutorID {self.executor_id} - Storage job monitor finished')
 
 
 class JobMonitor:
 
-    def __init__(self, backend, config=None):
+    def __init__(self, executor_id, internal_storage, backend, config=None):
+        self.executor_id = executor_id
+        self.internal_storage = internal_storage
         self.backend = backend
         self.config = config
-        self.monitors = {}
         self.token_bucket_q = queue.Queue()
+        self.monitor = None
 
-    def stop(self, job_keys=None):
-        """
-        Stops job monitors
-        """
-        if job_keys:
-            for job_key in job_keys:
-                if job_key in self.monitors:
-                    if self.monitors[job_key].is_alive():
-                        self.monitors[job_key].stop()
-                    del self.monitors[job_key]
-        else:
-            # Stop all
-            for job_key in self.monitors:
-                if self.monitors[job_key].is_alive():
-                    self.monitors[job_key].stop()
-            self.monitors = {}
+        self.MonitorClass = getattr(
+            lithops.monitor,
+            f'{self.backend.capitalize()}Monitor'
+        )
 
-    def is_alive(self, job_key):
-        """
-        Checks if a job monitor is alive
-        """
-        if job_key not in self.monitors:
-            return False
-        return self.monitors[job_key].is_alive()
+    def start(self, fs, job_id=None, chunksize=None, generate_tokens=False):
+        if not self.monitor or not self.monitor.is_alive():
+            self.monitor = self.MonitorClass(
+                executor_id=self.executor_id,
+                internal_storage=self.internal_storage,
+                token_bucket_q=self.token_bucket_q,
+                generate_tokens=generate_tokens,
+                config=self.config
+            )
+            self.monitor.start()
+        self.monitor.add_futures(fs, job_id, chunksize)
 
-    def get_active_jobs(self):
-        """
-        Returns a list of active job monitors
-        """
-        active_jobs = 0
-        for job_monitor in self.monitors:
-            if job_monitor.is_alive():
-                active_jobs += 1
-        return active_jobs
-
-    def create(self, job, internal_storage, generate_tokens=False):
-        """
-        Creates a new monitor for a given job
-        """
-        Monitor = getattr(lithops.monitor, '{}Monitor'.format(self.backend.capitalize()))
-        jm = Monitor(job=job, internal_storage=internal_storage,
-                     token_bucket_q=self.token_bucket_q,
-                     generate_tokens=generate_tokens, config=self.config)
-        self.monitors[job.job_key] = jm
-        return jm
+    def stop(self):
+        if self.monitor and self.monitor.is_alive():
+            self.monitor.stop()

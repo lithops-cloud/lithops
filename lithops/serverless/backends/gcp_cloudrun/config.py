@@ -26,12 +26,17 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_RUNTIME_NAME = 'python' + version_str(sys.version_info)
 
-RUNTIME_TIMEOUT_DEFAULT = 300  # 5 minutes
-RUNTIME_MEMORY_DEFAULT = 256  # 256Mi
-RUNTIME_CPU_DEFAULT = 1  # 1 vCPU
-RUNTIME_CONCURRENCY_DEFAULT = 1  # 1 request per container
+REQ_PARAMS = ('project_name', 'service_account', 'credentials_path', 'region')
 
-MAX_CONCURRENT_WORKERS = 1000
+DEFAULT_CONFIG_KEYS = {
+    'runtime_timeout': 300,  # Default: 600 seconds => 10 minutes
+    'runtime_memory': 256,  # Default memory: 256 MB
+    'runtime_cpu': 1,  # 0.125 vCPU
+    'max_workers': 1000,
+    'worker_processes': 1,
+    'invoke_pool_threads': 100,
+}
+
 MAX_RUNTIME_MEMORY = 8192  # 8 GiB
 MAX_RUNTIME_TIMEOUT = 3600  # 1 hour
 
@@ -51,7 +56,6 @@ RUN pip install --upgrade setuptools six pip \
         pika \
         flask \
         gevent \
-        glob2 \
         redis \
         requests \
         PyYAML \
@@ -83,65 +87,45 @@ CMD exec gunicorn --bind :$PORT lithopsproxy:proxy
 
 
 def load_config(config_data):
-    if config_data is None:
-        config_data = {}
+    if 'gcp' not in config_data:
+        raise Exception("'gcp' section is mandatory in the configuration")
 
-    if 'runtime_memory' not in config_data['gcp_cloudrun']:
-        config_data['gcp_cloudrun']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
-    if 'runtime_timeout' not in config_data['gcp_cloudrun']:
-        config_data['gcp_cloudrun']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
+    for param in REQ_PARAMS:
+        if param not in config_data['gcp']:
+            msg = "{} is mandatory under 'gcp' section of the configuration".format(REQ_PARAMS)
+            raise Exception(msg)
+
+    if not exists(config_data['gcp']['credentials_path']) or not isfile(config_data['gcp']['credentials_path']):
+        raise Exception("Path {} must be service account "
+                        "credential JSON file.".format(config_data['gcp']['credentials_path']))
+
+    for key in DEFAULT_CONFIG_KEYS:
+        if key not in config_data['gcp_cloudrun']:
+            config_data['gcp_cloudrun'][key] = DEFAULT_CONFIG_KEYS[key]
+
+    config_data['gcp_cloudrun']['invoke_pool_threads'] = config_data['gcp_cloudrun']['max_workers']
+
     if 'runtime' not in config_data['gcp_cloudrun']:
         config_data['gcp_cloudrun']['runtime'] = DEFAULT_RUNTIME_NAME
-
-    if 'workers' not in config_data['lithops']:
-        config_data['lithops']['workers'] = MAX_CONCURRENT_WORKERS
 
     if config_data['gcp_cloudrun']['runtime_memory'] > MAX_RUNTIME_MEMORY:
         logger.warning('Runtime memory {} exceeds maximum - '
                        'Runtime memory set to {}'.format(config_data['gcp_cloudrun']['runtime_memory'],
                                                          MAX_RUNTIME_MEMORY))
         config_data['gcp_cloudrun']['runtime_memory'] = MAX_RUNTIME_MEMORY
+
     if config_data['gcp_cloudrun']['runtime_timeout'] > MAX_RUNTIME_TIMEOUT:
         logger.warning('Runtime timeout {} exceeds maximum - '
                        'Runtime timeout set to {}'.format(config_data['gcp_cloudrun']['runtime_memory'],
                                                           MAX_RUNTIME_TIMEOUT))
         config_data['gcp_cloudrun']['runtime_timeout'] = MAX_RUNTIME_TIMEOUT
 
-    if 'gcp' not in config_data:
-        raise Exception("'gcp' section is mandatory in the configuration")
-
-    required_parameters = {'project_name', 'service_account', 'credentials_path', 'region'}
-    if not required_parameters.issubset(set(config_data['gcp'])):
-        raise Exception("'project_name', 'service_account', 'credentials_path' and 'region' "
-                        "are mandatory under 'gcp' section")
-
-    if not exists(config_data['gcp']['credentials_path']) or not isfile(config_data['gcp']['credentials_path']):
-        raise Exception("Path {} must be service account "
-                        "credential JSON file.".format(config_data['gcp']['credentials_path']))
-
-    if 'gcp_cloudrun' not in config_data:
-        config_data['gcp_cloudrun'] = {
-            'runtime_cpu': RUNTIME_CPU_DEFAULT,
-            'runtime_concurrency': RUNTIME_CONCURRENCY_DEFAULT
-        }
-
-    if 'runtime_cpu' in config_data['gcp_cloudrun']:
-        if config_data['gcp_cloudrun']['runtime_cpu'] not in AVAILABLE_RUNTIME_CPUS:
-            raise Exception('{} vCPUs is not available - '
-                            'choose one from {} vCPUs'.format(config_data['gcp_cloudrun']['runtime_cpu'],
-                                                              AVAILABLE_RUNTIME_CPUS))
-        if config_data['gcp_cloudrun']['runtime_cpu'] == 4 and config_data['gcp_cloudrun']['runtime_memory'] < 4096:
-            raise Exception('For {} vCPUs, runtime memory must be at least 4096 MiB'
-                            .format(config_data['gcp_cloudrun']['runtime_cpus']))
-    else:
-        config_data['gcp_cloudrun']['runtime_cpu'] = RUNTIME_CPU_DEFAULT
-
-    if 'runtime_concurrency' not in config_data['gcp_cloudrun']:
-        config_data['gcp_cloudrun']['runtime_concurrency'] = RUNTIME_CONCURRENCY_DEFAULT
-
-    config_data['gcp_cloudrun']['workers'] = config_data['lithops']['workers']
-
-    if 'invoke_pool_threads' not in config_data['gcp_cloudrun']:
-        config_data['gcp_cloudrun']['invoke_pool_threads'] = config_data['lithops']['workers']
+    if config_data['gcp_cloudrun']['runtime_cpu'] not in AVAILABLE_RUNTIME_CPUS:
+        raise Exception('{} vCPUs is not available - '
+                        'choose one from {} vCPUs'.format(config_data['gcp_cloudrun']['runtime_cpu'],
+                                                          AVAILABLE_RUNTIME_CPUS))
+    if config_data['gcp_cloudrun']['runtime_cpu'] == 4 and config_data['gcp_cloudrun']['runtime_memory'] < 4096:
+        raise Exception('For {} vCPUs, runtime memory must be at least 4096 MiB'
+                        .format(config_data['gcp_cloudrun']['runtime_cpus']))
 
     config_data['gcp_cloudrun'].update(config_data['gcp'])

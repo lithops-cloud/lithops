@@ -1,4 +1,4 @@
-# Lithops and IBM Virtual Private Cloud
+# IBM Virtual Private Cloud
 
 The IBM VPC client of Lithops can provide a truely serverless user experience on top of IBM VPC where Lithops creates new VSIs (Virtual Server Instance)  dynamically in runtime and scale Lithops jobs against generated VSIs. Alternatively Lithops can start and stop existing VSI instances.
 
@@ -15,14 +15,14 @@ Follow [IBM VPC setup](https://cloud.ibm.com/vpc-ext/overview) if you need to cr
 4. Create security group for your resource group. More details [here](https://cloud.ibm.com/vpc-ext/network/securityGroups)
 5. Create a SSH key in [IBM VPC SSH keys UI](https://cloud.ibm.com/vpc-ext/compute/sshKeys)
 
-## Choose an operating system image for VSI
+### Choose an operating system image for VSI
 Any Virtual Service Instance (VSI) need to define the instance’s operating system and version. Lithops support both standard operting system choices provided by the VPC or using pre-defined custom images that already contains all dependencies required by Lithops.
 
 ### Using the standard operating system image
 Lithops uses by default the Ubuntu 20.04 image. In this case, no further action are required and you can continue to the next step. Lithops will install all required dependencies in the VSI by itself. Notice this can consume about 3 min to complete all installations.
 
 ### Using a custom operating system image
-This is preferable approach, as using pre-built custom image will greatly improve time that of VSI creation for Lithops jobs. To benefit from this approach, navigate to [runtime/ibm_vpc](../../runtime/ibm_vpc), and follow the instructions.
+This is preferable approach, as using pre-built custom image will greatly improve time that of VSI creation for Lithops jobs. To benefit from this approach, navigate to [runtime/ibm_vpc](https://github.com/lithops-cloud/lithops/tree/master/runtime/ibm_vpc), and follow the instructions.
 
 ## Lithops and the VSI auto create mode
 In this mode, Lithops will automatically create new worker VM instances in runtime, scale Lithops job against generated VMs, and automatically delete VMs when the job is completed.
@@ -32,15 +32,14 @@ In this mode, Lithops will automatically create new worker VM instances in runti
 Edit your lithops config and add the relevant keys:
 
 ```yaml
+lithops:
+    backend: ibm_vpc
+
 ibm:
     iam_api_key: <iam-api-key>
 
 standalone:
-    backend: ibm_vpc
     exec_mode: create
-    #optional
-    # Use False for custom image that contains Lithops runtime
-    #pull_runtime: <True/False>
 
 ibm_vpc:
     endpoint: <REGION_ENDPOINT>
@@ -100,13 +99,17 @@ This will create 4 different VM instance and execute `my_map_function` in the ea
 |ibm_vpc | security_group_id | | yes | Security group id |
 |ibm_vpc | subnet_id | | yes | Subnet id |
 |ibm_vpc | key_id | | yes | Ssh public key id |
-|ibm_vpc | ssh_user | root |no | Username to access the VPC |
-|ibm_vpc | ssh_key_filename | | no | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
+|ibm_vpc | ssh_username | root |no | Username to access the VPC |
+|ibm_vpc | ssh_password |  |no | Password for accessing the worker VMs. If not provided, it is created randomly|
+|ibm_vpc | ssh_key_filename | | no | Path to the ssh key file provided to access the VPC. It will use the default path if not provided |
 |ibm_vpc | image_id | | no | Virtual machine image id |
-|ibm_vpc | volume_tier_name | general-purpose | no | Virtual machine volume tier |
+|ibm_vpc | boot_volume_profile | general-purpose | no | Virtual machine boot volume profile |
+|ibm_vpc | boot_volume_capacity | 100 | no | Virtual machine boot volume capacity in GB |
 |ibm_vpc | profile_name | cx2-2x4 | no | Profile name for the worker VMs |
 |ibm_vpc | master_profile_name | cx2-2x4 | no | Profile name for the master VM |
 |ibm_vpc | delete_on_dismantle | True | no | Delete the worekr VMs when they are stopped |
+|ibm_vpc | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
+|ibm_vpc | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of a worker VM. |
 
 ## Lithops and the VSI consume mode
 
@@ -130,26 +133,15 @@ Edit your lithops config and add the relevant keys:
 
    ```yaml
    lithops:
-	  mode: standalone
+	  backend: ibm_vpc
 
    ibm:
 	  iam_api_key: <iam-api-key>
-
-	standalone:
-	  backend: ibm_vpc
 
    ibm_vpc:
       endpoint   : <REGION_ENDPOINT>
       instance_id : <INSTANCE ID OF THE VM>
       ip_address  : <FLOATING IP ADDRESS OF THE VM>
-
-      #optional
-
-      # SSH user to access VPC.
-      ssh_user : <SSH_USER_FOR_VPC> # Default is 'root'
-      #Path to the ssh key file provided to create the VM.
-      ssh_key_filename : <PATH_TO_SSH_KEYFILE> # Default path in OS
-
    ```
 
 If you need to create new VM, then follow the steps to create and update Lithops configuration:
@@ -168,7 +160,7 @@ If you need to create new VM, then follow the steps to create and update Lithops
 |ibm_vpc | instance_id | | yes | virtual server instance ID |
 |ibm_vpc | ip_address | | yes | Floatting IP address atached to your Vm instance|
 |ibm_vpc | ssh_key_filename | | no | Path to the ssh key file provided to create the VM. It will use the default path if not provided |
-|ibm_vpc | delete_on_dismantle | False| no | Delete the VM when it is stopped |
+|ibm_vpc | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of the VM. |
 
 ## Viewing the execution logs
 

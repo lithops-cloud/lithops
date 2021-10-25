@@ -302,11 +302,12 @@ class ResponseFuture:
         :raises CancelledError: If the job is cancelled before completed.
         :raises TimeoutError: If job is not complete after `timeout` seconds.
         """
-        if not self._produce_output:
-            self._set_state(ResponseFuture.State.Done)
-
         if self._state == ResponseFuture.State.New:
             raise ValueError("task not yet invoked")
+
+        if not self._produce_output:
+            self.status(throw_except=throw_except, internal_storage=internal_storage)
+            self._set_state(ResponseFuture.State.Done)
 
         if self.done:
             return self._return_val

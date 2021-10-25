@@ -203,7 +203,7 @@ class OpenWhiskClient:
 
         try:
             if is_ow_action:
-                resp = self.session.post(url, json=payload, verify=False)
+                resp = self.session.post(url, data=json.dumps(payload, default=str), verify=False)
                 resp_status = resp.status_code
                 data = resp.json()
             else:
@@ -233,8 +233,8 @@ class OpenWhiskClient:
                 # unauthorized. Probably token expired if using IAM auth
                 return resp_status
             elif resp_status == 404:
-                logger.debug(data)
-                raise Exception('Runtime: {} not deployed'.format(action_name))
+                # Runtime is not deployed
+                return resp_status
             else:
                 logger.debug(data)
                 raise Exception(data['error'])

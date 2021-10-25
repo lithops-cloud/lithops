@@ -41,15 +41,9 @@ class StandaloneHandler:
     def __init__(self, standalone_config):
         self.config = standalone_config
         self.backend_name = self.config['backend']
-        self.runtime = self.config['runtime']
+        self.start_timeout = self.config['start_timeout']
+        self.exec_mode = self.config['exec_mode']
         self.is_lithops_worker = is_lithops_worker()
-
-        self.start_timeout = self.config.get('start_timeout', 300)
-        self.auto_dismantle = self.config.get('auto_dismantle')
-        self.hard_dismantle_timeout = self.config.get('hard_dismantle_timeout')
-        self.soft_dismantle_timeout = self.config.get('soft_dismantle_timeout')
-        self.pull_runtime = self.config.get('pull_runtime', True)
-        self.exec_mode = self.config.get('exec_mode', 'consume')
 
         module_location = 'lithops.standalone.backends.{}'.format(self.backend_name)
         sb_module = importlib.import_module(module_location)
@@ -143,10 +137,9 @@ class StandaloneHandler:
         job_id = job_payload['job_id']
         total_calls = job_payload['total_calls']
         chunksize = job_payload['chunksize']
-        workers = job_payload['workers']
 
-        total_workers = min(workers, total_calls // chunksize + (total_calls % chunksize > 0)
-                            if self.exec_mode == 'create' else 1)
+        total_workers = (total_calls // chunksize + (total_calls % chunksize > 0)
+                         if self.exec_mode in ['create', 'reuse'] else 1)
 
         def start_master_instance(wait=True):
             if not self._is_master_service_ready():
@@ -154,16 +147,59 @@ class StandaloneHandler:
                 if wait:
                     self._wait_master_service_ready()
 
-        if self.exec_mode == 'create':
+        def get_workers_on_master():
+            workers_on_master = []
+            try:
+                cmd = (f'curl -X GET http://127.0.0.1:{STANDALONE_SERVICE_PORT}/workers -H \'Content-Type: application/json\'')
+                workers_on_master = json.loads(self.backend.master.get_ssh_client().run_remote_command(cmd))
+            except Exception:
+                pass
+
+            return workers_on_master
+
+        def create_workers():
+            current_workers_old = set(self.backend.workers)
             with ThreadPoolExecutor(total_workers+1) as ex:
                 ex.submit(start_master_instance, wait=False)
-                for vm_n in range(total_workers):
+                for vm_n in range(total_workers + 1):
                     worker_id = "{:04d}".format(vm_n)
-                    name = 'lithops-{}-{}-{}'.format(executor_id, job_id, worker_id)
+                    name = 'lithops-worker-{}-{}-{}'.format(executor_id, job_id, worker_id)
                     ex.submit(self.backend.create_worker, name)
+            current_workers_new = set(self.backend.workers)
+            new_workers = current_workers_new - current_workers_old
             logger.debug("Total worker VM instances created: {}/{}"
-                         .format(len(self.backend.workers), total_workers))
-            total_workers = len(self.backend.workers)
+                         .format(len(new_workers), total_workers))
+
+            return new_workers
+
+        worker_instances = []
+
+        if self.exec_mode == 'create':
+            workers = create_workers()
+            total_workers = len(workers)
+            worker_instances = [(inst.name,
+                                 inst.ip_address,
+                                 inst.instance_id,
+                                 inst.ssh_credentials)
+                                for inst in workers]
+
+        elif self.exec_mode == 'reuse':
+            workers = get_workers_on_master()
+            logger.info(f"Found {len(workers)} workers connected to master {self.backend.master}")
+            if workers:
+                total_workers = len(workers)
+            if not workers:
+                self.backend.workers = []
+                workers = create_workers()
+                total_workers = len(workers)
+                worker_instances = [(inst.name,
+                                     inst.ip_address,
+                                     inst.instance_id,
+                                     inst.ssh_credentials)
+                                    for inst in workers]
+
+        if total_workers == 0:
+            raise Exception('It was not possible to create any worker')
 
         logger.debug('ExecutorID {} | JobID {} - Going to run {} activations '
                      'in {} workers'.format(executor_id, job_id, total_calls,
@@ -172,15 +208,16 @@ class StandaloneHandler:
         logger.debug("Checking if {} is ready".format(self.backend.master))
         start_master_instance(wait=True)
 
-        if self.exec_mode == 'create':
-            worker_instances = [(inst.name, inst.ip_address, inst.instance_id)
-                                for inst in self.backend.workers]
-            job_payload['worker_instances'] = worker_instances
+        job_payload['worker_instances'] = worker_instances
 
         if self.is_lithops_worker:
             url = "http://127.0.0.1:{}/run".format(STANDALONE_SERVICE_PORT)
             requests.post(url, data=json.dumps(job_payload))
         else:
+            # delete ssh key
+            backend = job_payload['config']['lithops']['backend']
+            job_payload['config'][backend].pop('ssh_key_filename', None)
+
             cmd = ('curl http://127.0.0.1:{}/run -d {} '
                    '-H \'Content-Type: application/json\' -X POST'
                    .format(STANDALONE_SERVICE_PORT,
@@ -202,12 +239,11 @@ class StandaloneHandler:
             logger.debug('{} not ready'.format(self.backend.master))
             self.backend.master.create(check_if_exists=True, start=True)
             self._wait_master_instance_ready()
-
         self._setup_master_service()
         self._wait_master_service_ready()
 
         logger.debug('Extracting runtime metadata information')
-        payload = {'runtime': runtime_name, 'pull_runtime': self.pull_runtime}
+        payload = {'runtime': runtime_name, 'pull_runtime': True}
         cmd = ('curl http://127.0.0.1:8080/preinstalls -d {} '
                '-H \'Content-Type: application/json\' -X GET'
                .format(shlex.quote(json.dumps(payload))))
@@ -243,7 +279,9 @@ class StandaloneHandler:
             self.backend.master.del_ssh_client()
         except Exception:
             pass
-        self.backend.clear(job_keys)
+
+        if self.exec_mode != 'reuse':
+            self.backend.clear(job_keys)
 
     def get_runtime_key(self, runtime_name, *args):
         """
