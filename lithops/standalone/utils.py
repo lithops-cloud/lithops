@@ -1,6 +1,10 @@
 import json
-from lithops.constants import STANDALONE_INSTALL_DIR, STANDALONE_LOG_FILE,\
-    STANDALONE_CONFIG_FILE
+
+from lithops.constants import (
+    STANDALONE_INSTALL_DIR,
+    STANDALONE_LOG_FILE,
+    STANDALONE_CONFIG_FILE,
+)
 
 MASTER_SERVICE_NAME = 'lithops-master.service'
 MASTER_SERVICE_FILE = """
@@ -30,6 +34,19 @@ Restart=always
 WantedBy=multi-user.target
 """.format(STANDALONE_INSTALL_DIR)
 
+CLOUD_CONFIG_WORKER = """
+#cloud-config
+bootcmd:
+    - echo '{0}:{1}' | chpasswd
+    - sed -i '/PasswordAuthentication no/c\PasswordAuthentication yes' /etc/ssh/sshd_config
+    - echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
+runcmd:
+    - echo '{0}:{1}' | chpasswd
+    - sed -i '/PasswordAuthentication no/c\PasswordAuthentication yes' /etc/ssh/sshd_config
+    - echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
+    - systemctl restart sshd
+"""
+
 
 def get_host_setup_script():
     """
@@ -40,7 +57,7 @@ def get_host_setup_script():
     command -v unzip >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
     command -v pip3 >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
     command -v docker >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
-    if [ "$INSTALL_LITHOPS_DEPS" = true ] ; then
+    if [ "$INSTALL_LITHOPS_DEPS" = true ]; then
     rm /var/lib/apt/lists/* -vfR;
     apt-get clean;
     apt-get update;
@@ -49,7 +66,10 @@ def get_host_setup_script():
     add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable";
     apt-get update;
     apt-get install unzip redis-server python3-pip docker-ce docker-ce-cli containerd.io -y;
-    pip3 install -U flask gevent lithops;
+    fi;
+
+    if [[ ! $(pip3 list|grep "Flask") ]]; then
+    pip3 install -U flask gevent lithops >> {1} 2>&1;
     fi;
     }}
     install_packages >> {1} 2>&1

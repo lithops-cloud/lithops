@@ -45,20 +45,11 @@ DEFAULT_CONFIG_KEYS = {
     'profile_name': 'cx2-2x4',
     'boot_volume_profile': 'general-purpose',
     'ssh_username': 'root',
+    'ssh_password': str(uuid.uuid4()),
+    'delete_on_dismantle': True,
     'max_workers': 100,
     'worker_processes': 2
 }
-
-
-CLOUD_CONFIG = """
-#cloud-config
-bootcmd:
-    - echo '{0}:{1}' | chpasswd
-    - sed -i '/PasswordAuthentication no/c\PasswordAuthentication yes' /etc/ssh/sshd_config
-    - echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
-runcmd:
-    - systemctl restart sshd
-"""
 
 
 def load_config(config_data):
@@ -78,7 +69,7 @@ def load_config(config_data):
 
     for param in params_to_check:
         if param not in config_data['ibm_vpc']:
-            msg = "{} is mandatory in 'ibm_vpc' section of the configuration".format(param)
+            msg = "'{}' is mandatory in 'ibm_vpc' section of the configuration".format(param)
             raise Exception(msg)
 
     config_data['ibm_vpc']['endpoint'] = config_data['ibm_vpc']['endpoint'].replace('/v1', '')
@@ -90,12 +81,6 @@ def load_config(config_data):
             # The image built by lithops script has 10GB boot device
             config_data['ibm_vpc']['boot_volume_capacity'] = BOOT_VOLUME_CAPACITY_CUSTOM
 
-    if 'ssh_password' not in config_data['ibm_vpc']:
-        config_data['ibm_vpc']['ssh_password'] = str(uuid.uuid4())
-
     region = config_data['ibm_vpc']['endpoint'].split('//')[1].split('.')[0]
     if 'zone_name' not in config_data['ibm_vpc']:
         config_data['ibm_vpc']['zone_name'] = '{}-2'.format(region)
-
-    if 'delete_on_dismantle' not in config_data['ibm_vpc']:
-        config_data['ibm_vpc']['delete_on_dismantle'] = True

@@ -50,7 +50,7 @@ def wait_job_completed(job_key):
         time.sleep(1)
 
 
-def run_worker(master_ip, job_key):
+def run_worker(master_ip, work_queue):
     """
     Run a job
     """
@@ -60,12 +60,12 @@ def run_worker(master_ip, job_key):
     localhos_handler = LocalhostHandler({'pull_runtime': pull_runtime})
 
     while True:
-        url = 'http://{}:{}/get-task/{}'.format(master_ip, STANDALONE_SERVICE_PORT, job_key)
+        url = 'http://{}:{}/get-task/{}'.format(master_ip, STANDALONE_SERVICE_PORT, work_queue)
         logger.info('Getting task from {}'.format(url))
 
         try:
             resp = requests.get(url)
-        except:
+        except Exception:
             time.sleep(1)
             continue
 
@@ -112,15 +112,12 @@ def main():
     with open(vm_data_file, 'r') as ad:
         vm_data = json.load(ad)
         master_ip = vm_data['master_ip']
-        job_key = vm_data['job_key']
+        work_queue = vm_data['work_queue']
 
     BUDGET_KEEPER = BudgetKeeper(STANDALONE_CONFIG)
     BUDGET_KEEPER.start()
 
-    if STANDALONE_CONFIG.get('exec_mode') == 'reuse':
-        job_key = 'all'
-
-    run_worker(master_ip, job_key)
+    run_worker(master_ip, work_queue)
     logger.info('Finished')
 
     try:
