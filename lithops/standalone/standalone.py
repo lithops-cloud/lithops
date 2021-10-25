@@ -186,8 +186,7 @@ class StandaloneHandler:
         elif self.exec_mode == 'reuse':
             workers = get_workers_on_master()
             total_started_workers = len(workers)
-            if workers:
-                logger.debug(f'Master VM already has {total_started_workers} started workers')
+            logger.debug(f"Found {total_started_workers} workers connected to master {self.backend.master}")
             if total_started_workers < total_required_workers:
                 # create missing delta of workers
                 workers_to_create = total_required_workers - total_started_workers
