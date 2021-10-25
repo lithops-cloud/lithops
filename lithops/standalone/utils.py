@@ -53,23 +53,38 @@ def get_host_setup_script():
     Returs the script necessary for installing a lithops VM host
     """
     return """
+    wait_internet_connection(){{
+    while ! (ping -c 1 -W 1 8.8.8.8| grep -q 'statistics'); do
+    echo "Waiting for 8.8.8.8 - network interface might be down..."
+    sleep 1
+    done;
+    }}
+
     install_packages(){{
+    command -v docker >/dev/null 2>&1 || {{ export INSTALL_DOCKER=true; export INSTALL_LITHOPS_DEPS=true;}};
     command -v unzip >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
     command -v pip3 >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
-    command -v docker >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
-    if [ "$INSTALL_LITHOPS_DEPS" = true ]; then
-    rm /var/lib/apt/lists/* -vfR;
-    apt-get clean;
+
+    if [ "$INSTALL_DOCKER" = true ]; then
+    wait_internet_connection;
+    echo "--> Installing Docker"
     apt-get update;
     apt-get install apt-transport-https ca-certificates curl software-properties-common gnupg-agent -y;
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -;
     add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable";
+    fi;
+
+    if [ "$INSTALL_LITHOPS_DEPS" = true ]; then
+    wait_internet_connection;
+    echo "--> Installing Lithops system dependencies"
     apt-get update;
-    apt-get install unzip redis-server python3-pip docker-ce docker-ce-cli containerd.io -y;
+    apt-get install unzip redis-server python3-pip docker-ce docker-ce-cli containerd.io -y --fix-missing;
     fi;
 
     if [[ ! $(pip3 list|grep "lithops") ]]; then
-    pip3 install -U flask gevent lithops >> {1} 2>&1;
+    wait_internet_connection;
+    echo "--> Installing Lithops python dependencies"
+    pip3 install -U flask gevent lithops;
     fi;
     }}
     install_packages >> {1} 2>&1
