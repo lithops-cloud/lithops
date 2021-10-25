@@ -68,7 +68,7 @@ def get_host_setup_script():
     apt-get install unzip redis-server python3-pip docker-ce docker-ce-cli containerd.io -y;
     fi;
 
-    if [[ ! $(pip3 list|grep "Flask") ]]; then
+    if [[ ! $(pip3 list|grep "lithops") ]]; then
     pip3 install -U flask gevent lithops >> {1} 2>&1;
     fi;
     }}

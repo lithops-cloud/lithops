@@ -163,7 +163,7 @@ class StandaloneHandler:
                 ex.submit(start_master_instance, wait=False)
                 for vm_n in range(workers_to_create):
                     worker_id = "{:04d}".format(vm_n)
-                    name = 'lithops-worker-{}-{}'.format(executor_id, worker_id)
+                    name = 'lithops-worker-{}-{}-{}'.format(executor_id, job_id, worker_id)
                     ex.submit(self.backend.create_worker, name)
             current_workers_new = set(self.backend.workers)
             new_workers = current_workers_new - current_workers_old
