@@ -48,12 +48,14 @@ runcmd:
 """
 
 
-def get_host_setup_script():
+def get_host_setup_script(docker=True):
     """
-    Returs the script necessary for installing a lithops VM host
+    Returns the script necessary for installing a lithops VM host
     """
+
     return """
     wait_internet_connection(){{
+    echo "--> Checking internet connection"
     while ! (ping -c 1 -W 1 8.8.8.8| grep -q 'statistics'); do
     echo "Waiting for 8.8.8.8 - network interface might be down..."
     sleep 1
@@ -61,11 +63,12 @@ def get_host_setup_script():
     }}
 
     install_packages(){{
+    export DOCKER_REQUIRED={2};
     command -v docker >/dev/null 2>&1 || {{ export INSTALL_DOCKER=true; export INSTALL_LITHOPS_DEPS=true;}};
     command -v unzip >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
     command -v pip3 >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
 
-    if [ "$INSTALL_DOCKER" = true ]; then
+    if [ "$INSTALL_DOCKER" = true ] && [ "$DOCKER_REQUIRED" = true ]; then
     wait_internet_connection;
     echo "--> Installing Docker"
     apt-get update;
@@ -78,7 +81,13 @@ def get_host_setup_script():
     wait_internet_connection;
     echo "--> Installing Lithops system dependencies"
     apt-get update;
-    apt-get install unzip redis-server python3-pip docker-ce docker-ce-cli containerd.io -y --fix-missing;
+
+    if [ "$INSTALL_DOCKER" = true ] && [ "$DOCKER_REQUIRED" = true ]; then
+    apt-get install unzip python3-pip docker-ce docker-ce-cli containerd.io -y --fix-missing;
+    else
+    apt-get install unzip python3-pip -y --fix-missing;
+    fi;
+
     fi;
 
     if [[ ! $(pip3 list|grep "lithops") ]]; then
@@ -91,7 +100,7 @@ def get_host_setup_script():
 
     unzip -o /tmp/lithops_standalone.zip -d {0} > /dev/null 2>&1;
     rm /tmp/lithops_standalone.zip
-    """.format(STANDALONE_INSTALL_DIR, STANDALONE_LOG_FILE)
+    """.format(STANDALONE_INSTALL_DIR, STANDALONE_LOG_FILE, str(docker).lower())
 
 
 def get_master_setup_script(config, vm_data):
