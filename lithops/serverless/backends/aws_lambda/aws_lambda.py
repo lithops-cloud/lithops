@@ -303,16 +303,13 @@ class AWSLambdaBackend:
 
         logger.info('Going to create runtime {} ({}) for AWS Lambda...'.format(runtime_name, runtime_file))
 
-        # Container runtime
-        _, image_name = runtime_name.split('/')
-
         self._create_handler_bin(remove=False)
         if runtime_file:
             cmd = '{} build -t {} -f {} . '.format(lambda_config.DOCKER_PATH,
-                                                   image_name,
+                                                   runtime_name,
                                                    runtime_file)
         else:
-            cmd = '{} build -t {} . '.format(lambda_config.DOCKER_PATH, image_name)
+            cmd = '{} build -t {} . '.format(lambda_config.DOCKER_PATH, runtime_name)
 
         cmd = cmd+' '.join(extra_args)
 
@@ -331,16 +328,16 @@ class AWSLambdaBackend:
         cmd = '{} login --username AWS --password-stdin {}'.format(lambda_config.DOCKER_PATH, registry)
         subprocess.check_output(cmd.split(), input=ecr_token)
 
-        repo_name = self._format_repo_name(image_name)
+        repo_name = self._format_repo_name(runtime_name)
 
-        tag = 'latest' if ':' not in image_name else image_name.split(':')[1]
+        tag = 'latest' if ':' not in runtime_name else runtime_name.split(':')[1]
 
         try:
             self.ecr_client.create_repository(repositoryName=repo_name)
         except self.ecr_client.exceptions.RepositoryAlreadyExistsException as e:
             logger.info('Repository {} already exists'.format(repo_name))
 
-        cmd = '{} tag {} {}/{}:{}'.format(lambda_config.DOCKER_PATH, image_name, registry, repo_name, tag)
+        cmd = '{} tag {} {}/{}:{}'.format(lambda_config.DOCKER_PATH, runtime_name, registry, repo_name, tag)
         subprocess.check_call(cmd.split())
 
         cmd = '{} push {}/{}:{}'.format(lambda_config.DOCKER_PATH, registry, repo_name, tag)
@@ -359,14 +356,12 @@ class AWSLambdaBackend:
         function_name = self._format_function_name(runtime_name, memory)
         logger.debug('Creating new Lithops lambda function: {}'.format(function_name))
 
-        if '/' in runtime_name:
+        if self._is_container_runtime(runtime_name):
             # Container image runtime
-            image_name = runtime_name.split('/')[1]
-
-            if ':' in image_name:
-                image, tag = image_name.split(':')
+            if ':' in runtime_name:
+                image, tag = runtime_name.split(':')
             else:
-                image, tag = image_name, 'latest'
+                image, tag = runtime_name, 'latest'
 
             try:
                 repo_name = self._format_repo_name(image)
@@ -466,7 +461,7 @@ class AWSLambdaBackend:
         @param runtime_name: name of the runtime to be deleted
         @param runtime_memory: memory of the runtime to be deleted in MB
         """
-        logger.debug('Deleting lambda runtime: {}'.format(runtime_name))
+        logger.info(f'Deleting lambda runtime: {runtime_name} - {runtime_memory}MB')
 
         func_name = self._format_function_name(runtime_name, runtime_memory)
         self._delete_function(func_name)
@@ -474,9 +469,16 @@ class AWSLambdaBackend:
         # Check if layer/container image has to also be deleted
         if not self.list_runtimes(runtime_name):
             if self._is_container_runtime(runtime_name):
-                repo_name = self._format_repo_name(runtime_name)
-                logger.debug('Going to delete ECR repository {}'.format(repo_name))
-                self.ecr_client.delete_repository(repositoryName=repo_name, force=True)
+                if ':' in runtime_name:
+                    image, tag = runtime_name.split(':')
+                else:
+                    image, tag = runtime_name, 'latest'
+                repo_name = self._format_repo_name(image)
+                logger.info('Going to delete ECR repository {} tag {}'.format(repo_name, tag))
+                self.ecr_client.batch_delete_image(repositoryName=repo_name, imageIds=[{'imageTag': tag}])
+                images = self.ecr_client.list_images(repositoryName=repo_name, filter={'tagStatus': 'TAGGED'})
+                if not images['imageIds']:
+                    self.ecr_client.delete_repository(repositoryName=repo_name, force=True)
             else:
                 layer = self._format_layer_name(runtime_name)
                 self._delete_layer(layer)
@@ -497,7 +499,7 @@ class AWSLambdaBackend:
         for layer_name, _ in layers:
             self._delete_layer(layer_name)
 
-    def list_runtimes(self, runtime_name=None):
+    def list_runtimes(self, runtime_name='all'):
         """
         List all the Lithops lambda runtimes deployed for this user
         @param runtime_name: name of the runtime to list, 'all' to list all runtimes
@@ -507,20 +509,19 @@ class AWSLambdaBackend:
 
         runtimes = []
         response = self.lambda_client.list_functions(FunctionVersion='ALL')
-        key = self._format_function_name('', '')[:-4]
         for function in response['Functions']:
-            if key in function['FunctionName']:
+            if 'lithops' in function['FunctionName']:
                 rt_name, rt_memory = self._unformat_function_name(function['FunctionName'])
                 runtimes.append((rt_name, rt_memory))
 
         while 'NextMarker' in response:
             response = self.lambda_client.list_functions(Marker=response['NextMarker'])
             for function in response['Functions']:
-                if key in function['FunctionName']:
+                if 'lithops' in function['FunctionName']:
                     rt_name, rt_memory = self._unformat_function_name(function['FunctionName'])
                     runtimes.append((rt_name, rt_memory))
 
-        if runtime_name:
+        if runtime_name != 'all':
             if self._is_container_runtime(runtime_name) and ':' not in runtime_name:
                 runtime_name = runtime_name + ':latest'
             runtimes = [tup for tup in runtimes if tup[0] in runtime_name]
@@ -607,11 +608,8 @@ class AWSLambdaBackend:
         )
 
         result = json.loads(response['Payload'].read())
+
         if 'lithops_version' in result:
             return result
         else:
-            logger.error('An error occurred: {}, cleaning up...'.format(result))
-            self.delete_runtime(runtime_name, runtime_memory)
-            layer_name = self._format_layer_name(runtime_name)
-            self._delete_layer(layer_name)
-            raise Exception(result)
+            raise Exception('An error occurred: {}'.format(result))

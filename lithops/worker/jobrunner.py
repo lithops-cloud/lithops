@@ -255,6 +255,11 @@ class JobRunner:
             # self.stats.write('worker_jobrunner_end_tstamp', time.time())
 
         except Exception:
+            # Clean /tmp dir
+            for f in os.listdir('/tmp'):
+                path = os.path.join('/tmp', f)
+                os.remove(path) if os.path.isfile(path) else None
+
             exception = True
             self.stats.write("exception", True)
             exc_type, exc_value, exc_traceback = sys.exc_info()
