@@ -461,7 +461,7 @@ class AWSLambdaBackend:
         @param runtime_name: name of the runtime to be deleted
         @param runtime_memory: memory of the runtime to be deleted in MB
         """
-        logger.debug('Deleting lambda runtime: {}'.format(runtime_name))
+        logger.info(f'Deleting lambda runtime: {runtime_name} - {runtime_memory}MB')
 
         func_name = self._format_function_name(runtime_name, runtime_memory)
         self._delete_function(func_name)
@@ -469,9 +469,16 @@ class AWSLambdaBackend:
         # Check if layer/container image has to also be deleted
         if not self.list_runtimes(runtime_name):
             if self._is_container_runtime(runtime_name):
-                repo_name = self._format_repo_name(runtime_name)
-                logger.debug('Going to delete ECR repository {}'.format(repo_name))
-                self.ecr_client.delete_repository(repositoryName=repo_name, force=True)
+                if ':' in runtime_name:
+                    image, tag = runtime_name.split(':')
+                else:
+                    image, tag = runtime_name, 'latest'
+                repo_name = self._format_repo_name(image)
+                logger.info('Going to delete ECR repository {} tag {}'.format(repo_name, tag))
+                self.ecr_client.batch_delete_image(repositoryName=repo_name, imageIds=[{'imageTag': tag}])
+                images = self.ecr_client.list_images(repositoryName=repo_name, filter={'tagStatus': 'TAGGED'})
+                if not images['imageIds']:
+                    self.ecr_client.delete_repository(repositoryName=repo_name, force=True)
             else:
                 layer = self._format_layer_name(runtime_name)
                 self._delete_layer(layer)
@@ -492,7 +499,7 @@ class AWSLambdaBackend:
         for layer_name, _ in layers:
             self._delete_layer(layer_name)
 
-    def list_runtimes(self, runtime_name=None):
+    def list_runtimes(self, runtime_name='all'):
         """
         List all the Lithops lambda runtimes deployed for this user
         @param runtime_name: name of the runtime to list, 'all' to list all runtimes
