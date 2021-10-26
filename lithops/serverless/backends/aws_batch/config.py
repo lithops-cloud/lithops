@@ -40,6 +40,9 @@ RUNTIME_TIMEOUT_MAX = 900  # Max. timeout: 900 s == 15 min
 RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
 RUNTIME_MEMORY_MAX = 10240  # Max. memory: 10240 MB
 
+RUNTIME_WORKERS_DEFAULT = 1
+MAX_WORKERS = 10
+
 DOCKERFILE_DEFAULT = """
 RUN apt-get update && apt-get install -y \
         zip \
@@ -71,8 +74,6 @@ ENTRYPOINT python entry_point.py
 
 
 def load_config(config_data):
-    print(config_data)
-
     if 'aws' not in config_data and 'aws_batch' not in config_data:
         raise Exception("'aws' and 'aws_batch' sections are mandatory in the configuration")
 
@@ -97,6 +98,13 @@ def load_config(config_data):
         logger.warning("Timeout set to {} - {} exceeds the "
                        "maximum amount".format(RUNTIME_TIMEOUT_MAX, config_data['aws_batch']['runtime_timeout']))
         config_data['aws_batch']['runtime_memory'] = RUNTIME_MEMORY_MAX
+    if 'worker_processes' not in config_data['aws_batch']:
+        config_data['aws_batch']['worker_processes'] = MAX_WORKERS
+    if config_data['aws_batch']['worker_processes'] > MAX_WORKERS:
+        logger.warning("Max workers set to {} - {} exceeds the "
+                       "maximum amount".format(MAX_WORKERS, config_data['aws_batch']['worker_processes']))
+
+    config_data['aws_batch']['max_workers'] = config_data['aws_batch']['max_cpus'] // config_data['aws_batch']['worker_processes']
 
     # Auth, role and region config
     if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
@@ -105,12 +113,15 @@ def load_config(config_data):
     if 'account_id' not in config_data['aws']:
         config_data['aws']['account_id'] = None
 
-    if not {'service_role', 'region_name'}.issubset(set(config_data['aws_batch'])):
-        raise Exception("'service_role' and 'region_name' are mandatory under 'aws_batch' section")
+    if not {'execution_role', 'region_name'}.issubset(set(config_data['aws_batch'])):
+        raise Exception("'execution_role' and 'region_name' are mandatory under 'aws_batch' section")
 
     # VPC config
     if 'subnets' not in config_data['aws_batch']:
         config_data['aws_batch']['subnets'] = []
+    if 'assign_public_ip' not in config_data['aws_batch']:
+        config_data['aws_batch']['assign_public_ip'] = True
+    assert isinstance(config_data['aws_batch']['assign_public_ip'], bool)
 
     # Put credential keys to 'aws_batch' dict entry
     config_data['aws_batch'] = {**config_data['aws_batch'], **config_data['aws']}

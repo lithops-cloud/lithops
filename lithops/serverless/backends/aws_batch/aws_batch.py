@@ -50,7 +50,6 @@ class AWSBatchBackend:
         self.user_key = aws_batch_config['access_key_id'][-4:]
         self.package = 'aws-batch_lithops_v{}_{}'.format(lithops.__version__, self.user_key)
         self.region_name = aws_batch_config['region_name']
-        self.role_arn = aws_batch_config['service_role']
 
         self._queue_name = '{}_job_queue'.format(self.package.replace('.', '-'))
         self._compute_env_name = '{}_compute_env'.format(self.package.replace('.', '-'))
@@ -91,6 +90,15 @@ class AWSBatchBackend:
         fmt_runtime_name = runtime_name.replace('/', '--').replace(':', '--')
         return '{}-{}--{}mb'.format(self.package.replace('.', '-'), fmt_runtime_name, runtime_memory)
 
+    def _unformat_jobdef_name(self, jobdef_name):
+        # 	aws-batch_lithops_v2-5-5-dev0_WH6F-default_runtime-v39--latest--256mb
+        prefix, tag, mem_str = jobdef_name.split('--')
+        memory = int(mem_str.replace('mb', ''))
+        runtime_name_base = prefix.replace(self.package.replace('.', '-') + '-', '')
+        runtime_name, _ = runtime_name_base.split('-')
+        return runtime_name, memory
+
+
     def _build_default_runtime(self, default_runtime_img_name):
         """
         Builds the default runtime
@@ -109,13 +117,9 @@ class AWSBatchBackend:
                             'an already built runtime')
 
     def _create_compute_env(self):
-        res = self.batch_client.describe_compute_environments()
+        compute_env = self._get_compute_env(self._compute_env_name)
 
-        if res['ResponseMetadata']['HTTPStatusCode'] != 200:
-            raise Exception(res)
-
-        compute_env_names = [compute_env['computeEnvironmentName'] for compute_env in res['computeEnvironments']]
-        if self._compute_env_name not in compute_env_names:
+        if compute_env is None:
             logger.debug('Creating new Compute Environment {}'.format(self._compute_env_name))
             compute_resources_spec = {
                 'type': self.aws_batch_config['env_type'],
@@ -131,30 +135,61 @@ class AWSBatchBackend:
                 computeEnvironmentName=self._compute_env_name,
                 type='MANAGED',
                 computeResources=compute_resources_spec,
-                serviceRole=self.aws_batch_config['service_role']
             )
 
             if res['ResponseMetadata']['HTTPStatusCode'] != 200:
                 raise Exception(res)
+
+            created = False
+            while not created:
+                compute_env = self._get_compute_env(self._compute_env_name)
+                if compute_env['status'] == 'VALID':
+                    created = True
+                elif compute_env['status'] == 'CREATING':
+                    logger.debug('Compute environment is being created... (status: {})'.format(compute_env['status']))
+                    time.sleep(3)
+                else:
+                    logger.error(res)
+                    raise Exception('Could not create compute environment (status is {})'.format(compute_env['status']))
+
             logger.debug('Compute Environment {} successfully created'.format(self._compute_env_name))
         else:
+            if compute_env['status'] != 'VALID' or compute_env['state'] != 'ENABLED':
+                logger.error(compute_env)
+                raise Exception('Compute env status must be VALID and state ENABLED')
             logger.debug('Using existing Compute Environment {}'.format(self._compute_env_name))
 
-    def _create_queue(self):
-        res = self.batch_client.describe_job_queues()
+    def _get_compute_env(self, ce_name=None):
+        res = self.batch_client.describe_compute_environments()
 
         if res['ResponseMetadata']['HTTPStatusCode'] != 200:
             raise Exception(res)
 
-        queue_names = [queue['jobQueueName'] for queue in res['jobQueues']]
-        if self._queue_name not in queue_names:
+        if ce_name is None:
+            compute_envs = [ce for ce in res['computeEnvironments'] if
+                            self.package.replace('.', '-') in ce['computeEnvironmentName']]
+            return compute_envs
+
+        compute_envs = [ce for ce in res['computeEnvironments'] if ce['computeEnvironmentName'] == ce_name]
+        if len(compute_envs) == 0:
+            return None
+        if len(compute_envs) == 1:
+            return compute_envs.pop()
+        if len(compute_envs) > 1:
+            logger.error(compute_envs)
+            raise Exception('More than one compute env with the same name')
+
+    def _create_queue(self):
+        job_queue = self._get_job_queue(self._queue_name)
+
+        if job_queue is None:
             logger.debug('Creating new Queue {}'.format(self._queue_name))
             res = self.batch_client.create_job_queue(
                 jobQueueName=self._queue_name,
                 priority=1,
                 computeEnvironmentOrder=[
                     {
-                        'order': 0,
+                        'order': 1,
                         'computeEnvironment': self._compute_env_name
                     },
                 ],
@@ -162,22 +197,51 @@ class AWSBatchBackend:
 
             if res['ResponseMetadata']['HTTPStatusCode'] != 200:
                 raise Exception(res)
+
+            created = False
+            while not created:
+                job_queue = self._get_job_queue(self._queue_name)
+                if job_queue['status'] == 'VALID':
+                    created = True
+                elif job_queue['status'] == 'CREATING':
+                    logger.debug('Job queue is being created... (status: {})'.format(job_queue['status']))
+                    time.sleep(3)
+                else:
+                    logger.error(res)
+                    raise Exception('Could not create job queue (status is {})'.format(job_queue['status']))
+
             logger.debug('Queue {} successfully created'.format(self._queue_name))
         else:
+            if job_queue['status'] != 'VALID' or job_queue['state'] != 'ENABLED':
+                logger.error(job_queue)
+                raise Exception('Job queue status must be VALID and state ENABLED')
             logger.debug('Using existing Queue {}'.format(self._queue_name))
 
-    def _create_job_def(self, runtime_name, runtime_memory):
-        job_def_name = self._format_jobdef_name(runtime_name, runtime_memory)
-
-        res = self.batch_client.describe_job_definitions()
+    def _get_job_queue(self, jq_name=None):
+        res = self.batch_client.describe_job_queues()
 
         if res['ResponseMetadata']['HTTPStatusCode'] != 200:
             raise Exception(res)
 
-        job_def_names = [job_def['jobDefinitionName'] for job_def in res['jobDefinitions']
-                         if job_def['status'] == 'ACTIVE']
+        if jq_name is None:
+            job_queues = [jq for jq in res['jobQueues']
+                          if self.package.replace('.', '-') in jq['jobQueueName']]
+            return job_queues
 
-        if job_def_name not in job_def_names:
+        job_queues = [jq for jq in res['jobQueues'] if jq['jobQueueName'] == jq_name]
+        if len(job_queues) == 0:
+            return None
+        if len(job_queues) == 1:
+            return job_queues.pop()
+        if len(job_queues) > 1:
+            logger.error(job_queues)
+            raise Exception('More than one job queue with the same name')
+
+    def _create_job_def(self, runtime_name, runtime_memory):
+        job_def_name = self._format_jobdef_name(runtime_name, runtime_memory)
+        job_def = self._get_job_def(job_def_name)
+
+        if job_def is None:
             logger.debug('Creating new Job Definition {}'.format(job_def_name))
             image_name, _, _ = self._get_full_image_name(runtime_name)
             res = self.batch_client.register_job_definition(
@@ -185,7 +249,7 @@ class AWSBatchBackend:
                 type='container',
                 containerProperties={
                     'image': image_name,
-                    'executionRoleArn': self.aws_batch_config['service_role'],
+                    'executionRoleArn': self.aws_batch_config['execution_role'],
                     'resourceRequirements': [
                         {
                             'value': '0.25',
@@ -195,7 +259,10 @@ class AWSBatchBackend:
                             'value': '512',
                             'type': 'MEMORY'
                         }
-                    ]
+                    ],
+                    'networkConfiguration': {
+                        'assignPublicIp': 'ENABLED' if self.aws_batch_config['assign_public_ip'] else 'DISABLED'
+                    }
                 },
                 platformCapabilities=['FARGATE']
             )
@@ -204,7 +271,30 @@ class AWSBatchBackend:
                 raise Exception(res)
             logger.debug('Job Definition {} successfully created'.format(job_def_name))
         else:
+            if job_def['status'] != 'ACTIVE':
+                logger.error(job_def)
+                raise Exception('Job queue status must be VALID and state ENABLED')
             logger.debug('Using existing Job Definition {}'.format(job_def_name))
+
+    def _get_job_def(self, jd_name=None):
+        res = self.batch_client.describe_job_definitions(status='ACTIVE')
+
+        if res['ResponseMetadata']['HTTPStatusCode'] != 200:
+            raise Exception(res)
+
+        if jd_name is None:
+            job_defs = [jd for jd in res['jobDefinitions']
+                        if self.package.replace('.', '-') in jd['jobDefinitionName']]
+            return job_defs
+
+        job_defs = [jd for jd in res['jobDefinitions'] if jd['jobDefinitionName'] == jd_name]
+        if len(job_defs) == 0:
+            return None
+        if len(job_defs) == 1:
+            return job_defs.pop()
+        if len(job_defs) > 1:
+            logger.error(job_defs)
+            raise Exception('More than one job def with the same name')
 
     def _generate_runtime_meta(self, runtime_name, runtime_memory):
         job_name = '{}_preinstalls'.format(self._format_jobdef_name(runtime_name, runtime_memory))
@@ -220,11 +310,11 @@ class AWSBatchBackend:
             containerOverrides={
                 'environment': [
                     {
-                        'name': 'LITHOPS_ACTION',
+                        'name': '__LITHOPS_ACTION',
                         'value': 'get_preinstalls'
                     },
                     {
-                        'name': 'LITHOPS_CONFIG',
+                        'name': '__LITHOPS_CONFIG',
                         'value': json.dumps(payload)
                     }
                 ]
@@ -233,7 +323,7 @@ class AWSBatchBackend:
 
         status_key = runtime_name + '.meta'
         retry = 10
-        while retry > 10:
+        while retry > 0:
             try:
                 runtime_meta_json = self.internal_storage.get_data(key=status_key)
                 runtime_meta = json.loads(runtime_meta_json)
@@ -243,6 +333,7 @@ class AWSBatchBackend:
                 logger.debug('Get runtime meta retry {}...')
                 time.sleep(5)
                 retry -= 1
+        raise Exception('Could not get metadata')
 
     def build_runtime(self, runtime_name, runtime_file):
         """
@@ -304,6 +395,7 @@ class AWSBatchBackend:
             # We only build the default image. rest of images must already exist
             # in the docker registry.
             self._build_default_runtime(default_runtime_img_name)
+            pass
 
         self._create_compute_env()
         self._create_queue()
@@ -324,7 +416,85 @@ class AWSBatchBackend:
         """
         Deletes all Lithops lambda runtimes for this user
         """
-        pass
+        print('clean')
+
+        # Delete Job Definition
+        job_defs = self._get_job_def()
+        for job_def in job_defs:
+            res = self.batch_client.deregister_job_definition(jobDefinition=job_def['jobDefinitionArn'])
+            if res['ResponseMetadata']['HTTPStatusCode'] != 200:
+                logger.error(res)
+                raise Exception('Could not deregister job definition {}'.format(job_def['jobDefinitionArn']))
+
+        # Delete Job Queue
+        job_queues = self._get_job_queue()
+        for job_queue in job_queues:
+            res = self.batch_client.update_job_queue(
+                jobQueue=job_queue['jobQueueArn'],
+                state='DISABLED'
+            )
+            if res['ResponseMetadata']['HTTPStatusCode'] != 200:
+                logger.error(res)
+                raise Exception('Could not disable job queue {}'.format(job_queue['jobQueueArn']))
+            while True:
+                jq_status = self._get_job_queue(jq_name=job_queue['jobQueueName'])
+                if jq_status['state'] == 'DISABLED':
+                    break
+                logger.info('Updating job queue {} (status is {})'.format(
+                    job_queue['jobQueueName'], jq_status['status']))
+                time.sleep(3)
+            res = self.batch_client.delete_job_queue(
+                jobQueue=job_queue['jobQueueArn']
+            )
+            if res['ResponseMetadata']['HTTPStatusCode'] != 200:
+                logger.error(res)
+                raise Exception('Could not delete job queue {}'.format(job_queue['jobQueueArn']))
+            while True:
+                jq_status = self._get_job_queue(jq_name=job_queue['jobQueueName'])
+                if jq_status is None or jq_status['status'] == 'DELETED':
+                    break
+                logger.info('Deleting job queue {} (status is {})'.format(
+                    job_queue['jobQueueName'], jq_status['status']))
+                time.sleep(3)
+            logger.info('Job queue {} deleted'.format(job_queue['jobQueueName']))
+
+        # Delete Compute Environment
+        compute_envs = self._get_compute_env()
+        for compute_env in compute_envs:
+            res = self.batch_client.update_compute_environment(
+                computeEnvironment=compute_env['computeEnvironmentArn'],
+                state='DISABLED'
+            )
+            if res['ResponseMetadata']['HTTPStatusCode'] != 200:
+                logger.error(res)
+                raise Exception('Could not disable compute environment {}'.format(compute_env['computeEnvironmentArn']))
+            while True:
+                ce_status = self._get_compute_env(ce_name=compute_env['computeEnvironmentName'])
+                if ce_status['state'] == 'DISABLED':
+                    break
+                logger.info('Updating compute environment {} (status is {})'.format(
+                    ce_status['computeEnvironmentName'], ce_status['status']))
+                time.sleep(3)
+            res = self.batch_client.delete_compute_environment(
+                computeEnvironment=compute_env['computeEnvironmentArn']
+            )
+            if res['ResponseMetadata']['HTTPStatusCode'] != 200:
+                logger.error(res)
+                raise Exception('Could not delete compute environment {}'.format(compute_env['computeEnvironmentArn']))
+            while True:
+                ce_status = self._get_compute_env(ce_name=compute_env['computeEnvironmentName'])
+                if ce_status is None or ce_status['status'] == 'DELETED':
+                    break
+                logger.info('Deleting compute environment {} (status is {})'.format(
+                    compute_env['computeEnvironmentName'], ce_status['status']))
+                time.sleep(3)
+            logger.info('Job queue {} deleted'.format(job_queue['jobQueueName']))
+
+        # Delete ECR runtime image
+        for job_def in job_defs:
+            runtime_name, runtime_memory = self._unformat_jobdef_name(jobdef_name=job_def['jobDefinitionName'])
+            full_image_name, registry, repo_name = self._get_full_image_name(runtime_name)
+            self.ecr_client.delete_repository(repositoryName=repo_name, force=True)
 
     def list_runtimes(self, runtime_name=None):
         """
@@ -332,7 +502,11 @@ class AWSBatchBackend:
         @param runtime_name: name of the runtime to list, 'all' to list all runtimes
         @return: list of tuples (runtime name, memory)
         """
-        pass
+        runtimes = []
+        for job_def in self._get_job_def():
+            runtime_name, runtime_memory = self._unformat_jobdef_name(jobdef_name=job_def['jobDefinitionName'])
+            runtimes.append((runtime_name, runtime_memory))
+        return runtimes
 
     def invoke(self, runtime_name, runtime_memory, payload):
         """
@@ -342,6 +516,30 @@ class AWSBatchBackend:
         @param payload: invoke dict payload
         @return: invocation ID
         """
+        print(runtime_name)
+        print(runtime_memory)
+        print(payload)
+
+        job_name = '{}_job'.format(self._format_jobdef_name(runtime_name, runtime_memory))
+
+        res = self.batch_client.submit_job(
+            jobName=job_name,
+            jobQueue=self._queue_name,
+            jobDefinition=self._format_jobdef_name(runtime_name, runtime_memory),
+            containerOverrides={
+                'environment': [
+                    {
+                        'name': '__LITHOPS_ACTION',
+                        'value': 'job'
+                    },
+                    {
+                        'name': '__LITHOPS_PAYLOAD',
+                        'value': json.dumps(payload)
+                    }
+                ]
+            }
+        )
+
         pass
 
     def get_runtime_key(self, runtime_name, runtime_memory):

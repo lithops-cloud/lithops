@@ -33,11 +33,10 @@ if __name__ == '__main__':
 
     os.environ['__LITHOPS_BACKEND'] = 'AWS Batch'
 
-    lithops_conf_json = os.environ['LITHOPS_CONFIG']
-    lithops_conf = json.loads(lithops_conf_json)
-    setup_lithops_logger(lithops_conf.get('log_level', logging.INFO))
-
     if action == 'get_preinstalls':
+        lithops_conf_json = os.environ['__LITHOPS_CONFIG']
+        lithops_conf = json.loads(lithops_conf_json)
+        setup_lithops_logger(lithops_conf.get('log_level', logging.INFO))
         logger.info("Lithops v{} - Generating metadata".format(__version__))
         runtime_meta = get_runtime_preinstalls()
         internal_storage = InternalStorage(lithops_conf)
@@ -46,10 +45,13 @@ if __name__ == '__main__':
         runtime_meta_json = json.dumps(runtime_meta)
         internal_storage.put_data(status_key, runtime_meta_json)
     elif action == 'remote_invoker':
-        # logger.info("Lithops v{} - Starting AWS Lambda invoker".format(__version__))
-        # function_invoker(event)
-        print(action)
+        lithops_payload_json = os.environ['__LITHOPS_PAYLOAD']
+        lithops_payload = json.loads(lithops_payload_json)
+        logger.info("Lithops v{} - Starting AWS Lambda invoker".format(__version__))
+        function_invoker(lithops_payload)
     else:
         print(action)
-        # logger.info("Lithops v{} - Starting AWS Lambda execution".format(__version__))
-        # function_handler(event)
+        lithops_payload_json = os.environ['__LITHOPS_PAYLOAD']
+        lithops_payload = json.loads(lithops_payload_json)
+        logger.info("Lithops v{} - Starting AWS Lambda execution".format(__version__))
+        function_handler(lithops_payload)
