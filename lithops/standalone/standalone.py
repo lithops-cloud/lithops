@@ -138,8 +138,8 @@ class StandaloneHandler:
         total_calls = job_payload['total_calls']
         chunksize = job_payload['chunksize']
 
-        total_workers = (total_calls // chunksize + (total_calls % chunksize > 0)
-                         if self.exec_mode in ['create', 'reuse'] else 1)
+        total_required_workers = (total_calls // chunksize + (total_calls % chunksize > 0)
+                                  if self.exec_mode in ['create', 'reuse'] else 1)
 
         def start_master_instance(wait=True):
             if not self._is_master_service_ready():
@@ -157,46 +157,49 @@ class StandaloneHandler:
 
             return workers_on_master
 
-        def create_workers():
+        def create_workers(workers_to_create):
             current_workers_old = set(self.backend.workers)
-            with ThreadPoolExecutor(total_workers+1) as ex:
+            with ThreadPoolExecutor(workers_to_create+1) as ex:
                 ex.submit(start_master_instance, wait=False)
-                for vm_n in range(total_workers + 1):
+                for vm_n in range(workers_to_create):
                     worker_id = "{:04d}".format(vm_n)
                     name = 'lithops-worker-{}-{}-{}'.format(executor_id, job_id, worker_id)
                     ex.submit(self.backend.create_worker, name)
             current_workers_new = set(self.backend.workers)
             new_workers = current_workers_new - current_workers_old
             logger.debug("Total worker VM instances created: {}/{}"
-                         .format(len(new_workers), total_workers))
+                         .format(len(new_workers), workers_to_create))
 
-            return new_workers
+            return list(new_workers)
 
         worker_instances = []
 
         if self.exec_mode == 'create':
-            workers = create_workers()
-            total_workers = len(workers)
+            new_workers = create_workers(total_required_workers)
+            total_workers = len(new_workers)
             worker_instances = [(inst.name,
                                  inst.ip_address,
                                  inst.instance_id,
                                  inst.ssh_credentials)
-                                for inst in workers]
+                                for inst in new_workers]
 
         elif self.exec_mode == 'reuse':
             workers = get_workers_on_master()
-            logger.info(f"Found {len(workers)} workers connected to master {self.backend.master}")
-            if workers:
-                total_workers = len(workers)
-            if not workers:
-                self.backend.workers = []
-                workers = create_workers()
-                total_workers = len(workers)
+            total_started_workers = len(workers)
+            logger.debug(f"Found {total_started_workers} workers connected to master {self.backend.master}")
+            if total_started_workers < total_required_workers:
+                # create missing delta of workers
+                workers_to_create = total_required_workers - total_started_workers
+                logger.debug(f'Going to create {workers_to_create} new workers')
+                new_workers = create_workers(workers_to_create)
+                total_workers = len(new_workers) + total_started_workers
                 worker_instances = [(inst.name,
                                      inst.ip_address,
                                      inst.instance_id,
                                      inst.ssh_credentials)
-                                    for inst in workers]
+                                    for inst in new_workers]
+            else:
+                total_workers = total_started_workers
 
         if total_workers == 0:
             raise Exception('It was not possible to create any worker')

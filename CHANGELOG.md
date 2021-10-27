@@ -5,6 +5,7 @@
 ### Added
 - [CLI] Allow to pass all availbe 'docker' parameter to 'lithops runtime build' command
 - [Multiprocessing] Add example file with different argument passing examples for Pool and Process
+- [Standalone] Added the logic to create the missing deleta of workers in reuse mode
 
 ### Changed
 - 
@@ -12,7 +13,8 @@
 ### Fixed
 - [Localhost] Fixed minnor issue when deleting completed jobs
 - [Multiprocessing] Fix args mismatch error when passing list of tuples to Pool.map
-
+- [Standalone] Fixed VM initial installation script
+- [Standalone] Fixed get_workers method on master
 
 ## [v2.5.4]
 

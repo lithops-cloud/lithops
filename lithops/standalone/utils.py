@@ -1,6 +1,10 @@
 import json
-from lithops.constants import STANDALONE_INSTALL_DIR, STANDALONE_LOG_FILE,\
-    STANDALONE_CONFIG_FILE
+
+from lithops.constants import (
+    STANDALONE_INSTALL_DIR,
+    STANDALONE_LOG_FILE,
+    STANDALONE_CONFIG_FILE,
+)
 
 MASTER_SERVICE_NAME = 'lithops-master.service'
 MASTER_SERVICE_FILE = """
@@ -30,25 +34,65 @@ Restart=always
 WantedBy=multi-user.target
 """.format(STANDALONE_INSTALL_DIR)
 
+CLOUD_CONFIG_WORKER = """
+#cloud-config
+bootcmd:
+    - echo '{0}:{1}' | chpasswd
+    - sed -i '/PasswordAuthentication no/c\PasswordAuthentication yes' /etc/ssh/sshd_config
+    - echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
+runcmd:
+    - echo '{0}:{1}' | chpasswd
+    - sed -i '/PasswordAuthentication no/c\PasswordAuthentication yes' /etc/ssh/sshd_config
+    - echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
+    - systemctl restart sshd
+"""
 
-def get_host_setup_script():
+
+def get_host_setup_script(docker=True):
     """
-    Returs the script necessary for installing a lithops VM host
+    Returns the script necessary for installing a lithops VM host
     """
+
     return """
+    wait_internet_connection(){{
+    echo "--> Checking internet connection"
+    while ! (ping -c 1 -W 1 8.8.8.8| grep -q 'statistics'); do
+    echo "Waiting for 8.8.8.8 - network interface might be down..."
+    sleep 1
+    done;
+    }}
+
     install_packages(){{
+    export DOCKER_REQUIRED={2};
+    command -v docker >/dev/null 2>&1 || {{ export INSTALL_DOCKER=true; export INSTALL_LITHOPS_DEPS=true;}};
     command -v unzip >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
     command -v pip3 >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
-    command -v docker >/dev/null 2>&1 || {{ export INSTALL_LITHOPS_DEPS=true; }};
-    if [ "$INSTALL_LITHOPS_DEPS" = true ] ; then
-    rm /var/lib/apt/lists/* -vfR;
-    apt-get clean;
+
+    if [ "$INSTALL_DOCKER" = true ] && [ "$DOCKER_REQUIRED" = true ]; then
+    wait_internet_connection;
+    echo "--> Installing Docker"
     apt-get update;
     apt-get install apt-transport-https ca-certificates curl software-properties-common gnupg-agent -y;
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -;
     add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable";
+    fi;
+
+    if [ "$INSTALL_LITHOPS_DEPS" = true ]; then
+    wait_internet_connection;
+    echo "--> Installing Lithops system dependencies"
     apt-get update;
-    apt-get install unzip redis-server python3-pip docker-ce docker-ce-cli containerd.io -y;
+
+    if [ "$INSTALL_DOCKER" = true ] && [ "$DOCKER_REQUIRED" = true ]; then
+    apt-get install unzip python3-pip docker-ce docker-ce-cli containerd.io -y --fix-missing;
+    else
+    apt-get install unzip python3-pip -y --fix-missing;
+    fi;
+
+    fi;
+
+    if [[ ! $(pip3 list|grep "lithops") ]]; then
+    wait_internet_connection;
+    echo "--> Installing Lithops python dependencies"
     pip3 install -U flask gevent lithops;
     fi;
     }}
@@ -56,7 +100,7 @@ def get_host_setup_script():
 
     unzip -o /tmp/lithops_standalone.zip -d {0} > /dev/null 2>&1;
     rm /tmp/lithops_standalone.zip
-    """.format(STANDALONE_INSTALL_DIR, STANDALONE_LOG_FILE)
+    """.format(STANDALONE_INSTALL_DIR, STANDALONE_LOG_FILE, str(docker).lower())
 
 
 def get_master_setup_script(config, vm_data):

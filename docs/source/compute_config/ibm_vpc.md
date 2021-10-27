@@ -1,6 +1,6 @@
 # IBM Virtual Private Cloud
 
-The IBM VPC client of Lithops can provide a truely serverless user experience on top of IBM VPC where Lithops creates new VSIs (Virtual Server Instance)  dynamically in runtime and scale Lithops jobs against generated VSIs. Alternatively Lithops can start and stop existing VSI instances.
+The IBM VPC client of Lithops can provide a truely serverless user experience on top of IBM VPC where Lithops creates new VSIs (Virtual Server Instance) dynamically in runtime, and scale Lithops jobs against them. Alternatively Lithops can start and stop an existing VSI instances.
 
 Note that IBM VPC is a **standalone backend**, and as such, you can configure extra parameters in the 'standalone' section of the configuration:
 
@@ -10,8 +10,8 @@ Note that IBM VPC is a **standalone backend**, and as such, you can configure ex
 |standalone | auto_dismantle | True |no | If False then the VM is not stopped automatically.|
 |standalone | soft_dismantle_timeout | 300 |no| Time in seconds to stop the VM instance after a job **completed** its execution |
 |standalone | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
-|standalone | exec_mode | consume | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create VMs based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
-|standalone | pull_runtime | False | no | If set to True, Lithops will execute the command `docker pull <runtime_name>` in each VSI before executing the a job|
+|standalone | exec_mode | consume | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create new VMs for each map() call based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
+|standalone | pull_runtime | False | no | If set to True, Lithops will execute the command `docker pull <runtime_name>` in each VSI before executing the a job (in case of using a docker runtime)|
 
 
 ## IBM VPC

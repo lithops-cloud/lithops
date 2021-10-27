@@ -52,7 +52,7 @@ MP_MANAGER = mp.Manager()
 LOCALHOST_MANAGER_PROCESS = None
 
 EXEC_MODE = 'consume'
-WORKERS = MP_MANAGER.list()
+WORKERS = MP_MANAGER.dict()
 
 # worker heartbeat timeout in seconds. used in reuse mode.
 # worker sends heartbeat by invoking get_tasks each ~1sec
@@ -93,15 +93,17 @@ def wait_worker_instance_ready(vm):
     raise TimeoutError(msg)
 
 
-def setup_worker(worker_info, work_queue, job_key, workers):
+def setup_worker(worker_info, work_queue, work_queue_name):
     """
     Run worker process
     Install all the Lithops dependencies into the worker.
     Runs the job
     """
+    global WORKERS
 
     instance_name, ip_address, instance_id, ssh_credentials = worker_info
-    logger.info('Starting setup for VM instance {}'.format(instance_name))
+    logger.info(f'Starting setup for VM instance {instance_name} ({ip_address})')
+    logger.info(f'SSH data: {ssh_credentials}')
 
     vm = STANDALONE_HANDLER.backend.get_vm(instance_name)
     vm.ip_address = ip_address
@@ -110,9 +112,6 @@ def setup_worker(worker_info, work_queue, job_key, workers):
 
     worker_ready = False
     retry = 0
-
-    logger.info('Queue empty: {} - Queue size: {}'
-                .format(work_queue.empty(), work_queue.qsize()))
 
     while(not worker_ready and not work_queue.empty()
           and retry < MAX_INSTANCE_CREATE_RETRIES):
@@ -142,15 +141,17 @@ def setup_worker(worker_info, work_queue, job_key, workers):
     vm_data = {'instance_name': vm.name,
                'ip_address': vm.ip_address,
                'instance_id': vm.instance_id,
+               'ssh_credentials': vm.ssh_credentials,
                'master_ip': MASTER_IP,
-               'job_key': job_key}
+               'work_queue': work_queue_name}
 
     script = get_worker_setup_script(STANDALONE_CONFIG, vm_data)
     vm.get_ssh_client().run_remote_command(script, run_async=True)
     vm.del_ssh_client()
     logger.info('Installation script submitted to {}'.format(vm))
-    logger.debug(f'Appending to WORKERS {vm_data}')
-    workers.append(vm_data)
+
+    logger.debug(f'Appending {vm.name} to WORKERS')
+    WORKERS[vm.name] = vm_data
 
 
 def stop_job_process(job_key):
@@ -186,7 +187,7 @@ def run_job_local(work_queue):
         logger.error(e)
 
 
-def run_job_worker(job_payload, work_queue, workers_list):
+def run_job_worker(job_payload, work_queue, work_queue_name):
     """
     Process responsible to wait for workers to become ready, and
     submit individual tasks of the job to them
@@ -203,13 +204,13 @@ def run_job_worker(job_payload, work_queue, workers_list):
         task_payload['data_byte_ranges'] = [dbr[int(call_id)] for call_id in call_ids_range]
         work_queue.put(task_payload)
 
-    logger.info("Total tasks in {} work queue: {}".format(job_key, work_queue.qsize()))
+    logger.info("Total tasks in work queue '{}': {}".format(work_queue_name, work_queue.qsize()))
 
     # run setup only in case not reusing old workers
     if workers:
         with ThreadPoolExecutor(len(workers)) as executor:
             for worker_info in workers:
-                executor.submit(setup_worker, worker_info, work_queue, job_key, workers_list)
+                executor.submit(setup_worker, worker_info, work_queue, work_queue_name)
 
         logger.info('All workers set up for job {}'.format(job_key))
 
@@ -234,28 +235,45 @@ def get_workers():
     Returns the number of spawned workers
 
     Currently returns only spawned workers metadata
-    TODO - add support to list only available workers when each worker updates itself in WORKERS via POST
     TODO - job.done for master is not same as job.done for worker, can be improved by touch on master from worker instead of touch on master
     """
+    global WORKERS
+    global WORKERS_STATE
 
-    logger.debug(f'in get_workers, workers = {WORKERS}, workers state: {WORKERS_STATE}')
+    logger.info(f'Getting workers - workers: {WORKERS}, workers state: {WORKERS_STATE}')
 
     workers = []
-    for w in WORKERS:
-        vm = STANDALONE_HANDLER.backend.get_vm(w['instance_name'])
-        vm.ip_address = w['ip_address']
-        vm.instance_id = w['instance_id']
+    workers_ready = []
 
-        # either available via ssh, to cover case when worker service not running yet
-        # or via heartbeat
-        hb = WORKERS_STATE[w['ip_address']]
+    for vm_name in WORKERS:
+        vm = STANDALONE_HANDLER.backend.get_vm(vm_name)
+        vm.ip_address = WORKERS[vm_name]['ip_address']
+        vm.instance_id = WORKERS[vm_name]['instance_id']
+        vm.ssh_credentials = WORKERS[vm_name]['ssh_credentials']
+        workers.append(vm)
+
+    def check_worker(vm):
+        # either available via ssh, to cover case when worker service
+        # not running yet or via heartbeat
+        hb = WORKERS_STATE.get(vm.ip_address)
         if is_worker_instance_ready(vm) or (time.time() - hb < WORKER_HEARTBEAT):
-            workers.append(w)
+            workers_ready.append((vm.name, vm.ip_address, vm.instance_id, vm.ssh_credentials))
         else:
-            # delete worker in case it is not available. may cover edge cases when for some reason keeper not started on worker
+            # delete worker in case it is not available. may cover edge cases when
+            # for some reason keeper not started on worker
             vm.delete()
+            if vm.name in WORKERS:
+                del WORKERS[vm.name]
+            if vm.ip_address in WORKERS_STATE:
+                del WORKERS_STATE[vm.ip_address]
 
-    response = flask.jsonify(workers)
+    if workers:
+        with ThreadPoolExecutor(len(workers)) as ex:
+            ex.map(check_worker, workers)
+
+    logger.info(f'Total ready workers: {len(workers_ready)}')
+
+    response = flask.jsonify(workers_ready)
     response.status_code = 200
 
     return response
@@ -337,10 +355,11 @@ def run():
     EXEC_MODE = job_payload['config']['standalone'].get('exec_mode', 'consume')
 
     if EXEC_MODE == 'consume':
-        work_queue = WORK_QUEUES.setdefault('local', MP_MANAGER.Queue())
+        work_queue_name = 'local'
+        work_queue = WORK_QUEUES.setdefault(work_queue_name, MP_MANAGER.Queue())
         if not LOCALHOST_MANAGER_PROCESS:
             logger.debug('Starting manager process for localhost jobs')
-            lmp = mp.Process(target=run_job_local, args=(work_queue,))
+            lmp = mp.Process(target=run_job_local, args=(work_queue, ))
             lmp.daemon = True
             lmp.start()
             LOCALHOST_MANAGER_PROCESS = lmp
@@ -350,20 +369,19 @@ def run():
     elif EXEC_MODE == 'create':
         # Create mode runs the job in worker VMs
         logger.debug(f'Starting process for job {job_key}')
-        work_queue = MP_MANAGER.Queue()
-        WORK_QUEUES[job_key] = work_queue
-        jp = mp.Process(target=run_job_worker, args=(job_payload, work_queue, WORKERS))
+        work_queue_name = job_key
+        work_queue = WORK_QUEUES.setdefault(work_queue_name, MP_MANAGER.Queue())
+        jp = mp.Process(target=run_job_worker, args=(job_payload, work_queue, work_queue_name))
         jp.daemon = True
         jp.start()
         JOB_PROCESSES[job_key] = jp
 
     elif EXEC_MODE == 'reuse':
         # Reuse mode runs the job on running workers
-        # TODO: Consider to add support to manage pull of available workers
-        # TODO: Spawn only the missing delta of workers
         logger.debug(f'Starting process for job {job_key}')
-        work_queue = WORK_QUEUES.setdefault('all', MP_MANAGER.Queue())
-        jp = mp.Process(target=run_job_worker, args=(job_payload, work_queue, WORKERS))
+        work_queue_name = 'all'
+        work_queue = WORK_QUEUES.setdefault(work_queue_name, MP_MANAGER.Queue())
+        jp = mp.Process(target=run_job_worker, args=(job_payload, work_queue, work_queue_name))
         jp.daemon = True
         jp.start()
         JOB_PROCESSES[job_key] = jp
