@@ -58,7 +58,7 @@ class AWSEC2Backend:
 
     def init(self):
         """
-        Initialize the VPC
+        Initialize the backend by defining the Master VM
         """
         ec2_data_filename = os.path.join(CACHE_DIR, self.name, 'data')
         self.ec2_data = load_yaml_config(ec2_data_filename)
@@ -104,15 +104,10 @@ class AWSEC2Backend:
             self.master.delete_on_dismantle = False
 
             self.ec2_data = {
-                'mode': 'consume',
+                'mode': self.mode,
                 'instance_id': '0af1',
                 'instance_name': self.master.name,
-                'vpc_id': self.config['vpc_id'],
-                'subnet_id': self.config['subnet_id'],
-                'security_group_id': self.config['security_group_id'],
-                'floating_ip': self.config['floating_ip'],
-                'floating_ip_id': self.config['floating_ip_id'],
-                'gateway_id': self.config['gateway_id']
+                'vpc_id': self.config['vpc_id']
             }
 
             dump_yaml_config(ec2_data_filename, self.ec2_data)
@@ -186,10 +181,10 @@ class AWSEC2Backend:
 
     def create_worker(self, name):
         """
-        Creates a new worker VM instance in VPC
+        Creates a new worker VM instance
         """
         vm = EC2Instance(name, self.config, self.ec2_client)
-        vm.create(start=True)
+        vm.create()
         vm.ssh_credentials.pop('key_filename', None)
         self.workers.append(vm)
 
@@ -221,6 +216,7 @@ class EC2Instance:
         self.instance_data = None
         self.ip_address = None
         self.public_ip = '0.0.0.0'
+        self.fast_io = self.config.get('fast_io', False)
 
         self.ssh_credentials = {
             'username': self.config['ssh_username'],
@@ -278,59 +274,49 @@ class EC2Instance:
         """
         logger.debug("Creating new VM instance {}".format(self.name))
 
-        security_group_identity_model = {'id': self.config['security_group_id']}
-        subnet_identity_model = {'id': self.config['subnet_id']}
-        primary_network_interface = {
-            'name': 'eth0',
-            'subnet': subnet_identity_model,
-            'security_groups': [security_group_identity_model]
-        }
+        if self.fast_io:
+            BlockDeviceMappings = [
+                {
+                    'DeviceName': '/dev/xvda',
+                    'Ebs': {
+                        'VolumeSize': 100,
+                        'DeleteOnTermination': True,
+                        'VolumeType': 'gp2',
+                        # 'Iops' : 10000,
+                    },
+                },
+            ]
+        else:
+            BlockDeviceMappings = None
 
-        boot_volume_data = {
-            'capacity': self.config['boot_volume_capacity'],
-            'name': '{}-boot'.format(self.name),
-            'profile': {'name': self.config['boot_volume_profile']}}
+        LaunchSpecification = {
+            "MinCount": 1,
+            "MaxCount": 1,
+            "ImageId": self.config['target_ami'],
+            "InstanceType": self.instance_type,
+            "SecurityGroupIds": [self.config['security_group_id']],
+            "EbsOptimized": False,
+            "IamInstanceProfile": {'Name': self.config['iam_role']},
+            "Monitoring": {'Enabled': False},
+            "TagSpecifications": [{"ResourceType": "instance", "Tags": [{'Key': 'Name', 'Value': self.name}]}],
+            "InstanceInitiatedShutdownBehavior": 'terminate' if self.delete_on_dismantle else 'stop'}
 
-        boot_volume_attachment = {
-            'delete_volume_on_instance_delete': True,
-            'volume': boot_volume_data
-        }
-
-        key_identity_model = {'id': self.config['key_id']}
-
-        instance_prototype = {}
-        instance_prototype['name'] = self.name
-        instance_prototype['keys'] = [key_identity_model]
-        instance_prototype['profile'] = {'name': self.profile_name}
-        instance_prototype['resource_group'] = {'id': self.config['resource_group_id']}
-        instance_prototype['vpc'] = {'id': self.config['vpc_id']}
-        instance_prototype['image'] = {'id': self.config['image_id']}
-        instance_prototype['zone'] = {'name': self.config['zone_name']}
-        instance_prototype['boot_volume_attachment'] = boot_volume_attachment
-        instance_prototype['primary_network_interface'] = primary_network_interface
+        if BlockDeviceMappings is not None:
+            LaunchSpecification['BlockDeviceMappings'] = BlockDeviceMappings
+        if 'key_name' in self.config:
+            LaunchSpecification['KeyName'] = self.config['key_name']
 
         if not self.public:
             # Allow master VM to access workers trough ssh passwrod
             user = self.config['ssh_username']
             token = self.config['ssh_password']
-            instance_prototype['user_data'] = CLOUD_CONFIG_WORKER.format(user, token)
+            LaunchSpecification['UserData'] = CLOUD_CONFIG_WORKER.format(user, token)
 
-        try:
-            resp = self.ibm_vpc_client.create_instance(instance_prototype)
-        except ApiException as e:
-            if e.code == 400 and 'already exists' in e.message:
-                return self.get_instance_data()
-            elif e.code == 400 and 'over quota' in e.message:
-                logger.debug("Create VM instance {} failed due to quota limit"
-                             .format(self.name))
-            else:
-                logger.debug("Create VM instance {} failed with status code {}: {}"
-                             .format(self.name, str(e.code), e.message))
-            raise e
+        instance = self.ec2_client.run_instances(**LaunchSpecification)
 
         logger.debug("VM instance {} created successfully ".format(self.name))
 
-        return resp.result
+        return instance['Instances'][0]
 
     def get_instance_data(self):
         """
@@ -343,14 +329,14 @@ class EC2Instance:
                 self.instance_data = instances[0]
                 return self.instance_data
         else:
-            instances = self.ec2_client.describe_instances()
-            instances = instances['Reservations'][0]['Instances']
-            if len(instances) > 0:
-                for ins in instances:
-                    for tag in ins['Tags']:
-                        if tag['Key'] == 'Name'and self.name == tag['Value']:
-                            self.instance_data = ins
-                            return self.instance_data
+            response = self.ec2_client.describe_instances()
+            for r in response['Reservations']:
+                for ins in r['Instances']:
+                    if ins['State']['Name'] != 'terminated' and 'Tags' in ins:
+                        for tag in ins['Tags']:
+                            if tag['Key'] == 'Name' and self.name == tag['Value']:
+                                self.instance_data = ins
+                                return self.instance_data
         return None
 
     def get_instance_id(self):
@@ -379,11 +365,10 @@ class EC2Instance:
                     private_ip = instance_data['NetworkInterfaces'][0]['PrivateIpAddress']
         return private_ip
 
-    def create(self, check_if_exists=False, start=True):
+    def create(self, check_if_exists=False):
         """
         Creates a new VM instance
         """
-        instance = None
         vsi_exists = True if self.instance_id else False
 
         if check_if_exists and not vsi_exists:
@@ -397,15 +382,9 @@ class EC2Instance:
         if not vsi_exists:
             instances_data = self._create_instance()
             self.instance_id = instances_data['InstanceId']
-            self.ip_address = self._get_private_ip()
+            self.ip_address = instances_data['PrivateIpAddress']
 
-        if self.public and instance:
-            self._attach_floating_ip(instance)
-
-        if start:
-            # VM instances are automatically started on create
-            if vsi_exists:
-                self.start()
+        self.start()
 
         return self.instance_id
 
@@ -415,15 +394,15 @@ class EC2Instance:
         self.ec2_client.start_instances(InstanceIds=[self.instance_id])
         public_ip = ''
 
-        while not public_ip:
+        while self.public and not public_ip:
             instances = self.ec2_client.describe_instances(InstanceIds=[self.instance_id])
             instance_data = instances['Reservations'][0]['Instances'][0]
             if 'PublicIpAddress' in instance_data:
                 public_ip = instance_data['PublicIpAddress']
+                self.public_ip = public_ip
             else:
                 time.sleep(1)
 
-        self.public_ip = public_ip
         logger.debug("VM instance {} started successfully".format(self.name))
 
     def _delete_instance(self):

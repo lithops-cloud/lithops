@@ -143,7 +143,7 @@ class StandaloneHandler:
 
         def start_master_instance(wait=True):
             if not self._is_master_service_ready():
-                self.backend.master.create(check_if_exists=True, start=True)
+                self.backend.master.create(check_if_exists=True)
                 if wait:
                     self._wait_master_service_ready()
 
@@ -237,7 +237,7 @@ class StandaloneHandler:
         logger.debug('Checking if {} is ready'.format(self.backend.master))
         if not self._is_master_instance_ready():
             logger.debug('{} not ready'.format(self.backend.master))
-            self.backend.master.create(check_if_exists=True, start=True)
+            self.backend.master.create(check_if_exists=True)
             self._wait_master_instance_ready()
         self._setup_master_service()
         self._wait_master_service_ready()
