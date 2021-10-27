@@ -150,7 +150,7 @@ class StandaloneHandler:
         def get_workers_on_master():
             workers_on_master = []
             try:
-                cmd = (f'curl -X GET http://127.0.0.1:{STANDALONE_SERVICE_PORT}/workers'
+                cmd = (f'curl -X GET http://127.0.0.1:{STANDALONE_SERVICE_PORT}/workers '
                        '-H \'Content-Type: application/json\'')
                 resp = self.backend.master.get_ssh_client().run_remote_command(cmd)
                 workers_on_master = json.loads(resp)
