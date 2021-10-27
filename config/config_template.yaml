@@ -79,12 +79,13 @@
     #worker_processes: <WORKER_GRANULARITY> Default is 2
 
 #aws_ec2:
-    #region: REGION_NAME
+    #region: <REGION_NAME>
     #vpc_id: <VPC_ID>
     #iam_role: <IAM_ROLE>
+    #key_name: <SSH_KEY_NAME>
     #master_instance_type: t2.medium
     #worker_instance_type: t2.medium
-    #ssh_user : <SSH_USER_FOR_VPC> # Default is 'root'
+    #ssh_user : <SSH_USER_FOR_VPC> # Default is 'ubuntu'
     #ssh_password : <SSH_PASS_FOR_WORKER_VMS> # Default is randomly generated
     #ssh_key_filename : <PATH_TO_SSH_KEYFILE_FOR_MASTER_VM> # Default path in OS
     #target_ami: <TARGET_AMI>  # Default is Ubuntu 20.04

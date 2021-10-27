@@ -182,13 +182,13 @@ class AWSEC2Backend:
         Returns a VM class instance.
         Does not creates nor starts a VM instance
         """
-        return EC2Instance(name, self.ec2_config, self.ec2_client)
+        return EC2Instance(name, self.config, self.ec2_client)
 
     def create_worker(self, name):
         """
         Creates a new worker VM instance in VPC
         """
-        vm = EC2Instance(name, self.ec2_config, self.ec2_client)
+        vm = EC2Instance(name, self.config, self.ec2_client)
         vm.create(start=True)
         vm.ssh_credentials.pop('key_filename', None)
         self.workers.append(vm)
