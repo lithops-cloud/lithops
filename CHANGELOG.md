@@ -1,20 +1,31 @@
 # Changelog
 
-## [v2.5.5.dev0]
+## [v2.5.6.dev0]
 
 ### Added
-- [CLI] Allow to pass all availbe 'docker' parameter to 'lithops runtime build' command
-- [Multiprocessing] Add example file with different argument passing examples for Pool and Process
+- [AWS_EC2] Added AWS_EC2 Standalone backend
 - [Standalone] Added the logic to create the missing deleta of workers in reuse mode
 
 ### Changed
 - 
 
 ### Fixed
-- [Localhost] Fixed minnor issue when deleting completed jobs
-- [Multiprocessing] Fix args mismatch error when passing list of tuples to Pool.map
 - [Standalone] Fixed VM initial installation script
 - [Standalone] Fixed get_workers method on master
+- [Standalone] Deletet unnecessary extra worker
+- [Localhost] Fixed storage delete_objects method that was deleting the entire folder of a file
+
+## [v2.5.5]
+
+### Added
+- [CLI] Allow to pass all availbe 'docker' parameter to 'lithops runtime build' command
+- [Multiprocessing] Add example file with different argument passing examples for Pool and Process
+
+### Fixed
+- [Localhost] Fixed minnor issue when deleting completed jobs
+- [Multiprocessing] Fixed args mismatch error when passing list of tuples to Pool.map
+- [Standalone] Fixed cloud-init that ocasionaly failed to set ssh credentials
+
 
 ## [v2.5.4]
 

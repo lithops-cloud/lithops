@@ -93,7 +93,7 @@ def get_host_setup_script(docker=True):
     if [[ ! $(pip3 list|grep "lithops") ]]; then
     wait_internet_connection;
     echo "--> Installing Lithops python dependencies"
-    pip3 install -U flask gevent lithops;
+    pip3 install -U flask gevent lithops boto3;
     fi;
     }}
     install_packages >> {1} 2>&1
@@ -107,7 +107,7 @@ def get_master_setup_script(config, vm_data):
     """
     Returns master VM installation script
     """
-    script = """
+    script = """#!/bin/bash
     mkdir -p /tmp/lithops;
     setup_host(){{
     mv {0}/access.data .;
@@ -144,7 +144,7 @@ def get_worker_setup_script(config, vm_data):
     """
     Returns worker VM installation script
     """
-    script = """
+    script = """#!/bin/bash
     rm -R {0}; mkdir -p {0}; mkdir -p /tmp/lithops;
     """.format(STANDALONE_INSTALL_DIR)
     script += get_host_setup_script()
