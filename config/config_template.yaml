@@ -54,7 +54,6 @@
     #worker_processes: <WORKER_GRANULARITY> Default is 1
 
 #standalone:
-    #backend: ibm_vpc
     #runtime: <RUNTIME_NAME>
     #exec_mode: consume
     #auto_dismantle: True
@@ -71,9 +70,26 @@
     #key_id: <PUBLIC_KEY_ID>
     #image_id: <IMAGE_ID_FOR_VMs> # Default is ubuntu 20.04
     #ssh_user : <SSH_USER_FOR_VPC> # Default is 'root'
-    #ssh_key_filename : <PATH_TO_SSH_KEYFILE> # Default path in OS
+    #ssh_password : <SSH_PASS_FOR_WORKER_VMS> # Default is randomly generated
+    #ssh_key_filename : <PATH_TO_SSH_KEYFILE_FOR_MASTER_VM> # Default path in OS
     #profile_name: <PROFILE_NAME> # Default is 'cx2-2x4'
     #master_profile_name:  <PROFILE_NAME> # Default is 'cx2-2x4'
+    #delete_on_dismantle: <True/False> # Default is 'True
+    #max_workers: <MAX_WORKERS> Default is 100
+    #worker_processes: <WORKER_GRANULARITY> Default is 2
+
+#aws_ec2:
+    #region: <REGION_NAME>
+    #vpc_id: <VPC_ID>
+    #iam_role: <IAM_ROLE>
+    #key_name: <SSH_KEY_NAME>
+    #master_instance_type: t2.medium
+    #worker_instance_type: t2.medium
+    #ssh_user : <SSH_USER_FOR_VPC> # Default is 'ubuntu'
+    #ssh_password : <SSH_PASS_FOR_WORKER_VMS> # Default is randomly generated
+    #ssh_key_filename : <PATH_TO_SSH_KEYFILE_FOR_MASTER_VM> # Default path in OS
+    #target_ami: <TARGET_AMI>  # Default is Ubuntu 20.04
+    #request_spot_instances: <true/false>
     #delete_on_dismantle: <True/False> # Default is 'True
     #max_workers: <MAX_WORKERS> Default is 100
     #worker_processes: <WORKER_GRANULARITY> Default is 2

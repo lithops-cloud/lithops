@@ -186,7 +186,7 @@ class Invoker:
             value=job.total_calls,
             type='counter',
             labels=(
-                ('job_id_', job.job_key),
+                ('job_id', job.job_key),
                 ('function_name', job.function_name)
             )
         )
@@ -196,7 +196,7 @@ class Invoker:
             value=job.runtime_memory or 0,
             type='counter',
             labels=(
-                ('job_id_', job.job_key),
+                ('job_id', job.job_key),
                 ('function_name', job.function_name)
             )
         )

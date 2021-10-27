@@ -97,6 +97,7 @@ SERVERLESS_BACKENDS = ['ibm_cf',
                        'k8s']
 
 STANDALONE_BACKENDS = ['ibm_vpc',
+                       'aws_ec2',
                        'vm']
 
 FAAS_BACKENDS = ['ibm_cf',
@@ -110,6 +111,7 @@ FAAS_BACKENDS = ['ibm_cf',
                  'aliyun_fc']
 
 BATCH_BACKENDS = ['ibm_vpc',
+                  'aws_ec2',
                   'k8s',
                   'code_engine'
                   'vm']
