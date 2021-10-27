@@ -150,11 +150,12 @@ class StandaloneHandler:
         def get_workers_on_master():
             workers_on_master = []
             try:
-                cmd = (f'curl -X GET http://127.0.0.1:{STANDALONE_SERVICE_PORT}/workers -H \'Content-Type: application/json\'')
-                workers_on_master = json.loads(self.backend.master.get_ssh_client().run_remote_command(cmd))
+                cmd = (f'curl -X GET http://127.0.0.1:{STANDALONE_SERVICE_PORT}/workers'
+                       '-H \'Content-Type: application/json\'')
+                resp = self.backend.master.get_ssh_client().run_remote_command(cmd)
+                workers_on_master = json.loads(resp)
             except Exception:
                 pass
-
             return workers_on_master
 
         def create_workers(workers_to_create):
@@ -307,14 +308,12 @@ class StandaloneHandler:
         logger.debug('Installing Lithops in {}'.format(self.backend.master))
         ssh_client = self.backend.master.get_ssh_client()
 
-        worker_location = os.path.join(os.path.dirname(__file__), 'worker.py')
-        master_location = os.path.join(os.path.dirname(__file__), 'master.py')
-        create_handler_zip(LOCAL_FH_ZIP_LOCATION, worker_location)
+        worker_path = os.path.join(os.path.dirname(__file__), 'worker.py')
+        master_path = os.path.join(os.path.dirname(__file__), 'master.py')
+        create_handler_zip(LOCAL_FH_ZIP_LOCATION, [master_path, worker_path])
 
         logger.debug('Uploading lithops files to {}'.format(self.backend.master))
-        files_to_upload = [(LOCAL_FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip'),
-                           (master_location, '/tmp/master.py')]
-        ssh_client.upload_multiple_local_files(files_to_upload)
+        ssh_client.upload_local_file(LOCAL_FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip')
         os.remove(LOCAL_FH_ZIP_LOCATION)
 
         vm_data = {'instance_name': self.backend.master.name,

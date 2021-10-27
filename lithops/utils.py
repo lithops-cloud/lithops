@@ -221,7 +221,7 @@ def setup_lithops_logger(log_level=constants.LOGGER_LEVEL,
     logging.config.dictConfig(config_dict)
 
 
-def create_handler_zip(dst_zip_location, entry_point_file, entry_point_name=None):
+def create_handler_zip(dst_zip_location, entry_point_files, entry_point_name=None):
     """Create the zip package that is uploaded as a function"""
 
     logger.debug("Creating function handler zip in {}".format(dst_zip_location))
@@ -235,10 +235,12 @@ def create_handler_zip(dst_zip_location, entry_point_file, entry_point_name=None
                 add_folder_to_zip(zip_file, full_path, os.path.join(sub_dir, file))
 
     try:
+        ep_files = entry_point_files if isinstance(entry_point_files, list) else [entry_point_files]
         with zipfile.ZipFile(dst_zip_location, 'w', zipfile.ZIP_DEFLATED) as lithops_zip:
             module_location = os.path.dirname(os.path.abspath(lithops.__file__))
-            entry_point_name = entry_point_name or os.path.basename(entry_point_file)
-            lithops_zip.write(entry_point_file, entry_point_name)
+            for ep_file in ep_files:
+                ep_name = entry_point_name or os.path.basename(ep_file)
+                lithops_zip.write(ep_file, ep_name)
             add_folder_to_zip(lithops_zip, module_location)
 
     except Exception:

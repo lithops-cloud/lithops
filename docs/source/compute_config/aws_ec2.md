@@ -1,6 +1,6 @@
 # AWS Elastic Compute Cloud (EC2) (Beta)
 
-* Note: This backend is in beta. Expect errors and API/functionality changes in future releases.
+* Note: This backend is in beta. Expect API/functionality changes in future releases.
 
 The AWS EC2 client of Lithops can provide a truely serverless user experience on top of EC2 where Lithops creates new Virtual Machines (VMs) dynamically in runtime and scale Lithops jobs against them. Alternatively Lithops can start and stop an existing VM instances.
 
@@ -33,14 +33,18 @@ In this mode, Lithops can start and stop an existing VM, and deploy an entire jo
 
 Edit your lithops config and add the relevant keys:
 
-   ```yaml
-   lithops:
-      backend: aws_ec2
+```yaml
+lithops:
+   backend: aws_ec2
 
-   aws_ec2:
-      region_name : <REGION_NAME>
-      instance_id : <INSTANCE ID OF THE VM>
-   ```
+aws:
+   access_key_id: <ACCESS_KEY_ID>
+   secret_access_key: <SECRET_ACCESS_KEY>
+
+aws_ec2:
+   region_name : <REGION_NAME>
+   instance_id : <INSTANCE ID OF THE VM>
+```
 
 ### Summary of the configuration keys for the consume mode
 
@@ -68,6 +72,10 @@ lithops:
 
 standalone:
     exec_mode: create
+
+aws:
+   access_key_id: <ACCESS_KEY_ID>
+   secret_access_key: <SECRET_ACCESS_KEY>
 
 aws_ec2:
     region_name: <REGION_NAME>
