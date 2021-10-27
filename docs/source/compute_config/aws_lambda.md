@@ -46,17 +46,17 @@ $ python3 -m pip install lithops[aws]
 6. Edit your lithops config and add the following keys:
 
 ```yaml
-    lithops:
-        backend: aws_lambda
+lithops:
+    backend: aws_lambda
 
-    aws:
-        access_key_id: <ACCESS_KEY_ID>
-        secret_access_key: <SECRET_ACCESS_KEY>
-        #account_id: <ACCOUNT_ID>  # Optional
+aws:
+    access_key_id: <ACCESS_KEY_ID>
+    secret_access_key: <SECRET_ACCESS_KEY>
+    #account_id: <ACCOUNT_ID>  # Optional
 
-    aws_lambda:
-        execution_role: <EXECUTION_ROLE_ARN>
-        region_name: <REGION_NAME>
+aws_lambda:
+    execution_role: <EXECUTION_ROLE_ARN>
+    region_name: <REGION_NAME>
 ```
 
 ## Summary of configuration keys for AWS
@@ -90,17 +90,17 @@ $ python3 -m pip install lithops[aws]
 To connect the Lithops lambda to a VPC, add the following configuration to the `aws_lambda` configuration section:
 
 ```yaml
-    aws_lambda:
-        execution_role: <EXECUTION_ROLE_ARN>
-        region_name: <REGION_NAME>
-        vpc:
-            subnets:
-                - <SUBNET_ID_1>
-                - <SUBNET_ID_2>
-                ...
-            security_groups:
-                - <SECURITY_GROUP_1>
-                - <SECURITY_GROUP_2>
+aws_lambda:
+    execution_role: <EXECUTION_ROLE_ARN>
+    region_name: <REGION_NAME>
+    vpc:
+        subnets:
+            - <SUBNET_ID_1>
+            - <SUBNET_ID_2>
+            ...
+        security_groups:
+            - <SECURITY_GROUP_1>
+            - <SECURITY_GROUP_2>
                 ...
 ```
 
@@ -115,16 +115,16 @@ For more information, check out [AWS documentation on VPCs](https://docs.aws.ama
 To attach EFS volumes to the Lithops lambda, add the following configuration to the `aws_lambda` configuration section:
 
 ```yaml
-    aws_lambda:
-        execution_role: <EXECUTION_ROLE_ARN>
-        region_name: <REGION_NAME>
-        vpc:
-            ...
-        efs:
-            - access_point: <EFS_ACCESS_POINT_1>
-              mount_path: <LAMBDA_VOLUME_MOUNT_PATH_1>
-            - access_point: <EFS_ACCESS_POINT_2>
-              mount_path: <LAMBDA_VOLUME_MOUNT_PATH_2>
+aws_lambda:
+    execution_role: <EXECUTION_ROLE_ARN>
+    region_name: <REGION_NAME>
+    vpc:
+        ...
+    efs:
+        - access_point: <EFS_ACCESS_POINT_1>
+          mount_path: <LAMBDA_VOLUME_MOUNT_PATH_1>
+        - access_point: <EFS_ACCESS_POINT_2>
+          mount_path: <LAMBDA_VOLUME_MOUNT_PATH_2>
             ...
 ```
 

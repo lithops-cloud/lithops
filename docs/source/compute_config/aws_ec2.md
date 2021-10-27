@@ -1,6 +1,6 @@
 # AWS Elastic Compute Cloud (EC2) (Beta)
 
-* Note: This backend is in beta. Expect errors and API/functionality changes in future releases.
+* Note: This backend is in beta. Expect API/functionality changes in future releases.
 
 The AWS EC2 client of Lithops can provide a truely serverless user experience on top of EC2 where Lithops creates new Virtual Machines (VMs) dynamically in runtime and scale Lithops jobs against them. Alternatively Lithops can start and stop an existing VM instances.
 
@@ -33,14 +33,18 @@ In this mode, Lithops can start and stop an existing VM, and deploy an entire jo
 
 Edit your lithops config and add the relevant keys:
 
-   ```yaml
-   lithops:
-      backend: aws_ec2
+```yaml
+lithops:
+   backend: aws_ec2
 
-   aws_ec2:
-      region_name : <REGION_NAME>
-      instance_id : <INSTANCE ID OF THE VM>
-   ```
+aws:
+   access_key_id: <ACCESS_KEY_ID>
+   secret_access_key: <SECRET_ACCESS_KEY>
+
+aws_ec2:
+   region_name : <REGION_NAME>
+   instance_id : <INSTANCE ID OF THE VM>
+```
 
 ### Summary of the configuration keys for the consume mode
 
@@ -55,8 +59,9 @@ Edit your lithops config and add the relevant keys:
 
 
 
-## Lithops and the VM auto create mode
-In this mode, Lithops will automatically create new worker VM instances in runtime, scale Lithops job against generated VMs, and automatically delete VMs when the job is completed.
+## Lithops and the VM auto create|reuse mode
+In this mode, Lithops will automatically create new worker VM instances in runtime, scale Lithops job against generated VMs, and automatically delete the VMs when the job is completed.
+Alternatively, you can set the `reuse` mode to keep running the started worker VMs, and reuse them for further executions. In the `reuse` mode, Lithops checks all the available worker VMs and start new workers if necessary.
 
 ### Lithops configuration for the auto create mode
 
@@ -67,7 +72,11 @@ lithops:
     backend: aws_ec2
 
 standalone:
-    exec_mode: create
+    exec_mode: create|reuse
+
+aws:
+   access_key_id: <ACCESS_KEY_ID>
+   secret_access_key: <SECRET_ACCESS_KEY>
 
 aws_ec2:
     region_name: <REGION_NAME>
@@ -79,7 +88,7 @@ aws_ec2:
 ###  Important information
 1. The first time you use Lithops with specific runtime, Lithops will try generate and obtain runtime metadata. For this purpose Lithops will create a VM, extract specific metadata and delete VM. All further executions against same runtime will skip this step as runtime metadata will be cached both locally and in AWS S3.
 2. In certain cases where ssh access details are wrong, Lithops might fail to ssh into created VM from the previous step. In this case, fix the ssh access credentials, navigate into the dashboard and manually delete the VMs.
-3. The first time you deplopy Lithops job in the auto create mode it is advised to navigate to the dashboard and verify that VM is being created and deleted.
+3. The first time you deplopy Lithops job in the create|reuse mode it is advised to navigate to the dashboard and verify that VM is being created and deleted.
 
 ### Summary of the configuration keys for the create mode
 

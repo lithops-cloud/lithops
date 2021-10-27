@@ -112,36 +112,24 @@ class AWSEC2Backend:
 
             dump_yaml_config(ec2_data_filename, self.ec2_data)
 
-    def _delete_vm_instances(self):
+    def _delete_worker_vm_instances(self):
         """
-        Deletes all VM instances in the VPC
+        Deletes all worker VM instances
         """
-        msg = ('Deleting all Lithops worker VMs in {}'.format(self.vpc_name)
-               if self.vpc_name else 'Deleting all Lithops worker VMs')
-        logger.info(msg)
+        logger.info('Deleting all Lithops worker VMs in EC2')
 
-        def delete_instance(instance_info):
-            ins_name, ins_id = instance_info
-            logger.info('Deleting instance {}'.format(ins_name))
-            self.ibm_vpc_client.delete_instance(ins_id)
+        ins_to_delete = []
+        response = self.ec2_client.describe_instances()
+        for r in response['Reservations']:
+            for ins in r['Instances']:
+                if ins['State']['Name'] != 'terminated' and 'Tags' in ins:
+                    for tag in ins['Tags']:
+                        if tag['Key'] == 'Name' and tag['Value'].startswith('lithops-worker'):
+                            ins_to_delete.append(ins['InstanceId'])
+                            logger.info(f"Going to delete VM instance {tag['Value']}")
 
-        deleted_instances = set()
-        while True:
-            instances_to_delete = set()
-            instances_info = self.ibm_vpc_client.list_instances().get_result()
-            for ins in instances_info['instances']:
-                if ins['name'].startswith('lithops-worker'):
-                    ins_to_dlete = (ins['name'], ins['id'])
-                    if ins_to_dlete not in deleted_instances:
-                        instances_to_delete.add(ins_to_dlete)
-
-            if instances_to_delete:
-                with ThreadPoolExecutor(len(instances_to_delete)) as executor:
-                    executor.map(delete_instance, instances_to_delete)
-                deleted_instances.update(instances_to_delete)
-            else:
-                break
-        # time.sleep(5)
+        if ins_to_delete:
+            self.ec2_client.terminate_instances(InstanceIds=ins_to_delete)
 
     def clean(self):
         """
@@ -149,7 +137,7 @@ class AWSEC2Backend:
         The gateway public IP and the floating IP are never deleted
         """
         logger.debug('Cleaning AWS EC2 resources')
-        self._delete_vm_instances()
+        self._delete_worker_vm_instances()
 
     def clear(self, job_keys=None):
         """
@@ -225,7 +213,7 @@ class EC2Instance:
         }
 
     def __str__(self):
-        ip = self.public_ip if self.public_ip != '0.0.0.0' else self.ip_address
+        ip = self.public_ip if self.public else self.ip_address
         return f'VM instance {self.name} ({ip})'
 
     def _create_ec2_client(self):
@@ -300,7 +288,8 @@ class EC2Instance:
             "IamInstanceProfile": {'Name': self.config['iam_role']},
             "Monitoring": {'Enabled': False},
             "TagSpecifications": [{"ResourceType": "instance", "Tags": [{'Key': 'Name', 'Value': self.name}]}],
-            "InstanceInitiatedShutdownBehavior": 'terminate' if self.delete_on_dismantle else 'stop'}
+            "InstanceInitiatedShutdownBehavior": 'terminate' if self.delete_on_dismantle else 'stop'
+        }
 
         if BlockDeviceMappings is not None:
             LaunchSpecification['BlockDeviceMappings'] = BlockDeviceMappings
@@ -312,6 +301,7 @@ class EC2Instance:
             user = self.config['ssh_username']
             token = self.config['ssh_password']
             LaunchSpecification['UserData'] = CLOUD_CONFIG_WORKER.format(user, token)
+            # LaunchSpecification['NetworkInterfaces'] = [{'AssociatePublicIpAddress': False, 'DeviceIndex': 0}]
 
         instance = self.ec2_client.run_instances(**LaunchSpecification)
 
@@ -379,12 +369,12 @@ class EC2Instance:
                 logger.debug('VM instance {} already exists'.format(self.name))
                 vsi_exists = True
                 self.instance_id = instances_data['InstanceId']
+                self.ip_address = instances_data['PrivateIpAddress']
 
         if not vsi_exists:
             instances_data = self._create_instance()
             self.instance_id = instances_data['InstanceId']
             self.ip_address = instances_data['PrivateIpAddress']
-
         self.start()
 
         return self.instance_id

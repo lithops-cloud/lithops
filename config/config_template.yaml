@@ -83,6 +83,7 @@
     #vpc_id: <VPC_ID>
     #iam_role: <IAM_ROLE>
     #key_name: <SSH_KEY_NAME>
+    #security_group_id: <SECURITY_GROUP_ID>
     #master_instance_type: t2.medium
     #worker_instance_type: t2.medium
     #ssh_user : <SSH_USER_FOR_VPC> # Default is 'ubuntu'

@@ -116,8 +116,7 @@ def get_master_setup_script(config, vm_data):
     cp /tmp/lithops_standalone.zip {0};
     mv access.data {0}/access.data;
     test -f {0}/access.data || echo '{1}' > {0}/access.data;
-    test -f {0}/config || echo '{2}' > {0}/config;
-    mv /tmp/*.py '{0}';
+    echo '{2}' > {0}/config;
     }}
     setup_host >> {3} 2>&1;
     """.format(STANDALONE_INSTALL_DIR, json.dumps(vm_data),
