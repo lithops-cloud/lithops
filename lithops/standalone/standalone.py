@@ -322,7 +322,7 @@ class StandaloneHandler:
                    'instance_id': self.backend.master.instance_id}
 
         logger.debug('Executing lithops installation process on {}'.format(self.backend.master))
-        logger.debug('Be patient, initial installation process may take up to 5 minutes')
+        logger.debug('Be patient, initial installation process may take up to 3 minutes')
 
         remote_script = "/tmp/install_lithops.sh"
         script = get_master_setup_script(self.config, vm_data)

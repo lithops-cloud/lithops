@@ -145,8 +145,10 @@ def setup_worker(worker_info, work_queue, work_queue_name):
                'master_ip': MASTER_IP,
                'work_queue': work_queue_name}
 
+    remote_script = "/tmp/install_lithops.sh"
     script = get_worker_setup_script(STANDALONE_CONFIG, vm_data)
-    vm.get_ssh_client().run_remote_command(script, run_async=True)
+    vm.get_ssh_client().upload_data_to_file(script, remote_script)
+    vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script};", run_async=True)
     vm.del_ssh_client()
     logger.info('Installation script submitted to {}'.format(vm))
 

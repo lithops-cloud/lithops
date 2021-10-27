@@ -161,9 +161,6 @@ class LocalhostStorageBackend:
             # dirs.add("/".join(file_dir.split("/", 2)[:2]))
             self.delete_object(bucket_name, key)
 
-        for file_dir in dirs:
-            shutil.rmtree(os.path.join(LITHOPS_TEMP_DIR, bucket_name, file_dir), ignore_errors=True)
-
     def head_bucket(self, bucket_name):
         """
         Head localhost dir with a name.

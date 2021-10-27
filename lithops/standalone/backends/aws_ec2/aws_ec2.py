@@ -29,7 +29,7 @@ from lithops.standalone.utils import CLOUD_CONFIG_WORKER
 
 logger = logging.getLogger(__name__)
 
-# https://github.com/nchammas/flintrock/blob/master/flintrock/ec2.py
+
 class AWSEC2Backend:
 
     def __init__(self, ec2_config, mode):
@@ -225,7 +225,8 @@ class EC2Instance:
         }
 
     def __str__(self):
-        return 'VM instance {} ({})'.format(self.name, self.public_ip or self.ip_address)
+        ip = self.public_ip if self.public_ip != '0.0.0.0' else self.ip_address
+        return f'VM instance {self.name} ({ip})'
 
     def _create_ec2_client(self):
         """
