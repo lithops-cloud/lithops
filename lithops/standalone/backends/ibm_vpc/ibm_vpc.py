@@ -18,6 +18,7 @@ import re
 import os
 import time
 import logging
+import uuid
 from ibm_vpc import VpcV1
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
 from ibm_cloud_sdk_core import ApiException
@@ -534,7 +535,7 @@ class IBMVPCInstance:
 
         boot_volume_data = {
             'capacity': self.config['boot_volume_capacity'],
-            'name': '{}-boot'.format(self.name),
+            'name': '{}-{}-boot'.format(self.name, str(uuid.uuid4())[:4]),
             'profile': {'name': self.config['boot_volume_profile']}}
 
         boot_volume_attachment = {
