@@ -64,9 +64,10 @@ Once local image is ready you need to upload it to COS. The best would be to use
 4. **Clean everything**
 
     You can clean everything related to Lithops, such as all deployed workers and cache information, and start from scratch by simply running the next command (Configuration is not deleted):
-
+    ```
     $ lithops clean -b ibm_vpc
-
+    ```
     In order to delete also master VM use `--all` flag
-
+    ```
     $ lithops clean -b ibm_vpc --all
+    ```
