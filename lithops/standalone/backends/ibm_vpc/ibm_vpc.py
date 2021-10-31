@@ -304,6 +304,7 @@ class IBMVPCBackend:
         logger.info(msg)
 
         def delete_instance(instance_info):
+            import pdb;pdb.set_trace()
             ins_name, ins_id = instance_info
             try:
                 logger.info('Deleting instance {}'.format(ins_name))
@@ -315,8 +316,9 @@ class IBMVPCBackend:
                     raise e
 
         vms_prefixes = ('lithops-worker',)
-        if self.config['delete_master']:
-            vms_prefixes = vms_prefixes + ('lithops-master-{}'.format(self.vpc_key), )
+        import pdb;pdb.set_trace()
+        if self.config.get('delete_master'):
+            vms_prefixes = vms_prefixes + ('lithops-master-', )
 
         deleted_instances = set()
         while True:

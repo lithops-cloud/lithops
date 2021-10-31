@@ -90,7 +90,7 @@ def clean(config, backend, storage, debug, all):
     elif mode == STANDALONE:
         compute_config = extract_standalone_config(config)
         if all:
-            backend_name = config['backend']
+            backend_name = compute_config['backend']
             compute_config[backend_name]['delete_master'] = True
         compute_handler = StandaloneHandler(compute_config)
 
