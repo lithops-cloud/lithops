@@ -60,3 +60,13 @@ Once local image is ready you need to upload it to COS. The best would be to use
      ```
 
 3. [Navigate to IBM VPC dashboard, custom images](https://cloud.ibm.com/vpc-ext/compute/images) and follow instructions to create new custom image based on the `lithops-ubuntu-20.04.qcow2`
+
+4. **Clean everything**
+
+    You can clean everything related to Lithops, such as all deployed workers and cache information, and start from scratch by simply running the next command (Configuration is not deleted):
+
+    $ lithops clean -b ibm_vpc
+
+    In order to delete also master VM use `--all` flag
+
+    $ lithops clean -b ibm_vpc --all
