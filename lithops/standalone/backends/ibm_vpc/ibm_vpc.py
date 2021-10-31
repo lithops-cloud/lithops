@@ -314,12 +314,16 @@ class IBMVPCBackend:
                 else:
                     raise e
 
+        vms_prefixes = ('lithops-worker',)
+        if self.config['delete_master']:
+            vms_prefixes = vms_prefixes + ('lithops-master-{}'.format(self.vpc_key), )
+
         deleted_instances = set()
         while True:
             instances_to_delete = set()
             instances_info = self.ibm_vpc_client.list_instances().get_result()
             for ins in instances_info['instances']:
-                if ins['name'].startswith('lithops-worker'):
+                if ins['name'].startswith(vms_prefixes):
                     ins_to_dlete = (ins['name'], ins['id'])
                     if ins_to_dlete not in deleted_instances:
                         instances_to_delete.add(ins_to_dlete)
