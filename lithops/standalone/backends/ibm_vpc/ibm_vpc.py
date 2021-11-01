@@ -26,7 +26,7 @@ from concurrent.futures import ThreadPoolExecutor
 from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
-from lithops.standalone.utils import CLOUD_CONFIG_WORKER, decorate_instance, retry_on_except
+from lithops.standalone.utils import CLOUD_CONFIG_WORKER, decorate_instance, vpc_retry_on_except
 
 
 logger = logging.getLogger(__name__)
@@ -60,7 +60,7 @@ class IBMVPCBackend:
         self.ibm_vpc_client._set_user_agent_header(user_agent_string)
 
         # decorate instance public methods with except/retry logic
-        decorate_instance(self.ibm_vpc_client, retry_on_except)
+        decorate_instance(self.ibm_vpc_client, vpc_retry_on_except)
 
         msg = COMPUTE_CLI_MSG.format('IBM VPC')
         logger.info("{} - Region: {}".format(msg, self.region))
@@ -500,7 +500,7 @@ class IBMVPCInstance:
         ibm_vpc_client.set_service_url(self.config['endpoint'] + '/v1')
 
         # decorate instance public methods with except/retry logic
-        decorate_instance(self.ibm_vpc_client, retry_on_except)
+        decorate_instance(self.ibm_vpc_client, vpc_retry_on_except)
 
         return ibm_vpc_client
 
