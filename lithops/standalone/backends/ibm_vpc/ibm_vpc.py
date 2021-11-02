@@ -651,14 +651,13 @@ class IBMVPCInstance:
             instance = self._create_instance()
             self.instance_id = instance['id']
             self.ip_address = self._get_ip_address()
-
-        if self.public and instance:
-            self._attach_floating_ip(instance)
-
-        if start:
+        elif start:
             # In IBM VPC, VM instances are automatically started on create
             if vsi_exists:
                 self.start()
+
+        if self.public and instance:
+            self._attach_floating_ip(instance)
 
         return self.instance_id
 
