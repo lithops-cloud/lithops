@@ -486,7 +486,7 @@ class IBMVPCInstance:
         }
 
     def __str__(self):
-        return 'VM instance {} ({})'.format(self.name, self.public_ip or self.ip_address)
+        return f'VM instance {self.name} ({self.public_ip} {self.ip_address})' if self.public_ip else f'VM instance {self.name} {self.ip_address}'
 
     def _create_vpc_client(self):
         """
