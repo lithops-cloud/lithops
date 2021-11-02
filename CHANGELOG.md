@@ -12,7 +12,7 @@
 ### Fixed
 - [Standalone] Fixed VM initial installation script
 - [Standalone] Fixed get_workers method on master
-- [Standalone] Deletetd unnecessary extra worker
+- [Standalone] Deleted unnecessary extra worker
 - [Localhost] Fixed storage delete_objects method that was deleting the entire folder of a file
 
 ## [v2.5.5]
