@@ -3,6 +3,7 @@
     #storage: ibm_cos
     #data_cleaner: <True/False>
     #monitoring: storage
+    #monitoring_interval: 2
     #data_limit: 4  # in MiB
     #execution_timeout: 1800
     #include_modules: <LIST_OF_MODULES>

@@ -144,12 +144,10 @@ class FunctionExecutor:
             self.compute_handler = StandaloneHandler(standalone_config)
 
         # Create the monitoring system
-        monitoring_backend = self.config['lithops']['monitoring'].lower()
         self.job_monitor = JobMonitor(
             executor_id=self.executor_id,
             internal_storage=self.internal_storage,
-            backend=monitoring_backend,
-            config=self.config.get(monitoring_backend)
+            config=self.config
         )
 
         # Create the invoker
