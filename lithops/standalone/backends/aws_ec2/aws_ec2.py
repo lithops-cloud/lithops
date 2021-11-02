@@ -19,6 +19,7 @@ import time
 import logging
 import boto3
 import botocore
+import base64
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.util.ssh_client import SSHClient
@@ -28,6 +29,13 @@ from lithops.standalone.utils import CLOUD_CONFIG_WORKER
 
 
 logger = logging.getLogger(__name__)
+
+
+def b64s(string):
+    """
+    Base-64 encode a string and return a string
+    """
+    return base64.b64encode(string.encode('utf-8')).decode('ascii')
 
 
 class AWSEC2Backend:
@@ -166,7 +174,7 @@ class AWSEC2Backend:
                 ex.map(lambda worker: worker.stop(), self.workers)
             self.workers = []
 
-        if include_master and self.mode in ['consume', 'reuse']:
+        if include_master and self.mode in ['consume']:
             # in consume mode master VM is a worker
             self.master.stop()
 
@@ -205,6 +213,7 @@ class EC2Instance:
         self.delete_on_dismantle = self.config['delete_on_dismantle']
         self.instance_type = self.config['worker_instance_type']
         self.region = self.config['region_name']
+        self.spot_price = self.config['spot_price']
 
         self.ec2_client = ec2_client or self._create_ec2_client()
         self.public = public
@@ -271,8 +280,6 @@ class EC2Instance:
         """
         Creates a new VM instance
         """
-        logger.debug("Creating new VM instance {}".format(self.name))
-
         if self.fast_io:
             BlockDeviceMappings = [
                 {
@@ -289,16 +296,12 @@ class EC2Instance:
             BlockDeviceMappings = None
 
         LaunchSpecification = {
-            "MinCount": 1,
-            "MaxCount": 1,
             "ImageId": self.config['target_ami'],
             "InstanceType": self.instance_type,
             "SecurityGroupIds": [self.config['security_group_id']],
             "EbsOptimized": False,
             "IamInstanceProfile": {'Name': self.config['iam_role']},
-            "Monitoring": {'Enabled': False},
-            "TagSpecifications": [{"ResourceType": "instance", "Tags": [{'Key': 'Name', 'Value': self.name}]}],
-            "InstanceInitiatedShutdownBehavior": 'terminate' if self.delete_on_dismantle else 'stop'
+            "Monitoring": {'Enabled': False}
         }
 
         if BlockDeviceMappings is not None:
@@ -306,18 +309,75 @@ class EC2Instance:
         if 'key_name' in self.config:
             LaunchSpecification['KeyName'] = self.config['key_name']
 
-        if not self.public:
-            # Allow master VM to access workers trough ssh passwrod
-            user = self.config['ssh_username']
-            token = self.config['ssh_password']
-            LaunchSpecification['UserData'] = CLOUD_CONFIG_WORKER.format(user, token)
-            # LaunchSpecification['NetworkInterfaces'] = [{'AssociatePublicIpAddress': False, 'DeviceIndex': 0}]
+        user = self.config['ssh_username']
+        token = self.config['ssh_password']
+        user_data = CLOUD_CONFIG_WORKER.format(user, token)
 
-        instance = self.ec2_client.run_instances(**LaunchSpecification)
+        if self.spot_price is not None and not self.public:
+
+            logger.debug("Creating new VM instance {} (Spot)".format(self.name))
+
+            if not self.public:
+                # Allow master VM to access workers trough ssh password
+                LaunchSpecification['UserData'] = b64s(user_data)
+
+            if self.spot_price > 0:
+                spot_requests = self.ec2_client.request_spot_instances(
+                    SpotPrice=str(self.spot_price),
+                    InstanceCount=1,
+                    LaunchSpecification=LaunchSpecification)['SpotInstanceRequests']
+            else:
+                spot_requests = self.ec2_client.request_spot_instances(
+                    InstanceCount=1,
+                    LaunchSpecification=LaunchSpecification)['SpotInstanceRequests']
+
+            request_ids = [r['SpotInstanceRequestId'] for r in spot_requests]
+            pending_request_ids = request_ids
+
+            while pending_request_ids:
+                time.sleep(3)
+                spot_requests = self.ec2_client.describe_spot_instance_requests(
+                    SpotInstanceRequestIds=request_ids)['SpotInstanceRequests']
+
+                failed_requests = [r for r in spot_requests if r['State'] == 'failed']
+                if failed_requests:
+                    failure_reasons = {r['Status']['Code'] for r in failed_requests}
+                    raise Exception(
+                        "The spot request failed for the following reason{s}: {reasons}"
+                        .format(
+                            s='' if len(failure_reasons) == 1 else 's',
+                            reasons=', '.join(failure_reasons)))
+
+                pending_request_ids = [
+                    r['SpotInstanceRequestId'] for r in spot_requests
+                    if r['State'] == 'open']
+
+            self.ec2_client.create_tags(
+                Resources=[r['InstanceId'] for r in spot_requests],
+                Tags=[{'Key': 'Name', 'Value': self.name}]
+            )
+
+            filters = [{'Name': 'instance-id', 'Values': [r['InstanceId'] for r in spot_requests]}]
+            resp = self.ec2_client.describe_instances(Filters=filters)['Reservations'][0]
+
+        else:
+            logger.debug("Creating new VM instance {}".format(self.name))
+
+            LaunchSpecification['MinCount'] = 1
+            LaunchSpecification['MaxCount'] = 1
+            LaunchSpecification["TagSpecifications"] = [{"ResourceType": "instance", "Tags": [{'Key': 'Name', 'Value': self.name}]}]
+            LaunchSpecification["InstanceInitiatedShutdownBehavior"] = 'terminate' if self.delete_on_dismantle else 'stop'
+
+            if not self.public:
+                # Allow master VM to access workers trough ssh password
+                LaunchSpecification['UserData'] = user_data
+                # LaunchSpecification['NetworkInterfaces'] = [{'AssociatePublicIpAddress': False, 'DeviceIndex': 0}]
+
+            resp = self.ec2_client.run_instances(**LaunchSpecification)
 
         logger.debug("VM instance {} created successfully ".format(self.name))
 
-        return instance['Instances'][0]
+        return resp['Instances'][0]
 
     def get_instance_data(self):
         """
@@ -354,7 +414,7 @@ class EC2Instance:
 
     def _get_private_ip(self):
         """
-        Requests the the primary network IP address
+        Requests the the primary network private IP address
         """
         private_ip = None
         if self.instance_id:
@@ -363,6 +423,21 @@ class EC2Instance:
                 if instance_data:
                     private_ip = instance_data['NetworkInterfaces'][0]['PrivateIpAddress']
         return private_ip
+
+    def _get_public_ip(self):
+        """
+        Requests the the primary public IP address
+        """
+        public_ip = ''
+
+        while self.public and not public_ip:
+            instances = self.ec2_client.describe_instances(InstanceIds=[self.instance_id])
+            instance_data = instances['Reservations'][0]['Instances'][0]
+            if 'PublicIpAddress' in instance_data:
+                public_ip = instance_data['PublicIpAddress']
+            else:
+                time.sleep(1)
+        return public_ip
 
     def create(self, check_if_exists=False):
         """
@@ -383,7 +458,9 @@ class EC2Instance:
             instances_data = self._create_instance()
             self.instance_id = instances_data['InstanceId']
             self.ip_address = instances_data['PrivateIpAddress']
-        self.start()
+            self.public_ip = self._get_public_ip()
+        else:
+            self.start()
 
         return self.instance_id
 
@@ -391,22 +468,13 @@ class EC2Instance:
         logger.debug("Starting VM instance {}".format(self.name))
 
         self.ec2_client.start_instances(InstanceIds=[self.instance_id])
-        public_ip = ''
-
-        while self.public and not public_ip:
-            instances = self.ec2_client.describe_instances(InstanceIds=[self.instance_id])
-            instance_data = instances['Reservations'][0]['Instances'][0]
-            if 'PublicIpAddress' in instance_data:
-                public_ip = instance_data['PublicIpAddress']
-                self.public_ip = public_ip
-            else:
-                time.sleep(1)
+        self.public_ip = self._get_public_ip()
 
         logger.debug("VM instance {} started successfully".format(self.name))
 
     def _delete_instance(self):
         """
-        Deletes the VM instacne and the associated volume
+        Deletes the VM instance and the associated volume
         """
         logger.debug("Deleting VM instance {}".format(self.name))
 

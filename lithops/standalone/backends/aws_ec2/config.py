@@ -18,15 +18,15 @@ import uuid
 
 
 DEFAULT_CONFIG_KEYS = {
-    'master_instance_type': 't2.medium',
-    'worker_instance_type': 't2.medium',
+    'master_instance_type': 't2.micro',
+    'worker_instance_type': 't2.micro',
     'ssh_username': 'ubuntu',
     'ssh_password': str(uuid.uuid4()),
     'target_ami': 'ami-0a8e758f5e873d1c1',  # ubuntu 20.04
-    'request_spot_instances': False,
+    'spot_price': None,
     'delete_on_dismantle': True,
     'max_workers': 100,
-    'worker_processes': 2
+    'worker_processes': 1
 }
 
 
