@@ -51,8 +51,9 @@ class AWSBatchBackend:
         self.package = 'aws-batch_lithops_v{}_{}'.format(lithops.__version__, self.user_key)
         self.region_name = aws_batch_config['region_name']
 
-        self._queue_name = '{}_job_queue'.format(self.package.replace('.', '-'))
-        self._compute_env_name = '{}_compute_env'.format(self.package.replace('.', '-'))
+        self._env_type = self.aws_batch_config['env_type']
+        self._queue_name = '{}_{}_queue'.format(self.package.replace('.', '-'), self._env_type.replace('_', '-'))
+        self._compute_env_name = '{}_{}_env'.format(self.package.replace('.', '-'), self._env_type.replace('_', '-'))
 
         logger.debug('Creating Boto3 AWS Session and Batch Client')
         self.aws_session = boto3.Session(aws_access_key_id=aws_batch_config['access_key_id'],
@@ -88,7 +89,7 @@ class AWSBatchBackend:
 
     def _format_jobdef_name(self, runtime_name, runtime_memory):
         fmt_runtime_name = runtime_name.replace('/', '--').replace(':', '--')
-        return '{}-{}--{}mb'.format(self.package.replace('.', '-'), fmt_runtime_name, runtime_memory)
+        return '{}-{}-{}--{}mb'.format(self.package.replace('.', '-'), self._env_type, fmt_runtime_name, runtime_memory)
 
     def _unformat_jobdef_name(self, jobdef_name):
         # 	aws-batch_lithops_v2-5-5-dev0_WH6F-default_runtime-v39--latest--256mb
@@ -97,7 +98,6 @@ class AWSBatchBackend:
         runtime_name_base = prefix.replace(self.package.replace('.', '-') + '-', '')
         runtime_name, _ = runtime_name_base.split('-')
         return runtime_name, memory
-
 
     def _build_default_runtime(self, default_runtime_img_name):
         """
@@ -123,13 +123,18 @@ class AWSBatchBackend:
             logger.debug('Creating new Compute Environment {}'.format(self._compute_env_name))
             compute_resources_spec = {
                 'type': self.aws_batch_config['env_type'],
-                'maxvCpus': self.aws_batch_config['max_cpus'],
+                'maxvCpus': self.aws_batch_config['env_max_cpus'],
                 'subnets': self.aws_batch_config['subnets'],
                 'securityGroupIds': self.aws_batch_config['security_groups']
             }
 
-            if self.aws_batch_config['env_type'] == 'SPOT':
+            if self._env_type == 'SPOT':
                 compute_resources_spec['allocationStrategy'] = 'SPOT_CAPACITY_OPTIMIZED'
+
+            if self._env_type in {'EC2', 'SPOT'}:
+                compute_resources_spec['instanceRole'] = self.aws_batch_config['instance_role']
+                compute_resources_spec['minvCpus'] = 0
+                compute_resources_spec['instanceTypes'] = ['optimal']
 
             res = self.batch_client.create_compute_environment(
                 computeEnvironmentName=self._compute_env_name,
@@ -241,30 +246,42 @@ class AWSBatchBackend:
         job_def_name = self._format_jobdef_name(runtime_name, runtime_memory)
         job_def = self._get_job_def(job_def_name)
 
+        if self._env_type in {'EC2', 'SPOT'}:
+            platform_capabilities = ['EC2']
+        elif self._env_type in {'FARGATE', 'FARGATE_SPOT'}:
+            platform_capabilities = ['FARGATE']
+        else:
+            raise Exception('Unknown env type {}'.format(self._env_type))
+
         if job_def is None:
             logger.debug('Creating new Job Definition {}'.format(job_def_name))
             image_name, _, _ = self._get_full_image_name(runtime_name)
+
+            container_properties = {
+                'image': image_name,
+                'executionRoleArn': self.aws_batch_config['execution_role'],
+                'resourceRequirements': [
+                    {
+                        'type': 'VCPU',
+                        'value': str(self.aws_batch_config['container_vcpus'])
+                    },
+                    {
+                        'type': 'MEMORY',
+                        'value': str(self.aws_batch_config['runtime_memory'])
+                    }
+                ],
+            }
+
+            if self._env_type in {'FARGATE', 'FARGATE_SPOT'}:
+                container_properties['networkConfiguration'] = {
+                    'assignPublicIp': 'ENABLED' if self.aws_batch_config['assign_public_ip'] else 'DISABLED'
+                }
+
             res = self.batch_client.register_job_definition(
                 jobDefinitionName=job_def_name,
                 type='container',
-                containerProperties={
-                    'image': image_name,
-                    'executionRoleArn': self.aws_batch_config['execution_role'],
-                    'resourceRequirements': [
-                        {
-                            'value': '0.25',
-                            'type': 'VCPU'
-                        },
-                        {
-                            'value': '512',
-                            'type': 'MEMORY'
-                        }
-                    ],
-                    'networkConfiguration': {
-                        'assignPublicIp': 'ENABLED' if self.aws_batch_config['assign_public_ip'] else 'DISABLED'
-                    }
-                },
-                platformCapabilities=['FARGATE']
+                containerProperties=container_properties,
+                platformCapabilities=platform_capabilities
             )
 
             if res['ResponseMetadata']['HTTPStatusCode'] != 200:
@@ -314,7 +331,7 @@ class AWSBatchBackend:
                         'value': 'get_preinstalls'
                     },
                     {
-                        'name': '__LITHOPS_CONFIG',
+                        'name': '__LITHOPS_PAYLOAD',
                         'value': json.dumps(payload)
                     }
                 ]
@@ -322,16 +339,16 @@ class AWSBatchBackend:
         )
 
         status_key = runtime_name + '.meta'
-        retry = 10
+        retry = 25
         while retry > 0:
             try:
                 runtime_meta_json = self.internal_storage.get_data(key=status_key)
                 runtime_meta = json.loads(runtime_meta_json)
-                print(runtime_meta)
+                self.internal_storage.del_data(key=status_key)
                 return runtime_meta
             except StorageNoSuchKeyError:
-                logger.debug('Get runtime meta retry {}...')
-                time.sleep(5)
+                logger.debug('Get runtime meta retry {}...'.format(retry))
+                time.sleep(30)
                 retry -= 1
         raise Exception('Could not get metadata')
 
@@ -395,7 +412,6 @@ class AWSBatchBackend:
             # We only build the default image. rest of images must already exist
             # in the docker registry.
             self._build_default_runtime(default_runtime_img_name)
-            pass
 
         self._create_compute_env()
         self._create_queue()
@@ -416,8 +432,6 @@ class AWSBatchBackend:
         """
         Deletes all Lithops lambda runtimes for this user
         """
-        print('clean')
-
         # Delete Job Definition
         job_defs = self._get_job_def()
         for job_def in job_defs:
@@ -438,11 +452,11 @@ class AWSBatchBackend:
                 raise Exception('Could not disable job queue {}'.format(job_queue['jobQueueArn']))
             while True:
                 jq_status = self._get_job_queue(jq_name=job_queue['jobQueueName'])
-                if jq_status['state'] == 'DISABLED':
+                if jq_status['status'] == 'VALID':
                     break
                 logger.info('Updating job queue {} (status is {})'.format(
                     job_queue['jobQueueName'], jq_status['status']))
-                time.sleep(3)
+                time.sleep(5)
             res = self.batch_client.delete_job_queue(
                 jobQueue=job_queue['jobQueueArn']
             )
@@ -455,7 +469,7 @@ class AWSBatchBackend:
                     break
                 logger.info('Deleting job queue {} (status is {})'.format(
                     job_queue['jobQueueName'], jq_status['status']))
-                time.sleep(3)
+                time.sleep(30)
             logger.info('Job queue {} deleted'.format(job_queue['jobQueueName']))
 
         # Delete Compute Environment
@@ -470,11 +484,11 @@ class AWSBatchBackend:
                 raise Exception('Could not disable compute environment {}'.format(compute_env['computeEnvironmentArn']))
             while True:
                 ce_status = self._get_compute_env(ce_name=compute_env['computeEnvironmentName'])
-                if ce_status['state'] == 'DISABLED':
+                if ce_status['status'] == 'VALID':
                     break
                 logger.info('Updating compute environment {} (status is {})'.format(
                     ce_status['computeEnvironmentName'], ce_status['status']))
-                time.sleep(3)
+                time.sleep(5)
             res = self.batch_client.delete_compute_environment(
                 computeEnvironment=compute_env['computeEnvironmentArn']
             )
@@ -487,14 +501,14 @@ class AWSBatchBackend:
                     break
                 logger.info('Deleting compute environment {} (status is {})'.format(
                     compute_env['computeEnvironmentName'], ce_status['status']))
-                time.sleep(3)
-            logger.info('Job queue {} deleted'.format(job_queue['jobQueueName']))
+                time.sleep(30)
+            logger.info('Compute environment {} deleted'.format(compute_env['computeEnvironmentName']))
 
         # Delete ECR runtime image
-        for job_def in job_defs:
-            runtime_name, runtime_memory = self._unformat_jobdef_name(jobdef_name=job_def['jobDefinitionName'])
-            full_image_name, registry, repo_name = self._get_full_image_name(runtime_name)
-            self.ecr_client.delete_repository(repositoryName=repo_name, force=True)
+        # for job_def in job_defs:
+        #     runtime_name, runtime_memory = self._unformat_jobdef_name(jobdef_name=job_def['jobDefinitionName'])
+        #     full_image_name, registry, repo_name = self._get_full_image_name(runtime_name)
+        #     self.ecr_client.delete_repository(repositoryName=repo_name, force=True)
 
     def list_runtimes(self, runtime_name=None):
         """
@@ -516,16 +530,19 @@ class AWSBatchBackend:
         @param payload: invoke dict payload
         @return: invocation ID
         """
-        print(runtime_name)
-        print(runtime_memory)
-        print(payload)
+        total_calls = payload['total_calls']
+        chunksize = payload['chunksize']
+        total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
 
-        job_name = '{}_job'.format(self._format_jobdef_name(runtime_name, runtime_memory))
+        job_name = '{}_{}'.format(self._format_jobdef_name(runtime_name, runtime_memory), payload['job_key'])
 
         res = self.batch_client.submit_job(
             jobName=job_name,
             jobQueue=self._queue_name,
             jobDefinition=self._format_jobdef_name(runtime_name, runtime_memory),
+            arrayProperties={
+                'size': total_workers
+            },
             containerOverrides={
                 'environment': [
                     {
@@ -539,8 +556,6 @@ class AWSBatchBackend:
                 ]
             }
         )
-
-        pass
 
     def get_runtime_key(self, runtime_name, runtime_memory):
         """

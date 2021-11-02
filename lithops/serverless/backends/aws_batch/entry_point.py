@@ -17,10 +17,11 @@
 import os
 import logging
 import json
+import uuid
 
 from lithops.storage import InternalStorage
 from lithops.version import __version__
-from lithops.utils import setup_lithops_logger
+from lithops.utils import setup_lithops_logger, iterchunks
 from lithops.worker import function_handler
 from lithops.worker import function_invoker
 from lithops.worker.utils import get_runtime_preinstalls
@@ -29,12 +30,11 @@ logger = logging.getLogger('lithops.worker')
 
 if __name__ == '__main__':
     print(os.environ)
-    action = os.getenv('LITHOPS_ACTION')
-
+    action = os.getenv('__LITHOPS_ACTION')
     os.environ['__LITHOPS_BACKEND'] = 'AWS Batch'
 
     if action == 'get_preinstalls':
-        lithops_conf_json = os.environ['__LITHOPS_CONFIG']
+        lithops_conf_json = os.environ['__LITHOPS_PAYLOAD']
         lithops_conf = json.loads(lithops_conf_json)
         setup_lithops_logger(lithops_conf.get('log_level', logging.INFO))
         logger.info("Lithops v{} - Generating metadata".format(__version__))
@@ -49,9 +49,28 @@ if __name__ == '__main__':
         lithops_payload = json.loads(lithops_payload_json)
         logger.info("Lithops v{} - Starting AWS Lambda invoker".format(__version__))
         function_invoker(lithops_payload)
-    else:
-        print(action)
+    elif action == 'job':
         lithops_payload_json = os.environ['__LITHOPS_PAYLOAD']
         lithops_payload = json.loads(lithops_payload_json)
-        logger.info("Lithops v{} - Starting AWS Lambda execution".format(__version__))
+        setup_lithops_logger(lithops_payload.get('log_level', logging.INFO))
+
+        logger.info("Lithops v{} - Starting AWS Batch execution".format(__version__))
+
+        job_index = int(os.environ['AWS_BATCH_JOB_ARRAY_INDEX'])
+        lithops_payload['JOB_INDEX'] = job_index
+        logger.info('Job index {}'.format(job_index))
+
+        act_id = str(uuid.uuid4()).replace('-', '')[:12]
+        os.environ['__LITHOPS_ACTIVATION_ID'] = act_id
+
+        chunksize = lithops_payload['chunksize']
+        call_ids_ranges = [call_ids_range for call_ids_range in iterchunks(lithops_payload['call_ids'], chunksize)]
+        call_ids = call_ids_ranges[job_index]
+        data_byte_ranges = [lithops_payload['data_byte_ranges'][int(call_id)] for call_id in call_ids]
+
+        lithops_payload['call_ids'] = call_ids
+        lithops_payload['data_byte_ranges'] = data_byte_ranges
+
         function_handler(lithops_payload)
+    else:
+        raise Exception('Unknown action {}'.format(action))

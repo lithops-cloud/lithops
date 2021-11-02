@@ -19,7 +19,8 @@ import shutil
 import logging
 import lithops
 
-from lithops.utils import version_str, get_docker_username
+from lithops.utils import version_str
+from lithops.constants import WORKER_PROCESSES_DEFAULT
 
 logger = logging.getLogger(__name__)
 
@@ -34,14 +35,10 @@ ENV_MAX_CPUS_DEFAULT = 10
 AVAILABLE_MEM_FARGATE = [512] + [1024 * i for i in range(1, 31)]
 AVAILABLE_CPU_FARGATE = [0.25, 0.5, 1, 2, 4]
 
-
 RUNTIME_TIMEOUT_DEFAULT = 180  # Default timeout: 180 s == 3 min
 RUNTIME_TIMEOUT_MAX = 900  # Max. timeout: 900 s == 15 min
 RUNTIME_MEMORY_DEFAULT = 256  # Default memory: 256 MB
 RUNTIME_MEMORY_MAX = 10240  # Max. memory: 10240 MB
-
-RUNTIME_WORKERS_DEFAULT = 1
-MAX_WORKERS = 10
 
 DOCKERFILE_DEFAULT = """
 RUN apt-get update && apt-get install -y \
@@ -74,24 +71,23 @@ ENTRYPOINT python entry_point.py
 
 
 def load_config(config_data):
-    if 'aws' not in config_data and 'aws_batch' not in config_data:
+    if 'aws' not in config_data or 'aws_batch' not in config_data:
         raise Exception("'aws' and 'aws_batch' sections are mandatory in the configuration")
 
     # Generic serverless config
+    if 'runtime' not in config_data['aws_batch']:
+        if not DOCKER_PATH:
+            raise Exception('docker command not found. Install docker or use an already built runtime')
+        python_version = version_str(sys.version_info).replace('.', '')
+        revision = 'latest' if 'dev' in lithops.__version__ else lithops.__version__.replace('.', '')
+        runtime_name = '{}-v{}:{}'.format(DEFAULT_RUNTIME_NAME, python_version, revision)
+        config_data['aws_batch']['runtime'] = runtime_name
     if 'runtime_memory' not in config_data['aws_batch']:
         config_data['aws_batch']['runtime_memory'] = RUNTIME_MEMORY_DEFAULT
     if config_data['aws_batch']['runtime_memory'] > RUNTIME_MEMORY_MAX:
         logger.warning("Memory set to {} - {} exceeds "
                        "the maximum amount".format(RUNTIME_MEMORY_MAX, config_data['aws_batch']['runtime_memory']))
         config_data['aws_batch']['runtime_memory'] = RUNTIME_MEMORY_MAX
-    if 'runtime' not in config_data['aws_batch']:
-        if not DOCKER_PATH:
-            raise Exception('docker command not found. Install docker or use '
-                            'an already built runtime')
-        python_version = version_str(sys.version_info).replace('.', '')
-        revision = 'latest' if 'dev' in lithops.__version__ else lithops.__version__.replace('.', '')
-        runtime_name = '{}-v{}:{}'.format(DEFAULT_RUNTIME_NAME, python_version, revision)
-        config_data['aws_batch']['runtime'] = runtime_name
     if 'runtime_timeout' not in config_data['aws_batch']:
         config_data['aws_batch']['runtime_timeout'] = RUNTIME_TIMEOUT_DEFAULT
     if config_data['aws_batch']['runtime_timeout'] > RUNTIME_MEMORY_MAX:
@@ -99,12 +95,33 @@ def load_config(config_data):
                        "maximum amount".format(RUNTIME_TIMEOUT_MAX, config_data['aws_batch']['runtime_timeout']))
         config_data['aws_batch']['runtime_memory'] = RUNTIME_MEMORY_MAX
     if 'worker_processes' not in config_data['aws_batch']:
-        config_data['aws_batch']['worker_processes'] = MAX_WORKERS
-    if config_data['aws_batch']['worker_processes'] > MAX_WORKERS:
-        logger.warning("Max workers set to {} - {} exceeds the "
-                       "maximum amount".format(MAX_WORKERS, config_data['aws_batch']['worker_processes']))
+        config_data['aws_batch']['worker_processes'] = WORKER_PROCESSES_DEFAULT
 
-    config_data['aws_batch']['max_workers'] = config_data['aws_batch']['max_cpus'] // config_data['aws_batch']['worker_processes']
+    config_data['aws_batch']['max_workers'] = config_data['aws_batch']['env_max_cpus'] // config_data['aws_batch']['container_vcpus']
+
+    if config_data['aws_batch']['env_type'] not in {'EC2', 'SPOT', 'FARGATE', 'FARGATE_SPOT'}:
+        raise Exception('Unknown env type {}'.format(config_data['aws_batch']['env_type']))
+
+    if 'env_type' not in config_data['aws_batch']:
+        config_data['aws_batch']['env_type'] = DEFAULT_ENV_TYPE
+    if config_data['aws_batch']['env_type'] not in ENV_TYPES:
+        logger.error(config_data['aws_batch'])
+        raise Exception(
+            'AWS Batch env type must be one of {} (is {})'.format(ENV_TYPES, config_data['aws_batch']['env_type']))
+    if config_data['aws_batch']['env_type'] in {'FARGATE, FARGATE_SPOT'}:
+        if config_data['aws_batch']['container_vcpus'] not in AVAILABLE_CPU_FARGATE:
+            raise Exception('{} container vcpus is not available for {} environment (choose one of {})'.format(
+                config_data['aws_batch']['runtime_memory'], config_data['aws_batch']['env_type'],
+                AVAILABLE_CPU_FARGATE
+            ))
+        if config_data['aws_batch']['runtime_memory'] not in AVAILABLE_MEM_FARGATE:
+            raise Exception('{} runtime memory is not available for {} environment (choose one of {})'.format(
+                config_data['aws_batch']['runtime_memory'], config_data['aws_batch']['env_type'],
+                AVAILABLE_MEM_FARGATE
+            ))
+    if config_data['aws_batch']['env_type'] in {'EC2', 'SPOT'}:
+        if 'instance_role' not in config_data['aws_batch']:
+            raise Exception("'instance_role' mandatory for EC2 or SPOT environments")
 
     # Auth, role and region config
     if not {'access_key_id', 'secret_access_key'}.issubset(set(config_data['aws'])):
