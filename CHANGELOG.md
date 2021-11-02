@@ -5,6 +5,7 @@
 ### Added
 - [AWS_EC2] Added AWS EC2 Standalone backend
 - [Standalone] Added the logic to create the missing deleta of workers in reuse mode
+- [Config] Allow to set monitoring_interval in config
 
 ### Changed
 - 
@@ -13,6 +14,7 @@
 - [Standalone] Fixed VM initial installation script
 - [Standalone] Fixed get_workers method on master
 - [Standalone] Deleted unnecessary extra worker
+- [Standalone] Ensure all workers are proppery started on reuse mode
 - [Localhost] Fixed storage delete_objects method that was deleting the entire folder of a file
 
 ## [v2.5.5]
