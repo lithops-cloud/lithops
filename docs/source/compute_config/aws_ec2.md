@@ -1,6 +1,4 @@
-# AWS Elastic Compute Cloud (EC2) (Beta)
-
-* Note: This backend is in beta. Expect API/functionality changes in future releases.
+# AWS Elastic Compute Cloud (EC2)
 
 The AWS EC2 client of Lithops can provide a truely serverless user experience on top of EC2 where Lithops creates new Virtual Machines (VMs) dynamically in runtime and scale Lithops jobs against them. Alternatively Lithops can start and stop an existing VM instances.
 
@@ -102,7 +100,7 @@ aws_ec2:
 |aws_ec2 | ssh_username | ubuntu |no | Username to access the VM |
 |aws_ec2 | ssh_password |  |no | Password for accessing the worker VMs. If not provided, it is created randomly|
 |aws_ec2 | ssh_key_filename | | no | Path to the ssh key file provided to access the VPC. It will use the default path if not provided |
-|aws_ec2 | target_ami | | no | Virtual machine image id |
+|aws_ec2 | target_ami | ami-0a8e758f5e873d1c1 | no | Virtual machine image id. Default is Ubuntu 20.04 |
 |aws_ec2 | worker_instance_type | t2.medium | no | Profile name for the worker VMs |
 |aws_ec2 | master_instance_type | t2.medium | no | Profile name for the master VM |
 |aws_ec2 | delete_on_dismantle | True | no | Delete the worekr VMs when they are stopped |

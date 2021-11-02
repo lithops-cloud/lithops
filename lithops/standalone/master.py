@@ -40,8 +40,8 @@ logger = logging.getLogger('lithops.standalone.master')
 
 app = flask.Flask(__name__)
 
-INSTANCE_START_TIMEOUT = 200
-MAX_INSTANCE_CREATE_RETRIES = 3
+INSTANCE_START_TIMEOUT = 120
+MAX_INSTANCE_CREATE_RETRIES = 2
 STANDALONE_CONFIG = None
 STANDALONE_HANDLER = None
 BUDGET_KEEPER = None
@@ -56,7 +56,7 @@ WORKERS = MP_MANAGER.dict()
 
 # worker heartbeat timeout in seconds. used in reuse mode.
 # worker sends heartbeat by invoking get_tasks each ~1sec
-WORKER_HEARTBEAT = 20
+WORKER_HEARTBEAT = 5
 WORKERS_STATE = {}
 
 
@@ -113,24 +113,17 @@ def setup_worker(worker_info, work_queue, work_queue_name):
     worker_ready = False
     retry = 0
 
-    while(not worker_ready and not work_queue.empty()
-          and retry < MAX_INSTANCE_CREATE_RETRIES):
+    while not worker_ready and retry < MAX_INSTANCE_CREATE_RETRIES:
         try:
             wait_worker_instance_ready(vm)
             worker_ready = True
         except TimeoutError:  # VM not started in time
             if retry == MAX_INSTANCE_CREATE_RETRIES:
-                msg = '{} readiness probe failed after {} retries.'.format(vm, retry)
+                msg = f'{vm} readiness probe failed after {retry} retries.'
                 logger.debug(msg)
+                vm.delete()
                 raise Exception(msg)
-            logger.info('Recreating VM instance {}'.format(vm.name))
             retry += 1
-            vm.delete()
-            vm.create()
-
-    if work_queue.empty():
-        logger.info('Work queue is already empty. Skipping {}'.format(vm))
-        return
 
     # upload zip lithops package
     logger.info('Uploading lithops files to {}'.format(vm))
@@ -148,12 +141,27 @@ def setup_worker(worker_info, work_queue, work_queue_name):
     remote_script = "/tmp/install_lithops.sh"
     script = get_worker_setup_script(STANDALONE_CONFIG, vm_data)
     vm.get_ssh_client().upload_data_to_file(script, remote_script)
-    vm.get_ssh_client().run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script};", run_async=True)
+    cmd = f"chmod 777 {remote_script}; sudo {remote_script};"
+    vm.get_ssh_client().run_remote_command(cmd, run_async=True)
     vm.del_ssh_client()
     logger.info('Installation script submitted to {}'.format(vm))
 
     logger.debug(f'Appending {vm.name} to WORKERS')
     WORKERS[vm.name] = vm_data
+
+
+def start_workers(job_payload, work_queue, work_queue_name):
+    """
+    Creates the workers
+    """
+    workers = job_payload['worker_instances']
+    # run setup only in case not reusing old workers
+    if workers:
+        with ThreadPoolExecutor(len(workers)) as executor:
+            for worker_info in workers:
+                executor.submit(setup_worker, worker_info, work_queue, work_queue_name)
+
+        logger.info(f'All workers set up for work queue "{work_queue_name}"')
 
 
 def stop_job_process(job_key):
@@ -197,7 +205,6 @@ def run_job_worker(job_payload, work_queue, work_queue_name):
     job_key = job_payload['job_key']
     call_ids = job_payload['call_ids']
     chunksize = job_payload['chunksize']
-    workers = job_payload['worker_instances']
 
     for call_ids_range in iterchunks(call_ids, chunksize):
         task_payload = copy.deepcopy(job_payload)
@@ -206,15 +213,7 @@ def run_job_worker(job_payload, work_queue, work_queue_name):
         task_payload['data_byte_ranges'] = [dbr[int(call_id)] for call_id in call_ids_range]
         work_queue.put(task_payload)
 
-    logger.info("Total tasks in work queue '{}': {}".format(work_queue_name, work_queue.qsize()))
-
-    # run setup only in case not reusing old workers
-    if workers:
-        with ThreadPoolExecutor(len(workers)) as executor:
-            for worker_info in workers:
-                executor.submit(setup_worker, worker_info, work_queue, work_queue_name)
-
-        logger.info('All workers set up for job {}'.format(job_key))
+    logger.info(f"Total tasks in work queue '{work_queue_name}': {work_queue.qsize()}")
 
     while not work_queue.empty():
         time.sleep(1)
@@ -222,7 +221,7 @@ def run_job_worker(job_payload, work_queue, work_queue_name):
     done = os.path.join(JOBS_DIR, job_key+'.done')
     Path(done).touch()
 
-    logger.info('Finished job {} invocation.'.format(job_key))
+    logger.info(f'All job {job_key} submitted to workers')
 
 
 def error(msg):
@@ -258,11 +257,19 @@ def get_workers():
         # either available via ssh, to cover case when worker service
         # not running yet or via heartbeat
         hb = WORKERS_STATE.get(vm.ip_address)
-        if is_worker_instance_ready(vm) or (time.time() - hb < WORKER_HEARTBEAT):
-            workers_ready.append((vm.name, vm.ip_address, vm.instance_id, vm.ssh_credentials))
+        if is_worker_instance_ready(vm) and hb:
+            if time.time() - hb < WORKER_HEARTBEAT:
+                # if hb is > WORKER_HEARTBEAT, probably worker is
+                # doing another tasks
+                workers_ready.append((
+                    vm.name,
+                    vm.ip_address,
+                    vm.instance_id,
+                    vm.ssh_credentials)
+                )
         else:
-            # delete worker in case it is not available. may cover edge cases when
-            # for some reason keeper not started on worker
+            # delete worker in case it is not available. may cover edge
+            # cases when for some reason keeper not started on worker
             vm.delete()
             if vm.name in WORKERS:
                 del WORKERS[vm.name]
@@ -273,7 +280,7 @@ def get_workers():
         with ThreadPoolExecutor(len(workers)) as ex:
             ex.map(check_worker, workers)
 
-    logger.info(f'Total ready workers: {len(workers_ready)}')
+    logger.info(f'Total workers ready: {len(workers_ready)}')
 
     response = flask.jsonify(workers_ready)
     response.status_code = 200
@@ -373,6 +380,7 @@ def run():
         logger.debug(f'Starting process for job {job_key}')
         work_queue_name = job_key
         work_queue = WORK_QUEUES.setdefault(work_queue_name, MP_MANAGER.Queue())
+        mp.Process(target=start_workers, args=(job_payload, work_queue, work_queue_name)).start()
         jp = mp.Process(target=run_job_worker, args=(job_payload, work_queue, work_queue_name))
         jp.daemon = True
         jp.start()
@@ -383,6 +391,7 @@ def run():
         logger.debug(f'Starting process for job {job_key}')
         work_queue_name = 'all'
         work_queue = WORK_QUEUES.setdefault(work_queue_name, MP_MANAGER.Queue())
+        mp.Process(target=start_workers, args=(job_payload, work_queue, work_queue_name)).start()
         jp = mp.Process(target=run_job_worker, args=(job_payload, work_queue, work_queue_name))
         jp.daemon = True
         jp.start()

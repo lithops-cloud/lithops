@@ -98,9 +98,19 @@ class AWSEC2Backend:
             self.vpc_key = self.config['vpc_id'][-4:]
 
             # create the master VM insatnce
+            public_ip = '0.0.0.0'
             name = 'lithops-master-{}'.format(self.vpc_key)
+            filters = [{'Name': 'tag:Name', 'Values': [name]}]
+            resp = self.ec2_client.describe_instances(Filters=filters)
+            if len(resp['Reservations']) > 0:
+                instance_data = resp['Reservations'][0]['Instances'][0]
+                if instance_data['State']['Name'] == 'running' and \
+                   'PublicIpAddress' in instance_data:
+                    public_ip = instance_data['PublicIpAddress']
+
             self.master = EC2Instance(name, self.config, self.ec2_client, public=True)
             self.master.instance_type = self.config['master_instance_type']
+            self.master.public_ip = public_ip
             self.master.delete_on_dismantle = False
 
             self.ec2_data = {
@@ -320,14 +330,12 @@ class EC2Instance:
                 self.instance_data = instances[0]
                 return self.instance_data
         else:
-            response = self.ec2_client.describe_instances()
-            for r in response['Reservations']:
-                for ins in r['Instances']:
-                    if ins['State']['Name'] != 'terminated' and 'Tags' in ins:
-                        for tag in ins['Tags']:
-                            if tag['Key'] == 'Name' and self.name == tag['Value']:
-                                self.instance_data = ins
-                                return self.instance_data
+            filters = [{'Name': 'tag:Name', 'Values': [self.name]}]
+            resp = self.ec2_client.describe_instances(Filters=filters)
+            if len(resp['Reservations']) > 0:
+                self.instance_data = resp['Reservations'][0]['Instances'][0]
+                return self.instance_data
+
         return None
 
     def get_instance_id(self):
