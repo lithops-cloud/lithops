@@ -113,26 +113,36 @@ class StandaloneHandler:
     def _validate_master_service_setup(self):
         logger.info(f'Validating lithops version installed on master matches {lithops_version}')
         cmd = f'cat {STANDALONE_INSTALL_DIR}/access.data'
-        res = self.backend.master.get_ssh_client().run_remote_command(cmd)
+
+        ssh_client = self.backend.master.get_ssh_client(unbinded=True)
+        res = ssh_client.run_remote_command(cmd)
         if not res:
             raise Exception(
-                f"Lithops service not installed on {self.backend.master}, consider using 'lithops clean' to delete runtime metadata or 'lithops clean --all' to delete master instance as well")
+                f"Lithops service not installed on {self.backend.master}, consider using 'lithops clean' "
+                 "to delete runtime metadata or 'lithops clean --all' to delete master instance as well")
 
         master_lithops_version = json.loads(res).get('lithops_version')
         if master_lithops_version != lithops_version:
             raise Exception(
-                f"Lithops version {master_lithops_version} on {self.backend.master}, doesn't match local lithops version {lithops_version}, consider running 'lithops clean' to delete runtime metadata leftovers or 'lithops clean --all' to delete master instance as well")
+                f"Lithops version {master_lithops_version} on {self.backend.master}, doesn't match local "
+                f"lithops version {lithops_version}, consider running 'lithops clean' to delete runtime "
+                "metadata leftovers or 'lithops clean --all' to delete master instance as well")
 
-        logger.info(f'Validating lithops lithops master service is running on {self.backend.master}')
+        logger.info(
+            f'Validating lithops lithops master service is running on {self.backend.master}')
         cmd = "service lithops-master status"
-        res = self.backend.master.get_ssh_client().run_remote_command(cmd)
+        res = ssh_client.run_remote_command(cmd)
         if not res:
             raise Exception(
-                f"Lithops master service not installed on {self.backend.master}, consider to delete master instance and metadata using 'lithops clean --all'")
+                f"Lithops master service not installed on {self.backend.master}, consider to delete master "
+                "instance and metadata using 'lithops clean --all'")
 
         if 'Active: active (running)' not in res:
             raise Exception(
-                f"Lithops master service not active on {self.backend.master}, consider to delete master instance and metadata using 'lithops clean --all'", res)
+                f"Lithops master service not active on {self.backend.master}, consider to delete master "
+                "instance and metadata using 'lithops clean --all'", res)
+        ssh_client.close()
+        ssh_client = None
 
     def _wait_master_service_ready(self):
         """
@@ -172,6 +182,7 @@ class StandaloneHandler:
             if not self._is_master_service_ready():
                 self.backend.master.create(check_if_exists=True)
                 if wait:
+                    self._wait_master_instance_ready()
                     self._wait_master_service_ready()
 
         def get_workers_on_master():
@@ -356,3 +367,4 @@ class StandaloneHandler:
         script = get_master_setup_script(self.config, vm_data)
         ssh_client.upload_data_to_file(script, remote_script)
         ssh_client.run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script};")
+
