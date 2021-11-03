@@ -15,6 +15,7 @@
 #
 
 import os
+import uuid
 import time
 import logging
 import boto3
@@ -86,7 +87,7 @@ class AWSEC2Backend:
                 for tag in instance_data['Tags']:
                     if tag['Key'] == 'Name':
                         name = tag['Value']
-                private_ip = instance_data['NetworkInterfaces'][0]['PrivateIpAddress']
+                private_ip = instance_data['PrivateIpAddress']
                 self.ec2_data = {'mode': self.mode,
                                  'instance_id': ins_id,
                                  'instance_name': name,
@@ -101,34 +102,24 @@ class AWSEC2Backend:
         elif self.mode in ['create', 'reuse']:
             if self.mode != cahced_mode:
                 # invalidate cached data
-                self.vpc_data = {}
+                self.ec2_data = {}
 
             self.vpc_key = self.config['vpc_id'][-4:]
-
-            # create the master VM insatnce
-            public_ip = '0.0.0.0'
-            name = 'lithops-master-{}'.format(self.vpc_key)
-            filters = [{'Name': 'tag:Name', 'Values': [name]}]
-            resp = self.ec2_client.describe_instances(Filters=filters)
-            if len(resp['Reservations']) > 0:
-                instance_data = resp['Reservations'][0]['Instances'][0]
-                if instance_data['State']['Name'] == 'running' and \
-                   'PublicIpAddress' in instance_data:
-                    public_ip = instance_data['PublicIpAddress']
-
-            self.master = EC2Instance(name, self.config, self.ec2_client, public=True)
+            master_name = 'lithops-master-{}'.format(self.vpc_key)
+            self.master = EC2Instance(master_name, self.config, self.ec2_client, public=True)
             self.master.instance_type = self.config['master_instance_type']
-            self.master.public_ip = public_ip
             self.master.delete_on_dismantle = False
 
-            self.ec2_data = {
-                'mode': self.mode,
-                'instance_id': '0af1',
-                'instance_name': self.master.name,
-                'vpc_id': self.config['vpc_id']
-            }
+            instance_data = self.master.get_instance_data()
+            if instance_data and 'InstanceId' in instance_data:
+                self.master.instance_id = instance_data['InstanceId']
+            if instance_data and 'PrivateIpAddress' in instance_data:
+                self.master.ip_address = instance_data['PrivateIpAddress']
+            if instance_data and instance_data['State']['Name'] == 'running' and \
+               'PublicIpAddress' in instance_data:
+                self.master.public_ip = instance_data['PublicIpAddress']
 
-            dump_yaml_config(ec2_data_filename, self.ec2_data)
+            self.ec2_data['instance_id'] = self.master.instance_id or str(uuid.uuid4())[:4]
 
     def _delete_worker_vm_instances(self):
         """
@@ -233,7 +224,11 @@ class EC2Instance:
 
     def __str__(self):
         ip = self.public_ip if self.public else self.ip_address
-        return f'VM instance {self.name} ({ip})'
+
+        if ip is None or ip == '0.0.0.0':
+            return f'VM instance {self.name}'
+        else:
+            return f'VM instance {self.name} ({ip})'
 
     def _create_ec2_client(self):
         """
@@ -447,17 +442,17 @@ class EC2Instance:
 
         if check_if_exists and not vsi_exists:
             logger.debug('Checking if VM instance {} already exists'.format(self.name))
-            instances_data = self.get_instance_data()
-            if instances_data:
+            instance_data = self.get_instance_data()
+            if instance_data:
                 logger.debug('VM instance {} already exists'.format(self.name))
                 vsi_exists = True
-                self.instance_id = instances_data['InstanceId']
-                self.ip_address = instances_data['PrivateIpAddress']
+                self.instance_id = instance_data['InstanceId']
+                self.ip_address = instance_data['PrivateIpAddress']
 
         if not vsi_exists:
-            instances_data = self._create_instance()
-            self.instance_id = instances_data['InstanceId']
-            self.ip_address = instances_data['PrivateIpAddress']
+            instance_data = self._create_instance()
+            self.instance_id = instance_data['InstanceId']
+            self.ip_address = instance_data['PrivateIpAddress']
             self.public_ip = self._get_public_ip()
         else:
             self.start()

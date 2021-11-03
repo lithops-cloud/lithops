@@ -221,7 +221,7 @@ def run_job_worker(job_payload, work_queue, work_queue_name):
     done = os.path.join(JOBS_DIR, job_key+'.done')
     Path(done).touch()
 
-    logger.info(f'All job {job_key} submitted to workers')
+    logger.info(f'All tasks of job "{job_key}" submitted to workers')
 
 
 def error(msg):
