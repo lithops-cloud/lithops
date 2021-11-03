@@ -187,7 +187,7 @@ class StandaloneHandler:
         elif self.exec_mode == 'reuse':
             workers = get_workers_on_master()
             total_started_workers = len(workers)
-            logger.debug(f"Found {total_started_workers} workers connected to master {self.backend.master}")
+            logger.debug(f"Found {total_started_workers} free workers connected to master {self.backend.master}")
             if total_started_workers < total_required_workers:
                 # create missing delta of workers
                 workers_to_create = total_required_workers - total_started_workers
@@ -207,7 +207,7 @@ class StandaloneHandler:
 
         logger.debug('ExecutorID {} | JobID {} - Going to run {} activations '
                      'in {} workers'.format(executor_id, job_id, total_calls,
-                                            total_workers))
+                                            min(total_workers, total_required_workers)))
 
         logger.debug("Checking if {} is ready".format(self.backend.master))
         start_master_instance(wait=True)

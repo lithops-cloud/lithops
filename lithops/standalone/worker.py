@@ -18,7 +18,10 @@ import os
 import logging
 import time
 import json
+import flask
 import requests
+from threading import Thread
+from gevent.pywsgi import WSGIServer
 
 from lithops.constants import LITHOPS_TEMP_DIR, STANDALONE_LOG_FILE, JOBS_DIR,\
     STANDALONE_SERVICE_PORT, STANDALONE_CONFIG_FILE, STANDALONE_INSTALL_DIR
@@ -29,23 +32,42 @@ from lithops.standalone.keeper import BudgetKeeper
 setup_lithops_logger(logging.DEBUG, filename=STANDALONE_LOG_FILE)
 logger = logging.getLogger('lithops.standalone.worker')
 
+app = flask.Flask(__name__)
 
-STANDALONE_CONFIG = None
-BUDGET_KEEPER = None
-LOCALHOST_HANDLER = {}
+stanbdalone_config = None
+budget_keeper = None
+localhos_handler = None
+last_job_key = None
+
+
+@app.route('/ping', methods=['GET'])
+def ping():
+    bussy = localhos_handler.job_manager if localhos_handler else False
+    response = flask.jsonify({'status': 'bussy' if bussy else 'free'})
+    response.status_code = 200
+    return response
+
+
+@app.route('/cancel/<job_key>', methods=['POST'])
+def cancel(job_key):
+    if job_key == last_job_key:
+        localhos_handler.clear()
+    response = flask.jsonify({'response': 'cancel'})
+    response.status_code = 200
+    return response
 
 
 def wait_job_completed(job_key):
     """
     Waits until the current job is completed
     """
-    global BUDGET_KEEPER
+    global budget_keeper
 
     done = os.path.join(JOBS_DIR, job_key+'.done')
     while True:
         if os.path.isfile(done):
             os.remove(done)
-            BUDGET_KEEPER.jobs[job_key] = 'done'
+            budget_keeper.jobs[job_key] = 'done'
             break
         time.sleep(1)
 
@@ -54,9 +76,11 @@ def run_worker(master_ip, work_queue):
     """
     Run a job
     """
-    global BUDGET_KEEPER
+    global budget_keeper
+    global localhos_handler
+    global last_job_key
 
-    pull_runtime = STANDALONE_CONFIG.get('pull_runtime', False)
+    pull_runtime = stanbdalone_config.get('pull_runtime', False)
     localhos_handler = LocalhostHandler({'pull_runtime': pull_runtime})
 
     while True:
@@ -70,7 +94,7 @@ def run_worker(master_ip, work_queue):
             continue
 
         if resp.status_code != 200:
-            if STANDALONE_CONFIG.get('exec_mode') == 'reuse':
+            if stanbdalone_config.get('exec_mode') == 'reuse':
                 time.sleep(1)
                 continue
             else:
@@ -87,42 +111,63 @@ def run_worker(master_ip, work_queue):
         except Exception:
             return
 
-        BUDGET_KEEPER.last_usage_time = time.time()
-        BUDGET_KEEPER.update_config(job_payload['config']['standalone'])
-        BUDGET_KEEPER.jobs[job_payload['job_key']] = 'running'
+        job_key = job_payload['job_key']
+        last_job_key = job_key
+
+        budget_keeper.last_usage_time = time.time()
+        budget_keeper.update_config(job_payload['config']['standalone'])
+        budget_keeper.jobs[job_key] = 'running'
 
         try:
             localhos_handler.invoke(job_payload)
         except Exception as e:
             logger.error(e)
 
-        wait_job_completed(job_payload['job_key'])
+        wait_job_completed(job_key)
 
 
 def main():
-    global STANDALONE_CONFIG
-    global BUDGET_KEEPER
+    global stanbdalone_config
+    global budget_keeper
 
     os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
 
+    # read the Lithops standaole configuration file
     with open(STANDALONE_CONFIG_FILE, 'r') as cf:
-        STANDALONE_CONFIG = json.load(cf)
+        stanbdalone_config = json.load(cf)
 
+    # Read the VM data file that contains the instance id, the master IP,
+    # and the queue for getting tasks
     vm_data_file = os.path.join(STANDALONE_INSTALL_DIR, 'access.data')
     with open(vm_data_file, 'r') as ad:
         vm_data = json.load(ad)
+        worker_ip = vm_data['ip_address']
         master_ip = vm_data['master_ip']
         work_queue = vm_data['work_queue']
 
-    BUDGET_KEEPER = BudgetKeeper(STANDALONE_CONFIG)
-    BUDGET_KEEPER.start()
+    # Start the budget keeper. It is responsible to automatically terminate the
+    # worker after X seconds
+    budget_keeper = BudgetKeeper(stanbdalone_config)
+    budget_keeper.start()
 
+    # Start the http server. This will be used by the master VM to pìng this
+    # worker and for canceling tasks
+    def run_wsgi():
+        server = WSGIServer((worker_ip, STANDALONE_SERVICE_PORT), app, log=app.logger)
+        server.serve_forever()
+    Thread(target=run_wsgi, daemon=True).start()
+
+    # Start the worker that will get tasks from the work queue
     run_worker(master_ip, work_queue)
+
+    # run_worker will run forever in reuse mode. In create mode it will
+    # run until there are no more tasks in the queue.
     logger.info('Finished')
 
     try:
-        # Try to stop the VM once no more pending tasks to run
-        BUDGET_KEEPER.vm.stop()
+        # Try to stop the current worker VM once no more pending tasks to run
+        # in case of create mode
+        budget_keeper.vm.stop()
     except Exception:
         pass
 

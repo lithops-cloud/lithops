@@ -81,6 +81,7 @@ aws_ec2:
     vpc_id: <VPC_ID>
     iam_role: <IAM_ROLE>
     key_name: <SSH_KEY_NAME>
+    security_group_id: <SECURITY_GROUP_ID>
 ```
 
 ###  Important information
@@ -96,7 +97,7 @@ aws_ec2:
 |aws_ec2 | vpc_id | | yes | VPC id |
 |aws_ec2 | iam_role | | yes | IAM role name |
 |aws_ec2 | key_name | | yes | SSH Key name |
-|aws_ec2 | security_group_id | | yes | Security groups ID |
+|aws_ec2 | security_group_id | | yes | Security group ID |
 |aws_ec2 | ssh_username | ubuntu |no | Username to access the VM |
 |aws_ec2 | ssh_password |  |no | Password for accessing the worker VMs. If not provided, it is created randomly|
 |aws_ec2 | ssh_key_filename | | no | Path to the ssh key file provided to access the VPC. It will use the default path if not provided |

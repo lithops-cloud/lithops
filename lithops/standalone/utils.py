@@ -148,6 +148,7 @@ def get_worker_setup_script(config, vm_data):
     """.format(STANDALONE_INSTALL_DIR)
     script += get_host_setup_script()
     script += """
+    service lithops-master stop;
     echo '{1}' > {2};
     echo '{6}' > {0}/access.data;
 
