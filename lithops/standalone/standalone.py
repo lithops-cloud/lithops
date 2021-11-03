@@ -24,9 +24,10 @@ import shlex
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.utils import is_lithops_worker, create_handler_zip
-from lithops.constants import STANDALONE_SERVICE_PORT
+from lithops.constants import STANDALONE_SERVICE_PORT, STANDALONE_INSTALL_DIR
 from lithops.standalone.utils import get_master_setup_script
 
+from lithops.version import __version__ as lithops_version
 
 logger = logging.getLogger(__name__)
 LOCAL_FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_standalone.zip')
@@ -109,10 +110,42 @@ class StandaloneHandler:
         except Exception:
             return False
 
+    def _validate_master_service_setup(self):
+        logger.info(f'Validating lithops version installed on master matches {lithops_version}')
+        cmd = f'cat {STANDALONE_INSTALL_DIR}/access.data'
+        res = self.backend.master.get_ssh_client().run_remote_command(cmd)
+        if not res:
+            raise Exception(
+                f'Lithops service not installed on {self.backend.master}, consider using \'lithops clean\' to \
+                delete runtime metadata or \'lithops clean --all\' to delete master instance as well')
+
+        master_lithops_version = json.loads(res).get('lithops_version')
+        if master_lithops_version != lithops_version:
+            raise Exception(
+                f'Lithops version {master_lithops_version} on {self.backend.master}, doesn\'t match local lithops \
+                version {lithops_version}, consider running \'lithops clean\' to \
+                delete runtime metadata leftovers or \'lithops clean --all\' to delete master instance as well')
+
+        logger.info(f'Validating lithops lithops master service is running on {self.backend.master}')
+        cmd = "service lithops-master status"
+        res = self.backend.master.get_ssh_client().run_remote_command(cmd)
+        if not res:
+            raise Exception(
+                f'Lithops master service not installed on {self.backend.master}, consider to delete master instance \
+                    and metadata using \'lithops clean --all\'')
+
+        if 'Active: active (running)' not in res:
+            raise Exception(
+                f'Lithops master service not active on {self.backend.master}, consider to delete master instance \
+                    and metadata using \'lithops clean --all\'', res)
+
     def _wait_master_service_ready(self):
         """
         Waits until the proxy is ready to receive http connections
         """
+
+        self._validate_master_service_setup()
+
         logger.info('Waiting Lithops service to become ready on {}'
                     .format(self.backend.master))
 
