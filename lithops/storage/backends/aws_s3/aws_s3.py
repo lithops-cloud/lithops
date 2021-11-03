@@ -18,6 +18,7 @@ import logging
 import boto3
 import botocore
 from lithops.storage.utils import StorageNoSuchKeyError
+from lithops.utils import sizeof_fmt
 from lithops.constants import STORAGE_CLI_MSG
 
 logger = logging.getLogger(__name__)
@@ -75,7 +76,7 @@ class S3Backend:
             res = self.s3_client.put_object(Bucket=bucket_name, Key=key, Body=data)
             status = 'OK' if res['ResponseMetadata']['HTTPStatusCode'] == 200 else 'Error'
             try:
-                logger.debug('PUT Object {} - Size: {} - {}'.format(key, len(data), status))
+                logger.debug('PUT Object {} - Size: {} - {}'.format(key, sizeof_fmt(len(data)), status))
             except Exception:
                 logger.debug('PUT Object {} {}'.format(key, status))
         except botocore.exceptions.ClientError as e:

@@ -4,6 +4,7 @@
 
 ### Added
 - [AWS_EC2] Added AWS EC2 Standalone backend
+- [AWS_EC2] Allow to start wokres using Spot instances in AWS EC2 Standalone backend
 - [Standalone] Added the logic to create the missing deleta of workers in reuse mode
 - [Config] Allow to set monitoring_interval in config
 

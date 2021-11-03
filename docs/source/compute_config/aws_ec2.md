@@ -100,12 +100,13 @@ aws_ec2:
 |aws_ec2 | ssh_username | ubuntu |no | Username to access the VM |
 |aws_ec2 | ssh_password |  |no | Password for accessing the worker VMs. If not provided, it is created randomly|
 |aws_ec2 | ssh_key_filename | | no | Path to the ssh key file provided to access the VPC. It will use the default path if not provided |
+|aws_ec2 | spot_price | None | no | Max spot price. Set it to `0` for on-demand spot price|
 |aws_ec2 | target_ami | ami-0a8e758f5e873d1c1 | no | Virtual machine image id. Default is Ubuntu 20.04 |
-|aws_ec2 | worker_instance_type | t2.medium | no | Profile name for the worker VMs |
-|aws_ec2 | master_instance_type | t2.medium | no | Profile name for the master VM |
+|aws_ec2 | worker_instance_type | t2.micro | no | Profile name for the worker VMs |
+|aws_ec2 | master_instance_type | t2.micro | no | Profile name for the master VM |
 |aws_ec2 | delete_on_dismantle | True | no | Delete the worekr VMs when they are stopped |
 |aws_ec2 | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
-|aws_ec2 | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of a worker VM. |
+|aws_ec2 | worker_processes | 1 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of a worker VM. |
 
 
 ## Viewing the execution logs
