@@ -503,6 +503,11 @@ class IBMVPCInstance:
         Creates an ssh client against the VM only if the Instance is the master
         """
         if self.ip_address or self.public_ip:
+            if None in (self.ip_address, self.instance_id):
+                logger.warning(f'Refreshing master configuration missing ip_address and/or instance id {(self.ip_address, self.instance_id)}')
+                instance_data = self.get_instance_data()
+                self.ip_address = instance_data['primary_network_interface']['primary_ipv4_address']
+                self.instance_id = instance_data['id']
             if not self.ssh_client:
                 self.ssh_client = SSHClient(self.public_ip or self.ip_address, self.ssh_credentials)
         return self.ssh_client

@@ -316,12 +316,6 @@ class StandaloneHandler:
         ssh_client.upload_local_file(LOCAL_FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip')
         os.remove(LOCAL_FH_ZIP_LOCATION)
 
-        if None in (self.backend.master.ip_address, self.backend.master.instance_id):
-            logger.warning(f'Refreshing master configuration missing ip_address and/or instance id {(self.backend.master.ip_address, self.backend.master.instance_id)}')
-            instance_data = self.backend.master.get_instance_data()
-            self.backend.master.ip_address = instance_data['primary_network_interface']['primary_ipv4_address']
-            self.backend.master.instance_id = instance_data['id']
-
         vm_data = {'instance_name': self.backend.master.name,
                    'ip_address': self.backend.master.ip_address,
                    'instance_id': self.backend.master.instance_id}
