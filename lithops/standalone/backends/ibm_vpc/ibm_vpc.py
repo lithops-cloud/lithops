@@ -14,6 +14,8 @@
 # limitations under the License.
 #
 
+import functools
+import inspect
 import re
 import os
 import time
@@ -28,6 +30,7 @@ from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.standalone.utils import CLOUD_CONFIG_WORKER
+
 
 
 logger = logging.getLogger(__name__)
@@ -59,6 +62,9 @@ class IBMVPCBackend:
 
         user_agent_string = 'ibm_vpc_{}'.format(self.config['user_agent'])
         self.ibm_vpc_client._set_user_agent_header(user_agent_string)
+
+        # decorate instance public methods with except/retry logic
+        decorate_instance(self.ibm_vpc_client, vpc_retry_on_except)
 
         msg = COMPUTE_CLI_MSG.format('IBM VPC')
         logger.info("{} - Region: {}".format(msg, self.region))
@@ -512,6 +518,9 @@ class IBMVPCInstance:
         ibm_vpc_client = VpcV1('2021-08-31', authenticator=authenticator)
         ibm_vpc_client.set_service_url(self.config['endpoint'] + '/v1')
 
+        # decorate instance public methods with except/retry logic
+        decorate_instance(self.ibm_vpc_client, vpc_retry_on_except)
+
         return ibm_vpc_client
 
     def get_ssh_client(self):
@@ -734,3 +743,42 @@ class IBMVPCInstance:
         Deletes the VM instance
         """
         self._delete_instance()
+
+def decorate_instance(instance, decorator):
+    for name, func in inspect.getmembers(instance, inspect.ismethod):
+        if not name.startswith("_"):
+            setattr(instance, name, decorator(func))
+    return instance
+
+def vpc_retry_on_except(func):
+
+    RETRIES = 10
+    SLEEP_FACTOR = 1.3
+    MAX_SLEEP = 60
+
+    IGNORED_404_METHODS = ['delete_instance', 'delete_subnet', 'delete_public_gateway', 'delete_vpc', 'create_instance_action']
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        sleep_time = 1
+
+        def _sleep_or_raise(sleep_time):
+            if i < RETRIES - 1:
+                time.sleep(sleep_time)
+                logger.warning((f'Got exception {e}, retrying for the {i} time, left retries {RETRIES - 1 -i}'))
+                return min(sleep_time * SLEEP_FACTOR, MAX_SLEEP)
+            else:
+                raise e
+
+        for i in range(RETRIES):
+            try:
+                return func(*args, **kwargs)
+            except ApiException as e:
+                if func.__name__ in IGNORED_404_METHODS and e.code == 404:
+                    logger.debug((f'Got exception {e} when trying to invoke {func.__name__}, ignoring'))
+                    pass
+                else:
+                    sleep_time = _sleep_or_raise(sleep_time)
+            except Exception as e:
+                sleep_time = _sleep_or_raise(sleep_time)
+    return wrapper
