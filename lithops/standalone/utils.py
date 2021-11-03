@@ -1,9 +1,10 @@
 import json
-import logging
 
-logger = logging.getLogger(__name__)
-from lithops.constants import (STANDALONE_CONFIG_FILE, STANDALONE_INSTALL_DIR,
-                               STANDALONE_LOG_FILE)
+from lithops.constants import (
+    STANDALONE_INSTALL_DIR,
+    STANDALONE_LOG_FILE,
+    STANDALONE_CONFIG_FILE,
+)
 
 MASTER_SERVICE_NAME = 'lithops-master.service'
 MASTER_SERVICE_FILE = """
