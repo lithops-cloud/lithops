@@ -1,11 +1,7 @@
-import functools
-import inspect
 import json
 import logging
-import time
 
 logger = logging.getLogger(__name__)
-from ibm_cloud_sdk_core import ApiException
 from lithops.constants import (STANDALONE_CONFIG_FILE, STANDALONE_INSTALL_DIR,
                                STANDALONE_LOG_FILE)
 
@@ -168,46 +164,3 @@ def get_worker_setup_script(config, vm_data):
                WORKER_SERVICE_FILE, WORKER_SERVICE_NAME,
                json.dumps(vm_data))
     return script
-
-
-
-def decorate_instance(instance, decorator):
-    for name, func in inspect.getmembers(instance, inspect.ismethod):
-        if not name.startswith("_"):
-            setattr(instance, name, decorator(func))
-    return instance
-
-
-
-def vpc_retry_on_except(func):
-
-    RETRIES = 10
-    SLEEP_FACTOR = 1.3
-    MAX_SLEEP = 60
-
-    IGNORED_404_METHODS = ['delete_instance', 'delete_subnet', 'delete_public_gateway', 'delete_vpc', 'create_instance_action']
-
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        sleep_time = 1
-
-        def _sleep_or_raise(sleep_time):
-            if i < RETRIES - 1:
-                time.sleep(sleep_time)
-                logger.warning((f'Got exception {e}, retrying for the {i} time, left retries {RETRIES - 1 -i}'))
-                return min(sleep_time * SLEEP_FACTOR, MAX_SLEEP)
-            else:
-                raise e
-
-        for i in range(RETRIES):
-            try:
-                return func(*args, **kwargs)
-            except ApiException as e:
-                if func.__name__ in IGNORED_404_METHODS and e.code == 404:
-                    logger.debug((f'Got exception {e} when trying to invoke {func.__name__}, ignoring'))
-                    pass
-                else:
-                    sleep_time = _sleep_or_raise(sleep_time)
-            except Exception as e:
-                sleep_time = _sleep_or_raise(sleep_time)
-    return wrapper
