@@ -65,7 +65,9 @@ def lithops_cli():
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
-def clean(config, backend, storage, debug):
+@click.option('--all', '-a', is_flag=True, help='delete all, including master vm in case of standalone')
+@click.option('--force', '-f', is_flag=True, help='force to delete all')
+def clean(config, backend, storage, debug, all, force):
     if config:
         config = load_yaml_config(config)
 
@@ -88,6 +90,10 @@ def clean(config, backend, storage, debug):
         compute_handler = ServerlessHandler(compute_config, internal_storage)
     elif mode == STANDALONE:
         compute_config = extract_standalone_config(config)
+        if all:
+            backend_name = compute_config['backend']
+            compute_config[backend_name]['delete_master'] = True
+            compute_config[backend_name]['force'] = force
         compute_handler = StandaloneHandler(compute_config)
 
     compute_handler.clean()

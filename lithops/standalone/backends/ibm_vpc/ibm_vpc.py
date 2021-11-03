@@ -315,15 +315,30 @@ class IBMVPCBackend:
                 else:
                     raise e
 
+        LITHOPS_MASTER = 'lithops-master-'
+
+        vms_prefixes = ('lithops-worker',)
+        if self.config.get('delete_master'):
+            vms_prefixes = vms_prefixes + (LITHOPS_MASTER, )
+
         deleted_instances = set()
         while True:
             instances_to_delete = set()
             instances_info = self.ibm_vpc_client.list_instances().get_result()
             for ins in instances_info['instances']:
-                if ins['name'].startswith('lithops-worker'):
+                if ins['name'].startswith(vms_prefixes):
                     ins_to_dlete = (ins['name'], ins['id'])
                     if ins_to_dlete not in deleted_instances:
                         instances_to_delete.add(ins_to_dlete)
+                    if ins['name'].startswith(LITHOPS_MASTER):
+                        if self.config.get('force'):
+                            # forced clean all been triggered, delete also master floating IP
+                            interface_id = ins['network_interfaces'][0]['id']
+                            fips = self.ibm_vpc_client.list_instance_network_interface_floating_ips(
+                                ins['id'], interface_id).get_result()['floating_ips']
+                            if fips:
+                                fip = fips[0]['id']
+                                self.ibm_vpc_client.delete_floating_ip(fip)
 
             if instances_to_delete:
                 with ThreadPoolExecutor(len(instances_to_delete)) as executor:

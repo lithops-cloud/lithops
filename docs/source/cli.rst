@@ -29,6 +29,10 @@ machine and the cloud, it is convenient to run this command.
 +-----------------+------------------------------+
 | --debug, -d     | Activate debug logs (Flag)   |
 +-----------------+------------------------------+
+| --all, -a       | Delete all (Flag)            |
++-----------------+------------------------------+
+| --force, -f     | Force delete all (Flag)      |
++-----------------+------------------------------+
 
 -  **Usage example**: ``lithops clean -b ibm_cf -s ibm_cos``
 
