@@ -536,26 +536,45 @@ class AWSBatchBackend:
 
         job_name = '{}_{}'.format(self._format_jobdef_name(runtime_name, runtime_memory), payload['job_key'])
 
-        res = self.batch_client.submit_job(
-            jobName=job_name,
-            jobQueue=self._queue_name,
-            jobDefinition=self._format_jobdef_name(runtime_name, runtime_memory),
-            arrayProperties={
-                'size': total_workers
-            },
-            containerOverrides={
-                'environment': [
-                    {
-                        'name': '__LITHOPS_ACTION',
-                        'value': 'job'
-                    },
-                    {
-                        'name': '__LITHOPS_PAYLOAD',
-                        'value': json.dumps(payload)
-                    }
-                ]
-            }
-        )
+        if total_workers > 1:
+            res = self.batch_client.submit_job(
+                jobName=job_name,
+                jobQueue=self._queue_name,
+                jobDefinition=self._format_jobdef_name(runtime_name, runtime_memory),
+                arrayProperties={
+                    'size': total_workers
+                },
+                containerOverrides={
+                    'environment': [
+                        {
+                            'name': '__LITHOPS_ACTION',
+                            'value': 'job'
+                        },
+                        {
+                            'name': '__LITHOPS_PAYLOAD',
+                            'value': json.dumps(payload)
+                        }
+                    ]
+                }
+            )
+        else:
+            res = self.batch_client.submit_job(
+                jobName=job_name,
+                jobQueue=self._queue_name,
+                jobDefinition=self._format_jobdef_name(runtime_name, runtime_memory),
+                containerOverrides={
+                    'environment': [
+                        {
+                            'name': '__LITHOPS_ACTION',
+                            'value': 'job'
+                        },
+                        {
+                            'name': '__LITHOPS_PAYLOAD',
+                            'value': json.dumps(payload)
+                        }
+                    ]
+                }
+            )
 
     def get_runtime_key(self, runtime_name, runtime_memory):
         """
