@@ -302,7 +302,7 @@ def get_task(work_queue_name):
     return response
 
 
-def stop_job_process(job_key):
+def stop_job_process(job_key_list):
     """
     Stops a job process
     """
@@ -310,43 +310,47 @@ def stop_job_process(job_key):
     global localhos_handler
     global work_queues
 
-    if exec_mode == 'consume':
-        if job_key == last_job_key:
-            # kill current running job process
-            localhos_handler.clear()
-            done = os.path.join(JOBS_DIR, job_key+'.done')
-            Path(done).touch()
+    for job_key in job_key_list:
+        logger.info(f'Received SIGTERM: Stopping job process {job_key}')
+
+        if exec_mode == 'consume':
+            if job_key == last_job_key:
+                # kill current running job process
+                localhos_handler.clear()
+                done = os.path.join(JOBS_DIR, job_key+'.done')
+                Path(done).touch()
+            else:
+                # Delete job_payload from pending queue
+                work_queue = work_queues['local']
+                tmp_queue = []
+                while not work_queue.empty():
+                    try:
+                        job_payload = work_queue.get(False)
+                        if job_payload['job_key'] != job_key:
+                            tmp_queue.append(job_payload)
+                    except Exception:
+                        pass
+                for job_payload in tmp_queue:
+                    work_queue.put(job_payload)
+
         else:
-            # Delete job_payload from pending queue
-            work_queue = work_queues['local']
-            tmp_queue = []
+            wqn = job_key if exec_mode == 'create' else REUSE_WORK_QUEUE_NAME
+            # empty work queue
+            work_queue = work_queues.setdefault(wqn, mp_manager.Queue())
             while not work_queue.empty():
                 try:
-                    job_payload = work_queue.get(False)
-                    if job_payload['job_key'] != job_key:
-                        tmp_queue.append(job_payload)
+                    work_queue.get(False)
                 except Exception:
                     pass
-            for job_payload in tmp_queue:
-                work_queue.put(job_payload)
 
-    elif exec_mode == 'create':
-        # empty work queue
-        work_queue = work_queues.setdefault(job_key, mp_manager.Queue())
-        while not work_queue.empty():
-            try:
-                work_queue.get(False)
-            except Exception:
-                pass
+            def stop_task(worker):
+                ip_address = worker['ip_address']
+                url = f"http://{ip_address}:{STANDALONE_SERVICE_PORT}/stop/{job_key}"
+                requests.post(url, timeout=0.5)
 
-    elif exec_mode == 'reuse':
-        # empty work queue
-        work_queue = work_queues.setdefault(REUSE_WORK_QUEUE_NAME, mp_manager.Queue())
-        while not work_queue.empty():
-            try:
-                work_queue.get(False)
-            except Exception:
-                pass
+            # Send stop signal to all workers
+            with ThreadPoolExecutor(len(workers)) as ex:
+                ex.map(stop_task, workers.values())
 
 
 @app.route('/stop', methods=['POST'])
@@ -355,9 +359,9 @@ def stop():
     Stops received job processes
     """
     job_key_list = flask.request.get_json(force=True, silent=True)
-    for job_key in job_key_list:
-        logger.info(f'Received SIGTERM: Stopping job process {job_key}')
-        stop_job_process(job_key)
+    # Start a separate thread to do the task in background,
+    # for not keeping the client waiting.
+    Thread(target=stop_job_process, args=(job_key_list, )).start()
 
     return ('', 204)
 

@@ -20,6 +20,7 @@ import time
 import json
 import flask
 import requests
+from pathlib import Path
 from threading import Thread
 from gevent.pywsgi import WSGIServer
 
@@ -48,10 +49,13 @@ def ping():
     return response
 
 
-@app.route('/cancel/<job_key>', methods=['POST'])
-def cancel(job_key):
+@app.route('/stop/<job_key>', methods=['POST'])
+def stop(job_key):
     if job_key == last_job_key:
+        logger.info(f'Received SIGTERM: Stopping job process {job_key}')
         localhos_handler.clear()
+        done = os.path.join(JOBS_DIR, job_key+'.done')
+        Path(done).touch()
     response = flask.jsonify({'response': 'cancel'})
     response.status_code = 200
     return response
