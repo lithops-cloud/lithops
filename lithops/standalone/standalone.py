@@ -175,7 +175,10 @@ class StandaloneHandler:
 
         worker_instances = []
 
-        if self.exec_mode == 'create':
+        if self.exec_mode == 'consume':
+            total_workers = total_required_workers
+
+        elif self.exec_mode == 'create':
             new_workers = create_workers(total_required_workers)
             total_workers = len(new_workers)
             worker_instances = [(inst.name,
@@ -274,7 +277,7 @@ class StandaloneHandler:
         clear method is executed after the results are get,
         when an exception is produced, or when a user press ctrl+c
         """
-        cmd = ('curl http://127.0.0.1:{}/clear -d {} '
+        cmd = ('curl http://127.0.0.1:{}/stop -d {} '
                '-H \'Content-Type: application/json\' -X POST'
                .format(STANDALONE_SERVICE_PORT,
                        shlex.quote(json.dumps(self.jobs))))

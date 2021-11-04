@@ -26,6 +26,7 @@ import requests
 import multiprocessing as mp
 from pathlib import Path
 from gevent.pywsgi import WSGIServer
+from threading import Thread
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.constants import LITHOPS_TEMP_DIR, STANDALONE_LOG_FILE, JOBS_DIR,\
@@ -43,6 +44,7 @@ app = flask.Flask(__name__)
 
 INSTANCE_START_TIMEOUT = 120
 MAX_INSTANCE_CREATE_RETRIES = 2
+REUSE_WORK_QUEUE_NAME = 'all'
 
 exec_mode = 'consume'
 mp_manager = mp.Manager()
@@ -106,7 +108,7 @@ def wait_worker_instance_ready(vm):
     raise TimeoutError(msg)
 
 
-def setup_worker(worker_info, work_queue, work_queue_name):
+def setup_worker(worker_info, work_queue_name):
     """
     Run worker process
     Install all the Lithops dependencies into the worker.
@@ -163,7 +165,7 @@ def setup_worker(worker_info, work_queue, work_queue_name):
     workers[vm.name] = vm_data
 
 
-def start_workers(job_payload, work_queue, work_queue_name):
+def start_workers(job_payload, work_queue_name):
     """
     Creates the workers
     """
@@ -172,31 +174,9 @@ def start_workers(job_payload, work_queue, work_queue_name):
     if workers:
         with ThreadPoolExecutor(len(workers)) as executor:
             for worker_info in workers:
-                executor.submit(setup_worker, worker_info, work_queue, work_queue_name)
+                executor.submit(setup_worker, worker_info, work_queue_name)
 
         logger.info(f'All workers set up for work queue "{work_queue_name}"')
-
-
-def stop_job_process(job_key):
-    """
-    Stops a job process
-    """
-    global job_processes
-    global localhos_handler
-
-    if exec_mode == 'consume':
-        if job_key == last_job_key:
-            localhos_handler.clear()
-            done = os.path.join(JOBS_DIR, job_key+'.done')
-            Path(done).touch()
-    else:
-        done = os.path.join(JOBS_DIR, job_key+'.done')
-        Path(done).touch()
-
-        if job_key in job_processes and job_processes[job_key].is_alive():
-            job_processes[job_key].terminate()
-            logger.info('Finished job {} invocation'.format(job_key))
-        del job_processes[job_key]
 
 
 def run_job_local(work_queue):
@@ -254,7 +234,7 @@ def run_job_worker(job_payload, work_queue, work_queue_name):
     done = os.path.join(JOBS_DIR, job_key+'.done')
     Path(done).touch()
 
-    logger.info(f'All tasks of job "{job_key}" submitted to workers')
+    logger.info(f'Job process "{job_key}" finished')
 
 
 def error(msg):
@@ -266,14 +246,11 @@ def error(msg):
 @app.route('/workers', methods=['GET'])
 def get_workers():
     """
-    Returns the number of spawned workers
-
-    Currently returns only spawned workers metadata
-    TODO - job.done for master is not same as job.done for worker, can be improved by touch on master from worker instead of touch on master
+    Returns the number of free workers
     """
     global workers
 
-    logger.info(f'Getting workers - workers: {workers}')
+    logger.info(f'Getting workers: {workers}')
 
     worker_vms = []
     worker_vms_free = []
@@ -306,39 +283,80 @@ def get_workers():
     return response
 
 
-@app.route('/get-task/<job_key>', methods=['GET'])
-def get_task(job_key):
+@app.route('/get-task/<work_queue_name>', methods=['GET'])
+def get_task(work_queue_name):
     """
     Returns a task from the work queue
     """
     global work_queues
 
     try:
-        task_payload = work_queues.setdefault(job_key, mp_manager.Queue()).get(timeout=0.1)
+        task_payload = work_queues.setdefault(work_queue_name, mp_manager.Queue()).get(False)
         response = flask.jsonify(task_payload)
         response.status_code = 200
         logger.info('Calls {} invoked on {}'
                     .format(', '.join(task_payload['call_ids']),
                             flask.request.remote_addr))
     except queue.Empty:
-        if exec_mode != 'reuse':
-            stop_job_process(job_key)
         response = ('', 204)
     return response
 
 
-@app.route('/clear', methods=['POST'])
-def clear():
+def stop_job_process(job_key):
+    """
+    Stops a job process
+    """
+    global job_processes
+    global localhos_handler
+    global work_queues
+
+    if exec_mode == 'consume':
+        if job_key == last_job_key:
+            # kill current running job process
+            localhos_handler.clear()
+            done = os.path.join(JOBS_DIR, job_key+'.done')
+            Path(done).touch()
+        else:
+            # Delete job_payload from pending queue
+            work_queue = work_queues['local']
+            tmp_queue = []
+            while not work_queue.empty():
+                try:
+                    job_payload = work_queue.get(False)
+                    if job_payload['job_key'] != job_key:
+                        tmp_queue.append(job_payload)
+                except Exception:
+                    pass
+            for job_payload in tmp_queue:
+                work_queue.put(job_payload)
+
+    elif exec_mode == 'create':
+        # empty work queue
+        work_queue = work_queues.setdefault(job_key, mp_manager.Queue())
+        while not work_queue.empty():
+            try:
+                work_queue.get(False)
+            except Exception:
+                pass
+
+    elif exec_mode == 'reuse':
+        # empty work queue
+        work_queue = work_queues.setdefault(REUSE_WORK_QUEUE_NAME, mp_manager.Queue())
+        while not work_queue.empty():
+            try:
+                work_queue.get(False)
+            except Exception:
+                pass
+
+
+@app.route('/stop', methods=['POST'])
+def stop():
     """
     Stops received job processes
     """
-    global job_processes
-
     job_key_list = flask.request.get_json(force=True, silent=True)
     for job_key in job_key_list:
-        if job_key in job_processes and job_processes[job_key].is_alive():
-            logger.info('Received SIGTERM: Stopping job process {}'
-                        .format(job_key))
+        logger.info(f'Received SIGTERM: Stopping job process {job_key}')
         stop_job_process(job_key)
 
     return ('', 204)
@@ -380,8 +398,7 @@ def run():
         work_queue = work_queues.setdefault(work_queue_name, mp_manager.Queue())
         if not localhost_manager_process:
             logger.debug('Starting manager process for localhost jobs')
-            lmp = mp.Process(target=run_job_local, args=(work_queue, ))
-            lmp.daemon = True
+            lmp = Thread(target=run_job_local, args=(work_queue, ), daemon=True)
             lmp.start()
             localhost_manager_process = lmp
         logger.info(f'Putting job {job_key} into master queue')
@@ -392,20 +409,18 @@ def run():
         logger.debug(f'Starting process for job {job_key}')
         work_queue_name = job_key
         work_queue = work_queues.setdefault(work_queue_name, mp_manager.Queue())
-        mp.Process(target=start_workers, args=(job_payload, work_queue, work_queue_name)).start()
-        jp = mp.Process(target=run_job_worker, args=(job_payload, work_queue, work_queue_name))
-        jp.daemon = True
+        mp.Process(target=start_workers, args=(job_payload, work_queue_name)).start()
+        jp = Thread(target=run_job_worker, args=(job_payload, work_queue, work_queue_name), daemon=True)
         jp.start()
         job_processes[job_key] = jp
 
     elif exec_mode == 'reuse':
         # Reuse mode runs the job on running workers
         logger.debug(f'Starting process for job {job_key}')
-        work_queue_name = 'all'
+        work_queue_name = REUSE_WORK_QUEUE_NAME
         work_queue = work_queues.setdefault(work_queue_name, mp_manager.Queue())
-        mp.Process(target=start_workers, args=(job_payload, work_queue, work_queue_name)).start()
-        jp = mp.Process(target=run_job_worker, args=(job_payload, work_queue, work_queue_name))
-        jp.daemon = True
+        mp.Process(target=start_workers, args=(job_payload, work_queue_name)).start()
+        jp = Thread(target=run_job_worker, args=(job_payload, work_queue, work_queue_name), daemon=True)
         jp.start()
         job_processes[job_key] = jp
 
