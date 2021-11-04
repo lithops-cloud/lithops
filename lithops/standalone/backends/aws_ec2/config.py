@@ -31,7 +31,7 @@ DEFAULT_CONFIG_KEYS = {
 
 
 REQ_PARAMS_1 = ('instance_id', 'region_name')
-REQ_PARAMS_2 = ('region_name', 'vpc_id', 'iam_role', 'key_name')
+REQ_PARAMS_2 = ('region_name', 'vpc_id', 'iam_role', 'key_name', 'security_group_id')
 
 
 def load_config(config_data):
