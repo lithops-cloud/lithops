@@ -34,7 +34,7 @@ class BudgetKeeper(threading.Thread):
         self.ip_address = vm_data['ip_address']
         self.instance_id = vm_data['instance_id']
 
-        logger.info("Starting BudgetKeeper for {} ({}), instance ID: {}"
+        logger.debug("Starting BudgetKeeper for {} ({}), instance ID: {}"
                     .format(self.instance_name, self.ip_address, self.instance_id))
 
         self.sh = StandaloneHandler(self.standalone_config)
@@ -55,17 +55,17 @@ class BudgetKeeper(threading.Thread):
         runing = True
         jobs_running = False
 
-        logger.info("BudgetKeeper started")
+        logger.debug("BudgetKeeper started")
 
         if self.auto_dismantle:
-            logger.info('Auto dismantle activated - Soft timeout: {}s, Hard Timeout: {}s'
+            logger.debug('Auto dismantle activated - Soft timeout: {}s, Hard Timeout: {}s'
                         .format(self.soft_dismantle_timeout,
                                 self.hard_dismantle_timeout))
         else:
             # If auto_dismantle is deactivated, the VM will be always automatically
             # stopped after hard_dismantle_timeout. This will prevent the VM
             # being started forever due a wrong configuration
-            logger.info('Auto dismantle deactivated - Hard Timeout: {}s'
+            logger.debug('Auto dismantle deactivated - Hard Timeout: {}s'
                         .format(self.hard_dismantle_timeout))
 
         while runing:
@@ -96,12 +96,12 @@ class BudgetKeeper(threading.Thread):
                 jobs_running = True
 
             if time_to_dismantle > 0:
-                logger.info("Time to dismantle: {} seconds".format(time_to_dismantle))
+                logger.debug("Time to dismantle: {} seconds".format(time_to_dismantle))
                 time.sleep(check_interval)
             else:
-                logger.info("Dismantling setup")
+                logger.debug("Dismantling setup")
                 try:
                     self.vm.stop()
                     runing = False
                 except Exception as e:
-                    logger.info("Dismantle error {}".format(e))
+                    logger.debug("Dismantle error {}".format(e))

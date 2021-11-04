@@ -38,6 +38,7 @@ LOCAL_FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_standalone.zip')
 class LithopsValidationError(Exception):
     pass
 
+
 class StandaloneHandler:
     """
     A StandaloneHandler object is used by invokers and other components to access
@@ -118,7 +119,7 @@ class StandaloneHandler:
             return False
 
     def _validate_master_service_setup(self):
-        logger.info(f'Validating lithops version installed on master matches {lithops_version}')
+        logger.debug(f'Validating lithops version installed on master matches {lithops_version}')
         cmd = f'cat {STANDALONE_INSTALL_DIR}/access.data'
 
         ssh_client = self.backend.master.get_ssh_client(unbinded=True)
@@ -135,7 +136,7 @@ class StandaloneHandler:
                 f"lithops version {lithops_version}, consider running 'lithops clean' to delete runtime "
                 "metadata leftovers or 'lithops clean --all' to delete master instance as well")
 
-        logger.info(
+        logger.debug(
             f'Validating lithops lithops master service is running on {self.backend.master}')
         cmd = "service lithops-master status"
         res = ssh_client.run_remote_command(cmd)
@@ -163,9 +164,8 @@ class StandaloneHandler:
         start = time.time()
         while(time.time() - start < self.start_timeout):
             if self._is_master_service_ready():
-                logger.debug('{} ready in {} seconds'
-                             .format(self.backend.master,
-                                     round(time.time()-start, 2)))
+                ready_time = round(time.time()-start, 2)
+                logger.debug(f'{self.backend.master} ready in {ready_time} seconds')
                 return True
             time.sleep(2)
 
@@ -316,11 +316,11 @@ class StandaloneHandler:
         """
         self.backend.dismantle()
 
-    def clean(self):
+    def clean(self, **kwargs):
         """
         Clan all the backend resources
         """
-        self.backend.clean()
+        self.backend.clean(**kwargs)
 
     def clear(self, job_keys=None):
         """
@@ -359,7 +359,7 @@ class StandaloneHandler:
         """
         Setup lithops necessary packages and files in master VM instance
         """
-        logger.debug('Installing Lithops in {}'.format(self.backend.master))
+        logger.info('Installing Lithops in {}'.format(self.backend.master))
         ssh_client = self.backend.master.get_ssh_client()
 
         worker_path = os.path.join(os.path.dirname(__file__), 'worker.py')

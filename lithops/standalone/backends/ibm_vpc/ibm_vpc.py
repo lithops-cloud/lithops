@@ -303,7 +303,7 @@ class IBMVPCBackend:
 
             dump_yaml_config(vpc_data_filename, self.vpc_data)
 
-    def _delete_vm_instances(self):
+    def _delete_vm_instances(self, delete_master=False, force=False):
         """
         Deletes all VM instances in the VPC
         """
@@ -325,7 +325,7 @@ class IBMVPCBackend:
         LITHOPS_MASTER = 'lithops-master-'
 
         vms_prefixes = ('lithops-worker',)
-        if self.config.get('delete_master'):
+        if delete_master:
             vms_prefixes = vms_prefixes + (LITHOPS_MASTER, )
 
         deleted_instances = set()
@@ -338,7 +338,7 @@ class IBMVPCBackend:
                     if ins_to_dlete not in deleted_instances:
                         instances_to_delete.add(ins_to_dlete)
                     if ins['name'].startswith(LITHOPS_MASTER):
-                        if self.config.get('force'):
+                        if force:
                             # forced clean all been triggered, delete also master floating IP
                             interface_id = ins['network_interfaces'][0]['id']
                             fips = self.ibm_vpc_client.list_instance_network_interface_floating_ips(
@@ -423,7 +423,7 @@ class IBMVPCBackend:
                 else:
                     raise e
 
-    def clean(self):
+    def clean(self, delete_master=False, force=False):
         """
         Clean all the backend resources
         The gateway public IP and the floating IP are never deleted
@@ -432,7 +432,7 @@ class IBMVPCBackend:
         # vpc_data_filename = os.path.join(CACHE_DIR, self.name, 'data')
         # vpc_data = load_yaml_config(vpc_data_filename)
 
-        self._delete_vm_instances()
+        self._delete_vm_instances(delete_master=delete_master, force=force)
         # self._delete_gateway(vpc_data)
         # self._delete_subnet(vpc_data)
         # self._delete_vpc(vpc_data)

@@ -21,6 +21,7 @@ import logging
 import boto3
 import botocore
 import base64
+from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.util.ssh_client import SSHClient
@@ -121,6 +122,19 @@ class AWSEC2Backend:
 
             self.ec2_data['instance_id'] = self.master.instance_id or str(uuid.uuid4())[:4]
 
+            if self.config['request_spot_instances']:
+                wit = self.config["worker_instance_type"]
+                logger.debug(f'Requesting current spot price for worker VMs of type {wit}')
+                response = self.ec2_client.describe_spot_price_history(
+                    EndTime=datetime.today(), InstanceTypes=[wit],
+                    ProductDescriptions=['Linux/UNIX (Amazon VPC)'],
+                    StartTime=datetime.today()
+                )
+                for az in response['SpotPriceHistory']:
+                    spot_price = az['SpotPrice']
+                self.config["spot_price"] = spot_price
+                logger.debug(f'Current spot instance price for {wit} is ${spot_price}')
+
     def _delete_worker_vm_instances(self):
         """
         Deletes all worker VM instances
@@ -140,13 +154,15 @@ class AWSEC2Backend:
         if ins_to_delete:
             self.ec2_client.terminate_instances(InstanceIds=ins_to_delete)
 
-    def clean(self):
+    def clean(self, delete_master=False, force=False):
         """
         Clean all the backend resources
         The gateway public IP and the floating IP are never deleted
         """
         logger.debug('Cleaning AWS EC2 resources')
         self._delete_worker_vm_instances()
+        if delete_master:
+            self.master.delete()
 
     def clear(self, job_keys=None):
         """
@@ -204,7 +220,7 @@ class EC2Instance:
         self.delete_on_dismantle = self.config['delete_on_dismantle']
         self.instance_type = self.config['worker_instance_type']
         self.region = self.config['region_name']
-        self.spot_price = self.config['spot_price']
+        self.spot_instance = self.config['request_spot_instances']
 
         self.ec2_client = ec2_client or self._create_ec2_client()
         self.public = public
@@ -247,7 +263,7 @@ class EC2Instance:
 
         return ec2_client
 
-    def get_ssh_client(self):
+    def get_ssh_client(self, unbinded=False):
         """
         Creates an ssh client against the VM only if the Instance is the master
         """
@@ -308,7 +324,7 @@ class EC2Instance:
         token = self.config['ssh_password']
         user_data = CLOUD_CONFIG_WORKER.format(user, token)
 
-        if self.spot_price is not None and not self.public:
+        if self.spot_instance and not self.public:
 
             logger.debug("Creating new VM instance {} (Spot)".format(self.name))
 
@@ -316,15 +332,10 @@ class EC2Instance:
                 # Allow master VM to access workers trough ssh password
                 LaunchSpecification['UserData'] = b64s(user_data)
 
-            if self.spot_price > 0:
-                spot_requests = self.ec2_client.request_spot_instances(
-                    SpotPrice=str(self.spot_price),
-                    InstanceCount=1,
-                    LaunchSpecification=LaunchSpecification)['SpotInstanceRequests']
-            else:
-                spot_requests = self.ec2_client.request_spot_instances(
-                    InstanceCount=1,
-                    LaunchSpecification=LaunchSpecification)['SpotInstanceRequests']
+            spot_requests = self.ec2_client.request_spot_instances(
+                SpotPrice=str(self.config['spot_price']),
+                InstanceCount=1,
+                LaunchSpecification=LaunchSpecification)['SpotInstanceRequests']
 
             request_ids = [r['SpotInstanceRequestId'] for r in spot_requests]
             pending_request_ids = request_ids
@@ -460,7 +471,7 @@ class EC2Instance:
         return self.instance_id
 
     def start(self):
-        logger.debug("Starting VM instance {}".format(self.name))
+        logger.info("Starting VM instance {}".format(self.name))
 
         self.ec2_client.start_instances(InstanceIds=[self.instance_id])
         self.public_ip = self._get_public_ip()

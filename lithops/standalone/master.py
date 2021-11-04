@@ -38,7 +38,8 @@ from lithops.standalone.keeper import BudgetKeeper
 from lithops.version import __version__ as lithops_version
 
 
-setup_lithops_logger(logging.DEBUG, filename=STANDALONE_LOG_FILE)
+log_format = "%(asctime)s\t[%(levelname)s] %(name)s:%(lineno)s -- %(message)s"
+setup_lithops_logger(logging.DEBUG, filename=STANDALONE_LOG_FILE, log_format=log_format)
 logger = logging.getLogger('lithops.standalone.master')
 
 app = flask.Flask(__name__)
@@ -94,12 +95,12 @@ def wait_worker_instance_ready(vm):
     """
     Waits until the VM instance is ready to receive ssh connections
     """
-    logger.info('Waiting {} to become ready'.format(vm))
+    logger.debug('Waiting {} to become ready'.format(vm))
 
     start = time.time()
     while(time.time() - start < INSTANCE_START_TIMEOUT):
         if is_worker_instance_ready(vm):
-            logger.info('{} ready in {} seconds'
+            logger.debug('{} ready in {} seconds'
                         .format(vm, round(time.time()-start, 2)))
             return True
         time.sleep(5)
@@ -118,8 +119,8 @@ def setup_worker(worker_info, work_queue_name):
     global workers
 
     instance_name, ip_address, instance_id, ssh_credentials = worker_info
-    logger.info(f'Starting setup for VM instance {instance_name} ({ip_address})')
-    logger.info(f'SSH data: {ssh_credentials}')
+    logger.debug(f'Starting setup for VM instance {instance_name} ({ip_address})')
+    logger.debug(f'SSH data: {ssh_credentials}')
 
     vm = standalone_handler.backend.get_vm(instance_name)
     vm.ip_address = ip_address
@@ -142,10 +143,10 @@ def setup_worker(worker_info, work_queue_name):
             retry += 1
 
     # upload zip lithops package
-    logger.info('Uploading lithops files to {}'.format(vm))
+    logger.debug('Uploading lithops files to {}'.format(vm))
     vm.get_ssh_client().upload_local_file('/opt/lithops/lithops_standalone.zip',
                                           '/tmp/lithops_standalone.zip')
-    logger.info('Executing lithops installation process on {}'.format(vm))
+    logger.debug('Executing lithops installation process on {}'.format(vm))
 
     vm_data = {'instance_name': vm.name,
                'ip_address': vm.ip_address,
@@ -160,7 +161,7 @@ def setup_worker(worker_info, work_queue_name):
     cmd = f"chmod 777 {remote_script}; sudo {remote_script};"
     vm.get_ssh_client().run_remote_command(cmd, run_async=True)
     vm.del_ssh_client()
-    logger.info('Installation script submitted to {}'.format(vm))
+    logger.debug('Installation script submitted to {}'.format(vm))
 
     logger.debug(f'Appending {vm.name} to Worker list')
     workers[vm.name] = vm_data
@@ -177,7 +178,7 @@ def start_workers(job_payload, work_queue_name):
             for worker_info in workers:
                 executor.submit(setup_worker, worker_info, work_queue_name)
 
-        logger.info(f'All workers set up for work queue "{work_queue_name}"')
+        logger.debug(f'All workers set up for work queue "{work_queue_name}"')
 
 
 def run_job_local(work_queue):
@@ -227,7 +228,7 @@ def run_job_worker(job_payload, work_queue, work_queue_name):
         task_payload['data_byte_ranges'] = [dbr[int(call_id)] for call_id in call_ids_range]
         work_queue.put(task_payload)
 
-    logger.info(f"Total tasks in work queue '{work_queue_name}': {work_queue.qsize()}")
+    logger.debug(f"Total tasks in work queue '{work_queue_name}': {work_queue.qsize()}")
 
     while not work_queue.empty():
         time.sleep(1)
@@ -235,7 +236,7 @@ def run_job_worker(job_payload, work_queue, work_queue_name):
     done = os.path.join(JOBS_DIR, job_key+'.done')
     Path(done).touch()
 
-    logger.info(f'Job process "{job_key}" finished')
+    logger.debug(f'Job process {job_key} finished')
 
 
 def error(msg):
@@ -250,12 +251,12 @@ def get_workers():
     Returns the number of free workers
     """
     global workers
-    global BUDGET_KEEPER
+    global budget_keeper
 
     # update last_usage_time to prevent race condition when keeper stops the vm
-    BUDGET_KEEPER.last_usage_time = time.time()
+    budget_keeper.last_usage_time = time.time()
 
-    logger.info(f'Getting workers: {workers}')
+    logger.debug(f'Current workers: {workers}')
 
     worker_vms = []
     worker_vms_free = []
@@ -280,7 +281,7 @@ def get_workers():
         with ThreadPoolExecutor(len(worker_vms)) as ex:
             ex.map(check_worker, worker_vms)
 
-    logger.info(f'Total free workers: {len(worker_vms_free)}')
+    logger.debug(f'Total free workers: {len(worker_vms_free)}')
 
     response = flask.jsonify(worker_vms_free)
     response.status_code = 200
@@ -299,9 +300,10 @@ def get_task(work_queue_name):
         task_payload = work_queues.setdefault(work_queue_name, mp_manager.Queue()).get(False)
         response = flask.jsonify(task_payload)
         response.status_code = 200
-        logger.info('Calls {} invoked on {}'
-                    .format(', '.join(task_payload['call_ids']),
-                            flask.request.remote_addr))
+        job_key = task_payload['job_key']
+        calls = task_payload['call_ids']
+        worker_ip = flask.request.remote_addr
+        logger.debug(f'Worker {worker_ip} retrieved Job {job_key} - Calls {calls}')
     except queue.Empty:
         response = ('', 204)
     return response
@@ -316,7 +318,7 @@ def stop_job_process(job_key_list):
     global work_queues
 
     for job_key in job_key_list:
-        logger.info(f'Received SIGTERM: Stopping job process {job_key}')
+        logger.debug(f'Received SIGTERM: Stopping job process {job_key}')
 
         if exec_mode == 'consume':
             if job_key == last_job_key:
@@ -394,7 +396,7 @@ def run():
         return error(str(e))
 
     job_key = job_payload['job_key']
-    logger.info('Received job {}'.format(job_key))
+    logger.debug('Received job {}'.format(job_key))
 
     budget_keeper.last_usage_time = time.time()
     budget_keeper.update_config(job_payload['config']['standalone'])
@@ -410,7 +412,7 @@ def run():
             lmp = Thread(target=run_job_local, args=(work_queue, ), daemon=True)
             lmp.start()
             localhost_manager_process = lmp
-        logger.info(f'Putting job {job_key} into master queue')
+        logger.debug(f'Putting job {job_key} into master queue')
         work_queue.put(job_payload)
 
     elif exec_mode == 'create':
@@ -467,7 +469,9 @@ def preinstalls():
     runtime_meta = localhost_handler.create_runtime(runtime)
     localhost_handler.clear()
 
-    logger.info(runtime_meta)
+    if 'lithops_version' in runtime_meta:
+        logger.debug("Runtime metdata extracted correctly: Lithops "
+                     f"{runtime_meta['lithops_version']}")
     response = flask.jsonify(runtime_meta)
     response.status_code = 200
 
