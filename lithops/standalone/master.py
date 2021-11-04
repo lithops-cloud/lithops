@@ -33,6 +33,7 @@ from lithops.localhost.localhost import LocalhostHandler
 from lithops.utils import verify_runtime_name, iterchunks, setup_lithops_logger
 from lithops.standalone.utils import get_worker_setup_script
 from lithops.standalone.keeper import BudgetKeeper
+from lithops.version import __version__ as lithops_version
 
 
 setup_lithops_logger(logging.DEBUG, filename=STANDALONE_LOG_FILE)
@@ -406,7 +407,7 @@ def run():
 
 @app.route('/ping', methods=['GET'])
 def ping():
-    response = flask.jsonify({'response': 'pong'})
+    response = flask.jsonify({'response': lithops_version})
     response.status_code = 200
     return response
 

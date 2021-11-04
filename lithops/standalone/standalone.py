@@ -105,7 +105,7 @@ class StandaloneHandler:
                 cmd = 'curl -X GET http://127.0.0.1:{}/ping'.format(STANDALONE_SERVICE_PORT)
                 out = self.backend.master.get_ssh_client().run_remote_command(cmd)
                 data = json.loads(out)
-                if data['response'] == 'pong':
+                if data['response'] == lithops_version:
                     return True
         except Exception:
             return False
