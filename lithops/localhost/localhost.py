@@ -153,7 +153,7 @@ class LocalhostHandler:
         """
         return 'batch'
 
-    def clean(self):
+    def clean(self, **kwargs):
         """
         Deletes all local runtimes
         """

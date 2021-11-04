@@ -30,7 +30,8 @@ from lithops.localhost.localhost import LocalhostHandler
 from lithops.utils import verify_runtime_name, setup_lithops_logger
 from lithops.standalone.keeper import BudgetKeeper
 
-setup_lithops_logger(logging.DEBUG, filename=STANDALONE_LOG_FILE)
+log_format = "%(asctime)s\t[%(levelname)s] %(name)s:%(lineno)s -- %(message)s"
+setup_lithops_logger(logging.DEBUG, filename=STANDALONE_LOG_FILE, log_format=log_format)
 logger = logging.getLogger('lithops.standalone.worker')
 
 app = flask.Flask(__name__)
@@ -52,7 +53,7 @@ def ping():
 @app.route('/stop/<job_key>', methods=['POST'])
 def stop(job_key):
     if job_key == last_job_key:
-        logger.info(f'Received SIGTERM: Stopping job process {job_key}')
+        logger.debug(f'Received SIGTERM: Stopping job process {job_key}')
         localhos_handler.clear()
         done = os.path.join(JOBS_DIR, job_key+'.done')
         Path(done).touch()
@@ -89,7 +90,7 @@ def run_worker(master_ip, work_queue):
 
     while True:
         url = 'http://{}:{}/get-task/{}'.format(master_ip, STANDALONE_SERVICE_PORT, work_queue)
-        logger.info('Getting task from {}'.format(url))
+        logger.debug('Getting task from {}'.format(url))
 
         try:
             resp = requests.get(url)
@@ -102,12 +103,12 @@ def run_worker(master_ip, work_queue):
                 time.sleep(1)
                 continue
             else:
-                logger.info('All tasks completed'.format(url))
+                logger.debug('All tasks completed'.format(url))
                 return
 
         job_payload = resp.json()
-        logger.info(job_payload)
-        logger.info('Got tasks {}'.format(', '.join(job_payload['call_ids'])))
+        logger.debug(job_payload)
+        logger.debug('Got tasks {}'.format(', '.join(job_payload['call_ids'])))
 
         try:
             runtime = job_payload['runtime_name']
@@ -166,7 +167,7 @@ def main():
 
     # run_worker will run forever in reuse mode. In create mode it will
     # run until there are no more tasks in the queue.
-    logger.info('Finished')
+    logger.debug('Finished')
 
     try:
         # Try to stop the current worker VM once no more pending tasks to run

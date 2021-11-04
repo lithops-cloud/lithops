@@ -4,13 +4,14 @@
 
 ### Added
 - [AWS_EC2] Added AWS EC2 Standalone backend
-- [AWS_EC2] Allow to start wokres using Spot instances in AWS EC2 Standalone backend
+- [AWS_EC2] Allow to start workers using Spot instances in AWS EC2 Standalone backend
 - [Standalone] Added the logic to create the missing deleta of workers in reuse mode
 - [Standalone] Cancel running job tasks on ctrl-c
+- [Standalone] New logic to verify that the master VM is correctly setup
 - [Config] Allow to set monitoring_interval in config
 
 ### Changed
-- [Standalone] Improved the performance of the master VM when getting the free available workers on reuse mode
+- [Standalone] Improved the performance of the master VM when getting the free available workers (reuse mode)
 
 ### Fixed
 - [Standalone] Fixed VM initial installation script
@@ -18,6 +19,7 @@
 - [Standalone] Deleted unnecessary extra worker
 - [Standalone] Ensure all workers are proppery started on reuse mode
 - [Localhost] Fixed storage delete_objects method that was deleting the entire folder of a file
+- [IBM VPC] General fixes in IBM VPC backend
 
 
 ## [v2.5.5]

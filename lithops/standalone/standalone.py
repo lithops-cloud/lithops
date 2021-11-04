@@ -38,6 +38,7 @@ LOCAL_FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_standalone.zip')
 class LithopsValidationError(Exception):
     pass
 
+
 class StandaloneHandler:
     """
     A StandaloneHandler object is used by invokers and other components to access
@@ -57,7 +58,7 @@ class StandaloneHandler:
         self.backend = StandaloneBackend(self.config[self.backend_name], self.exec_mode)
 
         self.jobs = []  # list to store executed jobs (job_keys)
-        logger.debug("Standalone handler created successfully")
+        logger.info("Standalone handler created successfully")
 
     def init(self):
         """
@@ -85,7 +86,7 @@ class StandaloneHandler:
         start = time.time()
         while(time.time() - start < self.start_timeout):
             if self._is_master_instance_ready():
-                logger.debug('{} ready in {} seconds'
+                logger.info('{} ready in {} seconds'
                              .format(self.backend.master,
                                      round(time.time()-start, 2)))
                 return True
@@ -163,7 +164,7 @@ class StandaloneHandler:
         start = time.time()
         while(time.time() - start < self.start_timeout):
             if self._is_master_service_ready():
-                logger.debug('{} ready in {} seconds'
+                logger.info('{} ready in {} seconds'
                              .format(self.backend.master,
                                      round(time.time()-start, 2)))
                 return True
@@ -219,7 +220,7 @@ class StandaloneHandler:
 
             current_workers_new = set(self.backend.workers)
             new_workers = current_workers_new - current_workers_old
-            logger.debug("Total worker VM instances created: {}/{}"
+            logger.info("Total worker VM instances created: {}/{}"
                          .format(len(new_workers), workers_to_create))
 
             return list(new_workers)
@@ -241,11 +242,11 @@ class StandaloneHandler:
         elif self.exec_mode == 'reuse':
             workers = get_workers_on_master()
             total_started_workers = len(workers)
-            logger.debug(f"Found {total_started_workers} free workers connected to master {self.backend.master}")
+            logger.info(f"Found {total_started_workers} free workers connected to master {self.backend.master}")
             if total_started_workers < total_required_workers:
                 # create missing delta of workers
                 workers_to_create = total_required_workers - total_started_workers
-                logger.debug(f'Going to create {workers_to_create} new workers')
+                logger.info(f'Going to create {workers_to_create} new workers')
                 new_workers = create_workers(workers_to_create)
                 total_workers = len(new_workers) + total_started_workers
                 worker_instances = [(inst.name,
@@ -259,11 +260,11 @@ class StandaloneHandler:
         if total_workers == 0:
             raise Exception('It was not possible to create any worker')
 
-        logger.debug('ExecutorID {} | JobID {} - Going to run {} activations '
+        logger.info('ExecutorID {} | JobID {} - Going to run {} activations '
                      'in {} workers'.format(executor_id, job_id, total_calls,
                                             min(total_workers, total_required_workers)))
 
-        logger.debug("Checking if {} is ready".format(self.backend.master))
+        logger.info("Checking if {} is ready".format(self.backend.master))
         start_master_instance(wait=True)
 
         job_payload['worker_instances'] = worker_instances
@@ -283,7 +284,7 @@ class StandaloneHandler:
             self.backend.master.get_ssh_client().run_remote_command(cmd)
             self.backend.master.del_ssh_client()
 
-        logger.debug('Job invoked on {}'.format(self.backend.master))
+        logger.info('Job invoked on {}'.format(self.backend.master))
 
         self.jobs.append(job_payload['job_key'])
 
@@ -292,15 +293,15 @@ class StandaloneHandler:
         Installs the proxy and extracts the runtime metadata and
         preinstalled modules
         """
-        logger.debug('Checking if {} is ready'.format(self.backend.master))
+        logger.info('Checking if {} is ready'.format(self.backend.master))
         if not self._is_master_instance_ready():
-            logger.debug('{} not ready'.format(self.backend.master))
+            logger.info('{} not ready'.format(self.backend.master))
             self.backend.master.create(check_if_exists=True)
             self._wait_master_instance_ready()
         self._setup_master_service()
         self._wait_master_service_ready()
 
-        logger.debug('Extracting runtime metadata information')
+        logger.info('Extracting runtime metadata information')
         payload = {'runtime': runtime_name, 'pull_runtime': True}
         cmd = ('curl http://127.0.0.1:8080/preinstalls -d {} '
                '-H \'Content-Type: application/json\' -X GET'
@@ -316,11 +317,11 @@ class StandaloneHandler:
         """
         self.backend.dismantle()
 
-    def clean(self):
+    def clean(self, **kwargs):
         """
         Clan all the backend resources
         """
-        self.backend.clean()
+        self.backend.clean(**kwargs)
 
     def clear(self, job_keys=None):
         """
@@ -359,14 +360,14 @@ class StandaloneHandler:
         """
         Setup lithops necessary packages and files in master VM instance
         """
-        logger.debug('Installing Lithops in {}'.format(self.backend.master))
+        logger.info('Installing Lithops in {}'.format(self.backend.master))
         ssh_client = self.backend.master.get_ssh_client()
 
         worker_path = os.path.join(os.path.dirname(__file__), 'worker.py')
         master_path = os.path.join(os.path.dirname(__file__), 'master.py')
         create_handler_zip(LOCAL_FH_ZIP_LOCATION, [master_path, worker_path])
 
-        logger.debug('Uploading lithops files to {}'.format(self.backend.master))
+        logger.info('Uploading lithops files to {}'.format(self.backend.master))
         ssh_client.upload_local_file(LOCAL_FH_ZIP_LOCATION, '/tmp/lithops_standalone.zip')
         os.remove(LOCAL_FH_ZIP_LOCATION)
 
@@ -376,8 +377,8 @@ class StandaloneHandler:
                    'lithops_version': lithops_version
                    }
 
-        logger.debug('Executing lithops installation process on {}'.format(self.backend.master))
-        logger.debug('Be patient, initial installation process may take up to 3 minutes')
+        logger.info('Executing lithops installation process on {}'.format(self.backend.master))
+        logger.info('Be patient, initial installation process may take up to 3 minutes')
 
         remote_script = "/tmp/install_lithops.sh"
         script = get_master_setup_script(self.config, vm_data)
