@@ -64,6 +64,7 @@ class StandaloneHandler:
         Checks if the VM instance is ready to receive ssh connections
         """
         try:
+#            import pdb;pdb.set_trace()
             self.backend.master.get_ssh_client().run_remote_command('id')
         except Exception:
             return False
@@ -142,6 +143,7 @@ class StandaloneHandler:
                                   if self.exec_mode in ['create', 'reuse'] else 1)
 
         def start_master_instance(wait=True):
+            breakpoint()
             if not self._is_master_service_ready():
                 self.backend.master.create(check_if_exists=True)
                 if wait:
@@ -162,10 +164,10 @@ class StandaloneHandler:
             current_workers_old = set(self.backend.workers)
             with ThreadPoolExecutor(workers_to_create+1) as ex:
                 ex.submit(start_master_instance, wait=False)
-                for vm_n in range(workers_to_create):
-                    worker_id = "{:04d}".format(vm_n)
-                    name = 'lithops-worker-{}-{}-{}'.format(executor_id, job_id, worker_id)
-                    ex.submit(self.backend.create_worker, name)
+#                for vm_n in range(workers_to_create):
+#                    worker_id = "{:04d}".format(vm_n)
+#                    name = 'lithops-worker-{}-{}-{}'.format(executor_id, job_id, worker_id)
+#                    ex.submit(self.backend.create_worker, name)
             current_workers_new = set(self.backend.workers)
             new_workers = current_workers_new - current_workers_old
             logger.debug("Total worker VM instances created: {}/{}"
