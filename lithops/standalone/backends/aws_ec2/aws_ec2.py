@@ -471,7 +471,7 @@ class EC2Instance:
         return self.instance_id
 
     def start(self):
-        logger.debug("Starting VM instance {}".format(self.name))
+        logger.info("Starting VM instance {}".format(self.name))
 
         self.ec2_client.start_instances(InstanceIds=[self.instance_id])
         self.public_ip = self._get_public_ip()
