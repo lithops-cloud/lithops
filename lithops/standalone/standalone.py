@@ -21,6 +21,8 @@ import logging
 import importlib
 import requests
 import shlex
+import concurrent.futures
+
 from concurrent.futures import ThreadPoolExecutor
 
 from lithops.utils import is_lithops_worker, create_handler_zip
@@ -32,6 +34,9 @@ from lithops.version import __version__ as lithops_version
 logger = logging.getLogger(__name__)
 LOCAL_FH_ZIP_LOCATION = os.path.join(os.getcwd(), 'lithops_standalone.zip')
 
+
+class LithopsValidationError(Exception):
+    pass
 
 class StandaloneHandler:
     """
@@ -107,6 +112,8 @@ class StandaloneHandler:
                 data = json.loads(out)
                 if data['response'] == lithops_version:
                     return True
+        except LithopsValidationError as e:
+            raise e
         except Exception:
             return False
 
@@ -192,18 +199,24 @@ class StandaloneHandler:
                        '-H \'Content-Type: application/json\'')
                 resp = self.backend.master.get_ssh_client().run_remote_command(cmd)
                 workers_on_master = json.loads(resp)
+            except LithopsValidationError as e:
+                raise e
             except Exception:
                 pass
             return workers_on_master
 
         def create_workers(workers_to_create):
             current_workers_old = set(self.backend.workers)
+            futures = []
             with ThreadPoolExecutor(workers_to_create+1) as ex:
-                ex.submit(start_master_instance, wait=False)
+                futures.append(ex.submit(start_master_instance, wait=False))
                 for vm_n in range(workers_to_create):
                     worker_id = "{:04d}".format(vm_n)
                     name = 'lithops-worker-{}-{}-{}'.format(executor_id, job_id, worker_id)
                     ex.submit(self.backend.create_worker, name)
+            for future in concurrent.futures.as_completed(futures):
+                future.result()
+
             current_workers_new = set(self.backend.workers)
             new_workers = current_workers_new - current_workers_old
             logger.debug("Total worker VM instances created: {}/{}"

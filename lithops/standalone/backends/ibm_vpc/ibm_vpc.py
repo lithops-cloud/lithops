@@ -18,6 +18,7 @@ import functools
 import inspect
 import re
 import os
+import subprocess
 import time
 import logging
 import uuid
@@ -30,7 +31,7 @@ from lithops.util.ssh_client import SSHClient
 from lithops.constants import COMPUTE_CLI_MSG, CACHE_DIR
 from lithops.config import load_yaml_config, dump_yaml_config
 from lithops.standalone.utils import CLOUD_CONFIG_WORKER
-
+from lithops.standalone.standalone import LithopsValidationError
 
 
 logger = logging.getLogger(__name__)
@@ -507,6 +508,8 @@ class IBMVPCInstance:
             'key_filename': self.config.get('ssh_key_filename', None)
         }
 
+        self.validated = False
+
     def __str__(self):
         return f'VM instance {self.name} ({self.public_ip} {self.ip_address})' if self.public_ip else f'VM instance {self.name} {self.ip_address}'
 
@@ -541,6 +544,23 @@ class IBMVPCInstance:
 
             if not self.ssh_client:
                 self.ssh_client = SSHClient(self.public_ip or self.ip_address, self.ssh_credentials)
+
+        if not self.validated and self.public:
+            # validate that private ssh key in ssh_credentials is a pair of public key on instance
+            if not os.path.exists(os.path.abspath(os.path.expanduser(self.ssh_credentials['key_filename']))):
+                raise LithopsValidationError(f"Specified private key file {self.ssh_credentials['key_filename']} doesn't exist")
+
+            initialization_data = self.ibm_vpc_client.get_instance_initialization(self.instance_id).get_result()
+            key_id = initialization_data['keys'][0]['id']
+            key_name = initialization_data['keys'][0]['name']
+            public_res = self.ibm_vpc_client.get_key(key_id).get_result()['public_key'].split(' ')[1]
+            private_res = subprocess.getoutput([f"ssh-keygen -y -f {self.ssh_credentials['key_filename']} | cut -d' ' -f 2"])
+
+            if not public_res == private_res:
+                raise LithopsValidationError(f"Private ssh key {self.ssh_credentials['key_filename']} and public key {key_name} on master {self} are not a pair")
+
+            self.validated = True
+
         return self.ssh_client
 
     def del_ssh_client(self):

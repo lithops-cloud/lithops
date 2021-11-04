@@ -250,6 +250,10 @@ def get_workers():
     Returns the number of free workers
     """
     global workers
+    global BUDGET_KEEPER
+
+    # update last_usage_time to prevent race condition when keeper stops the vm
+    BUDGET_KEEPER.last_usage_time = time.time()
 
     logger.info(f'Getting workers: {workers}')
 
