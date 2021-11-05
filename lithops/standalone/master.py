@@ -44,7 +44,7 @@ logger = logging.getLogger('lithops.standalone.master')
 app = flask.Flask(__name__)
 
 INSTANCE_START_TIMEOUT = 180
-MAX_INSTANCE_CREATE_RETRIES = 3
+MAX_INSTANCE_CREATE_RETRIES = 2
 REUSE_WORK_QUEUE_NAME = 'all'
 
 exec_mode = 'consume'
@@ -122,12 +122,6 @@ def setup_worker(worker_info, work_queue_name):
     vm.ip_address = ip_address
     vm.instance_id = instance_id
     vm.ssh_credentials = ssh_credentials
-
-    try:
-        wait_worker_instance_ready(vm)
-    except TimeoutError as e:
-        vm.delete()
-        raise e
 
     worker_ready = False
     retry = 1
