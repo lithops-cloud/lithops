@@ -132,7 +132,13 @@ def get_master_setup_script(config, vm_data):
     systemctl enable {1};
     systemctl start {1};
     }}
-    setup_service >> {2} 2>&1
+    setup_service >> {2} 2>&1;
+
+    USER_HOME=$(eval echo ~${{SUDO_USER}});
+    test -f $USER_HOME/.ssh/id_rsa || echo '    StrictHostKeyChecking no
+    UserKnownHostsFile=/dev/null' >> /etc/ssh/ssh_config;
+    test -f $USER_HOME/.ssh/id_rsa || ssh-keygen -f $USER_HOME/.ssh/id_rsa -t rsa -N '';
+    chown ${{SUDO_USER}}:${{SUDO_USER}} $USER_HOME/.ssh/id_rsa*
     """.format(MASTER_SERVICE_FILE,
                MASTER_SERVICE_NAME,
                STANDALONE_LOG_FILE)
@@ -142,7 +148,15 @@ def get_master_setup_script(config, vm_data):
 def get_worker_setup_script(config, vm_data):
     """
     Returns worker VM installation script
+    this script is expected to be executed only from Master VM
     """
+    ssh_user = vm_data['ssh_credentials']['username']
+    home_dir = '/root' if ssh_user == 'root' else f'/home/{ssh_user}'
+    try:
+        master_pub_key = open(f'{home_dir}/.ssh/id_rsa.pub', 'r').read()
+    except Exception:
+        master_pub_key = ''
+
     script = """#!/bin/bash
     rm -R {0}; mkdir -p {0}; mkdir -p /tmp/lithops;
     """.format(STANDALONE_INSTALL_DIR)
@@ -161,8 +175,11 @@ def get_worker_setup_script(config, vm_data):
     systemctl start {5};
     }}
     setup_service >> {3} 2>&1
+    USER_HOME=$(eval echo ~${{SUDO_USER}});
+    echo '{7}' >> $USER_HOME/.ssh/authorized_keys;
     """.format(STANDALONE_INSTALL_DIR, json.dumps(config),
                STANDALONE_CONFIG_FILE, STANDALONE_LOG_FILE,
                WORKER_SERVICE_FILE, WORKER_SERVICE_NAME,
-               json.dumps(vm_data))
+               json.dumps(vm_data), master_pub_key)
+
     return script

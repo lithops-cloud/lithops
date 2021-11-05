@@ -170,6 +170,16 @@ def test_function(config, backend, storage, debug):
     print()
 
 
+@lithops_cli.command('attach')
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option("--start", is_flag=True, default=False, help="Start the master VM if needed.")
+def attach(config, backend, start):
+    """Create or attach to a SSH session on Lithops master VM"""
+
+    pass
+
+
 # /---------------------------------------------------------------------------/
 #
 # lithops storage

@@ -505,13 +505,14 @@ class IBMVPCInstance:
         self.ssh_credentials = {
             'username': self.config['ssh_username'],
             'password': self.config['ssh_password'],
-            'key_filename': self.config.get('ssh_key_filename', None)
+            'key_filename': self.config.get('ssh_key_filename', '~/.ssh/id_rsa')
         }
 
         self.validated = False
 
     def __str__(self):
-        return f'VM instance {self.name} ({self.public_ip} {self.ip_address})' if self.public_ip else f'VM instance {self.name} {self.ip_address}'
+        return f'VM instance {self.name} ({self.public_ip} {self.ip_address})' \
+            if self.public_ip else f'VM instance {self.name} ({self.ip_address})'
 
     def _create_vpc_client(self):
         """
@@ -532,7 +533,8 @@ class IBMVPCInstance:
         """
         if self.ip_address or self.public_ip:
             if None in (self.ip_address, self.instance_id):
-                logger.warning(f'Refreshing master configuration missing ip_address and/or instance id {(self.ip_address, self.instance_id)}')
+                logger.warning(f'Refreshing master configuration missing ip_address '
+                               f'and/or instance id {(self.ip_address, self.instance_id)}')
                 instance_data = self.get_instance_data()
                 self.ip_address = instance_data['primary_network_interface']['primary_ipv4_address']
                 self.instance_id = instance_data['id']
@@ -547,17 +549,21 @@ class IBMVPCInstance:
 
         if not self.validated and self.public:
             # validate that private ssh key in ssh_credentials is a pair of public key on instance
-            if not os.path.exists(os.path.abspath(os.path.expanduser(self.ssh_credentials['key_filename']))):
-                raise LithopsValidationError(f"Specified private key file {self.ssh_credentials['key_filename']} doesn't exist")
+            key_filename = self.ssh_credentials['key_filename']
+            if not os.path.exists(os.path.abspath(os.path.expanduser(key_filename))):
+                raise LithopsValidationError(
+                    f"Specified private key file {key_filename} doesn't exist")
 
             initialization_data = self.ibm_vpc_client.get_instance_initialization(self.instance_id).get_result()
             key_id = initialization_data['keys'][0]['id']
             key_name = initialization_data['keys'][0]['name']
             public_res = self.ibm_vpc_client.get_key(key_id).get_result()['public_key'].split(' ')[1]
-            private_res = subprocess.getoutput([f"ssh-keygen -y -f {self.ssh_credentials['key_filename']} | cut -d' ' -f 2"])
+            private_res = subprocess.getoutput([f"ssh-keygen -y -f {key_filename} | cut -d' ' -f 2"])
 
             if not public_res == private_res:
-                raise LithopsValidationError(f"Private ssh key {self.ssh_credentials['key_filename']} and public key {key_name} on master {self} are not a pair")
+                raise LithopsValidationError(
+                    f"Private ssh key {key_filename} and public key "
+                    f"{key_name} on master {self} are not a pair")
 
             self.validated = True
 

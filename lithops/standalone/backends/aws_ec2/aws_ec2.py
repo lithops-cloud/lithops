@@ -475,10 +475,13 @@ class EC2Instance:
 
         try:
             self.ec2_client.start_instances(InstanceIds=[self.instance_id])
+            self.public_ip = self._get_public_ip()
         except botocore.exceptions.ClientError as e:
-            raise e
-
-        self.public_ip = self._get_public_ip()
+            if e.response['Error']['Code'] == 'IncorrectInstanceState':
+                time.sleep(20)
+                return self.start()
+            else:
+                raise e
 
         logger.debug("VM instance {} started successfully".format(self.name))
 

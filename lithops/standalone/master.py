@@ -116,7 +116,6 @@ def setup_worker(worker_info, work_queue_name):
 
     instance_name, ip_address, instance_id, ssh_credentials = worker_info
     logger.debug(f'Starting setup for VM instance {instance_name} ({ip_address})')
-    logger.debug(f'SSH data: {ssh_credentials}')
 
     vm = standalone_handler.backend.get_vm(instance_name)
     vm.ip_address = ip_address
