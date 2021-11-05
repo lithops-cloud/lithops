@@ -473,7 +473,11 @@ class EC2Instance:
     def start(self):
         logger.info("Starting VM instance {}".format(self.name))
 
-        self.ec2_client.start_instances(InstanceIds=[self.instance_id])
+        try:
+            self.ec2_client.start_instances(InstanceIds=[self.instance_id])
+        except botocore.exceptions.ClientError as e:
+            raise e
+
         self.public_ip = self._get_public_ip()
 
         logger.debug("VM instance {} started successfully".format(self.name))
