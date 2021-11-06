@@ -36,6 +36,8 @@ from lithops.standalone.standalone import LithopsValidationError
 
 logger = logging.getLogger(__name__)
 
+INSTANCE_START_TIMEOUT = 180
+
 
 class IBMVPCBackend:
 
@@ -579,6 +581,35 @@ class IBMVPCInstance:
                 pass
             self.ssh_client = None
 
+    def is_ready(self, verbose=False):
+        """
+        Checks if the VM instance is ready to receive ssh connections
+        """
+        try:
+            self.get_ssh_client().run_remote_command('id')
+        except Exception as e:
+            if verbose:
+                logger.debug(f'ssh to {self.private_ip} failed: {e}')
+            self.del_ssh_client()
+            return False
+        return True
+
+    def wait_ready(self, verbose=False):
+        """
+        Waits until the VM instance is ready to receive ssh connections
+        """
+        logger.debug(f'Waiting {self} to become ready')
+
+        start = time.time()
+        while(time.time() - start < INSTANCE_START_TIMEOUT):
+            if self.is_ready(verbose=verbose):
+                start_time = round(time.time()-start, 2)
+                logger.debug(f'{self} ready in {start_time} seconds')
+                return True
+            time.sleep(5)
+
+        raise TimeoutError(f'Readiness probe expired on {self}')
+
     def _create_instance(self):
         """
         Creates a new VM instance
@@ -700,7 +731,7 @@ class IBMVPCInstance:
         if self.public_ip:
             return self.public_ip
 
-    def create(self, check_if_exists=False, start=True):
+    def create(self, check_if_exists=False):
         """
         Creates a new VM instance
         """
@@ -719,10 +750,8 @@ class IBMVPCInstance:
             instance = self._create_instance()
             self.instance_id = instance['id']
             self.private_ip = self.get_private_ip()
-        elif start:
-            # In IBM VPC, VM instances are automatically started on create
-            if vsi_exists:
-                self.start()
+        else:
+            self.start()
 
         if self.public and instance:
             self._attach_floating_ip(instance)
@@ -733,7 +762,7 @@ class IBMVPCInstance:
         logger.debug("Starting VM instance {}".format(self.name))
 
         try:
-            resp = self.ibm_vpc_client.create_instance_action(self.instance_id, 'start')
+            self.ibm_vpc_client.create_instance_action(self.instance_id, 'start')
         except ApiException as e:
             if e.code == 404:
                 pass
@@ -764,7 +793,7 @@ class IBMVPCInstance:
         """
         logger.debug("Stopping VM instance {}".format(self.name))
         try:
-            resp = self.ibm_vpc_client.create_instance_action(self.instance_id, 'stop')
+            self.ibm_vpc_client.create_instance_action(self.instance_id, 'stop')
         except ApiException as e:
             if e.code == 404:
                 pass
@@ -783,11 +812,13 @@ class IBMVPCInstance:
         """
         self._delete_instance()
 
+
 def decorate_instance(instance, decorator):
     for name, func in inspect.getmembers(instance, inspect.ismethod):
         if not name.startswith("_"):
             setattr(instance, name, decorator(func))
     return instance
+
 
 def vpc_retry_on_except(func):
 
