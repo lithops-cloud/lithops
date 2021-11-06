@@ -201,8 +201,16 @@ def attach(config, backend, start, debug):
 
     master_ip = compute_handler.backend.master.get_public_ip()
     user = compute_handler.backend.master.ssh_credentials['username']
+    key_file = compute_handler.backend.master.ssh_credentials['key_filename']
+    key_file = os.path.abspath(os.path.expanduser(key_file))
+
+    if not os.path.exists(key_file):
+        raise Exception('Private key file {key_file} does not exists')
+
     print(f'Got master VM public IP address: {master_ip}')
-    cmd = f'ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" {user}@{master_ip}'
+    print(f'Loading ssh private key from: {key_file}')
+    cmd = ('ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" '
+           f'-i {key_file} {user}@{master_ip}')
     sp.run(shlex.split(cmd))
 
 
