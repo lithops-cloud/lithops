@@ -49,7 +49,7 @@ class StandaloneHandler:
         self.exec_mode = self.config['exec_mode']
         self.is_lithops_worker = is_lithops_worker()
 
-        module_location = 'lithops.standalone.backends.{}'.format(self.backend_name)
+        module_location = f'lithops.standalone.backends.{self.backend_name}'
         sb_module = importlib.import_module(module_location)
         StandaloneBackend = getattr(sb_module, 'StandaloneBackend')
         self.backend = StandaloneBackend(self.config[self.backend_name], self.exec_mode)
@@ -63,50 +63,30 @@ class StandaloneHandler:
         """
         self.backend.init()
 
-    def _is_master_instance_ready(self):
-        """
-        Checks if the VM instance is ready to receive ssh connections
-        """
-        try:
-            self.backend.master.get_ssh_client().run_remote_command('id')
-        except Exception:
-            return False
-        return True
-
-    def _wait_master_instance_ready(self):
-        """
-        Waits until the VM instance is ready to receive ssh connections
-        """
-        logger.info(f'Waiting {self.backend.master} to become ready')
-
-        start = time.time()
-        while(time.time() - start < self.start_timeout):
-            if self._is_master_instance_ready():
-                ready_time = round(time.time()-start, 2)
-                logger.debug(f'{self.backend.master} ready in {ready_time} seconds')
-                return True
-            time.sleep(5)
-
-        self.dismantle()
-        raise Exception(f'Readiness probe expired on {self.backend.master}')
-
     def _is_master_service_ready(self):
         """
         Checks if the proxy is ready to receive http connections
         """
         try:
             if self.is_lithops_worker:
-                url = "http://lithops-master:{}/ping".format(STANDALONE_SERVICE_PORT)
+                url = f"http://lithops-master:{STANDALONE_SERVICE_PORT}/ping"
                 r = requests.get(url, timeout=1)
                 if r.status_code == 200:
                     return True
                 return False
             else:
-                cmd = 'curl -X GET http://127.0.0.1:{}/ping'.format(STANDALONE_SERVICE_PORT)
+                cmd = f'curl -X GET http://127.0.0.1:{STANDALONE_SERVICE_PORT}/ping'
                 out = self.backend.master.get_ssh_client().run_remote_command(cmd)
                 data = json.loads(out)
                 if data['response'] == lithops_version:
                     return True
+                else:
+                    self.backend.clear()
+                    raise LithopsValidationError(
+                        f"Lithops version {data['response']} on {self.backend.master}, "
+                        f"doesn't match local lithops version {lithops_version}, consider "
+                        "running 'lithops clean' to delete runtime  metadata leftovers or "
+                        "'lithops clean --all' to delete master instance as well")
         except LithopsValidationError as e:
             raise e
         except Exception:
@@ -124,7 +104,7 @@ class StandaloneHandler:
         res = ssh_client.run_remote_command(cmd)
         if not res:
             self.backend.clear()
-            raise Exception(
+            raise LithopsValidationError(
                 f"Lithops service not installed on {self.backend.master}, "
                 "consider using 'lithops clean' to delete runtime metadata "
                 "or 'lithops clean --all' to delete master instance as well")
@@ -132,9 +112,9 @@ class StandaloneHandler:
         master_lithops_version = json.loads(res).get('lithops_version')
         if master_lithops_version != lithops_version:
             self.backend.clear()
-            raise Exception(
+            raise LithopsValidationError(
                 f"Lithops version {master_lithops_version} on {self.backend.master}, "
-                "doesn't match local lithops version {lithops_version}, consider "
+                f"doesn't match local lithops version {lithops_version}, consider "
                 "running 'lithops clean' to delete runtime  metadata leftovers or "
                 "'lithops clean --all' to delete master instance as well")
 
@@ -143,7 +123,7 @@ class StandaloneHandler:
         res = ssh_client.run_remote_command("service lithops-master status")
         if not res or 'Active: active (running)' not in res:
             self.backend.clear()
-            raise Exception(
+            raise LithopsValidationError(
                 f"Lithops master service not active on {self.backend.master}, "
                 f"consider to delete master instance and metadata using "
                 "'lithops clean --all'", res)
@@ -156,8 +136,7 @@ class StandaloneHandler:
         """
         self._validate_master_service_setup()
 
-        logger.info('Waiting Lithops service to become ready on {}'
-                    .format(self.backend.master))
+        logger.info(f'Waiting Lithops service to become ready on {self.backend.master}')
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
@@ -168,8 +147,7 @@ class StandaloneHandler:
             time.sleep(2)
 
         self.dismantle()
-        raise Exception('Lithops service readiness probe expired on {}'
-                        .format(self.backend.master))
+        raise Exception(f'Lithops service readiness probe expired on {self.backend.master}')
 
     def invoke(self, job_payload):
         """
@@ -182,13 +160,6 @@ class StandaloneHandler:
 
         total_required_workers = (total_calls // chunksize + (total_calls % chunksize > 0)
                                   if self.exec_mode in ['create', 'reuse'] else 1)
-
-        def start_master_instance(wait=True):
-            if not self._is_master_service_ready():
-                self.backend.master.create(check_if_exists=True)
-                if wait:
-                    self._wait_master_instance_ready()
-                    self._wait_master_service_ready()
 
         def get_workers_on_master():
             workers_on_master = []
@@ -205,15 +176,13 @@ class StandaloneHandler:
 
         def create_workers(workers_to_create):
             current_workers_old = set(self.backend.workers)
-            futures = []
             with cf.ThreadPoolExecutor(workers_to_create+1) as ex:
-                futures.append(ex.submit(start_master_instance, wait=False))
+                ex.submit(lambda: self.backend.master.create(check_if_exists=True)
+                          if not self._is_master_service_ready() else False)
                 for vm_n in range(workers_to_create):
                     worker_id = "{:04d}".format(vm_n)
                     name = 'lithops-worker-{}-{}-{}'.format(executor_id, job_id, worker_id)
                     ex.submit(self.backend.create_worker, name)
-            for future in cf.as_completed(futures):
-                future.result()
 
             current_workers_new = set(self.backend.workers)
             new_workers = current_workers_new - current_workers_old
@@ -262,7 +231,10 @@ class StandaloneHandler:
                                             min(total_workers, total_required_workers)))
 
         logger.debug(f"Checking if {self.backend.master} is ready")
-        start_master_instance(wait=True)
+        if not self._is_master_service_ready():
+            self.backend.master.create(check_if_exists=True)
+            self.backend.master.wait_ready()
+            self._wait_master_service_ready()
 
         job_payload['worker_instances'] = worker_instances
 
@@ -290,11 +262,13 @@ class StandaloneHandler:
         Installs the proxy and extracts the runtime metadata and
         preinstalled modules
         """
-        logger.debug('Checking if {} is ready'.format(self.backend.master))
-        if not self._is_master_instance_ready():
-            logger.debug('{} not ready'.format(self.backend.master))
+        logger.debug(f'Checking if {self.backend.master} is ready')
+
+        if not self.backend.master.is_ready():
+            logger.debug(f'{self.backend.master} not ready')
             self.backend.master.create(check_if_exists=True)
-            self._wait_master_instance_ready()
+            self.backend.master.wait_ready()
+
         self._setup_master_service()
         self._wait_master_service_ready()
 

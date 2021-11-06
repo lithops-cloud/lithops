@@ -70,7 +70,6 @@ class BudgetKeeper(threading.Thread):
 
         while runing:
             time_since_last_usage = time.time() - self.last_usage_time
-            check_interval = self.soft_dismantle_timeout / 10
 
             for job_key in self.jobs.keys():
                 done = os.path.join(JOBS_DIR, job_key+'.done')
@@ -96,7 +95,8 @@ class BudgetKeeper(threading.Thread):
                 jobs_running = True
 
             if time_to_dismantle > 0:
-                logger.debug("Time to dismantle: {} seconds".format(time_to_dismantle))
+                logger.debug(f"Time to dismantle: {time_to_dismantle} seconds")
+                check_interval = max(time_to_dismantle / 10, 1)
                 time.sleep(check_interval)
             else:
                 logger.debug("Dismantling setup")
@@ -104,4 +104,4 @@ class BudgetKeeper(threading.Thread):
                     self.vm.stop()
                     runing = False
                 except Exception as e:
-                    logger.debug("Dismantle error {}".format(e))
+                    logger.debug(f"Dismantle error {e}")

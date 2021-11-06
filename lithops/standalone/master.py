@@ -43,7 +43,6 @@ logger = logging.getLogger('lithops.standalone.master')
 
 app = flask.Flask(__name__)
 
-INSTANCE_START_TIMEOUT = 180
 MAX_INSTANCE_CREATE_RETRIES = 2
 REUSE_WORK_QUEUE_NAME = 'all'
 
@@ -74,38 +73,6 @@ def is_worker_free(vm):
     return False
 
 
-def is_worker_instance_ready(vm):
-    """
-    Checks if the VM instance is ready to receive ssh connections
-    """
-    try:
-        vm.get_ssh_client().run_remote_command('id')
-    except Exception as e:
-        logger.debug(f'ssh to {vm.private_ip} failed: {e}')
-        vm.del_ssh_client()
-        return False
-    return True
-
-
-def wait_worker_instance_ready(vm):
-    """
-    Waits until the VM instance is ready to receive ssh connections
-    """
-    logger.debug('Waiting {} to become ready'.format(vm))
-
-    start = time.time()
-    while(time.time() - start < INSTANCE_START_TIMEOUT):
-        if is_worker_instance_ready(vm):
-            start_time = round(time.time()-start, 2)
-            logger.debug(f'{vm} ready in {start_time} seconds')
-            return True
-        time.sleep(5)
-
-    msg = 'Readiness probe expired on {}'.format(vm)
-    logger.error(msg)
-    raise TimeoutError(msg)
-
-
 def setup_worker(worker_info, work_queue_name):
     """
     Run worker process
@@ -117,49 +84,51 @@ def setup_worker(worker_info, work_queue_name):
     instance_name, private_ip, instance_id, ssh_credentials = worker_info
     logger.debug(f'Starting setup for VM instance {instance_name} ({private_ip})')
 
-    vm = standalone_handler.backend.get_vm(instance_name)
-    vm.private_ip = private_ip
-    vm.instance_id = instance_id
-    vm.ssh_credentials = ssh_credentials
+    worker = standalone_handler.backend.get_vm(instance_name)
+    worker.private_ip = private_ip
+    worker.instance_id = instance_id
+    worker.ssh_credentials = ssh_credentials
 
     worker_ready = False
     retry = 1
 
     while not worker_ready and retry <= MAX_INSTANCE_CREATE_RETRIES:
         try:
-            wait_worker_instance_ready(vm)
+            worker.wait_ready(verbose=True)
             worker_ready = True
         except TimeoutError as e:  # VM not started in time
             if retry == MAX_INSTANCE_CREATE_RETRIES:
                 raise e
-            logger.debug(f'Timeout Error. Recreating VM instance {vm.name}')
+            logger.debug(f'Timeout Error. Recreating VM instance {worker.name}')
             retry += 1
-            vm.delete()
-            vm.create()
+            worker.delete()
+            worker.create()
 
     # upload zip lithops package
-    logger.debug('Uploading lithops files to {}'.format(vm))
-    vm.get_ssh_client().upload_local_file('/opt/lithops/lithops_standalone.zip',
-                                          '/tmp/lithops_standalone.zip')
-    logger.debug('Executing lithops installation process on {}'.format(vm))
+    logger.debug(f'Uploading lithops files to {worker}')
+    worker.get_ssh_client().upload_local_file(
+        '/opt/lithops/lithops_standalone.zip',
+        '/tmp/lithops_standalone.zip'
+    )
+    logger.debug(f'Executing lithops installation process on {worker}')
 
-    vm_data = {'instance_name': vm.name,
-               'private_ip': vm.private_ip,
-               'instance_id': vm.instance_id,
-               'ssh_credentials': vm.ssh_credentials,
+    vm_data = {'instance_name': worker.name,
+               'private_ip': worker.private_ip,
+               'instance_id': worker.instance_id,
+               'ssh_credentials': worker.ssh_credentials,
                'master_ip': master_ip,
                'work_queue': work_queue_name}
 
     remote_script = "/tmp/install_lithops.sh"
     script = get_worker_setup_script(standalone_config, vm_data)
-    vm.get_ssh_client().upload_data_to_file(script, remote_script)
+    worker.get_ssh_client().upload_data_to_file(script, remote_script)
     cmd = f"chmod 777 {remote_script}; sudo {remote_script};"
-    vm.get_ssh_client().run_remote_command(cmd, run_async=True)
-    vm.del_ssh_client()
-    logger.debug('Installation script submitted to {}'.format(vm))
+    worker.get_ssh_client().run_remote_command(cmd, run_async=True)
+    worker.del_ssh_client()
+    logger.debug(f'Installation script submitted to {worker}')
 
-    logger.debug(f'Appending {vm.name} to Worker list')
-    workers[vm.name] = vm
+    logger.debug(f'Appending {worker.name} to Worker list')
+    workers[worker.name] = worker
 
 
 def start_workers(job_payload, work_queue_name):

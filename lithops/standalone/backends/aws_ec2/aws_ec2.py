@@ -32,6 +32,8 @@ from lithops.standalone.utils import CLOUD_CONFIG_WORKER
 
 logger = logging.getLogger(__name__)
 
+INSTANCE_START_TIMEOUT = 180
+
 
 def b64s(string):
     """
@@ -286,6 +288,35 @@ class EC2Instance:
             except Exception:
                 pass
             self.ssh_client = None
+
+    def is_ready(self, verbose=False):
+        """
+        Checks if the VM instance is ready to receive ssh connections
+        """
+        try:
+            self.get_ssh_client().run_remote_command('id')
+        except Exception as e:
+            if verbose:
+                logger.debug(f'ssh to {self.private_ip} failed: {e}')
+            self.del_ssh_client()
+            return False
+        return True
+
+    def wait_ready(self, verbose=False):
+        """
+        Waits until the VM instance is ready to receive ssh connections
+        """
+        logger.debug(f'Waiting {self} to become ready')
+
+        start = time.time()
+        while(time.time() - start < INSTANCE_START_TIMEOUT):
+            if self.is_ready(verbose=verbose):
+                start_time = round(time.time()-start, 2)
+                logger.debug(f'{self} ready in {start_time} seconds')
+                return True
+            time.sleep(5)
+
+        raise TimeoutError(f'Readiness probe expired on {self}')
 
     def _create_instance(self):
         """
