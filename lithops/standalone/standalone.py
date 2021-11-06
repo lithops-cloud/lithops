@@ -21,14 +21,11 @@ import logging
 import importlib
 import requests
 import shlex
-import concurrent.futures
-
-from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures as cf
 
 from lithops.utils import is_lithops_worker, create_handler_zip
 from lithops.constants import STANDALONE_SERVICE_PORT, STANDALONE_INSTALL_DIR
 from lithops.standalone.utils import get_master_setup_script
-
 from lithops.version import __version__ as lithops_version
 
 logger = logging.getLogger(__name__)
@@ -209,13 +206,13 @@ class StandaloneHandler:
         def create_workers(workers_to_create):
             current_workers_old = set(self.backend.workers)
             futures = []
-            with ThreadPoolExecutor(workers_to_create+1) as ex:
+            with cf.ThreadPoolExecutor(workers_to_create+1) as ex:
                 futures.append(ex.submit(start_master_instance, wait=False))
                 for vm_n in range(workers_to_create):
                     worker_id = "{:04d}".format(vm_n)
                     name = 'lithops-worker-{}-{}-{}'.format(executor_id, job_id, worker_id)
                     ex.submit(self.backend.create_worker, name)
-            for future in concurrent.futures.as_completed(futures):
+            for future in cf.as_completed(futures):
                 future.result()
 
             current_workers_new = set(self.backend.workers)

@@ -235,7 +235,7 @@ class EC2Instance:
         self.ssh_credentials = {
             'username': self.config['ssh_username'],
             'password': self.config['ssh_password'],
-            'key_filename': self.config.get('ssh_key_filename', None)
+            'key_filename': self.config.get('ssh_key_filename', '~/.ssh/id_rsa')
         }
 
     def __str__(self):
