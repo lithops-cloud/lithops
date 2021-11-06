@@ -26,7 +26,7 @@ class VMBackend:
             logger.debug('Initializing VM backend (Consume mode)')
             self.master = VMInstance(self.config)
         else:
-            raise Exception('Create mode is not allowed in the VM backend')
+            raise Exception(f'{self.mode} mode is not allowed in the VM backend')
 
     def clean(self):
         pass
@@ -46,7 +46,7 @@ class VMBackend:
 class VMInstance:
 
     def __init__(self, config):
-        self.ip_address = self.config['ip_address']
+        self.public_ip = self.private_ip = self.config['ip_address']
         self.ssh_client = None
         self.ssh_credentials = {
             'username': self.config.get('ssh_user', 'root'),
@@ -62,9 +62,9 @@ class VMInstance:
         """
         Creates an ssh client against the VM only if the Instance is the master
         """
-        if self.ip_address:
+        if self.public_ip:
             if not self.ssh_client:
-                self.ssh_client = SSHClient(self.ip_address, self.ssh_credentials)
+                self.ssh_client = SSHClient(self.public_ip, self.ssh_credentials)
         return self.ssh_client
 
     def del_ssh_client(self):
@@ -72,10 +72,19 @@ class VMInstance:
         Deletes the ssh client
         """
         if self.ssh_client:
-            self.ssh_client.close()
+            try:
+                self.ssh_client.close()
+            except Exception:
+                pass
             self.ssh_client = None
 
-    def create(self):
+    def get_public_ip(self):
+        """
+        Requests the the primary public IP address
+        """
+        return self.public_ip
+
+    def create(self, **kwargs):
         pass
 
     def start(self):

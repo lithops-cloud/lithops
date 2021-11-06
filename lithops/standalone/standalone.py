@@ -234,7 +234,7 @@ class StandaloneHandler:
             new_workers = create_workers(total_required_workers)
             total_workers = len(new_workers)
             worker_instances = [(inst.name,
-                                 inst.ip_address,
+                                 inst.private_ip,
                                  inst.instance_id,
                                  inst.ssh_credentials)
                                 for inst in new_workers]
@@ -250,7 +250,7 @@ class StandaloneHandler:
                 new_workers = create_workers(workers_to_create)
                 total_workers = len(new_workers) + total_started_workers
                 worker_instances = [(inst.name,
-                                     inst.ip_address,
+                                     inst.private_ip,
                                      inst.instance_id,
                                      inst.ssh_credentials)
                                     for inst in new_workers]
@@ -372,10 +372,9 @@ class StandaloneHandler:
         os.remove(LOCAL_FH_ZIP_LOCATION)
 
         vm_data = {'instance_name': self.backend.master.name,
-                   'ip_address': self.backend.master.ip_address,
                    'instance_id': self.backend.master.instance_id,
-                   'lithops_version': lithops_version
-                   }
+                   'private_ip': self.backend.master.private_ip,
+                   'lithops_version': lithops_version}
 
         logger.debug('Executing lithops installation process on {}'.format(self.backend.master))
         logger.debug('Be patient, initial installation process may take up to 3 minutes')

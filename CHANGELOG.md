@@ -8,6 +8,7 @@
 - [Standalone] Added the logic to create the missing deleta of workers in reuse mode
 - [Standalone] Cancel running job tasks on ctrl-c
 - [Standalone] New logic to verify that the master VM is correctly setup
+- [Standalone] Added new command "lithops attach" that allows to create live ssh connections to the master VM
 - [Config] Allow to set monitoring_interval in config
 
 ### Changed

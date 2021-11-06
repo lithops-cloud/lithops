@@ -20,6 +20,8 @@ import time
 import click
 import logging
 import shutil
+import shlex
+import subprocess as sp
 
 import lithops
 from lithops import Storage
@@ -174,10 +176,34 @@ def test_function(config, backend, storage, debug):
 @click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option("--start", is_flag=True, default=False, help="Start the master VM if needed.")
-def attach(config, backend, start):
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def attach(config, backend, start, debug):
     """Create or attach to a SSH session on Lithops master VM"""
+    if config:
+        config = load_yaml_config(config)
 
-    pass
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(log_level)
+    logger.info('Creating SSH Connection to master VM')
+
+    config_ow = set_config_ow(backend)
+    config = default_config(config, config_ow)
+
+    if config['lithops']['mode'] != STANDALONE:
+        raise Exception('lithops attach method is only available for standalone backends')
+
+    compute_config = extract_standalone_config(config)
+    compute_handler = StandaloneHandler(compute_config)
+    compute_handler.init()
+
+    if start:
+        compute_handler.backend.master.start()
+
+    master_ip = compute_handler.backend.master.get_public_ip()
+    user = compute_handler.backend.master.ssh_credentials['username']
+    print(f'Got master VM public IP address: {master_ip}')
+    cmd = f'ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" {user}@{master_ip}'
+    sp.run(shlex.split(cmd))
 
 
 # /---------------------------------------------------------------------------/
