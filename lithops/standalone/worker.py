@@ -146,7 +146,7 @@ def main():
     vm_data_file = os.path.join(STANDALONE_INSTALL_DIR, 'access.data')
     with open(vm_data_file, 'r') as ad:
         vm_data = json.load(ad)
-        worker_ip = vm_data['ip_address']
+        worker_ip = vm_data['private_ip']
         master_ip = vm_data['master_ip']
         work_queue = vm_data['work_queue']
 

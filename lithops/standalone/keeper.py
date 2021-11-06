@@ -31,15 +31,15 @@ class BudgetKeeper(threading.Thread):
             vm_data = json.load(ad)
 
         self.instance_name = vm_data['instance_name']
-        self.ip_address = vm_data['ip_address']
+        self.private_ip = vm_data['private_ip']
         self.instance_id = vm_data['instance_id']
 
         logger.debug("Starting BudgetKeeper for {} ({}), instance ID: {}"
-                    .format(self.instance_name, self.ip_address, self.instance_id))
+                     .format(self.instance_name, self.private_ip, self.instance_id))
 
         self.sh = StandaloneHandler(self.standalone_config)
         self.vm = self.sh.backend.get_vm(self.instance_name)
-        self.vm.ip_address = self.ip_address
+        self.vm.private_ip = self.private_ip
         self.vm.instance_id = self.instance_id
         self.vm.delete_on_dismantle = False if 'master' in self.instance_name or \
             self.exec_mode == 'consume' else True
@@ -59,14 +59,14 @@ class BudgetKeeper(threading.Thread):
 
         if self.auto_dismantle:
             logger.debug('Auto dismantle activated - Soft timeout: {}s, Hard Timeout: {}s'
-                        .format(self.soft_dismantle_timeout,
-                                self.hard_dismantle_timeout))
+                         .format(self.soft_dismantle_timeout,
+                                 self.hard_dismantle_timeout))
         else:
             # If auto_dismantle is deactivated, the VM will be always automatically
             # stopped after hard_dismantle_timeout. This will prevent the VM
             # being started forever due a wrong configuration
             logger.debug('Auto dismantle deactivated - Hard Timeout: {}s'
-                        .format(self.hard_dismantle_timeout))
+                         .format(self.hard_dismantle_timeout))
 
         while runing:
             time_since_last_usage = time.time() - self.last_usage_time

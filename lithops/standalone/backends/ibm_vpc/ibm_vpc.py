@@ -255,13 +255,13 @@ class IBMVPCBackend:
                 self.vpc_data = {'mode': 'consume',
                                  'instance_id': self.config['instance_id'],
                                  'instance_name': name,
-                                 'floating_ip': self.config['ip_address']}
+                                 'floating_ip': self.config['private_ip']}
                 dump_yaml_config(vpc_data_filename, self.vpc_data)
 
             self.master = IBMVPCInstance(self.vpc_data['instance_name'], self.config,
                                          self.ibm_vpc_client, public=True)
             self.master.instance_id = self.config['instance_id']
-            self.master.public_ip = self.config['ip_address']
+            self.master.public_ip = self.config['private_ip']
             self.master.delete_on_dismantle = False
 
         elif self.mode in ['create', 'reuse']:
@@ -499,19 +499,20 @@ class IBMVPCInstance:
         self.ssh_client = None
         self.instance_id = None
         self.instance_data = None
-        self.ip_address = None
+        self.private_ip = None
         self.public_ip = None
 
         self.ssh_credentials = {
             'username': self.config['ssh_username'],
             'password': self.config['ssh_password'],
-            'key_filename': self.config.get('ssh_key_filename', None)
+            'key_filename': self.config.get('ssh_key_filename', '~/.ssh/id_rsa')
         }
 
         self.validated = False
 
     def __str__(self):
-        return f'VM instance {self.name} ({self.public_ip} {self.ip_address})' if self.public_ip else f'VM instance {self.name} {self.ip_address}'
+        return f'VM instance {self.name} ({self.public_ip} {self.private_ip})' \
+            if self.public_ip else f'VM instance {self.name} ({self.private_ip})'
 
     def _create_vpc_client(self):
         """
@@ -530,34 +531,38 @@ class IBMVPCInstance:
         """
         Creates an ssh client against the VM only if the Instance is the master
         """
-        if self.ip_address or self.public_ip:
-            if None in (self.ip_address, self.instance_id):
-                logger.warning(f'Refreshing master configuration missing ip_address and/or instance id {(self.ip_address, self.instance_id)}')
+        if self.private_ip or self.public_ip:
+            if None in (self.private_ip, self.instance_id):
+                logger.debug(f'Requesting master configuration: private_ip and instance_id')
                 instance_data = self.get_instance_data()
-                self.ip_address = instance_data['primary_network_interface']['primary_ipv4_address']
+                self.private_ip = instance_data['primary_network_interface']['primary_ipv4_address']
                 self.instance_id = instance_data['id']
 
             # create new instance of ssh client and return it
             # should be closed by the caller
             if unbinded:
-                return SSHClient(self.public_ip or self.ip_address, self.ssh_credentials)
+                return SSHClient(self.public_ip or self.private_ip, self.ssh_credentials)
 
             if not self.ssh_client:
-                self.ssh_client = SSHClient(self.public_ip or self.ip_address, self.ssh_credentials)
+                self.ssh_client = SSHClient(self.public_ip or self.private_ip, self.ssh_credentials)
 
         if not self.validated and self.public:
             # validate that private ssh key in ssh_credentials is a pair of public key on instance
-            if not os.path.exists(os.path.abspath(os.path.expanduser(self.ssh_credentials['key_filename']))):
-                raise LithopsValidationError(f"Specified private key file {self.ssh_credentials['key_filename']} doesn't exist")
+            key_filename = self.ssh_credentials['key_filename']
+            if not os.path.exists(os.path.abspath(os.path.expanduser(key_filename))):
+                raise LithopsValidationError(
+                    f"Specified private key file {key_filename} doesn't exist")
 
             initialization_data = self.ibm_vpc_client.get_instance_initialization(self.instance_id).get_result()
             key_id = initialization_data['keys'][0]['id']
             key_name = initialization_data['keys'][0]['name']
             public_res = self.ibm_vpc_client.get_key(key_id).get_result()['public_key'].split(' ')[1]
-            private_res = subprocess.getoutput([f"ssh-keygen -y -f {self.ssh_credentials['key_filename']} | cut -d' ' -f 2"])
+            private_res = subprocess.getoutput([f"ssh-keygen -y -f {key_filename} | cut -d' ' -f 2"])
 
             if not public_res == private_res:
-                raise LithopsValidationError(f"Private ssh key {self.ssh_credentials['key_filename']} and public key {key_name} on master {self} are not a pair")
+                raise LithopsValidationError(
+                    f"Private ssh key {key_filename} and public key "
+                    f"{key_name} on master {self} are not a pair")
 
             self.validated = True
 
@@ -676,16 +681,24 @@ class IBMVPCInstance:
         logger.debug('VM instance {} does not exists'.format(self.name))
         return None
 
-    def _get_ip_address(self):
+    def get_private_ip(self):
         """
-        Requests the the primary network IP address
+        Requests the private IP address
         """
-        ip_address = None
+        private_ip = None
         if self.instance_id:
-            while not ip_address or ip_address == '0.0.0.0':
+            while not private_ip or private_ip == '0.0.0.0':
                 instance_data = self.ibm_vpc_client.get_instance(self.instance_id).get_result()
-                ip_address = instance_data['primary_network_interface']['primary_ipv4_address']
-        return ip_address
+                private_ip = instance_data['primary_network_interface']['primary_ipv4_address']
+
+        return private_ip
+
+    def get_public_ip(self):
+        """
+        Requests the public IP address
+        """
+        if self.public_ip:
+            return self.public_ip
 
     def create(self, check_if_exists=False, start=True):
         """
@@ -705,7 +718,7 @@ class IBMVPCInstance:
         if not vsi_exists:
             instance = self._create_instance()
             self.instance_id = instance['id']
-            self.ip_address = self._get_ip_address()
+            self.private_ip = self.get_private_ip()
         elif start:
             # In IBM VPC, VM instances are automatically started on create
             if vsi_exists:
@@ -742,7 +755,7 @@ class IBMVPCInstance:
             else:
                 raise e
         self.instance_id = None
-        self.ip_address = None
+        self.private_ip = None
         self.del_ssh_client()
 
     def _stop_instance(self):

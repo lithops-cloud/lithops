@@ -83,6 +83,27 @@ this page <testing.md>`__.
 
 -  **Usage example**: ``lithops verify -b ibm_cf -s ibm_cos -f``
 
+
+``lithops attach``
+~~~~~~~~~~~~~~~~~~
+
+Open an ssh connection to the master VM (Only available for standalone backends)
+
++------------------------+----------------------------------------------------------------+
+| Parameter              | Description                                                    |
++========================+================================================================+
+| --config, -c           | Path to your config file                                       |
++------------------------+----------------------------------------------------------------+
+| --backend, -b          | Compute backend name                                           |
++------------------------+----------------------------------------------------------------+
+| --start                | Start the master VM if needed                                  |
++------------------------+----------------------------------------------------------------+
+| --debug, -d            | Activate debug logs (Flag)                                     |
++------------------------+----------------------------------------------------------------+
+
+-  **Usage example**: ``lithops attach -b ibm_vpc``
+
+
 Runtime management
 ------------------
 

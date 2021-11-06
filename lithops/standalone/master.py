@@ -66,7 +66,7 @@ def is_worker_free(vm):
     """
     Checks if the Lithops service is ready and free in the worker VM instance
     """
-    url = f"http://{vm.ip_address}:{STANDALONE_SERVICE_PORT}/ping"
+    url = f"http://{vm.private_ip}:{STANDALONE_SERVICE_PORT}/ping"
     r = requests.get(url, timeout=0.5)
     if r.status_code == 200:
         if r.json()['status'] == 'free':
@@ -81,7 +81,7 @@ def is_worker_instance_ready(vm):
     try:
         vm.get_ssh_client().run_remote_command('id')
     except Exception as e:
-        logger.debug(f'ssh to {vm.ip_address} failed: {e}')
+        logger.debug(f'ssh to {vm.private_ip} failed: {e}')
         vm.del_ssh_client()
         return False
     return True
@@ -114,12 +114,11 @@ def setup_worker(worker_info, work_queue_name):
     """
     global workers
 
-    instance_name, ip_address, instance_id, ssh_credentials = worker_info
-    logger.debug(f'Starting setup for VM instance {instance_name} ({ip_address})')
-    logger.debug(f'SSH data: {ssh_credentials}')
+    instance_name, private_ip, instance_id, ssh_credentials = worker_info
+    logger.debug(f'Starting setup for VM instance {instance_name} ({private_ip})')
 
     vm = standalone_handler.backend.get_vm(instance_name)
-    vm.ip_address = ip_address
+    vm.private_ip = private_ip
     vm.instance_id = instance_id
     vm.ssh_credentials = ssh_credentials
 
@@ -145,7 +144,7 @@ def setup_worker(worker_info, work_queue_name):
     logger.debug('Executing lithops installation process on {}'.format(vm))
 
     vm_data = {'instance_name': vm.name,
-               'ip_address': vm.ip_address,
+               'private_ip': vm.private_ip,
                'instance_id': vm.instance_id,
                'ssh_credentials': vm.ssh_credentials,
                'master_ip': master_ip,
@@ -252,7 +251,7 @@ def get_workers():
     # update last_usage_time to prevent race condition when keeper stops the vm
     budget_keeper.last_usage_time = time.time()
 
-    current_workers = [(vm.name, vm.ip_address) for vm in workers.values()]
+    current_workers = [(vm.name, vm.private_ip) for vm in workers.values()]
     logger.debug(f'Current workers: {current_workers}')
 
     free_workers = []
@@ -261,7 +260,7 @@ def get_workers():
         if is_worker_free(vm):
             free_workers.append((
                 vm.name,
-                vm.ip_address,
+                vm.private_ip,
                 vm.instance_id,
                 vm.ssh_credentials)
             )
@@ -340,8 +339,8 @@ def stop_job_process(job_key_list):
                     pass
 
             def stop_task(worker):
-                ip_address = worker['ip_address']
-                url = f"http://{ip_address}:{STANDALONE_SERVICE_PORT}/stop/{job_key}"
+                private_ip = worker['private_ip']
+                url = f"http://{private_ip}:{STANDALONE_SERVICE_PORT}/stop/{job_key}"
                 requests.post(url, timeout=0.5)
 
             # Send stop signal to all workers
@@ -468,7 +467,7 @@ def main():
 
     vm_data_file = os.path.join(STANDALONE_INSTALL_DIR, 'access.data')
     with open(vm_data_file, 'r') as ad:
-        master_ip = json.load(ad)['ip_address']
+        master_ip = json.load(ad)['private_ip']
 
     budget_keeper = BudgetKeeper(standalone_config)
     budget_keeper.start()

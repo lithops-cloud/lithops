@@ -169,3 +169,9 @@ You can view the function executions logs in your local machine using the *litho
 $ lithops logs poll
 ```
 
+The master and worker VMs contains the Lithops service logs in `/tmp/lithops/service.log`
+You can login to the master VM and get a live ssh connection with:
+
+```bash
+lithops attach -b ibm_vpc
+```

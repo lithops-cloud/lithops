@@ -80,21 +80,18 @@ class StandaloneHandler:
         """
         Waits until the VM instance is ready to receive ssh connections
         """
-        logger.info('Waiting {} to become ready'
-                    .format(self.backend.master))
+        logger.info(f'Waiting {self.backend.master} to become ready')
 
         start = time.time()
         while(time.time() - start < self.start_timeout):
             if self._is_master_instance_ready():
-                logger.debug('{} ready in {} seconds'
-                             .format(self.backend.master,
-                                     round(time.time()-start, 2)))
+                ready_time = round(time.time()-start, 2)
+                logger.debug(f'{self.backend.master} ready in {ready_time} seconds')
                 return True
             time.sleep(5)
 
         self.dismantle()
-        raise Exception('Readiness probe expired on {}'
-                        .format(self.backend.master))
+        raise Exception(f'Readiness probe expired on {self.backend.master}')
 
     def _is_master_service_ready(self):
         """
@@ -102,7 +99,7 @@ class StandaloneHandler:
         """
         try:
             if self.is_lithops_worker:
-                url = "http://127.0.0.1:{}/ping".format(STANDALONE_SERVICE_PORT)
+                url = "http://lithops-master:{}/ping".format(STANDALONE_SERVICE_PORT)
                 r = requests.get(url, timeout=1)
                 if r.status_code == 200:
                     return True
@@ -119,36 +116,40 @@ class StandaloneHandler:
             return False
 
     def _validate_master_service_setup(self):
+        """
+        Checks the master VM is correctly installed
+        """
         logger.debug(f'Validating lithops version installed on master matches {lithops_version}')
-        cmd = f'cat {STANDALONE_INSTALL_DIR}/access.data'
 
         ssh_client = self.backend.master.get_ssh_client(unbinded=True)
+
+        cmd = f'cat {STANDALONE_INSTALL_DIR}/access.data'
         res = ssh_client.run_remote_command(cmd)
         if not res:
+            self.backend.clear()
             raise Exception(
-                f"Lithops service not installed on {self.backend.master}, consider using 'lithops clean' "
-                 "to delete runtime metadata or 'lithops clean --all' to delete master instance as well")
+                f"Lithops service not installed on {self.backend.master}, "
+                "consider using 'lithops clean' to delete runtime metadata "
+                "or 'lithops clean --all' to delete master instance as well")
 
         master_lithops_version = json.loads(res).get('lithops_version')
         if master_lithops_version != lithops_version:
+            self.backend.clear()
             raise Exception(
-                f"Lithops version {master_lithops_version} on {self.backend.master}, doesn't match local "
-                f"lithops version {lithops_version}, consider running 'lithops clean' to delete runtime "
-                "metadata leftovers or 'lithops clean --all' to delete master instance as well")
+                f"Lithops version {master_lithops_version} on {self.backend.master}, "
+                "doesn't match local lithops version {lithops_version}, consider "
+                "running 'lithops clean' to delete runtime  metadata leftovers or "
+                "'lithops clean --all' to delete master instance as well")
 
-        logger.debug(
-            f'Validating lithops lithops master service is running on {self.backend.master}')
-        cmd = "service lithops-master status"
-        res = ssh_client.run_remote_command(cmd)
-        if not res:
+        logger.debug("Validating lithops lithops master service is "
+                     f"running on {self.backend.master}")
+        res = ssh_client.run_remote_command("service lithops-master status")
+        if not res or 'Active: active (running)' not in res:
+            self.backend.clear()
             raise Exception(
-                f"Lithops master service not installed on {self.backend.master}, consider to delete master "
-                "instance and metadata using 'lithops clean --all'")
-
-        if 'Active: active (running)' not in res:
-            raise Exception(
-                f"Lithops master service not active on {self.backend.master}, consider to delete master "
-                "instance and metadata using 'lithops clean --all'", res)
+                f"Lithops master service not active on {self.backend.master}, "
+                f"consider to delete master instance and metadata using "
+                "'lithops clean --all'", res)
         ssh_client.close()
         ssh_client = None
 
@@ -233,7 +234,7 @@ class StandaloneHandler:
             new_workers = create_workers(total_required_workers)
             total_workers = len(new_workers)
             worker_instances = [(inst.name,
-                                 inst.ip_address,
+                                 inst.private_ip,
                                  inst.instance_id,
                                  inst.ssh_credentials)
                                 for inst in new_workers]
@@ -249,7 +250,7 @@ class StandaloneHandler:
                 new_workers = create_workers(workers_to_create)
                 total_workers = len(new_workers) + total_started_workers
                 worker_instances = [(inst.name,
-                                     inst.ip_address,
+                                     inst.private_ip,
                                      inst.instance_id,
                                      inst.ssh_credentials)
                                     for inst in new_workers]
@@ -263,7 +264,7 @@ class StandaloneHandler:
                      'in {} workers'.format(executor_id, job_id, total_calls,
                                             min(total_workers, total_required_workers)))
 
-        logger.debug("Checking if {} is ready".format(self.backend.master))
+        logger.debug(f"Checking if {self.backend.master} is ready")
         start_master_instance(wait=True)
 
         job_payload['worker_instances'] = worker_instances
@@ -371,10 +372,9 @@ class StandaloneHandler:
         os.remove(LOCAL_FH_ZIP_LOCATION)
 
         vm_data = {'instance_name': self.backend.master.name,
-                   'ip_address': self.backend.master.ip_address,
                    'instance_id': self.backend.master.instance_id,
-                   'lithops_version': lithops_version
-                   }
+                   'private_ip': self.backend.master.private_ip,
+                   'lithops_version': lithops_version}
 
         logger.debug('Executing lithops installation process on {}'.format(self.backend.master))
         logger.debug('Be patient, initial installation process may take up to 3 minutes')
@@ -383,4 +383,3 @@ class StandaloneHandler:
         script = get_master_setup_script(self.config, vm_data)
         ssh_client.upload_data_to_file(script, remote_script)
         ssh_client.run_remote_command(f"chmod 777 {remote_script}; sudo {remote_script};")
-
