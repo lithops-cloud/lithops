@@ -1,9 +1,13 @@
 import logging
+import time
 
 from lithops.constants import COMPUTE_CLI_MSG
 from lithops.util.ssh_client import SSHClient
 
 logger = logging.getLogger(__name__)
+
+
+INSTANCE_START_TIMEOUT = 30
 
 
 class VMBackend:
@@ -28,13 +32,13 @@ class VMBackend:
         else:
             raise Exception(f'{self.mode} mode is not allowed in the VM backend')
 
-    def clean(self):
+    def clean(self, **kwargs):
         pass
 
-    def clear(self, job_keys=None):
+    def clear(self, **kwargs):
         pass
 
-    def dismantle(self):
+    def dismantle(self, **kwargs):
         pass
 
     def get_runtime_key(self, runtime_name):
@@ -77,6 +81,35 @@ class VMInstance:
             except Exception:
                 pass
             self.ssh_client = None
+
+    def is_ready(self, verbose=False):
+        """
+        Checks if the VM is ready to receive ssh connections
+        """
+        try:
+            self.get_ssh_client().run_remote_command('id')
+        except Exception as e:
+            if verbose:
+                logger.debug(f'ssh to {self.private_ip} failed: {e}')
+            self.del_ssh_client()
+            return False
+        return True
+
+    def wait_ready(self, verbose=False):
+        """
+        Waits until the VM is ready to receive ssh connections
+        """
+        logger.debug(f'Waiting {self} to become ready')
+
+        start = time.time()
+        while(time.time() - start < INSTANCE_START_TIMEOUT):
+            if self.is_ready(verbose=verbose):
+                start_time = round(time.time()-start, 2)
+                logger.debug(f'{self} ready in {start_time} seconds')
+                return True
+            time.sleep(5)
+
+        raise TimeoutError(f'Readiness probe expired on {self}')
 
     def get_public_ip(self):
         """
