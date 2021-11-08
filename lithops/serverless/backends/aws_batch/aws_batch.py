@@ -99,9 +99,6 @@ class AWSBatchBackend:
         return runtime_name + ':' + tag, memory
 
     def _build_default_runtime(self, default_runtime_img_name):
-        """
-        Builds the default runtime
-        """
         if os.system('{} --version >{} 2>&1'.format(batch_config.DOCKER_PATH, os.devnull)) == 0:
             # Build default runtime using local docker
             python_version = version_str(sys.version_info)
@@ -354,11 +351,6 @@ class AWSBatchBackend:
         raise Exception('Could not get metadata')
 
     def build_runtime(self, runtime_name, runtime_file, extra_args=[]):
-        """
-        Build Lithops container runtime for AWS Batch
-        @param runtime_name: name of the runtime to be built
-        @param runtime_file: path of a Dockerfile for a container runtime
-        """
         logger.debug('Building new docker image from Dockerfile')
         logger.debug('Docker image name: {}'.format(runtime_name))
 
@@ -401,17 +393,8 @@ class AWSBatchBackend:
         logger.debug('Runtime {} built successfully'.format(runtime_name))
 
     def create_runtime(self, runtime_name, runtime_memory, timeout=900):
-        """
-        Create a Lambda function with Lithops handler
-        @param runtime_name: name of the runtime
-        @param runtime_memory: runtime memory in MB
-        @param timeout: runtime timeout in seconds
-        @return: runtime metadata
-        """
         default_runtime_img_name = self._get_default_runtime_image_name()
         if runtime_name in ['default', default_runtime_img_name]:
-            # We only build the default image. rest of images must already exist
-            # in the docker registry.
             self._build_default_runtime(default_runtime_img_name)
 
         self._create_compute_env()
@@ -422,11 +405,6 @@ class AWSBatchBackend:
         return runtime_meta
 
     def delete_runtime(self, runtime_name, runtime_memory):
-        """
-        Delete a Lithops lambda runtime
-        @param runtime_name: name of the runtime to be deleted
-        @param runtime_memory: memory of the runtime to be deleted in MB
-        """
         jobdef_name = self._format_jobdef_name(runtime_name, runtime_memory)
         job_def = self._get_job_def(jobdef_name)
 
@@ -437,9 +415,6 @@ class AWSBatchBackend:
             raise Exception('Could not deregister job definition {}'.format(job_def['jobDefinitionArn']))
 
     def clean(self):
-        """
-        Deletes all Lithops lambda runtimes for this user
-        """
         # Delete Job Definition
         job_defs = self._get_job_def()
         for job_def in job_defs:
@@ -520,11 +495,6 @@ class AWSBatchBackend:
         #     self.ecr_client.delete_repository(repositoryName=repo_name, force=True)
 
     def list_runtimes(self, runtime_name='all'):
-        """
-        List all the Lithops lambda runtimes deployed for this user
-        @param runtime_name: name of the runtime to list, 'all' to list all runtimes
-        @return: list of tuples (runtime name, memory)
-        """
         runtimes = []
 
         for job_def in self._get_job_def():
@@ -536,13 +506,6 @@ class AWSBatchBackend:
         return runtimes
 
     def invoke(self, runtime_name, runtime_memory, payload):
-        """
-        Invoke lambda function asynchronously
-        @param runtime_name: name of the runtime
-        @param runtime_memory: memory of the runtime in MB
-        @param payload: invoke dict payload
-        @return: invocation ID
-        """
         total_calls = payload['total_calls']
         chunksize = payload['chunksize']
         total_workers = total_calls // chunksize + (total_calls % chunksize > 0)
@@ -590,11 +553,6 @@ class AWSBatchBackend:
             )
 
     def get_runtime_key(self, runtime_name, runtime_memory):
-        """
-        Method that creates and returns the runtime key.
-        Runtime keys are used to uniquely identify runtimes within the storage,
-        in order to know which runtimes are installed and which not.
-        """
         jobdef_name = self._format_jobdef_name(runtime_name, runtime_memory)
         runtime_key = os.path.join(self.name, self.package, self.region_name, jobdef_name)
         return runtime_key
