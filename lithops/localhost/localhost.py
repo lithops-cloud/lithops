@@ -153,7 +153,7 @@ class LocalhostHandler:
         """
         return 'batch'
 
-    def clean(self):
+    def clean(self, **kwargs):
         """
         Deletes all local runtimes
         """
@@ -176,6 +176,8 @@ class LocalhostHandler:
 
         if self.job_manager:
             self.job_queue.put((None, None))
+
+        self.should_run = True
 
 
 class BaseEnv():
@@ -227,8 +229,8 @@ class BaseEnv():
         Stops running processes
         """
         def kill_job(job_key):
-            logger.debug(f'Killing job {job_key} with PID {self.jobs[job_key].pid}')
             if self.jobs[job_key].poll() is None:
+                logger.debug(f'Killing job {job_key} with PID {self.jobs[job_key].pid}')
                 PID = self.jobs[job_key].pid
                 if is_unix_system():
                     PGID = os.getpgid(PID)
@@ -289,8 +291,8 @@ class DockerEnv(BaseEnv):
         total_calls = len(job_payload['call_ids'])
         job_key = job_payload['job_key']
 
-        logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going to '
-                     f'run {total_calls} activations in the localhost worker')
+        logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Running '
+                     f'{total_calls} activations in the localhost worker')
 
         if not os.path.isfile(RUNNER):
             self.setup()
@@ -352,8 +354,8 @@ class DefaultEnv(BaseEnv):
         total_calls = len(job_payload['call_ids'])
         job_key = job_payload['job_key']
 
-        logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Going to '
-                     f'run {total_calls} activations in the localhost worker')
+        logger.debug(f'ExecutorID {executor_id} | JobID {job_id} - Running '
+                     f'{total_calls} activations in the localhost worker')
 
         if not os.path.isfile(RUNNER):
             self.setup()

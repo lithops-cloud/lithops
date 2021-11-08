@@ -78,7 +78,7 @@ class ServerlessHandler:
         """
         self.backend.delete_runtime(runtime_name, memory)
 
-    def clean(self):
+    def clean(self, **kwargs):
         """
         Wrapper method to clean the compute backend
         """

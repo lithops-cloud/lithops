@@ -1,17 +1,38 @@
 # Changelog
 
-## [v2.5.5.dev0]
+## [v2.5.6.dev0]
+
+### Added
+- [AWS_EC2] Added AWS EC2 Standalone backend
+- [AWS_EC2] Allow to start workers using Spot instances in AWS EC2 Standalone backend
+- [Standalone] Added the logic to create the missing deleta of workers in reuse mode
+- [Standalone] Cancel running job tasks on ctrl-c
+- [Standalone] New logic to verify that the master VM is correctly setup
+- [Standalone] Added new command "lithops attach" that allows to create live ssh connections to the master VM
+- [Config] Allow to set monitoring_interval in config
+
+### Changed
+- [Standalone] Improved the performance of the master VM when getting the free available workers (reuse mode)
+
+### Fixed
+- [Standalone] Fixed VM initial installation script
+- [Standalone] Fixed get_workers method on master
+- [Standalone] Deleted unnecessary extra worker
+- [Standalone] Ensure all workers are proppery started on reuse mode
+- [Localhost] Fixed storage delete_objects method that was deleting the entire folder of a file
+- [IBM VPC] General fixes in IBM VPC backend
+
+
+## [v2.5.5]
 
 ### Added
 - [CLI] Allow to pass all availbe 'docker' parameter to 'lithops runtime build' command
 - [Multiprocessing] Add example file with different argument passing examples for Pool and Process
 
-### Changed
-- 
-
 ### Fixed
 - [Localhost] Fixed minnor issue when deleting completed jobs
-- [Multiprocessing] Fix args mismatch error when passing list of tuples to Pool.map
+- [Multiprocessing] Fixed args mismatch error when passing list of tuples to Pool.map
+- [Standalone] Fixed cloud-init script that ocasionaly fails to set ssh credentials
 
 
 ## [v2.5.4]

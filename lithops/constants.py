@@ -34,6 +34,7 @@ STANDALONE = 'standalone'
 MODE_DEFAULT = SERVERLESS
 
 MONITORING_DEFAULT = 'storage'
+MONITORING_INTERVAL = 2
 
 SERVERLESS_BACKEND_DEFAULT = 'ibm_cf'
 STANDALONE_BACKEND_DEFAULT = 'ibm_vpc'
@@ -98,6 +99,7 @@ SERVERLESS_BACKENDS = ['ibm_cf',
                        'k8s']
 
 STANDALONE_BACKENDS = ['ibm_vpc',
+                       'aws_ec2',
                        'vm']
 
 FAAS_BACKENDS = ['ibm_cf',
@@ -111,6 +113,7 @@ FAAS_BACKENDS = ['ibm_cf',
                  'aliyun_fc']
 
 BATCH_BACKENDS = ['ibm_vpc',
+                  'aws_ec2',
                   'k8s',
                   'code_engine'
                   'vm']

@@ -20,6 +20,8 @@ import time
 import click
 import logging
 import shutil
+import shlex
+import subprocess as sp
 
 import lithops
 from lithops import Storage
@@ -65,7 +67,9 @@ def lithops_cli():
 @click.option('--backend', '-b', default=None, help='compute backend')
 @click.option('--storage', '-s', default=None, help='storage backend')
 @click.option('--debug', '-d', is_flag=True, help='debug mode')
-def clean(config, backend, storage, debug):
+@click.option('--all', '-a', is_flag=True, help='delete all, including master vm in case of standalone')
+@click.option('--force', '-f', is_flag=True, help='force to delete all')
+def clean(config, backend, storage, debug, all, force):
     if config:
         config = load_yaml_config(config)
 
@@ -90,7 +94,7 @@ def clean(config, backend, storage, debug):
         compute_config = extract_standalone_config(config)
         compute_handler = StandaloneHandler(compute_config)
 
-    compute_handler.clean()
+    compute_handler.clean(delete_master=all, force=force)
 
     # Clean object storage temp dirs
     storage = internal_storage.storage
@@ -166,6 +170,48 @@ def test_function(config, backend, storage, debug):
     else:
         print(result, 'Something went wrong :(')
     print()
+
+
+@lithops_cli.command('attach')
+@click.option('--config', '-c', default=None, help='path to yaml config file', type=click.Path(exists=True))
+@click.option('--backend', '-b', default=None, help='compute backend')
+@click.option("--start", is_flag=True, default=False, help="Start the master VM if needed.")
+@click.option('--debug', '-d', is_flag=True, help='debug mode')
+def attach(config, backend, start, debug):
+    """Create or attach to a SSH session on Lithops master VM"""
+    if config:
+        config = load_yaml_config(config)
+
+    log_level = logging.INFO if not debug else logging.DEBUG
+    setup_lithops_logger(log_level)
+    logger.info('Creating SSH Connection to master VM')
+
+    config_ow = set_config_ow(backend)
+    config = default_config(config, config_ow)
+
+    if config['lithops']['mode'] != STANDALONE:
+        raise Exception('lithops attach method is only available for standalone backends')
+
+    compute_config = extract_standalone_config(config)
+    compute_handler = StandaloneHandler(compute_config)
+    compute_handler.init()
+
+    if start:
+        compute_handler.backend.master.start()
+
+    master_ip = compute_handler.backend.master.get_public_ip()
+    user = compute_handler.backend.master.ssh_credentials['username']
+    key_file = compute_handler.backend.master.ssh_credentials['key_filename']
+    key_file = os.path.abspath(os.path.expanduser(key_file))
+
+    if not os.path.exists(key_file):
+        raise Exception('Private key file {key_file} does not exists')
+
+    print(f'Got master VM public IP address: {master_ip}')
+    print(f'Loading ssh private key from: {key_file}')
+    cmd = ('ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" '
+           f'-i {key_file} {user}@{master_ip}')
+    sp.run(shlex.split(cmd))
 
 
 # /---------------------------------------------------------------------------/

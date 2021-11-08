@@ -55,6 +55,7 @@ Storage Backends
 - [Localhost](../docs/source/compute_config/localhost.md)
 - [Remote Virtual Machine](../docs/source/compute_config/vm.md)
 - [IBM Virtual Private Cloud](../docs/source/compute_config/ibm_vpc.md)
+- [AWS Elastic Compute Cloud (EC2)](../docs/source/compute_config/aws_ec2.md)
 
 </td>
 <td>
@@ -139,6 +140,7 @@ if __name__ == '__main__':
 |lithops | storage | ibm_cos | no | Storage backend implementation. IBM Cloud Object Storage is the default |
 |lithops | data_cleaner | True | no |If set to True, then the cleaner will automatically delete all the temporary data that was written into `storage_bucket/lithops.jobs`|
 |lithops | monitoring | storage | no | Monitoring system implementation. One of: **storage** or **rabbitmq** |
+|lithops | monitoring_interval | 2 | no | Monitoring check interval in seconds in case of **storage** monitoring |
 |lithops | data_limit | 4 | no | Max (iter)data size (in MB). Set to False for unlimited size |
 |lithops | execution_timeout | 1800 | no | Functions will be automatically killed if they exceed this execution time (in seconds). Alternatively, it can be set in the `call_async()`, `map()` or `map_reduce()` calls using the `timeout` parameter.|
 |lithops | include_modules | [] | no | Explicitly pickle these dependencies. All required dependencies are pickled if default empty list. No one dependency is pickled if it is explicitly set to None |

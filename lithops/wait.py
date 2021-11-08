@@ -104,8 +104,7 @@ def wait(fs, internal_storage=None, throw_except=True, timeout=None,
             for executor_data in executors_data:
                 job_monitor = JobMonitor(
                     executor_id=executor_data.executor_id,
-                    internal_storage=executor_data.internal_storage,
-                    backend='storage')
+                    internal_storage=executor_data.internal_storage)
                 job_monitor.start(fs=executor_data.futures)
 
         sleep_sec = wait_dur_sec if job_monitor.backend == 'storage' else 0.3

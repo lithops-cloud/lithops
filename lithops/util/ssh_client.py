@@ -44,6 +44,9 @@ class SSHClient():
         param: timeout: execution timeout
         param: run_async: do not wait for command completion
         """
+        if not self.ip_address or self.ip_address == '0.0.0.0':
+            raise Exception('Invalid IP Address')
+
         if self.ssh_client is None:
             self.ssh_client = self.create_client()
 
