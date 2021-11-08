@@ -1,6 +1,6 @@
-# AWS Lambda
+# AWS Batch
 
-Lithops with *AWS Lambda* as serverless batch compute backend.
+Lithops with *AWS Batch* as serverless batch compute backend.
 
 ## Installation
 
@@ -63,7 +63,7 @@ aws_batch:
 |aws | secret_access_key | |yes | Account secret access key to AWS services. To find them, navigate to *My Security Credentials* and click *Create Access Key* if you don't already have one. |
 |aws | account_id | |no | *This field will be used if present to retrieve the account ID instead of using AWS STS. The account ID is used to format full image names for container runtimes. |
 
-### AWS Lambda
+### AWS Batch
 
 |Group|Key|Default|Mandatory|Additional info|
 |---|---|---|---|---|
