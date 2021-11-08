@@ -66,6 +66,7 @@ Storage Backends
 - [Knative](../docs/source/compute_config/knative.md)
 - [OpenWhisk](../docs/source/compute_config/openwhisk.md)
 - [AWS Lambda](../docs/source/compute_config/aws_lambda.md)
+- [AWS Batch](../docs/source/compute_config/aws_batch.md)
 - [Google Cloud Functions](../docs/source/compute_config/gcp_functions.md)
 - [Google Cloud Run](../docs/source/compute_config/gcp_cloudrun.md)
 - [Azure Functions](../docs/source/compute_config/azure_functions.md)
