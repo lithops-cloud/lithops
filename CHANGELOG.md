@@ -1,6 +1,15 @@
 # Changelog
 
-## [v2.5.6.dev0]
+## [v2.5.7.dev0]
+
+### Added
+- [AWS Batch] Added AWS Batch backend
+
+### Changed
+
+### Fixed
+
+## [v2.5.6]
 
 ### Added
 - [AWS_EC2] Added AWS EC2 Standalone backend
