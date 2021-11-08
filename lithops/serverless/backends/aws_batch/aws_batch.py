@@ -92,12 +92,11 @@ class AWSBatchBackend:
         return '{}-{}-{}--{}mb'.format(self.package.replace('.', '-'), self._env_type, fmt_runtime_name, runtime_memory)
 
     def _unformat_jobdef_name(self, jobdef_name):
-        # 	aws-batch_lithops_v2-5-5-dev0_WH6F-default_runtime-v39--latest--256mb
+        # Default jobdef name is "aws-batch_lithops_v2-5-5-dev0_WH6F-default_runtime-v39--latest--256mb"
         prefix, tag, mem_str = jobdef_name.split('--')
         memory = int(mem_str.replace('mb', ''))
-        runtime_name_base = prefix.replace(self.package.replace('.', '-') + '-', '')
-        runtime_name, _ = runtime_name_base.split('-')
-        return runtime_name, memory
+        runtime_name = prefix.replace(self.package.replace('.', '-') + '-' + self._env_type + '-', '')
+        return runtime_name + ':' + tag, memory
 
     def _build_default_runtime(self, default_runtime_img_name):
         """
@@ -320,6 +319,7 @@ class AWSBatchBackend:
         payload['runtime_name'] = runtime_name
         payload['log_level'] = logger.getEffectiveLevel()
 
+        logger.info('Submitting extract preinstalls job for runtime {}'.format(runtime_name))
         res = self.batch_client.submit_job(
             jobName=job_name,
             jobQueue=self._queue_name,
@@ -338,6 +338,7 @@ class AWSBatchBackend:
             }
         )
 
+        logger.info('Waiting for preinstalls job to finish...')
         status_key = runtime_name + '.meta'
         retry = 25
         while retry > 0:
@@ -352,7 +353,7 @@ class AWSBatchBackend:
                 retry -= 1
         raise Exception('Could not get metadata')
 
-    def build_runtime(self, runtime_name, runtime_file):
+    def build_runtime(self, runtime_name, runtime_file, extra_args=[]):
         """
         Build Lithops container runtime for AWS Batch
         @param runtime_name: name of the runtime to be built
@@ -426,7 +427,14 @@ class AWSBatchBackend:
         @param runtime_name: name of the runtime to be deleted
         @param runtime_memory: memory of the runtime to be deleted in MB
         """
-        pass
+        jobdef_name = self._format_jobdef_name(runtime_name, runtime_memory)
+        job_def = self._get_job_def(jobdef_name)
+
+        logger.info('Deleting job definition with ARN {}'.format(job_def['jobDefinitionArn']))
+        res = self.batch_client.deregister_job_definition(jobDefinition=job_def['jobDefinitionArn'])
+        if res['ResponseMetadata']['HTTPStatusCode'] != 200:
+            logger.error(res)
+            raise Exception('Could not deregister job definition {}'.format(job_def['jobDefinitionArn']))
 
     def clean(self):
         """
@@ -435,6 +443,7 @@ class AWSBatchBackend:
         # Delete Job Definition
         job_defs = self._get_job_def()
         for job_def in job_defs:
+            logger.info('Deregister job definition {}'.format(job_def['jobDefinitionArn']))
             res = self.batch_client.deregister_job_definition(jobDefinition=job_def['jobDefinitionArn'])
             if res['ResponseMetadata']['HTTPStatusCode'] != 200:
                 logger.error(res)
@@ -510,16 +519,20 @@ class AWSBatchBackend:
         #     full_image_name, registry, repo_name = self._get_full_image_name(runtime_name)
         #     self.ecr_client.delete_repository(repositoryName=repo_name, force=True)
 
-    def list_runtimes(self, runtime_name=None):
+    def list_runtimes(self, runtime_name='all'):
         """
         List all the Lithops lambda runtimes deployed for this user
         @param runtime_name: name of the runtime to list, 'all' to list all runtimes
         @return: list of tuples (runtime name, memory)
         """
         runtimes = []
+
         for job_def in self._get_job_def():
-            runtime_name, runtime_memory = self._unformat_jobdef_name(jobdef_name=job_def['jobDefinitionName'])
-            runtimes.append((runtime_name, runtime_memory))
+            rt_name, rt_mem = self._unformat_jobdef_name(jobdef_name=job_def['jobDefinitionName'])
+            if runtime_name != 'all' and runtime_name != rt_name:
+                continue
+            runtimes.append((rt_name, rt_mem))
+
         return runtimes
 
     def invoke(self, runtime_name, runtime_memory, payload):
