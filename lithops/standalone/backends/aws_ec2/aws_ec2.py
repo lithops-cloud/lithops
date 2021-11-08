@@ -198,10 +198,10 @@ class AWSEC2Backend:
         """
         Creates a new worker VM instance
         """
-        vm = EC2Instance(name, self.config, self.ec2_client)
-        vm.create()
-        vm.ssh_credentials.pop('key_filename', None)
-        self.workers.append(vm)
+        worker = EC2Instance(name, self.config, self.ec2_client)
+        worker.create()
+        worker.ssh_credentials.pop('key_filename', None)
+        self.workers.append(worker)
 
     def get_runtime_key(self, runtime_name):
         name = runtime_name.replace('/', '-').replace(':', '-')
