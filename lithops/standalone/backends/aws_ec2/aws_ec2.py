@@ -379,6 +379,7 @@ class EC2Instance:
                 failed_requests = [r for r in spot_requests if r['State'] == 'failed']
                 if failed_requests:
                     failure_reasons = {r['Status']['Code'] for r in failed_requests}
+                    logger.debug(failure_reasons)
                     raise Exception(
                         "The spot request failed for the following reason{s}: {reasons}"
                         .format(
@@ -453,28 +454,25 @@ class EC2Instance:
         """
         Requests the private IP address
         """
-        private_ip = None
-        if self.instance_id:
-            while not private_ip:
-                instance_data = self.get_instance_data()
-                if instance_data and 'PrivateIpAddress' in instance_data:
-                    private_ip = instance_data['PrivateIpAddress']
-                else:
-                    time.sleep(1)
-        return private_ip
+        while not self.private_ip:
+            instance_data = self.get_instance_data()
+            if instance_data and 'PrivateIpAddress' in instance_data:
+                self.private_ip = instance_data['PrivateIpAddress']
+            else:
+                time.sleep(1)
+        return self.private_ip
 
     def get_public_ip(self):
         """
         Requests the public IP address
         """
-        public_ip = None
-        while self.public and not public_ip:
+        while self.public and (not self.public_ip or self.public_ip == '0.0.0.0'):
             instance_data = self.get_instance_data()
             if instance_data and 'PublicIpAddress' in instance_data:
-                public_ip = instance_data['PublicIpAddress']
+                self.public_ip = instance_data['PublicIpAddress']
             else:
                 time.sleep(1)
-        return public_ip
+        return self.public_ip
 
     def create(self, check_if_exists=False):
         """

@@ -211,6 +211,9 @@ def attach(config, backend, start, debug):
     print(f'Loading ssh private key from: {key_file}')
     cmd = ('ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" '
            f'-i {key_file} {user}@{master_ip}')
+
+    compute_handler.backend.master.wait_ready()
+
     sp.run(shlex.split(cmd))
 
 
