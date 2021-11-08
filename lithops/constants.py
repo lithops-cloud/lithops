@@ -114,6 +114,7 @@ FAAS_BACKENDS = ['ibm_cf',
 
 BATCH_BACKENDS = ['ibm_vpc',
                   'aws_ec2',
+                  'aws_batch',
                   'k8s',
                   'code_engine'
                   'vm']
