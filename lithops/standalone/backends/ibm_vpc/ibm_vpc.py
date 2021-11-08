@@ -471,10 +471,10 @@ class IBMVPCBackend:
         """
         Creates a new worker VM instance in VPC
         """
-        vm = IBMVPCInstance(name, self.config, self.ibm_vpc_client)
-        vm.create(start=True)
-        vm.ssh_credentials.pop('key_filename', None)
-        self.workers.append(vm)
+        worker = IBMVPCInstance(name, self.config, self.ibm_vpc_client)
+        worker.create()
+        worker.ssh_credentials.pop('key_filename', None)
+        self.workers.append(worker)
 
     def get_runtime_key(self, runtime_name):
         name = runtime_name.replace('/', '-').replace(':', '-')
@@ -716,20 +716,21 @@ class IBMVPCInstance:
         """
         Requests the private IP address
         """
-        private_ip = None
-        if self.instance_id:
-            while not private_ip or private_ip == '0.0.0.0':
-                instance_data = self.ibm_vpc_client.get_instance(self.instance_id).get_result()
-                private_ip = instance_data['primary_network_interface']['primary_ipv4_address']
+        while not self.private_ip or self.private_ip == '0.0.0.0':
+            time.sleep(1)
+            instance_data = self.get_instance_data()
+            self.private_ip = instance_data['primary_network_interface']['primary_ipv4_address']
 
-        return private_ip
+        return self.private_ip
 
     def get_public_ip(self):
         """
         Requests the public IP address
         """
-        if self.public_ip:
+        if self.public and self.public_ip:
             return self.public_ip
+
+        return None
 
     def create(self, check_if_exists=False):
         """
