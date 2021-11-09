@@ -238,10 +238,10 @@ class StandaloneHandler:
                     prev = workers_state_on_master
                     workers_state_on_master = json.loads(resp)
 
+                    running = 0
                     if prev != workers_state_on_master:
                         logger.debug(f'Workers state from master: {workers_state_on_master}')
 
-                        running = 0
                         msg = 'Workers states: '
                         for w in workers_state_on_master:
                             w_state = workers_state_on_master[w]["state"]

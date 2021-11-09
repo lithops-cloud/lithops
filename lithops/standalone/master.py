@@ -32,6 +32,7 @@ from concurrent.futures import ThreadPoolExecutor
 from lithops.constants import LITHOPS_TEMP_DIR, STANDALONE_LOG_FILE, JOBS_DIR,\
     STANDALONE_SERVICE_PORT, STANDALONE_CONFIG_FILE, STANDALONE_INSTALL_DIR
 from lithops.localhost.localhost import LocalhostHandler
+from lithops.standalone.standalone import LithopsValidationError
 from lithops.utils import verify_runtime_name, iterchunks, setup_lithops_logger
 from lithops.standalone.utils import get_worker_setup_script
 from lithops.standalone.keeper import BudgetKeeper
@@ -176,6 +177,19 @@ def setup_worker(worker_info, work_queue_name):
 
         workers_state[vm.name] = {'state': 'started'}
 
+        try:
+            breakpoint()
+            vm.validate_capabilities()
+        except LithopsValidationError as e:
+            breakpoint()
+            workers_state[vm.name] = {'state': 'error', 'err': e}
+            if instance_create_retries + 1 < MAX_INSTANCE_CREATE_RETRIES:
+                # Continue retrying
+                logger.warning(f'Worker setup failed with error {e}')
+                
+                delete_create_worker(workers_state)
+                continue
+
         # upload zip lithops package
         logger.debug('Uploading lithops files to {}'.format(vm))
         vm.get_ssh_client().upload_local_file('/opt/lithops/lithops_standalone.zip',
@@ -194,27 +208,15 @@ def setup_worker(worker_info, work_queue_name):
         vm.get_ssh_client().upload_data_to_file(script, remote_script)
         cmd = f"chmod 777 {remote_script}; sudo {remote_script};"
 
-        workers_state[vm.name] = {'state': 'setup'}
-        out, err = vm.get_ssh_client().run_remote_command(cmd, timeout=300)
+        vm.get_ssh_client().run_remote_command(cmd, run_async=True)
+        workers_state[vm.name]['state'] = 'running'
 
-        # if installation failed for some reason we want client side to know about it
-        # to provision new workers instead of failed
-        logger.info(f'============ STDOUT: {out}\nSTDERR: {err}')
+        logger.debug(f'Appending {vm.name} to Worker list')
+        workers[vm.name] = vm_data
 
-        CRITICAL_ERRORS = ['Not single socket CPU, while configuration requires single socket CPU']
-        # validating output
-        if any(e_msg in err for e_msg in CRITICAL_ERRORS):
-            logger.warning(f'Worker setup failed with error {err}')
-            workers_state[vm.name] = {'state': 'error', 'err': err, 'out': out}
-            delete_create_worker(workers_state)
-        else:
-            logger.debug(f'Appending {vm.name} to Worker list')
-            workers[vm.name] = vm_data
-            workers_state[vm.name] = {'state': 'running', 'err': err, 'out': out}
-
-            vm.del_ssh_client()
-            logger.info('Installation script submitted to {}'.format(vm))
-            return
+        vm.del_ssh_client()
+        logger.info('Installation script submitted to {}'.format(vm))
+        return
 
     logger.warning(f'Worker setup failed after {instance_create_retries}, {err_msg}')
     raise Exception(f'Worker setup failed after {instance_create_retries}, {err_msg}')
@@ -473,7 +475,7 @@ def run():
     exec_mode = job_payload['config']['standalone'].get('exec_mode', 'consume')
 
 #    breakpoint()
-#    setup_worker(job_payload['worker_instances'][0], 'all')
+    setup_worker(job_payload['worker_instances'][0], 'all')
 
     if exec_mode == 'consume':
         work_queue_name = 'local'

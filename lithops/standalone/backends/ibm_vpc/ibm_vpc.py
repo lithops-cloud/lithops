@@ -771,6 +771,20 @@ class IBMVPCInstance:
         """
         self._delete_instance()
 
+    def validate_capabilities(self):
+        """
+        Validate hardware/os requirments specified in backend config
+        """
+        if self.config.get('singlesocket'):
+            cmd = "lscpu -p=socket|grep -v '#'"
+            res, _ = self.get_ssh_client().run_remote_command()
+            sockets = set()
+            for c in res:
+                sockets.add(c)
+            if len(sockets) != 1:
+                raise LithopsValidationError(f'Not using single CPU socket as specified, using {len(sockets)} instead')
+
+
 def decorate_instance(instance, decorator):
     for name, func in inspect.getmembers(instance, inspect.ismethod):
         if not name.startswith("_"):
