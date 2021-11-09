@@ -16,6 +16,7 @@
 
 import os
 import json
+from pdb import set_trace
 import time
 import logging
 import importlib
@@ -224,6 +225,40 @@ class StandaloneHandler:
 
             return list(new_workers)
 
+        def _wait_workers_ready(workers_num):
+            logger.info(f'Waiting {workers_num} workers to become ready')
+
+            start = time.time()
+            setup_timeout = self.start_timeout * 2
+            while(time.time() - start < setup_timeout):
+                try:
+                    cmd = (f'curl -X GET http://127.0.0.1:{STANDALONE_SERVICE_PORT}/workers-state '
+                        '-H \'Content-Type: application/json\'')
+                    resp = self.backend.master.get_ssh_client().run_remote_command(cmd)
+                    workers_state_on_master = json.loads(resp)
+
+                    logger.debug(f'Workers state from master: {workers_state_on_master}')
+
+                    running = 0
+                    msg = 'Workers states: '
+                    for w in workers_state_on_master:
+                        w_state = workers_state_on_master[w]["state"]
+                        msg += f'({w}{w_state})'
+                        if w_state == 'running':
+                            running += 1
+
+                    logger.info(msg)
+                    if running >= workers_num:
+                        logger.info(f'All {workers_num} workers are ready')
+
+                except LithopsValidationError as e:
+                    raise e
+
+                time.sleep(10)
+
+            raise Exception('Lithops service readiness probe expired on {}'
+                        .format(self.backend.master))
+
         worker_instances = []
 
         if self.exec_mode == 'consume':
@@ -286,6 +321,7 @@ class StandaloneHandler:
         logger.debug('Job invoked on {}'.format(self.backend.master))
 
         self.jobs.append(job_payload['job_key'])
+        _wait_workers_ready(total_required_workers)
 
     def create_runtime(self, runtime_name, *args):
         """

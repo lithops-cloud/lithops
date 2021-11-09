@@ -139,12 +139,22 @@ def get_master_setup_script(config, vm_data):
     return script
 
 
+def _validate_cpu_mode():
+    return """
+    lscpu -p=socket|grep -v '#'|uniq -c| [ $(wc -l) -eq 1 ] && echo 'Single socket CPU' || echo 'Not single socket CPU, while configuration requires single socket CPU'>&2 && exit 41
+    """
+
 def get_worker_setup_script(config, vm_data):
     """
     Returns worker VM installation script
     """
-    script = """#!/bin/bash
-    rm -R {0}; mkdir -p {0}; mkdir -p /tmp/lithops;
+    script = """#!/bin/bash"""
+
+    # in case configuration requires, add validation for single socket cpu
+    if config.get('singlesocket'):
+        script += _validate_cpu_mode()
+
+    script += """rm -R {0}; mkdir -p {0}; mkdir -p /tmp/lithops;
     """.format(STANDALONE_INSTALL_DIR)
     script += get_host_setup_script()
     script += """

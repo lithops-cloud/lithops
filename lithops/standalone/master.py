@@ -51,6 +51,7 @@ REUSE_WORK_QUEUE_NAME = 'all'
 exec_mode = 'consume'
 mp_manager = mp.Manager()
 workers = mp_manager.dict()
+workers_state = mp_manager.dict()
 
 standalone_config = None
 standalone_handler = None
@@ -117,55 +118,90 @@ def setup_worker(worker_info, work_queue_name):
     Runs the job
     """
     global workers
+    global workers_state
 
     instance_name, ip_address, instance_id, ssh_credentials = worker_info
     logger.debug(f'Starting setup for VM instance {instance_name} ({ip_address})')
     logger.debug(f'SSH data: {ssh_credentials}')
 
+    instance_create_retries = 0
+    err_msg = None
+
     vm = standalone_handler.backend.get_vm(instance_name)
     vm.ip_address = ip_address
     vm.instance_id = instance_id
-    vm.ssh_credentials = ssh_credentials
 
-    worker_ready = False
-    retry = 0
+    while instance_create_retries < MAX_INSTANCE_CREATE_RETRIES:
+        vm.ssh_credentials = ssh_credentials
 
-    while not worker_ready and retry < MAX_INSTANCE_CREATE_RETRIES:
-        try:
-            wait_worker_instance_ready(vm)
-            worker_ready = True
-        except TimeoutError:  # VM not started in time
-            if retry == MAX_INSTANCE_CREATE_RETRIES:
-                msg = f'{vm} readiness probe failed after {retry} retries.'
-                logger.debug(msg)
-                vm.delete()
-                raise Exception(msg)
-            retry += 1
+        worker_ready = False
+        retry = 0
 
-    # upload zip lithops package
-    logger.debug('Uploading lithops files to {}'.format(vm))
-    vm.get_ssh_client().upload_local_file('/opt/lithops/lithops_standalone.zip',
-                                          '/tmp/lithops_standalone.zip')
-    logger.debug('Executing lithops installation process on {}'.format(vm))
+        workers_state[vm.name] = {'state': 'starting'}
 
-    vm_data = {'instance_name': vm.name,
-               'ip_address': vm.ip_address,
-               'instance_id': vm.instance_id,
-               'ssh_credentials': vm.ssh_credentials,
-               'master_ip': master_ip,
-               'work_queue': work_queue_name}
+        while not worker_ready and retry < MAX_INSTANCE_CREATE_RETRIES:
+            try:
+                wait_worker_instance_ready(vm)
+                worker_ready = True
+            except TimeoutError:  # VM not started in time
+                if retry == MAX_INSTANCE_CREATE_RETRIES:
+                    err_msg = f'{vm} readiness probe failed after {retry} retries.'
+                    logger.warning(err_msg)
+                    vm.delete()
+                retry += 1
 
-    remote_script = "/tmp/install_lithops.sh"
-    script = get_worker_setup_script(standalone_config, vm_data)
-    vm.get_ssh_client().upload_data_to_file(script, remote_script)
-    cmd = f"chmod 777 {remote_script}; sudo {remote_script};"
-    vm.get_ssh_client().run_remote_command(cmd, run_async=True)
-    vm.del_ssh_client()
-    logger.debug('Installation script submitted to {}'.format(vm))
+        workers_state[vm.name] = {'state': 'started'}
 
-    logger.debug(f'Appending {vm.name} to Worker list')
-    workers[vm.name] = vm_data
+        # upload zip lithops package
+        logger.debug('Uploading lithops files to {}'.format(vm))
+        vm.get_ssh_client().upload_local_file('/opt/lithops/lithops_standalone.zip',
+                                            '/tmp/lithops_standalone.zip')
+        logger.debug('Executing lithops installation process on {}'.format(vm))
 
+        vm_data = {'instance_name': vm.name,
+                'ip_address': vm.ip_address,
+                'instance_id': vm.instance_id,
+                'ssh_credentials': vm.ssh_credentials,
+                'master_ip': master_ip,
+                'work_queue': work_queue_name}
+
+        remote_script = "/tmp/install_lithops.sh"
+        script = get_worker_setup_script(standalone_config, vm_data)
+        vm.get_ssh_client().upload_data_to_file(script, remote_script)
+        cmd = f"chmod 777 {remote_script}; sudo {remote_script};"
+
+        workers_state[vm.name] = {'state': 'setup'}
+        out, err = vm.get_ssh_client().run_remote_command(cmd)
+
+        # if installation failed for some reason we want client side to know about it
+        # to provision new workers instead of failed
+        logger.info(f'============ STDOUT: {out}\nSTDERR: {err}')
+
+        CRITICAL_ERRORS = ['Not single socket CPU, while configuration requires single socket CPU']
+        # validating output
+        if any(e_msg in CRITICAL_ERRORS for e_msg in err):
+            logger.warning(f'Worker setup failed with error {err}')
+            workers_state[vm.name] = {'state': 'error', 'err': err, 'out': out}
+
+            # delete failed worker
+            vm.delete()
+
+            # generate new name based on retries number
+            instance_name = f'{worker_info[0]}_{instance_create_retries}'
+
+            # create worker vm
+            vm = standalone_handler.backend.create_worker(instance_name)
+        else:
+            logger.debug(f'Appending {vm.name} to Worker list')
+            workers[vm.name] = vm_data
+            workers_state[vm.name] = {'state': 'running', 'err': err, 'out': out}
+
+            vm.del_ssh_client()
+            logger.info('Installation script submitted to {}'.format(vm))
+            return
+
+    logger.warning(f'Worker setup failed after {instance_create_retries}, {err_msg}')
+    raise Exception(f'Worker setup failed after {instance_create_retries}, {err_msg}')
 
 def start_workers(job_payload, work_queue_name):
     """
@@ -242,6 +278,25 @@ def run_job_worker(job_payload, work_queue, work_queue_name):
 def error(msg):
     response = flask.jsonify({'error': msg})
     response.status_code = 404
+    return response
+
+
+@app.route('/workers-state', methods=['GET'])
+def get_workers_state():
+    """
+    Returns the current workers state
+    """
+    # global workers
+    # global budget_keeper
+
+    # # update last_usage_time to prevent race condition when keeper stops the vm
+    # budget_keeper.last_usage_time = time.time()
+
+    logger.debug(f'Workers state: {workers_state}')
+
+    response = flask.jsonify(workers_state)
+    response.status_code = 200
+
     return response
 
 
