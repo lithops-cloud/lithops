@@ -147,7 +147,6 @@ def setup_worker(worker_info, work_queue_name):
             # delete failed worker
             vm.delete()
             workers_state.pop(vm.name)
-#            breakpoint()
 
             # generate new name based on retries number
             instance_name = f'{worker_info[0]}-{instance_create_retries}'
@@ -159,11 +158,9 @@ def setup_worker(worker_info, work_queue_name):
 
         while not worker_ready and  instance_wait_retry< MAX_INSTANCE_WAIT_READY_RETRIES:
             try:
-#                breakpoint()
                 wait_worker_instance_ready(vm)
                 worker_ready = True
             except TimeoutError:  # VM not started in time
-                # TODO: Are those retries really needed? In what case?
                 instance_wait_retry += 1
                 if instance_wait_retry == MAX_INSTANCE_WAIT_READY_RETRIES:
                     err_msg = f'{vm} readiness probe failed after {instance_wait_retry} retries.'
@@ -172,21 +169,17 @@ def setup_worker(worker_info, work_queue_name):
         if not worker_ready:
             workers_state[vm.name] = {'state': 'error', 'err': f'{vm} readiness probe failed after {instance_wait_retry} retries.'}
             delete_create_worker(workers_state)
-#            breakpoint()
             continue
 
         workers_state[vm.name] = {'state': 'started'}
 
         try:
-#            breakpoint()
             vm.validate_capabilities()
         except LithopsValidationError as e:
-#            breakpoint()
             workers_state[vm.name] = {'state': 'error', 'err': str(e)}
             if instance_create_retries + 1 < MAX_INSTANCE_CREATE_RETRIES:
                 # Continue retrying
                 logger.warning(f'Worker setup failed with error {e}')
-                
                 delete_create_worker(workers_state)
                 continue
 
@@ -304,14 +297,7 @@ def get_workers_state():
     """
     Returns the current workers state
     """
-    # global workers
-    # global budget_keeper
-
-    # # update last_usage_time to prevent race condition when keeper stops the vm
-    # budget_keeper.last_usage_time = time.time()
-
     logger.debug(f'Workers state: {workers_state}')
-
     return flask.jsonify(dict(workers_state))
 
 
@@ -473,9 +459,6 @@ def run():
     budget_keeper.jobs[job_key] = 'running'
 
     exec_mode = job_payload['config']['standalone'].get('exec_mode', 'consume')
-
-#    breakpoint()
-#    setup_worker(job_payload['worker_instances'][0], 'all')
 
     if exec_mode == 'consume':
         work_queue_name = 'local'

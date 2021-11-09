@@ -16,7 +16,6 @@
 
 import os
 import json
-from pdb import set_trace
 import time
 import logging
 import importlib
@@ -110,7 +109,7 @@ class StandaloneHandler:
                 return False
             else:
                 cmd = 'curl -X GET http://127.0.0.1:{}/ping'.format(STANDALONE_SERVICE_PORT)
-                out, _ = self.backend.master.get_ssh_client().run_remote_command(cmd)
+                out = self.backend.master.get_ssh_client().run_remote_command(cmd)
                 data = json.loads(out)
                 if data['response'] == lithops_version:
                     return True
@@ -124,7 +123,7 @@ class StandaloneHandler:
         cmd = f'cat {STANDALONE_INSTALL_DIR}/access.data'
 
         ssh_client = self.backend.master.get_ssh_client(unbinded=True)
-        res, _ = ssh_client.run_remote_command(cmd)
+        res = ssh_client.run_remote_command(cmd)
         if not res:
             raise Exception(
                 f"Lithops service not installed on {self.backend.master}, consider using 'lithops clean' "
@@ -140,7 +139,7 @@ class StandaloneHandler:
         logger.debug(
             f'Validating lithops lithops master service is running on {self.backend.master}')
         cmd = "service lithops-master status"
-        res, _ = ssh_client.run_remote_command(cmd)
+        res = ssh_client.run_remote_command(cmd)
         if not res:
             raise Exception(
                 f"Lithops master service not installed on {self.backend.master}, consider to delete master "
@@ -198,7 +197,7 @@ class StandaloneHandler:
             try:
                 cmd = (f'curl -X GET http://127.0.0.1:{STANDALONE_SERVICE_PORT}/workers '
                        '-H \'Content-Type: application/json\'')
-                resp, _ = self.backend.master.get_ssh_client().run_remote_command(cmd)
+                resp = self.backend.master.get_ssh_client().run_remote_command(cmd)
                 workers_on_master = json.loads(resp)
             except LithopsValidationError as e:
                 raise e
@@ -234,7 +233,7 @@ class StandaloneHandler:
                 try:
                     cmd = (f'curl -X GET http://127.0.0.1:{STANDALONE_SERVICE_PORT}/workers-state '
                         '-H \'Content-Type: application/json\'')
-                    resp, _ = self.backend.master.get_ssh_client().run_remote_command(cmd)
+                    resp = self.backend.master.get_ssh_client().run_remote_command(cmd)
                     prev = workers_state_on_master
 
                     workers_state_on_master = json.loads(resp)
@@ -254,7 +253,7 @@ class StandaloneHandler:
 
                     if running >= workers_num:
                         logger.info(f'All {workers_num} workers are ready')
-                        
+
                         # on backend, in case workers failed to get optimal workers setup, they may run
                         # but in order to notify user they will have running state, but 'err' containing error
                         for w in workers_state_on_master:
@@ -356,7 +355,7 @@ class StandaloneHandler:
         cmd = ('curl http://127.0.0.1:8080/preinstalls -d {} '
                '-H \'Content-Type: application/json\' -X GET'
                .format(shlex.quote(json.dumps(payload))))
-        out, _ = self.backend.master.get_ssh_client().run_remote_command(cmd)
+        out = self.backend.master.get_ssh_client().run_remote_command(cmd)
         runtime_meta = json.loads(out)
 
         return runtime_meta

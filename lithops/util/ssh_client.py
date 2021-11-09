@@ -58,12 +58,11 @@ class SSHClient():
             stdin, stdout, stderr = self.ssh_client.exec_command(cmd, timeout=timeout)
 
         out = None
-        error = None
         if not run_async:
             out = stdout.read().decode().strip()
             error = stderr.read().decode().strip()
 
-        return out, error
+        return out
 
     def upload_local_file(self, local_src, remote_dst):
         """

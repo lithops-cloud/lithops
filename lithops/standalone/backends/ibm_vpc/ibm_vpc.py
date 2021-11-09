@@ -777,7 +777,7 @@ class IBMVPCInstance:
         """
         if self.config.get('singlesocket'):
             cmd = "lscpu -p=socket|grep -v '#'"
-            res, _ = self.get_ssh_client().run_remote_command(cmd)
+            res = self.get_ssh_client().run_remote_command(cmd)
             sockets = set()
             for c in res:
                 if c != '\n':
