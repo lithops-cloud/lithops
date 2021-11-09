@@ -777,12 +777,13 @@ class IBMVPCInstance:
         """
         if self.config.get('singlesocket'):
             cmd = "lscpu -p=socket|grep -v '#'"
-            res, _ = self.get_ssh_client().run_remote_command()
+            res, _ = self.get_ssh_client().run_remote_command(cmd)
             sockets = set()
             for c in res:
-                sockets.add(c)
+                if c != '\n':
+                    sockets.add(c)
             if len(sockets) != 1:
-                raise LithopsValidationError(f'Not using single CPU socket as specified, using {len(sockets)} instead')
+                raise LithopsValidationError(f'Not using single CPU socket as specified, using {len(sockets)} sockets instead')
 
 
 def decorate_instance(instance, decorator):

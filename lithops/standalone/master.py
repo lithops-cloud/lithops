@@ -178,11 +178,11 @@ def setup_worker(worker_info, work_queue_name):
         workers_state[vm.name] = {'state': 'started'}
 
         try:
-            breakpoint()
+#            breakpoint()
             vm.validate_capabilities()
         except LithopsValidationError as e:
-            breakpoint()
-            workers_state[vm.name] = {'state': 'error', 'err': e}
+#            breakpoint()
+            workers_state[vm.name] = {'state': 'error', 'err': str(e)}
             if instance_create_retries + 1 < MAX_INSTANCE_CREATE_RETRIES:
                 # Continue retrying
                 logger.warning(f'Worker setup failed with error {e}')
@@ -209,7 +209,7 @@ def setup_worker(worker_info, work_queue_name):
         cmd = f"chmod 777 {remote_script}; sudo {remote_script};"
 
         vm.get_ssh_client().run_remote_command(cmd, run_async=True)
-        workers_state[vm.name]['state'] = 'running'
+        workers_state[vm.name] = {'state': 'running', 'err': workers_state[vm.name].get('err')}
 
         logger.debug(f'Appending {vm.name} to Worker list')
         workers[vm.name] = vm_data
@@ -475,7 +475,7 @@ def run():
     exec_mode = job_payload['config']['standalone'].get('exec_mode', 'consume')
 
 #    breakpoint()
-    setup_worker(job_payload['worker_instances'][0], 'all')
+#    setup_worker(job_payload['worker_instances'][0], 'all')
 
     if exec_mode == 'consume':
         work_queue_name = 'local'

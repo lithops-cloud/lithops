@@ -236,6 +236,7 @@ class StandaloneHandler:
                         '-H \'Content-Type: application/json\'')
                     resp, _ = self.backend.master.get_ssh_client().run_remote_command(cmd)
                     prev = workers_state_on_master
+
                     workers_state_on_master = json.loads(resp)
 
                     running = 0
@@ -264,6 +265,9 @@ class StandaloneHandler:
                 except LithopsValidationError as e:
                     breakpoint()
                     raise e
+                except Exception as e:
+                    breakpoint()
+                    pass
 
                 time.sleep(10)
 
