@@ -45,7 +45,8 @@ logger = logging.getLogger('lithops.standalone.master')
 app = flask.Flask(__name__)
 
 INSTANCE_START_TIMEOUT = 120
-MAX_INSTANCE_CREATE_RETRIES = 2
+MAX_INSTANCE_WAIT_READY_RETRIES = 2
+MAX_INSTANCE_CREATE_RETRIES = 3
 REUSE_WORK_QUEUE_NAME = 'all'
 
 exec_mode = 'consume'
@@ -135,20 +136,43 @@ def setup_worker(worker_info, work_queue_name):
         vm.ssh_credentials = ssh_credentials
 
         worker_ready = False
-        retry = 0
+        instance_wait_retry = 0
 
         workers_state[vm.name] = {'state': 'starting'}
 
-        while not worker_ready and retry < MAX_INSTANCE_CREATE_RETRIES:
+        def delete_create_worker(workers_state):
+            nonlocal vm, instance_name, instance_create_retries
+
+            # delete failed worker
+            vm.delete()
+            workers_state.pop(vm.name)
+#            breakpoint()
+
+            # generate new name based on retries number
+            instance_name = f'{worker_info[0]}-{instance_create_retries}'
+
+            # create worker vm
+            workers_state[instance_name] = {'state': 'creating'}
+            vm = standalone_handler.backend.create_worker(instance_name)
+            instance_create_retries += 1
+
+        while not worker_ready and  instance_wait_retry< MAX_INSTANCE_WAIT_READY_RETRIES:
             try:
+#                breakpoint()
                 wait_worker_instance_ready(vm)
                 worker_ready = True
             except TimeoutError:  # VM not started in time
-                if retry == MAX_INSTANCE_CREATE_RETRIES:
-                    err_msg = f'{vm} readiness probe failed after {retry} retries.'
+                # TODO: Are those retries really needed? In what case?
+                instance_wait_retry += 1
+                if instance_wait_retry == MAX_INSTANCE_WAIT_READY_RETRIES:
+                    err_msg = f'{vm} readiness probe failed after {instance_wait_retry} retries.'
                     logger.warning(err_msg)
-                    vm.delete()
-                retry += 1
+
+        if not worker_ready:
+            workers_state[vm.name] = {'state': 'error', 'err': f'{vm} readiness probe failed after {instance_wait_retry} retries.'}
+            delete_create_worker(workers_state)
+#            breakpoint()
+            continue
 
         workers_state[vm.name] = {'state': 'started'}
 
@@ -171,7 +195,7 @@ def setup_worker(worker_info, work_queue_name):
         cmd = f"chmod 777 {remote_script}; sudo {remote_script};"
 
         workers_state[vm.name] = {'state': 'setup'}
-        out, err = vm.get_ssh_client().run_remote_command(cmd)
+        out, err = vm.get_ssh_client().run_remote_command(cmd, timeout=300)
 
         # if installation failed for some reason we want client side to know about it
         # to provision new workers instead of failed
@@ -179,18 +203,10 @@ def setup_worker(worker_info, work_queue_name):
 
         CRITICAL_ERRORS = ['Not single socket CPU, while configuration requires single socket CPU']
         # validating output
-        if any(e_msg in CRITICAL_ERRORS for e_msg in err):
+        if any(e_msg in err for e_msg in CRITICAL_ERRORS):
             logger.warning(f'Worker setup failed with error {err}')
             workers_state[vm.name] = {'state': 'error', 'err': err, 'out': out}
-
-            # delete failed worker
-            vm.delete()
-
-            # generate new name based on retries number
-            instance_name = f'{worker_info[0]}_{instance_create_retries}'
-
-            # create worker vm
-            vm = standalone_handler.backend.create_worker(instance_name)
+            delete_create_worker(workers_state)
         else:
             logger.debug(f'Appending {vm.name} to Worker list')
             workers[vm.name] = vm_data
@@ -294,10 +310,7 @@ def get_workers_state():
 
     logger.debug(f'Workers state: {workers_state}')
 
-    response = flask.jsonify(workers_state)
-    response.status_code = 200
-
-    return response
+    return flask.jsonify(dict(workers_state))
 
 
 @app.route('/workers', methods=['GET'])
@@ -458,6 +471,9 @@ def run():
     budget_keeper.jobs[job_key] = 'running'
 
     exec_mode = job_payload['config']['standalone'].get('exec_mode', 'consume')
+
+#    breakpoint()
+#    setup_worker(job_payload['worker_instances'][0], 'all')
 
     if exec_mode == 'consume':
         work_queue_name = 'local'

@@ -148,7 +148,8 @@ def get_worker_setup_script(config, vm_data):
     """
     Returns worker VM installation script
     """
-    script = """#!/bin/bash"""
+    script = """#!/bin/bash
+    """
 
     # in case configuration requires, add validation for single socket cpu
     if config.get('singlesocket'):
