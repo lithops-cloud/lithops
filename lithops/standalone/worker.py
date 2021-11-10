@@ -24,14 +24,14 @@ from pathlib import Path
 from threading import Thread
 from gevent.pywsgi import WSGIServer
 
-from lithops.constants import LITHOPS_TEMP_DIR, STANDALONE_LOG_FILE, JOBS_DIR,\
-    STANDALONE_SERVICE_PORT, STANDALONE_CONFIG_FILE, STANDALONE_INSTALL_DIR
+from lithops.constants import LITHOPS_TEMP_DIR, SA_LOG_FILE, JOBS_DIR,\
+    SA_SERVICE_PORT, SA_CONFIG_FILE, SA_DATA_FILE
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.utils import verify_runtime_name, setup_lithops_logger
 from lithops.standalone.keeper import BudgetKeeper
 
 log_format = "%(asctime)s\t[%(levelname)s] %(name)s:%(lineno)s -- %(message)s"
-setup_lithops_logger(logging.DEBUG, filename=STANDALONE_LOG_FILE, log_format=log_format)
+setup_lithops_logger(logging.DEBUG, filename=SA_LOG_FILE, log_format=log_format)
 logger = logging.getLogger('lithops.standalone.worker')
 
 app = flask.Flask(__name__)
@@ -89,8 +89,8 @@ def run_worker(master_ip, work_queue):
     localhos_handler = LocalhostHandler({'pull_runtime': pull_runtime})
 
     while True:
-        url = 'http://{}:{}/get-task/{}'.format(master_ip, STANDALONE_SERVICE_PORT, work_queue)
-        logger.debug('Getting task from {}'.format(url))
+        url = f'http://{master_ip}:{SA_SERVICE_PORT}/get-task/{work_queue}'
+        logger.debug(f'Getting task from {url}')
 
         try:
             resp = requests.get(url)
@@ -138,13 +138,12 @@ def main():
     os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
 
     # read the Lithops standaole configuration file
-    with open(STANDALONE_CONFIG_FILE, 'r') as cf:
+    with open(SA_CONFIG_FILE, 'r') as cf:
         stanbdalone_config = json.load(cf)
 
     # Read the VM data file that contains the instance id, the master IP,
     # and the queue for getting tasks
-    vm_data_file = os.path.join(STANDALONE_INSTALL_DIR, 'access.data')
-    with open(vm_data_file, 'r') as ad:
+    with open(SA_DATA_FILE, 'r') as ad:
         vm_data = json.load(ad)
         worker_ip = vm_data['private_ip']
         master_ip = vm_data['master_ip']
@@ -158,7 +157,7 @@ def main():
     # Start the http server. This will be used by the master VM to pìng this
     # worker and for canceling tasks
     def run_wsgi():
-        server = WSGIServer((worker_ip, STANDALONE_SERVICE_PORT), app, log=app.logger)
+        server = WSGIServer((worker_ip, SA_SERVICE_PORT), app, log=app.logger)
         server.serve_forever()
     Thread(target=run_wsgi, daemon=True).start()
 

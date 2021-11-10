@@ -4,7 +4,7 @@ import time
 import threading
 import logging
 from lithops.standalone.standalone import StandaloneHandler
-from lithops.constants import STANDALONE_INSTALL_DIR, JOBS_DIR
+from lithops.constants import SA_DATA_FILE, JOBS_DIR
 
 
 logger = logging.getLogger(__name__)
@@ -26,8 +26,7 @@ class BudgetKeeper(threading.Thread):
 
         self.jobs = {}
 
-        vm_data_file = os.path.join(STANDALONE_INSTALL_DIR, 'access.data')
-        with open(vm_data_file, 'r') as ad:
+        with open(SA_DATA_FILE, 'r') as ad:
             vm_data = json.load(ad)
 
         self.instance_name = vm_data['instance_name']

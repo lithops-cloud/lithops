@@ -24,7 +24,7 @@ import shlex
 import concurrent.futures as cf
 
 from lithops.utils import is_lithops_worker, create_handler_zip
-from lithops.constants import STANDALONE_SERVICE_PORT, STANDALONE_INSTALL_DIR
+from lithops.constants import SA_SERVICE_PORT, SA_INSTALL_DIR
 from lithops.standalone.utils import get_master_setup_script
 from lithops.version import __version__ as lithops_version
 
@@ -69,19 +69,19 @@ class StandaloneHandler:
         """
         try:
             if self.is_lithops_worker:
-                url = f"http://lithops-master:{STANDALONE_SERVICE_PORT}/ping"
+                url = f"http://lithops-master:{SA_SERVICE_PORT}/ping"
                 r = requests.get(url, timeout=1)
                 if r.status_code == 200:
                     return True
                 return False
             else:
-                cmd = f'curl -X GET http://127.0.0.1:{STANDALONE_SERVICE_PORT}/ping'
+                cmd = f'curl -X GET http://127.0.0.1:{SA_SERVICE_PORT}/ping'
                 out = self.backend.master.get_ssh_client().run_remote_command(cmd)
                 data = json.loads(out)
                 if data['response'] == lithops_version:
                     return True
                 else:
-                    self.backend.clear()
+                    self.dismantle()
                     raise LithopsValidationError(
                         f"Lithops version {data['response']} on {self.backend.master}, "
                         f"doesn't match local lithops version {lithops_version}, consider "
@@ -98,12 +98,12 @@ class StandaloneHandler:
         """
         logger.debug(f'Validating lithops version installed on master matches {lithops_version}')
 
-        ssh_client = self.backend.master.get_ssh_client(unbinded=True)
+        ssh_client = self.backend.master.get_ssh_client()
 
-        cmd = f'cat {STANDALONE_INSTALL_DIR}/access.data'
+        cmd = f'cat {SA_INSTALL_DIR}/access.data'
         res = ssh_client.run_remote_command(cmd)
         if not res:
-            self.backend.clear()
+            self.dismantle()
             raise LithopsValidationError(
                 f"Lithops service not installed on {self.backend.master}, "
                 "consider using 'lithops clean' to delete runtime metadata "
@@ -111,7 +111,7 @@ class StandaloneHandler:
 
         master_lithops_version = json.loads(res).get('lithops_version')
         if master_lithops_version != lithops_version:
-            self.backend.clear()
+            self.dismantle()
             raise LithopsValidationError(
                 f"Lithops version {master_lithops_version} on {self.backend.master}, "
                 f"doesn't match local lithops version {lithops_version}, consider "
@@ -122,13 +122,12 @@ class StandaloneHandler:
                      f"running on {self.backend.master}")
         res = ssh_client.run_remote_command("service lithops-master status")
         if not res or 'Active: active (running)' not in res:
-            self.backend.clear()
+            self.dismantle()
             raise LithopsValidationError(
                 f"Lithops master service not active on {self.backend.master}, "
                 f"consider to delete master instance and metadata using "
                 "'lithops clean --all'", res)
-        ssh_client.close()
-        ssh_client = None
+        # self.backend.master.del_ssh_client()  # Client is deleted in clear()
 
     def _wait_master_service_ready(self):
         """
@@ -149,6 +148,27 @@ class StandaloneHandler:
         self.dismantle()
         raise Exception(f'Lithops service readiness probe expired on {self.backend.master}')
 
+    def _get_workers_on_master(self):
+        """
+        gets the total available workers on the master VM
+        """
+        workers_on_master = []
+        try:
+            if self.is_lithops_worker:
+                url = f"http://lithops-master:{SA_SERVICE_PORT}/workers"
+                resp = requests.get(url)
+                workers_on_master = resp.json()
+            else:
+                cmd = (f'curl http://127.0.0.1:{SA_SERVICE_PORT}/workers '
+                       '-H \'Content-Type: application/json\' -X GET')
+                resp = self.backend.master.get_ssh_client().run_remote_command(cmd)
+                workers_on_master = json.loads(resp)
+        except LithopsValidationError as e:
+            raise e
+        except Exception:
+            pass
+        return workers_on_master
+
     def invoke(self, job_payload):
         """
         Run the job description against the selected environment
@@ -161,19 +181,6 @@ class StandaloneHandler:
         total_required_workers = (total_calls // chunksize + (total_calls % chunksize > 0)
                                   if self.exec_mode in ['create', 'reuse'] else 1)
 
-        def get_workers_on_master():
-            workers_on_master = []
-            try:
-                cmd = (f'curl -X GET http://127.0.0.1:{STANDALONE_SERVICE_PORT}/workers '
-                       '-H \'Content-Type: application/json\'')
-                resp = self.backend.master.get_ssh_client().run_remote_command(cmd)
-                workers_on_master = json.loads(resp)
-            except LithopsValidationError as e:
-                raise e
-            except Exception:
-                pass
-            return workers_on_master
-
         def create_workers(workers_to_create):
             current_workers_old = set(self.backend.workers)
             with cf.ThreadPoolExecutor(workers_to_create+1) as ex:
@@ -181,7 +188,7 @@ class StandaloneHandler:
                           if not self._is_master_service_ready() else False)
                 for vm_n in range(workers_to_create):
                     worker_id = "{:04d}".format(vm_n)
-                    name = 'lithops-worker-{}-{}-{}'.format(executor_id, job_id, worker_id)
+                    name = f'lithops-worker-{executor_id}-{job_id}-{worker_id}'
                     ex.submit(self.backend.create_worker, name)
 
             current_workers_new = set(self.backend.workers)
@@ -206,9 +213,10 @@ class StandaloneHandler:
                                 for inst in new_workers]
 
         elif self.exec_mode == 'reuse':
-            workers = get_workers_on_master()
+            workers = self._get_workers_on_master()
             total_started_workers = len(workers)
-            logger.debug(f"Found {total_started_workers} free workers connected to master {self.backend.master}")
+            logger.debug(f"Found {total_started_workers} free workers "
+                         f"connected to master {self.backend.master}")
             if total_started_workers < total_required_workers:
                 # create missing delta of workers
                 workers_to_create = total_required_workers - total_started_workers
@@ -238,20 +246,19 @@ class StandaloneHandler:
 
         job_payload['worker_instances'] = worker_instances
 
+        # delete ssh key
+        backend = job_payload['config']['lithops']['backend']
+        job_payload['config'][backend].pop('ssh_key_filename', None)
+
         if self.is_lithops_worker:
-            url = "http://127.0.0.1:{}/run".format(STANDALONE_SERVICE_PORT)
+            url = f"http://lithops-master:{SA_SERVICE_PORT}/run"
             requests.post(url, data=json.dumps(job_payload))
         else:
-            # delete ssh key
-            backend = job_payload['config']['lithops']['backend']
-            job_payload['config'][backend].pop('ssh_key_filename', None)
-
-            cmd = ('curl http://127.0.0.1:{}/run -d {} '
-                   '-H \'Content-Type: application/json\' -X POST'
-                   .format(STANDALONE_SERVICE_PORT,
-                           shlex.quote(json.dumps(job_payload))))
+            pl = shlex.quote(json.dumps(job_payload))
+            cmd = (f'curl http://127.0.0.1:{SA_SERVICE_PORT}/run -d {pl} '
+                   '-H \'Content-Type: application/json\' -X POST')
             self.backend.master.get_ssh_client().run_remote_command(cmd)
-            self.backend.master.del_ssh_client()
+            # self.backend.master.del_ssh_client()  # Client is deleted in clear()
 
         logger.debug('Job invoked on {}'.format(self.backend.master))
 
@@ -263,9 +270,7 @@ class StandaloneHandler:
         preinstalled modules
         """
         logger.debug(f'Checking if {self.backend.master} is ready')
-
         if not self.backend.master.is_ready():
-            logger.debug(f'{self.backend.master} not ready')
             self.backend.master.create(check_if_exists=True)
             self.backend.master.wait_ready()
 
@@ -273,12 +278,19 @@ class StandaloneHandler:
         self._wait_master_service_ready()
 
         logger.debug('Extracting runtime metadata information')
+
         payload = {'runtime': runtime_name, 'pull_runtime': True}
-        cmd = ('curl http://127.0.0.1:8080/preinstalls -d {} '
-               '-H \'Content-Type: application/json\' -X GET'
-               .format(shlex.quote(json.dumps(payload))))
-        out = self.backend.master.get_ssh_client().run_remote_command(cmd)
-        runtime_meta = json.loads(out)
+
+        if self.is_lithops_worker:
+            url = f"http://lithops-master:{SA_SERVICE_PORT}/preinstalls"
+            resp = requests.get(url, data=json.dumps(payload))
+            runtime_meta = resp.json()
+        else:
+            pl = shlex.quote(json.dumps(payload))
+            cmd = (f'curl http://127.0.0.1:{SA_SERVICE_PORT}/preinstalls -d {pl} '
+                   '-H \'Content-Type: application/json\' -X GET')
+            out = self.backend.master.get_ssh_client().run_remote_command(cmd)
+            runtime_meta = json.loads(out)
 
         return runtime_meta
 
@@ -300,11 +312,14 @@ class StandaloneHandler:
         clear method is executed after the results are get,
         when an exception is produced, or when a user press ctrl+c
         """
-        cmd = ('curl http://127.0.0.1:{}/stop -d {} '
-               '-H \'Content-Type: application/json\' -X POST'
-               .format(STANDALONE_SERVICE_PORT,
-                       shlex.quote(json.dumps(self.jobs))))
         try:
+            if self.is_lithops_worker:
+                url = f"http://lithops-master:{SA_SERVICE_PORT}/stop"
+                requests.post(url, data=json.dumps(self.jobs))
+            else:
+                pl = shlex.quote(json.dumps(self.jobs))
+                cmd = (f'curl http://127.0.0.1:{SA_SERVICE_PORT}/stop -d {pl} '
+                       '-H \'Content-Type: application/json\' -X POST')
             self.backend.master.get_ssh_client().run_remote_command(cmd)
             self.backend.master.del_ssh_client()
         except Exception:

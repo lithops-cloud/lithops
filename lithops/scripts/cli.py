@@ -184,7 +184,6 @@ def attach(config, backend, start, debug):
 
     log_level = logging.INFO if not debug else logging.DEBUG
     setup_lithops_logger(log_level)
-    logger.info('Creating SSH Connection to master VM')
 
     config_ow = set_config_ow(backend)
     config = default_config(config, config_ow)
@@ -209,6 +208,7 @@ def attach(config, backend, start, debug):
 
     print(f'Got master VM public IP address: {master_ip}')
     print(f'Loading ssh private key from: {key_file}')
+    print('Creating SSH Connection to lithops master VM')
     cmd = ('ssh -o "UserKnownHostsFile=/dev/null" -o "StrictHostKeyChecking=no" '
            f'-i {key_file} {user}@{master_ip}')
 

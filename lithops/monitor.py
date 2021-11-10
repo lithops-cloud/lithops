@@ -413,7 +413,8 @@ class JobMonitor:
 
     def start(self, fs, job_id=None, chunksize=None, generate_tokens=False):
         if self.backend == 'storage':
-            mi = self.config['lithops'].get('monitoring_interval', MONITORING_INTERVAL)
+            mi = self.config['lithops'].get('monitoring_interval', MONITORING_INTERVAL)\
+                if self.config else MONITORING_INTERVAL
             bk_config = {'monitoring_interval': mi}
         else:
             bk_config = self.config.get(self.backend)

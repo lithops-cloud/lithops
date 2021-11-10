@@ -529,7 +529,7 @@ class IBMVPCInstance:
 
         return ibm_vpc_client
 
-    def get_ssh_client(self, unbinded=False):
+    def get_ssh_client(self):
         """
         Creates an ssh client against the VM only if the Instance is the master
         """
@@ -539,11 +539,6 @@ class IBMVPCInstance:
                 instance_data = self.get_instance_data()
                 self.private_ip = instance_data['primary_network_interface']['primary_ipv4_address']
                 self.instance_id = instance_data['id']
-
-            # create new instance of ssh client and return it
-            # should be closed by the caller
-            if unbinded:
-                return SSHClient(self.public_ip or self.private_ip, self.ssh_credentials)
 
             if not self.ssh_client:
                 self.ssh_client = SSHClient(self.public_ip or self.private_ip, self.ssh_credentials)
