@@ -23,9 +23,10 @@ import flask
 import queue
 import logging
 import requests
-from pathlib import Path
-from gevent.pywsgi import WSGIServer
 import multiprocessing as mp
+from pathlib import Path
+import concurrent.futures as cf
+from gevent.pywsgi import WSGIServer
 from threading import Thread
 from concurrent.futures import ThreadPoolExecutor
 
@@ -45,9 +46,7 @@ logger = logging.getLogger('lithops.standalone.master')
 
 app = flask.Flask(__name__)
 
-INSTANCE_START_TIMEOUT = 120
-MAX_INSTANCE_WAIT_READY_RETRIES = 2
-MAX_INSTANCE_CREATE_RETRIES = 5
+MAX_INSTANCE_CREATE_RETRIES = 2
 REUSE_WORK_QUEUE_NAME = 'all'
 
 exec_mode = 'consume'
@@ -85,121 +84,82 @@ def setup_worker(worker_info, work_queue_name):
     Install all the Lithops dependencies into the worker.
     Runs the job
     """
-    global workers
-    global workers_state
+    global workers, workers_state
 
     instance_name, private_ip, instance_id, ssh_credentials = worker_info
     logger.debug(f'Starting setup for VM instance {instance_name} ({private_ip})')
 
-    instance_create_retries = 0
-    err_msg = ''
-
     worker = standalone_handler.backend.get_vm(instance_name)
-    worker.ip_address = private_ip
+    worker.private_ip = private_ip
     worker.instance_id = instance_id
+    worker.ssh_credentials = ssh_credentials
 
-    max_instance_create_retries = standalone_config.get('worker_create_retries', MAX_INSTANCE_CREATE_RETRIES)
-    logger.debug(f'Max worker create retries: {max_instance_create_retries}')
-
-    try:
-        while instance_create_retries < max_instance_create_retries:
-            worker.ssh_credentials = ssh_credentials
-
-            worker_ready = False
-            instance_wait_retry = 1
-
-            workers_state[worker.name] = {'state': 'starting'}
-
-            def delete_create_worker(workers_state):
-                nonlocal worker, instance_name, instance_create_retries, err_msg
-
-                instance_create_retries += 1
-
-                if instance_create_retries >= max_instance_create_retries:
-                    raise Exception(f'Worker {instance_name} setup failure after {instance_create_retries}')
-
-                # delete failed worker
-                worker.delete()
-                workers_state.pop(worker.name)
-
-                # generate new name based on retries number
-                instance_name = f'{worker_info[0]}-{instance_create_retries + 1}'
-
-                # create worker vm
-                workers_state[instance_name] = {'state': 'creating'}
-                try:
-                    logger.debug(f'creating worker {instance_name}')
-                    vm = standalone_handler.backend.create_worker(instance_name)
-                    logger.debug(f'worker created {instance_name}')
-                except Exception as e:
-                    logger.warning(f'create worker {instance_name} failed with exception {e}')
-                    workers_state[instance_name] = {'state': 'error', 'err': str(e)}
-                    raise e
-                
-                err_msg = ''
-
-            # TODO: Do we still need instance_wait_retry in case we have delete/create retry?
-            while not worker_ready and instance_wait_retry < MAX_INSTANCE_WAIT_READY_RETRIES:
-                try:
-                    worker.wait_ready(verbose=True)
-                    worker_ready = True
-                except TimeoutError:  # VM not started in time
-                    logger.warning('Timed out waiting for instance to be ready {instance_name}')
-                    instance_wait_retry += 1
-                    if instance_wait_retry == MAX_INSTANCE_WAIT_READY_RETRIES:
-                        err_msg = f'{worker} readiness probe failed after {instance_wait_retry} retries.'
-                        logger.warning(err_msg)
-
-            if not worker_ready:
-                logger.debug(f'worker {worker.name} not ready')
-                workers_state[worker.name] = {'state': 'error', 'err': f'{worker} readiness probe failed after {instance_wait_retry} retries.'}
-                delete_create_worker(workers_state)
-                continue
-
-            workers_state[worker.name] = {'state': 'started'}
-
+    def wait_worker_ready(worker):
+        workers_state[worker.name] = {'state': 'starting'}
+        worker_ready = False
+        retry = 1
+        
+        while not worker_ready and retry <= MAX_INSTANCE_CREATE_RETRIES:
             try:
-                logger.debug(f'Validating {worker.name}')
-                worker.validate_capabilities()
-            except LithopsValidationError as e:
-                logger.debug(f'{worker.name} validation error {e}')
-                workers_state[worker.name] = {'state': 'error', 'err': str(e)}
-                if instance_create_retries + 1 < max_instance_create_retries:
-                    # Continue retrying
-                    logger.warning(f'Worker {worker.name} setup failed with error {e} after {instance_create_retries} retries')
-                    delete_create_worker(workers_state)
-                    continue
+                worker.wait_ready(verbose=True)
+                worker_ready = True
+            except TimeoutError as e:  # VM not started in time
+                if retry == MAX_INSTANCE_CREATE_RETRIES:
+                    raise e
+                logger.debug(f'Timeout Error. Recreating VM instance {worker.name}')
+                retry += 1
+                worker.delete()
+                worker.create()
 
-            # upload zip lithops package
-            logger.debug('Uploading lithops files to {}'.format(worker))
-            worker.get_ssh_client().upload_local_file('/opt/lithops/lithops_standalone.zip',
-                                                '/tmp/lithops_standalone.zip')
-            logger.debug('Executing lithops installation process on {}'.format(worker))
+    wait_worker_ready(worker)
 
-            vm_data = {'instance_name': worker.name,
-                    'ip_address': worker.ip_address,
-                    'instance_id': worker.instance_id,
-                    'ssh_credentials': worker.ssh_credentials,
-                    'master_ip': master_ip,
-                    'work_queue': work_queue_name}
+    instance_create_retries = 0
+    max_instance_create_retries = standalone_config.get('worker_create_retries', MAX_INSTANCE_CREATE_RETRIES)
+    while instance_create_retries <= max_instance_create_retries:
+        try:
+            logger.debug(f'Validating {worker.name}')
+            worker.validate_capabilities()
+        except LithopsValidationError as e:
+            logger.debug(f'{worker.name} validation error {e}')
+            workers_state[worker.name] = {'state': 'error', 'err': str(e)}
+            if instance_create_retries + 1 < max_instance_create_retries:
+                # Continue retrying
+                logger.warning(f'Worker {worker.name} setup failed with error {e} after {instance_create_retries} retries')
+                worker.delete()
+                worker.create()
+                instance_create_retries += 1
+                wait_worker_ready(worker)
+            else:
+                workers_state[worker.name] = {'state': 'setup', 'err': workers_state[worker.name].get('err')}
+                break
 
-            remote_script = "/tmp/install_lithops.sh"
-            script = get_worker_setup_script(standalone_config, vm_data)
-            worker.get_ssh_client().upload_data_to_file(script, remote_script)
-            cmd = f"chmod 777 {remote_script}; sudo {remote_script};"
+    # upload zip lithops package
+    logger.debug(f'Uploading lithops files to {worker}')
+    worker.get_ssh_client().upload_local_file(
+        '/opt/lithops/lithops_standalone.zip',
+        '/tmp/lithops_standalone.zip'
+    )
+    logger.debug(f'Executing lithops installation process on {worker}')
 
-            worker.get_ssh_client().run_remote_command(cmd, run_async=True)
-            workers_state[worker.name] = {'state': 'running', 'err': workers_state[worker.name].get('err')}
+    vm_data = {'instance_name': worker.name,
+               'private_ip': worker.private_ip,
+               'instance_id': worker.instance_id,
+               'ssh_credentials': worker.ssh_credentials,
+               'master_ip': master_ip,
+               'work_queue': work_queue_name}
 
-            logger.debug(f'Appending {worker.name} to Worker list')
-            workers[worker.name] = vm_data
+    remote_script = "/tmp/install_lithops.sh"
+    script = get_worker_setup_script(standalone_config, vm_data)
+    worker.get_ssh_client().upload_data_to_file(script, remote_script)
+    cmd = f"chmod 777 {remote_script}; sudo {remote_script};"
+    worker.get_ssh_client().run_remote_command(cmd, run_async=True)
+    worker.del_ssh_client()
+    logger.debug(f'Installation script submitted to {worker}')
+    workers_state[worker.name] = {'state': 'running', 'err': workers_state[worker.name].get('err')}
 
-            worker.del_ssh_client()
-            logger.info('Installation script submitted to {}'.format(worker))
-            return
-    except Exception as e:
-        logger.warning(f'Worker {instance_name} setup failed after {instance_create_retries} retries. {e}')
-        raise e
+    logger.debug(f'Appending {worker.name} to Worker list')
+    workers[worker.name] = worker
+
 
 def start_workers(job_payload, work_queue_name):
     """
@@ -210,9 +170,17 @@ def start_workers(job_payload, work_queue_name):
     if not workers:
         return
 
+    futures = []
     with ThreadPoolExecutor(len(workers)) as executor:
         for worker_info in workers:
-            executor.submit(setup_worker, worker_info, work_queue_name)
+            futures.append(executor.submit(setup_worker, worker_info, work_queue_name))
+    
+    for future in cf.as_completed(futures):
+        try:
+            future.result()
+        except Exception as e:
+            breakpoint()
+            logger.error(f"Worker setup produced an exception {e}")
 
     logger.debug(f'All workers set up for work queue "{work_queue_name}"')
 
@@ -279,15 +247,6 @@ def error(msg):
     return response
 
 
-@app.route('/workers-state', methods=['GET'])
-def get_workers_state():
-    """
-    Returns the current workers state
-    """
-    logger.debug(f'Workers state: {workers_state}')
-    return flask.jsonify(dict(workers_state))
-
-
 @app.route('/workers', methods=['GET'])
 def get_workers():
     """
@@ -323,6 +282,15 @@ def get_workers():
     response.status_code = 200
 
     return response
+
+
+@app.route('/workers-state', methods=['GET'])
+def get_workers_state():
+    """
+    Returns the current workers state
+    """
+    logger.debug(f'Workers state: {workers_state}')
+    return flask.jsonify(dict(workers_state))
 
 
 @app.route('/get-task/<work_queue_name>', methods=['GET'])
