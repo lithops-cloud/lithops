@@ -136,98 +136,105 @@ def setup_worker(worker_info, work_queue_name):
     max_instance_create_retries = standalone_config.get('worker_create_retries', MAX_INSTANCE_CREATE_RETRIES)
     logger.debug(f'Max worker create retries: {max_instance_create_retries}')
 
-    while instance_create_retries < max_instance_create_retries:
-        vm.ssh_credentials = ssh_credentials
+    try:
+        while instance_create_retries < max_instance_create_retries:
+            vm.ssh_credentials = ssh_credentials
 
-        worker_ready = False
-        instance_wait_retry = 0
+            worker_ready = False
+            instance_wait_retry = 0
 
-        workers_state[vm.name] = {'state': 'starting'}
+            workers_state[vm.name] = {'state': 'starting'}
 
-        def delete_create_worker(workers_state):
-            nonlocal vm, instance_name, instance_create_retries, err_msg
+            def delete_create_worker(workers_state):
+                nonlocal vm, instance_name, instance_create_retries, err_msg
 
-            # delete failed worker
-            vm.delete()
-            workers_state.pop(vm.name)
+                instance_create_retries += 1
 
-            # generate new name based on retries number
-            instance_name = f'{worker_info[0]}-{instance_create_retries + 1}'
+                if instance_create_retries >= max_instance_create_retries:
+                    raise Exception(f'Worker {instance_name} setup failure after {instance_create_retries}')
 
-            # create worker vm
-            workers_state[instance_name] = {'state': 'creating'}
-            try:
-                logger.debug(f'creating worker {instance_name}')
-                vm = standalone_handler.backend.create_worker(instance_name)
-                logger.debug(f'worker created {instance_name}')
-            except Exception as e:
-                logger.warning(f'create worker {instance_name} failed with exception {e}')
-                workers_state[instance_name] = {'state': 'error', 'err': str(e)}
-            instance_create_retries += 1
-            err_msg = ''
+                # delete failed worker
+                vm.delete()
+                workers_state.pop(vm.name)
 
-        # TODO: Do we still need instance_wait_retry in case we have delete/create retry?
-        while not worker_ready and instance_wait_retry < MAX_INSTANCE_WAIT_READY_RETRIES:
-            try:
-                wait_worker_instance_ready(vm)
-                worker_ready = True
-            except TimeoutError:  # VM not started in time
-                logger.warning('Timed out waiting for instance to be ready {instance_name}')
-                instance_wait_retry += 1
-                if instance_wait_retry == MAX_INSTANCE_WAIT_READY_RETRIES:
-                    err_msg = f'{vm} readiness probe failed after {instance_wait_retry} retries.'
-                    logger.warning(err_msg)
+                # generate new name based on retries number
+                instance_name = f'{worker_info[0]}-{instance_create_retries + 1}'
 
-        if not worker_ready:
-            logger.debug(f'worker {vm.name} not ready')
-            workers_state[vm.name] = {'state': 'error', 'err': f'{vm} readiness probe failed after {instance_wait_retry} retries.'}
-            delete_create_worker(workers_state)
-            continue
+                # create worker vm
+                workers_state[instance_name] = {'state': 'creating'}
+                try:
+                    logger.debug(f'creating worker {instance_name}')
+                    vm = standalone_handler.backend.create_worker(instance_name)
+                    logger.debug(f'worker created {instance_name}')
+                except Exception as e:
+                    logger.warning(f'create worker {instance_name} failed with exception {e}')
+                    workers_state[instance_name] = {'state': 'error', 'err': str(e)}
+                    raise e
+                
+                err_msg = ''
 
-        workers_state[vm.name] = {'state': 'started'}
+            # TODO: Do we still need instance_wait_retry in case we have delete/create retry?
+            while not worker_ready and instance_wait_retry < MAX_INSTANCE_WAIT_READY_RETRIES:
+                try:
+                    wait_worker_instance_ready(vm)
+                    worker_ready = True
+                except TimeoutError:  # VM not started in time
+                    logger.warning('Timed out waiting for instance to be ready {instance_name}')
+                    instance_wait_retry += 1
+                    if instance_wait_retry == MAX_INSTANCE_WAIT_READY_RETRIES:
+                        err_msg = f'{vm} readiness probe failed after {instance_wait_retry} retries.'
+                        logger.warning(err_msg)
 
-        try:
-            logger.debug(f'Validating {vm.name}')
-            vm.validate_capabilities()
-        except LithopsValidationError as e:
-            logger.debug(f'{vm.name} validation error {e}')
-            workers_state[vm.name] = {'state': 'error', 'err': str(e)}
-            if instance_create_retries + 1 < MAX_INSTANCE_CREATE_RETRIES:
-                # Continue retrying
-                logger.warning(f'Worker setup failed with error {e}')
+            if not worker_ready:
+                logger.debug(f'worker {vm.name} not ready')
+                workers_state[vm.name] = {'state': 'error', 'err': f'{vm} readiness probe failed after {instance_wait_retry} retries.'}
                 delete_create_worker(workers_state)
                 continue
 
-        # upload zip lithops package
-        logger.debug('Uploading lithops files to {}'.format(vm))
-        vm.get_ssh_client().upload_local_file('/opt/lithops/lithops_standalone.zip',
-                                            '/tmp/lithops_standalone.zip')
-        logger.debug('Executing lithops installation process on {}'.format(vm))
+            workers_state[vm.name] = {'state': 'started'}
 
-        vm_data = {'instance_name': vm.name,
-                'ip_address': vm.ip_address,
-                'instance_id': vm.instance_id,
-                'ssh_credentials': vm.ssh_credentials,
-                'master_ip': master_ip,
-                'work_queue': work_queue_name}
+            try:
+                logger.debug(f'Validating {vm.name}')
+                vm.validate_capabilities()
+            except LithopsValidationError as e:
+                logger.debug(f'{vm.name} validation error {e}')
+                workers_state[vm.name] = {'state': 'error', 'err': str(e)}
+                if instance_create_retries + 1 < MAX_INSTANCE_CREATE_RETRIES:
+                    # Continue retrying
+                    logger.warning(f'Worker setup failed with error {e}')
+                    delete_create_worker(workers_state)
+                    continue
 
-        remote_script = "/tmp/install_lithops.sh"
-        script = get_worker_setup_script(standalone_config, vm_data)
-        vm.get_ssh_client().upload_data_to_file(script, remote_script)
-        cmd = f"chmod 777 {remote_script}; sudo {remote_script};"
+            # upload zip lithops package
+            logger.debug('Uploading lithops files to {}'.format(vm))
+            vm.get_ssh_client().upload_local_file('/opt/lithops/lithops_standalone.zip',
+                                                '/tmp/lithops_standalone.zip')
+            logger.debug('Executing lithops installation process on {}'.format(vm))
 
-        vm.get_ssh_client().run_remote_command(cmd, run_async=True)
-        workers_state[vm.name] = {'state': 'running', 'err': workers_state[vm.name].get('err')}
+            vm_data = {'instance_name': vm.name,
+                    'ip_address': vm.ip_address,
+                    'instance_id': vm.instance_id,
+                    'ssh_credentials': vm.ssh_credentials,
+                    'master_ip': master_ip,
+                    'work_queue': work_queue_name}
 
-        logger.debug(f'Appending {vm.name} to Worker list')
-        workers[vm.name] = vm_data
+            remote_script = "/tmp/install_lithops.sh"
+            script = get_worker_setup_script(standalone_config, vm_data)
+            vm.get_ssh_client().upload_data_to_file(script, remote_script)
+            cmd = f"chmod 777 {remote_script}; sudo {remote_script};"
 
-        vm.del_ssh_client()
-        logger.info('Installation script submitted to {}'.format(vm))
-        return
+            vm.get_ssh_client().run_remote_command(cmd, run_async=True)
+            workers_state[vm.name] = {'state': 'running', 'err': workers_state[vm.name].get('err')}
 
-    logger.warning(f'Worker {instance_name} setup failed after {instance_create_retries} retries. {err_msg}')
-    raise Exception(f'Worker {instance_name} setup failed after {instance_create_retries} retries. {err_msg}')
+            logger.debug(f'Appending {vm.name} to Worker list')
+            workers[vm.name] = vm_data
+
+            vm.del_ssh_client()
+            logger.info('Installation script submitted to {}'.format(vm))
+            return
+    except Exception as e:
+        logger.warning(f'Worker {instance_name} setup failed after {instance_create_retries} retries. {e}')
+        raise e
 
 def start_workers(job_payload, work_queue_name):
     """
