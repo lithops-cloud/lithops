@@ -16,86 +16,68 @@
 
 import logging
 import requests
-import json
-import base64
 import io
-from requests.auth import HTTPBasicAuth
+from requests.auth import HTTPDigestAuth
 from lithops.constants import STORAGE_CLI_MSG
 from lithops.storage.utils import StorageNoSuchKeyError
-
+from Infinispan import Infinispan
 logger = logging.getLogger(__name__)
 
 
-class InfinispanBackend:
+class InfinispanHotrodBackend:
     """
-    Infinispan backend
+    Infinispan Hotrod backend
     """
 
     def __init__(self, infinispan_config):
-        logger.debug("Creating Infinispan storage client")
+        logger.debug("Creating Infinispan Hotrod storage client")
         self.infinispan_config = infinispan_config
-        self.basicAuth = HTTPBasicAuth(infinispan_config.get('username'),
-                                       infinispan_config.get('password'))
-        self.endpoint = infinispan_config.get('endpoint')
+        conf=Infinispan.Configuration()
+        connConf = infinispan_config.get('endpoint').split(":")
+        conf.addServer(connConf[0], int(connConf[1]) if len(connConf)>1 else 11222)
+        conf.setProtocol("2.8")
+        conf.setSasl("DIGEST-MD5", "node0", infinispan_config.get('username'), infinispan_config.get('password'))
+        self.conf = conf
+        self.cacheManager = Infinispan.RemoteCacheManager(conf)
+        self.cacheManager.start()
+        self.cacheManagerAdmin = Infinispan.RemoteCacheManagerAdmin(self.cacheManager)
+        self.basicAuth = HTTPDigestAuth(infinispan_config.get('username'),
+                                        infinispan_config.get('password'))
         self.cache_names = infinispan_config.get('cache_names', ['storage'])
         self.cache_type = infinispan_config.get('cache_type', 'org.infinispan.DIST_SYNC')
         self.infinispan_client = requests.session()
 
-        self.__is_server_version_supported()
         self.caches={}
         for cache_name in self.cache_names:
             self.__create_cache(cache_name, self.cache_type)
 
-        self.headers = {"Content-Type": "application/octet-stream",
-                        "Key-Content-Type": "application/octet-stream;encoding=base64"}
-
-        msg = STORAGE_CLI_MSG.format('Infinispan')
+        msg = STORAGE_CLI_MSG.format('Infinispan_hotrod')
         logger.info("{} - Endpoint: {}".format(msg, self.endpoint))
 
     def __create_cache(self, cache_name, cache_type):
-        url = self.endpoint + '/rest/v2/caches/' + cache_name
-        res = self.infinispan_client.head(url, auth=self.basicAuth)
+            self.caches[cache_name] = self.cacheManagerAdmin.getOrCreateCache(cache_name, cache_type);
 
-        if res.status_code == 404:
-            logger.debug('going to create new Infinispan cache {}'.format(cache_name))
-            url = self.endpoint+'/rest/v2/caches/'+cache_name+'?template='+cache_type
-            res = self.infinispan_client.post(url,auth=self.basicAuth)
-            logger.debug('New Infinispan cache {} created with '
-                         'status {}'.format(cache_name, res.status_code))
-
-    def __key_url(self, bucket_name, key):
-        keySafeEncodedBytes = base64.urlsafe_b64encode(key.encode("utf-8"))
-        keySafeEncodedStr = str(keySafeEncodedBytes, "utf-8")
-        url = self.endpoint + '/rest/v2/caches/' + bucket_name + '/' + keySafeEncodedStr
-        return url
-
-    def __is_server_version_supported(self):
-        url = self.endpoint + '/rest/v2/cache-managers/default'
-        res = self.infinispan_client.get(url, auth=self.basicAuth)
-        json_resp = json.loads(res.content.decode('utf-8'))
-        server_version = json_resp['version'].split('.')
-        if (int(server_version[0]) < 10 or (int(server_version[0]) == 10 and int(server_version[1]) < 1)):
-            raise Exception('Infinispan versions 10.1 and up supported')
-
-    def get_client(self):
-        """
-        Get infinispan client.
-        :return: infinispan_client
-        """
-        return self.infinispan_client
+    def __key(self, key):
+        return key
 
     def put_object(self, bucket_name, key, data):
         """
         Put an object in Infinispan. Override the object if the key already exists.
         :param key: key of the object.
         :param data: data of the object
-        :type data: str/bytes
+        :type data: str/bytes/io.BytesIO
         :return: None
         """
-        url = self.__key_url(bucket_name, key)
-        resp = self.infinispan_client.put(url, data=data,
-                                          auth=self.basicAuth,
-                                          headers=self.headers)
+        keyEncoded = self.__key(key)
+        keyVect = Infinispan.Util.fromString(keyEncoded);
+        if isinstance(data,str):
+            dataVec = Infinispan.Util.fromString(data)
+        elif isinstance(data,io.BytesIO):
+            r= data.read()
+            dataVec = Infinispan.UCharVector(r)
+        elif isinstance(data,bytes):
+            dataVec = Infinispan.UCharVector(data)
+        resp = self.caches[bucket_name].put(keyVect, dataVec)
         logger.debug(resp)
 
     def get_object(self, bucket_name, key, stream=False, extra_get_args={}):
@@ -105,18 +87,20 @@ class InfinispanBackend:
         :return: Data of the object
         :rtype: str/bytes
         """
-        url = self.__key_url(bucket_name, key)
-        res = self.infinispan_client.get(url, headers=self.headers, auth=self.basicAuth)
-        data = res.content
-        if data is None or len(data)==0:
-            raise StorageNoSuchKeyError(bucket_name, key)
+        keyEncoded = self.__key(key)
+        keyVect = Infinispan.Util.fromString(keyEncoded)
+        resp = self.caches[bucket_name].get(keyVect)
+        if resp is None:
+            raise StorageNoSuchKeyError(bucket=bucket_name, key=key)
+        r = Infinispan.pvuc_value(resp)
+        b = bytes(r)
         if 'Range' in extra_get_args:
             byte_range = extra_get_args['Range'].replace('bytes=', '')
             first_byte, last_byte = map(int, byte_range.split('-'))
-            data=data[first_byte:last_byte+1]
+            b=b[first_byte:last_byte+1]
         if stream:
-            return io.BytesIO(data)
-        return data
+            return io.BytesIO(b)
+        return b
 
     def head_object(self, bucket_name, key):
         """
@@ -125,10 +109,13 @@ class InfinispanBackend:
         :return: Data of the object
         :rtype: str/bytes
         """
-        obj = self.get_object(bucket_name, key)
+        fullKey = self.__key(key)
+        keyVect = Infinispan.Util.fromString(fullKey)
+        obj = self.caches[bucket_name].get(keyVect)
         if obj is None:
             raise StorageNoSuchKeyError(bucket=bucket_name, key=key)
-        return {'content-length': str(len(obj))}
+        return {'content-length': str(obj.size())}
+
 
     def delete_object(self, bucket_name, key):
         """
@@ -136,8 +123,9 @@ class InfinispanBackend:
         :param bucket: bucket name
         :param key: data key
         """
-        url = self.__key_url(bucket_name, key)
-        return self.infinispan_client.delete(url, headers=self.headers, auth=self.basicAuth)
+        fullKey = self.__key(key)
+        self.caches[bucket_name].remove(Infinispan.Util.fromString(fullKey))
+        return None
 
     def delete_objects(self, bucket_name, key_list):
         """
@@ -167,25 +155,20 @@ class InfinispanBackend:
         :return: List of objects in bucket that match the given prefix.
         :rtype: list of str
         """
-        url = self.endpoint + '/rest/v2/caches/' + bucket_name + '?action=keys'
-        res = self.infinispan_client.get(url, auth=self.basicAuth)
-        data = res.content
-        if data is None:
-            return None
-        j = json.loads(data)
-        result = []
+        keyListAsVec = self.caches[bucket_name].keys()
+        keyList = []
         if prefix is None:
             pref=""
         else:
             pref = prefix
-        for k in j:
+        for k in keyListAsVec:
             if len(k) > 0:
-                key = k
-                if key.startswith(pref):
-                    h = self.get_object(bucket_name, key)
-                    d = {'Key': key, 'Size': len(h)}
-                    result.append(d)
-        return result
+                if Infinispan.Util.toString(k).startswith(pref):
+                    o = self.caches[bucket_name].get(k)
+                    if o is not None:
+                        l = len(self.caches[bucket_name].get(k))
+                        keyList.append({'Key': Infinispan.Util.toString(k), 'Size': l})
+        return keyList
 
     def list_keys(self, bucket_name, prefix=None):
         """
@@ -195,20 +178,14 @@ class InfinispanBackend:
         :return: List of keys in bucket that match the given prefix.
         :rtype: list of str
         """
-        url = self.endpoint + '/rest/v2/caches/' + bucket_name + '?action=keys'
-        res = self.infinispan_client.get(url, auth=self.basicAuth)
-        data = res.content
-        if data is None:
-            return None
-        j = json.loads(data)
-        result = []
+        keyListAsVec = self.caches[bucket_name].keys()
+        keyList = []
         if prefix is None:
             pref=""
         else:
             pref = prefix
-        for k in j:
+        for k in keyListAsVec:
             if len(k) > 0:
-                key = k
-                if key.startswith(pref):
-                    result.append(k)
-        return result
+                if Infinispan.Util.toString(k).startswith(pref):
+                    keyList.append(Infinispan.Util.toString(k))
+        return keyList
