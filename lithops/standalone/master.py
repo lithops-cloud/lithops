@@ -28,8 +28,8 @@ from gevent.pywsgi import WSGIServer
 from threading import Thread
 from concurrent.futures import ThreadPoolExecutor
 
-from lithops.constants import LITHOPS_TEMP_DIR, STANDALONE_LOG_FILE, JOBS_DIR,\
-    STANDALONE_SERVICE_PORT, STANDALONE_CONFIG_FILE, STANDALONE_INSTALL_DIR
+from lithops.constants import LITHOPS_TEMP_DIR, SA_LOG_FILE, JOBS_DIR,\
+    SA_SERVICE_PORT, SA_CONFIG_FILE, SA_DATA_FILE
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.utils import verify_runtime_name, iterchunks, setup_lithops_logger
 from lithops.standalone.utils import get_worker_setup_script
@@ -38,7 +38,7 @@ from lithops.version import __version__ as lithops_version
 
 
 log_format = "%(asctime)s\t[%(levelname)s] %(name)s:%(lineno)s -- %(message)s"
-setup_lithops_logger(logging.DEBUG, filename=STANDALONE_LOG_FILE, log_format=log_format)
+setup_lithops_logger(logging.DEBUG, filename=SA_LOG_FILE, log_format=log_format)
 logger = logging.getLogger('lithops.standalone.master')
 
 app = flask.Flask(__name__)
@@ -65,7 +65,7 @@ def is_worker_free(vm):
     """
     Checks if the Lithops service is ready and free in the worker VM instance
     """
-    url = f"http://{vm.private_ip}:{STANDALONE_SERVICE_PORT}/ping"
+    url = f"http://{vm.private_ip}:{SA_SERVICE_PORT}/ping"
     r = requests.get(url, timeout=0.5)
     if r.status_code == 200:
         if r.json()['status'] == 'free':
@@ -309,7 +309,7 @@ def stop_job_process(job_key_list):
 
             def stop_task(worker):
                 private_ip = worker['private_ip']
-                url = f"http://{private_ip}:{STANDALONE_SERVICE_PORT}/stop/{job_key}"
+                url = f"http://{private_ip}:{SA_SERVICE_PORT}/stop/{job_key}"
                 requests.post(url, timeout=0.5)
 
             # Send stop signal to all workers
@@ -426,7 +426,7 @@ def main():
 
     os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
 
-    with open(STANDALONE_CONFIG_FILE, 'r') as cf:
+    with open(SA_CONFIG_FILE, 'r') as cf:
         standalone_config = json.load(cf)
 
     # Delete ssh_key_filename
@@ -434,8 +434,7 @@ def main():
     if 'ssh_key_filename' in standalone_config[backend]:
         del standalone_config[backend]['ssh_key_filename']
 
-    vm_data_file = os.path.join(STANDALONE_INSTALL_DIR, 'access.data')
-    with open(vm_data_file, 'r') as ad:
+    with open(SA_DATA_FILE, 'r') as ad:
         master_ip = json.load(ad)['private_ip']
 
     budget_keeper = BudgetKeeper(standalone_config)
@@ -443,8 +442,7 @@ def main():
 
     standalone_handler = budget_keeper.sh
 
-    server = WSGIServer(('0.0.0.0', STANDALONE_SERVICE_PORT),
-                        app, log=app.logger)
+    server = WSGIServer(('0.0.0.0', SA_SERVICE_PORT), app, log=app.logger)
     server.serve_forever()
 
 
