@@ -258,7 +258,7 @@ class StandaloneHandler:
                         # but in order to notify user they will have running state, but 'err' containing error
                         for w in workers_state_on_master:
                             if workers_state_on_master[w]["state"] == 'running' and  workers_state_on_master[w].get('err'):
-                                logger.warning('Workers may operate not in desired configuration, worker {w} error: {workers_state_on_master[w].get("err")}')
+                                logger.warning(f'Workers may operate not in desired configuration, worker {w} error: {workers_state_on_master[w].get("err")}')
                         return
 
                 except LithopsValidationError as e:
@@ -335,7 +335,7 @@ class StandaloneHandler:
         self.jobs.append(job_payload['job_key'])
 
         # wait_workers_ready(total_required_workers)
-        threading.Thread(target=wait_workers_ready, args=(total_required_workers), daemon=True).start()
+        threading.Thread(target=wait_workers_ready, args=(total_required_workers,), daemon=True).start()
 
 
     def create_runtime(self, runtime_name, *args):

@@ -786,9 +786,11 @@ class IBMVPCInstance:
                 raise LithopsValidationError(f'Not using single CPU socket as specified, using {len(sockets)} sockets instead')
 
 
+RETRIABLE = ['list_vpcs', 'create_vpc', 'get_security_group', 'create_security_group_rule', 'list_public_gateways', 'create_public_gateway', 'list_subnets', 'create_subnet', 'set_subnet_public_gateway', 'list_floating_ips', 'create_floating_ip', 'get_instance', 'delete_instance', 'list_instances', 'list_instance_network_interface_floating_ips', 'delete_floating_ip', 'delete_subnet', 'delete_public_gateway', 'delete_vpc', 'get_instance_initialization', 'get_key', 'create_instance', 'add_instance_network_interface_floating_ip', 'get_instance', 'create_instance_action', 'delete_instance']
+
 def decorate_instance(instance, decorator):
     for name, func in inspect.getmembers(instance, inspect.ismethod):
-        if not name.startswith("_"):
+        if name in RETRIABLE:
             setattr(instance, name, decorator(func))
     return instance
 

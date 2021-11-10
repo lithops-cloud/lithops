@@ -47,7 +47,7 @@ app = flask.Flask(__name__)
 
 INSTANCE_START_TIMEOUT = 120
 MAX_INSTANCE_WAIT_READY_RETRIES = 2
-MAX_INSTANCE_CREATE_RETRIES = 3
+MAX_INSTANCE_CREATE_RETRIES = 5
 REUSE_WORK_QUEUE_NAME = 'all'
 
 exec_mode = 'consume'
@@ -127,13 +127,16 @@ def setup_worker(worker_info, work_queue_name):
     logger.debug(f'SSH data: {ssh_credentials}')
 
     instance_create_retries = 0
-    err_msg = None
+    err_msg = ''
 
     vm = standalone_handler.backend.get_vm(instance_name)
     vm.ip_address = ip_address
     vm.instance_id = instance_id
 
-    while instance_create_retries < MAX_INSTANCE_CREATE_RETRIES:
+    max_instance_create_retries = standalone_config.get('worker_create_retries', MAX_INSTANCE_CREATE_RETRIES)
+    logger.debug(f'Max worker create retries: {max_instance_create_retries}')
+
+    while instance_create_retries < max_instance_create_retries:
         vm.ssh_credentials = ssh_credentials
 
         worker_ready = False
@@ -142,31 +145,41 @@ def setup_worker(worker_info, work_queue_name):
         workers_state[vm.name] = {'state': 'starting'}
 
         def delete_create_worker(workers_state):
-            nonlocal vm, instance_name, instance_create_retries
+            nonlocal vm, instance_name, instance_create_retries, err_msg
 
             # delete failed worker
             vm.delete()
             workers_state.pop(vm.name)
 
             # generate new name based on retries number
-            instance_name = f'{worker_info[0]}-{instance_create_retries}'
+            instance_name = f'{worker_info[0]}-{instance_create_retries + 1}'
 
             # create worker vm
             workers_state[instance_name] = {'state': 'creating'}
-            vm = standalone_handler.backend.create_worker(instance_name)
+            try:
+                logger.debug(f'creating worker {instance_name}')
+                vm = standalone_handler.backend.create_worker(instance_name)
+                logger.debug(f'worker created {instance_name}')
+            except Exception as e:
+                logger.warning(f'create worker {instance_name} failed with exception {e}')
+                workers_state[instance_name] = {'state': 'error', 'err': str(e)}
             instance_create_retries += 1
+            err_msg = ''
 
-        while not worker_ready and  instance_wait_retry< MAX_INSTANCE_WAIT_READY_RETRIES:
+        # TODO: Do we still need instance_wait_retry in case we have delete/create retry?
+        while not worker_ready and instance_wait_retry < MAX_INSTANCE_WAIT_READY_RETRIES:
             try:
                 wait_worker_instance_ready(vm)
                 worker_ready = True
             except TimeoutError:  # VM not started in time
+                logger.warning('Timed out waiting for instance to be ready {instance_name}')
                 instance_wait_retry += 1
                 if instance_wait_retry == MAX_INSTANCE_WAIT_READY_RETRIES:
                     err_msg = f'{vm} readiness probe failed after {instance_wait_retry} retries.'
                     logger.warning(err_msg)
 
         if not worker_ready:
+            logger.debug(f'worker {vm.name} not ready')
             workers_state[vm.name] = {'state': 'error', 'err': f'{vm} readiness probe failed after {instance_wait_retry} retries.'}
             delete_create_worker(workers_state)
             continue
@@ -174,8 +187,10 @@ def setup_worker(worker_info, work_queue_name):
         workers_state[vm.name] = {'state': 'started'}
 
         try:
+            logger.debug(f'Validating {vm.name}')
             vm.validate_capabilities()
         except LithopsValidationError as e:
+            logger.debug(f'{vm.name} validation error {e}')
             workers_state[vm.name] = {'state': 'error', 'err': str(e)}
             if instance_create_retries + 1 < MAX_INSTANCE_CREATE_RETRIES:
                 # Continue retrying
@@ -211,8 +226,8 @@ def setup_worker(worker_info, work_queue_name):
         logger.info('Installation script submitted to {}'.format(vm))
         return
 
-    logger.warning(f'Worker setup failed after {instance_create_retries}, {err_msg}')
-    raise Exception(f'Worker setup failed after {instance_create_retries}, {err_msg}')
+    logger.warning(f'Worker {instance_name} setup failed after {instance_create_retries} retries. {err_msg}')
+    raise Exception(f'Worker {instance_name} setup failed after {instance_create_retries} retries. {err_msg}')
 
 def start_workers(job_payload, work_queue_name):
     """
