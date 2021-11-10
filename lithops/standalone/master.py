@@ -199,9 +199,9 @@ def setup_worker(worker_info, work_queue_name):
             except LithopsValidationError as e:
                 logger.debug(f'{vm.name} validation error {e}')
                 workers_state[vm.name] = {'state': 'error', 'err': str(e)}
-                if instance_create_retries + 1 < MAX_INSTANCE_CREATE_RETRIES:
+                if instance_create_retries + 1 < max_instance_create_retries:
                     # Continue retrying
-                    logger.warning(f'Worker setup failed with error {e}')
+                    logger.warning(f'Worker {vm.name} setup failed with error {e} after {instance_create_retries} retries')
                     delete_create_worker(workers_state)
                     continue
 

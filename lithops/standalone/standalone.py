@@ -247,6 +247,8 @@ class StandaloneHandler:
                             w_state = workers_state_on_master[w]["state"]
                             msg += f'({w} - {w_state})'
                             if w_state == 'running':
+                                if workers_state_on_master[w].get('err'):
+                                    logger.warning(f'Worker may operate not in desired configuration, worker {w} error: {workers_state_on_master[w].get("err")}')
                                 running += 1
 
                         logger.info(msg)
