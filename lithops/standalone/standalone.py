@@ -187,7 +187,7 @@ class StandaloneHandler:
             futures = []
             with cf.ThreadPoolExecutor(workers_to_create+1) as ex:
                 if not self._is_master_service_ready():
-                    futures.append(ex.submit(lambda: self.backend.master.create(check_if_exists=True))
+                    futures.append(ex.submit(lambda: self.backend.master.create(check_if_exists=True)))
       
                 for vm_n in range(workers_to_create):
                     worker_id = "{:04d}".format(vm_n)
@@ -211,7 +211,7 @@ class StandaloneHandler:
             workers_state_on_master = {}
             while(time.time() - start < self.start_timeout * 2):
                 try:
-                    cmd = (f'curl -X GET http://127.0.0.1:{STANDALONE_SERVICE_PORT}/workers-state '
+                    cmd = (f'curl -X GET http://127.0.0.1:{SA_SERVICE_PORT}/workers-state '
                         '-H \'Content-Type: application/json\'')
                     resp = self.backend.master.get_ssh_client().run_remote_command(cmd)
                     prev = workers_state_on_master

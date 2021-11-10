@@ -51,7 +51,7 @@ REUSE_WORK_QUEUE_NAME = 'all'
 
 exec_mode = 'consume'
 mp_manager = mp.Manager()
-workers = mp_manager.dict()
+workers = {} # TODO: consider change it to mp_manager.dict()
 workers_state = mp_manager.dict()
 
 standalone_config = None
@@ -115,10 +115,11 @@ def setup_worker(worker_info, work_queue_name):
 
     instance_create_retries = 0
     max_instance_create_retries = standalone_config.get('worker_create_retries', MAX_INSTANCE_CREATE_RETRIES)
-    while instance_create_retries <= max_instance_create_retries:
+    while instance_create_retries < max_instance_create_retries:
         try:
             logger.debug(f'Validating {worker.name}')
             worker.validate_capabilities()
+            break
         except LithopsValidationError as e:
             logger.debug(f'{worker.name} validation error {e}')
             workers_state[worker.name] = {'state': 'error', 'err': str(e)}
@@ -179,7 +180,7 @@ def start_workers(job_payload, work_queue_name):
         try:
             future.result()
         except Exception as e:
-            breakpoint()
+            # TODO consider to update worker state
             logger.error(f"Worker setup produced an exception {e}")
 
     logger.debug(f'All workers set up for work queue "{work_queue_name}"')
@@ -405,6 +406,9 @@ def run():
     budget_keeper.jobs[job_key] = 'running'
 
     exec_mode = job_payload['config']['standalone'].get('exec_mode', 'consume')
+
+#    breakpoint()
+#    setup_worker(job_payload['worker_instances'][0], 'all')
 
     if exec_mode == 'consume':
         # Consume mode runs jobs in this master VM
