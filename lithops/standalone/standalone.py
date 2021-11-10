@@ -188,12 +188,12 @@ class StandaloneHandler:
             with cf.ThreadPoolExecutor(workers_to_create+1) as ex:
                 if not self._is_master_service_ready():
                     futures.append(ex.submit(lambda: self.backend.master.create(check_if_exists=True)))
-      
+
                 for vm_n in range(workers_to_create):
                     worker_id = "{:04d}".format(vm_n)
                     name = f'lithops-worker-{executor_id}-{job_id}-{worker_id}'
                     futures.append(ex.submit(self.backend.create_worker, name))
-                
+
             for future in cf.as_completed(futures):
                 future.result()
 

@@ -475,7 +475,6 @@ class IBMVPCBackend:
         worker.create()
         worker.ssh_credentials.pop('key_filename', None)
         self.workers.append(worker)
-        return worker
 
     def get_runtime_key(self, runtime_name):
         name = runtime_name.replace('/', '-').replace(':', '-')

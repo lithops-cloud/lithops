@@ -98,7 +98,7 @@ def setup_worker(worker_info, work_queue_name):
         workers_state[worker.name] = {'state': 'starting'}
         worker_ready = False
         retry = 1
-        
+
         while not worker_ready and retry <= MAX_INSTANCE_CREATE_RETRIES:
             try:
                 worker.wait_ready(verbose=True)
@@ -175,7 +175,7 @@ def start_workers(job_payload, work_queue_name):
     with ThreadPoolExecutor(len(workers)) as executor:
         for worker_info in workers:
             futures.append(executor.submit(setup_worker, worker_info, work_queue_name))
-    
+
     for future in cf.as_completed(futures):
         try:
             future.result()
@@ -406,9 +406,6 @@ def run():
     budget_keeper.jobs[job_key] = 'running'
 
     exec_mode = job_payload['config']['standalone'].get('exec_mode', 'consume')
-
-#    breakpoint()
-#    setup_worker(job_payload['worker_instances'][0], 'all')
 
     if exec_mode == 'consume':
         # Consume mode runs jobs in this master VM
