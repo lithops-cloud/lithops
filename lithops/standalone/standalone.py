@@ -312,10 +312,14 @@ class StandaloneHandler:
         clear method is executed after the results are get,
         when an exception is produced, or when a user press ctrl+c
         """
-        pl = shlex.quote(json.dumps(self.jobs))
-        cmd = (f'curl http://127.0.0.1:{SA_SERVICE_PORT}/stop -d {pl} '
-               '-H \'Content-Type: application/json\' -X POST')
         try:
+            if self.is_lithops_worker:
+                url = f"http://lithops-master:{SA_SERVICE_PORT}/stop"
+                requests.post(url, data=json.dumps(self.jobs))
+            else:
+                pl = shlex.quote(json.dumps(self.jobs))
+                cmd = (f'curl http://127.0.0.1:{SA_SERVICE_PORT}/stop -d {pl} '
+                       '-H \'Content-Type: application/json\' -X POST')
             self.backend.master.get_ssh_client().run_remote_command(cmd)
             self.backend.master.del_ssh_client()
         except Exception:

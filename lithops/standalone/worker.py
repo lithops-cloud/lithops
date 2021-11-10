@@ -89,8 +89,8 @@ def run_worker(master_ip, work_queue):
     localhos_handler = LocalhostHandler({'pull_runtime': pull_runtime})
 
     while True:
-        url = 'http://{}:{}/get-task/{}'.format(master_ip, SA_SERVICE_PORT, work_queue)
-        logger.debug('Getting task from {}'.format(url))
+        url = f'http://{master_ip}:{SA_SERVICE_PORT}/get-task/{work_queue}'
+        logger.debug(f'Getting task from {url}')
 
         try:
             resp = requests.get(url)

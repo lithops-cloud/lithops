@@ -9,6 +9,7 @@
 -
 
 ### Fixed
+- [Core] Fixed map_reduce jobs
 - [Standalone] Fixed internal executions in standalone
 - [IBM VPC] Fixed issue that prevented creating workers on create|reuse modes
 
