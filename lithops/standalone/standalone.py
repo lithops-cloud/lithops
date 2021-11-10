@@ -16,6 +16,7 @@
 
 import os
 import json
+import threading
 import time
 import logging
 import importlib
@@ -240,7 +241,6 @@ class StandaloneHandler:
 
                     running = 0
                     if prev != workers_state_on_master:
-                        logger.debug(f'Workers state from master: {workers_state_on_master}')
 
                         msg = 'Workers states: '
                         for w in workers_state_on_master:
@@ -262,15 +262,13 @@ class StandaloneHandler:
                         return
 
                 except LithopsValidationError as e:
-                    breakpoint()
                     raise e
                 except Exception as e:
-                    breakpoint()
                     pass
 
                 time.sleep(10)
 
-            raise Exception('Lithops service readiness probe expired on {}'
+            raise Exception('Lithops workers service readiness probe expired on {}'
                         .format(self.backend.master))
 
         worker_instances = []
@@ -335,7 +333,10 @@ class StandaloneHandler:
         logger.debug('Job invoked on {}'.format(self.backend.master))
 
         self.jobs.append(job_payload['job_key'])
-        wait_workers_ready(total_required_workers)
+
+        # wait_workers_ready(total_required_workers)
+        threading.Thread(target=wait_workers_ready, args=(total_required_workers), daemon=True).start()
+
 
     def create_runtime(self, runtime_name, *args):
         """
