@@ -85,7 +85,7 @@
     #iam_role: <IAM_ROLE>
     #key_name: <SSH_KEY_NAME>
     #security_group_id: <SECURITY_GROUP_ID>
-    #master_instance_type: t2.medium
+    #master_instance_type: t2.micro
     #worker_instance_type: t2.medium
     #ssh_user : <SSH_USER_FOR_VPC> # Default is 'ubuntu'
     #ssh_password : <SSH_PASS_FOR_WORKER_VMS> # Default is randomly generated

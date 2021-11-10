@@ -197,24 +197,24 @@ def default_config(config_data=None, config_overwrite={}, load_storage_config=Tr
             config_data[c.STANDALONE]['runtime'] = config_data[backend]['runtime']
 
         if 'exec_mode' not in config_data[c.STANDALONE]:
-            config_data[c.STANDALONE]['exec_mode'] = c.STANDALONE_EXEC_MODE
+            config_data[c.STANDALONE]['exec_mode'] = c.SA_EXEC_MODE
         if 'start_timeout' not in config_data[c.STANDALONE]:
-            config_data[c.STANDALONE]['start_timeout'] = c.STANDALONE_START_TIMEOUT
+            config_data[c.STANDALONE]['start_timeout'] = c.SA_START_TIMEOUT
         if 'pull_runtime' not in config_data[c.STANDALONE]:
-            config_data[c.STANDALONE]['pull_runtime'] = c.STANDALONE_PULL_RUNTIME
+            config_data[c.STANDALONE]['pull_runtime'] = c.SA_PULL_RUNTIME
         if 'auto_dismantle' not in config_data[c.STANDALONE]:
-            config_data[c.STANDALONE]['auto_dismantle'] = c.STANDALONE_AUTO_DISMANTLE
+            config_data[c.STANDALONE]['auto_dismantle'] = c.SA_AUTO_DISMANTLE
         if 'soft_dismantle_timeout' not in config_data[c.STANDALONE]:
-            config_data[c.STANDALONE]['soft_dismantle_timeout'] = c.STANDALONE_SOFT_DISMANTLE_TIMEOUT
+            config_data[c.STANDALONE]['soft_dismantle_timeout'] = c.SA_SOFT_DISMANTLE_TIMEOUT
         if 'hard_dismantle_timeout' not in config_data[c.STANDALONE]:
-            config_data[c.STANDALONE]['hard_dismantle_timeout'] = c.STANDALONE_HARD_DISMANTLE_TIMEOUT
+            config_data[c.STANDALONE]['hard_dismantle_timeout'] = c.SA_HARD_DISMANTLE_TIMEOUT
 
         logger.debug("Loading Standalone backend module: {}".format(backend))
         sb_config = importlib.import_module('lithops.standalone.backends.{}.config'.format(backend))
         sb_config.load_config(config_data)
 
         if 'runtime' not in config_data[c.STANDALONE]:
-            config_data[c.STANDALONE]['runtime'] = c.STANDALONE_RUNTIME
+            config_data[c.STANDALONE]['runtime'] = c.SA_RUNTIME
 
         verify_runtime_name(config_data[c.STANDALONE]['runtime'])
 

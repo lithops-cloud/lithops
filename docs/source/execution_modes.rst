@@ -35,7 +35,7 @@ Google cloud functions, Azure functions and Aliyun Functions use their own forma
     fexec = lithops.ServerlessExecutor()
 
 
-- Available backends: `IBM Cloud Functions <compute_config/ibm_cf.html>`_, `IBM Code Engine <compute_config/code_engine.html>`_, `AWS Lambda <compute_config/aws_lambda.html>`_, `Google Cloud Functions <compute_config/gcp_functions.html>`_, `Google Cloud Run <compute_config/gcp_cloudrun.html>`_, `Azure Functions <compute_config/azure_functions.html>`_, `Aliyun Function Compute <compute_config/aliyun_functions.html>`_, `Kubernetes Jobs <compute_config/k8s_job.html>`_, `Knative <compute_config/knative.html>`_, `OpenWhisk <compute_config/openwhisk.html>`_
+- Available backends: `IBM Cloud Functions <compute_config/ibm_cf.md>`_, `IBM Code Engine <compute_config/code_engine.md>`_, `AWS Lambda <compute_config/aws_lambda.md>`_, `AWS Batch <compute_config/aws_batch.md>`_, `Google Cloud Functions <compute_config/gcp_functions.md>`_, `Google Cloud Run <compute_config/gcp_cloudrun.md>`_, `Azure Functions <compute_config/azure_functions.md>`_, `Aliyun Function Compute <compute_config/aliyun_functions.md>`_, `Kubernetes Jobs <compute_config/k8s_job.md>`_, `Knative <compute_config/knative.md>`_, `OpenWhisk <compute_config/openwhisk.md>`_
 
 
 Standalone mode
@@ -51,4 +51,4 @@ in the remote VMs since Lithops does this process automatically the first time y
 
     fexec = lithops.StandaloneExecutor()
 
-- Available backends: `Remote host / Virtual Machine <compute_config/vm.md>`_, `IBM Virtual Private Cloud <compute_config/ibm_vpc.md>`_
+- Available backends: `IBM Virtual Private Cloud <compute_config/ibm_vpc.md>`_, `AWS Elastic Compute Cloud <compute_config/aws_ec2.md>`_, `Remote host / Virtual Machine <compute_config/vm.md>`_

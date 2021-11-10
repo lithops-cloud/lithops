@@ -32,6 +32,8 @@ from lithops.standalone.utils import CLOUD_CONFIG_WORKER
 
 logger = logging.getLogger(__name__)
 
+INSTANCE_START_TIMEOUT = 180
+
 
 def b64s(string):
     """
@@ -97,7 +99,7 @@ class AWSEC2Backend:
 
             self.master = EC2Instance(self.ec2_data['instance_name'], self.config, self.ec2_client, public=True)
             self.master.instance_id = ins_id
-            self.master.ip_address = self.ec2_data['private_ip']
+            self.master.private_ip = self.ec2_data['private_ip']
             self.master.delete_on_dismantle = False
 
         elif self.mode in ['create', 'reuse']:
@@ -115,7 +117,7 @@ class AWSEC2Backend:
             if instance_data and 'InstanceId' in instance_data:
                 self.master.instance_id = instance_data['InstanceId']
             if instance_data and 'PrivateIpAddress' in instance_data:
-                self.master.ip_address = instance_data['PrivateIpAddress']
+                self.master.private_ip = instance_data['PrivateIpAddress']
             if instance_data and instance_data['State']['Name'] == 'running' and \
                'PublicIpAddress' in instance_data:
                 self.master.public_ip = instance_data['PublicIpAddress']
@@ -196,10 +198,10 @@ class AWSEC2Backend:
         """
         Creates a new worker VM instance
         """
-        vm = EC2Instance(name, self.config, self.ec2_client)
-        vm.create()
-        vm.ssh_credentials.pop('key_filename', None)
-        self.workers.append(vm)
+        worker = EC2Instance(name, self.config, self.ec2_client)
+        worker.create()
+        worker.ssh_credentials.pop('key_filename', None)
+        self.workers.append(worker)
 
     def get_runtime_key(self, runtime_name):
         name = runtime_name.replace('/', '-').replace(':', '-')
@@ -228,18 +230,18 @@ class EC2Instance:
         self.ssh_client = None
         self.instance_id = None
         self.instance_data = None
-        self.ip_address = None
+        self.private_ip = None
         self.public_ip = '0.0.0.0'
         self.fast_io = self.config.get('fast_io', False)
 
         self.ssh_credentials = {
             'username': self.config['ssh_username'],
             'password': self.config['ssh_password'],
-            'key_filename': self.config.get('ssh_key_filename', None)
+            'key_filename': self.config.get('ssh_key_filename', '~/.ssh/id_rsa')
         }
 
     def __str__(self):
-        ip = self.public_ip if self.public else self.ip_address
+        ip = self.public_ip if self.public else self.private_ip
 
         if ip is None or ip == '0.0.0.0':
             return f'VM instance {self.name}'
@@ -271,8 +273,8 @@ class EC2Instance:
             if not self.ssh_client or self.ssh_client.ip_address != self.public_ip:
                 self.ssh_client = SSHClient(self.public_ip, self.ssh_credentials)
         else:
-            if not self.ssh_client or self.ssh_client.ip_address != self.ip_address:
-                self.ssh_client = SSHClient(self.ip_address, self.ssh_credentials)
+            if not self.ssh_client or self.ssh_client.ip_address != self.private_ip:
+                self.ssh_client = SSHClient(self.private_ip, self.ssh_credentials)
 
         return self.ssh_client
 
@@ -286,6 +288,35 @@ class EC2Instance:
             except Exception:
                 pass
             self.ssh_client = None
+
+    def is_ready(self, verbose=False):
+        """
+        Checks if the VM instance is ready to receive ssh connections
+        """
+        try:
+            self.get_ssh_client().run_remote_command('id')
+        except Exception as e:
+            if verbose:
+                logger.debug(f'ssh to {self.private_ip} failed: {e}')
+            self.del_ssh_client()
+            return False
+        return True
+
+    def wait_ready(self, verbose=False):
+        """
+        Waits until the VM instance is ready to receive ssh connections
+        """
+        logger.debug(f'Waiting {self} to become ready')
+
+        start = time.time()
+        while(time.time() - start < INSTANCE_START_TIMEOUT):
+            if self.is_ready(verbose=verbose):
+                start_time = round(time.time()-start, 2)
+                logger.debug(f'{self} ready in {start_time} seconds')
+                return True
+            time.sleep(5)
+
+        raise TimeoutError(f'Readiness probe expired on {self}')
 
     def _create_instance(self):
         """
@@ -348,6 +379,7 @@ class EC2Instance:
                 failed_requests = [r for r in spot_requests if r['State'] == 'failed']
                 if failed_requests:
                     failure_reasons = {r['Status']['Code'] for r in failed_requests}
+                    logger.debug(failure_reasons)
                     raise Exception(
                         "The spot request failed for the following reason{s}: {reasons}"
                         .format(
@@ -418,32 +450,29 @@ class EC2Instance:
         logger.debug('VM instance {} does not exists'.format(self.name))
         return None
 
-    def _get_private_ip(self):
+    def get_private_ip(self):
         """
-        Requests the the primary network private IP address
+        Requests the private IP address
         """
-        private_ip = None
-        if self.instance_id:
-            while not private_ip:
-                instance_data = self.get_instance_data()
-                if instance_data:
-                    private_ip = instance_data['NetworkInterfaces'][0]['PrivateIpAddress']
-        return private_ip
-
-    def _get_public_ip(self):
-        """
-        Requests the the primary public IP address
-        """
-        public_ip = ''
-
-        while self.public and not public_ip:
-            instances = self.ec2_client.describe_instances(InstanceIds=[self.instance_id])
-            instance_data = instances['Reservations'][0]['Instances'][0]
-            if 'PublicIpAddress' in instance_data:
-                public_ip = instance_data['PublicIpAddress']
+        while not self.private_ip:
+            instance_data = self.get_instance_data()
+            if instance_data and 'PrivateIpAddress' in instance_data:
+                self.private_ip = instance_data['PrivateIpAddress']
             else:
                 time.sleep(1)
-        return public_ip
+        return self.private_ip
+
+    def get_public_ip(self):
+        """
+        Requests the public IP address
+        """
+        while self.public and (not self.public_ip or self.public_ip == '0.0.0.0'):
+            instance_data = self.get_instance_data()
+            if instance_data and 'PublicIpAddress' in instance_data:
+                self.public_ip = instance_data['PublicIpAddress']
+            else:
+                time.sleep(1)
+        return self.public_ip
 
     def create(self, check_if_exists=False):
         """
@@ -458,13 +487,13 @@ class EC2Instance:
                 logger.debug('VM instance {} already exists'.format(self.name))
                 vsi_exists = True
                 self.instance_id = instance_data['InstanceId']
-                self.ip_address = instance_data['PrivateIpAddress']
+                self.private_ip = instance_data['PrivateIpAddress']
 
         if not vsi_exists:
             instance_data = self._create_instance()
             self.instance_id = instance_data['InstanceId']
-            self.ip_address = instance_data['PrivateIpAddress']
-            self.public_ip = self._get_public_ip()
+            self.private_ip = instance_data['PrivateIpAddress']
+            self.public_ip = self.get_public_ip()
         else:
             self.start()
 
@@ -473,8 +502,15 @@ class EC2Instance:
     def start(self):
         logger.info("Starting VM instance {}".format(self.name))
 
-        self.ec2_client.start_instances(InstanceIds=[self.instance_id])
-        self.public_ip = self._get_public_ip()
+        try:
+            self.ec2_client.start_instances(InstanceIds=[self.instance_id])
+            self.public_ip = self.get_public_ip()
+        except botocore.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == 'IncorrectInstanceState':
+                time.sleep(20)
+                return self.start()
+            else:
+                raise e
 
         logger.debug("VM instance {} started successfully".format(self.name))
 
@@ -487,7 +523,7 @@ class EC2Instance:
         self.ec2_client.terminate_instances(InstanceIds=[self.instance_id])
 
         self.instance_id = None
-        self.ip_address = None
+        self.private_ip = None
         self.public_ip = None
         self.del_ssh_client()
 

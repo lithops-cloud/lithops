@@ -23,14 +23,14 @@ import flask
 import queue
 import logging
 import requests
-import multiprocessing as mp
 from pathlib import Path
 from gevent.pywsgi import WSGIServer
+import multiprocessing as mp
 from threading import Thread
 from concurrent.futures import ThreadPoolExecutor
 
-from lithops.constants import LITHOPS_TEMP_DIR, STANDALONE_LOG_FILE, JOBS_DIR,\
-    STANDALONE_SERVICE_PORT, STANDALONE_CONFIG_FILE, STANDALONE_INSTALL_DIR
+from lithops.constants import LITHOPS_TEMP_DIR, SA_LOG_FILE, JOBS_DIR,\
+    SA_SERVICE_PORT, SA_CONFIG_FILE, SA_DATA_FILE
 from lithops.localhost.localhost import LocalhostHandler
 from lithops.standalone.standalone import LithopsValidationError
 from lithops.utils import verify_runtime_name, iterchunks, setup_lithops_logger
@@ -40,7 +40,7 @@ from lithops.version import __version__ as lithops_version
 
 
 log_format = "%(asctime)s\t[%(levelname)s] %(name)s:%(lineno)s -- %(message)s"
-setup_lithops_logger(logging.DEBUG, filename=STANDALONE_LOG_FILE, log_format=log_format)
+setup_lithops_logger(logging.DEBUG, filename=SA_LOG_FILE, log_format=log_format)
 logger = logging.getLogger('lithops.standalone.master')
 
 app = flask.Flask(__name__)
@@ -58,7 +58,6 @@ workers_state = mp_manager.dict()
 standalone_config = None
 standalone_handler = None
 budget_keeper = None
-job_processes = {}
 work_queues = {}
 master_ip = None
 
@@ -72,45 +71,12 @@ def is_worker_free(vm):
     """
     Checks if the Lithops service is ready and free in the worker VM instance
     """
-    url = f"http://{vm.ip_address}:{STANDALONE_SERVICE_PORT}/ping"
+    url = f"http://{vm.private_ip}:{SA_SERVICE_PORT}/ping"
     r = requests.get(url, timeout=0.5)
     if r.status_code == 200:
         if r.json()['status'] == 'free':
             return True
     return False
-
-
-def is_worker_instance_ready(vm):
-    """
-    Checks if the VM instance is ready to receive ssh connections
-    """
-    try:
-        vm.get_ssh_client().run_remote_command('id')
-    except Exception as e:
-        logger.debug('ssh to {} failed: {}'
-                     .format(vm.ip_address, e))
-        vm.del_ssh_client()
-        return False
-    return True
-
-
-def wait_worker_instance_ready(vm):
-    """
-    Waits until the VM instance is ready to receive ssh connections
-    """
-    logger.debug('Waiting {} to become ready'.format(vm))
-
-    start = time.time()
-    while(time.time() - start < INSTANCE_START_TIMEOUT):
-        if is_worker_instance_ready(vm):
-            logger.debug('{} ready in {} seconds'
-                        .format(vm, round(time.time()-start, 2)))
-            return True
-        time.sleep(5)
-
-    msg = 'Readiness probe expired on {}'.format(vm)
-    logger.error(msg)
-    raise TimeoutError(msg)
 
 
 def setup_worker(worker_info, work_queue_name):
@@ -122,31 +88,30 @@ def setup_worker(worker_info, work_queue_name):
     global workers
     global workers_state
 
-    instance_name, ip_address, instance_id, ssh_credentials = worker_info
-    logger.debug(f'Starting setup for VM instance {instance_name} ({ip_address})')
-    logger.debug(f'SSH data: {ssh_credentials}')
+    instance_name, private_ip, instance_id, ssh_credentials = worker_info
+    logger.debug(f'Starting setup for VM instance {instance_name} ({private_ip})')
 
     instance_create_retries = 0
     err_msg = ''
 
-    vm = standalone_handler.backend.get_vm(instance_name)
-    vm.ip_address = ip_address
-    vm.instance_id = instance_id
+    worker = standalone_handler.backend.get_vm(instance_name)
+    worker.ip_address = private_ip
+    worker.instance_id = instance_id
 
     max_instance_create_retries = standalone_config.get('worker_create_retries', MAX_INSTANCE_CREATE_RETRIES)
     logger.debug(f'Max worker create retries: {max_instance_create_retries}')
 
     try:
         while instance_create_retries < max_instance_create_retries:
-            vm.ssh_credentials = ssh_credentials
+            worker.ssh_credentials = ssh_credentials
 
             worker_ready = False
-            instance_wait_retry = 0
+            instance_wait_retry = 1
 
-            workers_state[vm.name] = {'state': 'starting'}
+            workers_state[worker.name] = {'state': 'starting'}
 
             def delete_create_worker(workers_state):
-                nonlocal vm, instance_name, instance_create_retries, err_msg
+                nonlocal worker, instance_name, instance_create_retries, err_msg
 
                 instance_create_retries += 1
 
@@ -154,8 +119,8 @@ def setup_worker(worker_info, work_queue_name):
                     raise Exception(f'Worker {instance_name} setup failure after {instance_create_retries}')
 
                 # delete failed worker
-                vm.delete()
-                workers_state.pop(vm.name)
+                worker.delete()
+                workers_state.pop(worker.name)
 
                 # generate new name based on retries number
                 instance_name = f'{worker_info[0]}-{instance_create_retries + 1}'
@@ -176,61 +141,61 @@ def setup_worker(worker_info, work_queue_name):
             # TODO: Do we still need instance_wait_retry in case we have delete/create retry?
             while not worker_ready and instance_wait_retry < MAX_INSTANCE_WAIT_READY_RETRIES:
                 try:
-                    wait_worker_instance_ready(vm)
+                    worker.wait_ready(verbose=True)
                     worker_ready = True
                 except TimeoutError:  # VM not started in time
                     logger.warning('Timed out waiting for instance to be ready {instance_name}')
                     instance_wait_retry += 1
                     if instance_wait_retry == MAX_INSTANCE_WAIT_READY_RETRIES:
-                        err_msg = f'{vm} readiness probe failed after {instance_wait_retry} retries.'
+                        err_msg = f'{worker} readiness probe failed after {instance_wait_retry} retries.'
                         logger.warning(err_msg)
 
             if not worker_ready:
-                logger.debug(f'worker {vm.name} not ready')
-                workers_state[vm.name] = {'state': 'error', 'err': f'{vm} readiness probe failed after {instance_wait_retry} retries.'}
+                logger.debug(f'worker {worker.name} not ready')
+                workers_state[worker.name] = {'state': 'error', 'err': f'{worker} readiness probe failed after {instance_wait_retry} retries.'}
                 delete_create_worker(workers_state)
                 continue
 
-            workers_state[vm.name] = {'state': 'started'}
+            workers_state[worker.name] = {'state': 'started'}
 
             try:
-                logger.debug(f'Validating {vm.name}')
-                vm.validate_capabilities()
+                logger.debug(f'Validating {worker.name}')
+                worker.validate_capabilities()
             except LithopsValidationError as e:
-                logger.debug(f'{vm.name} validation error {e}')
-                workers_state[vm.name] = {'state': 'error', 'err': str(e)}
+                logger.debug(f'{worker.name} validation error {e}')
+                workers_state[worker.name] = {'state': 'error', 'err': str(e)}
                 if instance_create_retries + 1 < max_instance_create_retries:
                     # Continue retrying
-                    logger.warning(f'Worker {vm.name} setup failed with error {e} after {instance_create_retries} retries')
+                    logger.warning(f'Worker {worker.name} setup failed with error {e} after {instance_create_retries} retries')
                     delete_create_worker(workers_state)
                     continue
 
             # upload zip lithops package
-            logger.debug('Uploading lithops files to {}'.format(vm))
-            vm.get_ssh_client().upload_local_file('/opt/lithops/lithops_standalone.zip',
+            logger.debug('Uploading lithops files to {}'.format(worker))
+            worker.get_ssh_client().upload_local_file('/opt/lithops/lithops_standalone.zip',
                                                 '/tmp/lithops_standalone.zip')
-            logger.debug('Executing lithops installation process on {}'.format(vm))
+            logger.debug('Executing lithops installation process on {}'.format(worker))
 
-            vm_data = {'instance_name': vm.name,
-                    'ip_address': vm.ip_address,
-                    'instance_id': vm.instance_id,
-                    'ssh_credentials': vm.ssh_credentials,
+            vm_data = {'instance_name': worker.name,
+                    'ip_address': worker.ip_address,
+                    'instance_id': worker.instance_id,
+                    'ssh_credentials': worker.ssh_credentials,
                     'master_ip': master_ip,
                     'work_queue': work_queue_name}
 
             remote_script = "/tmp/install_lithops.sh"
             script = get_worker_setup_script(standalone_config, vm_data)
-            vm.get_ssh_client().upload_data_to_file(script, remote_script)
+            worker.get_ssh_client().upload_data_to_file(script, remote_script)
             cmd = f"chmod 777 {remote_script}; sudo {remote_script};"
 
-            vm.get_ssh_client().run_remote_command(cmd, run_async=True)
-            workers_state[vm.name] = {'state': 'running', 'err': workers_state[vm.name].get('err')}
+            worker.get_ssh_client().run_remote_command(cmd, run_async=True)
+            workers_state[worker.name] = {'state': 'running', 'err': workers_state[worker.name].get('err')}
 
-            logger.debug(f'Appending {vm.name} to Worker list')
-            workers[vm.name] = vm_data
+            logger.debug(f'Appending {worker.name} to Worker list')
+            workers[worker.name] = vm_data
 
-            vm.del_ssh_client()
-            logger.info('Installation script submitted to {}'.format(vm))
+            worker.del_ssh_client()
+            logger.info('Installation script submitted to {}'.format(worker))
             return
     except Exception as e:
         logger.warning(f'Worker {instance_name} setup failed after {instance_create_retries} retries. {e}')
@@ -238,16 +203,18 @@ def setup_worker(worker_info, work_queue_name):
 
 def start_workers(job_payload, work_queue_name):
     """
-    Creates the workers
+    Creates the workers (if any)
     """
     workers = job_payload['worker_instances']
-    # run setup only in case not reusing old workers
-    if workers:
-        with ThreadPoolExecutor(len(workers)) as executor:
-            for worker_info in workers:
-                executor.submit(setup_worker, worker_info, work_queue_name)
 
-        logger.debug(f'All workers set up for work queue "{work_queue_name}"')
+    if not workers:
+        return
+
+    with ThreadPoolExecutor(len(workers)) as executor:
+        for worker_info in workers:
+            executor.submit(setup_worker, worker_info, work_queue_name)
+
+    logger.debug(f'All workers set up for work queue "{work_queue_name}"')
 
 
 def run_job_local(work_queue):
@@ -281,7 +248,7 @@ def run_job_local(work_queue):
         logger.error(e)
 
 
-def run_job_worker(job_payload, work_queue, work_queue_name):
+def run_job_worker(job_payload, work_queue):
     """
     Process responsible to wait for workers to become ready, and
     submit individual tasks of the job to them
@@ -296,8 +263,6 @@ def run_job_worker(job_payload, work_queue, work_queue_name):
         task_payload['call_ids'] = call_ids_range
         task_payload['data_byte_ranges'] = [dbr[int(call_id)] for call_id in call_ids_range]
         work_queue.put(task_payload)
-
-    logger.debug(f"Total tasks in work queue '{work_queue_name}': {work_queue.qsize()}")
 
     while not work_queue.empty():
         time.sleep(1)
@@ -334,34 +299,27 @@ def get_workers():
     # update last_usage_time to prevent race condition when keeper stops the vm
     budget_keeper.last_usage_time = time.time()
 
-    logger.debug(f'Current workers: {workers}')
+    current_workers = [(vm.name, vm.private_ip) for vm in workers.values()]
+    logger.debug(f'Current workers: {current_workers}')
 
-    worker_vms = []
-    worker_vms_free = []
-
-    for vm_name in workers:
-        vm = standalone_handler.backend.get_vm(vm_name)
-        vm.ip_address = workers[vm_name]['ip_address']
-        vm.instance_id = workers[vm_name]['instance_id']
-        vm.ssh_credentials = workers[vm_name]['ssh_credentials']
-        worker_vms.append(vm)
+    free_workers = []
 
     def check_worker(vm):
         if is_worker_free(vm):
-            worker_vms_free.append((
+            free_workers.append((
                 vm.name,
-                vm.ip_address,
+                vm.private_ip,
                 vm.instance_id,
                 vm.ssh_credentials)
             )
 
-    if worker_vms:
-        with ThreadPoolExecutor(len(worker_vms)) as ex:
-            ex.map(check_worker, worker_vms)
+    if workers:
+        with ThreadPoolExecutor(len(workers)) as ex:
+            ex.map(check_worker, workers.values())
 
-    logger.debug(f'Total free workers: {len(worker_vms_free)}')
+    logger.debug(f'Total free workers: {len(free_workers)}')
 
-    response = flask.jsonify(worker_vms_free)
+    response = flask.jsonify(free_workers)
     response.status_code = 200
 
     return response
@@ -375,7 +333,7 @@ def get_task(work_queue_name):
     global work_queues
 
     try:
-        task_payload = work_queues.setdefault(work_queue_name, mp_manager.Queue()).get(False)
+        task_payload = work_queues.setdefault(work_queue_name, queue.Queue()).get(False)
         response = flask.jsonify(task_payload)
         response.status_code = 200
         job_key = task_payload['job_key']
@@ -384,6 +342,7 @@ def get_task(work_queue_name):
         logger.debug(f'Worker {worker_ip} retrieved Job {job_key} - Calls {calls}')
     except queue.Empty:
         response = ('', 204)
+
     return response
 
 
@@ -391,7 +350,6 @@ def stop_job_process(job_key_list):
     """
     Stops a job process
     """
-    global job_processes
     global localhos_handler
     global work_queues
 
@@ -421,7 +379,7 @@ def stop_job_process(job_key_list):
         else:
             wqn = job_key if exec_mode == 'create' else REUSE_WORK_QUEUE_NAME
             # empty work queue
-            work_queue = work_queues.setdefault(wqn, mp_manager.Queue())
+            work_queue = work_queues.setdefault(wqn, queue.Queue())
             while not work_queue.empty():
                 try:
                     work_queue.get(False)
@@ -429,8 +387,8 @@ def stop_job_process(job_key_list):
                     pass
 
             def stop_task(worker):
-                ip_address = worker['ip_address']
-                url = f"http://{ip_address}:{STANDALONE_SERVICE_PORT}/stop/{job_key}"
+                private_ip = worker['private_ip']
+                url = f"http://{private_ip}:{SA_SERVICE_PORT}/stop/{job_key}"
                 requests.post(url, timeout=0.5)
 
             # Send stop signal to all workers
@@ -458,8 +416,6 @@ def run():
     """
     global budget_keeper
     global work_queues
-    global job_processes
-    global workers
     global exec_mode
     global localhost_manager_process
 
@@ -483,8 +439,9 @@ def run():
     exec_mode = job_payload['config']['standalone'].get('exec_mode', 'consume')
 
     if exec_mode == 'consume':
+        # Consume mode runs jobs in this master VM
         work_queue_name = 'local'
-        work_queue = work_queues.setdefault(work_queue_name, mp_manager.Queue())
+        work_queue = work_queues.setdefault(work_queue_name, queue.Queue())
         if not localhost_manager_process:
             logger.debug('Starting manager process for localhost jobs')
             lmp = Thread(target=run_job_local, args=(work_queue, ), daemon=True)
@@ -493,25 +450,13 @@ def run():
         logger.debug(f'Putting job {job_key} into master queue')
         work_queue.put(job_payload)
 
-    elif exec_mode == 'create':
-        # Create mode runs the job in worker VMs
+    elif exec_mode in ['create', 'reuse']:
+        # Create and reuse mode runs jobs on woker VMs
         logger.debug(f'Starting process for job {job_key}')
-        work_queue_name = job_key
-        work_queue = work_queues.setdefault(work_queue_name, mp_manager.Queue())
-        mp.Process(target=start_workers, args=(job_payload, work_queue_name)).start()
-        jp = Thread(target=run_job_worker, args=(job_payload, work_queue, work_queue_name), daemon=True)
-        jp.start()
-        job_processes[job_key] = jp
-
-    elif exec_mode == 'reuse':
-        # Reuse mode runs the job on running workers
-        logger.debug(f'Starting process for job {job_key}')
-        work_queue_name = REUSE_WORK_QUEUE_NAME
-        work_queue = work_queues.setdefault(work_queue_name, mp_manager.Queue())
-        mp.Process(target=start_workers, args=(job_payload, work_queue_name)).start()
-        jp = Thread(target=run_job_worker, args=(job_payload, work_queue, work_queue_name), daemon=True)
-        jp.start()
-        job_processes[job_key] = jp
+        work_queue_name = job_key if exec_mode == 'create' else REUSE_WORK_QUEUE_NAME
+        work_queue = work_queues.setdefault(work_queue_name, queue.Queue())
+        Thread(target=start_workers, args=(job_payload, work_queue_name)).start()
+        Thread(target=run_job_worker, args=(job_payload, work_queue), daemon=True).start()
 
     act_id = str(uuid.uuid4()).replace('-', '')[:12]
     response = flask.jsonify({'activationId': act_id})
@@ -529,8 +474,6 @@ def ping():
 
 @app.route('/preinstalls', methods=['GET'])
 def preinstalls():
-    global LOCALHOST_HANDLER
-
     payload = flask.request.get_json(force=True, silent=True)
     if payload and not isinstance(payload, dict):
         return error('The action did not receive a dictionary as an argument.')
@@ -542,10 +485,8 @@ def preinstalls():
         return error(str(e))
 
     pull_runtime = standalone_config.get('pull_runtime', False)
-    localhost_handler = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
-    localhost_handler.init()
-    runtime_meta = localhost_handler.create_runtime(runtime)
-    localhost_handler.clear()
+    lh = LocalhostHandler({'runtime': runtime, 'pull_runtime': pull_runtime})
+    runtime_meta = lh.create_runtime(runtime)
 
     if 'lithops_version' in runtime_meta:
         logger.debug("Runtime metdata extracted correctly: Lithops "
@@ -564,7 +505,7 @@ def main():
 
     os.makedirs(LITHOPS_TEMP_DIR, exist_ok=True)
 
-    with open(STANDALONE_CONFIG_FILE, 'r') as cf:
+    with open(SA_CONFIG_FILE, 'r') as cf:
         standalone_config = json.load(cf)
 
     # Delete ssh_key_filename
@@ -572,17 +513,15 @@ def main():
     if 'ssh_key_filename' in standalone_config[backend]:
         del standalone_config[backend]['ssh_key_filename']
 
-    vm_data_file = os.path.join(STANDALONE_INSTALL_DIR, 'access.data')
-    with open(vm_data_file, 'r') as ad:
-        master_ip = json.load(ad)['ip_address']
+    with open(SA_DATA_FILE, 'r') as ad:
+        master_ip = json.load(ad)['private_ip']
 
     budget_keeper = BudgetKeeper(standalone_config)
     budget_keeper.start()
 
     standalone_handler = budget_keeper.sh
 
-    server = WSGIServer(('0.0.0.0', STANDALONE_SERVICE_PORT),
-                        app, log=app.logger)
+    server = WSGIServer(('0.0.0.0', SA_SERVICE_PORT), app, log=app.logger)
     server.serve_forever()
 
 

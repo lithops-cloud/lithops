@@ -1,6 +1,20 @@
 # Changelog
 
-## [v2.5.6.dev0]
+## [v2.5.7.dev0]
+
+### Added
+- [AWS Batch] Added AWS Batch backend
+
+### Changed
+-
+
+### Fixed
+- [Core] Fixed map_reduce jobs
+- [Standalone] Fixed internal executions in standalone
+- [IBM VPC] Fixed issue that prevented creating workers on create|reuse modes
+
+
+## [v2.5.6]
 
 ### Added
 - [AWS_EC2] Added AWS EC2 Standalone backend
@@ -8,6 +22,7 @@
 - [Standalone] Added the logic to create the missing deleta of workers in reuse mode
 - [Standalone] Cancel running job tasks on ctrl-c
 - [Standalone] New logic to verify that the master VM is correctly setup
+- [Standalone] Added new command "lithops attach" that allows to create live ssh connections to the master VM
 - [Config] Allow to set monitoring_interval in config
 
 ### Changed

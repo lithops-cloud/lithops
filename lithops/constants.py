@@ -50,17 +50,18 @@ EXECUTION_TIMEOUT_LOCALHOST_DEFAULT = 3600
 
 LOCALHOST_RUNTIME_DEFAULT = os.path.basename(sys.executable)
 
-STANDALONE_RUNTIME = LOCALHOST_RUNTIME_DEFAULT
-STANDALONE_EXEC_MODE = 'consume'
-STANDALONE_START_TIMEOUT = 300
-STANDALONE_PULL_RUNTIME = False
-STANDALONE_AUTO_DISMANTLE = True
-STANDALONE_SOFT_DISMANTLE_TIMEOUT = 300
-STANDALONE_HARD_DISMANTLE_TIMEOUT = 3600
-STANDALONE_INSTALL_DIR = '/opt/lithops'
-STANDALONE_LOG_FILE = '/tmp/lithops/service.log'
-STANDALONE_SERVICE_PORT = 8080
-STANDALONE_CONFIG_FILE = os.path.join(STANDALONE_INSTALL_DIR, 'config')
+SA_RUNTIME = LOCALHOST_RUNTIME_DEFAULT
+SA_EXEC_MODE = 'consume'
+SA_START_TIMEOUT = 300
+SA_PULL_RUNTIME = False
+SA_AUTO_DISMANTLE = True
+SA_SOFT_DISMANTLE_TIMEOUT = 300
+SA_HARD_DISMANTLE_TIMEOUT = 3600
+SA_INSTALL_DIR = '/opt/lithops'
+SA_LOG_FILE = '/tmp/lithops/service.log'
+SA_SERVICE_PORT = 8080
+SA_CONFIG_FILE = os.path.join(SA_INSTALL_DIR, 'config')
+SA_DATA_FILE = os.path.join(SA_INSTALL_DIR, 'access.data')
 
 MAX_AGG_DATA_SIZE = 4  # 4MiB
 
@@ -90,6 +91,7 @@ SERVERLESS_BACKENDS = ['ibm_cf',
                        'knative',
                        'openwhisk',
                        'aws_lambda',
+                       'aws_batch',
                        'gcp_cloudrun',
                        'gcp_functions',
                        'cloudrun',
@@ -113,6 +115,7 @@ FAAS_BACKENDS = ['ibm_cf',
 
 BATCH_BACKENDS = ['ibm_vpc',
                   'aws_ec2',
+                  'aws_batch',
                   'k8s',
                   'code_engine'
                   'vm']
