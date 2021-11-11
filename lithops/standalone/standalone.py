@@ -48,6 +48,7 @@ class StandaloneHandler:
         self.backend_name = self.config['backend']
         self.start_timeout = self.config['start_timeout']
         self.exec_mode = self.config['exec_mode']
+        self.workers_policy = self.config.get('workers_policy', 'permissive') # by default not forcing the creation of all workers
         self.is_lithops_worker = is_lithops_worker()
 
         module_location = f'lithops.standalone.backends.{self.backend_name}'
@@ -195,7 +196,12 @@ class StandaloneHandler:
                     futures.append(ex.submit(self.backend.create_worker, name))
 
             for future in cf.as_completed(futures):
-                future.result()
+                try:
+                    future.result()
+                except Exception as e:
+                    # if workers policy is strict, raise exception in case failed to create all workers
+                    if self.workers_policy == 'strict':
+                        raise e
 
             current_workers_new = set(self.backend.workers)
             new_workers = current_workers_new - current_workers_old
@@ -204,8 +210,9 @@ class StandaloneHandler:
 
             return list(new_workers)
 
-        def wait_workers_ready(workers_num):
-            logger.info(f'Waiting {workers_num} workers to become ready')
+        def wait_workers_ready(new_workers):
+            w_names = [w.name for w in new_workers]
+            logger.info(f'Waiting following workers to become ready: {w_names}')
 
             start = time.time()
             workers_state_on_master = {}
@@ -221,24 +228,24 @@ class StandaloneHandler:
                     running = 0
                     if prev != workers_state_on_master:
 
-                        msg = 'Workers states: '
+                        msg = 'All workers states: '
                         for w in workers_state_on_master:
                             w_state = workers_state_on_master[w]["state"]
                             msg += f'({w} - {w_state})'
-                            if w_state == 'running':
+                            if w in w_names and w_state == 'running':
                                 if workers_state_on_master[w].get('err'):
                                     logger.warning(f'Worker may operate not in desired configuration, worker {w} error: {workers_state_on_master[w].get("err")}')
                                 running += 1
 
                         logger.info(msg)
 
-                    if running >= workers_num:
-                        logger.info(f'All {workers_num} workers are ready')
+                    if running == len(w_names):
+                        logger.info(f'All workers are ready: {w_names}')
 
                         # on backend, in case workers failed to get optimal workers setup, they may run
                         # but in order to notify user they will have running state, but 'err' containing error
                         for w in workers_state_on_master:
-                            if workers_state_on_master[w]["state"] == 'running' and  workers_state_on_master[w].get('err'):
+                            if w in w_names and workers_state_on_master[w]["state"] == 'running' and  workers_state_on_master[w].get('err'):
                                 logger.warning(f'Workers may operate not in desired configuration, worker {w} error: {workers_state_on_master[w].get("err")}')
                         return
 
@@ -318,8 +325,9 @@ class StandaloneHandler:
 
         self.jobs.append(job_payload['job_key'])
 
-        # wait_workers_ready(total_required_workers)
-        threading.Thread(target=wait_workers_ready, args=(total_required_workers,), daemon=True).start()
+        # in case workers policy is strict, track all required workers create
+        if self.workers_policy == 'strict':
+            threading.Thread(target=wait_workers_ready, args=(new_workers,), daemon=True).start()
 
 
     def create_runtime(self, runtime_name, *args):

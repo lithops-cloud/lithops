@@ -23,7 +23,6 @@ import flask
 import queue
 import logging
 import requests
-import multiprocessing as mp
 from pathlib import Path
 import concurrent.futures as cf
 from gevent.pywsgi import WSGIServer
@@ -50,9 +49,8 @@ MAX_INSTANCE_CREATE_RETRIES = 2
 REUSE_WORK_QUEUE_NAME = 'all'
 
 exec_mode = 'consume'
-mp_manager = mp.Manager()
-workers = {} # TODO: consider change it to mp_manager.dict()
-workers_state = mp_manager.dict()
+workers = {}
+workers_state = {}
 
 standalone_config = None
 standalone_handler = None
@@ -291,7 +289,7 @@ def get_workers_state():
     Returns the current workers state
     """
     logger.debug(f'Workers state: {workers_state}')
-    return flask.jsonify(dict(workers_state))
+    return flask.jsonify(workers_state)
 
 
 @app.route('/get-task/<work_queue_name>', methods=['GET'])
