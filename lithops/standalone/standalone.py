@@ -326,7 +326,8 @@ class StandaloneHandler:
         self.jobs.append(job_payload['job_key'])
 
         # in case workers policy is strict, track all required workers create
-        if self.workers_policy == 'strict':
+        # in case of 'consume' mode there no new workers created
+        if self.exec_mode != 'consume' and self.workers_policy == 'strict':
             threading.Thread(target=wait_workers_ready, args=(new_workers,), daemon=True).start()
 
 
