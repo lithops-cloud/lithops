@@ -105,6 +105,8 @@ class InfinispanBackend:
         url = self.__key_url(bucket_name, key)
         res = self.infinispan_client.get(url, headers=self.headers, auth=self.basicAuth)
         data = res.content
+        if data is None:
+            raise StorageNoSuchKeyError
         return data
 
     def head_object(self, bucket_name, key):
@@ -158,7 +160,9 @@ class InfinispanBackend:
         url = self.endpoint + '/rest/v2/caches/' + self.cache_name + '?action=keys'
         res = self.infinispan_client.get(url, auth=self.basicAuth)
         data = res.content
-        return data
+        if data is None:
+            return None
+        return json.loads(data)
 
     def list_keys(self, bucket_name, prefix=None):
         """
@@ -171,4 +175,6 @@ class InfinispanBackend:
         url = self.endpoint + '/rest/v2/caches/' + self.cache_name + '?action=keys'
         res = self.infinispan_client.get(url, auth=self.basicAuth)
         data = res.content
-        return data
+        if data is None:
+            return None
+        return json.loads(data)
