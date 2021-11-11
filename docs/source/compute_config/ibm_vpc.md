@@ -12,6 +12,7 @@ Note that IBM VPC is a **standalone backend**, and as such, you can configure ex
 |standalone | hard_dismantle_timeout | 3600 | no | Time in seconds to stop the VM instance after a job **started** its execution |
 |standalone | exec_mode | consume | no | One of: **consume**, **create** or **reuse**. If set to  **create**, Lithops will automatically create new VMs for each map() call based on the number of elements in iterdata. If set to **reuse** will try to reuse running workers if exist |
 |standalone | pull_runtime | False | no | If set to True, Lithops will execute the command `docker pull <runtime_name>` in each VSI before executing the a job (in case of using a docker runtime)|
+|standalone | workers_policy | permissive | no | One of: **permissive**, **strict**. If set to **strict** will force creation of required workers number |
 
 
 ## IBM VPC
@@ -121,6 +122,7 @@ This will create 4 different VM instance and execute `my_map_function` in the ea
 |ibm_vpc | delete_on_dismantle | True | no | Delete the worekr VMs when they are stopped |
 |ibm_vpc | max_workers | 100 | no | Max number of workers per `FunctionExecutor()`|
 |ibm_vpc | worker_processes | 2 | no | Number of Lithops processes within a given worker. This can be used to parallelize function activations within a worker. It is recommendable to set this value to the same number of CPUs of a worker VM. |
+|ibm_vpc | singlesocket | False | no | Try to allocate workers with single socket CPU. If eventually running on multiple socket, a warning message printed to user. Is **True** standalone **workers_policy** must be set to **strict** to trace workers states|
 
 ## Lithops and the VSI consume mode
 

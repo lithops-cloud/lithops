@@ -545,3 +545,9 @@ class EC2Instance:
         Deletes the VM instance
         """
         self._delete_instance()
+
+    def validate_capabilities(self):
+        """
+        Validate hardware/os requirments specified in backend config
+        """
+        pass

@@ -16,6 +16,7 @@
 
 import os
 import json
+import threading
 import time
 import logging
 import importlib
@@ -47,6 +48,7 @@ class StandaloneHandler:
         self.backend_name = self.config['backend']
         self.start_timeout = self.config['start_timeout']
         self.exec_mode = self.config['exec_mode']
+        self.workers_policy = self.config.get('workers_policy', 'permissive') # by default not forcing the creation of all workers
         self.is_lithops_worker = is_lithops_worker()
 
         module_location = f'lithops.standalone.backends.{self.backend_name}'
@@ -183,13 +185,23 @@ class StandaloneHandler:
 
         def create_workers(workers_to_create):
             current_workers_old = set(self.backend.workers)
+            futures = []
             with cf.ThreadPoolExecutor(workers_to_create+1) as ex:
-                ex.submit(lambda: self.backend.master.create(check_if_exists=True)
-                          if not self._is_master_service_ready() else False)
+                if not self._is_master_service_ready():
+                    futures.append(ex.submit(lambda: self.backend.master.create(check_if_exists=True)))
+
                 for vm_n in range(workers_to_create):
                     worker_id = "{:04d}".format(vm_n)
                     name = f'lithops-worker-{executor_id}-{job_id}-{worker_id}'
-                    ex.submit(self.backend.create_worker, name)
+                    futures.append(ex.submit(self.backend.create_worker, name))
+
+            for future in cf.as_completed(futures):
+                try:
+                    future.result()
+                except Exception as e:
+                    # if workers policy is strict, raise exception in case failed to create all workers
+                    if self.workers_policy == 'strict':
+                        raise e
 
             current_workers_new = set(self.backend.workers)
             new_workers = current_workers_new - current_workers_old
@@ -197,6 +209,55 @@ class StandaloneHandler:
                          .format(len(new_workers), workers_to_create))
 
             return list(new_workers)
+
+        def wait_workers_ready(new_workers):
+            w_names = [w.name for w in new_workers]
+            logger.info(f'Waiting following workers to become ready: {w_names}')
+
+            start = time.time()
+            workers_state_on_master = {}
+            while(time.time() - start < self.start_timeout * 2):
+                try:
+                    cmd = (f'curl -X GET http://127.0.0.1:{SA_SERVICE_PORT}/workers-state '
+                        '-H \'Content-Type: application/json\'')
+                    resp = self.backend.master.get_ssh_client().run_remote_command(cmd)
+                    prev = workers_state_on_master
+
+                    workers_state_on_master = json.loads(resp)
+
+                    running = 0
+                    if prev != workers_state_on_master:
+
+                        msg = 'All workers states: '
+                        for w in workers_state_on_master:
+                            w_state = workers_state_on_master[w]["state"]
+                            msg += f'({w} - {w_state})'
+                            if w in w_names and w_state == 'running':
+                                if workers_state_on_master[w].get('err'):
+                                    logger.warning(f'Worker may operate not in desired configuration, worker {w} error: {workers_state_on_master[w].get("err")}')
+                                running += 1
+
+                        logger.info(msg)
+
+                    if running == len(w_names):
+                        logger.info(f'All workers are ready: {w_names}')
+
+                        # on backend, in case workers failed to get optimal workers setup, they may run
+                        # but in order to notify user they will have running state, but 'err' containing error
+                        for w in workers_state_on_master:
+                            if w in w_names and workers_state_on_master[w]["state"] == 'running' and  workers_state_on_master[w].get('err'):
+                                logger.warning(f'Workers may operate not in desired configuration, worker {w} error: {workers_state_on_master[w].get("err")}')
+                        return
+
+                except LithopsValidationError as e:
+                    raise e
+                except Exception as e:
+                    pass
+
+                time.sleep(10)
+
+            raise Exception('Lithops workers service readiness probe expired on {}'
+                        .format(self.backend.master))
 
         worker_instances = []
 
@@ -263,6 +324,12 @@ class StandaloneHandler:
         logger.debug('Job invoked on {}'.format(self.backend.master))
 
         self.jobs.append(job_payload['job_key'])
+
+        # in case workers policy is strict, track all required workers create
+        # in case of 'consume' mode there no new workers created
+        if self.exec_mode != 'consume' and self.workers_policy == 'strict':
+            threading.Thread(target=wait_workers_ready, args=(new_workers,), daemon=True).start()
+
 
     def create_runtime(self, runtime_name, *args):
         """

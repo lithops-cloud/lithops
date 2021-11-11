@@ -61,6 +61,7 @@
     #pull_runtime: <false, true>
     #hard_dismantle_timeout: 3600
     #soft_dismantle_timeout: 300
+    #workers_policy: <Workers create policy> # Optional, strict/permissive. Default is 'permissive'
 
 #ibm_vpc:
     #endpoint: <REGION_ENDPOINT>
@@ -78,6 +79,7 @@
     #delete_on_dismantle: <True/False> # Default is 'True
     #max_workers: <MAX_WORKERS> Default is 100
     #worker_processes: <WORKER_GRANULARITY> Default is 2
+    #singlesocket: <True/False> # Optional, default is False
 
 #aws_ec2:
     #region: <REGION_NAME>

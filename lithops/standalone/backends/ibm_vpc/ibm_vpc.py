@@ -808,10 +808,26 @@ class IBMVPCInstance:
         """
         self._delete_instance()
 
+    def validate_capabilities(self):
+        """
+        Validate hardware/os requirments specified in backend config
+        """
+        if self.config.get('singlesocket'):
+            cmd = "lscpu -p=socket|grep -v '#'"
+            res = self.get_ssh_client().run_remote_command(cmd)
+            sockets = set()
+            for c in res:
+                if c != '\n':
+                    sockets.add(c)
+            if len(sockets) != 1:
+                raise LithopsValidationError(f'Not using single CPU socket as specified, using {len(sockets)} sockets instead')
+
+
+RETRIABLE = ['list_vpcs', 'create_vpc', 'get_security_group', 'create_security_group_rule', 'list_public_gateways', 'create_public_gateway', 'list_subnets', 'create_subnet', 'set_subnet_public_gateway', 'list_floating_ips', 'create_floating_ip', 'get_instance', 'delete_instance', 'list_instances', 'list_instance_network_interface_floating_ips', 'delete_floating_ip', 'delete_subnet', 'delete_public_gateway', 'delete_vpc', 'get_instance_initialization', 'get_key', 'create_instance', 'add_instance_network_interface_floating_ip', 'get_instance', 'create_instance_action', 'delete_instance']
 
 def decorate_instance(instance, decorator):
     for name, func in inspect.getmembers(instance, inspect.ismethod):
-        if not name.startswith("_"):
+        if name in RETRIABLE:
             setattr(instance, name, decorator(func))
     return instance
 
@@ -819,7 +835,7 @@ def decorate_instance(instance, decorator):
 def vpc_retry_on_except(func):
 
     RETRIES = 10
-    SLEEP_FACTOR = 1.3
+    SLEEP_FACTOR = 1.5
     MAX_SLEEP = 60
 
     IGNORED_404_METHODS = ['delete_instance', 'delete_subnet', 'delete_public_gateway', 'delete_vpc', 'create_instance_action']
