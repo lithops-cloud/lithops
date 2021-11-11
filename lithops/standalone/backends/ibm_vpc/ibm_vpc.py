@@ -245,11 +245,10 @@ class IBMVPCBackend:
         self.vpc_data = load_yaml_config(vpc_data_filename)
 
         cahced_mode = self.vpc_data.get('mode')
-        cahced_instance_id = self.vpc_data.get('instance_id')
+        logger.debug(f'Initializing IBM VPC backend ({self.mode} mode)')
 
         if self.mode == 'consume':
-            logger.debug('Initializing IBM VPC backend (Consume mode)')
-
+            cahced_instance_id = self.vpc_data.get('instance_id')
             if self.mode != cahced_mode or self.config['instance_id'] != cahced_instance_id:
                 ins_id = self.config['instance_id']
                 instance_data = self.ibm_vpc_client.get_instance(ins_id)
@@ -257,18 +256,16 @@ class IBMVPCBackend:
                 self.vpc_data = {'mode': 'consume',
                                  'instance_id': self.config['instance_id'],
                                  'instance_name': name,
-                                 'floating_ip': self.config['private_ip']}
+                                 'floating_ip': self.config['ip_address']}
                 dump_yaml_config(vpc_data_filename, self.vpc_data)
 
             self.master = IBMVPCInstance(self.vpc_data['instance_name'], self.config,
                                          self.ibm_vpc_client, public=True)
             self.master.instance_id = self.config['instance_id']
-            self.master.public_ip = self.config['private_ip']
+            self.master.public_ip = self.config['ip_address']
             self.master.delete_on_dismantle = False
 
         elif self.mode in ['create', 'reuse']:
-            logger.debug(f'Initializing IBM VPC backend ({self.mode} mode)')
-
             if self.mode != cahced_mode:
                 # invalidate cached data
                 self.vpc_data = {}
